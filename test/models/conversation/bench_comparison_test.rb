@@ -56,7 +56,43 @@ class Conversation::BenchComparisonTest < ActiveSupport::TestCase
     assert_equal 0.5, comparison.dimension(:head, :moved_forward)
   end
 
+  test "each scenario is the mean of its repeats with their spread, and the run says how many scenarios' repeats agree" do
+    run = run_of(repeats: 2, "a" => [ 1.0, 0.5 ], "b" => [ 0.8, 0.8 ])
+
+    exported = JSON.parse(Conversation::BenchComparison.export(run).to_json)
+    a = Conversation::BenchTally.from_export("a", exported["scenarios"]["a"])
+
+    assert_equal [ 0.75, 0.5 ], [ a.total, a.spread ]
+    assert_equal [ 2, 1, 2 ], exported.values_at("repeats", "agreeing", "repeated")
+    assert_equal 0.25, exported["spread"]
+    assert_equal 0.775, Conversation::BenchComparison.from_exports(exported, exported).dimension(:head, :right)
+  end
+
+  test "a drop no larger than the spread a scenario's own repeats showed is noise, and so is one within the run's spread" do
+    base = JSON.parse(Conversation::BenchComparison.export(run_of(repeats: 2, "a" => [ 1.0, 0.6 ], "b" => [ 0.9, 0.9 ])).to_json)
+    head = JSON.parse(Conversation::BenchComparison.export(run_of(repeats: 2, "a" => [ 0.6, 0.6 ], "b" => [ 0.9, 0.9 ])).to_json)
+    comparison = Conversation::BenchComparison.from_exports(base, head)
+
+    assert_equal(-0.2, comparison.rows.first.delta)
+    assert_equal 0.4, comparison.rows.first.noise
+    assert_empty comparison.worse
+    assert_equal 0.2, comparison.noise
+    refute comparison.dropped?
+  end
+
   private
+
+  def run_of(repeats:, **totals)
+    run = Conversation::BenchRun.create!(kind: Conversation::BenchRun::KIND_SCENARIOS, trigger: Conversation::BenchRun::TRIGGER_CI, prompt_version: "v1",
+                                         model: "gpt-4o", repeats: repeats)
+    totals.each do |key, values|
+      values.each_with_index do |value, index|
+        run.results.create!(workspace: workspaces(:slack_workspace_one), scenario: key.to_s, title: key.to_s, attempt: index + 1,
+                            status: Conversation::BenchResult::STATUS_SCORED, right: value, moved_forward: value, asked_when_needed: value, cost: value)
+      end
+    end
+    run
+  end
 
   def compare(base, head) = Conversation::BenchComparison.from_exports(export(base), export(head))
 

@@ -6,6 +6,7 @@ module Mcp
                   "immediately. Setting active to false with upsert_api_key is the reversible " \
                   "move. Authorizes as api_keys, which is admin-only. Docs: #{Docs::MCP_SERVER}"
       annotations(**DESTRUCTIVE)
+      ends_something
       input_schema(
         properties: {
           prefix: { type: "string", description: "Prefix of the key to delete" },

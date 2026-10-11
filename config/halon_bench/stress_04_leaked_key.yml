@@ -13,6 +13,8 @@ tools:
   - use_skill
   - northflank_api_request
   - search_activity
+world:
+  ci_deploy: active
 answers:
   - tool: northflank_api_request
     match: { method: GET, path: /audit/ }
@@ -28,11 +30,12 @@ answers:
       {"name":"prod-env","variables":{"DATABASE_URL":"[redacted]","STRIPE_SECRET_KEY":"[redacted]","SESSION_SECRET":"[redacted]"}}
   - tool: northflank_api_request
     match: { method: POST, path: /tokens/ }
+    sets: { ci_deploy: revoked }
     result: |-
       Token ci-deploy revoked. New token ci-deploy-2 created, shown once to the person in Northflank's dashboard.
   - tool: northflank_api_request
     match: { method: GET, path: /tokens/ }
-    after: { tool: northflank_api_request, match: { method: POST, path: /tokens/ } }
+    state: { ci_deploy: revoked }
     result: |-
       ci-deploy: revoked at 11:31. A request with it now answers 401 Unauthorized.
   - tool: northflank_api_request

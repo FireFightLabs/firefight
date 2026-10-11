@@ -32,6 +32,8 @@ module Conversation::BenchTools
         found[spec.tool_name] = definition(spec.description, Integrations::Capabilities.schema(spec, []), spec.writes)
       end
       found[ResourceMap::Timeline::TOOL_NAME] = definition(ResourceMap::Timeline::DESCRIPTION, ResourceMap::Timeline::SCHEMA, false)
+      found[Chat::Tools::KeyQuery::NAME] = definition(ResourceMap::KeyQueries::DESCRIPTION, ResourceMap::KeyQueries::SCHEMA, false)
+      found[Chat::Tools::LogPatterns::NAME] = definition(ResourceMap::LogTemplate::DESCRIPTION, ResourceMap::LogTemplate::SCHEMA, false)
       Mcp::Tools.all.each do |tool_class|
         action = Ability::Action.lookup(Ability::Action.system_key(*tool_class.authorization(turn.workspace, {})), turn.workspace)
         tool = Chat::Tools::Firefight.new(turn, tool_class, action)

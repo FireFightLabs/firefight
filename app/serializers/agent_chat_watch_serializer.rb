@@ -55,13 +55,24 @@ class AgentChatWatchSerializer < BaseSerializer
     watch.created_at.utc.iso8601(3)
   end
 
-  # url is the page of the run or what the step follows, when the provider gave one.
-  type "{ id: string; label: string; status: #{Chat::Watch::Step::STATUSES.map(&:inspect).join(" | ")}; state: string | null; url: string | null }[]"
+  # When it ended, for how long it ran on the card. Null while it goes, when the card counts up to now.
+  type :string, optional: true
+  def finished_at
+    watch.finished_at&.utc&.iso8601(3)
+  end
+
+  # url is the page of the run or what the step follows, when the provider gave one. line is its row in a few words.
+  type "{ id: string; label: string; status: #{Chat::Watch::Step::STATUSES.map(&:inspect).join(" | ")}; state: string | null; line: string | null; " \
+       "url: string | null }[]"
   def steps
     watch.steps.map do |step|
-      { id: step.id, label: step.label, status: Chat::Watch::Shown.step_status(step), state: Chat::Watch::Shown.step_state(step), url: step.run_url }
+      { id: step.id, label: step.label, status: Chat::Watch::Shown.step_status(step), state: Chat::Watch::Shown.step_state(step),
+        line: Chat::Watch::Shown.step_line(step), url: step.run_url }
     end
   end
+
+  # Every line it said, oldest first, for its Details.
+  has_many :updates, as: :history, serializer: AgentChatWatchUpdateSerializer
 
   type :string, optional: true
   def stop_blocked_reason

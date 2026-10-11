@@ -69,6 +69,14 @@ module Chat::Watch::Shown
     [ "#{words}#{took}.", detail.presence ].compact.join(" ")
   end
 
+  # A step's row on the card, in a few words: where it stands while it goes, such as "build-images running, 4 of 7 done",
+  # and how it ended once it is over.
+  def step_line(step)
+    return step.summary if step.running? && step.watch.active? && step.summary.present?
+
+    step_state(step)
+  end
+
   # What went on inside a step still going. That is why it is being repaired, the job or step that failed, or otherwise
   # what passed so far.
   def running_detail(step)

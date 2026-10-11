@@ -1,7 +1,8 @@
 require "application_system_test_case"
 
-# Halon watching a release after its answer: the card says what it follows and for how long, each line it said later
-# sits where it was said, and Stop asks first and confirms with a toast.
+# Halon watching a release after its answer: one card per watch moves in place, with a row per step and everything it
+# said under Details. Only what the person may need to act on sits in the chat where it was said, and Stop asks first and
+# confirms with a toast.
 class AgentWatchCardTest < ApplicationSystemTestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -30,10 +31,13 @@ class AgentWatchCardTest < ApplicationSystemTestCase
     visit agent_chat_path(@conversation)
 
     assert_text 'Watch "Deploy finished"'
-    assert_text "Up to 40 min. It usually takes about 18 minutes."
-    assert_text "Reads at most 120 times an hour. 23 reads so far."
+    assert_text "so far"
     assert_text "Release run #46. Succeeded after 17 minutes."
     assert_link "Open the run", href: "https://github.com/acme/firefight/actions/runs/46"
+    assert_no_text "Web deploy started."
+    click_button "Details"
+    assert_text "Up to 40 min. It usually takes about 18 minutes."
+    assert_text "Reads at most 120 times an hour. 23 reads so far."
     assert_text "Web deploy started."
     page.save_screenshot(Rails.root.join("tmp/screenshots/watch-card-active.png"))
 
@@ -61,20 +65,23 @@ class AgentWatchCardTest < ApplicationSystemTestCase
 
     assert_text "For: get GitHub releases deploying through the Northflank webhook again"
     assert_text "Web deploy. Running. trigger-northflank failed."
-    assert_text "Next I would change the name the release sends, shall I?"
+    assert_text "Next I would change the name the release sends, shall I?", count: 1
     page.save_screenshot(Rails.root.join("tmp/screenshots/watch-card-purpose.png"))
   end
 
-  test "a step still going shows the jobs that passed so far, and each check's progress is one line in the chat" do
-    @watch.steps.find_by!(label: "Web deploy").update!(parts_told: { "tag" => Chat::Watch::Step::PART_PASSED, "trigger-northflank" => Chat::Watch::Step::PART_PASSED,
-                                                                      "build-images" => Chat::Watch::Step::PART_RUNNING })
+  test "a step still going says where it stands in a few words, and each check's progress is under Details, not in the chat" do
+    @watch.steps.find_by!(label: "Web deploy").update!(summary: "build-images running, 2 of 3 done",
+                                                       parts_told: { "tag" => Chat::Watch::Step::PART_PASSED, "trigger-northflank" => Chat::Watch::Step::PART_PASSED,
+                                                                     "build-images" => Chat::Watch::Step::PART_RUNNING })
     travel_to(3.seconds.from_now) do
       @watch.updates.create!(kind: Chat::Watch::Update::KIND_PROGRESS, text: "Web deploy: tag passed, trigger-northflank passed, build-images running.")
     end
 
     visit agent_chat_path(@conversation)
 
-    assert_text "Web deploy. Running. Passed so far: tag, trigger-northflank."
+    assert_text "Web deploy. build-images running, 2 of 3 done"
+    assert_no_text "Web deploy: tag passed, trigger-northflank passed, build-images running."
+    click_button "Details"
     assert_text "Web deploy: tag passed, trigger-northflank passed, build-images running."
     page.save_screenshot(Rails.root.join("tmp/screenshots/watch-card-progress.png"))
   end
@@ -96,9 +103,9 @@ class AgentWatchCardTest < ApplicationSystemTestCase
     visit agent_chat_path(@conversation)
 
     assert_text "Web deploy. Finding a better way to follow it. I could not find a run of Web deploy in its history after 3 minutes."
+    click_button "Details"
     assert_text "Changed how I follow Web deploy"
     assert_text "It now goes by the fresh reading."
-    assert_text 'Watch "Deploy finished" ·'
     page.save_screenshot(Rails.root.join("tmp/screenshots/watch-card-repairing.png"))
 
     page.current_window.resize_to(390, 844)

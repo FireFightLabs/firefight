@@ -12,6 +12,8 @@ module Operator
         scenarioCount: HalonBench.scenario_count,
         tolerance: Conversation::BenchComparison::TOLERANCE,
         runBlockedReason: Actions.bench_blocked_reason,
+        defaultRepeats: Conversation::BenchRun::DEFAULT_REPEATS, maxRepeats: Conversation::BenchRun::REPEATS.max,
+        defaultBudget: Conversation::BenchRun::DEFAULT_BUDGET_MICROS / Conversation::BenchRun::MICROS_PER_DOLLAR,
         HalonRegression::MODELS_PROP => InertiaRails.optional { HalonRegressionModelSerializer.many(HalonRegression.models) },
         page: page, more: runs.size > PER_PAGE
       }
@@ -49,11 +51,23 @@ module Operator
       return redirect_to(operator_halon_benches_path, alert: "That model is not one Firefight can price, so choose another.") if params[:model].present? && !chosen
 
       run = begin
-        Conversation::Bench.start!(trigger: Conversation::BenchRun::TRIGGER_OPERATOR, model: chosen&.id, provider: chosen&.provider, by: current_user)
+        Conversation::Bench.start!(trigger: Conversation::BenchRun::TRIGGER_OPERATOR, model: chosen&.id, provider: chosen&.provider, by: current_user,
+                                   repeats: params[:repeats].presence&.to_i, budget_micros: budget_micros)
       rescue Conversation::BenchKeys::Missing, Conversation::Bench::Busy => refused
         return redirect_to(operator_halon_benches_path, alert: refused.message)
+      rescue ActiveRecord::RecordInvalid => refused
+        return redirect_to(operator_halon_benches_path, alert: "#{refused.record.errors.full_messages.to_sentence}.")
       end
-      redirect_to operator_halon_bench_path(run), notice: "Replaying #{helpers.pluralize(run.results.size, 'scenario')} on #{chosen&.name || "Halon's model"}."
+      scenarios = helpers.pluralize(run.results.distinct.count(:scenario), "scenario")
+      redirect_to operator_halon_bench_path(run),
+                  notice: "Replaying #{scenarios} #{helpers.pluralize(run.repeats, 'time')} each on #{chosen&.name || "Halon's model"}, up to #{run.budget_words}."
+    end
+
+    private
+
+    # The budget asked for in dollars, in micros.
+    def budget_micros
+      params[:budget].presence && (params[:budget].to_f * Conversation::BenchRun::MICROS_PER_DOLLAR).round
     end
   end
 end

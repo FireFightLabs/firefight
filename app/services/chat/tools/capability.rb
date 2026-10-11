@@ -17,6 +17,7 @@ class Chat::Tools::Capability < RubyLLM::Tool
 
   def parameters_schema
     schema = Integrations::Capabilities.schema(@spec, Integrations::Capabilities.connection_choices(@agent_run.workspace, @spec, @tools))
+    schema = Chat::Tools::LookFirst.with_because(schema, required: true) if looks_first?
     requires_approval? ? Chat::Tools.with_intent(schema) : schema
   end
 
@@ -30,8 +31,10 @@ class Chat::Tools::Capability < RubyLLM::Tool
   end
 
   # A change whose words name another connection than the one it would run through is refused rather than put to the
-  # person (Chat::Tools::Target).
-  def approval_resolver = Chat::Tools::Target.resolver(@agent_run) { |given| misdirection(given).present? }
+  # person (Chat::Tools::Target), and so is one that names no read from this turn (Chat::Tools::LookFirst).
+  def approval_resolver
+    Chat::Tools::Target.resolver(@agent_run) { |given, tool_call| misdirection(given).present? || unsupported(given, tool_call&.id).present? }
+  end
 
   # The call that gave the answer the last call ended on, the platform's when it answered for an observability tool, and
   # what it answered. nil when nothing answered.
@@ -50,7 +53,10 @@ class Chat::Tools::Capability < RubyLLM::Tool
     @answered = nil
     return refused(tool_call, "#{name} changes things, so it is not used while investigating. It belongs in the fix.") if @spec.writes && @agent_run.reads_only?
 
-    asked = arguments.transform_keys(&:to_s)
+    unbacked = unsupported(arguments.transform_keys(&:to_s), tool_call&.id)
+    return refused(tool_call, unbacked, kind: Chat::StepOutcome::FAILURE_REFUSED) if unbacked
+
+    asked = arguments.transform_keys(&:to_s).except(Chat::Tools::LookFirst::BECAUSE)
     given = asked.except(Chat::Tools::INTENT_ARG)
     return everywhere(given, tool_call) if given[Integrations::Capabilities::CONNECTION_ARG] == Integrations::Capabilities::ALL
 
@@ -74,11 +80,17 @@ class Chat::Tools::Capability < RubyLLM::Tool
     refused(tool_call, error.message)
   end
 
+  def looks_first? = @spec.writes && Chat::Tools::LookFirst.applies?(@agent_run)
+
+  def unsupported(given, tool_call_id)
+    Chat::Tools::LookFirst.refusal(@agent_run, given, tool_call_id: tool_call_id) if looks_first?
+  end
+
   # A change only, since only a change carries words for the person. found is the call already routed, when there is one.
   def misdirection(asked, found = nil)
     return unless @spec.writes
 
-    found ||= Integrations::Capabilities.resolve(@agent_run.workspace, @spec.key, asked.except(Chat::Tools::INTENT_ARG), @callable,
+    found ||= Integrations::Capabilities.resolve(@agent_run.workspace, @spec.key, asked.except(Chat::Tools::INTENT_ARG, Chat::Tools::LookFirst::BECAUSE), @callable,
                                                  principal: @agent_run.acting_principal)
     intent = Chat::Tools.intent_of(asked)
     called = "#{name} of #{found.resource.scoped_name}"

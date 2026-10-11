@@ -19,7 +19,11 @@ module Chat::Tools::Choices
   RESOURCE_LIMIT = 500
 
   Field = Data.define(:key, :kind, :options, :required, :description)
-  Choice = Data.define(:name, :group, :description, :fields)
+  # reads is whether a watch can read with it: it only reads, or a guard keeps it to reads in a watch.
+  # watch_fields are what a watch reads with instead, when a guard keeps the tool to reads through arguments of its own.
+  Choice = Data.define(:name, :group, :description, :fields, :reads, :watch_fields) do
+    def initialize(watch_fields: nil, **) = super
+  end
   Read = Data.define(:name, :label, :history)
   Place = Data.define(:name, :kind)
 
@@ -35,7 +39,7 @@ module Chat::Tools::Choices
       name = tool_class.name_value.to_s
       Choice.new(name: name, group: titles.fetch(Chat::Tools::Groups.of_firefight_tool(name), "Firefight"),
                  description: Chat::Tools.clean(tool_class.description_value, Chat::Tools::ONE_LINE),
-                 fields: fields(tool_class.schema_for(workspace).deep_stringify_keys))
+                 fields: fields(tool_class.schema_for(workspace).deep_stringify_keys), reads: tool_class.annotations_value&.read_only_hint == true)
     end
   end
 
@@ -43,7 +47,8 @@ module Chat::Tools::Choices
     Integrations::Capabilities.offered(workspace).map do |spec, tools|
       schema = Integrations::Capabilities.schema(spec, Integrations::Capabilities.connection_choices(workspace, spec, tools))
       Choice.new(name: spec.tool_name, group: GROUP_RESOURCES, description: Chat::Tools.clean(spec.description, Chat::Tools::ONE_LINE),
-                 fields: fields(schema).map { |field| field.key == Integrations::Capabilities::RESOURCE_ARG ? field.with(kind: KIND_RESOURCE) : field })
+                 fields: fields(schema).map { |field| field.key == Integrations::Capabilities::RESOURCE_ARG ? field.with(kind: KIND_RESOURCE) : field },
+                 reads: !spec.writes)
     end
   end
 
@@ -52,8 +57,16 @@ module Chat::Tools::Choices
                      .reject { |tool| Integrations::Capabilities.wrapped?(tool) || Integrations::Capabilities.tool_names.include?(tool.model_facing_name) }
                      .map do |tool|
       Choice.new(name: tool.model_facing_name, group: tool.integration.display_name,
-                 description: Chat::Tools.clean(tool.description, Chat::Tools::ONE_LINE), fields: fields(tool.offered_schema))
+                 description: Chat::Tools.clean(tool.description, Chat::Tools::ONE_LINE), fields: fields(tool.offered_schema),
+                 reads: tool.read_only? || Integrations::ReadGuards.for(tool).present?, watch_fields: watched_fields(tool))
     end
+  end
+
+  # A tool a guard keeps to reads in a watch is read through the guard's own arguments there, when the guard has some,
+  # so a watch item is written in them. A step of a runbook keeps the tool's own. nil when they are the same.
+  def watched_fields(tool)
+    schema = !tool.read_only? && Integrations::ReadGuards.for(tool)&.schema
+    schema ? fields(schema) : nil
   end
 
   # The reads a watch can check with, run history first since it follows a run by its status.

@@ -131,6 +131,9 @@ answers:
     result: |-
       larkspur.shop DNS: A 203.0.113.10, TXT "v=spf1 include:_spf.workspace-mail.example ~all", MX mx1.workspace-mail.example. Checked from the sandbox in us-east.
   - tool: cloudflare_execute
+    match: { code: "/\\b(POST|PUT|PATCH|DELETE)\\b/" }
+    result: Done.
+  - tool: cloudflare_execute
     match: { code: /audit/ }
     reads: true
     result: |-
@@ -142,9 +145,8 @@ answers:
     result: |-
       [{"type":"TXT","name":"larkspur.shop","content":"v=spf1 include:_spf.workspace-mail.example ~all","modified_on":"2026-10-11T07:10:22Z"},{"type":"MX","name":"larkspur.shop","content":"mx1.workspace-mail.example"}]
       https://dash.cloudflare.com/7c1e/larkspur.shop/dns/records
-  - tool: cloudflare_execute
-    result: Done.
   - tool: run_command
+    match: { command: "/sort|uniq|count|group|awk|jq|grep|python|ruby/" }
     result: |-
       3,180 Redis::TimeoutError (since October 2)
         201 Faraday::ConnectionFailed (since October 4)

@@ -9,6 +9,8 @@ class Chat::SafeguardsWithPlansTest < ActiveSupport::TestCase
   ApprovedPlan = Struct.new(:approved_tools)
 
   setup do
+    # What this covers runs after a change was backed by a read, which Chat::Tools::LookFirstTest covers.
+    Chat::Tools::LookFirst.stubs(:refusal).returns(nil)
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
     @conversation = Conversation.start_personal!(workspace: @workspace, member: @alice)

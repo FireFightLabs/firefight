@@ -86,8 +86,10 @@ module Chat::Tools
   # customers feel may be undone after, with the default first, and is empty for any other call. for_chat is false for
   # a statement that writes rows, which is asked about on its own each time. waiting_on names the owner a confirmed call
   # waits for. A call may be allowed for the rest of the chat only when nothing was read from outside and for_chat holds.
-  Confirmation = Data.define(:tool_call_id, :question, :intent, :asked, :status, :target, :call, :read, :safeguards, :expires, :for_chat, :waiting_on) do
-    def initialize(read: nil, safeguards: [], expires: [], for_chat: true, waiting_on: nil, **) = super
+  # support is the reads from the call's turn that Halon named as showing the change will help (Chat::Tools::LookFirst).
+  Confirmation = Data.define(:tool_call_id, :question, :intent, :asked, :status, :target, :call, :read, :safeguards, :expires, :for_chat, :waiting_on,
+                             :support) do
+    def initialize(read: nil, safeguards: [], expires: [], for_chat: true, waiting_on: nil, support: [], **) = super
 
     # The question as a label, which the dashboard shows above the agent's own sentence about the call.
     def tool_label = question.delete_suffix("?")
@@ -109,7 +111,15 @@ module Chat::Tools
       rows = read.sources.map { |source| [ source.label, source.found.any? ? "Holds #{source.found.join(', ')}" : READ_EARLIER ] }
       read.others.positive? ? rows + [ [ "#{read.others} more #{read.others == 1 ? 'read' : 'reads'}", READ_EARLIER ] ] : rows
     end
+
+    # One sentence leading the reads Halon named, in the words both the dashboard and Slack show.
+    def support_lead = (SUPPORT_LEAD if support.any?)
+
+    # Each read Halon named as a label and what it said the read showed.
+    def support_rows = support.map { |each| [ each.label, each.said.presence || SUPPORT_SAID_NOTHING ] }
   end
+  SUPPORT_LEAD = "Halon proposes this from what it read just now:".freeze
+  SUPPORT_SAID_NOTHING = "Read in this turn".freeze
   READ_EARLIER = "Read earlier in this chat".freeze
 
   # One time a change customers feel may be undone after: value is what the answer sends back, minutes or keep.
@@ -159,7 +169,7 @@ module Chat::Tools
     return nil if tool_name.blank? || internal_names.include?(tool_name.to_s)
     return Helpers.shown(arguments) if tool_name.to_s == Helpers::NAME
 
-    asked = shown_arguments(arguments.to_h.stringify_keys.except(INTENT_ARG))
+    asked = shown_arguments(arguments.to_h.stringify_keys.except(INTENT_ARG, LookFirst::BECAUSE))
     Step.new(
       title: title_for(tool_name, workspace, arguments.to_h.stringify_keys), headline: intent_of(arguments) || headline_for(tool_name, asked), asked: asked,
       card: card_for(tool_name, arguments)
@@ -232,12 +242,14 @@ module Chat::Tools
     chat = tool_call.try(:message)&.chat
     repair = Chat::DataRepair.for_call(chat, tool_call.tool_call_id)
     owner = Chat::OwnerAsk.for_call(chat, tool_call.tool_call_id)
+    workspace = chat&.workspace
     mitigation = Chat::Mitigation.for_call(chat, tool_call.tool_call_id)
     Confirmation.new(
       tool_call_id: tool_call.tool_call_id, question: target ? "#{call} on #{target}?" : "#{step&.title || tool_call.name.humanize}?",
       intent: intent_of(tool_call.arguments), asked: (step&.asked || []) + planned(tool_call), status: CONFIRMATION_STATUSES.fetch(tool_call.approval, :awaiting),
       target: target, call: call, read: Provenance.stored(tool_call), safeguards: [ *repair&.confirmation_rows, owner&.confirmation_row ].compact,
-      expires: expiries(mitigation), for_chat: repair.nil?, waiting_on: (owner.owner_name if tool_call.approval == Chat::APPROVAL_OWNER_ASKED && owner)
+      expires: expiries(mitigation), for_chat: repair.nil?, waiting_on: (owner.owner_name if tool_call.approval == Chat::APPROVAL_OWNER_ASKED && owner),
+      support: workspace ? LookFirst.support(chat, tool_call, workspace) : []
     )
   end
 

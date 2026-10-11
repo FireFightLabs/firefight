@@ -17,12 +17,13 @@ const STEP_ICONS: Record<WatchStepStatus, { icon: Icon; className: string }> = {
 interface WatchStepProps {
   label: string
   status: WatchStepStatus
-  state: string | null
+  // Where it stands in a few words while it goes, such as "build-images running, 4 of 7 done", or how it ended.
+  line: string | null
   url: string | null
 }
 
-// One thing a watch follows, with the page of its run when the provider gave one.
-export function WatchStep({ label, status, state, url }: WatchStepProps) {
+// One thing a watch follows, one row on its card, with the page of its run when the provider gave one.
+export function WatchStep({ label, status, line, url }: WatchStepProps) {
   const mark = STEP_ICONS[status]
   const Mark = mark.icon
   return (
@@ -30,7 +31,7 @@ export function WatchStep({ label, status, state, url }: WatchStepProps) {
       <Mark className={`mt-1 size-3.5 shrink-0 ${mark.className}`} />
       <span className="min-w-0 [overflow-wrap:anywhere]">
         <span className="font-medium text-ink">{label}</span>
-        {state && <span className="text-ink-2">. {state}</span>}
+        {line && <span className="text-ink-2">. {line}</span>}
         {url && (
           <a
             href={url}

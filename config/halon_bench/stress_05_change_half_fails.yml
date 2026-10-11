@@ -33,6 +33,7 @@ answers:
     result: |-
       Image ghcr.io/larkspur/worker:2.14.0 was built for linux/arm64 only (build 5521, platforms: arm64). us-east runs amd64 machines. eu-west runs arm64.
   - tool: northflank_api_request
+    match: { method: GET, path: /worker/ }
     result: |-
       {"region":"us-east","image":"ghcr.io/larkspur/worker:2.13.2","status":"running"}
 expect:

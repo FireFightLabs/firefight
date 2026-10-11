@@ -1,9 +1,10 @@
 name: Halon bench
 
 # Replays the chat bench's scenarios (config/halon_bench) on the deployment's model whenever Halon's prompt, tools or
-# loop change. A run on main is kept as the baseline, and a pull request fails when its total drops by more than the
-# noise between two replays (Conversation::BenchComparison::TOLERANCE). Every tool call is answered from the scenario's
-# record, so nothing outside Firefight is reached, and the only cost is the model calls.
+# loop change, each a few times. A run on main is kept as the baseline, and a pull request fails when its total drops by
+# more than the noise (Conversation::BenchComparison::TOLERANCE, or the spread either run's own repeats showed). Every
+# tool call is answered from the scenario's world, so nothing outside Firefight is reached, and the only cost is the
+# model calls, capped by the run's budget.
 on:
   workflow_dispatch:
   pull_request:
@@ -46,7 +47,7 @@ concurrency:
 jobs:
   bench:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 150
 
     services:
       postgres:
@@ -65,8 +66,12 @@ jobs:
       # only with its own HALON_BENCH_ keys (Conversation::BenchKeys), never a key the app runs on.
       HALON_BENCH_MODEL: ${{ vars.HALON_BENCH_MODEL }}
       HALON_BENCH_PROVIDER: ${{ vars.HALON_BENCH_PROVIDER }}
+      # The judge is Sonnet through OpenRouter unless these name another.
       HALON_BENCH_JUDGE_MODEL: ${{ vars.HALON_BENCH_JUDGE_MODEL }}
       HALON_BENCH_JUDGE_PROVIDER: ${{ vars.HALON_BENCH_JUDGE_PROVIDER }}
+      # How often each scenario is replayed and the dollars a run may spend, 3 and 2 unless set.
+      REPEATS: ${{ vars.HALON_BENCH_REPEATS }}
+      BUDGET: ${{ vars.HALON_BENCH_BUDGET }}
       HALON_BENCH_ANTHROPIC_API_KEY: ${{ secrets.HALON_BENCH_ANTHROPIC_API_KEY }}
       HALON_BENCH_OPENAI_API_KEY: ${{ secrets.HALON_BENCH_OPENAI_API_KEY }}
       HALON_BENCH_OPENROUTER_API_KEY: ${{ secrets.HALON_BENCH_OPENROUTER_API_KEY }}
@@ -80,7 +85,7 @@ jobs:
         run: |
           missing=()
           [ -n "$HALON_BENCH_MODEL" ] || missing+=("the repository variable HALON_BENCH_MODEL (and HALON_BENCH_PROVIDER when the model needs one)")
-          [ -n "$HALON_BENCH_JUDGE_MODEL" ] || missing+=("the repository variable HALON_BENCH_JUDGE_MODEL (and HALON_BENCH_JUDGE_PROVIDER when the model needs one)")
+          [ -n "$HALON_BENCH_JUDGE_MODEL$HALON_BENCH_OPENROUTER_API_KEY" ] || missing+=("the repository secret HALON_BENCH_OPENROUTER_API_KEY for the judge, or the repository variable HALON_BENCH_JUDGE_MODEL (and HALON_BENCH_JUDGE_PROVIDER when the model needs one)")
           [ -n "$HALON_BENCH_ANTHROPIC_API_KEY$HALON_BENCH_OPENAI_API_KEY$HALON_BENCH_OPENROUTER_API_KEY" ] || missing+=("a repository secret HALON_BENCH_ANTHROPIC_API_KEY, HALON_BENCH_OPENAI_API_KEY or HALON_BENCH_OPENROUTER_API_KEY")
           fork="${{ github.event.pull_request.head.repo.full_name }}"
           if [ ${#missing[@]} -eq 0 ]; then

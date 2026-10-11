@@ -52,6 +52,23 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
     assert_empty @chat.reload.allowed_tool_names
   end
 
+  test "a change shows the reads from this turn Halon proposes it from, so the person approves the reasoning" do
+    read = @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    call = read.ruby_llm_tool_calls.create!(tool_call_id: "call_read", name: "list_principals", arguments: { "query" => "set_1" })
+    call.update!(result: @chat.messages.create!(role: Chat::Message::ROLE_TOOL, content: "Nobody holds set_1."))
+    message = @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    message.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: "delete_permission_set",
+                                        arguments: { "slug" => "set_1", "because" => [ "list_principals: nobody holds set_1" ] })
+    @chat.request_decisions!([ "call_1" ])
+    @conversation.reply_delivered!
+
+    visit agent_chat_path(@conversation)
+
+    assert_text "Halon proposes this from what it read just now:"
+    assert_text "nobody holds set_1"
+    page.save_screenshot(Rails.root.join("tmp/screenshots/confirm-card-support.png"))
+  end
+
   test "allowing a tool for the rest of the chat answers every question about it" do
     pause_on("delete_permission_set", "delete_permission_set")
     visit agent_chat_path(@conversation)

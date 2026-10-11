@@ -20,6 +20,8 @@ tools:
   - search_logs
   - run_history
   - northflank_api_request
+world:
+  invoices_password: stale
 answers:
   - tool: get_resource_map
     result: |-
@@ -42,12 +44,12 @@ answers:
     result: |-
       {"name":"invoices","schedule":"0 18 * * *","runtimeEnvironment":{"fromSecretGroups":["billing-secrets"]},"lastRun":{"id":"7731","status":"failed"},"url":"https://app.northflank.com/t/larkspur/project/shop/jobs/invoices"}
   - tool: northflank_api_request
-    match: { method: GET }
+    match: { method: GET, path: "/jobs\\/?$|projects\\/shop\\/?$/" }
     result: |-
       {"jobs":[{"name":"cache-warmup","schedule":"0 16 * * *","lastRun":{"status":"succeeded","at":"2026-10-11T16:00:03Z"}},{"name":"invoices","schedule":"0 18 * * *","lastRun":{"status":"failed","at":"2026-10-11T18:00:41Z"}}]}
   - tool: northflank_api_request
     match: { method: POST, path: "/runs/" }
-    after: { tool: northflank_api_request, match: { method: "/POST|PATCH|PUT/", path: "/secret|invoices$|runtime/" } }
+    state: { invoices_password: current }
     result: |-
       Started run 7733 of invoices. It succeeded at 18:31:20, 1,284 invoices written. https://app.northflank.com/t/larkspur/project/shop/jobs/invoices/runs/7733
   - tool: northflank_api_request
@@ -55,6 +57,8 @@ answers:
     result: |-
       Started run 7732 of invoices. It failed at 18:24:10: Mysql2::Error: Access denied for user 'shop_app'@'10.4.%' (using password: YES). https://app.northflank.com/t/larkspur/project/shop/jobs/invoices/runs/7732
   - tool: northflank_api_request
+    match: { method: "/POST|PATCH|PUT/", path: "/secret|invoices$|runtime/" }
+    sets: { invoices_password: current }
     result: |-
       Updated. The invoices job now reads its runtime environment from shop-secrets, ahead of billing-secrets.
   - tool: run_history

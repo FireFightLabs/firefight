@@ -20,10 +20,8 @@ class Conversation::Rehearsal::State
   Watch = Struct.new(:id, :title, :purpose, :steps, :minutes, keyword_init: true)
   Plan = Struct.new(:id, :goal, :steps, :status, :outcome, keyword_init: true)
 
-  def initialize(bench_case, used, ran)
-    @case = bench_case
-    @used = used
-    @ran = ran
+  def initialize(world)
+    @world = world
     @watches = []
     @plans = []
   end
@@ -126,13 +124,13 @@ class Conversation::Rehearsal::State
     watch.steps.each_with_index.map { |step, index| "step #{index + 1} \"#{step['label']}\" last read: #{read(step)}." }.join(" ")
   end
 
-  # Reads a step the way the watch would, through the read it names, without using up any of the scenario's answers.
+  # Reads a step the way the watch would, through the read it names, without moving the scenario's world on.
   def read(step)
     tool = step["capability"].presence || step["tool"].presence
     return NOTHING unless tool
 
     arguments = step.slice("resource", "connection", "name", "run").compact.merge(step["arguments"].to_h)
-    found, = @case.answer_for(tool, arguments, @used.dup, @ran)
+    found = @world.peek(tool, arguments)
     found ? found.result.lines.first.to_s.strip.truncate(READ_SHOWN) : NOTHING
   end
 

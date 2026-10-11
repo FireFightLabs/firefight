@@ -168,6 +168,8 @@ what_changed:
         type: string
         description: End of the window as an ISO 8601 time (optional, now)
     required: []
+  reads_like: recent_deploys
+  default: Nothing changed in that window, no deploy, build, run or settings change.
 resource_status:
   live: true
   description: >-
@@ -181,6 +183,68 @@ resource_status:
       resource:
         type: string
         description: The resource, by its name, its provider's id or its id on the resource map, as search_map or get_resource gave it
+    required:
+    - resource
+run_key_query:
+  live: true
+  description: >-
+    Run one of a resource's key checks, the first things worth reading on it: a service's error rate, p95 latency, CPU, memory and recent deploys,
+    a database's CPU, memory, connections and disk, a function's invocations, errors, duration and throttles, a domain's or site's availability.
+    The answer says how the reading compares with what is normal for it over the last week. get_resource_map lists a resource's checks with their
+    normal
+  reads: true
+  source: connected
+  reads_like: query_metrics
+  parameters:
+    type: object
+    properties:
+      resource:
+        type: string
+        description: The resource, by its name, its provider's id or its id on the resource map
+      query:
+        type: string
+        enum:
+        - error_rate
+        - latency_p95
+        - cpu
+        - memory
+        - connections
+        - disk
+        - traffic
+        - invocations
+        - errors
+        - duration
+        - throttles
+        - recent_deploys
+        - recent_errors
+        - status
+        - availability
+        - ci_status
+        description: Which check, one the resource's kind has
+      minutes:
+        type: integer
+        description: How far back from now, in minutes (optional, 60)
+    required:
+    - resource
+    - query
+new_log_patterns:
+  live: true
+  description: >-
+    Which kinds of log line a resource printed recently that it did not print in the last week, from its recent logs grouped into patterns with
+    numbers, ids and quoted values masked, and which of the error patterns it printed are usual, so a line that was always there is not taken
+    for the cause
+  reads: true
+  source: connected
+  reads_like: search_logs
+  parameters:
+    type: object
+    properties:
+      resource:
+        type: string
+        description: The resource, by its name, its provider's id or its id on the resource map
+      minutes:
+        type: integer
+        description: How far back from now, in minutes (optional, 60)
     required:
     - resource
 recent_deploys:
@@ -519,6 +583,8 @@ run_command:
     required:
     - command
   base: true
+  request: command
+  default: "(no output)"
 run_helpers:
   live: true
   description: >-
@@ -798,10 +864,16 @@ start_watch:
             tool:
               type: string
               description: >-
-                Instead of a capability, any read tool you hold, by the name you call it, with its arguments, such as a provider's API request
-                with method GET for one workflow run by its id (workflows/release/runs/<id>), never a list of recent runs. For a code host's CI,
-                prefer run_history with run, which brings its jobs. A tool that can also change things only reads here. Needs done_when, failed_when
-                or goal. Find the right read in the provider's skill, search_docs or the web (optional)
+                Instead of a capability, any read you can make in this chat, by the tool's name, with its arguments: a provider's general read,
+                such as its API request with method GET for one workflow run by its id (workflows/release/runs/<id>) or for a workflow's newest
+                run, any tool that reads, or one of Firefight's own reads. For a code host's CI, prefer run_history with run, which brings its
+                jobs. A tool that can also change things only reads here. Needs done_when, failed_when or goal. Find the right read in the provider's
+                skill, search_docs or the web (optional)
+            focus:
+              type: string
+              description: >-
+                tool only: the part of a JSON answer to watch, as a dotted path such as data.status or data.nodes, when the answer is long and
+                only that part says how it stands (optional)
             resource:
               type: string
               description: The resource on the map, by name or map id, as for the capability itself (a capability only)
@@ -821,16 +893,16 @@ start_watch:
               description: 'run_history only: also say when the run starts, when the person asked to hear that (optional)'
             done_when:
               type: string
-              description: Text in the read's answer that means it is done, such as running (optional)
+              description: What in the read's answer means it is done, such as status success (optional)
             failed_when:
               type: string
-              description: Text in the read's answer that means it failed, such as crashed (optional)
+              description: What in the read's answer means it failed, such as status failure or crashed (optional)
             goal:
               type: string
               description: >-
-                Keep checking until this holds: the condition in plain words, such as every instance of web runs the new version, or the error
-                rate stays under 1% for ten minutes. Judged on each reading that changed and every few minutes on one that did not, when no text
-                above decides (optional)
+                Keep checking until this holds: the question in plain words, such as every instance of web runs the new version, or the error
+                rate stays under 1% for ten minutes. A read other than run_history is judged by a model over its recent readings, with done_when
+                and failed_when as what to look for, on each reading that changed and every few minutes on one that did not (optional)
             arguments:
               type: object
               description: Other arguments the capability takes, such as stream for search_logs, or all of the tool's arguments (optional)
@@ -878,10 +950,16 @@ repair_watch:
       tool:
         type: string
         description: >-
-          Instead of a capability, any read tool you hold, by the name you call it, with its arguments, such as a provider's API request with
-          method GET for one workflow run by its id (workflows/release/runs/<id>), never a list of recent runs. For a code host's CI, prefer run_history
-          with run, which brings its jobs. A tool that can also change things only reads here. Needs done_when, failed_when or goal. Find the
-          right read in the provider's skill, search_docs or the web (optional)
+          Instead of a capability, any read you can make in this chat, by the tool's name, with its arguments: a provider's general read, such
+          as its API request with method GET for one workflow run by its id (workflows/release/runs/<id>) or for a workflow's newest run, any
+          tool that reads, or one of Firefight's own reads. For a code host's CI, prefer run_history with run, which brings its jobs. A tool that
+          can also change things only reads here. Needs done_when, failed_when or goal. Find the right read in the provider's skill, search_docs
+          or the web (optional)
+      focus:
+        type: string
+        description: >-
+          tool only: the part of a JSON answer to watch, as a dotted path such as data.status or data.nodes, when the answer is long and only
+          that part says how it stands (optional)
       resource:
         type: string
         description: The resource on the map, by name or map id, as for the capability itself (a capability only)
@@ -901,16 +979,16 @@ repair_watch:
         description: 'run_history only: also say when the run starts, when the person asked to hear that (optional)'
       done_when:
         type: string
-        description: Text in the read's answer that means it is done, such as running (optional)
+        description: What in the read's answer means it is done, such as status success (optional)
       failed_when:
         type: string
-        description: Text in the read's answer that means it failed, such as crashed (optional)
+        description: What in the read's answer means it failed, such as status failure or crashed (optional)
       goal:
         type: string
         description: >-
-          Keep checking until this holds: the condition in plain words, such as every instance of web runs the new version, or the error rate
-          stays under 1% for ten minutes. Judged on each reading that changed and every few minutes on one that did not, when no text above decides
-          (optional)
+          Keep checking until this holds: the question in plain words, such as every instance of web runs the new version, or the error rate stays
+          under 1% for ten minutes. A read other than run_history is judged by a model over its recent readings, with done_when and failed_when
+          as what to look for, on each reading that changed and every few minutes on one that did not (optional)
       arguments:
         type: object
         description: Other arguments the capability takes, such as stream for search_logs, or all of the tool's arguments (optional)
@@ -1233,14 +1311,15 @@ northflank_api_request:
         description: The HTTP method
       path:
         type: string
-        description: The path
-        such as /v1/projects/shop/services:
+        description: The path, such as /v1/projects/shop/services
       body:
         type: object
         description: The request body (optional)
     required:
     - method
     - path
+  request: path
+  default: '{"error":{"status":404,"message":"Not found"}}'
 github_workflow_runs:
   description: Lists recent runs of the repository's GitHub Actions workflows, with their status, branch and a link to each.
   source: github
@@ -1343,12 +1422,12 @@ cloudflare_execute:
     properties:
       code:
         type: string
-        description: The script
-        which calls cloudflare.request(method:
-        path:
-        body):
+        description: The script, which calls cloudflare.request(method, path, body)
     required:
     - code
+  request: code
+  default: >-
+    {"success":false,"errors":[{"code":7003,"message":"Could not route to the path the script asked for. Perhaps an identifier is wrong."}],"result":null}
 propose_handbook_edit:
   live: true
   description: >-

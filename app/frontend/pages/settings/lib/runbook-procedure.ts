@@ -22,11 +22,18 @@ export interface EditableInput {
   defaultValue: string
 }
 
+// One thing a watch follows. args holds a read tool's arguments as they are typed, sent as the step's arguments.
+export interface WatchStepState {
+  key: string
+  spec: JsonObject
+  args: ArgumentsState
+}
+
 export interface WatchState {
   on: boolean
   // What was saved, with every edit made on top of it, so anything the editor does not show is kept.
   spec: JsonObject
-  steps: { key: string; spec: JsonObject }[]
+  steps: WatchStepState[]
   minutesDraft: string
 }
 
@@ -127,9 +134,49 @@ export function written(value: unknown): string {
   return typeof value === "string" ? value : JSON.stringify(value)
 }
 
-function watchSteps(spec: JsonObject): { key: string; spec: JsonObject }[] {
+
+function watchSteps(spec: JsonObject): WatchStepState[] {
   const steps = spec[WATCH_SPEC_KEYS.STEPS]
-  return (Array.isArray(steps) ? steps : []).filter(isObject).map((step) => ({ key: crypto.randomUUID(), spec: { ...step } }))
+  return (Array.isArray(steps) ? steps : []).filter(isObject).map((step) => {
+    const saved = step[WATCH_SPEC_KEYS.ARGUMENTS]
+    return { key: crypto.randomUUID(), spec: { ...step }, args: argumentsState(isObject(saved) ? saved : null) }
+  })
+}
+
+export function newWatchStep(spec: JsonObject): WatchStepState {
+  return { key: crypto.randomUUID(), spec, args: emptyArguments() }
+}
+
+// A step picks what it reads with: a capability on a resource, or a read tool with its arguments. Choosing one clears
+// what only the other takes.
+export function withRead(step: WatchStepState, name: string, capability: boolean): WatchStepState {
+  const spec = { ...step.spec }
+  if (capability) {
+    delete spec[WATCH_SPEC_KEYS.TOOL]
+    delete spec[WATCH_SPEC_KEYS.FOCUS]
+    delete spec[WATCH_SPEC_KEYS.ARGUMENTS]
+    spec[WATCH_SPEC_KEYS.CAPABILITY] = name
+    return { ...step, spec, args: emptyArguments() }
+  }
+  delete spec[WATCH_SPEC_KEYS.CAPABILITY]
+  delete spec[WATCH_SPEC_KEYS.RESOURCE]
+  delete spec[WATCH_SPEC_KEYS.NAME]
+  delete spec[WATCH_SPEC_KEYS.RUN]
+  delete spec[WATCH_SPEC_KEYS.REPORT_START]
+  spec[WATCH_SPEC_KEYS.TOOL] = name
+  return { ...step, spec, args: spec[WATCH_SPEC_KEYS.TOOL] === step.spec[WATCH_SPEC_KEYS.TOOL] ? step.args : emptyArguments() }
+}
+
+// What the step reads with, a read tool's name or a capability's.
+export function readOf(spec: JsonObject): string {
+  return stepText(spec, WATCH_SPEC_KEYS.TOOL) || stepText(spec, WATCH_SPEC_KEYS.CAPABILITY)
+}
+
+function sentStep(step: WatchStepState): JsonObject {
+  if (!stepText(step.spec, WATCH_SPEC_KEYS.TOOL)) {
+    return step.spec
+  }
+  return { ...step.spec, [WATCH_SPEC_KEYS.ARGUMENTS]: step.args.values }
 }
 
 export function watchState(saved: Record<string, unknown> | null | undefined): WatchState {
@@ -191,7 +238,7 @@ function sentWatch(watch: WatchState): JsonObject | null {
   if (!watch.on) {
     return null
   }
-  const spec: JsonObject = { ...watch.spec, [WATCH_SPEC_KEYS.STEPS]: watch.steps.map((step) => step.spec) }
+  const spec: JsonObject = { ...watch.spec, [WATCH_SPEC_KEYS.STEPS]: watch.steps.map(sentStep) }
   const minutes = watch.minutesDraft.trim()
   if (minutes.length === 0) {
     delete spec[WATCH_SPEC_KEYS.MINUTES]

@@ -26,6 +26,9 @@ answers:
     result: |-
       https://larkspur.shop answered 200 in 231 ms (DNS 4 ms, connect 11 ms, first byte 212 ms), checked from the sandbox in us-east. Certificate trusted, expires 2026-12-30.
   - tool: cloudflare_execute
+    match: { code: "/\\b(POST|PUT|PATCH|DELETE)\\b/" }
+    result: Done.
+  - tool: cloudflare_execute
     match: { code: /pools/ }
     reads: true
     result: |-
@@ -36,8 +39,6 @@ answers:
     reads: true
     result: |-
       shop-lb: steering geo, Europe to eu-origin with fallback us-origin. eu-origin unhealthy, so Europe is sent to us-origin.
-  - tool: cloudflare_execute
-    result: Done.
 expect:
   outcome: >-
     European visitors are served from the Virginia pool since October 9 at 22:10, because the Frankfurt pool's health

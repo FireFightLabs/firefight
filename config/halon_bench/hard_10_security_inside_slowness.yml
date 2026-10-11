@@ -47,6 +47,7 @@ answers:
     result: |-
       api (service): owner Platform team, #platform. Security questions go to Ana Petrov (Security team, #security).
   - tool: cloudflare_execute
+    match: { code: "/\\b(POST|PUT|PATCH|DELETE)\\b/" }
     result: Done.
   - tool: escalate_incident
     result: Asked Ana Petrov to pick up INC-164, with the reason.

@@ -6,6 +6,8 @@ require "test_helper"
 # project instead. These replay that chat's shape.
 class Chat::Tools::ConnectionTargetingTest < ActiveSupport::TestCase
   setup do
+    # What this covers runs after a change was backed by a read, which Chat::Tools::LookFirstTest covers.
+    Chat::Tools::LookFirst.stubs(:refusal).returns(nil)
     @workspace = workspaces(:slack_workspace_one)
     @conversation = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one))
     @turn = Conversation::Turn.new(@conversation, asker: workspace_memberships(:alice_workspace_one))

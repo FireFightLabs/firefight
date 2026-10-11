@@ -34,52 +34,44 @@ end
 
 # The chat bench, see Conversation::Bench. Scenarios live in config/halon_bench, written from real failures.
 namespace :halon do
-  bench_line = lambda do |result|
-    if result.status == Conversation::BenchResult::STATUS_SCORED
-      dimensions = Conversation::BenchScore.dimensions.map { |name| "#{name} #{result.public_send(name)&.round(2) || '-'}" }.join(", ")
-      cents = (result.spent_micros / FirefightAi::AgentLoop::MICROS_PER_CENT.to_f).round(2)
-      "#{format('%.2f', result.total)} #{result.scenario}: #{dimensions}, #{cents} cents, #{result.turns} turns"
-    else
-      "ERROR #{result.scenario}: #{result.reason}"
-    end
-  end
-
-  bench_summary = lambda do |run|
-    totals = run.results.scored.pluck(:total)
-    spent = (run.results.sum(:spent_micros) / FirefightAi::AgentLoop::MICROS_PER_CENT.to_f).round(2)
-    mean = totals.empty? ? "none" : (totals.sum / totals.size).round(3)
-    "\nRun #{run.id}: #{totals.size} of #{run.results.size} scored, mean #{mean}, #{spent} cents, prompt #{run.prompt_version} on #{run.model}"
-  end
-
   # SCENARIOS picks some by key, comma separated. LABEL names the run, such as a commit. OUT writes the scores to a file
-  # that halon:chat_bench_compare reads.
-  desc "Replay the chat bench's scenarios and score them: bin/rails 'halon:chat_bench[MODEL,PROVIDER]'"
-  task :chat_bench, %i[model provider] => :environment do |_task, args|
+  # that halon:chat_bench_compare reads. REPEATS, or the third argument, is how often each scenario is replayed (3), and
+  # BUDGET, or the fourth, the dollars the run may spend on Halon and the judge together (2). A run that reaches its
+  # budget stops, says so and reports what scored before it.
+  desc "Replay the chat bench's scenarios and score them: bin/rails 'halon:chat_bench[MODEL,PROVIDER,REPEATS,BUDGET]'"
+  task :chat_bench, %i[model provider repeats budget] => :environment do |_task, args|
     trigger = ENV["CI"].present? ? Conversation::BenchRun::TRIGGER_CI : Conversation::BenchRun::TRIGGER_TERMINAL
     keys = ENV["SCENARIOS"].to_s.split(",").map(&:strip).presence
+    repeats = (args[:repeats].presence || ENV["REPEATS"].presence)&.to_i
+    budget = (args[:budget].presence || ENV["BUDGET"].presence)&.to_f
     # A small pool of its own, one connection per replay and one for the run, on a server others share.
     ActiveRecord::Base.establish_connection(ActiveRecord::Base.connection_db_config.configuration_hash.except(:pool).merge(max_connections: Conversation::Bench::AT_ONCE + 1))
-    run = Conversation::Bench.run!(trigger: trigger, model: args[:model], provider: args[:provider], label: ENV["LABEL"], keys: keys) do |result|
-      puts bench_line.call(result)
+    run = Conversation::Bench.run!(trigger: trigger, model: args[:model], provider: args[:provider], label: ENV["LABEL"], keys: keys, repeats: repeats,
+                                   budget_micros: budget && (budget * Conversation::BenchRun::MICROS_PER_DOLLAR).round) do |result|
+      puts Conversation::BenchReport.replay(result)
       result.notes.each { |note| puts "  - #{note}" }
     end
-    puts bench_summary.call(run)
+    puts Conversation::BenchReport.run(run)
     File.write(ENV["OUT"], JSON.pretty_generate(Conversation::BenchComparison.export(run))) if ENV["OUT"].present?
+    # A run that reached its budget stopped as asked, and what scored before it stands.
+    next puts("\n#{run.stopped_reason}") if run.stopped_at_budget? && run.results.scored.exists?
+
     abort "\n#{run.stopped_reason}" if run.stopped?
     abort "Some scenarios could not finish, so this run cannot vouch for them." if run.results.where(status: Conversation::BenchResult::STATUS_ERRORED).exists?
-  rescue Conversation::Bench::Busy, Conversation::BenchKeys::Missing => refused
+  rescue Conversation::Bench::Busy, Conversation::BenchKeys::Missing, ActiveRecord::RecordInvalid => refused
     abort refused.message
   end
 
-  # Each side is a run's id or a file halon:chat_bench wrote with OUT. Fails when the second side's total dropped by more
-  # than the noise between two replays of the same model.
+  # Each side is a run's id or a file halon:chat_bench wrote with OUT, each scenario the mean of its repeats with their
+  # spread. Fails when the second side's total dropped by more than the noise, the tolerance or the spread either run
+  # saw between its own passes.
   desc "Compare two chat bench runs: bin/rails 'halon:chat_bench_compare[BASE,HEAD]'"
   task :chat_bench_compare, %i[base head] => :environment do |_task, args|
     side = ->(name) { File.exist?(name.to_s) ? JSON.parse(File.read(name)) : Conversation::BenchComparison.export(Conversation::BenchRun.find(name)) }
     base = side.call(args[:base])
     head = side.call(args[:head])
     comparison = Conversation::BenchComparison.from_exports(base, head)
-    shown = ->(score) { score&.total ? format("%.2f", score.total) : "   -" }
+    shown = ->(tally) { tally&.total ? "#{format('%.2f', tally.total)}#{format(' (%.2f)', tally.spread) if tally.spread}" : "   -" }
 
     comparison.rows.each do |row|
       change = row.both? ? format("%+.2f", row.delta) : ""
@@ -87,13 +79,14 @@ namespace :halon do
     end
     puts "\nBase, prompt #{base['prompt_version']} on #{base['model']}: #{comparison.base_total || 'nothing scored'}"
     puts "Head, prompt #{head['prompt_version']} on #{head['model']}: #{comparison.head_total || 'nothing scored'}"
-    Conversation::BenchScore.dimensions.each do |name|
+    [ :quality, *Conversation::BenchScore.dimensions ].each do |name|
       puts "  #{name}: #{comparison.dimension(:base, name) || '-'} -> #{comparison.dimension(:head, name) || '-'}"
     end
+    puts "Noise allowed: #{comparison.noise}"
     puts "\nThe two runs used different models, so a drop here says nothing about the change." unless comparison.comparable?
     if comparison.failed?
       worst = comparison.worse.map(&:scenario)
-      abort "\nThe score dropped by more than #{Conversation::BenchComparison::TOLERANCE}.#{" Read #{worst.to_sentence} first." if worst.any?}"
+      abort "\nThe score dropped by more than #{comparison.noise}.#{" Read #{worst.to_sentence} first." if worst.any?}"
     end
   end
 
@@ -103,7 +96,7 @@ namespace :halon do
     run = Conversation::Bench.replay_chat!(conversation, trigger: Conversation::BenchRun::TRIGGER_TERMINAL, model: args[:model],
                                                          provider: args[:provider], label: ENV["LABEL"])
     result = run.results.sole
-    puts bench_line.call(result)
+    puts Conversation::BenchReport.replay(result)
     result.notes.each { |note| puts "  - #{note}" }
     puts "  #{result.reason}" if result.reason.present?
     puts "\n#{result.answer}" if result.answer.present?

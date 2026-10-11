@@ -37,6 +37,14 @@ module Chat::DataRepairs
 
   def self.applies?(agent_run, tool) = !agent_run.reads_only? && agent_run.chat.present? && Integrations::DataWrites.write_tool?(tool)
 
+  # Whether every statement a call holds only reads, by the same reading settle uses.
+  def self.reads?(tool, given)
+    statements = Integrations::DataWrites.for(tool).statements(given).map { |sql| Integrations::DataWrites::Statement.parse(sql) }
+    statements.any? && statements.all?(&:read?)
+  rescue Integration::UnknownEnvironment
+    false
+  end
+
   # Settles a call before it is put to the person, once per call: what it is, and for a write, its rows counted, a few
   # read, and the check counted, kept as a Chat::DataRepair. given is what the agent passed, environment and check
   # included.

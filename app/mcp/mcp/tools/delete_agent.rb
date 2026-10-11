@@ -7,6 +7,7 @@ module Mcp
                   "Disabling it with upsert_agent is the reversible move. Authorizes as " \
                   "permissions, which is admin-only. Docs: #{Docs::PERMISSIONS}"
       annotations(**DESTRUCTIVE)
+      ends_something
       input_schema(
         properties: {
           slug: { type: "string", description: "Slug of the agent to delete" },

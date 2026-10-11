@@ -1,6 +1,7 @@
 # The chat bench: Halon replayed on scenarios written from real failures, or on one real chat, and scored on whether it
-# was right, moved the work forward, asked only when it needed to, and what it cost. Every replay answers from a
-# record, so a change to Halon's prompt, tools or loop is what moves the score.
+# was right, moved the work forward, asked only when it needed to, cited what shows it, and what it cost. Every replay
+# answers from a record, so a change to Halon's prompt, tools or loop is what moves the score. Each scenario is replayed
+# a few times, so one lucky or unlucky replay is told apart from a real change, and a run stops at its budget.
 class Conversation::Bench
   NO_ANSWER = "The replay ended without a reply.".freeze
   LOST = "The replay stopped without finishing, so its worker was lost.".freeze
@@ -22,18 +23,18 @@ class Conversation::Bench
   class Busy < StandardError; end
 
   class << self
-    # Queues every scenario for the workers. Used by the console.
-    def start!(trigger:, model: nil, provider: nil, by: nil, label: nil)
-      run = create_run!(trigger: trigger, model: model, provider: provider, by: by, label: label)
-      run.results.each { |result| HalonBenchCaseJob.perform_later(result.id) }
+    # Queues every scenario for the workers, each repeat its own job. Used by the console.
+    def start!(trigger:, model: nil, provider: nil, by: nil, label: nil, repeats: nil, budget_micros: nil)
+      run = create_run!(trigger: trigger, model: model, provider: provider, by: by, label: label, repeats: repeats, budget_micros: budget_micros)
+      in_order(run).each { |result| HalonBenchCaseJob.perform_later(result.id) }
       run
     end
 
     # Runs every scenario here and now, a few at a time, for the terminal and CI. keys picks some by name.
-    def run!(trigger:, model: nil, provider: nil, label: nil, keys: nil, &reported)
-      run = create_run!(trigger: trigger, model: model, provider: provider, label: label, keys: keys)
+    def run!(trigger:, model: nil, provider: nil, label: nil, keys: nil, repeats: nil, budget_micros: nil, &reported)
+      run = create_run!(trigger: trigger, model: model, provider: provider, label: label, keys: keys, repeats: repeats, budget_micros: budget_micros)
       queue = Queue.new
-      run.results.each { |result| queue << result.id }
+      in_order(run).each { |result| queue << result.id }
       queue.close
       Array.new([ AT_ONCE, run.results.size ].min) do
         Thread.new do
@@ -70,7 +71,10 @@ class Conversation::Bench
 
     def run_case!(result)
       return unless result.claim!
-      return result.settle!(status: Conversation::BenchResult::STATUS_ERRORED, reason: ACCOUNT_REFUSED) if result.bench_run.reload.stopped?
+
+      run = result.bench_run.reload
+      run.stop!(run.budget_reason) if run.over_budget?
+      return result.settle!(status: Conversation::BenchResult::STATUS_ERRORED, reason: run.stopped_reason) if run.stopped?
 
       score(result)
     rescue StandardError => error
@@ -123,7 +127,10 @@ class Conversation::Bench
 
     private
 
-    def create_run!(trigger:, model:, provider:, label:, by: nil, keys: nil)
+    # Every scenario's first replay before any second, so a run stopped at its budget still covers every scenario once.
+    def in_order(run) = run.results.order(:attempt, :scenario)
+
+    def create_run!(trigger:, model:, provider:, label:, by: nil, keys: nil, repeats: nil, budget_micros: nil)
       busy = Conversation::BenchRun.busy_reason
       raise Busy, busy if busy
 
@@ -136,14 +143,23 @@ class Conversation::Bench
         bench = workspace
         Conversation::BenchRun.create!(
           kind: Conversation::BenchRun::KIND_SCENARIOS, trigger: trigger, prompt_version: prompt_version(bench, choice),
-          model: choice.model, provider: choice.provider, label: label, started_by: by
+          model: choice.model, provider: choice.provider, label: label, started_by: by,
+          repeats: repeats || Conversation::BenchRun::DEFAULT_REPEATS, budget_micros: budget_micros || Conversation::BenchRun::DEFAULT_BUDGET_MICROS
         ).tap do |run|
-          scenarios.each { |scenario| run.results.create!(workspace: bench, scenario: scenario.key, title: scenario.title) }
+          run.repeats.times do |index|
+            scenarios.each { |scenario| run.results.create!(workspace: bench, scenario: scenario.key, title: scenario.title, attempt: index + 1) }
+          end
         end
       end
     end
 
     def prompt_version(workspace, choice) = FirefightAi::Responder.new(workspace, inferable: nil, model: choice).prompt_version
+
+    # What is left of a run's budget, in whole cents, as the most one replay may spend. Nil for a run with no budget.
+    def budget_left_cents(run)
+      left = run.budget_left_micros
+      left && [ (left / FirefightAi::AgentLoop::MICROS_PER_CENT.to_f).ceil, 1 ].max
+    end
 
     # What Halon's own model calls cost, from the inference ledger. The judge's call is grading, so it is left out.
     def spent(result) = Inference.where(inferable: result, feature: FirefightAi::Responder::FEATURE).sum(:cost_micros)
@@ -155,7 +171,7 @@ class Conversation::Bench
     def score(result)
       bench_case = case_for(result)
       run = result.bench_run
-      replay = Conversation::Rehearsal.replay!(bench_case, result: result, model: model_choice(run.model, run.provider))
+      replay = Conversation::Rehearsal.replay!(bench_case, result: result, model: model_choice(run.model, run.provider), max_spend_cents: budget_left_cents(run))
       transcript = replay.transcript
       halon_spent = spent(result)
       columns = { spent_micros: halon_spent, turns: replay.turns_used, calls: transcript.calls.size, not_recorded: transcript.not_recorded,
@@ -165,11 +181,18 @@ class Conversation::Bench
         return result.settle!(status: Conversation::BenchResult::STATUS_ERRORED, reason: NO_ANSWER, **columns)
       end
 
+      # The judge's call is the dearer part of a cheap model's replay, so a run already at its budget is not judged.
+      if run.reload.over_budget?
+        run.stop!(run.budget_reason)
+        return result.settle!(status: Conversation::BenchResult::STATUS_ERRORED, reason: run.stopped_reason, **columns)
+      end
+
+      expect = bench_case.expect
       verdict = FirefightAi::ReplayJudge.new(result.workspace, inferable: result, model: Conversation::BenchKeys.judge)
-                                        .judge(transcript: transcript.to_text, outcome: bench_case.expect.outcome, next_step: bench_case.expect.next_step)
-      scored = Conversation::BenchScore.of(transcript: transcript, verdict: verdict, expect: bench_case.expect, spent_micros: halon_spent)
+                                        .judge(transcript: transcript.to_text, outcome: expect.outcome, next_step: expect.next_step, never: expect.never_calls)
+      scored = Conversation::BenchScore.of(transcript: transcript, verdict: verdict, expect: expect, spent_micros: halon_spent)
       result.settle!(
-        status: Conversation::BenchResult::STATUS_SCORED, **scored.to_h, total: scored.total, **columns,
+        status: Conversation::BenchResult::STATUS_SCORED, **scored.to_h, total: scored.total, quality: scored.quality, **columns,
         unneeded_asks: transcript.unneeded_confirmations.size + verdict.unneeded_questions,
         answer: transcript.answer, reason: verdict.reason,
         notes: Conversation::BenchScore.notes(transcript: transcript, verdict: verdict, expect: bench_case.expect)

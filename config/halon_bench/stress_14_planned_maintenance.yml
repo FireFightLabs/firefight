@@ -27,6 +27,7 @@ answers:
     result: |-
       Northflank, Upgrading a PostgreSQL addon: a major upgrade takes a backup, then runs pg_upgrade. The addon is unavailable for about 5 minutes per 50 GB. Extensions must have a build for the new version: pgvector 0.5.1 and later and pg_trgm are available on 16. https://northflank.com/docs/v1/application/databases-and-persistence/upgrade-a-database
   - tool: northflank_api_request
+    match: { method: "/POST|PUT|PATCH/", path: "/orders-db|addons/" }
     result: '{"status":"ok"}'
 expect:
   outcome: >-

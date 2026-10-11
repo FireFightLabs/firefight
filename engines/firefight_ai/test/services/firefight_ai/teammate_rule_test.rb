@@ -54,7 +54,7 @@ class FirefightAi::TeammateRuleTest < ActiveSupport::TestCase
       assert_no_match(/[—;]/, rule)
     end
     assert_match "Ask the person only when two or more remain plausible", FirefightAi::LookFirstRule::RESOLVE_RULE
-    assert_match "api_read, or api_request or execute with a read such as a GET", FirefightAi::LookFirstRule::GENERAL_READ_RULE
+    assert_match "api_read, api_request with a GET, or execute with method and path and no code", FirefightAi::LookFirstRule::GENERAL_READ_RULE
     assert_match "provider's API reference", FirefightAi::LookFirstRule::GENERAL_READ_RULE
   end
 

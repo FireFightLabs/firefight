@@ -7,6 +7,7 @@ module Mcp
                   "the call requires approval, retry the identical call with approval_id once " \
                   "approved. Docs: #{Docs::ALERTS}"
       annotations(**DESTRUCTIVE)
+      ends_something
       input_schema(
         properties: {
           slug: { type: "string", description: "Endpoint path of the source to delete" },
