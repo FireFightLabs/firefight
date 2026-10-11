@@ -22,7 +22,7 @@ class AgentChatModelPickerTest < ApplicationSystemTestCase
     assert_text "Nothing changed today."
     assert_selector "p", exact_text: "GLM-5.2"
     find("button[aria-label='Model: Shared Vision. Choose another']").click
-    assert_text "Strongest, slower and pricier"
+    assert_text "Hardest problems and production changes, costs more"
     find("[role=menuitemradio]", text: "Claude Opus 5.5").click
 
     assert_text "This chat now uses Claude Opus 5.5."

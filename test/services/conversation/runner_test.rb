@@ -446,6 +446,37 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_equal 1, @conversation.chat.compactions.count
   end
 
+  test "carrying on with a backup model is kept with the chat and said once, on the page and in the thread" do
+    switch = lambda do |arguments|
+      arguments[:on_backup].call(FirefightAi::ModelChoice.new(model: "claude-opus-5-5", provider: "anthropic"),
+                                 FirefightAi::ModelChoice.new(model: "gpt-5.6", provider: "openai"), RubyLLM::OverloadedError.new("Overloaded"))
+    end
+    personal = personal_chat
+    fake(reply: "ok", during: switch)
+
+    ask(personal, "what changed today")
+
+    kept = personal.chat.model_switches.sole
+    assert_equal [ "claude-opus-5-5", "anthropic", "gpt-5.6", "openai", "OverloadedError" ],
+                 kept.attributes.values_at("failed_model", "failed_provider", "backup_model", "backup_provider", "reason")
+    said = broadcasts(ConversationChannel.broadcasting_for(personal)).map { |message| JSON.parse(message) }
+                                                                     .select { |event| event["type"] == Conversation::LiveDelivery::EVENT_SWITCHED_MODEL }
+    assert_equal [ [ kept.step_key, "Claude Opus 5.5 is not answering, so I switched to gpt-5.6 for this reply." ] ], said.map { |event| event.values_at("key", "title") }
+
+    @conversation = @workspace.conversations.create!(
+      subject: @incident, kind: Conversation::KIND_CHANNEL, channel_id: @incident.channel_id, thread_id: "1700000000.000300",
+      started_by: workspace_memberships(:alice_workspace_one), max_turns: 40, max_spend_cents: 50
+    )
+    reported = []
+    Slack::Client.stubs(:append_stream).with { |arguments| reported.concat(arguments[:chunks]) }.returns({ ok: true })
+    fake(reply: "ok", during: switch)
+
+    ask(@conversation, "what changed today")
+
+    lines = reported.select { |chunk| chunk[:type] == "task_update" }
+    assert_equal [ [ "Claude Opus 5.5 is not answering, so I switched to gpt-5.6 for this reply.", "complete" ] ], lines.map { |chunk| chunk.values_at(:title, :status) }
+  end
+
   test "a dashboard answer is asked for without Slack markup, because the page shows it as written" do
     personal = personal_chat
     responder = fake(reply: "ok")
@@ -711,6 +742,30 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_equal [ "z-ai/glm-5.2", "openrouter" ], responder.options[:model].to_h.values_at(:model, :provider)
     assert_equal "openai/shared-vision", share.choose.call(true).model
     assert_equal "openai/shared-vision", share.choose.call(false).model
+  end
+
+  test "when the account behind a picked model runs dry, the chat says it switched, and a chat with no pick hands over quietly" do
+    add_ai_account!(@workspace, provider: "openrouter", key: "sk-or-own")
+    personal_chat
+    @conversation.choose_model!("anthropic/claude-opus-5.5")
+    @conversation.ask!("what changed today")
+    dry = RubyLLM::PaymentRequiredError.new("Insufficient credits", response: Struct.new(:status, :body, :headers).new(402, {}, {}))
+    take_over = lambda do |arguments|
+      arguments[:on_take_over].call(FirefightAi::ModelChoice.new(model: "anthropic/claude-opus-5.5", provider: "openrouter"),
+                                    FirefightAi::ModelChoice.new(model: "anthropic/claude-sonnet-5.5", provider: "openrouter"), dry)
+    end
+    fake(reply: "Nothing changed.", during: take_over)
+
+    Conversation::Runner.new(@conversation, asker: @conversation.started_by).run
+
+    assert_equal "The account behind Claude Opus 5.5 is out of credit, so I switched to Claude Sonnet 5.5 for this reply.",
+                 @conversation.chat.model_switches.sole.shown_as
+
+    @conversation.choose_model!(@conversation.model_menu.default_model)
+    @conversation.ask!("and now")
+    responder = fake(reply: "Still nothing.")
+    Conversation::Runner.new(@conversation, asker: @conversation.started_by).run
+    assert_nil responder.calls.sole[:on_take_over]
   end
 
   test "a chat with no pick answers on the workspace's model as before" do

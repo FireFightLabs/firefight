@@ -128,6 +128,14 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
     assert_equal @incident.id, button[:value]
   end
 
+  test "what a run did before it stopped follows the reason in its own section, escaped" do
+    said = "What I did before I stopped:\n- Search logs <!channel>\nI stopped after the last of these, before I decided what to do next."
+    blocks = Slack::Messages::InvestigationRun.stopped(reason: "Something went wrong on my side", where_it_stopped: said)
+
+    assert_equal [ "section", "section" ], blocks.map { |block| block[:type] }
+    assert_includes blocks.second[:text][:text], "- Search logs &lt;!channel&gt;"
+  end
+
   test "a run that stopped for its own reasons offers no button, since running it again would end the same way" do
     blocks = Slack::Messages::InvestigationRun.stopped(reason: "Budget spent before it could answer")
 

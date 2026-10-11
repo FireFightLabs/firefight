@@ -17,6 +17,8 @@ class Conversation::QuietDelivery
 
   def made_room(_compaction) = nil
 
+  def switched_model(_switch) = nil
+
   def chunk(_text) = nil
 
   def answered!(_reply) = nil

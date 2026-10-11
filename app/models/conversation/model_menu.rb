@@ -10,9 +10,7 @@ class Conversation::ModelMenu
   def self.for(workspace) = new(FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: workspace))
 
   # What a reply calls the model that wrote it, by the picker's name, else the registry's, else the id.
-  def self.label(model, provider:)
-    AiProviders.chat_model_label(provider, model) || FirefightAi.model_name(model, provider: provider) || model.to_s
-  end
+  def self.label(model, provider:) = AiProviders.model_label(provider, model)
 
   def initialize(main)
     @main = main

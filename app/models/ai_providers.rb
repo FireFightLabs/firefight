@@ -30,7 +30,9 @@ module AiProviders
 
   Field = Data.define(:key, :option, :label, :secret, :required)
 
-  Provider = Data.define(:slug, :name, :main_model, :fast_model, :code_fix_model, :fields, :local, :code_fixes, :sign_in, :assumes_models) do
+  # main_models are the models Halon's loop runs on and fast_models its quick work, preferred first, and backup_models what
+  # the loop carries on with when the main one stops answering. The last main and fast model is always in RubyLLM's catalog.
+  Provider = Data.define(:slug, :name, :main_models, :fast_models, :backup_models, :code_fix_model, :fields, :local, :code_fixes, :sign_in, :assumes_models) do
     def field(key) = fields.find { |field| field.key == key.to_s }
 
     def secret_fields = fields.select(&:secret)
@@ -38,6 +40,39 @@ module AiProviders
     def options = fields.map(&:option)
 
     def recommended(role) = role.to_s == WorkspaceAiAccount::FAST ? fast_model : main_model
+
+    # The first main model the registry holds for this provider with a price and a size, so its cost shows and the loop
+    # can make room in it. Falls back to the last, which the catalog RubyLLM ships always holds.
+    def main_model = main_models.find { |model| loop_ready?(model) } || main_models.last
+
+    # The quick model, the first of fast_models_ready. A quick model needs only a price.
+    def fast_model = fast_models_ready.first
+
+    # The quick models tried in turn when the provider says one is not there for the account. Each is a model, or several
+    # read like main_models: the first the registry prices, else the last, which the catalog RubyLLM ships holds.
+    def fast_models_ready = fast_models.map { |entry| resolve_fast(entry) }.uniq
+
+    def resolve_fast(entry) = Array(entry).find { |model| FirefightAi.priced_for?(model, slug) } || Array(entry).last
+
+    # The backups the loop tries in turn. Each is a model, or several read like main_models, and counts while the registry
+    # can price and size it. A provider with no backup of its own carries on with its main model, since what failed was
+    # another provider or another model.
+    def backup_models_ready
+      ready = backup_models.filter_map { |entry| Array(entry).find { |model| loop_ready?(model) } }.uniq
+      ready.presence || [ main_model ].compact.select { |model| loop_ready?(model) }
+    end
+
+    def loop_ready?(model) = FirefightAi.priced_for?(model, slug) && FirefightAi.context_window(model, provider: slug).present?
+
+    # The recommended model for the role while the registry can price it for this provider, and size it for the main
+    # loop, or nil.
+    def ready(role)
+      model = recommended(role)
+      return nil unless model && FirefightAi.priced_for?(model, slug)
+      return model if role.to_s == WorkspaceAiAccount::FAST
+
+      model if FirefightAi.context_window(model, provider: slug)
+    end
 
     # The model this provider recommends for code fixes, while the registry holds it for this provider with a price, so
     # a code fix's budget can be counted. Nil otherwise, and a code fix runs on the next best model.
@@ -111,6 +146,9 @@ module AiProviders
     end
   end
 
+  # What people are told a model is called, by the picker's name, else the registry's, else the id.
+  def self.model_label(slug, model) = chat_model_label(slug, model) || FirefightAi.model_name(model, provider: slug) || model.to_s
+
   # The name the picker gives a model this provider serves, or nil for a model it does not list.
   def self.chat_model_label(slug, model) = listed_chat_models(slug).find { |entry| entry.model == model.to_s }&.label
 
@@ -133,6 +171,55 @@ module AiProviders
     nil
   end
 
+  # The model the deployment's own keys run a role on when no env var names one. It is the recommended main or quick
+  # model of the first provider in the registry's order that holds a key here and whose model the registry prices. prefer is tried
+  # first, so quick work stays with the provider the main loop runs on. Nil when no provider qualifies.
+  def self.deployment_choice(role, prefer: nil, config: RubyLLM.config)
+    candidates = all.partition { |provider| provider.slug == prefer.to_s }.flatten
+    candidates.each do |provider|
+      model = provider.ready(role)
+      return FirefightAi::ModelChoice.new(model: model, provider: provider.slug) if model && provider.configured?(config)
+    end
+    nil
+  end
+
+  # What the deployment's own keys can carry Halon's loop on when failing stops answering, in the order to try them.
+  # Other providers come first, since an outage usually takes a whole provider. The failing provider's own backups come
+  # last, where they are other models, since an outage can be one model's.
+  def self.deployment_backup_choices(failing, config: RubyLLM.config)
+    others, same = all.partition { |provider| provider.slug != failing.provider_name }
+    (others + same).select { |provider| provider.configured?(config) }.flat_map do |provider|
+      provider.backup_models_ready.filter_map do |model|
+        next if provider.slug == failing.provider_name && model == failing.model
+
+        FirefightAi::ModelChoice.new(model: model, provider: provider.slug)
+      end
+    end
+  end
+
+  # What quick work carries on with when the provider says failing's model is not there for the account: the next quick
+  # model of its provider after it, on the same account and payer, such as Gemini on a Vertex AI project without Claude
+  # enabled. Nil when the provider has none left, or when the model is not one of its quick models, since a model an
+  # admin picked is theirs to change.
+  def self.quick_fallback(failing, tried: [])
+    provider = find(failing.provider_name)
+    at = provider&.fast_models&.index { |entry| Array(entry).include?(failing.model) }
+    return nil unless at
+
+    gone = tried.map(&:model) + [ failing.model ]
+    following = provider.fast_models.drop(at + 1).filter_map { |entry| provider.resolve_fast(entry) }.find { |model| gone.exclude?(model) }
+    following && failing.with(model: following)
+  end
+
+  # The models a workspace's own account carries Halon's loop on when its model failed, before any other account: the
+  # backups of the account's provider that are not the model that failed. The account and its payer stay the same.
+  def self.account_backup_choices(failing)
+    provider = find(failing.provider_name)
+    return [] unless provider
+
+    (provider.backup_models_ready - [ failing.model ]).map { |model| failing.with(model: model) }
+  end
+
   # The ChatGPT sign in seam, when the flag is on and every address it needs is set. Nil otherwise.
   def self.sign_in_for(workspace)
     return nil unless FeatureFlags.enabled?(workspace, FeatureFlags::CHATGPT_SIGN_IN)
@@ -151,7 +238,7 @@ module AiProviders
       Field.new(key: key, option: option, label: labels.fetch(key), secret: SECRET_SETTINGS.include?(key), required: required.include?(option.to_s))
     end
     Provider.new(
-      slug: slug, name: entry.fetch("name"), main_model: entry["main"], fast_model: entry["fast"], code_fix_model: code_fix_model(slug, entry), fields: fields.freeze,
+      slug: slug, name: entry.fetch("name"), main_models: Array(entry["main"]).freeze, fast_models: Array(entry["fast"]).freeze, backup_models: Array(entry["backup"]).freeze, code_fix_model: code_fix_model(slug, entry), fields: fields.freeze,
       local: klass.local?, code_fixes: FirefightAi::ModelProxy.supported?(slug), sign_in: sign_in(entry["sign_in"]),
       assumes_models: klass.assume_models_exist?
     )

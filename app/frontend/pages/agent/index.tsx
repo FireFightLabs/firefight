@@ -23,7 +23,7 @@ const BACK_LINK_CLASS = "mx-2 mt-2 flex w-fit items-center gap-1 rounded-control
 export default function AgentPage() {
   const {
     conversations, archivedCount, conversation, incidents, messages, confirmations, openInvestigation, waitingMessages, attachmentRules,
-    compactions, heldCalls, packRefusals, secretEntries, watches, watchUpdates, pullRequestNotices, memoryQuestions, plans, dataRepairs,
+    compactions, modelSwitches, heldCalls, packRefusals, secretEntries, watches, watchUpdates, pullRequestNotices, memoryQuestions, plans, dataRepairs,
     mitigations, ownerAsks, handbookProposals, setupGuide, chatModels,
   } = usePage<AgentPageProps>().props
   const conversationId = conversation?.id ?? null
@@ -107,6 +107,7 @@ export default function AgentPage() {
                   confirmations={confirmations}
                   messages={messages}
                   compactions={compactions}
+                  modelSwitches={modelSwitches}
                   heldCalls={heldCalls}
                   packRefusals={packRefusals}
                   secretEntries={secretEntries}

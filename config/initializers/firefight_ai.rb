@@ -7,6 +7,10 @@ FirefightAi.configure do |config|
 
   config.default_model = ENV["FIREFIGHT_AI_MODEL"]
   config.default_provider = ENV["FIREFIGHT_AI_PROVIDER"]
+  config.quick_model = ENV["FIREFIGHT_AI_QUICK_MODEL"].presence
+  config.quick_provider = ENV["FIREFIGHT_AI_QUICK_PROVIDER"].presence
+  config.backup_model = ENV["FIREFIGHT_AI_BACKUP_MODEL"].presence
+  config.backup_provider = ENV["FIREFIGHT_AI_BACKUP_PROVIDER"].presence
 
   # Unset means on. Only an explicit false, 0 or off turns milestones off for every workspace.
   config.milestones_enabled = ENV["AI_MILESTONES_ENABLED"].blank? ||

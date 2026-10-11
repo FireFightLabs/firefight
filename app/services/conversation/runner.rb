@@ -67,7 +67,10 @@ class Conversation::Runner
       hold: chat.method(:hold_last_reply!),
       take_messages: -> { [ take_queued(chat), tell_changes(chat), tell_watch_corrections(chat) ].any? },
       canceled: chat.method(:stop_requested?),
-      purse: purse
+      purse: purse,
+      on_backup: ->(failed, backup, error) { switched_model(chat, failed, backup, error) },
+      # A model the person picked is theirs to know about, so its account running dry is said too.
+      on_take_over: (->(failed, following, error) { switched_model(chat, failed, following, error) } if picked_model)
     ) do |turn|
       record(turn)
     end
@@ -255,6 +258,10 @@ class Conversation::Runner
     chat.clear_stop!
     delivery.confirm!(chat.awaiting_decision.to_a)
     outcome
+  end
+
+  def switched_model(chat, failed, backup, error)
+    delivery.switched_model(Chat::ModelSwitch.record!(chat, failed: failed, backup: backup, error: error))
   end
 
   # The finished report only has the key, so the step is remembered from when it started.

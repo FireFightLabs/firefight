@@ -16,9 +16,9 @@ class AgentChatModelsTest < ActionDispatch::IntegrationTest
 
     menu = inertia_props[AgentChatsController::PROP_CHAT_MODELS]
     assert_equal "openai/shared-vision", menu["selected"]
-    assert_equal [ "openai/shared-vision", "z-ai/glm-5.2", "anthropic/claude-sonnet-5.5", "anthropic/claude-opus-5.5" ], menu["models"].pluck("id")
-    assert_equal({ "id" => "z-ai/glm-5.2", "label" => "GLM-5.2", "note" => "Fast and low cost for everyday questions", "default" => false,
-                   "imagesUnread" => Chat::Attachment::IMAGES_UNREAD }, menu["models"].second)
+    assert_equal [ "openai/shared-vision", "anthropic/claude-haiku-5.5", "z-ai/glm-5.2", "anthropic/claude-sonnet-5.5", "anthropic/claude-opus-5.5" ], menu["models"].pluck("id")
+    assert_equal({ "id" => "z-ai/glm-5.2", "label" => "GLM-5.2", "note" => "Everyday questions", "default" => false,
+                   "imagesUnread" => Chat::Attachment::IMAGES_UNREAD }, menu["models"].third)
   end
 
   test "with one model to run there is no picker" do

@@ -150,10 +150,16 @@ class Conversation::RecoveryTest < ActiveSupport::TestCase
     @asking.ruby_llm_tool_calls.create!(tool_call_id: "call_#{name}", name: name, arguments: {})
   end
 
+  # What Halon did before it was cut off follows the reason, so whoever reads it carries on from there.
   def assert_ended
     @conversation.reload
     assert_not @conversation.answer_owed?
     assert_nil @conversation.reply_recovered_at
-    assert_equal Conversation::Recovery::INTERRUPTED, @conversation.chat.readable_messages.last.content
+    said = @conversation.chat.readable_messages.last.content
+    assert said.start_with?(Conversation::Recovery::INTERRUPTED), said
+    return if @conversation.chat.tool_calls.none?
+
+    assert_includes said, Chat::StoppedNote::HEADING
+    assert_includes said, "Check whether it finished before you try it again."
   end
 end
