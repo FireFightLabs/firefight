@@ -377,14 +377,7 @@ module Integrations
       # no address for a deployment's page, so it links to the service.
       def one_deployment(environment_row, resource, asked)
         id = asked.to_s.strip
-        deployment = begin
-          api(environment_row).deployment(id)
-        rescue RailwayApi::NotFound
-          nil
-        end
-        unless deployment && deployment["serviceId"] == resource[:id] && deployment["environmentId"] == environment(environment_row)["id"]
-          fail! "#{resource[:name]} has no deployment #{id} in this environment. deploy_history lists its recent deployments."
-        end
+        deployment = own_deployment!(environment_row, resource, id)
 
         run = deployment_run(deployment)
         events = api(environment_row).deployment_events(id, limit: STEP_LIMIT).sort_by { |event| event["createdAt"].to_s }
@@ -829,29 +822,21 @@ module Integrations
       # What one deployment printed, such as a deployment that failed its healthcheck and was never the latest. Only one of
       # this service in this environment, so a deployment id never reaches past what the connection reads.
       def deployment_app_logs(environment_row, resource, deployment, started, ended, limit, arguments)
-        found = begin
-          api(environment_row).deployment(deployment)
-        rescue RailwayApi::NotFound
-          nil
-        end
-        unless found && found["serviceId"] == resource[:id] && found["environmentId"] == environment(environment_row)["id"]
-          fail! "#{resource[:name]} has no deployment #{deployment} in this environment. deploy_history lists its recent deployments."
-        end
-
+        own_deployment!(environment_row, resource, deployment)
         found = api(environment_row).deployment_logs("deploymentId" => deployment, "filter" => filter(arguments), "limit" => limit,
                                                      "startDate" => started.utc.iso8601, "endDate" => ended.utc.iso8601)
         found.filter_map { |line| log_line(line, deployment) }
       end
 
       def build_logs(environment_row, resource, started, ended, limit, arguments)
-        deployment = deployment_of(resource, arguments)
+        deployment = deployment_of(environment_row, resource, arguments)
         found = api(environment_row).build_logs("deploymentId" => deployment, "filter" => filter(arguments), "limit" => limit,
                                                 "startDate" => started.utc.iso8601, "endDate" => ended.utc.iso8601)
         found.filter_map { |line| log_line(line, deployment) }
       end
 
       def http_logs(environment_row, resource, started, ended, limit, arguments)
-        deployment = deployment_of(resource, arguments)
+        deployment = deployment_of(environment_row, resource, arguments)
         found = api(environment_row).http_logs("deploymentId" => deployment, "filter" => filter(arguments), "beforeLimit" => limit,
                                                "beforeDate" => stamp(started), "anchorDate" => stamp(ended), "afterDate" => stamp(ended), "afterLimit" => 0)
         found.filter_map do |request|
@@ -864,9 +849,24 @@ module Integrations
         end
       end
 
-      def deployment_of(resource, arguments)
-        arguments["deployment"].presence || resource[:instance].dig("latestDeployment", "id") ||
-          fail!("#{resource[:name]} has no deployment yet, so it has no build or HTTP logs.")
+      # A deployment named by its id is read only when it is this service's in this environment, so an id never reaches
+      # past what the connection reads.
+      def deployment_of(environment_row, resource, arguments)
+        asked = arguments["deployment"].presence
+        return own_deployment!(environment_row, resource, asked)["id"] if asked
+
+        resource[:instance].dig("latestDeployment", "id") || fail!("#{resource[:name]} has no deployment yet, so it has no build or HTTP logs.")
+      end
+
+      def own_deployment!(environment_row, resource, id)
+        found = begin
+          api(environment_row).deployment(id)
+        rescue RailwayApi::NotFound
+          nil
+        end
+        return found if found && found["serviceId"] == resource[:id] && found["environmentId"] == environment(environment_row)["id"]
+
+        fail! "#{resource[:name]} has no deployment #{id} in this environment. deploy_history lists its recent deployments."
       end
 
       def log_line(line, source)

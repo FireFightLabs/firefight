@@ -381,6 +381,17 @@ module Integrations
         assert_equal "in_progress", @pack.send(:service_entry, service(rollout: "IN_PROGRESS"), "eu-west-1").status
       end
 
+      test "a CodeBuild project whose builds the key may not read is on the map without a status, and says why" do
+        inventory!
+        answer(:list_builds_for_project, raises: [ AwsApi::Denied, "AWS answered AccessDeniedException: not authorized to perform: codebuild:ListBuildsForProject" ])
+
+        snapshot = @pack.map_of(@row)
+
+        project = snapshot.resources.find { |resource| resource.external_id == PROJECT_ARN }
+        assert_nil project.status
+        assert snapshot.gaps.any? { |gap| gap.text.start_with?("Builds of CodeBuild projects in eu-west-1 could not be read") && gap.kinds.empty? }
+      end
+
       test "the account goes on the map with each resource's kind, ARN, page and details, and a list AWS refused is not taken as gone" do
         inventory!
 
@@ -393,9 +404,9 @@ module Integrations
         assert_equal [ ResourceMap::KIND_FUNCTION, "active" ], found[FUNCTION_ARN].then { |resource| [ resource.kind, resource.status ] }
         assert_equal [ ResourceMap::KIND_VIRTUAL_MACHINE, "bastion", "t3.micro" ], found[INSTANCE_ARN].then { |resource| [ resource.kind, resource.name, resource.details["type"] ] }
         assert_equal [ ResourceMap::KIND_DATABASE, "postgres 16.4" ], found[DATABASE_ARN].then { |resource| [ resource.kind, resource.details["engine"] ] }
-        assert_equal [ ResourceMap::KIND_BUILD_SERVICE, "web-build", { "region" => "eu-west-1", "type" => "LINUX_CONTAINER", "source" => "GITHUB" },
+        assert_equal [ ResourceMap::KIND_BUILD_SERVICE, "web-build", "failed", { "region" => "eu-west-1", "type" => "LINUX_CONTAINER", "source" => "GITHUB" },
                        "https://eu-west-1.console.aws.amazon.com/codesuite/codebuild/#{ACCOUNT}/projects/web-build/history?region=eu-west-1" ],
-                     found[PROJECT_ARN].then { |resource| [ resource.kind, resource.name, resource.details, resource.url ] }
+                     found[PROJECT_ARN].then { |resource| [ resource.kind, resource.name, resource.status, resource.details, resource.url ] }
         assert_equal [ ResourceMap::KIND_FUNCTION ], snapshot.unread_kinds
         assert_match "Lambda functions in us-east-1 could not be read: AWS answered AccessDeniedException", snapshot.gaps.sole.text
         assert_equal [ ResourceMap::KIND_FUNCTION ], snapshot.gaps.sole.kinds
@@ -672,6 +683,8 @@ module Integrations
         listing.call(:describe_db_instances, "eu-west-1", [ database ])
         listing.call(:list_projects, "eu-west-1", [ "web-build" ])
         answer(:batch_get_projects, projects: [ { name: "web-build", arn: PROJECT_ARN, environment: { type: "LINUX_CONTAINER" }, source: { type: "GITHUB" } } ])
+        answer(:list_builds_for_project, ids: [ "web-build:b2", "web-build:b1" ])
+        answer(:batch_get_builds, builds: [ { id: "web-build:b2", build_status: "FAILED" } ])
         %i[list_clusters describe_instances describe_db_instances list_projects].each { |operation| listing.call(operation, "us-east-1", []) }
         AwsApi.any_instance.stubs(:all).with { |_service, region, called, *| called == :list_functions && region == "us-east-1" }
                     .raises(AwsApi::Denied, "AWS answered AccessDeniedException: not authorized to perform: lambda:ListFunctions")

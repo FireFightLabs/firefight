@@ -336,6 +336,21 @@ module Integrations
         assert_match "web has no deployment dep-db in this environment", error.message
       end
 
+      test "build and request logs read only a deployment of this service in this environment" do
+        RailwayApi.any_instance.stubs(:deployment).with("dep-4").returns("id" => "dep-4", "serviceId" => "svc-web", "environmentId" => "env-prod")
+        RailwayApi.any_instance.stubs(:deployment).with("dep-other").returns("id" => "dep-other", "serviceId" => "svc-web", "environmentId" => "env-staging")
+        RailwayApi.any_instance.stubs(:deployment).with("dep-gone").raises(RailwayApi::NotFound, "Railway refused this: Deployment not found")
+        RailwayApi.any_instance.expects(:build_logs).with(has_entries("deploymentId" => "dep-4")).returns([ { "timestamp" => "2026-10-01T10:01:00Z", "message" => "npm ci" } ])
+        assert_match "npm ci", call(:search_logs, "resource" => "web", "type" => "build", "deployment" => "dep-4")
+
+        %w[build http].each do |type|
+          %w[dep-other dep-gone].each do |id|
+            error = assert_raises(NativePack::Error) { @pack.call("search_logs", environment_row: @row, arguments: { "resource" => "web", "type" => type, "deployment" => id }) }
+            assert_match "web has no deployment #{id} in this environment", error.message
+          end
+        end
+      end
+
       private
 
       def call(tool, arguments = {})

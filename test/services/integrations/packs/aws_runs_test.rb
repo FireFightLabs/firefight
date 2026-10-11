@@ -166,12 +166,17 @@ module Integrations
         assert_match "Read one with build_log", refusal(:search_logs, "resource" => "web-build")
       end
 
-      test "a project changed or removed is read again on its own, and gone when CodeBuild no longer has it" do
+      test "a project changed or removed is read again on its own, standing as its newest build, and gone when CodeBuild no longer has it" do
         scope = ResourceMap::Scope.new(account: ACCOUNT, kind: ResourceMap::KIND_BUILD_SERVICE, external_id: PROJECT_ARN)
         AwsApi.any_instance.stubs(:call).with(:codebuild, "eu-west-1", :batch_get_projects, names: [ PROJECT_ARN ])
               .returns(projects: [ { name: "web-build", arn: PROJECT_ARN, tags: [ { key: "team", value: "web" } ] } ])
-        assert_equal [ [ "web-build", { "region" => "eu-west-1", ResourceMap::TAGS => { "team" => "web" } } ] ],
-                     @pack.map_refresh(@row, scope).resources.map { |resource| [ resource.name, resource.details ] }
+        AwsApi.any_instance.stubs(:call).with(:codebuild, "eu-west-1", :list_builds_for_project, project_name: "web-build", sort_order: "DESCENDING").returns(ids: [ BUILD_ID ])
+        AwsApi.any_instance.stubs(:call).with(:codebuild, "eu-west-1", :batch_get_builds, ids: [ BUILD_ID ]).returns(builds: [ { id: BUILD_ID, build_status: "SUCCEEDED" } ])
+        assert_equal [ [ "web-build", "succeeded", { "region" => "eu-west-1", ResourceMap::TAGS => { "team" => "web" } } ] ],
+                     @pack.map_refresh(@row, scope).resources.map { |resource| [ resource.name, resource.status, resource.details ] }
+
+        AwsApi.any_instance.stubs(:call).with(:codebuild, "eu-west-1", :list_builds_for_project, project_name: "web-build", sort_order: "DESCENDING").returns(ids: [])
+        assert_nil @pack.map_refresh(@row, scope).resources.sole.status
 
         AwsApi.any_instance.stubs(:call).with(:codebuild, "eu-west-1", :batch_get_projects, names: [ PROJECT_ARN ]).returns(projects: [], projects_not_found: [ PROJECT_ARN ])
         assert_equal [ [ "aws", ACCOUNT, ResourceMap::KIND_BUILD_SERVICE, PROJECT_ARN ] ], @pack.map_refresh(@row, scope).gone

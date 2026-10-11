@@ -2,7 +2,8 @@ module Integrations
   module Providers
     # status_words maps the words AWS reports onto Firefight's: an RDS instance's status (the RDS user guide's DB instance
     # status table), an EC2 instance's state, a Lambda function's state (Lambda's State enum) and an ECS service's status
-    # (ACTIVE, DRAINING, INACTIVE). An ECS rollout's COMPLETED, IN_PROGRESS and FAILED are Firefight's words already.
+    # (ACTIVE, DRAINING, INACTIVE). An ECS rollout's COMPLETED, IN_PROGRESS and FAILED are Firefight's words already. A
+    # CodeBuild project stands as its newest build (Build.buildStatus), of which SUCCEEDED, FAULT and TIMED_OUT need words.
     Aws = Provider.new(
       key: "aws",
       pack: "Integrations::Packs::Aws",
@@ -22,7 +23,8 @@ module Integrations
         "inaccessible-encryption-credentials" => "failed", "inaccessible-encryption-credentials-recoverable" => "failed",
         "incompatible-create" => "failed", "incompatible-network" => "failed", "incompatible-option-group" => "failed",
         "incompatible-parameters" => "failed", "incompatible-restore" => "failed", "insufficient-capacity" => "failed",
-        "restore-error" => "failed", "storage-full" => "failed", "upgrade-failed" => "failed"
+        "restore-error" => "failed", "storage-full" => "failed", "upgrade-failed" => "failed",
+        "succeeded" => "success", "fault" => "failed", "timed_out" => "failed"
       }
     )
   end

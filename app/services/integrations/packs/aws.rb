@@ -702,7 +702,7 @@ module Integrations
       def map_of(environment_row)
         account = account_of(environment_row)
         settings = SettingsReading.new(account: account, workspace: environment_row.integration.workspace, task_definitions: {}, stopped: Set.new)
-        reading = inventory(environment_row, kinds: KIND_NAMES.keys, regions: regions(environment_row), tags: true, settings: settings)
+        reading = inventory(environment_row, kinds: KIND_NAMES.keys, regions: regions(environment_row), tags: true, settings: settings, map: true)
         snapshot_of(reading, account)
       end
 
@@ -810,7 +810,7 @@ module Integrations
           [ instance_entry(Array(reservation[:instances]).first, reservation[:owner_id], region), [] ]
         when PROJECT
           project = Array(api(environment_row).call(:codebuild, region, :batch_get_projects, names: [ arn ])[:projects]).first
-          project && [ project_entry(project, region), [] ]
+          project && [ latest_builds(environment_row, region, [ project_entry(project, region) ]).first, [] ]
         else
           database = Array(api(environment_row).call(:rds, region, :describe_db_instances, db_instance_identifier: arn)[:db_instances]).first
           return unless database
@@ -843,13 +843,13 @@ module Integrations
 
       # What the connection reaches, kind by kind and region by region. A list AWS refuses is a gap naming its kind and
       # leaves the rest read, and being asked to slow down stops the read with a gap naming every kind. Only the map asks
-      # for tags, since ECS and Lambda return them only on request.
-      def inventory(environment_row, kinds:, regions:, tags: false, settings: nil)
+      # for tags, since ECS and Lambda return them only on request, and for each CodeBuild project's newest build.
+      def inventory(environment_row, kinds:, regions:, tags: false, settings: nil, map: false)
         entries = []
         gaps = []
         regions.each do |region|
           kinds.each do |kind|
-            found, more, untagged = list_kind(environment_row, kind, region, tags, settings)
+            found, more, untagged = list_kind(environment_row, kind, region, tags, settings, map: map)
             entries.concat(found)
             gaps << untagged if untagged
             next unless more
@@ -865,24 +865,46 @@ module Integrations
         Reading.new(entries: entries, gaps: gaps)
       end
 
-      def list_kind(environment_row, kind, region, tags, settings = nil)
+      def list_kind(environment_row, kind, region, tags, settings = nil, map: false)
         case kind
         when SERVICE then ecs_services(environment_row, region, tags, settings)
         when FUNCTION then lambda_functions(environment_row, region, tags, settings)
         when INSTANCE then ec2_instances(environment_row, region)
-        when PROJECT then codebuild_projects(environment_row, region)
+        when PROJECT then codebuild_projects(environment_row, region, statuses: map)
         else rds_databases(environment_row, region, settings)
         end
       end
 
       # ListProjects names them and BatchGetProjects describes up to 100 at a time, tags included. A project's settings
       # are not read, so the map links nothing from what its environment variables name.
-      def codebuild_projects(environment_row, region)
+      def codebuild_projects(environment_row, region, statuses: false)
         names, more = api(environment_row).all(:codebuild, region, :list_projects, {}, :projects)
         entries = names.each_slice(PER_BATCH).flat_map do |slice|
           Array(api(environment_row).call(:codebuild, region, :batch_get_projects, names: slice)[:projects]).map { |project| project_entry(project, region) }
         end
-        [ entries, more ]
+        return [ entries, more ] unless statuses
+
+        begin
+          [ latest_builds(environment_row, region, entries), more ]
+        rescue AwsApi::Denied => error
+          # Builds left unread hold no project back, so the projects are on the map without a status.
+          [ entries, more, ResourceMap::Gap.new(text: Sentence.join("Builds of CodeBuild projects in #{region} could not be read, so they are on the map without a status", error),
+                                                kinds: []) ]
+        end
+      end
+
+      # A project stands as its newest build ended, or is building: one ListBuildsForProject a project for its newest
+      # build's id, and one BatchGetBuilds for every hundred of them. A project never built has no status.
+      def latest_builds(environment_row, region, entries)
+        newest = entries.to_h do |entry|
+          ids = api(environment_row).call(:codebuild, region, :list_builds_for_project, project_name: entry.name, sort_order: "DESCENDING")[:ids]
+          [ entry.arn, Array(ids).first ]
+        end
+        builds = newest.values.compact.each_slice(PER_BATCH).flat_map do |slice|
+          Array(api(environment_row).call(:codebuild, region, :batch_get_builds, ids: slice)[:builds])
+        end
+        status = builds.to_h { |build| [ build[:id], build[:build_status].to_s.downcase.presence ] }
+        entries.map { |entry| newest[entry.arn] ? entry.with(status: status[newest[entry.arn]]) : entry }
       end
 
       def project_entry(project, region)
