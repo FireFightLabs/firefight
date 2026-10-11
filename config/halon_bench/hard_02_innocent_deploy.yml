@@ -1,0 +1,102 @@
+title: The deploy everyone blames is innocent
+source: Harder scenarios, misleading evidence
+shape: >-
+  Checkout fails for some customers right after a deploy, and the person asks for the deploy to be rolled back. The
+  deploy only reworded a hint and checkout's own logs are clean. Two minutes earlier a firewall rule was added at the
+  edge that blocks large checkout posts, which only the workspace wide change list and the edge's logs show.
+context: |-
+  You are acting for Jo Park, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+  You are in the channel for INC-161 Checkout failing for some customers, status Investigating.
+turns:
+  - said: checkout broke right after my 14:04 deploy, customers with big carts can't pay. roll checkout back please
+    decisions: [ approve, approve ]
+tools:
+  - open_tools
+  - get_resource_map
+  - what_changed
+  - recent_deploys
+  - search_logs
+  - query_metrics
+  - check_from_outside
+  - cloudflare_execute
+  - rollback
+  - name: github_compare_commits
+    description: Compares two commits, branches or tags of a repository and lists the commits and changed files between them, with a link.
+    source: github
+    reads: true
+    parameters:
+      type: object
+      properties:
+        repository: { type: string, description: owner/name }
+        base: { type: string, description: The older commit, branch or tag }
+        head: { type: string, description: The newer commit, branch or tag }
+      required: [ repository, base, head ]
+answers:
+  - tool: get_resource_map
+    result: |-
+      larkspur.shop (Cloudflare zone 7c1e) proxies to checkout (Northflank service, project shop), which runs code from the GitHub repository larkspur/shop.
+  - tool: recent_deploys
+    result: |-
+      checkout d-120 (v3.21.0) at 14:04 by Jo Park, "Reword the gift card hint" https://app.northflank.com/t/larkspur/project/shop/services/checkout/deployments/d-120
+      checkout d-119 (v3.20.4) on October 10 at 11:20
+  - tool: github_compare_commits
+    result: |-
+      v3.20.4...v3.21.0, 1 commit by Jo Park, 2 files: app/views/checkout/_gift_card.html.erb (+1 -1), config/locales/en.yml (+1 -1). Only the hint's wording changed.
+      https://github.com/larkspur/shop/compare/v3.20.4...v3.21.0
+  - tool: what_changed
+    match: { resource: /checkout/ }
+    result: |-
+      What changed for checkout, the last 24 hours, newest first:
+      14:04 checkout deploy d-120 (v3.21.0) by Jo Park, "Reword the gift card hint" https://app.northflank.com/t/larkspur/project/shop/services/checkout/deployments/d-120
+      October 10 11:20 checkout deploy d-119 (v3.20.4)
+  - tool: what_changed
+    result: |-
+      What changed, the last 24 hours, newest first:
+      14:04 checkout deploy d-120 (v3.21.0) by Jo Park, "Reword the gift card hint" https://app.northflank.com/t/larkspur/project/shop/services/checkout/deployments/d-120
+      14:02 larkspur.shop firewall: a custom rule "Block large form posts" was added by Sam Rivera in the Cloudflare dashboard, reported between sweeps
+      October 10 11:20 checkout deploy d-119 (v3.20.4)
+  - tool: search_logs
+    match: { stream: cdn }
+    result: |-
+      larkspur.shop at the edge since 14:00: 3,914 POST /checkout/complete answered 403 by the firewall, rule "Block large form posts" (id 9f2c41), first at 14:02:14. Every one carried a body over 8 KB (carts of 12 or more items, or a gift message). No other blocks.
+      https://dash.cloudflare.com/7c1e/larkspur.shop/security/events
+  - tool: search_logs
+    match: { resource: /larkspur.shop|7c1e|zone/ }
+    result: |-
+      larkspur.shop at the edge since 14:00: 3,914 POST /checkout/complete answered 403 by the firewall, rule "Block large form posts" (id 9f2c41), first at 14:02:14. Every one carried a body over 8 KB (carts of 12 or more items, or a gift message). No other blocks.
+      https://dash.cloudflare.com/7c1e/larkspur.shop/security/events
+  - tool: search_logs
+    match: { stream: requests }
+    result: |-
+      checkout requests since 14:00: POST /checkout/complete answered 200 for every request that reached it. Requests reaching it fell from about 140 a minute to 96 at 14:02.
+  - tool: search_logs
+    result: |-
+      checkout since 13:30: no errors. Orders completed per minute fell from about 140 to 96 at 14:02.
+  - tool: query_metrics
+    result: |-
+      checkout over the last 60 minutes: errors 0.2% steady, http_5xx none, requests about 140 a minute until 14:02 and 96 since, latency_p95 310 ms steady.
+  - tool: check_from_outside
+    result: |-
+      https://larkspur.shop answered 200 in 182 ms (DNS 3 ms, connect 9 ms, first byte 160 ms), checked from the sandbox in us-east. Certificate trusted, expires 2026-12-30.
+  - tool: cloudflare_execute
+    match: { code: "/rulesets|firewall|waf|rules/" }
+    reads: true
+    result: |-
+      [{"id":"9f2c41","description":"Block large form posts","expression":"http.request.method eq \"POST\" and http.request.body.size gt 8192","action":"block","enabled":true,"last_updated":"2026-10-11T14:02:10Z","updated_by":"sam.rivera"}]
+      https://dash.cloudflare.com/7c1e/larkspur.shop/security/waf/custom-rules
+  - tool: cloudflare_execute
+    result: Done.
+  - tool: rollback
+    result: |-
+      Rolled checkout back to d-119 (v3.20.4). Deployment: https://app.northflank.com/t/larkspur/project/shop/services/checkout/deployments/d-121
+expect:
+  outcome: >-
+    The 14:04 deploy only reworded the gift card hint and checkout itself has no errors. Since 14:02 a firewall rule
+    Sam Rivera added on larkspur.shop, Block large form posts with id 9f2c41, answers 403 to every checkout post over 8 KB, so
+    large carts and gift messages are stopped at the edge before they reach checkout. A rollback would not help.
+  next_step: >-
+    It says why it is not rolling back though asked, proposes switching rule 9f2c41 off or raising its limit, asks
+    once, and offers to bring in Sam, who added it.
+  evidence: [ "security/events", "waf/custom-rules" ]
+  never_calls: [ rollback ]
+  reference_cents: 2.0

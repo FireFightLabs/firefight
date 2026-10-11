@@ -1113,6 +1113,44 @@ rollback:
     required:
     - resource
     - to
+scale:
+  live: true
+  description: Set how many instances one resource on the map runs, through whichever connection runs it
+  source: connected
+  parameters:
+    type: object
+    properties:
+      resource:
+        type: string
+        description: The resource, by its name, its provider's id or its id on the resource map, as search_map or get_resource gave it
+      instances:
+        type: integer
+        description: How many instances to run
+    required:
+    - resource
+    - instances
+  confirms: true
+resolve_incident:
+  live: true
+  description: >-
+    Resolve an incident, meaning the response is over and this was a real incident. Closing it is what makes a postmortem available. Call get_form
+    with form: "resolve" first for what this workspace asks. A required answer left out keeps what the incident already has, so send only what
+    changes. Use cancel_incident instead when it turned out not to be an incident. If the call requires approval, retry the identical call with
+    approval_id once approved. Docs: https://firefight.app/docs/incidents/concepts.md
+  parameters:
+    properties:
+      incident:
+        type: string
+        description: Incident UUID or identifier like INC-42
+      answers:
+        type: object
+        description: The resolve form's answers, keyed as get_form returned them
+      approval_id:
+        type: string
+        description: Approval id when retrying an approved call
+    required:
+    - incident
+    type: object
 search_activity:
   live: true
   description: >-

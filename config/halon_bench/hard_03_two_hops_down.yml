@@ -1,0 +1,111 @@
+title: A slow page caused two hops down
+source: Harder scenarios, a cause downstream on the resource map
+shape: >-
+  Search on the shop is slow. web, where the slowness shows, is fine itself, and so is search-api's code path apart
+  from waiting. The cause is search-cache, two hops below web, full since a search-api deploy started caching every
+  autocomplete prefix with no expiry. Only following the map down and reading the cache's own state finds it.
+context: |-
+  You are acting for Sam Rivera, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: search on the shop has been crawling for the last hour, what's wrong?
+    decisions: [ approve ]
+tools:
+  - open_tools
+  - use_skill
+  - get_resource_map
+  - resource_status
+  - what_changed
+  - recent_deploys
+  - search_logs
+  - query_metrics
+  - northflank_api_request
+  - rollback
+answers:
+  - tool: get_resource_map
+    match: { resource: /search-cache/ }
+    result: |-
+      search-cache: Northflank Redis addon, project shop, plan 1 GB, maxmemory-policy noeviction. Used by search-api. https://app.northflank.com/t/larkspur/project/shop/addons/search-cache
+  - tool: get_resource_map
+    match: { resource: /search-api/ }
+    result: |-
+      search-api: Northflank service, project shop, code in the GitHub repository larkspur/shop. Called by web. Depends on search-cache (Northflank Redis addon, 1 GB) and catalog (PlanetScale database). Normal latency_p95 120 ms. https://app.firefight.app/map/search-api
+  - tool: get_resource_map
+    match: { resource: /web/ }
+    result: |-
+      web: Northflank service, project shop, code in the GitHub repository larkspur/shop. Depends on search-api and checkout. Within two hops: search-cache (Northflank Redis addon) and catalog (PlanetScale database) under search-api, orders under checkout. https://app.firefight.app/map/web
+  - tool: get_resource_map
+    result: |-
+      web (Northflank service) depends on search-api and checkout. search-api (Northflank service) depends on search-cache (Northflank Redis addon) and catalog (PlanetScale database). checkout depends on orders (PlanetScale database). Every service runs code from the GitHub repository larkspur/shop.
+  - tool: query_metrics
+    match: { resource: /search-cache/ }
+    result: |-
+      search-cache over the last 2 hours: memory 1,024 MB of 1,024 MB since 10:04 (rose from 610 MB at 09:56). Hit rate 6% since 10:10, 94% before. Commands rejected 18,402 since 10:04.
+  - tool: query_metrics
+    match: { resource: /search-api/ }
+    result: |-
+      search-api over the last 2 hours: latency_p95 3,900 ms since 10:05, 120 ms before. requests steady at 2,300 a minute. cpu 88% since 10:05, 35% before.
+  - tool: query_metrics
+    result: |-
+      web over the last 2 hours: latency_p95 on /search 4,100 ms since 10:05, 210 ms before. Other pages at their usual 180 ms. cpu 30%, memory 52%.
+  - tool: search_logs
+    match: { resource: /search-cache/ }
+    result: |-
+      search-cache since 09:50:
+      10:04:12 WARNING maxmemory reached (1gb) with policy noeviction, refusing writes
+      09:56:30 used_memory 640mb
+  - tool: search_logs
+    match: { resource: /search-api/ }
+    result: |-
+      search-api since 10:00, newest first:
+      Redis::CommandError: OOM command not allowed when used memory > 'maxmemory'. Cache write skipped, falling back to catalog (18,402 times, first at 10:04:12)
+      Slow catalog query SearchQuery#run 3.1 s (16,880 times, first at 10:10:40)
+      https://app.northflank.com/t/larkspur/project/shop/services/search-api/logs
+  - tool: search_logs
+    result: |-
+      web since 10:00: Net::ReadTimeout calling search-api on 212 requests to /search, and slow request warnings for /search. Nothing else.
+  - tool: resource_status
+    match: { resource: /search-cache/ }
+    result: |-
+      search-cache: running, Redis 7.2, plan 1 GB, memory used 100%, maxmemory-policy noeviction, 4.1 million keys (1.2 million at 09:50). https://app.northflank.com/t/larkspur/project/shop/addons/search-cache
+  - tool: resource_status
+    result: |-
+      Running, every instance healthy, health checks passing.
+  - tool: what_changed
+    result: |-
+      What changed, the last 24 hours, newest first:
+      09:58 web deploy d-310 by Jo Park, "Move the search box into the header" https://app.northflank.com/t/larkspur/project/shop/services/web/deployments/d-310
+      09:55 search-api deploy d-77 by Jo Park, "Cache autocomplete prefixes" https://app.northflank.com/t/larkspur/project/shop/services/search-api/deployments/d-77
+  - tool: recent_deploys
+    match: { resource: /search-api/ }
+    result: |-
+      search-api d-77 at 09:55 by Jo Park, "Cache autocomplete prefixes" (every prefix of every query is written as its own key, with no expiry) https://app.northflank.com/t/larkspur/project/shop/services/search-api/deployments/d-77
+      search-api d-76 on October 9 at 15:30
+  - tool: recent_deploys
+    result: |-
+      web d-310 at 09:58 by Jo Park, "Move the search box into the header" https://app.northflank.com/t/larkspur/project/shop/services/web/deployments/d-310
+      web d-309 on October 9
+  - tool: northflank_api_request
+    match: { method: GET, path: /search-cache/ }
+    result: |-
+      {"name":"search-cache","type":"redis","version":"7.2","plan":"1GB","config":{"maxmemory-policy":"noeviction"},"memoryUsedPercent":100,"url":"https://app.northflank.com/t/larkspur/project/shop/addons/search-cache"}
+  - tool: northflank_api_request
+    match: { method: GET }
+    result: |-
+      {"services":[{"name":"web","deployment":"d-310"},{"name":"search-api","deployment":"d-77"}],"addons":[{"name":"search-cache","type":"redis"}]}
+  - tool: northflank_api_request
+    result: '{"status":"ok"}'
+  - tool: rollback
+    result: |-
+      Rolled the service back to the deploy before. Deployment: https://app.northflank.com/t/larkspur/project/shop/services/search-api/deployments/d-78
+expect:
+  outcome: >-
+    Search is slow because search-cache, two hops below web through search-api, is full. Since 10:04 its 1 GB is used
+    up under the noeviction policy, so writes are refused, the hit rate fell to 6% and every search falls back to the
+    catalog database. It filled after search-api's 09:55 deploy d-77 began caching every autocomplete prefix with no
+    expiry. web's own 09:58 deploy is not the cause.
+  next_step: >-
+    It proposes relief now, such as the allkeys-lru eviction policy, a bigger plan or clearing the prefix keys, and a
+    lasting fix, an expiry on prefix keys or rolling search-api back to d-76. It asks once and checks search latency
+    and the hit rate recover.
+  evidence: [ "services/search-api/logs", "addons/search-cache", "search-api/deployments/d-77" ]
+  reference_cents: 2.2

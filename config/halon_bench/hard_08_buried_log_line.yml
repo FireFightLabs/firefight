@@ -1,0 +1,161 @@
+title: The one log line that matters, buried in noise
+source: Harder scenarios, noisy logs
+shape: >-
+  Password reset emails stopped arriving. The mailer's logs are full of old, harmless warnings and errors, and a
+  mailer deploy went out that morning. The one line that matters says recipients reject the mail for a failed sender
+  check, and it leads to a DNS record edited by hand at the edge minutes before.
+context: |-
+  You are acting for Sam Rivera, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: password reset emails stopped arriving this morning, customers are locked out. help?
+    decisions: [ approve ]
+tools:
+  - open_tools
+  - get_resource_map
+  - search_logs
+  - query_metrics
+  - what_changed
+  - recent_deploys
+  - check_from_outside
+  - run_command
+  - cloudflare_execute
+answers:
+  - tool: get_resource_map
+    result: |-
+      mailer (Northflank service, project shop) sends mail from larkspur.shop through an outside mail relay, relay.mailhost.example. larkspur.shop is a Cloudflare zone (7c1e) holding the domain's DNS.
+  - tool: search_logs
+    match: { regex: "/550|5\\.7|reject|spf|dmarc|deliver/" }
+    result: |-
+      mailer, matching lines, newest first:
+      09:41:02 ERROR DeliveryJob template=password_reset to=***@mail.example: 550 5.7.26 Unauthenticated email from larkspur.shop is not accepted due to the domain's DMARC policy (SPF fail)
+      09:40:47 ERROR DeliveryJob template=password_reset to=***@mail.example: 550 5.7.26 Unauthenticated email from larkspur.shop is not accepted due to the domain's DMARC policy (SPF fail)
+      (31 such lines since 07:14, none before)
+  - tool: search_logs
+    match: { text: "/550|5\\.7|reject|spf|dmarc|deliver/" }
+    result: |-
+      mailer, matching lines, newest first:
+      09:41:02 ERROR DeliveryJob template=password_reset to=***@mail.example: 550 5.7.26 Unauthenticated email from larkspur.shop is not accepted due to the domain's DMARC policy (SPF fail)
+      09:40:47 ERROR DeliveryJob template=password_reset to=***@mail.example: 550 5.7.26 Unauthenticated email from larkspur.shop is not accepted due to the domain's DMARC policy (SPF fail)
+      (31 such lines since 07:14, none before)
+  - tool: search_logs
+    match: { text: "/error|fail/" }
+    result: |-
+      mailer, lines containing that, newest first (3,412 match, the first 20 shown):
+      09:41:58 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:55 ERROR Faraday::ConnectionFailed to metrics.larkspur.internal, dropped a metrics batch
+      09:41:52 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:49 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:46 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:43 ERROR Faraday::ConnectionFailed to metrics.larkspur.internal, dropped a metrics batch
+      09:41:40 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:37 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:34 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:31 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:28 ERROR Faraday::ConnectionFailed to metrics.larkspur.internal, dropped a metrics batch
+      09:41:25 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:22 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:19 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:16 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:13 ERROR Faraday::ConnectionFailed to metrics.larkspur.internal, dropped a metrics batch
+      09:41:10 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:07 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:02 ERROR DeliveryJob template=password_reset to=***@mail.example: 550 5.7.26 Unauthenticated email from larkspur.shop is not accepted due to the domain's DMARC policy (SPF fail)
+      09:41:01 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      The heartbeat timeouts appear every few seconds since October 2 and the metrics errors since October 4.
+  - tool: search_logs
+    match: { regex: "/error|fail/" }
+    result: |-
+      mailer, lines containing that, newest first (3,412 match, the first 20 shown):
+      09:41:58 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:55 ERROR Faraday::ConnectionFailed to metrics.larkspur.internal, dropped a metrics batch
+      09:41:52 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:49 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:46 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:43 ERROR Faraday::ConnectionFailed to metrics.larkspur.internal, dropped a metrics batch
+      09:41:40 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:37 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:34 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:31 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:28 ERROR Faraday::ConnectionFailed to metrics.larkspur.internal, dropped a metrics batch
+      09:41:25 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:22 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:19 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:16 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:13 ERROR Faraday::ConnectionFailed to metrics.larkspur.internal, dropped a metrics batch
+      09:41:10 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:07 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:02 ERROR DeliveryJob template=password_reset to=***@mail.example: 550 5.7.26 Unauthenticated email from larkspur.shop is not accepted due to the domain's DMARC policy (SPF fail)
+      09:41:01 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      The heartbeat timeouts appear every few seconds since October 2 and the metrics errors since October 4.
+  - tool: search_logs
+    result: |-
+      mailer, newest first (4,180 lines in the last 60 minutes, the first 20 shown):
+      09:41:59 INFO heartbeat ok
+      09:41:58 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:58 WARN Faraday: passing a block to adapter is deprecated
+      09:41:56 INFO heartbeat ok
+      09:41:55 ERROR Faraday::ConnectionFailed to metrics.larkspur.internal, dropped a metrics batch
+      09:41:53 INFO heartbeat ok
+      09:41:52 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:50 WARN Faraday: passing a block to adapter is deprecated
+      09:41:49 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:47 INFO heartbeat ok
+      09:41:46 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:44 INFO DeliveryJob template=order_receipt queued
+      09:41:43 ERROR Faraday::ConnectionFailed to metrics.larkspur.internal, dropped a metrics batch
+      09:41:41 INFO heartbeat ok
+      09:41:40 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:38 WARN Faraday: passing a block to adapter is deprecated
+      09:41:37 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:35 INFO heartbeat ok
+      09:41:34 ERROR Redis::TimeoutError on heartbeat, retried, succeeded
+      09:41:32 INFO heartbeat ok
+  - tool: query_metrics
+    result: |-
+      mailer over the last 3 hours: cpu 12%, memory 40%, errors 0.6% latest (0.5% a week ago), requests not kept for a worker.
+  - tool: what_changed
+    match: { resource: /mailer/ }
+    result: |-
+      What changed for mailer, the last 24 hours, newest first:
+      06:30 mailer deploy d-88 by Jo Park, "Bump gem versions" https://app.northflank.com/t/larkspur/project/shop/services/mailer/deployments/d-88
+  - tool: what_changed
+    result: |-
+      What changed, the last 24 hours, newest first:
+      07:10 larkspur.shop DNS: TXT record larkspur.shop edited by Jo Park in the Cloudflare dashboard, reported between sweeps
+      06:30 mailer deploy d-88 by Jo Park, "Bump gem versions" https://app.northflank.com/t/larkspur/project/shop/services/mailer/deployments/d-88
+  - tool: recent_deploys
+    result: |-
+      mailer d-88 at 06:30 by Jo Park, "Bump gem versions" (Faraday, Redis client, no mail settings changed) https://app.northflank.com/t/larkspur/project/shop/services/mailer/deployments/d-88
+      mailer d-87 on October 6
+  - tool: check_from_outside
+    result: |-
+      larkspur.shop DNS: A 203.0.113.10, TXT "v=spf1 include:_spf.workspace-mail.example ~all", MX mx1.workspace-mail.example. Checked from the sandbox in us-east.
+  - tool: cloudflare_execute
+    match: { code: /audit/ }
+    reads: true
+    result: |-
+      2026-10-11T07:10:22Z jo.park edited DNS record TXT larkspur.shop: from "v=spf1 include:_spf.workspace-mail.example include:spf.relay.mailhost.example ~all" to "v=spf1 include:_spf.workspace-mail.example ~all"
+      https://dash.cloudflare.com/7c1e/larkspur.shop/dns/records
+  - tool: cloudflare_execute
+    match: { code: /dns_records/ }
+    reads: true
+    result: |-
+      [{"type":"TXT","name":"larkspur.shop","content":"v=spf1 include:_spf.workspace-mail.example ~all","modified_on":"2026-10-11T07:10:22Z"},{"type":"MX","name":"larkspur.shop","content":"mx1.workspace-mail.example"}]
+      https://dash.cloudflare.com/7c1e/larkspur.shop/dns/records
+  - tool: cloudflare_execute
+    result: Done.
+  - tool: run_command
+    result: |-
+      3,180 Redis::TimeoutError (since October 2)
+        201 Faraday::ConnectionFailed (since October 4)
+         31 550 5.7.26 SPF fail (since 07:14)
+expect:
+  outcome: >-
+    Recipients' servers reject password reset mail with 550 5.7.26, a failed SPF check, since 07:14, because Jo Park
+    edited the SPF record on larkspur.shop at 07:10 and dropped the relay's include. The Redis heartbeat timeouts and
+    metrics errors around it are older and harmless, and the 06:30 mailer deploy changed no mail settings.
+  next_step: >-
+    It proposes putting include:spf.relay.mailhost.example back in the SPF record, asks once, offers to bring in Jo,
+    and says resets requested since 07:14 need sending again once mail is accepted.
+  evidence: [ "550 5.7.26", "dns/records" ]
+  reference_cents: 1.8

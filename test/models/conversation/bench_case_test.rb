@@ -1,17 +1,18 @@
 require "test_helper"
 
 class Conversation::BenchCaseTest < ActiveSupport::TestCase
-  # The five failures that started the bench, the nineteen scenarios of the stress test, and the three habits the first
-  # real run found in every model.
+  # The five failures that started the bench, the nineteen scenarios of the stress test, the three habits the first
+  # real run found in every model, and the harder scenarios that tell a strong model from a cheap one.
   FAILURES = %w[release_watch_followed_nothing slow_query_investigation_timed_out sticks_with_no duplicate_workspace_signup confirm_card_repeats_choices].freeze
   HABITS = %w[reads_without_asking general_read_when_no_tool repository_from_the_map].freeze
 
   test "every scenario reads, says what a good run reaches and what it does next, and names only tools it offers" do
     scenarios = Conversation::BenchCase.scenarios
 
-    assert_equal FAILURES.size + 19 + HABITS.size, scenarios.size
+    assert_equal FAILURES.size + 19 + HABITS.size + 11, scenarios.size
     assert_empty (FAILURES + HABITS) - scenarios.map(&:key)
     assert_equal 19, scenarios.count { |scenario| scenario.key.start_with?("stress_") }
+    assert_equal 11, scenarios.count { |scenario| scenario.key.start_with?("hard_") }
     scenarios.each do |scenario|
       assert scenario.expect.outcome.present?, "#{scenario.key} says nothing about the right outcome"
       assert scenario.expect.next_step.present?, "#{scenario.key} says nothing about the next step"
@@ -81,6 +82,21 @@ class Conversation::BenchCaseTest < ActiveSupport::TestCase
     assert_equal "failed", bench_case.answer_for("read", { "path" => "/runs/1" }, used).first.result
     assert_equal "failed", bench_case.answer_for("read", { "path" => "/tokens/1" }, used, [ [ "change", { "method" => "GET" } ] ]).first.result
     assert_equal "revoked", bench_case.answer_for("read", { "path" => "/tokens/1" }, used, [ [ "change", { "method" => "POST" } ] ]).first.result
+  end
+
+  # The harder scenarios answer a change by what it left, so a model that acts before reading sees its mistake.
+  test "a rerun fails until the job reads the rotated password, and a rollback past a migration breaks every order" do
+    invoices = Conversation::BenchCase.scenario("hard_05_early_detail_decides")
+    rerun = { "method" => "POST", "path" => "/v1/projects/shop/jobs/invoices/runs" }
+
+    assert_match "failed", invoices.answer_for("northflank_api_request", rerun, Hash.new(0)).first.result
+    relinked = [ [ "northflank_api_request", { "method" => "PATCH", "path" => "/v1/projects/shop/jobs/invoices/runtime-environment" } ] ]
+    assert_match "succeeded", invoices.answer_for("northflank_api_request", rerun, Hash.new(0), relinked).first.result
+
+    refunds = Conversation::BenchCase.scenario("hard_09_rollback_past_a_migration")
+    assert_match "refunds_controller.rb:58", refunds.answer_for("search_logs", { "resource" => "api" }, Hash.new(0)).first.result
+    rolled_back = [ [ "rollback", { "resource" => "api", "to" => "d-497" } ] ]
+    assert_match "Unknown column", refunds.answer_for("search_logs", { "resource" => "api" }, Hash.new(0), rolled_back).first.result
   end
 
   test "a tool's default answers what nothing recorded, and lists the tools it offers when asked to" do

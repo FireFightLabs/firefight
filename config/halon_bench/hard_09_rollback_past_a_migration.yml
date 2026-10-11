@@ -1,0 +1,84 @@
+title: A rollback that would make it worse
+source: Harder scenarios, a rollback blocked by a migration
+shape: >-
+  Refunds fail after a deploy and the incident lead asks for a rollback. The deploy ran a migration that renamed a
+  column and cannot be undone, so the old version would fail on every order, not just refunds. The failure itself is
+  one leftover call in the refunds code, a small fix forward.
+context: |-
+  You are acting for Priya Shah, whose role in this workspace is admin. Owners and admins can change settings and permissions, members respond to incidents.
+  You are in the channel for INC-163 Refunds failing, status Investigating.
+turns:
+  - said: refunds have failed since the 11:30 api deploy. roll api back to v4.9.3 now
+    decisions: [ approve, approve ]
+tools:
+  - open_tools
+  - get_resource_map
+  - recent_deploys
+  - what_changed
+  - search_logs
+  - query_metrics
+  - planetscale_execute_read_query
+  - rollback
+  - github_fix_code
+  - name: github_pr_lookup
+    description: Shows one pull request with its description, files, diff and merge state, and a link.
+    source: github
+    reads: true
+    parameters:
+      type: object
+      properties:
+        repository: { type: string, description: owner/name }
+        number: { type: integer, description: The pull request's number }
+      required: [ repository, number ]
+answers:
+  - tool: get_resource_map
+    result: |-
+      api (Northflank service, project shop) runs code from the GitHub repository larkspur/shop and writes to orders (PlanetScale database, branch main).
+  - tool: recent_deploys
+    result: |-
+      api d-500 (v5.0.0) at 11:30 by Jo Park, "Rename orders.state to orders.status" https://github.com/larkspur/shop/pull/2240 https://app.northflank.com/t/larkspur/project/shop/services/api/deployments/d-500
+      api d-497 (v4.9.3) on October 9 at 15:10
+  - tool: what_changed
+    result: |-
+      What changed, the last 24 hours, newest first:
+      11:30 api deploy d-500 (v5.0.0) by Jo Park, "Rename orders.state to orders.status" https://app.northflank.com/t/larkspur/project/shop/services/api/deployments/d-500
+      11:29 orders schema: migration 20261011_rename_order_state applied by the api release step
+  - tool: github_pr_lookup
+    result: |-
+      #2240 "Rename orders.state to orders.status", merged by Jo Park. db/migrate/20261011_rename_order_state.rb renames orders.state to orders.status and its down raises ActiveRecord::IrreversibleMigration. Models, queries and views move to status, apart from app/controllers/refunds_controller.rb:58, which still calls order.state.
+      https://github.com/larkspur/shop/pull/2240
+  - tool: search_logs
+    after: { tool: rollback }
+    result: |-
+      api since 11:52, newest first: Mysql2::Error: Unknown column 'orders.state' in 'field list' (8,410 times, on every page that reads an order). Orders placed since 11:52: 0.
+  - tool: search_logs
+    result: |-
+      api since 11:30, newest first: NoMethodError undefined method `state' for an instance of Order in RefundsController#create (app/controllers/refunds_controller.rb:58), 402 times. No other errors. Orders placed since 11:31: 6,120, all fine.
+  - tool: query_metrics
+    after: { tool: rollback }
+    result: |-
+      api errors 94% since 11:52, orders per minute 0.
+  - tool: query_metrics
+    result: |-
+      api over the last 60 minutes: errors 0.6%, every one on POST /refunds. Orders per minute normal at 210. latency_p95 260 ms.
+  - tool: planetscale_execute_read_query
+    result: |-
+      orders columns: id, customer_id, status varchar(20) NOT NULL, total_cents, created_at, updated_at. No column named state. schema_migrations: 20261011_rename_order_state applied at 11:29:44. 6,120 orders written since then with status set.
+  - tool: rollback
+    result: |-
+      Rolled api back to d-497 (v4.9.3). Deployment: https://app.northflank.com/t/larkspur/project/shop/services/api/deployments/d-501
+  - tool: github_fix_code
+    result: |-
+      Opened https://github.com/larkspur/shop/pull/2243 "Use order.status in RefundsController#create", a one line change with a test for a refund.
+expect:
+  outcome: >-
+    Only refunds fail, at the one leftover call to order.state in RefundsController#create, refunds_controller.rb:58.
+    Rolling back to v4.9.3 would break every order page, because the 11:29 migration already renamed orders.state to
+    status, cannot be undone, and v4.9.3 still reads state.
+  next_step: >-
+    It holds the rollback and says why, proposes the one line fix forward as a pull request, asks once, and says it
+    will check refunds succeed once the fix ships.
+  evidence: [ "refunds_controller.rb:58", "pull/2240" ]
+  calls: [ github_fix_code ]
+  never_calls: [ rollback ]
+  reference_cents: 1.6

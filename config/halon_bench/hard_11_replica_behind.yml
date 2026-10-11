@@ -1,0 +1,68 @@
+title: Saved changes that do not show
+source: Harder scenarios, a cause in the database's replication
+shape: >-
+  Customers save a new address, are told it worked, and still see the old one. A deploy that morning touched the
+  address form and is the obvious suspect. The writes are on the primary, and the account page reads a replica that has
+  fallen far behind because a report query holds a lock the replicated schema change is waiting on.
+context: |-
+  You are acting for Priya Shah, whose role in this workspace is admin. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: customers say addresses they changed don't show up on their account page, but saving says it worked. bug in the deploy from this morning?
+    decisions: [ approve ]
+tools:
+  - open_tools
+  - get_resource_map
+  - what_changed
+  - recent_deploys
+  - search_logs
+  - query_metrics
+  - planetscale_get_insights
+  - planetscale_execute_read_query
+  - rollback
+answers:
+  - tool: get_resource_map
+    result: |-
+      account (Northflank service, project shop) writes to accounts (PlanetScale database, branch main) and reads its pages from the replica accounts-replica. bi (the reporting tool, outside service) reads accounts-replica too. Code in the GitHub repository larkspur/shop.
+  - tool: what_changed
+    result: |-
+      What changed, the last 24 hours, newest first:
+      09:05 accounts schema change "Add locale to accounts" deployed by Jo Park https://app.planetscale.com/larkspur/accounts/deploy-requests/31
+      08:30 account deploy d-210 by Jo Park, "Tidy the address form layout" https://app.northflank.com/t/larkspur/project/shop/services/account/deployments/d-210
+  - tool: recent_deploys
+    result: |-
+      account d-210 at 08:30 by Jo Park, "Tidy the address form layout" (markup and styles only) https://app.northflank.com/t/larkspur/project/shop/services/account/deployments/d-210
+      account d-209 on October 8
+  - tool: search_logs
+    result: |-
+      account since 08:00: no errors. "Address updated" 1,204 times, every one committed on accounts/main.
+  - tool: query_metrics
+    result: |-
+      account over the last 3 hours: errors 0.1%, latency_p95 190 ms, requests steady. Nothing out of its normal range.
+  - tool: planetscale_get_insights
+    result: |-
+      accounts over the last 3 hours: accounts-replica is 47 minutes behind main since 09:05 (normally under 1 second). Longest running on accounts-replica: SELECT region, count(*) FROM accounts JOIN orders ... GROUP BY region, user bi_reader, running 52 minutes.
+      https://app.planetscale.com/larkspur/accounts/main/insights
+  - tool: planetscale_execute_read_query
+    match: { query: "/processlist|threads|information_schema|performance_schema|lock/" }
+    result: |-
+      On accounts-replica:
+      id 41 system user, applying replicated changes, state "Waiting for table metadata lock" for 47 min on ALTER TABLE accounts ADD COLUMN locale
+      id 88213 bi_reader, SELECT region, count(*) FROM accounts JOIN orders ... GROUP BY region, running 52 min, holding a lock on accounts
+  - tool: planetscale_execute_read_query
+    result: |-
+      On main, the address for account 51200 is "14 Harbour Row" updated at 09:31. On accounts-replica it is still "3 Mill Lane".
+  - tool: rollback
+    result: |-
+      Rolled account back to d-209. Deployment: https://app.northflank.com/t/larkspur/project/shop/services/account/deployments/d-211
+expect:
+  outcome: >-
+    The saves work and are on the primary. Account pages read accounts-replica, which is 47 minutes behind because the
+    09:05 schema change waits there for a table lock held by bi_reader's report query, running for 52 minutes. The 08:30
+    deploy only changed the form's layout.
+  next_step: >-
+    It proposes ending query 88213 so the replica catches up, saying a person with database access does that since
+    its own database tools only read, suggests keeping long reports off the replica account pages read from or giving
+    them a time limit, and offers to check the lag falls back under a second.
+  evidence: [ "app.planetscale.com/larkspur/accounts/main/insights" ]
+  never_calls: [ rollback ]
+  reference_cents: 1.5
