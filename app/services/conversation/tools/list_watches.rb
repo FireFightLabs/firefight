@@ -3,7 +3,9 @@
 class Conversation::Tools::ListWatches < RubyLLM::Tool
   description "The watches this chat keeps, going and ended, with each step as it stands, when it was last read, and what " \
               "they said. Each one still going reads what it follows again first, so read it when the person asks how a " \
-              "watch is going, and say so when it disagrees with what you or the watch said before."
+              "watch is going, and say so when it disagrees with what you or the watch said before. In the dashboard chat " \
+              "the person sees the watches going in the Watching strip above the message box, each opening to its card, " \
+              "so answer in a sentence and point there rather than drawing a table of them."
 
   def self.tool_name = "list_watches"
 

@@ -50,18 +50,33 @@ module Conversation::Watches
     def initialize(live: false, link: nil, **rest) = super
   end
 
+  ADD_TO_ARG = "add_to".freeze
+  SEPARATE_ARG = "separate".freeze
+  # Where the person sees the watches going in a dashboard chat, which Halon points to rather than listing them.
+  STRIP_NOTE = "The watches going show in the Watching strip above the message box, each opening to its card, so point " \
+               "there rather than listing them.".freeze
+
+  # Only the dashboard draws the strip, so a chat in Slack is never pointed to it.
+  def self.strip_note(turn) = (STRIP_NOTE if turn.conversation.personal?)
+
   # Starts a watch for whoever asks this turn, and answers what Halon tells the person: how long it will watch and
-  # why, and anything it cannot follow. arguments are start_watch's, with string keys.
-  def self.start(turn, arguments)
+  # why, and anything it cannot follow. arguments are start_watch's, with string keys. One watch per subject, so
+  # steps given add_to join that watch. With choose, as Halon's start_watch asks, a watch of theirs already going in
+  # the chat means Halon says first whether these join it or are separate. A runbook's own watch starts as it always has.
+  def self.start(turn, arguments, choose: false)
     workspace = turn.workspace
     asker = turn.asker
     return "Nobody can be credited with this watch, so it was not started." unless asker
+    return add_to(turn, arguments) if arguments[ADD_TO_ARG].present?
+
+    going = Array(turn.chat&.watches&.going_for(asker))
+    return which_watch(going) if choose && going.any? && !ActiveModel::Type::Boolean.new.cast(arguments[SEPARATE_ARG])
 
     full = Chat::Watch.full_reason(workspace)
     return full if full
 
-    given = Array(arguments["steps"]).map { |step| step.to_h.transform_keys(&:to_s) }
-    return "Say what to watch, as one or more steps, each naming a capability that reads and a resource." if given.empty?
+    given = steps_given(arguments)
+    return NO_STEPS if given.empty?
     return "A watch follows at most #{Chat::Watch::MAX_STEPS} steps. Watch the ones that matter most." if given.size > Chat::Watch::MAX_STEPS
 
     ceiling = Chat::Watch.ceiling_for(arguments["reads_per_hour"], given.size)
@@ -73,7 +88,8 @@ module Conversation::Watches
     usual = planned.filter_map { |step| step[:usual] }.sum.nonzero?
     limit = Chat::Watch.limit_for(asked_minutes: arguments["minutes"], usual_seconds: usual, remembered_minutes: arguments["expected_minutes"])
     title = arguments["title"].to_s.strip.presence || planned.first[:label]
-    watch = create!(turn, title, limit, planned, purpose: arguments["purpose"].to_s.strip.presence, reads_per_hour: ceiling)
+    watch = create!(turn, title, limit, planned, purpose: arguments["purpose"].to_s.strip.presence, reads_per_hour: ceiling,
+                    reads_per_hour_asked: arguments["reads_per_hour"].to_i.positive?)
     watch.count_reads!(meter.count)
     Conversation::LiveDelivery.watch_moved(turn.conversation)
     # Something that fails the moment it starts is told within seconds rather than at the next sweep.
@@ -84,7 +100,84 @@ module Conversation::Watches
       cannot.any? ? "Also tell them what it cannot follow: #{cannot.join(' ')}" : nil,
       "Each milestone and the end come to this chat and to their direct messages on their own, so never check it " \
       "again yourself unless they ask. When a step's read finds nothing to follow, it is handed back to you to repair " \
-      "with repair_watch. It can be stopped from the chat or with stop_watch (watch #{watch.id})." ].compact.join("\n")
+      "with repair_watch. It can be stopped from the chat or with stop_watch (watch #{watch.id}).", strip_note(turn) ].compact.join("\n")
+  end
+
+  # Nothing starts while the chat has a watch of this asker's going, until Halon says whether these steps follow the same
+  # subject, which a model reads far better from the person's words than any match on names or resources could.
+  def self.which_watch(going)
+    listed = going.map do |watch|
+      steps = watch.steps.map(&:label).join(", ")
+      "- #{Chat::Watch::Shown.name(watch)} (watch #{watch.id})#{" for: #{watch.purpose}" if watch.purpose.present?}. Steps: #{steps}."
+    end
+    "Nothing was started yet, since this chat already has #{going.size == 1 ? 'a watch' : 'watches'} going:\n#{listed.join("\n")}\n" \
+      "Keep one watch per subject. When these steps follow the same release, deploy, run or incident as one of them, such as " \
+      "the rollout and the health checks after a release build, call start_watch again with #{ADD_TO_ARG} and its id, and " \
+      "they join it. When they follow something unrelated, such as a database backup during a release, call it again with " \
+      "#{SEPARATE_ARG} true."
+  end
+
+  # Steps on the same subject join the watch already following it, after its own, rather than start another. Its limit
+  # moves to leave them time to finish, its ceiling rises with them unless Halon set it, and the watch says what joined
+  # wherever it reports. Answers what Halon tells the person.
+  def self.add_to(turn, arguments)
+    watch_id = arguments[ADD_TO_ARG].to_s
+    watch = turn.chat&.watches&.find_by(id: watch_id)
+    return "No watch #{watch_id} in this chat. list_watches names them." unless watch
+
+    given = steps_given(arguments)
+    return NO_STEPS if given.empty?
+
+    blocked = watch.add_blocked_reason(turn.asker, given.size)
+    return blocked if blocked
+
+    now = Time.current
+    ceiling = watch.ceiling_after_adding(arguments["reads_per_hour"], given.size)
+    meter = Chat::Watch::Meter.new(watch.reads_left(now, ceiling: ceiling))
+    reader, agent = readers(turn.workspace, turn.asker, turn.conversation, meter)
+    planned, cannot = plan(given, reader, agent)
+    return "Nothing was added, since none of it can be followed. #{cannot.join(' ')}" if planned.empty?
+
+    usual = planned.filter_map { |step| step[:usual] }.sum.nonzero?
+    limit = Chat::Watch.limit_for(asked_minutes: arguments["minutes"], usual_seconds: usual, remembered_minutes: arguments["expected_minutes"])
+    until_at = [ now + limit.seconds, watch.created_at + Chat::Watch::LONGEST ].min
+    limit_before = watch.expires_at
+    steps = planned.map { |planned_step| { label: planned_step[:label].truncate(120), **read_of(planned_step) } }
+    added = watch.add_steps!(steps, until_at: until_at, reads_per_hour: ceiling, title: arguments["title"].to_s.strip.presence,
+                                    purpose: arguments["purpose"].to_s.strip.presence, now: now)
+    return "#{Chat::Watch::Shown.name(watch)} ended just now, so nothing was added. Start a new watch for these steps." unless added
+
+    watch.count_reads!(meter.count)
+    labels = planned.map { |planned_step| planned_step[:label] }.to_sentence
+    moved = watch.expires_at > limit_before
+    # Halon says it in its own answer, so it is not heard again at the next turn.
+    tell!(watch, Chat::Watch::Update::KIND_STEPS_ADDED, steps_added_words(watch, labels, moved)).update_columns(told_at: Time.current)
+    WatchCheckJob.perform_later(watch.id)
+
+    [ "Added #{labels} to #{Chat::Watch::Shown.name(watch)} (watch #{watch.id}) rather than starting another watch. Tell the person, " \
+      "in your own words, that the watch they have now follows these too. #{added_limit_words(watch, limit, moved)} " \
+      "It reads at most #{watch.reads_per_hour} times an hour, which the card shows.",
+      cannot.any? ? "Also tell them what it cannot follow: #{cannot.join(' ')}" : nil,
+      "Each milestone and the end come to this chat and to their direct messages on their own, so never check it again yourself unless they ask.",
+      strip_note(turn) ].compact.join("\n")
+  end
+
+  NO_STEPS = "Say what to watch, as one or more steps, each naming a capability that reads and a resource.".freeze
+
+  def self.steps_given(arguments) = Array(arguments["steps"]).map { |step| step.to_h.transform_keys(&:to_s) }
+
+  # The line the watch says when steps join it, on the card, in the thread and in direct messages.
+  def self.steps_added_words(watch, labels, moved)
+    limit = moved ? " It now watches for up to #{Chat::Watch::Shown.limit_label(watch)} from when it started." : ""
+    "Now also following #{labels}.#{limit}"
+  end
+
+  def self.added_limit_words(watch, limit, moved)
+    usual = limit.usual_seconds && Integrations::Capabilities::History.duration(limit.usual_seconds)
+    took = usual ? " They usually take about #{usual}." : ""
+    return "Its limit of #{Chat::Watch::Shown.limit_label(watch)} from when it started already leaves them time.#{took}" unless moved
+
+    "It now watches for up to #{Chat::Watch::Shown.limit_label(watch)} from when it started, to leave them time to finish.#{took}"
   end
 
   # The reads one watch makes, counted on one meter.
@@ -204,11 +297,11 @@ module Conversation::Watches
     nil
   end
 
-  def self.create!(turn, title, limit, planned, purpose: nil, reads_per_hour: Chat::Watch.ceiling_for(nil, planned.size))
+  def self.create!(turn, title, limit, planned, purpose: nil, reads_per_hour: Chat::Watch.ceiling_for(nil, planned.size), reads_per_hour_asked: false)
     Chat::Watch.transaction do
       watch = Chat::Watch.create!(
         chat: turn.conversation.chat_record, workspace: turn.workspace, asker: turn.asker, title: title.truncate(Chat::Watch::TITLE_LIMIT),
-        purpose: purpose&.truncate(Chat::Watch::PURPOSE_LIMIT), reads_per_hour: reads_per_hour,
+        purpose: purpose&.truncate(Chat::Watch::PURPOSE_LIMIT), reads_per_hour: reads_per_hour, reads_per_hour_asked: reads_per_hour_asked,
         expires_at: limit.seconds.seconds.from_now, usual_seconds: limit.usual_seconds, limit_basis: limit.basis
       )
       planned.each_with_index do |planned_step, position|
@@ -268,7 +361,7 @@ module Conversation::Watches
     meter = Chat::Watch::Meter.new(watch.reads_left(now))
     read_all = true
     begin
-      return time_out!(watch) if now >= watch.expires_at
+      return time_out!(watch, now) if now >= watch.expires_at
 
       progress = []
       read_all = read_steps(watch, watch.open_steps, meter, now, progress)
@@ -718,20 +811,25 @@ module Conversation::Watches
     FirefightAi::WatchJudge.new(watch.workspace, inferable: watch.conversation.try(:subject), member: (watch.asker if watch.asker.is_a?(WorkspaceMembership)))
   end
 
+  # Whether every step is over is decided over the steps as they were read, so steps added meanwhile keep it going.
   def self.conclude!(watch)
+    added = Chat::Watch.where(id: watch.id).pick(:steps_added_at)
     steps = watch.steps.reload.to_a
     failed = steps.find { |step| step.status == Chat::Watch::Step::STATUS_FAILED }
     return finish!(watch, Chat::Watch::STATUS_FAILED, failed_words(watch, failed)) if failed
     return unless steps.all?(&:over?)
 
     followed = steps.select { |step| step.status == Chat::Watch::Step::STATUS_SUCCEEDED }
-    return finish!(watch, Chat::Watch::STATUS_STOPPED, "I stopped #{Chat::Watch::Shown.named(watch)}, since none of it can be followed any more.") if followed.empty?
+    if followed.empty?
+      return finish!(watch, Chat::Watch::STATUS_STOPPED, "I stopped #{Chat::Watch::Shown.named(watch)}, since none of it can be followed any more.",
+                     steps_added_at: added)
+    end
 
     took = Integrations::Capabilities::History.duration(Time.current - watch.created_at)
     lost = steps.size - followed.size
     finish!(watch, Chat::Watch::STATUS_SUCCEEDED,
             standing(watch, "Done in #{took}.#{" #{lost} step#{'s' if lost > 1} could not be followed." if lost.positive?}",
-                     offer: false))
+                     offer: false), steps_added_at: added)
   end
 
   def self.failed_words(watch, step)
@@ -751,15 +849,17 @@ module Conversation::Watches
     "#{happened} This was for: #{watch.purpose}"
   end
 
-  def self.time_out!(watch)
+  # Only while the limit is still past, since steps added meanwhile may have moved it.
+  def self.time_out!(watch, now = Time.current)
     state = watch.open_steps.map { |step| "#{step.label}: #{step.last_state.presence || 'nothing seen yet'}" }.join(" ")
     took = Integrations::Capabilities::History.duration(watch.expires_at - watch.created_at)
     finish!(watch, Chat::Watch::STATUS_TIMED_OUT,
-            standing(watch, "I stopped #{Chat::Watch::Shown.named(watch)} after #{took}, its time limit. Last I saw: #{state.truncate(600)}"))
+            standing(watch, "I stopped #{Chat::Watch::Shown.named(watch)} after #{took}, its time limit. Last I saw: #{state.truncate(600)}"),
+            expired_by: now)
   end
 
-  def self.finish!(watch, status, outcome, stopped_by: nil)
-    return false unless watch.finish!(status, outcome: outcome, stopped_by: stopped_by)
+  def self.finish!(watch, status, outcome, stopped_by: nil, **guards)
+    return false unless watch.finish!(status, outcome: outcome, stopped_by: stopped_by, **guards)
 
     tell!(watch, Chat::Watch::Update::KIND_ENDED, outcome)
     true

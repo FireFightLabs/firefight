@@ -10,6 +10,7 @@ import { Composer, type ComposerFill } from "@/pages/agent/components/composer"
 import { ListButton } from "@/pages/agent/components/list-button"
 import { SetupGuide } from "@/pages/agent/components/setup-guide"
 import { Thread } from "@/pages/agent/components/thread"
+import { WatchingStrip } from "@/pages/agent/components/watching-strip"
 import { useAgentStream } from "@/pages/agent/hooks/use-agent-stream"
 import { useChatListCollapsed } from "@/pages/agent/hooks/use-chat-list-collapsed"
 import { OPEN_CHAT_VISIT, closeRun, startNewChat } from "@/pages/agent/lib/chat-updates"
@@ -138,6 +139,7 @@ export default function AgentPage() {
             )}
           </div>
           <div className="p-3">
+            {conversationId && <WatchingStrip conversationId={conversationId} watches={watches} />}
             {askedIn ? (
               <AskedElsewhere place={askedIn} url={conversation?.askedInUrl ?? null} />
             ) : (

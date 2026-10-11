@@ -14,13 +14,18 @@ import type { AgentChatWatch } from "@/types/serializers"
 interface WatchCardProps {
   conversationId: string
   watch: AgentChatWatch
+  // Opened from the Watching strip, which already draws the frame around it.
+  embedded?: boolean
 }
+
+const FRAMED = "max-w-160 rounded-card bg-surface px-4 py-3.5 shadow-card"
+const EMBEDDED = "px-3 py-3"
 
 // One live card per watch, which moves in place as the watch reads rather than adding a line to the chat each time. Its
 // header names it with how it stands and how long it has gone, each step is one row saying where it stands in a few words
 // with the page of its run, and Details holds why it watches as long as it does, its ceiling on reads and everything it
 // said. While it goes it offers Stop. The server says whether this viewer may stop it, so the card decides nothing.
-export function WatchCard({ conversationId, watch }: WatchCardProps) {
+export function WatchCard({ conversationId, watch, embedded = false }: WatchCardProps) {
   const [ confirming, setConfirming ] = useState(false)
   const [ stopping, setStopping ] = useState(false)
   const [ detailsOpen, setDetailsOpen ] = useState(false)
@@ -50,7 +55,7 @@ export function WatchCard({ conversationId, watch }: WatchCardProps) {
   }
 
   return (
-    <section className="flex w-full max-w-160 flex-col gap-3 rounded-card bg-surface px-4 py-3.5 shadow-card" aria-label="Watch">
+    <section className={`flex w-full flex-col gap-3 ${embedded ? EMBEDDED : FRAMED}`} aria-label="Watch">
       <div className="flex items-start gap-2">
         <IconEye className="mt-0.5 size-4 shrink-0 text-ink-2" />
         <div className="flex min-w-0 flex-1 flex-col gap-1">

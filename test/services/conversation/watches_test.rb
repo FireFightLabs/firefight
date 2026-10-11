@@ -856,6 +856,157 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_equal [ Integrations::Capabilities::HISTORY, "release", 9.minutes.to_i ], [ step.capability, step.run_name, step.usual_seconds ]
   end
 
+  test "with a watch of theirs going, start_watch starts nothing until Halon says whether the steps join it or are separate" do
+    start_release_watch
+    release = @conversation.chat.watches.sole
+    tool = Conversation::Tools::StartWatch.new(@turn)
+    answers("deploy_history" => History.result(finished_runs("deploy", 4.minutes), what: "web"))
+
+    asked = tool.call(**watch_of([ deploy_step ], title: "Web deploy finished", purpose: "ship the release").symbolize_keys)
+
+    assert_match "Nothing was started yet", asked
+    assert_match %(- Watch "release run #46" (watch #{release.id}). Steps: Release run #46.), asked
+    assert_match "call start_watch again with add_to and its id", asked
+    assert_match "separate true", asked
+    assert_equal 1, @conversation.chat.watches.count
+
+    separate = tool.call(**watch_of([ deploy_step ], title: "Database backup", separate: true).symbolize_keys)
+
+    assert_match 'Started Watch "Database backup"', separate
+    assert_match Conversation::Watches::STRIP_NOTE, separate, "a dashboard chat is pointed to the strip"
+    assert_equal 2, @conversation.chat.watches.active.count
+  end
+
+  test "a runbook's watch and a watch someone else started in the chat never ask, and a chat in Slack is never pointed to the strip" do
+    thread = Conversation.create!(workspace: @workspace, kind: Conversation::KIND_CHANNEL, channel_id: "C0WATCH", thread_id: "1700000000.000100",
+                                  started_by: @alice, max_turns: 5, max_spend_cents: 100)
+    @turn = Conversation::Turn.new(thread, asker: @alice)
+    start_release_watch
+    bob = workspace_memberships(:bob_workspace_one)
+    answers("deploy_history" => History.result(finished_runs("deploy", 4.minutes), what: "web"))
+
+    said = Conversation::Tools::StartWatch.new(Conversation::Turn.new(thread, asker: bob)).call(**watch_of([ deploy_step ], title: "Web deploy").symbolize_keys)
+
+    assert_match 'Started Watch "Web deploy"', said
+    assert_no_match "Watching strip", said
+    assert_match 'Started Watch "runbook"', Conversation::Watches.start(@turn, watch_of([ deploy_step ], title: "runbook"))
+  end
+
+  test "steps on the same subject join the watch already going, its limit moving to leave them time, said wherever it reports" do
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+    answers("deploy_history" => History.result(finished_runs("deploy", 20.minutes), what: "web"))
+    Slack::Client.expects(:post_message).with { |channel:, **| channel == @alice.platform_user_id }.once.returns(ts: "1", channel: "D1")
+
+    said = travel(30.minutes) do
+      Conversation::Tools::StartWatch.new(@turn).call(**watch_of([ deploy_step ], title: "Release deployed", add_to: watch.id).symbolize_keys)
+    end
+
+    assert_match %(Added Web deploy to Watch "Release deployed" (watch #{watch.id}) rather than starting another watch.), said
+    assert_match "It now watches for up to 1 hr 10 min from when it started, to leave them time to finish. They usually take about 20 minutes.", said
+    assert_match "It reads at most 240 times an hour", said
+    assert_match Conversation::Watches::STRIP_NOTE, said
+    watch.reload
+    assert_equal 1, @conversation.chat.watches.count
+    assert_equal [ "Release run #46", "Web deploy" ], watch.steps.map(&:label)
+    assert_equal [ 0, 1 ], watch.steps.map(&:position)
+    assert_nil watch.steps.first.added_at
+    assert_not_nil watch.steps.second.added_at
+    assert_equal [ "Release deployed", Chat::Watch::BASIS_ADDED, 240 ], [ watch.title, watch.limit_basis, watch.reads_per_hour ]
+    assert_in_delta watch.created_at + 70.minutes, watch.expires_at, 5.seconds
+    added = watch.updates.sole
+    assert_equal [ Chat::Watch::Update::KIND_STEPS_ADDED, "Now also following Web deploy. It now watches for up to 1 hr 10 min from when it started." ],
+                 [ added.kind, added.text ]
+    assert_not_nil added.told_at, "Halon says it in its own answer, so it is not heard again"
+    assert_equal "Up to 1 hr 10 min. Moved later when steps were added, to leave them time to finish.", Chat::Watch::Shown.basis(watch)
+    assert_enqueued_with(job: WatchCheckJob, args: [ watch.id ])
+  end
+
+  test "a limit that already leaves the added steps time stays as it was" do
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+    expires = watch.expires_at
+    answers("deploy_history" => History.result(finished_runs("deploy", 4.minutes), what: "web"))
+
+    said = Conversation::Watches.start(@turn, watch_of([ deploy_step ], add_to: watch.id))
+
+    assert_match "Its limit of 40 min from when it started already leaves them time. They usually take about 4 minutes.", said
+    assert_equal [ expires, Chat::Watch::BASIS_HISTORY, "release run #46" ], [ watch.reload.expires_at, watch.limit_basis, watch.title ]
+    assert_equal "Now also following Web deploy.", watch.updates.sole.text
+  end
+
+  test "a ceiling Halon set from a provider's limit is kept when steps join, and a number given with them wins" do
+    answers("ci_runs" => History.result(finished_runs("release", 18.minutes), what: "repo"))
+    Conversation::Watches.start(@turn, watch_of([ release_step ], reads_per_hour: 30))
+    watch = @conversation.chat.watches.sole
+    assert watch.reads_per_hour_asked?
+    answers("deploy_history" => History.result(finished_runs("deploy", 4.minutes), what: "web"))
+
+    Conversation::Watches.start(@turn, watch_of([ deploy_step ], add_to: watch.id))
+    assert_equal 30, watch.reload.reads_per_hour
+
+    Conversation::Watches.start(@turn, watch_of([ deploy_step.merge("label" => "Web deploy again") ], add_to: watch.id, reads_per_hour: 60))
+    assert_equal 60, watch.reload.reads_per_hour
+  end
+
+  test "only whoever started a watch adds to it, while it goes and within its steps" do
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+    bob = workspace_memberships(:bob_workspace_one)
+    answers("deploy_history" => History.result(finished_runs("deploy", 4.minutes), what: "web"))
+
+    assert_match "No watch nope in this chat.", Conversation::Watches.start(@turn, watch_of([ deploy_step ], add_to: "nope"))
+    assert_equal %(Only #{@alice.display_name} can add steps to the watch "release run #46", since it reads as them. Start a separate watch.),
+                 watch.add_blocked_reason(bob, 1)
+    assert_match "already follows 1 step, and a watch follows at most #{Chat::Watch::MAX_STEPS} at once",
+                 Conversation::Watches.start(@turn, watch_of(Array.new(Chat::Watch::MAX_STEPS) { deploy_step }, add_to: watch.id))
+
+    watch.finish!(Chat::Watch::STATUS_STOPPED, outcome: "Stopped.")
+    assert_equal %(Watch "release run #46" has already ended, so start a new watch for these steps.),
+                 Conversation::Watches.start(@turn, watch_of([ deploy_step ], add_to: watch.id))
+    assert_equal 1, watch.steps.count
+  end
+
+  test "a check that read the steps before more joined never ends the watch as done or out of time" do
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+    read_before = watch.steps_added_at
+    watch.add_steps!([ { label: "Web deploy", capability: Integrations::Capabilities::HISTORY, arguments: {} } ],
+                     until_at: 2.hours.from_now, reads_per_hour: 240)
+
+    assert_not watch.finish!(Chat::Watch::STATUS_SUCCEEDED, outcome: "Done.", steps_added_at: read_before)
+    assert_not watch.finish!(Chat::Watch::STATUS_TIMED_OUT, outcome: "Out of time.", expired_by: 1.hour.from_now)
+    assert watch.reload.active?
+    assert watch.finish!(Chat::Watch::STATUS_SUCCEEDED, outcome: "Done.", steps_added_at: watch.steps_added_at)
+  end
+
+  test "a step added later follows the first run that started around when it was added, and waits from then" do
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+    answers("deploy_history" => History.result(finished_runs("deploy", 4.minutes), what: "web"))
+    travel(30.minutes) { Conversation::Watches.start(@turn, watch_of([ deploy_step ], add_to: watch.id)) }
+    step = watch.reload.steps.second
+
+    earlier = run_of("1", History::RUNNING, watch.created_at, name: "deploy")
+    later = run_of("2", History::RUNNING, step.added_at - 1.minute, name: "deploy")
+
+    assert_equal later, step.run_among([ earlier, later ])
+    assert_equal step.added_at, step.waiting_since([])
+  end
+
+  test "the strip says where a watch going stands in a line" do
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+    assert_equal "Release run #46: not started", Chat::Watch::Shown.standing(watch)
+
+    answers("deploy_history" => History.result(finished_runs("deploy", 4.minutes), what: "web"))
+    Conversation::Watches.start(@turn, watch_of([ deploy_step ], add_to: watch.id))
+    watch.reload.steps.first.finished!(Chat::Watch::Step::STATUS_SUCCEEDED)
+    watch.steps.second.update!(status: Chat::Watch::Step::STATUS_RUNNING, summary: "build-images running, 2 of 3 done")
+
+    assert_equal "1 of 2 done. Web deploy: build-images running, 2 of 3 done", Chat::Watch::Shown.standing(watch.reload)
+  end
+
   private
 
   def connect!(provider, name, tools)

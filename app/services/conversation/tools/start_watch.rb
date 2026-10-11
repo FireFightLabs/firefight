@@ -46,7 +46,11 @@ class Conversation::Tools::StartWatch < RubyLLM::Tool
               "when the person asked for a limit, and expected_minutes only from memory when run history has none. Say what it " \
               "answers about the limit. Anything you start that keeps running, such as a workflow, a build, a deploy or a " \
               "test run, is yours to follow: start a watch on it in the same turn, with its purpose. When the person starts " \
-              "something that takes a while, offer to watch it for them."
+              "something that takes a while, offer to watch it for them. One watch per subject: steps on the same release, " \
+              "deploy, run or incident as a watch going in this chat, such as the rollout and health checks after a release " \
+              "build, join it with add_to, and something unrelated, such as a database backup during a release, is separate. " \
+              "In the dashboard chat the person sees the watches going in the Watching strip above the message box, so point " \
+              "there rather than listing them."
 
   def self.tool_name = "start_watch"
 
@@ -60,23 +64,37 @@ class Conversation::Tools::StartWatch < RubyLLM::Tool
       "type" => "object",
       "properties" => {
         "title" => { "type" => "string", "description" => "What the watch waits on, a few words naming the end it waits for, such as Deploy finished or " \
-                                                          "Release run #46 passed. It is shown as Watch \"Deploy finished\"" },
+                                                          "Release run #46 passed, shown as Watch \"Deploy finished\". Always give it for a new watch. With add_to, only " \
+                                                          "to rename the watch for everything it now waits on" },
         "purpose" => { "type" => "string",
                        "description" => "Why the person wants this, the goal in their own words, such as get releases deploying through " \
-                                        "the webhook again. Every report says where things stand against it" },
+                                        "the webhook again. Every report says where things stand against it. With add_to, only to " \
+                                        "restate the goal for everything the watch now covers" },
         "steps" => { "type" => "array", "items" => STEP, "description" => "What to follow, in order, at most #{Chat::Watch::MAX_STEPS}" },
-        "minutes" => { "type" => "integer", "description" => "Only when the person asked: how long to watch, at most #{Chat::Watch::LONGEST.in_minutes.to_i} (optional)" },
+        "minutes" => { "type" => "integer", "description" => "Only when the person asked: how long to watch, at most #{Chat::Watch::LONGEST.in_minutes.to_i}. " \
+                                                              "With add_to, how long from now the added steps need (optional)" },
         "expected_minutes" => { "type" => "integer", "description" => "Only from memory, when run history cannot show it: how long this usually takes (optional)" },
         "reads_per_hour" => { "type" => "integer",
                               "description" => "Only when a provider's documented rate limit or cost is tighter than the default of " \
                                                "#{Chat::Watch::READS_PER_STEP} reads an hour for each step: the most reads an hour this watch may " \
-                                               "make, between #{Chat::Watch::FEWEST_READS} and #{Chat::Watch::MOST_READS} (optional)" }
+                                               "make, between #{Chat::Watch::FEWEST_READS} and #{Chat::Watch::MOST_READS} (optional)" },
+        Conversation::Watches::ADD_TO_ARG => {
+          "type" => "string",
+          "description" => "The id of a watch going in this chat that follows the same subject as these steps, the same release, " \
+                           "deploy, run or incident, to add them to it rather than start another. They follow its own steps, and its " \
+                           "time limit moves to leave them time (optional)"
+        },
+        Conversation::Watches::SEPARATE_ARG => {
+          "type" => "boolean",
+          "description" => "true when a watch is going in this chat and these steps follow something unrelated to it, such as a " \
+                           "database backup during a release. While one is going, give add_to or this (optional)"
+        }
       },
-      "required" => %w[title steps]
+      "required" => %w[steps]
     }
   end
 
   def call(tool_call: nil, **arguments)
-    Conversation::Watches.start(@turn, arguments.deep_transform_keys(&:to_s))
+    Conversation::Watches.start(@turn, arguments.deep_transform_keys(&:to_s), choose: true)
   end
 end

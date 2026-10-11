@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_11_220001) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_12_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1008,6 +1008,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_220001) do
     t.text "summary"
     t.string "read_signature"
     t.string "focus"
+    t.datetime "added_at"
     t.index ["integration_environment_id"], name: "index_chat_watch_steps_on_integration_environment_id"
     t.index ["read_signature"], name: "index_chat_watch_steps_on_read_signature"
     t.index ["watch_id", "position"], name: "index_chat_watch_steps_on_watch_id_and_position", unique: true
@@ -1051,6 +1052,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_220001) do
     t.datetime "hour_began_at"
     t.datetime "next_check_at"
     t.datetime "ceiling_told_at"
+    t.datetime "steps_added_at"
+    t.boolean "reads_per_hour_asked", default: false, null: false
     t.index ["asker_type", "asker_id"], name: "index_chat_watches_on_asker"
     t.index ["chat_id"], name: "index_chat_watches_on_chat_id"
     t.index ["stopped_by_id"], name: "index_chat_watches_on_stopped_by_id"
