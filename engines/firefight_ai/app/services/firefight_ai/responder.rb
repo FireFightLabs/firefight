@@ -51,7 +51,7 @@ module FirefightAi
     end
 
     # The wording as this responder sends it, which names the version of Halon a bench run tested.
-    def prompt_version = Prompt.version(template_text)
+    def prompt_version = Manual.version(template_text)
 
     private
 
@@ -61,7 +61,7 @@ module FirefightAi
       {
         workspace: @workspace, feature: FEATURE, provider: ai_model.provider_name,
         model: ai_model.model, inferable: @inferable, member: @member,
-        prompt_template: FEATURE, prompt_version: Prompt.version(template_text), prompt_text: template_text
+        prompt_template: FEATURE, prompt_version: prompt_version, prompt_text: Manual.recorded(template_text)
       }
     end
 

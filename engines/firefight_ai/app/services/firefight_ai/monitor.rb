@@ -47,7 +47,7 @@ module FirefightAi
       @ai_model ||= FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
     end
 
-    def self.prompt_version = Prompt.version(system_prompt)
+    def self.prompt_version = Manual.version(system_prompt)
 
     def self.system_prompt
       <<~PROMPT
@@ -82,8 +82,8 @@ module FirefightAi
         inferable: @inferable,
         member: nil,
         prompt_template: FEATURE,
-        prompt_version: Prompt.version(system_prompt),
-        prompt_text: system_prompt
+        prompt_version: self.class.prompt_version,
+        prompt_text: Manual.recorded(system_prompt)
       }
     end
 

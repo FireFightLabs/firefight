@@ -49,5 +49,12 @@ module FirefightAi
     TEXT
 
     WRITING = "How you write: #{Copy::WRITING}".freeze
+
+    # The wording a prompt that carries the manual is recorded as. The playbooks are part of how Halon works, so their
+    # words are recorded with it, and editing one gives the prompt a new version. The app hands them over
+    # (Configuration#playbooks).
+    def self.recorded(text) = [ text, FirefightAi.configuration.playbooks&.call.presence ].compact.join("\n")
+
+    def self.version(text) = Prompt.version(recorded(text))
   end
 end

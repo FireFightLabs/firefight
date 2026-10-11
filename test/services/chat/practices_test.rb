@@ -27,6 +27,12 @@ class Chat::PracticesTest < ActiveSupport::TestCase
     end
   end
 
+  test "the version Halon's prompts record includes every playbook's words" do
+    assert_equal Chat::Skill.playbooks_text, FirefightAi.configuration.playbooks.call
+    FirefightAi::Manual::PLAYBOOK_NAMES.each { |name| assert_includes Chat::Skill.playbooks_text, Chat::Skill.find(name).steps }
+    refute_equal FirefightAi::Prompt.version(FirefightAi::Investigator.system_prompt), FirefightAi::Investigator.prompt_version
+  end
+
   test "a playbook loads through use_skill like any skill, and hands over the tools it names" do
     offered = []
     use_skill = Chat::Tools::UseSkill.new(@turn, offer: ->(tools) { offered.concat(tools) })

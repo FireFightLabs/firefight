@@ -51,6 +51,12 @@ class Chat::Skill
 
     def find(name) = all.find { |skill| skill.name == name.to_s }
 
+    # Every playbook's name and words, in a fixed order, which the version of Halon's prompts includes.
+    def playbooks_text
+      all.select { |skill| skill.firefight? && skill.domain == DOMAIN_PLAYBOOKS }.sort_by(&:name)
+         .map { |skill| "#{skill.name}: #{skill.used_when}\n#{skill.tools.join(', ')}\n#{skill.steps}" }.join("\n\n")
+    end
+
     # The skills that read a signal, and the providers that have one.
     def reading(signal) = all.select { |skill| skill.signals.include?(signal) }
 

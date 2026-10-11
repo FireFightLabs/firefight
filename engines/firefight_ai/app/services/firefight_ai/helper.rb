@@ -31,7 +31,7 @@ module FirefightAi
       end
     end
 
-    def self.prompt_version = Prompt.version(template_text)
+    def self.prompt_version = Manual.version(template_text)
 
     def self.template_text
       <<~PROMPT
@@ -58,7 +58,7 @@ module FirefightAi
     def inference_context
       {
         workspace: @workspace, feature: FEATURE, provider: @choice.provider_name, model: @choice.model, inferable: @inferable, member: @member,
-        prompt_template: FEATURE, prompt_version: self.class.prompt_version, prompt_text: self.class.template_text
+        prompt_template: FEATURE, prompt_version: self.class.prompt_version, prompt_text: Manual.recorded(self.class.template_text)
       }
     end
   end

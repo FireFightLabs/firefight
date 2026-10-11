@@ -54,7 +54,7 @@ module FirefightAi
     end
 
     # The prompt as deployed. Nothing in it changes from run to run, so its digest names this version of Halon.
-    def self.prompt_version = Prompt.version(system_prompt)
+    def self.prompt_version = Manual.version(system_prompt)
 
     def self.system_prompt
       <<~PROMPT
@@ -91,8 +91,8 @@ module FirefightAi
         inferable: @inferable,
         member: @member,
         prompt_template: FEATURE,
-        prompt_version: Prompt.version(system_prompt),
-        prompt_text: system_prompt
+        prompt_version: self.class.prompt_version,
+        prompt_text: Manual.recorded(system_prompt)
       }
     end
 

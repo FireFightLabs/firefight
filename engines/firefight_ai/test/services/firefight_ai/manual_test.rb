@@ -50,6 +50,18 @@ class FirefightAi::ManualTest < ActiveSupport::TestCase
     end
   end
 
+  test "editing a playbook gives every prompt that carries the manual a new version" do
+    FirefightAi.configuration.stubs(:playbooks).returns(-> { "code: Reading code\nRead the code that runs." })
+    before = [ FirefightAi::Responder.new(nil, inferable: nil).prompt_version, FirefightAi::Investigator.prompt_version,
+               FirefightAi::Monitor.prompt_version, FirefightAi::Helper.prompt_version ]
+
+    FirefightAi.configuration.stubs(:playbooks).returns(-> { "code: Reading code\nRead the code at the deployed commit." })
+    after = [ FirefightAi::Responder.new(nil, inferable: nil).prompt_version, FirefightAi::Investigator.prompt_version,
+              FirefightAi::Monitor.prompt_version, FirefightAi::Helper.prompt_version ]
+
+    before.zip(after).each { |old, new| refute_equal old, new }
+  end
+
   test "the chat prompt is about a page, not the old rule book" do
     assert_operator chat_prompt.split.size, :<, 900
   end
