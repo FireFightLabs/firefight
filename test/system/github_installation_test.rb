@@ -33,7 +33,7 @@ class GithubInstallationTest < ApplicationSystemTestCase
       click_on "Disconnect"
     end
 
-    assert_text "GitHub is disconnected. Firefight's app is still installed on acme."
+    assert_toast "GitHub is disconnected. Firefight's app is still installed on acme."
     assert_button "Open acme on GitHub"
     page.save_screenshot(Rails.root.join("tmp/screenshots/github-disconnect-toast.png"))
     assert @integration.reload.deleted?
