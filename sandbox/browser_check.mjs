@@ -1,6 +1,6 @@
 // Opens a page in a real browser the way a person would, on a desktop and a phone screen, and reports what they would
 // meet: the status, how long it took, console errors, failed requests, the page's words and a screenshot. It can follow
-// a short path of steps. Reading is free, sending is not: every request that is not a GET, HEAD or OPTIONS is blocked
+// a short path of steps. Reading is free and sending is not. Every request that is not a GET, HEAD or OPTIONS is blocked
 // here unless it belongs to the one step the person confirmed, so a path stops before it would send anything.
 // The spec arrives on stdin, never in argv or on disk, since it may hold a saved login's password for this one run.
 // Prints one JSON object on its last line.

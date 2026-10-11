@@ -1,7 +1,7 @@
 # A test account an admin saved for one site, which Halon's browser signs in with when it checks a page there. It is kept
 # on a connection row of the provider that keeps test logins (IntegrationProvider.test_logins), since only
-# IntegrationEnvironment stores secrets: the password in its encrypted credentials, written through
-# Integrations::SiteLogins, and the addresses and username as its fields, which are not secret. The password is never
+# IntegrationEnvironment stores secrets. The password sits in its encrypted credentials, written through
+# Integrations::SiteLogins, and the addresses and username are its fields, which are not secret. The password is never
 # read back here. Reading it is SiteLogins', for one browser run.
 class Integration::SiteLogin
   include ActiveModel::Model

@@ -138,7 +138,7 @@ class Chat::BrowserCheck
     viewports.size * [ loads, PAGES_PER_VIEWPORT ].min
   end
 
-  # What the ledger keeps of the call: everything asked, so an approved call held by a rule runs exactly as asked.
+  # The ledger keeps everything asked, so a call a rule held runs exactly as asked once approved.
   def to_params = { "url" => url, "steps" => steps, "viewports" => viewports, "log_in" => log_in, "send_step" => send_step }.compact
 
   # What the sandbox's browser is handed, without the login, which only the run adds.

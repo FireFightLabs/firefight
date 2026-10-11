@@ -1,8 +1,8 @@
-# Halon's browser: a real headless browser in the run's sandbox, which opens a page on a desktop and a phone screen and
+# Halon's browser is a real headless browser in the run's sandbox. It opens a page on a desktop and a phone screen and
 # says what a person would meet there, following a short path of steps Halon writes. Looking is open and runs at once,
 # like a web lookup. Anything a page would send, such as a form or a button that saves something, is blocked by the
-# browser itself and the path stops before it, so sending is a change: the person is shown the page and what it sends,
-# confirms it like any change, needs the grant to send, and approval rules hold it. A run that only reads never sends.
+# browser itself and the path stops before it, so sending is a change. The person is shown the page and what it sends
+# and confirms it like any change, sending needs a grant, and approval rules hold it. A run that only reads never sends.
 class Chat::Tools::Browser < RubyLLM::Tool
   NAME = Chat::BrowserCheck::TOOL_NAME
   URL_ARG = "url".freeze
@@ -95,10 +95,10 @@ class Chat::Tools::Browser < RubyLLM::Tool
   def run(check, tool_call_id:, approval_id: nil)
     # An approved send waited on its approver, and the browser still refuses one the page now sends differently.
     stopped = check.sends? ? Chat::Screenshot.stopped_before(@agent_run.chat, check.digest, check.send_step, fresh: approval_id.nil?) : nil
-    return failed_id(tool_call_id, format(NOT_SHOWN, step: check.send_step, minutes: Chat::Screenshot::SEND_FRESH_FOR.in_minutes.to_i)) if check.sends? && stopped.nil?
+    return failed_id(tool_call_id, not_shown(check), kind: Chat::StepOutcome::FAILURE_REFUSED) if check.sends? && stopped.nil?
 
     blocked = @agent_run.workspace.browser_pages_blocked_reason(check.planned_pages)
-    return failed_id(tool_call_id, blocked) if blocked
+    return failed_id(tool_call_id, blocked, kind: Chat::StepOutcome::FAILURE_REFUSED) if blocked
 
     action_key = check.sends? ? Ability::Action::BROWSER_SUBMIT : Ability::Action::BROWSER_READ
     answer = nil
@@ -148,13 +148,15 @@ class Chat::Tools::Browser < RubyLLM::Tool
     action = Ability::Action.lookup(Ability::Action::BROWSER_SUBMIT, @agent_run.workspace)
     return @agent_run.refusal(Ability::Action::BROWSER_SUBMIT) unless @agent_run.acting_principal&.permitted_to?(action, @agent_run.workspace)
     unless Chat::Screenshot.stopped_before(@agent_run.chat, check.digest, check.send_step)
-      return format(NOT_SHOWN, step: check.send_step, minutes: Chat::Screenshot::SEND_FRESH_FOR.in_minutes.to_i)
+      return not_shown(check)
     end
 
     Chat::Tools::LookFirst.refusal(@agent_run, given, tool_call_id: tool_call_id)
   rescue Chat::BrowserCheck::Refused => error
     error.message
   end
+
+  def not_shown(check) = format(NOT_SHOWN, step: check.send_step, minutes: Chat::Screenshot::SEND_FRESH_FOR.in_minutes.to_i)
 
   def step_schema
     {
