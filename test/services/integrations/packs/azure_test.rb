@@ -177,6 +177,32 @@ module Integrations
         assert_equal [ [ "def456", "running", nil ], [ "abc123", "succeeded", 300 ] ], Capabilities::History.runs_of(result).map { |run| [ run.id, run.status, run.seconds ] }
       end
 
+      test "an App Service app's deployments and a Container App's revisions are its deploys, the active one or the ones holding traffic serving" do
+        AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{WEB_ID}/deployments" }.returns(pages([
+          { "name" => "storefront/abc123", "properties" => { "status" => 4, "start_time" => "2026-10-03T09:00:00Z", "end_time" => "2026-10-03T09:05:00Z", "active" => false } },
+          { "name" => "storefront/def456", "properties" => { "status" => 4, "start_time" => "2026-10-03T10:00:00Z", "end_time" => "2026-10-03T10:04:00Z", "active" => true } },
+          { "name" => "storefront/fed789", "properties" => { "status" => 3, "start_time" => "2026-10-03T11:00:00Z", "end_time" => "2026-10-03T11:02:00Z" } }
+        ]))
+        AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{WEB_ID}/slots" }.returns(pages([]))
+        AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{APP_ID}/revisions" }.returns(pages([
+          { "name" => "api--v1", "properties" => { "createdTime" => "2026-10-02T09:00:00Z", "active" => false, "provisioningState" => "Deprovisioned", "trafficWeight" => 0 } },
+          { "name" => "api--v2", "properties" => { "createdTime" => "2026-10-03T09:00:00Z", "active" => true, "provisioningState" => "Provisioned", "trafficWeight" => 80 } },
+          { "name" => "api--v3", "properties" => { "createdTime" => "2026-10-03T10:00:00Z", "active" => true, "provisioningState" => "Provisioning" } }
+        ]))
+
+        site = Azure.new(@integration).call("list_deployments", environment_row: @row, arguments: { "resource" => "storefront" })
+        assert_equal [ [ "fed789", "failed", nil, Time.utc(2026, 10, 3, 11, 2) ], [ "def456", "succeeded", true, Time.utc(2026, 10, 3, 10, 4) ],
+                       [ "abc123", "succeeded", false, Time.utc(2026, 10, 3, 9, 5) ] ],
+                     Capabilities::Deploys.deploys_of(site).map { |deploy| [ deploy.id, deploy.status, deploy.live, deploy.finished_at ] }
+        assert_match "2026-10-03T10:00:00Z, succeeded, active, deployment storefront/def456", site["content"].sole["text"]
+
+        app = Azure.new(@integration).call("list_deployments", environment_row: @row, arguments: { "resource" => "api" })
+        assert_equal [ [ "api--v3", "running", nil, Time.utc(2026, 10, 3, 10) ], [ "api--v2", "succeeded", true, Time.utc(2026, 10, 3, 9) ],
+                       [ "api--v1", "succeeded", false, Time.utc(2026, 10, 2, 9) ] ],
+                     Capabilities::Deploys.deploys_of(app).map { |deploy| [ deploy.id, deploy.status, deploy.live, deploy.started_at ] }
+        assert_match "2026-10-03T09:00:00Z, api--v2, active, health , running , 0 replicas, 80% of traffic", app["content"].sole["text"]
+      end
+
       LOG = { "value" => [
         { "properties" => { "id" => "e1", "log_time" => "2026-10-03T09:00:00Z", "message" => "Updating branch 'main'.", "type" => 0 } },
         { "properties" => { "id" => "e2", "log_time" => "2026-10-03T09:00:20Z", "message" => "Running deployment command...", "type" => 0 } },

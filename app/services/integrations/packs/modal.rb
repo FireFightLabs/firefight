@@ -212,10 +212,11 @@ module Integrations
         app_id, app = find_app(environment_row, arguments["app"])
         limit = Capabilities::Answers.limit(arguments, MAX_HISTORY_LIMIT, default: HISTORY_LIMIT)
         versions = api(environment_row).history(app_id).app_deployment_histories.sort_by { |each| -each.version }.first(limit)
-        return Telemetry.result("#{app} has no deployments.", link: app_link(environment_row, app_id)) if versions.empty?
+        return Capabilities::Deploys.with_deploys(Telemetry.result("#{app} has no deployments.", link: app_link(environment_row, app_id)), []) if versions.empty?
 
         rows = versions.map { |version| version_line(version) }
-        Telemetry.result("Latest #{rows.size} versions of #{app}, newest first, the first is live. rollback_app takes a version.\n#{rows.join("\n")}", link: app_link(environment_row, app_id))
+        result = Telemetry.result("Latest #{rows.size} versions of #{app}, newest first, the first is live. rollback_app takes a version.\n#{rows.join("\n")}", link: app_link(environment_row, app_id))
+        Capabilities::Deploys.with_deploys(result, versions.each_with_index.map { |version, index| deploy_of(version, live: index.zero?) })
       end
 
       # The CLI refuses either change for an app that is not deployed, and so does this, before anything is sent.
@@ -374,6 +375,16 @@ module Integrations
           DEPLOYMENT_TYPES[version.deployment_type], ("back to v#{version.rollback_version}" if version.rollback_version.positive?),
           ("commit #{commit.commit_hash.first(12)}#{' with uncommitted changes' if commit.dirty}#{" on #{commit.branch}" if commit.branch.present?}" if commit&.commit_hash.present?),
           ("tag #{version.tag}" if version.tag.present?), ("client #{version.client_version}" if version.client_version.present?) ].compact.join(", ")
+      end
+
+      # Modal's history holds only versions that were deployed, the newest the one serving, and a version is live once deployed.
+      def deploy_of(version, live:)
+        commit = version.commit_info
+        deployed = (version.deployed_at.to_f if version.deployed_at.to_f.positive?)
+        Capabilities::Deploys::Deploy.new(
+          commit: commit&.commit_hash, branch: commit&.branch, tag: version.tag, version: "v#{version.version}",
+          status: Capabilities::History::SUCCEEDED, live: live, started_at: deployed, finished_at: deployed
+        )
       end
 
       def warnings(answer)

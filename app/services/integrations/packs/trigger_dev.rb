@@ -35,6 +35,11 @@ module Integrations
       }.freeze
       DEPLOYED = "DEPLOYED".freeze
       DEPLOYMENT_STATUSES = %w[PENDING BUILDING DEPLOYING DEPLOYED FAILED CANCELED TIMED_OUT].freeze
+      DEPLOYMENT_HISTORY_STATUSES = {
+        "pending" => Capabilities::History::QUEUED, "building" => Capabilities::History::RUNNING, "deploying" => Capabilities::History::RUNNING,
+        "deployed" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED, "timed_out" => Capabilities::History::FAILED,
+        "canceled" => Capabilities::History::CANCELLED
+      }.freeze
       ERROR_STATUSES = %w[unresolved resolved ignored].freeze
 
       # What the query API reads for each metric. Runs and their status come from the runs table, CPU and memory from the
@@ -326,11 +331,14 @@ module Integrations
       def list_deployments(environment_row:, arguments:)
         status = arguments["status"].presence_in(DEPLOYMENT_STATUSES)
         deployments = api(environment_row).deployments(status: status, limit: Capabilities::Answers.limit(arguments, DEPLOYMENT_LIMIT))
-        return Telemetry.result("This environment has no deployments#{" #{status}" if status}. #{no_page}", link: nil) if deployments.empty?
+        if deployments.empty?
+          return Capabilities::Deploys.with_deploys(Telemetry.result("This environment has no deployments#{" #{status}" if status}. #{no_page}", link: nil), [])
+        end
 
         rows = deployments.map { |deployment| deployment_line(deployment) }
-        Telemetry.result("Latest #{rows.size} deployments, newest first. A version applies to every task in the environment, and " \
-                         "promote_deployment takes one that deployed.\n#{rows.join("\n")}\n#{no_page}", link: nil)
+        result = Telemetry.result("Latest #{rows.size} deployments, newest first. A version applies to every task in the environment, and " \
+                                  "promote_deployment takes one that deployed.\n#{rows.join("\n")}\n#{no_page}", link: nil)
+        Capabilities::Deploys.with_deploys(result, deployments.map { |deployment| deploy_of(deployment) })
       end
 
       def list_errors(environment_row:, arguments:)
@@ -657,6 +665,14 @@ module Integrations
           ("deployed #{deployment['deployedAt']}" if deployment["deployedAt"]), ("id #{deployment['id']}" if deployment["id"]),
           ("git #{Chat::SecretFree.redacted(deployment['git'].to_json).truncate(300)}" if deployment["git"].present?),
           ("error #{Chat::SecretFree.redacted(error.to_json).truncate(500)}" if error) ].compact.join(", ")
+      end
+
+      # Trigger.dev does not say which deployment is current, so none is marked live. Its git details are only ever read
+      # redacted, so no commit is taken from them.
+      def deploy_of(deployment)
+        status = Capabilities::Deploys.status(deployment["status"], DEPLOYMENT_HISTORY_STATUSES)
+        Capabilities::Deploys::Deploy.new(id: deployment["id"], version: deployment["version"], status: status, started_at: deployment["createdAt"],
+                                          finished_at: (deployment["deployedAt"] if status == Capabilities::History::SUCCEEDED))
       end
 
       def queue_line(queue)

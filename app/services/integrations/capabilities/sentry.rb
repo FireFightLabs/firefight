@@ -113,15 +113,30 @@ module Integrations
 
           rows = data["releases"].first(limit).map { |release| release_line(release) }
           if rows.empty?
-            next Telemetry.result(Sentence.ended("Sentry has no releases for #{resource.name}"), link: nil).merge(Telemetry::STRUCTURED => { "releases" => [] })
+            empty = Telemetry.result(Sentence.ended("Sentry has no releases for #{resource.name}"), link: nil).merge(Telemetry::STRUCTURED => { "releases" => [] })
+            next Deploys.with_deploys(empty, [])
           end
 
           more = data["hasMore"] || data["releases"].size > limit ? " Older releases were not listed." : ""
-          Answers.presented(result, "Latest #{rows.size} releases of #{resource.name} in Sentry, newest first.#{more} Sentry does not roll back, " \
+          shown = Answers.presented(result, "Latest #{rows.size} releases of #{resource.name} in Sentry, newest first.#{more} Sentry does not roll back, " \
                                     "so a rollback goes through the platform that runs #{resource.name}. #{EXECUTE} running get_release_details " \
                                     "with a version gives that release's deploys, commits and page in Sentry, to give the person with what " \
                                     "you found.\n#{rows.join("\n")}")
+          Deploys.with_deploys(shown, data["releases"].first(limit).map { |release| deploy_of(release) })
         end
+      end
+
+      # A release by its version and newest commit. Sentry records a deploy once it is reported and never says which
+      # release serves now, so a release with no deploy recorded has no status and none is marked live.
+      def self.deploy_of(release)
+        deploy = release["lastDeploy"] || {}
+        status = if deploy["dateFinished"]
+          History::SUCCEEDED
+        elsif deploy["dateStarted"]
+          History::RUNNING
+        end
+        Deploys::Deploy.new(version: release["version"], commit: release.dig("lastCommit", "id"), status: status,
+                            started_at: deploy["dateStarted"] || release["dateCreated"], finished_at: deploy["dateFinished"], environment: deploy["environment"])
       end
 
       def self.release_line(release)
@@ -135,7 +150,7 @@ module Integrations
           "#{release['newIssues'].to_i} new issues", ("first event #{release['firstEvent']}" if release["firstEvent"])
         ].compact.join(", ")
       end
-      private_class_method :project_of, :errors, :window, :period_for, :releases, :releases_result, :release_line
+      private_class_method :project_of, :errors, :window, :period_for, :releases, :releases_result, :release_line, :deploy_of
     end
   end
 end

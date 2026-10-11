@@ -280,11 +280,12 @@ module Integrations
       def list_deployments(environment_row:, arguments:)
         resource = find_app(environment_row, arguments["resource"])
         releases = sorted_releases(environment_row, resource, Capabilities::Answers.limit(arguments, RELEASE_LIMIT))
-        return Telemetry.result("#{resource[:name]} has no releases.", link: link(environment_row, resource)) if releases.empty?
+        return Capabilities::Deploys.with_deploys(Telemetry.result("#{resource[:name]} has no releases.", link: link(environment_row, resource)), []) if releases.empty?
 
         rows = releases.map { |release| release_line(release) }
-        Telemetry.result("Latest #{rows.size} releases of #{resource[:name]}, newest first. rollback_release takes a version.\n#{rows.join("\n")}",
-                         link: link(environment_row, resource))
+        result = Telemetry.result("Latest #{rows.size} releases of #{resource[:name]}, newest first. rollback_release takes a version.\n#{rows.join("\n")}",
+                                  link: link(environment_row, resource))
+        Capabilities::Deploys.with_deploys(result, releases.map { |release| release_deploy(release) })
       end
 
       # flyctl's release statuses (superfly/flyctl, internal/command/deploy) in Firefight's words.
@@ -854,6 +855,16 @@ module Integrations
           finished_at: (Telemetry.parse_time(release["updatedAt"]) if Capabilities::History::FINISHED.include?(status)),
           url: page(environment_row, resource[:name], MONITORING),
           detail: [ release["description"].presence, ("image #{release['imageRef']}" if release["imageRef"].present?) ].compact.join(", ").presence
+        )
+      end
+
+      # Fly says whether a release is stable but not which one serves now, so live is left unsaid and the newest that
+      # finished rolling out is taken as live.
+      def release_deploy(release)
+        status = Capabilities::Deploys.status(release["status"], RELEASE_STATUSES)
+        Capabilities::Deploys::Deploy.new(
+          id: release["id"], version: release["version"], status: status, started_at: release["createdAt"],
+          finished_at: (release["updatedAt"] if Capabilities::History::FINISHED.include?(status))
         )
       end
 

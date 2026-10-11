@@ -125,6 +125,26 @@ module Integrations
         assert_match "deploy ended: failed, timed out after 900 seconds: no open port", events
       end
 
+      test "deploys carry their identity, rollout and whether they serve as data" do
+        RenderApi.any_instance.stubs(:deploys).with("srv-web", limit: 20).returns([
+          { "id" => "dep-3", "status" => "update_in_progress", "createdAt" => "2026-10-01T10:00:00Z", "startedAt" => "2026-10-01T10:00:05Z",
+            "image" => { "ref" => "ghcr.io/acme/web:1.4" } },
+          { "id" => "dep-2", "status" => "live", "createdAt" => "2026-10-01T09:00:00Z", "finishedAt" => "2026-10-01T09:04:00Z",
+            "commit" => { "id" => "C4E4267D46E638AC", "message" => "Speed up checkout" } },
+          { "id" => "dep-1", "status" => "deactivated", "createdAt" => "2026-09-30T09:00:00Z", "finishedAt" => "2026-09-30T09:03:00Z",
+            "commit" => { "id" => "aaaaaaa111" } },
+          { "id" => "dep-0", "status" => "build_failed", "createdAt" => "2026-09-29T09:00:00Z", "finishedAt" => "2026-09-29T09:01:00Z" }
+        ])
+
+        deploys = Capabilities::Deploys.deploys_of(@pack.call("list_deployments", environment_row: @row, arguments: { "resource" => "web" }))
+
+        assert_equal [ [ "dep-3", nil, "ghcr.io/acme/web:1.4", Capabilities::History::RUNNING, nil, Time.zone.parse("2026-10-01T10:00:05Z"), nil ],
+                       [ "dep-2", "c4e4267d46e638ac", nil, Capabilities::History::SUCCEEDED, true, Time.zone.parse("2026-10-01T09:00:00Z"), Time.zone.parse("2026-10-01T09:04:00Z") ],
+                       [ "dep-1", "aaaaaaa111", nil, Capabilities::History::SUCCEEDED, false, Time.zone.parse("2026-09-30T09:00:00Z"), Time.zone.parse("2026-09-30T09:03:00Z") ],
+                       [ "dep-0", nil, nil, Capabilities::History::FAILED, nil, Time.zone.parse("2026-09-29T09:00:00Z"), Time.zone.parse("2026-09-29T09:01:00Z") ] ],
+                     deploys.map { |deploy| [ deploy.id, deploy.commit, deploy.version, deploy.status, deploy.live, deploy.started_at, deploy.finished_at ] }
+      end
+
       test "a service's status says how it scales, what it runs and what happened to it lately" do
         RenderApi.any_instance.stubs(:service).with("srv-web").returns(
           "type" => "web_service", "repo" => "https://github.com/acme/app", "branch" => "main",

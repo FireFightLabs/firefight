@@ -2,6 +2,8 @@
 # run, a build, a deploy), or a reading such as a resource's status that says when it is done or failed. Each milestone
 # is claimed by one guarded update, so it is reported once.
 class Chat::Watch::Step < ApplicationRecord
+  include NewDeploy
+
   STATUS_WAITING = "waiting"
   STATUS_RUNNING = "running"
   STATUS_SUCCEEDED = "succeeded"

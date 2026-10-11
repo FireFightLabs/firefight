@@ -120,6 +120,22 @@ module Integrations
         assert_equal 420, runs.first.seconds
       end
 
+      test "a stage's rollouts are kept as deploys by release and rollout, with live left unsaid" do
+        GoogleCloudApi.any_instance.stubs(:releases).returns(RELEASES)
+        GoogleCloudApi.any_instance.stubs(:rollouts).with("acme-prod", "us-central1", "web", "rel-7").returns([ STAGING, ROLLOUT ])
+        GoogleCloudApi.any_instance.stubs(:rollouts).with("acme-prod", "us-central1", "web", "rel-6").returns([ EARLIER ])
+
+        result = call("list_rollouts", "resource" => "web prod")
+        deploys = Capabilities::Deploys.deploys_of(result)
+
+        assert_equal [
+          [ "rel-7/rel-7-to-prod-0001", "rel-7", Capabilities::History::FAILED, nil, Time.utc(2026, 10, 6, 10, 2), Time.utc(2026, 10, 6, 10, 9) ],
+          [ "rel-6/rel-6-to-prod-0001", "rel-6", Capabilities::History::SUCCEEDED, nil, Time.utc(2026, 10, 5, 10, 1), Time.utc(2026, 10, 5, 10, 6) ]
+        ], deploys.map { |deploy| [ deploy.id, deploy.version, deploy.status, deploy.live, deploy.started_at, deploy.finished_at ] }
+        assert_equal "rel-6/rel-6-to-prod-0001", Capabilities::Deploys.live(deploys).id
+        assert_equal Capabilities::History.runs_of(result).map(&:id), deploys.map(&:id)
+      end
+
       test "a pipeline's rollouts take in every stage, and a name keeps one stage's" do
         GoogleCloudApi.any_instance.stubs(:releases).returns(RELEASES)
         GoogleCloudApi.any_instance.stubs(:rollouts).with("acme-prod", "us-central1", "web", "rel-7").returns([ STAGING, ROLLOUT ])

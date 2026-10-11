@@ -11,6 +11,8 @@ module Integrations
       WITHHELD_PATCH = "(not shown, since the file may hold secrets)".freeze
       GIT_FILE = /\Adiff --git /
       REF_FORMAT = %r{\A[\w.\-/]+\z}
+      # A commit lookup takes a tag or a branch as well, read as the commit it points at, as a watch waiting for a tag asks.
+      COMMIT_REFERENCE = "Commit SHA, or a tag or branch name to read the commit it points at now".freeze
       LINE_LIMIT = 200
       CONTEXT_LINES = 10
       # A build log is read from its end, where a job says why it failed.
@@ -37,6 +39,13 @@ module Integrations
       }.freeze
 
       private
+
+      def commit_reference(arguments)
+        reference = arguments["sha"].to_s.strip
+        fail! "sha must be a commit SHA, or a tag or branch name" unless reference.match?(REF_FORMAT) && !reference.include?("..")
+
+        reference
+      end
 
       def path_argument(arguments)
         path = arguments["path"].to_s

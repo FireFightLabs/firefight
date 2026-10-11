@@ -23,7 +23,6 @@ module Integrations
       include CiConfig
 
       REPO_FORMAT = %r{\A[\w.\-]+(/[\w.\-]+)+\z}
-      SHA_FORMAT = /\A\h{6,40}\z/
       # Scopes an access token needs: the API to read, and the repository to fetch for the code sandbox. api covers both.
       READ_SCOPES = [ %w[read_api api], %w[read_repository write_repository api] ].freeze
       FILE_LIMIT = 30
@@ -32,6 +31,13 @@ module Integrations
       DEPLOYMENT_LIMIT = 10
       MAX_DEPLOYMENTS = 50
       DEPLOYMENT_CANDIDATES = 30
+      # A deployment's status in Firefight's words. Blocked waits on an approval, and skipped never ran because a newer one did.
+      DEPLOYMENT_STATUSES = {
+        "created" => Capabilities::History::QUEUED, "blocked" => Capabilities::History::QUEUED,
+        "running" => Capabilities::History::RUNNING, "success" => Capabilities::History::SUCCEEDED,
+        "failed" => Capabilities::History::FAILED, "canceled" => Capabilities::History::CANCELLED,
+        "skipped" => Capabilities::History::CANCELLED
+      }.freeze
       NO_DEPLOY_LOOKBACK = 24.hours
       PULL_LOOKUP_LIMIT = 25
       BLAME_MERGE_REQUESTS = 5
@@ -53,7 +59,7 @@ module Integrations
 
       tool :commit_lookup,
            description: "Fetch a commit: message, author, stats, and changed files",
-           params_schema: Code.object_schema({ "repo" => REPO_PARAM, "sha" => { "type" => "string", "description" => "Commit SHA" } }, %w[repo sha]),
+           params_schema: Code.object_schema({ "repo" => REPO_PARAM, "sha" => { "type" => "string", "description" => COMMIT_REFERENCE } }, %w[repo sha]),
            read_only: true
 
       tool :recent_deployments,
@@ -211,12 +217,11 @@ module Integrations
 
       def commit_lookup(environment_row:, arguments:)
         repo = repo_argument(arguments)
-        sha = arguments["sha"].to_s
-        fail! "sha must be a commit SHA" unless sha.match?(SHA_FORMAT)
+        sha = commit_reference(arguments)
 
         gitlab = api(environment_row)
-        commit = gitlab.get("#{GitlabApi.project(repo)}/repository/commits/#{sha}")
-        diffs, more = gitlab.list("#{GitlabApi.project(repo)}/repository/commits/#{sha}/diff")
+        commit = gitlab.get("#{GitlabApi.project(repo)}/repository/commits/#{Http.segment(sha)}")
+        diffs, more = gitlab.list("#{GitlabApi.project(repo)}/repository/commits/#{commit['id']}/diff")
         Telemetry.result(<<~TEXT, link: link(commit["web_url"]))
           Commit #{commit['id']}
           Author: #{commit['author_name']} at #{commit['authored_date']}
@@ -233,9 +238,11 @@ module Integrations
         limit = whole_number_argument(arguments, "limit", DEPLOYMENT_LIMIT, MAX_DEPLOYMENTS)
         query = { "order_by" => "id", "sort" => "desc", "per_page" => limit, "environment" => arguments["deployment_environment"].presence }
         deployments = Array(api(environment_row).get("#{GitlabApi.project(repo)}/deployments", query))
-        return "No deployments recorded for #{repo}#{" in #{query['environment']}" if query['environment']}." if deployments.empty?
+        if deployments.empty?
+          return Capabilities::Deploys.with_deploys("No deployments recorded for #{repo}#{" in #{query['environment']}" if query['environment']}.", [])
+        end
 
-        deployments.map { |deployment| deployment_line(deployment) }.join("\n")
+        Capabilities::Deploys.with_deploys(deployments.map { |deployment| deployment_line(deployment) }.join("\n"), deployments.map { |deployment| deploy_of(deployment) })
       end
 
       def merged_merge_requests(environment_row:, arguments:)
@@ -475,6 +482,14 @@ module Integrations
         "#{deployment['created_at']}  #{deployment.dig('environment', 'name') || 'unknown environment'}  #{deployment['ref']}  " \
           "#{deployment['sha'].to_s[0, 12]}  #{deployment['status']}  by #{deployment.dig('user', 'username') || 'unknown'}  " \
           "deployment #{deployment['id']}#{"  job #{job['id']} #{job['web_url']}" if job['id']}"
+      end
+
+      # GitLab does not say which deployment serves now. A finished one ended when its job did, or else when it last changed.
+      def deploy_of(deployment)
+        status = Capabilities::Deploys.status(deployment["status"], DEPLOYMENT_STATUSES)
+        finished = (deployment.dig("deployable", "finished_at") || deployment["updated_at"]) if Capabilities::History::FINISHED.include?(status)
+        Capabilities::Deploys::Deploy.new(id: deployment["id"], commit: deployment["sha"], branch: deployment["ref"], status: status,
+                                          started_at: deployment["created_at"], finished_at: finished, environment: deployment.dig("environment", "name"))
       end
 
       # An environment asked for by name, else anything that looks like production, else every environment.

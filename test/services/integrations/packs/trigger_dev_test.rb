@@ -219,6 +219,23 @@ module Integrations
         assert errors.index("9 times: Error: timeout") < errors.index("3 times: TypeError")
       end
 
+      test "deployments are kept as data by their id and version, none marked live" do
+        TriggerDevApi.any_instance.stubs(:deployments).with(status: nil, limit: 20).returns([
+          { "id" => "deployment_3", "version" => "20261003.1", "status" => "DEPLOYING", "createdAt" => "2026-10-03T09:00:00Z" },
+          { "id" => "deployment_2", "version" => "20261002.1", "status" => "DEPLOYED", "createdAt" => "2026-10-02T09:00:00Z",
+            "deployedAt" => "2026-10-02T09:04:00Z", "git" => { "commitSha" => "a" * 40 } }
+        ])
+
+        result = @pack.call("list_deployments", environment_row: @row, arguments: {})
+        deploying, deployed = Capabilities::Deploys.deploys_of(result)
+
+        assert_match "version 20261002.1, DEPLOYED, deployed 2026-10-02T09:04:00Z, id deployment_2", result["content"].sole["text"]
+        assert_equal [ "deployment_3", "20261003.1", Capabilities::History::RUNNING, nil, nil ],
+                     [ deploying.id, deploying.version, deploying.status, deploying.live, deploying.finished_at ]
+        assert_equal [ "deployment_2", nil, Capabilities::History::SUCCEEDED, nil, Time.utc(2026, 10, 2, 9), Time.utc(2026, 10, 2, 9, 4) ],
+                     [ deployed.id, deployed.commit, deployed.status, deployed.live, deployed.started_at, deployed.finished_at ]
+      end
+
       test "metrics are counted per step with empty steps as zero, and CPU is read as a percentage" do
         TriggerDevApi.any_instance.stubs(:query).with { |trql, **| trql.include?("FROM runs") && trql.include?("task_identifier = 'send-email'") }.returns([
           { "bucket" => "2026-10-03 10:00:00", "runs" => 4, "failed" => 1 }, { "bucket" => "2026-10-03 10:05:00", "runs" => 2, "failed" => 0 },

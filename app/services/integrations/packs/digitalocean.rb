@@ -309,11 +309,12 @@ module Integrations
       def list_deployments(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"], only: KIND_APP)
         deployments = api(environment_row).deployments(resource[:id], limit: Capabilities::Answers.limit(arguments, DEPLOYMENT_LIMIT))
-        return Telemetry.result("#{resource[:name]} has no deployments.", link: link_of(environment_row, resource)) if deployments.empty?
+        return Capabilities::Deploys.with_deploys(Telemetry.result("#{resource[:name]} has no deployments.", link: link_of(environment_row, resource)), []) if deployments.empty?
 
         rows = deployments.map { |deployment| deployment_line(deployment) }
-        Telemetry.result("Latest #{rows.size} deployments of #{resource[:name]}, newest first. rollback_app takes a deployment id.\n#{rows.join("\n")}",
-             link: link_of(environment_row, resource))
+        result = Telemetry.result("Latest #{rows.size} deployments of #{resource[:name]}, newest first. rollback_app takes a deployment id.\n#{rows.join("\n")}",
+                                  link: link_of(environment_row, resource))
+        Capabilities::Deploys.with_deploys(result, deployments.map { |deployment| deployment_deploy(deployment) })
       end
 
       # App Platform's deployment phases (digitalocean/openapi, apps_deployment_phase) in Firefight's words. A deployment
@@ -325,6 +326,12 @@ module Integrations
         "superseded" => Capabilities::History::SUCCEEDED, "error" => Capabilities::History::FAILED,
         "canceled" => Capabilities::History::CANCELLED
       }.freeze
+      # Whether a deployment serves, by its phase. Only the active one does, and one still building or deploying is left
+      # unsaid.
+      DEPLOYMENT_LIVE = { "active" => true, "superseded" => false, "error" => false, "canceled" => false }.freeze
+      # The parts of a deployment that each carry the commit they were built from (apps_deployment_service, _static_site,
+      # _worker, _job and _functions).
+      DEPLOYMENT_COMPONENTS = %w[services static_sites workers jobs functions].freeze
       # A deployment's steps (apps_deployment_progress_step_status) in Firefight's words.
       STEP_STATUSES = {
         "unknown" => Capabilities::History::QUEUED, "pending" => Capabilities::History::QUEUED, "running" => Capabilities::History::RUNNING,
@@ -862,6 +869,16 @@ module Integrations
       def deployment_ended_at(deployment)
         ended = Array(deployment.dig("progress", "steps")).filter_map { |step| Telemetry.parse_time(step["ended_at"]) }.max
         ended || Telemetry.parse_time(deployment["phase_last_updated_at"])
+      end
+
+      # Its commit only where every component was built from the same one.
+      def deployment_deploy(deployment)
+        status = Capabilities::Deploys.status(deployment["phase"], DEPLOYMENT_PHASES)
+        commits = DEPLOYMENT_COMPONENTS.flat_map { |key| Array(deployment[key]) }.filter_map { |component| component["source_commit_hash"].presence }.uniq
+        Capabilities::Deploys::Deploy.new(
+          id: deployment["id"], commit: (commits.sole if commits.one?), status: status, live: DEPLOYMENT_LIVE[deployment["phase"].to_s.downcase.strip],
+          started_at: deployment["created_at"], finished_at: (deployment_ended_at(deployment) if Capabilities::History::FINISHED.include?(status))
+        )
       end
 
       def deployment_line(deployment)

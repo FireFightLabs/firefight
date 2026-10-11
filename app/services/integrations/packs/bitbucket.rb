@@ -33,6 +33,12 @@ module Integrations
       MAX_DEPLOYMENTS = 50
       # Bitbucket's deployments list takes no filter or order, so this many pages are read and ordered here.
       DEPLOYMENT_PAGES = 3
+      # A deployment's outcome, or its state while it has none, in Firefight's words.
+      DEPLOYMENT_STATUSES = {
+        "undeployed" => Capabilities::History::QUEUED, "in_progress" => Capabilities::History::RUNNING,
+        "successful" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED,
+        "stopped" => Capabilities::History::CANCELLED
+      }.freeze
       COMMIT_PAGES = 5
       NO_DEPLOY_LOOKBACK = 24.hours
       PULL_LOOKUP_LIMIT = 25
@@ -60,7 +66,7 @@ module Integrations
 
       tool :commit_lookup,
            description: "Fetch a commit: message, author, stats, and changed files",
-           params_schema: Code.object_schema({ "repo" => REPO_PARAM, "sha" => { "type" => "string", "description" => "Commit SHA" } }, %w[repo sha]),
+           params_schema: Code.object_schema({ "repo" => REPO_PARAM, "sha" => { "type" => "string", "description" => COMMIT_REFERENCE } }, %w[repo sha]),
            read_only: true
 
       tool :recent_deployments,
@@ -239,10 +245,9 @@ module Integrations
 
       def commit_lookup(environment_row:, arguments:)
         repo = repo_argument(arguments)
-        sha = arguments["sha"].to_s
-        fail! "sha must be a commit SHA" unless sha.match?(SHA_FORMAT)
-
         bitbucket = api(environment_row)
+        sha = commit_reference(arguments)
+        sha = commit_of(bitbucket, repo, sha) unless sha.match?(SHA_FORMAT)
         commit = bitbucket.get("#{BitbucketApi.repository(repo)}/commit/#{sha}")
         files, more = bitbucket.list("#{BitbucketApi.repository(repo)}/diffstat/#{sha}")
         changed = files.map { |stat| changed_file(stat) }
@@ -263,10 +268,11 @@ module Integrations
         named = arguments["deployment_environment"].to_s
         deployments = deployments_of(api(environment_row), repo)
         deployments = deployments.select { |deployment| deployment["environment_name"].casecmp?(named) } if named.present?
-        return "No deployments recorded for #{repo}#{" in #{named}" if named.present?}." if deployments.empty?
+        return Capabilities::Deploys.with_deploys("No deployments recorded for #{repo}#{" in #{named}" if named.present?}.", []) if deployments.empty?
 
         # Each line links the pipeline that made the release, the address Bitbucket gives it. The deployments list has none.
-        deployments.first(limit).map { |deployment| deployment_line(deployment) }.join("\n")
+        shown = deployments.first(limit)
+        Capabilities::Deploys.with_deploys(shown.map { |deployment| deployment_line(deployment) }.join("\n"), shown.map { |deployment| deploy_of(deployment) })
       end
 
       def merged_pull_requests(environment_row:, arguments:)
@@ -581,6 +587,17 @@ module Integrations
         "#{state['completion_date'] || state['start_date'] || 'not started'}  #{deployment['environment_name'].presence || 'unknown environment'}  " \
           "#{deployment.dig('release', 'name')}  #{deployment.dig('release', 'commit', 'hash').to_s[0, 12]}  #{outcome.to_s.downcase}  " \
           "by #{state.dig('deployer', 'display_name') || 'unknown'}  deployment #{deployment['uuid']}  #{deployment.dig('release', 'url')}"
+      end
+
+      # Bitbucket does not say which deployment serves now. A finished one carries its outcome in its state's status.
+      def deploy_of(deployment)
+        state = deployment["state"] || {}
+        status = Capabilities::Deploys.status(state.dig("status", "name") || state["name"], DEPLOYMENT_STATUSES)
+        Capabilities::Deploys::Deploy.new(
+          id: deployment["uuid"], commit: deployment.dig("release", "commit", "hash"), version: deployment.dig("release", "name"), status: status,
+          started_at: state["start_date"], finished_at: (state["completion_date"] if Capabilities::History::FINISHED.include?(status)),
+          environment: deployment["environment_name"]
+        )
       end
 
       def scoped_to_environment(deployments, environment)

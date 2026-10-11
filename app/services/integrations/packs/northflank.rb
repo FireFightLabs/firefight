@@ -602,8 +602,50 @@ module Integrations
         return Telemetry.result("#{resource[:name]} has no deployments.", link: link) if deployments.empty?
 
         rows = deployments.map { |deployment| deployment_line(deployment) }
-        Telemetry.result("Latest #{rows.size} deployments of #{resource[:name]}, newest first.\n#{rows.join("\n")}", link: link)
+        result = Telemetry.result("Latest #{rows.size} deployments of #{resource[:name]}, newest first.\n#{rows.join("\n")}", link: link)
+        Capabilities::Deploys.with_deploys(result, deploys_of(deployments, rollout_of(environment_row, resource)))
       end
+
+      # The service's rollout (status.deployment) in Firefight's words. Northflank says nothing else of how a deployment
+      # stands, so only the newest one carries it.
+      ROLLOUT_STATUSES = { "completed" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED }.freeze
+
+      # An older deployment rolled out once and was replaced, so it is succeeded, and active says whether it still serves.
+      def deploys_of(deployments, rollout)
+        newest = deployments.max_by { |deployment| Telemetry.parse_time(deployment["createdAt"]) || Time.zone.at(0) }
+        source = rollout[:source]
+        deployments.map do |deployment|
+          commit = deployment.dig("commit", "sha")
+          status, finished_at = deployment.equal?(newest) ? newest_rollout(deployment, rollout[:status]) : [ Capabilities::History::SUCCEEDED, nil ]
+          Capabilities::Deploys::Deploy.new(
+            id: deployment["id"], commit: commit, tag: deployment.dig("image", "tag"), status: status, live: deployment["active"] == true,
+            branch: (source["branch"] if Capabilities::Deploys.same_commit?(commit, source["deployedSHA"])),
+            started_at: deployment["createdAt"], finished_at: finished_at
+          )
+        end
+      end
+      private :deploys_of
+
+      # A COMPLETED rollout is the newest deployment's only when it came after that deployment was made. Before then it
+      # is the rollout of the one it replaces.
+      def newest_rollout(deployment, rollout)
+        status = Capabilities::Deploys.status(rollout["status"], ROLLOUT_STATUSES)
+        since = Telemetry.parse_time(rollout["lastTransitionTime"])
+        created = Telemetry.parse_time(deployment["createdAt"])
+        status = Capabilities::History::RUNNING if status == Capabilities::History::SUCCEEDED && !(since && created && since >= created)
+        [ status, (since if Capabilities::History::FINISHED.include?(status)) ]
+      end
+      private :newest_rollout
+
+      # The service's rollout and the source it deployed. A service that cannot be read leaves the newest deployment
+      # still going rather than guessed done.
+      def rollout_of(environment_row, resource)
+        service = api(environment_row).service(project_of(environment_row), resource[:id])
+        { status: service.dig("status", "deployment") || {}, source: service.dig("deployment", "internal") || {} }
+      rescue NorthflankApi::Error
+        { status: {}, source: {} }
+      end
+      private :rollout_of
 
       def list_containers(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])

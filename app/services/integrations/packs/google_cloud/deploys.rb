@@ -184,8 +184,12 @@ module Integrations
           end
 
           limit = Capabilities::Answers.limit(arguments, ROLLOUT_LIMIT)
-          runs = newest_rollouts(environment_row, target, limit).map { |release, rollout| rollout_run(rollout, target, release) }
-          History.result(runs, what: what, link: link, name: arguments["name"], limit: limit)
+          runs = newest_rollouts(environment_row, target, limit).map { |release, rollout| [ release, rollout_run(rollout, target, release) ] }
+          # Cloud Deploy marks no rollout as the one a target runs now, so live is left unsaid.
+          deploys = runs.map do |release, run|
+            Capabilities::Deploys::Deploy.new(id: run.id, version: release, status: run.status, started_at: run.started_at, finished_at: run.finished_at)
+          end
+          Capabilities::Deploys.with_deploys(History.result(runs.map(&:last), what: what, link: link, name: arguments["name"], limit: limit), deploys)
         end
 
         def rollback_target(environment_row:, arguments:)

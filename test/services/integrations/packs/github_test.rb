@@ -30,6 +30,16 @@ module Integrations
         assert_includes text, "app/models/payment.rb (+5 -1)"
       end
 
+      test "commit_lookup reads a tag as the commit it points at" do
+        GithubApp.stubs(:get).with("/repos/acme/checkout/commits/v1.4.0", token: "ghs_token").returns(
+          "sha" => "f23b4dc3fe04aa11bb22cc33dd44ee55ff667788", "stats" => {}, "commit" => { "message" => "Release", "author" => {} }, "files" => []
+        )
+
+        text = @pack.commit_lookup(environment_row: @row, arguments: { "repo" => "acme/checkout", "sha" => "v1.4.0" })
+
+        assert_includes text, "Commit f23b4dc3fe04aa11bb22cc33dd44ee55ff667788"
+      end
+
       test "repo arguments must be owner/name shaped" do
         error = assert_raises(NativePack::Error) do
           @pack.pr_lookup(environment_row: @row, arguments: { "repo" => "../../etc", "number" => 1 })
@@ -37,12 +47,12 @@ module Integrations
         assert_match(/owner\/name/, error.message)
       end
 
-      test "pr numbers must be integers and shas must be hex" do
+      test "pr numbers must be integers and a commit must be a sha, a tag or a branch" do
         assert_raises(NativePack::Error) do
           @pack.pr_lookup(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => "latest" })
         end
         assert_raises(NativePack::Error) do
-          @pack.commit_lookup(environment_row: @row, arguments: { "repo" => "acme/checkout", "sha" => "not-a-sha" })
+          @pack.commit_lookup(environment_row: @row, arguments: { "repo" => "acme/checkout", "sha" => "main;rm -rf" })
         end
       end
 
@@ -58,10 +68,49 @@ module Integrations
         GithubApp.stubs(:get).with("/repos/acme/checkout/deployments/8/statuses?per_page=1", token: "ghs_token")
                  .returns([ { "state" => "failure" } ])
 
-        text = @pack.recent_deployments(environment_row: @row, arguments: { "repo" => "acme/checkout" })
+        text = deployments_text(@pack.recent_deployments(environment_row: @row, arguments: { "repo" => "acme/checkout" }))
 
         assert_match(/2026-09-12T10:01:00Z\s+production\s+v41\s+success\s+by uros/, text)
         assert_match(/v40\s+failure\s+by ada/, text)
+      end
+
+      test "recent_deployments keeps each deployment as data, its rollout read off its newest status" do
+        sha = "3f9c2b1a7d4e5f60718293a4b5c6d7e8f9012345"
+        GithubApp.stubs(:get).with("/repos/acme/checkout/deployments?per_page=3", token: "ghs_token").returns([
+          { "id" => 11, "ref" => "main", "sha" => sha, "environment" => "production", "created_at" => "2026-09-12T10:05:00Z" },
+          { "id" => 10, "ref" => "main", "sha" => "a" * 40, "environment" => "production", "created_at" => "2026-09-12T10:01:00Z" },
+          { "id" => 9, "ref" => "b" * 40, "sha" => "b" * 40, "environment" => "production", "created_at" => "2026-09-11T16:20:00Z" }
+        ])
+        GithubApp.stubs(:get).with("/repos/acme/checkout/deployments/11/statuses?per_page=1", token: "ghs_token")
+                 .returns([ { "state" => "in_progress", "created_at" => "2026-09-12T10:06:00Z" } ])
+        GithubApp.stubs(:get).with("/repos/acme/checkout/deployments/10/statuses?per_page=1", token: "ghs_token")
+                 .returns([ { "state" => "success", "created_at" => "2026-09-12T10:04:00Z" } ])
+        GithubApp.stubs(:get).with("/repos/acme/checkout/deployments/9/statuses?per_page=1", token: "ghs_token")
+                 .returns([ { "state" => "inactive", "created_at" => "2026-09-12T10:04:00Z" } ])
+
+        result = @pack.recent_deployments(environment_row: @row, arguments: { "repo" => "acme/checkout" })
+        running, live, replaced = Capabilities::Deploys.deploys_of(result)
+
+        assert_match(/2026-09-12T10:05:00Z\s+production\s+main\s+in_progress\s+by unknown/, deployments_text(result))
+        assert_equal [ "11", sha, "main", Capabilities::History::RUNNING, nil, nil ],
+                     [ running.id, running.commit, running.branch, running.status, running.live, running.finished_at ]
+        assert_equal [ "10", Capabilities::History::SUCCEEDED, nil, Time.utc(2026, 9, 12, 10, 4) ],
+                     [ live.id, live.status, live.live, live.finished_at ]
+        assert_equal Time.utc(2026, 9, 12, 10, 1), live.started_at
+        assert_equal [ "9", nil, Capabilities::History::SUCCEEDED, false, nil ],
+                     [ replaced.id, replaced.branch, replaced.status, replaced.live, replaced.finished_at ]
+      end
+
+      test "a deployment with no status reported is kept with no status rather than a guessed one" do
+        GithubApp.stubs(:get).with("/repos/acme/checkout/deployments?per_page=3", token: "ghs_token").returns([
+          { "id" => 9, "ref" => "v41", "sha" => "c" * 40, "environment" => "production", "created_at" => "2026-09-12T10:01:00Z" }
+        ])
+        GithubApp.stubs(:get).with("/repos/acme/checkout/deployments/9/statuses?per_page=1", token: "ghs_token")
+                 .raises(GithubApp::Error, "GitHub: Not Found")
+
+        deploy = Capabilities::Deploys.deploys_of(@pack.recent_deployments(environment_row: @row, arguments: { "repo" => "acme/checkout" })).sole
+
+        assert_equal [ "9", "c" * 40, nil, nil ], [ deploy.id, deploy.commit, deploy.status, deploy.live ]
       end
 
       test "recent_deployments can be limited to one deployment environment" do
@@ -69,10 +118,10 @@ module Integrations
                  .with("/repos/acme/checkout/deployments?environment=production&per_page=3", token: "ghs_token")
                  .returns([])
 
-        assert_match(/No deployments recorded/,
-                     @pack.recent_deployments(environment_row: @row,
-                                              arguments: { "repo" => "acme/checkout",
-                                                           "deployment_environment" => "production" }))
+        result = @pack.recent_deployments(environment_row: @row, arguments: { "repo" => "acme/checkout", "deployment_environment" => "production" })
+
+        assert_match(/No deployments recorded/, deployments_text(result))
+        assert_empty Capabilities::Deploys.deploys_of(result)
       end
 
       test "a deployment whose status cannot be read still lists what shipped" do
@@ -82,7 +131,7 @@ module Integrations
         GithubApp.stubs(:get).with("/repos/acme/checkout/deployments/9/statuses?per_page=1", token: "ghs_token")
                  .raises(GithubApp::Error, "GitHub: Not Found")
 
-        text = @pack.recent_deployments(environment_row: @row, arguments: { "repo" => "acme/checkout" })
+        text = deployments_text(@pack.recent_deployments(environment_row: @row, arguments: { "repo" => "acme/checkout" }))
 
         assert_match(/v41\s+state unavailable\s+by unknown/, text)
       end
@@ -94,7 +143,7 @@ module Integrations
         GithubApp.stubs(:get).with("/repos/acme/checkout/deployments/9/statuses?per_page=1", token: "ghs_token")
                  .returns([])
 
-        text = @pack.recent_deployments(environment_row: @row, arguments: { "repo" => "acme/checkout" })
+        text = deployments_text(@pack.recent_deployments(environment_row: @row, arguments: { "repo" => "acme/checkout" }))
 
         assert_match(/v41\s+no status\s+by unknown/, text)
       end
@@ -323,6 +372,8 @@ module Integrations
       end
 
       private
+
+      def deployments_text(result) = result["content"].first["text"]
 
       def closed_pulls_path
         "/repos/acme/checkout/pulls?state=closed&sort=updated&direction=desc&per_page=#{Github::CLOSED_CANDIDATES}"

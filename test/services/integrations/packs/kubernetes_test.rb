@@ -166,6 +166,28 @@ module Integrations
                      text.lines.map(&:strip)
       end
 
+      test "the rollout history keeps each revision as a deploy, the current one live and done only once its rollout completed" do
+        stub_list(REPLICA_SETS, replica_sets)
+
+        rolling = Capabilities::Deploys.deploys_of(@pack.call("rollout_history", environment_row: @row, arguments: { "resource" => "deployment/web" }))
+
+        assert_equal [ [ "3", "3", Capabilities::History::RUNNING, true, nil ], [ "2", "2", Capabilities::History::SUCCEEDED, false, nil ] ],
+                     rolling.map { |deploy| [ deploy.id, deploy.version, deploy.status, deploy.live, deploy.finished_at ] }
+        assert_equal [ Time.utc(2026, 10, 3, 10), Time.utc(2026, 10, 2, 10) ], rolling.map(&:started_at)
+        assert_not rolling.first.serving?
+
+        stub_get("#{DEPLOYMENTS}/web", deployment.deep_merge("status" => {
+          "availableReplicas" => 3, "readyReplicas" => 3, "unavailableReplicas" => 0,
+          "conditions" => [ { "type" => "Progressing", "status" => "True", "reason" => "NewReplicaSetAvailable", "lastUpdateTime" => "2026-10-03T10:04:00Z" } ]
+        }))
+        result = @pack.call("rollout_history", environment_row: @row, arguments: { "resource" => "deployment/web" })
+        done = Capabilities::Deploys.deploys_of(result).first
+
+        assert_equal [ Capabilities::History::SUCCEEDED, true, Time.utc(2026, 10, 3, 10, 4) ], [ done.status, done.live, done.finished_at ]
+        assert_equal "3", Capabilities::Deploys.live(Capabilities::Deploys.deploys_of(result)).id
+        assert_match "revision 3, 2026-10-03T10:00:00Z, current, images ghcr.io/acme/web:v3, change cause deploy v3", result["content"].first["text"]
+      end
+
       test "a deployment goes back to a revision the way kubectl rollout undo does, and refuses a paused one" do
         stub_list(REPLICA_SETS, replica_sets)
         KubernetesApi.any_instance.expects(:patch).with("#{DEPLOYMENTS}/web", anything, KubernetesApi::PATCH_JSON).with do |_path, patch, _type|

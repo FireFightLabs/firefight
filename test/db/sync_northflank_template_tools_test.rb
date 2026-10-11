@@ -1,5 +1,5 @@
 require "test_helper"
-require Rails.root.join("db/migrate/20261012090000_sync_northflank_template_tools")
+require Rails.root.join("db/migrate/20261012090001_sync_northflank_template_tools")
 
 class SyncNorthflankTemplateToolsTest < ActiveSupport::TestCase
   test "an existing Northflank connection gets the template read and the two template changes, and keeps the tools it had as they were" do

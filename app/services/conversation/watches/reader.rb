@@ -60,6 +60,19 @@ class Conversation::Watches::Reader
     Said.new(text: FirefightAi::Evidence.unframe(text).body, failed: agent.failed?)
   end
 
+  # nil when the code host does not know the ref yet, such as a tag a release has not pushed.
+  def commit_of(reference, ref)
+    resolved = Ability::Resolver.resolve(@principal, @workspace)
+    tools = Integration::Tool.in_workspace(@workspace).to_a.select { |tool| tool.callable_by?(@principal, resolved) }
+    call = Integrations::Capabilities.commit_call(@workspace, reference, ref, tools, principal: @principal)
+    raise Refused, held_words(call) if held?(call)
+
+    answer = read_call(call)
+    Integrations::Capabilities.commit_in(answer.result) unless answer.failed?
+  rescue Integrations::Capabilities::Unroutable => error
+    raise Refused, error.message
+  end
+
   # A job's or step's log, read with the provider tool the run named on the connection that answered for the run. Only a
   # tool that reads, and only when nothing holds it for approval.
   def read_log(environment_row, log)

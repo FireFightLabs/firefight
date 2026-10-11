@@ -73,6 +73,8 @@ module Integrations
       # The label Cloud Run puts on a service a Cloud Build trigger deploys, naming the trigger (Cloud Run, Continuous
       # deployment from git using Cloud Build).
       TRIGGER_LABEL = "gcb-trigger-id".freeze
+      # The commit the same deploy labels each revision with.
+      COMMIT_LABEL = "commit-sha".freeze
       # Where a build made outside a regional pool is kept.
       GLOBAL = "global".freeze
       BUILD_ID = /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/
@@ -376,7 +378,9 @@ module Integrations
 
         read = api(environment_row).run_revisions(target.project, target.location, target.name)
         link = page_link(environment_row, target.project, TYPE_RUN)
-        return Capabilities::RunHistory.with_runs(Telemetry.result("#{target.name} has no revisions.", link: link), [], link: link) if read.items.empty?
+        if read.items.empty?
+          return Capabilities::Deploys.with_deploys(Capabilities::RunHistory.with_runs(Telemetry.result("#{target.name} has no revisions.", link: link), [], link: link), [])
+        end
 
         shares = traffic_shares(service)
         newest = read.items.sort_by { |revision| revision["createTime"].to_s }.reverse.first(Capabilities::Answers.limit(arguments, REVISION_LIMIT))
@@ -384,7 +388,8 @@ module Integrations
         cut = read.incomplete? ? "\nCloud Run has more revisions than Firefight reads, so the newest may be missing." : ""
         result = Telemetry.result("Latest #{rows.size} revisions of #{target.name}, newest first. rollback_service takes a revision's name.\n#{rows.join("\n")}#{cut}", link: link)
         url = revisions_page(environment_row, target)
-        Capabilities::RunHistory.with_runs(result, newest.map { |revision| history_run(revision).with(url: url) }, link: link)
+        result = Capabilities::RunHistory.with_runs(result, newest.map { |revision| history_run(revision).with(url: url) }, link: link)
+        Capabilities::Deploys.with_deploys(result, newest.map { |revision| revision_deploy(revision, shares) })
       end
 
       # Builds read newest first. A Cloud Run service's are the builds of the trigger that deploys it, in the service's
@@ -1011,6 +1016,16 @@ module Integrations
           id: short(revision["name"]), name: "revision", status: status, started_at: Capabilities::RunHistory.time(revision["createTime"]),
           finished_at: (Capabilities::RunHistory.time(ready["lastTransitionTime"]) if ready && Capabilities::History::FINISHED.include?(status)),
           detail: Array(revision["containers"]).filter_map { |container| container["image"] }.join(", ").presence
+        )
+      end
+
+      # A revision as a deploy, rolled out once it is ready, and serving while Cloud Run gives it a share of the traffic.
+      # Its commit is the one Cloud Build's deploy from git labels it with.
+      def revision_deploy(revision, shares)
+        run = history_run(revision)
+        Capabilities::Deploys::Deploy.new(
+          id: run.id, commit: revision.dig("labels", COMMIT_LABEL), version: run.id, status: run.status,
+          live: (shares[run.id].positive? unless shares.empty?), started_at: run.started_at, finished_at: run.finished_at
         )
       end
 

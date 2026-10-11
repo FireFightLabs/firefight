@@ -219,6 +219,28 @@ export function withStepField(spec: JsonObject, key: string, entered: string | b
   return next
 }
 
+// The new deploy a step waits for, or null when it waits for none. An empty one waits for any newer deploy.
+export function newDeployOf(spec: JsonObject): JsonObject | null {
+  const asked = spec[WATCH_SPEC_KEYS.NEW_DEPLOY]
+  return isObject(asked) ? asked : null
+}
+
+// Turns waiting for a new deploy on, for any newer one, or off.
+export function withNewDeploy(spec: JsonObject, on: boolean): JsonObject {
+  const next = { ...spec }
+  if (on) {
+    next[WATCH_SPEC_KEYS.NEW_DEPLOY] = newDeployOf(spec) ?? {}
+  } else {
+    delete next[WATCH_SPEC_KEYS.NEW_DEPLOY]
+  }
+  return next
+}
+
+// One field of the new deploy a step waits for, such as its commit. An empty one is left out.
+export function withNewDeployField(spec: JsonObject, key: string, entered: string): JsonObject {
+  return { ...spec, [WATCH_SPEC_KEYS.NEW_DEPLOY]: withStepField(newDeployOf(spec) ?? {}, key, entered) }
+}
+
 export function isHistoryRead(spec: JsonObject, reads: RunbookWatchRead[]): boolean {
   return reads.some((read) => read.history && read.name === spec[WATCH_SPEC_KEYS.CAPABILITY])
 }

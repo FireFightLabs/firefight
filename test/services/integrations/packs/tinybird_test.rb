@@ -201,6 +201,24 @@ module Integrations
 
         assert_equal [ [ "j9", "populate top_products", "succeeded", 180 ], [ "j10", "deployment", "running", nil ] ],
                      Capabilities::History.runs_of(result).map { |run| [ run.id, run.name, run.status, run.seconds ] }
+        assert_nil Capabilities::Deploys.deploys_of(result), "Jobs of every kind are not read as deploys"
+      end
+
+      test "deployment jobs are kept as deploys by their job id, none marked live" do
+        TinybirdApi.any_instance.stubs(:query).returns("data" => [
+          { "created_at" => "2026-10-04 10:00:00", "job_id" => "j10", "job_type" => "deployment", "pipe_name" => "", "status" => "working",
+            "started_at" => "2026-10-04 10:00:01", "updated_at" => "2026-10-04 10:01:00" },
+          { "created_at" => "2026-10-04 09:00:00", "job_id" => "j9", "job_type" => "deployment", "pipe_name" => "", "status" => "done",
+            "started_at" => "2026-10-04 09:00:05", "updated_at" => "2026-10-04 09:03:05" }
+        ])
+
+        result = @pack.call("jobs", environment_row: @row, arguments: { "job_type" => "deployment" })
+        working, done = Capabilities::Deploys.deploys_of(result)
+
+        assert_match "Latest 2 deployment jobs in the last 7 days", result["content"].first["text"]
+        assert_equal [ "j10", Capabilities::History::RUNNING, nil, nil ], [ working.id, working.status, working.live, working.finished_at ]
+        assert_equal [ "j9", Capabilities::History::SUCCEEDED, nil, Time.utc(2026, 10, 4, 9, 0, 5), Time.utc(2026, 10, 4, 9, 3, 5) ],
+                     [ done.id, done.status, done.live, done.started_at, done.finished_at ]
       end
 
       test "status reads the workspace, a data source or an endpoint by its name or id, and names what it does not know" do

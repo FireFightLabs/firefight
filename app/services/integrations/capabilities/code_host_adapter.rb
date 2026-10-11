@@ -17,7 +17,12 @@ module Integrations
       # A repository's logs are its builds', and how it stands is how its CI does.
       PHRASES = { LOGS => "read their build logs", STATUS => "check how their CI stands", HISTORY => "see how long their CI runs usually take" }.freeze
 
+      # The read that names the commit a tag or branch points at, which a watch waiting for a tag to go live asks.
+      COMMIT_TOOL = "commit_lookup".freeze
+
       def subject(name) = "the repositories #{name} puts on the map"
+
+      def commit_route(resource, ref) = Route.new(tool_name: COMMIT_TOOL, arguments: { "repo" => resource.external_id, "sha" => ref.to_s })
 
       def phrase(key) = PHRASES.fetch(key) { Capabilities::PHRASES.fetch(key) }
 

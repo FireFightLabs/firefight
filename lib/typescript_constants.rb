@@ -259,6 +259,7 @@ module TypescriptConstants
       Export.new("AI_ACCOUNT_STATES", WorkspaceAiAccount::STATES.to_h { |state| [ state.to_s.upcase, state.to_s ] }, nil),
       Export.new("APPROVAL_RUN_WINDOW_MINUTES", Ability::Approval::RUN_WINDOW.in_minutes.to_i, nil),
       Export.new("WATCH_SPEC_KEYS", Chat::Watch::SPEC_KEYS.transform_keys { |key| key.to_s.upcase }, nil),
+      Export.new("WATCH_NEW_DEPLOY_KEYS", Chat::Watch::Step::NewDeploy::GIVEN.to_h { |key| [ key.upcase, key ] }, nil),
       Export.new("IMPLICIT_AUTHORITIES", {
         "ADMIN" => Principal::IMPLICIT_ADMIN.to_s, "MEMBER" => Principal::IMPLICIT_MEMBER.to_s, "NONE" => Principal::IMPLICIT_NONE.to_s
       }, nil),

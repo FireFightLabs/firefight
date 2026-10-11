@@ -13,6 +13,8 @@ import {
   newWatchStep,
   readOf,
   stepText,
+  withNewDeploy,
+  withNewDeployField,
   withRead,
   withStepField,
   type ArgumentsState,
@@ -76,6 +78,14 @@ export function RunbookWatchEditor({ watch, reads, tools, placeholders, places, 
     changeStep(key, (step) => ({ ...step, args }))
   }
 
+  function turnNewDeploy(key: string, on: boolean) {
+    changeStep(key, (step) => ({ ...step, spec: withNewDeploy(step.spec, on) }))
+  }
+
+  function setNewDeploy(key: string, field: string, entered: string) {
+    changeStep(key, (step) => ({ ...step, spec: withNewDeployField(step.spec, field, entered) }))
+  }
+
   function addStep() {
     patch({ steps: [ ...watch.steps, newStep(reads) ] })
   }
@@ -126,6 +136,8 @@ export function RunbookWatchEditor({ watch, reads, tools, placeholders, places, 
               onChange={(field, entered) => setStep(step.key, field, entered)}
               onChooseRead={(name) => chooseRead(step.key, name)}
               onArgsChange={(args) => setArgs(step.key, args)}
+              onNewDeployTurn={(on) => turnNewDeploy(step.key, on)}
+              onNewDeployChange={(field, entered) => setNewDeploy(step.key, field, entered)}
               onRemove={() => removeStep(step.key)}
             />
           ))}

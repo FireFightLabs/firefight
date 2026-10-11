@@ -50,6 +50,8 @@ module Integrations
       LIST_LIMIT = 20
       LIST_LIMIT_MAX = 100
       DEPLOY_DAYS = 30
+      # The change tracking category a deploy is recorded under.
+      DEPLOYMENT_CATEGORY = "Deployment".freeze
 
       # Its baselines keep web transactions per minute as throughput, the same reading as requests. Errors are kept as
       # a share of transactions, which a count per minute does not compare with.
@@ -129,7 +131,26 @@ module Integrations
       def self.deploys(name, given)
         limit = Answers.limit(given, LIST_LIMIT_MAX, default: LIST_LIMIT)
         [ "SELECT timestamp, version, commit, description, changelog, user, deploymentType, category, type, deepLink, entity.guid " \
-          "FROM Deployment, ChangeTrackingEvent WHERE entity.name = #{name} SINCE #{DEPLOY_DAYS} days ago ORDER BY timestamp DESC LIMIT #{limit}", nil ]
+          "FROM Deployment, ChangeTrackingEvent WHERE entity.name = #{name} SINCE #{DEPLOY_DAYS} days ago ORDER BY timestamp DESC LIMIT #{limit}",
+          ->(result) { deploys_result(result) } ]
+      end
+
+      # The answer as it came, with its deploys kept as data. A marker says a deploy of a version or commit was recorded
+      # at a time, never how its rollout went or which serves now, so neither is said. A change tracking event of another
+      # category, such as a feature flag, is not a deploy.
+      def self.deploys_result(result)
+        Answers.read(result, NAME) do |body|
+          rows = find_rows(body)
+          next unless rows
+
+          deploys = rows.select { |row| row["category"].blank? || row["category"].to_s.casecmp?(DEPLOYMENT_CATEGORY) }.map do |row|
+            Deploys::Deploy.new(commit: row["commit"], version: row["version"], started_at: (row["timestamp"] / 1000.0 if row["timestamp"].is_a?(Numeric)))
+          end
+          # Changes that are none of them deploys stay an answer in text alone, so they are still read as something found.
+          next if deploys.empty? && rows.any?
+
+          Deploys.with_deploys(result, deploys)
+        end
       end
 
       # Grouped by kind, the most frequent first, with when each was first and last seen.
@@ -231,7 +252,7 @@ module Integrations
           Answers.presented(result, Telemetry.charts_text(charts), charts: charts)
         end
       end
-      private_class_method :logs, :metrics, :deploys, :errors, :browser_errors, :traces, :since, :bucket_minutes, :pattern, :find_rows, :charts_result
+      private_class_method :logs, :metrics, :deploys, :errors, :browser_errors, :traces, :since, :bucket_minutes, :pattern, :find_rows, :charts_result, :deploys_result
     end
   end
 end
