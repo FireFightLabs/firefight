@@ -71,6 +71,23 @@ export function AiAccountsCard({
     router.delete(aiAccountPath(deleting.id), { preserveScroll: true, onFinish: stopDeleting })
   }
 
+  const hasAccounts = accounts.length > 0
+
+  // With no accounts yet the way to add one sits under the empty list, where the eye lands, not in the header.
+  const addActions = (
+    <div className="flex shrink-0 gap-2">
+      {signIn && (
+        <Button size="sm" variant="outline" asChild>
+          <a href={signIn.path}>{signIn.label}</a>
+        </Button>
+      )}
+      <Button size="sm" onClick={openCreate} disabled={providers.length === 0}>
+        <IconPlus className="size-4" />
+        Add account
+      </Button>
+    </div>
+  )
+
   return (
     <Card>
       <CardHeader>
@@ -83,24 +100,12 @@ export function AiAccountsCard({
               order. {fallback}
             </CardDescription>
           </div>
-          {canManage && (
-            <div className="flex shrink-0 gap-2">
-              {signIn && (
-                <Button size="sm" variant="outline" asChild>
-                  <a href={signIn.path}>{signIn.label}</a>
-                </Button>
-              )}
-              <Button size="sm" onClick={openCreate} disabled={providers.length === 0}>
-                <IconPlus className="size-4" />
-                Add account
-              </Button>
-            </div>
-          )}
+          {canManage && hasAccounts && addActions}
         </div>
       </CardHeader>
 
       <CardContent className="p-0">
-        {accounts.length > 0 ? (
+        {hasAccounts ? (
           <OptionsTable
             options={accounts}
             nameHeader="Account"
@@ -132,9 +137,12 @@ export function AiAccountsCard({
             readOnly={!canManage}
           />
         ) : (
-          <p className="border-t px-6 py-4 text-sm text-muted-foreground">
-            No accounts yet. Add one with your provider&apos;s API key and Halon uses it first.
-          </p>
+          <div className="flex flex-col items-start gap-3 border-t px-6 py-5">
+            <p className="text-sm text-muted-foreground">
+              No accounts yet. Add one with your provider&apos;s API key and Halon uses it first.
+            </p>
+            {canManage && addActions}
+          </div>
         )}
         {credits && <AiCreditsRow credits={credits} canManage={canManage} />}
       </CardContent>
