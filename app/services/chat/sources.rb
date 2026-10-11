@@ -13,6 +13,8 @@ module Chat::Sources
   TRAILING = /[.,;:]+\z/
   # Calls that start other reads rather than read anything themselves. What those read is listed instead.
   STARTS_OTHERS = [ Chat::Helper::ASK_SPECIALIST, Chat::Tools::Helpers::NAME ].freeze
+  # Halon's own bookkeeping, which read nothing.
+  OWN = [ Chat::Tools::Theories::NAME ].freeze
 
   # The reads of the turn a reply ended, from the person's message before it to the reply. reads says whether a call
   # read, given its name and arguments, so a replay can judge it by its scenario.
@@ -28,7 +30,7 @@ module Chat::Sources
     own_chats = Chat::Helper.where(chat: chat, tool_call_id: calls.select { |call| STARTS_OTHERS.include?(call.name) }.map(&:tool_call_id))
                             .in_order.includes(:own_chat).filter_map(&:own_chat)
     beside = own_chats.flat_map { |own| answered_calls(own.messages.where(role: Chat::Message::ROLE_ASSISTANT)) }
-    (calls + beside).reject { |call| STARTS_OTHERS.include?(call.name) || Chat::Tools.internal_names.include?(call.name) }
+    (calls + beside).reject { |call| STARTS_OTHERS.include?(call.name) || OWN.include?(call.name) || Chat::Tools.internal_names.include?(call.name) }
                     .select { |call| reads.call(call.name, call.arguments.to_h.stringify_keys) }
                     .map { |call| source(chat.workspace, call) }
                     .uniq { |source| source.url || source.title }

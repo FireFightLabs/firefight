@@ -121,7 +121,7 @@ class Conversation::BenchTranscript
     arguments = call.arguments.to_h.stringify_keys
     result = call.result&.content.to_s
     Call.new(
-      name: call.name, arguments: arguments, reads: reads?(call.name, arguments), approval: call.approval,
+      name: call.name, arguments: arguments, reads: call.name == Chat::Theory::TOOL || reads?(call.name, arguments), approval: call.approval,
       recorded: @unscripted.exclude?(call.tool_call_id), failed: call.failed, result: result, by: by
     )
   end
@@ -131,6 +131,8 @@ class Conversation::BenchTranscript
   end
 
   def call_text(call)
+    return "Agent updated its #{call.result.presence || 'theory board'}" if call.name == Chat::Theory::TOOL
+
     kind = call.reads ? "a read" : "a change"
     who = call.by ? "The #{call.by} specialist, for the agent," : "Agent"
     lines = [ "#{who} called #{call.name} #{call.arguments.to_json} (#{kind})" ]

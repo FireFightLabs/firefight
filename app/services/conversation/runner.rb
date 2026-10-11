@@ -56,6 +56,7 @@ class Conversation::Runner
     purse = FirefightAi::AgentLoop::Purse.new
     @turn.asks_specialists = Chat::Specialists.ask?(@turn, picked_model || FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @conversation.workspace))
     presented = Chat::Tools.presented(@turn, responder.ai_model)
+    suspects = tell_suspects(chat)
 
     outcome = responder.run(
       chat: chat,
@@ -72,6 +73,8 @@ class Conversation::Runner
       take_messages: -> { [ take_queued(chat), tell_changes(chat), tell_watch_corrections(chat) ].any? },
       canceled: chat.method(:stop_requested?),
       purse: purse,
+      checks: Conversation::Checks.new(chat, since: @marked, choice: Chat::Helpers.side_model(@conversation.workspace, main: helper_main_model),
+                                             inferable: @conversation.subject, member: @turn.asker, facts: suspects).all,
       on_backup: ->(failed, backup, error) { switched_model(chat, failed, backup, error) },
       # A model the person picked is theirs to know about, so its account running dry is said too.
       on_take_over: (->(failed, following, error) { switched_model(chat, failed, following, error) } if picked_model)
@@ -136,6 +139,17 @@ class Conversation::Runner
   end
 
   def answered?(outcome) = outcome.status == FirefightAi::AgentLoop::STATUS_ANSWERED
+
+  # What changed around what is failing, before the first model call of a turn that troubleshoots (Conversation::Suspects),
+  # as a note Halon reads as candidates. Returned too, for the challenger to read beside what the turn read.
+  def tell_suspects(chat)
+    return nil unless room_for_a_note?(chat)
+
+    words = chat.messages.where(role: Chat::Message::ROLE_USER, nudge: false).reorder(created_at: :desc).first&.content
+    note = Conversation::Suspects.note(@turn, words)
+    chat.nudge!(note) if note
+    note
+  end
 
   # What the turn read, from its own calls, for the line under the reply.
   def sources_of(chat)

@@ -46,7 +46,9 @@ module Chat::Tools
   CARD_HELPERS = "helpers".freeze
   # The pages Halon's browser saw. The page finds them by the step's tool call, since they exist once the check ran.
   CARD_SCREENSHOTS = "screenshots".freeze
-  CARD_KINDS = [ CARD_INTEGRATIONS, CARD_INVESTIGATION, CARD_CHART, CARD_HELPERS, CARD_SCREENSHOTS ].freeze
+  # Halon's theory board, drawn under the last step that updated it. The page finds it by the step's tool call.
+  CARD_THEORIES = "theories".freeze
+  CARD_KINDS = [ CARD_INTEGRATIONS, CARD_INVESTIGATION, CARD_CHART, CARD_HELPERS, CARD_SCREENSHOTS, CARD_THEORIES ].freeze
 
   def self.chart_card = Card.new(kind: CARD_CHART, category: nil)
 
@@ -67,7 +69,7 @@ module Chat::Tools
   # So is a call its guard shows to read through a tool that can also change things, when the call's arguments are known.
   def self.kind(tool_name, workspace, arguments = nil)
     name = tool_name.to_s
-    reading = [ ReadResult.tool_name, Helpers::NAME, AskSpecialist::NAME, Web::SEARCH, Web::READ, Docs::SEARCH, Docs::READ, OutsideCheck::NAME, WhatChanged::NAME ].include?(name) ||
+    reading = [ ReadResult.tool_name, Helpers::NAME, AskSpecialist::NAME, Theories::NAME, Web::SEARCH, Web::READ, Docs::SEARCH, Docs::READ, OutsideCheck::NAME, WhatChanged::NAME ].include?(name) ||
               (name == Browser::NAME && !Browser.sends?(arguments)) ||
               firefight_reading_names.include?(name) || workspace.reading_tool_names.include?(name) || guarded_read?(workspace, name, arguments)
     reading ? KIND_READ : KIND_ACT
@@ -175,6 +177,7 @@ module Chat::Tools
     return nil if tool_name.blank? || internal_names.include?(tool_name.to_s)
     return Helpers.shown(arguments) if tool_name.to_s == Helpers::NAME
     return AskSpecialist.shown(arguments) if tool_name.to_s == AskSpecialist::NAME
+    return Theories.shown(arguments) if tool_name.to_s == Theories::NAME
 
     asked = shown_arguments(arguments.to_h.stringify_keys.except(INTENT_ARG, LookFirst::BECAUSE))
     Step.new(

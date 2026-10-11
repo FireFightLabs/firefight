@@ -3,9 +3,11 @@ require "test_helper"
 # Halon's own loop runs at the lowest temperature, so two runs of one question differ as little as the model allows,
 # and a model the registry says takes no temperature is never sent one.
 class FirefightAi::LoopTemperatureTest < ActiveSupport::TestCase
-  test "0 by default, none leaves each provider its own, and anything else is refused at boot" do
+  test "each provider's own by default, a number from 0 to 2 when set, and anything else is refused at boot" do
     config = FirefightAi::Configuration.new
 
+    assert_nil config.loop_temperature
+    config.loop_temperature = "0"
     assert_in_delta 0.0, config.loop_temperature
     config.loop_temperature = "0.3"
     assert_in_delta 0.3, config.loop_temperature
@@ -16,6 +18,7 @@ class FirefightAi::LoopTemperatureTest < ActiveSupport::TestCase
   end
 
   test "a model that takes no temperature is sent none, and any other the configured one" do
+    FirefightAi.configuration.stubs(:loop_temperature).returns(0.0)
     takes = stub(metadata: { temperature: true })
     refuses = stub(metadata: { temperature: false })
     RubyLLM.models.stubs(:find).with("gpt-4o", provider: "openai").returns(takes)
@@ -24,11 +27,12 @@ class FirefightAi::LoopTemperatureTest < ActiveSupport::TestCase
     assert_in_delta 0.0, FirefightAi.loop_temperature(FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"))
     assert_nil FirefightAi.loop_temperature(FirefightAi::ModelChoice.new(model: "o3", provider: "openai"))
 
-    FirefightAi.configuration.stubs(:loop_temperature).returns(nil)
+    FirefightAi.configuration.unstub(:loop_temperature)
     assert_nil FirefightAi.loop_temperature(FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"))
   end
 
   test "the loop sets it on the chat, and again for a model that takes over, while a helper's loop leaves it alone" do
+    FirefightAi.configuration.stubs(:loop_temperature).returns(0.0)
     llm = mock("llm")
     llm.stubs(:messages).returns([])
     llm.expects(:with_temperature).with(0.0).once

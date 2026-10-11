@@ -4,7 +4,7 @@ import type { SharedProps } from "@/types"
 import type { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
 import type {
   AgentChat, AgentChatAttachment, AgentChatAttachmentRules, AgentChatConfirmation, AgentChatDataRepair, AgentChatHeldCall, AgentChatHelper, AgentChatIncident,
-  AgentChatMemoryQuestion, AgentChatMessage, AgentChatMitigation, AgentChatOwnerAsk, AgentChatPackRefusal, AgentChatPlan, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage, AgentChatWatch, AgentChatWatchUpdate, ChatChart, ChatCompaction, ChatModelMenu, ChatModelSwitch, ChatScreenshot, EnvironmentOption,
+  AgentChatMemoryQuestion, AgentChatMessage, AgentChatMitigation, AgentChatOwnerAsk, AgentChatPackRefusal, AgentChatPlan, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage, AgentChatWatch, AgentChatWatchUpdate, ChatChart, ChatCompaction, ChatModelMenu, ChatModelSwitch, ChatScreenshot, ChatTheory, EnvironmentOption,
   HandbookProposal, IntegrationCard, InvestigationCard, InvestigationDetail,
 } from "@/types/serializers"
 
@@ -48,6 +48,7 @@ export interface AgentPageProps extends SharedProps {
   handbookProposals: HandbookProposal[]
   setupGuide: SetupGuide | null
   chatModels: ChatModelMenu | null
+  theories: ChatTheory[]
 }
 
 // What a long tool last said about how far it got, sent live while it runs and never saved, so only a step the socket

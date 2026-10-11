@@ -3,6 +3,7 @@ import { ChartCard } from "@/pages/agent/components/chart-card"
 import { IntegrationCard } from "@/pages/agent/components/integration-card"
 import { ScreenshotCard } from "@/pages/agent/components/screenshot-card"
 import { InvestigationRunCard } from "@/pages/agent/components/investigation-run-card"
+import { TheoryCard } from "@/pages/agent/components/theory-card"
 import type { AgentCard as AgentCardValue } from "@/pages/agent/types"
 
 interface AgentCardProps {
@@ -25,6 +26,9 @@ export function AgentCard({ card, stepKey }: AgentCardProps) {
   }
   if (card.kind === AGENT_CARD_KINDS.SCREENSHOTS) {
     return <ScreenshotCard toolCallKey={stepKey} />
+  }
+  if (card.kind === AGENT_CARD_KINDS.THEORIES) {
+    return <TheoryCard toolCallKey={stepKey} />
   }
 
   return null

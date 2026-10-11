@@ -73,6 +73,14 @@ class Conversation::BenchTest < ActiveSupport::TestCase
   end
 
   # The bench once drained the key live chats ran on.
+  test "scenarios are picked by name or by a pattern, so the hard ones run on their own" do
+    run = Conversation::Bench.send(:create_run!, trigger: Conversation::BenchRun::TRIGGER_TERMINAL, model: nil, provider: nil, label: nil, keys: [ "hard_*" ], repeats: 1)
+
+    picked = run.results.pluck(:scenario)
+    assert_equal Conversation::BenchCase.scenarios.map(&:key).grep(/\Ahard_/).sort, picked.sort
+    assert_operator picked.size, :>=, 11
+  end
+
   test "a run refuses to start without the bench's own key, naming the variable, and never falls back to the app's" do
     ENV.delete("HALON_BENCH_OPENAI_API_KEY")
     RubyLLM.config.stubs(:openai_api_key).returns("sk-the-apps-own")

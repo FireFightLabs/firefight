@@ -51,12 +51,13 @@ module FirefightAi
     # the tool reports from, before the tool answers.
     # steady sends Halon's own loop at the deployment's loop temperature (FirefightAi.loop_temperature), again for each
     # model that takes over, so a chat and a run vary as little as the model allows.
-    # next_step reads the line a chat's reply ends with (NextStep), and a reply offering a read Halon could take itself is
-    # sent back once to take it rather than ending the turn on an offer.
+    # checks look at a reply that would end the turn, each a callable given the reply that answers words to send it back
+    # with, or nil to let it end. Each sends a turn back at most once, so a model that keeps answering the same way still
+    # ends. A chat's checks are the line saying its next step (NextStep), its theory board and the challenger.
     def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil, on_chunk: nil,
                    reply_is_answer: false, nudge: nil, memory: nil, take_messages: nil, output: nil,
                    choice: nil, purpose: AiPurpose::INVESTIGATION, purse: nil, on_backup: nil, on_take_over: nil, on_progress: nil,
-                   steady: false, next_step: false)
+                   steady: false, checks: [])
       @chat = chat
       @choice = choice || ModelChoice.new(model: inference[:model], provider: inference[:provider])
       @purpose = purpose
@@ -79,8 +80,7 @@ module FirefightAi
       @on_take_over = on_take_over
       @given_up_on = []
       @steady = steady
-      @next_step = next_step
-      @sent_back = false
+      @checks = checks.dup
       steady!
       @seen_tool_call_ids = messages.flat_map { |message| message.tool_calls&.keys || [] }.to_set
       report_steps_to(on_step) if on_step
@@ -306,13 +306,19 @@ module FirefightAi
       nil
     end
 
-    # At most once a turn, so a model that keeps offering still ends.
+    # The first check that has something to say sends the reply back, and is never asked again this run.
     def send_back?(message)
-      return false unless @reply_is_answer && @next_step && !@sent_back && NextStep.kind(message.content) == NextStep::READ
+      return false unless @reply_is_answer
 
-      @sent_back = true
-      @nudge.call(NextStep::SEND_BACK)
-      true
+      @checks.each do |check|
+        said = check.call(message)
+        next unless said
+
+        @checks.delete(check)
+        @nudge.call(said)
+        return true
+      end
+      false
     end
 
     # The record's messages are rows. These are the ones the model sees.

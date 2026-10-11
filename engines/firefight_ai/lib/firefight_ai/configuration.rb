@@ -51,10 +51,13 @@ module FirefightAi
     attr_reader :specialists
 
     # The sampling temperature of Halon's own loop, in a chat and an investigation, so two runs of one question differ as
-    # little as the model allows. 0 unless set. none leaves every provider its own default. A model the registry says
-    # takes no temperature is never sent one (FirefightAi.loop_temperature).
-    DEFAULT_LOOP_TEMPERATURE = 0.0
+    # little as the model allows. Each provider's own unless set (none), since a bench run found 0 lost hard cases. A
+    # model the registry says takes no temperature is never sent one (FirefightAi.loop_temperature).
     attr_reader :loop_temperature
+
+    # Whether a chat's reply that only offers a read Halon could take itself is sent back once to take it (NextStep).
+    # Off unless turned on, since a bench run found it lost hard cases, and kept so the bench can test it again.
+    attr_reader :finish_reads
 
     # A specialist runs on the quick model, as helpers do, or on the main model.
     SPECIALIST_QUICK = :quick
@@ -113,7 +116,8 @@ module FirefightAi
       @trace_calls = false
       @judgments = JUDGMENT_STRUCTURED
       @specialists = SPECIALISTS_AUTO
-      @loop_temperature = DEFAULT_LOOP_TEMPERATURE
+      @loop_temperature = nil
+      @finish_reads = false
       @specialist_model = SPECIALIST_QUICK
     end
 
@@ -125,16 +129,23 @@ module FirefightAi
       @specialists = mode
     end
 
-    # Blank keeps 0, none leaves the provider's own, and anything but a number from 0 to 2 is refused at boot.
+    # Blank or none leaves the provider's own, and anything but a number from 0 to 2 is refused at boot.
     def loop_temperature=(value)
       text = value.to_s.strip.downcase
-      return @loop_temperature = DEFAULT_LOOP_TEMPERATURE if text.empty?
-      return @loop_temperature = nil if text == "none"
+      return @loop_temperature = nil if text.empty? || text == "none"
 
       number = Float(text, exception: false)
       raise ArgumentError, "FIREFIGHT_AI_TEMPERATURE must be a number from 0 to 2, or none, not #{value}" unless number&.between?(0, 2)
 
       @loop_temperature = number
+    end
+
+    # Blank keeps it off. Anything but on or off is refused at boot.
+    def finish_reads=(value)
+      text = value.to_s.strip.downcase
+      raise ArgumentError, "FIREFIGHT_AI_FINISH_READS must be on or off, not #{value}" unless [ "", "on", "off" ].include?(text)
+
+      @finish_reads = text == "on"
     end
 
     def specialist_model=(value)

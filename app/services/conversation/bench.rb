@@ -19,8 +19,9 @@ class Conversation::Bench
   # terminal gives a run a pool of this many plus one.
   AT_ONCE = 3
 
-  # The ledger's features that are Halon's own calls in a replay, its chat's and those of the specialists that read for it.
-  HALONS = [ FirefightAi::Responder::FEATURE, FirefightAi::Specialist::FEATURE ].freeze
+  # The ledger's features that are Halon's own calls in a replay: its chat's, those of the specialists that read for it and
+  # the challenger's second look at a cause it named.
+  HALONS = [ FirefightAi::Responder::FEATURE, FirefightAi::Specialist::FEATURE, FirefightAi::Challenger::FEATURE ].freeze
 
   # Refuses a run while too many are going, since every run holds database connections on a server others share.
   class Busy < StandardError; end
@@ -33,7 +34,8 @@ class Conversation::Bench
       run
     end
 
-    # Runs every scenario here and now, a few at a time, for the terminal and CI. keys picks some by name.
+    # Runs every scenario here and now, a few at a time, for the terminal and CI. keys picks some by name, each a name or a
+    # pattern such as hard_*.
     def run!(trigger:, model: nil, provider: nil, label: nil, keys: nil, repeats: nil, budget_micros: nil, &reported)
       run = create_run!(trigger: trigger, model: model, provider: provider, label: label, keys: keys, repeats: repeats, budget_micros: budget_micros)
       queue = Queue.new
@@ -138,8 +140,12 @@ class Conversation::Bench
       raise Busy, busy if busy
 
       scenarios = Conversation::BenchCase.scenarios
-      scenarios = scenarios.select { |scenario| keys.include?(scenario.key) } if keys.present?
-      raise Conversation::BenchCase::Invalid, "No scenario is called #{(keys - scenarios.map(&:key)).to_sentence}." if keys.present? && scenarios.size < keys.size
+      if keys.present?
+        unmatched = keys.reject { |key| scenarios.any? { |scenario| File.fnmatch?(key, scenario.key) } }
+        raise Conversation::BenchCase::Invalid, "No scenario is called #{unmatched.to_sentence}." if unmatched.any?
+
+        scenarios = scenarios.select { |scenario| keys.any? { |key| File.fnmatch?(key, scenario.key) } }
+      end
 
       choice = model_choice(model, provider)
       Conversation::BenchRun.transaction do

@@ -16,6 +16,8 @@ module FirefightAi
                      "changed on them in the day before. Start from them with the map tools: get_resource for one, " \
                      "get_resource_neighbours and traverse_resource_map for what it depends on and what depends on it, " \
                      "blast_radius for what fails with it, and find_resources for others.",
+      "suspects" => "suspects are what changed on the failing resources and their neighbours up to two hops, and the alerts " \
+                    "on them, nearest to when the trouble began first. Each is a candidate to check, never a conclusion.",
       "past_incidents" => "past_incidents broke the same way before. A finding_outcome of confirmed makes that answer a worked " \
                           "example, and wrong makes it a mistake to learn from rather than a lead.",
       "directs_halon" => "directs_halon names who directs you in this incident. Notes from responders say who wrote them. When " \

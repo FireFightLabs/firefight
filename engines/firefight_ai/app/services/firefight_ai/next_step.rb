@@ -23,6 +23,9 @@ module FirefightAi
 
     def self.kind(text) = text.to_s.match(LINE)&.[](1)&.downcase
 
+    # The loop's check (AgentLoop checks:), sending a reply that offers a read back to take it.
+    def self.check = ->(message) { SEND_BACK if kind(message.content) == READ }
+
     def self.without(text) = text.to_s.gsub(ANYWHERE, "").rstrip
 
     # Text as it streams, with the line held back while it may still be arriving and dropped once whole, so a person

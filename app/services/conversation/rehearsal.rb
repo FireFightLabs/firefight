@@ -133,6 +133,7 @@ class Conversation::Rehearsal
       @world.advance!(turn.sets)
       @turn_started = Time.current
       say(chat, turn.said)
+      tell_suspects(chat) if turn == @case.turns.first
       play(chat, turn)
     end
     transcript = Conversation::BenchTranscript.new(chat, @case, unscripted: @unscripted, sources: sources_of(chat))
@@ -196,15 +197,30 @@ class Conversation::Rehearsal
         .reorder(created_at: :desc, id: :desc).find { |message| message.content.present? }&.content
   end
 
-  # The purse is shared with the specialists Halon asks, so what they spend counts against the turn's budget as live.
+  # The purse is shared with the specialists Halon asks, so what they spend counts against the turn's budget as live. The
+  # theory board and the checks on a reply that would end the turn are the live ones (Conversation::Checks).
   def respond(chat)
     purse = FirefightAi::AgentLoop::Purse.new
+    checks = Conversation::Checks.new(chat, since: @turn_started || Time.current, choice: specialist_model(false), inferable: @result, facts: @suspects)
     outcome = responder.run(
-      chat: chat, tools: tools(chat) + asking(chat, purse), deferred_tools: deferred(chat), context: @case.context, budget: budget,
-      nudge: chat.method(:nudge!), memory: chat, purse: purse
+      chat: chat, tools: tools(chat) + asking(chat, purse) + [ Chat::Tools::Theories.new(Asker.new(chat: chat, workspace: @result.workspace)) ],
+      deferred_tools: deferred(chat), context: @case.context, budget: budget, nudge: chat.method(:nudge!), memory: chat, purse: purse, checks: checks.all
     )
     @turns_used += outcome.turns_used
     outcome
+  end
+
+  # Before the first model call, what changed around what is failing, as a live chat is told it from the map
+  # (Conversation::Suspects). A replay's map is its scenario, so Firefight reads the scenario's own answer to what_changed,
+  # without moving its world, and tells it framed as candidates. A scenario that scripts no change tells nothing.
+  def tell_suspects(chat)
+    return unless @case.answers.any? { |answer| answer.tool == ResourceMap::Timeline::TOOL_NAME }
+
+    found = @world.peek(ResourceMap::Timeline::TOOL_NAME, {})
+    return if found.nil? || found.failed || found.result.blank?
+
+    @suspects = "#{ResourceMap::Suspects::LEAD_WORDS}\n#{found.result}"
+    chat.nudge!(@suspects)
   end
 
   # Whether the replay asks specialists, decided as a live chat decides it (Chat::Specialists.ask?): forced on or off, or

@@ -97,7 +97,7 @@ class Conversation::RehearsalTest < ActiveSupport::TestCase
     replay = Conversation::Rehearsal.replay!(bench_case, result: @result, model: @model)
     first, opened, second = replay.transcript.calls
 
-    assert_equal [ "use_skill", "open_tools" ], JSON.parse(JSON.parse(first.result)["error"][/\[.*\]/])
+    assert_equal [ "use_skill", "open_tools", "update_theories" ], JSON.parse(JSON.parse(first.result)["error"][/\[.*\]/])
     assert_match "read_run: Reads a run (ready to call)", opened.result
     assert_equal "Run 412 failed.", second.result
   end

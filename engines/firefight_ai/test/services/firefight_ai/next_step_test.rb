@@ -71,8 +71,18 @@ class FirefightAi::NextStepTest < ActiveSupport::TestCase
     end
   end
 
-  test "Halon's chat is told the line and runs with it" do
-    assert_includes FirefightAi::Responder::ANSWERING, FirefightAi::NextStep::RULE
+  test "off by default, so a chat is told the line and sends a reply back only when the deployment finishes reads" do
+    workspace = workspaces(:slack_workspace_one)
+    assert_not FirefightAi.configuration.finish_reads
+    assert_not_includes FirefightAi::Responder.new(workspace, inferable: nil).send(:template_text), FirefightAi::NextStep::RULE
+
+    FirefightAi.configuration.stubs(:finish_reads).returns(true)
+    assert_includes FirefightAi::Responder.new(workspace, inferable: nil).send(:template_text), FirefightAi::NextStep::RULE
+
+    config = FirefightAi::Configuration.new
+    config.finish_reads = "on"
+    assert config.finish_reads
+    assert_raises(ArgumentError) { config.finish_reads = "sometimes" }
   end
 
   private
@@ -80,7 +90,7 @@ class FirefightAi::NextStepTest < ActiveSupport::TestCase
   def run_loop(chat, nudge:)
     FirefightAi::AgentLoop.new(
       chat: chat, budget: FirefightAi::AgentLoop::Budget.new(max_spend_cents: 400, max_turns: 10), answered: -> { false },
-      reply_is_answer: true, next_step: true, nudge: ->(text) { nudge.call(text) || chat.add_message(role: :user, content: text) },
+      reply_is_answer: true, checks: [ FirefightAi::NextStep.check ], nudge: ->(text) { nudge.call(text) || chat.add_message(role: :user, content: text) },
       inference: { workspace: workspaces(:slack_workspace_one), feature: "conversation", provider: "openai", model: "gpt-4o",
                    inferable: incidents(:active_critical_ws1) }
     ).run

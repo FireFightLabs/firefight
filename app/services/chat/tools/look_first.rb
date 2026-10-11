@@ -90,9 +90,11 @@ module Chat::Tools::LookFirst
   def self.backs?(call, started, fresh_from) = started.nil? || call.message.created_at >= started || call.message.created_at >= fresh_from
 
   # A read through any tool: one the page shows as looking something up, or a capability that only reads. Asking a
-  # specialist is never one, since its answer is another model's words.
+  # specialist is never one, since its answer is another model's words, and nor is Halon's own theory board.
+  NOT_READS = [ Chat::Tools::AskSpecialist::NAME, Chat::Tools::Theories::NAME ].freeze
+
   def self.read?(workspace, name, arguments)
-    return false if name.to_s == Chat::Tools::AskSpecialist::NAME
+    return false if NOT_READS.include?(name.to_s)
     return true if Chat::Tools.kind(name, workspace, arguments) == Chat::Tools::KIND_READ
     return true if [ Chat::Tools::KeyQuery::NAME, Chat::Tools::LogPatterns::NAME ].include?(name.to_s)
 
