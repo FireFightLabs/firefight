@@ -27,6 +27,29 @@ class AiProvidersTest < ActiveSupport::TestCase
     assert(AiProviders.find("openai").fields.all? { |field| RubyLLM::Configuration.options.include?(field.option) })
   end
 
+  test "the models a chat can switch to are listed only for providers offered, each named and described as plain copy" do
+    listed = YAML.load_file(AiProviders::REGISTRY_PATH).fetch("chat_models")
+
+    assert_empty listed.keys - AiProviders.all.map(&:slug)
+    assert_not_includes AiProviders.all.map(&:slug), "chat_models"
+    listed.each do |slug, entries|
+      assert_not AiProviders.find(slug).assumes_models, "#{slug} names its models itself"
+      assert_equal entries.size, entries.pluck("model").uniq.size
+      entries.each do |entry|
+        assert_equal %w[label model note], entry.keys.sort
+        assert_no_match(/[—;]/, "#{entry["label"]} #{entry["note"]}")
+      end
+    end
+  end
+
+  test "a listed model the registry cannot bill or size is left out" do
+    assert_equal [ "z-ai/glm-5.2", "anthropic/claude-sonnet-5.5", "anthropic/claude-opus-5.5" ], AiProviders.chat_models("openrouter").map(&:model)
+
+    FirefightAi.stubs(:priced_for?).returns(false)
+    assert_empty AiProviders.chat_models("openrouter")
+    assert_empty AiProviders.chat_models("ollama")
+  end
+
   test "code fixes are offered where the model proxy reaches" do
     assert_equal %w[anthropic openai openrouter], AiProviders.all.select(&:code_fixes).map(&:slug).sort
   end

@@ -98,9 +98,17 @@ class Conversation::Runner
   def responder
     @responder ||= FirefightAi::Responder.new(
       @conversation.workspace, inferable: @conversation.subject, member: @turn.asker,
-      output_style: delivery.output_style
+      output_style: delivery.output_style, model: picked_model
     )
   end
+
+  def picked_model
+    @picked_model = @conversation.picked_model_choice unless defined?(@picked_model)
+    @picked_model
+  end
+
+  # A model the person picked answers them. The checks Halon hands to helpers keep the workspace's models.
+  def helper_main_model = @helper_main_model ||= picked_model ? @conversation.workspace_model : responder.ai_model
 
   # Saved too, so an unanswered turn is not silence on the next visit.
   def reply_for(outcome, chat)
@@ -413,7 +421,7 @@ class Conversation::Runner
       purse: purse, max_spend_cents: conversation.max_spend_cents, since: @marked, canceled: chat.method(:stop_requested?),
       moved: Chat::Helpers.teller(delivery, chat),
       fresh_parent: -> { Conversation::Turn.new(Conversation.find(conversation.id), asker: asker&.class&.find(asker.id), reads_only: true) },
-      choose: ->(deep) { deep ? responder.ai_model : Chat::Helpers.side_model(conversation.workspace, main: responder.ai_model) },
+      choose: ->(deep) { deep ? helper_main_model : Chat::Helpers.side_model(conversation.workspace, main: helper_main_model) },
       inferable: conversation.subject, member: asker
     )
   end

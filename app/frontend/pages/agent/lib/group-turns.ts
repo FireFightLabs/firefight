@@ -51,13 +51,15 @@ export function groupedTurns(messages: AgentChatMessage[], compactions: ChatComp
     const previous = turns[turns.length - 1]
     const steps = [ ...roomMadeBefore(message), ...message.tools ]
     const bodies = message.body.trim().length > 0 ? [ { id: message.id, text: message.body } ] : []
+    const models = message.model ? [ message.model ] : []
     if (previous?.kind === TURN_KINDS.AGENT) {
       previous.steps.push(...steps)
       previous.bodies.push(...bodies)
+      previous.models = withoutRepeats([ ...previous.models, ...models ])
       return
     }
 
-    turns.push({ kind: TURN_KINDS.AGENT, id: message.id, steps, bodies })
+    turns.push({ kind: TURN_KINDS.AGENT, id: message.id, steps, bodies, models })
   })
 
   // Room made after the last reply belongs to the turn still being written. When a question comes last, that turn is
@@ -67,7 +69,7 @@ export function groupedTurns(messages: AgentChatMessage[], compactions: ChatComp
   if (madeSince.length > 0 && last?.kind === TURN_KINDS.AGENT) {
     last.steps.push(...madeSince)
   } else if (madeSince.length > 0 && turns.length === 0) {
-    turns.push({ kind: TURN_KINDS.AGENT, id: madeSince[0].key, steps: madeSince, bodies: [] })
+    turns.push({ kind: TURN_KINDS.AGENT, id: madeSince[0].key, steps: madeSince, bodies: [], models: [] })
   }
 
   return turns.filter((turn) => turn.kind === TURN_KINDS.PERSON || turn.steps.length > 0 || turn.bodies.length > 0)
@@ -100,7 +102,12 @@ export function liveTurn(stream: AgentStream, messages: AgentChatMessage[], comp
     return null
   }
 
-  return { kind: TURN_KINDS.AGENT, id: LIVE_TURN_ID, steps, bodies }
+  return { kind: TURN_KINDS.AGENT, id: LIVE_TURN_ID, steps, bodies, models: [] }
+}
+
+// A turn a model wrote throughout names it once. One handed to another model mid-turn names both, in order.
+function withoutRepeats(models: string[]): string[] {
+  return models.filter((model, index) => models.indexOf(model) === index)
 }
 
 function lastQuestionIndex(messages: AgentChatMessage[]): number {

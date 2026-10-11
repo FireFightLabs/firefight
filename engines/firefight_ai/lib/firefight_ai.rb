@@ -258,6 +258,13 @@ module FirefightAi
     []
   end
 
+  # The name the registry gives a model, such as Claude Sonnet 5, or nil for a model it does not know.
+  def model_name(model_id, provider: nil)
+    RubyLLM.models.find(model_id.to_s, provider: provider.presence).name.presence
+  rescue RubyLLM::ModelNotFoundError
+    nil
+  end
+
   # A model the registry does not know needs its provider named. RubyLLM then trusts the id. A workspace's own account
   # runs in its own context, so nothing of the deployment's configuration reaches it.
   def chat(choice)

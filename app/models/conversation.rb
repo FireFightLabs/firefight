@@ -63,12 +63,13 @@ class Conversation < ApplicationRecord
     )
   end
 
-  def self.start_personal!(workspace:, member:)
+  # model is one the person picked before the first question, which the caller has checked is offered.
+  def self.start_personal!(workspace:, member:, model: nil)
     limits = workspace.conversation_limits
     workspace.conversations.create!(
       kind: KIND_PERSONAL, started_by: member,
       max_turns: limits.max_turns, max_spend_cents: limits.max_spend_cents
-    )
+    ).tap { |started| started.choose_model!(model) if model.present? }
   end
 
   # The nav and the socket ask this, so neither offers what the gateway would refuse.
@@ -188,7 +189,27 @@ class Conversation < ApplicationRecord
     reload_chat
   end
 
-  def ai_model = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: workspace)
+  def ai_model = picked_model_choice || workspace_model
+
+  # What every chat runs on unless a person picked another, and what helpers and investigations keep.
+  def workspace_model = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: workspace)
+
+  # The model a person picked for their dashboard chat, while the workspace's account still offers it. Nil follows the
+  # workspace's main model. Chats in Slack and over MCP always do.
+  def picked_model_choice
+    return nil unless personal? && chosen_model.present?
+
+    model_menu.choice(chosen_model)
+  end
+
+  def model_menu = Conversation::ModelMenu.for(workspace)
+
+  def model_blocked_reason(model, menu: model_menu) = menu.blocked_reason(model)
+
+  # Picking the main model clears the pick, so the chat follows the workspace's model if an admin changes it.
+  def choose_model!(model, menu: model_menu)
+    update_in_place!(chosen_model: model.to_s == menu.default_model ? nil : model.to_s)
+  end
 
   # The ledger and the prompt want an incident. A conversation about nothing has none.
   def incident

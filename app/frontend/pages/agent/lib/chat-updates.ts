@@ -20,6 +20,7 @@ const OPEN_CHAT = [
   AGENT_CHAT_PROPS.PACK_REFUSALS, AGENT_CHAT_PROPS.SECRET_ENTRIES, AGENT_CHAT_PROPS.SETUP_GUIDE, AGENT_CHAT_PROPS.WATCHES, AGENT_CHAT_PROPS.WATCH_UPDATES,
   AGENT_CHAT_PROPS.PULL_REQUEST_NOTICES, AGENT_CHAT_PROPS.MEMORY_QUESTIONS, AGENT_CHAT_PROPS.PLANS, AGENT_CHAT_PROPS.DATA_REPAIRS,
   AGENT_CHAT_PROPS.MITIGATIONS, AGENT_CHAT_PROPS.OWNER_ASKS, AGENT_CHAT_PROPS.HELPERS, AGENT_CHAT_PROPS.HANDBOOK_PROPOSALS,
+  AGENT_CHAT_PROPS.CHAT_MODELS,
 ]
 const CHARTS = [ AGENT_CHAT_PROPS.CHARTS ]
 // A held call moves on when someone approves it, Halon checks it, it runs or it expires, so the chat is told to look.
@@ -44,6 +45,8 @@ const PLANS = [ AGENT_CHAT_PROPS.PLANS, AGENT_CHAT_PROPS.CONVERSATION ]
 const HELPERS = [ AGENT_CHAT_PROPS.HELPERS, AGENT_CHAT_PROPS.CHARTS ]
 // Something contradicted the handbook while Halon worked, or someone decided on its proposed edit.
 const HANDBOOK_PROPOSALS = [ AGENT_CHAT_PROPS.HANDBOOK_PROPOSALS ]
+// Which model the chat runs on, and whether that model reads images.
+const CHAT_MODELS = [ AGENT_CHAT_PROPS.CHAT_MODELS, AGENT_CHAT_PROPS.ATTACHMENT_RULES ]
 const RUNS = [ AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION ]
 const ARCHIVED_COUNT = [ AGENT_CHAT_PROPS.ARCHIVED_COUNT ]
 // Without preserveState Inertia remounts the page and the list loses its scroll.
@@ -64,13 +67,15 @@ export function startNewChat() {
 // Sent while the agent works, it shows as waiting instead. The server's answer replaces both, and a refusal puts the page
 // back.
 // Files show on the message at once, an image from the copy the browser already holds, until the server's answer
-// replaces it.
-export function ask(conversationId: string | null, question: string, attachments: AgentChatAttachment[] = [], previews: Record<string, string> = {}) {
+// replaces it. A model picked before a new chat's first question goes with it.
+export function ask(conversationId: string | null, question: string, attachments: AgentChatAttachment[] = [], previews: Record<string, string> = {},
+  model: string | null = null) {
   const path = conversationId ? agentChatAskPath(conversationId) : agentChatsPath()
   const shown = attachments.map((attachment) => ({ ...attachment, url: previews[attachment.id] ?? attachment.url }))
+  const picked = model ? { model } : {}
   router
     .optimistic<AgentPageProps>((props) => askedNow(props, question, shown))
-    .post(path, { question, attachment_ids: attachments.map((attachment) => attachment.id) }, {
+    .post(path, { question, attachment_ids: attachments.map((attachment) => attachment.id), ...picked }, {
       ...IN_PLACE, only: OPEN_CHAT, onSuccess: placeOpenChat,
     })
 }
@@ -84,7 +89,7 @@ function askedNow(props: AgentPageProps, question: string, attachments: AgentCha
 
   const asked = {
     id: `asking-${props.messages.length}`, body: question, role: CHAT_MESSAGE_ROLES.USER, tools: [], attachments,
-    createdAt: new Date().toISOString(),
+    createdAt: new Date().toISOString(), model: null,
   }
   const title = question || attachments.map((attachment) => attachment.name).join(", ")
   const conversation = props.conversation ?? {
@@ -93,6 +98,13 @@ function askedNow(props: AgentPageProps, question: string, attachments: AgentCha
   }
 
   return { conversation: { ...conversation, busy: true }, messages: [ ...props.messages, asked ] }
+}
+
+// The picker moves the moment a model is picked and the server's toast confirms it. A refusal puts it back.
+export function chooseChatModel(conversationId: string, model: string) {
+  router
+    .optimistic<AgentPageProps>((props) => (props.chatModels ? { chatModels: { ...props.chatModels, selected: model } } : {}))
+    .patch(agentChatPath(conversationId), { model }, { ...IN_PLACE, only: CHAT_MODELS })
 }
 
 // The answer ends with Stopped once the worker stops, and the live connection brings that in.
