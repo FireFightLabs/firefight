@@ -118,7 +118,8 @@ export const NOTICE_SEVERITIES = {
 export const REMEDIATION_STEP_KINDS = [
   "pull_request",
   "action",
-  "manual"
+  "manual",
+  "page_check"
 ] as const
 export type RemediationStepKind = (typeof REMEDIATION_STEP_KINDS)[number]
 
@@ -710,6 +711,7 @@ export const ABILITY_RESOURCES = [
   "map",
   "monitoring",
   "handbook",
+  "browser",
   "integrations",
   "api_keys",
   "permissions",
@@ -738,7 +740,8 @@ export const ABILITY_GRANTABLE_RESOURCES = [
   "memory",
   "map",
   "monitoring",
-  "handbook"
+  "handbook",
+  "browser"
 ] as const
 export type AbilityGrantableResource = (typeof ABILITY_GRANTABLE_RESOURCES)[number]
 
@@ -762,6 +765,7 @@ export const ABILITY_RESOURCE_LABELS = {
   "map": "Resource Map",
   "monitoring": "Monitoring",
   "handbook": "Handbook",
+  "browser": "Halon's Browser",
   "webhooks": "Webhooks",
   "integrations": "Integrations",
   "api_keys": "API Keys",
@@ -895,6 +899,9 @@ export const ABILITY_RESOURCE_ACTIONS = {
     "create",
     "update",
     "delete"
+  ],
+  "browser": [
+    "update"
   ]
 } as const
 
@@ -1018,7 +1025,8 @@ export const AGENT_CARD_KINDS = {
   "INTEGRATIONS": "integrations",
   "INVESTIGATION": "investigation",
   "CHART": "chart",
-  "HELPERS": "helpers"
+  "HELPERS": "helpers",
+  "SCREENSHOTS": "screenshots"
 } as const
 
 export const HELPER_STATUSES = {
@@ -1049,6 +1057,7 @@ export const AGENT_CHAT_PROPS = {
   "INVESTIGATIONS": "investigations",
   "OPEN_INVESTIGATION": "openInvestigation",
   "CHARTS": "charts",
+  "SCREENSHOTS": "screenshots",
   "WAITING_MESSAGES": "waitingMessages",
   "ATTACHMENT_RULES": "attachmentRules",
   "COMPACTIONS": "compactions",

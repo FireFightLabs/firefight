@@ -31,9 +31,12 @@ class Integration < ApplicationRecord
                    unless: :deleted?
   validate :slug_immutable, on: :update
 
-  scope :active, -> { where(disabled_at: nil, deleted_at: nil) }
+  # A saved test login is kept on a row of its own for its encrypted password (Integration::SiteLogin), but it reaches no
+  # tools and is managed from its own screen, so it is never one of the workspace's connections.
+  scope :connections, -> { where.not(provider: IntegrationProvider.test_login_keys) }
+  scope :active, -> { connections.where(disabled_at: nil, deleted_at: nil) }
 
-  after_save :keep_packs_in_step, if: -> { saved_change_to_id? || saved_change_to_name? || saved_change_to_provider? || saved_change_to_deleted_at? }
+  after_save :keep_packs_in_step, if: -> { !test_login? && (saved_change_to_id? || saved_change_to_name? || saved_change_to_provider? || saved_change_to_deleted_at?) }
 
   def operational?
     disabled_at.nil? && deleted_at.nil?
@@ -42,6 +45,8 @@ class Integration < ApplicationRecord
   def native?
     kind == KIND_NATIVE
   end
+
+  def test_login? = IntegrationProvider.test_login_keys.include?(provider)
 
   # The one place the kinds diverge.
   def executor

@@ -87,6 +87,17 @@ class AgentChatConfirmationSerializer < BaseSerializer
     confirmation.expires.map(&:to_h)
   end
 
+  # The page a browser send goes from, as the check that stopped before it saw it, served under the chat. Absent for any
+  # other call, and when the controller names no address for it.
+  type :string, optional: true
+  def page_path
+    page = confirmation.page
+    page && options[:screenshot_path]&.call(page)
+  end
+
+  type :string, optional: true
+  def page_caption = confirmation.page&.caption
+
   private
 
   def confirmation = memo.fetch(:confirmation) { Chat::Tools.confirmation(tool_call) }

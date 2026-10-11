@@ -70,7 +70,7 @@ class Investigation::RemediationPlan < ApplicationRecord
 
   # Whether anything in it runs through a connection. A fix that is all steps for people is never applied, only marked
   # done step by step.
-  def appliable? = steps.any?(&:runs_itself?)
+  def appliable? = steps.any?(&:changes_something?)
 
   # Apply fix shows when something in it runs through a connection and nobody applied it yet.
   def apply_offered? = appliable? && status == STATUS_PROPOSED
@@ -85,7 +85,7 @@ class Investigation::RemediationPlan < ApplicationRecord
 
     workspace = finding.investigation.workspace
     resolved = membership && Ability::Resolver.resolve(membership, workspace)
-    steps.select { |step| step.runs_itself?(workspace) }.each do |step|
+    steps.select { |step| step.changes_something?(workspace) }.each do |step|
       tool = step.tool_to_run(workspace)
       return "Step #{step.position} runs #{step.tool_name}, which is no longer switched on." unless tool
       if membership && !tool.callable_by?(membership, resolved, arguments: step.arguments)

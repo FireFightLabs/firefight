@@ -5,7 +5,7 @@ class InvestigationsController < InertiaController
 
   include ServesChatAttachment
 
-  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, read: %i[show file rate], create: %i[start add_note stop apply_fix mark_fix_step_done undo_fix cancel_fix run_fix_step dismiss_fix_step ask_fix_step_again]
+  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, read: %i[show file screenshot rate], create: %i[start add_note stop apply_fix mark_fix_step_done undo_fix cancel_fix run_fix_step dismiss_fix_step ask_fix_step_again]
 
   def show
     investigation = current_workspace.investigations.seen.find(params[:id])
@@ -13,7 +13,8 @@ class InvestigationsController < InertiaController
     return redirect_to incident_path(incident, Investigation::QUERY_PARAM => investigation.id) if incident
 
     render inertia: "investigations/investigation", props: {
-      PROP_INVESTIGATION => InvestigationDetailSerializer.one(investigation, file_path: ->(file) { investigation_file_path(investigation, file) })
+      PROP_INVESTIGATION => InvestigationDetailSerializer.one(investigation, file_path: ->(file) { investigation_file_path(investigation, file) },
+                                                                                screenshot_path: ->(shot) { investigation_screenshot_path(investigation, shot) })
     }
   end
 
@@ -49,6 +50,11 @@ class InvestigationsController < InertiaController
   def file
     investigation = current_workspace.investigations.seen.find(params[:id])
     send_chat_attachment(investigation.note_file(params[:file_id]))
+  end
+
+  def screenshot
+    investigation = current_workspace.investigations.seen.find(params[:id])
+    send_chat_attachment(investigation.screenshot(params[:screenshot_id]))
   end
 
   # A responder steering a run while it works. Whoever may start a run may add to one.

@@ -162,6 +162,8 @@ module Integrations
 
     OLD_IMAGE = "The sandbox runs an image from before Halon's terminal, so it cannot run commands. Whoever runs Firefight " \
                 "updates SANDBOX_IMAGE.".freeze
+    OLD_BROWSER_IMAGE = "The sandbox runs an image from before Halon's browser, so it cannot open pages. Whoever runs Firefight " \
+                        "updates SANDBOX_IMAGE.".freeze
 
     # remote is nil for a run that only uses the terminal, which reads no repository.
     def initialize(key:, workspace:, remote: nil)
@@ -209,6 +211,11 @@ module Integrations
     # A command in the box's terminal, which reads no repository. The box starts here the first time a run needs it.
     def terminal(argv:, env: {}, timeout: 60, on_output: nil)
       with_box { terminal_client.terminal(argv: argv, env: env, timeout: timeout, on_output: on_output) }
+    end
+
+    # One check in Halon's browser in the box, followed in the background, which reads no repository either.
+    def browse(spec:, timeout:)
+      with_box { browser_client.browse(spec: spec, timeout: timeout, on_output: ->(_said) { }) }
     end
 
     # A file a terminal command reads, such as a saved tool result.
@@ -273,12 +280,18 @@ module Integrations
       client
     end
 
+    def browser_client
+      raise Sandboxes::Error, OLD_BROWSER_IMAGE unless client.browser?
+
+      client
+    end
+
     # As with_repository, for a call that needs no repository. A box that is gone is replaced once.
     def with_box(replaced: false, &)
       box.used!
       yield
     rescue Sandboxes::Error => error
-      raise if replaced || error.message == OLD_IMAGE || client.alive?
+      raise if replaced || [ OLD_IMAGE, OLD_BROWSER_IMAGE ].include?(error.message) || client.alive?
 
       replace_lost_box!
       with_box(replaced: true, &)

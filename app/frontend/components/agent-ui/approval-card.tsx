@@ -34,6 +34,8 @@ export type ApprovalQuestion = {
   caution?: string;
   /** rows under the warning, such as each thing that was read */
   cautionDetails?: Detail[];
+  /** a picture of what the question is about, such as the page a browser would send from, opened whole in a new tab */
+  image?: { src: string; alt: string };
 };
 
 const QUESTIONS: ApprovalQuestion[] = [
@@ -391,6 +393,11 @@ export default function ApprovalCard({
                     {question.subtitle && <div className="mt-0.5 pr-7 text-[13px] font-medium text-ink-2">{question.subtitle}</div>}
                     {question.note && <div className="mt-1.5 pr-7 text-[13px] text-ink-3">{question.note}</div>}
                     {question.details && question.details.length > 0 && <DetailList details={question.details} className="mt-2.5" />}
+                    {question.image && (
+                      <a href={question.image.src} target="_blank" rel="noreferrer" className="mt-2.5 mr-7 block overflow-hidden rounded-control border border-line">
+                        <img src={question.image.src} alt={question.image.alt} className="block max-h-64 w-full object-cover object-top" />
+                      </a>
+                    )}
                     {question.basis && (
                       <div className="mt-2.5 mr-7 rounded-control border border-line px-2.5 py-2">
                         <div className="text-[12.5px] leading-5 text-ink-2">{question.basis}</div>

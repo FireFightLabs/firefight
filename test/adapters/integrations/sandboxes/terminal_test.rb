@@ -44,6 +44,18 @@ module Integrations
         assert_equal [ File.join(@root, "terminal"), ::Sandbox::TERMINAL_USER ], [ @ran.last[:dir], @ran.last[:user] ]
       end
 
+      test "a browser check runs the image's own script as the browser's user, handed its spec as input, whatever argv is asked" do
+        set_constant(::Sandbox, :BROWSER, File.join(@root, "browser"))
+        set_constant(::Sandbox, :BROWSER_ARGV, [ "cat" ])
+
+        said = @client.browse(spec: "{\"password\":\"x1\"}", timeout: 30)
+        followed = @client.browse(spec: "piped", timeout: 30, on_output: ->(_line) { })
+
+        assert_equal [ "{\"password\":\"x1\"}", "piped" ], [ said["stdout"], followed["stdout"] ]
+        assert_equal [ [ "cat" ], ::Sandbox::BROWSER_USER, File.join(@root, "browser") ], [ @ran.last[:argv], @ran.last[:user], @ran.last[:dir] ]
+        assert_not @client.browser?, "this test box has no browser script, so its health says so"
+      end
+
       test "a command in the background is followed to its answer" do
         heard = []
         said = @client.terminal(argv: [ "bash", "-c", "echo done" ], on_output: ->(line) { heard << line })

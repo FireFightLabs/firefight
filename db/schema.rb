@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_11_200000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_11_200517) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -868,6 +868,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_200000) do
     t.string "tool_name", null: false
     t.datetime "updated_at", null: false
     t.index ["chat_id", "handle"], name: "index_chat_saved_results_on_chat_id_and_handle", unique: true
+  end
+
+  create_table "chat_screenshots", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.string "tool_call_id"
+    t.uuid "remediation_step_id"
+    t.integer "position", default: 0, null: false
+    t.integer "step_position"
+    t.string "viewport", null: false
+    t.text "page_url"
+    t.text "title"
+    t.integer "stopped_step"
+    t.text "would_send"
+    t.string "check_digest"
+    t.integer "byte_size", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_id", "tool_call_id"], name: "index_chat_screenshots_on_chat_id_and_tool_call_id"
+    t.index ["remediation_step_id"], name: "index_chat_screenshots_on_remediation_step_id"
   end
 
   create_table "chat_secret_entries", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -3181,6 +3200,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_200000) do
   add_foreign_key "chat_queued_messages", "chats", on_delete: :cascade
   add_foreign_key "chat_queued_messages", "workspace_memberships", column: "sender_id", on_delete: :nullify
   add_foreign_key "chat_saved_results", "chats"
+  add_foreign_key "chat_screenshots", "chats"
+  add_foreign_key "chat_screenshots", "investigation_remediation_steps", column: "remediation_step_id", on_delete: :nullify
   add_foreign_key "chat_secret_entries", "chats", on_delete: :cascade
   add_foreign_key "chat_secret_entries", "integration_tools", on_delete: :cascade
   add_foreign_key "chat_secret_entries", "workspace_memberships", column: "done_by_id", on_delete: :nullify

@@ -8,7 +8,7 @@ module Conversation::Tools
       StartInvestigation.new(turn), RunRunbook.new(turn), StartWatch.new(turn), RepairWatch.new(turn), ExtendWatch.new(turn), StopWatch.new(turn),
       ListWatches.new(turn), *plans(turn),
       *Chat::Tools.memory(turn), Chat::Tools::CorrectMemory.new(turn), *Chat::Tools::Web.all(turn), *Chat::Tools::Terminal.all(turn),
-      *Chat::Tools::OutsideCheck.all(turn)
+      *Chat::Tools::OutsideCheck.all(turn), *Chat::Tools::Browser.all(turn)
     ]
   end
 

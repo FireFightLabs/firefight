@@ -845,6 +845,15 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Pages Halon's browser saw, under an agent's answer, each as an image with a line saying what it shows. A workspace
+  # that has not granted the permission to post images gets the line alone. left_out says how many more were taken than
+  # are posted, so a thread never quietly misses one.
+  # @param screenshots [Array<Chat::Screenshot::Post>]
+  # @return [Array<Hash>] { message_id:, channel_id: } per screenshot, message_id nil for an uploaded image
+  def post_screenshots(channel_id:, thread_id:, screenshots:, left_out: 0)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Ends the working state with the reply. streamed means the person already read the text as it arrived.
   # @return [Hash] { message_id:, channel_id: }
   def post_agent_reply(channel_id:, thread_id:, answer_id:, text:, streamed: false)

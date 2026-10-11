@@ -39,7 +39,11 @@ class Chat::SkillTest < ActiveSupport::TestCase
   # changed across them, and the check from outside a run holds once the workspace has a terminal.
   OWN_READS = {
     Chat::Tools::WhatChanged::NAME => ResourceMap::Timeline::SCHEMA,
-    Chat::Tools::OutsideCheck::NAME => { "properties" => { Chat::Tools::OutsideCheck::URL_ARG => {}, Chat::Tools::OutsideCheck::METHOD_ARG => {} } }
+    Chat::Tools::OutsideCheck::NAME => { "properties" => { Chat::Tools::OutsideCheck::URL_ARG => {}, Chat::Tools::OutsideCheck::METHOD_ARG => {} } },
+    Chat::Tools::Browser::NAME => {
+      "properties" => [ Chat::Tools::Browser::URL_ARG, Chat::Tools::Browser::STEPS_ARG, Chat::Tools::Browser::VIEWPORTS_ARG,
+                        Chat::Tools::Browser::LOG_IN_ARG, Chat::Tools::Browser::SEND_STEP_ARG ].index_with({})
+    }
   }.freeze
 
   test "every tool one of Firefight's skills names exists and is offered to Halon" do

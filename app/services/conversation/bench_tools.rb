@@ -89,7 +89,7 @@ module Conversation::BenchTools
 
   def chat_tools(turn)
     Conversation::Tools.for(turn, offer: ->(_tools) { }) +
-      [ Chat::Tools::Terminal.new(turn), Chat::Tools::OutsideCheck.new(turn), Chat::Tools::Helpers.new(turn, share: nil) ]
+      [ Chat::Tools::Terminal.new(turn), Chat::Tools::OutsideCheck.new(turn), Chat::Tools::Browser.new(turn), Chat::Tools::Helpers.new(turn, share: nil) ]
   end
 
   def probe_turn

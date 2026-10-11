@@ -84,9 +84,23 @@ RUN arch="$(dpkg --print-architecture)" \
     && curl -fsSL -o /opt/clis/kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${arch}/kubectl" \
     && chmod 755 /opt/clis/kubectl
 
+# Halon's browser, Playwright's own Chromium at the version sandbox/browser pins, run on the pinned Node above since
+# Debian's is too old for it. It runs as a user of its own, never halon, so a terminal command cannot read a saved login's
+# password out of a running check, and it is installed where that user reads it and writes nothing.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/browser/ms-playwright
+COPY browser/package.json browser/package-lock.json /opt/browser/
+RUN useradd --create-home --shell /usr/sbin/nologin browser \
+    && mkdir -p /browser && chown browser:browser /browser \
+    && cd /opt/browser \
+    && PATH=/opt/clis/node/bin:$PATH npm ci --no-fund --no-audit \
+    && PATH=/opt/clis/node/bin:$PATH npx playwright install --with-deps chromium \
+    && chmod -R a+rX /opt/browser \
+    && rm -rf /root/.npm /var/lib/apt/lists/*
+
 COPY bin/ff /usr/local/bin/ff
 COPY bin/kubectl /usr/local/bin/kubectl
 COPY outside_check.rb /opt/sandbox/outside_check.rb
+COPY browser_check.mjs /opt/sandbox/browser_check.mjs
 COPY server.rb /opt/sandbox/server.rb
 
 EXPOSE 8080

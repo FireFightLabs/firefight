@@ -19,6 +19,7 @@ import {
   IconBellRinging,
   IconKey,
   IconListDetails,
+  IconLogin2,
   IconMessageChatbot,
   IconNotebook,
   IconPlug,
@@ -73,6 +74,7 @@ import {
   settingsRunbooksPath,
   settingsSeveritiesPath,
   settingsStatusesPath,
+  settingsTestLoginsPath,
   settingsTypesPath,
   settingsWorkspacePath,
 } from "@/lib/routes"
@@ -172,6 +174,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
       { title: "Monitoring", url: halonMonitoringPath(), icon: IconRadar },
       { title: "Performance", url: halonPerformancePath(), icon: IconChartBar },
       { title: "On-call", url: halonOnCallPath(), icon: IconPhoneCall, adminOnly: true },
+      { title: "Test logins", url: settingsTestLoginsPath(), icon: IconLogin2, adminOnly: true },
     ],
   }
   const sectionsWithAgent = agentAvailable ? [ chatSection, ...navSections ] : navSections

@@ -518,6 +518,15 @@ The agent never connects anything. `list_integrations` says what a category hold
 - `Integrations::Credentials` builds outbound headers and rotates expiring tokens before use.
 - **Secrets never enter the session, an MCP tool response, or the ledger.** Alert-source tokens and OAuth client secrets are read server-side at the moment they are needed; connection UIs link to the settings page rather than returning a secret.
 
+## Test logins
+
+A test account an admin saves per site, which Halon's browser signs in with when it checks a page there. Only `IntegrationEnvironment` stores secrets, so a login is kept as a connection of the provider whose registry entry says `test_logins: true` (`website`, `Integrations::Providers::Website`, `Integrations::Packs::Website`, which offers no tools and owns the password's shape).
+
+- **Where it is kept.** One `Integration` per site with a made slug (`test_login_<hex>`), and its one environment row: the password in the encrypted `credentials`, written through `Integrations::Credentials.store!`, and the site address, the login page, the username and when the password was saved as the row's fields, which are not secret. `Integration::SiteLogin` validates and writes it (an http or https address with no user info, a login page on the same registrable domain, one login per site by host with a leading www ignored, checked under the workspace's lock).
+- **None of the workspace's connections.** `Integration.connections` leaves test logins out and `Integration.active` builds on it, so sweeps, health checks, Halon's tool groups, skills and docs never see one. `keep_packs_in_step` makes no permission packs for one, `IntegrationProvider.connectable` keeps the provider off the gallery, the Integrations page lists none, and its connect endpoint never makes one. The provider's category is not one of the gallery's.
+- **The contract.** `Integrations::SiteLogins` is the one way in from outside the layer: `listed(workspace)` and `for_url(workspace, url)` answer `Login`s (id, name, site and login addresses, username, `password_hint`) that never hold the password, and `secret_for(workspace, login_id)` answers the username and password for Halon's browser only, which hands them to the sandbox for the one run that signs in and never to the model, a chat, the ledger or a log.
+- **The screen.** Halon, Test logins (`/settings/test-logins`, `TestLoginsController`, `integrations` actions, so admins only, behind `require_agent!`). Add and edit share one dialog, the password is write-only (left empty on edit keeps the saved one) and is shown back only as when it was saved ("Password saved on 11 Oct 2026"), since even its last characters tell a short password apart. Delete asks first and removes the row and its password.
+
 ## OAuth
 
 - **Nothing is persisted until the customer returns authorized.** Abandoning the provider's screen must leave no half-connected row.

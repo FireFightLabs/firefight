@@ -21,6 +21,11 @@ module Sandbox
   TERMINAL = "/terminal"
   TERMINAL_USER = "halon"
   TERMINAL_FILES = File.join(TERMINAL, "results")
+  # Halon's browser runs as a user of its own, so a terminal command, which runs as halon, can never read a saved login's
+  # password out of the browser's memory while it runs. Only the image's own check runs there, never a command asked for.
+  BROWSER = "/browser"
+  BROWSER_USER = "browser"
+  BROWSER_ARGV = [ "/opt/clis/node/bin/node", "/opt/sandbox/browser_check.mjs" ].freeze
   FILE_NAME = /\A\w[\w.\-]{0,99}\z/
   # A terminal command is handed the address and token it reaches Firefight with, and a provider command line tool's
   # settings pointing it there, beside the image's own settings. Never PATH, HOME or what the image sets.
@@ -755,7 +760,7 @@ module Sandbox
       FileUtils.mkdir_p(PROGRESS, mode: 0o711)
       path = File.join(PROGRESS, "#{id}.log")
       File.open(path, File::WRONLY | File::CREAT | File::EXCL, 0o600) { }
-      user = request["action"] == "prepare" ? "runner" : { "run" => "runner", "terminal" => TERMINAL_USER }.fetch(request["where"], "reader")
+      user = request["action"] == "prepare" ? "runner" : { "run" => "runner", "terminal" => TERMINAL_USER, "browser" => BROWSER_USER }.fetch(request["where"], "reader")
       FileUtils.chown(user, user, path)
       entry = { "path" => path, "result" => nil, "finished_at" => nil }
       GUARD.synchronize { STORE[id] = entry }
@@ -807,7 +812,8 @@ module Sandbox
   module Handler
     def self.call(method, path, body, query = {})
       case [ method, path ]
-      in [ "GET", "/health" ] then { "ok" => true, "runs" => true, "setups" => true, "prepare_runs" => true, "seeds" => true, "images" => Docker.available?, "terminal" => true }
+      in [ "GET", "/health" ] then { "ok" => true, "runs" => true, "setups" => true, "prepare_runs" => true, "seeds" => true, "images" => Docker.available?, "terminal" => true,
+                                       "browser" => File.exist?(BROWSER_ARGV.last) }
       in [ "PUT", %r{\A/terminal/files/([^/]+)\z} ] then Terminal.place(Regexp.last_match(1), body)
       in [ "PUT", %r{\A/repos/([^/]+)\z} ] then Repos.push(Regexp.last_match(1), body)
       in [ "POST", "/exec" ] then exec(JSON.parse(body))
@@ -829,6 +835,7 @@ module Sandbox
     # what it is doing to.
     def self.exec(request, progress: nil)
       return Terminal.exec(request, progress: progress) if request["where"] == "terminal"
+      return Browser.exec(request, progress: progress) if request["where"] == "browser"
 
       name = request.fetch("repo")
       sha = Repos.commit(name, request["ref"])
@@ -947,6 +954,18 @@ module Sandbox
 
         kept[name] = value.to_s
       end
+    end
+  end
+
+  # One check in Halon's browser. What to check, a saved login's password with it, arrives as the command's input and is
+  # never written to disk.
+  module Browser
+    def self.exec(request, progress: nil)
+      timeout = request.fetch("timeout", DEFAULT_TIMEOUT).to_i.clamp(1, MAX_TIMEOUT)
+      told = progress ? { "SANDBOX_PROGRESS" => progress } : {}
+      FileUtils.mkdir_p(BROWSER)
+      FileUtils.chown(BROWSER_USER, BROWSER_USER, BROWSER)
+      Sandbox.run(BROWSER_ARGV, dir: BROWSER, user: BROWSER_USER, timeout: timeout, env: told, stdin: request["stdin"]&.to_s)
     end
   end
 

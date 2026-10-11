@@ -7,6 +7,7 @@ module Integrations
       IN_CHECKOUT = "checkout".freeze
       IN_COPY = "run".freeze
       IN_TERMINAL = "terminal".freeze
+      IN_BROWSER = "browser".freeze
       # Replaced by the commit a ref resolves to, so git reads exactly what the heading says.
       COMMIT = "{commit}".freeze
 
@@ -136,10 +137,21 @@ module Integrations
       # A command in the terminal's own folder, with no repository. env is what it is handed beyond the image's own
       # settings, such as the address and token it reaches Firefight with.
       def terminal(argv:, env: {}, timeout: 60, on_output: nil)
-        payload = { where: IN_TERMINAL, argv: argv, env: env, timeout: timeout }
-        return send_json(Net::HTTP::Post, "/exec", payload: payload, read_timeout: timeout + MARGIN) unless on_output && runs_in_background?
+        exec_or_follow({ where: IN_TERMINAL, argv: argv, env: env, timeout: timeout }, timeout: timeout, on_output: on_output)
+      end
 
-        follow(send_json(Net::HTTP::Post, "/runs", payload: payload)["id"], deadline: clock + timeout + MARGIN, on_output: on_output)
+      # Whether the box's image has Halon's browser, read once.
+      def browser?
+        @browser = send_json(Net::HTTP::Get, "/health", read_timeout: 5)["browser"] == true if @browser.nil?
+        @browser
+      rescue Error
+        false
+      end
+
+      # One check in Halon's browser, which runs as a user of its own. spec is handed to it as its input and never
+      # written to the box's disk, since it may hold a saved login's password.
+      def browse(spec:, timeout:, on_output: nil)
+        exec_or_follow({ where: IN_BROWSER, argv: [], timeout: timeout, stdin: spec }, timeout: timeout, on_output: on_output)
       end
 
       # A file a terminal command reads, under the terminal's results folder.
@@ -164,6 +176,12 @@ module Integrations
       end
 
       private
+
+      def exec_or_follow(payload, timeout:, on_output:)
+        return send_json(Net::HTTP::Post, "/exec", payload: payload, read_timeout: timeout + MARGIN) unless on_output && runs_in_background?
+
+        follow(send_json(Net::HTTP::Post, "/runs", payload: payload)["id"], deadline: clock + timeout + MARGIN, on_output: on_output)
+      end
 
       # What the box's image can do, read once. A box that cannot be asked is taken to be one that can do none of it.
       def health

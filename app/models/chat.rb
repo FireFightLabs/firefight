@@ -35,6 +35,8 @@ class Chat < ApplicationRecord
   has_many :helpers, -> { in_order }, class_name: "Chat::Helper", dependent: :destroy, inverse_of: :chat
   # Destroyed one by one, since each lets go of its bytes in the object store.
   has_many :attached_files, -> { in_order }, class_name: "Chat::Attachment", dependent: :destroy, inverse_of: :chat
+  # What Halon's browser saw, destroyed one by one so each lets go of its bytes in the object store.
+  has_many :screenshots, -> { in_order }, class_name: "Chat::Screenshot", dependent: :destroy, inverse_of: :chat
 
   # The registry holds no context window for the model this chat runs on. Nothing is assumed in
   # its place, so an operator adds the model to the registry with its window.

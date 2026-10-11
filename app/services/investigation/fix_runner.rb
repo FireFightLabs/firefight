@@ -15,6 +15,7 @@ class Investigation::FixRunner
   COULD_NOT_FINISH = "Firefight could not finish this step. Check whether it went through, then do it by hand if it did not.".freeze
   LOST_TRACK = "Firefight lost track of this step while it ran. Check whether it went through, then do it by hand if it did not.".freeze
   APPLIER_GONE = "Whoever applied the fix is no longer a member of this workspace, so it cannot run as them.".freeze
+  PAGE_WORKS = "The page loaded and every step went through, with no console errors.".freeze
 
   # Claims the fix for this person and starts it. Returns why it could not, or nil.
   def self.apply!(plan, by:, from:)
@@ -228,6 +229,7 @@ class Investigation::FixRunner
 
   def call(step, approval_id: nil)
     return step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: APPLIER_GONE) unless @plan.acting_principal
+    return check_page(step) if step.page_check?
 
     tool = step.tool_to_run(workspace)
     return step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: "#{step.tool_name || 'The coding tool'} is no longer switched on.") unless tool
@@ -254,6 +256,33 @@ class Investigation::FixRunner
   rescue StandardError => error
     Rails.logger.warn({ event: "fix.step_not_started", step_id: step.id, error: error.class.name }.to_json)
     step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: COULD_NOT_FINISH)
+  end
+
+  # Opens the page in Halon's browser in the run's sandbox. It passes when the page loaded and every step of its path
+  # went through with no console errors, and fails saying what went wrong, so a fix that did not work for people says so.
+  # The screenshots are kept with the run, under this step.
+  def check_page(step)
+    check = step.page_check
+    blocked = workspace.browser_pages_blocked_reason(check.planned_pages)
+    return step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: blocked) if blocked
+
+    investigation = @plan.finding.investigation
+    authorization = step.authorize_page_check!(check)
+    answer = Chat::Browsing.run(workspace: workspace, box_key: investigation.code_box_key, check: check)
+    Chat::Screenshot.record!(investigation.chat_record, answer.viewports, digest: check.digest, remediation_step: step) if answer.error.nil?
+    if answer.ok?
+      authorization.finalize_success!
+      step.finish!(Investigation::RemediationStep::STATUS_DONE, result: PAGE_WORKS, invocation_id: authorization.invocation_id)
+    else
+      authorization.answer_failed!(answer.trouble.join(" "))
+      authorization.finalize_answered!
+      step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: answer.trouble.join("
+").truncate(Investigation::RemediationStep::RESULT_LIMIT),
+                                                                  invocation_id: authorization.invocation_id)
+    end
+  rescue Chat::BrowserCheck::Refused, Integrations::Error => error
+    authorization&.finalize_error!(error)
+    step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: error.message, invocation_id: authorization&.invocation_id)
   end
 
   # A tool that runs long, such as a coding agent writing a change, says how it is going. The step shows it and the

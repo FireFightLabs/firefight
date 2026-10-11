@@ -120,6 +120,7 @@ module FirefightAi
         - #{OutsideRule::CHANGED_RULE}
         - #{OutsideRule::STATUS_RULE}
         - #{OutsideRule::BLIND_SPOT_RULE}
+        - #{OutsideRule::BROWSER_RULE}
         - #{NormalRule::RULE}
         - #{Helper::RULE}
         - Some changes wait for the person to confirm first. When a tool result says the user denied it, they cancelled it themselves, so say it was not done because they cancelled, never that they lack permission.
@@ -131,6 +132,7 @@ module FirefightAi
         - #{Evidence::RULE}
         - #{Evidence::REFUSAL_RULE}
         - #{Evidence::FILE_RULE}
+        - #{Evidence::PAGE_IMAGE_RULE}
         - Do the work a question needs yourself, however deep it goes. Check only what the question needs, starting from where the signal came from. A question about metrics reads metrics, and an error seen in logs leads to the code that raised it. Stop once you can answer.
         - The person may add something while you work. Their newest message decides what you check next.
         - When a request matches a saved runbook, such as a release or a rollback, find it with search_runbooks and run it with run_runbook rather than doing its steps one by one. Say what it will do first. When the person has you do the same multi-step task again, offer to save it as a runbook they can ask for by name.

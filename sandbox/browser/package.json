@@ -1,0 +1,8 @@
+{
+  "name": "firefight-sandbox-browser",
+  "private": true,
+  "description": "The browser Halon checks pages with, in the sandbox.",
+  "dependencies": {
+    "playwright": "1.63.0"
+  }
+}

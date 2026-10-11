@@ -1,6 +1,7 @@
 import { AGENT_CARD_KINDS } from "@/lib/generated/constants"
 import { ChartCard } from "@/pages/agent/components/chart-card"
 import { IntegrationCard } from "@/pages/agent/components/integration-card"
+import { ScreenshotCard } from "@/pages/agent/components/screenshot-card"
 import { InvestigationRunCard } from "@/pages/agent/components/investigation-run-card"
 import type { AgentCard as AgentCardValue } from "@/pages/agent/types"
 
@@ -21,6 +22,9 @@ export function AgentCard({ card, stepKey }: AgentCardProps) {
   // Helpers are drawn under their step, and the charts they read follow the answer like any other.
   if (card.kind === AGENT_CARD_KINDS.CHART || card.kind === AGENT_CARD_KINDS.HELPERS) {
     return <ChartCard toolCallKey={stepKey} />
+  }
+  if (card.kind === AGENT_CARD_KINDS.SCREENSHOTS) {
+    return <ScreenshotCard toolCallKey={stepKey} />
   }
 
   return null
