@@ -31,7 +31,8 @@ module AlertProviders
         "description" => description_of(incident),
         "service" => incident.dig("service", "summary"),
         "severity_raw" => incident.dig("priority", "summary").presence || incident["urgency"],
-        "team" => Array(incident["teams"]).first&.dig("summary")
+        "team" => Array(incident["teams"]).first&.dig("summary"),
+        "url" => incident["html_url"]
       }.compact_blank
       [ item(fields, payload) ]
     end

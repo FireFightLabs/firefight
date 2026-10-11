@@ -2,7 +2,8 @@ module AlertProviders
   # Opsgenie's Webhook integration, which posts each alert action with the alert's own fields (Atlassian support,
   # Opsgenie Edge Connector alert action data). Create fires and Close resolves, keyed on the alert's id so both reach
   # one alert. Every other action, such as an acknowledgement, a note or a new tag, is accepted and ignored. Opsgenie
-  # signs nothing, so the source's token travels in a custom header the integration sends.
+  # signs nothing, so the source's token travels in a custom header the integration sends. The alert action carries no
+  # address of the alert's page, so these alerts have no link back.
   class Opsgenie < Base
     CREATE = "Create".freeze
     CLOSE = "Close".freeze
