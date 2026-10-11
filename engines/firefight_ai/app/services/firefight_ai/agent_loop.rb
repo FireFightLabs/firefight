@@ -158,7 +158,7 @@ module FirefightAi
       @room.make_after_refusal
       retry
     rescue RubyLLM::Error, *FirefightAi::PROVIDER_DOWN_ERRORS => e
-      raise unless take_over(e) || back_up(e)
+      raise unless take_over(e) || back_up(e) || fall_back(e)
 
       retry
     end
@@ -185,6 +185,16 @@ module FirefightAi
       @given_up_on << failing
       switch_to(backup)
       @on_backup.call(failing, backup, error)
+      true
+    end
+
+    # A helper on quick work whose model is not there for the account carries on with the provider's next quick model.
+    def fall_back(error)
+      following = FirefightAi.quick_fallback(@choice, error, purpose: @purpose, tried: @given_up_on)
+      return false unless following
+
+      @given_up_on << @choice
+      switch_to(following)
       true
     end
 

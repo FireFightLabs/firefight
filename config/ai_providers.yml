@@ -13,9 +13,9 @@
 # Each may list several, preferred first. The first one the registry holds for the provider with a price is used, and
 # main and backup need a known size too, so a model newer than the catalog RubyLLM ships is picked up once the nightly
 # refresh brings it in. The last of main and fast must be one RubyLLM's catalog holds, with tool calling and a known
-# size, which test/models/ai_providers_test.rb checks, so there is always one to fall back to. backup lists backups
-# tried in turn, and each may itself be a list read the same way. That is how a Vertex AI project without Claude enabled
-# ends on Gemini. Providers whose models are named by whoever runs them (an Azure deployment, a local Ollama or
+# size, which test/models/ai_providers_test.rb checks, so there is always one to fall back to. fast and backup list
+# models tried in turn when the provider says one is not there for the account, and each may itself be a list read the
+# same way. That is how a Vertex AI project without Claude enabled ends on Gemini. Providers whose models are named by whoever runs them (an Azure deployment, a local Ollama or
 # GPUStack) recommend none.
 #
 # The deployment's own keys follow the same picks when no env var names a model (FirefightAi.deployment_model_for).
@@ -27,7 +27,7 @@
 anthropic:
   name: Anthropic
   main: [ claude-sonnet-5-5, claude-sonnet-5 ]
-  fast: [ claude-haiku-5-5, claude-haiku-4-5 ]
+  fast: [ [ claude-haiku-5-5, claude-haiku-4-5 ] ]
   backup: [ [ claude-haiku-5-5, claude-haiku-4-5 ] ]
   code_fix: claude-opus-5-5
 openai:
@@ -50,13 +50,13 @@ gemini:
 vertexai:
   name: Google Vertex AI
   main: [ claude-sonnet-5-5, claude-sonnet-5 ]
-  fast: [ claude-haiku-5-5, claude-haiku-4-5 ]
   # Claude runs on Vertex AI only where the project has it enabled, so Gemini comes last.
+  fast: [ [ claude-haiku-5-5, claude-haiku-4-5 ], gemini-3.8-flash ]
   backup: [ [ claude-haiku-5-5, claude-haiku-4-5 ], gemini-3.1-pro-preview ]
 bedrock:
   name: Amazon Bedrock
   main: [ anthropic.claude-sonnet-5-5, anthropic.claude-sonnet-5 ]
-  fast: [ anthropic.claude-haiku-5-5, anthropic.claude-haiku-4-5-20251001-v1:0 ]
+  fast: [ [ anthropic.claude-haiku-5-5, anthropic.claude-haiku-4-5-20251001-v1:0 ] ]
   backup: [ [ anthropic.claude-haiku-5-5, anthropic.claude-haiku-4-5-20251001-v1:0 ] ]
   labels:
     api_key: Access key ID
@@ -65,7 +65,7 @@ azure:
 openrouter:
   name: OpenRouter
   main: [ anthropic/claude-sonnet-5.5, anthropic/claude-sonnet-5 ]
-  fast: [ anthropic/claude-haiku-5.5, anthropic/claude-haiku-4.5 ]
+  fast: [ [ anthropic/claude-haiku-5.5, anthropic/claude-haiku-4.5 ] ]
   backup: [ [ anthropic/claude-haiku-5.5, anthropic/claude-haiku-4.5 ] ]
   code_fix: anthropic/claude-opus-5.5
 deepseek:

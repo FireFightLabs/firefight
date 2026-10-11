@@ -107,21 +107,31 @@ module FirefightAi
 
   # One model call for a purpose, in the ledger and capped at what the purpose writes. The block gets a fresh chat
   # each time. Returns the response and its ledger row, as Inference.track does. A workspace's own account that runs
-  # dry or refuses its key hands the call to the next one in its order, which is asked afresh. Any other refusal fails
-  # the call.
+  # dry or refuses its key hands the call to the next one in its order, which is asked afresh. Quick work whose model is
+  # not there for the account carries on with the provider's next quick model. Any other refusal fails the call.
   def generate(choice, purpose:, inference:)
+    tried = []
     translating_errors do
       ensure_paid!(choice)
       begin
         limit = output_cap(purpose, choice: choice).max
         Inference.track(inference.merge(choice.ledger, max_output_tokens: limit)) { yield chat(choice).with_max_output_tokens(limit) }
       rescue RubyLLM::Error => e
-        choice = take_over(choice, e, purpose: purpose, workspace: inference[:workspace])
+        tried << choice
+        choice = take_over(choice, e, purpose: purpose, workspace: inference[:workspace]) || quick_fallback(choice, e, purpose: purpose, tried: tried)
         raise unless choice
 
         retry
       end
     end
+  end
+
+  # The provider's next quick model on the same account, when quick work's model is not there for the account, such as
+  # Claude on a Vertex AI project that has not enabled it. Nil for any other purpose or refusal.
+  def quick_fallback(choice, error, purpose:, tried: [])
+    return nil unless AiPurpose.quick?(purpose) && model_unavailable?(error)
+
+    AiProviders.quick_fallback(choice, tried: tried)
   end
 
   def ensure_paid!(choice)

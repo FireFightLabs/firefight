@@ -174,6 +174,42 @@ class FirefightAi::PayerTakeoverTest < ActiveSupport::TestCase
     assert_equal [ [ "claude-sonnet-4-5", "claude-haiku-5-5" ] ], switches, "the account's own backup, and nothing after it the workspace can pay for"
   end
 
+  test "a summary on a Vertex AI project without Claude enabled carries on with Gemini's fast model, and other work does not" do
+    FirefightAi.stubs(:priced_for?).returns(true)
+    models = []
+    FirefightAi.stubs(:chat).with { |choice| models << choice.model }.returns(FakeChat.new([], model_id: nil))
+    haiku = FirefightAi::ModelChoice.new(model: "claude-haiku-5-5", provider: "vertexai")
+    calls = 0
+
+    FirefightAi.generate(haiku, purpose: AiPurpose::SUMMARY, inference: context) do
+      calls += 1
+      raise not_found if calls == 1
+
+      llm_reply(content: "summary")
+    end
+
+    assert_equal [ "claude-haiku-5-5", "gemini-3.8-flash" ], models
+    assert_raises(RubyLLM::Error) do
+      FirefightAi.generate(haiku, purpose: AiPurpose::POSTMORTEM, inference: context) { raise not_found }
+    end
+  end
+
+  test "a helper whose model is not there for the account carries on with the provider's next quick model" do
+    FirefightAi.stubs(:priced_for?).returns(true)
+    FirefightAi.stubs(:context_window).returns(200_000)
+    haiku = FirefightAi::ModelChoice.new(model: "claude-haiku-5-5", provider: "vertexai")
+    chat = FakeChat.new([ not_found, answer ], model_id: haiku.model)
+    FirefightAi.bind(chat, haiku)
+
+    FirefightAi::AgentLoop.new(
+      chat: chat, answered: -> { false }, reply_is_answer: true, choice: haiku, purpose: AiPurpose::HELPER,
+      budget: FirefightAi::AgentLoop::Budget.new(max_spend_cents: 400, max_turns: 50),
+      inference: { workspace: @workspace, feature: "takeover_loop", inferable: @incident }
+    ).run
+
+    assert_equal [ "claude-haiku-5-5", "gemini-3.8-flash" ], chat.turns.map(&:first)
+  end
+
   test "the next account taking over from one that ran dry is told to whoever asked to hear it" do
     add_ai_account!(@workspace, key: "sk-ant-first", label: "First")
     add_ai_account!(@workspace, provider: "openai", key: "sk-openai-second", label: "Second")
@@ -213,6 +249,10 @@ class FirefightAi::PayerTakeoverTest < ActiveSupport::TestCase
 
   def overloaded
     RubyLLM::OverloadedError.new("Overloaded", response: Response.new(529, { "error" => { "type" => "overloaded_error" } }, {}))
+  end
+
+  def not_found
+    RubyLLM::Error.new("Publisher model was not found or your project does not have access to it", response: Response.new(404, {}, {}))
   end
 
   def payment_required

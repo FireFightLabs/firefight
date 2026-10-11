@@ -45,8 +45,14 @@ module AiProviders
     # can make room in it. Falls back to the last, which the catalog RubyLLM ships always holds.
     def main_model = main_models.find { |model| loop_ready?(model) } || main_models.last
 
-    # The first quick model the registry holds for this provider with a price, falling back to the last like main_model.
-    def fast_model = fast_models.find { |model| FirefightAi.priced_for?(model, slug) } || fast_models.last
+    # The quick model, the first of fast_models_ready. A quick model needs only a price.
+    def fast_model = fast_models_ready.first
+
+    # The quick models tried in turn when the provider says one is not there for the account. Each is a model, or several
+    # read like main_models: the first the registry prices, else the last, which the catalog RubyLLM ships holds.
+    def fast_models_ready = fast_models.map { |entry| resolve_fast(entry) }.uniq
+
+    def resolve_fast(entry) = Array(entry).find { |model| FirefightAi.priced_for?(model, slug) } || Array(entry).last
 
     # The backups the loop tries in turn. Each is a model, or several read like main_models, and counts while the registry
     # can price and size it. A provider with no backup of its own carries on with its main model, since what failed was
@@ -189,6 +195,20 @@ module AiProviders
         FirefightAi::ModelChoice.new(model: model, provider: provider.slug)
       end
     end
+  end
+
+  # What quick work carries on with when the provider says failing's model is not there for the account: the next quick
+  # model of its provider after it, on the same account and payer, such as Gemini on a Vertex AI project without Claude
+  # enabled. Nil when the provider has none left, or when the model is not one of its quick models, since a model an
+  # admin picked is theirs to change.
+  def self.quick_fallback(failing, tried: [])
+    provider = find(failing.provider_name)
+    at = provider&.fast_models&.index { |entry| Array(entry).include?(failing.model) }
+    return nil unless at
+
+    gone = tried.map(&:model) + [ failing.model ]
+    following = provider.fast_models.drop(at + 1).filter_map { |entry| provider.resolve_fast(entry) }.find { |model| gone.exclude?(model) }
+    following && failing.with(model: following)
   end
 
   # The models a workspace's own account carries Halon's loop on when its model failed, before any other account: the

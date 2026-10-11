@@ -10,7 +10,7 @@ class AiProvidersTest < ActiveSupport::TestCase
       # A deployment's own models, such as an Azure deployment or a local Ollama, are named by whoever runs them.
       next if provider.assumes_models || provider.local
 
-      [ provider.main_models.last, provider.fast_models.last, *provider.backup_models.map { |entry| Array(entry).last } ].compact.each do |model_id|
+      [ provider.main_models.last, *provider.fast_models.map { |entry| Array(entry).last }, *provider.backup_models.map { |entry| Array(entry).last } ].compact.each do |model_id|
         model = catalog[[ provider.slug, model_id ]]
         assert model, "#{provider.slug} offers #{model_id}"
         assert_includes model["capabilities"], "function_calling", "#{provider.slug} #{model_id} calls tools"
@@ -114,6 +114,18 @@ class AiProvidersTest < ActiveSupport::TestCase
     FirefightAi.stubs(:context_window).returns(200_000)
 
     assert_equal [ "claude-haiku-5-5", "gemini-3.1-pro-preview" ], AiProviders.find("vertexai").backup_models_ready
+  end
+
+  test "quick work on Vertex AI carries on from Claude Haiku to Gemini's fast model, on the same account, and never past the list" do
+    FirefightAi.stubs(:priced_for?).returns(true)
+    haiku = FirefightAi::ModelChoice.new(model: "claude-haiku-5-5", provider: "vertexai", payer: AiPayer.house(Inference::PAID_BY_OPERATOR))
+
+    gemini = AiProviders.quick_fallback(haiku)
+
+    assert_equal [ "gemini-3.8-flash", "vertexai", haiku.payer ], [ gemini.model, gemini.provider, gemini.payer ]
+    assert_nil AiProviders.quick_fallback(gemini), "nothing after Gemini"
+    assert_nil AiProviders.quick_fallback(haiku.with(model: "a-model-an-admin-picked")), "an admin's own pick is theirs to change"
+    assert_nil AiProviders.quick_fallback(FirefightAi::ModelChoice.new(model: "claude-haiku-5-5", provider: "anthropic")), "Anthropic has no other quick model"
   end
 
   test "a workspace's own account carries on with its provider's backups, on the same account, never the model that failed" do
