@@ -140,7 +140,10 @@ module Conversation::Watches
 
     usual = planned.filter_map { |step| step[:usual] }.sum.nonzero?
     limit = Chat::Watch.limit_for(asked_minutes: arguments["minutes"], usual_seconds: usual, remembered_minutes: arguments["expected_minutes"])
-    until_at = [ now + limit.seconds, watch.created_at + Chat::Watch::LONGEST ].min
+    needed = [ now + limit.seconds, watch.created_at + Chat::Watch::LONGEST ].min
+    # A limit the person asked for stays theirs. Only one Halon chose moves later for the steps that joined.
+    kept = watch.limit_basis == Chat::Watch::BASIS_ASKED && !arguments["minutes"].to_i.positive?
+    until_at = kept ? watch.expires_at : needed
     limit_before = watch.expires_at
     steps = planned.map { |planned_step| { label: planned_step[:label].truncate(120), **read_of(planned_step) } }
     added = watch.add_steps!(steps, until_at: until_at, reads_per_hour: ceiling, title: arguments["title"].to_s.strip.presence,
@@ -155,7 +158,7 @@ module Conversation::Watches
     WatchCheckJob.perform_later(watch.id)
 
     [ "Added #{labels} to #{Chat::Watch::Shown.name(watch)} (watch #{watch.id}) rather than starting another watch. Tell the person, " \
-      "in your own words, that the watch they have now follows these too. #{added_limit_words(watch, limit, moved)} " \
+      "in your own words, that the watch they have now follows these too. #{added_limit_words(watch, limit, moved, short: kept && needed > watch.expires_at)} " \
       "It reads at most #{watch.reads_per_hour} times an hour, which the card shows.",
       cannot.any? ? "Also tell them what it cannot follow: #{cannot.join(' ')}" : nil,
       "Each milestone and the end come to this chat and to their direct messages on their own, so never check it again yourself unless they ask.",
@@ -172,9 +175,14 @@ module Conversation::Watches
     "Now also following #{labels}.#{limit}"
   end
 
-  def self.added_limit_words(watch, limit, moved)
+  # short is when the person's own limit stays and the added steps may not finish within it.
+  def self.added_limit_words(watch, limit, moved, short: false)
     usual = limit.usual_seconds && Integrations::Capabilities::History.duration(limit.usual_seconds)
     took = usual ? " They usually take about #{usual}." : ""
+    if short
+      return "It keeps the limit of #{Chat::Watch::Shown.limit_label(watch)} from when it started that the person asked for, and the added " \
+             "steps may not finish within it.#{took} Tell them so, and offer more time, which extend_watch gives once they ask."
+    end
     return "Its limit of #{Chat::Watch::Shown.limit_label(watch)} from when it started already leaves them time.#{took}" unless moved
 
     "It now watches for up to #{Chat::Watch::Shown.limit_label(watch)} from when it started, to leave them time to finish.#{took}"

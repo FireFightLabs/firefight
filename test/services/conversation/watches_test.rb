@@ -935,6 +935,24 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_equal "Now also following Web deploy.", watch.updates.sole.text
   end
 
+  test "a limit the person asked for stays theirs when steps join, and Halon is told they may not finish within it" do
+    answers("ci_runs" => History.result(finished_runs("release", 18.minutes), what: "repo"))
+    Conversation::Watches.start(@turn, watch_of([ release_step ], minutes: 30))
+    watch = @conversation.chat.watches.sole
+    expires = watch.expires_at
+    answers("deploy_history" => History.result(finished_runs("deploy", 20.minutes), what: "web"))
+
+    said = travel(20.minutes) { Conversation::Watches.start(@turn, watch_of([ deploy_step ], add_to: watch.id)) }
+
+    assert_match "It keeps the limit of 30 min from when it started that the person asked for, and the added steps may not finish within it. " \
+                 "They usually take about 20 minutes. Tell them so, and offer more time", said
+    assert_equal [ expires, Chat::Watch::BASIS_ASKED ], [ watch.reload.expires_at, watch.limit_basis ]
+    assert_equal "Now also following Web deploy.", watch.updates.sole.text
+
+    travel(21.minutes) { Conversation::Watches.start(@turn, watch_of([ deploy_step.merge("label" => "Health") ], add_to: watch.id, minutes: 60)) }
+    assert_in_delta watch.created_at + 81.minutes, watch.reload.expires_at, 5.seconds, "minutes the person gives with the steps move it"
+  end
+
   test "a ceiling Halon set from a provider's limit is kept when steps join, and a number given with them wins" do
     answers("ci_runs" => History.result(finished_runs("release", 18.minutes), what: "repo"))
     Conversation::Watches.start(@turn, watch_of([ release_step ], reads_per_hour: 30))
