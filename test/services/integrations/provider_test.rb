@@ -17,11 +17,11 @@ module Integrations
     end
 
     test "a provider with no code of its own has no parts, and a part a provider cannot have is refused" do
-      confluence = Provider.for("confluence")
+      custom = Provider.for("custom_mcp")
 
-      assert_equal "confluence", confluence.key
-      assert Provider::PARTS.all? { |part| confluence.public_send(part).nil? }
-      assert_empty confluence.redacted_fields
+      assert_equal "custom_mcp", custom.key
+      assert Provider::PARTS.all? { |part| custom.public_send(part).nil? }
+      assert_empty custom.redacted_fields
       assert_nil Provider.for("../datadog").adapter
       assert_raises(ArgumentError) { Provider.new(key: "acme", poller: "Acme::Poller") }
     end

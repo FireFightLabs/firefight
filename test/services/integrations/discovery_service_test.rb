@@ -26,6 +26,39 @@ module Integrations
       assert_not @integration.tools.find_by!(name: "execute").read_only?
     end
 
+    test "a tool the server marks read only that the registry says sends something is a change" do
+      @integration.update!(provider: "posthog", settings: { "server_url" => "https://mcp.posthog.com/mcp?mode=tools" })
+      McpClient.any_instance.stubs(:tools_list).returns([
+        { "name" => "agent-feedback", "annotations" => { "readOnlyHint" => true } },
+        { "name" => "loops-create-prepare", "annotations" => { "readOnlyHint" => true } },
+        { "name" => "insight-get", "annotations" => { "readOnlyHint" => true } }
+      ])
+
+      DiscoveryService.sync!(@integration)
+
+      assert_not @integration.tools.find_by!(name: "agent_feedback").read_only?
+      assert_not @integration.tools.find_by!(name: "loops_create_prepare").read_only?
+      assert @integration.tools.find_by!(name: "insight_get").read_only?
+    end
+
+    test "a tool an admin marked as a read stays one through a refresh, and unmarking it leaves what its server says" do
+      @integration.update!(provider: "custom_mcp", settings: { "server_url" => "https://tools.acme.example/mcp" })
+      McpClient.any_instance.stubs(:tools_list).returns([ { "name" => "query_logs" }, { "name" => "status", "annotations" => { "readOnlyHint" => true } } ])
+      DiscoveryService.sync!(@integration)
+      tool = @integration.tools.find_by!(name: "query_logs")
+      assert_not tool.read_only?
+
+      tool.mark_read!(true)
+      DiscoveryService.sync!(@integration)
+      assert tool.reload.read_only?
+      assert_equal Ability::Action::RISK_READ, tool.ability_action.risk_level
+
+      tool.mark_read!(false)
+      assert_not tool.reload.read_only?
+      assert_equal Ability::Action::RISK_WRITE, tool.ability_action.reload.risk_level
+      assert @integration.tools.find_by!(name: "status").declared_read?
+    end
+
     test "sync! upserts discovered tools switched on and marks vanished ones removed" do
       McpClient.any_instance.stubs(:tools_list).returns([
         { "name" => "logs.query", "description" => "Query logs",

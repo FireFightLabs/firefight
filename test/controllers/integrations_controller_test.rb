@@ -224,6 +224,51 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert tool.reload.enabled?, "member toggle is rejected by require_admin!"
   end
 
+  test "an admin marks a custom server's tool as a read and back, each said in a toast and in the activity log" do
+    integration = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "custom_mcp", name: "Acme tools",
+                                                  settings: { "server_url" => "https://tools.acme.example/mcp" })
+    tool = integration.tools.create!(name: "query_logs", read_only: false, enabled: true)
+
+    get integrations_url, headers: inertia_headers
+    mark = inertia_props["integrations"].first["tools"].first["readMark"]
+    assert_equal false, mark["marked"]
+    assert_nil mark["blockedReason"]
+    assert_match "Halon will call query_logs without asking", mark["words"]
+
+    patch mark_tool_read_integration_url(integration), params: { tool_id: tool.id, read: true }
+    assert_redirected_to integrations_path
+    assert_equal "query_logs on Acme tools is marked as a read, so Halon calls it without asking.", flash[:notice]
+    assert tool.reload.read_only?
+    assert tool.marked_read?
+    assert_equal Ability::Action::RISK_READ, tool.ability_action.risk_level
+    logged = Ability::Invocation.where(workspace: @workspace, action_key: "integrations.update").order(:created_at).last
+    assert_equal({ "tool" => "query_logs", "read" => true }, logged.params.slice("tool", "read"))
+
+    patch mark_tool_read_integration_url(integration), params: { tool_id: tool.id, read: true }
+    assert_equal "query_logs is already marked as a read.", flash[:alert]
+
+    patch mark_tool_read_integration_url(integration), params: { tool_id: tool.id, read: false }
+    assert_equal "query_logs on Acme tools is no longer marked as a read, so Halon asks before calling it.", flash[:notice]
+    assert_not tool.reload.read_only?
+  end
+
+  test "a known provider's tools cannot be marked, so they are not offered, and a member cannot mark a custom server's" do
+    sentry = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "sentry", name: "Sentry", settings: { "server_url" => "https://mcp.sentry.dev/mcp" })
+    tool = sentry.tools.create!(name: "update_issue", read_only: false, enabled: true)
+
+    patch mark_tool_read_integration_url(sentry), params: { tool_id: tool.id, read: true }
+    assert_equal "Sentry's server is one Firefight knows, so its tools are marked as it says.", flash[:alert]
+    assert_not tool.reload.read_only?
+    get integrations_url, headers: inertia_headers
+    assert_nil inertia_props["integrations"].first["tools"].first["readMark"]
+
+    custom = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "custom_mcp", name: "Acme tools", settings: { "server_url" => "https://tools.acme.example/mcp" })
+    mine = custom.tools.create!(name: "query_logs", read_only: false, enabled: true)
+    sign_in(users(:bob), @workspace)
+    patch mark_tool_read_integration_url(custom), params: { tool_id: mine.id, read: true }
+    assert_not mine.reload.read_only?, "a member is refused integrations.update"
+  end
+
   test "a tool the provider no longer offers cannot be switched on, by hand or in bulk" do
     integration = @workspace.integrations.create!(
       kind: Integration::KIND_MCP, provider: "github", name: "GitHub",

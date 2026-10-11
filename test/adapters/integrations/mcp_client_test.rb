@@ -145,6 +145,37 @@ module Integrations
 
     private
 
+    test "a pasted server on a private network is refused before anything is sent, unless an operator allowed it" do
+      client = McpClient.new(server_url: "https://mcp.internal/mcp", checked_for: "custom_mcp")
+      PublicAddress.stubs(:resolve).with("mcp.internal").returns(IPAddr.new("10.0.0.5"))
+      Http.expects(:request).never
+
+      error = assert_raises(McpClient::Error) { client.ping }
+      assert_equal "mcp.internal is on a private network, which Firefight does not connect to.", error.message
+      assert_equal "INTEGRATION_CUSTOM_MCP_PRIVATE_HOSTS", PublicAddress.allowed_env("custom_mcp")
+
+      Http.unstub(:request)
+      sent = []
+      Http.stubs(:request).with { |_uri, _request, ipaddr:, **| sent << ipaddr }.returns(answer(id: 1, result: {}), notified)
+      ENV["INTEGRATION_CUSTOM_MCP_PRIVATE_HOSTS"] = "10.0.0.0/8"
+      McpClient.new(server_url: "https://mcp.internal/mcp", checked_for: "custom_mcp").ping
+      assert_equal [ "10.0.0.5", "10.0.0.5" ], sent, "every request goes to the address checked"
+    ensure
+      ENV.delete("INTEGRATION_CUSTOM_MCP_PRIVATE_HOSTS")
+    end
+
+    test "a public pasted server is reached at the address checked, and a server the registry names is not checked" do
+      PublicAddress.stubs(:resolve).with("mcp.acme.example").returns(IPAddr.new("93.184.216.34"))
+      sent = []
+      Http.stubs(:request).with { |_uri, _request, **options| sent << options[:ipaddr] }.returns(answer(id: 1, result: {}), notified, answer(id: 1, result: {}), notified)
+
+      McpClient.new(server_url: "https://mcp.acme.example/mcp", checked_for: "sentry").ping
+      PublicAddress.expects(:check!).never
+      McpClient.new(server_url: "https://mcp.sentry.dev/mcp").ping
+
+      assert_equal [ "93.184.216.34", "93.184.216.34", nil, nil ], sent
+    end
+
     def answer(id:, result:)
       response = stub(code: "200", body: { jsonrpc: "2.0", id: id, result: result }.to_json)
       response.stubs(:[]).returns(nil)

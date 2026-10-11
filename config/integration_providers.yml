@@ -197,6 +197,15 @@ providers:
         hint: The id of the New Relic account this environment reports to. New Relic lists it in the account picker, or under Administration, Access management, Accounts.
         placeholder: "1234567"
         numeric: true
+    # New Relic's tool reference (docs.newrelic.com/docs/agentic-ai/mcp/tool-reference) documents every tool as a read.
+    read_only_tools: [convert_time_period_to_epoch_ms, get_dashboard, get_entity, list_related_entities, list_available_new_relic_accounts,
+                      list_dashboards, search_entity_with_tag, list_metric_names, execute_nrql_query, natural_language_to_nrql_query,
+                      list_alert_conditions, search_incident, list_alert_policies, list_recent_issues, list_synthetic_monitors,
+                      list_synthetic_monitor_results, get_synthetic_check_statistics, analyze_deployment_impact, generate_alert_insights_report,
+                      generate_user_impact_report, list_entity_error_groups, list_change_events, get_error_statistics, search_errors,
+                      analyze_entity_logs, analyze_golden_metrics, analyze_kafka_metrics, analyze_threads, analyze_transactions,
+                      list_garbage_collection_metrics, list_recent_logs, list_entity_performance_risk_groups, get_metric_statistics,
+                      get_log_statistics, get_distributed_trace_details, search_traces, analyze_trace_anomaly, analyze_service_dependencies]
     source_links: firefight
     map: none
     history: none
@@ -212,15 +221,24 @@ providers:
     description: Query logs, metrics and monitors.
     # Datadog's sites (docs.datadoghq.com/getting_started/site) with the MCP server each one documents
     # (DataDog/documentation, hugo/assets/scripts/config/regions.config.js, mcp_server_endpoint). US1-FED and US2-FED
-    # have no MCP server, so they are not offered.
+    # have no MCP server, so they are not offered. Without toolsets the server offers only core, so each address asks for
+    # error-tracking too, which Firefight's errors capability and its skills read (docs.datadoghq.com/mcp_server/setup).
     regions:
-      - { key: us1, label: US1 (app.datadoghq.com), server_url: "https://mcp.datadoghq.com/v1/mcp", site: "https://app.datadoghq.com" }
-      - { key: us3, label: US3 (us3.datadoghq.com), server_url: "https://mcp.us3.datadoghq.com/v1/mcp", site: "https://us3.datadoghq.com" }
-      - { key: us5, label: US5 (us5.datadoghq.com), server_url: "https://mcp.us5.datadoghq.com/v1/mcp", site: "https://us5.datadoghq.com" }
-      - { key: eu1, label: EU1 (app.datadoghq.eu), server_url: "https://mcp.datadoghq.eu/v1/mcp", site: "https://app.datadoghq.eu" }
-      - { key: ap1, label: AP1 (ap1.datadoghq.com), server_url: "https://mcp.ap1.datadoghq.com/v1/mcp", site: "https://ap1.datadoghq.com" }
-      - { key: ap2, label: AP2 (ap2.datadoghq.com), server_url: "https://mcp.ap2.datadoghq.com/v1/mcp", site: "https://ap2.datadoghq.com" }
-      - { key: uk1, label: UK1 (uk1.datadoghq.com), server_url: "https://mcp.uk1.datadoghq.com/v1/mcp", site: "https://uk1.datadoghq.com" }
+      - { key: us1, label: US1 (app.datadoghq.com), server_url: "https://mcp.datadoghq.com/v1/mcp?toolsets=core,error-tracking", site: "https://app.datadoghq.com" }
+      - { key: us3, label: US3 (us3.datadoghq.com), server_url: "https://mcp.us3.datadoghq.com/v1/mcp?toolsets=core,error-tracking", site: "https://us3.datadoghq.com" }
+      - { key: us5, label: US5 (us5.datadoghq.com), server_url: "https://mcp.us5.datadoghq.com/v1/mcp?toolsets=core,error-tracking", site: "https://us5.datadoghq.com" }
+      - { key: eu1, label: EU1 (app.datadoghq.eu), server_url: "https://mcp.datadoghq.eu/v1/mcp?toolsets=core,error-tracking", site: "https://app.datadoghq.eu" }
+      - { key: ap1, label: AP1 (ap1.datadoghq.com), server_url: "https://mcp.ap1.datadoghq.com/v1/mcp?toolsets=core,error-tracking", site: "https://ap1.datadoghq.com" }
+      - { key: ap2, label: AP2 (ap2.datadoghq.com), server_url: "https://mcp.ap2.datadoghq.com/v1/mcp?toolsets=core,error-tracking", site: "https://ap2.datadoghq.com" }
+      - { key: uk1, label: UK1 (uk1.datadoghq.com), server_url: "https://mcp.uk1.datadoghq.com/v1/mcp?toolsets=core,error-tracking", site: "https://uk1.datadoghq.com" }
+    # The reads of the core and error-tracking toolsets, as Datadog's tool reference (docs.datadoghq.com/mcp_server/tools)
+    # describes them, so a lookup never asks to be confirmed whatever the server marks.
+    read_only_tools: [search_datadog_events, get_datadog_incident, get_datadog_metric, get_datadog_metric_context, search_datadog_monitors,
+                      get_datadog_trace, search_datadog_dashboards, get_datadog_notebook, search_datadog_notebooks, search_datadog_hosts,
+                      search_datadog_incidents, search_datadog_metrics, search_datadog_entities, search_datadog_spans, aggregate_spans,
+                      analyze_datadog_logs, search_datadog_logs, search_datadog_rum_events, aggregate_rum_events, get_datadog_dashboard,
+                      search_datadog_error_tracking_issues, get_datadog_error_tracking_issue, analyze_datadog_error_tracking_errors,
+                      get_datadog_error_tracking_analytics]
     source_links: firefight
     map: none
     history: none
@@ -665,6 +683,16 @@ providers:
     map_note: "It holds what people do in your product, not infrastructure."
     # Turning a flag on or off, or changing who gets it, changes what customers see, so it is undone after a while unless kept.
     mitigation_tools: [feature_flag_disable, feature_flag_enable, update_feature_flag, feature_flag_set_release_condition_rollout]
+    # The server marks these read only, but agent-feedback sends what it is given to PostHog, and each -prepare tool stores
+    # a change for its -execute twin to make (PostHog/posthog, services/mcp/src/tools/feedback/submit.ts and
+    # confirmed-action-runtime.ts), so each asks to be confirmed like any change.
+    write_tools: [agent_feedback, access_control_default_rule_set_prepare, access_control_member_rule_set_prepare, access_control_role_rule_set_prepare,
+                  announcements_create_prepare, change_requests_approve_prepare, change_requests_reject_prepare,
+                  data_catalog_certification_certify_prepare, data_catalog_certification_deprecate_prepare, data_catalog_metric_approve_prepare,
+                  data_catalog_metric_delete_prepare, data_catalog_relationship_accept_prepare, data_catalog_relationship_reject_prepare,
+                  identity_provider_configs_create_prepare, identity_provider_configs_destroy_prepare,
+                  identity_provider_configs_partial_update_prepare, identity_provider_configs_scim_token_create_prepare, loops_create_prepare,
+                  organization_enforce_2fa_prepare, warehouse_suggestions_accept_prepare]
   - key: mixpanel
     name: Mixpanel
     category: Product analytics
@@ -706,6 +734,11 @@ providers:
     regions:
       - { key: us, label: US (ui.honeycomb.io), server_url: "https://mcp.honeycomb.io/mcp", site: "https://ui.honeycomb.io" }
       - { key: eu, label: EU (ui.eu1.honeycomb.io), server_url: "https://mcp.eu1.honeycomb.io/mcp", site: "https://ui.eu1.honeycomb.io" }
+    # The tools Honeycomb's tool reference (docs.honeycomb.io/integrations/mcp/tools) marks as reads.
+    read_only_tools: [get_workspace_context, get_environment, get_dataset, get_dataset_columns, run_query, get_query_results, find_queries, find_columns,
+                      run_bubbleup, get_trace, list_spans, get_span_details, get_service_map, get_anomaly_service_profiles, search_semconv,
+                      get_semconv_attribute, list_semconv_namespaces, list_boards, get_triggers, get_slos, list_recipients,
+                      canvas_agent_poll_response, list_aiconversations, get_aiconversation, refinery_docs]
     source_links: server
     source_links_note: "Its query results carry a link to the same query in Honeycomb."
     map: none
@@ -729,6 +762,10 @@ providers:
     # is where its own skill opens queries (axiomhq/skills, skills/sre/scripts/axiom-link).
     server_url: https://mcp.axiom.co/mcp
     site: https://app.axiom.co
+    # The tools Axiom's tool reference (axiomhq/docs, console/intelligence/mcp-server/tools.mdx) marks as reads.
+    read_only_tools: [querydataset, getsavedqueries, listdatasets, getdatasetfields, listmetrics, listmetrictags, getmetrictagvalues, searchmetrics,
+                      querymetrics, listdashboards, getdashboard, exportdashboard, checkmonitors, getmonitor, getmonitorhistory, listnotifiers,
+                      services_getmap, services_getchanges, services_getedgehistory]
     source_links: firefight
     map: none
     history: none
@@ -762,6 +799,11 @@ providers:
     hosts: [ betterstack.com, logs.betterstack.com, uptime.betterstack.com ]
     description: Read uptime monitors, incidents, logs and errors in Better Stack.
     server_url: https://mcp.betterstack.com
+    # The reads Better Stack names by their identifiers (BetterStackHQ/claude-plugin, skills/investigate-incident). Its
+    # documentation lists its other tools by title only, so they are marked as their server says.
+    read_only_tools: [incident, incident_timeline, incident_comments, incidents, chart_alerts, monitor, monitors, monitor_response_times,
+                      monitor_availability, on_calls, on_call, escalation_policy, sources, source, source_fields, applications, errors, error,
+                      releases, query_help, metrics_schema, metrics_query_help, errors_query_help, query, query_windows]
     source_links: server
     source_links_note: "Its incidents, errors and dashboards carry their own page in Better Stack."
     map: none
@@ -778,6 +820,10 @@ providers:
     regions:
       - { key: us, label: US (logfire-us.pydantic.dev), server_url: "https://logfire-us.pydantic.dev/mcp", site: "https://logfire-us.pydantic.dev" }
       - { key: eu, label: EU (logfire-eu.pydantic.dev), server_url: "https://logfire-eu.pydantic.dev/mcp", site: "https://logfire-eu.pydantic.dev" }
+    # The reads Logfire's MCP page lists (pydantic/logfire, docs/how-to-guides/mcp-server.md).
+    read_only_tools: [query_run, query_schema_reference, query_find_exceptions_in_file, project_list, token_info, project_logfire_link,
+                      project_logfire_ui_link, dashboard_list, dashboard_get, alert_list, alert_get, alert_status, alert_history, channel_list,
+                      channel_get, schedule_list, schedule_get, issue_list, variable_list, variable_get, variable_resolve]
     source_links: firefight
     map: none
     history: none
@@ -860,7 +906,9 @@ providers:
       scope_separator: ","
       params: { prompt: consent }
       pkce: true
-    source_links: unchecked
+    # The reads Linear names in public (linear.app/changelog). Its MCP page lists no tools, so its others are marked as its server says.
+    read_only_tools: [list_customer_needs, list_teams, get_team, list_projects, get_project, list_comments]
+    source_links: firefight
     map: none
     history: none
     history_note: "It holds issues, not builds or deploys."
@@ -888,8 +936,22 @@ providers:
       scopes: [read:jira-work, write:jira-work, read:jira-user, manage:jira-webhook, offline_access]
       params: { audience: api.atlassian.com, prompt: consent }
       token_format: json
-    # Atlassian files these under its read_jira and search_jira permission groups, which only read.
-    read_only_tools: [atlassianuserinfo, getaccessibleatlassianresources, getjiraissue, searchjiraissuesusingjql, listjiraprojects, listjiraprojectissuetypesmetadata, getjiraissuetypemetawithfields, listjiraissuetransitions, listjiraissuelinktypes, listjiraissueremoteissuelinks, listjiraissueworklogs, lookupjiraaccountid, listjiraissueassignableusers, listjiraissuecomments, listjiraissuechangelogs, getjiracurrentuser, getjirauser, listjirastatuses, listjiraprojectcomponents, getjiraprojectversions, getjiraprojectversionrelatedwork, listjiraboards, getjiraboardconfig, getjiraboardissuedata, getjiraboardsprintdata, listjiraboardsprints, listjirafilters, listjiradashboards, getjiraentityproperty]
+    # Atlassian files these under its read_ and search_ permission groups, which only read: Jira's, and Confluence's and Jira
+    # Service Management Operations', whose tools arrive on the same server (support.atlassian.com/atlassian-rovo-mcp-server,
+    # Supported tools).
+    read_only_tools: [atlassianuserinfo, getaccessibleatlassianresources, getjiraissue, searchjiraissuesusingjql, listjiraprojects,
+                      listjiraprojectissuetypesmetadata, getjiraissuetypemetawithfields, listjiraissuetransitions, listjiraissuelinktypes,
+                      listjiraissueremoteissuelinks, listjiraissueworklogs, lookupjiraaccountid, listjiraissueassignableusers, listjiraissuecomments,
+                      listjiraissuechangelogs, getjiracurrentuser, getjirauser, listjirastatuses, listjiraprojectcomponents, getjiraprojectversions,
+                      getjiraprojectversionrelatedwork, listjiraboards, getjiraboardconfig, getjiraboardissuedata, getjiraboardsprintdata,
+                      listjiraboardsprints, listjirafilters, listjiradashboards, getjiraentityproperty, getcontentformatguide, search,
+                      getteamworkgraphobject, searchconfluence, getconfluencecontent, listconfluencecontent, listconfluencespaces, getconfluencespace,
+                      getconfluencespaceinstructions, getconfluencepersonalspace, listconfluencecomments, getconfluencecomment,
+                      listconfluencecontentversions, getconfluencecontentversion, diffconfluencecontentversions, listconfluenceattachments,
+                      getconfluenceattachment, downloadconfluenceattachment, exportconfluencecontent, getconfluencecontentpermissions,
+                      getconfluencecontentrestrictionstate, getconfluencepubliclinkstatus, getconfluencereactions, getconfluencetask,
+                      listconfluencetasks, listconfluencetemplates, getconfluencetemplate, resolveconfluencecontentmacros, getconfluencemauiapp,
+                      getjsmopsalerts, getjsmopsscheduleinfo, getjsmopsteaminfo]
     source_links: firefight
     map: none
     history: none
@@ -904,6 +966,11 @@ providers:
     hosts: [ api.notion.com, notion.so ]
     description: Bring runbook and architecture pages into investigations.
     server_url: https://mcp.notion.com/mcp
+    # The reads Notion's supported tools page lists (developers.notion.com/docs/mcp-supported-tools).
+    read_only_tools: [notion_search, notion_get_tool_access, notion_get_self, notion_fetch, notion_query_data_sources, notion_query_meeting_notes,
+                      notion_get_comments, notion_get_teams, notion_get_users, notion_download_attachment, notion_download_skill, notion_list_agents,
+                      notion_search_agents, notion_query_sessions, notion_search_sessions, notion_get_session_status, notion_wait_session,
+                      notion_list_session_events, notion_read_session_event, notion_get_async_task, notion_ai_search]
     source_links: server
     source_links_note: "Its results carry each page's own address."
     map: none
@@ -915,9 +982,28 @@ providers:
     category: Knowledge
     mark: CF
     color: "#1868db"
-    description: Bring team documentation into investigations.
-    server_url: ""
-    source_links: unchecked
+    status_page: { url: https://confluence.status.atlassian.com, feed: statuspage }
+    hosts: [ atlassian.net ]
+    description: Bring team documentation into investigations, and runbook pages into the handbook.
+    # Atlassian runs one Rovo MCP server for every product, so a Confluence connection reaches the same server as Jira's
+    # and sees the same tools. tools=all lists each on its own rather than behind discover and execute
+    # (support.atlassian.com/atlassian-rovo-mcp-server, Supported tools).
+    server_url: https://mcp.atlassian.com/v2/mcp?tools=all
+    # The same reads as Jira's, since the server is the same.
+    read_only_tools: [atlassianuserinfo, getaccessibleatlassianresources, getjiraissue, searchjiraissuesusingjql, listjiraprojects,
+                      listjiraprojectissuetypesmetadata, getjiraissuetypemetawithfields, listjiraissuetransitions, listjiraissuelinktypes,
+                      listjiraissueremoteissuelinks, listjiraissueworklogs, lookupjiraaccountid, listjiraissueassignableusers, listjiraissuecomments,
+                      listjiraissuechangelogs, getjiracurrentuser, getjirauser, listjirastatuses, listjiraprojectcomponents, getjiraprojectversions,
+                      getjiraprojectversionrelatedwork, listjiraboards, getjiraboardconfig, getjiraboardissuedata, getjiraboardsprintdata,
+                      listjiraboardsprints, listjirafilters, listjiradashboards, getjiraentityproperty, getcontentformatguide, search,
+                      getteamworkgraphobject, searchconfluence, getconfluencecontent, listconfluencecontent, listconfluencespaces, getconfluencespace,
+                      getconfluencespaceinstructions, getconfluencepersonalspace, listconfluencecomments, getconfluencecomment,
+                      listconfluencecontentversions, getconfluencecontentversion, diffconfluencecontentversions, listconfluenceattachments,
+                      getconfluenceattachment, downloadconfluenceattachment, exportconfluencecontent, getconfluencecontentpermissions,
+                      getconfluencecontentrestrictionstate, getconfluencepubliclinkstatus, getconfluencereactions, getconfluencetask,
+                      listconfluencetasks, listconfluencetemplates, getconfluencetemplate, resolveconfluencecontentmacros, getconfluencemauiapp,
+                      getjsmopsalerts, getjsmopsscheduleinfo, getjsmopsteaminfo]
+    source_links: firefight
     map: none
     history: none
     history_note: "It holds documents, not builds or deploys."
@@ -1141,6 +1227,8 @@ providers:
     color: "#1f2430"
     description: Point Firefight at any MCP server and allowlist its tools.
     server_url: ""
+    # Firefight cannot know which of a team's own tools only read, so an admin marks them on the connection.
+    admin_marks_reads: true
     source_links: none
     source_links_note: "A custom server is the team's own, so its results carry whatever links it gives."
     map: none

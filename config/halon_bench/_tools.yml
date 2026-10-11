@@ -440,6 +440,7 @@ check_status_page:
         - Linear
         - Jira
         - Notion
+        - Confluence
         - Neon
         - Supabase
         - PlanetScale

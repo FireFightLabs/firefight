@@ -16,9 +16,15 @@ module Integrations
       CREATED_KEY = /"key"\s*:\s*"([A-Z][A-Z0-9_]+-\d+)"/
       HOST = /\A[a-z0-9-]+(\.[a-z0-9-]+)+\z/i
 
-      def initialize(_settings); end
+      def initialize(settings)
+        @settings = settings
+      end
 
+      # Atlassian's one server answers Confluence's tools on a Jira connection too, so a page read there links like one
+      # read on a Confluence connection.
       def link(tool_name:, arguments:, text: "")
+        return Confluence.new(@settings).link(tool_name: tool_name, arguments: arguments, text: text) if Confluence::PAGE_TOOLS.include?(tool_name)
+
         asked = arguments.to_h.stringify_keys
         site = self.class.site_of(asked[CLOUD_ID])
         key = tool_name == CREATE_ISSUE ? text.to_s[CREATED_KEY, 1] : asked[ISSUE].to_s.strip

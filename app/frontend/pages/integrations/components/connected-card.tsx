@@ -33,6 +33,7 @@ import { InstallationStopped } from "@/pages/integrations/components/installatio
 import { LiveUpdates } from "@/pages/integrations/components/live-updates";
 import { RepositorySetups } from "@/pages/integrations/components/repository-setups";
 import { ScopeChoice } from "@/pages/integrations/components/scope-choice";
+import { ToolReadMark } from "@/pages/integrations/components/tool-read-mark";
 import { Blocked } from "@/components/blocked-tooltip";
 
 type Environment = Integration["environments"][number];
@@ -375,6 +376,11 @@ export function ConnectedCard({
                         write
                       </Badge>
                     )}
+                    {tool.readMark?.marked && (
+                      <Badge variant="outline" className="text-xs">
+                        marked as a read
+                      </Badge>
+                    )}
                     {!tool.available && (
                       <Badge variant="outline" className="text-xs">
                         no longer offered
@@ -397,6 +403,16 @@ export function ConnectedCard({
                     <code className="text-fg-muted mt-1 block truncate text-[11px]">
                       {tool.actionKey}
                     </code>
+                  )}
+                  {canManage && tool.readMark && (
+                    <div className="mt-1">
+                      <ToolReadMark
+                        integrationId={integration.id}
+                        toolId={tool.id}
+                        toolName={tool.name}
+                        mark={tool.readMark}
+                      />
+                    </div>
                   )}
                 </div>
                 <Blocked reason={tool.toggleBlockedReason ?? undefined}>

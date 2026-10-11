@@ -6,11 +6,11 @@ class IntegrationsController < InertiaController
   authorizes Ability::Action::RESOURCE_INTEGRATIONS,
     read: :index,
     create: %i[create oauth_start oauth_callback list_scopes],
-    update: %i[sync toggle_tool set_all_tools toggle retarget_environment choose scope_options scopes map_events_secret forget_map_events_secrets live_updates
+    update: %i[sync toggle_tool mark_tool_read set_all_tools toggle retarget_environment choose scope_options scopes map_events_secret forget_map_events_secrets live_updates
                live_updates_setup protected_paths],
     delete: :destroy
   before_action :set_integration,
-                only: [ :sync, :toggle_tool, :set_all_tools, :toggle, :retarget_environment, :choose, :scope_options, :scopes, :map_events_secret,
+                only: [ :sync, :toggle_tool, :mark_tool_read, :set_all_tools, :toggle, :retarget_environment, :choose, :scope_options, :scopes, :map_events_secret,
                       :forget_map_events_secrets,
                       :live_updates, :live_updates_setup, :protected_paths, :destroy ]
   # Connecting leaves for the provider and comes back here, setup or not.
@@ -76,6 +76,18 @@ class IntegrationsController < InertiaController
     tool.update!(enabled: !tool.enabled?)
     Integrations::ConnectionRefresh.tools_changed(@integration)
     redirect_to integrations_path, notice: "#{tool.name} on #{@integration.name} is #{tool.enabled? ? 'on' : 'off'}."
+  end
+
+  # An admin marks a tool of a server Firefight cannot know as a read, or takes the mark away.
+  def mark_tool_read
+    tool = @integration.tools.find(params[:tool_id])
+    read = ActiveModel::Type::Boolean.new.cast(params[:read])
+    blocked = tool.mark_read_blocked_reason(read)
+    return redirect_to integrations_path, alert: blocked if blocked
+
+    tool.mark_read!(read)
+    said = read ? "is marked as a read, so Halon calls it without asking" : "is no longer marked as a read, so Halon asks before calling it"
+    redirect_to integrations_path, notice: "#{tool.name} on #{@integration.name} #{said}."
   end
 
   def set_all_tools
@@ -457,6 +469,14 @@ class IntegrationsController < InertiaController
     { options: yield.map(&:to_h), error: nil }
   rescue Integrations::Error => error
     { options: [], error: error.message }
+  end
+
+  # The activity log says which tool was marked and which way, beside the request it binds an approval to.
+  def web_authorization_params
+    return super unless action_name == "mark_tool_read"
+
+    tool = current_workspace.integrations.where(deleted_at: nil).find_by(id: params[:id])&.tools&.find_by(id: params[:tool_id])
+    super.merge({ "tool" => tool&.name, "read" => ActiveModel::Type::Boolean.new.cast(params[:read]) }.compact)
   end
 
   def set_integration

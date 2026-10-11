@@ -47,6 +47,19 @@ module Integrations
       end
     end
 
+    test "a server the registry names is called unchecked, and a pasted or custom one is checked against its provider's allowlist" do
+      sentry = connection("sentry", "Sentry", "https://mcp.sentry.dev/mcp/acme")
+      pasted = connection("datadog", "Our Datadog", "https://mcp.acme.example/datadog")
+      custom = connection("custom_mcp", "Acme tools", "https://tools.acme.example/mcp")
+      checked = {}
+      McpClient.stubs(:new).with { |server_url:, checked_for:, **| checked.store(server_url, checked_for) || true }.returns(stub(tools_list: []))
+
+      [ @planetscale, sentry, pasted, custom ].each { |integration| McpExecutor.tool_definitions(integration) }
+
+      assert_equal({ "https://mcp.pscale.dev/mcp/planetscale" => nil, "https://mcp.sentry.dev/mcp/acme" => nil,
+                     "https://mcp.acme.example/datadog" => "datadog", "https://tools.acme.example/mcp" => "custom_mcp" }, checked)
+    end
+
     private
 
     def connection(provider, name, server_url)
