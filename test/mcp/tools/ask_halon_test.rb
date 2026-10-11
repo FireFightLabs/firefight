@@ -70,10 +70,28 @@ class Mcp::Tools::AskHalonTest < ActiveSupport::TestCase
     response = perform_enqueued_jobs(only: ConversationReplyJob) { ask("What changed today?") }
 
     said = "Halon couldn't reach its AI just now."
-    assert_equal said, response.structured_content[:answer]
+    assert response.error?
+    assert_equal said, response.content.sole[:text]
     conversation = @workspace.conversations.sole
     assert_not conversation.answer_owed?
     assert_equal said, conversation.chat.readable_messages.last.content
+  end
+
+  test "a turn whose job failed is an error with what the chat was told, and the next question answers as usual" do
+    Conversation::Runner.stubs(:new).returns(stub.tap { |runner| runner.stubs(:run).raises(FirefightAi::TerminalError.new("bad request")) })
+
+    failed = perform_enqueued_jobs(only: ConversationReplyJob) { ask("What changed today?") }
+
+    assert failed.error?
+    assert_equal Conversation::Delivery::FAILED, failed.content.sole[:text]
+    assert @workspace.conversations.sole.reply_failed?
+
+    halon_replies("Two deploys went out.")
+    answered = perform_enqueued_jobs(only: ConversationReplyJob) { ask("Try again?") }
+
+    assert_not answered.error?
+    assert_equal "Two deploys went out.", answered.structured_content[:answer]
+    assert_not @workspace.conversations.sole.reply_failed?
   end
 
   test "the chat is kept, so the next question from the same key carries on with it" do

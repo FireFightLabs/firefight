@@ -122,9 +122,13 @@ class Conversation < ApplicationRecord
 
   # The page shows the agent working from this, never from the shape of the last message, which the empty reply
   # RubyLLM saves before the model answers changes within milliseconds of the question.
-  def expect_reply! = update_in_place!(answer_owed_since: Time.current)
+  def expect_reply! = update_in_place!(answer_owed_since: Time.current, reply_failed: false)
 
   def reply_delivered! = update_in_place!(answer_owed_since: nil, reply_recovered_at: nil)
+
+  # The turn ended without an answer and its last word in the chat says why, so a caller waiting on it can tell that from
+  # an answer.
+  def reply_failed! = update_in_place!(answer_owed_since: nil, reply_recovered_at: nil, reply_failed: true)
 
   def confirmation_posted!(message_id) = update_in_place!(confirmation_message_id: message_id)
 
@@ -144,7 +148,7 @@ class Conversation < ApplicationRecord
 
   # Ends a lost turn, once, under the same guard.
   def end_lost_reply!(owed)
-    self.class.where(id: id, answer_owed_since: owed).update_all(answer_owed_since: nil, reply_recovered_at: nil) == 1
+    self.class.where(id: id, answer_owed_since: owed).update_all(answer_owed_since: nil, reply_recovered_at: nil, reply_failed: true) == 1
   end
 
   NOTHING_TO_STOP = "Halon is not working on anything in this chat.".freeze

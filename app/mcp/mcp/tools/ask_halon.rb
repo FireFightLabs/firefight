@@ -35,7 +35,7 @@ module Mcp
         return Mcp::ToolDispatcher.error_response(still_answering(conversation)) if conversation.answer_owed?
 
         Conversation::Asking.ask(conversation, question, asker: principal)
-        respond(HalonAnswer.after_waiting(conversation))
+        HalonAnswer.after_waiting(conversation)
       end
 
       # A question saved mid turn would land between a tool call and its result, which a model provider refuses.

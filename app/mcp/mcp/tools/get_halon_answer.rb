@@ -24,7 +24,7 @@ module Mcp
         conversation = workspace.conversations.find_by!(
           id: args[:conversation_id].to_s, kind: Conversation::KIND_MCP, started_by: principal
         )
-        respond(HalonAnswer.after_waiting(conversation))
+        HalonAnswer.after_waiting(conversation)
       end
     end
   end

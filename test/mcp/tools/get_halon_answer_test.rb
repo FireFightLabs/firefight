@@ -41,15 +41,16 @@ class Mcp::Tools::GetHalonAnswerTest < ActiveSupport::TestCase
     assert_match "Delete severity", fetched[:waiting_on].sole
   end
 
-  test "a turn whose job was lost is fetched as the sentence the recovery sweep left" do
+  test "a turn whose job was lost is fetched as an error with the sentence the recovery sweep left" do
     conversation_id = call(Mcp::Tools::AskHalon, @member, question: "What changed today?").structured_content[:conversation_id]
     conversation = @workspace.conversations.find(conversation_id)
     conversation.update!(answer_owed_since: 5.minutes.ago)
 
     Conversation::Recovery.sweep!(jobs: stub(waiting_or_running?: false, last_failed: nil))
+    fetched = call(Mcp::Tools::GetHalonAnswer, @member, conversation_id: conversation_id)
 
-    assert_equal Conversation::Recovery::INTERRUPTED,
-                 call(Mcp::Tools::GetHalonAnswer, @member, conversation_id: conversation_id).structured_content[:answer]
+    assert fetched.error?
+    assert_equal Conversation::Recovery::INTERRUPTED, fetched.content.sole[:text]
   end
 
   test "only whoever asked can fetch the answer" do
