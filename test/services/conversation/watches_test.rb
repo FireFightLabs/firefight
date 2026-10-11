@@ -267,7 +267,9 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     Slack::Client.expects(:post_message).with { |channel:, blocks:, **| channel == @alice.platform_user_id && blocks.last[:type] == "actions" }
                  .returns(ts: "1", channel: "D1")
 
-    Conversation::Watches.tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "Release run #46 started.")
+    update = Conversation::Watches.tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "Release run #46 started.")
+
+    assert_equal [ "D1", "1" ], update.reload.values_at(:message_channel_id, :message_id)
   end
 
   test "a live update from a connection wakes the watches that read through it" do

@@ -106,15 +106,54 @@ class Events::DirectMessageHandlerTest < ActiveSupport::TestCase
     assert_enqueued_with(job: ConversationReplyJob) { write("still there?", ts: "1700000000.000300", thread: "1690000000.000100") }
   end
 
-  test "a reply to a message Halon sent on its own is not taken as a new chat, and the person is told how to ask" do
-    Slack::Client.stubs(:get_message).returns({ "ts" => "1690000000.000100", "bot_id" => "B0FIREFIGHT", "text" => "Watch finished" })
-    Slack::Client.expects(:post_message).with do |arguments|
-      arguments[:channel] == DM && arguments[:thread_ts] == "1690000000.000100" && arguments[:text] == Conversation::DirectMessages::NOT_FOLLOWED
-    end.returns({ ok: true, ts: "1" })
-    Slack::Client.expects(:add_reaction).never
+  test "a reply under a watch update Halon sent carries on the person's chat in that thread, told the message and the watch as it stands" do
+    watch = dashboard_watch
+    watch.updates.create!(kind: Chat::Watch::Update::KIND_MILESTONE, text: "Web deploy finished in 4 minutes.",
+                          message_channel_id: DM, message_id: "1690000000.000100")
+    Slack::Client.stubs(:get_message).returns({ "ts" => "1690000000.000100", "bot_id" => "B0FIREFIGHT", "text" => "Web deploy finished in 4 minutes." })
 
-    assert_no_enqueued_jobs(only: ConversationReplyJob) { write("thanks, is it healthy now?", ts: "1700000000.000300", thread: "1690000000.000100") }
-    assert_equal 0, @workspace.conversations.count
+    assert_enqueued_with(job: ConversationReplyJob) { write("is it healthy now?", ts: "1700000000.000300", thread: "1690000000.000100") }
+
+    chat = @workspace.conversations.find_by!(kind: Conversation::KIND_DIRECT)
+    assert_equal "1690000000.000100", chat.thread_id
+    told = chat.chat.messages.find_by!(nudge: true).content
+    assert_match Conversation::RepliedTo::INTRO, told
+    assert_match "Web deploy finished in 4 minutes.", told
+    assert_match "\"title\": \"the release\"", told
+    assert_equal [ "is it healthy now?" ], chat.chat.readable_messages.map(&:content)
+  end
+
+  test "a reply under a held call Halon sent carries on the chat the person is having, told what the call is" do
+    write("what is going on", ts: "1700000000.000100")
+    answered
+    personal = Conversation.start_personal!(workspace: @workspace, member: @alice)
+    approval = @workspace.ability_approvals.create!(
+      principal: @alice, principal_label: "user:Alice Smith", action_key: Ability::Action::INVESTIGATIONS_CREATE, request_digest: "d", required_role: "admin",
+      status: Ability::Approval::STATUS_APPROVED, approver: workspace_memberships(:bob_workspace_one), held_for_run: true,
+      run_expires_at: 52.minutes.from_now, resolved_at: Time.current
+    )
+    Chat::HeldCall.create!(chat: personal.chat_record, approval: approval, tool_name: "restart", target: "web on Production",
+                           message_channel_id: DM, message_id: "1690000000.000200")
+    Slack::Client.stubs(:get_message).returns({ "ts" => "1690000000.000200", "bot_id" => "B0FIREFIGHT", "text" => "Approved, ready to run" })
+
+    write("run it", ts: "1700000000.000400", thread: "1690000000.000200")
+
+    chat = @workspace.conversations.find_by!(kind: Conversation::KIND_DIRECT)
+    assert_equal "1690000000.000200", chat.thread_id
+    told = chat.chat.messages.find_by!(nudge: true).content
+    assert_match "\"tool\": \"restart\"", told
+    assert_match "web on Production", told
+  end
+
+  test "a reply under a message Halon sent while a turn runs heads the question it joins" do
+    write("what is going on", ts: "1700000000.000100")
+    Slack::Client.stubs(:get_message).returns({ "ts" => "1690000000.000300", "bot_id" => "B0FIREFIGHT", "text" => "Your pack request was answered" })
+
+    write("thanks", ts: "1700000000.000500", thread: "1690000000.000300")
+
+    queued = @workspace.conversations.sole.chat.queued_messages.sole.content
+    assert queued.start_with?(Conversation::RepliedTo::INTRO)
+    assert queued.end_with?("thanks")
   end
 
   test "a reply in a running investigation's thread is added to the run as a note, and opens no chat" do
@@ -201,6 +240,12 @@ class Events::DirectMessageHandlerTest < ActiveSupport::TestCase
         "user" => user, "ts" => ts, "thread_ts" => thread, "text" => text
       }.merge(extra.transform_keys(&:to_s)).compact
     })
+  end
+
+  def dashboard_watch
+    personal = Conversation.start_personal!(workspace: @workspace, member: @alice)
+    Chat::Watch.create!(chat: personal.chat_record, workspace: @workspace, asker: @alice, title: "the release", purpose: "ship main",
+                        expires_at: 1.hour.from_now, limit_basis: Chat::Watch::BASIS_DEFAULT)
   end
 
   def investigation(status:)

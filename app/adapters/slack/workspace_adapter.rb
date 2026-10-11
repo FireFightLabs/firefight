@@ -253,17 +253,23 @@ module Slack
 
     # Read from the thread's first message. One that cannot be read, or is not there any more, counts as the person's,
     # so their message is answered rather than dropped.
-    def direct_thread_start(channel_id:, thread_id:)
+    def direct_thread_root(channel_id:, thread_id:)
       root = fetch_message(channel_id: channel_id, message_id: thread_id)[:raw].to_h.with_indifferent_access
-      return PlatformAdapter::THREAD_STARTED_BY_PERSON unless root[:ts] == thread_id
+      return { started: PlatformAdapter::THREAD_STARTED_BY_PERSON, text: nil } unless root[:ts] == thread_id
+
+      { started: thread_started_by(root), text: root[:text].presence }
+    rescue AdapterError => error
+      Rails.logger.info({ event: "slack.direct_thread_root.unread", error: error.class.name }.to_json)
+      { started: PlatformAdapter::THREAD_STARTED_BY_PERSON, text: nil }
+    end
+
+    def thread_started_by(root)
       return PlatformAdapter::THREAD_STARTED_AS_CHAT if root[:subtype] == AGENT_THREAD_SUBTYPE
       return PlatformAdapter::THREAD_STARTED_BY_APP if root[:bot_id].present? || root[:app_id].present?
 
       PlatformAdapter::THREAD_STARTED_BY_PERSON
-    rescue AdapterError => error
-      Rails.logger.info({ event: "slack.direct_thread_start.unread", error: error.class.name }.to_json)
-      PlatformAdapter::THREAD_STARTED_BY_PERSON
     end
+    private :thread_started_by
 
     def get_user_info(user_id:)
       translate_errors do

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_11_210000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_11_210001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1020,6 +1020,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_210000) do
     t.text "text", null: false
     t.datetime "told_at"
     t.datetime "created_at", null: false
+    t.string "message_channel_id"
+    t.string "message_id"
+    t.index ["message_channel_id", "message_id"], name: "index_chat_watch_updates_on_message_channel_id_and_message_id"
     t.index ["watch_id"], name: "index_chat_watch_updates_on_watch_id"
   end
 

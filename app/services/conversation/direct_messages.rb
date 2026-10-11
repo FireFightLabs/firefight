@@ -1,9 +1,8 @@
 # A person writing to Halon in their direct messages. Each message is a question in a chat of theirs, asked as them, and
 # answered in the thread it was sent in. A new message carries on the chat they were having until it goes quiet for a
-# day (Conversation::DIRECT_QUIET_AFTER), and a reply in a thread carries on that thread's chat.
+# day (Conversation::DIRECT_QUIET_AFTER), and a reply in a thread carries on that thread's chat. A reply under a message
+# Halon sent on its own carries on their chat too, told what that message said and what it belongs to.
 class Conversation::DirectMessages
-  NOT_FOLLOWED = "I don't pick up replies to this message. Send me a new message here to ask me something.".freeze
-
   # thread_id is the thread the message was sent in, and its own id when it starts one. Returns a sentence to tell the
   # person when the message was not taken, or nil.
   def self.receive!(workspace:, sender:, channel_id:, message_id:, thread_id:, text:, files:, source:)
@@ -25,13 +24,13 @@ class Conversation::DirectMessages
 
     existing = Conversation.in_thread(@workspace, @channel_id, @thread_id)
     finished = Investigation.posted_in_thread(@workspace, @thread_id) if reply && !existing
-    start = thread_start if reply && !existing && !finished
-    return NOT_FOLLOWED if start == PlatformAdapter::THREAD_STARTED_BY_APP
+    root = thread_root if reply && !existing && !finished
+    started = root&.dig(:started)
 
     Conversation.ask_from_thread!(asker: @sender, workspace: @workspace, incident: existing&.incident || finished&.incident, source: @source) do
-      conversation = existing || opened(finished, new_chat: finished.present? || start == PlatformAdapter::THREAD_STARTED_AS_CHAT)
+      conversation = existing || opened(finished, new_chat: finished.present? || started == PlatformAdapter::THREAD_STARTED_AS_CHAT)
       conversation.asked_in_thread!(@channel_id, @thread_id) if conversation.direct?
-      Conversation::Asking.ask(conversation, text, asker: @sender, files: shared(files))
+      Conversation::Asking.ask(conversation, text, asker: @sender, files: shared(files), context: replied_to(root))
     end
     nil
   rescue AbilityGateway::Denied => denied
@@ -54,7 +53,13 @@ class Conversation::DirectMessages
     Conversation.in_thread(@workspace, @channel_id, @thread_id) || raise
   end
 
-  def thread_start = WorkspaceAdapter.for(@workspace).direct_thread_start(channel_id: @channel_id, thread_id: @thread_id)
+  def thread_root = WorkspaceAdapter.for(@workspace).direct_thread_root(channel_id: @channel_id, thread_id: @thread_id)
+
+  def replied_to(root)
+    return nil unless root && root[:started] == PlatformAdapter::THREAD_STARTED_BY_APP
+
+    Conversation::RepliedTo.context(@workspace, channel_id: @channel_id, message_id: @thread_id, text: root[:text])
+  end
 
   def shared(files) = Conversation::SharedFiles.receive(workspace: @workspace, files: files, sender: @sender)
 end

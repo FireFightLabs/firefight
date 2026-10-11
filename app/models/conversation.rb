@@ -162,9 +162,15 @@ class Conversation < ApplicationRecord
   # Saved before the job runs, so the person sees it at once and a retried job asks only once. From here an answer is owed.
   # While a turn is running the question waits and joins that turn at the agent's next step, so the person can steer it.
   # Files go with the question, and a question may be files alone.
-  def ask!(question, asker: nil, files: [])
-    return chat_record.queue_message!(question, sender: asker, files: files) if asker.is_a?(WorkspaceMembership) && answer_owed?
+  # context is what Halon needs to read with the question and the person never wrote, such as the message they replied to.
+  # Between turns it goes before the question as a note the page does not show. A turn already running takes only whole
+  # messages between its steps, so there it heads the question.
+  def ask!(question, asker: nil, files: [], context: nil)
+    if asker.is_a?(WorkspaceMembership) && answer_owed?
+      return chat_record.queue_message!([ context, question.presence ].compact.join("\n\n"), sender: asker, files: files)
+    end
 
+    chat_record.nudge!(context) if context
     message = chat_record.add_person_message!(question, sender: asker)
     chat_record.attach_files!(message, files)
     named = question.presence || files.map(&:filename).to_sentence
