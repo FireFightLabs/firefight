@@ -1,0 +1,20 @@
+{
+  "organization_name": "acme",
+  "project_name": "acme-qa",
+  "alert_name": "Example alert",
+  "timestamp": "2026-08-02T21:05:45.118022Z",
+  "n_rows": 0,
+  "data": [],
+  "columns": [
+    { "name": "canary", "type": { "type_name": "Int64", "is_array": false }, "nullable": false }
+  ],
+  "errors": null,
+  "description": "Example description",
+  "links": {
+    "org": "https://logfire-eu.pydantic.dev/acme",
+    "project": "https://logfire-eu.pydantic.dev/acme/acme-qa",
+    "alert": "https://logfire-eu.pydantic.dev/acme/acme-qa/alerts/0198b2c4-5d1e-7a3f-9c2b-1e4f6a8d0c3b?alertRunId=0198b2cd-7f30-7b11-a2c4-5e8d1f3a9b62",
+    "alert_settings": "https://logfire-eu.pydantic.dev/acme/acme-qa/alerts/0198b2c4-5d1e-7a3f-9c2b-1e4f6a8d0c3b?alertRunId=0198b2cd-7f30-7b11-a2c4-5e8d1f3a9b62/edit",
+    "explore": "https://logfire-eu.pydantic.dev/acme/acme-qa/explore?query=SELECT+1+AS+canary"
+  }
+}

@@ -203,6 +203,8 @@ Rails.application.routes.draw do
     resources :alert_sources, only: [ :create, :update, :destroy ], path: "settings/alert-sources" do
       member do
         post :token
+        post :address
+        post :regenerate_address
         get :sample_payload
       end
     end

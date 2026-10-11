@@ -1,5 +1,5 @@
 import type { PolicyRule } from "@/types/serializers"
-import { alertRoutingSendTestPath, alertRoutingTestPath } from "@/lib/routes"
+import { addressAlertSourcePath, alertRoutingSendTestPath, alertRoutingTestPath } from "@/lib/routes"
 import { postJson } from "@/lib/http"
 import {
   ALERT_CONDITION_OPERATORS,
@@ -52,8 +52,25 @@ export interface AlertProviderSetup {
   label: string
   steps: string[]
   secretFromProvider: boolean
+  // The source's secret is part of its URL, so the page only ever holds the URL masked.
+  secretInAddress: boolean
   fieldMapping: boolean
   template: string | null
+}
+
+export function providerSetup(providers: AlertProviderSetup[], value: string): AlertProviderSetup | null {
+  return providers.find((entry) => entry.provider === value) ?? null
+}
+
+// The whole URL of a source whose secret is part of it, fetched on demand so it never ships in page props. Null when the
+// server refused or could not be reached.
+export async function fetchSourceAddress(sourceId: string): Promise<string | null> {
+  try {
+    const { ok, data } = await postJson<{ path: string }>(addressAlertSourcePath(sourceId))
+    return ok && data ? `${window.location.origin}${data.path}` : null
+  } catch {
+    return null
+  }
 }
 
 export function providerLabel(providers: AlertProviderSetup[], value: string): string {

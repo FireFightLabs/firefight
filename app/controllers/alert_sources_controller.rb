@@ -1,6 +1,6 @@
 class AlertSourcesController < InertiaController
-  authorizes Ability::Action::RESOURCE_ALERTS, read: :sample_payload, create: :create, update: %i[update token], delete: :destroy
-  before_action :set_alert_source, only: [ :update, :destroy, :token, :sample_payload ]
+  authorizes Ability::Action::RESOURCE_ALERTS, read: :sample_payload, create: :create, update: %i[update token address regenerate_address], delete: :destroy
+  before_action :set_alert_source, only: [ :update, :destroy, :token, :address, :regenerate_address, :sample_payload ]
 
   def create
     source = current_workspace.alert_sources.new(
@@ -37,9 +37,23 @@ class AlertSourcesController < InertiaController
 
   # Fetched on demand, never embedded in page props. A secret the person pasted in from their tool is never sent back.
   def token
-    return head :not_found if adapter::SECRET_FROM_PROVIDER
+    return head :not_found if adapter::SECRET_FROM_PROVIDER || adapter::SECRET_IN_ADDRESS
 
     render json: { token: @alert_source.secret_token }
+  end
+
+  # The whole address of a source whose token is part of it, fetched on demand like the token.
+  def address
+    return head :not_found unless adapter::SECRET_IN_ADDRESS
+
+    render json: { path: "#{api_v1_alert_ingest_path(endpoint_path: @alert_source.endpoint_path)}/#{@alert_source.secret_token}" }
+  end
+
+  def regenerate_address
+    return head :not_found unless adapter::SECRET_IN_ADDRESS
+
+    @alert_source.regenerate_secret!
+    redirect_to settings_alert_sources_path, notice: "#{@alert_source.name} has a new address."
   end
 
   # The latest raw payload, so the field mapping UI can offer real keys.

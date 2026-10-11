@@ -10,6 +10,9 @@ module AlertProviders
     # A provider that signs with a secret it generates itself, so the person pastes that secret into Firefight rather
     # than copying Firefight's token out.
     SECRET_FROM_PROVIDER = false
+    # A provider whose webhook sends no header at all, so the source's token travels as the last segment of its address.
+    # Only someone who can change the source sees that address whole.
+    SECRET_IN_ADDRESS = false
     # Whether the source's fields come from dot paths the person maps on the source, rather than from the adapter.
     FIELD_MAPPING = false
     # A body the person pastes into a tool whose webhook body is a template they write, or nil when the tool's own body
@@ -27,6 +30,9 @@ module AlertProviders
 
       ActiveSupport::SecurityUtils.secure_compare(provided, source.secret_token)
     end
+
+    # The secret taken out of the address before the request was logged (AlertAddressSecret).
+    def self.address_secret(headers) = headers[AlertAddressSecret::ENV_KEY].to_s.presence
 
     def self.bearer_token(headers)
       authorization = headers["Authorization"].to_s
@@ -85,7 +91,7 @@ module AlertProviders
     # What the settings screen needs to offer the provider and walk someone through pointing it at a source.
     def self.descriptor(provider)
       { provider: provider, label: self::LABEL, steps: self::SETUP_STEPS,
-        secretFromProvider: self::SECRET_FROM_PROVIDER, fieldMapping: self::FIELD_MAPPING, template: self::TEMPLATE }
+        secretFromProvider: self::SECRET_FROM_PROVIDER, secretInAddress: self::SECRET_IN_ADDRESS, fieldMapping: self::FIELD_MAPPING, template: self::TEMPLATE }
     end
   end
 end
