@@ -75,6 +75,9 @@ class Integrations::Capabilities::NorthflankTest < ActiveSupport::TestCase
     assert_equal({ "instances" => 3, "deploymentPlan" => "nf-compute-20" }, resolve(scale, "resource" => "web", "instances" => 3, "plan" => "nf-compute-20").arguments["body"])
     assert_match "Name the plan", assert_raises(Integrations::Capabilities::Unroutable) { resolve(scale, "resource" => "nightly", "instances" => 1) }.message
     assert_match "instances must be 1", assert_raises(Integrations::Capabilities::Unroutable) { resolve(scale, "resource" => "nightly", "instances" => 4, "plan" => "x") }.message
+    assert_equal({ "deploymentPlan" => "nf-compute-50" }, resolve(scale, "resource" => "nightly", "plan" => "nf-compute-50").arguments["body"])
+    assert_equal({ "deploymentPlan" => "nf-compute-20" }, resolve(scale, "resource" => "web", "plan" => "nf-compute-20").arguments["body"])
+    assert_match "Say how many instances to run, or the plan", assert_raises(Integrations::Capabilities::Unroutable) { resolve(scale, "resource" => "web") }.message
   end
 
   test "a job's logs are narrowed to one run, which a provider without runs refuses rather than ignores" do
@@ -90,6 +93,8 @@ class Integrations::Capabilities::NorthflankTest < ActiveSupport::TestCase
                                   name: "api", integration_environment: render_row, first_seen_at: Time.current, last_seen_at: Time.current)
     error = assert_raises(Integrations::Capabilities::Unroutable) { resolve(logs, "resource" => "api", "run" => "run-1") }
     assert_match "keeps no logs per run for api, so leave run out", error.message
+    assert_match "sizes api by instances alone, so leave plan out and say how many instances",
+                 assert_raises(Integrations::Capabilities::Unroutable) { resolve(Integrations::Capabilities::SCALE, "resource" => "api", "plan" => "pro") }.message
     assert_match "sizes api by instances alone, so leave plan out",
                  assert_raises(Integrations::Capabilities::Unroutable) { resolve(Integrations::Capabilities::SCALE, "resource" => "api", "instances" => 2, "plan" => "pro") }.message
   end

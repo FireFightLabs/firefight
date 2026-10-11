@@ -1206,13 +1206,12 @@ scale:
         description: The resource, by its name, its provider's id or its id on the resource map, as search_map or get_resource gave it
       instances:
         type: integer
-        description: How many instances to run
+        description: How many instances to run (optional when plan is given)
       plan:
         type: string
         description: The size to run at, by the provider's own id for its plan, such as nf-compute-20, where the provider sizes by plan (optional)
     required:
     - resource
-    - instances
   confirms: true
 resolve_incident:
   live: true

@@ -95,18 +95,20 @@ module Integrations
         change("services/#{id}/deployment", { "external" => { "imagePath" => to, "credentials" => credentials.presence }.compact })
       end
 
-      # A service's instances, a database's replicas and a job's plan, with the plan passed for any of them.
+      # A service's instances, a database's replicas and a job's plan, with the plan passed for any of them. With a plan,
+      # instances may be left out to keep the count.
       def self.scale(resource, given)
         plan = given[PLAN_ARG].to_s.strip.presence
         id = resource.external_id
+        count = instances(given) if given["instances"].present? || plan.nil?
         case resource.kind
-        when ResourceMap::KIND_DATABASE then change("addons/#{id}/scale", { "replicas" => instances(given), "deploymentPlan" => plan }.compact)
+        when ResourceMap::KIND_DATABASE then change("addons/#{id}/scale", { "replicas" => count, "deploymentPlan" => plan }.compact)
         when ResourceMap::KIND_JOB
-          raise Unroutable, "A Northflank job runs one container a run, so instances must be #{ONE_RUN}. Name its plan to give it more." unless instances(given) == ONE_RUN
+          raise Unroutable, "A Northflank job runs one container a run, so instances must be #{ONE_RUN}. Name its plan to give it more." unless count.nil? || count == ONE_RUN
           raise Unroutable, "A Northflank job is scaled by its plan. Name the plan, such as nf-compute-20." unless plan
 
           change("jobs/#{id}/scale", { "deploymentPlan" => plan })
-        else change("services/#{id}/scale", { "instances" => instances(given), "deploymentPlan" => plan }.compact)
+        else change("services/#{id}/scale", { "instances" => count, "deploymentPlan" => plan }.compact)
         end
       end
 

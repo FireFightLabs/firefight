@@ -112,10 +112,10 @@ module Integrations
                params: {}, required: []),
       Spec.new(key: SCALE, tool_name: "scale", writes: true, what: "scaling",
                description: "Set how many instances one resource on the map runs, through whichever connection runs it",
-               params: { "instances" => { "type" => "integer", "description" => "How many instances to run" },
+               params: { "instances" => { "type" => "integer", "description" => "How many instances to run (optional when plan is given)" },
                          PLAN_ARG => { "type" => "string", "description" => "The size to run at, by the provider's own id for its plan, such as " \
                                                                        "nf-compute-20, where the provider sizes by plan (optional)" } },
-               required: [ "instances" ])
+               required: [])
     ].index_by(&:key).freeze
 
     # What an adapter answers: the provider tool to run, its own arguments, and how to read its answer back into the
@@ -395,8 +395,11 @@ module Integrations
       switched_on = Integration::Tool.in_workspace(workspace).where(integration_id: candidate.row.integration_id)
       usual = candidate.adapter.tool_for(spec.key)
       usual_tool = switched_on.find_by(name: usual)
+      if spec.key == SCALE && given["instances"].blank? && given[PLAN_ARG].blank?
+        raise Unroutable, "Say how many instances to run, or the plan to run at where the provider sizes by plan."
+      end
       if given[PLAN_ARG].present? && !candidate.adapter.takes_plan?
-        raise Unroutable, "#{candidate.row.integration.name} sizes #{candidate.resource.name} by instances alone, so leave plan out."
+        raise Unroutable, "#{candidate.row.integration.name} sizes #{candidate.resource.name} by instances alone, so leave plan out and say how many instances."
       end
       if run_logs_refused?(candidate, spec, given)
         raise Unroutable, "#{candidate.row.integration.name} keeps no logs per run for #{candidate.resource.name}, so leave run out and narrow by time."
