@@ -152,7 +152,8 @@ class ResourceMap::Resource < ApplicationRecord
   end
 
   # Every link within depth hops of this resource, in either direction, each with the hop it was found at. A repository
-  # a resource is managed in ends the walk there, or one service would pull in everything else defined beside it. With
+  # a resource is managed in, or a release flow that ships it, ends the walk there, or one service would pull in
+  # everything else defined or released beside it. With
   # within, only links between two resources inside it are walked.
   def neighborhood(depth: NEIGHBORHOOD_DEPTH, within: nil) = walk(depth, within).first
 
@@ -180,7 +181,7 @@ class ResourceMap::Resource < ApplicationRecord
         end
         frontier = links.flat_map do |link|
           found[link.id] ||= [ link, hop + 1 ]
-          next [] if link.relation == ResourceMap::RELATION_MANAGED_BY
+          next [] if ResourceMap::OWNING_RELATIONS.include?(link.relation)
 
           [ link.from_resource_id, link.to_resource_id ].reject { |each| hops.key?(each) }.each { |each| hops[each] = hop + 1 }
         end.uniq

@@ -2,15 +2,17 @@
 // exports, with its method, path, purpose, permission, query options and body fields. Run by ProviderDocs::Package
 // with Node's permission model, so the client it loads reads only its own folder.
 //
-//   node api_client_endpoints.mjs <install dir> <package> <out dir> <relative to> [parameter left out ...]
+//   node api_client_endpoints.mjs <install dir> <package> <out dir> <relative to> <documented paths> [parameter left out ...]
 //
 // Paths under <relative to> are written after it, as a tool that works inside that scope takes them. A parameter left
-// out picks the path variant without it, such as the team scoped copy of every project path.
+// out picks the path variant without it, such as the team scoped copy of every project path. <documented paths> is a
+// JSON list of calls the provider's reference documents that its client makes through helpers of its own rather than an
+// endpoint class, each with its method, path (written after <relative to>), description, permission and query names.
 import { createRequire } from "node:module"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import path from "node:path"
 
-const [installDir, packageName, outDir, relativeTo, ...leftOut] = process.argv.slice(2)
+const [installDir, packageName, outDir, relativeTo, documentedPaths, ...leftOut] = process.argv.slice(2)
 const requireFrom = createRequire(path.join(installDir, "package.json"))
 const client = requireFrom(packageName)
 const manifestPath = requireFrom.resolve(`${packageName}/package.json`)
@@ -140,6 +142,23 @@ const endpoints = Object.keys(client).filter((name) => name.endsWith("Endpoint")
     body: fieldsOf(`${base}Data`),
   } ]
 })
+
+// Calls the reference documents beside the client's own, written as one of them, unless the client defines the same call.
+const documented = JSON.parse(readFileSync(documentedPaths, "utf8")).filter((call) =>
+  !endpoints.some((endpoint) => endpoint.inScope && endpoint.method === call.method && endpoint.path === call.path))
+for (const call of documented) {
+  endpoints.push({
+    method: call.method,
+    path: call.path,
+    inScope: true,
+    area: call.path.split("/")[0],
+    description: `${sentence(call.description)} Documented in the provider's API reference, and not one of its client's endpoint classes.`,
+    permission: call.permission || null,
+    deprecated: null,
+    query: { required: [], optional: call.query || [] },
+    body: null,
+  })
+}
 
 // A client whose shape changed, or a scope that names nothing, fails the run rather than writing an empty list.
 if (endpoints.length === 0 || !endpoints.some((endpoint) => endpoint.inScope)) {

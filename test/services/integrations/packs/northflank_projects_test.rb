@@ -20,6 +20,8 @@ module Integrations
           )
           NorthflankApi.any_instance.stubs(:addons).with(project).returns(listed([]))
           NorthflankApi.any_instance.stubs(:jobs).with(project).returns(listed([]))
+          NorthflankApi.any_instance.stubs(:workflows).with(project).returns(listed([]))
+          NorthflankApi.any_instance.stubs(:pipelines).with(project).returns(listed([]))
           NorthflankApi.any_instance.stubs(:secret_groups).with(project).returns(listed([]))
         end
       end
@@ -54,6 +56,8 @@ module Integrations
         NorthflankApi.any_instance.stubs(:services).with("new-one").returns(listed([]))
         NorthflankApi.any_instance.stubs(:addons).with("new-one").returns(listed([ { "id" => "db", "name" => "db", "status" => "running", "appId" => "/labs/new-one/db" } ]))
         NorthflankApi.any_instance.stubs(:jobs).with("new-one").returns(listed([]))
+        NorthflankApi.any_instance.stubs(:workflows).with("new-one").returns(listed([]))
+        NorthflankApi.any_instance.stubs(:pipelines).with("new-one").returns(listed([]))
         NorthflankApi.any_instance.stubs(:secret_groups).with("new-one").returns(listed([]))
 
         found = Northflank.new(@integration).map_of(@row.reload).resources

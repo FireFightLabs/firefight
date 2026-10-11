@@ -19,6 +19,9 @@ module Integrations
           { "id" => "db", "name" => "db", "spec" => { "type" => "postgresql" }, "status" => "running", "appId" => "/firefight-labs/firefight/db" }
         ]))
         NorthflankApi.any_instance.stubs(:secret_groups).returns(listed([]))
+        NorthflankApi.any_instance.stubs(:jobs).returns(listed([]))
+        NorthflankApi.any_instance.stubs(:workflows).returns(listed([]))
+        NorthflankApi.any_instance.stubs(:pipelines).returns(listed([]))
       end
 
       test "the token and project are stored trimmed, and every tool only reads except the ones that change the project" do
@@ -274,10 +277,15 @@ module Integrations
         NorthflankApi.any_instance.stubs(logs: [], metrics: {}, builds: [], deployments: [], containers: [], build_logs: [],
                                          service: { "deployment" => {}, "healthChecks" => [] },
                                          jobs: listed([ { "id" => "nightly", "name" => "Nightly", "jobType" => "cron" } ]), job_runs: [], request: {},
-                                         workflow: { "name" => "Release", "triggers" => [] }, update_workflow: {}, billing_usage: listed([]))
+                                         workflow: { "name" => "Release", "triggers" => [] }, update_workflow: {}, billing_usage: listed([]),
+                                         workflows: listed([ { "id" => "release", "name" => "Release" } ]), workflow_runs: [],
+                                         pipelines: listed([ { "id" => "shop", "name" => "shop" } ]), release_flow_runs: [], backups: [])
         arguments = { "resource" => "web", "job" => "nightly", "build" => "jovial-writer-6307", "method" => "POST", "path" => "services/web/restart",
-                      "workflow" => "release", "ref" => "release-webhook" }
-        links = Northflank.tool_definitions.to_h { |definition| [ definition.name.to_s, call(definition.name, arguments).lines.last ] }
+                      "workflow" => "release", "ref" => "release-webhook", "pipeline" => "shop", "stage" => "Production" }
+        links = Northflank.tool_definitions.to_h do |definition|
+          given = definition.name.to_s == Northflank::Backups::BACKUP_HISTORY ? arguments.merge("resource" => "db") : arguments
+          [ definition.name.to_s, call(definition.name, given).lines.last ]
+        end
 
         assert links.values.all? { |line| line.start_with?("Open this in Northflank") }, links.inspect
         assert_match %r{/project/firefight\z}, links["list_resources"]
@@ -291,6 +299,9 @@ module Integrations
         assert_match %r{/services/web\z}, links["api_request"]
         assert_match %r{/project/firefight\z}, links["add_workflow_webhook"]
         assert_match %r{app.northflank.com\z}, links["billing_usage"]
+        assert_match %r{/project/firefight\z}, links["workflow_runs"]
+        assert_match %r{/project/firefight\z}, links["release_flow_runs"]
+        assert_match %r{/project/firefight/addons/db\z}, links["backup_history"]
       end
 
       test "a metric with more containers than a chart keeps says how many were left out" do
@@ -306,7 +317,7 @@ module Integrations
       test "a resource that is not in the project says what to do instead" do
         error = assert_raises(NativePack::Error) { call(:search_logs, "resource" => "checkout") }
 
-        assert_match "list_resources shows what there is", error.message
+        assert_match "list_resources and list_jobs show what there is", error.message
       end
 
       test "a service is described with its rollout, what it runs, its health checks and ports" do
@@ -355,12 +366,15 @@ module Integrations
         NorthflankApi.any_instance.stubs(:deployments).with("firefight", "web", limit: 20).returns([
           { "createdAt" => "2026-09-24T13:05:25Z", "active" => true, "instances" => 1,
             "commit" => { "sha" => "c4e4267d46e638ac", "message" => "Argue with an answer\nmore", "author" => "ada" },
-            "reason" => { "id" => "service-updated", "user" => { "name" => "Ada" } } }
+            "reason" => { "id" => "service-updated", "user" => { "name" => "Ada" } } },
+          { "id" => "6560a1b2c3d4e5f6a7b8c9d0", "createdAt" => "2026-09-24T12:00:00Z", "active" => true, "releaseType" => "stable", "instances" => 2,
+            "image" => { "imagePath" => "ghcr.io/acme/web", "tag" => "1.3" }, "reason" => { "id" => "release-flow" } }
         ])
 
         text = call(:list_deployments, "resource" => "web")
 
         assert_match "2026-09-24T13:05:25Z, active, 1 instances, c4e4267d46e6 \"Argue with an answer\" by ada, reason service-updated by Ada", text
+        assert_match "2026-09-24T12:00:00Z, deployment 6560a1b2c3d4e5f6a7b8c9d0, active, stable side of a rollout, 2 instances, image ghcr.io/acme/web:1.3", text
       end
 
       test "containers are listed newest first in words, with how many run and failed" do
@@ -384,6 +398,7 @@ module Integrations
         )
         NorthflankApi.any_instance.stubs(:service).with("firefight", "gone").raises(NorthflankApi::NotFound, "Northflank answered 404")
         NorthflankApi.any_instance.stubs(:addon).with("firefight", "gone").raises(NorthflankApi::NotFound, "Northflank answered 404")
+        NorthflankApi.any_instance.stubs(:job).with("firefight", "gone").raises(NorthflankApi::NotFound, "Northflank answered 404")
         NorthflankApi.any_instance.stubs(:containers).returns([])
 
         assert_match "Only the first 2 were read, so name a resource by its id to reach the rest.", call(:list_resources)
@@ -538,14 +553,14 @@ module Integrations
         assert_nil ResourceMap::Resource.find_by!(workspace: @workspace, external_id: "web").removed_at
       end
 
-      test "only services have builds" do
+      test "only services and jobs have builds" do
         error = assert_raises(NativePack::Error) { call(:recent_builds, "resource" => "db") }
 
-        assert_match "only services have builds", error.message
+        assert_match "only services and jobs have builds", error.message
       end
 
       test "build history reads a build from when it was made to when it concluded, in Firefight's words" do
-        NorthflankApi.any_instance.stubs(:builds).with("firefight", "web", limit: 20).returns([
+        NorthflankApi.any_instance.stubs(:builds).with("firefight", "web", limit: 20, kind: "services").returns([
           { "id" => "joyous-view-2", "status" => "BUILDING", "createdAt" => "2026-10-01T10:00:00.000Z", "branch" => "main", "sha" => "c4e4267d46e638ac" },
           { "id" => "joyous-view-1", "status" => "SUCCESS", "concluded" => true, "success" => true, "createdAt" => "2026-10-01T09:00:00.000Z",
             "buildConcludedAt" => Time.utc(2026, 10, 1, 9, 6).to_i },
@@ -559,7 +574,7 @@ module Integrations
         assert_equal [ [ "running", nil ], [ "succeeded", 360 ], [ "failed", 120 ] ], runs.map { |run| [ run.status, run.seconds ] }
         assert_equal "main, c4e4267d46e6", runs.first.detail
         assert_equal 360, result.dig(Telemetry::STRUCTURED, Capabilities::History::USUAL_SECONDS)
-        assert_match "only services have builds", assert_raises(NativePack::Error) { call(:build_history, "resource" => "db") }.message
+        assert_match "only services and jobs have builds", assert_raises(NativePack::Error) { call(:build_history, "resource" => "db") }.message
       end
 
       test "a notification about a service reads that service again with the settings its secret groups give it, and nothing else" do

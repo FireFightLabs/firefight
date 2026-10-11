@@ -31,6 +31,9 @@ export const KIND_TONES: Record<ResourceMapKind, string> = {
   function: RUNNING,
   cluster: RUNNING,
   compute: RUNNING,
+  workflow: SOURCE,
+  pipeline: SOURCE,
+  release_flow: SOURCE,
 }
 
 export const HEALTH_DOTS: Record<ResourceMapHealth, string> = {

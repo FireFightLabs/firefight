@@ -5,6 +5,7 @@ module ProviderDocs
   class Package
     REGISTRY = "https://registry.npmjs.org".freeze
     SCRIPT = Rails.root.join("script/provider_docs/api_client_endpoints.mjs")
+    PATHS_FILE = "documented_paths.json".freeze
 
     def initialize(definition, client:, revisions:, progress:, version: nil)
       @definition = definition
@@ -16,11 +17,12 @@ module ProviderDocs
 
     def read
       package = @definition.address
-      latest = @client.json("#{REGISTRY}/#{package.sub('/', '%2F')}/latest").fetch("version")
-      url = "https://www.npmjs.com/package/#{package}/v/#{latest}"
-      if latest == @version && @revisions.any?
+      released = @client.json("#{REGISTRY}/#{package.sub('/', '%2F')}/latest").fetch("version")
+      url = "https://www.npmjs.com/package/#{package}/v/#{released}"
+      version = versioned(released)
+      if version == @version && @revisions.any?
         @progress.listed(@revisions.size)
-        return Reading.new(pages: @revisions.keys.map { |path| Fetched.new(path: path, url: url, content: nil, revision: latest) }, listed: @revisions.keys, version: latest)
+        return Reading.new(pages: @revisions.keys.map { |path| Fetched.new(path: path, url: url, content: nil, revision: version) }, listed: @revisions.keys, version: version)
       end
 
       Dir.mktmpdir do |dir|
@@ -28,23 +30,32 @@ module ProviderDocs
         out = File.join(dir, "pages")
         FileUtils.mkdir_p([ install, out ])
         run({ "PATH" => ENV.fetch("PATH"), "HOME" => dir, "npm_config_cache" => File.join(dir, "cache") },
-            "npm", "install", "--prefix", install, "--ignore-scripts", "--no-save", "--no-package-lock", "--no-audit", "--no-fund", "--silent", "#{package}@#{latest}")
+            "npm", "install", "--prefix", install, "--ignore-scripts", "--no-save", "--no-package-lock", "--no-audit", "--no-fund", "--silent", "#{package}@#{released}")
+        paths = File.join(install, PATHS_FILE)
+        File.write(paths, Array(@definition["paths"]).to_json)
         run({ "PATH" => ENV.fetch("PATH") }, "node", "--permission", "--allow-fs-read=#{install}", "--allow-fs-read=#{SCRIPT.dirname}",
-            "--allow-fs-write=#{out}", SCRIPT.to_s, install, package, out, @definition.fetch("relative_to"), *Array(@definition["leave_out"]))
+            "--allow-fs-write=#{out}", SCRIPT.to_s, install, package, out, @definition.fetch("relative_to"), paths, *Array(@definition["leave_out"]))
         pages = Dir[File.join(out, "**/*.md")].sort.map do |file|
           path = "#{@definition.prefix}#{@definition.fetch('endpoints')}/#{Pathname(file).relative_path_from(out)}"
-          Fetched.new(path: path, url: url, content: File.read(file), revision: latest)
+          Fetched.new(path: path, url: url, content: File.read(file), revision: version)
         end
-        raise DocsClient::Error, "#{package} #{latest} defines no endpoints" if pages.empty?
+        raise DocsClient::Error, "#{package} #{released} defines no endpoints" if pages.empty?
 
         @progress.listed(pages.size)
 
         license = File.read(File.join(install, "node_modules", package, @definition.fetch("license")))
-        Reading.new(pages: pages, listed: pages.map(&:path), version: latest, license: license)
+        Reading.new(pages: pages, listed: pages.map(&:path), version: version, license: license)
       end
     end
 
     private
+
+    # The client's version, with a digest of the paths written beside its endpoints, so a change to them is read again
+    # though the client did not change.
+    def versioned(released)
+      paths = Array(@definition["paths"])
+      paths.empty? ? released : "#{released}+#{Digest::SHA256.hexdigest(paths.to_json).first(8)}"
+    end
 
     def run(env, *command)
       _output, error, status = Open3.capture3(env, *command, unsetenv_others: true)

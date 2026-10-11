@@ -10,15 +10,18 @@ import {
   IconCode,
   IconCpu,
   IconDatabase,
+  IconGitMerge,
   IconGitBranch,
   IconHammer,
   IconKey,
   IconLambda,
   IconPlugConnected,
+  IconRocket,
   IconServer2,
   IconServerCog,
   IconShieldLock,
   IconStack2,
+  IconTimeline,
   IconTopologyStar3,
   IconWorld,
   IconWorldWww,
@@ -49,6 +52,9 @@ export const KIND_ICONS: Record<ResourceMapKind, Icon> = {
   function: IconLambda,
   cluster: IconTopologyStar3,
   compute: IconCpu,
+  workflow: IconGitMerge,
+  pipeline: IconTimeline,
+  release_flow: IconRocket,
 }
 
 export const KIND_LABELS: Record<ResourceMapKind, string> = {
@@ -74,4 +80,7 @@ export const KIND_LABELS: Record<ResourceMapKind, string> = {
   function: "Function",
   cluster: "Cluster",
   compute: "Compute",
+  workflow: "Workflow",
+  pipeline: "Pipeline",
+  release_flow: "Release flow",
 }

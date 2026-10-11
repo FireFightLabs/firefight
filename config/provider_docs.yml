@@ -97,6 +97,19 @@ northflank:
   endpoints: api
   relative_to: "/v1/projects/{projectId}/"
   leave_out: [ teamId ]
+  # Calls Northflank's API reference documents that its client reads through helpers of its own rather than an endpoint
+  # class, so they are written out beside the rest. Each is copied from its page at northflank.com/docs/v1/api/project.
+  paths:
+    - { method: GET, path: "services/{serviceId}/logs", description: "Get logs for a service.", permission: "Project > Services > Deployment > View Observability", query: [ deploymentId, type, containerName, queryType, startTime, endTime, duration, lineLimit, direction, textIncludes, textNotIncludes, regexIncludes, regexNotIncludes ] }
+    - { method: GET, path: "services/{serviceId}/build-logs", description: "Get logs for a service build.", permission: "Project > Services > Deployment > View Observability", query: [ buildId, queryType, startTime, endTime, duration, lineLimit, direction, textIncludes, textNotIncludes, regexIncludes, regexNotIncludes ] }
+    - { method: GET, path: "services/{serviceId}/metrics", description: "Get metrics for a service.", permission: "Project > Services > Deployment > View Observability", query: [ queryType, metricTypes, startTime, endTime, duration, containerName, deploymentId, time ] }
+    - { method: GET, path: "jobs/{jobId}/logs", description: "Get logs for a job, or one of its runs by runId.", permission: "Project > Jobs > Deployment > View Observability", query: [ runId, type, containerName, queryType, startTime, endTime, duration, lineLimit, direction, textIncludes, textNotIncludes, regexIncludes, regexNotIncludes ] }
+    - { method: GET, path: "jobs/{jobId}/build-logs", description: "Get logs for a job build.", permission: "Project > Jobs > Deployment > View Observability", query: [ buildId, queryType, startTime, endTime, duration, lineLimit, direction, textIncludes, textNotIncludes, regexIncludes, regexNotIncludes ] }
+    - { method: GET, path: "jobs/{jobId}/metrics", description: "Get metrics for a job, or one of its runs by runId.", permission: "Project > Jobs > Deployment > View Observability", query: [ runId, containerName, queryType, metricTypes, startTime, endTime, duration, time ] }
+    - { method: GET, path: "addons/{addonId}/logs", description: "Get logs for an addon.", permission: "Project > Addons > Deployment > View Observability", query: [ containerName, queryType, startTime, endTime, duration, lineLimit, direction, textIncludes, textNotIncludes, regexIncludes, regexNotIncludes ] }
+    - { method: GET, path: "addons/{addonId}/metrics", description: "Get metrics for an addon.", permission: "Project > Addons > Deployment > View Observability", query: [ containerName, queryType, metricTypes, startTime, endTime, duration, time ] }
+    - { method: GET, path: "addons/{addonId}/backups/{backupId}/logs", description: "Get logs for an addon backup.", permission: "Project > Addons > Deployment > View Observability", query: [ containerName, queryType, startTime, endTime, duration, lineLimit, direction, textIncludes, textNotIncludes, regexIncludes, regexNotIncludes ] }
+    - { method: GET, path: "addons/{addonId}/backups/{backupId}/restores/{restoreId}/logs", description: "Get logs for an addon restore.", permission: "Project > Addons > Deployment > View Observability", query: [ containerName, queryType, startTime, endTime, duration, lineLimit, direction, textIncludes, textNotIncludes, regexIncludes, regexNotIncludes ] }
 
 # Northflank's product documentation, every page of it as the markdown Northflank publishes at <page>.md and lists in its
 # llms.txt: workflows and their triggers, webhooks, builds, deployments, networking and the rest.

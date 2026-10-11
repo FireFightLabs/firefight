@@ -71,6 +71,12 @@ module Integrations
         to
       end
 
+      # Whether its scale takes a plan beside instances.
+      def takes_plan? = false
+
+      # Whether its logs can be narrowed to one run, such as a job's.
+      def logs_by_run? = false
+
       def instances(given)
         count = Integer(given["instances"], exception: false)
         raise Unroutable, "instances must be a whole number, 0 or more." unless count && count >= 0

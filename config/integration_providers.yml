@@ -233,7 +233,7 @@ providers:
     color: "#0aa4d8"
     status_page: { url: https://status.northflank.com, feed: page }
     hosts: [ api.northflank.com, code.run ]
-    description: Logs, metrics and builds of the services and databases in your Northflank projects, and fixes applied to them when you allow it.
+    description: Logs, metrics, builds and runs of the services, databases, jobs, workflows and release flows in your Northflank projects, and fixes applied to them when you allow it.
     server_url: ""
     kind: native
     connect_with: api_token

@@ -86,13 +86,16 @@ module ResourceMap::KeyQueries
 
   NO_SHARED_READ = "No connected provider says how one stands or performs through Firefight's shared reads, so it has no " \
                    "checks. Its provider's own tools still read it.".freeze
+  RELEASES = "It releases code rather than running it. Its runs are its run history, and what it releases has the checks.".freeze
   # Why a kind has no checks, said wherever its checks would be listed.
   NONE = {
     ResourceMap::KIND_BUILD_SERVICE => "A build service only builds. Its builds are in its logs, and the services it builds have the checks.",
     ResourceMap::KIND_BUCKET => NO_SHARED_READ, ResourceMap::KIND_KV_NAMESPACE => NO_SHARED_READ,
     ResourceMap::KIND_DATABASE_PROXY => NO_SHARED_READ, ResourceMap::KIND_TUNNEL => NO_SHARED_READ,
     ResourceMap::KIND_LOAD_BALANCER => NO_SHARED_READ, ResourceMap::KIND_ORIGIN_POOL => NO_SHARED_READ,
-    ResourceMap::KIND_ACCESS_APP => NO_SHARED_READ
+    ResourceMap::KIND_ACCESS_APP => NO_SHARED_READ,
+    ResourceMap::KIND_WORKFLOW => RELEASES, ResourceMap::KIND_RELEASE_FLOW => RELEASES,
+    ResourceMap::KIND_PIPELINE => "A pipeline only groups stages. Its release flows have the runs, and what it holds has the checks."
   }.freeze
 
   # How a check would run on a resource now: the capability call it resolves to and the metric it reads, or why it
