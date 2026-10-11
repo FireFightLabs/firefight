@@ -56,13 +56,13 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
   test "in auto a turn asks specialists only when its tools do not fit and the provider does not search, and on or off override it" do
     choice = FirefightAi::ModelChoice.new(model: "gpt-4o")
     FirefightAi.stubs(:tool_search?).returns(false)
-    FirefightAi.configuration.stubs(:held_tools_budget).returns(1_000)
+    FirefightAi.configuration.stubs(:held_tools_budget).returns(10)
     assert Chat::Specialists.ask?(@turn, choice), "past the budget"
 
     FirefightAi.configuration.stubs(:held_tools_budget).returns(1_000_000)
     assert_not Chat::Specialists.ask?(@turn, choice), "every tool fits, so today's way"
 
-    FirefightAi.configuration.stubs(:held_tools_budget).returns(1_000)
+    FirefightAi.configuration.stubs(:held_tools_budget).returns(10)
     FirefightAi.stubs(:tool_search?).returns(true)
     assert_not Chat::Specialists.ask?(@turn, choice), "a provider that searches tools keeps the long tail out already"
 
@@ -71,6 +71,35 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     FirefightAi.configuration.stubs(:specialists).returns(:off)
     FirefightAi.stubs(:tool_search?).returns(false)
     assert_not Chat::Specialists.ask?(@turn, choice)
+  end
+
+  # An admin holds more of Firefight's own tools than fit the budget on their own, so counting them would switch every
+  # admin's chat to specialists. Only the connection reads that would go to specialists are counted.
+  test "in auto an admin in a small workspace stays on today's way, since only the connections' reads are counted" do
+    FirefightAi.stubs(:tool_search?).returns(false)
+    choice = FirefightAi::ModelChoice.new(model: "gpt-4o")
+    admin = workspace_memberships(:alice_workspace_one)
+    assert admin.admin_access?, "the fixture is an admin"
+
+    everything = Chat::Tools.catalog(Conversation::Turn.new(@conversation, asker: admin)).select(&:tool).map(&:tool)
+    assert_not FirefightAi.fits_up_front?(everything), "an admin's own tools alone are past the budget"
+    assert_not Chat::Specialists.ask?(Conversation::Turn.new(@conversation, asker: admin), choice)
+  end
+
+  # Cloudflare's execute runs scripts, and its read guard shows a call made as method and path only reads. A specialist
+  # holds such a tool in that reading shape, and a general tool no guard can read stays with Halon.
+  test "a specialist reads through a general tool whose guard shows a call reads, and never holds one no guard covers" do
+    connect!("cloudflare", "Cloudflare", "execute" => false)
+    live = Chat::Specialists::Live.new(@turn)
+
+    cloud = live.tools(agent_for(@member, Chat::Specialists::CLOUD), Chat::Specialists.domain(Chat::Specialists::CLOUD))
+    execute = cloud.find { |tool| tool.name.to_s == "cloudflare_execute" }
+    assert execute, "the cloud specialist holds Cloudflare's execute"
+    assert_includes execute.parameters_schema.deep_stringify_keys["properties"].keys, "path", "in its reading shape"
+    assert_includes live.changes(agent_for(@member, Chat::Specialists::CLOUD), Chat::Specialists.domain(Chat::Specialists::CLOUD)).map(&:name), "cloudflare_execute"
+
+    databases = live.tools(agent_for(@member, Chat::Specialists::DATABASES), Chat::Specialists.domain(Chat::Specialists::DATABASES)).map { |tool| tool.name.to_s }
+    assert_not_includes databases, "planetscale_create_branch", "a general tool with no guard stays Halon's"
   end
 
   test "Halon holds its own tools from the start, never a connection's read, and finds a change by searching" do

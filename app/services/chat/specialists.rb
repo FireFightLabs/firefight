@@ -95,9 +95,10 @@ module Chat::Specialists
 
   # Whether this turn asks specialists. In auto, only where the provider does not search tools itself, since there the
   # long tail already stays out of the model's context and out of the cached front until it is searched for, which is
-  # what specialists are for. Elsewhere, only when some connection's reads would go to a specialist and the tools whoever
-  # asks may use do not fit the held tools budget (FirefightAi.fits_up_front?), so a chat that can hold every tool keeps
-  # today's way.
+  # what specialists are for. Elsewhere, only when some connection's reads would go to a specialist and the connections'
+  # tools whoever asks may use, the long tail beyond Firefight's own, do not fit the held tools budget
+  # (FirefightAi.fits_up_front?). Firefight's own tools are counted out, since an admin holds more of them than a member
+  # and a small workspace keeps today's way for both.
   def self.ask?(turn, choice)
     case mode
     when FirefightAi::Configuration::SPECIALISTS_ON then true
@@ -107,8 +108,8 @@ module Chat::Specialists
   end
 
   def self.crowded?(turn)
-    ready = Chat::Tools.catalog(turn).select(&:tool)
-    ready.any? { |entry| reserved?(turn.workspace, entry) } && !FirefightAi.fits_up_front?(ready.map(&:tool))
+    tail = Chat::Tools.catalog(turn).select { |entry| entry.tool && entry.source != Chat::Skill::SOURCE_FIREFIGHT }
+    tail.any? { |entry| reserved?(turn.workspace, entry) } && !FirefightAi.fits_up_front?(tail.map(&:tool))
   end
 
   # The kind a connection's provider answers, from the registry, or nil for one that stays Halon's own.

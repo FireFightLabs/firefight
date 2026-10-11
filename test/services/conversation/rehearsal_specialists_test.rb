@@ -63,6 +63,35 @@ class Conversation::RehearsalSpecialistsTest < ActiveSupport::TestCase
     assert replay.transcript.cites_any?([ "orders/main/insights" ])
   end
 
+  # Seen on the big workspace bench, the only tool that read Cloudflare's rules was its script tool, which no specialist
+  # held, so nobody looked. Its read guard shows a call made as method and path reads, so the cloud specialist reads
+  # through it, the scenario answering the script Firefight writes for that call.
+  test "a specialist reads through a guarded general tool in its reading shape, answered as the scenario answers that request" do
+    FirefightAi.configuration.stubs(:specialists).returns(:on)
+    bench_case = Conversation::BenchCase.from_hash({
+      "title" => "Rules", "context" => "You are acting for Sam.", "turns" => [ "why are big carts blocked?" ],
+      "tools" => [ { "name" => "open_tools", "description" => "Opens groups", "base" => true },
+                   { "name" => "cloudflare_execute", "description" => "Runs a script against the Cloudflare API", "confirms" => true, "source" => "cloudflare",
+                     "request" => "code", "parameters" => { "type" => "object", "properties" => { "code" => { "type" => "string" } } } } ],
+      "answers" => [ { "tool" => "cloudflare_execute", "match" => { "code" => "/rulesets/" }, "result" => "Rule body-size-limit blocks bodies over 64 KB since 14:02." } ]
+    }, key: "rules")
+    script(
+      call("ask_specialist", "asks" => [ { "domain" => "cloud", "objective" => "What blocks large checkout requests?" } ]),
+      call("cloudflare_execute", "method" => "GET", "path" => "/zones/7c1e/rulesets"),
+      call("report_findings", "summary" => "A rule blocks big bodies", "findings" => [
+        { "claim" => "A size rule blocks big carts", "lines" => [ "Rule body-size-limit blocks bodies over 64 KB since 14:02." ] }
+      ]),
+      reply("A Cloudflare rule blocks bodies over 64 KB since 14:02.")
+    )
+
+    replay = Conversation::Rehearsal.replay!(bench_case, result: @result, model: @model)
+    read = replay.transcript.calls.find { |each| each.by }
+
+    assert_includes @offered.second, :cloudflare_execute
+    assert_equal "Rule body-size-limit blocks bodies over 64 KB since 14:02.", read.result
+    assert_equal "/zones/7c1e/rulesets", read.arguments["path"], "answered through the script Firefight writes for that read"
+  end
+
   test "the two ways have different prompt versions, so a bench run says which it measured" do
     FirefightAi.configuration.stubs(:specialists).returns(:off)
     off = Conversation::Bench.send(:prompt_version, @result.workspace, @model)

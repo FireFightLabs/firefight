@@ -21,6 +21,18 @@ class Conversation::Rehearsal::Specialists
   # A connected tool that only reads and whose kind a specialist reads is the specialist's, never Halon's.
   def self.reserved?(definition) = definition.reads && definition.reads_when.blank? && domain_of(definition).present?
 
+  # The read guard of a connected tool that both reads and changes and whose provider can show a call reads, with the
+  # shape it reads in, as live (Integrations::ReadGuards), or nil. A tool the scenario already says reads by its
+  # arguments (reads_when) is read that way.
+  def self.guard_of(definition)
+    return if definition.reads || definition.reads_when.present? || !definition.outside?
+
+    guard = Integrations::Provider.for(definition.source).read_guard
+    guard if guard&.guards?(handle_of(definition)) && guard.schema.present?
+  end
+
+  def self.handle_of(definition) = definition.name.delete_prefix("#{definition.source}_")
+
   def views
     @views ||= Chat::Specialists::DOMAINS.map do |domain|
       reading = @case.tools.select { |definition| self.class.domain_of(definition) == domain.key && reads?(definition) }
@@ -30,7 +42,11 @@ class Conversation::Rehearsal::Specialists
   end
 
   def tools(agent, domain)
-    held = members(domain).select { |definition| reads?(definition) }.map { |definition| Reading.new(@recorded.call(definition, agent.chat), definition, @lock) }
+    held = members(domain).select { |definition| reads?(definition) }.map do |definition|
+      guard = self.class.guard_of(definition)
+      tool = @recorded.call(definition, agent.chat)
+      guard ? Guarded.new(tool, definition, guard, @lock) : Reading.new(tool, definition, @lock)
+    end
     held + [ Chat::Tools::ReadResult.new(agent) ]
   end
 
@@ -69,6 +85,35 @@ class Conversation::Rehearsal::Specialists
     end
   end
 
+  # A general tool as a specialist holds it where its provider's read guard can show a call reads: in the guard's own
+  # reading shape, which Firefight turns into the tool's own call as live (Integrations::ReadGuards), so a specialist
+  # reads through it and never changes anything.
+  class Guarded < RubyLLM::Tool
+    def initialize(tool, definition, guard, lock)
+      super()
+      @tool = tool
+      @definition = definition
+      @guard = guard
+      @lock = lock
+    end
+
+    def name = @definition.name
+
+    def description = [ @definition.description, (@guard::DESCRIPTION if @guard.const_defined?(:DESCRIPTION)) ].compact.join(" ")
+
+    def parameters_schema = @guard.schema
+
+    def call(tool_call: nil, **arguments)
+      handle = Conversation::Rehearsal::Specialists.handle_of(@definition)
+      given = @guard.reading(handle, arguments.stringify_keys)
+      return ONLY_READS unless @guard.reads?(handle, given)
+
+      @lock.synchronize { @tool.call(tool_call: tool_call, **given) }
+    rescue Integrations::ReadGuards::Refused, Integrations::PolicyRefusal => refused
+      refused.message
+    end
+  end
+
   private
 
   # A connected tool of this kind, or a capability or Firefight tool that helps it.
@@ -79,5 +124,5 @@ class Conversation::Rehearsal::Specialists
     end
   end
 
-  def reads?(definition) = definition.reads || definition.reads_when.present?
+  def reads?(definition) = definition.reads || definition.reads_when.present? || self.class.guard_of(definition).present?
 end

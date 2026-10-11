@@ -199,17 +199,17 @@ class Conversation::Rehearsal
   end
 
   # Whether the replay asks specialists, decided as a live chat decides it (Chat::Specialists.ask?): forced on or off, or
-  # in auto only where the model's provider does not search tools, some connected read would go to a specialist, and
-  # the scenario's tools do not fit the held tools budget. So a plain scenario keeps today's way and a big workspace
+  # in auto only where the model's provider does not search tools, some connected read would go to a specialist, and the
+  # scenario's connected tools do not fit the held tools budget. So a plain scenario keeps today's way and a big workspace
   # (Conversation::BenchWorkspace) asks specialists.
   def asks_specialists?(chat)
     case Chat::Specialists.mode
     when FirefightAi::Configuration::SPECIALISTS_ON then true
     when FirefightAi::Configuration::SPECIALISTS_OFF then false
     else
-      offered = @case.tools.reject { |definition| definition.name == Chat::Tools::Open.tool_name }
-      !FirefightAi.tool_search?(@model) && offered.any? { |definition| Conversation::Rehearsal::Specialists.reserved?(definition) } &&
-        !FirefightAi.fits_up_front?(offered.map { |definition| recorded(definition, chat) })
+      tail = @case.tools.select { |definition| definition.outside? && Conversation::Rehearsal::Specialists.domain_of(definition) }
+      !FirefightAi.tool_search?(@model) && tail.any? { |definition| Conversation::Rehearsal::Specialists.reserved?(definition) } &&
+        !FirefightAi.fits_up_front?(tail.map { |definition| recorded(definition, chat) })
     end
   end
 
