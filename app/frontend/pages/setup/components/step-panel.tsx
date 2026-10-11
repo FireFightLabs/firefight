@@ -5,6 +5,7 @@ import { AccountStep } from "@/pages/setup/components/account-step"
 import { AiStep } from "@/pages/setup/components/ai-step"
 import { HalonStep } from "@/pages/setup/components/halon-step"
 import { PermissionsStep } from "@/pages/setup/components/permissions-step"
+import { PlanStep } from "@/pages/setup/components/plan-step"
 import { SlackStep } from "@/pages/setup/components/slack-step"
 import { StackStep } from "@/pages/setup/components/stack-step"
 import { TestIncidentStep } from "@/pages/setup/components/test-incident-step"
@@ -13,6 +14,7 @@ import type { OnboardingStep } from "@/types/serializers"
 
 const BODIES: Record<SetupStepKey, (step: OnboardingStep) => ReactNode> = {
   [SETUP_STEPS.ACCOUNT]: () => <AccountStep />,
+  [SETUP_STEPS.PLAN]: () => <PlanStep />,
   [SETUP_STEPS.AI]: (step) => <AiStep step={step} />,
   [SETUP_STEPS.STACK]: () => <StackStep />,
   [SETUP_STEPS.PERMISSIONS]: (step) => <PermissionsStep step={step} />,

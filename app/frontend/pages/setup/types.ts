@@ -8,6 +8,7 @@ import type {
   OnboardingCategory,
   OnboardingStep,
   Principal,
+  SetupPlan,
   WorkspaceAiAccount,
 } from "@/types/serializers"
 
@@ -20,6 +21,8 @@ export interface SetupPageProps extends SharedProps {
   workspaceName: string
   email: string
   steps: OnboardingStep[]
+  // The plan a hosted build sells, absent where none is sold.
+  plan: SetupPlan | null
   aiChoice: string | null
   // Each choice offered, with why it cannot be chosen yet.
   aiChoices: Record<string, string | null>

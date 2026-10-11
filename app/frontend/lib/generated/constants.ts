@@ -1082,6 +1082,7 @@ export const AGENT_CHAT_PROPS = {
 
 export const SETUP_STEPS = {
   "ACCOUNT": "account",
+  "PLAN": "plan",
   "AI": "ai",
   "STACK": "stack",
   "PERMISSIONS": "permissions",

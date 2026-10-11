@@ -39,6 +39,11 @@ module Entitlements
     backend.try(:next_step_path, workspace)
   end
 
+  # The plan a hosted build sells this workspace, as an Entitlements::Plan, which setup asks the workspace to start
+  # before anything else. Nil where no plan is sold, which is every install someone runs themselves, and for a workspace
+  # that needs none.
+  def self.plan(workspace) = backend.try(:plan, workspace)
+
   # Firefight's own workspaces run on Firefight's key and are never billed for it. Only a hosted build asks, and one
   # that has not said keeps every workspace on Firefight's key.
   def self.firefight_pays_for_ai?(workspace)

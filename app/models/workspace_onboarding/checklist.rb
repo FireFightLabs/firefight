@@ -1,17 +1,19 @@
 # The setup checklist an admin works through after the founder's letter, one step at a time and in order, until every
 # step is done. An answer a person gives is kept on the row, so the checklist resumes where it was left on any device.
-# Slack and the test incident are facts elsewhere and are read from there.
+# The plan, Slack and the test incident are facts elsewhere and are read from there.
 module WorkspaceOnboarding::Checklist
   extend ActiveSupport::Concern
 
   STEP_ACCOUNT = "account".freeze
+  # Only where a hosted build sells a plan (Entitlements.plan). Everything after it needs the workspace open.
+  STEP_PLAN = "plan".freeze
   STEP_AI = "ai".freeze
   STEP_STACK = "stack".freeze
   STEP_PERMISSIONS = "permissions".freeze
   STEP_HALON = "halon".freeze
   STEP_SLACK = "slack".freeze
   STEP_TEST_INCIDENT = "test_incident".freeze
-  CHECKLIST_STEPS = [ STEP_ACCOUNT, STEP_AI, STEP_STACK, STEP_PERMISSIONS, STEP_HALON, STEP_SLACK, STEP_TEST_INCIDENT ].freeze
+  CHECKLIST_STEPS = [ STEP_ACCOUNT, STEP_PLAN, STEP_AI, STEP_STACK, STEP_PERMISSIONS, STEP_HALON, STEP_SLACK, STEP_TEST_INCIDENT ].freeze
 
   # done and skipped count as finished. A step up next or waiting may carry a note saying what holds it.
   STATE_DONE = "done".freeze
@@ -40,6 +42,7 @@ module WorkspaceOnboarding::Checklist
   CHECK_FAILING = "The check on that connection did not pass yet. Fix it, or connect another.".freeze
   CATEGORY_REQUIRED = "Halon needs one of these to investigate, so connect at least one.".freeze
   NOT_YET = "Finish the steps above first.".freeze
+  PLAN_FIRST = "Start your plan first.".freeze
   # A suggested first question names at most this many tools, past which it reads like a list.
   QUESTION_NAMES = 3
   # Said after a reason Halon cannot answer that the workspace fixes by choosing its AI again.
@@ -75,7 +78,7 @@ module WorkspaceOnboarding::Checklist
 
   def steps
     current_found = false
-    CHECKLIST_STEPS.map do |key|
+    checklist_steps.map do |key|
       state, note = finished_state(key)
       unless state
         state = current_found ? STATE_WAITING : STATE_CURRENT
@@ -87,6 +90,16 @@ module WorkspaceOnboarding::Checklist
   end
 
   def current_step = steps.find { |step| step.state == STATE_CURRENT }
+
+  # The plan a hosted build sells this workspace, asked once per row.
+  def plan
+    return @plan if defined?(@plan)
+
+    @plan = Entitlements.plan(workspace)
+  end
+
+  # Setup holds the plan step and it is not running yet, so the workspace stays closed and nothing after it can be answered.
+  def plan_pending? = plan.present? && !plan.active?
 
   def done? = steps.all?(&:finished?)
 
@@ -176,10 +189,13 @@ module WorkspaceOnboarding::Checklist
 
   def house_ai? = HOUSE_PAYERS.include?(AiFunding.house_payer(workspace)&.paid_by)
 
+  def checklist_steps = plan ? CHECKLIST_STEPS : CHECKLIST_STEPS - [ STEP_PLAN ]
+
   # [state, note] for a step that needs nothing more, or nil while it waits on the person.
   def finished_state(key)
     case key
     when STEP_ACCOUNT then [ STATE_DONE, nil ]
+    when STEP_PLAN then [ STATE_DONE, nil ] if plan.active?
     when STEP_AI then ai_chosen_at && [ STATE_DONE, nil ]
     when STEP_STACK then stack_done_at && [ STATE_DONE, nil ]
     when STEP_PERMISSIONS then permissions_reviewed_at && [ STATE_DONE, nil ]
