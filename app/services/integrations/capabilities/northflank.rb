@@ -9,7 +9,7 @@ module Integrations
       SUPPORTS = {
         LOGS => [ *RUNNING, ResourceMap::KIND_BUILD_SERVICE ], METRICS => RUNNING, DEPLOYS => [ ResourceMap::KIND_SERVICE ],
         STATUS => RUNNING,
-        HISTORY => [ *RUNNING, ResourceMap::KIND_BUILD_SERVICE, ResourceMap::KIND_WORKFLOW, ResourceMap::KIND_RELEASE_FLOW ],
+        HISTORY => [ *RUNNING, ResourceMap::KIND_BUILD_SERVICE, ResourceMap::KIND_WORKFLOW, ResourceMap::KIND_RELEASE_FLOW, ResourceMap::KIND_STACK ],
         ROLLBACK => [ ResourceMap::KIND_SERVICE ], RESTART => [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_DATABASE ],
         SCALE => RUNNING
       }.freeze
@@ -18,7 +18,7 @@ module Integrations
       JOB_RUNS = "job_runs".freeze
       HISTORIES = {
         ResourceMap::KIND_WORKFLOW => "workflow_runs", ResourceMap::KIND_RELEASE_FLOW => "release_flow_runs",
-        ResourceMap::KIND_JOB => JOB_RUNS, ResourceMap::KIND_DATABASE => "backup_history"
+        ResourceMap::KIND_JOB => JOB_RUNS, ResourceMap::KIND_DATABASE => "backup_history", ResourceMap::KIND_STACK => "template_runs"
       }.freeze
       TOOLS = {
         LOGS => "search_logs", METRICS => "query_metrics", DEPLOYS => "list_deployments", STATUS => "describe_resource",
@@ -63,7 +63,7 @@ module Integrations
         end
       end
 
-      # A workflow's or release flow's runs with their nodes, a job's runs, a database's backups, and a service's builds,
+      # A workflow's, release flow's or template's runs with their nodes, a job's runs, a database's backups, and a service's builds,
       # each read by its id when the run is named. A service that runs another's builds has none of its own, so its
       # history is the builds of the one that builds it.
       def self.history(resource, given)
@@ -76,6 +76,7 @@ module Integrations
                     arguments: { "pipeline" => pipeline, "stage" => stage.to_s.capitalize }.merge(passed))
         when ResourceMap::KIND_JOB
           Route.new(tool_name: JOB_RUNS, arguments: { "job" => resource.external_id }.merge(passed), present: RunHistory.presenter(resource.name, given))
+        when ResourceMap::KIND_STACK then Route.new(tool_name: HISTORIES.fetch(resource.kind), arguments: { "template" => resource.external_id }.merge(passed))
         when ResourceMap::KIND_DATABASE then Route.new(tool_name: HISTORIES.fetch(resource.kind), arguments: { "resource" => resource.external_id }.merge(passed))
         else Route.new(tool_name: BUILD_HISTORY, arguments: { "resource" => builder_of(resource) }.merge(passed))
         end
