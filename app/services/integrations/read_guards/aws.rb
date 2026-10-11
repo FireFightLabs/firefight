@@ -36,7 +36,12 @@ module Integrations
       }.freeze
       # An ECS container's or Lambda function's environment and an instance's user data may hold secrets, so they are read
       # as names. A presigned link (Lambda API reference, FunctionCodeLocation) works for anyone, so it is hidden too.
-      HIDDEN_FIELDS = %w[environment user_data].freeze
+      # An App Runner service's runtime variables are read as names the same way (App Runner API reference,
+      # ImageConfiguration and CodeConfigurationValues RuntimeEnvironmentVariables), and an Elastic Beanstalk option in
+      # its environment properties namespaces holds a variable's value (Elastic Beanstalk developer guide, General options
+      # for all environments, aws:elasticbeanstalk:application:environment), so its value is hidden.
+      HIDDEN_FIELDS = %w[environment user_data runtime_environment_variables].freeze
+      ENVIRONMENT_NAMESPACES = %w[aws:elasticbeanstalk:application:environment aws:elasticbeanstalk:application:environmentsecrets].freeze
       PRESIGNED = /X-Amz-Signature=|[?&]Signature=/
       HIDDEN = ApiReads::HIDDEN
       INCLUDE_VALUES = %w[include_value include_values].freeze
@@ -129,6 +134,8 @@ module Integrations
       def self.hidden(value)
         case value
         when Hash
+          return value.merge(value: HIDDEN) if ENVIRONMENT_NAMESPACES.include?(value[:namespace].to_s) && value.key?(:option_name) && value.key?(:value)
+
           value.to_h do |key, inner|
             [ key, HIDDEN_FIELDS.include?(key.to_s) ? ApiReads.names_only(inner) : hidden(inner) ]
           end

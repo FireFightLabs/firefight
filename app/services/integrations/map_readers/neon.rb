@@ -33,6 +33,8 @@ module Integrations
 
       ALL_KINDS = [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH, ResourceMap::KIND_COMPUTE ].freeze
       BRANCH_KINDS = [ ResourceMap::KIND_BRANCH, ResourceMap::KIND_COMPUTE ].freeze
+      # The branch a branch was made from (Branch.parent_id), so a rollback knows which branches were made from it.
+      PARENT_DETAIL = "parent_id".freeze
       # Neon gives a project no state of its own, and one it lists is one it serves.
       LISTED = "ready".freeze
       POSTGRES_PORT = 5432
@@ -134,7 +136,8 @@ module Integrations
         branch_found = ResourceMap::Found.new(
           provider: PROVIDER, account: account, kind: ResourceMap::KIND_BRANCH, external_id: "#{database.external_id}/#{branch['id']}",
           name: "#{database.name}/#{branch['name']}", status: branch["current_state"], url: self.class.branch_page(settings&.site, database.external_id, branch["id"]),
-          details: { ResourceMap::PRODUCTION => branch["default"], "protected" => branch["protected"], "logical_size" => branch["logical_size"] }.compact
+          details: { ResourceMap::PRODUCTION => branch["default"], "protected" => branch["protected"], "logical_size" => branch["logical_size"],
+                     PARENT_DETAIL => branch["parent_id"] }.compact
         )
         @resources << branch_found
         @links << ResourceMap::FoundLink.new(from: branch_found.key, to: database.key, relation: ResourceMap::RELATION_BRANCH_OF)

@@ -704,6 +704,13 @@ aws_api_apigatewayv2:
   license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
   endpoints: api/apigatewayv2
   service: apigatewayv2
+aws_api_apprunner:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/apprunner/2020-05-15/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/apprunner
+  service: apprunner
 aws_api_autoscaling:
   provider: aws
   api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/autoscaling/2011-01-01/service-2.json
@@ -802,6 +809,13 @@ aws_api_elasticache:
   license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
   endpoints: api/elasticache
   service: elasticache
+aws_api_elasticbeanstalk:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/elasticbeanstalk/2010-12-01/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/elasticbeanstalk
+  service: elasticbeanstalk
 aws_api_elbv2:
   provider: aws
   api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/elbv2/2015-12-01/service-2.json

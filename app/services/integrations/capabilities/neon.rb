@@ -5,7 +5,11 @@ module Integrations
     # unwrap them, a list to its items. A project is the database on the map, a branch its branch, a compute the endpoint serving one.
     # Neon keeps no metrics a tool reads and no history of deploys, so status reads the computes, deploys reads the
     # operations Neon ran, and logs read what runs on a branch. Run history is those same operations, each with when it was
-    # made and how long it took (the API's Operation, created_at and total_duration_ms), named by its action.
+    # made and how long it took (the API's Operation, created_at and total_duration_ms), named by its action, and one run
+    # asked by its id is read with get_operation however old it is. A branch rolls back to a snapshot (restore_snapshot,
+    # finalized so its computes move onto the restored data) or to its parent's current state (reset_from_parent), the two
+    # restores the server publishes (@neon/tools, lib/ergonomic/composed.js). Neon's point in time branch restore is not
+    # among its tools.
     module Neon
       extend Adapter
 
@@ -14,12 +18,21 @@ module Integrations
       PROJECT_KINDS = [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH, ResourceMap::KIND_COMPUTE ].freeze
       SUPPORTS = {
         LOGS => [ ResourceMap::KIND_BRANCH ], DEPLOYS => PROJECT_KINDS, HISTORY => PROJECT_KINDS, STATUS => PROJECT_KINDS,
-        RESTART => [ ResourceMap::KIND_COMPUTE ]
+        ROLLBACK => [ ResourceMap::KIND_BRANCH ], RESTART => [ ResourceMap::KIND_COMPUTE ]
       }.freeze
+      LIST_OPERATIONS = "list_operations".freeze
+      GET_OPERATION = "get_operation".freeze
+      RESTORE_SNAPSHOT = "restore_snapshot".freeze
+      RESET_FROM_PARENT = "reset_from_parent".freeze
       TOOLS = {
-        LOGS => "query_logs", DEPLOYS => "list_operations", HISTORY => "list_operations", STATUS => "list_postgres_endpoints",
-        RESTART => "restart_postgres_endpoint"
+        LOGS => "query_logs", DEPLOYS => LIST_OPERATIONS, HISTORY => [ LIST_OPERATIONS, GET_OPERATION ], STATUS => "list_postgres_endpoints",
+        ROLLBACK => [ RESTORE_SNAPSHOT, RESET_FROM_PARENT ], RESTART => "restart_postgres_endpoint"
       }.freeze
+      # What a rollback names to go back to the parent's current state rather than to a snapshot.
+      PARENT = "parent".freeze
+      # What reset_from_parent keeps a branch with children under, and the month, day, hour and minute its name ends with.
+      PRESERVE = "preserve_under_name".freeze
+      KEPT_STAMP = "%m%d%H%M".freeze
       # An operation's status in the API's own words (OperationStatus), in the words every run history uses.
       OPERATION_STATUSES = {
         "scheduling" => History::QUEUED, "running" => History::RUNNING, "cancelling" => History::RUNNING, "finished" => History::SUCCEEDED,
@@ -36,7 +49,10 @@ module Integrations
       DEPLOY_MOST = 100
 
       # A restart here is of a compute, which Neon suspends and starts again, and its runs are the operations it ran.
-      OWN_PHRASES = { RESTART => "restart a compute", HISTORY => "see how long its operations usually take" }.freeze
+      OWN_PHRASES = {
+        RESTART => "restart a compute", HISTORY => "see how long its operations usually take",
+        ROLLBACK => "roll a branch back to a snapshot or to its parent"
+      }.freeze
 
       def self.phrase(key) = OWN_PHRASES.fetch(key) { PHRASES.fetch(key) }
 
@@ -47,9 +63,8 @@ module Integrations
         when DEPLOYS
           Route.new(tool_name: TOOLS[DEPLOYS], arguments: { "project_id" => project, "limit" => OPERATIONS_READ },
                     present: ->(result) { Answers.read(result, PROVIDER) { |data| deploys_result(resource, id, data, given) } })
-        when HISTORY
-          Route.new(tool_name: TOOLS[HISTORY], arguments: { "project_id" => project, "limit" => OPERATIONS_READ },
-                    present: ->(result) { Answers.read(result, PROVIDER) { |data| history_result(resource, id, data, given) } })
+        when HISTORY then history(resource, project, id, given)
+        when ROLLBACK then rollback(resource, project, id, given)
         when STATUS
           names = branch_names(resource, project)
           Route.new(tool_name: TOOLS[STATUS], arguments: { "project_id" => project },
@@ -63,6 +78,64 @@ module Integrations
                       end
                     })
         end
+      end
+
+      # The resource's recent operations, or one by its id through get_operation, so a watch follows a run past the
+      # project's latest operations.
+      def self.history(resource, project, id, given)
+        run = given["run"].to_s.strip.presence
+        if run
+          return Route.new(tool_name: GET_OPERATION, arguments: { "project_id" => project, "operation_id" => run },
+                           present: ->(result) { Answers.read(result, PROVIDER) { |data| history_result(resource, [ operation_of(data) ], given.except("name")) } })
+        end
+
+        Route.new(tool_name: LIST_OPERATIONS, arguments: { "project_id" => project, "limit" => OPERATIONS_READ },
+                  present: ->(result) { Answers.read(result, PROVIDER) { |data| history_result(resource, operations_on(resource, id, data), given) } })
+      end
+
+      # get_operation answers the API's OperationResponse, the operation under its own key.
+      def self.operation_of(data) = data.is_a?(Hash) && data["operation"].is_a?(Hash) ? data["operation"] : data
+
+      # Back to a snapshot by its id, as list_snapshots gives it, or to the parent's current state. A snapshot restored
+      # onto the branch is finalized, since that moves the branch's computes onto it and nothing serves the older data
+      # otherwise.
+      def self.rollback(resource, project, branch, given)
+        to = given["to"].to_s.strip
+        raise Unroutable, "Say what to roll #{resource.name} back to: a snapshot's id, as list_snapshots gives it, or #{PARENT} for its parent's current state." if to.empty?
+
+        page = Answers.page(resource, PROVIDER)
+        if to.casecmp?(PARENT)
+          kept = kept_branch(resource, project, branch)
+          return Route.new(tool_name: RESET_FROM_PARENT, arguments: { "project_id" => project, "branch_id" => branch, PRESERVE => kept }.compact,
+                           keeps: (kept && "its current state as branch #{kept}"),
+                           present: lambda { |result|
+                             Answers.read(result, PROVIDER) do |_data|
+                               words = kept ? "Its state before is kept as branch #{kept}, which its child branches now hang from." : "What it wrote since it branched is gone."
+                               Telemetry.result("Neon reset #{resource.name} to its parent's current state. #{words} Its computes restart, so " \
+                                                "open connections drop.", link: page)
+                             end
+                           })
+        end
+
+        Route.new(tool_name: RESTORE_SNAPSHOT, arguments: { "project_id" => project, "snapshot_id" => to, "target_branch_id" => branch, "finalize" => true },
+                  present: lambda { |result|
+                    Answers.read(result, PROVIDER) do |_data|
+                      Telemetry.result("Neon restored snapshot #{to} onto #{resource.name} and moved its computes onto it, so open " \
+                                       "connections drop and the app reconnects to the restored data.", link: page)
+                    end
+                  })
+      end
+
+      # Neon resets a branch that has children only when its current state is kept under a name (reset_from_parent,
+      # preserve_under_name), and the children move onto that branch. The name says what it was and when, such as
+      # main-before-rollback-10111530. nil for a branch the map holds no children of.
+      def self.kept_branch(resource, project, branch)
+        children = ResourceMap::Resource.present.where(workspace_id: resource.workspace_id, provider: resource.provider, kind: ResourceMap::KIND_BRANCH)
+                                        .where("external_id LIKE ?", "#{ResourceMap::Resource.sanitize_sql_like(project)}/%")
+                                        .where("details ->> ? = ?", MapReaders::Neon::PARENT_DETAIL, branch)
+        return unless children.exists?
+
+        "#{resource.name.split('/').last}-before-rollback-#{Time.current.utc.strftime(KEPT_STAMP)}"
       end
 
       # The project's id and the branch's or compute's own, as the map's reader writes them, project/id.
@@ -110,8 +183,8 @@ module Integrations
         Telemetry.result(text, link: Answers.page(resource, PROVIDER))
       end
 
-      def self.history_result(resource, id, data, given)
-        runs = operations_on(resource, id, data).map do |operation|
+      def self.history_result(resource, operations, given)
+        runs = operations.select { |operation| operation.is_a?(Hash) && operation["id"].present? }.map do |operation|
           status = History.status(operation["status"], OPERATION_STATUSES)
           started = Telemetry.parse_time(operation["created_at"])
           took = operation["total_duration_ms"]
@@ -193,7 +266,7 @@ module Integrations
                              .to_h { |external_id, name| [ external_id.split("/", 2).last, name ] }
       end
 
-      private_class_method :ids_of, :logs, :window, :logs_result, :history_result, :operations_on, :deploys_result, :status_result, :compute_line, :suspends, :branch_names
+      private_class_method :history, :operation_of, :rollback, :kept_branch, :ids_of, :logs, :window, :logs_result, :history_result, :operations_on, :deploys_result, :status_result, :compute_line, :suspends, :branch_names
     end
   end
 end

@@ -10,12 +10,20 @@ class Integrations::Capabilities::SupabaseTest < ActiveSupport::TestCase
     @supabase = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "supabase", name: "Supabase", slug: "supabase",
                                                 settings: { "server_url" => "https://mcp.supabase.com/mcp" })
     @row = @supabase.integration_environments.create!
-    Capabilities::Supabase::TOOLS.each_value do |name|
-      @supabase.tools.create!(name: name, description: name, read_only: true, enabled: true, params_schema: name == "get_project" ? { "type" => "object" } : WITH_PROJECT)
+    Capabilities::Supabase::TOOLS.values.flatten.uniq.each do |name|
+      @supabase.tools.create!(name: name, description: name, read_only: name != "reset_branch", enabled: true,
+                              params_schema: %w[get_project reset_branch].include?(name) ? { "type" => "object" } : WITH_PROJECT)
+    end
+    found = ->(kind, id, name, details = {}) do
+      ResourceMap::Found.new(provider: "supabase", account: "acme", kind: kind, external_id: id, name: name, details: details,
+                             url: "https://supabase.com/dashboard/project/#{id.split('/').first}#{'/functions' if kind == ResourceMap::KIND_FUNCTION}")
     end
     ResourceMap.record!(@row, ResourceMap::Snapshot.new(resources: [
-      ResourceMap::Found.new(provider: "supabase", account: "acme", kind: ResourceMap::KIND_DATABASE, external_id: REF, name: "shop",
-                             url: "https://supabase.com/dashboard/project/#{REF}")
+      found.(ResourceMap::KIND_DATABASE, REF, "shop"),
+      found.(ResourceMap::KIND_BRANCH, REF, "shop/main", { ResourceMap::PRODUCTION => true, "branch_id" => "b1" }),
+      found.(ResourceMap::KIND_BRANCH, "zyxwvutsrqponmlkjihg", "shop/feature", { "branch_id" => "b2" }),
+      found.(ResourceMap::KIND_BRANCH, "oldbranchrefxxxxxxxx", "shop/old"),
+      found.(ResourceMap::KIND_FUNCTION, "#{REF}/send-email", "shop/send-email", { "function_id" => "f1a2", "version" => 12 })
     ]))
     travel_to Time.zone.parse("2026-10-04T12:00:00Z")
   end
@@ -103,6 +111,48 @@ class Integrations::Capabilities::SupabaseTest < ActiveSupport::TestCase
     assert_equal "https://mcp.supabase.com/mcp?read_only=true", entry.server_url_for(nil, {})
     assert_match "Access can only be", entry.connect_fields.find { |field| field.key == "read_only" }.refusal("maybe")
     assert_nil entry.connect_fields.find { |field| field.key == "read_only" }.refusal("")
+  end
+
+  test "an Edge Function's status and deploys read what the project's list says of it" do
+    call = resolve(Capabilities::STATUS, "resource" => "shop/send-email")
+    assert_equal [ "list_edge_functions", { "project_id" => REF } ], [ call.tool.name, call.arguments ]
+
+    functions = { "functions" => [ { "id" => "f9", "slug" => "other", "status" => "ACTIVE", "version" => 1 },
+                                   { "id" => "f1a2", "slug" => "send-email", "name" => "send-email", "status" => "THROTTLED", "version" => 12,
+                                     "updated_at" => 1_791_190_800_000, "verify_jwt" => true } ] }
+    text = answer_text(call, functions)
+    assert_match "How shop/send-email stands on Supabase now: status THROTTLED, version 12, deployed 2026-10-05T09:00:00Z, requires a signed in user's JWT.", text
+    assert_match "https://supabase.com/dashboard/project/#{REF}/functions", text
+
+    deploys = answer_text(resolve(Capabilities::DEPLOYS, "resource" => "shop/send-email"), functions)
+    assert_match "shop/send-email runs version 12, deployed 2026-10-05T09:00:00Z. Supabase keeps only the version a function runs", deploys
+    assert_match "lists no Edge Function send-email", answer_text(call, { "functions" => [] })
+  end
+
+  test "an Edge Function's logs are what it printed or its invocations, by its id" do
+    call = resolve(Capabilities::LOGS, "resource" => "shop/send-email", "text" => "timeout", "minutes" => 30)
+    assert_equal "query_logs", call.tool.name
+    assert_equal "select timestamp, event_message, severity_text as level, log_attributes['version'] as version from logs where source = 'function_logs' " \
+                 "and log_attributes['function_id'] = 'f1a2' and positionCaseInsensitive(event_message, 'timeout') > 0 order by timestamp desc limit 200", call.arguments["sql"]
+    assert_equal %w[2026-10-04T11:30:00Z 2026-10-04T12:00:00Z], call.arguments.values_at("iso_timestamp_start", "iso_timestamp_end")
+
+    rows = { "result" => [ { "timestamp" => "2026-10-04T11:58:00Z", "event_message" => "SMTP timeout", "level" => "error", "version" => "12" } ] }
+    assert_match %r{1 log lines for what Edge Function shop/send-email printed, newest first.\n2026-10-04T11:58:00Z shop/send-email v12 error SMTP timeout},
+                 answer_text(call, { "result" => "<untrusted-data-1>\n#{rows.to_json}\n</untrusted-data-1>" })
+
+    invocations = resolve(Capabilities::LOGS, "resource" => "shop/send-email", "stream" => "requests")
+    assert_match "from logs where source = 'function_edge_logs' and log_attributes['function_id'] = 'f1a2'", invocations.arguments["sql"]
+    assert_match "what an Edge Function prints with stream app", unroutable(Capabilities::LOGS, "resource" => "shop/send-email", "stream" => "build")
+  end
+
+  test "a preview branch rolls back to an earlier migration by its branch id, and production and an unread branch are refused" do
+    call = resolve(Capabilities::ROLLBACK, "resource" => "shop/feature", "to" => "20261003090000")
+    assert_equal [ "reset_branch", { "branch_id" => "b2", "migration_version" => "20261003090000" } ], [ call.tool.name, call.arguments ]
+    assert call.spec.writes
+    assert_match "Supabase is resetting shop/feature to migration 20261003090000.", answer_text(call, { "success" => true })
+
+    assert_match "production branch, and Supabase resets only preview branches", unroutable(Capabilities::ROLLBACK, "resource" => "shop/main", "to" => "1")
+    assert_match "has not read the branch id of shop/old", unroutable(Capabilities::ROLLBACK, "resource" => "shop/old", "to" => "1")
   end
 
   private

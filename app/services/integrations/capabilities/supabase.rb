@@ -7,14 +7,37 @@ module Integrations
     # in src/logs.ts, every value a quoted literal. Deploys are the migrations applied, and status is the project as
     # Supabase's API answers it. A connection scoped to one project by its project_ref connect field takes no project_id,
     # so project_id goes only to a tool that asks for it.
+    #
+    # An Edge Function is a function on the map, ref/slug, read through list_edge_functions (edge-function-tools.ts), which
+    # gives its status, the version it runs and when that was deployed. Supabase keeps only the version a function runs,
+    # so its deploys are that one. Its logs are what it prints (function_logs) and its invocations (function_edge_logs),
+    # read by the function_id get_logs reads them with. A preview branch rolls back to an earlier migration with
+    # reset_branch (branching-tools.ts), which takes the branch's own id and a migration version. The server has no
+    # branch action runs, no restart, no metrics and no point in time restore, so none of those is answered.
     module Supabase
       extend Adapter
 
       PROVIDER = MapReaders::Supabase::NAME
       PROVIDER_KEY = MapReaders::Supabase::PROVIDER
       PROJECTS = [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ].freeze
-      SUPPORTS = { LOGS => PROJECTS, DEPLOYS => PROJECTS, STATUS => PROJECTS }.freeze
-      TOOLS = { LOGS => "query_logs", DEPLOYS => "list_migrations", STATUS => "get_project" }.freeze
+      READ_KINDS = [ *PROJECTS, ResourceMap::KIND_FUNCTION ].freeze
+      SUPPORTS = { LOGS => READ_KINDS, DEPLOYS => READ_KINDS, STATUS => READ_KINDS, ROLLBACK => [ ResourceMap::KIND_BRANCH ] }.freeze
+      GET_PROJECT = "get_project".freeze
+      LIST_MIGRATIONS = "list_migrations".freeze
+      LIST_EDGE_FUNCTIONS = MapReaders::Supabase::LIST_EDGE_FUNCTIONS
+      RESET_BRANCH = "reset_branch".freeze
+      TOOLS = {
+        LOGS => "query_logs", DEPLOYS => [ LIST_MIGRATIONS, LIST_EDGE_FUNCTIONS ], STATUS => [ GET_PROJECT, LIST_EDGE_FUNCTIONS ],
+        ROLLBACK => RESET_BRANCH
+      }.freeze
+      # An Edge Function's logs, by stream, as get_logs reads its edge-function-runtime and edge-function services.
+      FUNCTION_SOURCES = { STREAM_APP => "function_logs", "requests" => "function_edge_logs" }.freeze
+      FUNCTION_COLUMNS = {
+        "function_logs" => "timestamp, event_message, severity_text as level, log_attributes['version'] as version",
+        "function_edge_logs" => "timestamp, event_message, log_attributes['request.method'] as method, log_attributes['response.status_code'] as status_code, " \
+                                "log_attributes['execution_time_ms'] as execution_time_ms, log_attributes['version'] as version"
+      }.freeze
+      FUNCTION_READS = { "function_logs" => "what Edge Function", "function_edge_logs" => "invocations of Edge Function" }.freeze
       # Supabase's tools reach every project the account sees, far beyond the map, so they stay offered as they are.
       WRAPPED = [].freeze
       PROJECT_ID = "project_id".freeze
@@ -44,23 +67,120 @@ module Integrations
       MIGRATION_TIME = /\A\d{14}\z/
 
       def self.route(key, resource, given, tool:, settings: nil)
-        ref = resource.external_id
+        ref = ref_of(resource)
         scoped!(resource, settings)
+        return function_route(key, resource, ref, given, settings) if resource.kind == ResourceMap::KIND_FUNCTION
+
         case key
         when LOGS then logs(resource, ref, given, tool)
         when DEPLOYS
-          Route.new(tool_name: TOOLS[DEPLOYS], arguments: project(ref, tool),
+          Route.new(tool_name: LIST_MIGRATIONS, arguments: project(ref, tool),
                     present: ->(result) { Answers.read(result, PROVIDER) { |data| deploys_result(resource, data, given) } })
         when STATUS
-          Route.new(tool_name: TOOLS[STATUS], arguments: { "id" => ref },
+          Route.new(tool_name: GET_PROJECT, arguments: { "id" => ref },
                     present: ->(result) { Answers.read(result, PROVIDER) { |data| status_result(resource, data) } })
+        when ROLLBACK then rollback(resource, given)
         end
+      end
+
+      # A function is ref/slug on the map, and everything else its own project ref.
+      def self.ref_of(resource) = resource.external_id.to_s.split("/", 2).first
+
+      # A function's status and deploys both read what list_edge_functions says of it, and its logs are its own log sources.
+      def self.function_route(key, resource, ref, given, settings)
+        slug = resource.external_id.to_s.split("/", 2).last
+        # The server fills the project in on a connection scoped to one, and takes it from the call otherwise.
+        arguments = settings&.field(SCOPED_TO).present? ? {} : { PROJECT_ID => ref }
+        case key
+        when LOGS then function_logs(resource, arguments, given)
+        when DEPLOYS, STATUS
+          Route.new(tool_name: LIST_EDGE_FUNCTIONS, arguments: arguments,
+                    present: ->(result) { Answers.read(result, PROVIDER) { |data| function_result(resource, slug, data, key) } })
+        end
+      end
+
+      # Back to an earlier migration, by the version recent_deploys gives, on a preview branch. The project's own branch is
+      # production, which reset_branch does not take, and a branch the map read before it kept branch ids is named again
+      # at the next sweep.
+      def self.rollback(resource, given)
+        version = target(given)
+        details = resource.details.to_h
+        if details[ResourceMap::PRODUCTION]
+          raise Unroutable, "#{resource.name} is the project's production branch, and Supabase resets only preview branches. Going back there is a new migration the person writes."
+        end
+
+        branch = details[MapReaders::Supabase::BRANCH_ID].presence
+        raise Unroutable, "Firefight has not read the branch id of #{resource.name} yet, which reset_branch needs. It is read at the next map sweep." unless branch
+
+        Route.new(tool_name: RESET_BRANCH, arguments: { "branch_id" => branch, "migration_version" => version },
+                  present: lambda { |result|
+                    Answers.read(result, PROVIDER) do |_data|
+                      Telemetry.result("Supabase is resetting #{resource.name} to migration #{version}. Changes to its data or schema that " \
+                                       "no migration made are lost. Its status in list_branches says when it is done.",
+                                       link: Answers.page(resource, PROVIDER))
+                    end
+                  })
+      end
+
+      def self.function_logs(resource, arguments, given)
+        source = FUNCTION_SOURCES[given["stream"].presence || STREAM_APP]
+        raise Unroutable, "Supabase reads what an Edge Function prints with stream app and its invocations with stream requests." unless source
+
+        id = resource.details.to_h[MapReaders::Supabase::FUNCTION_ID].presence
+        raise Unroutable, "Firefight has not read the id of #{resource.name} yet, which its log lines carry. It is read at the next map sweep." unless id
+
+        limit = Answers.limit(given, LOG_MOST, default: LOG_LIMIT)
+        started, ended = window(given)
+        filters = [ "source = #{literal(source)}", "log_attributes['function_id'] = #{literal(id)}" ]
+        filters << "positionCaseInsensitive(event_message, #{literal(given['text'])}) > 0" if given["text"].present?
+        filters << "positionCaseInsensitive(event_message, #{literal(given['exclude'])}) = 0" if given["exclude"].present?
+        filters << "match(event_message, #{literal(given['regex'])})" if given["regex"].present?
+        sql = "select #{FUNCTION_COLUMNS.fetch(source)} from logs where #{filters.join(' and ')} order by timestamp desc limit #{limit}"
+        Route.new(tool_name: TOOLS[LOGS], arguments: arguments.merge("sql" => sql, "iso_timestamp_start" => started.utc.iso8601, "iso_timestamp_end" => ended.utc.iso8601),
+                  present: ->(result) { Answers.read(result, PROVIDER) { |data| function_logs_result(resource, source, data, limit) } })
+      end
+
+      def self.function_logs_result(resource, source, data, limit)
+        wrapped = data.is_a?(Hash) ? data["result"] : data
+        inner = wrapped.is_a?(String) && (match = wrapped.match(UNTRUSTED)) ? JSON.parse(match[:data]) : wrapped
+        failure = inner.is_a?(Hash) ? inner["error"] : nil
+        if failure.present?
+          said = failure.is_a?(Hash) ? (failure["message"] || failure.to_json) : failure.to_s
+          return { "isError" => true, "content" => [ { "type" => "text", "text" => Sentence.join("Supabase could not read the logs", said) } ] }
+        end
+
+        lines = Array(inner.is_a?(Hash) ? inner["result"] : inner).filter_map do |row|
+          at = Answers.time_of(row["timestamp"])
+          took = row["execution_time_ms"].presence && "#{row['execution_time_ms']}ms"
+          version = row["version"].presence && "v#{row['version']}"
+          text = [ version, row["level"], row["method"], row["status_code"], took, row["event_message"] ].compact_blank.join(" ")
+          Telemetry::LogLine.new(at: at, source: resource.name, text: text) if at && text.present?
+        end.sort_by(&:at).reverse
+        Telemetry.result(Telemetry.logs_text(lines, asked: "#{FUNCTION_READS.fetch(source)} #{resource.name}#{' printed' if source == FUNCTION_SOURCES[STREAM_APP]}", limit: limit),
+                         link: Answers.page(resource, PROVIDER))
+      end
+
+      # The one function in the project's list: how it stands, or the version it runs and when that was deployed.
+      def self.function_result(resource, slug, data, key)
+        function = Array(data.is_a?(Hash) ? data["functions"] : data).find { |each| each.is_a?(Hash) && each["slug"] == slug }
+        link = Answers.page(resource, PROVIDER)
+        return Telemetry.result("Supabase lists no Edge Function #{slug} in this project now, so it was removed or renamed.", link: link) unless function
+
+        deployed = Answers.time_of(function["updated_at"])&.iso8601
+        if key == DEPLOYS
+          return Telemetry.result("#{resource.name} runs version #{function['version']}#{", deployed #{deployed}" if deployed}. Supabase keeps only " \
+                                  "the version a function runs, so earlier deploys are not listed.", link: link)
+        end
+
+        facts = [ ("status #{function['status']}" if function["status"]), ("version #{function['version']}" if function["version"]),
+                  ("deployed #{deployed}" if deployed), (function["verify_jwt"] ? "requires a signed in user's JWT" : "open without a JWT" unless function["verify_jwt"].nil?) ]
+        Telemetry.result("How #{resource.name} stands on Supabase now: #{facts.compact.join(', ')}.", link: link)
       end
 
       # A connection scoped to one project reads only that one, whatever is asked, so another project is refused.
       def self.scoped!(resource, settings)
         scoped = settings&.field(SCOPED_TO)
-        return if scoped.blank? || scoped == resource.external_id
+        return if scoped.blank? || scoped == ref_of(resource)
 
         raise Unroutable, "This Supabase connection is scoped to project #{scoped}, so it cannot read #{resource.name}. Connect Supabase for that project too."
       end
@@ -147,6 +267,7 @@ module Integrations
         Telemetry.result("How #{resource.name} stands on Supabase now: #{facts.compact.join(', ')}.", link: Answers.page(resource, PROVIDER))
       end
 
+      private_class_method :ref_of, :function_route, :rollback, :function_logs, :function_logs_result, :function_result
       private_class_method :scoped!, :page, :takes_project?, :project, :logs, :window, :literal, :logs_result, :deploys_result, :status_result
     end
   end

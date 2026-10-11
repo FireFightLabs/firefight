@@ -48,13 +48,13 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
   end
 
   test "a provider that keeps no run history says so, and nothing is started" do
-    kubernetes = connect!("kubernetes", "Kubernetes", %w[workload_status])
-    place!(kubernetes, ResourceMap::KIND_SERVICE, "api", "default/deployment/api")
+    modal = connect!("modal", "Modal", %w[describe_app])
+    place!(modal, ResourceMap::KIND_SERVICE, "api", "api")
 
     said = Conversation::Watches.start(@turn, watch_of([ { "label" => "API rollout", "capability" => "run_history", "resource" => "api" } ]))
 
     assert_match "Nothing was started", said
-    assert_match "Kubernetes keeps no run history Halon can read. #{IntegrationProvider.find('kubernetes').history_note}", said
+    assert_match "Modal keeps no run history Halon can read. #{IntegrationProvider.find('modal').history_note}", said
     assert_not Chat::Watch.exists?(workspace_id: @workspace.id)
   end
 

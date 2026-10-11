@@ -95,7 +95,9 @@ module ResourceMap::KeyQueries
     ResourceMap::KIND_LOAD_BALANCER => NO_SHARED_READ, ResourceMap::KIND_ORIGIN_POOL => NO_SHARED_READ,
     ResourceMap::KIND_ACCESS_APP => NO_SHARED_READ,
     ResourceMap::KIND_WORKFLOW => RELEASES, ResourceMap::KIND_RELEASE_FLOW => RELEASES,
-    ResourceMap::KIND_PIPELINE => "A pipeline only groups stages. Its release flows have the runs, and what it holds has the checks."
+    ResourceMap::KIND_PIPELINE => "A pipeline releases code through its stages rather than running it. Its runs, or its release flows' runs, are its " \
+                                  "run history, and what it releases has the checks.",
+    ResourceMap::KIND_STACK => "A stack defines infrastructure rather than running it. Its operations are its run history, and what it defines has the checks."
   }.freeze
 
   # How a check would run on a resource now: the capability call it resolves to and the metric it reads, or why it

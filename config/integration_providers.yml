@@ -303,7 +303,7 @@ providers:
     category: Cloud and hosting
     mark: K8
     color: "#326ce5"
-    description: Pod logs, current usage, rollout history and events in your cluster's namespaces, and rollbacks, restarts and scaling of workloads when you allow it.
+    description: Pod logs, current usage, rollouts, job runs and events in your cluster's namespaces, and rollbacks, restarts, scaling, pausing a rollout and starting or suspending a cronjob when you allow it.
     server_url: ""
     kind: native
     connect_with: api_token
@@ -324,8 +324,8 @@ providers:
     source_links: none
     source_links_note: "Kubernetes has no hosted console of its own, and the dashboard a team may run sits at an address Firefight does not know, so each answer names the kubectl command that shows the same."
     map: firefight
-    history: none
-    history_note: "Kubernetes keeps each rollout's revision and when its ReplicaSet was made, but not when the rollout finished, so no rollout has a length to read."
+    history: firefight
+    stopping_tools: [rollout_pause, suspend_cronjob]
   - key: modal
     name: Modal
     category: Cloud and hosting
@@ -421,7 +421,8 @@ providers:
     color: "#ff9900"
     status_page: { url: https://health.aws.amazon.com/health/status, feed: page }
     hosts: [ amazonaws.com, cloudfront.net, aws.amazon.com ]
-    description: Logs, metrics, deployments and status of the ECS services, Lambda functions, EC2 instances and RDS databases in an AWS account, the builds of its CodeBuild projects, and fixes to ECS services and Lambda aliases when you allow it.
+    description: Logs, metrics, deployments and status of the ECS services, Lambda functions, EC2 instances, RDS databases, App Runner services and Elastic Beanstalk environments in an AWS account, the builds of its CodeBuild projects, the runs of its CodePipeline pipelines, CodeDeploy deployment groups and CloudFormation stacks, and fixes to ECS services and Lambda aliases, or stopping and rolling back a release, when you allow it.
+    stopping_tools: [stop_service_deployment, stop_pipeline_execution, stop_codedeploy_deployment, cancel_stack_update]
     server_url: ""
     kind: native
     connect_with: api_token
@@ -482,7 +483,7 @@ providers:
     color: "#4285f4"
     status_page: { url: https://status.cloud.google.com, feed: page }
     hosts: [ googleapis.com, run.app, cloudfunctions.net, appspot.com ]
-    description: Logs, metrics, errors and revisions of Cloud Run services, with Cloud SQL, Compute Engine and GKE, across your projects, and rollbacks, restarts and scaling when you allow it.
+    description: Logs, metrics, errors and revisions of Cloud Run services, Cloud Run jobs and their executions, and Cloud Deploy pipelines and their rollouts, with Cloud SQL, Compute Engine and GKE, across your projects, and rollbacks, restarts and scaling when you allow it.
     server_url: ""
     site: https://console.cloud.google.com
     kind: native
@@ -493,6 +494,7 @@ providers:
     source_links: firefight
     map: firefight
     history: firefight
+    stopping_tools: [cancel_rollout]
   - key: azure
     name: Azure
     category: Cloud and hosting
@@ -1017,7 +1019,7 @@ providers:
     color: "#00e599"
     status_page: { url: https://neonstatus.com, feed: page }
     hosts: [ neon.tech, aws.neon.tech, console.neon.tech ]
-    description: Read-only queries, branch history and compute status for a Neon Postgres database, and restarting a compute when you allow it.
+    description: Read-only queries, branch history and compute status for a Neon Postgres database, and rolling a branch back or restarting a compute when you allow it.
     server_url: https://mcp.neon.tech/mcp
     site: https://console.neon.tech
     source_links: firefight
@@ -1031,7 +1033,7 @@ providers:
     color: "#3ecf8e"
     status_page: { url: https://status.supabase.com, feed: statuspage }
     hosts: [ supabase.co, supabase.com, pooler.supabase.com ]
-    description: Read-only queries and project state for a Supabase database.
+    description: Read-only queries, project state and Edge Functions for a Supabase database, and resetting a preview branch when you allow it.
     server_url: https://mcp.supabase.com/mcp
     site: https://supabase.com/dashboard
     connect_fields:
@@ -1052,7 +1054,7 @@ providers:
     source_links: firefight
     map: firefight
     history: none
-    history_note: "Its server lists migrations by version and name without when they ran, and Supabase keeps no builds or deploys a tool reads."
+    history_note: "Its server lists migrations by version and name without when they ran, and offers no branch action runs, the only runs Supabase times."
     setting_words: [SUPABASE]
   - key: planetscale
     name: PlanetScale

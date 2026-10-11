@@ -3,14 +3,24 @@ module Integrations
     # Puts Supabase on the resource map. Every project the connection reaches is a database, and each of its branches is
     # a project ref of its own. It reads through Supabase's own server, with only the tools that are switched on. The
     # tools and their answers are the ones supabase-community/supabase-mcp publishes in packages/mcp-server-supabase/src/tools,
-    # account-tools.ts and branching-tools.ts. Each page address is the dashboard's, dashboard/project/<ref>, as Supabase's
-    # documentation links it.
+    # account-tools.ts, branching-tools.ts and edge-function-tools.ts. A project's Edge Functions are functions on the map,
+    # part of it. Each page address is the dashboard's, dashboard/project/<ref>, as Supabase's documentation links it, and a
+    # function's is its project's Functions page, the one guides/functions/logging opens, since no page of one function is
+    # documented.
     class Supabase < RemoteReader
       PROVIDER = "supabase".freeze
       NAME = "Supabase".freeze
       LIST_PROJECTS = "list_projects".freeze
       LIST_BRANCHES = "list_branches".freeze
+      LIST_EDGE_FUNCTIONS = "list_edge_functions".freeze
       GET_PROJECT = "get_project".freeze
+      FUNCTIONS_PAGE = "functions".freeze
+      # A branch's own id, which reset_branch takes, beside its project ref.
+      BRANCH_ID = "branch_id".freeze
+      # A function's id, which its log lines carry as function_id, and the version it runs.
+      FUNCTION_ID = "function_id".freeze
+      VERSION = "version".freeze
+      DEPLOYED_AT = "deployed_at".freeze
       # The server hands back the Management API's own message when it refuses (supabase-mcp, management-api/index.ts,
       # assertSuccess), which for a project that is not there says so.
       NOT_FOUND = /\bnot found\b/i
@@ -39,7 +49,7 @@ module Integrations
         if scoped
           scoped_project
         else
-          kinds = [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ]
+          kinds = [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH, ResourceMap::KIND_FUNCTION ]
           Array(objects(listing(LIST_PROJECTS, "projects", {}, kinds: kinds), "projects", kinds: kinds, key: "projects")).each { |project| project(project) }
         end
         snapshot
@@ -103,12 +113,33 @@ module Integrations
           found = ResourceMap::Found.new(
             provider: PROVIDER, account: account, kind: ResourceMap::KIND_BRANCH, external_id: branch_ref, name: "#{database.name}/#{branch['name']}",
             status: branch["status"], url: self.class.page(settings&.site, branch_ref),
-            details: { ResourceMap::PRODUCTION => branch["is_default"], "branch" => branch["git_branch"], "persistent" => branch["persistent"] }.compact
+            details: { ResourceMap::PRODUCTION => branch["is_default"], "branch" => branch["git_branch"], "persistent" => branch["persistent"],
+                       BRANCH_ID => branch["id"].presence }.compact
           )
           @resources << found
           @links << ResourceMap::FoundLink.new(from: found.key, to: database.key, relation: ResourceMap::RELATION_BRANCH_OF)
           # The default branch is the project itself, whose addresses the project already holds.
           addresses(found, branch_ref) unless branch_ref == ref
+        end
+        functions(database, ref)
+      end
+
+      # The project's Edge Functions (edgeFunctionSchema: id, slug, name, status, version, updated_at in milliseconds),
+      # each named by its slug under the project, as a branch is.
+      def functions(database, ref)
+        arguments = parameters(LIST_EDGE_FUNCTIONS).empty? || parameters(LIST_EDGE_FUNCTIONS).key?("project_id") ? { "project_id" => ref } : {}
+        what = "Edge Functions of #{database.name}"
+        listed = listing(LIST_EDGE_FUNCTIONS, what, arguments, kinds: [ ResourceMap::KIND_FUNCTION ])
+        Array(objects(listed, what, kinds: [ ResourceMap::KIND_FUNCTION ], key: "functions")).each do |function|
+          slug = function["slug"].presence || next
+          deployed = Capabilities::Answers.time_of(function["updated_at"])
+          found = ResourceMap::Found.new(
+            provider: PROVIDER, account: database.account, kind: ResourceMap::KIND_FUNCTION, external_id: "#{ref}/#{slug}",
+            name: "#{database.name}/#{slug}", status: function["status"], url: self.class.page(settings&.site, ref, FUNCTIONS_PAGE),
+            details: { FUNCTION_ID => function["id"].presence, VERSION => function["version"], DEPLOYED_AT => deployed&.utc&.iso8601 }.compact
+          )
+          @resources << found
+          @links << ResourceMap::FoundLink.new(from: found.key, to: database.key, relation: ResourceMap::RELATION_PART_OF)
         end
       end
 

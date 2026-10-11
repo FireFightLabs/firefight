@@ -1,6 +1,6 @@
 ---
 name: google_cloud_api
-when: A question about Google Cloud that the other Google Cloud tools do not answer, such as a Cloud Deploy release or rollout, a Cloud Run revision's conditions, GKE node pools, Cloud SQL operations and backups, Pub/Sub subscriptions, Artifact Registry images, DNS records, IAM policies, or anything else Google Cloud's APIs read, and finding out whether an API offers a read at all
+when: A question about Google Cloud that the other Google Cloud tools do not answer, such as a Cloud Run revision's conditions, GKE node pools, Cloud SQL operations and backups, Pub/Sub subscriptions, Artifact Registry images, DNS records, IAM policies, or anything else Google Cloud's APIs read, and finding out whether an API offers a read at all
 tools: [api_read, list_resources, run_history, list_builds]
 references: [api/run/index.md, api/compute/index.md, api/sqladmin/index.md, api/container/index.md, api/cloudbuild/index.md, api/clouddeploy/index.md, api/logging/index.md, api/monitoring/index.md, api/cloudresourcemanager/index.md, api/iam/index.md, api/secretmanager/index.md, api/pubsub/index.md, api/artifactregistry/index.md, api/cloudfunctions/index.md, api/redis/index.md, api/dns/index.md, api/storage/index.md]
 ---

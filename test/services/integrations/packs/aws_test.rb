@@ -24,7 +24,7 @@ module Integrations
         answer(:describe_task_definition, task_definition: task_definition)
       end
 
-      test "the keys are stored trimmed and the regions are a connect field, and only the three changes are not read only" do
+      test "the keys are stored trimmed and the regions are a connect field, and only the changes are not read only" do
         assert_equal [ "AKIAEXAMPLE", "secret", nil ], @row.reload.credentials_hash.values_at(Aws::ACCESS_KEY_ID, Aws::SECRET_ACCESS_KEY, Aws::REGIONS)
         regions = IntegrationProvider.find(Aws::PROVIDER_KEY).connect_fields.find { |field| field.key == Aws::REGIONS }
         assert regions.multiple
@@ -34,7 +34,8 @@ module Integrations
         assert_nil regions.refusal(%w[cn-north-1 cn-northwest-1])
         assert_match "Regions can only be", regions.refusal(%w[mars-north-1])
         assert_equal "Regions is required.", regions.refusal([])
-        assert_equal %w[rollback_deployment restart_service scale_service], Aws.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[rollback_deployment restart_service scale_service stop_service_deployment stop_pipeline_execution rollback_pipeline_stage
+                        stop_codedeploy_deployment cancel_stack_update], Aws.tool_definitions.reject(&:read_only).map(&:name)
         assert Aws.credential_fields.find { |field| field.key == Aws::SECRET_ACCESS_KEY }.secret
       end
 
@@ -594,7 +595,7 @@ module Integrations
       test "AWS's skills cover triage and each kind, and the guides behind them carry AWS's license and notice" do
         skills = Chat::Skill.all.select { |skill| skill.source == Aws::PROVIDER_KEY }
 
-        assert_equal %w[aws_api aws_cost aws_ec2 aws_ecs aws_lambda aws_logs_insights aws_rds aws_triage], skills.map(&:name).sort
+        assert_equal %w[aws_api aws_cost aws_ec2 aws_ecs aws_lambda aws_logs_insights aws_rds aws_releases aws_triage], skills.map(&:name).sort
         # The agent toolkit has no guide on spend, so the cost skill is in our own words from Cost Explorer's API reference.
         skills.reject { |skill| skill.name == "aws_cost" }.each { |skill| assert skill.references.any?, "#{skill.name} lists the guides behind it" }
         source = ProviderDocSource::Definition.find(Aws::PROVIDER_KEY)
@@ -688,7 +689,14 @@ module Integrations
         %i[list_clusters describe_instances describe_db_instances list_projects].each { |operation| listing.call(operation, "us-east-1", []) }
         AwsApi.any_instance.stubs(:all).with { |_service, region, called, *| called == :list_functions && region == "us-east-1" }
                     .raises(AwsApi::Denied, "AWS answered AccessDeniedException: not authorized to perform: lambda:ListFunctions")
+        nothing_released!
         answer(:list_tags, tags: {})
+      end
+
+      # The account runs nothing on App Runner or Elastic Beanstalk and releases nothing through a pipeline, a deployment
+      # group or a stack.
+      def nothing_released!
+        AwsApi.any_instance.stubs(:all).with { |service, *| %i[apprunner elasticbeanstalk codepipeline codedeploy cloudformation].include?(service) }.returns([ [], false ])
       end
 
       def service(rollout: "COMPLETED")

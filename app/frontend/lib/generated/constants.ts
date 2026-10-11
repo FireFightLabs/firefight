@@ -91,7 +91,8 @@ export const RESOURCE_MAP_KINDS = [
   "compute",
   "workflow",
   "pipeline",
-  "release_flow"
+  "release_flow",
+  "stack"
 ] as const
 export type ResourceMapKind = (typeof RESOURCE_MAP_KINDS)[number]
 
