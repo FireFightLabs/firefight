@@ -9,7 +9,8 @@ class AlertSourcesController < InertiaController
     )
 
     if source.save
-      redirect_to settings_alert_sources_path, notice: "#{source.name} was created."
+      # Opens the new source's setup, since pointing the tool at it is the next thing to do.
+      redirect_to settings_alert_sources_path(setup: source.id), notice: "#{source.name} was created."
     else
       redirect_back fallback_location: settings_alert_sources_path, inertia: { errors: source.errors.to_hash }
     end
@@ -18,8 +19,11 @@ class AlertSourcesController < InertiaController
   def update
     attrs = { name: params.dig(:alert_source, :name), enabled: params.dig(:alert_source, :enabled) }.compact
     attrs[:config] = updated_config
+    @alert_source.assign_attributes(attrs)
+    secret = params.dig(:alert_source, :secret).to_s
+    @alert_source.replace_secret(secret) if secret.strip.present? && adapter::SECRET_FROM_PROVIDER
 
-    if @alert_source.update(attrs)
+    if @alert_source.save
       redirect_to settings_alert_sources_path, notice: "#{@alert_source.name} was updated."
     else
       redirect_back fallback_location: settings_alert_sources_path, inertia: { errors: @alert_source.errors.to_hash }
@@ -31,8 +35,10 @@ class AlertSourcesController < InertiaController
     redirect_to settings_alert_sources_path, notice: "#{@alert_source.name} was deleted."
   end
 
-  # Fetched on demand, never embedded in page props.
+  # Fetched on demand, never embedded in page props. A secret the person pasted in from their tool is never sent back.
   def token
+    return head :not_found if adapter::SECRET_FROM_PROVIDER
+
     render json: { token: @alert_source.secret_token }
   end
 
@@ -46,6 +52,10 @@ class AlertSourcesController < InertiaController
 
   def set_alert_source
     @alert_source = current_workspace.alert_sources.find(params[:id])
+  end
+
+  def adapter
+    AlertProviders.for(@alert_source.provider)
   end
 
   def updated_config

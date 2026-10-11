@@ -1,0 +1,57 @@
+{
+  "version": "4",
+  "groupKey": "{}:{alertname=\"HighErrorRate\"}",
+  "truncatedAlerts": 0,
+  "status": "firing",
+  "receiver": "firefight",
+  "groupLabels": {
+    "alertname": "HighErrorRate"
+  },
+  "commonLabels": {
+    "alertname": "HighErrorRate",
+    "job": "checkout",
+    "severity": "critical"
+  },
+  "commonAnnotations": {
+    "summary": "High request error rate on checkout"
+  },
+  "externalURL": "http://alertmanager.example.com:9093",
+  "notification_reason": "some alerts resolved",
+  "routeLabels": {},
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "HighErrorRate",
+        "instance": "checkout-1:8080",
+        "job": "checkout",
+        "severity": "critical"
+      },
+      "annotations": {
+        "summary": "High request error rate on checkout",
+        "description": "5xx rate is 12% on checkout-1:8080"
+      },
+      "startsAt": "2026-10-11T09:00:00.000Z",
+      "endsAt": "2026-10-11T09:20:00.000Z",
+      "generatorURL": "http://prometheus.example.com:9090/graph?g0.expr=job%3Acheckout%3Aerror_rate+%3E+0.05&g0.tab=1",
+      "fingerprint": "6f2c1a9e0d3b4c57"
+    },
+    {
+      "status": "resolved",
+      "labels": {
+        "alertname": "HighErrorRate",
+        "instance": "checkout-2:8080",
+        "job": "checkout",
+        "severity": "critical"
+      },
+      "annotations": {
+        "summary": "High request error rate on checkout",
+        "description": "5xx rate is 9% on checkout-2:8080"
+      },
+      "startsAt": "2026-10-11T08:50:00.000Z",
+      "endsAt": "2026-10-11T09:05:00.000Z",
+      "generatorURL": "http://prometheus.example.com:9090/graph?g0.expr=job%3Acheckout%3Aerror_rate+%3E+0.05&g0.tab=1",
+      "fingerprint": "a81d77c0b2e94f13"
+    }
+  ]
+}

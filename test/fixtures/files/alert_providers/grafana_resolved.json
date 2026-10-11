@@ -1,0 +1,49 @@
+{
+  "receiver": "My Super Webhook",
+  "status": "resolved",
+  "orgId": 1,
+  "alerts": [
+    {
+      "status": "resolved",
+      "labels": {
+        "alertname": "High memory usage",
+        "team": "blue",
+        "zone": "us-1"
+      },
+      "annotations": {
+        "description": "The system has high memory usage",
+        "runbook_url": "https://myrunbook.com/runbook/1234",
+        "summary": "This alert was triggered for zone us-1"
+      },
+      "startsAt": "2021-10-12T09:51:03.157076+02:00",
+      "endsAt": "2021-10-12T10:06:03.157076+02:00",
+      "generatorURL": "https://play.grafana.org/alerting/1afz29v7z/edit",
+      "fingerprint": "c6eadffa33fcdf37",
+      "silenceURL": "https://play.grafana.org/alerting/silence/new?alertmanager=grafana&matchers=alertname%3DT2%2Cteam%3Dblue%2Czone%3Dus-1",
+      "dashboardURL": "",
+      "panelURL": "",
+      "values": {
+        "B": 12.5,
+        "C": 0
+      }
+    }
+  ],
+  "groupLabels": {},
+  "commonLabels": {
+    "alertname": "High memory usage",
+    "team": "blue",
+    "zone": "us-1"
+  },
+  "commonAnnotations": {
+    "description": "The system has high memory usage",
+    "runbook_url": "https://myrunbook.com/runbook/1234",
+    "summary": "This alert was triggered for zone us-1"
+  },
+  "externalURL": "https://play.grafana.org/",
+  "version": "1",
+  "groupKey": "{}:{}",
+  "truncatedAlerts": 0,
+  "title": "[RESOLVED] High memory usage (blue us-1)",
+  "state": "ok",
+  "message": "**Resolved**\n\nLabels:\n - alertname = High memory usage\n - team = blue\n - zone = us-1\n"
+}

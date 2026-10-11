@@ -1,0 +1,32 @@
+{
+  "event_type": "custom_alert_triggered",
+  "alert": {
+    "id": 123123,
+    "name": "Webhook Test",
+    "creator": "Last Name, First Name",
+    "creator_email": "first_name.last_name@example.com",
+    "project_id": 9876543,
+    "project_name": "My Prod project",
+    "fired_at": "2026-02-06T10:53:30Z",
+    "workspace_id": 12345,
+    "workspace_name": "All Project Data"
+  },
+  "condition": {
+    "type": "absolute",
+    "operator": ">",
+    "threshold": 0,
+    "current_value": "20,000",
+    "formatted_value": "20,000",
+    "sentence": "above 0"
+  },
+  "report": {
+    "name": "Custom Alert Insights Report",
+    "type": "insights",
+    "url": "https://mixpanel.com/project/9876543/view/12345/app/insights?mp_source=webhook&alert_id=123123#report/BOOKMARKID"
+  },
+  "links": {
+    "report_url": "https://mixpanel.com/project/9876543/view/12345/app/insights?mp_source=webhook&alert_id=123123#report/BOOKMARKID",
+    "edit_alert_url": "https://mixpanel.com/settings/account/alert-settings/alert/123123?mp_source=webhook",
+    "root_cause_analysis_url": "https://mixpanel.com/project/9876543/view/12345/app/boards/?mp_source=webhook#rca=123123&time=1770404010"
+  }
+}

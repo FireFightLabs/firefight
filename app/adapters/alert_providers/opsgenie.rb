@@ -6,13 +6,16 @@ module AlertProviders
   class Opsgenie < Base
     CREATE = "Create".freeze
     CLOSE = "Close".freeze
-    SETUP_INSTRUCTIONS = "In Opsgenie, add a Webhook integration with this URL, send the alert description with it, and post to " \
-                         "the URL when an alert is created and when it is closed. Add a custom header named #{TOKEN_HEADER} " \
-                         "holding the token. Firefight accepts and ignores other actions.".freeze
+    LABEL = "Opsgenie".freeze
+    SETUP_STEPS = [
+      "In Opsgenie, add a Webhook integration with this URL and send the alert description with it.",
+      "Post to the URL when an alert is created and when it is closed. Firefight accepts and ignores other actions.",
+      "Add a custom header named #{TOKEN_HEADER} holding the token."
+    ].freeze
 
     def self.verify(headers:, raw_body:, source:) = token_matches?(headers[TOKEN_HEADER].to_s, source)
 
-    def self.normalize(payload, source:)
+    def self.normalize(payload, source:, headers: {})
       return [] unless alert_action?(payload)
 
       alert = payload["alert"]

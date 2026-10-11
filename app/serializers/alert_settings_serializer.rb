@@ -22,6 +22,11 @@ class AlertSettingsSerializer < BaseSerializer
     alert.alert_source_id
   end
 
+  type :string, optional: true
+  def source_url
+    alert.source_url
+  end
+
   type :string
   def source_name
     alert.alert_source.name

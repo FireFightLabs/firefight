@@ -39,6 +39,7 @@ module Mcp
           id: alert.id,
           title: alert.title,
           source: alert.alert_source.name,
+          url: alert.source_url,
           status: alert.status,
           routing_state: alert.routing_state,
           matched_rule_priority: alert.matched_policy_rule&.priority,

@@ -2,6 +2,7 @@ import { IconBellRinging } from "@tabler/icons-react"
 
 import type { Incident } from "@/pages/incidents/types"
 import { formatTime } from "@/lib/formatters"
+import { AlertTitle } from "@/components/alert-title"
 
 export function AlertsPanel({ alerts }: { alerts: Incident["alerts"] }) {
   if (alerts.length === 0) {
@@ -19,7 +20,7 @@ export function AlertsPanel({ alerts }: { alerts: Incident["alerts"] }) {
               aria-hidden
             />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] leading-snug text-fg-primary">{alert.title}</p>
+              <AlertTitle title={alert.title} sourceUrl={alert.sourceUrl} className="text-[13px] leading-snug text-fg-primary" />
               <p className="flex items-center gap-1.5 text-xs text-fg-muted">
                 <IconBellRinging className="size-3" />
                 {alert.sourceName}

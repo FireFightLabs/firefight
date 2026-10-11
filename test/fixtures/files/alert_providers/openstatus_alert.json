@@ -1,0 +1,12 @@
+{
+  "monitor": {
+    "id": 1,
+    "name": "test",
+    "url": "http://openstat.us"
+  },
+  "cronTimestamp": 1744023705307,
+  "status": "error",
+  "statusCode": 500,
+  "latency": 1337,
+  "errorMessage": "Internal Server Error"
+}

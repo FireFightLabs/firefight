@@ -6,10 +6,8 @@ import {
   ALERT_NORMALIZED_FIELDS,
   ALERT_NOTIFY_TARGETS,
   ALERT_OUTCOME_ACTIONS,
-  ALERT_PROVIDERS,
   type AlertConditionOperator,
   type AlertOutcomeAction,
-  type AlertProvider,
 } from "@/lib/generated/constants"
 
 export type ConditionOperator = AlertConditionOperator
@@ -48,23 +46,19 @@ export const TARGET_TEAM = ALERT_NOTIFY_TARGETS.TEAM
 export const TARGET_OWNING_TEAM = ALERT_NOTIFY_TARGETS.OWNING_TEAM
 export const TARGET_CHANNEL = ALERT_NOTIFY_TARGETS.CHANNEL
 
-export const PROVIDER_LABELS: Record<AlertProvider, string> = {
-  generic: "Generic webhook",
-  northflank: "Northflank",
-  pagerduty: "PagerDuty",
-  opsgenie: "Opsgenie",
+// A provider a source can be made for, with how to point it at the source, from the provider's own adapter.
+export interface AlertProviderSetup {
+  provider: string
+  label: string
+  steps: string[]
+  secretFromProvider: boolean
+  fieldMapping: boolean
+  template: string | null
 }
 
-function isAlertProvider(value: string): value is AlertProvider {
-  return (ALERT_PROVIDERS as readonly string[]).includes(value)
+export function providerLabel(providers: AlertProviderSetup[], value: string): string {
+  return providers.find((entry) => entry.provider === value)?.label ?? value
 }
-
-export function providerLabel(value: string): string {
-  return isAlertProvider(value) ? PROVIDER_LABELS[value] : value
-}
-
-// How each provider is pointed at a source's URL, from its adapter on the server.
-export type SetupInstructions = Partial<Record<string, string>>
 
 export const NORMALIZED_FIELDS = ALERT_NORMALIZED_FIELDS
 

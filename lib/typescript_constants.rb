@@ -139,7 +139,6 @@ module TypescriptConstants
         "OWNING_TEAM" => PolicyRule::AlertRoutingOutcome::TARGET_OWNING_TEAM,
         "CHANNEL" => PolicyRule::AlertRoutingOutcome::TARGET_CHANNEL
       }, nil),
-      Export.new("ALERT_PROVIDERS", AlertSource::PROVIDERS, "AlertProvider"),
       Export.new("ABILITY_RESOURCES", Ability::Action::RESOURCES, "AbilityResource"),
       Export.new("ABILITY_GRANTABLE_RESOURCES", Ability::Action::GRANTABLE_RESOURCES, "AbilityGrantableResource"),
       Export.new("ABILITY_RESOURCE_LABELS", Ability::Action::RESOURCE_LABELS, nil),

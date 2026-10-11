@@ -1,0 +1,16 @@
+{
+  "action": "Open",
+  "event": {
+    "monitorID": "CabI3w142069etTgd0",
+    "body": "Current value of 57347 is above or equal to the threshold value of 0",
+    "description": "",
+    "queryEndTime": "2024-06-28 14:55:57.631364493 +0000 UTC",
+    "queryStartTime": "2024-06-28 14:45:57.631364493 +0000 UTC",
+    "timestamp": "2024-06-28 14:55:57 +0000 UTC",
+    "title": "Axiom Monitor Test Triggered",
+    "value": 57347,
+    "matchedEvent": null,
+    "groupKeys": null,
+    "groupValues": null
+  }
+}

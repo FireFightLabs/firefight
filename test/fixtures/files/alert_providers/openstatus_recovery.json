@@ -1,0 +1,11 @@
+{
+  "monitor": {
+    "id": 1,
+    "name": "test",
+    "url": "http://openstat.us"
+  },
+  "cronTimestamp": 1744023705307,
+  "status": "recovered",
+  "statusCode": 200,
+  "latency": 1337
+}

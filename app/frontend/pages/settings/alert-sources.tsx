@@ -5,17 +5,18 @@ import { useCan } from "@/lib/permissions"
 import { AlertSourcesTab } from "@/pages/settings/components/alert-sources/alert-sources-tab"
 import type { AlertSourceSettings, IncidentSeveritySettings } from "@/types/serializers"
 import type { SharedProps } from "@/types"
-import type { SetupInstructions } from "@/pages/settings/lib/alerts"
+import type { AlertProviderSetup } from "@/pages/settings/lib/alerts"
 
 interface AlertSourcesPageProps extends SharedProps {
   [key: string]: unknown
   alertSources: AlertSourceSettings[]
   severities: IncidentSeveritySettings[]
-  setupInstructions: SetupInstructions
+  providers: AlertProviderSetup[]
+  setupSourceId: string | null
 }
 
 export default function AlertSources() {
-  const { alertSources, severities, setupInstructions } = usePage<AlertSourcesPageProps>().props
+  const { alertSources, severities, providers, setupSourceId } = usePage<AlertSourcesPageProps>().props
   const canManage = useCan("alerts")
 
   return (
@@ -25,7 +26,8 @@ export default function AlertSources() {
         <AlertSourcesTab
           alertSources={alertSources}
           severities={severities}
-          setupInstructions={setupInstructions}
+          providers={providers}
+          setupSourceId={setupSourceId}
           canManage={canManage}
         />
       </div>

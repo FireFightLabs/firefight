@@ -4,6 +4,7 @@ import { Link, router } from "@inertiajs/react"
 import type { AlertSettings } from "@/types/serializers"
 import { settingsAlertsPath, settingsAlertSourcesPath } from "@/lib/routes"
 import { formatDateTime } from "@/lib/formatters"
+import { AlertTitle } from "@/components/alert-title"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -126,7 +127,7 @@ export function RecentAlertsTab({
               {alerts.map((alert) => (
                 <TableRow key={alert.id}>
                   <TableCell className="max-w-md">
-                    <span className="block truncate text-sm font-medium">{alert.title}</span>
+                    <AlertTitle title={alert.title} sourceUrl={alert.sourceUrl} className="text-sm font-medium" />
                   </TableCell>
                   <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
                     {alert.sourceName}

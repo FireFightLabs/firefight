@@ -1,0 +1,14 @@
+{
+  "alert_cycle_key": "7812345678901230000",
+  "aggregation_key": "9bd4ac313a4d1e8fae2482df7b77628",
+  "monitor_id": "1234",
+  "transition": "Triggered",
+  "title": "[Triggered on {host:ip-012345}] High CPU on checkout-api",
+  "message": "CPU usage is above 90% on checkout-api.\n@webhook-firefight",
+  "priority": "P2",
+  "service": "checkout-api",
+  "environment": "prod",
+  "team": "payments",
+  "link": "https://app.datadoghq.com/event/jump_to?event_id=7812345678901234567",
+  "id": "7812345678901234567"
+}

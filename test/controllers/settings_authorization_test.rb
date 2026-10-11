@@ -133,8 +133,7 @@ class SettingsAuthorizationTest < ActionDispatch::IntegrationTest
     sign_in(users(:alice), @workspace)
 
     post alert_sources_url, params: { alert_source: { name: "Allowed" } }
-    assert_redirected_to settings_alert_sources_path
-    assert @workspace.alert_sources.exists?(name: "Allowed")
+    assert_redirected_to settings_alert_sources_path(setup: @workspace.alert_sources.find_by!(name: "Allowed").id)
   end
 
   private

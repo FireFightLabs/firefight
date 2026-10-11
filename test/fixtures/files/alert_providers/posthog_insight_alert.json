@@ -1,0 +1,7 @@
+{
+  "alert_name": "Signups dropped",
+  "insight_name": "Daily signups",
+  "breaches": "The insight value for Signups (0) is less than lower threshold (100)",
+  "insight_url": "https://us.posthog.com/project/2/insights/aBcD1234",
+  "alert_url": "https://us.posthog.com/project/2/insights/aBcD1234/alerts?alert_id=01936c4e-8f2a-7b3c-9d1e-2f4a6b8c0d1e"
+}
