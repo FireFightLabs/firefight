@@ -376,21 +376,18 @@ module FirefightAi
     end
   end
 
-  # How long a cache boundary lasts for an investigation, whose tools can keep it waiting more than the default five minutes
-  # between turns, and for a chat a person keeps coming back to. A write that lasts an hour costs twice the input price.
-  LONG_CACHE = "1h".freeze
-
   # Whether the provider behind choice searches deferred tools itself (ToolSearch), unless the deployment turned it off.
   def tool_search?(choice) = configuration.tool_search != false && ToolSearch.native?(choice)
 
   # Sets a saved chat up for an agent's turn on choice. The instructions end in a cache boundary, so the tool definitions
-  # in front of them and the instructions themselves are read from the provider's cache on every turn after the first,
-  # for cache_ttl (LONG_CACHE) or the provider's default. tools are handed over whole. deferred_tools are handed over
+  # in front of them and the instructions themselves are read from the provider's cache on every turn after the first.
+  # Every boundary keeps the provider's default lifetime, five minutes, since turns follow each other within seconds and a
+  # write that lasts an hour costs twice the input price rather than one and a quarter. tools are handed over whole. deferred_tools are handed over
   # for the provider to search, and only where it does (ToolSearch), since anywhere else they would arrive whole.
   # rolling also asks the provider to cache the conversation as it grows, which a chat resent on every turn needs.
-  def ready_chat(chat, choice:, instructions:, tools:, deferred_tools: [], cache_ttl: nil, rolling: true)
+  def ready_chat(chat, choice:, instructions:, tools:, deferred_tools: [], rolling: true)
     bind(chat, choice)
-    chat.with_instructions(instructions, cache_until_here: cache_ttl ? { ttl: cache_ttl } : true)
+    chat.with_instructions(instructions, cache_until_here: true)
     chat.with_tools(*tools)
     defer_tools(chat, deferred_tools, choice)
     chat.with_caching if rolling

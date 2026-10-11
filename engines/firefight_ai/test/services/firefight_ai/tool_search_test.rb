@@ -64,13 +64,23 @@ class FirefightAi::ToolSearchTest < ActiveSupport::TestCase
     assert_equal [ "core_read" ], chat.to_llm.tools.keys.map(&:to_s)
   end
 
-  test "the instructions end in a cache boundary that lasts as long as asked, after the tool definitions" do
-    hour = ready(anthropic, cache_ttl: FirefightAi::LONG_CACHE).to_llm.render
-    default = ready(anthropic, conversation: Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one))).to_llm.render
+  test "the instructions end in a cache boundary with the provider's default lifetime, after the tool definitions" do
+    sent = ready(anthropic).to_llm.render
 
-    assert_equal({ type: "ephemeral", ttl: "1h" }, hour[:system].last[:cache_control])
-    assert_equal({ type: "ephemeral" }, default[:system].last[:cache_control])
-    assert hour[:cache_control], "the conversation as it grows is cached too"
+    assert_equal({ type: "ephemeral" }, sent[:system].last[:cache_control])
+    assert_equal({ type: "ephemeral" }, sent[:cache_control], "the conversation as it grows is cached too")
+  end
+
+  # The bench runs Claude through OpenRouter, which takes Anthropic's cache_control on a content block as Anthropic does.
+  test "on OpenRouter the instructions and the conversation carry Anthropic's boundaries, with no lifetime of their own" do
+    chat = ready(openrouter)
+    chat.add_message(role: :user, content: "What changed?")
+    sent = chat.to_llm.render
+    system = sent[:messages].find { |message| %w[system developer].include?(message[:role]) }
+
+    assert_equal({ type: "ephemeral" }, Array(system[:content]).last[:cache_control])
+    assert_equal({ type: "ephemeral" }, sent[:cache_control])
+    assert_not_includes sent.to_json, "\"ttl\""
   end
 
   test "a chat that moves to a provider without search loses its deferred tools and keeps the rest" do
@@ -129,9 +139,9 @@ class FirefightAi::ToolSearchTest < ActiveSupport::TestCase
                                  context: fake_provider_context(bedrock_api_key: "AKIATEST", bedrock_secret_key: "secret", bedrock_region: "us-east-1"))
   end
 
-  def ready(choice, deferred: [], cache_ttl: nil, conversation: @conversation)
+  def ready(choice, deferred: [], conversation: @conversation)
     chat = Chat.open!(owner: conversation, workspace: @workspace, model_choice: choice)
     FirefightAi.ready_chat(chat, choice: choice, instructions: "Read before you answer.", tools: [ Lookup.new("core_read") ],
-                                 deferred_tools: deferred, cache_ttl: cache_ttl)
+                                 deferred_tools: deferred)
   end
 end

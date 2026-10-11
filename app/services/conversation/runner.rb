@@ -61,7 +61,6 @@ class Conversation::Runner
       tools: Conversation::Tools.for(@turn, offer: Chat::Tools.offer_to(chat), helpers: helper_share(chat, purse), searched: presented.searched) +
              presented.loaded + Chat::Tools.known(@turn, chat),
       deferred_tools: presented.deferred,
-      cache_ttl: cache_ttl(chat),
       context: context,
       budget: budget,
       on_step: method(:report_step),
@@ -317,13 +316,6 @@ class Conversation::Runner
     @progress_lock.synchronize { delivery.activity(key: progress.key, step: shown, kind: kinds[progress.key], activity: activity) }
   rescue StandardError => error
     Rails.logger.warn({ event: "conversation.tool_progress_not_shown", conversation_id: @conversation.id, error: error.class.name }.to_json)
-  end
-
-  # A chat the person came back to is likely to be read again more than five minutes later, so the front of it is kept
-  # in the provider's cache for an hour from the second question on. A first question keeps the provider's default.
-  def cache_ttl(chat)
-    asked = chat.messages.where(role: Chat::Message::ROLE_USER, nudge: false).count
-    FirefightAi::LONG_CACHE if asked > 1
   end
 
   def works = @works ||= {}
