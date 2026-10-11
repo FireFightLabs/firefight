@@ -211,13 +211,16 @@ class Chat::Watch::Step < ApplicationRecord
     moved == 1
   end
 
+  # When it began to be followed, which is when the watch started or when it was added to a watch already going.
+  def begun_at = added_at || watch.created_at
+
   # The run this step follows among those a history read found: the one it already follows, the one the person named,
-  # or the first of its name that started around or after the watch began.
+  # or the first of its name that started around or after the step began to be followed.
   def run_among(runs)
     return runs.find { |run| run.id.to_s == followed_run_id } if followed_run_id.present?
     return runs.find { |run| run.named?(run_ref) } if run_ref.present?
 
-    since = watch.created_at - STARTED_BEFORE_WATCH
+    since = begun_at - STARTED_BEFORE_WATCH
     runs.select { |run| run.called?(run_name) && run.started_at && run.started_at >= since && !finished_before_watch?(run) }
         .min_by(&:started_at)
   end
@@ -256,8 +259,8 @@ class Chat::Watch::Step < ApplicationRecord
     joins(:watch).where(chat_watches: { chat_id: chat.id }).where.not(handed_back_at: nil).where(hand_back_noted_at: nil).order(:handed_back_at)
   end
 
-  # Waiting on a run that has not shown up since it could have, counted from when the watch began, the step before it
-  # ended, or Halon last gave it a better read.
+  # Waiting on a run that has not shown up since it could have, counted from when the step began to be followed, the
+  # step before it ended, or Halon last gave it a better read.
   def overdue?(now = Time.current)
     return false unless history? && status == STATUS_WAITING && handed_back_at.nil?
 
@@ -268,7 +271,7 @@ class Chat::Watch::Step < ApplicationRecord
   end
 
   def waiting_since(earlier = watch.steps.select { |step| step.position < position })
-    [ watch.created_at, repaired_at, *earlier.filter_map(&:finished_at) ].compact.max
+    [ begun_at, repaired_at, *earlier.filter_map(&:finished_at) ].compact.max
   end
 
   def unfollowable!(reason) = finished!(STATUS_UNFOLLOWABLE, reason: reason)
@@ -323,7 +326,7 @@ class Chat::Watch::Step < ApplicationRecord
 
   private
 
-  def finished_before_watch?(run) = run.finished? && run.finished_at && run.finished_at < watch.created_at
+  def finished_before_watch?(run) = run.finished? && run.finished_at && run.finished_at < begun_at
 
   def claim(unset)
     moved = self.class.where(id: id, **unset).update_all(**yield, updated_at: Time.current)

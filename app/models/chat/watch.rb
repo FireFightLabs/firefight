@@ -16,13 +16,17 @@ class Chat::Watch < ApplicationRecord
   BASIS_HISTORY = "history"
   BASIS_MEMORY = "memory"
   BASIS_DEFAULT = "default"
-  BASES = [ BASIS_ASKED, BASIS_HISTORY, BASIS_MEMORY, BASIS_DEFAULT ].freeze
+  # Moved later when steps were added, to leave them time to finish.
+  BASIS_ADDED = "added"
+  BASES = [ BASIS_ASKED, BASIS_HISTORY, BASIS_MEMORY, BASIS_DEFAULT, BASIS_ADDED ].freeze
 
   # Each watch reads its provider about once a minute, so a workspace keeps only so many going at once.
   ACTIVE_LIMIT = 20
   # What every read a watch makes is ledgered under.
   SOURCE = AbilityGateway::SOURCE_WATCH
+  # At most this many steps are followed at once, and a watch that grows as steps are added keeps at most STEPS_IN_ALL.
   MAX_STEPS = 6
+  STEPS_IN_ALL = 12
   LONGEST = 24.hours
   SHORTEST = 10.minutes
   DEFAULT_LIMIT = 60.minutes
@@ -65,6 +69,8 @@ class Chat::Watch < ApplicationRecord
   scope :active, -> { where(status: STATUS_ACTIVE) }
   scope :not_checked_within, ->(duration) { where("checked_at IS NULL OR checked_at < ?", duration.ago) }
   scope :untold, -> { where(status: ENDED, told_at: nil) }
+  # The watches going in a chat that this asker started, which steps on the same subject join rather than start another.
+  scope :going_for, ->(asker) { active.where(asker: asker) }
   # Active, not checked within the last minute and not held back to keep under its ceiling, or held by a worker that died.
   scope :due, lambda { |now = Time.current|
     active.where("checked_at IS NULL OR checked_at <= ?", now - CHECK_EVERY + 5.seconds).where("next_check_at IS NULL OR next_check_at <= ?", now)
@@ -84,11 +90,20 @@ class Chat::Watch < ApplicationRecord
     wanted.clamp(FEWEST_READS, MOST_READS)
   end
 
-  # Reads left in the hour that is running, all of them once that hour is over.
-  def reads_left(now = Time.current)
-    return reads_per_hour if hour_over?(now)
+  # Reads left in the hour that is running, all of them once that hour is over, within this ceiling.
+  def reads_left(now = Time.current, ceiling: reads_per_hour)
+    return ceiling if hour_over?(now)
 
-    [ reads_per_hour - reads_this_hour, 0 ].max
+    [ ceiling - reads_this_hour, 0 ].max
+  end
+
+  # The ceiling once this many steps join it. Halon's own number wins, a ceiling Halon set from a provider's limit is
+  # kept, and otherwise it rises to the default for the steps still read, never falling.
+  def ceiling_after_adding(asked, count)
+    return self.class.ceiling_for(asked, count) if asked.to_i.positive?
+    return reads_per_hour if reads_per_hour_asked?
+
+    [ reads_per_hour, self.class.ceiling_for(nil, open_steps.size + count) ].max
   end
 
   def hour_over?(now = Time.current) = hour_began_at.nil? || hour_began_at <= now - HOUR
@@ -132,11 +147,17 @@ class Chat::Watch < ApplicationRecord
     self.class.where(id: id).update_all(check_claimed_at: nil, checked_at: now)
   end
 
+  ANY_ADDED = Object.new.freeze
+
   # Ends it once, from active, so the outcome is said once however many workers reach it. False when it had ended.
-  def finish!(status, outcome:, stopped_by: nil)
-    moved = self.class.where(id: id, status: STATUS_ACTIVE)
-                      .update_all(status: status, outcome: outcome.to_s.truncate(OUTCOME_LIMIT), finished_at: Time.current,
-                                  stopped_by_id: stopped_by&.id, updated_at: Time.current)
+  # steps_added_at is when steps were last added as the caller read them, so an end decided over the old steps never
+  # lands once more were added. expired_by ends it only while its limit is still past, which adding steps can move.
+  def finish!(status, outcome:, stopped_by: nil, steps_added_at: ANY_ADDED, expired_by: nil)
+    scope = self.class.where(id: id, status: STATUS_ACTIVE)
+    scope = scope.where(steps_added_at: steps_added_at) unless steps_added_at == ANY_ADDED
+    scope = scope.where(expires_at: ..expired_by) if expired_by
+    moved = scope.update_all(status: status, outcome: outcome.to_s.truncate(OUTCOME_LIMIT), finished_at: Time.current,
+                             stopped_by_id: stopped_by&.id, updated_at: Time.current)
     reload
     moved == 1
   end
@@ -149,7 +170,40 @@ class Chat::Watch < ApplicationRecord
     moved == 1
   end
 
+  # Adds steps after the ones it has while it still goes, with their attributes, moving its limit to until_at when that
+  # is later and its ceiling to reads_per_hour. The guarded update holds the watch's row until the steps are in, so a
+  # check that read the old steps cannot end it meanwhile. False when it had ended.
+  def add_steps!(attributes, until_at:, reads_per_hour:, title: nil, purpose: nil, now: Time.current)
+    added = self.class.transaction do
+      moved = self.class.where(id: id, status: STATUS_ACTIVE).update_all([
+        "limit_basis = CASE WHEN expires_at < :until THEN :added ELSE limit_basis END, expires_at = GREATEST(expires_at, :until), " \
+        "reads_per_hour = :ceiling, title = COALESCE(:title, title), purpose = COALESCE(:purpose, purpose), steps_added_at = :now, updated_at = :now",
+        { until: until_at, added: BASIS_ADDED, ceiling: reads_per_hour, title: title&.truncate(TITLE_LIMIT), purpose: purpose&.truncate(PURPOSE_LIMIT), now: now }
+      ])
+      raise ActiveRecord::Rollback unless moved == 1
+
+      after = Chat::Watch::Step.where(watch_id: id).maximum(:position).to_i
+      attributes.each_with_index { |step, index| Chat::Watch::Step.create!(watch_id: id, position: after + 1 + index, added_at: now, **step) }
+      true
+    end
+    reload
+    added == true
+  end
+
   NOTHING_TO_STOP = "This watch has already ended.".freeze
+
+  # Why these steps cannot join it, or nil. Every read a watch makes runs as whoever started it, so only they add to it.
+  def add_blocked_reason(asker, count)
+    return "#{Chat::Watch::Shown.name(self)} has already ended, so start a new watch for these steps." unless active?
+    return "Only #{asker_name} can add steps to #{Chat::Watch::Shown.named(self)}, since it reads as them. Start a separate watch." unless self.asker == asker
+    if open_steps.size + count > MAX_STEPS
+      return "#{Chat::Watch::Shown.name(self)} already follows #{open_steps.size} #{'step'.pluralize(open_steps.size)}, and a watch follows at most " \
+             "#{MAX_STEPS} at once. Add the ones that matter most."
+    end
+    return "#{Chat::Watch::Shown.name(self)} already has #{steps.size} steps, and a watch keeps at most #{STEPS_IN_ALL}." if steps.size + count > STEPS_IN_ALL
+
+    nil
+  end
 
   # Whoever asked may stop it. In a channel or thread anyone there may too, since the asker may be away while it runs
   # on. A personal chat is its owner's alone.

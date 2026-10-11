@@ -245,6 +245,7 @@ export const WATCH_TONES = {
   "CEILING": "ceiling",
   "SLOW": "slow",
   "PROGRESS": "progress",
+  "STEPS_ADDED": "steps_added",
   "DONE": "done",
   "FAILED": "failed",
   "TIMED_OUT": "timed_out",

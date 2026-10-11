@@ -44,6 +44,7 @@ module Chat::Watch::Shown
     when Chat::Watch::BASIS_ASKED then "Watching as long as #{watch.asker_name} asked."
     when Chat::Watch::BASIS_HISTORY then "It usually takes about #{usual}."
     when Chat::Watch::BASIS_MEMORY then "Halon remembers it taking about #{usual}."
+    when Chat::Watch::BASIS_ADDED then "Moved later when steps were added, to leave them time to finish."
     else "No history of how long it takes, so Halon watches for #{Integrations::Capabilities::History.duration(Chat::Watch::DEFAULT_LIMIT.to_i)}."
     end
     "Up to #{limit_label(watch)}. #{why}"
@@ -87,6 +88,17 @@ module Chat::Watch::Shown
     "Passed so far: #{passed.join(', ')}." if passed.any?
   end
 
+  # Where a watch still going stands, in a line, for the strip above the message box. That is the step it is on, with how
+  # many are done when it follows more than one, such as "1 of 3 done. Production web rollout: build-images running, 4 of 7 done".
+  def standing(watch)
+    steps = watch.steps.to_a
+    current = steps.find { |step| !step.over? }
+    return if current.nil?
+
+    now = "#{current.label}: #{current.running? && current.summary.present? ? current.summary : STEP_PHRASES.fetch(current.status)}"
+    steps.size > 1 ? "#{steps.count(&:over?)} of #{steps.size} done. #{now}" : now
+  end
+
   # The page of the run or what a step follows, when the provider gave one.
   def link(watch) = watch.steps.reverse.find { |step| step.run_url.present? }&.run_url
 
@@ -98,7 +110,7 @@ module Chat::Watch::Shown
       expires_at: watch.expires_at.utc.iso8601, limit: limit_label(watch), basis: basis(watch), reads: reads(watch), outcome: watch.outcome,
       steps: watch.steps.map do |step|
         { label: step.label, reads_with: step.read_words, status: step_status(step), state: step_state(step), last_seen: step.last_state&.truncate(300),
-          last_read: step.read_at&.utc&.iso8601, url: step.run_url }
+          last_read: step.read_at&.utc&.iso8601, url: step.run_url, added_at: step.added_at&.utc&.iso8601 }
       end,
       said: watch.updates.map { |update| { at: update.created_at.utc.iso8601, text: update.text } }
     }

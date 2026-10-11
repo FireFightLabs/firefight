@@ -45,11 +45,28 @@ class Conversation::Rehearsal::State
 
   private
 
+  # One watch per subject, as live. Steps given add_to join that watch, and with one going Halon says first whether these
+  # join it or are separate.
   def start_watch(given)
+    return add_to_watch(given) if given[Conversation::Watches::ADD_TO_ARG].present?
+    if @watches.any? && !ActiveModel::Type::Boolean.new.cast(given[Conversation::Watches::SEPARATE_ARG])
+      return "Nothing was started yet, since this chat already has watches going:\n#{list_watches({})}\nWhen these steps follow the " \
+             "same subject as one of them, call start_watch again with #{Conversation::Watches::ADD_TO_ARG} and its id. When they " \
+             "follow something unrelated, call it again with #{Conversation::Watches::SEPARATE_ARG} true."
+    end
+
     watch = Watch.new(id: "W#{@watches.size + 1}", title: given["title"].to_s, purpose: given["purpose"].to_s,
                       steps: Array(given["steps"]).map(&:to_h), minutes: given["minutes"])
     @watches << watch
     "Watching \"#{watch.title}\" (watch #{watch.id}). #{steps_of(watch)}\nI will report each step as it passes and when it ends."
+  end
+
+  def add_to_watch(given)
+    watch = find_watch(given[Conversation::Watches::ADD_TO_ARG])
+    return "There is no watch called #{given[Conversation::Watches::ADD_TO_ARG]} in this chat." unless watch
+
+    watch.steps += Array(given["steps"]).map(&:to_h)
+    "Added these steps to watch #{watch.id} \"#{watch.title}\" rather than starting another. #{steps_of(watch)}"
   end
 
   def repair_watch(given)

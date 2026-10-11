@@ -114,6 +114,43 @@ class AgentWatchCardTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/watch-card-phone.png"))
   end
 
+  test "the Watching strip above the message box lists the watches going, opens each to its card, and is gone once none are" do
+    @watch.steps.find_by!(label: "Web deploy").update!(summary: "build-images running, 2 of 3 done")
+    backup = Chat::Watch.create!(chat: @conversation.chat, workspace: @workspace, asker: @alice, title: "Database backup",
+                                 expires_at: 1.hour.from_now, limit_basis: Chat::Watch::BASIS_DEFAULT)
+    backup.steps.create!(position: 0, label: "Nightly backup", capability: Integrations::Capabilities::HISTORY, arguments: {})
+    Chat::Watch.create!(chat: @conversation.chat, workspace: @workspace, asker: @alice, title: "Old release", status: Chat::Watch::STATUS_SUCCEEDED,
+                        expires_at: 1.hour.ago, finished_at: 2.hours.ago, created_at: 3.hours.ago, limit_basis: Chat::Watch::BASIS_DEFAULT)
+
+    visit agent_chat_path(@conversation)
+
+    within("section[aria-label='Watching']") do
+      assert_text "Deploy finished"
+      assert_text "1 of 2 done. Web deploy: build-images running, 2 of 3 done"
+      assert_text "Database backup"
+      assert_text "Nightly backup: not started"
+      assert_no_text "Old release"
+      assert_no_button "Stop"
+
+      click_button "Database backup"
+      assert_button "Stop"
+      assert_text "Nightly backup. Waiting for it to start."
+      click_button "Stop"
+    end
+    click_button "Stop watching"
+
+    assert_text 'Stopped watching "Database backup".'
+    within("section[aria-label='Watching']") do
+      assert_no_text "Database backup"
+      assert_text "Deploy finished"
+    end
+
+    @watch.finish!(Chat::Watch::STATUS_SUCCEEDED, outcome: "Done in 20 minutes.")
+    visit agent_chat_path(@conversation)
+    assert_text 'Watch "Deploy finished": done'
+    assert_no_selector "section[aria-label='Watching']"
+  end
+
   test "the header's search button is wider from small screens up and an icon on a phone" do
     search = "button[aria-label='Search the map, catalog and memory']"
     visit agent_chat_path(@conversation)

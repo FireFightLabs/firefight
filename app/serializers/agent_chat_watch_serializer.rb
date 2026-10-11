@@ -29,6 +29,11 @@ class AgentChatWatchSerializer < BaseSerializer
   type :string
   def headline = Chat::Watch::Shown.headline(watch)
 
+  # Where it stands in a line while it goes, for the Watching strip above the message box, such as
+  # "1 of 3 done. Production web rollout: running". Null once it ended.
+  type :string, optional: true
+  def standing = (Chat::Watch::Shown.standing(watch) if watch.active?)
+
   # Its ceiling on reads and how many it made, such as "Reads at most 120 times an hour. 14 reads so far."
   type :string
   def reads = Chat::Watch::Shown.reads(watch)
