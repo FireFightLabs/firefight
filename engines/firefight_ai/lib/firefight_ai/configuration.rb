@@ -30,6 +30,15 @@ module FirefightAi
     # turned off, which a bench run comparing the two ways does, or a deployment whose provider's search misbehaves.
     attr_accessor :tool_search
 
+    # Where the provider does not search tools itself, the tools whoever acts may call are all held from the start when
+    # their definitions come to no more than this many tokens (FirefightAi.fits_up_front?). A chat that opens groups
+    # changes its tool list each time, and since the tools come first in what a provider caches, every change writes
+    # the whole cached front again, which on the bench was about two thirds of what a chat cost. Holding them all writes
+    # them once. Past this, holding them costs more than the rewrites it saves, at about eleven calls and three group
+    # openings a chat, so the chat opens groups instead.
+    DEFAULT_HELD_TOOLS_BUDGET = 25_000
+    attr_reader :held_tools_budget
+
     # Each model call, tool call and judgment as an OpenTelemetry span (RubyLLM::OpenTelemetry), sent wherever the
     # deployment's OpenTelemetry SDK exports. Spans carry the model, the provider, token counts and timings, never what
     # was said, and never a key.
@@ -77,6 +86,7 @@ module FirefightAi
       @milestones_enabled = true
       @http_adapter = DEFAULT_HTTP_ADAPTER
       @tool_search = true
+      @held_tools_budget = DEFAULT_HELD_TOOLS_BUDGET
       @trace_calls = false
       @judgments = JUDGMENT_STRUCTURED
     end
@@ -87,6 +97,14 @@ module FirefightAi
       raise ArgumentError, "FIREFIGHT_AI_HTTP_ADAPTER must be one of #{HTTP_ADAPTERS.join(', ')}, not #{value}" unless HTTP_ADAPTERS.include?(adapter)
 
       @http_adapter = adapter
+    end
+
+    # Blank keeps the default. Zero holds nothing up front, so every chat opens groups.
+    def held_tools_budget=(value)
+      budget = value.blank? ? DEFAULT_HELD_TOOLS_BUDGET : Integer(value.to_s, exception: false)
+      raise ArgumentError, "FIREFIGHT_AI_HELD_TOOLS_BUDGET must be a whole number of tokens, not #{value}" if budget.nil? || budget.negative?
+
+      @held_tools_budget = budget
     end
 
     def judgments=(value)

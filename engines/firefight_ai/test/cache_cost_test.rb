@@ -25,6 +25,43 @@ class FirefightAi::CacheCostTest < ActiveSupport::TestCase
     assert_in_delta written * 1.5, hour - direct, RECORDED.size, "an hour's write is $4 a million against $2.50, on every written token"
   end
 
+  # The tools the scenario opened later came to about 2,683 tokens. Held from the start, they are written once with the
+  # first call and read on every call after, and the two calls that wrote the whole front again after an opening read
+  # the front they had and write only what was new.
+  OPENED_LATER = 2_683
+
+  test "holding every tool from the start costs the recorded scenario about two fifths less than opening groups" do
+    before = RECORDED.sum { |input, output, read, written, _| cost("anthropic/claude-sonnet-5.5", "openrouter", input, output, read, written) }
+    after = held(RECORDED, OPENED_LATER).sum { |input, output, read, written| cost("anthropic/claude-sonnet-5.5", "openrouter", input, output, read, written) }
+
+    assert_equal 2, RECORDED.drop(1).count { |row| row[2].zero? }
+    assert_operator after, :<, before * 0.65
+    assert_equal 90_611, after
+  end
+
+  test "the budget holds tools whose definitions fit and refuses those past it, counted in tokens" do
+    tool = RubyLLM::Tool.new.tap { |each| each.define_singleton_method(:name) { "read_run" } }
+    tool.define_singleton_method(:description) { "x" * 3_400 }
+    FirefightAi.configuration.stubs(:held_tools_budget).returns(1_000)
+
+    assert FirefightAi.fits_up_front?([ tool ])
+    assert_not FirefightAi.fits_up_front?([ tool, tool ])
+    assert FirefightAi.fits_up_front?([])
+  end
+
+  test "the budget defaults to 25,000 tokens, a blank keeps it, zero holds nothing, and anything but a whole number is refused at boot" do
+    configuration = FirefightAi::Configuration.new
+    assert_equal 25_000, configuration.held_tools_budget
+    configuration.held_tools_budget = "40000"
+    assert_equal 40_000, configuration.held_tools_budget
+    configuration.held_tools_budget = ""
+    assert_equal FirefightAi::Configuration::DEFAULT_HELD_TOOLS_BUDGET, configuration.held_tools_budget
+    configuration.held_tools_budget = "0"
+    assert_equal 0, configuration.held_tools_budget
+    assert_raises(ArgumentError) { configuration.held_tools_budget = "25k" }
+    assert_raises(ArgumentError) { configuration.held_tools_budget = "-1" }
+  end
+
   test "no turn of a chat, a run or a check asks for a write that lasts an hour" do
     choice = FirefightAi::ModelChoice.new(model: "anthropic/claude-sonnet-5.5", provider: "openrouter", context: fake_provider_context(openrouter_api_key: "sk-or-test"))
     conversation = Conversation.start_personal!(workspace: workspaces(:slack_workspace_one), member: workspace_memberships(:alice_workspace_one))
@@ -40,6 +77,16 @@ class FirefightAi::CacheCostTest < ActiveSupport::TestCase
   end
 
   private
+
+  # The recorded calls as they would have gone with opened tokens of tools held from the start.
+  def held(rows, opened)
+    front = 0
+    rows.each_with_index.map do |(input, output, read, written, _), index|
+      read, written = front, written - front if index.positive? && read.zero?
+      front = read + written
+      index.zero? ? [ input, output, read, written + opened ] : [ input, output, read + opened, written ]
+    end
+  end
 
   def cost(model, provider, input, output, read, written, ttl: nil)
     FirefightAi.cost_micros(model, provider: provider, input: input + read + written, output: output, cache_read: read, cache_write: written,

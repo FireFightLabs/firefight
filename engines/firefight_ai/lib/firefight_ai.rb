@@ -379,6 +379,20 @@ module FirefightAi
   # Whether the provider behind choice searches deferred tools itself (ToolSearch), unless the deployment turned it off.
   def tool_search?(choice) = configuration.tool_search != false && ToolSearch.native?(choice)
 
+  # Characters of a tool definition to a token, a little under what models count, so an estimate errs high.
+  TOOL_CHARS_PER_TOKEN = 3.5
+
+  # Whether tools are small enough to hold whole from the start of a chat on a provider without tool search
+  # (Configuration#held_tools_budget). Counting stops once past the budget, so a large catalog is not read through.
+  def fits_up_front?(tools)
+    left = configuration.held_tools_budget * TOOL_CHARS_PER_TOKEN
+    tools.each do |tool|
+      left -= tool.name.to_s.size + tool.description.to_s.size + tool.parameters_schema.to_json.size
+      return false if left.negative?
+    end
+    true
+  end
+
   # Sets a saved chat up for an agent's turn on choice. The instructions end in a cache boundary, so the tool definitions
   # in front of them and the instructions themselves are read from the provider's cache on every turn after the first.
   # Every boundary keeps the provider's default lifetime, five minutes, since turns follow each other within seconds and a

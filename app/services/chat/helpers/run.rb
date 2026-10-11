@@ -47,7 +47,7 @@ class Chat::Helpers::Run
   def tools(agent, chat, presented)
     offer = Chat::Tools.offer_to(chat)
     [
-      Chat::Tools::Open.new(agent, offer: offer, searched: presented.searched), Chat::Tools::UseSkill.new(agent, offer: offer), *Chat::Tools::Docs.all(agent),
+      Chat::Tools::Open.new(agent, offer: offer, presented: presented), Chat::Tools::UseSkill.new(agent, offer: offer), *Chat::Tools::Docs.all(agent),
       Chat::Tools::ReadResult.new(agent), *Chat::Tools.memory(agent), *Chat::Tools::Web.all(agent)
     ] + presented.loaded + Chat::Tools.known(agent, @helper.chat)
   end
