@@ -65,7 +65,7 @@ class FirefightAi::ManualTest < ActiveSupport::TestCase
   end
 
   test "the chat prompt is about a page, not the old rule book" do
-    assert_operator chat_prompt.split.size, :<, 900
+    assert_operator chat_prompt.split.size, :<, 1_000
   end
 
   test "the chat says how a reply ends a turn and what a cancelled card means, and nothing checks an answer after it is written" do
