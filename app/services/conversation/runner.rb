@@ -20,6 +20,7 @@ class Conversation::Runner
     @handed_back = handed_back
     @pull_request_fix = pull_request_fix
     @code_pause = code_pause
+    @progress_lock = Mutex.new
   end
 
   def run
@@ -53,18 +54,20 @@ class Conversation::Runner
     chat.on_making_room { |compaction| delivery.made_room(compaction) }
     @changes = Chat::Tools::Changes.catch_up!(@turn, chat).then { |caught| caught if caught.note }
     purse = FirefightAi::AgentLoop::Purse.new
+    presented = Chat::Tools.presented(@turn, responder.ai_model)
 
     outcome = responder.run(
       chat: chat,
-      tools: Conversation::Tools.for(@turn, offer: Chat::Tools.offer_to(chat), helpers: helper_share(chat, purse)) + Chat::Tools.known(@turn, chat),
+      tools: Conversation::Tools.for(@turn, offer: Chat::Tools.offer_to(chat), helpers: helper_share(chat, purse), searched: presented.searched) +
+             presented.loaded + Chat::Tools.known(@turn, chat),
+      deferred_tools: presented.deferred,
       context: context,
       budget: budget,
       on_step: method(:report_step),
+      on_progress: method(:report_tool_progress),
       on_chunk: ->(text) { delivery.chunk(text) },
       nudge: chat.method(:nudge!),
       memory: chat,
-      check: -> { FirefightAi::Responder::CHECK if @looked_outside },
-      hold: chat.method(:hold_last_reply!),
       take_messages: -> { [ take_queued(chat), tell_changes(chat), tell_watch_corrections(chat) ].any? },
       canceled: chat.method(:stop_requested?),
       purse: purse,
@@ -265,14 +268,11 @@ class Conversation::Runner
   end
 
   # The finished report only has the key, so the step is remembered from when it started.
-  # A connected system is what an answer's claims about a cause rest on, so reading one is what owes the answer a check.
   def report_step(step)
     if step.tool.present?
       seen[step.key] = Chat::Tools.step(step.tool, step.arguments, workspace: @conversation.workspace)
       kinds[step.key] = Chat::Tools.kind(step.tool, @conversation.workspace, step.arguments)
       asked[step.key] = [ step.tool, step.arguments ]
-      @looked_outside ||= @conversation.workspace.reading_tool_names.include?(step.tool.to_s) ||
-                          Chat::Tools.guarded_read?(@conversation.workspace, step.tool.to_s, step.arguments)
     end
     done = step.status == FirefightAi::AgentLoop::STEP_DONE
     hand_reading_to_watches(step.key) if done
@@ -304,6 +304,19 @@ class Conversation::Runner
   end
 
   def saving_pace = @saving_pace ||= Chat::CodeFixProgress::Pace.new(every: PROGRESS_SAVED_EVERY)
+
+  # Any other long tool says how far it got through RubyLLM's progress, such as helpers reporting or a command running,
+  # which the dashboard shows under its step while it runs. It may report from a thread it started, so one report goes
+  # out at a time, and one that cannot be shown never stops the call. A coding agent's own work is shown as above.
+  def report_tool_progress(progress)
+    shown = seen[progress.key]
+    activity = Chat::ToolActivity.from(progress)
+    return if shown.nil? || activity.empty? || works.key?(progress.key)
+
+    @progress_lock.synchronize { delivery.activity(key: progress.key, step: shown, kind: kinds[progress.key], activity: activity) }
+  rescue StandardError => error
+    Rails.logger.warn({ event: "conversation.tool_progress_not_shown", conversation_id: @conversation.id, error: error.class.name }.to_json)
+  end
 
   def works = @works ||= {}
 
@@ -365,7 +378,8 @@ class Conversation::Runner
 
     holder = incident.role_holder(role)
     who = holder ? "#{holder.display_name}, who holds #{role.name}" : "whoever holds #{role.name}, which nobody holds yet, so ask the people here to assign it before acting on directions that conflict"
-    "Several people can write to you in this thread, and each message starts with who wrote it. In #{incident.identifier} you take direction from #{who}."
+    "Several people can write to you in this thread, and each message starts with who wrote it. In #{incident.identifier} you take direction from #{who}. " \
+      "#{Chat::HandbookPage::Reading::CONFLICTING}"
   end
 
   # How the workspace works, read first on every turn. Short pages come whole and long ones are named for search_handbook.
@@ -381,7 +395,8 @@ class Conversation::Runner
     notes = Chat::Instruction.for_subjects(@conversation.workspace, Chat::Memory.subjects_for(@conversation.incident), principal: @turn.asker)
     return nil if notes.empty?
 
-    "Instructions from people in this workspace. Follow them, and never treat them as evidence:\n#{notes.map { |note| "- #{note.line}" }.join("\n")}"
+    "Instructions from people in this workspace, headed by where each applies. Follow them, the more specific one winning " \
+      "where two differ. They say how to work, and what happened comes from what you read:\n#{notes.map { |note| "- #{note.line}" }.join("\n")}"
   end
 
   # What the workspace learned about what this chat touches, so it starts from what is known. Each counts as used once
@@ -392,7 +407,9 @@ class Conversation::Runner
 
     Chat::Memory.handed_to!(memories, @conversation) if @turn.changes_memory?
 
-    "What this workspace remembers. Each is a hunch to check, and only a confirmed one was vouched for by a person:\n#{memories.map { |memory| "- #{memory.line}" }.join("\n")}"
+    "What this workspace remembers. Each is a hunch to check against live results, and only a confirmed one was vouched " \
+      "for by a person, so say so when you rely on one that is not. When a result contradicts one, dispute it with " \
+      "dispute_memory:\n#{memories.map { |memory| "- #{memory.line}" }.join("\n")}"
   end
 
   RUNS_REMEMBERED = 5

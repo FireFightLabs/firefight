@@ -13,6 +13,8 @@ class Conversation::QuietDelivery
 
   def progress(**) = nil
 
+  def activity(**) = nil
+
   def helpers(**) = nil
 
   def made_room(_compaction) = nil

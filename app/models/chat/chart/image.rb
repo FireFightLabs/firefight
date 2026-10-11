@@ -37,16 +37,8 @@ class Chat::Chart::Image
 
   def height = legend_top + (legend_rows * LEGEND_ROW) + MARGIN
 
-  def png
-    image = (Vips::Image.black(WIDTH, height) + WHITE).cast(:uchar).copy(interpretation: :srgb)
-    image = image.mutate do |canvas|
-      draw_grid(canvas)
-      draw_lines(canvas)
-      draw_swatches(canvas)
-    end
-    labels.each { |text, left, top, color, size, align| image = write(image, text, left, top, color, size, align) }
-    image.write_to_buffer(".png")
-  end
+  # libvips draws without yielding, so inside a fiber worker the chart is drawn on a thread of its own.
+  def png = Blocking.call { draw }
 
   # Every piece of text on the chart, with where it goes, so a test can read what the image says.
   def labels
@@ -67,6 +59,17 @@ class Chat::Chart::Image
   end
 
   private
+
+  def draw
+    image = (Vips::Image.black(WIDTH, height) + WHITE).cast(:uchar).copy(interpretation: :srgb)
+    image = image.mutate do |canvas|
+      draw_grid(canvas)
+      draw_lines(canvas)
+      draw_swatches(canvas)
+    end
+    labels.each { |text, left, top, color, size, align| image = write(image, text, left, top, color, size, align) }
+    image.write_to_buffer(".png")
+  end
 
   def draw_grid(canvas)
     low, high = value_range

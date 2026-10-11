@@ -5,7 +5,11 @@ class Conversation::Tools::UpdatePlan < Conversation::Tools::PlanTool
 
   description "Update a plan as you work: mark a step running before you start it, and done, failed or skipped once it ends, " \
               "with what happened. A failed step says why, quoting the provider. A done check says what you read against " \
-              "normal and whether the changes worked as verdict. A change that fails, or a check that finds the changes did " \
+              "normal and whether the changes worked as verdict. A check reads, for the minutes since the change, how what it " \
+              "touched stands with resource_status and its error rate and p95 latency with run_key_query, which compares " \
+              "each with normal, and is could_not_check, naming what is missing, when nothing connected can tell. A change " \
+              "that fails part way stops there: say what is done, what failed and why, quoting the provider, and what has " \
+              "not started, and offer to retry or undo. A change that fails, or a check that finds the changes did " \
               "not work, stops the plan, and the person is offered Retry and Undo. Give revise to replace every step not " \
               "started yet when the plan has to change."
 

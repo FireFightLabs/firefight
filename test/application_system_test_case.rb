@@ -16,4 +16,12 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
   setup do
     page.current_window.resize_to(*SCREEN_SIZE)
   end
+
+  # Waits for the toast a change says it happened with. A page wide assert_text reads every element's visible text through
+  # the browser's main thread, a third of a second on the integrations page here and over a second on a busy CI runner,
+  # so polling it while a request is in flight starved the page of the time it needed to follow the redirect and draw
+  # the toast. Finding the toast by its own element reads a few words.
+  def assert_toast(text, **options)
+    assert_selector "[data-sonner-toast]", text: text, **options
+  end
 end

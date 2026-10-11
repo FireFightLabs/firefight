@@ -66,8 +66,8 @@ module Chat::Helpers
   end
 
   # Each helper gets an equal part of what is left, with one more part kept back for the loop that asked, which still
-  # has to read the reports and answer.
-  def self.run!(agent_run, share:, tool_call_id:, checks:)
+  # has to read the reports and answer. on_done hears how many have finished of how many, as each finishes.
+  def self.run!(agent_run, share:, tool_call_id:, checks:, on_done: nil)
     chat = agent_run.chat
     return Result.new(text: NO_CHAT, failed: true) unless chat
 
@@ -80,27 +80,30 @@ module Chat::Helpers
     share.moved.call(tool_call_id)
     # Chosen here, before any thread starts, since choosing reads the workspace's accounts.
     models = started.map(&:deep).uniq.index_with { |deep| share.choose.call(deep) }
-    run_together(started, share: share, max_spend_cents: cents, models: models)
+    run_together(started, share: share, max_spend_cents: cents, models: models, on_done: on_done)
     started.each(&:reload)
     share.moved.call(tool_call_id)
     Result.new(text: reports(started), failed: started.none?(&:reported?))
   end
 
   # Helper threads one worker process runs at once. Each can hold a database connection while it works, and the pool is
-  # sized for the worker's own threads plus a few, so past this a helper waits for another to finish rather than for a
+  # shared with the worker's own jobs, so past this a helper waits for another to finish rather than for a
   # connection it might never get.
   THREADS_PER_PROCESS = 6
   SLOTS = Concurrent::Semaphore.new(THREADS_PER_PROCESS)
 
   # Every helper on a thread of its own, and the asking loop waits for all of them. A helper that fails ends with a
-  # sentence and never takes the others down with it.
-  def self.run_together(helpers, share:, max_spend_cents:, models:)
+  # sentence and never takes the others down with it. on_done is told on the helper's own thread once it ends, however.
+  def self.run_together(helpers, share:, max_spend_cents:, models:, on_done: nil)
+    done = Concurrent::AtomicFixnum.new
     threads = helpers.map do |helper|
       Thread.new do
         SLOTS.acquire
         begin
           Rails.application.executor.wrap do
             Chat::Helpers::Run.new(helper, share: share, max_spend_cents: max_spend_cents, choice: models.fetch(helper.deep)).call
+          ensure
+            on_done&.call(done.increment, helpers.size)
           end
         ensure
           SLOTS.release

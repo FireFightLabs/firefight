@@ -18,8 +18,11 @@ class Investigation::Tools::FinishCheck < RubyLLM::Tool
     {
       "type" => "object",
       "properties" => {
-        "summary" => { "type" => "string", "description" => "What you looked at and what you found, in two or three sentences" },
-        "gaps" => { "type" => "string", "description" => "What the check covers that you could not read, and why (optional)" }
+        "summary" => { "type" => "string", "description" => "What you looked at, which is everything the check covers, such as every " \
+                                                             "disk it can reach, and what you found, in two or three sentences" },
+        "gaps" => { "type" => "string", "description" => "What the check covers that you could not read, and why, such as a system " \
+                                                          "nothing connects or a provider that does not report it. It is said as not " \
+                                                          "looked at, never as fine (optional)" }
       },
       "required" => [ "summary" ]
     }

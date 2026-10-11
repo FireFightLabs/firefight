@@ -25,16 +25,32 @@ class Chat::Tools::ConnectionProgressTest < ActiveSupport::TestCase
   end
 
   test "a call made with nobody listening runs as before" do
-    Integrations::NativeExecutor.expects(:call).with { |progress:, **| progress.nil? }.returns("content" => [ { "type" => "text", "text" => "ok" } ])
+    Integrations::NativeExecutor.expects(:call).with do |progress:, **|
+      progress.call(Chat::CodeFixProgress.start)
+      progress.call("Opened the change")
+      true
+    end.returns("content" => [ { "type" => "text", "text" => "ok" } ])
 
-    call("call_9")
+    assert_match "ok", call("call_9")
+  end
+
+  # An outside coding agent's latest step is a sentence, which goes out as RubyLLM's progress for the call, so a chat
+  # shows it under the step (Conversation::Runner#report_tool_progress).
+  test "a sentence a long tool says goes out as the call's progress, and a coding agent's work does not" do
+    work = Chat::CodeFixProgress.start
+    Integrations::NativeExecutor.stubs(:call).with { |progress:, **| progress.call(work) || progress.call("Agent is writing the change") || true }
+                                .returns("content" => [ { "type" => "text", "text" => "ok" } ])
+    connection = Chat::Tools::Connection.new(@turn, @tool)
+    connection.expects(:progress).with("Agent is writing the change").once
+
+    call("call_9", connection)
   end
 
   private
 
-  def call(id)
+  def call(id, connection = Chat::Tools::Connection.new(@turn, @tool))
     llm_call = RubyLLM::ToolCall.new(id: id, name: @tool.model_facing_name, arguments: {})
     @chat.add_message(RubyLLM::Message.new(role: :assistant, content: "", tool_calls: { id => llm_call }))
-    Chat::Tools::Connection.new(@turn, @tool).call(tool_call: llm_call)
+    connection.call(tool_call: llm_call)
   end
 end

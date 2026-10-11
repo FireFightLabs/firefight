@@ -31,7 +31,7 @@ class NormalizeUserEmailsTest < ActiveSupport::TestCase
 
   private
 
-  def connection = ActiveRecord::Base.connection
+  def connection = ActiveRecord::Base.lease_connection
 
   def migrate
     ActiveRecord::Migration.suppress_messages { NormalizeUserEmails.new.migrate(:up) }

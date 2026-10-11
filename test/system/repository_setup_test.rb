@@ -29,7 +29,7 @@ class RepositorySetupTest < ApplicationSystemTestCase
     fill_in "Repository", with: "acme/api"
     click_on "Read from CI"
 
-    assert_text "Read acme/api's setup from .github/workflows/ci.yml, job test. The sandbox cannot start elasticsearch, so Halon prepares acme/api without it."
+    assert_toast "Read acme/api's setup from .github/workflows/ci.yml, job test. The sandbox cannot start elasticsearch, so Halon prepares acme/api without it."
     assert_text "postgres (postgres:16) on port 5432, elasticsearch (elasticsearch:8.15.0)"
     assert_text "RAILS_ENV=test"
     assert_text "Left out the command that runs the tests (bin/rails test)"
@@ -41,12 +41,12 @@ class RepositorySetupTest < ApplicationSystemTestCase
     assert_text "Edit acme/api's setup"
     fill_in "Variables", with: "RAILS_ENV=test\nPATH=/opt/bin"
     click_on "Save"
-    assert_text "The sandbox sets PATH itself, so a setup cannot."
+    within("[role=dialog]", text: "Edit acme/api's setup") { assert_text "The sandbox sets PATH itself, so a setup cannot." }
     fill_in "Variables", with: "RAILS_ENV=test\nDATABASE_URL=postgres://postgres@127.0.0.1:5432/app_test\nCI=true"
     page.save_screenshot(Rails.root.join("tmp/screenshots/repository-setup-editing.png"))
     click_on "Save"
 
-    assert_text "Saved how acme/api is set up before its tests."
+    assert_toast "Saved how acme/api is set up before its tests."
     assert_text "CI=true"
     assert_text "Changed here"
     setup = @integration.repository_setups.find_by!(repository: "acme/api")
@@ -57,7 +57,7 @@ class RepositorySetupTest < ApplicationSystemTestCase
     assert_text "Clear acme/api's setup?"
     click_on "Clear"
 
-    assert_text "Cleared acme/api's setup. Halon reads it from CI again the next time it prepares acme/api."
+    assert_toast "Cleared acme/api's setup. Halon reads it from CI again the next time it prepares acme/api."
     assert_text "No repository is set up yet."
     refute RepositorySetup.exists?(setup.id)
   end

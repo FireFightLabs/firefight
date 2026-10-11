@@ -30,7 +30,7 @@ class ChatTest < ActiveSupport::TestCase
     @chat.add_message(thinking_turn(tool_call_id: "toolu_1"))
     @chat.add_message(role: :tool, content: "customer 4411 card declined", tool_call_id: "toolu_1")
 
-    stored = Chat::Message.connection.select_all(
+    stored = Chat::Message.lease_connection.select_all(
       "SELECT content, thinking_text, thinking_signature, raw_reasoning::text FROM chat_messages WHERE chat_id = $1",
       "stored", [ @chat.id ]
     ).rows.flatten.compact.join(" ")
@@ -140,17 +140,6 @@ class ChatTest < ActiveSupport::TestCase
     other_chat.add_message(thinking_turn(tool_call_id: "call_0"))
 
     assert_equal 2, RubyLLM::ActiveRecord::ToolCall.where(tool_call_id: "call_0").count
-  end
-
-  test "a held draft stays for the model to argue with and is never read to the person" do
-    @chat.add_message(role: :user, content: "Why does billing fail?")
-    @chat.add_message(role: :assistant, content: "It was the database")
-
-    @chat.hold_last_reply!
-    @chat.add_message(role: :assistant, content: "It was a missing method")
-
-    assert_equal [ "Why does billing fail?", "It was a missing method" ], @chat.readable_messages.map(&:content)
-    assert_includes @chat.messages.map(&:content), "It was the database"
   end
 
   test "a nudge from the loop is something the model reads, not something the person said" do

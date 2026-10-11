@@ -57,7 +57,7 @@ class ResourceMap::Matcher
   # One per workspace, held by everything that writes Firefight's own uses links, until the transaction ends.
   def self.lock!(workspace)
     key = Zlib.crc32("resource_map_matcher:#{workspace.id}")
-    ResourceMap::Link.connection.select_value(ResourceMap::Link.sanitize_sql_array([ "SELECT pg_advisory_xact_lock(?)::text", key ]))
+    ResourceMap::Link.with_connection { |connection| connection.select_value(ResourceMap::Link.sanitize_sql_array([ "SELECT pg_advisory_xact_lock(?)::text", key ])) }
   end
 
   # Every suggestion the map supports, one per pair, its clues gathered. host_suggestions are HostMatcher's.
@@ -88,7 +88,7 @@ class ResourceMap::Matcher
 
   def project_candidates
     skipped = GENERIC + ENVIRONMENTS.keys
-    pairs = ResourceMap::Resource.connection.select_rows(ResourceMap::Resource.sanitize_sql_array([ <<~SQL.squish, {
+    sql = ResourceMap::Resource.sanitize_sql_array([ <<~SQL.squish, {
       WITH user_words AS (
         SELECT DISTINCT resources.id, word FROM resource_map_resources resources,
           regexp_split_to_table(lower(resources.name) || ' ' || lower(regexp_replace(resources.account, '^.*/', '')), '[^a-z0-9]+') AS word
@@ -101,7 +101,8 @@ class ResourceMap::Matcher
       WHERE user_words.word <> '' AND user_words.word NOT IN (:skipped)
     SQL
       workspace: @workspace.id, users: USERS, database: ResourceMap::KIND_DATABASE, skipped: skipped
-    } ]))
+    } ])
+    pairs = ResourceMap::Resource.with_connection { |connection| connection.select_rows(sql) }
     return [] if pairs.empty?
 
     users = ResourceMap::Resource.where(id: pairs.map(&:first).uniq).includes(integration_environment: :environment).index_by(&:id)

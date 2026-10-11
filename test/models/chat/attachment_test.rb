@@ -50,7 +50,7 @@ class Chat::AttachmentTest < ActiveSupport::TestCase
     stored = file.sealed.download
     assert_no_match(/correct-horse/, stored)
     assert_equal "password=correct-horse", file.reload.bytes
-    raw_name = Chat::Attachment.connection.select_value("SELECT filename FROM chat_attachments WHERE id = '#{file.id}'")
+    raw_name = Chat::Attachment.lease_connection.select_value("SELECT filename FROM chat_attachments WHERE id = '#{file.id}'")
     assert_no_match(/payments-secret/, raw_name)
     assert_no_match(/payments-secret/, file.sealed.filename.to_s)
   end

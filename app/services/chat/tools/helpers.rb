@@ -6,6 +6,9 @@ class Chat::Tools::Helpers < RubyLLM::Tool
   TITLE_ARG = "title".freeze
   BRIEF_ARG = "brief".freeze
   DEEP_ARG = "deep".freeze
+  # How far the helpers got, shown under the step while they work (RubyLLM::Tool#progress).
+  STARTED = "Helpers started".freeze
+  DONE = "%<done>d of %<total>d done".freeze
 
   CHECK = {
     "type" => "object",
@@ -25,7 +28,11 @@ class Chat::Tools::Helpers < RubyLLM::Tool
   description "Hand reads that do not depend on each other to helpers that run at the same time, each with its own narrow " \
               "brief, and get back a short report from each. Helpers only read, with the same reach as whoever you act for, " \
               "and spend from this question's budget. Use it when two to #{Chat::Helper::MAX_AT_ONCE} reads would otherwise " \
-              "run one after another. At most #{Chat::Helper::MAX_PER_QUESTION} for one question."
+              "run one after another, such as the logs, the recent deploys and the error rate of one service. At most " \
+              "#{Chat::Helper::MAX_PER_QUESTION} for one question. Set deep only for a check that reasons across several " \
+              "results. Keep for yourself anything that changes something and any read that depends on another's answer. " \
+              "A report says what its helper read, so cite the steps it names, and run a check yourself before stating a " \
+              "cause that rests on a helper's words alone."
 
   def self.tool_name = NAME
 
@@ -54,7 +61,8 @@ class Chat::Tools::Helpers < RubyLLM::Tool
     checks = self.class.checks_in(arguments)
     return failed(tool_call, "Give at least one check with a title and a brief.") if checks.empty?
 
-    result = Chat::Helpers.run!(@agent_run, share: @share, tool_call_id: tool_call&.id.to_s, checks: checks)
+    progress(STARTED, value: 0, total: checks.size)
+    result = Chat::Helpers.run!(@agent_run, share: @share, tool_call_id: tool_call&.id.to_s, checks: checks, on_done: method(:reported))
     Chat::Tools.mark_failed(@agent_run, tool_call&.id) if result.failed
     Chat::Tools.hand_over(@agent_run, NAME, Chat::ToolCall::Outcome.new(value: result.text))
   end
@@ -81,6 +89,9 @@ class Chat::Tools::Helpers < RubyLLM::Tool
   end
 
   private
+
+  # Told on the finishing helper's thread, which RubyLLM lets report for this call.
+  def reported(done, total) = progress(format(DONE, done: done, total: total), value: done, total: total)
 
   def failed(tool_call, text)
     Chat::Tools.mark_failed(@agent_run, tool_call&.id)

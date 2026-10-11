@@ -49,6 +49,15 @@ gpt_4o_mini:
   provider: openai
   capabilities: ["function_calling", "streaming"]
 
+# Answers judgments as well as chats, so Halon's small decisions can be made with RubyLLM::Judge on it.
+gpt_6_luna:
+  model_id: gpt-6-luna
+  context_window: 400000
+  name: GPT-6 Luna
+  provider: openai
+  capabilities: ["function_calling", "structured_output", "judgment"]
+  pricing: {"text_tokens": {"standard": {"input_per_million": 0.1, "output_per_million": 0.5}}}
+
 text_embedding_3_small:
   model_id: text-embedding-3-small
   context_window: 200000
@@ -89,7 +98,7 @@ claude_sonnet_5_5:
   name: Claude Sonnet 5.5
   provider: anthropic
   capabilities: ["function_calling", "reasoning"]
-  pricing: {"text_tokens": {"standard": {"input_per_million": 2, "output_per_million": 10}}}
+  pricing: {"text_tokens": {"standard": {"input_per_million": 2, "output_per_million": 10, "cache_read_input_per_million": 0.2, "cache_write_input_per_million": 2.5}}}
 
 openrouter_claude_sonnet_5_5:
   model_id: anthropic/claude-sonnet-5.5
@@ -97,7 +106,7 @@ openrouter_claude_sonnet_5_5:
   name: "Anthropic: Claude Sonnet 5.5"
   provider: openrouter
   capabilities: ["function_calling", "reasoning"]
-  pricing: {"text_tokens": {"standard": {"input_per_million": 2, "output_per_million": 10}}}
+  pricing: {"text_tokens": {"standard": {"input_per_million": 2, "output_per_million": 10, "cache_read_input_per_million": 0.1, "cache_write_input_per_million": 2.5}}}
 
 openrouter_glm_5_2:
   model_id: z-ai/glm-5.2

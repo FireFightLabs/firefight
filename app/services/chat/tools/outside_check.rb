@@ -14,7 +14,8 @@ class Chat::Tools::OutsideCheck < RubyLLM::Tool
   description "Check an address from outside, as a user reaches it: DNS records, the HTTP status, redirects and timing " \
               "(DNS, connect, TLS, first byte, total), and the TLS certificate (issuer, expiry, days left, whether it is trusted " \
               "and covers the host). Runs from the sandbox and says which region that is. Use it to tell an outage from a " \
-              "problem on one path, a slow phase, or a certificate or DNS fault."
+              "problem on one path, a slow phase, or a certificate or DNS fault. It sees what users are served, so it wins over " \
+              "what a provider says it serves."
 
   def self.all(agent_run) = Integrations::Terminal.available?(agent_run.workspace) ? [ new(agent_run) ] : []
 

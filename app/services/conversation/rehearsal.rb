@@ -184,30 +184,37 @@ class Conversation::Rehearsal
   end
 
   def respond(chat)
-    @looked_outside = false
     outcome = responder.run(
-      chat: chat, tools: tools(chat), context: @case.context, budget: budget,
-      on_step: method(:note_step), nudge: chat.method(:nudge!), memory: chat,
-      check: -> { FirefightAi::Responder::CHECK if @looked_outside }, hold: chat.method(:hold_last_reply!)
+      chat: chat, tools: tools(chat), deferred_tools: deferred(chat), context: @case.context, budget: budget,
+      nudge: chat.method(:nudge!), memory: chat
     )
     @turns_used += outcome.turns_used
     outcome
   end
 
-  # A connected system is what a claim about a cause rests on, so reading one owes the answer a check, as it does live.
-  def note_step(step)
-    definition = step.tool && @case.tool(step.tool.to_s)
-    @looked_outside ||= definition.present? && definition.outside? && definition.reads?(Conversation::Rehearsal.asked(step.arguments))
-  end
-
-  # A chat starts with its own tools and open_tools, which makes the rest callable group by group, as it does live. A
-  # case that offers no open_tools hands every tool over from the start.
+  # A chat starts with its own tools and open_tools, which makes the rest callable group by group, as it does live. Where
+  # the model's provider searches tools itself, Firefight's own tools are in hand from the start too and every connected
+  # tool waits to be searched for (deferred), as Chat::Tools.presented hands them live. A case that offers no open_tools
+  # hands every tool over from the start.
   def tools(chat)
     return @case.tools.map { |definition| recorded(definition, chat) } unless @case.tool(Chat::Tools::Open.tool_name)
 
-    in_hand = @case.tools.select { |definition| definition.base || @opened.include?(definition.name) }
+    in_hand = @case.tools.select { |definition| in_hand?(definition) }
     in_hand.reject { |definition| definition.name == Chat::Tools::Open.tool_name }.map { |definition| recorded(definition, chat) } +
-      [ Conversation::Rehearsal::OpenTools.new(groups: groups, open: ->(names) { open(chat, names) }) ]
+      [ Conversation::Rehearsal::OpenTools.new(groups: groups, open: ->(names) { open(chat, names) }, searched: searched?) ]
+  end
+
+  def deferred(chat)
+    return [] unless searched? && @case.tool(Chat::Tools::Open.tool_name)
+
+    @case.tools.reject { |definition| in_hand?(definition) || definition.name == Chat::Tools::Open.tool_name }.map { |definition| recorded(definition, chat) }
+  end
+
+  def in_hand?(definition) = definition.base || @opened.include?(definition.name) || (searched? && !definition.outside?)
+
+  def searched?
+    @searched = FirefightAi.tool_search?(responder.ai_model) unless defined?(@searched)
+    @searched
   end
 
   # use_skill serves the real skills, and every other tool answers from the case.

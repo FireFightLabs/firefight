@@ -164,6 +164,7 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_match "your last answer rested on results that said something could not be used", seen.content
     assert_match "open_tools: Nothing is connected for Coding agents", seen.content
     assert_match "check again in this turn before you answer", seen.content
+    assert_match "Then answer from what you found now", seen.content
     assert_equal 1, second.calls.size
   end
 
@@ -340,6 +341,37 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
                  [ shown["status"], shown.dig("outcome", "kind"), shown.dig("outcome", "said") ]
   end
 
+  test "what a long tool says while it runs streams to the dashboard under its step, once a beat, without a credential" do
+    personal = personal_chat
+    fake(reply: "Counted.", during: lambda do |arguments|
+      arguments[:on_step].call(FirefightAi::AgentLoop::Step.new(key: "call_9", tool: Chat::Tools::Terminal::NAME, status: :running, arguments: { "command" => "./count.sh" }))
+      arguments[:on_progress].call(FirefightAi::AgentLoop::Progress.new(key: "call_9", message: "page 2 of 5 with ghp_abcdefghijklmnopqrstuvwxyz0123456789", value: 2, total: 5))
+      arguments[:on_progress].call(FirefightAi::AgentLoop::Progress.new(key: "call_9", message: "page 3 of 5", value: 3, total: 5))
+      arguments[:on_progress].call(FirefightAi::AgentLoop::Progress.new(key: "call_other", message: "never started here", value: nil, total: nil))
+    end)
+
+    ask(personal, "count the pages")
+
+    shown = broadcasts(ConversationChannel.broadcasting_for(personal)).map { |message| JSON.parse(message) }.select { |event| event["activity"] }
+    assert_equal 1, shown.size, "a second report within a beat waits for the next, and a call never started here is not shown"
+    assert_equal [ "call_9", Conversation::LiveDelivery::STATUS_RUNNING, "Run command", 2, 5 ],
+                 [ shown.sole["key"], shown.sole["status"], shown.sole["title"], shown.sole.dig("activity", "value"), shown.sole.dig("activity", "total") ]
+    assert_match "page 2 of 5 with [REDACTED", shown.sole.dig("activity", "message")
+  end
+
+  test "what a long tool says while it runs is never posted to a thread" do
+    reported = []
+    Slack::Client.stubs(:append_stream).with { |arguments| reported.concat(arguments[:chunks]) }.returns({ ok: true })
+    fake(reply: "Counted.", during: lambda do |arguments|
+      arguments[:on_step].call(FirefightAi::AgentLoop::Step.new(key: "call_9", tool: Chat::Tools::Terminal::NAME, status: :running, arguments: { "command" => "./count.sh" }))
+      arguments[:on_progress].call(FirefightAi::AgentLoop::Progress.new(key: "call_9", message: "page 2 of 5", value: 2, total: 5))
+    end)
+
+    ask(@conversation, "count the pages")
+
+    assert_not_includes reported.to_json, "page 2 of 5"
+  end
+
   test "a finished step in a thread says how it went in a word, a failure as an error" do
     reported = []
     Slack::Client.stubs(:append_stream).with { |arguments| reported.concat(arguments[:chunks]) }.returns({ ok: true })
@@ -352,7 +384,8 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_equal [ [ "complete", "Not found" ], [ "error", "Failed" ] ], finished.map { |chunk| chunk.values_at(:status, :output) }
   end
 
-  test "an answer that rests on what a connected system showed is checked before it goes out" do
+  # The check that fired after almost every answer is gone. Verifying is a habit the manual teaches instead.
+  test "an answer that rests on what a connected system showed goes out as written, with no check asked of it" do
     github = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
     read = github.tools.create!(name: "fetch_file", description: "Read a file", read_only: true, enabled: true)
     responder = fake(reply: "ok", steps: [ FirefightAi::AgentLoop::Step.new(key: "call_1", tool: read.model_facing_name, status: :running) ])
@@ -360,26 +393,8 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
 
     ask(@conversation, "why does billing fail")
 
-    assert_equal FirefightAi::Responder::CHECK, responder.calls.sole[:check].call
-  end
-
-  test "an answer from Firefight's own records goes out as written" do
-    responder = fake(reply: "ok", steps: [ FirefightAi::AgentLoop::Step.new(key: "call_1", tool: "search_incidents", status: :running) ])
-    Slack::Client.stubs(:append_stream).returns({ ok: true })
-
-    ask(@conversation, "what is going on")
-
-    assert_nil responder.calls.sole[:check].call
-  end
-
-  test "a held draft is kept out of what the person reads" do
-    responder = fake(reply: "ok")
-
-    ask(@conversation, "what is going on")
-    @conversation.chat.add_message(role: :assistant, content: "a draft")
-    responder.calls.sole[:hold].call
-
-    assert_not_includes @conversation.chat.readable_messages.map(&:content), "a draft"
+    assert_not responder.calls.sole.key?(:check)
+    assert_not responder.calls.sole.key?(:hold)
   end
 
   test "the reply is streamed into the thread as the model writes it" do

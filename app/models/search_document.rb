@@ -70,7 +70,7 @@ class SearchDocument < ApplicationRecord
     payload = rows.map do |row|
       row.except(:weighted).merge(weight_a: row[:weighted]["A"], weight_b: row[:weighted]["B"], weight_c: row[:weighted]["C"])
     end
-    connection.exec_update(sanitize_sql_array([ <<~SQL.squish, payload.to_json ]))
+    sql = sanitize_sql_array([ <<~SQL.squish, payload.to_json ])
       INSERT INTO search_documents (id, workspace_id, searchable_type, searchable_id, title, document, trigram_text, facets,
                                     content_digest, created_at, updated_at)
       SELECT gen_random_uuid(), doc.workspace_id, doc.searchable_type, doc.searchable_id, doc.title,
@@ -86,6 +86,7 @@ class SearchDocument < ApplicationRecord
         updated_at = excluded.updated_at
       WHERE search_documents.content_digest IS DISTINCT FROM excluded.content_digest
     SQL
+    with_connection { |connection| connection.exec_update(sql) }
   end
   private_class_method :write
 end

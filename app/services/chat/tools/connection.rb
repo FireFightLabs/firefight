@@ -1,5 +1,20 @@
 # One integration tool. A refusal comes back as a result, never an exception.
 class Chat::Tools::Connection < RubyLLM::Tool
+  # What to do with a provider's failure, said after its words where Halon meets it, outside the frame since it is ours.
+  # Seen in a real chat, a rule update the provider could not parse, for one parenthesis too many, was left undone when
+  # the person added a request, and the reason was never said.
+  CHANGE_FAILED = "When the provider's error points at something in what you sent, such as an expression it could not " \
+                  "parse or a value it does not take, correct that part and send the change again, which asks the person " \
+                  "again where the first one asked. A change the person asked for stays asked for while they add other " \
+                  "requests, unless they say otherwise. Tell them in plain words why it failed, quoting the provider, and " \
+                  "what you changed.".freeze
+  READ_FAILED = "This one call did not work, and the data may still be reachable another way, such as another log type, " \
+                "another metric, another tool or the steps in the provider's skill. Try one before calling it unavailable, " \
+                "and name the ways you tried when none worked.".freeze
+  # Seen in a real chat, two reads waited 35 seconds each for no answer and the person was never told.
+  TIMED_OUT = "The provider did not answer in time. Say so in your answer, with what you did instead, such as reading it " \
+              "again or another way, so the person knows why it took long or what is missing.".freeze
+
   def initialize(agent_run, tool)
     super()
     @agent_run = agent_run
@@ -186,6 +201,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     @waiting = false
     @last_result = nil
     @answered_failure = nil
+    @failure_note = nil
     @refusal = nil
     scope = environment_entry ? { "environment" => environment_entry.id } : {}
     # The project or workspace a call reaches is named before it is authorized, so the step, the activity log and an
@@ -206,7 +222,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
       environment_row = integration.resolve_environment(environment_entry&.id)
       result = begin
         integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments, box_key: @agent_run.code_box_key,
-                                  progress: (@agent_run.progress_listener(tool_call_id) if tool_call_id), request: code_request(tool_call_id),
+                                  progress: progress_reporter(tool_call_id), request: code_request(tool_call_id),
                                   **(relayed ? { relayed: true } : {}))
       rescue Integrations::PolicyRefusal => policy
         next refused_by_rule!(tool_call_id, authorization, policy.message)
@@ -228,7 +244,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
       @agent_run, tool: @tool, environment_row: environment_row, scope: scope, arguments: arguments, result: result, kind: @issue_kind
     )
     reminder = Chat::Tools::SkillReminder.for(@agent_run, source: @tool.integration.provider, handle: @tool.name, tool_call_id: tool_call_id)
-    [ Chat::Tools.hand_over(@agent_run, shown_as, said), guarded.presence, tracked.presence, reminder ].compact.join("\n\n")
+    [ Chat::Tools.hand_over(@agent_run, shown_as, said), @failure_note, guarded.presence, tracked.presence, reminder ].compact.join("\n\n")
   rescue AbilityGateway::Denied
     @agent_run.pack_refused!(@tool.action_key, tool_call_id)
     failed(tool_call_id, @agent_run.refusal(@tool.action_key) + Mcp::ConnectionToolFactory.environment_hint(@tool))
@@ -244,11 +260,25 @@ class Chat::Tools::Connection < RubyLLM::Tool
     Chat::Tools.waiting_for_approval(@tool.action_key, held: held)
   rescue Integrations::Error => error
     # The provider's own words, so they are framed like anything else it said.
-    failed(tool_call_id, FirefightAi::Evidence.frame(shown_as, "#{@tool.action_key} failed: #{error.message}"),
-           kind: failure_kind(Integrations::Outcomes.not_found?(@tool, arguments, error: error)))
+    not_found = Integrations::Outcomes.not_found?(@tool, arguments, error: error)
+    note = error.is_a?(Integrations::TimedOut) ? TIMED_OUT : failure_note(arguments, not_found)
+    failed(tool_call_id, [ FirefightAi::Evidence.frame(shown_as, "#{@tool.action_key} failed: #{error.message}"), note ].compact.join("\n\n"),
+           kind: failure_kind(not_found))
   end
 
   private
+
+  # A coding agent writing a change in Firefight's sandbox hands over its whole work each time it moves
+  # (Chat::CodeFixProgress), which the turn shows and keeps as it always has. Anything else a long tool says, such as an
+  # outside coding agent's latest step, is a sentence, which goes out as RubyLLM's progress for the call.
+  def progress_reporter(tool_call_id)
+    listener = (@agent_run.progress_listener(tool_call_id) if tool_call_id)
+    lambda do |update|
+      next listener&.call(update) if update.is_a?(Chat::CodeFixProgress)
+
+      progress(update.to_s) if update.present?
+    end
+  end
 
   # The words still go to the model. The mark is for whoever reads the chat afterwards.
   def failed(tool_call_id, text, kind: Chat::StepOutcome::FAILURE_ERROR)
@@ -259,13 +289,22 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
   def failure_kind(not_found) = not_found ? Chat::StepOutcome::FAILURE_NOT_FOUND : Chat::StepOutcome::FAILURE_ERROR
 
+  # A not found answers a read, so it needs nothing more. A read that failed and a change that failed each say what next.
+  def failure_note(arguments, not_found)
+    return if not_found
+
+    Integrations::ReadGuards.read_call?(@tool, arguments) ? READ_FAILED : CHANGE_FAILED
+  end
+
   # A provider that answers its own failure, as a remote server does, still failed the call, and a capability's reading
   # of the answer keeps an error an error. Its words still reach the model, so only the ledger is marked here, and the
   # card too unless this is one of several answers to one call. A run's step is marked once it is numbered.
   # The ledger records an error either way, and the kind only says how the step is shown.
   def provider_failed!(tool_call_id, authorization, said, arguments)
     @failed = true
-    @answered_failure = failure_kind(Integrations::Outcomes.not_found?(@tool, arguments, said: said))
+    not_found = Integrations::Outcomes.not_found?(@tool, arguments, said: said)
+    @answered_failure = failure_kind(not_found)
+    @failure_note = failure_note(arguments, not_found)
     authorization.answer_failed!(said)
     Chat::Tools.mark_failed(@agent_run, tool_call_id, kind: @answered_failure) unless @alone == false
   end

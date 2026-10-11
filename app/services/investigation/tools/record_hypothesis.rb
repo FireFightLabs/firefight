@@ -10,7 +10,7 @@ class Investigation::Tools::RecordHypothesis < RubyLLM::Tool
   def name = self.class.tool_name
 
   def description
-    "Record a theory about the cause, or update one you recorded earlier. " \
+    "Record a theory about the cause as soon as you have one, or update one you recorded earlier. " \
       "Marking one supported or refuted needs the step numbers that showed it."
   end
 

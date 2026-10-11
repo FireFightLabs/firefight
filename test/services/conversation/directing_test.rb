@@ -48,7 +48,7 @@ class Conversation::DirectingTest < ActiveSupport::TestCase
     @incident.assign_role!(incident_roles(:incident_lead_ws1), @alice)
 
     assert_equal "Several people can write to you in this thread, and each message starts with who wrote it. In #{@incident.identifier} you take " \
-                 "direction from #{@alice.display_name}, who holds Incident Lead.", directing_line(@thread)
+                 "direction from #{@alice.display_name}, who holds Incident Lead. #{Chat::HandbookPage::CONFLICTING}", directing_line(@thread)
 
     handbook_page!(@workspace, Chat::HandbookPage::DIRECTING_TITLE, "", role: incident_roles(:communications_lead_ws1))
     assert_match "from #{@bob.display_name}, who holds Communications Lead.", directing_line(@thread)

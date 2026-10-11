@@ -11,7 +11,9 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
 
   def description
     "Finish the investigation with the answer the evidence supports. Nothing else ends a run. " \
-      "Every line of evidence is a claim and the step numbers it rests on, and one that cites no real step is refused."
+      "Every line of evidence is a claim and the step numbers it rests on, and one that cites no real step is refused. " \
+      "The first conclude asks you to try to prove the answer wrong before it is recorded, and each claim is then read " \
+      "against the steps it cites. When the evidence supports no cause, conclude saying so, with what you could not check."
   end
 
   def parameters_schema
@@ -35,7 +37,9 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
         "fix" => {
           "type" => "object",
           "description" => "How to fix what you found. Required when you name a cause. Give it even when nothing here can apply it, " \
-                           "so a person has the steps",
+                           "so a person has the steps. When what you would change is defined as code, such as Terraform, " \
+                           "Pulumi, Helm or a manifest (the map says where a resource is managed in code), the fix is a " \
+                           "pull_request to that code, since the next apply would undo a direct change",
           "properties" => {
             "summary" => { "type" => "string", "description" => "What the fix changes and why it fixes the cause, in a sentence or two" },
             "verify" => { "type" => "string", "description" => "How to tell it worked: the signal to watch and the level it should return to, " \
@@ -47,9 +51,14 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
                 "properties" => {
                   "kind" => { "type" => "string", "enum" => Investigation::RemediationStep::KINDS,
                               "description" => "pull_request for a code change in one repository, action for a change through one of the " \
-                                               "workspace's tools, manual for anything Firefight cannot do, page_check (optional, last) to " \
-                                               "confirm in Halon's browser that a page people use works once the steps before it ran" },
-                  "description" => { "type" => "string", "description" => "What this step changes, in a sentence" },
+                                               "workspace's tools (acting on a pull request or an issue without changing code, such as " \
+                                               "closing one or rerunning a workflow, is an action through the code host's own tool), " \
+                                               "manual for anything Firefight cannot do, page_check (optional, last) to confirm in " \
+                                               "Halon's browser that a page people use works once the steps before it ran" },
+                  "description" => { "type" => "string", "description" => "What this step changes, in a sentence. For a change to another " \
+                                                                          "system's interface, such as a webhook, an API, a config format or a " \
+                                                                          "CI trigger, cite its documented contract and its live setup as you " \
+                                                                          "read them, and say what you could not verify" },
                   "repository" => { "type" => "string", "description" => "For pull_request: the repository, as owner/name" },
                   "tool" => { "type" => "string", "description" => "For action: the tool's name, as you call it" },
                   "arguments" => { "type" => "object", "description" => "For action: the arguments to call it with. For page_check: url, " \

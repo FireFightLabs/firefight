@@ -14,6 +14,8 @@ class Chat::Tools::Browser < RubyLLM::Tool
   NOT_SHOWN = "Run the same check without send_step first, so the person sees the page and what step %<step>s would send, " \
               "then ask again. A check older than %<minutes>s minutes is looked at again first.".freeze
   UNATTENDED = "Nobody is here to confirm what the page would send, so nothing is sent from a scheduled run.".freeze
+  # Said under the step until the browser itself says where it got to (RubyLLM::Tool#progress).
+  STARTING = "Starting the browser".freeze
 
   # Not offered where this install has no sandbox.
   def self.all(agent_run) = Integrations::Terminal.available?(agent_run.workspace) ? [ new(agent_run) ] : []
@@ -105,8 +107,10 @@ class Chat::Tools::Browser < RubyLLM::Tool
     answer = nil
     said = @agent_run.tool_call(action_key: action_key, params: check.to_params.merge("pages" => check.planned_pages), tool_name: NAME,
                                 label: "Check #{check.url.truncate(80)} in the browser", **{ approval_id: approval_id }.compact) do |authorization|
+      progress(STARTING)
       answer = Chat::Browsing.run(workspace: @agent_run.workspace, box_key: @agent_run.code_box_key, check: check,
-                                  expected_send: stopped&.would_send.to_h.slice("method", "url").presence)
+                                  expected_send: stopped&.would_send.to_h.slice("method", "url").presence,
+                                  on_progress: ->(found) { progress(found.message, value: found.value, total: found.total) })
       authorization.answer_failed!(answer.error) if answer.error
       answer.words(can_send: !@agent_run.reads_only? && @agent_run.try(:approved_plan).nil?)
     end

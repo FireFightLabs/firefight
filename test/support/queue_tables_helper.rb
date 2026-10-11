@@ -2,12 +2,12 @@
 # worker makes them inside its own transaction, and the rollback takes them away again.
 module QueueTablesHelper
   def with_queue_tables
-    SolidQueue::Record.connection.schema_cache.clear!
+    SolidQueue::Record.lease_connection.schema_cache.clear!
     ActiveRecord::Migration.suppress_messages { load Rails.root.join("db/queue_schema.rb") }
     SolidQueue::Record.descendants.each(&:reset_column_information)
     yield
   ensure
-    SolidQueue::Record.connection.schema_cache.clear!
+    SolidQueue::Record.lease_connection.schema_cache.clear!
   end
 
   # A worker that took the job and then stopped beating, as one killed by a deploy past its grace period does. Solid

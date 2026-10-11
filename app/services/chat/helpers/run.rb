@@ -20,9 +20,10 @@ class Chat::Helpers::Run
     agent = Chat::Helpers::Agent.new(@helper, parent: @share.fresh_parent.call)
     chat.add_message(role: Chat::Message::ROLE_USER, content: question(agent))
 
+    presented = Chat::Tools.presented(agent, choice)
     outcome = engine(choice).run(
-      chat: chat, tools: tools(agent, chat), max_spend_cents: @max_spend_cents, canceled: @share.canceled,
-      on_step: ->(_step) { tell }, memory: chat
+      chat: chat, tools: tools(agent, chat, presented), deferred_tools: presented.deferred, max_spend_cents: @max_spend_cents,
+      canceled: @share.canceled, on_step: ->(_step) { tell }, memory: chat
     ) { |turn| spent(turn) }
     finish(outcome, chat)
   rescue StandardError => error
@@ -41,14 +42,14 @@ class Chat::Helpers::Run
     )
   end
 
-  # The tools a run of its own starts with, and every tool the asking chat already found that this helper may read with,
-  # so it does not pay for turns finding them again.
-  def tools(agent, chat)
+  # The tools a run of its own starts with, those its provider's tool search keeps in hand (Chat::Tools.presented), and
+  # every tool the asking chat already found that this helper may read with, so it does not pay for turns finding them again.
+  def tools(agent, chat, presented)
     offer = Chat::Tools.offer_to(chat)
     [
-      Chat::Tools::Open.new(agent, offer: offer), Chat::Tools::UseSkill.new(agent, offer: offer), *Chat::Tools::Docs.all(agent),
+      Chat::Tools::Open.new(agent, offer: offer, searched: presented.searched), Chat::Tools::UseSkill.new(agent, offer: offer), *Chat::Tools::Docs.all(agent),
       Chat::Tools::ReadResult.new(agent), *Chat::Tools.memory(agent), *Chat::Tools::Web.all(agent)
-    ] + Chat::Tools.known(agent, @helper.chat)
+    ] + presented.loaded + Chat::Tools.known(agent, @helper.chat)
   end
 
   def question(agent)

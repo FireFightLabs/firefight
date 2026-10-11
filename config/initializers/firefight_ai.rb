@@ -17,6 +17,15 @@ FirefightAi.configure do |config|
     ActiveModel::Type::Boolean.new.cast(ENV["AI_MILESTONES_ENABLED"])
 
   config.on_refused = ->(payer, provider, error) { AiRefusal.record!(payer, provider, error) }
+  config.playbooks = -> { Chat::Skill.playbooks_text }
+
+  # net_http_persistent unless a process says otherwise, such as a worker running its jobs on fibers with async_http.
+  config.http_adapter = ENV["FIREFIGHT_AI_HTTP_ADAPTER"]
+  # On unless an explicit false, 0 or off, as for a bench run comparing tool search with opening groups.
+  config.tool_search = ENV["FIREFIGHT_AI_TOOL_SEARCH"].blank? || ActiveModel::Type::Boolean.new.cast(ENV["FIREFIGHT_AI_TOOL_SEARCH"])
+  # Off unless set, and exported only where OTEL_EXPORTER_OTLP_ENDPOINT starts the OpenTelemetry SDK.
+  config.trace_calls = ActiveModel::Type::Boolean.new.cast(ENV["FIREFIGHT_AI_TRACING"]) == true
+  config.judgments = ENV["FIREFIGHT_AI_JUDGMENTS"]
 end
 
 # A workspace's AI account with its own API base calls through this adapter where private networks are refused.

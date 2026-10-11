@@ -35,11 +35,11 @@ class MoveChatAttachmentBytesToActiveStorageTest < ActiveSupport::TestCase
 
   test "it stops before dropping the column when a row would lose its bytes" do
     file_under_old_shape("first.log", "boom")
-    Chat::Attachment.connection.execute("CREATE FUNCTION skip_sealed() RETURNS trigger AS $$ BEGIN IF NEW.name = 'sealed' THEN RETURN NULL; END IF; RETURN NEW; END $$ LANGUAGE plpgsql")
-    Chat::Attachment.connection.execute("CREATE TRIGGER skip_sealed BEFORE INSERT ON active_storage_attachments FOR EACH ROW EXECUTE FUNCTION skip_sealed()")
+    Chat::Attachment.lease_connection.execute("CREATE FUNCTION skip_sealed() RETURNS trigger AS $$ BEGIN IF NEW.name = 'sealed' THEN RETURN NULL; END IF; RETURN NEW; END $$ LANGUAGE plpgsql")
+    Chat::Attachment.lease_connection.execute("CREATE TRIGGER skip_sealed BEFORE INSERT ON active_storage_attachments FOR EACH ROW EXECUTE FUNCTION skip_sealed()")
 
     assert_raises(MoveChatAttachmentBytesToActiveStorage::Unmoved) { migrate }
-    assert Chat::Attachment.connection.column_exists?(:chat_attachments, :blob_id)
+    assert Chat::Attachment.lease_connection.column_exists?(:chat_attachments, :blob_id)
   end
 
   private
@@ -51,7 +51,7 @@ class MoveChatAttachmentBytesToActiveStorageTest < ActiveSupport::TestCase
 
   # The shape main had before, rolled back with the test's transaction.
   def restore_blob_column
-    Chat::Attachment.connection.add_reference :chat_attachments, :blob, foreign_key: { to_table: :active_storage_blobs }, index: true
+    Chat::Attachment.lease_connection.add_reference :chat_attachments, :blob, foreign_key: { to_table: :active_storage_blobs }, index: true
     Chat::Attachment.reset_column_information
   end
 

@@ -36,11 +36,14 @@ module Chat::Attachment::Intake
   # A PDF that cannot be opened is refused, since a provider handed one would refuse the whole chat after it.
   def self.pdf(bytes, name)
     require "pdf-reader"
-    Timeout.timeout(Chat::Attachment::READ_TIMEOUT) do
-      reader = PDF::Reader.new(StringIO.new(bytes))
-      pages = reader.pages.first(Chat::Attachment::PDF_PAGES).map { |page| page_text(page) }
-      text = pages.any?(&:present?) ? pages.each_with_index.map { |said, index| "[Page #{index + 1}]\n#{said}" }.join("\n\n") : ""
-      redacted(text, page_count: reader.page_count)
+    # Reading is pure computation, which a Timeout inside a fiber worker cannot cut short.
+    Blocking.call do
+      Timeout.timeout(Chat::Attachment::READ_TIMEOUT) do
+        reader = PDF::Reader.new(StringIO.new(bytes))
+        pages = reader.pages.first(Chat::Attachment::PDF_PAGES).map { |page| page_text(page) }
+        text = pages.any?(&:present?) ? pages.each_with_index.map { |said, index| "[Page #{index + 1}]\n#{said}" }.join("\n\n") : ""
+        redacted(text, page_count: reader.page_count)
+      end
     end
   rescue PDF::Reader::EncryptedPDFError
     raise Chat::Attachment::Refused, "#{name} is password protected, so Halon cannot open it."

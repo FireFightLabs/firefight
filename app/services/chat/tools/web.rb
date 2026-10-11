@@ -20,7 +20,9 @@ class Chat::Tools::Web < RubyLLM::Tool
   def description
     if @kind == SEARCH
       "Search the public web, such as a library's documentation for the version in use, an error message, or a " \
-        "provider's status page. Each result comes with its page's text and address. Cite the address of what you use."
+        "provider's status page. Each result comes with its page's text and address. Cite the address of what you use. " \
+        "For how a connected provider works, such as its API's calls or how a trigger is set up, its skill, guides and " \
+        "search_docs come first, and the web fills in what they do not answer."
     else
       "Read one public web page whole, by its address, such as a documentation page a search found."
     end

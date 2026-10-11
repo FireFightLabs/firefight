@@ -28,13 +28,14 @@ module FirefightAi
       def initialize(key:, tool:, status:, arguments: {}) = super
     end
     Outcome = Data.define(:status, :turns_used, :spent_micros)
+    # What a long running tool said about how far it got while it worked, by its call's key. value and total are counts
+    # in the tool's own unit when it can count the work, nil when it says only message.
+    Progress = Data.define(:key, :message, :value, :total)
 
     # reply_is_answer is what separates a conversation from an investigation. In a chat the person
     # is waiting for a reply, in a run only a conclusion ends it.
     # nudge is how the app saves the loop's own words, so it can tell them from what a person said.
     # memory is the saved chat when it can make room for itself, which lets a long run outlive its window.
-    # check is what to ask before an answer goes out, or nil when none is owed yet. An answer it is owed is held back
-    # unseen, hold is how the app keeps that draft out of what the person reads, and the answer after the check goes out.
     # take_messages adds what a person sent while the agent worked to the chat and says whether there was any. It is
     # called only between a tool's result and the next model call, the one place a new message keeps the chat valid.
     # output is the FirefightAi::OutputCap a turn may write, nil to leave the provider's own.
@@ -46,9 +47,11 @@ module FirefightAi
     # a provider that stops answering fails the run as before, which a rehearsal needs to measure one model.
     # on_take_over is called the same way when the next account takes over from one that ran dry or refused its key. Without
     # it the handover is quiet, as it is unless a person picked the model.
+    # on_progress hears a Progress each time a running tool reports how far it got (RubyLLM::Tool#progress), on the thread
+    # the tool reports from, before the tool answers.
     def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil, on_chunk: nil,
-                   reply_is_answer: false, nudge: nil, memory: nil, check: nil, hold: nil, take_messages: nil, output: nil,
-                   choice: nil, purpose: AiPurpose::INVESTIGATION, purse: nil, on_backup: nil, on_take_over: nil)
+                   reply_is_answer: false, nudge: nil, memory: nil, take_messages: nil, output: nil,
+                   choice: nil, purpose: AiPurpose::INVESTIGATION, purse: nil, on_backup: nil, on_take_over: nil, on_progress: nil)
       @chat = chat
       @choice = choice || ModelChoice.new(model: inference[:model], provider: inference[:provider])
       @purpose = purpose
@@ -66,14 +69,19 @@ module FirefightAi
       @reported_micros = @purse.spent
       @reminders = 0
       @reply_is_answer = reply_is_answer
-      @check = check
-      @hold = hold
       @take_messages = take_messages
       @on_backup = on_backup
       @on_take_over = on_take_over
       @given_up_on = []
       @seen_tool_call_ids = messages.flat_map { |message| message.tool_calls&.keys || [] }.to_set
       report_steps_to(on_step) if on_step
+      report_progress_to(on_progress) if on_progress
+    end
+
+    def report_progress_to(on_progress)
+      @chat.to_llm.after_tool_progress do |tool_call, progress|
+        on_progress.call(Progress.new(key: tool_call.id, message: progress.message&.to_s, value: progress.value, total: progress.total))
+      end
     end
 
     # The caller hears about a tool as the agent reaches for it, and again when it answers.
@@ -201,6 +209,7 @@ module FirefightAi
     def switch_to(following)
       @choice = following
       FirefightAi.bind(@chat, following)
+      FirefightAi.present_tools(@chat, following)
       @inference = @inference.merge(following.ledger)
       return unless @output
 
@@ -224,9 +233,9 @@ module FirefightAi
       llm&.with_tool_options(choice: nil)
     end
 
-    # Streaming still reports usage, so a streamed turn is billed like any other. A reply that may be held is not streamed.
+    # Streaming still reports usage, so a streamed turn is billed like any other.
     def streamer
-      return nil if @on_chunk.nil? || check_owed
+      return nil if @on_chunk.nil?
 
       lambda do |chunk|
         text = chunk.content
@@ -273,35 +282,13 @@ module FirefightAi
         return nil
       end
 
-      if @reply_is_answer
-        return nil if asked_for_check?
-
-        return STATUS_ANSWERED
-      end
+      return STATUS_ANSWERED if @reply_is_answer
 
       return STATUS_STALLED if @reminders.positive?
 
       @reminders += 1
       @nudge.call(REMINDER)
       nil
-    end
-
-    # The draft stays in the chat, so the check can argue with it, and the reply after it is the answer.
-    def asked_for_check?
-      text = check_owed
-      return false unless text
-
-      @checked = true
-      @hold&.call
-      @nudge.call(text)
-      true
-    end
-
-    # Once per question, and never on the last turn a budget buys, which has no room for another.
-    def check_owed
-      return nil if @check.nil? || @checked || @last_turn_offered
-
-      @check.call.presence
     end
 
     # The record's messages are rows. These are the ones the model sees.

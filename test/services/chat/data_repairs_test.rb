@@ -109,7 +109,7 @@ class Chat::DataRepairsTest < ActiveSupport::TestCase
     assert_equal Chat::DataRepair::STATUS_RAN, repair.status
     assert_equal 42, repair.rows_copied
     assert_match "id | currency", repair.rows_copy
-    assert_not_includes Chat::DataRepair.connection.select_value("SELECT rows_copy FROM chat_data_repairs WHERE id = '#{repair.id}'"), "id | currency"
+    assert_not_includes Chat::DataRepair.lease_connection.select_value("SELECT rows_copy FROM chat_data_repairs WHERE id = '#{repair.id}'"), "id | currency"
     assert_equal 1, @reads.count { |asked| asked["query"].include?("ORDER BY 1 LIMIT 100 OFFSET 0") }, "42 rows are one page"
   end
 

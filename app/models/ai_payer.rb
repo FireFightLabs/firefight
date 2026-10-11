@@ -18,17 +18,10 @@ AiPayer = Data.define(:paid_by, :account) do
   end
 
   # The provider refused for credit.
-  def self.out_of_credit?(error)
-    return true if error.is_a?(FirefightAi::OutOfCredit)
-
-    error.is_a?(RubyLLM::Error) && FirefightAi::Credit.from(error).out_of_credit?
-  end
+  def self.out_of_credit?(error) = FirefightAi.cause(error) == FirefightAi::CAUSE_OUT_OF_CREDIT
 
   # The provider refused the account itself rather than the call, so the next account should take over.
-  def self.key_refused?(error)
-    error.is_a?(RubyLLM::UnauthorizedError) || error.is_a?(RubyLLM::ForbiddenError) ||
-      (error.is_a?(FirefightAi::Error) && AiAccountError::KEY_REASONS.include?(error.reason))
-  end
+  def self.key_refused?(error) = FirefightAi.key_refused?(error)
 
   def self.gives_way?(error) = out_of_credit?(error) || key_refused?(error)
 

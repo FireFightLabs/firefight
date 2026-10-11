@@ -25,6 +25,8 @@ gem "tzinfo-data", platforms: %i[ windows jruby ]
 # Use the database-backed adapters for Rails.cache, Active Job, and Action Cable
 gem "solid_cache"
 gem "solid_queue"
+# The fiber reactor of the workers that mostly wait on a model or a provider (config/queue.yml)
+gem "async"
 gem "solid_cable"
 gem "solid_workflow", path: "engines/solid_workflow"
 
@@ -113,6 +115,8 @@ gem "grpc", require: false
 
 # Persistent HTTP connection pool (for Slack API keep-alive)
 gem "net-http-persistent"
+# The same keep-alive for model calls, which RubyLLM makes through Faraday (FIREFIGHT_AI_HTTP_ADAPTER)
+gem "faraday-net_http_persistent", "~> 2.3"
 
 # The public suffix list, for a hostname's registered domain on the resource map
 gem "public_suffix", "~> 7.0"

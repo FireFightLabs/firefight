@@ -31,12 +31,14 @@ module Positioned
     def position_assignment_sql(ordered_ids)
       columns = position_columns(0, ordered_ids.size).keys
 
-      columns.map { |column|
-        cases = ordered_ids.each_with_index.map { |id, index|
-          "WHEN #{connection.quote(id)} THEN #{connection.quote(position_columns(index, ordered_ids.size).fetch(column))}"
-        }
-        "#{connection.quote_column_name(column)} = CASE id #{cases.join(' ')} END"
-      }.join(", ")
+      with_connection do |connection|
+        columns.map { |column|
+          cases = ordered_ids.each_with_index.map { |id, index|
+            "WHEN #{connection.quote(id)} THEN #{connection.quote(position_columns(index, ordered_ids.size).fetch(column))}"
+          }
+          "#{connection.quote_column_name(column)} = CASE id #{cases.join(' ')} END"
+        }.join(", ")
+      end
     end
   end
 

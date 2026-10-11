@@ -429,6 +429,42 @@ FeatureFlags.enabled?(workspace, FeatureFlags::CHATGPT_SIGN_IN)   # → true/fal
 
 All callback_ids, action_ids, and subcommand strings are centralized in the platform-agnostic `Identifiers` module (`app/models/identifiers.rb`). Never use magic strings. Reference as `Identifiers::INCIDENT_CREATION_MODAL`, `Identifiers::SUBCOMMAND_CLOSE`, etc.
 
+## Queues
+
+`config/queue.yml` gives each kind of work a worker of its own. A worker runs its jobs either on threads (`threads: N`, a thread per job) or on fibers (`fibers: N`, every job a fiber on one thread, Solid Queue 1.6 and later). A fiber that waits on a socket, the database, a subprocess or `sleep` hands the thread to another job, so dozens of jobs that mostly wait share one process and a few database connections. A job that computes without waiting holds up every other job of its worker until it ends.
+
+| Worker | Runs on | Why |
+|---|---|---|
+| `conversations` | `fibers`, `CONVERSATION_JOB_FIBERS` (25) | A chat turn spends nearly all its time waiting on the model's stream and on tools that read providers. |
+| `investigations` | `fibers`, `INVESTIGATION_JOB_FIBERS` (10) | The same loop as a chat, for minutes. |
+| `webhooks` | `fibers`, `WEBHOOK_JOB_FIBERS` (10) | A delivery waits up to `Webhooks::DeliveryService::ENDPOINT_TIMEOUT` on someone else's endpoint and does next to nothing else. |
+| `workflows`, `events` | `threads` | Short, database bound steps, where fibers gain nothing. |
+| the rest (`default`, `background`, ...) | `threads` | Holds work that computes as well as waits, such as map sweeps, which would hold up a fiber worker. |
+
+`*_JOB_CONCURRENCY` still sets how many processes each worker runs, and each process has its own fibers. `test/config/queue_config_test.rb` holds which workers are fibers and that Solid Queue accepts the file.
+
+### What fibers need
+
+- **Fiber scoped Rails state.** `config.active_support.isolation_level = :fiber` (`config/application.rb`) is app wide, Puma included, and Solid Queue refuses to start a fiber worker without it. `Current`, the connection a query is leased, the query cache and tagged logging belong to the fiber, so each job sees only its own. A Puma request runs on its thread's own fiber, so nothing changes there. A thread a job starts (`Chat::Helpers`) starts empty, as it did before. No code in `app/`, `engines/` or `lib/` uses `Thread.current` or a thread variable.
+- **No connection kept across a wait.** `Model.connection` leases a connection until the job ends, which in a fiber worker means one per job waiting on the model. Code uses `with_connection` (or `sanitize_sql_array` for quoting) instead, and the test environment sets `permanent_connection_checkout = :disallowed`, so a new `.connection` fails the suite. Tests that need a raw connection use `lease_connection`. A transaction still holds its connection for as long as it is open, so nothing waits on the network inside one. `Integrations::CodeReading.locked`, which keeps two jobs from starting the same box or pushing the same repository, takes a session advisory lock on a connection of its own outside the pool, so the minutes a box start or a push can take hold no transaction and no pooled connection.
+- **Nothing that waits without yielding.** Ruby 4 hands every socket, `sleep`, `Timeout`, `Mutex`, `Queue`, `Process.wait`, `Open3` and DNS lookup to the fiber scheduler, and pg waits through it too, so Net::HTTP (and Faraday on `net_http`, so RubyLLM's streaming), `Integrations::Http`, the MCP client, `Net::HTTP::Persistent` (the Slack client), the AWS SDK, the sandbox and terminal clients, `git` through `Open3`, Solid Cable broadcasts and every query all let the other jobs run. What does not is wrapped in `Blocking.call` (`lib/blocking.rb`), which runs it on a thread of its own when a fiber scheduler is running and in place otherwise: gRPC (`Integrations::ModalApi`), libvips (`Chat::Chart::Image`) and reading a PDF (`Chat::Attachment::Intake`), where a `Timeout` inside a fiber cannot interrupt pure computation. New code calling a C extension that does its own waiting, or computing for long, goes through `Blocking.call`.
+
+### Database pools
+
+Each process's pools come from `config/database.yml` (`RAILS_MAX_THREADS`, 10 by default, for the primary, queue and cable databases alike). A fiber job takes a connection only for the length of a query or a transaction, so a fiber worker needs far fewer than one per fiber. Solid Queue estimates 3 queue connections for a fiber worker on Active Record 7.2 and later (one for the jobs, one for polling, one for heartbeats). Fibers that start a query while every connection is busy wait for one, which the scheduler handles, and fail only after the pool's `checkout_timeout` (5 seconds). The load test below finishes every turn with 25 fibers on pools of 5 and 10, with no turn holding a connection while the model streams. A larger pool lets bursts open more connections at once, which counts against the database server's `max_connections`.
+
+### Load test
+
+`bin/rails load_test:workers` (`lib/tasks/load_test.rake`, `lib/tasks/load_test/workers.rb`) runs chat shaped turns on a worker with threads and on one with fibers and prints a table for each: jobs per second, time from queued to done, time per turn and to the first token, the peak connections the worker held open per database, how many turns held a connection while the model streamed, the most jobs waiting for a connection at once, and the worker's peak memory. A turn reads and writes the database, streams a model's answer token by token, broadcasts each token through Action Cable and calls a tool that reads the database and a provider between two model calls. The model and the provider are a local server the task starts, so nothing is spent and nothing leaves the machine.
+
+```
+bin/rails load_test:workers                                  # threads: 3 (main) against fibers: 25, 100 turns each
+JOBS=200 CONFIGS=threads:3,fibers:25,fibers:50 bin/rails load_test:workers
+FIRST_TOKEN_MS=600 TOKENS=60 TOKEN_MS=30 TOOL_MS=300 ROUNDS=1 bin/rails load_test:workers
+```
+
+It runs in development against the databases `config/database.yml` names. Turns go on a `load_test` queue no other worker reads, into a `load_test_turns` table the task creates and drops, and its jobs are removed when it ends. The worker under test is its own Solid Queue supervisor, started by the task with Solid Queue's start hooks cleared. The run on threads keeps Rails' state per thread, as main did. Leave the code alone while it runs: development reloads a changed file before the next job, and a reload in the middle of a run once stalled the worker on threads until the run was stopped.
+
 ## Deploys
 
 Firefight deploys many times a day, so every job and every long running path is written to be stopped part way and picked up again without anything left hanging or done twice.

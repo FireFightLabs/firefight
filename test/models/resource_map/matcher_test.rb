@@ -118,7 +118,7 @@ class ResourceMap::MatcherTest < ActiveSupport::TestCase
   test "an exact match and the suggestions are written under the one per-workspace lock" do
     held = nil
     ResourceMap::HostMatcher.any_instance.stubs(:run!).with do
-      held = ResourceMap::Link.connection.select_value("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid()")
+      held = ResourceMap::Link.lease_connection.select_value("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid()")
       true
     end.returns([])
 

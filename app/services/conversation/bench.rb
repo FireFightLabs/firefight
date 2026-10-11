@@ -119,7 +119,7 @@ class Conversation::Bench
     # Made in the same transaction as the run that first needs it, so a run that fails to start leaves no workspace.
     def workspace
       Workspace.transaction do
-        Workspace.connection.execute("SELECT pg_advisory_xact_lock(#{WORKSPACE_LOCK})")
+        Workspace.with_connection { |connection| connection.execute("SELECT pg_advisory_xact_lock(#{WORKSPACE_LOCK})") }
         used = Conversation::BenchResult.joins(:bench_run).merge(Conversation::BenchRun.of_scenarios).pick(:workspace_id)
         (used && Workspace.find_by(id: used)) || Workspace.create!(name: WORKSPACE_NAME)
       end

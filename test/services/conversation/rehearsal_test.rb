@@ -69,30 +69,22 @@ class Conversation::RehearsalTest < ActiveSupport::TestCase
     assert_empty replay.chat.tool_calls.where(failed: true)
   end
 
-  test "reading a connected system owes the answer a check before it goes out, as it does live" do
+  test "an answer after reading a connected system goes out as written, as it does live" do
     script(
       call("northflank_api_request", "method" => "GET", "path" => "/v1/projects/web/workflows/release/runs"),
-      reply("The migration is broken."),
       reply("Run 412 failed at the migrate step.")
     )
 
     replay = Conversation::Rehearsal.replay!(release_case(decisions: []), result: @result, model: @model)
 
-    assert_includes replay.chat.messages.where(nudge: true, role: Chat::Message::ROLE_USER).map(&:content), FirefightAi::Responder::CHECK
-    assert_equal [ "Run 412 failed at the migrate step." ], replay.transcript.replies
-  end
-
-  test "a chat that only reads Firefight's own records owes no check" do
-    script(call("search_runbooks", "query" => "release"), reply("There is a release runbook."))
-
-    replay = Conversation::Rehearsal.replay!(release_case(decisions: []), result: @result, model: @model)
-
     refute replay.chat.messages.exists?(nudge: true)
+    assert_equal [ "Run 412 failed at the migrate step." ], replay.transcript.replies
   end
 
   # On the first real bench run a replay handed every tool over up front and open_tools said groups had nothing
   # connected, so models opened groups again and again and said tools they held were missing.
   test "a chat holds only its own tools until open_tools opens the group a tool sits in, as it does live" do
+    FirefightAi.stubs(:tool_search?).returns(false)
     bench_case = build("tools" => [
       { "name" => "open_tools", "description" => "Opens groups", "base" => true },
       { "name" => "read_run", "description" => "Reads a run", "reads" => true, "source" => "northflank" }
@@ -105,6 +97,26 @@ class Conversation::RehearsalTest < ActiveSupport::TestCase
     assert_equal [ "use_skill", "open_tools" ], JSON.parse(JSON.parse(first.result)["error"][/\[.*\]/])
     assert_match "read_run: Reads a run (ready to call)", opened.result
     assert_equal "Run 412 failed.", second.result
+  end
+
+  # A replay measures what a live chat would do, so on a provider that searches tools itself the scenario's tools are
+  # handed over as Chat::Tools.presented hands them live, Firefight's own in hand and every connected one deferred.
+  test "where the model's provider searches tools, Firefight's own are in hand and connected ones wait to be searched for" do
+    FirefightAi.stubs(:tool_search?).returns(true)
+    bench_case = build("tools" => [
+      { "name" => "open_tools", "description" => "Opens groups", "base" => true },
+      { "name" => "search_runbooks", "description" => "Finds runbooks", "reads" => true },
+      { "name" => "read_run", "description" => "Reads a run", "reads" => true, "source" => "northflank" }
+    ], "answers" => [ { "tool" => "read_run", "result" => "Run 412 failed." } ])
+    offered = nil
+    RubyLLM::Provider.any_instance.stubs(:complete).with { |_messages, tools:, **| offered ||= tools.transform_values { |tool| tool.is_a?(RubyLLM::Tool::Deferred) } }
+                     .returns(reply("Run 412 failed."))
+
+    Conversation::Rehearsal.replay!(bench_case, result: @result, model: @model)
+
+    assert_equal false, offered[:search_runbooks]
+    assert_equal true, offered[:read_run]
+    assert_equal false, offered[:open_tools], "open_tools stays, to say what exists that cannot be used"
   end
 
   test "open_tools lists the scenario's own groups as ready, never as not connected" do

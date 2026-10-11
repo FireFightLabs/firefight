@@ -79,7 +79,7 @@ module Integrations
               "and the owner's review decides whether it is ready."
       assert_includes body, "**No CI**\n#{plain}\n\n**Files**"
       assert_includes comment, "**No CI**\n#{plain}"
-      assert answer.end_with?("No CI:\n#{plain}")
+      assert answer.end_with?("No CI:\n#{plain}\n\n#{CodeWriteUp::TELLING}")
       assert_not_includes CodeWriteUp.body(title: "Raise the pool", warning: nil, reviewed: @reviewed, change: @change), "No CI"
     end
 

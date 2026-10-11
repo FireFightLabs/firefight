@@ -97,7 +97,7 @@ class Chat::Helper < ApplicationRecord
   def self.start!(chat:, tool_call_id:, checks:, since:)
     transaction do
       key = Zlib.crc32("chat_helpers:#{chat.workspace_id}")
-      connection.select_value(sanitize_sql_array([ "SELECT pg_advisory_xact_lock(?)::text", key ]))
+      with_connection { |connection| connection.select_value(sanitize_sql_array([ "SELECT pg_advisory_xact_lock(?)::text", key ])) }
       refused = full_reason(chat, checks.size, since: since)
       next refused if refused
 
