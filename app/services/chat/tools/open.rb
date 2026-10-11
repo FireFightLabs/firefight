@@ -30,6 +30,12 @@ class Chat::Tools::Open < RubyLLM::Tool
           "tools there is, with those that exist but cannot be used, and opening a group loads its tools whole.".freeze
   HOLDS = "Every tool you may use is already in your hands, so call it by name. This lists every group of tools there is, " \
           "with those that exist but cannot be used, and opening a group only lists its tools again.".freeze
+  # A chat that asks specialists (Chat::Specialists) never opens a connection's reads, which stay with its specialist.
+  SPECIALISTS = "Reads of connected systems are made by specialists with ask_specialist, never opened here. A tool you do not " \
+                "hold yet, such as a change in a connected system, is loaded by naming it in tools here, or by searching for it " \
+                "when you hold a tool search. This lists every group of tools there is, with those that exist but cannot be used.".freeze
+  # How a read a specialist holds is listed.
+  SPECIALISTS_READ = "read by the %<title>s specialist, so ask it with ask_specialist".freeze
 
   # Built once, so the front of every request in a run stays the same.
   def description
@@ -64,6 +70,7 @@ class Chat::Tools::Open < RubyLLM::Tool
   private
 
   def intro
+    return SPECIALISTS if @presented.specialists
     return HOLDS if @presented.held
 
     @presented.searched ? LISTS : OPENS
@@ -81,8 +88,15 @@ class Chat::Tools::Open < RubyLLM::Tool
     chosen = chosen_from(view, wanted)
     return [ listed_first(view), elsewhere ].compact.join("\n\n") if chosen.empty?
 
-    @offer.call(chosen.filter_map(&:tool))
+    @offer.call(chosen.reject { |entry| specialist_of(entry) }.filter_map(&:tool))
     [ listing(chosen), elsewhere, idle(view), skills_for(chosen), as_read(chosen) ].compact.join("\n\n")
+  end
+
+  # The specialist that holds this read, in a chat that asks them, or nil.
+  def specialist_of(entry)
+    return unless @presented.specialists && Chat::Specialists.reserved?(@agent_run.workspace, entry)
+
+    Chat::Specialists.domain(Chat::Specialists.of_provider(entry.source))
   end
 
   # Anything not ready describes the moment it was read, so a person who says they changed it is checked again.
@@ -96,11 +110,12 @@ class Chat::Tools::Open < RubyLLM::Tool
     return if names.empty?
 
     found = current.reject { |one| one.key == view&.key }.flat_map { |one| one.entries.map { |entry| [ entry, one ] } }.index_by { |entry, _| entry.name }
-    ready = names.filter_map { |name| found[name]&.first }.select(&:tool)
+    ready = names.filter_map { |name| found[name]&.first }.select(&:tool).reject { |entry| specialist_of(entry) }
     @offer.call(ready.map(&:tool)) if ready.any?
     said = names.map do |name|
       entry, holder = found[name]
       next "There is no tool called #{name} in any group." unless entry
+      next "#{name} is in the group #{holder.title} (#{holder.key}), and it is #{format(SPECIALISTS_READ, title: specialist_of(entry).title.downcase)}." if specialist_of(entry)
       next "#{name} is in the group #{holder.title} (#{holder.key}), so it was loaded from there: #{entry.description} (ready to call)" if entry.tool
 
       "#{name} is in the group #{holder.title} (#{holder.key}). It exists, but #{STATE_WORDS.fetch(entry.state)}."
@@ -165,7 +180,12 @@ class Chat::Tools::Open < RubyLLM::Tool
   def listing(entries)
     entries.map do |entry|
       ready = entry.state == Chat::Tools::STATE_READY
-      "#{entry.name}: #{entry.description} (#{ready ? 'ready to call' : "exists, but #{STATE_WORDS.fetch(entry.state)}"})"
+      held = specialist_of(entry)
+      state = if held then format(SPECIALISTS_READ, title: held.title.downcase)
+      elsif ready then "ready to call"
+      else "exists, but #{STATE_WORDS.fetch(entry.state)}"
+      end
+      "#{entry.name}: #{entry.description} (#{state})"
     end.join("\n")
   end
 end

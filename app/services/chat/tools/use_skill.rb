@@ -48,9 +48,10 @@ class Chat::Tools::UseSkill < RubyLLM::Tool
 
     entries = Chat::Tools.catalog(@agent_run).select { |entry| skill_tool?(skill, entry) }
     ready, refused = entries.partition { |entry| entry.state == Chat::Tools::STATE_READY }
-    @offer.call(ready.map(&:tool)) if ready.any?
+    in_hand = Chat::Tools.halons(@agent_run, ready)
+    @offer.call(in_hand.map(&:tool)) if in_hand.any?
 
-    [ steps_for(skill, entries), guides(skill), refusal(refused), switched_off(skill, entries), off_elsewhere(skill, entries) ].compact.join("\n\n")
+    [ steps_for(skill, entries), guides(skill), refusal(refused), specialists(ready - in_hand), switched_off(skill, entries), off_elsewhere(skill, entries) ].compact.join("\n\n")
   end
 
   private
@@ -99,6 +100,16 @@ class Chat::Tools::UseSkill < RubyLLM::Tool
 
     page = ProviderDocPage.named(skill.source, path)
     "#{GUIDE_NOTE}\n\n#{FirefightAi::Evidence.frame(name, [ text, Chat::Tools::Docs.link_line(page) ].compact.join("\n\n"))}"
+  end
+
+  # In a chat that asks specialists, a skill's reads of a connected system are theirs, so its steps that read go to them.
+  def specialists(entries)
+    return if entries.empty?
+
+    entries.group_by { |entry| Chat::Specialists.of_provider(entry.source) }.map do |key, those|
+      "#{those.map(&:name).to_sentence} #{those.one? ? 'is' : 'are'} read by the #{Chat::Specialists.domain(key).title.downcase} specialist. " \
+        "Hand the steps that read to it with ask_specialist, naming what to read."
+    end.join("\n")
   end
 
   def refusal(entries)

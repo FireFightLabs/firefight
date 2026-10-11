@@ -2,7 +2,10 @@
 # it only read, whether it waited for the person and what they decided, and what Halon replied. The score counts from
 # it and the judge reads it as text.
 class Conversation::BenchTranscript
-  Call = Data.define(:name, :arguments, :reads, :approval, :recorded, :failed, :result) do
+  # by names the specialist that made a call for Halon, nil for Halon's own.
+  Call = Data.define(:name, :arguments, :reads, :approval, :recorded, :failed, :result, :by) do
+    def initialize(by: nil, **) = super
+
     def asked? = approval.present?
 
     # Turned down, or moved past while it waited, so it never ran.
@@ -76,15 +79,32 @@ class Conversation::BenchTranscript
     return [ Entry.new(said_by: PERSON, text: message.content.to_s, call: nil) ] if message.role == Chat::Message::ROLE_USER
 
     spoken = message.content.present? ? [ Entry.new(said_by: HALON, text: message.content.to_s, call: nil) ] : []
-    spoken + message.ruby_llm_tool_calls.sort_by(&:created_at).map { |call| Entry.new(said_by: CALL, text: nil, call: call_of(call)) }
+    spoken + message.ruby_llm_tool_calls.sort_by(&:created_at).flat_map do |call|
+      [ Entry.new(said_by: CALL, text: nil, call: call_of(call)), *specialist_entries(message, call) ]
+    end
   end
 
-  def call_of(call)
+  # What the specialists an ask_specialist call started read for Halon, each after the call that asked them, so the score
+  # and the judge see every read the answer rests on. Their report goes back to Halon as the call's own result.
+  def specialist_entries(message, call)
+    return [] unless call.name == Chat::Helper::ASK_SPECIALIST
+
+    Chat::Helper.where(chat_id: message.chat_id, tool_call_id: call.tool_call_id).where.not(domain: nil).in_order.includes(:own_chat).flat_map do |helper|
+      next [] unless helper.own_chat
+
+      by = helper.domain.tr("_", " ")
+      helper.own_chat.tool_calls.where.not(name: Chat::Helper::REPORT_FINDINGS).includes(:result).order(:created_at, :id).map do |read|
+        Entry.new(said_by: CALL, text: nil, call: call_of(read, by: by))
+      end
+    end
+  end
+
+  def call_of(call, by: nil)
     arguments = call.arguments.to_h.stringify_keys
     result = call.result&.content.to_s
     Call.new(
       name: call.name, arguments: arguments, reads: reads?(call.name, arguments), approval: call.approval,
-      recorded: @unscripted.exclude?(call.tool_call_id), failed: call.failed, result: result
+      recorded: @unscripted.exclude?(call.tool_call_id), failed: call.failed, result: result, by: by
     )
   end
 
@@ -94,7 +114,8 @@ class Conversation::BenchTranscript
 
   def call_text(call)
     kind = call.reads ? "a read" : "a change"
-    lines = [ "Agent called #{call.name} #{call.arguments.to_json} (#{kind})" ]
+    who = call.by ? "The #{call.by} specialist, for the agent," : "Agent"
+    lines = [ "#{who} called #{call.name} #{call.arguments.to_json} (#{kind})" ]
     lines << "  #{DECISION_WORDS.fetch(call.approval)}" if call.asked?
     lines << "  It returned: #{call.result.truncate(RESULT_SHOWN)}" if call.ran? && call.result.present?
     lines.join("\n")

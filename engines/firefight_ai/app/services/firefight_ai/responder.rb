@@ -74,7 +74,7 @@ module FirefightAi
 
         #{Manual::DONE}
 
-        #{Manual::TOOLS}
+        #{FirefightAi.configuration.specialists ? Manual::TOOLS_WITH_SPECIALISTS : Manual::TOOLS}
 
         #{Manual::PLAYBOOKS}
 

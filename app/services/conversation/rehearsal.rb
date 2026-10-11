@@ -122,12 +122,14 @@ class Conversation::Rehearsal
     @state = Conversation::Rehearsal::State.new(@world)
     @unscripted = Set.new
     @opened = Set.new
+    @specialists = Chat::Specialists.on?
   end
 
   def run
     chat = Chat.open!(owner: @result, workspace: @result.workspace, model_choice: @model)
     @case.turns.each do |turn|
       @world.advance!(turn.sets)
+      @turn_started = Time.current
       say(chat, turn.said)
       play(chat, turn)
     end
@@ -183,41 +185,98 @@ class Conversation::Rehearsal
         .reorder(created_at: :desc, id: :desc).find { |message| message.content.present? }&.content
   end
 
+  # The purse is shared with the specialists Halon asks, so what they spend counts against the turn's budget as live.
   def respond(chat)
+    purse = FirefightAi::AgentLoop::Purse.new
     outcome = responder.run(
-      chat: chat, tools: tools(chat), deferred_tools: deferred(chat), context: @case.context, budget: budget,
-      nudge: chat.method(:nudge!), memory: chat
+      chat: chat, tools: tools(chat) + asking(chat, purse), deferred_tools: deferred(chat), context: @case.context, budget: budget,
+      nudge: chat.method(:nudge!), memory: chat, purse: purse
     )
     @turns_used += outcome.turns_used
     outcome
+  end
+
+  # ask_specialist, in a replay where the deployment asks specialists, run on the scenario's own tools.
+  def asking(chat, purse)
+    return [] unless @specialists
+
+    asker = Asker.new(chat: chat, workspace: @result.workspace)
+    share = Chat::Helpers::Share.new(
+      purse: purse, max_spend_cents: budget.max_spend_cents, since: @turn_started || Time.current, canceled: -> { false }, moved: ->(_tool_call_id) { },
+      fresh_parent: -> { asker }, choose: ->(deep) { specialist_model(deep) }, inferable: @result, member: nil, specialists: specialists(chat)
+    )
+    [ Chat::Tools::AskSpecialist.new(asker, share: share) ]
+  end
+
+  def specialists(chat)
+    @specialist_source ||= Conversation::Rehearsal::Specialists.new(@case, recorded: ->(definition, own_chat) { recorded(definition, own_chat) },
+                                                                          open: ->(names) { open(chat, names) })
+  end
+
+  # The quick model of the compared model's provider, on the same key, as a live specialist runs on the quick model, or
+  # the model compared when the deployment runs specialists on the main model or the provider has no quick model with a
+  # known window.
+  def specialist_model(deep)
+    provider = @model.provider_name
+    fast = AiProviders.find(provider)&.fast_model
+    return @model if deep || fast.nil? || !FirefightAi.context_window(fast, provider: provider)
+
+    @model.with(model: fast, provider: provider)
+  end
+
+  # A replay's specialists read for nobody in the workspace, since every call answers from the scenario.
+  Asker = Data.define(:chat, :workspace) do
+    def chat_owner = chat.owner
+    def acting_principal = nil
+    def incident = nil
+    def code_box_key = nil
+    def mark_step_failed!(_position, _kind) = nil
   end
 
   # A chat starts with its own tools and open_tools, which makes the rest callable group by group, as it does live. Where
   # the model's provider searches tools itself, Firefight's own tools are in hand from the start too and every connected
   # tool waits to be searched for (deferred). Anywhere else every tool is in hand from the start when they all fit the
   # budget (FirefightAi.fits_up_front?). Both are as Chat::Tools.presented hands them live. A case that offers no
-  # open_tools hands every tool over from the start.
+  # open_tools hands every tool over from the start. Where the deployment asks specialists, a connected tool that only
+  # reads is theirs (Conversation::Rehearsal::Specialists) and never Halon's, and a change in a connected system is opened
+  # by name or found by searching, as live.
   def tools(chat)
-    return @case.tools.map { |definition| recorded(definition, chat) } unless @case.tool(Chat::Tools::Open.tool_name)
+    return halons.map { |definition| recorded(definition, chat) } unless @case.tool(Chat::Tools::Open.tool_name)
 
-    in_hand = @case.tools.select { |definition| in_hand?(definition, chat) }
+    in_hand = halons.select { |definition| in_hand?(definition, chat) }
     in_hand.reject { |definition| definition.name == Chat::Tools::Open.tool_name }.map { |definition| recorded(definition, chat) } +
-      [ Conversation::Rehearsal::OpenTools.new(groups: groups, open: ->(names) { open(chat, names) }, searched: searched?, held: held?(chat)) ]
+      [ Conversation::Rehearsal::OpenTools.new(groups: groups, open: ->(names) { open(chat, names) }, searched: searched?, held: held?(chat),
+                                               specialists: @specialists, reserved: method(:specialist_title)) ]
   end
 
   def deferred(chat)
     return [] unless searched? && @case.tool(Chat::Tools::Open.tool_name)
 
-    @case.tools.reject { |definition| in_hand?(definition, chat) || definition.name == Chat::Tools::Open.tool_name }.map { |definition| recorded(definition, chat) }
+    halons.reject { |definition| in_hand?(definition, chat) || definition.name == Chat::Tools::Open.tool_name }.map { |definition| recorded(definition, chat) }
   end
 
   def in_hand?(definition, chat)
-    definition.base || @opened.include?(definition.name) || (searched? ? !definition.outside? : held?(chat))
+    return true if definition.base || @opened.include?(definition.name)
+    return !definition.outside? if searched?
+
+    held?(chat) && (!@specialists || !definition.outside? || definition.reads)
+  end
+
+  # What Halon may hold: every scenario tool, less the reads a specialist holds when the deployment asks specialists.
+  def halons = @specialists ? @case.tools.reject { |definition| Conversation::Rehearsal::Specialists.reserved?(definition) } : @case.tools
+
+  # The specialist that holds a scenario tool, by its title, or nil.
+  def specialist_title(name)
+    definition = @specialists && @case.tool(name)
+    definition && Conversation::Rehearsal::Specialists.reserved?(definition) ? Chat::Specialists.domain(Conversation::Rehearsal::Specialists.domain_of(definition)).title : nil
   end
 
   # Measured once, since a scenario's tools stay the same for the whole chat.
   def held?(chat)
-    @held = !searched? && FirefightAi.fits_up_front?(groups.values.flatten.map { |definition| recorded(definition, chat) }) unless defined?(@held)
+    unless defined?(@held)
+      candidates = groups.values.flatten.select { |definition| !@specialists || !definition.outside? || definition.reads }
+      @held = !searched? && FirefightAi.fits_up_front?(candidates.map { |definition| recorded(definition, chat) })
+    end
     @held
   end
 
@@ -229,20 +288,21 @@ class Conversation::Rehearsal
   # use_skill serves the real skills, and every other tool answers from the case.
   def recorded(definition, chat)
     if definition.name == Chat::Tools::UseSkill.tool_name && !@case.captured?
-      return Conversation::Rehearsal::UseSkill.new(tools: @case.tools, open: ->(names) { open(chat, names) })
+      return Conversation::Rehearsal::UseSkill.new(tools: @case.tools, open: ->(names) { open(chat, names) }, reserved: method(:specialist_title))
     end
 
     Conversation::Rehearsal::RecordedTool.new(definition, bench_case: @case, chat: chat, world: @world, state: @state, unscripted: @unscripted)
   end
 
   def groups
-    @groups ||= @case.tools.reject { |definition| definition.base || definition.name == Chat::Tools::Open.tool_name }
-                           .group_by(&:group_key)
+    @groups ||= halons.reject { |definition| definition.base || definition.name == Chat::Tools::Open.tool_name }
+                      .group_by(&:group_key)
   end
 
-  # Makes the named tools callable for the rest of the chat, from the next model call on, and returns them.
+  # Makes the named tools callable for the rest of the chat, from the next model call on, and returns them. A read a
+  # specialist holds is never made Halon's.
   def open(chat, names)
-    definitions = @case.tools.select { |definition| names.include?(definition.name) }
+    definitions = halons.select { |definition| names.include?(definition.name) }
     @opened.merge(definitions.map(&:name))
     chat.with_tools(*definitions.map { |definition| recorded(definition, chat) })
     definitions

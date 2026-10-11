@@ -55,10 +55,11 @@ class Conversation::Runner
     @changes = Chat::Tools::Changes.catch_up!(@turn, chat).then { |caught| caught if caught.note }
     purse = FirefightAi::AgentLoop::Purse.new
     presented = Chat::Tools.presented(@turn, responder.ai_model)
+    offer = Chat::Tools.offer_to(chat)
 
     outcome = responder.run(
       chat: chat,
-      tools: Conversation::Tools.for(@turn, offer: Chat::Tools.offer_to(chat), helpers: helper_share(chat, purse), presented: presented) +
+      tools: Conversation::Tools.for(@turn, offer: offer, helpers: helper_share(chat, purse, offer), presented: presented) +
              presented.loaded + Chat::Tools.known(@turn, chat),
       deferred_tools: presented.deferred,
       context: context,
@@ -435,7 +436,9 @@ class Conversation::Runner
 
   # What this question lends the helpers Halon hands checks to: its purse and cap, its stop, and the person it acts for,
   # whom each helper reads as on a copy of the turn of its own.
-  def helper_share(chat, purse)
+  # Where the deployment asks specialists, they read with what this turn may reach and put a change they propose in its
+  # hands through offer.
+  def helper_share(chat, purse, offer)
     conversation = @conversation
     asker = @turn.asker
     Chat::Helpers::Share.new(
@@ -443,7 +446,8 @@ class Conversation::Runner
       moved: Chat::Helpers.teller(delivery, chat),
       fresh_parent: -> { Conversation::Turn.new(Conversation.find(conversation.id), asker: asker&.class&.find(asker.id), reads_only: true) },
       choose: ->(deep) { deep ? helper_main_model : Chat::Helpers.side_model(conversation.workspace, main: helper_main_model) },
-      inferable: conversation.subject, member: asker
+      inferable: conversation.subject, member: asker,
+      specialists: (Chat::Specialists::Live.new(@turn, offer: offer) if Chat::Specialists.for?(@turn))
     )
   end
 

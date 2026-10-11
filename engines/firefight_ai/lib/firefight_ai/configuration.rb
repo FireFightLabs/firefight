@@ -39,6 +39,17 @@ module FirefightAi
     DEFAULT_HELD_TOOLS_BUDGET = 25_000
     attr_reader :held_tools_budget
 
+    # Whether Halon's chat hands reads of connected systems to specialists (ask_specialist), each holding one kind of
+    # system's reads, rather than opening those tools itself. Off unless turned on, so the bench can compare the two ways
+    # on the same code. Its prompt says which way it works, so the two have different versions.
+    attr_reader :specialists
+
+    # A specialist runs on the quick model, as helpers do, or on the main model.
+    SPECIALIST_QUICK = :quick
+    SPECIALIST_MAIN = :main
+    SPECIALIST_MODELS = [ SPECIALIST_QUICK, SPECIALIST_MAIN ].freeze
+    attr_reader :specialist_model
+
     # Each model call, tool call and judgment as an OpenTelemetry span (RubyLLM::OpenTelemetry), sent wherever the
     # deployment's OpenTelemetry SDK exports. Spans carry the model, the provider, token counts and timings, never what
     # was said, and never a key.
@@ -89,7 +100,30 @@ module FirefightAi
       @held_tools_budget = DEFAULT_HELD_TOOLS_BUDGET
       @trace_calls = false
       @judgments = JUDGMENT_STRUCTURED
+      @specialists = false
+      @specialist_model = SPECIALIST_QUICK
     end
+
+    SWITCH = { "on" => true, "off" => false, "true" => true, "false" => false }.freeze
+
+    # Blank keeps it off. Anything but on or off is refused at boot, so a typo never runs the wrong way unnoticed.
+    def specialists=(value)
+      return @specialists = false if value.blank?
+      return @specialists = value if [ true, false ].include?(value)
+
+      @specialists = SWITCH.fetch(value.to_s.strip.downcase) do
+        raise ArgumentError, "FIREFIGHT_AI_SPECIALISTS must be on or off, not #{value}"
+      end
+    end
+
+    def specialist_model=(value)
+      model = value.presence&.to_sym || SPECIALIST_QUICK
+      raise ArgumentError, "FIREFIGHT_AI_SPECIALIST_MODEL must be one of #{SPECIALIST_MODELS.join(', ')}, not #{value}" unless SPECIALIST_MODELS.include?(model)
+
+      @specialist_model = model
+    end
+
+    def specialists_on_main? = @specialist_model == SPECIALIST_MAIN
 
     # Blank keeps the default. Anything not in the list is refused at boot, so a typo never reaches a call.
     def http_adapter=(value)

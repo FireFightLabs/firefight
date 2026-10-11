@@ -139,6 +139,37 @@ class Conversation::BenchTest < ActiveSupport::TestCase
     assert_equal Conversation::BenchRun::STATUS_FINISHED, run.status
   end
 
+  # The bench measures both ways on the same code: with specialists on, what they read is scored with Halon's calls and
+  # what they spend is Halon's cost.
+  test "with specialists on, a scenario is replayed through them, their reads are scored and their spend is Halon's" do
+    FirefightAi.configuration.stubs(:specialists).returns(true)
+    FirefightAi.stubs(:tool_search?).returns(false)
+    result = one_scenario_run(
+      tools: [ { "name" => "northflank_read_run", "description" => "Reads a run", "reads" => true, "source" => "northflank" } ],
+      answers: [ { "tool" => "northflank_read_run", "result" => "Run 412 failed at migrate. https://example.test/runs/412" } ]
+    )
+    script(
+      call("ask_specialist", "asks" => [ { "domain" => "deploys", "objective" => "How did run 412 go?" } ]),
+      call("northflank_read_run", {}),
+      call("report_findings", "summary" => "Run 412 failed", "findings" => [
+        { "claim" => "It failed at migrate", "lines" => [ "Run 412 failed at migrate." ], "links" => [ "https://example.test/runs/412" ] }
+      ]),
+      reply("Run 412 failed at its migrate step, see https://example.test/runs/412.")
+    )
+    judged(outcome: FirefightAi::Schemas::ReplayVerdict::REACHED, moved_forward: FirefightAi::Schemas::ReplayVerdict::YES)
+
+    Conversation::Bench.run_case!(result)
+    result.reload
+
+    assert_equal Conversation::BenchResult::STATUS_SCORED, result.status
+    assert_equal 2, result.calls, "the specialist's read is counted with Halon's own call"
+    assert_equal FirefightAi::Responder.new(result.workspace, inferable: nil, model: FirefightAi::ModelChoice.new(model: "gpt-4o")).prompt_version,
+                 result.bench_run.prompt_version
+    specialist = Inference.where(inferable: result, feature: FirefightAi::Specialist::FEATURE)
+    assert_equal 2, specialist.count
+    assert_equal Inference.where(inferable: result, feature: Conversation::Bench::HALONS).sum(:cost_micros), result.spent_micros
+  end
+
   test "a replay never spends more than what is left of its run's budget" do
     result = one_scenario_run
     result.bench_run.update!(budget_micros: 1_000_000)

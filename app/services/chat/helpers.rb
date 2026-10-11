@@ -2,8 +2,11 @@
 # and tools that only read, and answers what each reported. A helper reads as whoever the chat or run acts for, so it
 # never reaches further than they can, and spends from the same purse the asking loop stops on.
 module Chat::Helpers
-  # One check as Halon handed it off. deep runs it on the main model rather than the side jobs' one.
-  Check = Data.define(:title, :brief, :deep)
+  # One check as Halon handed it off. deep runs it on the main model rather than the side jobs' one. domain makes it a
+  # specialist reading one kind of system (Chat::Specialists), nil for a helper.
+  Check = Data.define(:title, :brief, :deep, :domain) do
+    def initialize(domain: nil, **) = super
+  end
 
   # What the asking turn or run lends its helpers. purse is its loop's (FirefightAi::AgentLoop::Purse) and max_spend_cents
   # the cap that loop stops at. since is when the question began, which the per question limit counts from. canceled
@@ -11,8 +14,11 @@ module Chat::Helpers
   # (see teller), and fresh_parent builds a
   # copy of the asking turn or run for a helper's own thread, since a record is never shared between threads. choose
   # answers the model a check runs on, given whether it is deep, and is asked only once a check is handed off.
-  # inferable and member are what the ledger names.
-  Share = Data.define(:purse, :max_spend_cents, :since, :canceled, :moved, :fresh_parent, :choose, :inferable, :member)
+  # inferable and member are what the ledger names. specialists is what a specialist reads with (Chat::Specialists::Live,
+  # or a rehearsal's own), nil where none is asked.
+  Share = Data.define(:purse, :max_spend_cents, :since, :canceled, :moved, :fresh_parent, :choose, :inferable, :member, :specialists) do
+    def initialize(specialists: nil, **) = super
+  end
 
   # What the asking loop reads, and whether nothing came of it, which marks the call failed.
   Result = Data.define(:text, :failed)
@@ -101,7 +107,8 @@ module Chat::Helpers
         SLOTS.acquire
         begin
           Rails.application.executor.wrap do
-            Chat::Helpers::Run.new(helper, share: share, max_spend_cents: max_spend_cents, choice: models.fetch(helper.deep)).call
+            runner = helper.specialist? ? Chat::Specialists::Run : Chat::Helpers::Run
+            runner.new(helper, share: share, max_spend_cents: max_spend_cents, choice: models.fetch(helper.deep)).call
           ensure
             on_done&.call(done.increment, helpers.size)
           end
@@ -113,9 +120,12 @@ module Chat::Helpers
     ActiveSupport::Dependencies.interlock.permit_concurrent_loads { threads.each(&:join) }
   end
 
-  # What the asking loop reads back, one helper a line, in the order they were handed off.
+  # What the asking loop reads back, one helper a line, in the order they were handed off. A specialist's report is
+  # longer, its findings with the lines and links that show them.
   def self.reports(helpers)
     done = helpers.count(&:reported?)
+    return [ "Specialists reported, #{done} of #{helpers.size}:", *helpers.map(&:line) ].join("\n\n") if helpers.any?(&:specialist?)
+
     [ "Helpers reported, #{done} of #{helpers.size}:", *helpers.map(&:line) ].join("\n")
   end
 end

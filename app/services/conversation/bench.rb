@@ -19,6 +19,9 @@ class Conversation::Bench
   # terminal gives a run a pool of this many plus one.
   AT_ONCE = 3
 
+  # The ledger's features that are Halon's own calls in a replay, its chat's and those of the specialists that read for it.
+  HALONS = [ FirefightAi::Responder::FEATURE, FirefightAi::Specialist::FEATURE ].freeze
+
   # Refuses a run while too many are going, since every run holds database connections on a server others share.
   class Busy < StandardError; end
 
@@ -161,8 +164,9 @@ class Conversation::Bench
       left && [ (left / FirefightAi::AgentLoop::MICROS_PER_CENT.to_f).ceil, 1 ].max
     end
 
-    # What Halon's own model calls cost, from the inference ledger. The judge's call is grading, so it is left out.
-    def spent(result) = Inference.where(inferable: result, feature: FirefightAi::Responder::FEATURE).sum(:cost_micros)
+    # What Halon's own model calls cost, from the inference ledger, its specialists' included since they read for it. The
+    # judge's call is grading, so it is left out.
+    def spent(result) = Inference.where(inferable: result, feature: HALONS).sum(:cost_micros)
 
     def case_for(result)
       result.replay_of ? Conversation::Rehearsal.capture(result.replay_of) : Conversation::BenchCase.scenario(result.scenario)

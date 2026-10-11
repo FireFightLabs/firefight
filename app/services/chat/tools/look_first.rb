@@ -71,8 +71,14 @@ module Chat::Tools::LookFirst
   def self.read_names(chat, workspace) = reads(chat, workspace).map { |call| call.name.downcase }.to_set
 
   # The calls that read and answered in the turn running at until_at, which starts at the person's latest message, and
-  # those of the answer before it made within PROPOSAL_FRESH_FOR of until_at.
+  # those of the answer before it made within PROPOSAL_FRESH_FOR of until_at. A specialist Halon asked in those reads for
+  # it, so what it read counts as read there too.
   def self.reads(chat, workspace, until_at: nil)
+    own = own_reads(chat, workspace, until_at: until_at)
+    own + specialist_reads(chat, workspace, own)
+  end
+
+  def self.own_reads(chat, workspace, until_at: nil)
     person = chat.messages.where(role: Chat::Message::ROLE_USER, nudge: false)
     person = person.where(created_at: ..until_at) if until_at
     started, before = person.reorder(created_at: :desc).limit(2).pluck(:created_at)
@@ -84,6 +90,17 @@ module Chat::Tools::LookFirst
                                    .where.not(result_id: nil).where(failed: false).includes(:message).order(:created_at, :id)
                                    .select { |call| backs?(call, started, fresh_from) && read?(workspace, call.name, call.arguments) }
   end
+
+  def self.specialist_reads(chat, workspace, calls)
+    asked = calls.select { |call| call.name == Chat::Tools::AskSpecialist::NAME }.map(&:tool_call_id)
+    return [] if asked.empty?
+
+    own_chats = Chat::Helper.where(chat: chat, tool_call_id: asked).where.not(domain: nil).includes(:own_chat).filter_map(&:own_chat)
+    RubyLLM::ActiveRecord::ToolCall.where(message_type: Chat::Message.polymorphic_name, message_id: Chat::Message.where(chat: own_chats).select(:id))
+                                   .where.not(result_id: nil).where(failed: false).where.not(name: Chat::Specialists::Report::NAME)
+                                   .order(:created_at, :id).select { |call| read?(workspace, call.name, call.arguments) }
+  end
+  private_class_method :own_reads, :specialist_reads
 
   def self.backs?(call, started, fresh_from) = started.nil? || call.message.created_at >= started || call.message.created_at >= fresh_from
 

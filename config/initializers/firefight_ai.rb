@@ -28,6 +28,10 @@ FirefightAi.configure do |config|
   # Off unless set, and exported only where OTEL_EXPORTER_OTLP_ENDPOINT starts the OpenTelemetry SDK.
   config.trace_calls = ActiveModel::Type::Boolean.new.cast(ENV["FIREFIGHT_AI_TRACING"]) == true
   config.judgments = ENV["FIREFIGHT_AI_JUDGMENTS"]
+  # on hands a chat's reads of connected systems to specialists, off (the default) keeps today's way, for the bench.
+  config.specialists = ENV["FIREFIGHT_AI_SPECIALISTS"]
+  # quick (the default) or main, the model a specialist runs on.
+  config.specialist_model = ENV["FIREFIGHT_AI_SPECIALIST_MODEL"]
 end
 
 # A workspace's AI account with its own API base calls through this adapter where private networks are refused.

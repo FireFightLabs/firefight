@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_12_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_12_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -603,6 +603,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_12_100000) do
     t.datetime "finished_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "domain"
+    t.text "proposals"
     t.index ["chat_id", "tool_call_id", "position"], name: "index_chat_helpers_on_chat_id_and_tool_call_id_and_position", unique: true
     t.index ["workspace_id", "status"], name: "index_chat_helpers_on_workspace_id_and_status"
   end

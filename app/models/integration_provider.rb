@@ -177,10 +177,10 @@ class IntegrationProvider
   Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
                       :source_links, :source_links_note, :map, :map_note, :history, :history_note, :code_fix_tool, :regions, :connect_fields, :site, :code_agent,
                       :app, :setting_words, :holds_code, :mitigation_tools, :stopping_tools, :status_page, :hosts, :holds_flags, :write_tools,
-                      :admin_marks_reads, :retiring, :test_logins) do
+                      :admin_marks_reads, :retiring, :test_logins, :specialist) do
     def initialize(connect_with: nil, read_only_tools: [], write_tools: [], admin_marks_reads: false, mitigation_tools: [], stopping_tools: [], source_links_note: nil, map_note: nil, history: HISTORY_NONE, history_note: nil, code_fix_tool: nil, regions: [],
                    connect_fields: [], site: nil, code_agent: false, app: nil, setting_words: [], holds_code: false, status_page: nil, hosts: [], holds_flags: false, retiring: nil,
-                   test_logins: false, **) = super
+                   test_logins: false, specialist: nil, **) = super
 
     # Whether a tool only reads, from what its server declares and what the registry says of it. write_tools wins over
     # both, for a tool a server marks read only although it sends something.
@@ -329,7 +329,9 @@ class IntegrationProvider
         retiring: raw["retiring"].presence,
         # It keeps the test logins Halon's browser signs in with (Integrations::SiteLogins), managed from their own screen
         # rather than connected from the gallery, and it is none of the workspace's connections.
-        test_logins: raw["test_logins"] == true
+        test_logins: raw["test_logins"] == true,
+        # The kind of question its tools answer when Halon asks specialists, where it differs from its category's.
+        specialist: raw["specialist"].presence
       )
     end.freeze
   end
@@ -393,7 +395,8 @@ class IntegrationProvider
   # halon is what Halon can do with a tool from the category, required says setup asks for one connected in it, and
   # in_first_question says setup's first question to Halon names the tools connected in it. group is what Halon's map of
   # tool groups says of it in place of the tagline, when the gallery's words would send Halon to the wrong group.
-  Category = Data.define(:slug, :name, :tagline, :halon, :required, :in_first_question, :group) do
+  # specialist is the kind of question its tools answer when Halon asks specialists, nil for one that stays Halon's own.
+  Category = Data.define(:slug, :name, :tagline, :halon, :required, :in_first_question, :group, :specialist) do
     def group_line = group.presence || tagline
   end
 
@@ -404,8 +407,17 @@ class IntegrationProvider
 
       Category.new(slug: category_slug(name), name: name, tagline: entry.fetch("tagline"), halon: entry.fetch("halon"),
                    required: entry.fetch("required", false), in_first_question: entry.fetch("in_first_question", false),
-                   group: entry["group"])
+                   group: entry["group"], specialist: entry["specialist"].presence)
     end.freeze
+  end
+
+  # The kind of question a provider's tools answer when Halon asks specialists, its own or its category's, nil when it has
+  # neither, such as a server a team connected under Custom.
+  def self.specialist_for(key)
+    provider = find(key.to_s)
+    return unless provider
+
+    provider.specialist || category_list.find { |category| category.name == provider.category }&.specialist
   end
 
   # What a category is called wherever it is a key: the agent's tool groups, a card, a tool parameter.
