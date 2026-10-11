@@ -31,11 +31,11 @@ module EntitlementsTestHelper
     def next_step_path(workspace) = subscribed_ids.include?(workspace.id) ? nil : path
   end
 
-  # Sells one plan the way a hosted build does. A workspace without one is closed until setup starts it, and one whose
-  # plan lapsed stays open to read while new incidents and AI stop. stage is :none, :active or :lapsed.
+  # Sells one plan the way a hosted build does. A workspace without a running plan, never started or lapsed, is closed
+  # and names the plan page, and setup is where its admin starts the plan again. stage is :none, :active or :lapsed.
   class PlanBackend
     NO_PLAN = "This workspace does not have a plan yet.".freeze
-    LAPSED = "Halon and new incidents are paused because the plan ended.".freeze
+    LAPSED = "This workspace is paused because its subscription ended.".freeze
 
     attr_accessor :stage
 
@@ -44,10 +44,10 @@ module EntitlementsTestHelper
       @stage = stage
     end
 
-    def check(_workspace, feature)
+    def check(_workspace, _feature)
       case stage
       when :none then Entitlements.deny(NO_PLAN, path: @path)
-      when :lapsed then [ Entitlements::AI, Entitlements::INCIDENTS ].include?(feature) ? Entitlements.deny(LAPSED, path: @path) : Entitlements.allow
+      when :lapsed then Entitlements.deny(LAPSED, path: @path)
       else Entitlements.allow
       end
     end

@@ -2,8 +2,6 @@ module Entitlements
   AI = "ai"
   # Whether the workspace may be used at all. A hosted build answers with its plan, an install someone runs always allows.
   ACCESS = "access"
-  # Whether the workspace may declare new incidents. Incidents it already has stay readable and keep running either way.
-  INCIDENTS = "incidents"
 
   # Whose account pays for the AI a workspace uses. On Firefight's own cloud it is Firefight's, on an install someone
   # runs themselves it is theirs, since the model keys are their own.

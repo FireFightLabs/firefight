@@ -72,6 +72,18 @@ class SetupPlanTest < ActionDispatch::IntegrationTest
     assert_nil flash[:alert]
   end
 
+  test "a plan that lapses before setup finishes closes the workspace and puts the plan step back up next" do
+    sign_in(@owner.user, @workspace)
+    @backend.stage = :lapsed
+
+    get dashboard_path
+    assert_redirected_to onboarding_checklist_path
+
+    get onboarding_checklist_path, headers: inertia_headers
+    assert_response :success
+    assert_equal WorkspaceOnboarding::STEP_PLAN, inertia_props["steps"].find { |step| step["state"] == WorkspaceOnboarding::STATE_CURRENT }["key"]
+  end
+
   test "a suspension still closes setup, whatever the plan" do
     @workspace.update!(suspended_at: Time.current, suspended_reason: Workspace::Suspension::SUSPENSION_MISUSE)
     sign_in(@owner.user, @workspace)

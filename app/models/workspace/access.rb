@@ -11,14 +11,4 @@ module Workspace::Access
     result = Entitlements.check(self, Entitlements::ACCESS)
     result.blocked? ? result : nil
   end
-
-  # Why a new incident cannot be declared, or nil. Incidents run in chat channels, so a workspace without a chat waits
-  # for one. With one, a hosted build may still hold new incidents back, such as once its plan has lapsed, while those
-  # already open carry on.
-  def incidents_blocked_reason
-    return Workspace::ChatConnection::INCIDENTS_BLOCKED_MESSAGE unless chat_connected?
-
-    gate = Entitlements.check(self, Entitlements::INCIDENTS)
-    gate.message if gate.blocked?
-  end
 end
