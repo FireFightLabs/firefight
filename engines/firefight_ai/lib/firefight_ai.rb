@@ -293,6 +293,18 @@ module FirefightAi
 
   # How much the model can read at once, from the registry, as the provider serves it when one is named. Nil when it is
   # not known, and nothing is assumed in its place, since a wrong number fails a run halfway through.
+  # The temperature Halon's own loop is sent on this model, or nil to send none: when the deployment set none, or the
+  # registry says the model takes no temperature, as a reasoning model such as o3 does.
+  def loop_temperature(choice)
+    temperature = configuration.loop_temperature
+    return nil if temperature.nil?
+    return nil if RubyLLM.models.find(choice.model.to_s, provider: choice.provider.presence).metadata[:temperature] == false
+
+    temperature
+  rescue RubyLLM::ModelNotFoundError
+    temperature
+  end
+
   def context_window(model_id, provider: nil)
     window = RubyLLM.models.find(model_id.to_s, provider: provider.presence).context_window.to_i
     window.positive? ? window : nil

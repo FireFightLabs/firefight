@@ -1,0 +1,116 @@
+# GitHub's key reads through api_read, at most 40, which close the github_api skill
+# (Integrations::ApiIndex). Edit a read's call, purpose or query here, then run bin/rails provider_docs:api_indexes.
+tool: api_read
+skill: github_api
+reference: api
+reads:
+  - call: GET /repos/{owner}/{repo}/actions/workflows
+    purpose: The repository's workflows, with each one's file path and whether it is active or switched off.
+    query: [ per_page, page ]
+  - call: GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}
+    purpose: One workflow by its id or file name, such as deploy.yml, with its state.
+  - call: GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs
+    purpose: One workflow's runs, newest first.
+    query: [ branch, event, status, per_page, page ]
+  - call: GET /repos/{owner}/{repo}/actions/runs
+    purpose: Every workflow run in the repository, newest first.
+    query: [ branch, event, status, per_page, page ]
+  - call: GET /repos/{owner}/{repo}/actions/runs/{run_id}
+    purpose: One run, with its status, conclusion, commit and who started it.
+  - call: GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs
+    purpose: A run's jobs and their steps, each with its conclusion.
+    query: [ filter, per_page, page ]
+  - call: GET /repos/{owner}/{repo}/actions/runs/{run_id}/pending_deployments
+    purpose: Deployments a run is waiting on approval for.
+  - call: GET /repos/{owner}/{repo}/actions/runs/{run_id}/approvals
+    purpose: Who approved or rejected a run's deployments.
+  - call: GET /repos/{owner}/{repo}/actions/secrets
+    purpose: The repository's Actions secrets, by name and when each changed, never their values.
+    query: [ per_page, page ]
+  - call: GET /repos/{owner}/{repo}/actions/variables
+    purpose: The repository's Actions variables.
+    query: [ per_page, page ]
+  - call: GET /repos/{owner}/{repo}/actions/runners
+    purpose: Self-hosted runners and whether each is online and busy.
+    query: [ per_page, page ]
+  - call: GET /repos/{owner}/{repo}/actions/permissions
+    purpose: Whether Actions is on for the repository and which actions it allows.
+  - call: GET /repos/{owner}/{repo}/deployments
+    purpose: Deployments, newest first, by environment, ref or commit.
+    query: [ ref, environment, per_page, page ]
+  - call: GET /repos/{owner}/{repo}/deployments/{deployment_id}/statuses
+    purpose: A deployment's statuses, newest first, with where it went live.
+    query: [ per_page, page ]
+  - call: GET /repos/{owner}/{repo}/environments
+    purpose: The repository's environments and their protection rules.
+    query: [ per_page, page ]
+  - call: GET /repos/{owner}/{repo}/environments/{environment_name}
+    purpose: One environment, with its reviewers, wait timer and branch policy.
+  - call: GET /repos/{owner}/{repo}/environments/{environment_name}/secrets
+    purpose: An environment's secrets, by name and when each changed, never their values.
+    query: [ per_page, page ]
+  - call: GET /repos/{owner}/{repo}/releases
+    purpose: Releases, newest first.
+    query: [ per_page, page ]
+  - call: GET /repos/{owner}/{repo}/releases/latest
+    purpose: The latest published release.
+  - call: GET /repos/{owner}/{repo}/tags
+    purpose: The repository's tags.
+    query: [ per_page, page ]
+  - call: GET /repos/{owner}/{repo}/commits
+    purpose: Commits on a branch or touching a path, newest first, between two times.
+    query: [ sha, path, since, until, per_page ]
+  - call: GET /repos/{owner}/{repo}/commits/{ref}
+    purpose: One commit, with its files and changes.
+    query: [ page, per_page ]
+  - call: GET /repos/{owner}/{repo}/commits/{ref}/status
+    purpose: The combined status of a commit or branch from every status check.
+    query: [ per_page, page ]
+  - call: GET /repos/{owner}/{repo}/commits/{ref}/check-runs
+    purpose: Check runs on a commit or branch, each with its conclusion.
+    query: [ status, filter, per_page, page ]
+  - call: GET /repos/{owner}/{repo}/compare/{basehead}
+    purpose: What changed between two refs, written base...head.
+    query: [ page, per_page ]
+  - call: GET /repos/{owner}/{repo}/branches/{branch}/protection
+    purpose: A branch's protection, its required checks and reviews.
+  - call: GET /repos/{owner}/{repo}/rulesets
+    purpose: The rulesets that apply to the repository.
+    query: [ per_page, page ]
+  - call: GET /repos/{owner}/{repo}/activity
+    purpose: Pushes, force pushes, branch creations and deletions, with who did each and when.
+    query: [ per_page, after, ref ]
+  - call: GET /repos/{owner}/{repo}/events
+    purpose: Recent events in the repository, such as pushes, releases and members added.
+    query: [ per_page, page ]
+  - call: GET /repos/{owner}/{repo}/collaborators
+    purpose: Who has access to the repository and with which permission.
+    query: [ per_page, page ]
+  - call: GET /repos/{owner}/{repo}/keys
+    purpose: The repository's deploy keys, with whether each can write and when it was last used.
+    query: [ per_page, page ]
+  - call: GET /repos/{owner}/{repo}/hooks
+    purpose: The repository's webhooks, with their events and last delivery.
+    query: [ per_page, page ]
+  - call: GET /repos/{owner}/{repo}/hooks/{hook_id}/deliveries
+    purpose: A webhook's recent deliveries and their status codes.
+    query: [ per_page, cursor, status ]
+  - call: GET /repos/{owner}/{repo}/secret-scanning/alerts
+    purpose: Leaked secrets found in the repository, with their type and state.
+    query: [ state, page, per_page, after ]
+  - call: GET /repos/{owner}/{repo}/dependabot/alerts
+    purpose: Vulnerable dependencies, with severity and state.
+    query: [ state, after, per_page ]
+  - call: GET /repos/{owner}/{repo}/code-scanning/alerts
+    purpose: Code scanning alerts, with severity and state.
+    query: [ page, per_page, ref, after, state ]
+  - call: GET /repos/{owner}/{repo}/pages
+    purpose: The repository's Pages site, with its domain, certificate and build state.
+  - call: GET /orgs/{org}/members
+    purpose: The organization's members.
+    query: [ filter, per_page, page ]
+  - call: GET /orgs/{org}/personal-access-tokens
+    purpose: Fine-grained tokens with access to the organization, with when each was last used.
+    query: [ per_page, page ]
+  - call: GET /rate_limit
+    purpose: How much of GitHub's rate limit the connection has left.

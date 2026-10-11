@@ -180,7 +180,7 @@ module Integrations
                         "and services, a deployment by its id, volumes and their backups, domains, TCP proxies, deployment " \
                         "triggers or the workspace's members. One GraphQL query to Railway's public API " \
                         "(#{RailwayApi::ENDPOINT}), written with the fields and arguments the API reference the railway_api " \
-                        "skill names lists. A list is a connection: pass first, and the pageInfo's endCursor as after for the " \
+                        "skill names lists, or the key query fields it lists. A list is a connection: pass first, and the pageInfo's endCursor as after for the " \
                         "next page. Only reads, so a mutation or a subscription is refused. A query that reads variables, " \
                         "an environment's config or tokens comes back as names only",
            params_schema: {

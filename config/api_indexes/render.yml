@@ -1,0 +1,107 @@
+# Render's key reads through api_read, at most 40, which close the render_api skill
+# (Integrations::ApiIndex). Edit a read's call, purpose or query here, then run bin/rails provider_docs:api_indexes.
+tool: api_read
+skill: render_api
+source: https://api-docs.render.com/openapi/render-public-api-1.json
+reads:
+  - call: GET /services
+    purpose: The workspace's services, with each one's type, region and whether it is suspended.
+    query: [ ownerId, name, type, environmentId, suspended, limit, cursor ]
+  - call: GET /services/{serviceId}
+    purpose: One service, with its plan, region, branch, instances and autoscaling.
+  - call: GET /services/{serviceId}/deploys
+    purpose: A service's deploys, newest first, with each one's status, commit and trigger.
+    query: [ status, createdAfter, createdBefore, limit, cursor ]
+  - call: GET /services/{serviceId}/deploys/{deployId}
+    purpose: One deploy, with its status, commit, image and when it started and finished.
+  - call: GET /services/{serviceId}/events
+    purpose: A service's events, such as deploys, failures, restarts and scaling, between two times.
+    query: [ type, startTime, endTime, limit, cursor ]
+  - call: GET /events/{eventId}
+    purpose: One event, with its type and details such as why an instance failed.
+  - call: GET /services/{serviceId}/instances
+    purpose: A service's running instances and when each was made.
+  - call: GET /services/{serviceId}/jobs
+    purpose: One-off jobs run on a service, with each one's status and timing.
+    query: [ status, createdAfter, limit, cursor ]
+  - call: GET /services/{serviceId}/jobs/{jobId}
+    purpose: One job, with its command, status and when it started and finished.
+  - call: GET /logs
+    purpose: Log lines of services or datastores between two times, narrowed by level, text, status or path.
+    query: [ ownerId, resource, startTime, endTime, level, type, text, statusCode, path, limit ]
+  - call: GET /metrics/cpu
+    purpose: CPU use of a service or datastore over time, per instance.
+    query: [ resource, startTime, endTime, resolutionSeconds, instance ]
+  - call: GET /metrics/memory
+    purpose: Memory use of a service or datastore over time, per instance.
+    query: [ resource, startTime, endTime, resolutionSeconds, instance ]
+  - call: GET /metrics/http-requests
+    purpose: A service's request count over time, split by status code or host.
+    query: [ resource, startTime, endTime, path, aggregateBy ]
+  - call: GET /metrics/http-latency
+    purpose: A service's response time over time at a percentile.
+    query: [ resource, startTime, endTime, path, quantile ]
+  - call: GET /metrics/instance-count
+    purpose: How many instances a service ran over time.
+    query: [ resource, startTime, endTime ]
+  - call: GET /metrics/disk-usage
+    purpose: Disk use of a service or datastore over time.
+    query: [ resource, startTime, endTime ]
+  - call: GET /metrics/active-connections
+    purpose: Open connections to a Postgres or Key Value instance over time.
+    query: [ resource, startTime, endTime ]
+  - call: GET /metrics/replication-lag
+    purpose: How far a Postgres read replica is behind over time.
+    query: [ resource, startTime, endTime ]
+  - call: GET /services/{serviceId}/custom-domains
+    purpose: A service's custom domains and whether each is verified.
+    query: [ verificationStatus, limit, cursor ]
+  - call: GET /services/{serviceId}/custom-domains/{customDomainNameOrID}
+    purpose: One custom domain, with its verification status and DNS target.
+  - call: GET /services/{serviceId}/env-vars
+    purpose: A service's environment variables by name, never their values.
+    query: [ limit, cursor ]
+  - call: GET /services/{serviceId}/secret-files
+    purpose: A service's secret files by name, never their contents.
+    query: [ limit, cursor ]
+  - call: GET /env-groups
+    purpose: The workspace's environment groups by name and the services linked to each.
+    query: [ ownerId, environmentId, name, limit, cursor ]
+  - call: GET /postgres
+    purpose: The workspace's Postgres instances, with each one's plan, version and status.
+    query: [ ownerId, environmentId, suspended, limit, cursor ]
+  - call: GET /postgres/{postgresId}
+    purpose: One Postgres instance, with its plan, version, storage, replicas and status.
+  - call: GET /postgres/{postgresId}/recovery
+    purpose: A Postgres instance's point-in-time recovery window.
+  - call: GET /postgres/{postgresId}/query/top-queries
+    purpose: The queries taking the most time on a Postgres instance.
+  - call: GET /postgres/{postgresId}/query/processes
+    purpose: The queries running on a Postgres instance now.
+  - call: GET /key-value
+    purpose: The workspace's Key Value instances, with each one's plan and status.
+    query: [ ownerId, environmentId, limit, cursor ]
+  - call: GET /key-value/{redisId}
+    purpose: One Key Value instance, with its plan, version, eviction policy and status.
+  - call: GET /disks
+    purpose: The workspace's persistent disks, with each one's size and service.
+    query: [ ownerId, serviceId, limit, cursor ]
+  - call: GET /disks/{diskId}/snapshots
+    purpose: A disk's snapshots and when each was taken.
+  - call: GET /owners/{ownerId}/audit-logs
+    purpose: The workspace's audit log, who changed what and when, between two times.
+    query: [ startTime, endTime, limit, cursor ]
+  - call: GET /owners/{ownerId}/members
+    purpose: The workspace's members and their roles.
+  - call: GET /projects
+    purpose: The workspace's projects.
+    query: [ ownerId, name, limit, cursor ]
+  - call: GET /environments
+    purpose: A project's environments.
+    query: [ ownerId, projectId, limit, cursor ]
+  - call: GET /maintenance
+    purpose: Maintenance Render has run or scheduled on the workspace's resources.
+    query: [ ownerId, resourceId, state ]
+  - call: GET /notification-settings/overrides
+    purpose: Services whose failure notifications differ from the workspace's.
+    query: [ ownerId, serviceId, limit, cursor ]

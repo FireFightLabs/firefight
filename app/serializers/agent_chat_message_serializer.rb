@@ -40,6 +40,15 @@ class AgentChatMessageSerializer < BaseSerializer
     answered && Conversation::ModelMenu.label(answered.model, provider: answered.provider)
   end
 
+  # What Halon read in the turn this reply answers, listed under it (Chat::Sources). Only a reply that ends a turn, one
+  # with words and no call after them, carries it.
+  type "{ title: string; url: string | null }[]"
+  def sources
+    return [] unless message.role == Chat::Message::ROLE_ASSISTANT && message.content.present? && message.ruby_llm_tool_calls.empty?
+
+    Chat::Sources.for_reply(message).map(&:to_h)
+  end
+
   # Only a person's message carries files.
   has_many :attached_files, as: :attachments, serializer: AgentChatAttachmentSerializer
 

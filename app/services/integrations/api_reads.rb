@@ -28,10 +28,11 @@ module Integrations
     PATH_PARAMS = {
       # Seen in a real chat, Halon guessed a path three times over for a call the provider's API did not have.
       "path" => { "type" => "string", "description" => "The API path to read, as the API reference writes it with its ids filled in. " \
-                                                       "Take it from the reference, through the provider's API skill or search_docs. " \
-                                                       "A 404 or 405 on a path you wrote may mean the API has no such call, so look " \
-                                                       "it up there before another try, and when the reference does not list it, " \
-                                                       "say the API does not offer it and how a person can do it instead" },
+                                                       "Take it from the key reads the provider's API skill lists, or else from the " \
+                                                       "reference through that skill or search_docs. A read that fails on a path the " \
+                                                       "key reads do not list answers with the nearest ones they do, and when neither " \
+                                                       "they nor the reference list it, say the API does not offer it and how a " \
+                                                       "person can do it instead" },
       "query" => { "type" => "object",
                    "description" => "Query parameters by name, each text, a number, true or false, such as {\"limit\": 20}. Never put " \
                                     "them in the path (optional)" }

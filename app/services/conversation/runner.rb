@@ -54,7 +54,9 @@ class Conversation::Runner
     chat.on_making_room { |compaction| delivery.made_room(compaction) }
     @changes = Chat::Tools::Changes.catch_up!(@turn, chat).then { |caught| caught if caught.note }
     purse = FirefightAi::AgentLoop::Purse.new
+    @turn.asks_specialists = Chat::Specialists.ask?(@turn, picked_model || FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @conversation.workspace))
     presented = Chat::Tools.presented(@turn, responder.ai_model)
+    suspects = tell_suspects(chat)
 
     outcome = responder.run(
       chat: chat,
@@ -65,12 +67,14 @@ class Conversation::Runner
       budget: budget,
       on_step: method(:report_step),
       on_progress: method(:report_tool_progress),
-      on_chunk: ->(text) { delivery.chunk(text) },
+      on_chunk: shown_text.method(:add),
       nudge: chat.method(:nudge!),
       memory: chat,
       take_messages: -> { [ take_queued(chat), tell_changes(chat), tell_watch_corrections(chat) ].any? },
       canceled: chat.method(:stop_requested?),
       purse: purse,
+      checks: Conversation::Checks.new(chat, since: @marked, choice: Chat::Helpers.side_model(@conversation.workspace, main: helper_main_model),
+                                             inferable: @conversation.subject, member: @turn.asker, facts: suspects).all,
       on_backup: ->(failed, backup, error) { switched_model(chat, failed, backup, error) },
       # A model the person picked is theirs to know about, so its account running dry is said too.
       on_take_over: (->(failed, following, error) { switched_model(chat, failed, following, error) } if picked_model)
@@ -78,6 +82,7 @@ class Conversation::Runner
       record(turn)
     end
 
+    shown_text.finish
     return stopped!(chat) if outcome.status == FirefightAi::AgentLoop::STATUS_CANCELED
     return ask_to_confirm(chat, outcome) if waiting?(outcome)
 
@@ -88,7 +93,7 @@ class Conversation::Runner
     chat.clear_stop!
     # Before the page is told, so the setup guide it reloads already says Halon answered.
     @conversation.workspace.onboarding&.halon_answered!(@conversation) if answered?(outcome)
-    delivery.answered!(@reply)
+    delivery.answered!(@reply, sources: (sources_of(chat) if answered?(outcome)) || [])
     outcome
   rescue FirefightAi::Canceled
     stopped!(@conversation.chat_record)
@@ -98,10 +103,13 @@ class Conversation::Runner
 
   def delivery = @delivery ||= Conversation::Delivery.for(@conversation)
 
+  # The reply as it streams, without the line saying Halon's next step (FirefightAi::NextStep).
+  def shown_text = @shown_text ||= FirefightAi::NextStep::Stream.new { |text| delivery.chunk(text) }
+
   def responder
     @responder ||= FirefightAi::Responder.new(
       @conversation.workspace, inferable: @conversation.subject, member: @turn.asker,
-      output_style: delivery.output_style, model: picked_model
+      output_style: delivery.output_style, model: picked_model, specialists: @turn.asks_specialists?
     )
   end
 
@@ -131,6 +139,23 @@ class Conversation::Runner
   end
 
   def answered?(outcome) = outcome.status == FirefightAi::AgentLoop::STATUS_ANSWERED
+
+  # What changed around what is failing, before the first model call of a turn that troubleshoots (Conversation::Suspects),
+  # as a note Halon reads as candidates. Returned too, for the challenger to read beside what the turn read.
+  def tell_suspects(chat)
+    return nil unless room_for_a_note?(chat)
+
+    words = chat.messages.where(role: Chat::Message::ROLE_USER, nudge: false).reorder(created_at: :desc).first&.content
+    note = Conversation::Suspects.note(@turn, words)
+    chat.nudge!(note) if note
+    note
+  end
+
+  # What the turn read, from its own calls, for the line under the reply.
+  def sources_of(chat)
+    reply = chat.messages.where(role: Chat::Message::ROLE_ASSISTANT).reorder(created_at: :desc, id: :desc).first
+    reply ? Chat::Sources.for_reply(reply) : []
+  end
 
   # The person stopped this answer. What ran stays in the chat, and the next question starts clean.
   def stopped!(chat)
@@ -435,6 +460,7 @@ class Conversation::Runner
 
   # What this question lends the helpers Halon hands checks to: its purse and cap, its stop, and the person it acts for,
   # whom each helper reads as on a copy of the turn of its own.
+  # Where this turn asks specialists, they read with what it may reach.
   def helper_share(chat, purse)
     conversation = @conversation
     asker = @turn.asker
@@ -443,7 +469,8 @@ class Conversation::Runner
       moved: Chat::Helpers.teller(delivery, chat),
       fresh_parent: -> { Conversation::Turn.new(Conversation.find(conversation.id), asker: asker&.class&.find(asker.id), reads_only: true) },
       choose: ->(deep) { deep ? helper_main_model : Chat::Helpers.side_model(conversation.workspace, main: helper_main_model) },
-      inferable: conversation.subject, member: asker
+      inferable: conversation.subject, member: asker,
+      specialists: (Chat::Specialists::Live.new(@turn) if Chat::Specialists.for?(@turn))
     )
   end
 

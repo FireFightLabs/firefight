@@ -18,19 +18,23 @@ module FirefightAi
     TEXT
 
     # model is a ModelChoice for a chat told to use one, such as a bench replay comparing models. nil means the workspace's.
-    def initialize(workspace, inferable:, member: nil, output_style: nil, model: nil)
+    # specialists says the chat hands reads of connected systems to specialists, which its prompt then says.
+    def initialize(workspace, inferable:, member: nil, output_style: nil, model: nil, specialists: false)
       @workspace = workspace
       @inferable = inferable
       @member = member
       @output_style = output_style
       @ai_model = model
+      @specialists = specialists
     end
 
     # The app has already saved the question as the last message. deferred_tools are found by the provider's own tool
     # search where it has one (FirefightAi.ready_chat).
-    # purse, on_backup, on_take_over and on_progress go to the loop, see AgentLoop.
+    # purse, on_backup, on_take_over and on_progress go to the loop, see AgentLoop. checks are the app's own checks on a
+    # reply that would end the turn, such as the theory board and the challenger, to which the line saying the next step
+    # is added when the deployment finishes reads (Configuration#finish_reads).
     def run(chat:, tools:, context:, budget:, deferred_tools: [], canceled: -> { false }, on_step: nil, on_chunk: nil,
-            nudge: nil, memory: nil, take_messages: nil, purse: nil, on_backup: nil, on_take_over: nil, on_progress: nil, &on_turn)
+            nudge: nil, memory: nil, take_messages: nil, purse: nil, on_backup: nil, on_take_over: nil, on_progress: nil, checks: [], &on_turn)
       FirefightAi.translating_errors do
         # A chat grows with every question and each turn resends all of it, so the provider is asked to cache it.
         FirefightAi.ready_chat(chat, choice: ai_model, instructions: "#{template_text}\n#{context}", tools: tools, deferred_tools: deferred_tools)
@@ -39,7 +43,8 @@ module FirefightAi
           chat: chat, budget: budget, answered: -> { false }, canceled: canceled,
           on_step: on_step, on_chunk: on_chunk, nudge: nudge, memory: memory, inference: inference_context, reply_is_answer: true,
           take_messages: take_messages, output: output_cap, choice: ai_model, purpose: AiPurpose::INVESTIGATION,
-          purse: purse, on_backup: on_backup, on_take_over: on_take_over, on_progress: on_progress
+          purse: purse, on_backup: on_backup, on_take_over: on_take_over, on_progress: on_progress, steady: true,
+          checks: (FirefightAi.configuration.finish_reads ? [ NextStep.check ] : []) + checks
         ).run(&on_turn)
       end
     end
@@ -63,6 +68,9 @@ module FirefightAi
       }
     end
 
+    # A reply that only offers a read is sent back when the deployment finishes reads, and only then is Halon told the line.
+    def answering = FirefightAi.configuration.finish_reads ? "#{ANSWERING}\n- #{NextStep::RULE}" : ANSWERING
+
     # The wording, without the per run context, which is what the version is taken from.
     def template_text
       <<~PROMPT
@@ -74,11 +82,11 @@ module FirefightAi
 
         #{Manual::DONE}
 
-        #{Manual::TOOLS}
+        #{@specialists ? Manual::TOOLS_WITH_SPECIALISTS : Manual::TOOLS}
 
         #{Manual::PLAYBOOKS}
 
-        #{ANSWERING}
+        #{answering}
 
         #{Manual::WRITING}
         #{@output_style}

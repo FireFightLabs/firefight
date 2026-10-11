@@ -1,0 +1,110 @@
+# Azure's key reads through api_read, at most 40, which close the azure_api skill
+# (Integrations::ApiIndex). Edit a read's call, purpose or query here, then run bin/rails provider_docs:api_indexes.
+tool: api_read
+skill: azure_api
+reference: api
+reads:
+  - call: GET /subscriptions/{subscriptionId}/providers/Microsoft.Insights/eventtypes/management/values
+    service: insights
+    purpose: The activity log of who changed what, between two times.
+    query: [ $filter, $select, api-version=2015-04-01 ]
+  - call: GET /subscriptions/{subscriptionId}/providers/Microsoft.ResourceHealth/events
+    service: resourcehealth
+    purpose: Azure outages and planned maintenance that touch the subscription.
+    query: [ $filter, api-version=2025-05-01 ]
+  - call: GET /subscriptions/{subscriptionId}/providers/Microsoft.ResourceHealth/availabilityStatuses
+    service: resourcehealth
+    purpose: Whether each resource is available, and why not.
+    query: [ $filter, api-version=2025-05-01 ]
+  - call: GET /subscriptions/{subscriptionId}/providers/Microsoft.Insights/metrics
+    service: insights
+    purpose: A metric's values over a time range, such as CPU or requests.
+    query: [ region, metricnamespace, metricnames, timespan, interval, aggregation, $filter, api-version=2024-02-01 ]
+  - call: GET /subscriptions/{subscriptionId}/providers/Microsoft.Insights/metricAlerts
+    service: insights
+    purpose: Metric alert rules with their condition and whether each is on.
+    query: [ api-version=2026-01-01 ]
+  - call: GET /subscriptions/{subscriptionId}/resources
+    service: resources
+    purpose: Every resource, filtered by type, tag or name.
+    query: [ $filter, api-version=2025-04-01 ]
+  - call: GET /subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/Microsoft.Resources/deployments
+    service: resources
+    purpose: Template deployments in a resource group with their state.
+    query: [ $filter, api-version=2026-06-01 ]
+  - call: GET /subscriptions/{subscriptionId}/providers/Microsoft.Web/sites
+    service: web
+    purpose: App Service apps with their state and host names.
+    query: [ api-version=2026-07-15 ]
+  - call: GET /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Web/sites/{name}/deployments
+    service: web
+    purpose: An app's deployments with their status and author.
+    query: [ api-version=2026-07-15 ]
+  - call: GET /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Web/sites/{name}/deployments/{id}/log
+    service: web
+    purpose: The log of one deployment of an app.
+    query: [ api-version=2026-07-15 ]
+  - call: GET /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Web/sites/{name}/config/web
+    service: web
+    purpose: An app's runtime settings, such as stack version and health check path.
+    query: [ api-version=2026-07-15 ]
+  - call: GET /subscriptions/{subscriptionId}/providers/Microsoft.Web/serverfarms
+    service: web
+    purpose: App Service plans with their tier, size and instance count.
+    query: [ api-version=2026-07-15 ]
+  - call: GET /subscriptions/{subscriptionId}/providers/Microsoft.App/containerApps
+    service: app
+    purpose: Container Apps with their state and latest revision.
+    query: [ api-version=2026-07-01 ]
+  - call: GET /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.App/containerApps/{containerAppName}/revisions
+    service: app
+    purpose: A Container App's revisions with their health and traffic share.
+    query: [ $filter, api-version=2026-07-01 ]
+  - call: GET /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.App/containerApps/{containerAppName}/revisions/{revisionName}/replicas
+    service: app
+    purpose: A revision's replicas with each container's state and restarts.
+    query: [ api-version=2026-07-01 ]
+  - call: GET /subscriptions/{subscriptionId}/providers/Microsoft.ContainerService/managedClusters
+    service: containerservice
+    purpose: AKS clusters with their version and state.
+    query: [ api-version=2026-07-01 ]
+  - call: GET /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.ContainerService/managedClusters/{resourceName}/agentPools
+    service: containerservice
+    purpose: An AKS cluster's node pools with their size, count and version.
+    query: [ api-version=2026-07-01 ]
+  - call: GET /subscriptions/{subscriptionId}/providers/Microsoft.Compute/virtualMachines
+    service: compute
+    purpose: Virtual machines with their size.
+    query: [ $filter, api-version=2026-04-01 ]
+  - call: GET /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Compute/virtualMachines/{vmName}/instanceView
+    service: compute
+    purpose: A virtual machine's power state and recent status messages.
+    query: [ api-version=2026-04-01 ]
+  - call: GET /subscriptions/{subscriptionId}/providers/Microsoft.Network/loadBalancers
+    service: network
+    purpose: Load balancers with their frontends, backend pools, rules and probes.
+    query: [ api-version=2026-03-01 ]
+  - call: GET /subscriptions/{subscriptionId}/providers/Microsoft.Network/applicationGateways
+    service: network
+    purpose: Application Gateways with their state, listeners and backend pools.
+    query: [ api-version=2026-03-01 ]
+  - call: GET /subscriptions/{subscriptionId}/providers/Microsoft.Sql/servers
+    service: sql
+    purpose: Azure SQL servers with their state and version.
+    query: [ api-version=2025-01-01 ]
+  - call: GET /subscriptions/{subscriptionId}/providers/Microsoft.DBforPostgreSQL/flexibleServers
+    service: dbforpostgresql
+    purpose: PostgreSQL flexible servers with their state, version and size.
+    query: [ api-version=2025-08-01 ]
+  - call: GET /subscriptions/{subscriptionId}/providers/Microsoft.DBforMySQL/flexibleServers
+    service: dbformysql
+    purpose: MySQL flexible servers with their state, version and size.
+    query: [ api-version=2024-12-30 ]
+  - call: GET /subscriptions/{subscriptionId}/providers/Microsoft.Cache/redis
+    service: cache
+    purpose: Redis caches with their state, size and version.
+    query: [ api-version=2024-11-01 ]
+  - call: GET /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.KeyVault/vaults/{vaultName}/secrets
+    service: keyvault
+    purpose: A Key Vault's secrets by name and expiry, never their values.
+    query: [ api-version=2026-05-15 ]

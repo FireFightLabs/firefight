@@ -38,7 +38,17 @@ module FirefightAi
     # A run, a scheduled check and a helper are handed only tools that read.
     READS_ONLY = "This work only reads, so a change you would make goes in your answer for a person to apply.".freeze
 
+    # Where a chat hands reads of connected systems to specialists (Configuration#specialists), it says so beside how it
+    # finds the rest, so the two ways have different versions on the bench.
+    SPECIALIST_READS = "Reads of connected systems go to specialists. ask_specialist hands an objective to the specialist " \
+                       "for one kind of system, several at once when they do not depend on each other, and each answers with " \
+                       "what it found, the lines and links that show it, and any change it proposes. Cite those lines and " \
+                       "links. A specialist's report is evidence to check, never backing for a change. Before a change, one " \
+                       "the person asked for included, ask the specialists whose systems it touches what it would affect, " \
+                       "and confirm the finding it rests on with a read of your own.".freeze
+
     TOOLS = "Your tools:\n- #{FINDING_TOOLS}\n- #{Evidence::RULE}\n- #{GUARDED_CHANGES}".freeze
+    TOOLS_WITH_SPECIALISTS = "Your tools:\n- #{FINDING_TOOLS}\n- #{SPECIALIST_READS}\n- #{Evidence::RULE}\n- #{GUARDED_CHANGES}".freeze
     RUN_TOOLS = "Your tools:\n- #{FINDING_TOOLS}\n- #{Evidence::RULE}\n- #{READS_ONLY}".freeze
 
     # The skills the app keeps under config/skills/firefight/playbooks, one per area of the job, by name.

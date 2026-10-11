@@ -39,6 +39,32 @@ module FirefightAi
     DEFAULT_HELD_TOOLS_BUDGET = 25_000
     attr_reader :held_tools_budget
 
+    # Whether Halon's chat hands reads of connected systems to specialists (ask_specialist), each holding one kind of
+    # system's reads, rather than holding or opening those tools itself. auto, the default, decides per chat: specialists
+    # read when the tools whoever asks may use do not fit the held tools budget, on a provider that does not search tools
+    # itself. on and off override it, so the bench can compare the ways on the same code. The chat's prompt says which way
+    # it works, so each has its own version.
+    SPECIALISTS_AUTO = :auto
+    SPECIALISTS_ON = :on
+    SPECIALISTS_OFF = :off
+    SPECIALISTS_MODES = [ SPECIALISTS_AUTO, SPECIALISTS_ON, SPECIALISTS_OFF ].freeze
+    attr_reader :specialists
+
+    # The sampling temperature of Halon's own loop, in a chat and an investigation, so two runs of one question differ as
+    # little as the model allows. Each provider's own unless set (none), since a bench run found 0 lost hard cases. A
+    # model the registry says takes no temperature is never sent one (FirefightAi.loop_temperature).
+    attr_reader :loop_temperature
+
+    # Whether a chat's reply that only offers a read Halon could take itself is sent back once to take it (NextStep).
+    # Off unless turned on, since a bench run found it lost hard cases, and kept so the bench can test it again.
+    attr_reader :finish_reads
+
+    # A specialist runs on the quick model, as helpers do, or on the main model.
+    SPECIALIST_QUICK = :quick
+    SPECIALIST_MAIN = :main
+    SPECIALIST_MODELS = [ SPECIALIST_QUICK, SPECIALIST_MAIN ].freeze
+    attr_reader :specialist_model
+
     # Each model call, tool call and judgment as an OpenTelemetry span (RubyLLM::OpenTelemetry), sent wherever the
     # deployment's OpenTelemetry SDK exports. Spans carry the model, the provider, token counts and timings, never what
     # was said, and never a key.
@@ -89,7 +115,47 @@ module FirefightAi
       @held_tools_budget = DEFAULT_HELD_TOOLS_BUDGET
       @trace_calls = false
       @judgments = JUDGMENT_STRUCTURED
+      @specialists = SPECIALISTS_AUTO
+      @loop_temperature = nil
+      @finish_reads = false
+      @specialist_model = SPECIALIST_QUICK
     end
+
+    # Blank keeps auto. Anything but auto, on or off is refused at boot, so a typo never runs the wrong way unnoticed.
+    def specialists=(value)
+      mode = value.to_s.strip.downcase.presence&.to_sym || SPECIALISTS_AUTO
+      raise ArgumentError, "FIREFIGHT_AI_SPECIALISTS must be one of #{SPECIALISTS_MODES.join(', ')}, not #{value}" unless SPECIALISTS_MODES.include?(mode)
+
+      @specialists = mode
+    end
+
+    # Blank or none leaves the provider's own, and anything but a number from 0 to 2 is refused at boot.
+    def loop_temperature=(value)
+      text = value.to_s.strip.downcase
+      return @loop_temperature = nil if text.empty? || text == "none"
+
+      number = Float(text, exception: false)
+      raise ArgumentError, "FIREFIGHT_AI_TEMPERATURE must be a number from 0 to 2, or none, not #{value}" unless number&.between?(0, 2)
+
+      @loop_temperature = number
+    end
+
+    # Blank keeps it off. Anything but on or off is refused at boot.
+    def finish_reads=(value)
+      text = value.to_s.strip.downcase
+      raise ArgumentError, "FIREFIGHT_AI_FINISH_READS must be on or off, not #{value}" unless [ "", "on", "off" ].include?(text)
+
+      @finish_reads = text == "on"
+    end
+
+    def specialist_model=(value)
+      model = value.presence&.to_sym || SPECIALIST_QUICK
+      raise ArgumentError, "FIREFIGHT_AI_SPECIALIST_MODEL must be one of #{SPECIALIST_MODELS.join(', ')}, not #{value}" unless SPECIALIST_MODELS.include?(model)
+
+      @specialist_model = model
+    end
+
+    def specialists_on_main? = @specialist_model == SPECIALIST_MAIN
 
     # Blank keeps the default. Anything not in the list is refused at boot, so a typo never reaches a call.
     def http_adapter=(value)

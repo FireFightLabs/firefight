@@ -1,0 +1,127 @@
+# Railway's key reads through api_read, at most 40, which close the railway_api skill
+# (Integrations::ApiIndex). Edit a read's call, purpose or query here, then run bin/rails provider_docs:api_indexes.
+tool: api_read
+skill: railway_api
+shape: graphql
+reference: api
+reads:
+  - call: query deployments
+    purpose: Deployments of a project, environment or service, newest first, with each one's status.
+    query: [ input, first, after ]
+  - call: query deployment
+    purpose: One deployment, with its status, commit, creator and instances.
+    query: [ id ]
+  - call: query deploymentEvents
+    purpose: The steps a deployment went through, such as build, deploy and healthcheck, with timing.
+    query: [ id, first ]
+  - call: query deploymentInstanceExecutions
+    purpose: A deployment's running instances and how each one ended, such as crashed or exited.
+    query: [ input, first ]
+  - call: query deploymentTriggers
+    purpose: What deploys a service on its own, such as a repository branch.
+    query: [ projectId, environmentId, serviceId ]
+  - call: query buildLogs
+    purpose: A deployment's build log lines, between two times, narrowed by a filter.
+    query: [ deploymentId, filter, startDate, endDate, limit ]
+  - call: query deploymentLogs
+    purpose: A deployment's runtime log lines, between two times, narrowed by a filter.
+    query: [ deploymentId, filter, startDate, endDate, limit ]
+  - call: query environmentLogs
+    purpose: Log lines across every service in an environment around a moment.
+    query: [ environmentId, filter, anchorDate, beforeLimit, afterLimit ]
+  - call: query httpLogs
+    purpose: A deployment's HTTP requests around a moment, with their status, path and duration.
+    query: [ deploymentId, filter, anchorDate, beforeLimit, afterLimit ]
+  - call: query networkFlowLogs
+    purpose: Network connections into and out of an environment's services.
+    query: [ environmentId, serviceId, filter, anchorDate ]
+  - call: query metrics
+    purpose: CPU, memory, network and disk of a service or volume over a time range.
+    query: [ projectId, serviceId, environmentId, measurements, startDate, endDate, groupBy ]
+  - call: query httpMetrics
+    purpose: A service's request rate over time, narrowed by path, method or status.
+    query: [ serviceId, environmentId, startDate, endDate, statusCode, path ]
+  - call: query httpMetricsGroupedByStatus
+    purpose: A service's requests over time, split by status code.
+    query: [ serviceId, environmentId, startDate, endDate ]
+  - call: query httpDurationMetrics
+    purpose: A service's response times over time, as percentiles.
+    query: [ serviceId, environmentId, startDate, endDate, path ]
+  - call: query traces
+    purpose: A service's traces between two times, narrowed by a filter.
+    query: [ serviceId, environmentId, startDate, endDate, filter ]
+  - call: query projects
+    purpose: Every project in a workspace.
+    query: [ workspaceId, first, after ]
+  - call: query project
+    purpose: One project, with its environments and services.
+    query: [ id ]
+  - call: query environments
+    purpose: A project's environments, including preview ones.
+    query: [ projectId, isEphemeral ]
+  - call: query environment
+    purpose: One environment, with its service instances and their latest deployments.
+    query: [ id, projectId ]
+  - call: query service
+    purpose: One service, with its source and its instances in each environment.
+    query: [ id ]
+  - call: query serviceInstance
+    purpose: A service in one environment, with its start command, region, replicas and healthcheck.
+    query: [ serviceId, environmentId ]
+  - call: query serviceInstanceLimits
+    purpose: The CPU and memory a service may use in one environment.
+    query: [ serviceId, environmentId ]
+  - call: query variables
+    purpose: The variables of a service or environment, by name, never their values.
+    query: [ projectId, environmentId, serviceId ]
+  - call: query domains
+    purpose: A service's Railway and custom domains in one environment.
+    query: [ projectId, environmentId, serviceId ]
+  - call: query domainStatus
+    purpose: A custom domain's DNS and certificate status.
+    query: [ id, projectId ]
+  - call: query customDomain
+    purpose: One custom domain, with its target and status.
+    query: [ id, projectId ]
+  - call: query tcpProxies
+    purpose: A service's TCP proxies and their public ports.
+    query: [ serviceId, environmentId ]
+  - call: query privateNetworks
+    purpose: An environment's private networks.
+    query: [ environmentId ]
+  - call: query volumeInstance
+    purpose: One volume in an environment, with its size, usage and mount path.
+    query: [ id ]
+  - call: query volumeInstanceBackupList
+    purpose: A volume's backups and when each was taken.
+    query: [ volumeInstanceId ]
+  - call: query volumeInstanceBackupScheduleList
+    purpose: A volume's backup schedules.
+    query: [ volumeInstanceId ]
+  - call: query auditLogs
+    purpose: The workspace's audit log, who changed what and when.
+    query: [ workspaceId, filter, first, after ]
+  - call: query events
+    purpose: A project's or environment's event history, newest first.
+    query: [ projectId, environmentId, filter, first ]
+  - call: query projectMembers
+    purpose: A project's members and their roles.
+    query: [ projectId ]
+  - call: query workspace
+    purpose: One workspace, with its members, plan and settings.
+    query: [ workspaceId ]
+  - call: query apiTokens
+    purpose: The account's API tokens by name and when each was made, never their values.
+    query: [ after, first ]
+  - call: query projectTokens
+    purpose: A project's tokens by name and environment, never their values.
+    query: [ projectId ]
+  - call: query notificationRules
+    purpose: The workspace's or project's notification rules, what each alerts on and where.
+    query: [ workspaceId, projectId ]
+  - call: query usage
+    purpose: Resource usage of a workspace or project over a time range.
+    query: [ workspaceId, projectId, measurements, startDate, endDate ]
+  - call: query estimatedUsage
+    purpose: The estimated usage and cost of a workspace or project this billing period.
+    query: [ workspaceId, projectId, measurements ]

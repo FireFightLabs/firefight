@@ -112,8 +112,8 @@ module Integrations
                         "deployments, volumes, secrets, release flows and the rest. The path is relative to the project, such as " \
                         "services/web/restart, and query options go in query, never in the path. A list answers one page. " \
                         "Pass per_page, at most 100, and while the answer's pagination says hasNextPage, pass its cursor " \
-                        "for the next page. Load the northflank_fixes skill first. It lists common fixes, " \
-                        "and its API reference lists every call Northflank's API offers with the body and query options each " \
+                        "for the next page. Load the northflank_fixes skill first. It lists common fixes and the key reads " \
+                        "with their paths, and its API reference lists every call Northflank's API offers with the body and query options each " \
                         "takes, so a call it does not list does not exist",
            params_schema: {
              "type" => "object",

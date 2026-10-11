@@ -25,6 +25,18 @@ module Integrations
         assert_equal 1_700_000_000_000, logs["params"][:start_time]
       end
 
+      test "CloudTrail's LookupEvents reads the audit log, though AWS names it otherwise, and no other service's LookupEvents-like name does" do
+        read = Aws.reading(ApiReads::TOOL, "service" => "cloudtrail", "operation" => "LookupEvents",
+                                           "params" => { "lookup_attributes" => [ { "attribute_key" => "AccessKeyId", "attribute_value" => "AKIAEXAMPLE" } ],
+                                                         "start_time" => "2026-10-11T08:00:00Z" })
+
+        assert_equal "lookup_events", read["operation"]
+        assert_equal [ { attribute_key: "AccessKeyId", attribute_value: "AKIAEXAMPLE" } ], read["params"][:lookup_attributes]
+        assert Aws.reads?(ApiReads::TOOL, "service" => "cloudtrail", "operation" => "lookup_events")
+        assert_raises(PolicyRefusal) { Aws.reading(ApiReads::TOOL, "service" => "cloudtrail", "operation" => "StartLogging", "params" => { "name" => "t" }) }
+        assert_raises(PolicyRefusal) { Aws.reading(ApiReads::TOOL, "service" => "cloudtrail", "operation" => "StopLogging", "params" => { "name" => "t" }) }
+      end
+
       test "an operation that changes something, or one no client defines, is never called" do
         assert_raises(PolicyRefusal) { Aws.reading(ApiReads::TOOL, "service" => "ecs", "operation" => "UpdateService", "params" => {}) }
         assert_raises(Refused) { Aws.reading(ApiReads::TOOL, "service" => "ecs", "operation" => "get_waiter") }

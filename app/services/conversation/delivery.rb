@@ -121,11 +121,12 @@ class Conversation::Delivery
 
   # The answer is already saved in the chat, and the turn has been paid for, so a platform failure
   # is logged rather than retried into a second model call.
-  def answered!(reply)
+  # sources are what Halon read to give the reply (Chat::Sources), one compact line under it.
+  def answered!(reply, sources: [])
     @text.flush!
     adapter.post_agent_reply(
       channel_id: @conversation.channel_id, thread_id: @conversation.thread_id,
-      answer_id: @answer_id, text: reply, streamed: streamed?
+      answer_id: @answer_id, text: reply, streamed: streamed?, sources: sources
     )
     @conversation.answer_finished!
     post_cards

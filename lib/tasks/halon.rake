@@ -113,6 +113,12 @@ namespace :halon do
     puts changed.any? ? "Refreshed #{changed.to_sentence} in #{Conversation::BenchCase::SHARED_TOOLS.relative_path_from(Rails.root)}." : "Every shared tool already matches."
   end
 
+  desc "Write the big workspace's tools from their sources: bin/rails halon:bench_big_workspace"
+  task bench_big_workspace: :environment do
+    Conversation::BenchWorkspace.write!
+    puts "Wrote #{Conversation::BenchWorkspace.build.size} tools to #{Conversation::BenchWorkspace::TOOLS.relative_path_from(Rails.root)}."
+  end
+
   desc "Print a real chat as a bench scenario to edit: bin/rails 'halon:chat_capture[CONVERSATION_ID]'"
   task :chat_capture, %i[conversation] => :environment do |_task, args|
     puts Conversation::Rehearsal.capture(Conversation.find(args[:conversation])).to_h.to_yaml

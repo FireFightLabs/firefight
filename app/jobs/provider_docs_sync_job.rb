@@ -18,6 +18,7 @@ class ProviderDocsSyncJob < ApplicationJob
     definitions.each { |definition| read(definition, client, progress) }
     embed(progress)
     note_missing_guides(progress)
+    note_stale_indexes(progress)
     progress.finished
   end
 
@@ -40,5 +41,12 @@ class ProviderDocsSyncJob < ApplicationJob
   def note_missing_guides(progress)
     missing = Chat::Skill.missing_references
     progress.missing_guides(missing) if missing.any?
+  end
+
+  # A key read an API index lists that the reference just read no longer does, so whoever runs Firefight replaces it
+  # (bin/rails provider_docs:api_indexes) before Halon is sent to a path that is gone.
+  def note_stale_indexes(progress)
+    stale = Integrations::ApiIndex::Refresh.stale
+    progress.stale_api_indexes(stale) if stale.any?
   end
 end

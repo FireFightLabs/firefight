@@ -55,6 +55,8 @@ class AgentChatsController < InertiaController
   PROP_OWNER_ASKS = "ownerAsks"
   # The models the open chat can switch to and the one it runs on, or nil when there is only one.
   PROP_CHAT_MODELS = "chatModels"
+  # Halon's theory board while it troubleshoots in this chat, drawn under the step that last updated it.
+  PROP_THEORIES = "theories"
   PROPS = {
     "CONVERSATIONS" => PROP_CONVERSATIONS, "ARCHIVED_COUNT" => PROP_ARCHIVED_COUNT,
     "CONVERSATION" => PROP_CONVERSATION, "MESSAGES" => PROP_MESSAGES, "INCIDENTS" => PROP_INCIDENTS,
@@ -65,7 +67,7 @@ class AgentChatsController < InertiaController
     "PACK_REFUSALS" => PROP_PACK_REFUSALS, "SECRET_ENTRIES" => PROP_SECRET_ENTRIES, "SETUP_GUIDE" => PROP_SETUP_GUIDE, "WATCHES" => PROP_WATCHES, "WATCH_UPDATES" => PROP_WATCH_UPDATES,
     "PULL_REQUEST_NOTICES" => PROP_PULL_REQUEST_NOTICES, "MEMORY_QUESTIONS" => PROP_MEMORY_QUESTIONS, "PLANS" => PROP_PLANS,
     "DATA_REPAIRS" => PROP_DATA_REPAIRS, "MITIGATIONS" => PROP_MITIGATIONS, "OWNER_ASKS" => PROP_OWNER_ASKS, "HELPERS" => PROP_HELPERS,
-    "HANDBOOK_PROPOSALS" => PROP_HANDBOOK_PROPOSALS, "CHAT_MODELS" => PROP_CHAT_MODELS
+    "HANDBOOK_PROPOSALS" => PROP_HANDBOOK_PROPOSALS, "CHAT_MODELS" => PROP_CHAT_MODELS, "THEORIES" => PROP_THEORIES
   }.freeze
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
@@ -95,7 +97,7 @@ class AgentChatsController < InertiaController
       PROP_CHARTS => [], PROP_SCREENSHOTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => [],
       PROP_MODEL_SWITCHES => [], PROP_HELD_CALLS => [], PROP_PACK_REFUSALS => [], PROP_SECRET_ENTRIES => [], PROP_WATCHES => [], PROP_WATCH_UPDATES => [],
       PROP_PULL_REQUEST_NOTICES => [], PROP_MEMORY_QUESTIONS => [], PROP_PLANS => [], PROP_DATA_REPAIRS => [], PROP_MITIGATIONS => [],
-      PROP_OWNER_ASKS => [], PROP_HELPERS => [], PROP_HANDBOOK_PROPOSALS => [], PROP_CHAT_MODELS => chat_models(nil)
+      PROP_OWNER_ASKS => [], PROP_HELPERS => [], PROP_HANDBOOK_PROPOSALS => [], PROP_CHAT_MODELS => chat_models(nil), PROP_THEORIES => []
     )
   end
 
@@ -127,7 +129,8 @@ class AgentChatsController < InertiaController
       PROP_OWNER_ASKS => AgentChatOwnerAskSerializer.many(conversation.chat&.owner_asks&.shown || []),
       PROP_HELPERS => AgentChatHelperSerializer.many(conversation.chat&.helpers&.includes(:workspace, :own_chat) || []),
       PROP_HANDBOOK_PROPOSALS => HandbookProposalSerializer.many(conversation.handbook_proposals.includes(:instruction, :result, :decided_by).order(:created_at)),
-      PROP_CHAT_MODELS => chat_models(conversation)
+      PROP_CHAT_MODELS => chat_models(conversation),
+      PROP_THEORIES => ChatTheorySerializer.many(conversation.chat&.theories || [])
     )
   end
 

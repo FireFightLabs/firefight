@@ -1,0 +1,117 @@
+# GitLab's key reads through api_read, at most 40, which close the gitlab_api skill
+# (Integrations::ApiIndex). Edit a read's call, purpose or query here, then run bin/rails provider_docs:api_indexes.
+tool: api_read
+skill: gitlab_api
+reference: api
+reads:
+  - call: GET /projects/{id}
+    purpose: One project, with its default branch, visibility and settings.
+  - call: GET /projects/{id}/pipelines
+    purpose: The project's pipelines, newest first, by branch, status or source.
+    query: [ ref, status, source, sha, updated_after, per_page, page ]
+  - call: GET /projects/{id}/pipelines/latest
+    purpose: The latest pipeline on a branch, with its status.
+    query: [ ref ]
+  - call: GET /projects/{id}/pipelines/{pipeline_id}
+    purpose: One pipeline, with its status, commit, who started it and how long it took.
+  - call: GET /projects/{id}/pipelines/{pipeline_id}/jobs
+    purpose: A pipeline's jobs, each with its stage, status and runner.
+    query: [ page, per_page ]
+  - call: GET /projects/{id}/pipelines/{pipeline_id}/bridges
+    purpose: A pipeline's jobs that start pipelines downstream, with their status.
+    query: [ page, per_page ]
+  - call: GET /projects/{id}/pipelines/{pipeline_id}/test_report_summary
+    purpose: How many tests passed, failed and were skipped in a pipeline.
+  - call: GET /projects/{id}/jobs
+    purpose: The project's jobs, newest first, by status.
+    query: [ scope, per_page, page ]
+  - call: GET /projects/{id}/jobs/{job_id}
+    purpose: One job, with its status, failure reason, runner and timings.
+  - call: GET /projects/{id}/pipeline_schedules
+    purpose: Scheduled pipelines, with their branch, timing and whether each is active.
+    query: [ page, per_page ]
+  - call: GET /projects/{id}/deployments
+    purpose: Deployments, newest first, by environment or status.
+    query: [ environment, status, updated_after, order_by, sort, per_page, page ]
+  - call: GET /projects/{id}/deployments/{deployment_id}
+    purpose: One deployment, with its commit, job, status and who ran it.
+  - call: GET /projects/{id}/deployments/{deployment_id}/merge_requests
+    purpose: The merge requests a deployment shipped.
+    query: [ per_page, page ]
+  - call: GET /projects/{id}/environments
+    purpose: The project's environments and their state.
+    query: [ page, per_page ]
+  - call: GET /projects/{id}/environments/{environment_id}
+    purpose: One environment, with its last deployment.
+  - call: GET /projects/{id}/freeze_periods
+    purpose: Deploy freeze periods and when each starts and ends.
+    query: [ page, per_page ]
+  - call: GET /projects/{id}/resource_groups
+    purpose: Resource groups that make deploy jobs wait their turn.
+    query: [ page, per_page ]
+  - call: GET /projects/{id}/feature_flags
+    purpose: The project's feature flags and whether each is on.
+    query: [ page, per_page ]
+  - call: GET /projects/{id}/releases
+    purpose: Releases, newest first.
+    query: [ page, per_page ]
+  - call: GET /projects/{id}/repository/tags
+    purpose: The repository's tags.
+    query: [ order_by, sort, per_page, page ]
+  - call: GET /projects/{id}/repository/commits
+    purpose: Commits on a branch or touching a path, newest first, between two times.
+    query: [ ref_name, path, since, until, per_page, page ]
+  - call: GET /projects/{id}/repository/commits/{sha}
+    purpose: One commit, with its author, message and pipeline.
+  - call: GET /projects/{id}/repository/commits/{sha}/statuses
+    purpose: The status checks reported on a commit.
+    query: [ ref, page, per_page ]
+  - call: GET /projects/{id}/repository/compare
+    purpose: What changed between two branches, tags or commits.
+    query: [ from, to ]
+  - call: GET /projects/{id}/merge_requests
+    purpose: Merge requests, by state, target branch or when they were merged.
+    query: [ state, target_branch, updated_after, order_by, per_page, page ]
+  - call: GET /projects/{id}/merge_requests/{merge_request_iid}
+    purpose: One merge request, with its state, who merged it and its pipeline.
+  - call: GET /projects/{id}/protected_branches
+    purpose: Protected branches and who can push and merge to each.
+    query: [ page, per_page ]
+  - call: GET /projects/{id}/audit_events
+    purpose: Who changed what in the project and when.
+    query: [ created_after, created_before, per_page, page ]
+  - call: GET /groups/{id}/audit_events
+    purpose: Who changed what in the group and when.
+    query: [ created_after, created_before, per_page, page ]
+  - call: GET /projects/{id}/events
+    purpose: Recent activity in the project, such as pushes, merges and comments.
+    query: [ action, after, before, per_page, page ]
+  - call: GET /projects/{id}/members/all
+    purpose: Who has access to the project, inherited members included, and at which level.
+    query: [ state, page, per_page ]
+  - call: GET /groups/{id}/members/all
+    purpose: Who has access to the group, inherited members included, and at which level.
+    query: [ state, page, per_page ]
+  - call: GET /projects/{id}/variables
+    purpose: The project's CI/CD variables, by name, never their values.
+    query: [ page, per_page ]
+  - call: GET /projects/{id}/deploy_tokens
+    purpose: The project's deploy tokens, with their scopes and when each expires.
+    query: [ page, per_page ]
+  - call: GET /projects/{id}/deploy_keys
+    purpose: The project's deploy keys and whether each can write.
+    query: [ page, per_page ]
+  - call: GET /personal_access_tokens
+    purpose: Personal access tokens, with their scopes, last use and expiry, never their values.
+    query: [ state, page, per_page ]
+  - call: GET /projects/{id}/runners
+    purpose: The runners the project can use and whether each is online.
+    query: [ type, status, page, per_page ]
+  - call: GET /projects/{id}/hooks
+    purpose: The project's webhooks and the events each one sends.
+    query: [ page, per_page ]
+  - call: GET /projects/{id}/pages/domains
+    purpose: The project's Pages domains and their certificates.
+    query: [ page, per_page ]
+  - call: GET /projects/{id}/statistics
+    purpose: How often the project was fetched over the last 30 days.

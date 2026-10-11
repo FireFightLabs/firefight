@@ -12,13 +12,16 @@ class Conversation::Rehearsal::OpenTools < RubyLLM::Tool
 
   # groups maps each group's key to the tool definitions in it. open takes the names to make callable and returns the
   # definitions it opened. searched says the model's provider searches tools itself, and held that every tool was in hand
-  # from the start, as Chat::Tools::Open says live.
-  def initialize(groups:, open:, searched: false, held: false)
+  # from the start, as Chat::Tools::Open says live. specialists says the deployment asks specialists, and reserved names
+  # the specialist that holds a read, by its title, or nil.
+  def initialize(groups:, open:, searched: false, held: false, specialists: false, reserved: ->(_name) { })
     super()
     @groups = groups
     @open = open
     @searched = searched
     @held = held
+    @specialists = specialists
+    @reserved = reserved
   end
 
   def name = Chat::Tools::Open.tool_name
@@ -29,6 +32,7 @@ class Conversation::Rehearsal::OpenTools < RubyLLM::Tool
   end
 
   def intro
+    return "#{Chat::Tools::Open::SPECIALISTS} The groups:" if @specialists
     return "#{Chat::Tools::Open::HOLDS} The groups:" if @held
 
     @searched ? "#{Chat::Tools::Open::LISTS} The groups:" : INTRO
@@ -56,6 +60,15 @@ class Conversation::Rehearsal::OpenTools < RubyLLM::Tool
     missing = named - wanted.map(&:name)
     opened = @open.call(wanted.map(&:name))
     [ opened.map { |tool| "#{tool.name}: #{tool.description.to_s.squish} (#{READY})" }.join("\n"),
-      *missing.map { |tool_name| "There is no tool called #{tool_name} in any group." } ].compact_blank.join("\n\n")
+      *missing.map { |tool_name| unopened(tool_name) } ].compact_blank.join("\n\n")
+  end
+
+  private
+
+  def unopened(tool_name)
+    title = @reserved.call(tool_name)
+    return "There is no tool called #{tool_name} in any group." unless title
+
+    "#{tool_name} is #{format(Chat::Tools::Open::SPECIALISTS_READ, title: title.downcase)}."
   end
 end

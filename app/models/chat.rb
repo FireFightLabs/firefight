@@ -12,6 +12,8 @@ class Chat < ApplicationRecord
 
   belongs_to :workspace
   belongs_to :owner, polymorphic: true
+  # Halon's theory board while it troubleshoots in this chat (Chat::Theory).
+  has_many :theories, -> { in_order }, class_name: "Chat::Theory", dependent: :delete_all, inverse_of: :chat
   has_many :saved_results, -> { in_order }, class_name: "Chat::SavedResult", dependent: :destroy, inverse_of: :chat
   has_many :charts, -> { in_order }, class_name: "Chat::Chart", dependent: :delete_all, inverse_of: :chat
   has_many :step_progresses, class_name: "Chat::StepProgress", dependent: :delete_all, inverse_of: :chat

@@ -19,13 +19,7 @@ class Chat::Helpers::Run
     chat = Chat.open!(owner: @helper, workspace: @helper.workspace, model_choice: choice)
     agent = Chat::Helpers::Agent.new(@helper, parent: @share.fresh_parent.call)
     chat.add_message(role: Chat::Message::ROLE_USER, content: question(agent))
-
-    presented = Chat::Tools.presented(agent, choice)
-    outcome = engine(choice).run(
-      chat: chat, tools: tools(agent, chat, presented), deferred_tools: presented.deferred, max_spend_cents: @max_spend_cents,
-      canceled: @share.canceled, on_step: ->(_step) { tell }, memory: chat
-    ) { |turn| spent(turn) }
-    finish(outcome, chat)
+    finish(work(chat, agent, choice), chat)
   rescue StandardError => error
     Rails.logger.warn({ event: "chat_helper.failed", helper_id: @helper.id, error: error.class.name, reason: error.try(:reason) }.compact.to_json)
     @helper.finish!(Chat::Helper::STATUS_FAILED, ended_because: Chat::Helper::COULD_NOT, spent_micros: @counted)
@@ -34,6 +28,14 @@ class Chat::Helpers::Run
   end
 
   private
+
+  def work(chat, agent, choice)
+    presented = Chat::Tools.presented(agent, choice)
+    engine(choice).run(
+      chat: chat, tools: tools(agent, chat, presented), deferred_tools: presented.deferred, max_spend_cents: @max_spend_cents,
+      canceled: @share.canceled, on_step: ->(_step) { tell }, memory: chat
+    ) { |turn| spent(turn) }
+  end
 
   def engine(choice)
     FirefightAi::Helper.new(
@@ -81,13 +83,23 @@ class Chat::Helpers::Run
   }.freeze
 
   def finish(outcome, chat)
-    @share.purse.add(outcome.spent_micros - @counted)
-    @counted = outcome.spent_micros
-    report = chat.sent_messages.reload.where(role: Chat::Message::ROLE_ASSISTANT).last&.content.presence
+    counted!(outcome)
+    report = last_reply(chat)
     if outcome.status == FirefightAi::AgentLoop::STATUS_ANSWERED && report
       return @helper.finish!(Chat::Helper::STATUS_REPORTED, report: report, turns_used: outcome.turns_used, spent_micros: outcome.spent_micros)
     end
 
+    ended(outcome)
+  end
+
+  def counted!(outcome)
+    @share.purse.add(outcome.spent_micros - @counted)
+    @counted = outcome.spent_micros
+  end
+
+  def last_reply(chat) = chat.sent_messages.reload.where(role: Chat::Message::ROLE_ASSISTANT).last&.content.presence
+
+  def ended(outcome)
     status = outcome.status == FirefightAi::AgentLoop::STATUS_CANCELED ? Chat::Helper::STATUS_STOPPED : Chat::Helper::STATUS_FAILED
     @helper.finish!(status, ended_because: ENDINGS.fetch(outcome.status, Chat::Helper::COULD_NOT), turns_used: outcome.turns_used, spent_micros: outcome.spent_micros)
   end

@@ -1,0 +1,37 @@
+# Tinybird's key reads through api_read, at most 40, which close the tinybird_api skill
+# (Integrations::ApiIndex). Edit a read's call, purpose or query here, then run bin/rails provider_docs:api_indexes.
+tool: api_read
+skill: tinybird_api
+source: https://www.tinybird.co/docs/api-reference
+reads:
+  - call: GET /v0/jobs
+    purpose: The last 100 jobs of the past 48 hours, such as imports, copies and populates, with their status.
+    query: [ kind, status, pipe_name, created_after, created_before ]
+  - call: GET /v0/jobs/{job_id}
+    purpose: One job, with its kind, status, data source, timing and the error when it failed.
+  - call: GET /v0/datasources
+    purpose: The workspace's data sources, with each one's engine and when it changed.
+  - call: GET /v0/datasources/{name}
+    purpose: One data source, with its schema, engine, row count, size and the pipes that use it.
+  - call: GET /v0/pipes
+    purpose: The workspace's pipes, with their nodes and which one is published as an endpoint.
+  - call: GET /v0/pipes/{name}
+    purpose: One pipe, with each node's SQL and whether it is an endpoint, copy or materialized view.
+  - call: GET /v0/pipes/{name}/explain
+    purpose: The query plan of a pipe's main node, with its parameters, to see why it is slow.
+  - call: GET /v0/pipes/{name}/nodes/{node_name}/explain
+    purpose: The query plan of one node of a pipe, with its parameters.
+  - call: GET /v0/pipes/{name}.json
+    purpose: What an endpoint answers now with its parameters, with the rows read and time taken.
+    query: [ q ]
+  - call: GET /v0/sql
+    purpose: A SELECT over data sources, pipes and service data sources such as tinybird.pipe_stats_rt.
+    query: [ q ]
+  - call: GET /v0/tokens
+    purpose: The workspace's static tokens by name and scope, never their values.
+  - call: GET /v0/variables
+    purpose: The workspace's environment variables by name, never their values.
+  - call: GET /v0/organizations/{organization_id}/members
+    purpose: The organization's members and their roles.
+  - call: GET /v0/organizations/{organization_id}/clusters
+    purpose: The organization's dedicated clusters, with their replicas, weights and operations in progress.

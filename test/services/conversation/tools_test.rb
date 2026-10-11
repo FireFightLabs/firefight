@@ -23,7 +23,7 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
   test "a conversation starts with only the tools it always needs" do
     names = Conversation::Tools.for(turn, offer: ->(_tools) { }).map(&:name)
 
-    assert_equal [ "open_tools", "use_skill", "search_docs", "read_doc", "read_result", "start_investigation", "run_runbook", "start_watch", "repair_watch", "extend_watch",
+    assert_equal [ "open_tools", "use_skill", "search_docs", "read_doc", "read_result", "update_theories", "start_investigation", "run_runbook", "start_watch", "repair_watch", "extend_watch",
                    "stop_watch", "list_watches", "make_plan", "update_plan", "finish_plan", "cancel_plan", "remember", "recall", "dispute_memory", "search_handbook",
                    "propose_handbook_edit", "correct_memory", "search_web", "read_web_page" ], names
   end

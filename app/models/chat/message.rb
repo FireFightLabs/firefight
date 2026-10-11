@@ -8,6 +8,10 @@ class Chat::Message < ApplicationRecord
   encrypts :content, :thinking_text, :thinking_signature,
            :citations, :server_tool_calls, :raw_content, :raw_reasoning
 
+  # Halon's reply ends with a line saying its next step (FirefightAi::NextStep), which the loop reads from the reply as
+  # the model wrote it and nobody else ever sees.
+  before_save :drop_next_step, if: -> { role == ROLE_ASSISTANT && content_changed? }
+
   ROLE_SYSTEM = "system"
   ROLE_USER = "user"
   ROLE_ASSISTANT = "assistant"
@@ -46,5 +50,9 @@ class Chat::Message < ApplicationRecord
     return nil unless role == ROLE_USER && !nudge && sender_id && chat.speakers_named?
 
     chat.sender_name(self)
+  end
+
+  def drop_next_step
+    self.content = FirefightAi::NextStep.without(content) if content.is_a?(String) && content.match?(FirefightAi::NextStep::ANYWHERE)
   end
 end
