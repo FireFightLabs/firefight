@@ -26,6 +26,10 @@ module FirefightAi
     DEFAULT_HTTP_ADAPTER = :net_http_persistent
     attr_reader :http_adapter
 
+    # Whether a provider that searches tools itself is handed the long tail deferred (FirefightAi.tool_search?). On unless
+    # turned off, which a bench run comparing the two ways does, or a deployment whose provider's search misbehaves.
+    attr_accessor :tool_search
+
     # Each model call, tool call and judgment as an OpenTelemetry span (RubyLLM::OpenTelemetry), sent wherever the
     # deployment's OpenTelemetry SDK exports. Spans carry the model, the provider, token counts and timings, never what
     # was said, and never a key.
@@ -69,6 +73,7 @@ module FirefightAi
       @request_timeout = 120
       @milestones_enabled = true
       @http_adapter = DEFAULT_HTTP_ADAPTER
+      @tool_search = true
       @trace_calls = false
       @judgments = JUDGMENT_STRUCTURED
     end

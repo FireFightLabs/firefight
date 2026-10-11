@@ -380,8 +380,8 @@ module FirefightAi
   # between turns, and for a chat a person keeps coming back to. A write that lasts an hour costs twice the input price.
   LONG_CACHE = "1h".freeze
 
-  # Whether the provider behind choice searches deferred tools itself (ToolSearch).
-  def tool_search?(choice) = ToolSearch.native?(choice)
+  # Whether the provider behind choice searches deferred tools itself (ToolSearch), unless the deployment turned it off.
+  def tool_search?(choice) = configuration.tool_search != false && ToolSearch.native?(choice)
 
   # Sets a saved chat up for an agent's turn on choice. The instructions end in a cache boundary, so the tool definitions
   # in front of them and the instructions themselves are read from the provider's cache on every turn after the first,

@@ -42,6 +42,10 @@ module ActiveSupport
     include ProviderDocsHelper
     include HandbookTestHelper
 
+    # Whether a provider searches tools is kept for the whole process, so what one test's stubbed keys allowed is forgotten
+    # before the next.
+    setup { FirefightAi::ToolSearch.forget! }
+
     # The investigator is given each connection's read pack when the connection is made. A test of what it reaches without
     # a grant takes them back first.
     def revoke_investigator_packs!(workspace)

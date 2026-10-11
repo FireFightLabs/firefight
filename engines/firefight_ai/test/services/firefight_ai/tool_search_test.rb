@@ -22,19 +22,23 @@ class FirefightAi::ToolSearchTest < ActiveSupport::TestCase
   end
 
   setup do
-    FirefightAi::ToolSearch.forget!
     FakeProviderHelper::Adapter.reset!
     @workspace = workspaces(:slack_workspace_one)
     @conversation = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one))
   end
-
-  teardown { FirefightAi::ToolSearch.forget! }
 
   test "Anthropic and OpenAI search deferred tools themselves, OpenRouter and Bedrock send every tool whole" do
     assert FirefightAi.tool_search?(anthropic)
     assert FirefightAi.tool_search?(openai)
     assert_not FirefightAi.tool_search?(openrouter)
     assert_not FirefightAi.tool_search?(bedrock)
+  end
+
+  test "a deployment that turns tool search off opens groups on every provider" do
+    FirefightAi.configuration.stubs(:tool_search).returns(false)
+
+    assert_not FirefightAi.tool_search?(anthropic)
+    assert_empty ready(anthropic, deferred: [ Lookup.new("github_list_issues") ]).to_llm.deferred_tools
   end
 
   test "a choice no request can be rendered for is answered no, and asked again once it can be" do
