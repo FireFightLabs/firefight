@@ -41,6 +41,17 @@ class Chat::HelpersTest < ActiveSupport::TestCase
     assert_operator @moved, :>=, 2
   end
 
+  # How far they got, which the run_helpers step shows while they work. A helper that failed has finished too.
+  test "each helper that finishes, reported or not, is counted on its own thread as it does" do
+    done = Concurrent::Array.new
+    FirefightAi::Helper.any_instance.stubs(:run).raises(FirefightAi::TransientError, "busy").then.returns(outcome)
+
+    hand_off(checks("Logs of web", "Recent deploys"), on_done: ->(finished, total) { done << [ finished, total, Thread.current ] })
+
+    assert_equal [ [ 1, 2 ], [ 2, 2 ] ], done.map { |finished, total, _thread| [ finished, total ] }.sort
+    assert(done.none? { |_finished, _total, thread| thread == Thread.current })
+  end
+
   test "what helpers spend comes out of the asking loop's purse, and each is given a share of what is left" do
     shares = Concurrent::Array.new
     FirefightAi::Helper.any_instance.stubs(:run).with do |chat:, max_spend_cents:, **|
@@ -162,7 +173,7 @@ class Chat::HelpersTest < ActiveSupport::TestCase
 
   def outcome(status: ANSWERED, spent_micros: 0) = FirefightAi::AgentLoop::Outcome.new(status: status, turns_used: 2, spent_micros: spent_micros)
 
-  def hand_off(checks, max_spend_cents: 400, canceled: -> { false })
+  def hand_off(checks, max_spend_cents: 400, canceled: -> { false }, on_done: nil)
     conversation = @conversation
     bob = @bob
     share = Chat::Helpers::Share.new(
@@ -170,6 +181,6 @@ class Chat::HelpersTest < ActiveSupport::TestCase
       fresh_parent: -> { Conversation::Turn.new(Conversation.find(conversation.id), asker: bob) }, choose: ->(deep) { deep ? @model : @side },
       inferable: conversation, member: bob
     )
-    Chat::Helpers.run!(@turn, share: share, tool_call_id: "call_1", checks: checks)
+    Chat::Helpers.run!(@turn, share: share, tool_call_id: "call_1", checks: checks, on_done: on_done)
   end
 end

@@ -26,11 +26,13 @@ class Investigation::Runner
     @investigation.close_interrupted_steps!
     @changes = Chat::Tools::Changes.catch_up!(@investigation, chat).then { |caught| caught if caught.note }
     purse = FirefightAi::AgentLoop::Purse.new(@investigation.spent_micros)
+    presented = Chat::Tools.presented(@investigation, investigator.ai_model)
 
     outcome = investigator.run(
       chat: chat,
-      tools: Investigation::Tools.for(@investigation, offer: Chat::Tools.offer_to(chat), helpers: helper_share(purse)) +
-             Chat::Tools.known(@investigation, chat),
+      tools: Investigation::Tools.for(@investigation, offer: Chat::Tools.offer_to(chat), helpers: helper_share(purse), searched: presented.searched) +
+             presented.loaded + Chat::Tools.known(@investigation, chat),
+      deferred_tools: presented.deferred,
       seed_pack: @investigation.starting_facts,
       budget: budget,
       answered: -> { @investigation.reload.finding.present? },

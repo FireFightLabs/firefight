@@ -1,16 +1,17 @@
 module FirefightAi
-  # Whether a provider refused a call because the account paying for it has no credit left. Each provider says it its own
-  # way, so this reads the status, the error's code and its words.
+  # Whether a provider refused a call because the account paying for it has no credit left. RubyLLM raises a
+  # PaymentRequiredError for a 402 and for Anthropic's "credit balance is too low", so the class decides first. Some
+  # providers still say it under another class, which only their code or their words tell apart.
   class Credit
     PAYMENT_REQUIRED = 402
-    # OpenAI says a spent balance with a 429 whose code is insufficient_quota, which is not a rate limit to wait out.
+    # OpenAI says a spent balance with a 429 whose code is insufficient_quota, which RubyLLM raises as a rate limit.
     QUOTA_CODES = %w[insufficient_quota].freeze
-    # Said only in words: Anthropic's balance too low or its usage limit reached (a 400), Gemini's prepaid balance spent
-    # (a 429), OpenRouter's key spending limit reached (a 403, "Key limit exceeded (total limit)") and its credits spent,
-    # and DeepSeek's balance spent. Seen live, OpenRouter's 403 reached a chat as "something went wrong".
+    # Said only in words under a class that means something else, by Anthropic's usage limit (a bad request), Gemini's
+    # spent prepayment (a rate limit) and OpenRouter's key spending limit (the key refused, seen live as "something went
+    # wrong"). The code fix proxy reads the provider's own answer, so Anthropic's balance too low is here for it.
     OUT_OF_CREDIT_PHRASES = [
-      "credit balance is too low", "prepayment credits are depleted", "key limit exceeded", "insufficient credits",
-      "reached your specified api usage limits", "reached your specified workspace usage limits", "insufficient balance"
+      "credit balance is too low", "prepayment credits are depleted", "key limit exceeded",
+      "reached your specified api usage limits", "reached your specified workspace usage limits"
     ].freeze
     OUT_OF_CREDIT_WORDS = Regexp.new(OUT_OF_CREDIT_PHRASES.map { |phrase| Regexp.escape(phrase) }.join("|"), Regexp::IGNORECASE)
     # OpenRouter's 402 for too much spend in flight at once, which clears by itself and says when.
@@ -20,7 +21,8 @@ module FirefightAi
     # From a client library error, which carries the response it came from when there was one.
     def self.from(error)
       response = error.try(:response)
-      new(status: status_of(response), body: response.try(:body), message: error.message, headers: headers_of(response))
+      new(status: status_of(response), body: response.try(:body), message: error.message, headers: headers_of(response),
+          payment_required: error.is_a?(RubyLLM::PaymentRequiredError))
     end
 
     def self.status_of(response)
@@ -35,8 +37,10 @@ module FirefightAi
       {}
     end
 
-    def initialize(status:, body:, message: nil, headers: {})
+    # payment_required is whether RubyLLM raised the refusal as a PaymentRequiredError.
+    def initialize(status:, body:, message: nil, headers: {}, payment_required: false)
       @status = status
+      @payment_required = payment_required
       @error = error_object(body)
       @words = [ message, @error["message"] ].compact.join(" ")
       @headers = headers || {}
@@ -45,7 +49,7 @@ module FirefightAi
     def out_of_credit?
       return false if in_flight?
 
-      @status == PAYMENT_REQUIRED || QUOTA_CODES.include?(@error["code"].to_s) || QUOTA_CODES.include?(@error["type"].to_s) ||
+      @payment_required || @status == PAYMENT_REQUIRED || QUOTA_CODES.include?(@error["code"].to_s) || QUOTA_CODES.include?(@error["type"].to_s) ||
         @words.match?(OUT_OF_CREDIT_WORDS)
     end
 

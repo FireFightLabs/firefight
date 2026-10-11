@@ -30,9 +30,11 @@ class Chat::StateCheck
     report = Report.new
     @chat = Chat.find_by(owner: @owner) || Chat.open!(owner: @owner, workspace: @workspace, model_choice: checker.ai_model)
     @chat.add_message(role: Chat::Message::ROLE_USER, content: question(call))
+    presented = Chat::Tools.presented(self, checker.ai_model)
     checker.run(
-      chat: @chat, tools: [ Chat::Tools::Open.new(self, offer: Chat::Tools.offer_to(@chat)), Chat::Tools::ReadResult.new(self), report ],
-      max_spend_cents: @workspace.conversation_limits.max_spend_cents, answered: -> { report.report.present? }
+      chat: @chat, tools: [ Chat::Tools::Open.new(self, offer: Chat::Tools.offer_to(@chat), searched: presented.searched), Chat::Tools::ReadResult.new(self), report ] +
+                         presented.loaded,
+      deferred_tools: presented.deferred, max_spend_cents: @workspace.conversation_limits.max_spend_cents, answered: -> { report.report.present? }
     )
     report.report || Chat::CurrentState.unknown(COULD_NOT)
   rescue StandardError => error

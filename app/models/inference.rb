@@ -50,6 +50,7 @@ class Inference < ApplicationRecord
         output_tokens:       tokens.try(:output).to_i,
         cache_read_tokens:   tokens.try(:cache_read).to_i,
         cache_write_tokens:  tokens.try(:cache_write).to_i,
+        cache_write_tokens_by_ttl: tokens.try(:cache_write_by_ttl).to_h,
         cost_micros:         cost_to_micros(response.try(:cost)),
         latency_ms:          elapsed_ms_since(started),
         stop_reason:         response.try(:finish_reason)&.to_s,

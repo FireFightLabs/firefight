@@ -6,7 +6,7 @@
 // The spec arrives on stdin, never in argv or on disk, since it may hold a saved login's password for this one run.
 // Prints one JSON object on its last line.
 import { createRequire } from "node:module"
-import { existsSync } from "node:fs"
+import { appendFileSync, existsSync } from "node:fs"
 import dns from "node:dns/promises"
 import http from "node:http"
 import net from "node:net"
@@ -53,6 +53,38 @@ const TWO_PART_SUFFIXES = new Set([
 ])
 
 class Refused extends Error {}
+
+// Says how far the check got, one JSON object a line, in the file the box names (SANDBOX_PROGRESS), which the app reads
+// while the check runs and shows under its step. Only what the check is doing and where, never what is typed, a field's
+// value or what a page says. A file that cannot be written to never stops the check.
+function say(message, value, total) {
+  const file = process.env.SANDBOX_PROGRESS
+  if (!file) return
+  try {
+    appendFileSync(file, `${JSON.stringify({ message, value, total })}\n`)
+  } catch {
+    // Nobody is told how far it got, and the answer is the same.
+  }
+}
+
+// A step as the person reads it on the step's line, naming what it acts on and never what it types.
+function stepWords(step) {
+  switch (step.action) {
+    case "goto": return `Go to ${redact(step.url)}`
+    case "click": return `Click ${targetWords(step)}`
+    case "fill": return `Type in ${targetWords(step)}`
+    case "press": return `Press ${cut(step.key || "a key", 30)} in ${targetWords(step)}`
+    case "wait_for_text": return `Wait for "${cut(step.text || "", 60)}"`
+    default: return `Look for "${cut(step.text || "", 60)}"`
+  }
+}
+
+function targetWords(step) {
+  if (step.text) return `"${cut(step.text, 60)}"`
+  if (step.label || step.placeholder) return `the ${cut(step.label || step.placeholder, 60)} field`
+  if (step.role) return step.name ? `the ${step.role} "${cut(step.name, 60)}"` : `the ${step.role}`
+  return "the page"
+}
 
 // Private, loopback, link-local, shared, documentation and multicast ranges, which a check never reaches unless the
 // install allowed them, since the box's network may reach inside.
@@ -338,7 +370,7 @@ async function screenshot(page) {
   return image ? image.toString("base64") : null
 }
 
-async function runViewport(browser, name, run, proxyRefused) {
+async function runViewport(browser, name, run, proxyRefused, tell = () => {}) {
   const report = {
     name, width: null, height: null, status: null, final_url: null, title: null, timings_ms: null, console: [], failed_requests: [],
     blocked_requests: [], page_text: null, error_text: null, steps: [], stopped: null, pages: 0, login: null, screenshot: null,
@@ -484,12 +516,14 @@ async function runViewport(browser, name, run, proxyRefused) {
 
   try {
     if (run.login) {
+      tell("Logging in")
       report.login = await logIn(page, run.login, state, open, remaining)
       if (!report.login.ok) report.stopped = { step: 0, reason: "login_failed" }
     }
     if (!report.stopped) {
       state.phase = "load"
       state.loadingUntil = 0
+      tell(`Opening ${redact(run.url)}`)
       await open(run.url)
       if (state.pageCap) report.stopped = { step: 0, reason: "page_cap" }
     }
@@ -504,6 +538,7 @@ async function runViewport(browser, name, run, proxyRefused) {
       state.phase = "steps"
       state.loadingUntil = 0
       state.step = n
+      tell(`Step ${n} of ${run.steps.length}: ${stepWords(step)}`)
       state.sameSiteBlocked = null
       state.changed = null
       state.fileChooser = false
@@ -725,8 +760,13 @@ async function main() {
     if (!start.ok) {
       answer.error = `${start.reason}.`
     } else {
+      // Each viewport loads the page, logs in when asked, and takes each step, which is what the count is of.
+      const total = run.viewports.length * (1 + (run.login ? 1 : 0) + run.steps.length)
+      let done = 0
       for (const name of run.viewports) {
-        const report = await runViewport(browser, name, run, proxyRefused)
+        const screen = run.viewports.length > 1 ? ` on the ${name} screen` : ""
+        const tell = (message) => say(`${message}${screen}`, done++, total)
+        const report = await runViewport(browser, name, run, proxyRefused, tell)
         if (run.cutViewports) report.notes.push("A path that sends data runs on one screen only, so it is never sent twice.")
         answer.viewports.push(report)
       }

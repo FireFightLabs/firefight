@@ -1,7 +1,6 @@
 # What went wrong with a workspace's own AI account, in plain words for the admin who set it up. Never the provider's
 # own message whole, since it can carry a request id or part of a key, and never longer than one sentence or two.
 module AiAccountError
-  KEY_REASONS = %w[UnauthorizedError ForbiddenError].freeze
   BUSY_REASONS = %w[RateLimitError ServerError ServiceUnavailableError OverloadedError ReadTimeout TimeoutError InFlightBudget].freeze
   UNREACHABLE_REASONS = %w[ConnectionFailed SocketError SSLError].freeze
   SAID_LIMIT = 160

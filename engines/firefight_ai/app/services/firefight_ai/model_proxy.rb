@@ -8,9 +8,16 @@ module FirefightAi
   class ModelProxy
     class Refused < StandardError; end
 
-    Usage = Data.define(:input, :output, :cache_read, :cache_write) do
+    # cache_write_by_ttl splits cache_write by how long each write lasts, as Anthropic reports it, such as { "1h" => 2048 },
+    # since an hour's write costs more than five minutes'.
+    Usage = Data.define(:input, :output, :cache_read, :cache_write, :cache_write_by_ttl) do
+      def initialize(input:, output:, cache_read:, cache_write:, cache_write_by_ttl: {}) = super
+
       def self.none = new(input: 0, output: 0, cache_read: 0, cache_write: 0)
     end
+
+    # Anthropic's names for the cache writes of each lifetime, inside usage's cache_creation.
+    CACHE_CREATION_BY_TTL = /\Aephemeral_(.+)_input_tokens\z/
 
     Provider = Data.define(:base, :key, :paths, :headers, :tool_types, :output_keys, :dropped_keys)
     ANTHROPIC = "anthropic".freeze
@@ -158,8 +165,16 @@ module FirefightAi
         output: [ @usage.output, (found["output_tokens"] || found["completion_tokens"]).to_i ].max,
         cache_read: [ @usage.cache_read, (found["cache_read_input_tokens"] || found.dig("prompt_tokens_details", "cached_tokens") ||
                                           found.dig("input_tokens_details", "cached_tokens")).to_i ].max,
-        cache_write: [ @usage.cache_write, found["cache_creation_input_tokens"].to_i ].max
+        cache_write: [ @usage.cache_write, found["cache_creation_input_tokens"].to_i ].max,
+        cache_write_by_ttl: @usage.cache_write_by_ttl.merge(cache_written_by_ttl(found)) { |_ttl, seen, now| [ seen, now ].max }
       )
+    end
+
+    def cache_written_by_ttl(found)
+      created = found["cache_creation"]
+      return {} unless created.is_a?(Hash)
+
+      created.filter_map { |key, count| [ key[CACHE_CREATION_BY_TTL, 1], count.to_i ] if key.match?(CACHE_CREATION_BY_TTL) && count.to_i.positive? }.to_h
     end
   end
 end

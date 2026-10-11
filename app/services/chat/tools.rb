@@ -384,6 +384,22 @@ module Chat::Tools
     names.filter_map { |name| ready[name]&.tool }
   end
 
+  # How the catalog reaches a chat whose provider searches tools itself (FirefightAi.tool_search?). Firefight's own
+  # tools, the capabilities and the general reads (what_changed, run_key_query, new_log_patterns) are held from the start,
+  # and every connection tool is handed over deferred, out of the model's context until it searches for one. Anywhere
+  # else both are empty and the agent opens groups with open_tools as before. Only what whoever acts may call is handed
+  # over, so a grant, an approval rule and the gateway decide each call exactly as they do for a tool found any other way.
+  Presented = Data.define(:loaded, :deferred, :searched) do
+    def self.none = new(loaded: [], deferred: [], searched: false)
+  end
+
+  def self.presented(agent_run, choice)
+    return Presented.none unless FirefightAi.tool_search?(choice)
+
+    core, tail = catalog(agent_run).select(&:tool).partition { |entry| entry.source == Chat::Skill::SOURCE_FIREFIGHT }
+    Presented.new(loaded: core.map(&:tool), deferred: tail.map(&:tool), searched: true)
+  end
+
   # Offered to the live chat and remembered, so a later turn or a resumed run starts with them.
   def self.offer_to(chat)
     lambda do |tools|

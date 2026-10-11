@@ -113,6 +113,8 @@ gem "grpc", require: false
 
 # Persistent HTTP connection pool (for Slack API keep-alive)
 gem "net-http-persistent"
+# The same keep-alive for model calls, which RubyLLM makes through Faraday (FIREFIGHT_AI_HTTP_ADAPTER)
+gem "faraday-net_http_persistent", "~> 2.3"
 
 # The public suffix list, for a hostname's registered domain on the resource map
 gem "public_suffix", "~> 7.0"

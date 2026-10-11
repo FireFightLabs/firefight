@@ -1,3 +1,4 @@
+require "concurrent/map"
 require "ruby_llm"
 require "schematist"
 require "firefight_ai/version"
@@ -6,6 +7,9 @@ require "firefight_ai/credit"
 require "firefight_ai/balance"
 require "firefight_ai/errors"
 require "firefight_ai/prompt"
+require "firefight_ai/http_adapter"
+require "firefight_ai/tracing"
+require "firefight_ai/tool_search"
 require "firefight_ai/engine"
 
 module FirefightAi
@@ -224,10 +228,21 @@ module FirefightAi
   # Points a saved chat at the choice, its model and the context holding its account's settings, so a chat resumed after
   # the payer changed carries on with the new one. The context is never saved, so every job binds it after loading.
   def bind(chat, choice)
-    chat.with_context(choice.context)
-    return chat if chat.model_id.to_s == choice.model && (choice.provider.blank? || chat.provider.to_s == choice.provider.to_s)
+    same = chat.model_id.to_s == choice.model && (choice.provider.blank? || chat.provider.to_s == choice.provider.to_s)
+    rebind_context(chat, choice.context, moving: !same)
+    return chat if same
 
     chat.with_model(choice.model, provider: choice.provider, assume_model_exists: choice.provider.present? && !registered?(choice.model, choice.provider))
+  end
+
+  # RubyLLM resolves the chat's current model again under the new context, which a context holding only another
+  # provider's settings refuses, as when one workspace account hands over to another on a different provider. The new
+  # settings are in place by then, and the model the chat moves to is resolved under them next, so only a chat staying
+  # on its model needs them to hold its provider.
+  def rebind_context(chat, context, moving:)
+    chat.with_context(context)
+  rescue RubyLLM::ConfigurationError
+    raise unless moving
   end
 
   # The models table is the registry once it holds a row, and only a refresh puts anything in it.
@@ -261,12 +276,15 @@ module FirefightAi
 
   # What a call cost in millionths of a dollar, priced by RubyLLM itself for the model as its provider serves it, since
   # one id can be several providers' at different prices. input is every input token, cache reads and writes included,
-  # and each kind is charged at its own price, a cache read at the cache read price. A kind the registry has no price for
-  # is charged as plain input. Zero for a model it cannot price, the same as priced_for? says.
-  def cost_micros(model_id, provider:, input:, output:, cache_read: 0, cache_write: 0)
+  # and each kind is charged at its own price, a cache read at the cache read price. cache_write_by_ttl splits the cache
+  # writes by how long they last, such as { "1h" => 2048 }, and a provider that charges more for a longer lifetime, as
+  # Anthropic charges twice the input price for an hour, has each part priced at its own rate. A kind the registry has no
+  # price for is charged as plain input. Zero for a model it cannot price, the same as priced_for? says.
+  def cost_micros(model_id, provider:, input:, output:, cache_read: 0, cache_write: 0, cache_write_by_ttl: nil)
     model = RubyLLM.models.find(model_id.to_s, provider: provider.presence)
     plain = [ input - cache_read - cache_write, 0 ].max
-    total = model.cost_for(RubyLLM::Tokens.new(input: plain, output: output, cache_read: cache_read, cache_write: cache_write)).total
+    tokens = RubyLLM::Tokens.new(input: plain, output: output, cache_read: cache_read, cache_write: cache_write, cache_write_by_ttl: cache_write_by_ttl)
+    total = model.cost_for(tokens).total
     total ||= model.cost_for(RubyLLM::Tokens.new(input: input, output: output)).total
     (total.to_f * 1_000_000).round
   rescue RubyLLM::ModelNotFoundError
@@ -356,6 +374,48 @@ module FirefightAi
         chat(choice).with_max_output_tokens(ACCOUNT_CHECK_TOKENS).ask(ACCOUNT_CHECK_PROMPT)
       end
     end
+  end
+
+  # How long a cache boundary lasts for an investigation, whose tools can keep it waiting more than the default five minutes
+  # between turns, and for a chat a person keeps coming back to. A write that lasts an hour costs twice the input price.
+  LONG_CACHE = "1h".freeze
+
+  # Whether the provider behind choice searches deferred tools itself (ToolSearch).
+  def tool_search?(choice) = ToolSearch.native?(choice)
+
+  # Sets a saved chat up for an agent's turn on choice. The instructions end in a cache boundary, so the tool definitions
+  # in front of them and the instructions themselves are read from the provider's cache on every turn after the first,
+  # for cache_ttl (LONG_CACHE) or the provider's default. tools are handed over whole. deferred_tools are handed over
+  # for the provider to search, and only where it does (ToolSearch), since anywhere else they would arrive whole.
+  # rolling also asks the provider to cache the conversation as it grows, which a chat resent on every turn needs.
+  def ready_chat(chat, choice:, instructions:, tools:, deferred_tools: [], cache_ttl: nil, rolling: true)
+    bind(chat, choice)
+    chat.with_instructions(instructions, cache_until_here: cache_ttl ? { ttl: cache_ttl } : true)
+    chat.with_tools(*tools)
+    defer_tools(chat, deferred_tools, choice)
+    chat.with_caching if rolling
+    chat
+  end
+
+  # A tool the chat already holds whole stays whole.
+  def defer_tools(chat, tools, choice)
+    return if tools.empty?
+
+    held = chat.to_llm.tools.keys - chat.to_llm.deferred_tools.keys
+    deferred = tools.reject { |tool| held.include?(tool.name.to_sym) }
+    chat.with_tools(*deferred, defer: true) if deferred.any? && tool_search?(choice)
+  end
+
+  # A chat that moved to a provider without tool search would get every deferred tool in its context whole, so those are
+  # taken off, and the chat finds them with open_tools as any chat on that provider does. The rest keep their place.
+  def present_tools(chat, choice)
+    llm = chat.to_llm
+    deferred = llm.deferred_tools
+    return if deferred.empty? || tool_search?(choice)
+
+    kept = llm.tools.except(*deferred.keys).values
+    llm.with_tools(nil)
+    llm.with_tools(*kept, defer: false)
   end
 
   # Whether the registry lists the model, under the provider when one is named, since RubyLLM resolves a named

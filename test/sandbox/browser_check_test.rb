@@ -150,6 +150,27 @@ class BrowserCheckTest < ActiveSupport::TestCase
     assert_includes viewport["page_text"], "[hidden]"
   end
 
+  test "it says how far it got in the progress file the box names, on each screen, never what it types or a password" do
+    Dir.mktmpdir do |dir|
+      progress = File.join(dir, "progress.log")
+      File.write(progress, "")
+      steps = [ { action: "fill", label: "Password", value: "hunter22" }, { action: "fill", placeholder: "Search", value: "shoes" } ]
+
+      run_check({ viewports: %w[desktop phone], private_hosts: %w[127.0.0.1 localhost], url: "#{base}/", steps: steps,
+                  login: { site_url: base, login_url: "#{base}/login", username: "tester", password: PASSWORD } },
+                env: { "SANDBOX_PROGRESS" => progress })
+
+      reports = File.readlines(progress).map { |line| JSON.parse(line) }
+      screens = [ "desktop", "phone" ].flat_map do |screen|
+        [ "Logging in", "Opening #{base}/", "Step 1 of 2: Type in the Password field", "Step 2 of 2: Type in the Search field" ].map { |said| "#{said} on the #{screen} screen" }
+      end
+      assert_equal screens, reports.map { |report| report["message"] }
+      assert_equal (0...8).to_a, reports.map { |report| report["value"] }
+      assert_equal [ 8 ], reports.map { |report| report["total"] }.uniq
+      [ "hunter22", "shoes", PASSWORD ].each { |typed| assert_not_includes File.read(progress), typed }
+    end
+  end
+
   test "a private address is refused unless it is allowed" do
     answer = run_check({ url: "#{base}/", private_hosts: [] })
 
@@ -196,8 +217,8 @@ class BrowserCheckTest < ActiveSupport::TestCase
     answer["viewports"]
   end
 
-  def run_check(spec, with_status: false)
-    stdout, stderr, status = Open3.capture3({ "BROWSER_CHECK_MODULES" => MODULES }, "node", SCRIPT,
+  def run_check(spec, with_status: false, env: {})
+    stdout, stderr, status = Open3.capture3({ "BROWSER_CHECK_MODULES" => MODULES }.merge(env), "node", SCRIPT,
                                             stdin_data: { deadline_seconds: 60 }.merge(spec).to_json, chdir: Dir.tmpdir)
     @answer_text = stdout
     answer = JSON.parse(stdout.lines.last.to_s)

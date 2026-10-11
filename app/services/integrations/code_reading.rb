@@ -213,9 +213,10 @@ module Integrations
       with_box { terminal_client.terminal(argv: argv, env: env, timeout: timeout, on_output: on_output) }
     end
 
-    # One check in Halon's browser in the box, followed in the background, which reads no repository either.
-    def browse(spec:, timeout:)
-      with_box { browser_client.browse(spec: spec, timeout: timeout, on_output: ->(_said) { }) }
+    # One check in Halon's browser in the box, followed in the background, which reads no repository either. on_output
+    # hears the whole lines the check wrote to its progress file since the last read.
+    def browse(spec:, timeout:, on_output: nil)
+      with_box { browser_client.browse(spec: spec, timeout: timeout, on_output: on_output || ->(_said) { }) }
     end
 
     # A file a terminal command reads, such as a saved tool result.

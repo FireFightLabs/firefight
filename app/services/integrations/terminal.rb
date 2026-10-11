@@ -30,8 +30,10 @@ module Integrations
     end
 
     # One shell command in the terminal's folder, as the terminal's own user. env carries how it reaches Firefight.
-    def run(command, env: {}, timeout: 60)
-      @reading.terminal(argv: [ *SHELL, command.to_s ], env: env, timeout: timeout, on_output: ->(_said) { })
+    # on_output is called on every read while it runs, with the whole lines the command wrote to the file named in
+    # $SANDBOX_PROGRESS since the last read, often none.
+    def run(command, env: {}, timeout: 60, on_output: nil)
+      @reading.terminal(argv: [ *SHELL, command.to_s ], env: env, timeout: timeout, on_output: on_output || ->(_said) { })
     end
 
     # Places text as a file a command reads, answering where it is.
@@ -52,17 +54,47 @@ module Integrations
       raise Error, "The check from the sandbox answered with something that is not JSON: #{said['stderr'].to_s.strip.lines.last}"
     end
 
+    # How far a check got, one JSON object a line in the progress file (sandbox/browser_check.mjs, say), as Progress.
+    Progress = Data.define(:message, :value, :total)
+
     # Opens a page in the box's browser. The spec is handed over as the check's input, never in argv, the environment or a
     # file, since it may carry a saved login's password for this one run. Which private hosts it may reach is the operator's
-    # word alone, so a caller's is replaced.
-    def browse(spec)
+    # word alone, so a caller's is replaced. on_progress hears each Progress the check reports while it runs. A box from an
+    # image before the check reported any says nothing, and the answer is the same either way.
+    def browse(spec, on_progress: nil)
       given = spec.to_h.stringify_keys
       deadline = (given["deadline_seconds"].presence || BROWSER_DEADLINE_SECONDS).to_i.clamp(1, BROWSER_MAX_DEADLINE)
       given = given.merge("deadline_seconds" => deadline, "private_hosts" => ENV.fetch(BROWSER_PRIVATE_HOSTS, "").split(",").map(&:strip).compact_blank)
-      said = @reading.browse(spec: given.to_json, timeout: deadline + BROWSER_MARGIN)
+      said = @reading.browse(spec: given.to_json, timeout: deadline + BROWSER_MARGIN, on_output: progress_reader(on_progress))
       Browsed.new(answer: JSON.parse(said["stdout"].to_s.lines.last.to_s), region: Sandboxes.region(@reading.box_provider_key))
     rescue JSON::ParserError
       raise Error, "The browser in the sandbox answered with something that is not JSON: #{said['stderr'].to_s.strip.lines.last}"
+    end
+
+    # The newest report among the whole lines a read brought, since only where the check is now is worth showing. A line
+    # that is not a report is passed over.
+    def self.latest_progress(text)
+      text.to_s.lines.reverse_each do |line|
+        found = JSON.parse(line)
+        next unless found.is_a?(Hash) && found["message"].is_a?(String)
+
+        return Progress.new(message: found["message"], value: found["value"].is_a?(Integer) ? found["value"] : nil,
+                            total: found["total"].is_a?(Integer) ? found["total"] : nil)
+      rescue JSON::ParserError
+        next
+      end
+      nil
+    end
+
+    private
+
+    def progress_reader(on_progress)
+      return nil unless on_progress
+
+      lambda do |text|
+        found = self.class.latest_progress(text)
+        on_progress.call(found) if found
+      end
     end
   end
 end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_11_200517) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_11_200519) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -710,6 +710,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_200517) do
     t.text "thinking_text"
     t.datetime "updated_at", null: false
     t.uuid "sender_id"
+    t.string "cache_ttl"
     t.index ["chat_id", "created_at"], name: "index_chat_messages_on_chat_id_and_created_at"
     t.index ["sender_id"], name: "index_chat_messages_on_sender_id"
   end
@@ -1829,6 +1830,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_200517) do
     t.string "paid_by", null: false
     t.uuid "workspace_ai_account_id"
     t.bigint "billed_micros"
+    t.jsonb "cache_write_tokens_by_ttl", default: {}, null: false
     t.index ["api_key_id"], name: "index_inferences_on_api_key_id"
     t.index ["error_kind", "created_at"], name: "index_inferences_on_error_kind_and_created_at", where: "(error_kind IS NOT NULL)"
     t.index ["inferable_type", "inferable_id"], name: "index_inferences_on_inferable"
@@ -2681,6 +2683,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_200517) do
     t.index ["workspace_id", "fingerprint"], name: "index_resource_map_uses_on_workspace_fingerprint"
   end
 
+  create_table "ruby_llm_mcp_credentials", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "owner_type"
+    t.uuid "owner_id"
+    t.string "key", null: false
+    t.text "data"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["key"], name: "index_ruby_llm_mcp_credentials_on_key", unique: true
+    t.index ["owner_type", "owner_id"], name: "index_ruby_llm_mcp_credentials_on_owner"
+  end
+
   create_table "ruby_llm_models", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.jsonb "capabilities", default: []
     t.integer "context_window"
@@ -2702,6 +2715,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_200517) do
     t.index ["provider"], name: "index_ruby_llm_models_on_provider"
   end
 
+  create_table "ruby_llm_provider_files", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "blob_key", null: false
+    t.string "provider", null: false
+    t.string "account", null: false
+    t.text "file_id", null: false
+    t.datetime "expires_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["blob_key", "provider", "account"], name: "index_ruby_llm_provider_files_uniqueness", unique: true
+  end
+
   create_table "ruby_llm_tool_calls", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "approval"
     t.jsonb "arguments", default: {}
@@ -2719,6 +2743,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_200517) do
     t.datetime "updated_at", null: false
     t.string "failure_kind"
     t.jsonb "provenance"
+    t.jsonb "mcp_state"
+    t.jsonb "mcp_result"
     t.index ["message_type", "message_id", "tool_call_id"], name: "index_ruby_llm_tool_calls_on_message_and_tool_call_id", unique: true
     t.index ["name"], name: "index_ruby_llm_tool_calls_on_name"
     t.index ["result_type", "result_id"], name: "index_ruby_llm_tool_calls_on_result_type_and_result_id"
@@ -2729,8 +2755,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_200517) do
     t.integer "cache_read_tokens"
     t.decimal "cache_write_cost", precision: 16, scale: 10
     t.integer "cache_write_tokens"
-    t.uuid "chat_id", null: false
-    t.string "chat_type", null: false
+    t.uuid "chat_id"
+    t.string "chat_type"
     t.datetime "created_at", null: false
     t.decimal "input_cost", precision: 16, scale: 10
     t.integer "input_tokens"
@@ -2746,8 +2772,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_200517) do
     t.integer "thinking_tokens"
     t.decimal "total_cost", precision: 16, scale: 10
     t.datetime "updated_at", null: false
+    t.jsonb "server_tool_use"
+    t.string "owner_type"
+    t.uuid "owner_id"
     t.index ["chat_type", "chat_id"], name: "index_ruby_llm_usages_on_chat_type_and_chat_id"
     t.index ["message_type", "message_id"], name: "index_ruby_llm_usages_on_message_type_and_message_id"
+    t.index ["owner_type", "owner_id"], name: "index_ruby_llm_usages_on_owner"
     t.index ["status"], name: "index_ruby_llm_usages_on_status"
   end
 

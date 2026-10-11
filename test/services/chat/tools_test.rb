@@ -25,7 +25,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
   test "a connection tool is handed the run's box key, so every code read in the run shares one sandbox" do
     grant!(@tool)
-    Integrations::NativePack.expects(:fetch!).with(@integration, box_key: @investigation.code_box_key, progress: nil, request: nil).returns(FakeNativePack.new(@integration))
+    Integrations::NativePack.expects(:fetch!).with(@integration, box_key: @investigation.code_box_key, progress: instance_of(Proc), request: nil).returns(FakeNativePack.new(@integration))
 
     Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool.call(text: "hi")
   end
@@ -847,6 +847,43 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     FirefightAi::CitationCheck.any_instance.stubs(:check).returns([])
   end
 
+  # The long tail is a provider's tools, which Halon needs now and then. Firefight's own tools, the capabilities and
+  # the general reads are what it reaches for in most turns, so where the provider searches they are held from the start.
+  test "where the provider searches tools, Firefight's own and the capabilities are held and connection tools are deferred" do
+    grant!(@tool)
+    grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
+    FirefightAi.stubs(:tool_search?).returns(true)
+
+    presented = Chat::Tools.presented(@investigation, searching_choice)
+
+    assert presented.searched
+    assert_equal [ "fake_echo_text" ], presented.deferred.map(&:name)
+    assert_includes presented.loaded.map(&:name), Mcp::Tools::SEARCH_INCIDENTS
+    assert_includes presented.loaded.map(&:name), ResourceMap::Timeline::TOOL_NAME
+    assert(presented.loaded.none? { |tool| tool.is_a?(Chat::Tools::Connection) })
+  end
+
+  test "a tool whoever acts may not call is never handed over, deferred or not, and open_tools still says it exists" do
+    FirefightAi.stubs(:tool_search?).returns(true)
+
+    presented = Chat::Tools.presented(@investigation, searching_choice)
+    opened = Chat::Tools::Open.new(@investigation, offer: ->(_tools) { }, searched: true)
+
+    assert_not_includes (presented.loaded + presented.deferred).map(&:name), "fake_echo_text"
+    assert opened.description.start_with?(Chat::Tools::Open::LISTS)
+    assert_match "fake_echo_text: Echoes text back (exists, but not granted", opened.call(group: Chat::Tools::Groups.of_connection(@integration))
+  end
+
+  test "where the provider does not search, nothing more is handed over and the agent opens groups as before" do
+    grant!(@tool)
+    FirefightAi.stubs(:tool_search?).returns(false)
+
+    presented = Chat::Tools.presented(@investigation, searching_choice)
+
+    assert_equal [ [], [], false ], [ presented.loaded, presented.deferred, presented.searched ]
+    assert open_tool.description.start_with?(Chat::Tools::Open::OPENS)
+  end
+
   # Two steps that ran, each echoing its own text, so a claim can cite either.
   def two_steps!
     grant!(@tool)
@@ -864,6 +901,8 @@ class Chat::ToolsTest < ActiveSupport::TestCase
   def open_tool(offer: ->(_tools) { })
     Chat::Tools::Open.new(@investigation, offer: offer)
   end
+
+  def searching_choice = FirefightAi::ModelChoice.new(model: "claude-sonnet-4-5", provider: "anthropic")
 
   def open_chat_for_run
     @workspace.chats.create!(owner: @investigation, model: "claude-sonnet-4-5", provider: :anthropic)
