@@ -40,8 +40,19 @@ class Alert < ApplicationRecord
     fields["title"].presence || "Alert from #{alert_source.name}"
   end
 
+  # The alert's own page in the tool that sent it. Only a web address is offered as a link.
+  def source_url
+    url = fields["url"].to_s
+    url if url.match?(%r{\Ahttps?://\S+\z}i)
+  end
+
   def firing?
     status == STATUS_FIRING
+  end
+
+  # A person resolves an alert by hand when its tool never says it cleared.
+  def resolve_blocked_reason
+    "#{title} is already resolved." unless firing?
   end
 
   # One atomic UPDATE so concurrent firings never lose event_count increments.

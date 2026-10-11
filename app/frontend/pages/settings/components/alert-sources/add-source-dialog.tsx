@@ -3,7 +3,7 @@ import { useForm } from "@inertiajs/react"
 import { IconPlus } from "@tabler/icons-react"
 
 import { alertSourcesPath } from "@/lib/routes"
-import { PROVIDER_LABELS } from "@/pages/settings/lib/alerts"
+import type { AlertProviderSetup } from "@/pages/settings/lib/alerts"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-export function AddSourceDialog() {
+export function AddSourceDialog({ providers }: { providers: AlertProviderSetup[] }) {
   const [open, setOpen] = useState(false)
   const form = useForm<{ name: string; provider: string }>({ name: "", provider: "generic" })
 
@@ -82,8 +82,8 @@ export function AddSourceDialog() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(PROVIDER_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  {providers.map((entry) => (
+                    <SelectItem key={entry.provider} value={entry.provider}>{entry.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

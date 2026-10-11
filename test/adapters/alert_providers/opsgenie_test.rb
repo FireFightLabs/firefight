@@ -33,6 +33,7 @@ class AlertProviders::OpsgenieTest < ActiveSupport::TestCase
 
     assert_equal({ "external_id" => "052652ac-5d1c-464a-812a-7dd18bbfba8c", "fingerprint" => "052652ac-5d1c-464a-812a-7dd18bbfba8c",
                    "status" => Alert::STATUS_FIRING, "title" => "test alert", "description" => "Disk is full", "severity_raw" => "P2" }, created)
+    assert_nil created["url"]
     assert_equal Alert::STATUS_RESOLVED, closed["status"]
     assert_equal created["fingerprint"], closed["fingerprint"]
   end

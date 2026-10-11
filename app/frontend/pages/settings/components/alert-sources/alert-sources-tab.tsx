@@ -5,7 +5,7 @@ import { Link, router } from "@inertiajs/react"
 import type { AlertSourceSettings, IncidentSeveritySettings } from "@/types/serializers"
 import { alertSourcePath, settingsAlertRoutingPath, settingsAlertsPath, tokenAlertSourcePath } from "@/lib/routes"
 import { postJson } from "@/lib/http"
-import { providerLabel } from "@/pages/settings/lib/alerts"
+import { providerLabel, type AlertProviderSetup } from "@/pages/settings/lib/alerts"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -28,20 +28,28 @@ import { EditSourceDialog } from "@/pages/settings/components/alert-sources/edit
 import { LastEventCell } from "@/pages/settings/components/alert-sources/last-event-cell"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { RowActions } from "@/components/row-actions"
-import type { SetupInstructions } from "@/pages/settings/lib/alerts"
 
 export function AlertSourcesTab({
   alertSources,
   severities,
-  setupInstructions,
+  providers,
+  setupSourceId,
   canManage,
 }: {
   alertSources: AlertSourceSettings[]
   severities: IncidentSeveritySettings[]
-  setupInstructions: SetupInstructions
+  providers: AlertProviderSetup[]
+  setupSourceId: string | null
   canManage: boolean
 }) {
   const [editingSource, setEditingSource] = useState<AlertSourceSettings | null>(null)
+  // A source just created opens on its setup, since pointing the tool at it is the next step. Creating stays on this
+  // page, so the setup opens when the id arrives rather than only on the first render.
+  const [setupOpenedFor, setSetupOpenedFor] = useState<string | null>(null)
+  if (setupSourceId && setupSourceId !== setupOpenedFor) {
+    setSetupOpenedFor(setupSourceId)
+    setEditingSource(alertSources.find((source) => source.id === setupSourceId) ?? null)
+  }
   const [deletingSource, setDeletingSource] = useState<AlertSourceSettings | null>(null)
   const [copiedField, setCopiedField] = useState<string | null>(null)
 
@@ -64,6 +72,10 @@ export function AlertSourcesTab({
     } catch {
       // The button stays as it was and the user can retry.
     }
+  }
+
+  function secretFromProvider(source: AlertSourceSettings) {
+    return providers.find((entry) => entry.provider === source.provider)?.secretFromProvider ?? false
   }
 
   function confirmDelete() {
@@ -98,7 +110,7 @@ export function AlertSourcesTab({
                   Routing rules
                 </Link>
               </Button>
-              {canManage && <AddSourceDialog />}
+              {canManage && <AddSourceDialog providers={providers} />}
             </div>
           </div>
         </CardHeader>
@@ -123,7 +135,7 @@ export function AlertSourcesTab({
                         <IconBellRinging className="size-4 text-muted-foreground" />
                         <span className="font-medium">{source.name}</span>
                         <span className="text-xs text-fg-muted">
-                          {providerLabel(source.provider)}
+                          {providerLabel(providers, source.provider)}
                         </span>
                       </div>
                     </TableCell>
@@ -140,15 +152,21 @@ export function AlertSourcesTab({
                     </TableCell>
                     {canManage && (
                       <TableCell className="hidden lg:table-cell">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 gap-1.5 px-2 font-mono text-xs text-muted-foreground"
-                          onClick={() => void handleCopyToken(source)}
-                        >
-                          {copiedField === `token-${source.id}` ? <IconCheck className="size-3.5" /> : <IconCopy className="size-3.5" />}
-                          Copy token
-                        </Button>
+                        {secretFromProvider(source) ? (
+                          <span className="px-2 text-xs text-muted-foreground">
+                            {source.secretSummary ? "Secret saved" : "No secret yet"}
+                          </span>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 gap-1.5 px-2 font-mono text-xs text-muted-foreground"
+                            onClick={() => void handleCopyToken(source)}
+                          >
+                            {copiedField === `token-${source.id}` ? <IconCheck className="size-3.5" /> : <IconCopy className="size-3.5" />}
+                            Copy token
+                          </Button>
+                        )}
                       </TableCell>
                     )}
                     <TableCell className="hidden lg:table-cell">
@@ -199,7 +217,7 @@ export function AlertSourcesTab({
         <EditSourceDialog
           source={editingSource}
           severities={severities}
-          setupInstructions={setupInstructions[editingSource.provider] ?? null}
+          setup={providers.find((entry) => entry.provider === editingSource.provider) ?? null}
           onClose={() => setEditingSource(null)}
         />
       )}

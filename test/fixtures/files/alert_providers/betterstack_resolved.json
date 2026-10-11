@@ -1,0 +1,23 @@
+{
+  "data": {
+    "id": "1",
+    "type": "incident",
+    "attributes": {
+      "name": "Tesla.com homepage",
+      "url": "https://tesla.com",
+      "http_method": "get",
+      "cause": "Error 500",
+      "started_at": "2020-10-21T10:51:28.151Z",
+      "acknowledged_at": "2020-10-21T10:53:02.004Z",
+      "resolved_at": "2020-10-21T11:02:40.517Z",
+      "response_content": null,
+      "response_url": null,
+      "screenshot_url": null
+    },
+    "relationships": {
+      "monitor": {
+        "data": { "id": "4", "type": "monitor" }
+      }
+    }
+  }
+}

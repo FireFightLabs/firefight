@@ -44,6 +44,7 @@ class AlertProviders::PagerdutyTest < ActiveSupport::TestCase
     assert_equal "API Service", fields["service"]
     assert_equal "Engineering", fields["team"]
     assert_equal "P1", fields["severity_raw"]
+    assert_equal "https://acme.pagerduty.com/incidents/PGR0VU2", fields["url"]
   end
 
   test "resolved resolves the same alert, and urgency stands in when there is no priority" do

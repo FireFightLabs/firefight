@@ -20,7 +20,7 @@ class Api::V1::AlertsController < ActionController::API
     end
 
     payload = JSON.parse(raw_body)
-    items = adapter.normalize(payload, source: source)
+    items = adapter.normalize(payload, source: source, headers: request.headers)
     if items.empty? && adapter.ignored?(payload)
       source.record_received!
       return render json: { ok: true, received: 0, failed: 0 }

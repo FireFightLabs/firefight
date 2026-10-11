@@ -167,11 +167,12 @@ class SettingsController < InertiaController
   end
 
   def alert_sources
+    sources = current_workspace.alert_sources.order(:created_at)
+
     render inertia: "settings/alert-sources", props: {
-      alertSources: AlertSourceSettingsSerializer.many(
-        current_workspace.alert_sources.order(:created_at)
-      ),
-      setupInstructions: AlertProviders.setup_instructions,
+      alertSources: AlertSourceSettingsSerializer.many(sources),
+      providers: AlertProviders.catalog,
+      setupSourceId: sources.find_by(id: params[:setup])&.id,
       severities: IncidentSeveritySettingsSerializer.many(
         current_workspace.incident_severities.active.ordered.with_usage_counts
       )

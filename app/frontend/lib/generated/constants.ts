@@ -654,7 +654,8 @@ export const ALERT_NORMALIZED_FIELDS = [
   "service",
   "severity_raw",
   "team",
-  "environment"
+  "environment",
+  "url"
 ] as const
 export type AlertNormalizedField = (typeof ALERT_NORMALIZED_FIELDS)[number]
 
@@ -681,14 +682,6 @@ export const ALERT_NOTIFY_TARGETS = {
   "OWNING_TEAM": "owning_team",
   "CHANNEL": "channel"
 } as const
-
-export const ALERT_PROVIDERS = [
-  "generic",
-  "northflank",
-  "pagerduty",
-  "opsgenie"
-] as const
-export type AlertProvider = (typeof ALERT_PROVIDERS)[number]
 
 export const ABILITY_RESOURCES = [
   "incidents",

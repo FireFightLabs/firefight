@@ -27,6 +27,11 @@ class AlertSourceSettingsSerializer < BaseSerializer
     alert_source.last_rejection_reason
   end
 
+  type :string, optional: true
+  def secret_summary
+    alert_source.secret_summary
+  end
+
   type :string
   def ingest_path
     Rails.application.routes.url_helpers.api_v1_alert_ingest_path(endpoint_path: alert_source.endpoint_path)

@@ -5,12 +5,31 @@ class AlertSource < ApplicationRecord
   PROVIDER_NORTHFLANK = "northflank"
   PROVIDER_PAGERDUTY = "pagerduty"
   PROVIDER_OPSGENIE = "opsgenie"
-  PROVIDERS = [ PROVIDER_GENERIC, PROVIDER_NORTHFLANK, PROVIDER_PAGERDUTY, PROVIDER_OPSGENIE ].freeze
+  PROVIDER_SENTRY = "sentry"
+  PROVIDER_DATADOG = "datadog"
+  PROVIDER_GRAFANA = "grafana"
+  PROVIDER_ALERTMANAGER = "alertmanager"
+  PROVIDER_NEW_RELIC = "new_relic"
+  PROVIDER_HONEYCOMB = "honeycomb"
+  PROVIDER_AXIOM = "axiom"
+  PROVIDER_BETTER_STACK = "better_stack"
+  PROVIDER_HONEYBADGER = "honeybadger"
+  PROVIDER_OPENSTATUS = "openstatus"
+  PROVIDER_SIGNOZ = "signoz"
+  PROVIDER_POSTHOG = "posthog"
+  PROVIDER_MIXPANEL = "mixpanel"
+  PROVIDERS = [
+    PROVIDER_GENERIC, PROVIDER_NORTHFLANK, PROVIDER_PAGERDUTY, PROVIDER_OPSGENIE, PROVIDER_SENTRY, PROVIDER_DATADOG,
+    PROVIDER_GRAFANA, PROVIDER_ALERTMANAGER, PROVIDER_NEW_RELIC, PROVIDER_HONEYCOMB, PROVIDER_AXIOM, PROVIDER_BETTER_STACK,
+    PROVIDER_HONEYBADGER, PROVIDER_OPENSTATUS, PROVIDER_SIGNOZ, PROVIDER_POSTHOG, PROVIDER_MIXPANEL
+  ].freeze
 
   DEFAULT_RATE_LIMIT_PER_MINUTE = 60
   DEFAULT_FINGERPRINT_FIELDS = %w[service title].freeze
   DEFAULT_FLAP_WINDOW_MINUTES = 5
   FLAP_WINDOW_MINUTES_RANGE = (0..60).freeze
+  SECRET_MAX_LENGTH = 512
+  SECRET_HINT_LENGTH = 4
 
   encrypts :secret_token
 
@@ -24,7 +43,7 @@ class AlertSource < ApplicationRecord
   validates :name, presence: true, uniqueness: { scope: :workspace_id }
   validates :provider, presence: true, inclusion: { in: PROVIDERS }
   validates :endpoint_path, presence: true, uniqueness: true
-  validates :secret_token, presence: true
+  validates :secret_token, presence: true, length: { maximum: SECRET_MAX_LENGTH }
 
   scope :enabled, -> { where(enabled: true) }
 
@@ -52,6 +71,19 @@ class AlertSource < ApplicationRecord
 
   def record_rejection!(reason)
     update_columns(last_rejected_at: Time.current, last_rejection_reason: reason)
+  end
+
+  # For a provider that signs with a secret of its own making, which the person pastes in place of the generated one.
+  def replace_secret(value)
+    self.secret_token = value.to_s.strip
+    self.config = config.merge("secret_saved_at" => Time.current.iso8601)
+  end
+
+  # "Secret ending in 4f2a. Enter a new one to replace it.", or nil until a secret has been pasted in.
+  def secret_summary
+    return if config["secret_saved_at"].blank?
+
+    "Secret ending in #{secret_token.last(SECRET_HINT_LENGTH)}. Enter a new one to replace it."
   end
 
   def rate_limit_per_minute

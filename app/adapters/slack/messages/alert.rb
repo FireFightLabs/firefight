@@ -4,9 +4,11 @@ module Slack
     module Alert
       def self.build(alert)
         emoji = alert.firing? ? ":rotating_light:" : ":white_check_mark:"
+        title = Slack::Mrkdwn.escape(alert.title)
+        title = "<#{alert.source_url.delete('<>|')}|#{title}>" if alert.source_url
 
         [
-          { type: "section", text: { type: "mrkdwn", text: "#{emoji}  *#{Slack::Mrkdwn.escape(alert.title)}*" } },
+          { type: "section", text: { type: "mrkdwn", text: "#{emoji}  *#{title}*" } },
           {
             type: "context",
             elements: [

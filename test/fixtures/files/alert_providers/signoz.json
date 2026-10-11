@@ -1,0 +1,40 @@
+{
+  "receiver": "w1",
+  "status": "firing",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "DiskRunningFull",
+        "dev": "sda3",
+        "instance": "example3",
+        "severity": "critical"
+      },
+      "annotations": {
+        "info": "The disk sda3 is running full",
+        "summary": "please check the instance example1"
+      },
+      "startsAt": "2022-04-25T14:35:19.490146+05:30",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "",
+      "fingerprint": "ad592b0afcbe2e79"
+    }
+  ],
+  "groupLabels": {
+    "alertname": "DiskRunningFull"
+  },
+  "commonLabels": {
+    "alertname": "DiskRunningFull",
+    "dev": "sda3",
+    "instance": "example3",
+    "severity": "critical"
+  },
+  "commonAnnotations": {
+    "info": "The disk sda3 is running full",
+    "summary": "please check the instance example1"
+  },
+  "externalURL": "http://Apples-MacBook-Pro-3.local:9093",
+  "version": "4",
+  "groupKey": "{}/{}:{alertname=\"DiskRunningFull\"}",
+  "truncatedAlerts": 0
+}

@@ -5,6 +5,8 @@ import type { AlertSourceSettings, IncidentSeveritySettings } from "@/types/seri
 import { alertSourcePath } from "@/lib/routes"
 import { newRow, rowListOps, withRowIds, type RowListItem } from "@/pages/settings/lib/row-list"
 import { FieldMappingEditor, type MappingRow } from "@/pages/settings/components/alert-sources/field-mapping-editor"
+import { SourceSetup } from "@/pages/settings/components/alert-sources/source-setup"
+import type { AlertProviderSetup } from "@/pages/settings/lib/alerts"
 import { omitErrors } from "@/lib/form-errors"
 import { FormErrors } from "@/components/form-errors"
 import { AddRowButton, RemoveRowButton } from "@/pages/settings/components/row-list-buttons"
@@ -41,18 +43,19 @@ interface SourceFormData {
   itemsPath: string
   mappings: SeverityMapping[]
   mappingRows: MappingRow[]
+  secret: string
 }
 
 export function EditSourceDialog({
   source,
   severities,
-  setupInstructions,
+  setup,
   onClose,
 }: {
   source: AlertSourceSettings
   severities: IncidentSeveritySettings[]
   // From the provider's own adapter. Null for a provider the server no longer knows.
-  setupInstructions: string | null
+  setup: AlertProviderSetup | null
   onClose: () => void
 }) {
   const form = useForm<SourceFormData>({
@@ -63,6 +66,7 @@ export function EditSourceDialog({
     itemsPath: source.itemsPath ?? "",
     mappings: withRowIds(Object.entries(source.severityMap).map(([raw, severityId]) => ({ raw, severityId }))),
     mappingRows: withRowIds(Object.entries(source.fieldMap).map(([field, path]) => ({ field, path }))),
+    secret: "",
   })
   const mappings = rowListOps<SeverityMapping>(form.data.mappings, (rows) => form.setData("mappings", rows))
 
@@ -88,6 +92,7 @@ export function EditSourceDialog({
         items_path: data.itemsPath.trim(),
         fingerprint_fields: data.fingerprintFields.split(",").map((field) => field.trim()).filter(Boolean),
         flap_window_minutes: data.flapWindow,
+        secret: data.secret,
       },
     }))
     form.patch(alertSourcePath(source.id), { onSuccess: onClose })
@@ -96,7 +101,7 @@ export function EditSourceDialog({
   return (
     <Dialog open onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="min-w-0">
           <DialogHeader>
             <DialogTitle>Edit alert source</DialogTitle>
             <DialogDescription>
@@ -105,11 +110,12 @@ export function EditSourceDialog({
           </DialogHeader>
 
           <div className="flex flex-col gap-5 py-4">
-            <div className="rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-              <p className="mb-1 font-medium text-foreground">Setup</p>
-              <p className="break-all font-mono">{`${window.location.origin}${source.ingestPath}`}</p>
-              {setupInstructions && <p className="mt-1.5">{setupInstructions}</p>}
-            </div>
+            <SourceSetup
+              source={source}
+              setup={setup}
+              secret={form.data.secret}
+              onSecretChange={(value) => form.setData("secret", value)}
+            />
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="edit-source-name">Name</Label>
@@ -150,7 +156,7 @@ export function EditSourceDialog({
               ones; a re-fire within the flap window reopens the alert it just resolved.
             </p>
 
-            {source.provider === "generic" && (
+            {setup?.fieldMapping && (
               <FieldMappingEditor
                 sourceId={source.id}
                 rows={form.data.mappingRows}

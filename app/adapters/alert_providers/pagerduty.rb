@@ -9,13 +9,16 @@ module AlertProviders
     INCIDENT = "incident".freeze
     FIRING_EVENTS = %w[incident.triggered incident.reopened].freeze
     RESOLVED_EVENT = "incident.resolved".freeze
-    SETUP_INSTRUCTIONS = "In PagerDuty, add a generic webhook (v3) subscription with this URL and the events " \
-                         "#{FIRING_EVENTS.join(', ')} and #{RESOLVED_EVENT}. Add a custom header named #{TOKEN_HEADER} holding " \
-                         "the token. Firefight accepts and ignores other events.".freeze
+    LABEL = "PagerDuty".freeze
+    SETUP_STEPS = [
+      "In PagerDuty, add a generic webhook (v3) subscription with this URL.",
+      "Subscribe it to the events #{FIRING_EVENTS.join(', ')} and #{RESOLVED_EVENT}. Firefight accepts and ignores other events.",
+      "Add a custom header named #{TOKEN_HEADER} holding the token."
+    ].freeze
 
     def self.verify(headers:, raw_body:, source:) = token_matches?(headers[TOKEN_HEADER].to_s, source)
 
-    def self.normalize(payload, source:)
+    def self.normalize(payload, source:, headers: {})
       event = payload.is_a?(Hash) && payload["event"].is_a?(Hash) ? payload["event"] : nil
       return [] unless event && alert_event?(event)
 
@@ -28,7 +31,8 @@ module AlertProviders
         "description" => description_of(incident),
         "service" => incident.dig("service", "summary"),
         "severity_raw" => incident.dig("priority", "summary").presence || incident["urgency"],
-        "team" => Array(incident["teams"]).first&.dig("summary")
+        "team" => Array(incident["teams"]).first&.dig("summary"),
+        "url" => incident["html_url"]
       }.compact_blank
       [ item(fields, payload) ]
     end

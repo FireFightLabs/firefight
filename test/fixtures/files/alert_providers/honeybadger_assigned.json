@@ -1,0 +1,41 @@
+{
+  "event": "assigned",
+  "message": "[Testy McTestFace/production] ActiveRecord::StatementInvalid assigned to George Jetson by Ben",
+  "actor": {
+    "id": 1,
+    "email": "ben@example.com",
+    "name": "Ben"
+  },
+  "fault": {
+    "project_id": 123321,
+    "klass": "ActiveRecord::StatementInvalid",
+    "component": "search",
+    "action": "index",
+    "environment": "production",
+    "resolved": true,
+    "ignored": false,
+    "created_at": "2023-01-31T03:10:01.126549Z",
+    "comments_count": 3,
+    "message": "PG::SyntaxError: ERROR:  syntax error in tsquery: \"厄瓜多尔Google霸屏【TG飞机:@bapingseo】腾讯视频谷歌完全无广告版【TG飞机:@bapingseo】不到外贸行业运营推广计划怎么写谷歌相机的广告怎么关掉?Em0atRS3g3F4.html\"",
+    "notices_count": 5514,
+    "last_notice_at": "2023-02-06T12:20:01.772130Z",
+    "tags": [],
+    "id": 42,
+    "assignee": "george@example.com",
+    "url": "https://app.honeybadger.io/projects/123321/faults/42",
+    "deploy": {
+      "environment": "production",
+      "revision": "dd2ce1c1f5be3532e10fadf2224a19847f0c62e9",
+      "repository": "https://github.com/spacely/testy-mctestface",
+      "local_username": "heroku-redis@addons.heroku.com",
+      "created_at": "2023-02-01T05:12:31.417405Z",
+      "changelog": [],
+      "url": "https://github.com/spacely/testy-mctestface/compare/3e51742fd5f43197891a67b74a54903513e59ce5...dd2ce1c1f5be3532e10fadf2224a19847f0c62e9"
+    }
+  },
+  "assignee": {
+    "id": 99,
+    "email": "george@example.com",
+    "name": "George Jetson"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "01936c52-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
+  "type": "logs_alert.firing",
+  "timestamp": "2026-10-11T09:30:00Z",
+  "data": {
+    "alert_id": "01936c50-aaaa-7bbb-8ccc-dddddddddddd",
+    "alert_name": "Checkout errors",
+    "result_count": "42",
+    "threshold_count": "10",
+    "threshold_operator": "above",
+    "window_minutes": "5",
+    "service_names": "checkout",
+    "severity_levels": "error",
+    "logs_url": "https://us.posthog.com/project/2/logs?severityLevels=error",
+    "alert_url": "https://us.posthog.com/project/2/logs/alerts/01936c50-aaaa-7bbb-8ccc-dddddddddddd"
+  }
+}

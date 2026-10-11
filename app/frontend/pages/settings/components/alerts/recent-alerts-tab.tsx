@@ -2,8 +2,11 @@ import { IconBellRinging, IconRoute } from "@tabler/icons-react"
 import { Link, router } from "@inertiajs/react"
 
 import type { AlertSettings } from "@/types/serializers"
-import { settingsAlertsPath, settingsAlertSourcesPath } from "@/lib/routes"
+import { resolveAlertPath, settingsAlertsPath, settingsAlertSourcesPath } from "@/lib/routes"
+import { useCan } from "@/lib/permissions"
+import { Blocked } from "@/components/blocked-tooltip"
 import { formatDateTime } from "@/lib/formatters"
+import { AlertTitle } from "@/components/alert-title"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -46,6 +49,13 @@ export function RecentAlertsTab({
   ruleId: string | null
   ruleOptions: { id: string; label: string }[]
 }) {
+  const canManage = useCan("alerts")
+
+  // For a tool that never says an alert cleared. The server resolves it the way the tool would and says so.
+  function resolveAlert(alert: AlertSettings) {
+    router.patch(resolveAlertPath(alert.id), {}, { preserveScroll: true })
+  }
+
   function applyFilters(nextSourceId: string | null, nextRuleId: string | null) {
     const params: Record<string, string> = {}
     if (nextSourceId) {
@@ -120,13 +130,14 @@ export function RecentAlertsTab({
                 <TableHead className="hidden w-32 lg:table-cell">Matched rule</TableHead>
                 <TableHead className="hidden w-20 text-center md:table-cell">Fired</TableHead>
                 <TableHead className="w-36 text-right">Last seen</TableHead>
+                {canManage && <TableHead className="w-24" />}
               </TableRow>
             </TableHeader>
             <TableBody>
               {alerts.map((alert) => (
                 <TableRow key={alert.id}>
                   <TableCell className="max-w-md">
-                    <span className="block truncate text-sm font-medium">{alert.title}</span>
+                    <AlertTitle title={alert.title} sourceUrl={alert.sourceUrl} className="text-sm font-medium" />
                   </TableCell>
                   <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
                     {alert.sourceName}
@@ -146,6 +157,21 @@ export function RecentAlertsTab({
                   <TableCell className="text-right text-xs text-muted-foreground" title={alert.lastSeenAt}>
                     {formatDateTime(alert.lastSeenAt)}
                   </TableCell>
+                  {canManage && (
+                    <TableCell className="text-right">
+                      <Blocked reason={alert.resolveBlockedReason ?? undefined}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          disabled={Boolean(alert.resolveBlockedReason)}
+                          onClick={() => resolveAlert(alert)}
+                        >
+                          Resolve
+                        </Button>
+                      </Blocked>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

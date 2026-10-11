@@ -1,0 +1,42 @@
+{
+  "version": "v0.1.0",
+  "shared_secret": "",
+  "name": "trig on ttt",
+  "id": "abdcefg",
+  "trigger_description": "To troubleshoot, please look up the steps in our runbook",
+  "status": "TRIGGERED",
+  "summary": "Triggered: trig on ttt",
+  "description": "Currently greater than threshold value (2) for foo:fooOOOddd (value 5)",
+  "operator": "greater than",
+  "threshold": 2,
+  "result_url": "https://ui.honeycomb.io/test-team/environments/telemetry/datasets/webhook-listener-triggers/result/abcdef/a/abcdef",
+  "result_groups": [
+    {
+      "Group": {
+        "foo": "fooOOOddd"
+      },
+      "Result": 5
+    },
+    {
+      "Group": {
+        "foo": "hungry"
+      },
+      "Result": 1
+    },
+    {
+      "Group": {
+        "foo": "chompy"
+      },
+      "Result": 1
+    }
+  ],
+  "result_groups_triggered": [
+    {
+      "Group": {
+        "foo": "fooOOOddd"
+      },
+      "Result": 5
+    }
+  ],
+  "trigger_url": "https://ui.honeycomb.io/test-team/environments/telemetry/datasets/webhook-listener-triggers/triggers/abcdef"
+}

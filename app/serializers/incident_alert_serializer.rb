@@ -16,6 +16,11 @@ class IncidentAlertSerializer < BaseSerializer
     alert.title
   end
 
+  type :string, optional: true
+  def source_url
+    alert.source_url
+  end
+
   type :string
   def source_name
     alert.alert_source.name

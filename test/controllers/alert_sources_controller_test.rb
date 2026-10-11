@@ -10,8 +10,8 @@ class AlertSourcesControllerTest < ActionDispatch::IntegrationTest
   test "create generates a source with credentials" do
     post alert_sources_url, params: { alert_source: { name: "Grafana prod" } }
 
-    assert_redirected_to settings_alert_sources_path
     source = @workspace.alert_sources.find_by!(name: "Grafana prod")
+    assert_redirected_to settings_alert_sources_path(setup: source.id)
     assert source.endpoint_path.present?
     assert source.secret_token.present?
     assert_equal "Grafana prod was created.", flash[:notice]
@@ -52,6 +52,46 @@ class AlertSourcesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal source.secret_token, JSON.parse(response.body)["token"]
+  end
+
+  test "a provider that signs with a secret of its own takes the pasted secret, never hands it back, and says it has one" do
+    source = @workspace.alert_sources.create!(name: "Sentry", provider: AlertSource::PROVIDER_SENTRY)
+
+    post token_alert_source_url(source)
+    assert_response :not_found
+
+    patch alert_source_url(source), params: { alert_source: { secret: "  sentry-client-secret-4f2a  " } }
+    source.reload
+    assert_equal "sentry-client-secret-4f2a", source.secret_token
+    assert_equal "Sentry was updated.", flash[:notice]
+    assert_equal "Secret ending in 4f2a. Enter a new one to replace it.", source.secret_summary
+
+    patch alert_source_url(source), params: { alert_source: { name: "Sentry prod", secret: "" } }
+    assert_equal "sentry-client-secret-4f2a", source.reload.secret_token
+  end
+
+  test "a secret sent for a provider whose token Firefight makes is ignored" do
+    source = @workspace.alert_sources.create!(name: "Grafana", provider: AlertSource::PROVIDER_GRAFANA)
+    token = source.secret_token
+
+    patch alert_source_url(source), params: { alert_source: { secret: "chosen-by-someone" } }
+
+    assert_equal token, source.reload.secret_token
+    assert_nil source.secret_summary
+  end
+
+  test "the settings page offers every provider's setup and opens a new source's, never a secret" do
+    source = @workspace.alert_sources.create!(name: "Sentry", provider: AlertSource::PROVIDER_SENTRY)
+    source.replace_secret("client-secret-value-9z")
+    source.save!
+
+    get settings_alert_sources_url(setup: source.id), headers: inertia_headers
+
+    props = response.parsed_body["props"]
+    assert_equal source.id, props["setupSourceId"]
+    assert_equal AlertSource::PROVIDERS.sort, props["providers"].pluck("provider").sort
+    assert_equal "Secret ending in e-9z. Enter a new one to replace it.", props["alertSources"].find { |row| row["id"] == source.id }["secretSummary"]
+    assert_not_includes response.body, "client-secret-value-9z"
   end
 
   test "update persists extraction and dedup config" do

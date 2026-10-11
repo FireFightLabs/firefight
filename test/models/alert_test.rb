@@ -28,6 +28,16 @@ class AlertTest < ActiveSupport::TestCase
     assert_nil alert.resolved_at
   end
 
+  test "source_url offers only a web address from the tool as a link" do
+    alert = @source.alerts.new(fields: { "url" => "https://sentry.io/organizations/acme/issues/1/" })
+
+    assert_equal "https://sentry.io/organizations/acme/issues/1/", alert.source_url
+    [ "javascript:alert(1)", "sentry.io/issues/1", "https://a b", nil ].each do |url|
+      alert.fields = { "url" => url }
+      assert_nil alert.source_url, url.inspect
+    end
+  end
+
   test "resolve! stamps resolved_at and status" do
     alert = @source.alerts.create!(
       workspace: @workspace, external_id: "e2", fingerprint: "f2",

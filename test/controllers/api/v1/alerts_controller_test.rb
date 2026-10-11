@@ -198,4 +198,101 @@ class Api::V1::AlertsControllerTest < ActionDispatch::IntegrationTest
     assert_response :too_many_requests
     assert_equal 0, @source.alerts.count
   end
+
+  def post_raw(source, body, headers)
+    post api_v1_alert_ingest_path(endpoint_path: source.endpoint_path), params: body, headers: { "Content-Type" => "application/json" }.merge(headers)
+  end
+
+  def fixture_body(name) = file_fixture("alert_providers/#{name}.json").read
+
+  test "the generic webhook takes the token as a Basic auth password" do
+    post api_v1_alert_ingest_path(endpoint_path: @source.endpoint_path),
+         params: { "title" => "Disk full" }.to_json,
+         headers: { "Content-Type" => "application/json", "Authorization" => "Basic #{Base64.strict_encode64("any:#{@source.secret_token}")}" }
+
+    assert_response :success
+    assert_equal "Disk full", @source.alerts.sole.title
+  end
+
+  test "a Sentry issue alert signed with the pasted client secret fires, and the issue resolving resolves it" do
+    source = AlertSource.create!(workspace: @workspace, name: "Sentry", provider: AlertSource::PROVIDER_SENTRY)
+    secret = SecureRandom.hex(32)
+    fired = fixture_body("sentry_event_alert")
+
+    post_raw(source, fired, "Sentry-Hook-Signature" => OpenSSL::HMAC.hexdigest("SHA256", secret, fired))
+    assert_response :unauthorized
+    assert_equal "invalid token", source.reload.last_rejection_reason
+
+    source.replace_secret(secret)
+    source.save!
+    post_raw(source, fired, "Sentry-Hook-Signature" => OpenSSL::HMAC.hexdigest("SHA256", secret, fired))
+    assert_response :success
+    alert = source.alerts.sole
+    assert_predicate alert, :firing?
+    assert_equal alert.fields["url"], alert.source_url
+
+    resolved = fixture_body("sentry_issue_resolved")
+    post_raw(source, resolved, "Sentry-Hook-Signature" => OpenSSL::HMAC.hexdigest("SHA256", secret, resolved))
+    assert_response :success
+    assert_equal Alert::STATUS_RESOLVED, alert.reload.status
+
+    created = fixture_body("sentry_issue_created")
+    post_raw(source, created, "Sentry-Hook-Signature" => OpenSSL::HMAC.hexdigest("SHA256", secret, created))
+    assert_response :success
+    assert_equal 1, source.alerts.count
+  end
+
+  test "a Grafana group becomes one alert per entry, and a redelivery adds none" do
+    source = AlertSource.create!(workspace: @workspace, name: "Grafana", provider: AlertSource::PROVIDER_GRAFANA)
+    body = fixture_body("grafana_firing")
+    headers = { "Authorization" => "Bearer #{source.secret_token}" }
+
+    post_raw(source, body, headers)
+    post_raw(source, body, headers)
+
+    assert_response :success
+    assert_equal 2, source.alerts.count
+    assert_equal [ 2, 2 ], source.alerts.order(:created_at).pluck(:event_count)
+    post_raw(source, fixture_body("grafana_resolved"), headers)
+    assert_equal [ Alert::STATUS_FIRING, Alert::STATUS_RESOLVED ].sort, source.alerts.pluck(:status).sort
+  end
+
+  test "a Mixpanel alert authenticates with the token as its Basic auth password" do
+    source = AlertSource.create!(workspace: @workspace, name: "Mixpanel", provider: AlertSource::PROVIDER_MIXPANEL)
+
+    post_raw(source, fixture_body("mixpanel_alert"), "Authorization" => "Basic #{Base64.strict_encode64("firefight:#{source.secret_token}")}")
+    assert_response :success
+    assert_equal "Webhook Test", source.alerts.sole.title
+
+    post_raw(source, fixture_body("mixpanel_alert"), "Authorization" => "Bearer #{source.secret_token}")
+    assert_response :unauthorized
+  end
+
+  test "a signed PostHog delivery is one alert, and its retry with the same webhook id is not a second" do
+    source = AlertSource.create!(workspace: @workspace, name: "PostHog", provider: AlertSource::PROVIDER_POSTHOG)
+    body = fixture_body("posthog_insight_alert")
+    headers = lambda do
+      timestamp = Time.current.to_i
+      signature = Base64.strict_encode64(OpenSSL::HMAC.digest("SHA256", Base64.decode64(source.secret_token), "msg-1.#{timestamp}.#{body}"))
+      { "webhook-id" => "msg-1", "webhook-timestamp" => timestamp.to_s, "webhook-signature" => "v1,#{signature}" }
+    end
+
+    post_raw(source, body, headers.call)
+    post_raw(source, body, headers.call)
+
+    assert_response :success
+    assert_equal "msg-1", source.alerts.sole.external_id
+  end
+
+  test "a Honeycomb delivery keeps the delivery id it names in a header and never stores the shared secret" do
+    source = AlertSource.create!(workspace: @workspace, name: "Honeycomb", provider: AlertSource::PROVIDER_HONEYCOMB)
+    body = JSON.parse(fixture_body("honeycomb_trigger")).merge("shared_secret" => source.secret_token).to_json
+
+    post_raw(source, body, "X-Honeycomb-Webhook-Token" => source.secret_token, "X-Honeycomb-Webhook-Delivery-ID" => "delivery-7")
+
+    assert_response :success
+    alert = source.alerts.sole
+    assert_equal "delivery-7", alert.external_id
+    assert_not alert.payload.key?("shared_secret")
+  end
 end

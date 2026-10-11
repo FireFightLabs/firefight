@@ -2,7 +2,14 @@ module AlertProviders
   # Fields are dot-path lookups a source overrides through config["field_map"].
   # config["items_path"] naming an array turns each element into its own alert.
   class Generic < Base
-    SETUP_INSTRUCTIONS = "Send alerts as POST requests with the token in an Authorization: Bearer header (or #{Base::TOKEN_HEADER}).".freeze
+    LABEL = "Generic webhook".freeze
+    FIELD_MAPPING = true
+    SETUP_STEPS = [
+      "In your tool, add a webhook that sends alerts to this URL as a POST request with a JSON body.",
+      "Send the token in an Authorization header as Bearer and the token, in a #{TOKEN_HEADER} header, or as the password " \
+      "of HTTP Basic auth with any user name.",
+      "Send a test alert, then map its fields below if they are not already named title, status, service and so on."
+    ].freeze
     DEFAULT_FIELD_MAP = {
       "external_id" => "id",
       "fingerprint" => "fingerprint",
@@ -12,15 +19,19 @@ module AlertProviders
       "service" => "service",
       "severity_raw" => "severity",
       "team" => "team",
-      "environment" => "environment"
+      "environment" => "environment",
+      "url" => "url"
     }.freeze
 
     def self.verify(headers:, raw_body:, source:)
-      provided = headers["Authorization"].to_s.delete_prefix("Bearer ").presence || headers[TOKEN_HEADER].to_s.presence
-      token_matches?(provided, source)
+      # A bare Authorization value without the Bearer scheme has always been accepted, so it still is.
+      authorization = headers["Authorization"].to_s.delete_prefix("Bearer ").presence
+      [ authorization, headers[TOKEN_HEADER].to_s.presence, basic_password(headers) ].compact.any? do |provided|
+        token_matches?(provided, source)
+      end
     end
 
-    def self.normalize(payload, source:)
+    def self.normalize(payload, source:, headers: {})
       if (items_path = source.config["items_path"].presence)
         elements = resolve_path(payload, items_path)
         return [] unless elements.is_a?(Array)

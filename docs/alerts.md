@@ -39,6 +39,8 @@ The one thing to remember. Every layer exists because the one above it can be by
 
 A monitor that fires 10,000 times in five minutes produces one alert row, one incident, and one Slack message reading `fired 10000x`.
 
+**Resolving by hand.** A tool that never says an alert cleared would leave it firing forever, so a person who can update alerts resolves it from the Alerts screen (`AlertsController#resolve`). `Alert#resolve_blocked_reason` refuses one already resolved. The controller calls `AlertIngestService#resolve`, which is `handle_resolved`, the same path a tool's resolve takes, so the timeline event, the digest and the flap window behave the same. The gateway's ledger records who did it.
+
 **Incidents are never auto-closed from a resolved alert.** A resolve marks the alert and updates the digest, nothing else. Closing is a human decision, and a resolved-then-refired alert is a fresh episode, not a reopened one.
 
 ## Entry point
@@ -60,19 +62,31 @@ The action is a gauntlet of cheap rejections before any work happens: unknown or
 The contract (`AlertProviders::Base`) is two class methods:
 
 ```ruby
-def self.verify(headers:, raw_body:, source:)  # -> boolean
-def self.normalize(payload, source:)           # -> [ { fields:, payload: }, ... ]
+def self.verify(headers:, raw_body:, source:)            # -> boolean
+def self.normalize(payload, source:, headers: {})        # -> [ { fields:, payload: }, ... ]
 ```
 
+`headers` reaches `normalize` only for providers that name a delivery in a header rather than the body (PostHog's `webhook-id`, Honeycomb's `X-Honeycomb-Webhook-Delivery-ID`), so retries of one delivery share an `external_id`.
+
+Each adapter also declares what the settings screen shows, through `Base.descriptor` and `AlertProviders.catalog`: `LABEL`, `SETUP_STEPS` (where to paste the URL and the secret, in the tool's own menu words), `TEMPLATE` (a body to paste, for a tool whose webhook body is written by the person), `FIELD_MAPPING` (only `Generic`) and `SECRET_FROM_PROVIDER`. Labels and steps live on the adapter, never in the frontend, so a provider is named in one file.
+
 - **`normalize` always returns an array.** Alertmanager and Grafana batch. Each item carries **its own payload slice**, so a batch of fifty stores fifty slices rather than fifty copies of the whole body.
-- **`NORMALIZED_FIELDS` is the vocabulary everything downstream speaks**: `external_id fingerprint status title description service severity_raw team environment`. Nothing past the adapter may reference a vendor-specific key.
+- **`NORMALIZED_FIELDS` is the vocabulary everything downstream speaks**: `external_id fingerprint status title description service severity_raw team environment url`. Nothing past the adapter may reference a vendor-specific key.
+- **`url` is the alert's own page in the tool**, taken only from an address the provider sent. `Alert#source_url` offers it as a link only when it is an http(s) address, and the Slack digest title, the incident's alerts panel, the Alerts screen and MCP `search_alerts` all link through it.
 - Adapters are thin boundary normalizers: no persistence, no business logic, no Slack.
-- Verification uses `ActiveSupport::SecurityUtils.secure_compare`, never `==`. Providers without native signatures (Datadog, Grafana) get shared-token comparison and nothing more; do not invent a signature scheme they do not send.
-- **PagerDuty** (`AlertProviders::Pagerduty`) reads v3 webhook subscriptions, one event a POST. `incident.triggered` and `incident.reopened` fire and `incident.resolved` resolves, keyed on the incident's id. The event id is the `external_id`, the service's and first team's names fill `service` and `team`, and the priority, else the urgency, is `severity_raw`. Every other event, the ping a new subscription sends included, is `ignored?`, because PagerDuty drops a delivery answered 4xx and turns a subscription off for a day after three in a row. PagerDuty signs with a secret it generates, so the token travels in a custom header the subscription sends (`X-Firefight-Token`).
-- **Opsgenie** (`AlertProviders::Opsgenie`) reads its Webhook integration's alert actions. `Create` fires and `Close` resolves, keyed on `alertId`, with the message as title, the entity as service and the priority as `severity_raw`. Every other action is `ignored?`. Opsgenie signs nothing, so the token travels in a custom header the integration sends (`X-Firefight-Token`).
+- Verification uses `ActiveSupport::SecurityUtils.secure_compare`, never `==`. Providers without native signatures get shared-token comparison and nothing more. Do not invent a signature scheme they do not send. `Base` has the shared pieces: `bearer_token`, `basic_password` (any user name), `hmac_hex`, `digest_matches?` and `fresh_timestamp?` (five minutes either way, for schemes that sign a timestamp).
+- **A provider that signs with a secret it makes itself** (Sentry's client secret) sets `SECRET_FROM_PROVIDER`. The person pastes that secret into the source, `AlertSource#replace_secret` stores it in the same encrypted `secret_token` column, the token endpoint refuses to hand it back, and the page shows only `secret_summary` ("Secret ending in 4f2a."). Until one is saved every request is refused as `invalid token`.
+- **A provider that only says an alert fired** (Mixpanel, PostHog insight alerts) makes each trigger its own alert, keyed on the trigger's time or delivery id. Keyed on the alert alone, the first trigger would stay open forever and swallow every later one.
+- **PagerDuty** (`AlertProviders::Pagerduty`) reads v3 webhook subscriptions, one event a POST. `incident.triggered` and `incident.reopened` fire and `incident.resolved` resolves, keyed on the incident's id. The event id is the `external_id`, the service's and first team's names fill `service` and `team`, and the priority, else the urgency, is `severity_raw`. The incident's `html_url` is the alert's `url`. Every other event, the ping a new subscription sends included, is `ignored?`, because PagerDuty drops a delivery answered 4xx and turns a subscription off for a day after three in a row. PagerDuty signs with a secret it generates, so the token travels in a custom header the subscription sends (`X-Firefight-Token`).
+- **Opsgenie** (`AlertProviders::Opsgenie`) reads its Webhook integration's alert actions. `Create` fires and `Close` resolves, keyed on `alertId`, with the message as title, the entity as service and the priority as `severity_raw`. The alert action carries no address of the alert's page, so it has no `url`. Every other action is `ignored?`. Opsgenie signs nothing, so the token travels in a custom header the integration sends (`X-Firefight-Token`).
+- **Sentry** verifies `Sentry-Hook-Signature`, the hex HMAC-SHA256 of the body with the integration's client secret. Issue alerts (`event_alert`) fire keyed on the issue, the `issue` webhook's `resolved` resolves that issue, and metric alerts fire on `critical`/`warning` and resolve on `resolved`, keyed on the metric alert. Other deliveries in Sentry's envelope (installation, issue created or assigned) are `ignored?`.
+- **Alertmanager, Grafana, SigNoz** share `AlertProviders::Alertmanager`: each entry of `alerts[]` is its own item keyed on Alertmanager's `fingerprint`, with Prometheus label and annotation conventions. Grafana also accepts `X-Grafana-Alerting-Signature` (hex HMAC of the body, or of `timestamp:body` with `X-Grafana-Alerting-Timestamp`). SigNoz sends its password as Bearer when the user name is empty.
+- **Datadog** has no usable default body, so `TEMPLATE` is the body the person pastes. A `Recovered` transition resolves, keyed on `$ALERT_CYCLE_KEY`.
+- **New Relic** reads the workflow's default payload, `CLOSED` resolving, keyed on the issue id. **Honeycomb** reads the standard trigger body (TRIGGERED, OK) and verifies `X-Honeycomb-Webhook-Token`, the shared secret sent as is. The body repeats that secret, so it is dropped before the payload is stored. **Axiom** reads the custom webhook notifier's default body (Open, Closed). **Better Stack** reads the incident webhook, resolved when `resolved_at` is set, ignoring comments. **Honeybadger** reads errors (keyed on the fault), uptime (the site) and check ins, with the integration's bearer token. **OpenStatus** reads monitor checks (error, degraded, recovered). **PostHog** verifies Standard Webhooks signatures with the token as the secret, and reads insight alerts and logs alerts (which resolve). **Mixpanel** authenticates with Basic auth only.
+- **Logfire is not a provider.** Its webhook channel sends no headers at all, so the only place a secret could travel is the URL, and the ingest path is shown to everyone who can read the sources screen while the token is not.
 - An item where no mapped field resolved is noise, not an alert. `recognized?` returning false is what turns garbage into a diagnosable 422 instead of a row of nulls.
 
-`Generic` is the workhorse and covers any tool that can POST with a header token. Extraction is **declarative dot-path lookup only** (numeric segments index arrays), overridable per source via `config["field_map"]`, with `config["items_path"]` splitting a batch. **No Liquid, no JS, no CEL** — that is a decision, not an omission. If a payload cannot be expressed as dot-paths, write an adapter.
+`Generic` is the workhorse and covers any tool that can POST with a header token or HTTP Basic auth (the token as the password). Extraction is **declarative dot-path lookup only** (numeric segments index arrays), overridable per source via `config["field_map"]`, with `config["items_path"]` splitting a batch. **No Liquid, no JS, no CEL** — that is a decision, not an omission. If a payload cannot be expressed as dot-paths, write an adapter.
 
 ## Ingestion
 
@@ -175,8 +189,9 @@ One digest message per alert, posted once and updated in place. `#notify_digest`
 |---|---|---|
 | Alert sources | `/settings/alert-sources` | Sources, endpoint URL and token, severity map, field map, `items_path`, fingerprint fields, flap window |
 | Alert routing | `/settings/alert-routing` | The policy: rules, conditions, outcomes, grouping window, content match fields, route tester |
-| Alerts | `/settings/alerts` | Recent alerts filtered by source and matched rule. Operational, not configuration |
+| Alerts | `/settings/alerts` | Recent alerts filtered by source and matched rule, and Resolve for a firing alert. Operational, not configuration |
 
+- **Creating a source opens its setup.** The create redirect carries `setup=<id>` and the page opens that source's dialog, whose setup box holds the URL, the token (or the field for a provider's own secret), the provider's steps and any template.
 - **Secrets never enter page props.** `AlertSourcesController#token` serves the secret on demand behind the copy button, mirroring API keys. `#sample_payload` returns the latest raw payload so the field-mapping UI offers real keys to click instead of asking for dot-paths typed blind.
 - **Only `AlertProviders::Base::NORMALIZED_FIELDS` are mappable**; the controller filters the submitted map rather than trusting it.
 - Config knobs are **validated at write time** (`Policy::AlertRoutingConfig`, `AlertSource` clamping) so ingest never defends against nonsense values. `domain_config_merging` gives the form partial-update semantics: nil leaves a knob untouched, an empty list reverts to the default.
@@ -192,10 +207,10 @@ Other surfaces: `AlertsPanel` on the incident page, `IncidentEvent::ALERT_ATTACH
 
 ## Adding a provider
 
-1. Adapter class in `app/adapters/alert_providers/` implementing `verify` and `normalize`.
+1. Adapter class in `app/adapters/alert_providers/` implementing `verify` and `normalize`, with `LABEL` and `SETUP_STEPS` (and `TEMPLATE` or `SECRET_FROM_PROVIDER` when the tool needs them).
 2. `AlertSource::PROVIDER_*` constant, added to `PROVIDERS`.
 3. Registry entry in `AlertProviders::ADAPTERS`.
-4. Adapter test under `test/adapters/alert_providers/` with a real captured payload.
+4. Adapter test under `test/adapters/alert_providers/` with the provider's documented sample in `test/fixtures/files/alert_providers/`, covering verification, firing and resolve.
 5. Docs page in `../firefight-landing` telling users where to paste the endpoint and token.
 
 **No auto-provisioning of the provider side.** Firefight never manages a customer's cloud API tokens; setup is manual copy-paste. Stored credentials belong to the integration layer ([integrations.md](integrations.md)), not here.
