@@ -867,9 +867,10 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Ends the working state with the reply. streamed means the person already read the text as it arrived.
+  # Ends the working state with the reply. streamed means the person already read the text as it arrived. sources are
+  # what Halon read to give it (Chat::Sources::Source), shown compactly under it.
   # @return [Hash] { message_id:, channel_id: }
-  def post_agent_reply(channel_id:, thread_id:, answer_id:, text:, streamed: false)
+  def post_agent_reply(channel_id:, thread_id:, answer_id:, text:, streamed: false, sources: [])
     raise NotImplemented.new(__method__, self.class)
   end
 

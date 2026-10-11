@@ -49,9 +49,14 @@ module FirefightAi
     # it the handover is quiet, as it is unless a person picked the model.
     # on_progress hears a Progress each time a running tool reports how far it got (RubyLLM::Tool#progress), on the thread
     # the tool reports from, before the tool answers.
+    # steady sends Halon's own loop at the deployment's loop temperature (FirefightAi.loop_temperature), again for each
+    # model that takes over, so a chat and a run vary as little as the model allows.
+    # next_step reads the line a chat's reply ends with (NextStep), and a reply offering a read Halon could take itself is
+    # sent back once to take it rather than ending the turn on an offer.
     def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil, on_chunk: nil,
                    reply_is_answer: false, nudge: nil, memory: nil, take_messages: nil, output: nil,
-                   choice: nil, purpose: AiPurpose::INVESTIGATION, purse: nil, on_backup: nil, on_take_over: nil, on_progress: nil)
+                   choice: nil, purpose: AiPurpose::INVESTIGATION, purse: nil, on_backup: nil, on_take_over: nil, on_progress: nil,
+                   steady: false, next_step: false)
       @chat = chat
       @choice = choice || ModelChoice.new(model: inference[:model], provider: inference[:provider])
       @purpose = purpose
@@ -73,6 +78,10 @@ module FirefightAi
       @on_backup = on_backup
       @on_take_over = on_take_over
       @given_up_on = []
+      @steady = steady
+      @next_step = next_step
+      @sent_back = false
+      steady!
       @seen_tool_call_ids = messages.flat_map { |message| message.tool_calls&.keys || [] }.to_set
       report_steps_to(on_step) if on_step
       report_progress_to(on_progress) if on_progress
@@ -211,11 +220,16 @@ module FirefightAi
       FirefightAi.bind(@chat, following)
       FirefightAi.present_tools(@chat, following)
       @inference = @inference.merge(following.ledger)
+      steady!
       return unless @output
 
       @output = FirefightAi.output_cap(@purpose, choice: following)
       @output_limit = @output.max
       @chat.to_llm.with_max_output_tokens(@output_limit)
+    end
+
+    def steady!
+      @chat.to_llm.with_temperature(FirefightAi.loop_temperature(@choice)) if @steady
     end
 
     def tracked = @output_limit ? @inference.merge(max_output_tokens: @output_limit) : @inference
@@ -282,6 +296,7 @@ module FirefightAi
         return nil
       end
 
+      return nil if send_back?(message)
       return STATUS_ANSWERED if @reply_is_answer
 
       return STATUS_STALLED if @reminders.positive?
@@ -289,6 +304,15 @@ module FirefightAi
       @reminders += 1
       @nudge.call(REMINDER)
       nil
+    end
+
+    # At most once a turn, so a model that keeps offering still ends.
+    def send_back?(message)
+      return false unless @reply_is_answer && @next_step && !@sent_back && NextStep.kind(message.content) == NextStep::READ
+
+      @sent_back = true
+      @nudge.call(NextStep::SEND_BACK)
+      true
     end
 
     # The record's messages are rows. These are the ones the model sees.

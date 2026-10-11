@@ -12,6 +12,7 @@ tools:
   - open_tools
   - use_skill
   - northflank_api_request
+  - northflank_billing_usage
   - search_activity
   - name: send_message
     description: Sends a direct message to a person in the workspace.
@@ -26,6 +27,9 @@ answers:
     match: { method: GET, path: /billing|invoice|usage/ }
     result: |-
       Usage this week: $2,640, last week $710. Compute up $1,880, from 6 services named gpu-batch-1 to gpu-batch-6 (GPU, project ml-sandbox), running since 2026-10-06 09:12. https://app.northflank.com/t/larkspur/billing
+  - tool: northflank_billing_usage
+    result: |-
+      Charged by day, the last 30 days: about $100 a day until October 5, $377 a day since October 6. GPU is what grew: $1,880 this week from 6 services gpu-batch-1 to gpu-batch-6 in project ml-sandbox, running since 2026-10-06 09:12. https://app.northflank.com/t/larkspur/billing
   - tool: northflank_api_request
     match: { method: GET, path: /ml-sandbox/ }
     result: |-

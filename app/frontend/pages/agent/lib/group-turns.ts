@@ -57,10 +57,12 @@ export function groupedTurns(messages: AgentChatMessage[], compactions: ChatComp
       previous.steps.push(...steps)
       previous.bodies.push(...bodies)
       previous.models = withoutRepeats([ ...previous.models, ...models ])
+      // The reply that ends the turn lists everything the turn read, so it replaces what an earlier reply listed.
+      previous.sources = message.sources.length > 0 ? message.sources : previous.sources
       return
     }
 
-    turns.push({ kind: TURN_KINDS.AGENT, id: message.id, steps, bodies, models })
+    turns.push({ kind: TURN_KINDS.AGENT, id: message.id, steps, bodies, models, sources: message.sources })
   })
 
   // Room made after the last reply belongs to the turn still being written. When a question comes last, that turn is
@@ -70,7 +72,7 @@ export function groupedTurns(messages: AgentChatMessage[], compactions: ChatComp
   if (madeSince.length > 0 && last?.kind === TURN_KINDS.AGENT) {
     last.steps.push(...madeSince)
   } else if (madeSince.length > 0 && turns.length === 0) {
-    turns.push({ kind: TURN_KINDS.AGENT, id: madeSince[0].key, steps: madeSince, bodies: [], models: [] })
+    turns.push({ kind: TURN_KINDS.AGENT, id: madeSince[0].key, steps: madeSince, bodies: [], models: [], sources: [] })
   }
 
   return turns.filter((turn) => turn.kind === TURN_KINDS.PERSON || turn.steps.length > 0 || turn.bodies.length > 0)
@@ -103,7 +105,7 @@ export function liveTurn(stream: AgentStream, messages: AgentChatMessage[], comp
     return null
   }
 
-  return { kind: TURN_KINDS.AGENT, id: LIVE_TURN_ID, steps, bodies, models: [] }
+  return { kind: TURN_KINDS.AGENT, id: LIVE_TURN_ID, steps, bodies, models: [], sources: [] }
 }
 
 // A turn a model wrote throughout names it once. One handed to another model mid-turn names both, in order.

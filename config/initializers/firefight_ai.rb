@@ -31,6 +31,8 @@ FirefightAi.configure do |config|
   # auto (the default) hands a chat's reads of connected systems to specialists when its tools do not fit the held tools
   # budget, and on or off overrides that, for the bench.
   config.specialists = ENV["FIREFIGHT_AI_SPECIALISTS"]
+  # Halon's own loop's temperature, 0 unless set, none for each provider's own default.
+  config.loop_temperature = ENV["FIREFIGHT_AI_TEMPERATURE"]
   # quick (the default) or main, the model a specialist runs on.
   config.specialist_model = ENV["FIREFIGHT_AI_SPECIALIST_MODEL"]
 end

@@ -77,9 +77,12 @@ export interface TurnBody {
   text: string
 }
 
+// Something Halon read to give an answer, with the page it came from when its result gave one.
+export type AnswerSource = AgentChatMessage["sources"][number]
+
 export type ChatTurn =
   | { kind: typeof TURN_KINDS.PERSON; id: string; body: string; attachments: AgentChatAttachment[] }
-  | { kind: typeof TURN_KINDS.AGENT; id: string; steps: AgentStep[]; bodies: TurnBody[]; models: string[] }
+  | { kind: typeof TURN_KINDS.AGENT; id: string; steps: AgentStep[]; bodies: TurnBody[]; models: string[]; sources: AnswerSource[] }
 
 export interface AgentStream {
   // The agent is working on an answer and has not said it is done.

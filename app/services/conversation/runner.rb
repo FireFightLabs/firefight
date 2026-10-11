@@ -66,7 +66,7 @@ class Conversation::Runner
       budget: budget,
       on_step: method(:report_step),
       on_progress: method(:report_tool_progress),
-      on_chunk: ->(text) { delivery.chunk(text) },
+      on_chunk: shown_text.method(:add),
       nudge: chat.method(:nudge!),
       memory: chat,
       take_messages: -> { [ take_queued(chat), tell_changes(chat), tell_watch_corrections(chat) ].any? },
@@ -79,6 +79,7 @@ class Conversation::Runner
       record(turn)
     end
 
+    shown_text.finish
     return stopped!(chat) if outcome.status == FirefightAi::AgentLoop::STATUS_CANCELED
     return ask_to_confirm(chat, outcome) if waiting?(outcome)
 
@@ -89,7 +90,7 @@ class Conversation::Runner
     chat.clear_stop!
     # Before the page is told, so the setup guide it reloads already says Halon answered.
     @conversation.workspace.onboarding&.halon_answered!(@conversation) if answered?(outcome)
-    delivery.answered!(@reply)
+    delivery.answered!(@reply, sources: (sources_of(chat) if answered?(outcome)) || [])
     outcome
   rescue FirefightAi::Canceled
     stopped!(@conversation.chat_record)
@@ -98,6 +99,9 @@ class Conversation::Runner
   private
 
   def delivery = @delivery ||= Conversation::Delivery.for(@conversation)
+
+  # The reply as it streams, without the line saying Halon's next step (FirefightAi::NextStep).
+  def shown_text = @shown_text ||= FirefightAi::NextStep::Stream.new { |text| delivery.chunk(text) }
 
   def responder
     @responder ||= FirefightAi::Responder.new(
@@ -132,6 +136,12 @@ class Conversation::Runner
   end
 
   def answered?(outcome) = outcome.status == FirefightAi::AgentLoop::STATUS_ANSWERED
+
+  # What the turn read, from its own calls, for the line under the reply.
+  def sources_of(chat)
+    reply = chat.messages.where(role: Chat::Message::ROLE_ASSISTANT).reorder(created_at: :desc, id: :desc).first
+    reply ? Chat::Sources.for_reply(reply) : []
+  end
 
   # The person stopped this answer. What ran stays in the chat, and the next question starts clean.
   def stopped!(chat)

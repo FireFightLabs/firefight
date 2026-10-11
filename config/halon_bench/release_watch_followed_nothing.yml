@@ -18,6 +18,7 @@ tools:
   - search_runbooks
   - run_runbook
   - northflank_api_request
+  - northflank_workflow_runs
   - start_watch
   - list_watches
   - query_metrics
@@ -60,6 +61,23 @@ answers:
     match: { method: GET, path: /workflows\/release\/runs$/ }
     result: |-
       {"runs":[{"id":"4182","status":"failed","startedAt":"2026-10-09T14:19:40Z"},{"id":"4177","status":"succeeded","startedAt":"2026-10-08T10:02:11Z"}]}
+  - tool: northflank_workflow_runs
+    match: { run: "4182" }
+    state: { run_4182: running }
+    sets: { run_4182: failed }
+    result: |-
+      Run 4182 of workflow release in project shop: running since 14:19. build succeeded, migrate running, deploy-web waiting, deploy-worker waiting. https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4182
+  - tool: northflank_workflow_runs
+    match: { run: "4182" }
+    result: |-
+      Run 4182 of workflow release in project shop: failed at 14:26 after 6m28s. build succeeded, migrate failed: canceling statement due to lock timeout, relation "orders" is locked by a long running transaction (pid 48211). deploy-web skipped, deploy-worker skipped. https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4182
+  - tool: northflank_workflow_runs
+    state: { run_4182: running }
+    result: |-
+      Runs of workflow release in project shop, newest first: 4182 running since 14:19, 4177 succeeded October 8 in 7m02s. Finished runs usually take about 7 minutes. https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4182
+  - tool: northflank_workflow_runs
+    result: |-
+      Runs of workflow release in project shop, newest first: 4182 failed at 14:26 (migrate failed), 4177 succeeded October 8 in 7m02s. https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4182
   - tool: run_history
     match: { resource: web }
     result: |-

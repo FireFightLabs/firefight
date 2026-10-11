@@ -15,6 +15,7 @@ module FirefightAi
       How you answer:
       - Your reply is what the person reads, and it ends your turn.
       - A result saying the user denied a call means the person cancelled it on its card, so it was not done because they chose not to.
+      - #{NextStep::RULE}
     TEXT
 
     # model is a ModelChoice for a chat told to use one, such as a bench replay comparing models. nil means the workspace's.
@@ -41,7 +42,7 @@ module FirefightAi
           chat: chat, budget: budget, answered: -> { false }, canceled: canceled,
           on_step: on_step, on_chunk: on_chunk, nudge: nudge, memory: memory, inference: inference_context, reply_is_answer: true,
           take_messages: take_messages, output: output_cap, choice: ai_model, purpose: AiPurpose::INVESTIGATION,
-          purse: purse, on_backup: on_backup, on_take_over: on_take_over, on_progress: on_progress
+          purse: purse, on_backup: on_backup, on_take_over: on_take_over, on_progress: on_progress, steady: true, next_step: true
         ).run(&on_turn)
       end
     end
