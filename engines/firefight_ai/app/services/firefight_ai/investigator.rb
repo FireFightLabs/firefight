@@ -24,16 +24,16 @@ module FirefightAi
       @ai_model = model
     end
 
-    # on_backup goes to the loop, see AgentLoop.
-    def run(chat:, tools:, seed_pack:, budget:, answered:, canceled: -> { false }, on_step: nil, nudge: nil, memory: nil,
-            take_messages: nil, purse: nil, on_backup: nil, &on_turn)
+    # deferred_tools are found by the provider's own tool search where it has one (FirefightAi.ready_chat). on_backup goes
+    # to the loop, see AgentLoop.
+    def run(chat:, tools:, seed_pack:, budget:, answered:, deferred_tools: [], canceled: -> { false }, on_step: nil, nudge: nil,
+            memory: nil, take_messages: nil, purse: nil, on_backup: nil, &on_turn)
       FirefightAi.translating_errors do
-        FirefightAi.bind(chat, ai_model)
-        chat.with_instructions(system_prompt)
-        chat.with_tools(*tools)
-        # One agent resends everything it has read on every turn, so the provider is asked to cache it.
-        chat.with_caching
-        chat.add_message(role: :user, content: opening(seed_pack)) if chat.to_llm.messages.none? { |message| message.role == :user }
+        # One agent resends everything it has read on every turn, so the provider is asked to cache it, the instructions
+        # and the facts for as long as a run can take between turns.
+        FirefightAi.ready_chat(chat, choice: ai_model, instructions: system_prompt, tools: tools, deferred_tools: deferred_tools,
+                                     cache_ttl: FirefightAi::LONG_CACHE)
+        open_with(chat, seed_pack)
 
         AgentLoop.new(
           chat: chat, budget: budget, answered: answered, canceled: canceled,
@@ -78,7 +78,7 @@ module FirefightAi
         - When the facts carry on_call, an alert started this run and nobody asked for it, so nobody may be awake to steer you. Load the on_call_alert skill with use_skill before anything else. It says how to read, who to page and how to write a fix the team let you make on your own.
         - A responder may add something while you work. Their newest message decides what you check next.
         - #{TeammateRule::DIRECTION_RULE}
-        - You hold almost no tools to begin with. open_tools lists every group of tools there is. Open the group that fits what you need next, and the tools in it you may use become callable.
+        - #{ToolFinding::RULE}
         - Before reading a connected provider, load the skill that fits what you are checking with use_skill. It says the steps, makes the tools it needs callable, and names the provider's guides, such as its API reference, which use_skill reads with reference. search_docs finds what the provider's documentation says about anything else, and read_doc reads the section it found.
         - Before saying you could not check something, read the groups again. They also say when tools exist but this workspace has not granted them, or when nothing is connected, and that is worth saying in your answer.
         - #{CannotRule::VERIFY_RULE}
@@ -137,6 +137,13 @@ module FirefightAi
       }
     end
 
+
+    # The facts never change during a run, so they end in a cache boundary of their own, after the instructions'.
+    def open_with(chat, seed_pack)
+      return if chat.to_llm.messages.any? { |message| message.role == :user }
+
+      chat.add_message(role: :user, content: opening(seed_pack), cache_until_here: true, cache_ttl: FirefightAi::LONG_CACHE)
+    end
 
     def opening(seed_pack)
       <<~PROMPT

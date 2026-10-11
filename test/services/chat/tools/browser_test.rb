@@ -24,6 +24,25 @@ class Chat::Tools::BrowserTest < ActiveSupport::TestCase
     assert_empty Chat::Tools::Browser.all(@turn)
   end
 
+  test "while the browser works, its step says where it got to" do
+    Integrations::Terminal.any_instance.expects(:browse).with do |_spec, on_progress:|
+      on_progress.call(Integrations::Terminal::Progress.new(message: "Step 1 of 1 on the desktop screen: Click \"Checkout\"", value: 1, total: 4))
+      true
+    end.returns(browsed(page))
+    reports = []
+    browser = tool
+    browser.stubs(:progress).with { |message, **counts| reports << [ message, counts ] }
+
+    browser.call(tool_call: call("call_look"), url: "shop.example.com/cart", steps: [ { "action" => "click", "text" => "Checkout" } ])
+
+    assert_equal [ [ Chat::Tools::Browser::STARTING, {} ], [ "Step 1 of 1 on the desktop screen: Click \"Checkout\"", { value: 1, total: 4 } ] ], reports
+  end
+
+  test "a saved login's password never reaches what the step shows, should a report ever hold it" do
+    assert_equal "Logging in as [hidden]", Chat::Browsing.without_password("Logging in as hunter22", { "password" => "hunter22" })
+    assert_equal "Opening the page", Chat::Browsing.without_password("Opening the page", nil)
+  end
+
   test "a look runs at once as an open read, keeps each screen size's screenshot and says what the page showed" do
     handed = nil
     Integrations::Terminal.any_instance.expects(:browse).with { |spec| handed = spec }.returns(browsed(page))

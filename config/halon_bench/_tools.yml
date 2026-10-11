@@ -655,7 +655,8 @@ run_command:
     ff help <tool> shows a tool's arguments, ff <tool> key=value calls one and prints its answer. A command that changes something through a connected
     tool needs changes true and an intent, and the person confirms it first. Without it, every call it makes that changes something is refused.
     No key or password is in the sandbox, so never put one in a command. The sandbox starts the first time it is needed and stays for the rest
-    of this chat while it is used.
+    of this chat while it is used. Where $SANDBOX_PROGRESS is set, a script that runs long can add a line to the file it names to say how far
+    it got, such as page 3 of 12, which the person sees while it runs.
   confirms: true
   reads_when:
     changes:

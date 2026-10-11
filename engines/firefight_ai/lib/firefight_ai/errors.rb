@@ -28,6 +28,8 @@ module FirefightAi
   # Someone stopped the run while the model was answering.
   class Canceled < Error; end
 
+  # RubyLLM's error class says how a provider refused, such as a rate limit or a refused key, whatever words or status the
+  # provider used. Text is read only where a provider still says a spent balance in words alone (Credit).
   TRANSIENT_CLIENT_ERRORS = [
     RubyLLM::RateLimitError,
     RubyLLM::ServerError,
@@ -46,12 +48,6 @@ module FirefightAi
     RubyLLM::ModelNotFoundError
   ].freeze
 
-  # A provider's rate limit does not always arrive under the class the library has for it. OpenAI's
-  # tokens per minute limit came back as a bad request, and a bad request is given up on, so the
-  # status and the words decide before the class does.
-  RATE_LIMIT_STATUS = 429
-  RATE_LIMIT_WORDS = /rate limit/i
-
   # The provider did not answer after RubyLLM's own retries. It failed, was overloaded, kept refusing for rate, timed out
   # or could not be reached, and Halon's loop carries on with a backup model.
   PROVIDER_DOWN_ERRORS = [
@@ -64,9 +60,33 @@ module FirefightAi
     Faraday::ConnectionFailed
   ].freeze
 
+  # The provider refused the account itself rather than the call, such as a revoked key or one not allowed the model.
+  KEY_REFUSED_ERRORS = [ RubyLLM::UnauthorizedError, RubyLLM::ForbiddenError ].freeze
+  # The same, once translated, by the reason a FirefightAi::Error keeps.
+  KEY_REFUSED_REASONS = KEY_REFUSED_ERRORS.map { |kind| kind.name.demodulize }.freeze
+
   # The provider says the model is not there for this account, such as Claude on a Vertex AI project that has not enabled
-  # it. Another model on the same account may well be.
+  # it. Another model on the same account may well be. RubyLLM has no class of its own for it.
   MODEL_UNAVAILABLE_STATUS = 404
+
+  # Why a call was refused, which the app records a switch of model with. Credit is read first, since a provider can say a
+  # spent balance under the class of a rate limit or a refused key.
+  CAUSE_OUT_OF_CREDIT = :out_of_credit
+  CAUSE_KEY_REFUSED = :key_refused
+  CAUSE_UNAVAILABLE = :unavailable
+  CAUSE_DOWN = :down
+
+  def self.cause(error)
+    return CAUSE_OUT_OF_CREDIT if error.is_a?(OutOfCredit) || (error.is_a?(RubyLLM::Error) && Credit.from(error).out_of_credit?)
+    return CAUSE_KEY_REFUSED if key_refused?(error)
+    return CAUSE_UNAVAILABLE if model_unavailable?(error)
+
+    CAUSE_DOWN
+  end
+
+  def self.key_refused?(error)
+    KEY_REFUSED_ERRORS.any? { |kind| error.is_a?(kind) } || (error.is_a?(Error) && KEY_REFUSED_REASONS.include?(error.reason))
+  end
 
   def self.model_unavailable?(error) = error.is_a?(RubyLLM::Error) && error.try(:response).try(:status) == MODEL_UNAVAILABLE_STATUS
 
@@ -75,8 +95,7 @@ module FirefightAi
 
   # Credit is the payer's to fix and a wait for spend in flight clears by itself, so neither is the provider being down.
   def self.provider_down?(error)
-    down = PROVIDER_DOWN_ERRORS.any? { |kind| error.is_a?(kind) } || (error.is_a?(RubyLLM::Error) && rate_limited?(error))
-    return false unless down
+    return false unless PROVIDER_DOWN_ERRORS.any? { |kind| error.is_a?(kind) }
 
     credit = Credit.from(error)
     !credit.out_of_credit? && !credit.in_flight?
@@ -96,7 +115,6 @@ module FirefightAi
     return out_of_credit(error) if credit.out_of_credit?
     return TransientError.new(error.message, reason: IN_FLIGHT) if credit.in_flight?
     return TransientError.new(error.message, reason: error.class.name.demodulize) if TRANSIENT_CLIENT_ERRORS.any? { |kind| error.is_a?(kind) }
-    return TransientError.new(error.message, reason: RubyLLM::RateLimitError.name.demodulize) if rate_limited?(error)
 
     TerminalError.new(error.message, reason: error.class.name.demodulize)
   end
@@ -104,9 +122,5 @@ module FirefightAi
   def self.out_of_credit(error)
     Rails.logger.error({ event: OUT_OF_CREDIT_EVENT, error_class: error.class.name, error: error.message }.to_json)
     OutOfCredit.new(error.message)
-  end
-
-  def self.rate_limited?(error)
-    error.try(:response).try(:status) == RATE_LIMIT_STATUS || error.message.to_s.match?(RATE_LIMIT_WORDS)
   end
 end

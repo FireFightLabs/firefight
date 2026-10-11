@@ -21,6 +21,7 @@ class FirefightAi::PayerTakeoverTest < ActiveSupport::TestCase
     def to_llm = self
     def awaiting_approval? = false
     def with_max_output_tokens(_limit) = self
+    def deferred_tools = {}
 
     def with_context(context)
       @context = context

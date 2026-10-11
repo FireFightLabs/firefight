@@ -15,6 +15,8 @@ class Chat::Tools::Terminal < RubyLLM::Tool
   # Enough of what a command printed for the model to read, a larger output is saved like any large result.
   OUTPUT_LIMIT = 200_000
   TOKEN_SHOWN = "[REDACTED:terminal_token]".freeze
+  # Said under the step while the command runs, after the last line it wrote to $SANDBOX_PROGRESS.
+  RUNNING_FOR = "Running for %<time>s".freeze
 
   # Not offered where this install has no sandbox.
   def self.all(agent_run) = Integrations::Terminal.available?(agent_run.workspace) ? [ new(agent_run) ] : []
@@ -39,7 +41,9 @@ class Chat::Tools::Terminal < RubyLLM::Tool
       changes_sentence,
       clis_sentence,
       "No key or password is in the sandbox, so never put one in a command. The sandbox starts the first time it is needed " \
-      "and stays for the rest of this #{@agent_run.reads_only? ? 'run' : 'chat'} while it is used."
+      "and stays for the rest of this #{@agent_run.reads_only? ? 'run' : 'chat'} while it is used.",
+      "Where $SANDBOX_PROGRESS is set, a script that runs long can add a line to the file it names to say how far it got, " \
+      "such as page 3 of 12, which the person sees while it runs."
     ].compact.join(" ")
   end
 
@@ -86,11 +90,24 @@ class Chat::Tools::Terminal < RubyLLM::Tool
     session, token = Chat::TerminalSession.open!(@agent_run, changes: changes?(given), lasts: timeout(given).seconds)
     begin
       env = Chat::Terminal.env(session, token)
-      said = terminal.run(command, env: env, timeout: timeout(given))
+      said = terminal.run(command, env: env, timeout: timeout(given), on_output: running(token))
     ensure
       session.finish!
     end
     shown(without_token(said, token), placed, reached: env.key?(Chat::Terminal::URL_VARIABLE))
+  end
+
+  # How long the command has run, and the last line it wrote to $SANDBOX_PROGRESS, shown under the step while it runs
+  # (RubyLLM::Tool#progress). The token never reaches it, should a script print it there.
+  def running(token)
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    said = nil
+    lambda do |text|
+      line = text.to_s.lines.map(&:strip).reject(&:empty?).last
+      said = line.gsub(token, TOKEN_SHOWN) if line
+      seconds = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round
+      progress([ said, format(RUNNING_FOR, time: Integrations::Capabilities::History.duration(seconds)) ].compact.join(" · "))
+    end
   end
 
   # The token is dead once the command ends, and still never reaches the chat, should a command print it.

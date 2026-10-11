@@ -8,13 +8,21 @@ module Chat::Browsing
   # expected_send is the request the person agreed the confirmed step sends, method and address, so a page that now
   # sends something else is stopped rather than sent. Answers what the browser saw, its screenshots still in it for the
   # caller to keep (Chat::Screenshot.record!) once it knows the step it records the check under.
-  def self.run(workspace:, box_key:, check:, expected_send: nil)
+  # on_progress hears how far the check got while it runs (Integrations::Terminal::Progress).
+  def self.run(workspace:, box_key:, check:, expected_send: nil, on_progress: nil)
     login = check.log_in ? login_for!(workspace, check) : nil
     secret = login && Integrations::SiteLogins.secret_for(workspace, login.id)
     spec = check.to_spec(expected_send: expected_send)
     spec["login"] = login_spec(login, secret) if login
-    browsed = Integrations::Terminal.new(key: box_key, workspace: workspace).browse(spec)
+    told = on_progress && ->(found) { on_progress.call(found.with(message: without_password(found.message, secret))) }
+    browsed = Integrations::Terminal.new(key: box_key, workspace: workspace).browse(spec, on_progress: told)
     Chat::BrowserCheck::Answer.new(browsed.answer, check: check, region: browsed.region, login_name: login&.name, secrets: [ secret.to_h["password"] ])
+  end
+
+  # The check never reports what it types, and a password is taken out all the same, as it is from the answer.
+  def self.without_password(message, secret)
+    password = secret.to_h["password"].to_s
+    password.empty? ? message : message.to_s.gsub(password, Chat::BrowserCheck::Answer::HIDDEN)
   end
 
   # The saved login for the address's site, or Refused saying none is saved.

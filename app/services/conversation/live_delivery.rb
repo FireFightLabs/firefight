@@ -131,6 +131,17 @@ class Conversation::LiveDelivery
     )
   end
 
+  # The step again, still running, with what its tool last said about how far it got (Chat::ToolActivity).
+  def activity(key:, step:, activity:, kind: Chat::Tools::KIND_ACT)
+    return unless activity_pace.due?(key, activity)
+
+    broadcast(
+      type: EVENT_STEP, key: key, title: step.title, headline: step.headline, asked: step.asked,
+      status: STATUS_RUNNING, kind: kind, seconds: 0, card: (step.card&.to_h if step.card&.shown_while_running?), outcome: nil,
+      activity: activity.to_h
+    )
+  end
+
   # The page reads the helpers from the chat, so the event only says to look.
   def helpers(key:, helpers:)
     broadcast(type: EVENT_HELPERS, key: key) if helpers.any?
@@ -183,6 +194,8 @@ class Conversation::LiveDelivery
   private
 
   def progress_pace = @progress_pace ||= Chat::CodeFixProgress::Pace.new(every: PROGRESS_EVERY)
+
+  def activity_pace = @activity_pace ||= Chat::CodeFixProgress::Pace.new(every: PROGRESS_EVERY)
 
   # Action Cable hands broadcasts to a pool of threads, so they can reach the page out of order. Each says when it was
   # sent, in microseconds and never twice the same, and the page places it by that.

@@ -13,19 +13,21 @@ module FirefightAi
       @ai_model = model
     end
 
-    def run(chat:, tools:, seed_pack:, budget:, answered:, canceled: -> { false }, on_step: nil, nudge: nil, memory: nil,
-            take_messages: nil, &on_turn)
+    # deferred_tools are found by the provider's own tool search where it has one (FirefightAi.ready_chat). purse and
+    # on_backup go to the loop, as an investigation's do, see AgentLoop.
+    def run(chat:, tools:, seed_pack:, budget:, answered:, deferred_tools: [], canceled: -> { false }, on_step: nil, nudge: nil,
+            memory: nil, take_messages: nil, purse: nil, on_backup: nil, &on_turn)
       FirefightAi.translating_errors do
-        FirefightAi.bind(chat, ai_model)
-        chat.with_instructions(system_prompt)
-        chat.with_tools(*tools)
-        chat.with_caching
-        chat.add_message(role: :user, content: opening(seed_pack)) if chat.to_llm.messages.none? { |message| message.role == :user }
+        FirefightAi.ready_chat(chat, choice: ai_model, instructions: system_prompt, tools: tools, deferred_tools: deferred_tools,
+                                     cache_ttl: FirefightAi::LONG_CACHE)
+        if chat.to_llm.messages.none? { |message| message.role == :user }
+          chat.add_message(role: :user, content: opening(seed_pack), cache_until_here: true, cache_ttl: FirefightAi::LONG_CACHE)
+        end
 
         AgentLoop.new(
           chat: chat, budget: budget, answered: answered, canceled: canceled,
           on_step: on_step, nudge: nudge, memory: memory, inference: inference_context, output: output_cap, take_messages: take_messages,
-          choice: ai_model, purpose: AiPurpose::INVESTIGATION
+          choice: ai_model, purpose: AiPurpose::INVESTIGATION, purse: purse, on_backup: on_backup
         ).run(&on_turn)
       end
     end
@@ -49,7 +51,7 @@ module FirefightAi
         - #{LookFirstRule::GUESSED_CALL_RULE}
         - #{LookFirstRule::GENERAL_READ_RULE}
         - #{LookFirstRule::CAUSE_RULE}
-        - You hold almost no tools to begin with. open_tools lists every group of tools there is. Open the group that fits what you need next, and the tools in it you may use become callable.
+        - #{ToolFinding::RULE}
         - #{OutsideRule::CHANGED_RULE}
         - #{OutsideRule::STATUS_RULE}
         - #{OutsideRule::BLIND_SPOT_RULE}

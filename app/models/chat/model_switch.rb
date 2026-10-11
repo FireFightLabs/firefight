@@ -26,13 +26,13 @@ class Chat::ModelSwitch < ApplicationRecord
     )
   end
 
-  def self.cause_of(error)
-    return CAUSE_OUT_OF_CREDIT if AiPayer.out_of_credit?(error)
-    return CAUSE_KEY_REFUSED if AiPayer.key_refused?(error)
-    return CAUSE_UNAVAILABLE if FirefightAi.model_unavailable?(error)
+  # The engine reads why from the class RubyLLM raised (FirefightAi.cause).
+  ENGINE_CAUSES = {
+    FirefightAi::CAUSE_DOWN => CAUSE_DOWN, FirefightAi::CAUSE_UNAVAILABLE => CAUSE_UNAVAILABLE,
+    FirefightAi::CAUSE_OUT_OF_CREDIT => CAUSE_OUT_OF_CREDIT, FirefightAi::CAUSE_KEY_REFUSED => CAUSE_KEY_REFUSED
+  }.freeze
 
-    CAUSE_DOWN
-  end
+  def self.cause_of(error) = ENGINE_CAUSES.fetch(FirefightAi.cause(error))
 
   # Unique among a chat's steps, whose keys are tool call ids.
   def step_key = "model-switch-#{id}"

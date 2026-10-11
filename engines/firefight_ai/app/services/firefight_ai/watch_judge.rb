@@ -11,25 +11,41 @@ module FirefightAi
       def initialize(state:, said:, parts:, link: nil) = super
     end
 
-    def initialize(workspace, inferable: nil, member: nil)
+    # Where the readings leave the thing, as a choice among the states, asked of RubyLLM::Judge where the deployment
+    # judges that way (Judging). The structured answer's own state stands where it does not, or when the judgment could
+    # not be made this time. A judge not sure of any state moves nothing, as the prompt asks of a model that is unsure.
+    STATE_QUESTION = "Where do the readings show the thing the question is about now, judged from the newest reading and how it got there?".freeze
+    STATE_OPTIONS = {
+      Schemas::WatchReading::NOT_STARTED => "It has not begun, or it is queued or pending",
+      Schemas::WatchReading::RUNNING => "It has begun and is not over, such as a run in progress or a job that started",
+      Schemas::WatchReading::DONE => "The question is answered yes, held for as long as it names",
+      Schemas::WatchReading::FAILED => "Something went wrong, such as a failed, cancelled or crashed state, even late in a long list",
+      Schemas::WatchReading::NOTHING => "The readings do not show the thing at all, such as an empty list, another run or something else"
+    }.freeze
+    JUDGMENT_TEMPLATE = "watch_reading_judgment".freeze
+
+    # judgments names how the state is decided, Configuration#judgments when nil (Judging).
+    def initialize(workspace, inferable: nil, member: nil, judgments: nil)
       @workspace = workspace
       @inferable = inferable
       @member = member
+      @judgments = judgments
     end
 
     # question is what the step waits on, in plain words. readings are the step's recent readings that changed, oldest
     # first, as pairs of when and what it read. so_far is where the watch last had it, not started or running. steady is
     # how long the newest reading has stayed the same, in words, for a condition that names a time.
     def reading(question:, readings:, so_far:, steady: nil)
-      content = ask(READING_PROMPT, Schemas::WatchReading,
-                    "## The question\n#{question}\n\n## Where it was so far\n#{so_far}\n\n## How long the newest reading has stayed the same\n" \
-                    "#{steady.presence || 'It just changed.'}\n\n#{readings_text(readings)}")
+      text = "## The question\n#{question}\n\n## Where it was so far\n#{so_far}\n\n## How long the newest reading has stayed the same\n" \
+             "#{steady.presence || 'It just changed.'}\n\n#{readings_text(readings)}"
+      content = ask(READING_PROMPT, Schemas::WatchReading, text)
       parts = Array(content[:parts]).filter_map do |part|
         part = part.to_h.with_indifferent_access
         state = part[:state].presence_in(Schemas::WatchReading::PART_STATES)
         [ part[:name].to_s.strip, state ] if part[:name].present? && state
       end
-      Reading.new(state: content[:state].presence_in(Schemas::WatchReading::STATES), said: content[:said].to_s.strip, parts: parts,
+      state = content[:state].presence_in(Schemas::WatchReading::STATES)
+      Reading.new(state: judged_state(text, state), said: content[:said].to_s.strip, parts: parts,
                   link: link_in(content[:link], readings.map(&:last).join("\n")))
     end
 
@@ -107,6 +123,18 @@ module FirefightAi
 
     private
 
+    def judged_state(text, structured)
+      judge = Judging.choice_for(@workspace, mode: @judgments)
+      return structured unless judge
+
+      judgment = Judging.judge(judge, inference: judgment_context(judge), input: text,
+                                      questions: { state: { type: :choice, instructions: STATE_QUESTION, options: STATE_OPTIONS } })
+      Judging.sure_choice(judgment[:state])
+    rescue FirefightAi::Error => error
+      Rails.logger.warn({ event: "watch.judgment_failed", error: error.class.name, reason: error.reason }.to_json)
+      structured
+    end
+
     NEWEST_ROOM = 8_000
     EARLIER_ROOM = 1_500
 
@@ -137,6 +165,14 @@ module FirefightAi
     end
 
     def model_choice = @model_choice ||= FirefightAi.model_for(AiPurpose::SUMMARY, workspace: @workspace)
+
+    def judgment_context(choice)
+      wording = { question: STATE_QUESTION, options: STATE_OPTIONS }.to_json
+      {
+        workspace: @workspace, feature: FEATURE, provider: choice.provider_name, model: choice.model, inferable: @inferable, member: @member,
+        prompt_template: JUDGMENT_TEMPLATE, prompt_version: Prompt.version(wording), prompt_text: wording
+      }
+    end
 
     def inference_context(prompt)
       {

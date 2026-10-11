@@ -22,7 +22,7 @@ class Chat::Tools::TerminalTest < ActiveSupport::TestCase
 
   test "a command runs in the run's box with a token of its own, and the token ends with the command" do
     handed = nil
-    Integrations::Terminal.any_instance.expects(:run).with do |command, env:, timeout:|
+    Integrations::Terminal.any_instance.expects(:run).with do |command, env:, timeout:, **|
       handed = env
       command == "echo hi" && timeout == Chat::Tools::Terminal::DEFAULT_TIMEOUT
     end.returns("stdout" => "hi\n", "stderr" => "", "exit_code" => 0, "timed_out" => false)
@@ -35,6 +35,24 @@ class Chat::Tools::TerminalTest < ActiveSupport::TestCase
     assert_nil Chat::TerminalSession.authenticate(handed[Chat::Terminal::TOKEN_VARIABLE]), "the token ends with the command"
     invocation = Ability::Invocation.find_by!(workspace: @workspace, action_key: Ability::Action::SANDBOX_COMMAND)
     assert_equal [ Ability::Invocation::DECISION_ALLOW, @member ], [ invocation.decision, invocation.principal ]
+  end
+
+  test "while a command runs, its step says how long it has run and the last line it wrote for the person, never its token" do
+    Integrations::Terminal.any_instance.expects(:run).with do |_command, env:, on_output:, **|
+      on_output.call("")
+      on_output.call("page 2 of 12\npage 3 of 12 #{env[Chat::Terminal::TOKEN_VARIABLE]}\n")
+      on_output.call("")
+      true
+    end.returns("stdout" => "12\n", "stderr" => "", "exit_code" => 0)
+    said = []
+    command = tool
+    command.stubs(:progress).with { |message| said << message }
+
+    command.call(command: "./count.sh")
+
+    assert_match(/\ARunning for \d+ seconds\z/, said.first)
+    assert_match(/\Apage 3 of 12 #{Regexp.escape(Chat::Tools::Terminal::TOKEN_SHOWN)} · Running for \d+ seconds\z/, said.second)
+    assert_equal said.second.split(" · ").first, said.last.split(" · ").first, "the last line stays until the command writes another"
   end
 
   test "a command that prints its own token never hands it to the chat" do

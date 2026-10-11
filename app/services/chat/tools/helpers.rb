@@ -6,6 +6,9 @@ class Chat::Tools::Helpers < RubyLLM::Tool
   TITLE_ARG = "title".freeze
   BRIEF_ARG = "brief".freeze
   DEEP_ARG = "deep".freeze
+  # How far the helpers got, shown under the step while they work (RubyLLM::Tool#progress).
+  STARTED = "Helpers started".freeze
+  DONE = "%<done>d of %<total>d done".freeze
 
   CHECK = {
     "type" => "object",
@@ -54,7 +57,8 @@ class Chat::Tools::Helpers < RubyLLM::Tool
     checks = self.class.checks_in(arguments)
     return failed(tool_call, "Give at least one check with a title and a brief.") if checks.empty?
 
-    result = Chat::Helpers.run!(@agent_run, share: @share, tool_call_id: tool_call&.id.to_s, checks: checks)
+    progress(STARTED, value: 0, total: checks.size)
+    result = Chat::Helpers.run!(@agent_run, share: @share, tool_call_id: tool_call&.id.to_s, checks: checks, on_done: method(:reported))
     Chat::Tools.mark_failed(@agent_run, tool_call&.id) if result.failed
     Chat::Tools.hand_over(@agent_run, NAME, Chat::ToolCall::Outcome.new(value: result.text))
   end
@@ -81,6 +85,9 @@ class Chat::Tools::Helpers < RubyLLM::Tool
   end
 
   private
+
+  # Told on the finishing helper's thread, which RubyLLM lets report for this call.
+  def reported(done, total) = progress(format(DONE, done: done, total: total), value: done, total: total)
 
   def failed(tool_call, text)
     Chat::Tools.mark_failed(@agent_run, tool_call&.id)

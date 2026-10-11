@@ -31,7 +31,7 @@ class Chat::Message < ApplicationRecord
     parts = files.map { |file| file.for_model(chat, number: (shown += 1 if chat.shown_whole?(file))) }
     RubyLLM::Message.new(
       role: message.role, content: [ words, (Chat::Attachment.heading(files.size) if files.any?), *parts.map(&:text) ].compact.join("\n\n"),
-      attachments: parts.filter_map(&:whole), cache_until_here: message.cache_until_here?
+      attachments: parts.filter_map(&:whole), cache_until_here: message.cache_until_here?, cache_ttl: message.cache_ttl
     )
   end
 
