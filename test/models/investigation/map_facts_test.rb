@@ -23,6 +23,17 @@ class Investigation::MapFactsTest < ActiveSupport::TestCase
     assert_equal 0, @investigation.seed_pack["resources_held_back"]
   end
 
+  # Before the first model call, Firefight's own code lists what changed around the failing resources as candidates.
+  test "a run starts from the suspects, what changed on its resources and their neighbours nearest to when it began, as candidates" do
+    began = @incident.detected_at || @incident.declared_at
+    @web.changes_seen.create!(workspace: @workspace, kind: ResourceMap::Change::KIND_DEPLOYED, from_value: "a1", to_value: "b2", happened_at: began - 5.minutes)
+
+    suspects = @investigation.build_seed_pack!["suspects"]
+
+    assert_match "Deploy: web deployed b2", suspects.first, "the change nearest to when it began comes first"
+    assert_includes FirefightAi::Facts.opening("Facts:", { "suspects" => suspects }), FirefightAi::Facts::READING["suspects"]
+  end
+
   test "resources the clues name are added after the services' own, with the clue that named them" do
     source = @workspace.alert_sources.create!(name: "Grafana", provider: AlertSource::PROVIDER_GENERIC)
     source.alerts.create!(workspace: @workspace, incident: @incident, external_id: "a1", fingerprint: "pool", fields: { "service" => "orders-db" },

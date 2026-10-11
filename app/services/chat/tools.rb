@@ -46,7 +46,9 @@ module Chat::Tools
   CARD_HELPERS = "helpers".freeze
   # The pages Halon's browser saw. The page finds them by the step's tool call, since they exist once the check ran.
   CARD_SCREENSHOTS = "screenshots".freeze
-  CARD_KINDS = [ CARD_INTEGRATIONS, CARD_INVESTIGATION, CARD_CHART, CARD_HELPERS, CARD_SCREENSHOTS ].freeze
+  # Halon's theory board, drawn under the last step that updated it. The page finds it by the step's tool call.
+  CARD_THEORIES = "theories".freeze
+  CARD_KINDS = [ CARD_INTEGRATIONS, CARD_INVESTIGATION, CARD_CHART, CARD_HELPERS, CARD_SCREENSHOTS, CARD_THEORIES ].freeze
 
   def self.chart_card = Card.new(kind: CARD_CHART, category: nil)
 
@@ -67,7 +69,7 @@ module Chat::Tools
   # So is a call its guard shows to read through a tool that can also change things, when the call's arguments are known.
   def self.kind(tool_name, workspace, arguments = nil)
     name = tool_name.to_s
-    reading = [ ReadResult.tool_name, Helpers::NAME, Web::SEARCH, Web::READ, Docs::SEARCH, Docs::READ, OutsideCheck::NAME, WhatChanged::NAME ].include?(name) ||
+    reading = [ ReadResult.tool_name, Helpers::NAME, AskSpecialist::NAME, Theories::NAME, Web::SEARCH, Web::READ, Docs::SEARCH, Docs::READ, OutsideCheck::NAME, WhatChanged::NAME ].include?(name) ||
               (name == Browser::NAME && !Browser.sends?(arguments)) ||
               firefight_reading_names.include?(name) || workspace.reading_tool_names.include?(name) || guarded_read?(workspace, name, arguments)
     reading ? KIND_READ : KIND_ACT
@@ -165,7 +167,7 @@ module Chat::Tools
   def self.internal_names
     @internal_names ||= [
       Open.tool_name, Investigation::Tools::Conclude.tool_name, Investigation::Tools::RecordHypothesis.tool_name,
-      *Conversation::Tools.plan_tool_names
+      Chat::Specialists::Report::NAME, *Conversation::Tools.plan_tool_names
     ].freeze
   end
 
@@ -174,6 +176,8 @@ module Chat::Tools
   def self.step(tool_name, arguments, workspace: nil)
     return nil if tool_name.blank? || internal_names.include?(tool_name.to_s)
     return Helpers.shown(arguments) if tool_name.to_s == Helpers::NAME
+    return AskSpecialist.shown(arguments) if tool_name.to_s == AskSpecialist::NAME
+    return Theories.shown(arguments) if tool_name.to_s == Theories::NAME
 
     asked = shown_arguments(arguments.to_h.stringify_keys.except(INTENT_ARG, LookFirst::BECAUSE))
     Step.new(
@@ -375,13 +379,21 @@ module Chat::Tools
     [ shown&.title, shown&.headline ].compact_blank.join(" ")
   end
 
-  # What the chat found earlier, for whoever acts now, so a grant taken away since is not handed back.
+  # What the chat found earlier, for whoever acts now, so a grant taken away since is not handed back. A read a specialist
+  # holds is never handed back to a chat that asks specialists.
   def self.known(agent_run, chat)
     names = chat.known_tool_names
     return [] if names.empty?
 
-    ready = catalog(agent_run).select(&:tool).index_by(&:name)
+    ready = halons(agent_run, catalog(agent_run).select(&:tool)).index_by(&:name)
     names.filter_map { |name| ready[name]&.tool }
+  end
+
+  # What may be in Halon's hands. Where the chat asks specialists, a connection's reads are theirs (Chat::Specialists).
+  def self.halons(agent_run, entries)
+    return entries unless Chat::Specialists.for?(agent_run)
+
+    entries.reject { |entry| Chat::Specialists.reserved?(agent_run.workspace, entry) }
   end
 
   # How the catalog reaches a chat. Only what whoever acts may call is handed over, built from the same catalog as
@@ -393,19 +405,35 @@ module Chat::Tools
   # Anywhere else every tool is held from the start when all of them fit the budget (FirefightAi.fits_up_front?), so
   # the tool list in front of the cached prompt never changes during the chat. Past it nothing is handed over, and the
   # agent opens groups with open_tools.
-  Presented = Data.define(:loaded, :deferred, :searched, :held) do
-    def self.none = new(loaded: [], deferred: [], searched: false, held: false)
+  # Where the chat asks specialists (specialists true), a connection's reads are theirs and never handed over. Held from
+  # the start are Firefight's own tools, the capabilities, the general reads and any connection no specialist reads, and
+  # a change in a connected system is loaded by name, by searching or with open_tools, when Halon decides to make it.
+  Presented = Data.define(:loaded, :deferred, :searched, :held, :specialists) do
+    def initialize(specialists: false, **) = super
+
+    def self.none(specialists: false) = new(loaded: [], deferred: [], searched: false, held: false, specialists: specialists)
   end
 
   def self.presented(agent_run, choice)
-    ready = catalog(agent_run).select(&:tool)
-    unless FirefightAi.tool_search?(choice)
-      tools = ready.map(&:tool)
-      return FirefightAi.fits_up_front?(tools) ? Presented.new(loaded: tools, deferred: [], searched: false, held: true) : Presented.none
-    end
-
+    specialists = Chat::Specialists.for?(agent_run)
+    ready = halons(agent_run, catalog(agent_run).select(&:tool))
     core, tail = ready.partition { |entry| entry.source == Chat::Skill::SOURCE_FIREFIGHT && !writing_names.include?(entry.name.to_s) }
-    Presented.new(loaded: core.map(&:tool), deferred: tail.map(&:tool), searched: true, held: false)
+    return Presented.new(loaded: core.map(&:tool), deferred: tail.map(&:tool), searched: true, held: false, specialists: specialists) if FirefightAi.tool_search?(choice)
+    return held_for_specialists(agent_run, ready, core) if specialists
+
+    tools = ready.map(&:tool)
+    FirefightAi.fits_up_front?(tools) ? Presented.new(loaded: tools, deferred: [], searched: false, held: true) : Presented.none
+  end
+
+  # Without the provider's tool search a chat that asks specialists holds its own tools and any connection no specialist
+  # reads, when they fit, else Firefight's reads, the capabilities that read and the general reads, as a search would. A
+  # connection's change is never held, since it is loaded by name when Halon decides to make it.
+  def self.held_for_specialists(agent_run, ready, core)
+    own = ready.select { |entry| entry.source == Chat::Skill::SOURCE_FIREFIGHT || agent_run.workspace.reading_tool_names.include?(entry.name.to_s) }.map(&:tool)
+    return Presented.new(loaded: own, deferred: [], searched: false, held: true, specialists: true) if FirefightAi.fits_up_front?(own)
+
+    tools = core.map(&:tool)
+    FirefightAi.fits_up_front?(tools) ? Presented.new(loaded: tools, deferred: [], searched: false, held: false, specialists: true) : Presented.none(specialists: true)
   end
 
   # Firefight's own tools and capabilities that change something, which a turn finds by searching rather than holding.

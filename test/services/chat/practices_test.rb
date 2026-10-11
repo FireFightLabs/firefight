@@ -73,7 +73,7 @@ class Chat::PracticesTest < ActiveSupport::TestCase
 
   test "how to reach a provider is said by the tools that read it" do
     assert_match "its skill, guides and search_docs come first", Chat::Tools::Web.new(@turn, Chat::Tools::Web::SEARCH).description
-    assert_match "A 404 or 405 on a path you wrote may mean the API has no such call", Integrations::ApiReads::PATH_PARAMS.dig("path", "description")
+    assert_match "A read that fails on a path the key reads do not list answers with the nearest ones they do", Integrations::ApiReads::PATH_PARAMS.dig("path", "description")
     assert_match "look here before asking a person", Mcp::Tools::GetResourceMap.description_value
     assert_match "before blaming the team's own code", Mcp::Tools::CheckStatusPage.description_value
     assert_match "rather than guessing what it did", Mcp::Tools::BlindSpots.description_value

@@ -16,7 +16,8 @@ module Integrations
       PATHS = %r{\A/subscriptions/[^/]+(/|\z)|\A/providers/[A-Za-z0-9.]+(/operations)?\z}
       REFUSED = {}.freeze
       SECRET_PATHS = /(?!)/
-      SECRET_FIELDS = /key\z|keyvalue\z|keys\z|\Asas|sas(url|token|uri)\z|connection.?string|password|secret/i
+      # A site's appSettings are its environment variables, which a Web App's or Function App's configuration can carry.
+      SECRET_FIELDS = /key\z|keyvalue\z|keys\z|\Asas|sas(url|token|uri)\z|connection.?string|password|secret|\Aappsettings\z/i
       # What describes a key rather than holding it stays readable.
       DESCRIBING = /\A(name|type|id|keyname|sendkeyname|keyvaultreferenceidentity|keyvaulturi|keysource|keyvaultproperties)\z/i
       SAS = /[?&]sig=/

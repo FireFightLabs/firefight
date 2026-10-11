@@ -18,6 +18,14 @@ class Chat::Helper < ApplicationRecord
   TITLE_LIMIT = 60
   BRIEF_LIMIT = 1_000
   REPORT_LIMIT = 2_000
+  # A specialist's report carries the lines and links that show each finding. Halon's own chat saves anything over its
+  # model's share whole for read_result.
+  SPECIALIST_REPORT_LIMIT = 8_000
+
+  # The tool Halon asks specialists with, and the one a specialist reports with, named here so a record of a chat can tell
+  # their calls apart without reaching for the tools themselves.
+  ASK_SPECIALIST = "ask_specialist".freeze
+  REPORT_FINDINGS = "report_findings".freeze
 
   # Why a helper ended without a report, in the words Halon and the person read.
   OUT_OF_BUDGET = "It ran out of the budget it was given before it could report.".freeze
@@ -32,6 +40,8 @@ class Chat::Helper < ApplicationRecord
   has_one :own_chat, class_name: "Chat", as: :owner, dependent: :destroy
 
   encrypts :report
+  # The changes a specialist proposed, as JSON. Arguments can hold what it read.
+  encrypts :proposals
 
   validates :status, inclusion: { in: STATUSES }
 
@@ -42,18 +52,31 @@ class Chat::Helper < ApplicationRecord
 
   def reported? = status == STATUS_REPORTED
 
+  # A specialist reads one kind of system for Halon (Chat::Specialists), where a helper takes any narrow check.
+  def specialist? = domain.present?
+
+  # Each change it proposed, as the tool, arguments, because and undo it gave.
+  def proposed_changes
+    return [] if proposals.blank?
+
+    Array(JSON.parse(proposals))
+  rescue JSON::ParserError
+    []
+  end
+
   # Its own chat holds only the brief and the work, so a rebuild puts all of it away and starts again from the brief.
   def keeps_in_memory?(_message) = false
 
   def memory_brief = "Your brief, as Halon gave it: #{brief}"
 
   # Ends it once, from running. False when something else ended it first.
-  def finish!(status, report: nil, ended_because: nil, turns_used: nil, spent_micros: nil)
+  def finish!(status, report: nil, ended_because: nil, turns_used: nil, spent_micros: nil, proposals: [])
     moved = self.class.where(id: id, status: STATUS_RUNNING).update_all(
       { status: status, ended_because: ended_because, finished_at: Time.current, updated_at: Time.current,
         turns_used: turns_used, spent_micros: spent_micros }.compact
     ) == 1
-    update_column(:report, report.to_s.truncate(REPORT_LIMIT)) if moved && report.present?
+    update_column(:report, report.to_s.truncate(specialist? ? SPECIALIST_REPORT_LIMIT : REPORT_LIMIT)) if moved && report.present?
+    update_column(:proposals, proposals.to_json) if moved && proposals.any?
     reload
     moved
   end
@@ -63,9 +86,12 @@ class Chat::Helper < ApplicationRecord
     self.class.where(id: id).update_all(turns_used: turns_used, spent_micros: spent_micros, updated_at: Time.current)
   end
 
-  # How it went, as Halon reads it back and as a rebuilt chat remembers it.
+  # How it went, as Halon reads it back and as a rebuilt chat remembers it. A specialist's report runs over several lines,
+  # so it starts on its own.
   def line
     said = reported? ? report : ended_because
+    return "#{title}:\n#{said.presence || 'nothing reported'}" if specialist?
+
     "- #{title}: #{said.presence || 'nothing reported'}"
   end
 
@@ -106,7 +132,7 @@ class Chat::Helper < ApplicationRecord
         create!(
           chat: chat, workspace_id: chat.workspace_id, tool_call_id: tool_call_id, position: first + index + 1,
           title: check.title.to_s.squish.truncate(TITLE_LIMIT), brief: check.brief.to_s.strip.truncate(BRIEF_LIMIT),
-          deep: check.deep, started_at: Time.current
+          deep: check.deep, domain: check.domain, started_at: Time.current
         )
       end
     end

@@ -1,0 +1,102 @@
+# Northflank's key reads through api_request, at most 40, which close the northflank_fixes skill
+# (Integrations::ApiIndex). Edit a read's call, purpose or query here, then run bin/rails provider_docs:api_indexes.
+tool: api_request
+skill: northflank_fixes
+reference: api
+reads:
+  - call: GET services
+    purpose: Every service in the project, with its type and status.
+    query: [ per_page, cursor ]
+  - call: GET services/{serviceId}
+    purpose: One service, with its status, deployment, ports and resource plan.
+  - call: GET services/{serviceId}/deployment
+    purpose: What a service runs now, its image or build, its instances and plan.
+  - call: GET services/{serviceId}/deployments
+    purpose: A service's deployment history, newest first.
+    query: [ releaseType, per_page, cursor ]
+  - call: GET services/{serviceId}/rollout
+    purpose: A service's rollout in progress, with its stage and status.
+  - call: GET services/{serviceId}/build
+    purpose: A service's builds, with each one's status, commit and when it ran.
+    query: [ per_page, cursor ]
+  - call: GET services/{serviceId}/build/{buildId}
+    purpose: One build of a service, with its status, commit and timing.
+  - call: GET services/{serviceId}/containers
+    purpose: A service's containers, with each one's status, restarts and when it started.
+    query: [ per_page, cursor ]
+  - call: GET services/{serviceId}/health-checks
+    purpose: A service's health checks, their paths, ports and thresholds.
+  - call: GET services/{serviceId}/ports
+    purpose: A service's ports, their protocols, public addresses and custom domains.
+  - call: GET jobs
+    purpose: Every job in the project, cron and manual.
+    query: [ per_page, cursor ]
+  - call: GET jobs/{jobId}
+    purpose: One job, with its schedule, status and settings.
+  - call: GET jobs/{jobId}/runs
+    purpose: A job's runs, with each one's status and when it started and finished.
+    query: [ per_page, cursor ]
+  - call: GET jobs/{jobId}/runs/{runId}
+    purpose: One run of a job, with its status, exit and timing.
+  - call: GET jobs/{jobId}/containers
+    purpose: A job's containers, narrowed to one run, with each one's status.
+    query: [ runId, per_page, cursor ]
+  - call: GET jobs/{jobId}/deployment
+    purpose: What a job runs now, its image or build and plan.
+  - call: GET jobs/{jobId}/build
+    purpose: A job's builds, with each one's status and commit.
+    query: [ per_page, cursor ]
+  - call: GET jobs/{jobId}/build/{buildId}
+    purpose: One build of a job, with its status, commit and timing.
+  - call: GET jobs/{jobId}/health-checks
+    purpose: A job's health checks and their thresholds.
+  - call: GET addons
+    purpose: Every addon in the project, such as Postgres or Redis, with its status.
+    query: [ per_page, cursor ]
+  - call: GET addons/{addonId}
+    purpose: One addon, with its type, version, status and resources.
+  - call: GET addons/{addonId}/containers
+    purpose: An addon's containers, with each one's status and restarts.
+    query: [ per_page, cursor ]
+  - call: GET addons/{addonId}/version
+    purpose: An addon's version and the versions it can move to.
+  - call: GET addons/{addonId}/backups
+    purpose: An addon's backups, with each one's status and when it was taken.
+    query: [ per_page, cursor ]
+  - call: GET addons/{addonId}/backups/{backupId}
+    purpose: One backup of an addon, with its status, size and timing.
+  - call: GET addons/{addonId}/backup-schedules
+    purpose: An addon's backup schedules and how long backups are kept.
+    query: [ per_page, cursor ]
+  - call: GET addons/{addonId}/restores
+    purpose: Restores run on an addon, with each one's status.
+    query: [ per_page, cursor ]
+  - call: GET pipelines
+    purpose: Every pipeline in the project.
+    query: [ per_page, cursor ]
+  - call: GET pipelines/{pipelineId}
+    purpose: One pipeline, with the services and jobs in each stage.
+  - call: GET pipelines/{pipelineId}/release-flows/{stage}/runs
+    purpose: A pipeline stage's release flow runs, with each one's status.
+    query: [ status, concluded, per_page, cursor ]
+  - call: GET pipelines/{pipelineId}/release-flows/{stage}/runs/{runId}
+    purpose: One release flow run, with its steps and their status.
+  - call: GET workflows
+    purpose: Every workflow in the project.
+    query: [ per_page, cursor ]
+  - call: GET workflows/{workflowId}/runs
+    purpose: A workflow's runs, with each one's status.
+    query: [ per_page, cursor ]
+  - call: GET workflows/{workflowId}/runs/{runId}
+    purpose: One workflow run, with its steps and their status.
+  - call: GET volumes
+    purpose: Every volume in the project, with its size and what it is attached to.
+    query: [ per_page, cursor ]
+  - call: GET volumes/{volumeId}
+    purpose: One volume, with its size, storage class and attached service.
+  - call: GET volumes/{volumeId}/backups
+    purpose: A volume's backups, with each one's status and when it was taken.
+    query: [ per_page, cursor ]
+  - call: GET secrets
+    purpose: The project's secret groups by name, type and priority, never their values.
+    query: [ per_page, cursor ]

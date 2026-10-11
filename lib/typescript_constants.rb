@@ -195,7 +195,7 @@ module TypescriptConstants
       }, nil),
       Export.new("AGENT_CARD_KINDS", {
         "INTEGRATIONS" => Chat::Tools::CARD_INTEGRATIONS, "INVESTIGATION" => Chat::Tools::CARD_INVESTIGATION,
-        "CHART" => Chat::Tools::CARD_CHART, "HELPERS" => Chat::Tools::CARD_HELPERS, "SCREENSHOTS" => Chat::Tools::CARD_SCREENSHOTS
+        "CHART" => Chat::Tools::CARD_CHART, "HELPERS" => Chat::Tools::CARD_HELPERS, "SCREENSHOTS" => Chat::Tools::CARD_SCREENSHOTS, "THEORIES" => Chat::Tools::CARD_THEORIES
       }, nil),
       Export.new("HELPER_STATUSES", {
         "RUNNING" => Chat::Helper::STATUS_RUNNING, "REPORTED" => Chat::Helper::STATUS_REPORTED, "FAILED" => Chat::Helper::STATUS_FAILED,
@@ -232,6 +232,7 @@ module TypescriptConstants
       Export.new("INVESTIGATION_LIVE_STATUSES", Investigation::LIVE_STATUSES, nil),
       Export.new("INVESTIGATION_TRIGGERS", Investigation::TRIGGER_SOURCES, "InvestigationTrigger"),
       Export.new("HYPOTHESIS_STATUSES", Investigation::Hypothesis::STATUSES, "HypothesisStatus"),
+      Export.new("CHAT_THEORY_STATUSES", Chat::Theory::STATUSES, "ChatTheoryStatus"),
       Export.new("INVESTIGATION_STEP_STATUSES", Investigation::Step::STATUSES, "InvestigationStepStatus"),
       Export.new("HYPOTHESIS_STATUS", {
         "OPEN" => Investigation::Hypothesis::STATUS_OPEN, "SUPPORTED" => Investigation::Hypothesis::STATUS_SUPPORTED,

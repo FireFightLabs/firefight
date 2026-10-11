@@ -19,6 +19,10 @@ class Conversation::Bench
   # terminal gives a run a pool of this many plus one.
   AT_ONCE = 3
 
+  # The ledger's features that are Halon's own calls in a replay: its chat's, those of the specialists that read for it and
+  # the challenger's second look at a cause it named.
+  HALONS = [ FirefightAi::Responder::FEATURE, FirefightAi::Specialist::FEATURE, FirefightAi::Challenger::FEATURE ].freeze
+
   # Refuses a run while too many are going, since every run holds database connections on a server others share.
   class Busy < StandardError; end
 
@@ -30,7 +34,8 @@ class Conversation::Bench
       run
     end
 
-    # Runs every scenario here and now, a few at a time, for the terminal and CI. keys picks some by name.
+    # Runs every scenario here and now, a few at a time, for the terminal and CI. keys picks some by name, each a name or a
+    # pattern such as hard_*.
     def run!(trigger:, model: nil, provider: nil, label: nil, keys: nil, repeats: nil, budget_micros: nil, &reported)
       run = create_run!(trigger: trigger, model: model, provider: provider, label: label, keys: keys, repeats: repeats, budget_micros: budget_micros)
       queue = Queue.new
@@ -135,15 +140,19 @@ class Conversation::Bench
       raise Busy, busy if busy
 
       scenarios = Conversation::BenchCase.scenarios
-      scenarios = scenarios.select { |scenario| keys.include?(scenario.key) } if keys.present?
-      raise Conversation::BenchCase::Invalid, "No scenario is called #{(keys - scenarios.map(&:key)).to_sentence}." if keys.present? && scenarios.size < keys.size
+      if keys.present?
+        unmatched = keys.reject { |key| scenarios.any? { |scenario| File.fnmatch?(key, scenario.key) } }
+        raise Conversation::BenchCase::Invalid, "No scenario is called #{unmatched.to_sentence}." if unmatched.any?
+
+        scenarios = scenarios.select { |scenario| keys.any? { |key| File.fnmatch?(key, scenario.key) } }
+      end
 
       choice = model_choice(model, provider)
       Conversation::BenchRun.transaction do
         bench = workspace
         Conversation::BenchRun.create!(
-          kind: Conversation::BenchRun::KIND_SCENARIOS, trigger: trigger, prompt_version: prompt_version(bench, choice),
-          model: choice.model, provider: choice.provider, label: label, started_by: by,
+          kind: Conversation::BenchRun::KIND_SCENARIOS, trigger: trigger, prompt_version: Conversation::BenchWorkspace.version(prompt_version(bench, choice)),
+          model: choice.model, provider: choice.provider, label: Conversation::BenchWorkspace.label(label), started_by: by,
           repeats: repeats || Conversation::BenchRun::DEFAULT_REPEATS, budget_micros: budget_micros || Conversation::BenchRun::DEFAULT_BUDGET_MICROS
         ).tap do |run|
           run.repeats.times do |index|
@@ -153,7 +162,16 @@ class Conversation::Bench
       end
     end
 
-    def prompt_version(workspace, choice) = FirefightAi::Responder.new(workspace, inferable: nil, model: choice).prompt_version
+    # The chat's prompt as a run replays it. Forced on or off, specialists give one prompt. In auto each replay decides
+    # (Conversation::Rehearsal#asks_specialists?), so the run names both and that it chose between them.
+    def prompt_version(workspace, choice)
+      with = ->(specialists) { FirefightAi::Responder.new(workspace, inferable: nil, model: choice, specialists: specialists).prompt_version }
+      case Chat::Specialists.mode
+      when FirefightAi::Configuration::SPECIALISTS_ON then with.call(true)
+      when FirefightAi::Configuration::SPECIALISTS_OFF then with.call(false)
+      else "#{with.call(false)}+auto-#{with.call(true)}"
+      end
+    end
 
     # What is left of a run's budget, in whole cents, as the most one replay may spend. Nil for a run with no budget.
     def budget_left_cents(run)
@@ -161,8 +179,9 @@ class Conversation::Bench
       left && [ (left / FirefightAi::AgentLoop::MICROS_PER_CENT.to_f).ceil, 1 ].max
     end
 
-    # What Halon's own model calls cost, from the inference ledger. The judge's call is grading, so it is left out.
-    def spent(result) = Inference.where(inferable: result, feature: FirefightAi::Responder::FEATURE).sum(:cost_micros)
+    # What Halon's own model calls cost, from the inference ledger, its specialists' included since they read for it. The
+    # judge's call is grading, so it is left out.
+    def spent(result) = Inference.where(inferable: result, feature: HALONS).sum(:cost_micros)
 
     def case_for(result)
       result.replay_of ? Conversation::Rehearsal.capture(result.replay_of) : Conversation::BenchCase.scenario(result.scenario)

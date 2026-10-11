@@ -2,7 +2,10 @@
 # it only read, whether it waited for the person and what they decided, and what Halon replied. The score counts from
 # it and the judge reads it as text.
 class Conversation::BenchTranscript
-  Call = Data.define(:name, :arguments, :reads, :approval, :recorded, :failed, :result) do
+  # by names the specialist that made a call for Halon, nil for Halon's own.
+  Call = Data.define(:name, :arguments, :reads, :approval, :recorded, :failed, :result, :by) do
+    def initialize(by: nil, **) = super
+
     def asked? = approval.present?
 
     # Turned down, or moved past while it waited, so it never ran.
@@ -13,6 +16,8 @@ class Conversation::BenchTranscript
   PERSON = :person
   HALON = :halon
   CALL = :call
+  # What the reply before it lists as read, as the dashboard and a thread show under an answer.
+  SOURCES = :sources
 
   DECISION_WORDS = {
     Chat::APPROVAL_REQUESTED => "it waited for the person to confirm, and they did not answer",
@@ -26,12 +31,17 @@ class Conversation::BenchTranscript
 
   attr_reader :entries
 
-  # unscripted holds the ids of the calls nothing in the case answered.
-  def initialize(chat, bench_case, unscripted: Set.new)
+  # unscripted holds the ids of the calls nothing in the case answered. sources lists what each reply that ended a turn
+  # shows as read, by the reply's id, each with a title and a url or nil (Chat::Sources).
+  def initialize(chat, bench_case, unscripted: Set.new, sources: {})
     @case = bench_case
     @unscripted = unscripted
+    @sources = sources
     @entries = chat.messages.includes(ruby_llm_tool_calls: :result).flat_map { |message| entries_of(message) }
   end
+
+  # Every address the answers list as read, which counts as citing them as a link in the words does.
+  def source_links = @sources.values.flatten.filter_map(&:url)
 
   def calls = entries.filter_map(&:call)
 
@@ -46,7 +56,10 @@ class Conversation::BenchTranscript
 
   def called?(name) = calls.any? { |call| call.name == name && call.ran? }
 
-  def cites_any?(texts) = texts.any? { |text| replies.any? { |reply| reply.downcase.include?(text.downcase) } }
+  def cites_any?(texts)
+    shown = replies + source_links
+    texts.any? { |text| shown.any? { |cited| cited.downcase.include?(text.downcase) } }
+  end
 
   # The calls still waiting for the person when the chat ended, which is how a turn that stopped to ask ends.
   def waiting = confirmations.select { |call| call.approval == Chat::APPROVAL_REQUESTED }
@@ -64,6 +77,7 @@ class Conversation::BenchTranscript
       case entry.said_by
       when PERSON then "Person: #{entry.text}"
       when HALON then "Agent: #{entry.text}"
+      when SOURCES then "Listed under that answer as read: #{entry.text}"
       else call_text(entry.call)
       end
     end.join("\n\n")
@@ -75,16 +89,40 @@ class Conversation::BenchTranscript
     return [] if message.nudge || message.role == Chat::Message::ROLE_SYSTEM || message.role == Chat::Message::ROLE_TOOL
     return [ Entry.new(said_by: PERSON, text: message.content.to_s, call: nil) ] if message.role == Chat::Message::ROLE_USER
 
-    spoken = message.content.present? ? [ Entry.new(said_by: HALON, text: message.content.to_s, call: nil) ] : []
-    spoken + message.ruby_llm_tool_calls.sort_by(&:created_at).map { |call| Entry.new(said_by: CALL, text: nil, call: call_of(call)) }
+    spoken = message.content.present? ? [ Entry.new(said_by: HALON, text: message.content.to_s, call: nil), *sources_entry(message) ] : []
+    spoken + message.ruby_llm_tool_calls.sort_by(&:created_at).flat_map do |call|
+      [ Entry.new(said_by: CALL, text: nil, call: call_of(call)), *specialist_entries(message, call) ]
+    end
   end
 
-  def call_of(call)
+  def sources_entry(message)
+    listed = @sources[message.id]
+    return [] if listed.blank?
+
+    [ Entry.new(said_by: SOURCES, text: listed.map { |source| [ source.title, source.url ].compact.join(" ") }.join("; "), call: nil) ]
+  end
+
+  # What the specialists an ask_specialist call started read for Halon, each after the call that asked them, so the score
+  # and the judge see every read the answer rests on. Their report goes back to Halon as the call's own result.
+  def specialist_entries(message, call)
+    return [] unless call.name == Chat::Helper::ASK_SPECIALIST
+
+    Chat::Helper.where(chat_id: message.chat_id, tool_call_id: call.tool_call_id).where.not(domain: nil).in_order.includes(:own_chat).flat_map do |helper|
+      next [] unless helper.own_chat
+
+      by = helper.domain.tr("_", " ")
+      helper.own_chat.tool_calls.where.not(name: Chat::Helper::REPORT_FINDINGS).includes(:result).order(:created_at, :id).map do |read|
+        Entry.new(said_by: CALL, text: nil, call: call_of(read, by: by))
+      end
+    end
+  end
+
+  def call_of(call, by: nil)
     arguments = call.arguments.to_h.stringify_keys
     result = call.result&.content.to_s
     Call.new(
-      name: call.name, arguments: arguments, reads: reads?(call.name, arguments), approval: call.approval,
-      recorded: @unscripted.exclude?(call.tool_call_id), failed: call.failed, result: result
+      name: call.name, arguments: arguments, reads: call.name == Chat::Theory::TOOL || reads?(call.name, arguments), approval: call.approval,
+      recorded: @unscripted.exclude?(call.tool_call_id), failed: call.failed, result: result, by: by
     )
   end
 
@@ -93,8 +131,11 @@ class Conversation::BenchTranscript
   end
 
   def call_text(call)
+    return "Agent updated its #{call.result.presence || 'theory board'}" if call.name == Chat::Theory::TOOL
+
     kind = call.reads ? "a read" : "a change"
-    lines = [ "Agent called #{call.name} #{call.arguments.to_json} (#{kind})" ]
+    who = call.by ? "The #{call.by} specialist, for the agent," : "Agent"
+    lines = [ "#{who} called #{call.name} #{call.arguments.to_json} (#{kind})" ]
     lines << "  #{DECISION_WORDS.fetch(call.approval)}" if call.asked?
     lines << "  It returned: #{call.result.truncate(RESULT_SHOWN)}" if call.ran? && call.result.present?
     lines.join("\n")

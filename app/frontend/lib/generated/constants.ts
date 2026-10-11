@@ -1028,7 +1028,8 @@ export const AGENT_CARD_KINDS = {
   "INVESTIGATION": "investigation",
   "CHART": "chart",
   "HELPERS": "helpers",
-  "SCREENSHOTS": "screenshots"
+  "SCREENSHOTS": "screenshots",
+  "THEORIES": "theories"
 } as const
 
 export const HELPER_STATUSES = {
@@ -1078,7 +1079,8 @@ export const AGENT_CHAT_PROPS = {
   "OWNER_ASKS": "ownerAsks",
   "HELPERS": "helpers",
   "HANDBOOK_PROPOSALS": "handbookProposals",
-  "CHAT_MODELS": "chatModels"
+  "CHAT_MODELS": "chatModels",
+  "THEORIES": "theories"
 } as const
 
 export const SETUP_STEPS = {
@@ -1161,6 +1163,13 @@ export const HYPOTHESIS_STATUSES = [
   "refuted"
 ] as const
 export type HypothesisStatus = (typeof HYPOTHESIS_STATUSES)[number]
+
+export const CHAT_THEORY_STATUSES = [
+  "open",
+  "confirmed",
+  "ruled_out"
+] as const
+export type ChatTheoryStatus = (typeof CHAT_THEORY_STATUSES)[number]
 
 export const INVESTIGATION_STEP_STATUSES = [
   "pending",

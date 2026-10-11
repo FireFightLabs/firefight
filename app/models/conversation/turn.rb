@@ -18,6 +18,11 @@ class Conversation::Turn
   # The scheduled plan this turn carries out with its approved-ahead tools, or nil.
   attr_reader :approved_plan
 
+  # Whether this turn hands reads of connected systems to specialists, which its runner decides before the turn starts.
+  attr_writer :asks_specialists
+
+  def asks_specialists? = @asks_specialists == true
+
   def acting_principal = asker
 
   # A tool of a scheduled plan whose changes the person approved ahead, run without asking since nobody may be there.

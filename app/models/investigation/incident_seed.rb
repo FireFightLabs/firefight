@@ -25,6 +25,7 @@ class Investigation::IncidentSeed
       "services" => service_facts,
       "resources" => resources.presence,
       "resources_held_back" => (map.held_back if resources.any?),
+      "suspects" => suspects.presence,
       "brief" => @investigation.brief.presence,
       Investigation::Seeding::KEY_ON_CALL => (on_call_facts if @investigation.started_by_alert?)
     }.compact
@@ -62,6 +63,16 @@ class Investigation::IncidentSeed
     { "on_call_now" => people }
   rescue Integrations::Error, AbilityGateway::Denied => error
     { "on_call_unread" => error.message }
+  end
+
+  # What changed around the incident's resources and their neighbours, nearest to when it began first, as candidates.
+  def suspects
+    subject, from, = ResourceMap::Timeline.for_incident(@investigation.workspace, @investigation.acting_principal, @incident)
+    return [] if subject.resources.empty?
+
+    anchor = @incident.detected_at || @incident.declared_at || Time.current
+    ResourceMap::Suspects.new(workspace: @investigation.workspace, principal: @investigation.acting_principal, roots: subject.resources,
+                              anchor: anchor, from: [ from, anchor - ResourceMap::Suspects::LEAD ].max).list.map(&:line)
   end
 
   def seed_alerts

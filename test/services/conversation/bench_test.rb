@@ -28,7 +28,8 @@ class Conversation::BenchTest < ActiveSupport::TestCase
     assert_equal [ 1, 2, 3 ], run.results.distinct.pluck(:attempt).sort
     assert_equal [ Conversation::BenchRun::DEFAULT_REPEATS, Conversation::BenchRun::DEFAULT_BUDGET_MICROS ], [ run.repeats, run.budget_micros ]
     assert_equal [ "gpt-4o", users(:alice) ], [ run.model, run.started_by ]
-    assert_equal FirefightAi::Responder.new(workspace, inferable: nil, model: FirefightAi::ModelChoice.new(model: "gpt-4o")).prompt_version, run.prompt_version
+    versions = [ false, true ].map { |specialists| FirefightAi::Responder.new(workspace, inferable: nil, model: FirefightAi::ModelChoice.new(model: "gpt-4o"), specialists: specialists).prompt_version }
+    assert_equal versions.join("+auto-"), run.prompt_version, "in auto a run names both prompts it chose between"
     assert_equal [ workspace.id ], Conversation::Bench.start!(trigger: Conversation::BenchRun::TRIGGER_OPERATOR).results.distinct.pluck(:workspace_id)
   end
 
@@ -72,6 +73,14 @@ class Conversation::BenchTest < ActiveSupport::TestCase
   end
 
   # The bench once drained the key live chats ran on.
+  test "scenarios are picked by name or by a pattern, so the hard ones run on their own" do
+    run = Conversation::Bench.send(:create_run!, trigger: Conversation::BenchRun::TRIGGER_TERMINAL, model: nil, provider: nil, label: nil, keys: [ "hard_*" ], repeats: 1)
+
+    picked = run.results.pluck(:scenario)
+    assert_equal Conversation::BenchCase.scenarios.map(&:key).grep(/\Ahard_/).sort, picked.sort
+    assert_operator picked.size, :>=, 11
+  end
+
   test "a run refuses to start without the bench's own key, naming the variable, and never falls back to the app's" do
     ENV.delete("HALON_BENCH_OPENAI_API_KEY")
     RubyLLM.config.stubs(:openai_api_key).returns("sk-the-apps-own")
@@ -137,6 +146,37 @@ class Conversation::BenchTest < ActiveSupport::TestCase
     assert_equal [ Conversation::BenchResult::STATUS_ERRORED, run.reload.budget_reason ], [ second.reload.status, second.reason ]
     assert_equal "The run reached its budget of $0.01, so the replays after that point were not run or judged. What scored before it stands.", run.stopped_reason
     assert_equal Conversation::BenchRun::STATUS_FINISHED, run.status
+  end
+
+  # The bench measures both ways on the same code: with specialists on, what they read is scored with Halon's calls and
+  # what they spend is Halon's cost.
+  test "with specialists on, a scenario is replayed through them, their reads are scored and their spend is Halon's" do
+    FirefightAi.configuration.stubs(:specialists).returns(:on)
+    FirefightAi.stubs(:tool_search?).returns(false)
+    result = one_scenario_run(
+      tools: [ { "name" => "northflank_read_run", "description" => "Reads a run", "reads" => true, "source" => "northflank" } ],
+      answers: [ { "tool" => "northflank_read_run", "result" => "Run 412 failed at migrate. https://example.test/runs/412" } ]
+    )
+    script(
+      call("ask_specialist", "asks" => [ { "domain" => "deploys", "objective" => "How did run 412 go?" } ]),
+      call("northflank_read_run", {}),
+      call("report_findings", "summary" => "Run 412 failed", "findings" => [
+        { "claim" => "It failed at migrate", "lines" => [ "Run 412 failed at migrate." ], "links" => [ "https://example.test/runs/412" ] }
+      ]),
+      reply("Run 412 failed at its migrate step, see https://example.test/runs/412.")
+    )
+    judged(outcome: FirefightAi::Schemas::ReplayVerdict::REACHED, moved_forward: FirefightAi::Schemas::ReplayVerdict::YES)
+
+    Conversation::Bench.run_case!(result)
+    result.reload
+
+    assert_equal Conversation::BenchResult::STATUS_SCORED, result.status
+    assert_equal 2, result.calls, "the specialist's read is counted with Halon's own call"
+    assert_equal FirefightAi::Responder.new(result.workspace, inferable: nil, model: FirefightAi::ModelChoice.new(model: "gpt-4o"), specialists: true).prompt_version,
+                 result.bench_run.prompt_version
+    specialist = Inference.where(inferable: result, feature: FirefightAi::Specialist::FEATURE)
+    assert_equal 2, specialist.count
+    assert_equal Inference.where(inferable: result, feature: Conversation::Bench::HALONS).sum(:cost_micros), result.spent_micros
   end
 
   test "a replay never spends more than what is left of its run's budget" do

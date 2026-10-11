@@ -1,5 +1,6 @@
 import { AgentCard } from "@/pages/agent/components/agent-card"
 import { AgentSteps } from "@/pages/agent/components/agent-steps"
+import { AnswerSources } from "@/pages/agent/components/answer-sources"
 import { AnswerText } from "@/pages/agent/components/answer-text"
 import { PersonBubble } from "@/pages/agent/components/person-bubble"
 import { type ChatTurn, TURN_KINDS } from "@/pages/agent/types"
@@ -29,6 +30,7 @@ export function Message({ turn, live = false, onOpenImage }: MessageProps) {
       {turn.bodies.map((body) => (
         <AnswerText key={body.id} text={body.text} />
       ))}
+      {!live && turn.sources.length > 0 && <AnswerSources sources={turn.sources} />}
       {cards.map((step) => step.card && <AgentCard key={step.key} card={step.card} stepKey={step.key} />)}
       {!live && turn.models.length > 0 && <AnsweredBy models={turn.models} />}
     </div>

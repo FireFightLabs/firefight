@@ -52,43 +52,56 @@
 # rather than a code change. Each has a tagline, halon (what Halon can do with a tool from it, in a sentence or two,
 # which setup shows as it walks through every category), required (setup asks for a connection in it and offers no
 # "We don't use this") and in_first_question (setup's first question to Halon names the tools connected in it). group,
-# when set, is what Halon's map of tool groups says of the category in place of the tagline.
+# when set, is what Halon's map of tool groups says of the category in place of the tagline. specialist names the kind
+# of question its tools answer when Halon asks specialists (Chat::Specialists::DOMAINS): code, deploys, observability,
+# databases, cloud, tickets or on_call. A provider's own specialist wins over its category's, for a cloud whose
+# resources and bill sit beside the hosts that only run apps. A category without one, such as Custom, stays Halon's own.
 categories:
   Cloud and hosting:
+    specialist: deploys
     tagline: Where your apps run, and what you can change there
     halon: Halon sees what runs where, what was deployed and how it is doing. When you allow it, it can make changes there too.
     required: true
     in_first_question: true
   Observability:
+    specialist: observability
     tagline: Logs, metrics, traces and errors for investigations
     halon: Halon searches your logs, metrics, traces and errors to find what broke and when it started.
     required: true
   Alerting and on-call:
+    specialist: on_call
     tagline: Who is on call, and the alerts and incidents paging them
     halon: Halon sees which alerts fired and who is on call, so it can say who was paged and why.
   Product analytics:
+    specialist: observability
     tagline: Who an incident reaches, what they saw, and the feature flags behind it
     halon: Halon checks how many people an incident reached, what they saw and which feature flags changed.
   Databases:
+    specialist: databases
     tagline: Your data and how it is set up
     halon: Halon reads how your databases are set up and how they are doing, such as slow queries and connections, to tell when data is the cause.
     in_first_question: true
   Code:
+    specialist: code
     tagline: Correlate incidents with what shipped
     group: Commits, pull requests, deploys and CI of your repositories, and code changes, which Firefight's own coding agent writes here with fix_code and opens as a pull request, no coding agent needed
     halon: Halon matches an incident to the commits, pull requests and deploys that shipped just before it. It can also write a fix and open a pull request when you ask.
     required: true
   CI:
+    specialist: deploys
     tagline: Builds, tests and their logs, and rerunning them
     halon: Halon reads builds and test runs with their logs, and reruns one when you allow it.
   Coding agents:
+    specialist: code
     tagline: Agents that write a fix's code change and open the pull request
     group: Outside coding agents a workspace chose to write code changes instead of Firefight's own. Never needed for a code change or a pull request, which Firefight's own coding agent writes from the Code group
     halon: Halon hands a fix to your coding agent, which writes the change and opens the pull request.
   Issues:
+    specialist: tickets
     tagline: Tickets and follow-up work tied to incidents
     halon: Halon reads the tickets tied to an incident, and when you allow it, files the follow-up work there.
   Knowledge:
+    specialist: tickets
     tagline: Runbooks and documentation as context
     halon: Halon reads your runbooks and docs as context while it investigates.
   Custom:
@@ -290,6 +303,7 @@ providers:
   - key: cloudflare
     name: Cloudflare
     category: Cloud and hosting
+    specialist: cloud
     mark: CF
     color: "#f38020"
     status_page: { url: https://www.cloudflarestatus.com, feed: statuspage }
@@ -353,6 +367,7 @@ providers:
   - key: digitalocean
     name: DigitalOcean
     category: Cloud and hosting
+    specialist: cloud
     mark: DO
     color: "#0080ff"
     status_page: { url: https://status.digitalocean.com, feed: statuspage }
@@ -420,6 +435,7 @@ providers:
   - key: aws
     name: AWS
     category: Cloud and hosting
+    specialist: cloud
     mark: AWS
     color: "#ff9900"
     status_page: { url: https://health.aws.amazon.com/health/status, feed: page }
@@ -482,6 +498,7 @@ providers:
   - key: google_cloud
     name: Google Cloud
     category: Cloud and hosting
+    specialist: cloud
     mark: GC
     color: "#4285f4"
     status_page: { url: https://status.cloud.google.com, feed: page }
@@ -501,6 +518,7 @@ providers:
   - key: azure
     name: Azure
     category: Cloud and hosting
+    specialist: cloud
     mark: AZ
     color: "#0078d4"
     status_page: { url: https://azure.status.microsoft/en-us/status, feed: page }

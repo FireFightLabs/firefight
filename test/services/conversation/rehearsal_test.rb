@@ -83,9 +83,11 @@ class Conversation::RehearsalTest < ActiveSupport::TestCase
 
   # On the first real bench run a replay handed every tool over up front and open_tools said groups had nothing
   # connected, so models opened groups again and again and said tools they held were missing.
+  # With specialists forced off, since in auto a chat past the budget asks them instead (Chat::Specialists.ask?).
   test "past the budget a chat holds only its own tools until open_tools opens the group a tool sits in, as it does live" do
     FirefightAi.stubs(:tool_search?).returns(false)
     FirefightAi.configuration.stubs(:held_tools_budget).returns(0)
+    FirefightAi.configuration.stubs(:specialists).returns(:off)
     bench_case = build("tools" => [
       { "name" => "open_tools", "description" => "Opens groups", "base" => true },
       { "name" => "read_run", "description" => "Reads a run", "reads" => true, "source" => "northflank" }
@@ -95,7 +97,7 @@ class Conversation::RehearsalTest < ActiveSupport::TestCase
     replay = Conversation::Rehearsal.replay!(bench_case, result: @result, model: @model)
     first, opened, second = replay.transcript.calls
 
-    assert_equal [ "use_skill", "open_tools" ], JSON.parse(JSON.parse(first.result)["error"][/\[.*\]/])
+    assert_equal [ "use_skill", "open_tools", "update_theories" ], JSON.parse(JSON.parse(first.result)["error"][/\[.*\]/])
     assert_match "read_run: Reads a run (ready to call)", opened.result
     assert_equal "Run 412 failed.", second.result
   end

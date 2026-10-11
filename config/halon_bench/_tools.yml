@@ -1531,6 +1531,50 @@ northflank_api_request:
     - path
   request: path
   default: '{"error":{"status":404,"message":"Not found"}}'
+northflank_workflow_runs:
+  description: A Northflank workflow's recent runs, newest first, each with its status, when it started and finished and how long it
+    took, and how long finished runs usually take. Name a run to read it with each node, such as a build, a release or a job run, how
+    each went, the error a failed one gave and its retries
+  source: northflank
+  reads: true
+  parameters:
+    type: object
+    properties:
+      workflow:
+        type: string
+        description: The workflow, by name or id
+      name:
+        type: string
+        description: Only runs whose workflow's name contains this (optional)
+      run:
+        type: string
+        description: Only this run, by its id, with each of its nodes (optional)
+      limit:
+        type: integer
+        description: At most this many runs (optional, 20)
+    required:
+    - workflow
+northflank_billing_usage:
+  description: 'What the Northflank account or team was charged, by day or by month, with each period''s total and what cost most: CPU,
+    memory, storage and GPU, bring your own cloud, egress IPs and load balancers. Use it to watch spend and find what grew and since
+    when. The token''s role needs Billing read'
+  source: northflank
+  reads: true
+  parameters:
+    type: object
+    properties:
+      by:
+        type: string
+        enum:
+        - day
+        - month
+        description: day or month (optional, day)
+      days:
+        type: integer
+        description: For by day, how many days back from today (optional, 30, at most 365)
+      months:
+        type: integer
+        description: For by month, how many months before this one (optional, 3, at most 12)
 github_workflow_runs:
   description: Lists recent runs of the repository's GitHub Actions workflows, with their status, branch and a link to each.
   source: github

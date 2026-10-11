@@ -808,11 +808,11 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     end
   end
 
-  def post_agent_reply(channel_id:, thread_id:, answer_id:, text:, streamed: false)
-    finish_agent_answer(
-      channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,
-      text: text, blocks: streamed ? nil : Slack::Messages::AgentReply.build(text: text)
-    )
+  # A streamed answer keeps the text the person already read, and the sources block goes at its bottom.
+  def post_agent_reply(channel_id:, thread_id:, answer_id:, text:, streamed: false, sources: [])
+    read = Slack::Messages::AgentSources.build(sources)
+    blocks = streamed ? read.presence : Slack::Messages::AgentReply.build(text: text) + read
+    finish_agent_answer(channel_id: channel_id, thread_id: thread_id, answer_id: answer_id, text: text, blocks: blocks)
   end
 
   def finish_agent_answer(channel_id:, thread_id:, answer_id:, text:, blocks:)

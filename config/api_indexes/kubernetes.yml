@@ -1,0 +1,105 @@
+# Kubernetes's key reads through api_read, at most 40, which close the kubernetes_api skill
+# (Integrations::ApiIndex). Edit a read's call, purpose or query here, then run bin/rails provider_docs:api_indexes.
+tool: api_read
+skill: kubernetes_api
+reference: api
+reads:
+  - call: GET /api/v1/namespaces/{namespace}/pods
+    purpose: A namespace's pods, with each one's phase, restarts, node and container states.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /api/v1/pods
+    purpose: Pods across every namespace, filtered by label or field such as a node or phase.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /api/v1/namespaces/{namespace}/pods/{name}
+    purpose: One pod, with its containers, last exit reasons, restarts, conditions and node.
+  - call: GET /api/v1/namespaces/{namespace}/pods/{name}/log
+    purpose: One container's logs, or its previous run's after a crash.
+    query: [ container, previous, tailLines, sinceSeconds, timestamps ]
+  - call: GET /api/v1/namespaces/{namespace}/events
+    purpose: A namespace's events, such as failed scheduling, image pulls, kills and probe failures.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /api/v1/events
+    purpose: Events across every namespace, filtered by field such as the object they are about.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /apis/apps/v1/namespaces/{namespace}/deployments
+    purpose: A namespace's deployments, with desired, ready and updated replicas.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /apis/apps/v1/deployments
+    purpose: Deployments across every namespace.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /apis/apps/v1/namespaces/{namespace}/deployments/{name}
+    purpose: One deployment, with its image, strategy, rollout conditions and replicas.
+  - call: GET /apis/apps/v1/namespaces/{namespace}/replicasets
+    purpose: A namespace's replica sets, one per rollout revision, to see what changed and when.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /apis/apps/v1/namespaces/{namespace}/statefulsets
+    purpose: A namespace's stateful sets, with ready and current replicas.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /apis/apps/v1/namespaces/{namespace}/statefulsets/{name}
+    purpose: One stateful set, with its image, update status and volume claims.
+  - call: GET /apis/apps/v1/namespaces/{namespace}/daemonsets
+    purpose: A namespace's daemon sets, with how many nodes run them and are ready.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /apis/batch/v1/namespaces/{namespace}/jobs
+    purpose: A namespace's jobs, with how many pods succeeded and failed.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /apis/batch/v1/namespaces/{namespace}/jobs/{name}
+    purpose: One job, with its conditions, failures and timings.
+  - call: GET /apis/batch/v1/namespaces/{namespace}/cronjobs
+    purpose: A namespace's cron jobs, with their schedule and last run.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /apis/autoscaling/v2/namespaces/{namespace}/horizontalpodautoscalers
+    purpose: A namespace's autoscalers, with their targets, current metrics and replica counts.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /apis/policy/v1/namespaces/{namespace}/poddisruptionbudgets
+    purpose: A namespace's disruption budgets, with how many pods may be taken down now.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /api/v1/nodes
+    purpose: The cluster's nodes, with their conditions, capacity, taints and versions.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /api/v1/nodes/{name}
+    purpose: One node, with its conditions such as memory or disk pressure, capacity and allocatable.
+  - call: GET /api/v1/namespaces
+    purpose: The cluster's namespaces and their state.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /api/v1/namespaces/{namespace}/services
+    purpose: A namespace's services, with their type, ports, selector and addresses.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /api/v1/namespaces/{namespace}/services/{name}
+    purpose: One service, with its ports, selector and load balancer address.
+  - call: GET /apis/discovery.k8s.io/v1/namespaces/{namespace}/endpointslices
+    purpose: Which pods back each service now, and whether each is ready.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /apis/networking.k8s.io/v1/namespaces/{namespace}/ingresses
+    purpose: A namespace's ingresses, with their hosts, paths, backends and TLS.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /apis/networking.k8s.io/v1/ingresses
+    purpose: Ingresses across every namespace.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /apis/networking.k8s.io/v1/namespaces/{namespace}/networkpolicies
+    purpose: A namespace's network policies, which say what traffic pods may send and take.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /api/v1/namespaces/{namespace}/configmaps
+    purpose: A namespace's config maps, with their data.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /api/v1/namespaces/{namespace}/secrets
+    purpose: A namespace's secrets, by name and type, never their values.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /api/v1/namespaces/{namespace}/persistentvolumeclaims
+    purpose: A namespace's volume claims, with their status, size and storage class.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /api/v1/persistentvolumes
+    purpose: The cluster's persistent volumes, with their status, size and claim.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /api/v1/namespaces/{namespace}/resourcequotas
+    purpose: A namespace's quotas, with how much of each is used.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /apis/rbac.authorization.k8s.io/v1/namespaces/{namespace}/rolebindings
+    purpose: Who holds which role in a namespace.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /apis/rbac.authorization.k8s.io/v1/clusterrolebindings
+    purpose: Who holds which role across the whole cluster.
+    query: [ labelSelector, fieldSelector, limit ]
+  - call: GET /apis/rbac.authorization.k8s.io/v1/clusterroles
+    purpose: The cluster's roles and the permissions each grants.
+    query: [ labelSelector, fieldSelector, limit ]

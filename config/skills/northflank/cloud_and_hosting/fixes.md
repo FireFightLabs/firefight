@@ -20,3 +20,43 @@ references: [api/index.md, api/project/addons.md, api/project/jobs.md, api/proje
 5. Secret values never come back. Reading an environment, build arguments or a secret group returns the names with the values hidden, and a body that looks like it holds a credential is refused. Northflank sets a service's whole environment at once, so a change to environment variables would drop the values you cannot see. Make it a step for a person that names the variable and the value to set, without the value when it is a secret.
 6. When the change is defined as code, such as a Terraform or Pulumi project, or the service's settings in a repository, the fix is a pull request to that code instead, since the next apply would undo a change made here.
 7. A refusal that says the token's role cannot make the change is the workspace's to fix in Northflank. Say so in the step, and keep the rest of the fix.
+
+Key reads, the ones an investigation reaches for most, with what to fill in braces and the query parameters that matter. The API reference lists every other read.
+- GET services (per_page, cursor): Every service in the project, with its type and status.
+- GET services/{serviceId}: One service, with its status, deployment, ports and resource plan.
+- GET services/{serviceId}/deployment: What a service runs now, its image or build, its instances and plan.
+- GET services/{serviceId}/deployments (releaseType, per_page, cursor): A service's deployment history, newest first.
+- GET services/{serviceId}/rollout: A service's rollout in progress, with its stage and status.
+- GET services/{serviceId}/build (per_page, cursor): A service's builds, with each one's status, commit and when it ran.
+- GET services/{serviceId}/build/{buildId}: One build of a service, with its status, commit and timing.
+- GET services/{serviceId}/containers (per_page, cursor): A service's containers, with each one's status, restarts and when it started.
+- GET services/{serviceId}/health-checks: A service's health checks, their paths, ports and thresholds.
+- GET services/{serviceId}/ports: A service's ports, their protocols, public addresses and custom domains.
+- GET jobs (per_page, cursor): Every job in the project, cron and manual.
+- GET jobs/{jobId}: One job, with its schedule, status and settings.
+- GET jobs/{jobId}/runs (per_page, cursor): A job's runs, with each one's status and when it started and finished.
+- GET jobs/{jobId}/runs/{runId}: One run of a job, with its status, exit and timing.
+- GET jobs/{jobId}/containers (runId, per_page, cursor): A job's containers, narrowed to one run, with each one's status.
+- GET jobs/{jobId}/deployment: What a job runs now, its image or build and plan.
+- GET jobs/{jobId}/build (per_page, cursor): A job's builds, with each one's status and commit.
+- GET jobs/{jobId}/build/{buildId}: One build of a job, with its status, commit and timing.
+- GET jobs/{jobId}/health-checks: A job's health checks and their thresholds.
+- GET addons (per_page, cursor): Every addon in the project, such as Postgres or Redis, with its status.
+- GET addons/{addonId}: One addon, with its type, version, status and resources.
+- GET addons/{addonId}/containers (per_page, cursor): An addon's containers, with each one's status and restarts.
+- GET addons/{addonId}/version: An addon's version and the versions it can move to.
+- GET addons/{addonId}/backups (per_page, cursor): An addon's backups, with each one's status and when it was taken.
+- GET addons/{addonId}/backups/{backupId}: One backup of an addon, with its status, size and timing.
+- GET addons/{addonId}/backup-schedules (per_page, cursor): An addon's backup schedules and how long backups are kept.
+- GET addons/{addonId}/restores (per_page, cursor): Restores run on an addon, with each one's status.
+- GET pipelines (per_page, cursor): Every pipeline in the project.
+- GET pipelines/{pipelineId}: One pipeline, with the services and jobs in each stage.
+- GET pipelines/{pipelineId}/release-flows/{stage}/runs (status, concluded, per_page, cursor): A pipeline stage's release flow runs, with each one's status.
+- GET pipelines/{pipelineId}/release-flows/{stage}/runs/{runId}: One release flow run, with its steps and their status.
+- GET workflows (per_page, cursor): Every workflow in the project.
+- GET workflows/{workflowId}/runs (per_page, cursor): A workflow's runs, with each one's status.
+- GET workflows/{workflowId}/runs/{runId}: One workflow run, with its steps and their status.
+- GET volumes (per_page, cursor): Every volume in the project, with its size and what it is attached to.
+- GET volumes/{volumeId}: One volume, with its size, storage class and attached service.
+- GET volumes/{volumeId}/backups (per_page, cursor): A volume's backups, with each one's status and when it was taken.
+- GET secrets (per_page, cursor): The project's secret groups by name, type and priority, never their values.

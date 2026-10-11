@@ -580,6 +580,16 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert_nil @investigation.reload.finding
   end
 
+  test "the first conclusion names the theories still open, to test them at once or say they are still open" do
+    @investigation.hypotheses.create!(assertion: "A slow query on orders", status: Investigation::Hypothesis::STATUS_OPEN, position: 1)
+
+    answer = Investigation::Tools::Conclude.new(@investigation).call("summary" => "It was the deploy")
+
+    assert answer.start_with?(FirefightAi::Investigator::CRITIQUE)
+    assert_match "Theories still open: A slow query on orders.", answer
+    assert_match "run_helpers", answer
+  end
+
   test "the first conclusion is answered with a request to prove it wrong, and nothing is recorded yet" do
     answer = Investigation::Tools::Conclude.new(@investigation).call("summary" => "It was the deploy")
 

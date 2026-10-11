@@ -1,0 +1,165 @@
+# AWS's key reads through api_read, at most 40, which close the aws_api skill
+# (Integrations::ApiIndex). Edit a read's call, purpose or query here, then run bin/rails provider_docs:api_indexes.
+tool: api_read
+skill: aws_api
+shape: operation
+reference: api
+reads:
+  - call: GetCallerIdentity
+    service: sts
+    purpose: Which account and role the connection reads as.
+  - call: DescribeTrails
+    service: cloudtrail
+    purpose: Trails and the log group or bucket each writes the audit log to.
+  - call: LookupEvents
+    service: cloudtrail
+    purpose: The audit log of the last 90 days, who called which API with which access key and from where.
+    query: [ lookup_attributes, start_time, end_time, max_results, next_token ]
+  - call: DescribeEvents
+    service: health
+    purpose: AWS's own outages and scheduled changes that touch the account.
+    query: [ filter, max_results, next_token ]
+  - call: DescribeAlarms
+    service: cloudwatch
+    purpose: CloudWatch alarms with their state, filtered to those firing.
+    query: [ state_value, alarm_name_prefix, alarm_types, max_records, next_token ]
+  - call: DescribeAlarmHistory
+    service: cloudwatch
+    purpose: When each alarm changed state and why, between two times.
+    query: [ alarm_name, history_item_type, start_date, end_date, scan_by, next_token ]
+  - call: GetMetricData
+    service: cloudwatch
+    purpose: A metric's values over a time range, such as CPU or errors.
+    query: [ metric_data_queries, start_time, end_time, next_token ]
+  - call: DescribeLogGroups
+    service: logs
+    purpose: The account's log groups, by name prefix, with their retention.
+    query: [ log_group_name_prefix, log_group_name_pattern, limit, next_token ]
+  - call: DescribeLogStreams
+    service: logs
+    purpose: A log group's streams, the most recently written first.
+    query: [ log_group_name, log_stream_name_prefix, order_by, descending, limit, next_token ]
+  - call: GetLogEvents
+    service: logs
+    purpose: Log lines from one stream between two times, newest last.
+    query: [ log_group_name, log_stream_name, start_time, end_time, start_from_head, limit, next_token ]
+  - call: ListClusters
+    service: ecs
+    purpose: The ECS clusters in the region.
+    query: [ next_token, max_results ]
+  - call: ListServices
+    service: ecs
+    purpose: The services running in one ECS cluster.
+    query: [ cluster, max_results, next_token ]
+  - call: DescribeServices
+    service: ecs
+    purpose: Services with their deployments, task counts and recent events.
+    query: [ cluster, services ]
+  - call: DescribeTasks
+    service: ecs
+    purpose: Tasks with their status, stop reason and container exit codes.
+    query: [ cluster, tasks ]
+  - call: DescribeTaskDefinition
+    service: ecs
+    purpose: A task definition with its image, CPU and memory.
+    query: [ task_definition ]
+  - call: ListFunctions
+    service: lambda
+    purpose: Lambda functions with their runtime and last change.
+    query: [ marker, max_items ]
+  - call: GetFunction
+    service: lambda
+    purpose: One function's configuration, state and last update status.
+    query: [ function_name ]
+  - call: DescribeInstances
+    service: ec2
+    purpose: EC2 instances with their state, type and addresses.
+    query: [ instance_ids, filters, max_results, next_token ]
+  - call: DescribeInstanceStatus
+    service: ec2
+    purpose: Instance and system status checks, and scheduled maintenance events.
+    query: [ instance_ids, filters, include_all_instances, max_results, next_token ]
+  - call: DescribeLoadBalancers
+    service: elbv2
+    purpose: Load balancers with their state and DNS name.
+    query: [ load_balancer_arns, names, page_size, marker ]
+  - call: DescribeTargetGroups
+    service: elbv2
+    purpose: Target groups with their health check settings, for one load balancer.
+    query: [ load_balancer_arn, target_group_arns, names, page_size, marker ]
+  - call: DescribeTargetHealth
+    service: elbv2
+    purpose: Whether each target in a target group is healthy, and why not.
+    query: [ target_group_arn ]
+  - call: DescribeAutoScalingGroups
+    service: autoscaling
+    purpose: Auto Scaling groups with their sizes and instances.
+    query: [ auto_scaling_group_names, filters, max_records, next_token ]
+  - call: DescribeScalingActivities
+    service: autoscaling
+    purpose: When a group scaled in or out and why, newest first.
+    query: [ auto_scaling_group_name, max_records, next_token ]
+  - call: DescribeDBInstances
+    service: rds
+    purpose: RDS instances with their status, class, version and endpoint.
+    query: [ db_instance_identifier, filters, max_records, marker ]
+  - call: DescribeDBSnapshots
+    service: rds
+    purpose: Database snapshots with when each was taken and its status.
+    query: [ db_instance_identifier, snapshot_type, max_records, marker ]
+  - call: DescribeEvents
+    service: rds
+    purpose: RDS events such as failovers and reboots, between two times.
+    query: [ source_identifier, source_type, start_time, end_time, event_categories, max_records, marker ]
+  - call: DescribeCluster
+    service: eks
+    purpose: One EKS cluster with its version, status and endpoint.
+    query: [ name ]
+  - call: GetPipelineState
+    service: codepipeline
+    purpose: Each stage of a pipeline and the state of its latest run.
+    query: [ name ]
+  - call: ListPipelineExecutions
+    service: codepipeline
+    purpose: A pipeline's runs with their status and commit, newest first.
+    query: [ pipeline_name, max_results, filter, next_token ]
+  - call: ListBuildsForProject
+    service: codebuild
+    purpose: A CodeBuild project's build ids, newest first.
+    query: [ project_name, next_token ]
+  - call: BatchGetBuilds
+    service: codebuild
+    purpose: Builds with their status, phases, commit and where their logs are.
+    query: [ ids ]
+  - call: ListDeployments
+    service: codedeploy
+    purpose: CodeDeploy deployments for an application and group, between two times.
+    query: [ application_name, deployment_group_name, include_only_statuses, create_time_range, next_token ]
+  - call: DescribeStackEvents
+    service: cloudformation
+    purpose: A stack's events, newest first, with each resource's status and reason.
+    query: [ stack_name, next_token ]
+  - call: ListHostedZones
+    service: route53
+    purpose: The account's Route 53 hosted zones.
+    query: [ marker, max_items ]
+  - call: ListResourceRecordSets
+    service: route53
+    purpose: The DNS records in one hosted zone.
+    query: [ hosted_zone_id, start_record_name, start_record_type, max_items ]
+  - call: ListCertificates
+    service: acm
+    purpose: Certificates with their domain, status and expiry.
+    query: [ certificate_statuses, sort_by, sort_order, max_items, next_token ]
+  - call: ListAccessKeys
+    service: iam
+    purpose: A user's access keys with their status and when each was made, never the secret.
+    query: [ user_name, marker, max_items ]
+  - call: ListSecrets
+    service: secretsmanager
+    purpose: Secrets by name and when each rotated, never their values.
+    query: [ filters, max_results, next_token ]
+  - call: DescribeParameters
+    service: ssm
+    purpose: Parameter Store parameters by name, never their values.
+    query: [ parameter_filters, max_results, next_token ]

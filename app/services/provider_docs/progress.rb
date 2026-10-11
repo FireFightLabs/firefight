@@ -91,6 +91,12 @@ module ProviderDocs
       emit(:warn, { event: "provider_docs.missing_guides", guides: guides }, "Guides skills list that the store does not hold: #{listed}")
     end
 
+    def stale_api_indexes(stale)
+      listed = stale.map { |provider, calls| "#{provider} (#{calls.join(', ')})" }.join(", ")
+      emit(:warn, { event: "provider_docs.stale_api_indexes", indexes: stale },
+           "Key reads API indexes list that the reference no longer does, replace them with bin/rails provider_docs:api_indexes: #{listed}")
+    end
+
     def finished
       seconds = elapsed(@began)
       unread = @totals[:unread].positive? ? ", #{@totals[:unread]} could not be read" : ""

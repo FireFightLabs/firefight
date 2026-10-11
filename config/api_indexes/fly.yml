@@ -1,0 +1,71 @@
+# Fly.io's key reads through api_read, at most 40, which close the fly_api skill
+# (Integrations::ApiIndex). Edit a read's call, purpose or query here, then run bin/rails provider_docs:api_indexes.
+tool: api_read
+skill: fly_api
+reference: api
+reads:
+  - call: GET /v1/apps
+    purpose: The organization's apps, with each one's machine count and network.
+    query: [ org_slug, limit, cursor ]
+  - call: GET /v1/apps/{app_name}
+    purpose: One app, with its organization, network and status.
+  - call: GET /v1/apps/{app_name}/machines
+    purpose: The app's machines, each with its state, region, image and when it last changed.
+    query: [ state, cursor, limit ]
+  - call: GET /v1/apps/{app_name}/machines/{machine_id}
+    purpose: One machine, with its state, config, image, region and checks.
+  - call: GET /v1/apps/{app_name}/machines/{machine_id}/events
+    purpose: A machine's recent events, such as starts, stops, exits and restarts, with exit codes.
+    query: [ limit ]
+  - call: GET /v1/apps/{app_name}/machines/{machine_id}/versions
+    purpose: A machine's earlier config versions, newest first, to see what a deploy changed.
+  - call: GET /v1/apps/{app_name}/machines/{machine_id}/ps
+    purpose: The processes running inside a machine, with their CPU and memory.
+  - call: GET /v1/apps/{app_name}/machines/{machine_id}/memory
+    purpose: A machine's memory limit and how much is in use.
+  - call: GET /v1/apps/{app_name}/machines/{machine_id}/metadata
+    purpose: A machine's metadata labels, such as its process group and release.
+  - call: GET /v1/orgs/{org_slug}/machines
+    purpose: Every machine across the organization's apps, to find one by state or region.
+    query: [ state, cursor, limit ]
+  - call: GET /v1/apps/{app_name}/ip_assignments
+    purpose: The app's public and private IP addresses, with their regions.
+  - call: GET /v1/apps/{app_name}/certificates
+    purpose: The app's TLS certificates by hostname, with each one's status.
+    query: [ filter, cursor, limit ]
+  - call: GET /v1/apps/{app_name}/certificates/{hostname}
+    purpose: One hostname's certificate, with its issue status, DNS checks and expiry.
+  - call: GET /v1/apps/{app_name}/volumes
+    purpose: The app's volumes, with size, region, state and the machine each is attached to.
+    query: [ cursor, limit ]
+  - call: GET /v1/apps/{app_name}/volumes/{volume_id}
+    purpose: One volume, with its size, state, encryption and attached machine.
+  - call: GET /v1/apps/{app_name}/volumes/{volume_id}/snapshots
+    purpose: A volume's snapshots, with when each was taken and its size.
+  - call: GET /v1/orgs/{org_slug}/volumes
+    purpose: Every volume across the organization's apps.
+    query: [ state, cursor, limit ]
+  - call: GET /v1/apps/{app_name}/secrets
+    purpose: The app's secrets, by name and when each was set, never their values.
+  - call: GET /v1/apps/{app_name}/secretkeys
+    purpose: The app's secret keys, by name and type, never their values.
+  - call: GET /v1/postgres
+    purpose: The organization's Managed Postgres clusters, with their status and region.
+    query: [ org_slug ]
+  - call: GET /v1/postgres/{postgres_cluster_id}
+    purpose: One Managed Postgres cluster, with its status, plan, region and replicas.
+  - call: GET /v1/postgres/{postgres_cluster_id}/backups
+    purpose: A Postgres cluster's backups, with when each was taken.
+  - call: GET /v1/postgres/{postgres_cluster_id}/queries/active
+    purpose: Queries running now on a Postgres cluster, with how long each has run.
+    query: [ database ]
+  - call: GET /v1/postgres/{postgres_cluster_id}/queries/slow
+    purpose: The slowest queries on a Postgres cluster, with their time and call count.
+  - call: GET /v1/postgres/{postgres_cluster_id}/databases
+    purpose: The databases on a Postgres cluster.
+  - call: GET /v1/postgres/{postgres_cluster_id}/users
+    purpose: The users on a Postgres cluster, by name and role.
+  - call: GET /v1/platform/regions
+    purpose: Fly.io's regions, with each one's code and whether it takes new machines.
+  - call: GET /v1/tokens/current
+    purpose: What the connection's own token can reach, by name, never its value.

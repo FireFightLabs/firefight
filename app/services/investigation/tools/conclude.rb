@@ -98,7 +98,7 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
   # They arrive keyed by text, as the model sent them.
   # The first answer is argued with before it is recorded, unless the budget has no room left for that.
   def call(tool_call: nil, **arguments)
-    return FirefightAi::Investigator::CRITIQUE if !@investigation.budget_spent? && @investigation.ask_for_critique!
+    return critique if !@investigation.budget_spent? && @investigation.ask_for_critique!
 
     asked = arguments.symbolize_keys
     check_fix!(asked)
@@ -119,7 +119,19 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
     { error: error.message }
   end
 
+  # Theories still open are named with the critique, so they are tested at once with helpers or said to be open.
+  OPEN_THEORIES = "Theories still open: %<open>s. Test them at once with run_helpers and record what each shows, or say in " \
+                  "the summary and gaps that they are still open and what would settle them.".freeze
+
   private
+
+  def critique
+    open = @investigation.hypotheses.where(status: Investigation::Hypothesis::STATUS_OPEN).pluck(:assertion)
+    return FirefightAi::Investigator::CRITIQUE if open.empty?
+
+    "#{FirefightAi::Investigator::CRITIQUE} #{format(OPEN_THEORIES, open: open.to_sentence)}"
+  end
+
 
   # Before the claims are re-read, which costs a model call, so a fix that will be refused never pays for one.
   def check_fix!(asked)

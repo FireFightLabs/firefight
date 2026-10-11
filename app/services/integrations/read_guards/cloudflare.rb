@@ -108,7 +108,7 @@ module Integrations
       def self.chat_description
         "To read, pass method and path (with query, or graphql and variables for POST #{GRAPHQL}, or body for a Workers log " \
           "query) and no #{CODE}. Firefight writes that request itself, so it runs at once without asking. Write #{CODE} only to " \
-          "change something, which asks the person first."
+          "change something, which asks the person first. The cloudflare_api skill lists the key reads with their paths."
       end
 
       def self.reading(_tool_name, arguments)

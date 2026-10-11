@@ -42,7 +42,7 @@ module FirefightAi
         AgentLoop.new(
           chat: chat, budget: budget, answered: answered, canceled: canceled,
           on_step: on_step, nudge: nudge, memory: memory, inference: inference_context, output: output_cap, take_messages: take_messages,
-          choice: ai_model, purpose: AiPurpose::INVESTIGATION, purse: purse, on_backup: on_backup
+          choice: ai_model, purpose: AiPurpose::INVESTIGATION, purse: purse, on_backup: on_backup, steady: true
         ).run(&on_turn)
       end
     end

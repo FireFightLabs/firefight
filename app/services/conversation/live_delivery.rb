@@ -169,7 +169,8 @@ class Conversation::LiveDelivery
     @text.add(text)
   end
 
-  def answered!(_reply)
+  # The page reads the sources with the reply when it reloads (AgentChatMessageSerializer#sources).
+  def answered!(_reply, sources: [])
     @text.flush!
     broadcast(type: EVENT_ANSWERED)
   end

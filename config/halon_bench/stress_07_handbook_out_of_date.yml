@@ -13,6 +13,7 @@ tools:
   - search_handbook
   - github_workflow_runs
   - northflank_api_request
+  - northflank_workflow_runs
   - propose_handbook_edit
 answers:
   - tool: search_handbook
@@ -38,6 +39,13 @@ answers:
     match: { method: POST, path: /release/ }
     result: |-
       Started run 4190 of workflow release. https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4190
+  - tool: northflank_workflow_runs
+    match: { run: "4190" }
+    result: |-
+      Run 4190 of workflow release in project shop: running since it was started, build running. https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4190
+  - tool: northflank_workflow_runs
+    result: |-
+      Runs of workflow release in project shop, newest first: 4177 succeeded October 8, 4170 succeeded, 4163 succeeded. release has run every release since 2026-10-01. Finished runs usually take about 7 minutes.
   - tool: propose_handbook_edit
     result: Proposed an edit to the Releasing section. The person sees it on a card and accepts or changes it.
 expect:

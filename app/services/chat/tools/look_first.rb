@@ -71,7 +71,9 @@ module Chat::Tools::LookFirst
   def self.read_names(chat, workspace) = reads(chat, workspace).map { |call| call.name.downcase }.to_set
 
   # The calls that read and answered in the turn running at until_at, which starts at the person's latest message, and
-  # those of the answer before it made within PROPOSAL_FRESH_FOR of until_at.
+  # those of the answer before it made within PROPOSAL_FRESH_FOR of until_at. Only Halon's own reads count. A
+  # specialist's report is outside text another model wrote, so neither ask_specialist nor what a specialist read
+  # backs a change, and Halon confirms the finding a change rests on itself.
   def self.reads(chat, workspace, until_at: nil)
     person = chat.messages.where(role: Chat::Message::ROLE_USER, nudge: false)
     person = person.where(created_at: ..until_at) if until_at
@@ -87,8 +89,12 @@ module Chat::Tools::LookFirst
 
   def self.backs?(call, started, fresh_from) = started.nil? || call.message.created_at >= started || call.message.created_at >= fresh_from
 
-  # A read through any tool: one the page shows as looking something up, or a capability that only reads.
+  # A read through any tool: one the page shows as looking something up, or a capability that only reads. Asking a
+  # specialist is never one, since its answer is another model's words, and nor is Halon's own theory board.
+  NOT_READS = [ Chat::Tools::AskSpecialist::NAME, Chat::Tools::Theories::NAME ].freeze
+
   def self.read?(workspace, name, arguments)
+    return false if NOT_READS.include?(name.to_s)
     return true if Chat::Tools.kind(name, workspace, arguments) == Chat::Tools::KIND_READ
     return true if [ Chat::Tools::KeyQuery::NAME, Chat::Tools::LogPatterns::NAME ].include?(name.to_s)
 
