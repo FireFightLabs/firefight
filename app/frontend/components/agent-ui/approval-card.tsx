@@ -26,6 +26,10 @@ export type ApprovalQuestion = {
   options: string[];
   /** what the question is about, shown under it as a list rather than run into the sentence */
   details?: Detail[];
+  /** what the question rests on, such as the reads a change was proposed from */
+  basis?: string;
+  /** rows under it, such as each read and what it showed */
+  basisDetails?: Detail[];
   /** a warning the person should read before answering, such as what was read from outside before a change was asked */
   caution?: string;
   /** rows under the warning, such as each thing that was read */
@@ -387,6 +391,14 @@ export default function ApprovalCard({
                     {question.subtitle && <div className="mt-0.5 pr-7 text-[13px] font-medium text-ink-2">{question.subtitle}</div>}
                     {question.note && <div className="mt-1.5 pr-7 text-[13px] text-ink-3">{question.note}</div>}
                     {question.details && question.details.length > 0 && <DetailList details={question.details} className="mt-2.5" />}
+                    {question.basis && (
+                      <div className="mt-2.5 mr-7 rounded-control border border-line px-2.5 py-2">
+                        <div className="text-[12.5px] leading-5 text-ink-2">{question.basis}</div>
+                        {question.basisDetails && question.basisDetails.length > 0 && (
+                          <DetailList details={question.basisDetails} className="mt-1.5" />
+                        )}
+                      </div>
+                    )}
                     {question.caution && (
                       <div className="mt-2.5 mr-7 rounded-control border border-warning-border bg-warning-tint px-2.5 py-2">
                         <div className="text-[12.5px] leading-5 text-warning">{question.caution}</div>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_10_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_11_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -971,7 +971,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_150000) do
     t.datetime "read_at"
     t.datetime "judged_at"
     t.datetime "steady_since"
+    t.jsonb "readings", default: [], null: false
+    t.text "summary"
+    t.string "read_signature"
+    t.string "focus"
     t.index ["integration_environment_id"], name: "index_chat_watch_steps_on_integration_environment_id"
+    t.index ["read_signature"], name: "index_chat_watch_steps_on_read_signature"
     t.index ["watch_id", "position"], name: "index_chat_watch_steps_on_watch_id_and_position", unique: true
     t.index ["watch_id"], name: "index_chat_watch_steps_on_watch_id"
   end

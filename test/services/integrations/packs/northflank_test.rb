@@ -58,6 +58,16 @@ module Integrations
         assert_match %r{link with what you found: https://app\.northflank\.com/t/firefight-labs/project/firefight/services/web\z}, environment
       end
 
+      test "a long answer is read as far as any general read, such as a workflow run's nodes, and says where it was cut" do
+        nodes = Array.new(300) { |index| { "name" => "node-#{index}", "status" => "success" } } + [ { "name" => "deploy-web", "status" => "failed" } ]
+        NorthflankApi.any_instance.stubs(:request).with("GET", "firefight", "workflows/release/runs/7", nil, {}).returns("data" => { "nodes" => nodes })
+        assert_match "deploy-web", call(:api_request, "method" => "GET", "path" => "workflows/release/runs/7")
+
+        huge = Array.new(3_000) { |index| { "name" => "node-#{index}", "status" => "success" } }
+        NorthflankApi.any_instance.stubs(:request).with("GET", "firefight", "workflows/release/runs/8", nil, {}).returns("data" => { "nodes" => huge })
+        assert_match "[Cut at #{Integrations::ApiReads::RESULT_LIMIT} characters.", call(:api_request, "method" => "GET", "path" => "workflows/release/runs/8")
+      end
+
       test "a call Northflank's own command line tool made keeps the API's answer whole beside the text, with secrets still hidden" do
         long = Array.new(400) { |index| { "id" => "svc-#{index}", "runtimeEnvironment" => { "API_KEY" => "abc123" } } }
         NorthflankApi.any_instance.stubs(:request).with("GET", "firefight", "services", nil, {}).returns("data" => { "services" => long })

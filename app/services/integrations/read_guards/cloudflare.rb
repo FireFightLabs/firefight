@@ -101,6 +101,16 @@ module Integrations
 
       def self.schema = SCHEMA
 
+      # A read in a chat is asked as method and path with no script, and Firefight writes the script, so it is shown to
+      # read and never asks. A script is for a change, which asks as any change does.
+      def self.structured?(_tool_name, arguments) = arguments[CODE].to_s.strip.empty? && arguments["method"].present?
+
+      def self.chat_description
+        "To read, pass method and path (with query, or graphql and variables for POST #{GRAPHQL}, or body for a Workers log " \
+          "query) and no #{CODE}. Firefight writes that request itself, so it runs at once without asking. Write #{CODE} only to " \
+          "change something, which asks the person first."
+      end
+
       def self.reading(_tool_name, arguments)
         method = arguments["method"].to_s.upcase
         path = arguments["path"].to_s

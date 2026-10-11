@@ -1248,7 +1248,9 @@ export const WATCH_SPEC_KEYS = {
   "DONE_WHEN": "done_when",
   "FAILED_WHEN": "failed_when",
   "GOAL": "goal",
-  "TOOL": "tool"
+  "TOOL": "tool",
+  "FOCUS": "focus",
+  "ARGUMENTS": "arguments"
 } as const
 
 export const IMPLICIT_AUTHORITIES = {

@@ -322,6 +322,7 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
               errors={{ aliases: errors.aliases, inputs: errors.inputs, watch: errors.watch }}
               watchError={shownWatchProblem}
               reads={reads}
+              tools={tools}
               placeholders={placeholders}
               places={placeOptions}
               onChange={(procedure) => patch({ procedure })}

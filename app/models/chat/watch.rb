@@ -48,7 +48,7 @@ class Chat::Watch < ApplicationRecord
   SPEC_KEYS = {
     title: "title", minutes: "minutes", steps: "steps", label: "label", capability: "capability", resource: "resource",
     name: "name", run: "run", report_start: "report_start", done_when: "done_when", failed_when: "failed_when", goal: "goal",
-    tool: "tool"
+    tool: "tool", focus: "focus", arguments: "arguments"
   }.freeze
 
   belongs_to :chat

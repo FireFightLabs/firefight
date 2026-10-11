@@ -93,9 +93,14 @@ module Integrations
     def self.answer(provider, asked, said, secret: false, webhooks: false)
       shown = shown(said, secret: secret, webhooks: webhooks)
       text = Chat::SecretFree.redacted(shown.is_a?(String) ? shown : JSON.pretty_generate(shown))
-      cut = text.length > RESULT_LIMIT
-      text = "#{text[0, RESULT_LIMIT]}\n[Cut at #{RESULT_LIMIT} characters. Read less at once, such as one page with a smaller limit, or one item by its id.]" if cut
-      "#{provider} answered #{asked}.\n#{text}"
+      "#{provider} answered #{asked}.\n#{cut(text)}"
+    end
+
+    # The text within RESULT_LIMIT, with a line saying it was cut when it was, so a reader never takes a part for the whole.
+    def self.cut(text)
+      return text if text.length <= RESULT_LIMIT
+
+      "#{text[0, RESULT_LIMIT]}\n[Cut at #{RESULT_LIMIT} characters. Read less at once, such as one page with a smaller limit, or one item by its id.]"
     end
 
     # The answer as the API gave it with secrets kept to their names, whole, as answer writes it for the model and as a

@@ -104,6 +104,34 @@ class RunbookProcedureEditorTest < ApplicationSystemTestCase
   private
 
   # The tools' fields arrive once the editor asks for them, which the step's own description shows.
+  test "a watch item can follow any read tool with its arguments, such as the release workflow's newest run through the general read" do
+    northflank = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Northflank", slug: "northflank")
+    northflank.integration_environments.create!(credentials: { token: "x" }.to_json)
+    northflank.tools.create!(name: "api_request", description: "Any call to Northflank's API", read_only: false, enabled: true,
+                             params_schema: { "type" => "object", "properties" => { "method" => { "type" => "string" }, "path" => { "type" => "string" } },
+                                              "required" => %w[method path] })
+    @runbook.update!(watch: nil)
+    open_editor
+    find("#runbook-watch-on").click
+    fill_in "runbook-watch-title", with: "Release"
+    find("input[aria-label='Watch 1 label']").fill_in(with: "Release workflow")
+    find("button[role='combobox']", text: /How to check it|Run history/).click
+    find("[cmdk-item]", text: "northflank_api_request").click
+    assert_no_selector "button[role='combobox']", text: "On which resource"
+    fill_in "method", with: "GET"
+    fill_in "path", with: "workflows/release/runs"
+    fill_in "Part of the answer to watch", with: "data.runs.0.status"
+    find("input[aria-label='Watch 1 goal']").fill_in(with: "workflow release's newest run finished")
+    page.save_screenshot(Rails.root.join("tmp/screenshots/runbook-editor-watch-read-tool.png"))
+    click_button "Save changes"
+    assert_text "Release Firefight was updated."
+
+    assert_equal({ "title" => "Release", "steps" => [ { "label" => "Release workflow", "tool" => "northflank_api_request", "focus" => "data.runs.0.status",
+                                                         "arguments" => { "method" => "GET", "path" => "workflows/release/runs" },
+                                                         "goal" => "workflow release's newest run finished" } ] },
+                 @runbook.reload.watch)
+  end
+
   def open_editor
     visit settings_runbooks_path
     within(:xpath, "//tr[.//*[text()='Release Firefight']]") { click_button "Actions" }

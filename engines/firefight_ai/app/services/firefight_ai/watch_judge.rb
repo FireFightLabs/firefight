@@ -17,19 +17,20 @@ module FirefightAi
       @member = member
     end
 
-    # so_far is where the watch last had it, not started or running. steady is how long the reading has stayed the same,
-    # in words, for a condition that names a time.
-    def reading(goal:, before:, now:, so_far:, steady: nil)
+    # question is what the step waits on, in plain words. readings are the step's recent readings that changed, oldest
+    # first, as pairs of when and what it read. so_far is where the watch last had it, not started or running. steady is
+    # how long the newest reading has stayed the same, in words, for a condition that names a time.
+    def reading(question:, readings:, so_far:, steady: nil)
       content = ask(READING_PROMPT, Schemas::WatchReading,
-                    "## The condition\n#{goal}\n\n## Where it was so far\n#{so_far}\n\n## How long the reading has stayed the same\n#{steady.presence || 'It just changed.'}" \
-                    "\n\n## The reading before\n#{before.presence || '(none)'}\n\n## The reading now\n#{now}")
+                    "## The question\n#{question}\n\n## Where it was so far\n#{so_far}\n\n## How long the newest reading has stayed the same\n" \
+                    "#{steady.presence || 'It just changed.'}\n\n#{readings_text(readings)}")
       parts = Array(content[:parts]).filter_map do |part|
         part = part.to_h.with_indifferent_access
         state = part[:state].presence_in(Schemas::WatchReading::PART_STATES)
         [ part[:name].to_s.strip, state ] if part[:name].present? && state
       end
       Reading.new(state: content[:state].presence_in(Schemas::WatchReading::STATES), said: content[:said].to_s.strip, parts: parts,
-                  link: link_in(content[:link], now))
+                  link: link_in(content[:link], readings.map(&:last).join("\n")))
     end
 
     # One or two sentences saying why it failed, from what was read, or nil when the evidence does not say.
@@ -42,11 +43,12 @@ module FirefightAi
       said.presence unless said.casecmp?(UNKNOWN)
     end
 
-    # Where what happened leaves the goal the person had, and the next step offered as a question, or nil when nothing
-    # useful can be said.
-    def standing(purpose:, happened:)
-      response, = FirefightAi.generate(model_choice, purpose: AiPurpose::SUMMARY, inference: inference_context(STANDING_PROMPT)) do |chat|
-        chat.with_instructions(STANDING_PROMPT)
+    # Where what happened leaves the goal the person had, with the next step offered as a question when offer is true,
+    # or nil when nothing useful can be said. Progress and a good end offer nothing.
+    def standing(purpose:, happened:, offer: true)
+      prompt = offer ? STANDING_PROMPT : SETTLED_PROMPT
+      response, = FirefightAi.generate(model_choice, purpose: AiPurpose::SUMMARY, inference: inference_context(prompt)) do |chat|
+        chat.with_instructions(prompt)
         chat.ask("## What the person wanted\n#{purpose}\n\n## What just happened\n#{happened}")
       end
       said = response.content.to_s.strip
@@ -56,9 +58,11 @@ module FirefightAi
     UNKNOWN = "unknown".freeze
 
     READING_PROMPT = <<~PROMPT.freeze
-      A person asked to be told when something in a production system is done, and Halon keeps reading it until a condition in plain words holds. You get the condition, where it was so far, how long the reading has stayed the same, the last reading and the new one. Say whether the new reading shows it not begun (not_started), begun and not over (running), the condition met (done), something gone wrong such as a failed or crashed state (failed), or that this reading does not show the thing at all (nothing), such as an empty list, a different run or something else entirely. List each job or step the reading shows with its state, and copy the address of its page when the reading holds one.
+      A person asked to be told when something in a production system is done, and Halon keeps reading it until the answer to a question in plain words is yes. You get the question, where it was so far, how long the newest reading has stayed the same, and the recent readings, oldest first, each with when it was read. Answer from the readings together, the newest saying where it stands now and the earlier ones how it got there: not begun (not_started), begun and not over (running), the question answered yes (done), something gone wrong such as a failed, cancelled or crashed state (failed), or that the readings do not show the thing at all (nothing), such as an empty list, a different run or something else entirely. List each job or step the newest reading shows with its state, say in a few words where it stands, such as "build-images running, 4 of 7 jobs done", and copy the address of its page when a reading holds one.
 
-      - Judge only from the reading. Never guess at what is not in it.
+      - Judge only from the readings. Never guess at what is not in them.
+      - Look through the whole newest reading. A job or step that failed late in a long list still counts.
+      - Words the question names, such as status success, are what to look for in meaning, not letter for letter.
       - A run that exists, is in progress, or has a job or step that started or finished has begun, so it is running unless it is over.
       - A condition that names a time, such as healthy for ten minutes, is met only once the reading has stayed that way that long.
       - Queued or pending is not_started, not nothing. Use nothing only when the reading could not show the thing however it stood.
@@ -87,10 +91,35 @@ module FirefightAi
       - #{Copy::RULE}
     PROMPT
 
+    # The same, for progress and a good end, where nothing is left for the person to decide.
+    SETTLED_PROMPT = <<~PROMPT.freeze
+      A person asked Halon to follow something in a production system for a goal of theirs. You get the goal in their words and what just happened. Say in one short sentence what this shows about the goal, naming what the evidence shows, such as "web is serving 7676c83."
+
+      - Use only what happened. Never say the goal is reached unless what happened shows it.
+      - Offer nothing and ask nothing. State it.
+      - One short sentence, plain words, no preamble.
+      - When nothing useful can be said, answer exactly: #{UNKNOWN}
+      - #{Copy::RULE}
+    PROMPT
+
     # Each prompt is its own template in the ledger, so a version change means its wording changed.
-    TEMPLATES = { READING_PROMPT => "watch_reading", WHY_PROMPT => "watch_why", STANDING_PROMPT => "watch_standing" }.freeze
+    TEMPLATES = { READING_PROMPT => "watch_reading", WHY_PROMPT => "watch_why", STANDING_PROMPT => "watch_standing", SETTLED_PROMPT => "watch_settled" }.freeze
 
     private
+
+    NEWEST_ROOM = 8_000
+    EARLIER_ROOM = 1_500
+
+    # The newest reading gets the most room, since it says where things stand now.
+    def readings_text(readings)
+      return "## The readings\n(none)" if readings.empty?
+
+      newest = readings.size - 1
+      readings.each_with_index.map do |(at, text), index|
+        room = index == newest ? NEWEST_ROOM : EARLIER_ROOM
+        "## Reading #{index + 1} of #{readings.size}#{', the newest' if index == newest}, read #{at&.utc&.iso8601 || 'earlier'}\n#{text.to_s.truncate(room)}"
+      end.join("\n\n")
+    end
 
     # Only a web address the reading holds word for word, so a link is never one the model pieced together.
     def link_in(given, text)

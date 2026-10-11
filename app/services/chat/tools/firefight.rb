@@ -22,11 +22,24 @@ class Chat::Tools::Firefight < RubyLLM::Tool
   # A call that waits for the person also asks for its intent, which the confirmation leads with.
   def parameters_schema
     schema = @tool_class.schema_for(@agent_run.workspace)
+    schema = Chat::Tools::LookFirst.with_because(schema.deep_stringify_keys, required: true) if looks_first?
     requires_approval? ? Chat::Tools.with_intent(schema.deep_stringify_keys) : schema
   end
 
+  # A change that names no read from this turn goes back to Halon rather than to the person (Chat::Tools::LookFirst).
+  # Anything else is decided as the chat stored it.
+  def approval_resolver
+    Chat::Tools::Target.resolver(@agent_run) { |given, tool_call| unsupported(given, tool_call&.id).present? }
+  end
+
   def call(tool_call: nil, **arguments)
-    invoke(arguments.symbolize_keys.except(Chat::Tools::INTENT_ARG.to_sym), tool_call_id: tool_call&.id)
+    unbacked = unsupported(arguments.transform_keys(&:to_s), tool_call&.id)
+    if unbacked
+      Chat::Tools.mark_failed(@agent_run, tool_call&.id, kind: Chat::StepOutcome::FAILURE_REFUSED)
+      return unbacked
+    end
+
+    invoke(arguments.symbolize_keys.except(Chat::Tools::INTENT_ARG.to_sym, Chat::Tools::LookFirst::BECAUSE.to_sym), tool_call_id: tool_call&.id)
   end
 
   # Runs a call an approval rule held, once it was approved and the person pressed Run, exactly as it was asked. The
@@ -40,6 +53,12 @@ class Chat::Tools::Firefight < RubyLLM::Tool
   end
 
   private
+
+  def looks_first? = !@tool_class.annotations_value&.read_only_hint && Chat::Tools::LookFirst.applies?(@agent_run)
+
+  def unsupported(given, tool_call_id)
+    Chat::Tools::LookFirst.refusal(@agent_run, given, tool_call_id: tool_call_id) if looks_first?
+  end
 
   # The action comes from the arguments, since an upsert is a create or an update depending on its target.
   def invoke(arguments, tool_call_id:)

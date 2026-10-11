@@ -6,26 +6,44 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { WATCH_SPEC_KEYS } from "@/lib/generated/constants"
-import { stepText, type JsonObject } from "@/pages/settings/lib/runbook-procedure"
+import { RunbookToolFields } from "@/pages/settings/components/runbooks/runbook-tool-fields"
+import { stepText, type ArgumentsState, type WatchStepState } from "@/pages/settings/lib/runbook-procedure"
+import type { RunbookToolChoice } from "@/types/serializers"
 
 interface WatchStepEditorProps {
   number: number
-  spec: JsonObject
+  step: WatchStepState
   history: boolean
+  // The read tool the step names, or null for a capability or one this person cannot see.
+  tool: RunbookToolChoice | null
+  toolsLoaded: boolean
   readOptions: SearchableSelectOption[]
+  selectedRead: string
   resourceOptions: SearchableSelectOption[]
+  placeholders: SearchableSelectOption[]
+  places: SearchableSelectOption[]
   onChange: (field: string, entered: string | boolean) => void
+  onChooseRead: (name: string) => void
+  onArgsChange: (args: ArgumentsState) => void
   onRemove: () => void
 }
 
-export function WatchStepEditor({ number, spec, history, readOptions, resourceOptions, onChange, onRemove }: WatchStepEditorProps) {
+// One thing a watch follows: a capability on a resource from the map, or any read tool Halon can make in a chat with its
+// arguments, and what counts as done. A run in a resource's history ends on its own status.
+export function WatchStepEditor({
+  number, step, history, tool, toolsLoaded, readOptions, selectedRead, resourceOptions, placeholders, places, onChange, onChooseRead, onArgsChange, onRemove,
+}: WatchStepEditorProps) {
+  const spec = step.spec
+  const toolName = stepText(spec, WATCH_SPEC_KEYS.TOOL)
   const resource = stepText(spec, WATCH_SPEC_KEYS.RESOURCE)
   // An item left without a name is named after what it reads, as the server names it when the runbook runs.
-  const read = readOptions.find((option) => option.value === stepText(spec, WATCH_SPEC_KEYS.CAPABILITY))
+  const read = readOptions.find((option) => option.value === selectedRead)
   const namePlaceholder = read ? `Name (optional), ${read.label} if left empty` : "Name (optional)"
   const resources = resource && !resourceOptions.some((option) => option.value === resource)
     ? [ { value: resource, label: resource }, ...resourceOptions ]
     : resourceOptions
+  // A saved read the picker does not offer, such as a tool this person cannot see, still shows as chosen.
+  const reads = selectedRead && !read ? [ { value: selectedRead, label: selectedRead }, ...readOptions ] : readOptions
 
   function typed(field: string) {
     return (event: ChangeEvent<HTMLInputElement>) => onChange(field, event.target.value)
@@ -33,6 +51,12 @@ export function WatchStepEditor({ number, spec, history, readOptions, resourceOp
 
   function chosen(field: string) {
     return (value: string | null) => onChange(field, value ?? "")
+  }
+
+  function chooseRead(value: string | null) {
+    if (value) {
+      onChooseRead(value)
+    }
   }
 
   function reportStart(checked: boolean) {
@@ -48,17 +72,57 @@ export function WatchStepEditor({ number, spec, history, readOptions, resourceOp
         </button>
       </div>
       <Input aria-label={`Watch ${number} label`} value={stepText(spec, WATCH_SPEC_KEYS.LABEL)} onChange={typed(WATCH_SPEC_KEYS.LABEL)} placeholder={namePlaceholder} />
-      <div className="grid gap-2 sm:grid-cols-2">
-        <SearchableSelect value={stepText(spec, WATCH_SPEC_KEYS.CAPABILITY) || null} onValueChange={chosen(WATCH_SPEC_KEYS.CAPABILITY)} options={readOptions} placeholder="How to check it" />
+      <div className={toolName ? "grid gap-2" : "grid gap-2 sm:grid-cols-2"}>
         <SearchableSelect
-          value={resource || null}
-          onValueChange={chosen(WATCH_SPEC_KEYS.RESOURCE)}
-          options={resources}
-          placeholder="On which resource"
-          searchPlaceholder="Search the map"
-          emptyText="Nothing on the map by that name"
+          value={selectedRead || null}
+          onValueChange={chooseRead}
+          options={reads}
+          placeholder="How to check it"
+          searchPlaceholder="Search reads and read tools"
+          emptyText="No read by that name"
         />
+        {!toolName && (
+          <SearchableSelect
+            value={resource || null}
+            onValueChange={chosen(WATCH_SPEC_KEYS.RESOURCE)}
+            options={resources}
+            placeholder="On which resource"
+            searchPlaceholder="Search the map"
+            emptyText="Nothing on the map by that name"
+          />
+        )}
       </div>
+      {toolName && (
+        <div className="space-y-2 rounded-md border border-border/60 px-3 py-2.5">
+          {tool && <p className="text-xs text-muted-foreground">{tool.description}</p>}
+          {toolsLoaded && !tool && (
+            <p className="text-xs text-muted-foreground">
+              {toolName} is not among the read tools you can use here, so its arguments are kept as they were saved.
+            </p>
+          )}
+          <RunbookToolFields
+            idPrefix={`watch-${step.key}`}
+            fields={tool ? tool.watchFields ?? tool.fields : null}
+            state={step.args}
+            errors={{}}
+            placeholders={placeholders}
+            places={places}
+            onChange={onArgsChange}
+          />
+          <div className="space-y-1">
+            <Label htmlFor={`watch-${step.key}-focus`} className="text-xs">Part of the answer to watch</Label>
+            <Input
+              id={`watch-${step.key}-focus`}
+              value={stepText(spec, WATCH_SPEC_KEYS.FOCUS)}
+              onChange={typed(WATCH_SPEC_KEYS.FOCUS)}
+              placeholder="Such as data.status (optional)"
+            />
+            <p className="text-xs text-muted-foreground">
+              For a long answer, the path to the part that says how it stands. Left empty, Halon reads the whole answer.
+            </p>
+          </div>
+        </div>
+      )}
       {history ? (
         <div className="space-y-2">
           <div className="grid gap-2 sm:grid-cols-2">
@@ -72,9 +136,9 @@ export function WatchStepEditor({ number, spec, history, readOptions, resourceOp
         </div>
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
-          <Input aria-label={`Watch ${number} done when`} value={stepText(spec, WATCH_SPEC_KEYS.DONE_WHEN)} onChange={typed(WATCH_SPEC_KEYS.DONE_WHEN)} placeholder="Done when it reads, such as running" />
-          <Input aria-label={`Watch ${number} failed when`} value={stepText(spec, WATCH_SPEC_KEYS.FAILED_WHEN)} onChange={typed(WATCH_SPEC_KEYS.FAILED_WHEN)} placeholder="Failed when it reads, such as crashed" />
-          <Input aria-label={`Watch ${number} goal`} className="sm:col-span-2" value={stepText(spec, WATCH_SPEC_KEYS.GOAL)} onChange={typed(WATCH_SPEC_KEYS.GOAL)} placeholder="Or the goal in a sentence, such as web runs the new version" />
+          <Input aria-label={`Watch ${number} done when`} value={stepText(spec, WATCH_SPEC_KEYS.DONE_WHEN)} onChange={typed(WATCH_SPEC_KEYS.DONE_WHEN)} placeholder="Done when it shows, such as status success" />
+          <Input aria-label={`Watch ${number} failed when`} value={stepText(spec, WATCH_SPEC_KEYS.FAILED_WHEN)} onChange={typed(WATCH_SPEC_KEYS.FAILED_WHEN)} placeholder="Failed when it shows, such as crashed" />
+          <Input aria-label={`Watch ${number} goal`} className="sm:col-span-2" value={stepText(spec, WATCH_SPEC_KEYS.GOAL)} onChange={typed(WATCH_SPEC_KEYS.GOAL)} placeholder="Or the question in a sentence, such as workflow release's newest run finished" />
         </div>
       )}
     </div>

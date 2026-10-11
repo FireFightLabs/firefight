@@ -7,17 +7,37 @@ class FirefightAi::WatchJudgeTest < ActiveSupport::TestCase
 
   test "a reading is not started, running, done or failed with the jobs it lists, and a state it does not know moves nothing" do
     stub_model(content: { state: "done", said: "web runs the new version.", parts: [] })
-    assert_equal [ "done", "web runs the new version." ], reading_of(@judge.reading(goal: "web is live", before: nil, now: "web is live", so_far: "not started"))
+    assert_equal [ "done", "web runs the new version." ],
+                 reading_of(@judge.reading(question: "web is live", readings: [ [ Time.current, "web is live" ] ], so_far: "not started"))
 
     stub_model(content: { state: "running", said: "The release run is going.",
                           parts: [ { name: "tag", state: "passed" }, { name: "trigger-northflank", state: "running" }, { name: "", state: "passed" },
                                    { name: "build", state: "maybe" } ] })
-    reading = @judge.reading(goal: "the release finishes", before: "queued", now: "in_progress", so_far: "not started")
+    reading = @judge.reading(question: "the release finishes", readings: [ [ 2.minutes.ago, "queued" ], [ Time.current, "in_progress" ] ], so_far: "not started")
     assert_equal FirefightAi::Schemas::WatchReading::RUNNING, reading.state
     assert_equal [ %w[tag passed], %w[trigger-northflank running] ], reading.parts
 
     stub_model(content: { state: "maybe", said: "" })
-    assert_nil @judge.reading(goal: "web is live", before: "a", now: "b", so_far: "running").state
+    assert_nil @judge.reading(question: "web is live", readings: [ [ nil, "a" ], [ Time.current, "b" ] ], so_far: "running").state
+  end
+
+  test "every recent reading is put to the model, oldest first, the newest with the most room" do
+    stub_model(content: { state: "running", said: "build-images running, 4 of 7 jobs done.", parts: [] })
+    chat = RubyLLM.chat
+    asked = nil
+    chat.expects(:ask).with { |text| asked = text }.returns(llm_reply(content: { state: "running", said: "x", parts: [] }, input: 10, output: 5, cost: 0.0))
+    long = "#{'node ok. ' * 1_000}node deploy-web failed"
+    @judge.reading(question: "the release finishes", readings: [ [ 3.minutes.ago, "queued" ], [ Time.current, long ] ], so_far: "running")
+
+    assert_operator asked.index("Reading 1 of 2"), :<, asked.index("Reading 2 of 2, the newest")
+    assert_includes asked, "queued"
+    assert_includes asked, "node ok."
+  end
+
+  test "a good end is said as where it leaves the goal, with nothing offered" do
+    stub_model(content: "web is serving 7676c83.")
+    assert_equal "web is serving 7676c83.", @judge.standing(purpose: "ship main", happened: "Release done in 7 minutes.", offer: false)
+    assert_no_match(/shall I|\?/, FirefightAi::WatchJudge::SETTLED_PROMPT.lines.first)
   end
 
   test "why something failed is said from the evidence, and nothing when the evidence does not show it" do
