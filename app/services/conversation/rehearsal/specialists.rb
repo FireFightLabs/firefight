@@ -1,18 +1,16 @@
 # The specialists of a replayed chat, asked the way a live chat asks them (Chat::Specialists::Live), over the
 # scenario's own tools: a connected tool's kind comes from its provider in the registry, a capability's from its name.
-# Each specialist reads through the scenario's world like Halon does, only reads, and a change it proposes is opened in
-# Halon's replay as open_tools would open it. Specialists run at once on threads of their own, so every call through the
-# world is taken one at a time.
+# Each specialist reads through the scenario's world like Halon does and only reads, and a change it proposes is
+# described to Halon as live, never loaded for it. Specialists run at once on threads of their own, so every call
+# through the world is taken one at a time.
 class Conversation::Rehearsal::Specialists
   # Said to a specialist that calls a general tool in a way that would change something.
   ONLY_READS = "Not run. A specialist only reads, so put this change in proposed_changes for Halon to decide on.".freeze
 
-  # recorded builds a scenario tool for a chat (Conversation::Rehearsal#recorded), and open makes named tools callable
-  # in Halon's replay and returns their definitions.
-  def initialize(bench_case, recorded:, open:)
+  # recorded builds a scenario tool for a chat (Conversation::Rehearsal#recorded).
+  def initialize(bench_case, recorded:)
     @case = bench_case
     @recorded = recorded
-    @open = open
     @lock = Mutex.new
   end
 
@@ -42,12 +40,10 @@ class Conversation::Rehearsal::Specialists
     end
   end
 
-  def load(name)
-    definition = @case.tool(name)
-    return Chat::Specialists::Loaded.new(name: name, said: "No tool called #{name} is in this workspace.") unless definition
+  def describe(name)
+    return "No tool called #{name} is in this workspace." unless @case.tool(name)
 
-    @open.call([ name ])
-    Chat::Specialists::Loaded.new(name: name, said: "#{name} is now in your hands.")
+    "#{name}: #{Chat::Specialists::CONFIRM_FIRST}"
   end
 
   # A scenario tool as a specialist holds it: answered from the world, one call at a time across the specialists, and

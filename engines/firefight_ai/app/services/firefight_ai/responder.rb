@@ -18,12 +18,14 @@ module FirefightAi
     TEXT
 
     # model is a ModelChoice for a chat told to use one, such as a bench replay comparing models. nil means the workspace's.
-    def initialize(workspace, inferable:, member: nil, output_style: nil, model: nil)
+    # specialists says the chat hands reads of connected systems to specialists, which its prompt then says.
+    def initialize(workspace, inferable:, member: nil, output_style: nil, model: nil, specialists: false)
       @workspace = workspace
       @inferable = inferable
       @member = member
       @output_style = output_style
       @ai_model = model
+      @specialists = specialists
     end
 
     # The app has already saved the question as the last message. deferred_tools are found by the provider's own tool
@@ -74,7 +76,7 @@ module FirefightAi
 
         #{Manual::DONE}
 
-        #{FirefightAi.configuration.specialists ? Manual::TOOLS_WITH_SPECIALISTS : Manual::TOOLS}
+        #{@specialists ? Manual::TOOLS_WITH_SPECIALISTS : Manual::TOOLS}
 
         #{Manual::PLAYBOOKS}
 

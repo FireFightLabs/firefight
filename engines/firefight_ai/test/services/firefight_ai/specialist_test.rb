@@ -36,25 +36,25 @@ class FirefightAi::SpecialistTest < ActiveSupport::TestCase
     assert_equal :outcome, outcome
   end
 
-  test "the setting is on or off, off by default, and anything else is refused at boot" do
+  test "the setting is auto by default, on or off overrides it, and anything else is refused at boot" do
     config = FirefightAi::Configuration.new
 
-    assert_equal [ false, FirefightAi::Configuration::SPECIALIST_QUICK ], [ config.specialists, config.specialist_model ]
+    assert_equal [ :auto, FirefightAi::Configuration::SPECIALIST_QUICK ], [ config.specialists, config.specialist_model ]
     config.specialists = "on"
     config.specialist_model = "main"
-    assert_equal [ true, true ], [ config.specialists, config.specialists_on_main? ]
+    assert_equal [ :on, true ], [ config.specialists, config.specialists_on_main? ]
     config.specialists = "OFF"
+    assert_equal :off, config.specialists
     config.specialists = nil
-    assert_equal false, config.specialists
+    assert_equal :auto, config.specialists
     assert_raises(ArgumentError) { config.specialists = "sometimes" }
     assert_raises(ArgumentError) { config.specialist_model = "biggest" }
   end
 
   test "a chat's prompt says when reads go to specialists, so the two ways have different versions" do
     off = FirefightAi::Responder.new(@workspace, inferable: nil).prompt_version
-    FirefightAi.configuration.stubs(:specialists).returns(true)
 
-    assert_not_equal off, FirefightAi::Responder.new(@workspace, inferable: nil).prompt_version
+    assert_not_equal off, FirefightAi::Responder.new(@workspace, inferable: nil, specialists: true).prompt_version
     assert_includes FirefightAi::Manual::TOOLS_WITH_SPECIALISTS, FirefightAi::Manual::SPECIALIST_READS
   end
 end

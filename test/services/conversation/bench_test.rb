@@ -28,7 +28,8 @@ class Conversation::BenchTest < ActiveSupport::TestCase
     assert_equal [ 1, 2, 3 ], run.results.distinct.pluck(:attempt).sort
     assert_equal [ Conversation::BenchRun::DEFAULT_REPEATS, Conversation::BenchRun::DEFAULT_BUDGET_MICROS ], [ run.repeats, run.budget_micros ]
     assert_equal [ "gpt-4o", users(:alice) ], [ run.model, run.started_by ]
-    assert_equal FirefightAi::Responder.new(workspace, inferable: nil, model: FirefightAi::ModelChoice.new(model: "gpt-4o")).prompt_version, run.prompt_version
+    versions = [ false, true ].map { |specialists| FirefightAi::Responder.new(workspace, inferable: nil, model: FirefightAi::ModelChoice.new(model: "gpt-4o"), specialists: specialists).prompt_version }
+    assert_equal versions.join("+auto-"), run.prompt_version, "in auto a run names both prompts it chose between"
     assert_equal [ workspace.id ], Conversation::Bench.start!(trigger: Conversation::BenchRun::TRIGGER_OPERATOR).results.distinct.pluck(:workspace_id)
   end
 
@@ -142,7 +143,7 @@ class Conversation::BenchTest < ActiveSupport::TestCase
   # The bench measures both ways on the same code: with specialists on, what they read is scored with Halon's calls and
   # what they spend is Halon's cost.
   test "with specialists on, a scenario is replayed through them, their reads are scored and their spend is Halon's" do
-    FirefightAi.configuration.stubs(:specialists).returns(true)
+    FirefightAi.configuration.stubs(:specialists).returns(:on)
     FirefightAi.stubs(:tool_search?).returns(false)
     result = one_scenario_run(
       tools: [ { "name" => "northflank_read_run", "description" => "Reads a run", "reads" => true, "source" => "northflank" } ],
@@ -163,7 +164,7 @@ class Conversation::BenchTest < ActiveSupport::TestCase
 
     assert_equal Conversation::BenchResult::STATUS_SCORED, result.status
     assert_equal 2, result.calls, "the specialist's read is counted with Halon's own call"
-    assert_equal FirefightAi::Responder.new(result.workspace, inferable: nil, model: FirefightAi::ModelChoice.new(model: "gpt-4o")).prompt_version,
+    assert_equal FirefightAi::Responder.new(result.workspace, inferable: nil, model: FirefightAi::ModelChoice.new(model: "gpt-4o"), specialists: true).prompt_version,
                  result.bench_run.prompt_version
     specialist = Inference.where(inferable: result, feature: FirefightAi::Specialist::FEATURE)
     assert_equal 2, specialist.count

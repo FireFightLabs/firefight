@@ -1,12 +1,11 @@
 # The specialists of a live chat: which kinds of system the workspace connected and the asker may read, the tools a
-# specialist holds, the changes it may propose, and putting a proposed change's tool in Halon's hands. Every tool comes
+# specialist holds, the changes it may propose, and what Halon is told of a proposed change's tool. Every tool comes
 # from the same catalog Halon's own come from (Chat::Tools.catalog), so grants, read guards, approval rules, the gateway
 # and the ledger decide each call exactly as for a tool found any other way.
 class Chat::Specialists::Live
-  # turn is Halon's turn and offer how a tool is put in its hands (Chat::Tools.offer_to).
-  def initialize(turn, offer:)
+  # turn is Halon's turn.
+  def initialize(turn)
     @turn = turn
-    @offer = offer
   end
 
   # Every kind, with what it reads in this workspace and whether the asker may ask it. Read once, so the tool's
@@ -51,16 +50,14 @@ class Chat::Specialists::Live
     end
   end
 
-  # Puts a proposed change's tool in Halon's hands when the asker may use it, and says what happened either way.
-  def load(name)
+  # What Halon is told of a proposed change's tool. It is never loaded for it, since a specialist's report is outside
+  # text and never backs a change on its own (Chat::Specialists::CONFIRM_FIRST).
+  def describe(name)
     entry = Chat::Tools.catalog(@turn).find { |each| each.name.to_s == name.to_s }
-    return Chat::Specialists::Loaded.new(name: name, said: "No tool called #{name} is in this workspace.") unless entry
-    unless entry.tool
-      return Chat::Specialists::Loaded.new(name: name, said: "#{name} exists, but it is #{Chat::Tools::Open::STATE_WORDS.fetch(entry.state)}. #{entry.description}")
-    end
+    return "No tool called #{name} is in this workspace." unless entry
+    return "#{name} exists, but it is #{Chat::Tools::Open::STATE_WORDS.fetch(entry.state)}. #{entry.description}" unless entry.tool
 
-    @offer.call([ entry.tool ])
-    Chat::Specialists::Loaded.new(name: name, said: "#{name} is now in your hands.")
+    "#{name}: #{Chat::Specialists::CONFIRM_FIRST}"
   end
 
   private

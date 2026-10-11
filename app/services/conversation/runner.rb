@@ -54,12 +54,12 @@ class Conversation::Runner
     chat.on_making_room { |compaction| delivery.made_room(compaction) }
     @changes = Chat::Tools::Changes.catch_up!(@turn, chat).then { |caught| caught if caught.note }
     purse = FirefightAi::AgentLoop::Purse.new
+    @turn.asks_specialists = Chat::Specialists.ask?(@turn, picked_model || FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @conversation.workspace))
     presented = Chat::Tools.presented(@turn, responder.ai_model)
-    offer = Chat::Tools.offer_to(chat)
 
     outcome = responder.run(
       chat: chat,
-      tools: Conversation::Tools.for(@turn, offer: offer, helpers: helper_share(chat, purse, offer), presented: presented) +
+      tools: Conversation::Tools.for(@turn, offer: Chat::Tools.offer_to(chat), helpers: helper_share(chat, purse), presented: presented) +
              presented.loaded + Chat::Tools.known(@turn, chat),
       deferred_tools: presented.deferred,
       context: context,
@@ -102,7 +102,7 @@ class Conversation::Runner
   def responder
     @responder ||= FirefightAi::Responder.new(
       @conversation.workspace, inferable: @conversation.subject, member: @turn.asker,
-      output_style: delivery.output_style, model: picked_model
+      output_style: delivery.output_style, model: picked_model, specialists: @turn.asks_specialists?
     )
   end
 
@@ -436,9 +436,8 @@ class Conversation::Runner
 
   # What this question lends the helpers Halon hands checks to: its purse and cap, its stop, and the person it acts for,
   # whom each helper reads as on a copy of the turn of its own.
-  # Where the deployment asks specialists, they read with what this turn may reach and put a change they propose in its
-  # hands through offer.
-  def helper_share(chat, purse, offer)
+  # Where this turn asks specialists, they read with what it may reach.
+  def helper_share(chat, purse)
     conversation = @conversation
     asker = @turn.asker
     Chat::Helpers::Share.new(
@@ -447,7 +446,7 @@ class Conversation::Runner
       fresh_parent: -> { Conversation::Turn.new(Conversation.find(conversation.id), asker: asker&.class&.find(asker.id), reads_only: true) },
       choose: ->(deep) { deep ? helper_main_model : Chat::Helpers.side_model(conversation.workspace, main: helper_main_model) },
       inferable: conversation.subject, member: asker,
-      specialists: (Chat::Specialists::Live.new(@turn, offer: offer) if Chat::Specialists.for?(@turn))
+      specialists: (Chat::Specialists::Live.new(@turn) if Chat::Specialists.for?(@turn))
     )
   end
 

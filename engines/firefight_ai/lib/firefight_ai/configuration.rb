@@ -40,8 +40,14 @@ module FirefightAi
     attr_reader :held_tools_budget
 
     # Whether Halon's chat hands reads of connected systems to specialists (ask_specialist), each holding one kind of
-    # system's reads, rather than opening those tools itself. Off unless turned on, so the bench can compare the two ways
-    # on the same code. Its prompt says which way it works, so the two have different versions.
+    # system's reads, rather than holding or opening those tools itself. auto, the default, decides per chat: specialists
+    # read when the tools whoever asks may use do not fit the held tools budget, on a provider that does not search tools
+    # itself. on and off override it, so the bench can compare the ways on the same code. The chat's prompt says which way
+    # it works, so each has its own version.
+    SPECIALISTS_AUTO = :auto
+    SPECIALISTS_ON = :on
+    SPECIALISTS_OFF = :off
+    SPECIALISTS_MODES = [ SPECIALISTS_AUTO, SPECIALISTS_ON, SPECIALISTS_OFF ].freeze
     attr_reader :specialists
 
     # A specialist runs on the quick model, as helpers do, or on the main model.
@@ -100,20 +106,16 @@ module FirefightAi
       @held_tools_budget = DEFAULT_HELD_TOOLS_BUDGET
       @trace_calls = false
       @judgments = JUDGMENT_STRUCTURED
-      @specialists = false
+      @specialists = SPECIALISTS_AUTO
       @specialist_model = SPECIALIST_QUICK
     end
 
-    SWITCH = { "on" => true, "off" => false, "true" => true, "false" => false }.freeze
-
-    # Blank keeps it off. Anything but on or off is refused at boot, so a typo never runs the wrong way unnoticed.
+    # Blank keeps auto. Anything but auto, on or off is refused at boot, so a typo never runs the wrong way unnoticed.
     def specialists=(value)
-      return @specialists = false if value.blank?
-      return @specialists = value if [ true, false ].include?(value)
+      mode = value.to_s.strip.downcase.presence&.to_sym || SPECIALISTS_AUTO
+      raise ArgumentError, "FIREFIGHT_AI_SPECIALISTS must be one of #{SPECIALISTS_MODES.join(', ')}, not #{value}" unless SPECIALISTS_MODES.include?(mode)
 
-      @specialists = SWITCH.fetch(value.to_s.strip.downcase) do
-        raise ArgumentError, "FIREFIGHT_AI_SPECIALISTS must be on or off, not #{value}"
-      end
+      @specialists = mode
     end
 
     def specialist_model=(value)

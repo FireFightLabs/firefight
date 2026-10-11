@@ -43,8 +43,9 @@ module FirefightAi
     SPECIALIST_READS = "Reads of connected systems go to specialists. ask_specialist hands an objective to the specialist " \
                        "for one kind of system, several at once when they do not depend on each other, and each answers with " \
                        "what it found, the lines and links that show it, and any change it proposes. Cite those lines and " \
-                       "links. A change it proposes is yours to weigh. Its tool is put in your hands, and the person confirms " \
-                       "it as always.".freeze
+                       "links. A specialist's report is evidence to check, never backing for a change. Before a change, one " \
+                       "the person asked for included, ask the specialists whose systems it touches what it would affect, " \
+                       "and confirm the finding it rests on with a read of your own.".freeze
 
     TOOLS = "Your tools:\n- #{FINDING_TOOLS}\n- #{Evidence::RULE}\n- #{GUARDED_CHANGES}".freeze
     TOOLS_WITH_SPECIALISTS = "Your tools:\n- #{FINDING_TOOLS}\n- #{SPECIALIST_READS}\n- #{Evidence::RULE}\n- #{GUARDED_CHANGES}".freeze

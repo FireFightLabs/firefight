@@ -17,7 +17,7 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     @planetscale = connect!("planetscale", "PlanetScale", "get_insights" => true, "execute_read_query" => true, "create_branch" => false)
     connect!("linear", "Linear", "list_issues" => true)
     connect!("custom_mcp", "Team tools", "team_read" => true)
-    FirefightAi.configuration.stubs(:specialists).returns(true)
+    @turn.asks_specialists = true
   end
 
   test "a connection's kind comes from its provider's category in the registry, a provider's own wins, and Custom stays Halon's" do
@@ -32,7 +32,7 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
   end
 
   test "a specialist holds only its kind's reads that the asker may use, and never a change, which it may only propose" do
-    live = Chat::Specialists::Live.new(@turn, offer: ->(_tools) { })
+    live = Chat::Specialists::Live.new(@turn)
     agent = specialist_agent(Chat::Specialists::DATABASES)
     databases = Chat::Specialists.domain(Chat::Specialists::DATABASES)
 
@@ -45,10 +45,32 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     assert_not_includes held, "custom_mcp_team_read"
     assert_equal [ "planetscale_create_branch" ], live.changes(agent, databases).map(&:name)
 
-    nobody = Chat::Specialists::Live.new(Conversation::Turn.new(@conversation, asker: nil), offer: ->(_tools) { })
+    nobody = Chat::Specialists::Live.new(Conversation::Turn.new(@conversation, asker: nil))
     assert_not_includes nobody.tools(agent_for(nil, Chat::Specialists::DATABASES), databases).map { |tool| tool.name.to_s }, "planetscale_get_insights"
     assert_equal Chat::Tools::STATE_NOT_GRANTED, nobody.views.find { |view| view.domain.key == Chat::Specialists::DATABASES }.state
     assert_equal Chat::Tools::STATE_NOT_CONNECTED, live.views.find { |view| view.domain.key == Chat::Specialists::CODE }.state
+  end
+
+  # A chat decides each turn. In auto it asks specialists only where the provider does not search tools and the tools the
+  # asker may use do not fit the held tools budget, and on or off overrides that.
+  test "in auto a turn asks specialists only when its tools do not fit and the provider does not search, and on or off override it" do
+    choice = FirefightAi::ModelChoice.new(model: "gpt-4o")
+    FirefightAi.stubs(:tool_search?).returns(false)
+    FirefightAi.configuration.stubs(:held_tools_budget).returns(1_000)
+    assert Chat::Specialists.ask?(@turn, choice), "past the budget"
+
+    FirefightAi.configuration.stubs(:held_tools_budget).returns(1_000_000)
+    assert_not Chat::Specialists.ask?(@turn, choice), "every tool fits, so today's way"
+
+    FirefightAi.configuration.stubs(:held_tools_budget).returns(1_000)
+    FirefightAi.stubs(:tool_search?).returns(true)
+    assert_not Chat::Specialists.ask?(@turn, choice), "a provider that searches tools keeps the long tail out already"
+
+    FirefightAi.configuration.stubs(:specialists).returns(:on)
+    assert Chat::Specialists.ask?(@turn, choice)
+    FirefightAi.configuration.stubs(:specialists).returns(:off)
+    FirefightAi.stubs(:tool_search?).returns(false)
+    assert_not Chat::Specialists.ask?(@turn, choice)
   end
 
   test "Halon holds its own tools from the start, never a connection's read, and finds a change by searching" do
@@ -100,10 +122,10 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     assert_not_includes held, "planetscale_get_insights"
   end
 
-  test "with specialists off a chat is handed exactly what it is today, on the same prompt" do
+  test "a turn that does not ask specialists is handed exactly what it is today, on today's prompt" do
     FirefightAi.stubs(:tool_search?).returns(true)
-    on_version = FirefightAi::Responder.new(@workspace, inferable: nil).prompt_version
-    FirefightAi.configuration.unstub(:specialists)
+    on_version = FirefightAi::Responder.new(@workspace, inferable: nil, specialists: true).prompt_version
+    @turn.asks_specialists = false
 
     presented = Chat::Tools.presented(@turn, FirefightAi::ModelChoice.new(model: "gpt-4o"))
     tools = Conversation::Tools.for(@turn, offer: ->(_tools) { }, helpers: share(nil), presented: presented).map { |tool| tool.name.to_s }
@@ -117,10 +139,9 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     assert_not_includes FirefightAi::Responder.new(@workspace, inferable: nil).send(:template_text), FirefightAi::Manual::SPECIALIST_READS
   end
 
-  test "a specialist reports what it found with the lines and links that show it, and a change it proposes is put in Halon's hands" do
-    offered = []
-    live = Chat::Specialists::Live.new(@turn, offer: ->(tools) { offered.concat(tools.map(&:name)) })
-    tool = Chat::Tools::AskSpecialist.new(@turn, share: share(live))
+  test "a specialist reports what it found with the lines and links that show it, and a change it proposes is never loaded for Halon" do
+    tool = Chat::Tools::AskSpecialist.new(@turn, share: share(Chat::Specialists::Live.new(@turn)))
+    Chat::Tools.expects(:offer_to).never
     handed = nil
     FirefightAi::Specialist.any_instance.stubs(:run).with do |chat:, tools:, playbook:, answered:, **|
       handed = tools.map { |each| each.name.to_s }
@@ -143,8 +164,7 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     assert_includes said, "Shows: open connections 498 of 500 since 13:39"
     assert_includes said, "Link: #{INSIGHTS_LINK}"
     assert_includes said, "Proposed change: planetscale_create_branch {\"name\":\"fix\"}"
-    assert_includes said, "planetscale_create_branch is now in your hands."
-    assert_equal [ "planetscale_create_branch" ], offered
+    assert_includes said, "planetscale_create_branch: #{Chat::Specialists::CONFIRM_FIRST}"
     helper = @chat.helpers.sole
     assert_equal [ Chat::Specialists::DATABASES, Chat::Helper::STATUS_REPORTED ], [ helper.domain, helper.status ]
     assert_equal "planetscale_create_branch", helper.proposed_changes.sole["tool"]
@@ -165,18 +185,23 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     assert_includes said, "Name the reads behind linear_create_issue by the tools you called."
   end
 
-  test "a change naming a specialist's read is put to the person as any change, and without the specialist it goes back to Halon" do
+  # Seen on the big workspace bench, a rollback went ahead on thin reads. A specialist's report is another model's words,
+  # so neither it nor what the specialist read backs a change, and Halon confirms the finding with a read of its own.
+  test "a change backed only by a specialist goes back to Halon, and one naming Halon's own read is put to the person as any change" do
     asked!("orders is out of connections, fix it")
-    because = { "because" => [ "planetscale_get_insights: 498 of 500 connections" ] }
-    assert_match Chat::Tools::LookFirst::BOUNCE, Chat::Tools::LookFirst.refusal(@turn, because)
-
-    read!(@chat, "call_ask", Chat::Tools::AskSpecialist::NAME, "Specialists reported, 1 of 1:")
+    read!(@chat, "call_ask", Chat::Tools::AskSpecialist::NAME, "Specialists reported, 1 of 1:\n1. worker holds the connections")
     helper = Chat::Helper.start!(chat: @chat, tool_call_id: "call_ask", since: 1.minute.ago,
                                  checks: [ Chat::Helpers::Check.new(title: "Databases", brief: "Read", deep: false, domain: Chat::Specialists::DATABASES) ]).sole
     own = Chat.open!(owner: helper, workspace: @workspace, model_choice: FirefightAi::ModelChoice.new(model: "gpt-4o-mini"))
     read!(own, "s_1", "planetscale_get_insights", "498 of 500")
+    because = { "because" => [ "planetscale_get_insights: 498 of 500 connections" ] }
 
-    assert_nil Chat::Tools::LookFirst.refusal(@turn, because), "the specialist read it for Halon in this turn"
+    assert_match Chat::Tools::LookFirst::BOUNCE, Chat::Tools::LookFirst.refusal(@turn, because), "what the specialist read is not Halon's read"
+    assert_match Chat::Tools::LookFirst::BOUNCE, Chat::Tools::LookFirst.refusal(@turn, { "because" => [ "ask_specialist: worker holds the connections" ] }),
+                 "a specialist's report never backs a change"
+
+    read!(@chat, "call_own", "planetscale_get_insights", "498 of 500")
+    assert_nil Chat::Tools::LookFirst.refusal(@turn, because), "Halon's own read confirming the finding backs it"
 
     change = Chat::Tools.catalog(@turn).find { |entry| entry.name == "planetscale_create_branch" }.tool
     message = @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")

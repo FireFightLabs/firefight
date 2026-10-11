@@ -27,6 +27,7 @@ class Conversation::BenchWorkspaceTest < ActiveSupport::TestCase
 
   test "switched on, a replay offers the big workspace beside its own tools, the scenario's own definitions win, and an extra answers as unscripted" do
     Conversation::BenchWorkspace.stubs(:on?).returns(true)
+    FirefightAi.configuration.stubs(:specialists).returns(:off)
     FirefightAi.stubs(:tool_search?).returns(false)
     script(call("open_tools", "group" => "notion", "tools" => %w[notion_notion_search northflank_read_run]),
            call("notion_notion_search", "query" => "release"), call("northflank_read_run", {}), reply("Run 412 failed."))
@@ -44,10 +45,9 @@ class Conversation::BenchWorkspaceTest < ActiveSupport::TestCase
     assert_not_includes @offered.first, :github_pr_lookup, "past the held tools budget the menu is opened group by group"
   end
 
-  test "switched on with specialists, a connection's reads are theirs and Halon faces ask_specialist instead of the menu" do
+  test "switched on, auto asks specialists since the workspace's tools do not fit, and Halon faces ask_specialist instead of the menu" do
     Conversation::BenchWorkspace.stubs(:on?).returns(true)
-    FirefightAi.configuration.stubs(:specialists).returns(true)
-    FirefightAi.stubs(:tool_search?).returns(true)
+    FirefightAi.stubs(:tool_search?).returns(false)
     script(reply("Run 412 failed."))
 
     Conversation::Rehearsal.replay!(bench_case, result: @result, model: @model)

@@ -1,8 +1,8 @@
 # Specialists read connected systems for Halon's chat, one kind of system each, so Halon's own tool list stays small and
 # never changes during a chat. A specialist runs as a helper (Chat::Helpers), on its own thread and chat, reading only, as
 # whoever the chat acts for, from the same purse. Which kind a connection's tools are comes from the provider registry
-# (IntegrationProvider.specialist_for), so nothing here names a provider. Off unless the deployment turns it on
-# (FirefightAi::Configuration#specialists), and only a chat asks them.
+# (IntegrationProvider.specialist_for), so nothing here names a provider. Only a chat asks them, when its runner decides
+# the turn should (ask?), and FirefightAi::Configuration#specialists can force it on or off.
 module Chat::Specialists
   CODE = "code".freeze
   DEPLOYS = "deploys".freeze
@@ -87,11 +87,29 @@ module Chat::Specialists
 
   def self.domain(key) = DOMAINS.find { |each| each.key == key.to_s }
 
-  def self.on? = FirefightAi.configuration.specialists == true
+  def self.mode = FirefightAi.configuration.specialists
 
-  # Only a chat's own turn hands its reads to specialists. A helper, a watch, a run, the terminal and a held call keep
-  # reaching every tool as before.
-  def self.for?(agent_run) = on? && agent_run.is_a?(Conversation::Turn)
+  # Only a chat's own turn hands its reads to specialists, once its runner decided it should. A helper, a watch, a run,
+  # the terminal and a held call keep reaching every tool as before.
+  def self.for?(agent_run) = agent_run.is_a?(Conversation::Turn) && agent_run.asks_specialists?
+
+  # Whether this turn asks specialists. In auto, only where the provider does not search tools itself, since there the
+  # long tail already stays out of the model's context and out of the cached front until it is searched for, which is
+  # what specialists are for. Elsewhere, only when some connection's reads would go to a specialist and the tools whoever
+  # asks may use do not fit the held tools budget (FirefightAi.fits_up_front?), so a chat that can hold every tool keeps
+  # today's way.
+  def self.ask?(turn, choice)
+    case mode
+    when FirefightAi::Configuration::SPECIALISTS_ON then true
+    when FirefightAi::Configuration::SPECIALISTS_OFF then false
+    else !FirefightAi.tool_search?(choice) && crowded?(turn)
+    end
+  end
+
+  def self.crowded?(turn)
+    ready = Chat::Tools.catalog(turn).select(&:tool)
+    ready.any? { |entry| reserved?(turn.workspace, entry) } && !FirefightAi.fits_up_front?(ready.map(&:tool))
+  end
 
   # The kind a connection's provider answers, from the registry, or nil for one that stays Halon's own.
   def self.of_provider(provider_key) = IntegrationProvider.specialist_for(provider_key)
@@ -128,8 +146,11 @@ module Chat::Specialists
     def to_h = { "tool" => tool, "arguments" => arguments, "because" => because, "undo" => undo }.compact
   end
 
-  # What putting a proposed change's tool in Halon's hands said, by the tool's name.
-  Loaded = Data.define(:name, :said)
+  # What Halon is told of a change a specialist proposed. Its report is outside text, like any tool result, so it never
+  # backs a change on its own, and Look before you change counts only Halon's own reads.
+  CONFIRM_FIRST = "A specialist's report is not enough to back a change. Before you propose it, confirm what it rests on " \
+                  "with a read of your own in this turn, then load the tool by naming it in open_tools' tools, or by " \
+                  "searching for it, and name your own reads in because.".freeze
 
   # A domain as Halon's ask_specialist lists it. connections names what it reads, state whether it can be asked.
   View = Data.define(:domain, :state, :connections) do

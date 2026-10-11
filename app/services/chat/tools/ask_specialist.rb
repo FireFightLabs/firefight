@@ -1,7 +1,7 @@
 # Hands an objective to the specialist for one kind of connected system, several at once when they do not depend on
 # each other, and answers with what each found, the lines and links that show it, and the changes it proposes. A
-# specialist only reads, as whoever the chat acts for (Chat::Specialists). A change it proposes is put in Halon's hands
-# when the asker may make it, and the person confirms it as any change.
+# specialist only reads, as whoever the chat acts for (Chat::Specialists). Its report is outside text and never backs a
+# change: Halon confirms what a change rests on with its own read before proposing it.
 class Chat::Tools::AskSpecialist < RubyLLM::Tool
   NAME = Chat::Helper::ASK_SPECIALIST
   ASKS_ARG = "asks".freeze
@@ -30,7 +30,7 @@ class Chat::Tools::AskSpecialist < RubyLLM::Tool
   # Built once, so the front of every request in a chat stays the same.
   def description
     @description ||= <<~TEXT.strip
-      Hand an objective to the specialist for one kind of connected system, such as why api's errors started or who holds the database's connections. It reads that kind of system with the tools whoever you act for may use, and answers with what it found, the lines from its results that show it, the links they gave, and any change it would make as the exact tool, arguments and the reads behind it. Ask several at once when their objectives do not depend on each other, at most #{Chat::Helper::MAX_AT_ONCE} in one call and #{Chat::Helper::MAX_PER_QUESTION} for one question, and they spend from this question's budget. Cite the lines and links it gives. A change it proposes is put in your hands when it can be made. Weigh it, then call it, and the person confirms it as any change. The kinds:
+      Hand an objective to the specialist for one kind of connected system, such as why api's errors started or who holds the database's connections. It reads that kind of system with the tools whoever you act for may use, and answers with what it found, the lines from its results that show it, the links they gave, and any change it would make as the exact tool, arguments and the reads behind it. Ask several at once when their objectives do not depend on each other, at most #{Chat::Helper::MAX_AT_ONCE} in one call and #{Chat::Helper::MAX_PER_QUESTION} for one question, and they spend from this question's budget. Cite the lines and links it gives. Its report is evidence, never backing for a change. Before any change, one the person asked for included, ask the specialists whose systems it touches what it would affect, then confirm the finding it rests on with a read of your own and name that read in because. The kinds:
       #{views.map { |view| "#{view.domain.key}: #{view.domain.title}, #{view.domain.covers}#{connections(view)} (#{STATE_WORDS.fetch(view.state)})" }.join("\n")}
     TEXT
   end
@@ -69,7 +69,7 @@ class Chat::Tools::AskSpecialist < RubyLLM::Tool
     progress(STARTED, value: 0, total: ready.size)
     result = Chat::Helpers.run!(@agent_run, share: @share, tool_call_id: tool_call&.id.to_s, checks: ready.map { |ask| check(ask) }, on_done: method(:reported))
     Chat::Tools.mark_failed(@agent_run, tool_call&.id) if result.failed
-    text = [ result.text, *loaded(tool_call), *said ].join("\n\n")
+    text = [ result.text, *proposed(tool_call), *said ].join("\n\n")
     Chat::Tools.hand_over(@agent_run, NAME, Chat::ToolCall::Outcome.new(value: text))
   end
 
@@ -108,11 +108,10 @@ class Chat::Tools::AskSpecialist < RubyLLM::Tool
     Chat::Helpers::Check.new(title: title, brief: ask.objective, deep: FirefightAi.configuration.specialists_on_main?, domain: ask.domain)
   end
 
-  # Each change the specialists of this call proposed, with whether its tool is now in Halon's hands.
-  def loaded(tool_call)
-    proposed = Chat::Helper.where(chat_id: @agent_run.chat&.id, tool_call_id: tool_call&.id.to_s).in_order.flat_map(&:proposed_changes)
-    names = proposed.map { |change| change["tool"].to_s }.compact_blank.uniq
-    names.map { |name| @share.specialists.load(name).said }
+  # Each tool the specialists of this call proposed a change through, with what it takes for Halon to make one.
+  def proposed(tool_call)
+    changes = Chat::Helper.where(chat_id: @agent_run.chat&.id, tool_call_id: tool_call&.id.to_s).in_order.flat_map(&:proposed_changes)
+    changes.map { |change| change["tool"].to_s }.compact_blank.uniq.map { |name| @share.specialists.describe(name) }
   end
 
   def reported(done, total) = progress(format(Chat::Tools::Helpers::DONE, done: done, total: total), value: done, total: total)

@@ -156,7 +156,16 @@ class Conversation::Bench
       end
     end
 
-    def prompt_version(workspace, choice) = FirefightAi::Responder.new(workspace, inferable: nil, model: choice).prompt_version
+    # The chat's prompt as a run replays it. Forced on or off, specialists give one prompt. In auto each replay decides
+    # (Conversation::Rehearsal#asks_specialists?), so the run names both and that it chose between them.
+    def prompt_version(workspace, choice)
+      with = ->(specialists) { FirefightAi::Responder.new(workspace, inferable: nil, model: choice, specialists: specialists).prompt_version }
+      case Chat::Specialists.mode
+      when FirefightAi::Configuration::SPECIALISTS_ON then with.call(true)
+      when FirefightAi::Configuration::SPECIALISTS_OFF then with.call(false)
+      else "#{with.call(false)}+auto-#{with.call(true)}"
+      end
+    end
 
     # What is left of a run's budget, in whole cents, as the most one replay may spend. Nil for a run with no budget.
     def budget_left_cents(run)

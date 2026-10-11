@@ -124,11 +124,11 @@ class Conversation::Rehearsal
     @state = Conversation::Rehearsal::State.new(@world)
     @unscripted = Set.new
     @opened = Set.new
-    @specialists = Chat::Specialists.on?
   end
 
   def run
     chat = Chat.open!(owner: @result, workspace: @result.workspace, model_choice: @model)
+    @specialists = asks_specialists?(chat)
     @case.turns.each do |turn|
       @world.advance!(turn.sets)
       @turn_started = Time.current
@@ -198,21 +198,35 @@ class Conversation::Rehearsal
     outcome
   end
 
-  # ask_specialist, in a replay where the deployment asks specialists, run on the scenario's own tools.
+  # Whether the replay asks specialists, decided as a live chat decides it (Chat::Specialists.ask?): forced on or off, or
+  # in auto only where the model's provider does not search tools, some connected read would go to a specialist, and
+  # the scenario's tools do not fit the held tools budget. So a plain scenario keeps today's way and a big workspace
+  # (Conversation::BenchWorkspace) asks specialists.
+  def asks_specialists?(chat)
+    case Chat::Specialists.mode
+    when FirefightAi::Configuration::SPECIALISTS_ON then true
+    when FirefightAi::Configuration::SPECIALISTS_OFF then false
+    else
+      offered = @case.tools.reject { |definition| definition.name == Chat::Tools::Open.tool_name }
+      !FirefightAi.tool_search?(@model) && offered.any? { |definition| Conversation::Rehearsal::Specialists.reserved?(definition) } &&
+        !FirefightAi.fits_up_front?(offered.map { |definition| recorded(definition, chat) })
+    end
+  end
+
+  # ask_specialist, in a replay that asks specialists, run on the scenario's own tools.
   def asking(chat, purse)
     return [] unless @specialists
 
     asker = Asker.new(chat: chat, workspace: @result.workspace)
     share = Chat::Helpers::Share.new(
       purse: purse, max_spend_cents: budget.max_spend_cents, since: @turn_started || Time.current, canceled: -> { false }, moved: ->(_tool_call_id) { },
-      fresh_parent: -> { asker }, choose: ->(deep) { specialist_model(deep) }, inferable: @result, member: nil, specialists: specialists(chat)
+      fresh_parent: -> { asker }, choose: ->(deep) { specialist_model(deep) }, inferable: @result, member: nil, specialists: specialists
     )
     [ Chat::Tools::AskSpecialist.new(asker, share: share) ]
   end
 
-  def specialists(chat)
-    @specialist_source ||= Conversation::Rehearsal::Specialists.new(@case, recorded: ->(definition, own_chat) { recorded(definition, own_chat) },
-                                                                          open: ->(names) { open(chat, names) })
+  def specialists
+    @specialist_source ||= Conversation::Rehearsal::Specialists.new(@case, recorded: ->(definition, own_chat) { recorded(definition, own_chat) })
   end
 
   # The quick model of the compared model's provider, on the same key, as a live specialist runs on the quick model, or
@@ -311,7 +325,7 @@ class Conversation::Rehearsal
   end
 
   def responder
-    @responder ||= FirefightAi::Responder.new(@result.workspace, inferable: @result, model: @model)
+    @responder ||= FirefightAi::Responder.new(@result.workspace, inferable: @result, model: @model, specialists: @specialists == true)
   end
 
   def budget

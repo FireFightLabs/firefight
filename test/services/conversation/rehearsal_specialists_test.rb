@@ -19,7 +19,7 @@ class Conversation::RehearsalSpecialistsTest < ActiveSupport::TestCase
     @offered = []
   end
 
-  test "with specialists off Halon reads the connected system itself, as today" do
+  test "in auto a scenario whose tools fit the budget is replayed as today, with Halon reading the connected system itself" do
     script(call("planetscale_get_insights", "database" => "orders"), reply("orders is at 498 of 500 connections."))
 
     replay = Conversation::Rehearsal.replay!(bench_case, result: @result, model: @model)
@@ -30,7 +30,7 @@ class Conversation::RehearsalSpecialistsTest < ActiveSupport::TestCase
   end
 
   test "with specialists on Halon asks the databases specialist, which reads the world, reports its lines and links, and never writes" do
-    FirefightAi.configuration.stubs(:specialists).returns(true)
+    FirefightAi.configuration.stubs(:specialists).returns(:on)
     script(
       call("ask_specialist", "asks" => [ { "domain" => "databases", "objective" => "Who holds orders' connections?" } ]),
       call("planetscale_api_request", "method" => "POST", "path" => "/branches"),
@@ -64,10 +64,14 @@ class Conversation::RehearsalSpecialistsTest < ActiveSupport::TestCase
   end
 
   test "the two ways have different prompt versions, so a bench run says which it measured" do
+    FirefightAi.configuration.stubs(:specialists).returns(:off)
     off = Conversation::Bench.send(:prompt_version, @result.workspace, @model)
-    FirefightAi.configuration.stubs(:specialists).returns(true)
+    FirefightAi.configuration.stubs(:specialists).returns(:on)
+    on = Conversation::Bench.send(:prompt_version, @result.workspace, @model)
+    FirefightAi.configuration.stubs(:specialists).returns(:auto)
 
-    assert_not_equal off, Conversation::Bench.send(:prompt_version, @result.workspace, @model)
+    assert_not_equal off, on
+    assert_equal "#{off}+auto-#{on}", Conversation::Bench.send(:prompt_version, @result.workspace, @model)
   end
 
   private
