@@ -6,7 +6,7 @@ module Mcp
       tool_name GET_INCIDENT
       authorize_as Ability::Action::RESOURCE_INCIDENTS
       description "Fetch one incident in full by id or identifier (e.g. INC-42): details, " \
-                  "timeline events, postmortem status, and the alerts attached to it. " \
+                  "timeline events, postmortem status, the alerts attached to it, and its pages in on-call tools. " \
                   "Docs: #{Docs::INCIDENTS}"
       annotations(**READ_ONLY)
       input_schema(
@@ -33,8 +33,16 @@ module Mcp
           alerts: incident.alerts.map { |alert| SearchAlerts.summary(alert) },
           roles: roles(incident),
           action_items: action_items(incident),
-          runbooks: runbooks(incident)
+          runbooks: runbooks(incident),
+          pages: pages(incident)
         )
+      end
+
+      # Pages raised in or brought in from an on-call tool, with where each stands there and why one was not kept in step.
+      def self.pages(incident)
+        incident.pages.includes(:integration, :alert_source).order(:created_at).map do |page|
+          { tool: page.tool_name, page: page.reference, target: page.target, state: page.state, url: page.url, note: page.sync_note }.compact
+        end
       end
 
       # Unheld roles are included so an agent sees what it may assign without a second call.

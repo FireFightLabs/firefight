@@ -33,4 +33,61 @@ module Workspace::OnCall
   end
 
   def shown_storm_ceiling = "$#{format('%.2f', alert_storm_ceiling_cents / 100.0).delete_suffix('.00')}"
+
+  # The paging connection a page goes through: the one named, by its slug or its name, or the only one there is when
+  # none is named. nil when that does not tell one.
+  def paging_connection(named, among: Integrations::Paging.connections(self))
+    return among.first if named.blank? && among.one?
+
+    wanted = named.to_s.strip
+    among.find { |integration| [ integration.slug, integration.name, integration.display_name ].any? { |name| name.casecmp?(wanted) } }
+  end
+
+  # Grants Firefight paging the tools a paging connection is raised and kept in step through, and nothing more, through
+  # the same grants the Permissions screen writes. A connection's tools arrive switched on, so connecting is the
+  # decision, the same as the investigator's read pack.
+  def grant_paging!(integration)
+    integration.tools.available.enabled.where(name: Integrations::Paging.sync_tools(integration.provider)).find_each do |tool|
+      Ability::Grant.grant!(workspace: self, principal: SystemAgent.paging, target: { action: tool.ability_action || tool.sync_ability_action! })
+    end
+  end
+
+  # Why Firefight cannot raise a page through the connection or keep its pages in step, or nil when it can.
+  def paging_blocked_reason(integration)
+    paging_tools_blocked_reason(integration) || paging_grants_blocked_reason(integration)
+  end
+
+  # Why granting again would not let Firefight page through the connection, or nil when it would.
+  def paging_grant_blocked_reason(integration)
+    return paging_tools_blocked_reason(integration) if paging_tools_blocked_reason(integration)
+
+    "Firefight paging already holds every tool it needs on #{integration.display_name}." if paging_grants_lost(integration).empty?
+  end
+
+  # A tool paging needs that the connection does not offer or has switched off, which only Integrations puts right.
+  def paging_tools_blocked_reason(integration)
+    names = Integrations::Paging.sync_tools(integration.provider)
+    tools = integration.tools.available.where(name: names).index_by(&:name)
+    missing = names - tools.keys
+    return "#{integration.display_name} offers no #{missing.to_sentence}. Refresh its tools under Integrations." if missing.any?
+
+    off = tools.values.reject(&:enabled?).map(&:name)
+    "#{integration.display_name}'s #{off.to_sentence} #{off.one? ? 'is' : 'are'} switched off under Integrations." if off.any?
+  end
+
+  def paging_grants_blocked_reason(integration)
+    lost = paging_grants_lost(integration)
+    "Firefight paging no longer holds #{lost.to_sentence}, so it cannot page through #{integration.display_name} or keep its pages in step." if lost.any?
+  end
+
+  # The connection's paging tools Firefight paging no longer holds, which granting again gives back.
+  def paging_grants_lost(integration)
+    held = Ability::Resolver.resolve(SystemAgent.paging, self)
+    integration.tools.available.where(name: Integrations::Paging.sync_tools(integration.provider)).map(&:action_key).reject { |key| held.covers?(key) }
+  end
+
+  # The alert source whose webhook brings back what people do to the connection's pages in the tool, or nil.
+  def paging_return_source(integration)
+    alert_sources.enabled.order(:created_at).find_by(provider: Integrations::Paging.alert_source_of(integration.provider))
+  end
 end

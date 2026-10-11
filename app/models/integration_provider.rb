@@ -177,9 +177,9 @@ class IntegrationProvider
   Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
                       :source_links, :source_links_note, :map, :map_note, :history, :history_note, :code_fix_tool, :regions, :connect_fields, :site, :code_agent,
                       :app, :setting_words, :holds_code, :mitigation_tools, :stopping_tools, :status_page, :hosts, :holds_flags, :write_tools,
-                      :admin_marks_reads) do
+                      :admin_marks_reads, :retiring) do
     def initialize(connect_with: nil, read_only_tools: [], write_tools: [], admin_marks_reads: false, mitigation_tools: [], stopping_tools: [], source_links_note: nil, map_note: nil, history: HISTORY_NONE, history_note: nil, code_fix_tool: nil, regions: [],
-                   connect_fields: [], site: nil, code_agent: false, app: nil, setting_words: [], holds_code: false, status_page: nil, hosts: [], holds_flags: false, **) = super
+                   connect_fields: [], site: nil, code_agent: false, app: nil, setting_words: [], holds_code: false, status_page: nil, hosts: [], holds_flags: false, retiring: nil, **) = super
 
     # Whether a tool only reads, from what its server declares and what the registry says of it. write_tools wins over
     # both, for a tool a server marks read only although it sends something.
@@ -323,7 +323,9 @@ class IntegrationProvider
         # Its public status page, and the domains its API and apps answer on, read with the outside systems (Upstream).
         status_page: Upstream::StatusPage.from(raw), hosts: Upstream.hosts_of(raw),
         # It keeps a team's feature flags, whose changes are read with its own tools.
-        holds_flags: raw["holds_flags"] == true
+        holds_flags: raw["holds_flags"] == true,
+        # When the provider ends support for the product and where its customers go, which its connections say.
+        retiring: raw["retiring"].presence
       )
     end.freeze
   end

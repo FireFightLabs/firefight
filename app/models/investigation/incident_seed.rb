@@ -1,8 +1,10 @@
-# Reads Firefight's own tables only. No provider call, no model call.
+# Reads Firefight's own tables, and for a run an alert started who each connected on-call tool has on call now, read as
+# the run through the gateway like any of its reads. No model call.
 class Investigation::IncidentSeed
   ALERT_LIMIT = 10
   RUNBOOK_LIMIT = 5
   PAST_INCIDENT_LIMIT = 3
+  ON_CALL_LIMIT = 20
 
   def initialize(investigation)
     @investigation = investigation
@@ -31,15 +33,35 @@ class Investigation::IncidentSeed
   private
 
   # An alert started the run and nobody asked, so the run is told what the team allowed ahead: the changes it may make
-  # on its own and when, and whether it pages whoever is on call.
+  # on its own and when, and whether it pages whoever is on call, with who each on-call tool has on call now.
   def on_call_facts
     workspace = @investigation.workspace
     rules = workspace.unattended_rules.enabled.includes(:resource).select { |rule| rule.blocked_reason.nil? }
     {
       "started_from" => "An alert opened this incident and started this run. Nobody asked, and nobody may be watching yet.",
       "unattended_rules" => rules.map { |rule| { "rule" => rule.sentence, "fix_step" => { "tool" => rule.spec.tool_name, "resource" => rule.resource.name } } },
-      "pages_on_call" => workspace.on_call_paging_enabled?
-    }
+      "pages_on_call" => workspace.on_call_paging_enabled?,
+      "paging_tools" => Integrations::Paging.connections(workspace).map { |integration| paging_tool_facts(integration) }.presence
+    }.compact
+  end
+
+  # Where a page goes in the tool and who it reaches now. A tool Firefight cannot page through says why, so the run
+  # leaves it out of the page, and one whose schedule could not be read says that instead of naming nobody.
+  def paging_tool_facts(integration)
+    facts = { "tool" => integration.slug, "name" => integration.display_name, "pages" => Integrations::Paging.target_words(integration.provider) }
+    blocked = @investigation.workspace.paging_blocked_reason(integration)
+    facts["cannot_page"] = "#{blocked} Firefight escalates to a member here instead." if blocked
+    facts.merge(on_call_now(integration))
+  end
+
+  def on_call_now(integration)
+    pager = Integrations::Paging.session(integration) do |tool, arguments, &run|
+      Incident::Page.authorize_on_call_read!(tool, investigation: @investigation, arguments: arguments) { run.call }
+    end
+    people = pager.on_call.first(ON_CALL_LIMIT).map { |person| { "name" => person.name, "email" => person.email, "covers" => person.covers }.compact }
+    { "on_call_now" => people }
+  rescue Integrations::Error, AbilityGateway::Denied => error
+    { "on_call_unread" => error.message }
   end
 
   def seed_alerts

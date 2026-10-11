@@ -1482,6 +1482,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_170000) do
     t.index ["position"], name: "index_incident_lifecycle_stages_on_position"
   end
 
+  create_table "incident_pages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "incident_id", null: false
+    t.uuid "integration_id"
+    t.uuid "alert_source_id"
+    t.string "origin", null: false
+    t.string "state", null: false
+    t.string "external_id"
+    t.string "reference"
+    t.string "title"
+    t.string "url"
+    t.string "target"
+    t.uuid "paged_member_id"
+    t.string "paged_email"
+    t.text "details"
+    t.string "requested_by_type"
+    t.uuid "requested_by_id"
+    t.text "sync_note"
+    t.datetime "acknowledged_at"
+    t.datetime "resolved_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["alert_source_id"], name: "index_incident_pages_on_alert_source_id"
+    t.index ["incident_id"], name: "index_incident_pages_on_incident_id"
+    t.index ["integration_id"], name: "index_incident_pages_on_integration_id"
+    t.index ["paged_member_id"], name: "index_incident_pages_on_paged_member_id"
+    t.index ["workspace_id", "external_id"], name: "index_incident_pages_on_workspace_id_and_external_id", unique: true, where: "(external_id IS NOT NULL)"
+  end
+
   create_table "incident_relationships", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.uuid "created_by_id"
@@ -1913,8 +1942,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_170000) do
     t.uuid "winning_hypothesis_id"
     t.uuid "page_member_id"
     t.datetime "paged_at"
+    t.string "page_email"
+    t.string "page_target"
+    t.uuid "page_integration_id"
     t.index ["investigation_id"], name: "index_investigation_findings_on_investigation_id", unique: true
     t.index ["outcome_by_type", "outcome_by_id"], name: "index_investigation_findings_on_outcome_by"
+    t.index ["page_integration_id"], name: "index_investigation_findings_on_page_integration_id"
     t.index ["page_member_id"], name: "index_investigation_findings_on_page_member_id"
     t.index ["winning_hypothesis_id"], name: "index_investigation_findings_on_winning_hypothesis_id"
   end
@@ -3198,6 +3231,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_170000) do
   add_foreign_key "incident_form_fields", "incident_field_definitions"
   add_foreign_key "incident_form_fields", "incident_forms"
   add_foreign_key "incident_forms", "workspaces"
+  add_foreign_key "incident_pages", "alert_sources", on_delete: :nullify
+  add_foreign_key "incident_pages", "incidents"
+  add_foreign_key "incident_pages", "integrations", on_delete: :nullify
+  add_foreign_key "incident_pages", "workspace_memberships", column: "paged_member_id", on_delete: :nullify
+  add_foreign_key "incident_pages", "workspaces"
   add_foreign_key "incident_relationships", "incidents"
   add_foreign_key "incident_relationships", "incidents", column: "related_incident_id"
   add_foreign_key "incident_role_assignments", "incident_roles"
@@ -3244,6 +3282,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_170000) do
   add_foreign_key "investigation_checks", "workspace_memberships", column: "created_by_id", on_delete: :nullify
   add_foreign_key "investigation_checks", "workspaces"
   add_foreign_key "investigation_evidence", "investigation_findings", column: "finding_id"
+  add_foreign_key "investigation_findings", "integrations", column: "page_integration_id", on_delete: :nullify
   add_foreign_key "investigation_findings", "investigation_hypotheses", column: "winning_hypothesis_id"
   add_foreign_key "investigation_findings", "investigations"
   add_foreign_key "investigation_findings", "workspace_memberships", column: "page_member_id", on_delete: :nullify

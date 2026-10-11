@@ -23,6 +23,7 @@ class Api::V1::AlertsController < ActionController::API
     items = adapter.normalize(payload, source: source, headers: request.headers)
     if items.empty? && adapter.ignored?(payload)
       source.record_received!
+      page_event(source, adapter, payload)
       return render json: { ok: true, received: 0, failed: 0 }
     end
     if items.empty?
@@ -45,6 +46,7 @@ class Api::V1::AlertsController < ActionController::API
       failed += 1
       Rails.logger.error({ event: "alert_ingest.item_failed", alert_source_id: source.id, error: e.message }.to_json)
     end
+    page_event(source, adapter, payload)
 
     render json: { ok: failed.zero?, received: items.size - failed, failed: failed }
   rescue JSON::ParserError
@@ -52,6 +54,12 @@ class Api::V1::AlertsController < ActionController::API
   end
 
   private
+
+  # What an on-call tool says happened to one of its pages, which the incident it belongs to records.
+  def page_event(source, adapter, payload)
+    event = adapter.page_event(payload)
+    OnCallSyncService.new(source.workspace).received(source, event) if event
+  end
 
   def reject(source, reason, status, error: nil)
     source.record_rejection!(reason)

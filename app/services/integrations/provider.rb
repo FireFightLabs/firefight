@@ -20,6 +20,7 @@ module Integrations
   #                    customers feel for a while (Integrations::Mitigations)
   #   cli              the provider's own command line tool in Halon's terminal, reaching it through Firefight (Integrations::Clis)
   #   document_reader  a RemoteReader reading one document a handbook page is synced from (Integrations::Documents)
+  #   pager            an Integrations::Pager raising a page for an incident and keeping it in step (Integrations::Paging)
   # redacted_fields names answer fields that hold a credential, which never reach the model, and redacted_patterns the
   # credentials of the provider's own shape, such as an address that works as a password, wherever they appear in an
   # answer. withheld_tools names the tools whose whole answer is a secret, each with the sentence a refusal says
@@ -30,7 +31,7 @@ module Integrations
   # which Halon's reads use unless the call asks for the replica (Integrations::Replicas).
   class Provider
     PARTS = %i[
-      pack adapter map_reader baseline_reader health_probe source_links read_guard issue_tracker map_events error_reader data_writes mitigation_reader cli
+      pack adapter map_reader baseline_reader health_probe source_links read_guard issue_tracker map_events error_reader data_writes mitigation_reader cli pager
       document_reader
     ].freeze
     KEY_FORMAT = /\A[a-z0-9_]+\z/

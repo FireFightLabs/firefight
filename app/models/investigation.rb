@@ -136,6 +136,10 @@ class Investigation < ApplicationRecord
   # Raised when a run names someone to page who cannot be paged, with words the agent can act on.
   class PageRefused < StandardError; end
 
+  # Who a run found on call and how to page them: the member, when they are one, their email as the tool gave it, and
+  # the connection and target to raise the page on when an on-call tool is connected.
+  PageAsk = Data.define(:member, :email, :integration, :target)
+
   def self.already_running_message(subject)
     "Already investigating #{subject.identifier}, I will post here when I have something."
   end
@@ -435,7 +439,7 @@ class Investigation < ApplicationRecord
 
     transaction do
       finding = create_finding!(summary: summary, winning_hypothesis: winner, gaps: gaps, suggests_incident: subject.nil? && suggest_incident == true,
-                                page_member: page)
+                                page_member: page&.member, page_email: page&.email, page_integration: page&.integration, page_target: page&.target)
       cited.each_with_index { |(claim, sources), index| finding.add_evidence!(claim: claim, sources: sources, position: index + 1) }
       Investigation::RemediationPlan.propose!(finding, fix) if fix.present?
       finding
@@ -444,16 +448,46 @@ class Investigation < ApplicationRecord
 
   # Who the run names as on call, checked before anything is recorded: only in a run an alert started on an incident,
   # when the team lets Halon page, a member of this workspace, shown by steps the run took.
+  # With an on-call tool connected the page is raised there, on the target the run names, and the person need not be a
+  # member. Without one, or when Firefight cannot page through it, the incident is escalated to them, so they must be.
   def page_to(page)
     page = page.to_h.stringify_keys
     raise PageRefused, "Leave page out. Halon pages only in a run an alert started, when the team turned paging on." unless pages_on_call?
 
-    cited_steps!(page["steps"], what: "Page")
-    workspace.workspace_memberships.resolve(page["person"].to_s.strip) ||
-      raise(PageRefused, "page names #{page['person'].inspect}, who is not a member of this workspace. Give the email of a member the " \
-                         "on-call tool named, or leave page out and say who in your answer.")
+    email = page["person"].to_s.strip
+    cited_steps!(page["steps"], what: "Page") unless on_call_in_facts?(email)
+    member = workspace.workspace_memberships.resolve(email)
+    integration = paging_tool(page["tool"])
+    if integration
+      target = page["target"].to_s.strip
+      raise PageRefused, "Give target, what to page in #{integration.display_name}: #{Integrations::Paging.target_words(integration.provider)}." if target.empty?
+
+      return PageAsk.new(member: member, email: email, integration: integration, target: target)
+    end
+
+    member || raise(PageRefused, "page names #{page['person'].inspect}, who is not a member of this workspace. Give the email of a member the " \
+                                 "on-call tool named, or leave page out and say who in your answer.")
+    PageAsk.new(member: member, email: email, integration: nil, target: nil)
   rescue Investigation::Evidence::Refused => refused
     raise PageRefused, refused.message
+  end
+
+  # Whether the facts the run started from say the person is on call now, which shows it as well as a step would.
+  def on_call_in_facts?(email)
+    return false if email.blank?
+
+    tools = Array(seed_pack.to_h.dig(Investigation::Seeding::KEY_ON_CALL, "paging_tools"))
+    tools.flat_map { |tool| Array(tool["on_call_now"]) }.any? { |person| person["email"].to_s.casecmp?(email) }
+  end
+
+  # The on-call tool a page goes through, by the name the facts give it, or the only one Firefight can page through.
+  # nil when none can, so the page is an escalation here.
+  def paging_tool(named)
+    usable = Integrations::Paging.connections(workspace).select { |integration| workspace.paging_blocked_reason(integration).nil? }
+    return nil if usable.empty?
+
+    workspace.paging_connection(named, among: usable) ||
+      raise(PageRefused, "Give tool, the on-call tool to page through: #{usable.map(&:slug).to_sentence(two_words_connector: ' or ', last_word_connector: ' or ')}.")
   end
 
   def pages_on_call? = started_by_alert? && incident.present? && workspace.on_call_paging_enabled?

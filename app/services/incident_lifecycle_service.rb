@@ -79,6 +79,29 @@ class IncidentLifecycleService
     event
   end
 
+  # The person an escalation asked says they have it, from its button or by acknowledging the incident's page in an
+  # on-call tool. The incident's pages stop paging anyone else. acknowledged_by is their membership, nil for someone
+  # escalated to who is not a member. False when it was already acknowledged.
+  def acknowledge_escalation(incident, escalation_event, platform_user_id:, acknowledged_by: nil)
+    return false if platform_user_id.blank? || !escalation_event.claim_acknowledgement!(platform_user_id)
+
+    escalated_to_platform_user_id = escalation_event.metadata["escalated_to_platform_user_id"]
+    incident.incident_events.create!(
+      event_type: IncidentEvent::ESCALATION_ACKNOWLEDGED,
+      actor: acknowledged_by,
+      metadata: {
+        escalation_event_id: escalation_event.id,
+        acknowledged_by_platform_user_id: platform_user_id,
+        escalated_to_platform_user_id: escalated_to_platform_user_id
+      }
+    )
+    IncidentUpdateService.new(workspace).post_escalation_acknowledged_message(
+      incident, acknowledged_by_platform_user_id: platform_user_id, escalated_to_platform_user_id: escalated_to_platform_user_id
+    )
+    OnCallSyncService.new(workspace).escalation_acknowledged(incident, by: acknowledged_by)
+    true
+  end
+
   # Applies every role change in one pass so a modal touching several roles
   # announces once. The lead keeps its own path, which also updates the topic and quick actions.
   def assign_roles(incident, assignments, changed_by:)
@@ -157,6 +180,7 @@ class IncidentLifecycleService
       resolved_by_platform_user_id: changed_by&.platform_user_id,
       resolved_by_name: changed_by&.actor_display_name
     })
+    OnCallSyncService.new(workspace).incident_closed(incident, by: changed_by)
 
     if workspace.archive_channel_enabled && incident.channel_id.present?
       ChannelArchivalJob.set(wait: workspace.archive_channel_delay_minutes.minutes)

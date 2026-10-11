@@ -35,6 +35,50 @@ module Integrations
       assert_kind_of Integrations::RateLimited, assert_raises(OpsgenieApi::Error) { OpsgenieApi.new("og-key").schedules }
     end
 
+    test "an alert is raised for its responders with its alias, as Firefight, and a request is asked about until Opsgenie says" do
+      Http.expects(:request).with do |uri, request, **|
+        uri.path == "/v2/alerts" && uri.query.nil? &&
+          JSON.parse(request.body) == { "message" => "INC-001 Checkout failing", "description" => "Halon looked", "alias" => "firefight-page-1",
+                                        "responders" => [ { "type" => "team", "name" => "Platform" } ], "source" => "Firefight" }
+      end.returns(response(202, { requestId: "r1" }))
+      api = OpsgenieApi.new("og-key")
+
+      assert_equal "r1", api.create_alert(message: "INC-001 Checkout failing", description: "Halon looked", alias_name: "firefight-page-1",
+                                          responders: [ { "type" => "team", "name" => "Platform" } ])["requestId"]
+
+      api.stubs(:sleep)
+      api.stubs(:request_status).with("r1").raises(OpsgenieApi::Error, "not yet").then.returns({}).then.returns("isSuccess" => true, "alertId" => "a1")
+      assert_equal "a1", api.settle("r1")["alertId"]
+    end
+
+    test "an incident is resolved by its tiny id, and its request is asked about at the incident API" do
+      Http.expects(:request).with do |uri, request, **|
+        uri.path == "/v1/incidents/7/resolve" && URI.decode_www_form(uri.query).to_h == { "identifierType" => "tiny" } && JSON.parse(request.body) == { "note" => "Fixed" }
+      end.returns(response(202, { requestId: "r2" }))
+      Http.expects(:request).with { |uri, *| uri.path == "/v1/incidents/requests/r2" }.returns(response(200, { data: { isSuccess: true, status: "Resolved" } }))
+      api = OpsgenieApi.new("og-key")
+
+      api.resolve_incident("7", "tiny", note: "Fixed")
+      assert_equal "Resolved", api.settle("r2", incident: true)["status"]
+    end
+
+    test "a schedule override and a maintenance window are posted as Opsgenie documents them" do
+      Http.expects(:request).with do |uri, request, **|
+        uri.path == "/v2/schedules/Platform%20rota/overrides" && URI.decode_www_form(uri.query).to_h == { "scheduleIdentifierType" => "name" } &&
+          JSON.parse(request.body) == { "user" => { "type" => "user", "username" => "bob@example.com" }, "startDate" => "2026-10-11T08:00:00Z", "endDate" => "2026-10-11T20:00:00Z" }
+      end.returns(response(201, { data: { alias: "o1" } }))
+      Http.expects(:request).with do |uri, request, **|
+        uri.path == "/v1/maintenance" &&
+          JSON.parse(request.body) == { "time" => { "type" => "for-1-hour" }, "rules" => [ { "state" => "disabled", "entity" => { "id" => "i1", "type" => "integration" } } ] }
+      end.returns(response(201, { data: { id: "m1", status: "active" } }))
+      api = OpsgenieApi.new("og-key")
+
+      assert_equal "o1", api.create_override("Platform rota", by_name: true, username: "bob@example.com", start_date: "2026-10-11T08:00:00Z",
+                                                              end_date: "2026-10-11T20:00:00Z")["alias"]
+      assert_equal "m1", api.create_maintenance(description: "", time: { "type" => "for-1-hour" },
+                                                rules: [ { "state" => "disabled", "entity" => { "id" => "i1", "type" => "integration" } } ])["id"]
+    end
+
     private
 
     def response(code, body)

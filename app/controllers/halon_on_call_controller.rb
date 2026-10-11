@@ -1,5 +1,6 @@
 # How Halon works when nobody is watching: whether an alert starts it, what those runs may spend in an hour, whether it
-# pages whoever is on call, and the changes a team lets it make on its own (UnattendedRulesController).
+# pages whoever is on call, the on-call tools it pages through, and the changes a team lets it make on its own
+# (UnattendedRulesController).
 class HalonOnCallController < InertiaController
   authorizes Ability::Action::RESOURCE_WORKSPACE, read: :show, update: :update
 
@@ -10,7 +11,8 @@ class HalonOnCallController < InertiaController
       settings: OnCallSettingsSerializer.one(current_workspace),
       rules: UnattendedRuleSerializer.many(current_workspace.unattended_rules.with_usage_counts.includes(:resource, :created_by).order(:created_at)),
       resources: UnattendedRuleResourceSerializer.many(Ability::UnattendedRule.resource_choices(current_workspace)),
-      investigator: SystemAgent.investigator.actor_display_name
+      investigator: SystemAgent.investigator.actor_display_name,
+      pagingTools: PagingToolSerializer.many(Integrations::Paging.connections(current_workspace))
     }
   end
 

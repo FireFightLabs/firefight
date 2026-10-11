@@ -69,10 +69,12 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
         "page" => {
           "type" => "object",
           "description" => "Only when the facts' on_call says pages_on_call: who is on call now for what broke, whom Firefight pages with " \
-                           "your answer. Leave it out otherwise",
+                           "your answer. With paging_tools in on_call, the page is raised in that tool on target. Leave it out otherwise",
           "properties" => {
             "person" => { "type" => "string", "description" => "Their email, as the on-call tool gave it" },
-            "steps" => { "type" => "array", "items" => { "type" => "integer" }, "description" => "The step numbers of the results that show they are on call" }
+            "steps" => { "type" => "array", "items" => { "type" => "integer" }, "description" => "The step numbers of the results that show they are on call" },
+            "tool" => { "type" => "string", "description" => "The paging tool to raise the page in, by its tool name in on_call's paging_tools. Needed only when there are several" },
+            "target" => { "type" => "string", "description" => "What to page in that tool, as its pages field says, such as the service whose escalation policy has them on call" }
           },
           "required" => %w[person steps]
         }

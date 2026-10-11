@@ -131,7 +131,7 @@ class TimelineEventSerializerTest < ActiveSupport::TestCase
     assert_equal "Firefight", rendered[:actor]
     assert rendered[:automated]
     assert_equal "attached the runbook", rendered[:description]
-    assert_equal({ label: "Failover", href: "/app/settings/runbooks?runbook=#{runbook.id}" }, rendered[:subject])
+    assert_equal({ label: "Failover", href: "/app/settings/runbooks?runbook=#{runbook.id}", external: false }, rendered[:subject])
     assert_equal "Attached to every incident.", rendered[:details]
   end
 
@@ -146,7 +146,7 @@ class TimelineEventSerializerTest < ActiveSupport::TestCase
 
     rendered = TimelineEventSerializer.one(timeline_event(incident, IncidentEvent::RELATIONSHIP_CREATED))
 
-    assert_equal({ label: other.identifier, href: "/app/incidents/#{other.id}" }, rendered[:subject])
+    assert_equal({ label: other.identifier, href: "/app/incidents/#{other.id}", external: false }, rendered[:subject])
     assert_not rendered[:automated]
   end
 

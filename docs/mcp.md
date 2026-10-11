@@ -120,6 +120,7 @@ The Ability Gateway is administered over MCP with the same model calls the dashb
 | `claim_runbook_step` | Take one step of an attached runbook, creating the item behind it |
 | `link_incident` | Record a `related` link, or a `duplicate` that cancels this incident into the other |
 | `escalate_incident` | Ask a named person to pick the incident up, with a DM and a chase |
+| `page_on_call` | Raise a page in the workspace's on-call tool on the service or team whose escalation has the person on call, kept in step with the incident |
 | `invite_responders` | Bring people into the incident channel |
 | `give_shoutout` | Thank someone for their work, posted in the channel |
 
@@ -128,6 +129,8 @@ The Ability Gateway is administered over MCP with the same model calls the dashb
 `get_incident` returns `action_items` and `runbooks` with their ids, which is where an agent gets the ids these tools take. Without them the work would be visible and unnameable. An item that tracks an issue carries its `external_key` and `external_url`, and `issue_status` when its issue is missing or not kept in step. `create_action_item_issue` opens an item's issue in the workspace's tracker, the "Create issue" button, made as Firefight issue sync with the caller named in the activity log, and is refused with the reason when the item has one or the workspace opens none. Each timeline entry for an update or a cancellation carries `update`, the message the responder posted and the fields it changed with their before and after.
 
 `assign_action_item` and `claim_runbook_step` take the work themselves when `member` is omitted, which is the "I can take this" button. Naming someone else announces the handover, the way Slack does. `escalate_incident` and `invite_responders` differ on purpose: inviting lets people watch, escalating asks one named person to answer and chases them if they do not.
+
+`page_on_call` (`Mcp::Tools::PageOnCall`, `incidents.update`) raises a page through a connected on-call tool now, as Firefight paging under the workspace's approval rules, with the caller named in the activity log (`OnCallSyncService#raise_page!`). It answers the page's state: triggered with its number and link, awaiting approval, or failed with why. Its `tool` lists the paging connections (`choice`), and `target` says, per connection, what a page goes to there (`Integrations::Paging.target_words`), so the schema never names a provider itself. With several connections it refuses until `tool` names one, an incident that is over is refused (`Incident#page_blocked_reason`), and a workspace with none is told to connect one and use `escalate_incident`. `get_incident` returns `pages`, each with its tool, number, target, state, link and the note of why it was not kept in step.
 
 An agent can hold work. `incident_actions.created_by` and `assignee` are polymorphic, as `declared_by` is, so an item can belong to an `Agent` or a service key. A machine has no Slack account to mention, so `Slack::Mrkdwn.mention` names it in bold rather than rendering an empty `<@>`, and the dashboard marks it with a robot rather than a person's initials.
 

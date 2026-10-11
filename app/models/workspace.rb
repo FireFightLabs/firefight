@@ -103,6 +103,11 @@ class Workspace < ApplicationRecord
     incident_statuses.canceled.active.ordered.first!
   end
 
+  # Where an incident lands when it is resolved in an on-call tool rather than here.
+  def default_closed_status
+    incident_statuses.closed.active.ordered.first!
+  end
+
   # Where a reopened incident lands.
   def default_live_status
     live = incident_statuses.active.live

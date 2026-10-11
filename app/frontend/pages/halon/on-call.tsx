@@ -11,9 +11,10 @@ import { Switch } from "@/components/ui/switch"
 import { STORM_CEILING_CENTS } from "@/lib/generated/constants"
 import { useCan } from "@/lib/permissions"
 import { halonOnCallPath } from "@/lib/routes"
+import { PagingTools } from "@/pages/halon/components/on-call/paging-tools"
 import { dollars } from "@/pages/halon/components/on-call/unattended-rule-form"
 import { UnattendedRulesEditor } from "@/pages/halon/components/on-call/unattended-rules-editor"
-import type { OnCallSettings, UnattendedRule, UnattendedRuleResource } from "@/types/serializers"
+import type { OnCallSettings, PagingTool, UnattendedRule, UnattendedRuleResource } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 
 interface OnCallPageProps extends SharedProps {
@@ -21,6 +22,7 @@ interface OnCallPageProps extends SharedProps {
   rules: UnattendedRule[]
   resources: UnattendedRuleResource[]
   investigator: string
+  pagingTools: PagingTool[]
 }
 
 function ceilingText(cents: number): string {
@@ -33,7 +35,7 @@ function ceilingCents(text: string): number | string {
 }
 
 export default function OnCall() {
-  const { settings, rules, resources, investigator } = usePage<OnCallPageProps>().props
+  const { settings, rules, resources, investigator, pagingTools } = usePage<OnCallPageProps>().props
   const canManageSettings = useCan("workspace")
   const canManageRules = useCan("permissions")
   const [alertRuns, setAlertRuns] = useState(settings.alertInvestigationsEnabled)
@@ -131,9 +133,10 @@ export default function OnCall() {
                   Page whoever is on call with what Halon found
                 </Label>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Off by default. Halon finds who is on call with the on-call tool you connected and
-                  escalates the incident to them with its answer and the fix it proposes. Approval rules can then let
-                  whoever is on call approve a change when nobody working the incident can.
+                  Off by default. Halon finds who is on call with the on-call tool you connected and pages them through
+                  it with its answer and the fix it proposes, or escalates the incident to them when no tool can take the
+                  page. Approval rules can then let whoever is on call approve a change when nobody working the incident
+                  can.
                 </p>
               </div>
               <Switch id="on-call-paging" checked={paging} onCheckedChange={setPaging} disabled={!canManageSettings} />
@@ -148,6 +151,8 @@ export default function OnCall() {
             )}
           </CardContent>
         </Card>
+
+        <PagingTools tools={pagingTools} canGrant={canManageRules} />
 
         <UnattendedRulesEditor rules={rules} resources={resources} investigator={investigator} canManage={canManageRules} />
       </div>
