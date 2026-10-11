@@ -24,10 +24,8 @@ class Conversation::LookBeforeAskingTest < ActiveSupport::TestCase
   test "a pasted guide that says to ask first is answered from the map, without asking and without a tool that confirms" do
     instructions, tools = answer(PASTED)
 
-    assert_includes instructions, FirefightAi::LookFirstRule::RULE
-    assert_includes instructions, FirefightAi::LookFirstRule::MAP_RULE
-    assert_match "says to ask them first, since asking them to confirm what you found answers it", FirefightAi::LookFirstRule::RULE
-    assert_match "look it up on the resource map first. get_resource_map reads the map", FirefightAi::LookFirstRule::MAP_RULE
+    assert_includes instructions, "Reads are free, so read."
+    assert_includes instructions, "When a read can answer it, read before asking the person"
 
     turn = Conversation::Turn.new(@conversation, asker: @asker)
     map = Chat::Tools.catalog(turn).find { |entry| entry.name == Mcp::Tools::GET_RESOURCE_MAP }

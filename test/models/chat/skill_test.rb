@@ -26,8 +26,8 @@ class Chat::SkillTest < ActiveSupport::TestCase
     end
   end
 
-  test "Firefight's own skills sit under the tool group they belong to" do
-    groups = Chat::Tools::Groups::FIREFIGHT.map(&:key)
+  test "Firefight's own skills sit under the tool group they belong to, or with the playbooks" do
+    groups = Chat::Tools::Groups::FIREFIGHT.map(&:key) + [ Chat::Skill::DOMAIN_PLAYBOOKS ]
 
     Chat::Skill.all.select { |skill| skill.source == Chat::Skill::SOURCE_FIREFIGHT }.each do |skill|
       assert_includes groups, skill.domain, "#{skill.name} sits under #{skill.domain}, which is not a tool group"
@@ -39,6 +39,8 @@ class Chat::SkillTest < ActiveSupport::TestCase
   # changed across them, and the check from outside a run holds once the workspace has a terminal.
   OWN_READS = {
     Chat::Tools::WhatChanged::NAME => ResourceMap::Timeline::SCHEMA,
+    Chat::Tools::KeyQuery::NAME => ResourceMap::KeyQueries::SCHEMA,
+    Chat::Tools::LogPatterns::NAME => ResourceMap::LogTemplate::SCHEMA,
     Chat::Tools::OutsideCheck::NAME => { "properties" => { Chat::Tools::OutsideCheck::URL_ARG => {}, Chat::Tools::OutsideCheck::METHOD_ARG => {} } },
     Chat::Tools::Browser::NAME => {
       "properties" => [ Chat::Tools::Browser::URL_ARG, Chat::Tools::Browser::STEPS_ARG, Chat::Tools::Browser::VIEWPORTS_ARG,

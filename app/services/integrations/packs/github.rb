@@ -75,7 +75,8 @@ module Integrations
                         "clues you have: repository or service names, stack trace frames as path:line, error text, a commit. " \
                         "It finds which repositories they point at, reads every deploy and merge in the window, blames the " \
                         "failing lines however long ago they changed, summarises the week before for a slow burn, and says " \
-                        "what it could not check",
+                        "what it could not check. A merge is not proof of a deploy, so when you name a commit, say whether a " \
+                        "deploy record showed it running",
            params_schema: {
              "type" => "object",
              "properties" => {

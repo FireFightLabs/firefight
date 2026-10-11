@@ -23,8 +23,7 @@ module Chat::StaleRefusals
     "Before this message, your last answer rested on results that said something could not be used:\n#{lines.join("\n")}\n" \
       "They describe the moment they were read. If this message disputes that, says something changed or asks again, check " \
       "again in this turn before you answer, by opening the group again, looking for the tool by name in every group, or " \
-      "reading the setting or permission again, and try another route if the first was wrong. Then say what you found now. " \
-      "Never repeat the earlier answer without that check."
+      "reading the setting or permission again, and try another route if the first was wrong. Then answer from what you found now."
   end
 
   # Each call in the window whose result says something cannot be used, by its tool's name and the result's first line.

@@ -57,7 +57,10 @@ module Integrations
                "type" => "object",
                "properties" => {
                  "repo" => REPO,
-                 "brief" => { "type" => "string", "description" => "What to change and why, with the evidence, as the agent's brief" },
+                 "brief" => { "type" => "string", "description" => "What to change and why, with the evidence, as the agent's brief. " \
+                                                                  "When the change touches another system's interface, such as a webhook, an API, a " \
+                                                                  "config format or a CI trigger, cite that system's documented contract and its live " \
+                                                                  "setup as you read them, and say what you could not verify" },
                  "title" => { "type" => "string", "description" => "The pull request's title" },
                  "summary" => { "type" => "string", "description" => "What the pull request says it does and why, for its readers (optional, the title)" },
                  "base" => { "type" => "string", "description" => "The branch to start from and open it against (optional, the default branch)" },

@@ -69,25 +69,16 @@ class Conversation::RehearsalTest < ActiveSupport::TestCase
     assert_empty replay.chat.tool_calls.where(failed: true)
   end
 
-  test "reading a connected system owes the answer a check before it goes out, as it does live" do
+  test "an answer after reading a connected system goes out as written, as it does live" do
     script(
       call("northflank_api_request", "method" => "GET", "path" => "/v1/projects/web/workflows/release/runs"),
-      reply("The migration is broken."),
       reply("Run 412 failed at the migrate step.")
     )
 
     replay = Conversation::Rehearsal.replay!(release_case(decisions: []), result: @result, model: @model)
 
-    assert_includes replay.chat.messages.where(nudge: true, role: Chat::Message::ROLE_USER).map(&:content), FirefightAi::Responder::CHECK
-    assert_equal [ "Run 412 failed at the migrate step." ], replay.transcript.replies
-  end
-
-  test "a chat that only reads Firefight's own records owes no check" do
-    script(call("search_runbooks", "query" => "release"), reply("There is a release runbook."))
-
-    replay = Conversation::Rehearsal.replay!(release_case(decisions: []), result: @result, model: @model)
-
     refute replay.chat.messages.exists?(nudge: true)
+    assert_equal [ "Run 412 failed at the migrate step." ], replay.transcript.replies
   end
 
   # On the first real bench run a replay handed every tool over up front and open_tools said groups had nothing

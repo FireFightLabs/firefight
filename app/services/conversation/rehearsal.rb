@@ -184,20 +184,12 @@ class Conversation::Rehearsal
   end
 
   def respond(chat)
-    @looked_outside = false
     outcome = responder.run(
       chat: chat, tools: tools(chat), deferred_tools: deferred(chat), context: @case.context, budget: budget,
-      on_step: method(:note_step), nudge: chat.method(:nudge!), memory: chat,
-      check: -> { FirefightAi::Responder::CHECK if @looked_outside }, hold: chat.method(:hold_last_reply!)
+      nudge: chat.method(:nudge!), memory: chat
     )
     @turns_used += outcome.turns_used
     outcome
-  end
-
-  # A connected system is what a claim about a cause rests on, so reading one owes the answer a check, as it does live.
-  def note_step(step)
-    definition = step.tool && @case.tool(step.tool.to_s)
-    @looked_outside ||= definition.present? && definition.outside? && definition.reads?(Conversation::Rehearsal.asked(step.arguments))
   end
 
   # A chat starts with its own tools and open_tools, which makes the rest callable group by group, as it does live. Where

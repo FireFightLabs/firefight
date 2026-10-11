@@ -53,7 +53,6 @@ module FirefightAi
         - Check what would make running it now a mistake: it is already in the state the call would put it in, something changed since it was asked for (a newer deploy, a different count, another config), or it is gone.
         - A few reads are enough. Stop once you know.
         - #{Evidence::RULE}
-        - #{Evidence::REFUSAL_RULE}
 
         How to finish:
         - Call report_state once. now is one or two plain sentences on how it stands now, naming what you read, such as "web runs deploy 4f2a1c, started 12 minutes ago, 2 of 2 instances healthy". change is unchanged, changed, already_done or gone, and unknown when you could not read it.

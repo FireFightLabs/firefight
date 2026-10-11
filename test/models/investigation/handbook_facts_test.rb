@@ -22,6 +22,6 @@ class Investigation::HandbookFactsTest < ActiveSupport::TestCase
     run.build_seed_pack!
 
     assert_equal [ @on_call.halon_line ], run.starting_facts[Investigation::Seeding::KEY_HANDBOOK]
-    assert_includes FirefightAi::Monitor.system_prompt, FirefightAi::MemoryRule::HANDBOOK_RULE
+    assert_includes FirefightAi::Facts.opening("Run this check.", run.starting_facts), FirefightAi::Facts::READING.fetch("handbook")
   end
 end

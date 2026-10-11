@@ -59,6 +59,9 @@ module FirefightAi
     # and tells whoever can fix it, so the engine never writes that state or enqueues anything itself.
     attr_accessor :on_refused
 
+    # Returns the playbooks' words, which the version of every prompt carrying the manual includes (Manual.version).
+    attr_accessor :playbooks
+
     # Deploy-level kill switch for milestone noting. Entitlement and credits still gate per workspace.
     attr_writer :milestones_enabled
 
