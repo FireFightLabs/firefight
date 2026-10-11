@@ -6,6 +6,7 @@ class Integrations::Capabilities::AwsTest < ActiveSupport::TestCase
   FUNCTION_ARN = "arn:aws:lambda:eu-west-1:#{ACCOUNT}:function:checkout".freeze
   INSTANCE_ARN = "arn:aws:ec2:eu-west-1:#{ACCOUNT}:instance/i-0abc".freeze
   DATABASE_ARN = "arn:aws:rds:eu-west-1:#{ACCOUNT}:db:orders".freeze
+  PROJECT_ARN = "arn:aws:codebuild:eu-west-1:#{ACCOUNT}:project/web-build".freeze
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -16,7 +17,8 @@ class Integrations::Capabilities::AwsTest < ActiveSupport::TestCase
                                             params_schema: definition.params_schema) ]
     end
     { SERVICE_ARN => [ ResourceMap::KIND_SERVICE, "web" ], FUNCTION_ARN => [ ResourceMap::KIND_FUNCTION, "checkout" ],
-      INSTANCE_ARN => [ ResourceMap::KIND_VIRTUAL_MACHINE, "bastion" ], DATABASE_ARN => [ ResourceMap::KIND_DATABASE, "orders" ] }.each do |arn, (kind, name)|
+      INSTANCE_ARN => [ ResourceMap::KIND_VIRTUAL_MACHINE, "bastion" ], DATABASE_ARN => [ ResourceMap::KIND_DATABASE, "orders" ],
+      PROJECT_ARN => [ ResourceMap::KIND_BUILD_SERVICE, "web-build" ] }.each do |arn, (kind, name)|
       ResourceMap::Resource.create!(workspace: @workspace, provider: "aws", account: ACCOUNT, kind: kind, external_id: arn, name: name,
                                     integration_environment: @row, first_seen_at: Time.current, last_seen_at: Time.current)
     end
@@ -73,6 +75,28 @@ class Integrations::Capabilities::AwsTest < ActiveSupport::TestCase
     history = resolve(Integrations::Capabilities::HISTORY, "resource" => "web")
     assert_equal [ "list_deployments", { "resource" => SERVICE_ARN, "limit" => Integrations::Capabilities::History::LIMIT } ], [ history.tool.name, history.arguments ]
     assert_match "no connection offers run history", unroutable(Integrations::Capabilities::HISTORY, "resource" => "checkout")
+  end
+
+  test "one run asked by its id is passed on, so a deployment or a build is read with its parts" do
+    deployment = resolve(Integrations::Capabilities::HISTORY, "resource" => "web", "run" => " NCWGC2ZR-taawPAYrIaU5 ")
+    assert_equal({ "resource" => SERVICE_ARN, "run" => "NCWGC2ZR-taawPAYrIaU5", "limit" => Integrations::Capabilities::History::LIMIT }, deployment.arguments)
+
+    builds = resolve(Integrations::Capabilities::HISTORY, "resource" => "web-build", "name" => "build", "limit" => 5)
+    assert_equal [ "list_builds", { "resource" => PROJECT_ARN, "limit" => 5 } ], [ builds.tool.name, builds.arguments ]
+    assert_equal "web-build:1f2e", resolve(Integrations::Capabilities::HISTORY, "resource" => "web-build", "run" => "web-build:1f2e").arguments["run"]
+  end
+
+  test "a CodeBuild project answers its status and its builds' logs, of the build a watch follows or the newest" do
+    assert_equal [ "describe_resource", { "resource" => PROJECT_ARN } ],
+                 resolve(Integrations::Capabilities::STATUS, "resource" => "web-build").then { |call| [ call.tool.name, call.arguments ] }
+    newest = resolve(Integrations::Capabilities::LOGS, "resource" => "web-build", "text" => "error", "minutes" => 30)
+    assert_equal [ "build_log", { "resource" => PROJECT_ARN, "text" => "error" } ], [ newest.tool.name, newest.arguments ]
+    followed = resolve(Integrations::Capabilities::LOGS, "resource" => "web-build", "stream" => "build", "deployment" => "web-build:1f2e")
+    assert_equal({ "resource" => PROJECT_ARN, "build" => "web-build:1f2e" }, followed.arguments)
+    assert_match "stream must be build", unroutable(Integrations::Capabilities::LOGS, "resource" => "web-build", "stream" => "app")
+    assert_match "no connection offers metrics", unroutable(Integrations::Capabilities::METRICS, "resource" => "web-build")
+    assert_not Integrations::Capabilities.wrapped?(@tools["build_log"])
+    assert Integrations::Capabilities.wrapped?(@tools["list_builds"])
   end
 
   test "what AWS does not hold for a kind is said, never guessed" do

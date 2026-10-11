@@ -10,7 +10,8 @@ module Integrations
       EXECUTE = ReadGuards::Cloudflare::TOOL
       PROVIDER = "Cloudflare".freeze
       SUPPORTS = {
-        LOGS => [ ResourceMap::KIND_WORKER ],
+        # A Worker's logs are what it prints, a Pages project's are its deployments' build logs.
+        LOGS => [ ResourceMap::KIND_WORKER, ResourceMap::KIND_SITE ],
         METRICS => [ ResourceMap::KIND_WORKER, ResourceMap::KIND_ZONE ],
         DEPLOYS => [ ResourceMap::KIND_WORKER, ResourceMap::KIND_SITE ],
         STATUS => [ ResourceMap::KIND_WORKER, ResourceMap::KIND_ZONE, ResourceMap::KIND_SITE ],
@@ -52,13 +53,14 @@ module Integrations
       def self.route(key, resource, given, tool: nil, settings: nil)
         account = account_of(resource)
         case [ key, resource.kind ]
+        in [ LOGS, ResourceMap::KIND_SITE ] then build_logs(resource, account, given)
         in [ LOGS, _ ] then logs(resource, account, given)
         in [ METRICS, ResourceMap::KIND_WORKER ] then metrics(resource, account, given, WORKER_METRICS, WORKER_QUERY,
                                                               { "accountTag" => account, "scriptName" => resource.external_id })
         in [ METRICS, ResourceMap::KIND_ZONE ] then metrics(resource, account, given, ZONE_METRICS, ZONE_QUERY, { "zoneTag" => resource.external_id })
         in [ DEPLOYS, ResourceMap::KIND_WORKER ] then deploys(resource, account, given, "/accounts/#{account}/workers/scripts/#{resource.external_id}/deployments")
         in [ DEPLOYS, ResourceMap::KIND_SITE ] then deploys(resource, account, given, "/accounts/#{account}/pages/projects/#{resource.external_id}/deployments")
-        in [ HISTORY, ResourceMap::KIND_SITE ] then history(resource, account, given, "/accounts/#{account}/pages/projects/#{resource.external_id}/deployments")
+        in [ HISTORY, ResourceMap::KIND_SITE ] then history(resource, account, given, deployments_path(account, resource))
         in [ STATUS, ResourceMap::KIND_WORKER ] then status(resource, account, "/accounts/#{account}/workers/scripts/#{resource.external_id}/settings")
         in [ STATUS, ResourceMap::KIND_ZONE ] then status(resource, account, "/zones/#{resource.external_id}")
         in [ STATUS, ResourceMap::KIND_SITE ] then status(resource, account, "/accounts/#{account}/pages/projects/#{resource.external_id}")
@@ -79,10 +81,17 @@ module Integrations
       # before it is put in a request, since it goes into the path and could name another endpoint.
       def self.id_of(given, what)
         id = target(given)
-        raise Unroutable, "Give the #{what} id recent_deploys shows." unless id.match?(/\A\h[\h-]*\z/)
+        raise Unroutable, "Give the #{what} id recent_deploys shows." unless uuid?(id)
 
         id
       end
+
+      def self.uuid?(id) = id.to_s.match?(/\A\h[\h-]*\z/)
+
+      def self.deployments_path(account, resource) = "/accounts/#{account}/pages/projects/#{resource.external_id}/deployments"
+
+      # A Pages deployment's own page in the dashboard, where its build log is, as Cloudflare's Git integration links it.
+      def self.deployment_page(account, resource, id) = "#{MapReaders::Cloudflare::DASHBOARD}/#{account}/pages/view/#{resource.external_id}/#{id}"
 
       # The account a resource is in. The map keeps the account's name, and the reader writes every page address as
       # the dashboard, then the account's id (MapReaders::Cloudflare#dashboard).
@@ -124,10 +133,96 @@ module Integrations
                   present: ->(result) { read(result) { |data| deploys_result(resource, data, limit) } })
       end
 
+      # A Pages project's build log, of the deployment named, or of its newest one. A named deployment's log is one
+      # request written by the read guard (ReadGuards::Cloudflare.arguments_for), the same one a run's stages carry.
+      # Without a name, one script finds the newest deployment and checks its id before it goes into the path.
+      def self.build_logs(resource, account, given)
+        stream = given["stream"].presence
+        raise Unroutable, "Cloudflare keeps a Pages project's build logs, so stream must be #{STREAM_BUILD}." if stream && stream != STREAM_BUILD
+
+        deployment = given["deployment"].to_s.strip.presence
+        raise Unroutable, "Give the deployment id run_history or recent_deploys shows." if deployment && !uuid?(deployment)
+
+        limit = given["limit"].to_i.positive? ? [ given["limit"].to_i, LOG_LIMIT ].min : LOG_LIMIT
+        arguments = deployment ? build_log_arguments(account, resource, deployment) : newest_build_log(account, resource)
+        Route.new(tool_name: EXECUTE, arguments: arguments,
+                  present: ->(result) { read(result) { |data| build_logs_result(resource, account, data, given, limit, deployment) } })
+      end
+
+      def self.build_log_arguments(account, resource, id)
+        ReadGuards::Cloudflare.arguments_for({ "method" => ReadGuards::Cloudflare::GET, "path" => "#{deployments_path(account, resource)}/#{id}/history/logs" }, account)
+      end
+
+      def self.newest_build_log(account, resource)
+        path = deployments_path(account, resource)
+        code = "async () => { const listed = await cloudflare.request(#{JSON.generate('method' => 'GET', 'path' => path)}); " \
+               "const newest = (Array.isArray(listed && listed.result) ? listed.result : [])[0]; if (!newest) return { result: null }; " \
+               "if (!/^[0-9a-f-]+$/i.test(String(newest.id))) throw new Error(\"Unexpected deployment id\"); " \
+               "const answer = await cloudflare.request({ method: \"GET\", path: #{JSON.generate(path)} + \"/\" + newest.id + \"/history/logs\" }); " \
+               "if (answer && answer.success === false) throw new Error(JSON.stringify(answer.errors || answer)); " \
+               "return Object.assign({}, answer, { deployment: newest.id }); }"
+        { ReadGuards::Cloudflare::CODE => code, ReadGuards::Cloudflare::ACCOUNT => account }
+      end
+
+      # The Pages API answers a deployment's log as lines with their time, oldest first (deployments, get logs).
+      def self.build_logs_result(resource, account, data, given, limit, deployment)
+        id = deployment || data["deployment"]
+        return Telemetry.result("#{resource.name} has no deployments, so it has no build log.", link: link(resource)) if id.blank?
+
+        matcher = log_matcher(given)
+        lines = Array(data.dig("result", "data")).filter_map do |entry|
+          text = entry["line"].to_s
+          Telemetry::LogLine.new(at: time_of(entry["ts"]) || Time.current, source: id, text: text) if text.present? && matcher.call(text)
+        end.sort_by(&:at).reverse
+        Telemetry.result(Telemetry.logs_text(lines.first(limit), asked: "the build of deployment #{id} of #{resource.name}", limit: limit),
+                         link: Telemetry::Link.new(provider: PROVIDER, url: deployment_page(account, resource, id)))
+      end
+
+      def self.log_matcher(given)
+        text = given["text"].to_s.downcase.presence
+        exclude = given["exclude"].to_s.downcase.presence
+        regex = given["regex"].presence && Regexp.new(given["regex"], Regexp::IGNORECASE, timeout: 1)
+        lambda do |line|
+          lowered = line.downcase
+          (text.nil? || lowered.include?(text)) && (exclude.nil? || !lowered.include?(exclude)) && (regex.nil? || regex.match?(line))
+        end
+      rescue RegexpError => error
+        raise Unroutable, "regex is not a regular expression: #{error.message}"
+      end
+
       def self.history(resource, account, given, path)
+        run = given["run"].to_s.strip.delete_prefix("#").presence
+        return one_run(resource, account, run, path) if run
+
         limit = given["limit"].to_i.positive? ? [ given["limit"].to_i, History::LIMIT ].min : History::LIMIT
         Route.new(tool_name: EXECUTE, arguments: script({ "method" => "GET", "path" => path }, account),
-                  present: ->(result) { read(result) { |data| history_result(resource, data, given["name"], limit) } })
+                  present: ->(result) { read(result) { |data| history_result(resource, account, data, given["name"], limit) } })
+      end
+
+      # One deployment by its id, whatever its age, with its stages as parts, each reading that deployment's build log.
+      def self.one_run(resource, account, id, path)
+        raise Unroutable, "run is a Pages deployment's id, as run_history shows it." unless uuid?(id)
+
+        Route.new(tool_name: EXECUTE, arguments: script({ "method" => "GET", "path" => "#{path}/#{id}" }, account),
+                  present: lambda { |result|
+                    read(result) do |data|
+                      deployment = data["result"]
+                      next Telemetry.result("Cloudflare has no deployment #{id} of #{resource.name}.", link: link(resource)) unless deployment.is_a?(Hash)
+
+                      run = history_run(resource, account, deployment)
+                      parts = Array(deployment["stages"]).map { |stage| stage_part(resource, account, deployment["id"], stage) }
+                      History.result([ run.with(parts: parts) ], what: resource.name, link: Telemetry::Link.new(provider: PROVIDER, url: run.url))
+                    end
+                  })
+      end
+
+      def self.stage_part(resource, account, id, stage)
+        status = History.status(stage["status"], STAGE_STATUSES)
+        History::Part.new(
+          id: stage["name"], name: stage["name"], status: status, started_at: time_of(stage["started_on"]),
+          finished_at: (time_of(stage["ended_on"]) if History::FINISHED.include?(status)), url: deployment_page(account, resource, id),
+          log: { History::LOG_TOOL => EXECUTE, History::LOG_ARGUMENTS => build_log_arguments(account, resource, id) }
+        )
       end
 
       def self.status(resource, account, path)
@@ -238,25 +333,28 @@ module Integrations
       # A Pages deployment's stages run queued, initialize, clone_repo, build and deploy, each with its status and when it
       # started and ended (Pages API, deployments, stages and latest_stage). It has finished once its deploy stage
       # succeeded, or any stage failed or was cancelled.
-      STAGE_STATUSES = { "idle" => History::QUEUED, "active" => History::RUNNING, "failure" => History::FAILED, "canceled" => History::CANCELLED }.freeze
+      STAGE_STATUSES = { "idle" => History::QUEUED, "active" => History::RUNNING, "success" => History::SUCCEEDED, "failure" => History::FAILED,
+                         "canceled" => History::CANCELLED }.freeze
       LAST_STAGE = "deploy".freeze
 
-      def self.history_result(resource, data, name, limit)
+      def self.history_result(resource, account, data, name, limit)
         listed = data["result"].is_a?(Hash) ? data.dig("result", "deployments") : data["result"]
-        runs = Array(listed).map do |deployment|
-          latest = deployment["latest_stage"] || {}
-          status = if latest["status"] == "success" then latest["name"] == LAST_STAGE ? History::SUCCEEDED : History::RUNNING
-          else History.status(latest["status"], STAGE_STATUSES)
-          end
-          started = Array(deployment["stages"]).filter_map { |stage| time_of(stage["started_on"]) }.min || time_of(deployment["created_on"])
-          meta = deployment.dig("deployment_trigger", "metadata") || {}
-          History::Run.new(
-            id: deployment["id"], name: "#{deployment['environment'] || 'production'} deploy", status: status, started_at: started,
-            finished_at: (time_of(latest["ended_on"]) if History::FINISHED.include?(status)), url: deployment["url"],
-            detail: ("#{meta['commit_hash'].to_s.first(12)} #{meta['commit_message'].to_s.lines.first.to_s.strip}".strip if meta["commit_hash"])
-          )
-        end
+        runs = Array(listed).map { |deployment| history_run(resource, account, deployment) }
         History.result(runs, what: resource.name, link: link(resource), name: name, limit: limit)
+      end
+
+      def self.history_run(resource, account, deployment)
+        latest = deployment["latest_stage"] || {}
+        status = if latest["status"] == "success" then latest["name"] == LAST_STAGE ? History::SUCCEEDED : History::RUNNING
+        else History.status(latest["status"], STAGE_STATUSES)
+        end
+        started = Array(deployment["stages"]).filter_map { |stage| time_of(stage["started_on"]) }.min || time_of(deployment["created_on"])
+        meta = deployment.dig("deployment_trigger", "metadata") || {}
+        History::Run.new(
+          id: deployment["id"], name: "#{deployment['environment'] || 'production'} deploy", status: status, started_at: started,
+          finished_at: (time_of(latest["ended_on"]) if History::FINISHED.include?(status)), url: deployment_page(account, resource, deployment["id"]),
+          detail: ("#{meta['commit_hash'].to_s.first(12)} #{meta['commit_message'].to_s.lines.first.to_s.strip}".strip if meta["commit_hash"])
+        )
       end
 
       def self.deploy_line(resource, deployment)
@@ -293,7 +391,8 @@ module Integrations
         Time.zone.at((at.to_i / (minutes * 60)) * minutes * 60).utc
       end
 
-      private_class_method :account_of, :logs, :metrics, :deploys, :status, :change, :read, :logs_result, :metrics_result,
+      private_class_method :account_of, :logs, :build_logs, :build_log_arguments, :newest_build_log, :build_logs_result, :log_matcher,
+                           :one_run, :stage_part, :history_run, :uuid?, :deployments_path, :deployment_page, :metrics, :deploys, :status, :change, :read, :logs_result, :metrics_result,
                            :worker_points, :zone_points, :deploys_result, :deploy_line, :history, :history_result, :link, :time_of, :bucket_minutes, :floor, :script, :range_js
     end
   end

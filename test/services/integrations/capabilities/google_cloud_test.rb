@@ -76,6 +76,23 @@ class Integrations::Capabilities::GoogleCloudTest < ActiveSupport::TestCase
     assert_match "no connection offers run history", unroutable(Integrations::Capabilities::HISTORY, "resource" => "orders")
   end
 
+  test "a run is read by its id: a revision by its name, a build by its id, and a history named for builds reads the builds" do
+    revision = resolve(Integrations::Capabilities::HISTORY, "resource" => "web", "run" => "web-00003-bad")
+    assert_equal [ "list_revisions", { "resource" => RUN_ID, "revision" => "web-00003-bad", "limit" => 20 } ], [ revision.tool.name, revision.arguments ]
+    build_id = "4fd8d9e2-6c2f-4b1e-9b3a-2f0e1c7d5a10"
+    build = resolve(Integrations::Capabilities::HISTORY, "resource" => "web", "run" => build_id)
+    assert_equal [ "list_builds", { "resource" => RUN_ID, "build" => build_id, "limit" => 20 } ], [ build.tool.name, build.arguments ]
+    assert_equal [ "list_builds", { "resource" => RUN_ID, "limit" => 20 } ], resolve(Integrations::Capabilities::HISTORY, "resource" => "web", "name" => "build").then { |call| [ call.tool.name, call.arguments ] }
+    assert_not Integrations::Capabilities::GoogleCloud.wraps?("list_builds")
+  end
+
+  test "a build log named by the build's id reads that build, and any other id reads the trigger's builds" do
+    build_id = "4fd8d9e2-6c2f-4b1e-9b3a-2f0e1c7d5a10"
+    assert_equal({ "resource" => RUN_ID, "stream" => "build", "build" => build_id },
+                 resolve(Integrations::Capabilities::LOGS, "resource" => "web", "stream" => "build", "deployment" => build_id).arguments)
+    assert_equal({ "resource" => RUN_ID, "stream" => "build" }, resolve(Integrations::Capabilities::LOGS, "resource" => "web", "stream" => "build", "deployment" => "web-00003-bad").arguments)
+  end
+
   def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given, principal: map_reader)
 
   def unroutable(key, given) = assert_raises(Integrations::Capabilities::Unroutable) { resolve(key, given) }.message

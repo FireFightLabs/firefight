@@ -10,7 +10,7 @@ module Integrations
     #
     # A person may also create Firefight's CloudFormation stack in a region (aws_live_updates.json, through a quick-create
     # link, docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-console-create-stacks-quick-create-links.html). Its
-    # EventBridge rules send EC2, ECS and RDS state changes, the same API calls as "AWS API Call via CloudTrail" events,
+    # EventBridge rules send EC2, ECS, RDS and CodeBuild state changes, the same API calls as "AWS API Call via CloudTrail" events,
     # and the stack's own status to an API destination at the connection's address, with Firefight's key for the
     # connection in the x-firefight-key header (the connection's API_KEY authorization). An API call read both ways is
     # one change, since both carry CloudTrail's eventID. Lambda sends EventBridge no state changes of its own, so its
@@ -52,6 +52,7 @@ module Integrations
       LAMBDA = "lambda.amazonaws.com".freeze
       EC2 = "ec2.amazonaws.com".freeze
       RDS = "rds.amazonaws.com".freeze
+      CODEBUILD = "codebuild.amazonaws.com".freeze
       # The calls that change what the map shows of each kind, by the name CloudTrail records. Lambda's carry a date and
       # version, such as UpdateFunctionCode20150331v2 (Lambda developer guide, Logging AWS Lambda API calls using AWS
       # CloudTrail), which LAMBDA_VERSION takes off. aws_live_updates.json asks EventBridge for the same calls.
@@ -61,12 +62,13 @@ module Integrations
         LAMBDA => %w[CreateFunction UpdateFunctionCode UpdateFunctionConfiguration DeleteFunction TagResource UntagResource],
         RDS => %w[CreateDBInstance CreateDBInstanceReadReplica RestoreDBInstanceFromDBSnapshot RestoreDBInstanceToPointInTime
                   ModifyDBInstance RebootDBInstance StartDBInstance StopDBInstance PromoteReadReplica DeleteDBInstance
-                  AddTagsToResource RemoveTagsFromResource]
+                  AddTagsToResource RemoveTagsFromResource],
+        CODEBUILD => %w[CreateProject UpdateProject DeleteProject]
       }.freeze
       LAMBDA_VERSION = /\d{8}(v\d+)?\z/
       ADDING = %w[RunInstances CreateService CreateFunction CreateDBInstance CreateDBInstanceReadReplica RestoreDBInstanceFromDBSnapshot
-                  RestoreDBInstanceToPointInTime].freeze
-      REMOVING = %w[TerminateInstances DeleteService DeleteFunction DeleteDBInstance].freeze
+                  RestoreDBInstanceToPointInTime CreateProject].freeze
+      REMOVING = %w[TerminateInstances DeleteService DeleteFunction DeleteDBInstance DeleteProject].freeze
 
       API_CALL = "AWS API Call via CloudTrail".freeze
       EC2_STATE = "EC2 Instance State-change Notification".freeze
@@ -74,6 +76,9 @@ module Integrations
       # ECS service action events and service deployment state change events).
       ECS_SERVICE = [ "ECS Service Action", "ECS Deployment State Change" ].freeze
       RDS_INSTANCE = "RDS DB Instance Event".freeze
+      # A build starting, ending or moving phase names its project in detail (CodeBuild user guide, Build notifications
+      # input format reference). It reads the project again and wakes a watch on its builds.
+      BUILD_STATE = [ "CodeBuild Build State Change", "CodeBuild Build Phase Change" ].freeze
       STACK_STATUS = "CloudFormation Stack Status Change".freeze
       # The first status of a stack being deleted, sent while its rules still exist (CloudFormation user guide, Stack
       # Status Change event detail).
@@ -102,6 +107,7 @@ module Integrations
           when *ECS_SERVICE then state_event(payload, Packs::Aws::SERVICE, Array(payload["resources"]).first, false)
           when RDS_INSTANCE
             detail["SourceType"] == "DB_INSTANCE" ? state_event(payload, Packs::Aws::DATABASE, detail["SourceArn"].presence || Array(payload["resources"]).first, false) : []
+          when *BUILD_STATE then state_event(payload, Packs::Aws::PROJECT, project_arn(payload["region"], payload["account"], detail["project-name"]), false)
           else []
           end
         end
@@ -145,7 +151,8 @@ module Integrations
         end
 
         def offer_words = "CloudTrail is read every five minutes. To get changes as they happen, create Firefight's CloudFormation stack in each region. " \
-                          "It sends changes to EC2 instances, ECS services, Lambda functions and RDS databases to this connection. Lambda's arrive only " \
+                          "It sends changes to EC2 instances, ECS services, Lambda functions, RDS databases and CodeBuild projects and their builds to this " \
+                          "connection. Lambda's arrive only " \
                           "while the account has a CloudTrail trail logging."
 
         def offer_action = "Create stack"
@@ -229,6 +236,9 @@ module Integrations
           when EC2 then [ Packs::Aws::INSTANCE, instance_ids(name, asked, answered).map { |id| instance_arn(region, account, id) } ]
           when ECS then [ Packs::Aws::SERVICE, [ service_arn(name, asked, answered, region, account) ] ]
           when LAMBDA then [ Packs::Aws::FUNCTION, [ function_arn(name, asked, answered, region, account) ] ]
+          when CODEBUILD
+            given = answered.dig("project", "arn").presence || asked["name"].presence
+            [ Packs::Aws::PROJECT, [ given.to_s.start_with?("arn:") ? given : project_arn(region, account, given) ] ]
           else [ Packs::Aws::DATABASE, database_arns(name, asked, answered, region, account) ]
           end
         end
@@ -247,6 +257,11 @@ module Integrations
 
         def instance_arn(region, account, id)
           "arn:#{Packs::Aws.partition(region)}:ec2:#{region}:#{account}:instance/#{id}" if region.present? && account.present? && id.present?
+        end
+
+        # A CodeBuild project's ARN, in the form CodeBuild's API reference gives (Project.arn).
+        def project_arn(region, account, name)
+          "arn:#{Packs::Aws.partition(region)}:codebuild:#{region}:#{account}:project/#{name}" if region.present? && account.present? && name.present?
         end
 
         # The service's ARN as ECS answered it, or as the request named it, in the form with its cluster (cluster

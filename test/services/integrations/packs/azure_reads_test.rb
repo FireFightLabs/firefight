@@ -37,6 +37,13 @@ module Integrations
         assert_includes shown, "#{PORTAL}#{APP}/overview"
       end
 
+      test "a read of an app's deployments links its Deployment Center" do
+        site = "/subscriptions/#{SUBSCRIPTION}/resourceGroups/shop/providers/Microsoft.Web/sites/storefront"
+        AzureApi.any_instance.stubs(:get).returns("name" => "abc123", "properties" => { "status" => 3 })
+
+        assert_includes text(call("path" => "#{site}/deployments/abc123/log", "query" => { "api-version" => "2025-03-01" })), "#{PORTAL}#{site}/vstscd"
+      end
+
       test "another subscription is refused before anything is sent" do
         AzureApi.any_instance.expects(:get).never
 

@@ -33,6 +33,15 @@ module Integrations
         assert_includes text(result), WEB_PAGE
       end
 
+      test "one deploy read through the general read links to that deploy's own page" do
+        RenderApi.any_instance.expects(:read).with("/services/srv-web", {}).returns("id" => "srv-web", "ownerId" => "tea-1", "dashboardUrl" => WEB_PAGE)
+        RenderApi.any_instance.expects(:read).with("/services/srv-web/deploys/dep-7", {}).returns("id" => "dep-7", "status" => "build_failed")
+
+        result = call("path" => "/services/srv-web/deploys/dep-7")
+
+        assert_includes text(result), "#{WEB_PAGE}/deploys/dep-7"
+      end
+
       test "a service of a workspace the connection does not read is refused before it is read" do
         RenderApi.any_instance.expects(:read).with("/services/srv-other", {}).returns("id" => "srv-other", "ownerId" => "tea-2")
         RenderApi.any_instance.expects(:read).with("/services/srv-other/deploys", anything).never

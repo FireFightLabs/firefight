@@ -288,6 +288,54 @@ module Integrations
         assert_equal "c4e4267d46e6 Speed up checkout", runs.second.detail
       end
 
+      test "one deployment by its id is read with each step it went through, each step's log read from that deployment" do
+        RailwayApi.any_instance.stubs(:deployment).with("dep-4").returns(
+          "id" => "dep-4", "status" => "FAILED", "createdAt" => "2026-10-01T10:00:00Z", "updatedAt" => "2026-10-01T10:06:00Z",
+          "projectId" => "prj-1", "environmentId" => "env-prod", "serviceId" => "svc-web", "meta" => { "commitHash" => "abc123" }
+        )
+        RailwayApi.any_instance.stubs(:deployment_events).with("dep-4", limit: 50).returns([
+          { "id" => "ev-3", "step" => "HEALTHCHECK", "createdAt" => "2026-10-01T10:03:00Z", "completedAt" => "2026-10-01T10:05:00Z",
+            "payload" => { "error" => "Healthcheck failed" } },
+          { "id" => "ev-1", "step" => "SNAPSHOT_CODE", "createdAt" => "2026-10-01T10:00:01Z", "completedAt" => "2026-10-01T10:00:05Z", "payload" => {} },
+          { "id" => "ev-2", "step" => "BUILD_IMAGE", "createdAt" => "2026-10-01T10:00:05Z", "completedAt" => "2026-10-01T10:02:50Z", "payload" => nil }
+        ])
+
+        result = @pack.call("deploy_history", environment_row: @row, arguments: { "resource" => "web", "run" => "dep-4" })
+        run = Capabilities::History.runs_of(result).sole
+
+        assert_equal "failed", run.status
+        assert_equal [ [ "take the code", "succeeded" ], %w[build succeeded], %w[healthcheck failed] ], run.parts.map { |part| [ part.name, part.status ] }
+        assert_equal "Healthcheck failed", run.first_failed_part.detail
+        assert_equal({ "resource" => "svc-web", "type" => "app", "deployment" => "dep-4", "start" => "2026-10-01T10:00:00Z", "end" => "2026-10-01T10:06:00Z" },
+                     run.first_failed_part.log["arguments"])
+        assert_equal "build", run.parts.second.log.dig("arguments", "type")
+        assert_includes result["content"].sole["text"], PAGE
+      end
+
+      test "a deployment of another service or not there at all is said, never read as no runs" do
+        RailwayApi.any_instance.stubs(:deployment).with("dep-db").returns("id" => "dep-db", "serviceId" => "svc-db", "environmentId" => "env-prod")
+        RailwayApi.any_instance.stubs(:deployment).with("dep-x").raises(RailwayApi::NotFound, "Railway refused this: Deployment not found")
+
+        %w[dep-db dep-x].each do |id|
+          error = assert_raises(NativePack::Error) { @pack.call("deploy_history", environment_row: @row, arguments: { "resource" => "web", "run" => id }) }
+          assert_match "web has no deployment #{id} in this environment", error.message
+        end
+      end
+
+      test "the app log of one deployment is what that deployment printed, and only of this service's deployments" do
+        RailwayApi.any_instance.stubs(:deployment).with("dep-4").returns("id" => "dep-4", "serviceId" => "svc-web", "environmentId" => "env-prod")
+        RailwayApi.any_instance.stubs(:deployment).with("dep-db").returns("id" => "dep-db", "serviceId" => "svc-db", "environmentId" => "env-prod")
+        RailwayApi.any_instance.expects(:environment_logs).never
+        RailwayApi.any_instance.expects(:deployment_logs).with(has_entries("deploymentId" => "dep-4", "startDate" => "2026-10-01T10:00:00Z"))
+                  .returns([ { "timestamp" => "2026-10-01T10:04:00Z", "message" => "listening on 3000", "severity" => "info" } ])
+
+        text = call(:search_logs, "resource" => "web", "deployment" => "dep-4", "start" => "2026-10-01T10:00:00Z", "end" => "2026-10-01T10:06:00Z")
+
+        assert_match "listening on 3000", text
+        error = assert_raises(NativePack::Error) { @pack.call("search_logs", environment_row: @row, arguments: { "resource" => "web", "deployment" => "dep-db" }) }
+        assert_match "web has no deployment dep-db in this environment", error.message
+      end
+
       private
 
       def call(tool, arguments = {})

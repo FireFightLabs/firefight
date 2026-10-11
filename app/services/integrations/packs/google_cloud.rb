@@ -40,7 +40,8 @@ module Integrations
 
       STREAM_APP = Capabilities::STREAM_APP
       STREAM_REQUESTS = "requests".freeze
-      STREAMS = [ STREAM_APP, STREAM_REQUESTS ].freeze
+      STREAM_BUILD = Capabilities::STREAM_BUILD
+      STREAMS = [ STREAM_APP, STREAM_REQUESTS, STREAM_BUILD ].freeze
       RUN_REQUEST_LOG = "run.googleapis.com/requests".freeze
       # Error Reporting reads a time range as one of these periods, so the shortest that covers the range is asked.
       ERROR_PERIODS = { 60 => "PERIOD_1_HOUR", 360 => "PERIOD_6_HOURS", 1440 => "PERIOD_1_DAY", 10_080 => "PERIOD_1_WEEK" }.freeze
@@ -50,12 +51,30 @@ module Integrations
         "condition_succeeded" => Capabilities::History::SUCCEEDED, "condition_failed" => Capabilities::History::FAILED,
         "condition_pending" => Capabilities::History::QUEUED, "condition_reconciling" => Capabilities::History::RUNNING
       }.freeze
+      # A revision's conditions other than these are the parts of its rollout. Active says whether it serves traffic, which
+      # is no step of making it.
+      NOT_PARTS = [ READY, "Active" ].freeze
+      # A Cloud Build build's status (Build.Status) and its steps' (BuildStep.status) in the words every run history uses.
+      # A build that waited past its queue limit never ran, which a watch hears as a failure.
+      BUILD_STATES = {
+        "pending" => Capabilities::History::QUEUED, "queued" => Capabilities::History::QUEUED, "working" => Capabilities::History::RUNNING,
+        "success" => Capabilities::History::SUCCEEDED, "failure" => Capabilities::History::FAILED, "internal_error" => Capabilities::History::FAILED,
+        "timeout" => Capabilities::History::FAILED, "expired" => Capabilities::History::FAILED, "cancelled" => Capabilities::History::CANCELLED
+      }.freeze
+      # The label Cloud Run puts on a service a Cloud Build trigger deploys, naming the trigger (Cloud Run, Continuous
+      # deployment from git using Cloud Build).
+      TRIGGER_LABEL = "gcb-trigger-id".freeze
+      # Where a build made outside a regional pool is kept.
+      GLOBAL = "global".freeze
+      BUILD_ID = /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/
+      BUILDS_PAGE = "cloud-build/builds".freeze
       MANUAL = "MANUAL".freeze
       REVISION_TRAFFIC = "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION".freeze
       POSTGRES = "POSTGRES".freeze
 
       LOG_LIMIT = 200
       REVISION_LIMIT = 20
+      BUILD_LIMIT = 20
       ERROR_LIMIT = 20
       LOG_TEXT_LIMIT = 2_000
 
@@ -71,8 +90,8 @@ module Integrations
 
       tool :search_logs,
            description: "Log lines from one resource, newest first, at most #{LOG_LIMIT}, from Cloud Logging. Filter by text, a " \
-                        "regular expression, or text to leave out. For a Cloud Run service, stream app is what it prints and " \
-                        "requests is each request it served, with status and latency",
+                        "regular expression, or text to leave out. For a Cloud Run service, stream app is what it prints, " \
+                        "requests is each request it served, with status and latency, and build what the builds that deploy it printed",
            params_schema: {
              "type" => "object",
              "properties" => {
@@ -80,7 +99,10 @@ module Integrations
                "text" => { "type" => "string", "description" => "Only lines containing this text (optional)" },
                "regex" => { "type" => "string", "description" => "Only lines matching this regular expression, case sensitive (optional)" },
                "exclude" => { "type" => "string", "description" => "Leave out lines containing this text (optional)" },
-               "stream" => { "type" => "string", "enum" => STREAMS, "description" => "Which logs of a Cloud Run service: app or requests (optional, app)" },
+               "stream" => { "type" => "string", "enum" => STREAMS,
+                              "description" => "Which logs of a Cloud Run service: app, requests, or build for what the Cloud Build builds that deploy it printed (optional, app)" },
+               "revision" => { "type" => "string", "description" => "Only the app or request logs of this revision of a Cloud Run service, by its name (optional)" },
+               "build" => { "type" => "string", "description" => "With stream build, only this build's log, by its id as list_builds shows it (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many lines (optional, #{LOG_LIMIT})" },
                **Capabilities::RANGE
              },
@@ -113,9 +135,25 @@ module Integrations
              "type" => "object",
              "properties" => {
                "resource" => SERVICE,
+               "revision" => { "type" => "string", "description" => "Only this revision, by its name, with each of its conditions (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many revisions (optional, #{REVISION_LIMIT})" }
              },
              "required" => [ "resource" ]
+           },
+           read_only: true
+
+      tool :list_builds,
+           description: "Cloud Build builds, newest first, each with its status, trigger, branch and commit, when it started and " \
+                        "finished, how long it took and why it failed. A Cloud Run service's are the builds of the trigger that " \
+                        "deploys it. Without a service, the project's builds in one region. Give build for one build with each of its steps",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => { "type" => "string", "description" => "A Cloud Run service, by name or id, for the builds of the trigger that deploys it (optional)" },
+               "build" => { "type" => "string", "description" => "Only this build, by its id, with each step, how it ended and how long it took (optional)" },
+               "region" => { "type" => "string", "description" => "Without a service, the region whose builds to list, such as us-central1 (optional, global)" },
+               "limit" => { "type" => "integer", "description" => "At most this many builds (optional, #{BUILD_LIMIT})" }
+             }
            },
            read_only: true
 
@@ -187,7 +225,7 @@ module Integrations
       DASHBOARD = "home/dashboard".freeze
 
       tool :api_read,
-           description: "Anything else Google Cloud's APIs read that the other tools do not cover, such as Cloud Build builds, " \
+           description: "Anything else Google Cloud's APIs read that the other tools do not cover, such as Cloud Build triggers, " \
                         "Cloud Deploy releases and rollouts, a Cloud Run revision's conditions, GKE node pools, Cloud SQL " \
                         "operations and backups, Pub/Sub subscriptions or IAM policies. A GET to one API, named by its host's first " \
                         "part (run for run.googleapis.com), at a path as its API reference writes it, such as " \
@@ -280,15 +318,18 @@ module Integrations
         stream = arguments["stream"].presence || STREAM_APP
         fail!("stream must be #{STREAMS.join(' or ')}.") unless STREAMS.include?(stream)
         fail!("Only a Cloud Run service keeps request logs. Ask for stream #{STREAM_APP}.") if stream == STREAM_REQUESTS && !target.run?
+        fail!("Only a Cloud Run service is deployed by Cloud Build here. Ask for stream #{STREAM_APP}.") if stream == STREAM_BUILD && !target.run?
 
-        started, ended = Capabilities::Answers.range(arguments)
+        build = build_of(environment_row, target, arguments["build"]) if stream == STREAM_BUILD && arguments["build"].present?
+        started, ended = build && arguments.slice("minutes", "start", "end").compact_blank.empty? ? build_window(build) : Capabilities::Answers.range(arguments)
         limit = Capabilities::Answers.limit(arguments, LOG_LIMIT)
-        filter = [ log_scope(environment_row, target, stream), "timestamp>=#{quote(started.utc.iso8601)}", "timestamp<=#{quote(ended.utc.iso8601)}",
-                   *text_filters(arguments) ].join(" AND ")
+        scope = stream == STREAM_BUILD ? build_log_scope(environment_row, target, build) : log_scope(environment_row, target, stream, revision: arguments["revision"])
+        filter = [ scope, "timestamp>=#{quote(started.utc.iso8601)}", "timestamp<=#{quote(ended.utc.iso8601)}", *text_filters(arguments) ].join(" AND ")
         entries = api(environment_row).log_entries(target.project, filter, limit: limit)
         lines = entries.map { |entry| log_line(entry, ended) }
-        asked = "#{target.name} (#{stream}) from #{started.utc.iso8601} to #{ended.utc.iso8601}"
-        Telemetry.result(Telemetry.logs_text(lines, asked: asked, limit: limit), link: logs_link(environment_row, target))
+        asked = "#{target.name} (#{[ stream, (build && "build #{build['id']}") ].compact.join(', ')}) from #{started.utc.iso8601} to #{ended.utc.iso8601}"
+        link = build ? build_link(environment_row, target.project, build) : logs_link(environment_row, target, stream)
+        Telemetry.result(Telemetry.logs_text(lines, asked: asked, limit: limit), link: link)
       end
 
       def query_metrics(environment_row:, arguments:)
@@ -313,6 +354,8 @@ module Integrations
       def list_revisions(environment_row:, arguments:)
         target = run_target(environment_row, arguments["resource"])
         service = api(environment_row).run_service(target.project, target.location, target.name)
+        return one_revision(environment_row, target, service, arguments["revision"]) if arguments["revision"].present?
+
         read = api(environment_row).run_revisions(target.project, target.location, target.name)
         link = page_link(environment_row, target.project, TYPE_RUN)
         return Capabilities::RunHistory.with_runs(Telemetry.result("#{target.name} has no revisions.", link: link), [], link: link) if read.items.empty?
@@ -322,7 +365,32 @@ module Integrations
         rows = newest.map { |revision| revision_line(revision, shares) }
         cut = read.incomplete? ? "\nCloud Run has more revisions than Firefight reads, so the newest may be missing." : ""
         result = Telemetry.result("Latest #{rows.size} revisions of #{target.name}, newest first. rollback_service takes a revision's name.\n#{rows.join("\n")}#{cut}", link: link)
-        Capabilities::RunHistory.with_runs(result, newest.map { |revision| history_run(revision) }, link: link)
+        url = revisions_page(environment_row, target)
+        Capabilities::RunHistory.with_runs(result, newest.map { |revision| history_run(revision).with(url: url) }, link: link)
+      end
+
+      # Builds read newest first. A Cloud Run service's are the builds of the trigger that deploys it, in the service's
+      # region and in global, since a trigger made outside a regional pool keeps its builds there. A build asked by its id is answered
+      # with its steps, each one's log read by search_logs.
+      def list_builds(environment_row:, arguments:)
+        target = run_target(environment_row, arguments["resource"]) if arguments["resource"].present?
+        project = target&.project || project_of(environment_row)
+        limit = Capabilities::Answers.limit(arguments, BUILD_LIMIT)
+        what = target ? "Cloud Build builds of #{target.name}" : "Cloud Build builds in #{project}"
+        if arguments["build"].present?
+          build = target ? build_of(environment_row, target, arguments["build"]) : regional_build(environment_row, project, arguments["region"], arguments["build"])
+          return Capabilities::History.result([ build_run(build, target, steps: true) ], what: what, link: build_link(environment_row, project, build))
+        end
+
+        builds = if target
+          filter = "trigger_id=#{quote(trigger_of!(environment_row, target))}"
+          [ target.location, GLOBAL ].uniq.flat_map { |location| api(environment_row).builds(project, location, filter: filter, page_size: limit) }
+        else
+          api(environment_row).builds(project, region_argument(arguments["region"]), page_size: limit)
+        end
+        runs = builds.uniq { |build| build["id"] }.map { |build| build_run(build, nil) }
+        link = Telemetry::Link.new(provider: PROVIDER, url: console(environment_row, project, BUILDS_PAGE))
+        Capabilities::History.result(runs, what: what, link: link, limit: limit)
       end
 
       def describe_resource(environment_row:, arguments:)
@@ -455,10 +523,25 @@ module Integrations
         answer = api(environment_row).read(service, path, query)
         text = ApiReads.answer(PROVIDER, "#{service} #{ApiReads.asked(path, query)}", ReadGuards::GoogleCloud.hidden(answer))
         project = projects.first || arguments[PROJECT].presence
-        Telemetry.result(text, link: (Telemetry::Link.new(provider: PROVIDER, url: read_page(environment_row, service, project)) if project))
+        Telemetry.result(text, link: (Telemetry::Link.new(provider: PROVIDER, url: read_page(environment_row, service, project, path)) if project))
       end
 
-      def read_page(environment_row, service, project) = console(environment_row, project, READ_PAGES.fetch(service, DASHBOARD))
+      # A path inside one Cloud Run service, or one build, as Cloud Run Admin v2 and Cloud Build v1 write them.
+      RUN_PATH = %r{/projects/(?<project>[^/]+)/locations/(?<location>[^/]+)/services/(?<name>[^/:]+)}
+      BUILD_PATH = %r{/projects/(?<project>[^/]+)/(?:locations/(?<location>[^/]+)/)?builds/(?<build>[^/:]+)}
+
+      # A read of one build opens that build's page, and one inside a Cloud Run service its revisions. Anything else opens
+      # its API's page.
+      def read_page(environment_row, service, project, path)
+        if service == "cloudbuild" && (found = path.match(BUILD_PATH))
+          return console(environment_row, found[:project], "#{BUILDS_PAGE};region=#{found[:location] || GLOBAL}/#{found[:build]}")
+        end
+        if service == "run" && (found = path.match(RUN_PATH))
+          return console(environment_row, found[:project], "run/detail/#{found[:location]}/#{found[:name]}/revisions")
+        end
+
+        console(environment_row, project, READ_PAGES.fetch(service, DASHBOARD))
+      end
       private :read_page
 
       # Reads each project the connection reaches, so one the key can no longer read is said on the connection.
@@ -765,12 +848,15 @@ module Integrations
       end
 
       # The Logging query that selects a resource's logs, by the monitored resource type and labels Google documents for it.
-      def log_scope(environment_row, target, stream)
+      def log_scope(environment_row, target, stream, revision: nil)
+        fail!("Only a Cloud Run service has revisions, so leave revision out for a #{target.type}.") if revision.present? && !target.run?
+
         case target.type
         when TYPE_RUN
           requests = "log_id(#{quote(RUN_REQUEST_LOG)})"
+          one = revision.present? ? " AND resource.labels.revision_name=#{quote(short(revision.to_s.strip))}" : ""
           "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=#{quote(target.name)} AND " \
-            "resource.labels.location=#{quote(target.location)} AND #{stream == STREAM_REQUESTS ? requests : "NOT #{requests}"}"
+            "resource.labels.location=#{quote(target.location)}#{one} AND #{stream == STREAM_REQUESTS ? requests : "NOT #{requests}"}"
         when TYPE_SQL then "resource.type=\"cloudsql_database\" AND resource.labels.database_id=#{quote("#{target.project}:#{target.name}")}"
         when TYPE_MACHINE
           id = api(environment_row).compute_instance(target.project, target.location, target.name)["id"]
@@ -809,7 +895,9 @@ module Integrations
       end
 
       # Cloud Run's own address for a revision's logs, which its API gives, or the Logs Explorer of the project.
-      def logs_link(environment_row, target)
+      def logs_link(environment_row, target, stream = STREAM_APP)
+        return Telemetry::Link.new(provider: PROVIDER, url: console(environment_row, target.project, BUILDS_PAGE)) if stream == STREAM_BUILD
+
         if target.run?
           service = api(environment_row).run_service(target.project, target.location, target.name)
           revision = service["latestReadyRevision"].presence
@@ -899,6 +987,142 @@ module Integrations
           finished_at: (Capabilities::RunHistory.time(ready["lastTransitionTime"]) if ready && Capabilities::History::FINISHED.include?(status)),
           detail: Array(revision["containers"]).filter_map { |container| container["image"] }.join(", ").presence
         )
+      end
+
+      # One revision with the conditions of its rollout as its parts, each read in the revision's own logs.
+      def one_revision(environment_row, target, service, asked)
+        name = short(asked.to_s.strip)
+        revision = begin
+          api(environment_row).run_revision(target.project, target.location, target.name, name)
+        rescue GoogleCloudApi::NotFound
+          fail!("#{target.name} has no revision called #{name}. list_revisions shows them.")
+        end
+        url = revisions_page(environment_row, target)
+        run = history_run(revision).with(url: url, parts: revision_parts(target, revision))
+        lines = [ revision_line(revision, traffic_shares(service)), *run.parts.map { |part| Capabilities::History.part_line(part) } ]
+        link = Telemetry::Link.new(provider: PROVIDER, url: url)
+        Capabilities::RunHistory.with_runs(Telemetry.result("Revision #{name} of #{target.name}.\n#{lines.join("\n")}", link: link), [ run ], link: link)
+      end
+
+      # A revision's conditions (Cloud Run Admin API v2, Revision.conditions and Condition) other than Ready, which is the
+      # run's own state, and Active.
+      def revision_parts(target, revision)
+        Array(revision["conditions"]).reject { |condition| NOT_PARTS.include?(condition["type"]) }.map do |condition|
+          status = Capabilities::History.status(condition["state"], READY_STATES)
+          Capabilities::History::Part.new(
+            id: condition["type"].to_s, name: condition["type"].to_s, status: status,
+            finished_at: (Capabilities::RunHistory.time(condition["lastTransitionTime"]) if Capabilities::History::FINISHED.include?(status)),
+            url: revision["logUri"].presence, detail: condition["message"].presence,
+            log: { Capabilities::History::LOG_TOOL => "search_logs",
+                   Capabilities::History::LOG_ARGUMENTS => { "resource" => target.id, "revision" => short(revision["name"]) } }
+          )
+        end
+      end
+
+      def revisions_page(environment_row, target) = console(environment_row, target.project, "run/detail/#{target.location}/#{target.name}/revisions")
+
+      # A build by its id, from the service's region or from global, where a build made outside a regional pool is.
+      def build_of(environment_row, target, asked)
+        id = build_id!(asked)
+        [ target.location, GLOBAL ].uniq.each do |location|
+          return api(environment_row).build(target.project, location, id)
+        rescue GoogleCloudApi::NotFound
+          next
+        end
+        fail!("Cloud Build has no build #{id} in #{target.location} or global in project #{target.project}. list_builds shows them.")
+      end
+
+      def regional_build(environment_row, project, region, asked)
+        id = build_id!(asked)
+        location = region_argument(region)
+        begin
+          api(environment_row).build(project, location, id)
+        rescue GoogleCloudApi::NotFound
+          fail!("Cloud Build has no build #{id} in #{location} in project #{project}. Name the region it ran in.")
+        end
+      end
+
+      def build_id!(asked)
+        id = asked.to_s.strip
+        fail!("build must be a build's id, as list_builds shows it, such as 4fd8d9e2-6c2f-4b1e-9b3a-2f0e1c7d5a10.") unless id.match?(BUILD_ID)
+
+        id
+      end
+
+      REGION = /\A[a-z0-9-]{1,63}\z/
+
+      def region_argument(region)
+        location = region.to_s.strip.presence || GLOBAL
+        fail!("region must be a region's name, such as us-central1, or global.") unless location.match?(REGION)
+
+        location
+      end
+
+      # The trigger that deploys a service, from the label Cloud Run keeps it in.
+      def trigger_of!(environment_row, target)
+        service = api(environment_row).run_service(target.project, target.location, target.name)
+        service.dig("labels", TRIGGER_LABEL).presence ||
+          fail!("#{target.name} names no Cloud Build trigger that deploys it (Cloud Run keeps it in the service's #{TRIGGER_LABEL} label), so its " \
+                "builds cannot be told from the project's. list_builds without a service lists a region's builds.")
+      end
+
+      # Cloud Build writes a build's log to Cloud Logging under the build monitored resource, labelled by the build and its trigger.
+      def build_log_scope(environment_row, target, build)
+        return "resource.type=\"build\" AND resource.labels.build_id=#{quote(build['id'])}" if build
+
+        "resource.type=\"build\" AND resource.labels.build_trigger_id=#{quote(trigger_of!(environment_row, target))}"
+      end
+
+      # From a minute before the build was made to a minute after it finished, or now while it runs.
+      def build_window(build)
+        started = Capabilities::RunHistory.time(build["createTime"]) || Capabilities::RunHistory.time(build["startTime"]) || 1.hour.ago
+        ended = Capabilities::RunHistory.time(build["finishTime"])
+        [ started - 1.minute, ended ? [ ended + 1.minute, Time.current ].min : Time.current ]
+      end
+
+      # A build as every run history reads it, from Cloud Build v1's Build: from startTime (createTime while queued) to
+      # finishTime, its trigger's name, the branch and commit its substitutions name, and why it failed (failureInfo). Its
+      # steps are parts only when it was read by its id.
+      def build_run(build, target, steps: false)
+        status = build_status(build["status"], build["startTime"])
+        substitutions = build["substitutions"].to_h
+        ref = [ substitutions["BRANCH_NAME"].presence || substitutions["TAG_NAME"].presence,
+                substitutions["SHORT_SHA"].presence || substitutions["COMMIT_SHA"].to_s[0, 12].presence ].compact.join(" at ").presence
+        failure = build.dig("failureInfo", "detail").presence || (build["statusDetail"].presence if [ Capabilities::History::FAILED, Capabilities::History::CANCELLED ].include?(status))
+        Capabilities::History::Run.new(
+          id: build["id"].to_s, name: [ "build", substitutions["TRIGGER_NAME"].presence ].compact.join(" "), status: status,
+          started_at: Capabilities::RunHistory.time(build["startTime"] || build["createTime"]),
+          finished_at: (Capabilities::RunHistory.time(build["finishTime"]) if Capabilities::History::FINISHED.include?(status)),
+          url: build["logUrl"].presence, detail: [ ref, failure&.truncate(200) ].compact.join(", ").presence,
+          parts: (build_parts(build, target) if steps)
+        )
+      end
+
+      # Each step (BuildStep, with timing and exitCode), named by its id or its builder image. Every step's log is the build's,
+      # since Cloud Logging labels a build's lines by the build alone.
+      def build_parts(build, target)
+        Array(build["steps"]).each_with_index.map do |step, index|
+          status = build_status(step["status"], step.dig("timing", "startTime"))
+          Capabilities::History::Part.new(
+            id: step["id"].presence || index.to_s, name: step["id"].presence || "step #{index} (#{step['name'].to_s.split('/').last})", status: status,
+            started_at: Capabilities::RunHistory.time(step.dig("timing", "startTime")),
+            finished_at: (Capabilities::RunHistory.time(step.dig("timing", "endTime")) if Capabilities::History::FINISHED.include?(status)),
+            url: build["logUrl"].presence, detail: ("exit code #{step['exitCode']}" if status == Capabilities::History::FAILED && step["exitCode"]),
+            log: (target && { Capabilities::History::LOG_TOOL => "search_logs",
+                              Capabilities::History::LOG_ARGUMENTS => { "resource" => target.id, "stream" => STREAM_BUILD, "build" => build["id"].to_s } })
+          )
+        end
+      end
+
+      # A step not started yet reports no status, or STATUS_UNKNOWN, which is waiting rather than running.
+      def build_status(word, started)
+        return Capabilities::History::QUEUED if [ "", "status_unknown" ].include?(word.to_s.downcase) && started.blank?
+
+        Capabilities::History.status(word, BUILD_STATES)
+      end
+
+      def build_link(environment_row, project, build)
+        Telemetry::Link.new(provider: PROVIDER, url: build["logUrl"].presence || console(environment_row, project, BUILDS_PAGE))
       end
 
       def error_line(group)

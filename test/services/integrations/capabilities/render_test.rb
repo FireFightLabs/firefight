@@ -65,6 +65,10 @@ class Integrations::Capabilities::RenderTest < ActiveSupport::TestCase
   test "run history is Render's deploy history of a service or site, and a datastore has none" do
     history = resolve(Integrations::Capabilities::HISTORY, "resource" => "web", "name" => "deploy", "limit" => 5)
     assert_equal [ "deploy_history", { "resource" => "srv-web", "name" => "deploy", "limit" => 5 } ], [ history.tool.name, history.arguments ]
+    one = resolve(Integrations::Capabilities::HISTORY, "resource" => "web", "run" => "dep-7")
+    assert_equal({ "resource" => "srv-web", "run" => "dep-7" }, one.arguments)
+    build = resolve(Integrations::Capabilities::LOGS, "resource" => "web", "stream" => "build", "deployment" => "dep-7")
+    assert_equal({ "resource" => "srv-web", "type" => "build", "deploy" => "dep-7" }, build.arguments)
     assert_equal "deploy_history", resolve(Integrations::Capabilities::HISTORY, "resource" => "docs").tool.name
     assert_match "no connection offers run history", unroutable(Integrations::Capabilities::HISTORY, "resource" => "cache")
   end

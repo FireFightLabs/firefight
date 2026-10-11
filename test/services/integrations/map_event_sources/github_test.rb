@@ -91,6 +91,25 @@ module Integrations
         assert_empty Github.security_events(payload, headers: headers_for("push"))
       end
 
+      test "a workflow run, a job, check or release that ended, and a deployment or commit status wake watches, and change nothing on the map" do
+        run = { "action" => "completed", "workflow_run" => { "id" => 46, "status" => "completed", "conclusion" => "failure" },
+                "repository" => { "full_name" => "acme/web" }, "installation" => { "id" => 42 } }
+        assert Github.wakes?(run, headers: headers_for("workflow_run"))
+        assert Github.wakes?(run.merge("action" => "requested"), headers: headers_for("workflow_run"))
+        assert_empty Github.events(run, headers: headers_for("workflow_run"))
+
+        assert Github.wakes?({ "action" => "completed" }, headers: headers_for("workflow_job"))
+        assert_not Github.wakes?({ "action" => "in_progress" }, headers: headers_for("workflow_job"))
+        assert Github.wakes?({ "action" => "created", "deployment_status" => { "state" => "failure" } }, headers: headers_for("deployment_status"))
+        assert Github.wakes?({ "state" => "success", "sha" => "abc" }, headers: headers_for("status"))
+        assert Github.wakes?({ "action" => "completed" }, headers: headers_for("check_suite"))
+        assert Github.wakes?({ "action" => "completed" }, headers: headers_for("check_run"))
+        assert_not Github.wakes?({ "action" => "created" }, headers: headers_for("check_run"))
+        assert Github.wakes?({ "action" => "published" }, headers: headers_for("release"))
+        assert_not Github.wakes?({ "action" => "edited" }, headers: headers_for("release"))
+        assert_not Github.wakes?(push([]), headers: headers_for("push"))
+      end
+
       private
 
       def signed(body) = { "x-hub-signature-256" => "sha256=#{OpenSSL::HMAC.hexdigest('SHA256', SECRET, body)}" }

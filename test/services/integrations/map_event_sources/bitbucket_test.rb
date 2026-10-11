@@ -48,6 +48,26 @@ module Integrations
         assert_empty repository_event("pullrequest:created")
       end
 
+      test "a build status created or updated wakes watches, and changes nothing on the map" do
+        status = { "repository" => { "full_name" => "acme/web" }, "commit_status" => { "state" => "FAILED", "key" => "pipeline-46" } }
+        assert Bitbucket.wakes?(status, headers: { "x-event-key" => Bitbucket::COMMIT_STATUS_CREATED })
+        assert Bitbucket.wakes?(status, headers: { "x-event-key" => Bitbucket::COMMIT_STATUS_UPDATED })
+        assert_empty Bitbucket.events(status, headers: { "x-event-key" => Bitbucket::COMMIT_STATUS_UPDATED, "x-request-uuid" => "r-1" })
+        assert_not Bitbucket.wakes?(status, headers: { "x-event-key" => Bitbucket::PUSH })
+      end
+
+      test "a workspace webhook missing the build status events, or gone, is registered again" do
+        @row.update!(map_events_webhook_id: { "acme" => "{ours}" }.to_json)
+        BitbucketApi.any_instance.stubs(:get).with("#{HOOKS}/%7Bours%7D").returns("uuid" => "{ours}", "events" => Bitbucket::EVENTS - Bitbucket::RUN_EVENTS)
+        assert Bitbucket.register_again?(@row, url: URL)
+
+        BitbucketApi.any_instance.stubs(:get).with("#{HOOKS}/%7Bours%7D").returns("uuid" => "{ours}", "events" => Bitbucket::EVENTS)
+        assert_not Bitbucket.register_again?(@row, url: URL)
+
+        BitbucketApi.any_instance.stubs(:get).with("#{HOOKS}/%7Bours%7D").raises(BitbucketApi::NotFound, "Bitbucket answered 404")
+        assert Bitbucket.register_again?(@row, url: URL)
+      end
+
       test "registering adds a workspace webhook for the events the map reads, beside one at another address that it leaves alone" do
         BitbucketApi.any_instance.stubs(:list).with(HOOKS).returns([ [ { "uuid" => "{theirs}", "url" => "https://example.com/hook" } ], false ])
         BitbucketApi.any_instance.expects(:put).never

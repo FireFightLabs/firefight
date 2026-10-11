@@ -52,7 +52,7 @@ class LiveUpdatesNorthflankNetlifyGoogleCloudAzureTest < ActionDispatch::Integra
     Integrations::NetlifyApi.any_instance.stubs(:sites).returns(Integrations::Pages::Read.new(items: [ { "id" => "site-1", "account_id" => "acc-1" } ], complete: true))
     Integrations::NetlifyApi.any_instance.stubs(:hook_types).returns([ { "name" => "url", "events" => Integrations::MapEventSources::Netlify::EVENTS } ])
     Integrations::NetlifyApi.any_instance.stubs(:hooks).returns([])
-    Integrations::NetlifyApi.any_instance.expects(:create_hook).twice.returns({})
+    Integrations::NetlifyApi.any_instance.expects(:create_hook).times(Integrations::MapEventSources::Netlify::EVENTS.size).returns({})
     with_app_host { Integrations::MapEvents.prepare!(row) }
     row.reload
     assert_equal [ Integrations::MapEventSources::Netlify::ALL_SITES, true ], [ row.map_events_webhook_id, row.live_updates.on ]
@@ -76,7 +76,7 @@ class LiveUpdatesNorthflankNetlifyGoogleCloudAzureTest < ActionDispatch::Integra
     with_app_host do
       Integrations::NetlifyApi.any_instance.stubs(:hooks).with("site-1").returns(Integrations::MapEventSources::Netlify::EVENTS.map { |event| own_hook(row, event) })
       Integrations::NetlifyApi.any_instance.stubs(:hooks).with("site-2").returns([])
-      Integrations::NetlifyApi.any_instance.expects(:create_hook).twice.with { |site, **| site == "site-2" }.returns({})
+      Integrations::NetlifyApi.any_instance.expects(:create_hook).times(Integrations::MapEventSources::Netlify::EVENTS.size).with { |site, **| site == "site-2" }.returns({})
       Integrations::MapEvents.prepare!(row.reload)
     end
   end

@@ -33,6 +33,10 @@ module Integrations
         VercelApi.any_instance.stubs(:read).with("/v13/deployments/dpl_1", {}).returns("id" => "dpl_1", "inspectorUrl" => "https://vercel.com/acme/shop/dpl1")
         assert_includes text(call("path" => "/v13/deployments/dpl_1")), "https://vercel.com/acme/shop/dpl1"
 
+        VercelApi.any_instance.stubs(:read).with("/v3/deployments/dpl_1/events", {}).returns([ { "type" => "stdout", "created" => 1 } ])
+        VercelApi.any_instance.stubs(:deployment).with("dpl_1").returns("id" => "dpl_1", "inspectorUrl" => "https://vercel.com/acme/shop/dpl1")
+        assert_includes text(call("path" => "/v3/deployments/dpl_1/events")), "https://vercel.com/acme/shop/dpl1", "a deployment's events link that deployment's page"
+
         VercelApi.any_instance.stubs(:read).with("/v9/projects/shop/domains", {}).returns("domains" => [])
         VercelApi.any_instance.stubs(:projects).returns(Integrations::Pages::Read.new(items: [ { "id" => "prj_1", "name" => "shop" } ], complete: true))
         assert_includes text(call("path" => "/v9/projects/shop/domains")), "https://vercel.com/acme/shop"

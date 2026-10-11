@@ -181,12 +181,29 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     reader.stubs(:read).with { |_capability, given| asked << given["stream"] }.returns(stub(failed?: true))
     call = stub(resource: stub(kind: ResourceMap::KIND_SERVICE, id: "web"))
 
-    Conversation::Watches.log_evidence(stub(label: "Deploy pricing service"), stub(started_at: nil), reader, call)
+    Conversation::Watches.log_evidence(stub(label: "Deploy pricing service"), stub(started_at: nil, id: nil), reader, call)
     assert_equal [ Integrations::Capabilities::STREAM_APP, Integrations::Capabilities::STREAM_BUILD ], asked
 
     asked.clear
-    Conversation::Watches.log_evidence(stub(label: "Run the tests"), stub(started_at: nil), reader, call)
+    Conversation::Watches.log_evidence(stub(label: "Run the tests"), stub(started_at: nil, id: nil), reader, call)
     assert_equal [ Integrations::Capabilities::STREAM_BUILD ], asked
+  end
+
+  test "a routed call carries a run by its whole id, as an argument or inside a script, never inside a longer one" do
+    assert Conversation::Watches.carries_run?({ "run" => "12" }, "12")
+    assert Conversation::Watches.carries_run?({ "code" => "request({ path: \"/deployments/ab-12\" })" }, "ab-12")
+    assert_not Conversation::Watches.carries_run?({ "run" => "123" }, "12")
+    assert_not Conversation::Watches.carries_run?({ "code" => "path /deployments/ab-123" }, "ab-12")
+  end
+
+  test "a failed run's build log is read by the run's own id, never only the newest" do
+    asked = []
+    reader = stub
+    reader.stubs(:read).with { |_capability, given| asked << given.slice("stream", "deployment") }.returns(stub(failed?: true))
+    call = stub(resource: stub(kind: ResourceMap::KIND_SERVICE, id: "web"))
+
+    Conversation::Watches.log_evidence(stub(label: "Deploy pricing service"), stub(started_at: nil, id: "dep-42"), reader, call)
+    assert_equal [ { "stream" => Integrations::Capabilities::STREAM_APP }, { "stream" => Integrations::Capabilities::STREAM_BUILD, "deployment" => "dep-42" } ], asked
   end
 
   test "more time is given up to a day from when it started, and only while it goes" do
@@ -261,6 +278,18 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_enqueued_with(job: WatchCheckJob, args: [ watch.id ]) do
       Integrations::MapEvents.receive!(row, [ ResourceMap::Event.new(id: "e1", action: ResourceMap::Event::UPDATED, at: Time.current) ])
     end
+  end
+
+  test "a run's burst of events wakes a watch checked moments ago once, and the sweep catches the rest" do
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+    row = @github.integration_environments.sole
+
+    watch.update_columns(checked_at: 5.seconds.ago)
+    assert_no_enqueued_jobs(only: WatchCheckJob) { Conversation::Watches.wake!(row, unless_checked_within: 15.seconds) }
+
+    watch.update_columns(checked_at: 1.minute.ago)
+    assert_enqueued_with(job: WatchCheckJob, args: [ watch.id ]) { Conversation::Watches.wake!(row, unless_checked_within: 15.seconds) }
   end
 
   test "Halon hears what its watches said once, at its next turn" do

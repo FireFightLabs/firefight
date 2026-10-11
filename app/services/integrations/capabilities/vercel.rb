@@ -23,7 +23,7 @@ module Integrations
         when LOGS then Route.new(tool_name: TOOLS[LOGS], arguments: { "resource" => id, "type" => stream(given) }.merge(logs(given)))
         when DEPLOYS then Route.new(tool_name: TOOLS[DEPLOYS], arguments: { "resource" => id }.merge(given.slice("limit")))
         when STATUS then Route.new(tool_name: TOOLS[STATUS], arguments: { "resource" => id })
-        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: { "resource" => id }.merge(given.slice("name", "limit")))
+        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: { "resource" => id }.merge(given.slice("name", "run", "limit").compact_blank))
         when ROLLBACK then Route.new(tool_name: TOOLS[ROLLBACK], arguments: { "resource" => id, "deployment" => target(given) })
         end
       end
@@ -33,11 +33,12 @@ module Integrations
         STREAMS.fetch(asked) { raise Unroutable, "Vercel keeps what functions log and build output, so stream must be #{STREAMS.keys.join(' or ')}." }
       end
 
-      # Vercel's log tool filters by text and leaves text out. It has no regular expressions.
+      # Vercel's log tool filters by text and leaves text out. It has no regular expressions. A deployment named is the one
+      # read, so a run being followed is read rather than the newest.
       def self.logs(given)
         raise Unroutable, "Vercel's logs cannot be searched by a regular expression, so give text instead." if given["regex"].present?
 
-        given.slice("text", "exclude", "limit")
+        given.slice("deployment", "text", "exclude", "limit").compact_blank
       end
       private_class_method :stream, :logs
     end

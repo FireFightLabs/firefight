@@ -65,10 +65,13 @@ module Integrations
           (finished_at - started_at).round
         end
 
-        # Matches what a person or Halon named it by: its id, its number with or without #, or nothing.
+        # Matches what a person or Halon named it by: its id, its number with or without # or a version's v, or nothing.
         def named?(reference)
           wanted = reference.to_s.strip.delete_prefix("#")
-          wanted.present? && [ id, number ].compact.map(&:to_s).include?(wanted)
+          return false if wanted.blank?
+
+          named = [ id, number ].compact.map(&:to_s)
+          named.include?(wanted) || (wanted.match?(/\Av\d+\z/i) && number.to_s == wanted[1..])
         end
 
         def called?(text) = text.blank? || name.to_s.downcase.include?(text.to_s.downcase.strip)

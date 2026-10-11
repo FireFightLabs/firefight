@@ -52,23 +52,45 @@ module Integrations
         secret = @row.reload.map_events_secret
         assert_equal 64, secret.size
         assert_equal [ Netlify::ALL_SITES, secret ], [ webhook.id, webhook.secret ]
-        assert_equal [ [ "site-1", "deploy_created", URL, secret ], [ "site-1", "deploy_restored", URL, secret ],
-                       [ "site-2", "deploy_created", URL, secret ], [ "site-2", "deploy_restored", URL, secret ] ], made
+        assert_equal %w[site-1 site-2].flat_map { |site| Netlify::EVENTS.map { |event| [ site, event, URL, secret ] } }, made
+        assert_equal %w[deploy_created deploy_restored deploy_building deploy_failed], Netlify::EVENTS
       end
 
       test "registering again takes back Firefight's hooks at this address, turning on one Netlify disabled, and adds only what is missing" do
         @row.update!(map_events_secret: SECRET)
-        NetlifyApi.any_instance.stubs(:hooks).with("site-1").returns([ own("h1", "deploy_created"), own("h2", "deploy_restored", disabled: true) ])
-        NetlifyApi.any_instance.stubs(:hooks).with("site-2").returns([ own("h3", "deploy_created") ])
+        NetlifyApi.any_instance.stubs(:hooks).with("site-1").returns([ own("h1", "deploy_created"), own("h2", "deploy_restored", disabled: true), *run_hooks("site-1") ])
+        NetlifyApi.any_instance.stubs(:hooks).with("site-2").returns([ own("h3", "deploy_created"), *run_hooks("site-2") ])
         NetlifyApi.any_instance.expects(:enable_hook).with("h2").returns({})
         NetlifyApi.any_instance.expects(:create_hook).with("site-2", event: "deploy_restored", url: URL, secret: SECRET).returns({})
 
         assert Netlify.register_again?(@row, url: URL)
         assert_equal SECRET, Netlify.register(@row, url: URL).secret
 
+        NetlifyApi.any_instance.stubs(:hooks).with("site-1").returns([ own("h1", "deploy_created"), own("h2", "deploy_restored"), *run_hooks("site-1") ])
+        NetlifyApi.any_instance.stubs(:hooks).with("site-2").returns([ own("h3", "deploy_created"), own("h4", "deploy_restored"), *run_hooks("site-2") ])
+        assert_not Netlify.register_again?(@row, url: URL)
+      end
+
+      test "a connection registered before deploys starting and failing were followed gets their hooks at the next sweep" do
+        @row.update!(map_events_secret: SECRET)
         NetlifyApi.any_instance.stubs(:hooks).with("site-1").returns([ own("h1", "deploy_created"), own("h2", "deploy_restored") ])
         NetlifyApi.any_instance.stubs(:hooks).with("site-2").returns([ own("h3", "deploy_created"), own("h4", "deploy_restored") ])
-        assert_not Netlify.register_again?(@row, url: URL)
+        made = []
+        NetlifyApi.any_instance.stubs(:create_hook).with { |site, **options| made << [ site, options[:event] ] }.returns({})
+
+        assert Netlify.register_again?(@row, url: URL)
+        Netlify.register(@row, url: URL)
+
+        assert_equal [ [ "site-1", "deploy_building" ], [ "site-1", "deploy_failed" ], [ "site-2", "deploy_building" ], [ "site-2", "deploy_failed" ] ], made
+      end
+
+      test "any deploy starting, failing, publishing or restored wakes watches, a preview's too, while only production reaches the map" do
+        preview = deploy.merge("context" => "deploy-preview", "state" => "error", "error_message" => "Build script returned non-zero exit code: 2")
+        Netlify::EVENTS.each { |event| assert Netlify.wakes?(preview, headers: { "x-netlify-event" => event }), event }
+        assert_empty Netlify.events(preview, headers: { "x-netlify-event" => "deploy_failed" })
+        assert_empty Netlify.events(deploy, headers: { "x-netlify-event" => "deploy_failed" })
+        assert_not Netlify.wakes?(deploy, headers: { "x-netlify-event" => "submission_created" })
+        assert_not Netlify.wakes?(deploy.except("site_id"), headers: { "x-netlify-event" => "deploy_failed" })
       end
 
       test "an event the plan restricts gets no hook, and a team whose plan offers none is refused for the plan" do
@@ -101,6 +123,8 @@ module Integrations
       def site(id) = { "id" => id, "name" => id, "account_id" => "acc-1" }
 
       def own(id, event, disabled: false) = { "id" => id, "type" => "url", "event" => event, "disabled" => disabled, "data" => { "url" => URL } }
+
+      def run_hooks(site) = [ own("#{site}-b", "deploy_building"), own("#{site}-f", "deploy_failed") ]
 
       def deploy
         { "id" => "d3", "site_id" => "site-1", "context" => "production", "state" => "ready", "updated_at" => "2026-10-06T10:00:00Z",

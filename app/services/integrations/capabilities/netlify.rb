@@ -20,7 +20,7 @@ module Integrations
         case key
         when DEPLOYS then Route.new(tool_name: TOOLS[DEPLOYS], arguments: site.merge(given.slice("limit")))
         when STATUS then Route.new(tool_name: TOOLS[STATUS], arguments: site)
-        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: site.merge(given.slice("name", "limit")))
+        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: site.merge(given.slice("name", "run", "limit").compact_blank))
         when ROLLBACK then Route.new(tool_name: TOOLS[ROLLBACK], arguments: site.merge(DEPLOY => target(given)))
         end
       end

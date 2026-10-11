@@ -144,6 +144,7 @@ module Integrations
              "properties" => {
                "resource" => RESOURCE,
                "name" => { "type" => "string", "description" => "Only runs of this kind, deploy (optional)" },
+               "run" => { "type" => "string", "description" => "Only this release, by its id or its version, such as v41 (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many releases (optional, #{RELEASE_LIMIT})" }
              },
              "required" => [ "resource" ]
@@ -180,6 +181,24 @@ module Integrations
                         "connection's organization. A list answers one page: pass limit, and the next_cursor it answered as " \
                         "cursor. Only reads, so it never changes anything. Secrets and machine environments come back as their names",
            params_schema: ApiReads.path_schema("/v1/apps/<app>/machines/<machine id>/events"),
+           read_only: true
+
+      tool :graphql_read,
+           description: "What Fly.io keeps only in its GraphQL API (#{FlyApi::API_ROOT}/graphql), above all an app's releases " \
+                        "past the newest, each with its version, status, reason, image and who made it. One GraphQL query that starts " \
+                        "from app(name: ...) or organization(slug: ...) in this connection's organization, such as " \
+                        "{ app(name: \"web\") { releasesUnprocessed(first: 50) { nodes { id version status reason createdAt } " \
+                        "pageInfo { hasNextPage endCursor } } } }. A list is a connection: pass first, and the pageInfo's endCursor " \
+                        "as after for the next page. Only reads, so a mutation or a subscription is refused. A query that reads " \
+                        "secrets, tokens, keys or config comes back as names only",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "query" => { "type" => "string", "description" => "The GraphQL query, such as query($app: String!) { app(name: $app) { releasesUnprocessed(first: 20) { nodes { version status } } } }" },
+               "variables" => { "type" => "object", "description" => "The query's variables by name, such as {\"app\": \"web\"} (optional)" }
+             },
+             "required" => %w[query]
+           },
            read_only: true
 
       def self.credential_fields
@@ -275,19 +294,14 @@ module Integrations
         "failed" => Capabilities::History::FAILED, "interrupted" => Capabilities::History::CANCELLED
       }.freeze
 
-      # A release from createdAt to updatedAt, which is when it ended once it no longer runs.
+      # A release from createdAt to updatedAt, which is when it ended once it no longer runs. Fly breaks a release into no
+      # steps it documents, so one read by its id or version has no parts.
       def deploy_history(environment_row:, arguments:)
         resource = find_app(environment_row, arguments["resource"])
+        return one_release(environment_row, resource, arguments["run"]) if arguments["run"].present?
+
         releases = sorted_releases(environment_row, resource, Capabilities::Answers.limit(arguments, RELEASE_LIMIT))
-        runs = releases.map do |release|
-          status = Capabilities::History.status(release["status"], RELEASE_STATUSES)
-          Capabilities::History::Run.new(
-            id: release["id"], number: release["version"], name: "deploy", status: status,
-            started_at: Telemetry.parse_time(release["createdAt"]),
-            finished_at: (Telemetry.parse_time(release["updatedAt"]) if Capabilities::History::FINISHED.include?(status)),
-            detail: [ release["description"].presence, ("image #{release['imageRef']}" if release["imageRef"].present?) ].compact.join(", ").presence
-          )
-        end
+        runs = releases.map { |release| history_run(environment_row, resource, release) }
         Capabilities::History.result(runs, what: resource[:name], link: link(environment_row, resource), name: arguments["name"])
       end
 
@@ -345,6 +359,46 @@ module Integrations
         text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::Fly.secret?(path))
         Telemetry.result(text, link: read_link(environment_row, organization, path))
       end
+
+      # Kept to the connection's organization. Each app the query starts from is read once to see whose it is, and an
+      # organization is checked by its slug.
+      def graphql_read(environment_row:, arguments:)
+        call = begin
+          ReadGuards::Fly.reading(ReadGuards::Fly::GRAPHQL, arguments)
+        rescue ReadGuards::Refused => error
+          fail!(error.message)
+        end
+        text, variables = call.values_at(ReadGuards::Fly::QUERY, ReadGuards::Fly::VARIABLES)
+        roots = ReadGuards::Fly.roots(text, variables)
+        api = api(environment_row)
+        organization = organization_of(environment_row)
+        apps = roots.select { |root| root.field == APP }.map(&:value).uniq
+        fail!("Name at most #{GRAPHQL_APPS} apps in one query, and read the rest in another.") if apps.size > GRAPHQL_APPS
+
+        roots.each do |root|
+          next if root.field == APP || root.value == organization
+
+          fail_policy!(outside_organization(organization, root.value))
+        end
+        apps.each { |app| fail_policy!(outside_organization(organization, "the one #{app} is in")) unless api.app(app).dig("organization", "slug") == organization }
+
+        answer = api.read_graphql(text, variables)
+        shown = ApiReads.answer(PROVIDER, "the query #{text.squish.truncate(200)}", answer, secret: ReadGuards::Fly.graphql_secret?(text))
+        Telemetry.result(shown, link: graphql_link(environment_row, apps, text))
+      rescue FlyApi::NotFound => error
+        fail!(error.message)
+      end
+
+      GRAPHQL_APPS = 5
+      RELEASES = /\breleases/i
+
+      # The one app's page, its monitoring page for its releases, where flyctl says a deploy is watched.
+      def graphql_link(environment_row, apps, text)
+        return unless apps.one?
+
+        Telemetry::Link.new(provider: PROVIDER, url: page(environment_row, apps.first, *(text.match?(RELEASES) ? [ MONITORING ] : [])))
+      end
+      private :graphql_link
 
       ORG_LISTS = %r{\A/v1/(apps|postgres)\z}
       ORG_PATH = %r{\A/v1/orgs/([^/]+)}
@@ -788,6 +842,29 @@ module Integrations
 
       def sorted_releases(environment_row, resource, limit)
         api(environment_row).releases(resource[:name], limit: limit).sort_by { |release| -release["version"].to_i }
+      end
+
+      # Fly gives a release no page of its own, so a run links the app's monitoring page, where flyctl says a deploy is
+      # watched (superfly/flyctl, internal/command/deploy/deploy.go).
+      def history_run(environment_row, resource, release)
+        status = Capabilities::History.status(release["status"], RELEASE_STATUSES)
+        Capabilities::History::Run.new(
+          id: release["id"], number: release["version"], name: "deploy", status: status,
+          started_at: Telemetry.parse_time(release["createdAt"]),
+          finished_at: (Telemetry.parse_time(release["updatedAt"]) if Capabilities::History::FINISHED.include?(status)),
+          url: page(environment_row, resource[:name], MONITORING),
+          detail: [ release["description"].presence, ("image #{release['imageRef']}" if release["imageRef"].present?) ].compact.join(", ").presence
+        )
+      end
+
+      def one_release(environment_row, resource, given)
+        wanted = given.to_s.strip.delete_prefix("#").sub(/\Av(?=\d+\z)/i, "")
+        release = api(environment_row).release(resource[:name], wanted)
+        unless release
+          fail! "#{resource[:name]} has no release #{given} among its newest #{FlyApi::RELEASE_PAGE * FlyApi::RELEASE_PAGES}. deploy_history lists them."
+        end
+
+        Capabilities::History.result([ history_run(environment_row, resource, release) ], what: resource[:name], link: link(environment_row, resource, MONITORING))
       end
 
       def release_line(release)

@@ -42,6 +42,7 @@ class Integrations::Capabilities::NetlifyTest < ActiveSupport::TestCase
     integration.tools.create!(name: "deploy_history", description: "History", read_only: true, enabled: true, params_schema: { "type" => "object" })
     history = resolve(Integrations::Capabilities::HISTORY, "resource" => "shop", "name" => "production")
     assert_equal [ "deploy_history", { "site" => "site-1", "name" => "production" } ], [ history.tool.name, history.arguments ]
+    assert_equal({ "site" => "site-1", "run" => "d9" }, resolve(Integrations::Capabilities::HISTORY, "resource" => "shop", "run" => "d9").arguments)
   end
 
   private

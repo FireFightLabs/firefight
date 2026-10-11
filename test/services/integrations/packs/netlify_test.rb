@@ -81,7 +81,7 @@ module Integrations
 
       test "a deploy's details link to its own page in Netlify" do
         NetlifyApi.any_instance.expects(:deploy).with("site-1", "d2").returns(SITE["published_deploy"].merge(
-          "admin_url" => "#{ADMIN}/deploys/d2", "context" => "production", "locked" => true,
+          "admin_url" => ADMIN, "context" => "production", "locked" => true,
           "function_schedules" => [ { "name" => "nightly", "cron" => "0 3 * * *" } ]
         ))
 
@@ -95,7 +95,7 @@ module Integrations
 
       test "a restore publishes only a ready deploy of the named site, and says how to undo it" do
         NetlifyApi.any_instance.stubs(:deploy).with("site-1", "d1").returns("id" => "d1", "state" => "ready")
-        NetlifyApi.any_instance.expects(:restore).with("site-1", "d1").returns("id" => "d1", "admin_url" => "#{ADMIN}/deploys/d1")
+        NetlifyApi.any_instance.expects(:restore).with("site-1", "d1").returns("id" => "d1", "admin_url" => ADMIN)
 
         text = call(:restore_deploy, "site" => "shop", "deploy" => "d1")
 
@@ -197,14 +197,31 @@ module Integrations
       test "deploy history reads a deploy from when it was made to when a ready or failed one last changed" do
         NetlifyApi.any_instance.stubs(:deploys).returns([
           { "id" => "d2", "state" => "ready", "context" => "production", "created_at" => "2026-10-01T09:00:00Z", "updated_at" => "2026-10-01T09:01:30Z",
-            "admin_url" => "https://app.netlify.com/sites/shop/deploys/d2" },
+            "admin_url" => ADMIN },
           { "id" => "d3", "state" => "building", "context" => "deploy-preview", "created_at" => "2026-10-01T10:00:00Z", "updated_at" => "2026-10-01T10:00:30Z" }
         ])
 
         runs = Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "site" => "shop" }))
 
         assert_equal [ [ "deploy-preview deploy", "running", nil ], [ "production deploy", "succeeded", 90 ] ], runs.map { |run| [ run.name, run.status, run.seconds ] }
-        assert_equal "https://app.netlify.com/sites/shop/deploys/d2", runs.second.url
+        assert_equal "#{ADMIN}/deploys/d2", runs.second.url
+      end
+
+      test "one deploy asked by its id is read on its own, however old, and links to its own page" do
+        NetlifyApi.any_instance.expects(:deploy).with("site-1", "d0").returns(
+          "id" => "d0", "state" => "error", "context" => "production", "admin_url" => ADMIN, "created_at" => "2026-09-01T09:00:00Z",
+          "updated_at" => "2026-09-01T09:02:00Z", "error_message" => "Build script returned non-zero exit code: 2"
+        )
+        NetlifyApi.any_instance.expects(:deploys).never
+
+        run = Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "site" => "shop", "run" => "d0" })).sole
+
+        assert_equal [ "d0", "failed", 120, "#{ADMIN}/deploys/d0", [] ], [ run.id, run.status, run.seconds, run.url, run.parts ]
+        assert_equal "Build script returned non-zero exit code: 2", run.detail
+
+        NetlifyApi.any_instance.stubs(:deploy).with("site-1", "nope").raises(NetlifyApi::NotFound, "Netlify answered 404: Not Found")
+        assert_equal "shop has no deploy nope. deploy_history lists its recent ones.",
+                     assert_raises(NativePack::Error) { call(:deploy_history, "site" => "shop", "run" => "nope") }.message
       end
 
       private

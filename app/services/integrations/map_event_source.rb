@@ -28,6 +28,9 @@ module Integrations
   #                                           when it starts from now), answering a Polled. It raises Refused when the
   #                                           provider turns the read down for the connection's access, which is tried
   #                                           again a day later, and answers poll_every, how often it is read
+  #   wakes?(payload, headers:)               whether a delivery is about a run, build or deploy starting, moving or
+  #                                           ending, which changes nothing on the map but has each watch reading
+  #                                           through the connection check now rather than at its next minute
   #   limits                                  a sentence saying what live updates do not follow, such as a resource
   #                                           added or its settings changing, which the hourly sweep reads, shown on
   #                                           the connection while they are on
@@ -145,6 +148,8 @@ module Integrations
       def by_hand_note = nil
 
       def many_secrets? = false
+
+      def wakes?(_payload, headers:) = false
 
       def limits = nil
 

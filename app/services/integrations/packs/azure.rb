@@ -45,6 +45,11 @@ module Integrations
       # Azure's clouds by the key of the region the connection was made in, the first being where one with none is.
       CLOUDS = { "global" => AzureApi::GLOBAL, "us_government" => AzureApi::US_GOVERNMENT, "china" => AzureApi::CHINA }.freeze
       PORTAL_PAGE = '%<portal>s/#@%<tenant>s/resource%<id>s/overview'.freeze
+      # An app's Deployment Center, whose logs list each deployment, since the portal gives none a page of its own.
+      DEPLOYMENT_CENTER = '%<portal>s/#@%<tenant>s/resource%<id>s/vstscd'.freeze
+      SITE_DEPLOYMENTS = %r{\A(?<site>/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\.Web/sites/[^/]+(?:/slots/[^/]+)?)/deployments(/|\z)}i
+      # A deployment log entry's type (Kudu's LogEntryType), where 2 is an error.
+      LOG_ERROR = 2
 
       STREAM_APP = Capabilities::STREAM_APP
       STREAM_REQUESTS = "requests".freeze
@@ -79,6 +84,7 @@ module Integrations
 
       RESOURCE = { "type" => "string", "description" => "An App Service or Function app, Container App, Azure SQL database or PostgreSQL flexible server, by name or id, as list_resources shows it" }.freeze
       APP = { "type" => "string", "description" => "An App Service or Function app, or a Container App, by name or id, as list_resources shows it" }.freeze
+      SITE = { "type" => "string", "description" => "An App Service or Function app, by name or id, as list_resources shows it" }.freeze
 
       tool :list_resources,
            description: "The App Service and Function apps, Container Apps, Azure SQL databases and PostgreSQL flexible servers in " \
@@ -132,7 +138,21 @@ module Integrations
              "type" => "object",
              "properties" => {
                "resource" => APP,
+               "deployment" => { "type" => "string", "description" => "An App Service or Function app's deployment, by its id, alone with each step its log records (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many (optional, #{DEPLOY_LIMIT})" }
+             },
+             "required" => [ "resource" ]
+           },
+           read_only: true
+
+      tool :deployment_log,
+           description: "The log of one deployment of an App Service or Function app, each line with when it was written and whether " \
+                        "it was an error, where a failed deployment says why. Without a deployment, the newest one's",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => SITE,
+               "deployment" => { "type" => "string", "description" => "The deployment, by its id as list_deployments shows it (optional, the newest)" }
              },
              "required" => [ "resource" ]
            },
@@ -359,12 +379,31 @@ module Integrations
         limit = Capabilities::Answers.limit(arguments, DEPLOY_LIMIT)
         link = portal_link(environment_row, target.id)
         if target.site?
+          return one_deployment(environment_row, target, arguments["deployment"]) if arguments["deployment"].present?
+
           text, runs = site_deployments(environment_row, target, limit)
           return Capabilities::RunHistory.with_runs(Telemetry.result(text, link: link), runs, link: link)
         end
         fail!("#{target.name} is a #{target.type}, which has no deployments. This works on an app.") unless target.container?
+        fail!("#{target.name} is a Container App, which has revisions rather than deployments. Leave deployment out to list them.") if arguments["deployment"].present?
 
         Telemetry.result(container_revisions(environment_row, target, limit), link: link)
+      end
+
+      def deployment_log(environment_row:, arguments:)
+        target = site_target(environment_row, arguments["resource"])
+        deployment = if arguments["deployment"].present?
+          deployment_of(environment_row, target, arguments["deployment"])
+        else
+          newest_deployment(environment_row, target) || fail!("#{target.name} has no deployments recorded.")
+        end
+        id = deployment["name"].to_s.split("/").last
+        entries = deployment_entries(environment_row, target, id)
+        properties = deployment["properties"].to_h
+        heading = "Log of deployment #{id} of #{target.name}, #{DEPLOY_STATES.fetch(properties['status'], "status #{properties['status']}")}, " \
+                  "started #{properties['start_time'] || 'not yet'}."
+        lines = entries.map { |entry| "#{entry[:at]&.utc&.iso8601} #{'ERROR ' if entry[:error]}#{entry[:message]}".strip }
+        Telemetry.result("#{heading}\n#{lines.join("\n").presence || 'The deployment wrote no log.'}", link: deployment_center(environment_row, target.id))
       end
 
       def describe_resource(environment_row:, arguments:)
@@ -439,8 +478,16 @@ module Integrations
         reading = scoped(subscription || @scope || settings.known_scopes.first)
         answer = reading.send(:api, environment_row).get(path, query[ReadGuards::Azure::API_VERSION], query.except(ReadGuards::Azure::API_VERSION))
         text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), ReadGuards::Azure.hidden(answer))
-        Telemetry.result(text, link: (portal_link(environment_row, resource_of(path)) if subscription))
+        Telemetry.result(text, link: (read_link(environment_row, path) if subscription))
       end
+
+      # A read of an app's deployments opens its Deployment Center, which lists each one, and any other read the page of
+      # the resource it reads in.
+      def read_link(environment_row, path)
+        found = path.match(SITE_DEPLOYMENTS)
+        found ? deployment_center(environment_row, found[:site]) : portal_link(environment_row, resource_of(path))
+      end
+      private :read_link
 
       # The resource a Resource Manager path reads in, its subscription, resource group, or the resource a provider names
       # under it, which is what the portal opens a page for.
@@ -904,6 +951,78 @@ module Integrations
           started_at: Capabilities::RunHistory.time(properties["start_time"]), finished_at: Capabilities::RunHistory.time(properties["end_time"]),
           detail: properties["message"].to_s.lines.first.to_s.strip.truncate(120).presence
         )
+      end
+
+      # One deployment with each step its log records as a part, read by deployment_log.
+      def one_deployment(environment_row, target, asked)
+        deployment = deployment_of(environment_row, target, asked)
+        id = deployment["name"].to_s.split("/").last
+        link = deployment_center(environment_row, target.id)
+        run = history_run(deployment)
+        run = run.with(url: link.url, parts: deployment_parts(target, id, run, deployment_entries(environment_row, target, id)))
+        text = "Deployment #{id} of #{target.name}.\n#{Capabilities::History.line(run)}"
+        Capabilities::RunHistory.with_runs(Telemetry.result(text, link: link), [ run ], link: link)
+      end
+
+      def deployment_of(environment_row, target, asked)
+        id = asked.to_s.strip.split("/").last.to_s
+        fail!("Say which deployment, by its id as list_deployments shows it.") if id.empty?
+
+        api(environment_row).get("#{target.id}/deployments/#{api(environment_row).segment(id)}", WEB_VERSION)
+      rescue AzureApi::NotFound
+        fail!("#{target.name} has no deployment #{id}. list_deployments shows them.")
+      end
+
+      def newest_deployment(environment_row, target)
+        api(environment_row).list("#{target.id}/deployments", WEB_VERSION).items.max_by { |deployment| deployment.dig("properties", "start_time").to_s }
+      end
+
+      # A deployment's log (Web Apps, List Deployment Log), read as Kudu writes it: entries with log_time, message and type,
+      # whether listed under value, as a list, or as one Deployment whose message is the whole log.
+      def deployment_entries(environment_row, target, id)
+        answer = api(environment_row).get("#{target.id}/deployments/#{api(environment_row).segment(id)}/log", WEB_VERSION)
+        listed = if answer.is_a?(Array) then answer
+        elsif answer.is_a?(Hash) && answer["value"].is_a?(Array) then answer["value"]
+        else [ answer ]
+        end
+        listed.filter_map do |entry|
+          fields = entry.is_a?(Hash) && entry["properties"].is_a?(Hash) ? entry["properties"] : entry
+          next unless fields.is_a?(Hash) && fields["message"].present?
+
+          { id: fields["id"].presence, at: Capabilities::RunHistory.time(fields["log_time"] || fields["start_time"]), message: fields["message"].to_s.strip,
+            error: fields["type"].to_i == LOG_ERROR }
+        end.sort_by { |entry| entry[:at] || Time.current }
+      end
+
+      # Each log entry is a step, from when it was written to when the next was, an error entry failed, and the last one
+      # runs while the deployment does.
+      def deployment_parts(target, id, run, entries)
+        log = { Capabilities::History::LOG_TOOL => "deployment_log", Capabilities::History::LOG_ARGUMENTS => { "resource" => target.id, "deployment" => id } }
+        entries.each_with_index.map do |entry, index|
+          following = entries[index + 1]
+          status = if entry[:error] then Capabilities::History::FAILED
+          elsif following || run.finished? then Capabilities::History::SUCCEEDED
+          else Capabilities::History::RUNNING
+          end
+          ended = following ? following[:at] : run.finished_at
+          Capabilities::History::Part.new(
+            id: entry[:id] || index.to_s, name: entry[:message].lines.first.to_s.strip.truncate(80), status: status, started_at: entry[:at],
+            finished_at: (ended if Capabilities::History::FINISHED.include?(status)),
+            detail: (entry[:message] if entry[:message].length > 80 || entry[:message].lines.size > 1), log: log
+          )
+        end
+      end
+
+      def site_target(environment_row, asked)
+        target = find(environment_row, asked)
+        fail!("#{target.name} is a #{target.type}. Deployment logs are an App Service or Function app's.") unless target.site?
+
+        target
+      end
+
+      def deployment_center(environment_row, resource_id)
+        settings = ConnectionSettings.of(environment_row)
+        Telemetry::Link.new(provider: PROVIDER, url: format(DEPLOYMENT_CENTER, portal: settings.site, tenant: settings.field(TENANT), id: resource_id))
       end
 
       def container_revisions(environment_row, target, limit)

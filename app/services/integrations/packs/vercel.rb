@@ -83,6 +83,7 @@ module Integrations
              "properties" => {
                "resource" => RESOURCE,
                "name" => { "type" => "string", "description" => "Only runs of this kind, production or preview (optional)" },
+               "run" => { "type" => "string", "description" => "Only this deployment, by its id (dpl_...), with its build and checks and where it failed (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many deployments (optional, #{DEPLOYMENT_LIMIT})" }
              },
              "required" => [ "resource" ]
@@ -255,18 +256,10 @@ module Integrations
       # each in milliseconds (spec, getDeployments). A failed one keeps no end.
       def deploy_history(environment_row:, arguments:)
         project = find_project(environment_row, arguments["resource"])
+        return one_deployment(environment_row, project, arguments["run"]) if arguments["run"].present?
+
         deployments = api(environment_row).deployments(project["id"], limit: Capabilities::Answers.limit(arguments, DEPLOYMENT_LIMIT))
-        runs = deployments.map do |deployment|
-          sha = meta(deployment, COMMIT_SHA)
-          error = [ deployment["errorCode"], deployment["errorMessage"] ].compact.join(": ").presence
-          Capabilities::History::Run.new(
-            id: deployment["uid"] || deployment["id"], name: "#{deployment['target'] || 'preview'} deploy",
-            status: Capabilities::History.status(deployment["readyState"] || deployment["state"], DEPLOYMENT_STATES),
-            started_at: millis(deployment["buildingAt"] || deployment["createdAt"] || deployment["created"]), finished_at: millis(deployment["ready"]),
-            url: deployment["inspectorUrl"],
-            detail: [ ("#{sha.first(12)} #{meta(deployment, COMMIT_MESSAGE).to_s.lines.first.to_s.strip}".strip if sha), error ].compact.join(", ").presence
-          )
-        end
+        runs = deployments.map { |deployment| history_run(deployment) }
         Capabilities::History.result(runs, what: project["name"], link: project_link(environment_row, project), name: arguments["name"])
       end
 
@@ -340,6 +333,7 @@ module Integrations
       TEAM_PATH = %r{\A/v\d+/teams/([^/]+)}
       TEAMS_LIST = %r{\A/v\d+/teams\z}
       PROJECT_PATH = %r{\A/v\d+/projects/([^/]+)}
+      DEPLOYMENT_PATH = %r{\A/v\d+/deployments/([^/]+)/}
       # A project's protection bypass is keyed by its secret, which lets anyone past Deployment Protection (spec, getProject
       # protectionBypass), so it is hidden whole.
       BYPASS = "protectionBypass".freeze
@@ -370,10 +364,14 @@ module Integrations
       end
       private :hide_bypass
 
-      # A deployment's own page when the answer is one (inspectorUrl), the project's page when the path reads inside one,
-      # and the team's page otherwise.
+      # A deployment's own page when the answer is one (inspectorUrl) or the path reads inside one, such as its events, the
+      # project's page when the path reads inside one, and the team's page otherwise.
       def read_link(environment_row, path, answer)
         return inspector_link(answer) if answer.is_a?(Hash) && answer["inspectorUrl"].present?
+
+        inside = path.match(DEPLOYMENT_PATH)&.captures&.first
+        page = inside && inspector_link(api(environment_row).deployment(inside))
+        return page if page
 
         named = path.match(PROJECT_PATH)&.captures&.first
         project = named && (answer.is_a?(Hash) && [ answer["id"], answer["name"] ].include?(named) ? answer : projects(environment_row).find { |each| [ each["id"], each["name"] ].include?(named) })
@@ -593,6 +591,67 @@ module Integrations
         end
 
         deployment
+      end
+
+      def history_run(deployment)
+        sha = meta(deployment, COMMIT_SHA)
+        Capabilities::History::Run.new(
+          id: deployment["uid"] || deployment["id"], name: "#{deployment['target'] || 'preview'} deploy",
+          status: Capabilities::History.status(deployment["readyState"] || deployment["state"], DEPLOYMENT_STATES),
+          started_at: millis(deployment["buildingAt"] || deployment["createdAt"] || deployment["created"]), finished_at: millis(deployment["ready"]),
+          url: deployment["inspectorUrl"],
+          detail: [ ("#{sha.first(12)} #{meta(deployment, COMMIT_MESSAGE).to_s.lines.first.to_s.strip}".strip if sha), error_words(deployment) ].compact.join(", ").presence
+        )
+      end
+
+      def error_words(deployment) = [ deployment["errorCode"], deployment["errorMessage"] ].compact.join(": ").presence
+
+      # One deployment read by its id (spec, getDeployment), with its build and, where the project runs them, its checks as
+      # parts. The build's log is read for this deployment by deployment_logs, never the newest one's.
+      def one_deployment(environment_row, project, given)
+        deployment = begin
+          find_deployment(environment_row, project, given.to_s.strip.delete_prefix("#"), required: true)
+        rescue VercelApi::NotFound
+          fail! "#{project['name']} has no deployment #{given}. deploy_history lists its deployments."
+        end
+        run = history_run(deployment).with(parts: [ build_part(project, deployment), checks_part(deployment) ].compact)
+        Capabilities::History.result([ run ], what: project["name"], link: inspector_link(deployment) || project_link(environment_row, project))
+      end
+
+      # Vercel's check states and conclusions (spec, getDeployment checksState, checksConclusion and checks) in Firefight's words.
+      CHECK_STATES = {
+        "registered" => Capabilities::History::QUEUED, "running" => Capabilities::History::RUNNING, "pending" => Capabilities::History::RUNNING,
+        "succeeded" => Capabilities::History::SUCCEEDED, "skipped" => Capabilities::History::SUCCEEDED,
+        "failed" => Capabilities::History::FAILED, "canceled" => Capabilities::History::CANCELLED
+      }.freeze
+      CHECKS_DONE = "completed".freeze
+      ALIAS_CHECK = "deployment-alias".freeze
+
+      # The build runs from buildingAt until the deployment is ready or fails, and errorStep names the step it failed at.
+      def build_part(project, deployment)
+        id = deployment["uid"] || deployment["id"]
+        detail = [ ("at #{deployment['errorStep']}" if deployment["errorStep"].present?), error_words(deployment),
+                   ("out of memory" if deployment["oomReport"].present?) ].compact.join(", ").presence
+        Capabilities::History::Part.new(
+          id: "#{id}/build", name: "build", status: Capabilities::History.status(deployment["readyState"] || deployment["state"], DEPLOYMENT_STATES),
+          started_at: millis(deployment["buildingAt"] || deployment["createdAt"]), finished_at: millis(deployment["ready"]),
+          url: deployment["inspectorUrl"], detail: detail,
+          log: { Capabilities::History::LOG_TOOL => "deployment_logs",
+                 Capabilities::History::LOG_ARGUMENTS => { "resource" => project["id"], "deployment" => id, "type" => BUILD } }
+        )
+      end
+
+      # The checks that gate a deployment's promotion, only when the project runs any.
+      def checks_part(deployment)
+        state = deployment["checksState"].to_s.downcase
+        return if state.empty?
+
+        timed = deployment.dig("checks", ALIAS_CHECK).to_h
+        status = Capabilities::History.status(state == CHECKS_DONE ? deployment["checksConclusion"] : state, CHECK_STATES)
+        Capabilities::History::Part.new(
+          id: "#{deployment['uid'] || deployment['id']}/checks", name: "checks", status: status, started_at: millis(timed["startedAt"]),
+          finished_at: (millis(timed["completedAt"]) if Capabilities::History::FINISHED.include?(status)), url: deployment["inspectorUrl"]
+        )
       end
 
       def latest_id(environment_row, project)

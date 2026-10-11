@@ -50,9 +50,17 @@ class Integrations::Capabilities::DigitaloceanTest < ActiveSupport::TestCase
     assert_match "roll a resource back", Integrations::Capabilities.halon_sentence(Integrations::Packs::Digitalocean::PROVIDER_KEY, "DigitalOcean")
   end
 
+  test "a build's log is of the deployment named, and an app's own log ignores one" do
+    build = resolve(Integrations::Capabilities::LOGS, "resource" => "shop", "stream" => "build", "deployment" => "dep-9")
+    assert_equal({ "resource" => "app-1", "type" => "BUILD", "deployment" => "dep-9" }, build.arguments)
+    assert_not resolve(Integrations::Capabilities::LOGS, "resource" => "shop", "stream" => "app", "deployment" => "dep-9").arguments.key?("deployment")
+  end
+
   test "run history is an app's deployments, and a Droplet or database has none" do
     history = resolve(Integrations::Capabilities::HISTORY, "resource" => "shop", "limit" => 3)
     assert_equal [ "deploy_history", { "resource" => "app-1", "limit" => 3 } ], [ history.tool.name, history.arguments ]
+    one = resolve(Integrations::Capabilities::HISTORY, "resource" => "shop", "run" => "dep-9")
+    assert_equal({ "resource" => "app-1", "run" => "dep-9" }, one.arguments)
     assert_match "no connection offers run history", unroutable(Integrations::Capabilities::HISTORY, "resource" => "bastion")
   end
 

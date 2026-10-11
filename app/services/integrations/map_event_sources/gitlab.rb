@@ -17,6 +17,14 @@ module Integrations
       PROJECT_HOOK = "Project Hook".freeze
       PROJECT_CREATE = "project_create".freeze
       PROJECT_DESTROY = "project_destroy".freeze
+      # About a run a watch may follow (webhook_events.md): a pipeline and a deployment at every change, and a job once
+      # it ends or waits on a person. The webhook is registered for them, and one registered before them is registered
+      # again.
+      PIPELINE_HOOK = "Pipeline Hook".freeze
+      JOB_HOOK = "Job Hook".freeze
+      DEPLOYMENT_HOOK = "Deployment Hook".freeze
+      JOB_ENDS = %w[success failed canceled skipped manual].freeze
+      RUN_EVENTS = %w[pipeline_events job_events deployment_events].freeze
       # A push of more than 20 commits lists only the newest 20, and total_commits_count says how many there were
       # (webhook_events.md, Push events).
       MOST_COMMITS = 20
@@ -54,13 +62,34 @@ module Integrations
           api = api(row)
           target, group = hook_target(api)
           secret = SecureRandom.hex(32)
-          body = { "url" => url, "token" => secret, "name" => WEBHOOK_NAME, "push_events" => true, "enable_ssl_verification" => true }
+          body = { "url" => url, "token" => secret, "name" => WEBHOOK_NAME, "push_events" => true, "enable_ssl_verification" => true,
+                   **RUN_EVENTS.index_with(true) }
           body["project_events"] = true if group
           own = api.list("#{target}/hooks").first.find { |hook| hook["url"] == url }
           hook = own ? api.put("#{target}/hooks/#{own['id']}", body) : api.post("#{target}/hooks", body)
           MapEventSource::Webhook.new(id: "#{target}/hooks/#{hook['id']}", secret: secret)
         rescue GitlabApi::Refused, GitlabApi::NotFound => error
           raise MapEventSource::Refused, Sentence.all(error, ROLE_NOTE)
+        end
+
+        # Whether the webhook Firefight registered misses an event about runs, such as one registered before they were
+        # followed. One gone from GitLab is registered again too.
+        def register_again?(row, **)
+          webhook_id = row.map_events_webhook_id.to_s
+          return false unless webhook_id.match?(HOOK_PATH)
+
+          hook = api(row).get(webhook_id)
+          RUN_EVENTS.any? { |event| hook[event] != true }
+        rescue GitlabApi::NotFound
+          true
+        end
+
+        def wakes?(payload, headers:)
+          case headers[EVENT_HEADER].to_s
+          when PIPELINE_HOOK, DEPLOYMENT_HOOK then true
+          when JOB_HOOK then JOB_ENDS.include?(payload["build_status"].to_s)
+          else false
+          end
         end
 
         # A webhook already gone from GitLab is taken back all the same.

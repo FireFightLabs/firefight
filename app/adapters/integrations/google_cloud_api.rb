@@ -43,6 +43,7 @@ module Integrations
     CONTAINER = "https://container.googleapis.com/v1".freeze
     CLOUD_ASSET = "https://cloudasset.googleapis.com/v1".freeze
     ERROR_REPORTING = "https://clouderrorreporting.googleapis.com/v1beta1".freeze
+    CLOUD_BUILD = "https://cloudbuild.googleapis.com/v1".freeze
 
     # The key file's fields, as Google writes them in a service account key.
     def self.parse_key(text)
@@ -82,6 +83,14 @@ module Integrations
     def run_revisions(project_id, location, name) = list("#{run_path(project_id, location, name)}/revisions", "revisions", "pageSize" => REVISION_PAGE)
 
     def run_revision(project_id, location, name, revision) = get("#{run_path(project_id, location, name)}/revisions/#{segment(revision)}")
+
+    # One page of a region's Cloud Build builds, newest first, filtered as Cloud Build's build queries read (status,
+    # trigger_id, tags and the rest). A build made outside a regional pool is in the region global.
+    def builds(project_id, location, filter: nil, page_size: nil)
+      Array(get(builds_path(project_id, location), { "filter" => filter, "pageSize" => page_size }.compact)["builds"])
+    end
+
+    def build(project_id, location, id) = get("#{builds_path(project_id, location)}/#{segment(id)}")
 
     # A change to a service, which Cloud Run answers with a long-running operation.
     def update_run_service(project_id, location, name, body, update_mask: nil)
@@ -190,6 +199,8 @@ module Integrations
       zones = unreachable.map { |zone| zone.to_s.delete_prefix("zones/") }.uniq
       Reached.new(items: items, complete: complete && zones.empty?, unreachable: zones)
     end
+
+    def builds_path(project_id, location) = "#{CLOUD_BUILD}/projects/#{segment(project_id)}/locations/#{segment(location)}/builds"
 
     def run_path(project_id, location, name) = "#{RUN}/projects/#{segment(project_id)}/locations/#{segment(location)}/services/#{segment(name)}"
 

@@ -150,6 +150,7 @@ module Conversation::Watches
   end
 
   RUN_ARG = "run".freeze
+  DEPLOYMENT_ARG = "deployment".freeze
   # What a capability takes on its own, which a step naming the capability as its tool may give among its arguments.
   LIFTED = [ Integrations::Capabilities::RESOURCE_ARG, Integrations::Capabilities::CONNECTION_ARG, "name", RUN_ARG ].freeze
 
@@ -394,13 +395,20 @@ module Conversation::Watches
     return listed if run.parts || run.id.blank?
 
     call = reader.route(HISTORY, step.arguments.merge(RUN_ARG => run.id.to_s))
-    return listed unless call.arguments.value?(run.id.to_s)
+    return listed unless carries_run?(call.arguments, run.id.to_s)
 
     answer = reader.read_call(call)
     found = Integrations::Capabilities::History.runs_of(answer.result)&.find { |each| each.id.to_s == run.id.to_s }
     found ? Detailed.new(run: found, environment_row: answer.call.environment_row) : listed
   rescue Conversation::Watches::Reader::Unanswered
     listed
+  end
+
+  # Whether a routed call asks for this run, as an argument of its own or inside a script a provider runs, such as
+  # Cloudflare's, never as part of a longer id.
+  def self.carries_run?(arguments, id)
+    word = /(?<![\w-])#{Regexp.escape(id)}(?![\w-])/
+    arguments.values.any? { |value| value.to_s == id || (value.is_a?(String) && value.match?(word)) }
   end
 
   # The first job or step that failed is said at once, with why from its own log, while the run still goes.
@@ -687,6 +695,8 @@ module Conversation::Watches
     minutes = run.started_at ? (((Time.current - run.started_at) / 60).ceil + 5).clamp(5, Integrations::Capabilities::MAX_MINUTES) : 60
     streams.each do |stream|
       given = { Integrations::Capabilities::RESOURCE_ARG => call.resource.id, "stream" => stream, "minutes" => minutes, "limit" => LOG_LINES }
+      # The failed run's own build log where the provider reads one by id, never only the newest.
+      given[DEPLOYMENT_ARG] = run.id.to_s if stream == build && run.id.present?
       answer = reader.read(Integrations::Capabilities::LOGS, given)
       text = Chat::SecretFree.redacted(answer.text) unless answer.failed?
       return text if text.present? && !text.start_with?("No log lines")
@@ -789,9 +799,13 @@ module Conversation::Watches
     Rails.logger.warn({ event: "watch.stop_unshown", watch_id: watch.id, update_id: update.id, error: error.class.name }.to_json)
   end
 
-  # A live update about a connection a watch reads through wakes it now rather than at the next sweep.
-  def self.wake!(environment_row)
-    Chat::Watch.reading_through(environment_row).pluck(:id).each { |id| WatchCheckJob.perform_later(id) }
+  # A live update about a connection a watch reads through wakes it now rather than at the next sweep. A run sends an
+  # event per job it finishes, so a watch checked within unless_checked_within is passed over, and the sweep catches
+  # what came after.
+  def self.wake!(environment_row, unless_checked_within: nil)
+    watches = Chat::Watch.reading_through(environment_row)
+    watches = watches.not_checked_within(unless_checked_within) if unless_checked_within
+    watches.pluck(:id).each { |id| WatchCheckJob.perform_later(id) }
   end
 
   # Fresh beats remembered. A reading Halon took in its chat with the same read one of the chat's watches makes is taken

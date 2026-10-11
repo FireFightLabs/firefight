@@ -34,7 +34,7 @@ module Integrations
           Route.new(tool_name: TOOLS[METRICS], arguments: { "resource" => name, "metrics" => names.presence }.compact.merge(given.slice("minutes", "start", "end")))
         when DEPLOYS then Route.new(tool_name: TOOLS[DEPLOYS], arguments: { "resource" => name }.merge(given.slice("limit")))
         when STATUS then Route.new(tool_name: TOOLS[STATUS], arguments: { "resource" => name })
-        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: { "resource" => name }.merge(given.slice("name", "limit")))
+        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: { "resource" => name }.merge(given.slice("name", "run", "limit").compact_blank))
         when ROLLBACK then Route.new(tool_name: TOOLS[ROLLBACK], arguments: { "resource" => name, "release" => target(given) })
         when RESTART then Route.new(tool_name: TOOLS[RESTART], arguments: { "resource" => name })
         end

@@ -106,6 +106,7 @@ module Integrations
                "text" => { "type" => "string", "description" => "Only lines containing this text (optional)" },
                "regex" => { "type" => "string", "description" => "Only lines matching this regular expression, in RE2 syntax (optional)" },
                "type" => { "type" => "string", "enum" => LOG_TYPES, "description" => "Which logs (optional, every type)" },
+               "deploy" => { "type" => "string", "description" => "Only the time this deploy ran, by its id, when no start is given (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many lines (optional, #{LOG_LIMIT})" },
                **Capabilities::RANGE
              },
@@ -138,6 +139,7 @@ module Integrations
              "properties" => {
                "resource" => RESOURCE,
                "name" => { "type" => "string", "description" => "Only runs of this kind, deploy (optional)" },
+               "run" => { "type" => "string", "description" => "Only this deploy, by its id, with its build, pre-deploy and release and how each ended (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many deploys (optional, #{DEPLOY_LIMIT})" }
              },
              "required" => [ "resource" ]
@@ -287,7 +289,7 @@ module Integrations
 
       def search_logs(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
-        started, ended = Capabilities::Answers.range(arguments)
+        started, ended = Capabilities::Answers.range(deploy_range(environment_row, resource, arguments))
         limit = Capabilities::Answers.limit(arguments, LOG_LIMIT)
         # A regular expression goes in text between slashes, as Render's log search reads one.
         texts = [ arguments["text"].presence, (arguments["regex"].present? ? "/#{arguments['regex']}/" : nil) ].compact
@@ -306,6 +308,24 @@ module Integrations
         shown_limit = answer["hasMore"] ? lines.size : lines.size + 1
         Telemetry.result(Telemetry.logs_text(lines, asked: asked, limit: shown_limit), link: link(resource))
       end
+
+      # Render's logs carry no deploy id (spec, GET /logs), so one deploy's are the lines from when it was made to a little
+      # after it finished.
+      def deploy_range(environment_row, resource, arguments)
+        return arguments if arguments["deploy"].blank? || arguments["start"].present?
+
+        deploy = begin
+          api(environment_row).deploy(resource[:id], arguments["deploy"].to_s.strip)
+        rescue RenderApi::NotFound
+          fail! "#{resource[:name]} has no deploy #{arguments['deploy']}. deploy_history lists its recent deploys."
+        end
+        from = Telemetry.parse_time(deploy["createdAt"] || deploy["startedAt"])
+        return arguments unless from
+
+        to = Telemetry.parse_time(deploy["finishedAt"])
+        arguments.merge("start" => from.utc.iso8601, "end" => (to && (to + PHASE_MARGIN).utc.iso8601)).compact
+      end
+      private :deploy_range
 
       def query_metrics(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
@@ -347,19 +367,103 @@ module Integrations
       def deploy_history(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
         fail! "#{resource[:name]} is a datastore, and only services have deploys." if DATASTORES.include?(resource[:type])
+        return one_deploy(environment_row, resource, arguments["run"]) if arguments["run"].present?
 
         deploys = api(environment_row).deploys(resource[:id], limit: Capabilities::Answers.limit(arguments, DEPLOY_LIMIT))
-        runs = deploys.map do |deploy|
-          commit = deploy["commit"]
-          Capabilities::History::Run.new(
-            id: deploy["id"], name: "deploy", status: Capabilities::History.status(deploy["status"], DEPLOY_STATUSES),
-            started_at: Telemetry.parse_time(deploy["startedAt"] || deploy["createdAt"]), finished_at: Telemetry.parse_time(deploy["finishedAt"]),
-            url: ("#{resource[:url]}/deploys/#{deploy['id']}" if resource[:url].present?),
-            detail: commit ? "#{commit['id'].to_s.first(12)} #{commit['message'].to_s.lines.first.to_s.strip}".strip : deploy.dig("image", "ref")
-          )
-        end
+        runs = deploys.map { |deploy| deploy_run(resource, deploy) }
         Capabilities::History.result(runs, what: resource[:name], link: link(resource), name: arguments["name"])
       end
+
+      # A deploy's phases as Render's service events name them (spec, serviceEvent and its details): the build by its
+      # buildId, the pre-deploy command and the release by deployId. Each phase's log is read for the time it ran.
+      PHASE_EVENTS = {
+        "build" => %w[build_started build_ended], "pre-deploy" => %w[pre_deploy_started pre_deploy_ended],
+        "deploy" => %w[deploy_started deploy_ended]
+      }.freeze
+      PHASE_STATUS_FIELDS = { "build" => "buildStatus", "pre-deploy" => "preDeployStatus", "deploy" => "deployStatus" }.freeze
+      # Render's build, pre-deploy and deploy statuses (spec, enum succeeded, failed, canceled).
+      PHASE_STATUSES = {
+        "succeeded" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED, "canceled" => Capabilities::History::CANCELLED
+      }.freeze
+      # A build prints to the build log and a release to the app log. A pre-deploy command's output is read from every type.
+      PHASE_LOG_TYPES = { "build" => "build", "deploy" => "app" }.freeze
+      # Events are read from a little before the deploy and past its end, since Render stamps them on its own clock.
+      PHASE_MARGIN = 1.minute
+      PHASE_EVENT_LIMIT = 100
+
+      def deploy_run(resource, deploy)
+        commit = deploy["commit"]
+        Capabilities::History::Run.new(
+          id: deploy["id"], name: "deploy", status: Capabilities::History.status(deploy["status"], DEPLOY_STATUSES),
+          started_at: Telemetry.parse_time(deploy["startedAt"] || deploy["createdAt"]), finished_at: Telemetry.parse_time(deploy["finishedAt"]),
+          url: deploy_url(resource, deploy["id"]),
+          detail: commit ? "#{commit['id'].to_s.first(12)} #{commit['message'].to_s.lines.first.to_s.strip}".strip : deploy.dig("image", "ref")
+        )
+      end
+      private :deploy_run
+
+      def deploy_url(resource, id) = ("#{resource[:url]}/deploys/#{id}" if resource[:url].present? && id.present?)
+      private :deploy_url
+
+      def one_deploy(environment_row, resource, asked)
+        id = asked.to_s.strip
+        deploy = begin
+          api(environment_row).deploy(resource[:id], id)
+        rescue RenderApi::NotFound
+          fail! "#{resource[:name]} has no deploy #{id}. deploy_history lists its recent deploys."
+        end
+        run = deploy_run(resource, deploy)
+        run = run.with(parts: deploy_parts(environment_row, resource, deploy, run))
+        page = run.url ? Telemetry::Link.new(provider: PROVIDER, url: run.url) : link(resource)
+        Capabilities::History.result([ run ], what: resource[:name], link: page)
+      end
+      private :one_deploy
+
+      def deploy_parts(environment_row, resource, deploy, run)
+        from = Telemetry.parse_time(deploy["createdAt"]) || run.started_at || Time.current
+        to = run.finished_at || Time.current
+        events = api(environment_row).events(resource[:id], "startTime" => (from - PHASE_MARGIN).utc.iso8601, "endTime" => (to + PHASE_MARGIN).utc.iso8601,
+                                                            "type" => PHASE_EVENTS.values.flatten, "limit" => PHASE_EVENT_LIMIT)
+        events = events.sort_by { |event| event["timestamp"].to_s }
+        ours = events.select { |event| event.dig("details", "deployId") == deploy["id"] }
+        PHASE_EVENTS.filter_map do |phase, (started_type, ended_type)|
+          phase_events = phase == "build" ? build_events(events, ours) : ours
+          started = phase_events.find { |event| event["type"] == started_type }
+          ended = phase_events.find { |event| event["type"] == ended_type }
+          phase_part(resource, run, phase, started, ended) if started || ended
+        end
+      end
+      private :deploy_parts
+
+      # A deploy's build is the one its deploy_started names, or else the first build that started before it was
+      # released, since a build's events carry the build's id and not the deploy's.
+      def build_events(events, ours)
+        released = ours.find { |event| event["type"] == "deploy_started" }
+        build_id = released&.dig("details", "buildId") || events.find do |event|
+          event["type"] == "build_started" && (released.nil? || event["timestamp"].to_s <= released["timestamp"].to_s)
+        end&.dig("details", "buildId")
+        build_id ? events.select { |event| event["type"].to_s.start_with?("build_") && event.dig("details", "buildId") == build_id } : []
+      end
+      private :build_events
+
+      def phase_part(resource, run, phase, started, ended)
+        started_at = Telemetry.parse_time(started&.dig("timestamp")) || run.started_at
+        finished_at = Telemetry.parse_time(ended&.dig("timestamp"))
+        status = if ended
+          Capabilities::History.status(ended.dig("details", PHASE_STATUS_FIELDS.fetch(phase)), PHASE_STATUSES)
+        else
+          run.finished? ? run.status : Capabilities::History::RUNNING
+        end
+        reason = ended&.dig("details", "reason")
+        reason = reason["failure"] if reason.is_a?(Hash) && reason.key?("failure")
+        window = { "start" => started_at&.utc&.iso8601, "end" => (finished_at && (finished_at + PHASE_MARGIN).utc.iso8601) }
+        Capabilities::History::Part.new(
+          id: phase, name: phase, status: status, started_at: started_at, finished_at: finished_at, url: run.url, detail: failure_words(reason),
+          log: { Capabilities::History::LOG_TOOL => "search_logs",
+                 Capabilities::History::LOG_ARGUMENTS => { "resource" => resource[:id], "type" => PHASE_LOG_TYPES[phase], **window }.compact }
+        )
+      end
+      private :phase_part
 
       def list_events(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
@@ -435,7 +539,7 @@ module Integrations
         fail_policy!("#{outside} Pass ownerId in query to keep a list to one workspace.") if outside
 
         text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::Render.secret?(path))
-        Telemetry.result(text, link: read_link(answer, parent))
+        Telemetry.result(text, link: read_link(path, answer, parent))
       end
 
       # What Render names by an id of its own at the start of a path, whose answer says which workspace owns it.
@@ -472,9 +576,17 @@ module Integrations
       end
       private :owners_in
 
-      # The page of what was read, which Render gives as dashboardUrl, or of the thing the path reads inside.
-      def read_link(answer, parent)
-        url = [ answer, parent ].find { |read| read.is_a?(Hash) && read["dashboardUrl"].present? }&.dig("dashboardUrl")
+      # The page of what was read, which Render gives as dashboardUrl, or of the thing the path reads inside. One deploy of
+      # a service has its own page under the service's.
+      DEPLOY_PATH = %r{\A/services/[^/]+/deploys/(?<deploy>[^/]+)\z}
+
+      def read_link(path, answer, parent)
+        deploy = path.match(DEPLOY_PATH)&.[](:deploy)
+        url = if deploy && parent.is_a?(Hash) && parent["dashboardUrl"].present?
+          "#{parent['dashboardUrl']}/deploys/#{Http.segment(deploy)}"
+        else
+          [ answer, parent ].find { |read| read.is_a?(Hash) && read["dashboardUrl"].present? }&.dig("dashboardUrl")
+        end
         url && Telemetry::Link.new(provider: PROVIDER, url: url)
       end
       private :read_link

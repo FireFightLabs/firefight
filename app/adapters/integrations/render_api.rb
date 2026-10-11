@@ -45,6 +45,9 @@ module Integrations
 
     def deploys(service_id, limit:) = page("/services/#{segment(service_id)}/deploys", "deploy", "limit" => limit)
 
+    # One deploy by its id (spec, GET /services/{serviceId}/deploys/{deployId}).
+    def deploy(service_id, deploy_id) = get("/services/#{segment(service_id)}/deploys/#{segment(deploy_id)}")
+
     # A service's own environment variables, each a key and its value (spec, GET /services/{serviceId}/env-vars,
     # envVarWithCursor), read only in memory for where its settings point.
     def env_vars(service_id) = list("/services/#{segment(service_id)}/env-vars", "envVar")

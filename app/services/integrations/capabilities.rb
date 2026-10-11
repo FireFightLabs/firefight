@@ -67,6 +67,9 @@ module Integrations
                  "stream" => { "type" => "string", "enum" => LOG_STREAMS,
                                "description" => "Which logs: app (what the code prints), build, requests (traffic reaching it), internal (calls between services), cdn, backup or restore (optional, app)" },
                  RUN_ARG => { "type" => "string", "description" => "Only one run's lines, by the run's id as run_history gives it, for a job whose provider keeps them per run (optional)" },
+                 "deployment" => { "type" => "string",
+                                   "description" => "build stream only: the deployment or build whose log to read, by the id run_history or recent_deploys " \
+                                                    "shows (optional, the newest otherwise)" },
                  "limit" => LIMIT, **RANGE
                }, required: []),
       Spec.new(key: METRICS, tool_name: "query_metrics", writes: false, what: "metrics",

@@ -280,6 +280,26 @@ module Integrations
 
         assert_equal [ [ "42", "running", nil ], [ "41", "succeeded", 150 ] ], runs.map { |run| [ run.number, run.status, run.seconds ] }
         assert runs.second.named?("#41")
+        assert runs.second.named?("v41")
+        assert_not runs.second.named?("v4")
+        assert_equal "https://fly.io/apps/web/monitoring", runs.first.url
+      end
+
+      test "one release is read by its id or version, paging past the newest, and one Fly does not have is said in words" do
+        newest = { "nodes" => [ { "id" => "r60", "version" => 60, "status" => "running", "createdAt" => "2026-10-01T10:00:00Z", "updatedAt" => "2026-10-01T10:01:00Z" } ],
+                   "pageInfo" => { "hasNextPage" => true, "endCursor" => "c1" } }
+        older = { "nodes" => [ { "id" => "r12", "version" => 12, "status" => "failed", "createdAt" => "2026-08-01T10:00:00Z", "updatedAt" => "2026-08-01T10:03:00Z",
+                                 "description" => "Deploy image" } ],
+                  "pageInfo" => { "hasNextPage" => false, "endCursor" => nil } }
+        FlyApi.any_instance.stubs(:graphql).with(FlyApi::RELEASE_PAGE_QUERY, has_entries("after" => nil)).returns("app" => { "releases" => newest })
+        FlyApi.any_instance.stubs(:graphql).with(FlyApi::RELEASE_PAGE_QUERY, has_entries("after" => "c1")).returns("app" => { "releases" => older })
+
+        run = Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "resource" => "web", "run" => "v12" })).sole
+
+        assert_equal [ "r12", "12", "failed", 180, "https://fly.io/apps/web/monitoring" ], [ run.id, run.number, run.status, run.seconds, run.url ]
+        assert_equal "r60", Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "resource" => "web", "run" => "r60" })).sole.id
+        assert_match "web has no release 99 among its newest 200",
+                     assert_raises(NativePack::Error) { @pack.call("deploy_history", environment_row: @row, arguments: { "resource" => "web", "run" => "99" }) }.message
       end
 
       private

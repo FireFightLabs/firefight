@@ -403,7 +403,7 @@ providers:
     color: "#ff9900"
     status_page: { url: https://health.aws.amazon.com/health/status, feed: page }
     hosts: [ amazonaws.com, cloudfront.net, aws.amazon.com ]
-    description: Logs, metrics, deployments and status of the ECS services, Lambda functions, EC2 instances and RDS databases in an AWS account, and fixes to ECS services and Lambda aliases when you allow it.
+    description: Logs, metrics, deployments and status of the ECS services, Lambda functions, EC2 instances and RDS databases in an AWS account, the builds of its CodeBuild projects, and fixes to ECS services and Lambda aliases when you allow it.
     server_url: ""
     kind: native
     connect_with: api_token

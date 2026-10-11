@@ -101,6 +101,28 @@ module Integrations
       }
     GRAPHQL
 
+    # One deployment, with what says which project, environment and service it belongs to (schema, Query.deployment).
+    DEPLOYMENT = <<~GRAPHQL.freeze
+      query Deployment($id: String!) {
+        deployment(id: $id) { id status createdAt updatedAt meta canRollback staticUrl projectId environmentId serviceId }
+      }
+    GRAPHQL
+
+    # The steps a deployment went through, from taking the code to draining the old instances, each with when it started
+    # and completed and the error it ended on (schema, Query.deploymentEvents, DeploymentEvent and DeploymentEventPayload).
+    DEPLOYMENT_EVENTS = <<~GRAPHQL.freeze
+      query DeploymentEvents($id: String!, $first: Int) {
+        deploymentEvents(id: $id, first: $first) { edges { node { id step createdAt completedAt payload { error skipped } } } }
+      }
+    GRAPHQL
+
+    # What one deployment printed, as the CLI reads it (src/gql/queries/strings/DeploymentLogs.graphql).
+    DEPLOYMENT_LOGS = <<~GRAPHQL.freeze
+      query DeploymentLogs($deploymentId: String!, $filter: String, $limit: Int, $startDate: DateTime, $endDate: DateTime) {
+        deploymentLogs(deploymentId: $deploymentId, filter: $filter, limit: $limit, startDate: $startDate, endDate: $endDate) { timestamp message severity }
+      }
+    GRAPHQL
+
     ENVIRONMENT_LOGS = <<~GRAPHQL.freeze
       query EnvironmentLogs($environmentId: String!, $filter: String, $beforeLimit: Int, $beforeDate: String, $anchorDate: String, $afterDate: String, $afterLimit: Int) {
         environmentLogs(environmentId: $environmentId, filter: $filter, beforeLimit: $beforeLimit, beforeDate: $beforeDate, anchorDate: $anchorDate, afterDate: $afterDate, afterLimit: $afterLimit) {
@@ -219,6 +241,14 @@ module Integrations
       input = { "projectId" => project_id, "environmentId" => environment_id, "serviceId" => service_id }
       Array(query(DEPLOYMENTS, "input" => input, "first" => limit).dig("deployments", "edges")).filter_map { |edge| edge["node"] }
     end
+
+    def deployment(deployment_id) = query(DEPLOYMENT, "id" => deployment_id)["deployment"]
+
+    def deployment_events(deployment_id, limit:)
+      Array(query(DEPLOYMENT_EVENTS, "id" => deployment_id, "first" => limit).dig("deploymentEvents", "edges")).filter_map { |edge| edge["node"] }
+    end
+
+    def deployment_logs(variables) = Array(query(DEPLOYMENT_LOGS, variables)["deploymentLogs"])
 
     def environment_logs(variables) = Array(query(ENVIRONMENT_LOGS, variables)["environmentLogs"])
 

@@ -24,6 +24,14 @@ module Integrations
         assert_equal "https://dash.cloudflare.com/?to=/:account/:zone/security/security-rules", firewall.url
       end
 
+      test "a read of a Pages project or one of its deployments opens that project's or deployment's own page" do
+        written = ReadGuards::Cloudflare.arguments_for({ "method" => "GET", "path" => "/accounts/#{ACCOUNT}/pages/projects/docs/deployments/d2a1-4b/history/logs" }, ACCOUNT)
+        project = @links.link(tool_name: Cloudflare::EXECUTE, arguments: { "code" => "cloudflare.request({ path: '/accounts/#{ACCOUNT}/pages/projects/docs' })" })
+
+        assert_equal "https://dash.cloudflare.com/#{ACCOUNT}/pages/view/docs/d2a1-4b", @links.link(tool_name: Cloudflare::EXECUTE, arguments: written).url
+        assert_equal "https://dash.cloudflare.com/#{ACCOUNT}/pages/view/docs", project.url
+      end
+
       test "no link for a page it cannot name: several paths, one the table does not know, or an answer across several zones" do
         several = "cloudflare.request({ path: `/zones/${a}/dns_records` }); cloudflare.request({ path: `/accounts/${b}/queues` })"
         many_zones = %([{"zone_name":"a.app"},{"zone_name":"b.app"}])

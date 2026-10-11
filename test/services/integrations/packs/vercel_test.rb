@@ -266,6 +266,32 @@ module Integrations
         assert_equal [ "dpl_2" ], only.map(&:id)
       end
 
+      test "one deployment is read by its id with its build and checks, the build's log read for that deployment" do
+        VercelApi.any_instance.expects(:deployments).never
+        VercelApi.any_instance.stubs(:deployment).with("dpl_1").returns(
+          "id" => "dpl_1", "projectId" => "prj_1", "target" => "production", "readyState" => "ERROR", "createdAt" => 1_759_309_200_000,
+          "buildingAt" => 1_759_309_205_000, "errorCode" => "BUILD_FAILED", "errorMessage" => "Command \"npm run build\" exited with 1",
+          "errorStep" => "build", "inspectorUrl" => "https://vercel.com/acme/shop/1", "checksState" => "completed", "checksConclusion" => "skipped",
+          "checks" => { "deployment-alias" => { "state" => "succeeded", "startedAt" => 1_759_309_205_000, "completedAt" => 1_759_309_206_000 } }
+        )
+
+        run = Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "resource" => "shop", "run" => "dpl_1" })).sole
+
+        assert_equal [ "dpl_1", "failed", "https://vercel.com/acme/shop/1" ], [ run.id, run.status, run.url ]
+        assert_equal [ [ "build", "failed" ], [ "checks", "succeeded" ] ], run.parts.map { |part| [ part.name, part.status ] }
+        build = run.first_failed_part
+        assert_match "at build, BUILD_FAILED", build.detail
+        assert_equal({ "tool" => "deployment_logs", "arguments" => { "resource" => "prj_1", "deployment" => "dpl_1", "type" => "build" } }, build.log)
+      end
+
+      test "a deployment of another project or one Vercel does not have is said in words, never read as an empty history" do
+        VercelApi.any_instance.stubs(:deployment).with("dpl_x").returns("id" => "dpl_x", "projectId" => "prj_other")
+        VercelApi.any_instance.stubs(:deployment).with("dpl_gone").raises(VercelApi::NotFound, "Vercel answered 404")
+
+        assert_match "is not a deployment of shop", assert_raises(NativePack::Error) { @pack.call("deploy_history", environment_row: @row, arguments: { "resource" => "shop", "run" => "dpl_x" }) }.message
+        assert_match "shop has no deployment dpl_gone", assert_raises(NativePack::Error) { @pack.call("deploy_history", environment_row: @row, arguments: { "resource" => "shop", "run" => "dpl_gone" }) }.message
+      end
+
       test "billing charges add up each day's FOCUS rows by service and by project, and a refusal says the role needs billing" do
         travel_to Time.utc(2026, 10, 10, 12) do
           charges = [

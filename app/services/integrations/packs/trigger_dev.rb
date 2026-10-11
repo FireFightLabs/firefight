@@ -28,6 +28,11 @@ module Integrations
         "system_failure" => Capabilities::History::FAILED, "interrupted" => Capabilities::History::FAILED, "timed_out" => Capabilities::History::FAILED,
         "canceled" => Capabilities::History::CANCELLED, "expired" => Capabilities::History::CANCELLED
       }.freeze
+      # An attempt's status, as retrieve_run_v3 names it.
+      ATTEMPT_STATUSES = {
+        "pending" => Capabilities::History::QUEUED, "executing" => Capabilities::History::RUNNING, "paused" => Capabilities::History::RUNNING,
+        "completed" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED, "canceled" => Capabilities::History::CANCELLED
+      }.freeze
       DEPLOYED = "DEPLOYED".freeze
       DEPLOYMENT_STATUSES = %w[PENDING BUILDING DEPLOYING DEPLOYED FAILED CANCELED TIMED_OUT].freeze
       ERROR_STATUSES = %w[unresolved resolved ignored].freeze
@@ -77,11 +82,12 @@ module Integrations
       tool :list_runs,
            description: "Runs in this environment, newest first, with each run's id, task, status, version, when it was created, " \
                         "started and finished, and how long it computed. Filter by task, status, the error group it belongs to " \
-                        "and when it was created",
+                        "and when it was created, or read one run by its id with each attempt",
            params_schema: {
              "type" => "object",
              "properties" => {
                "task" => { "type" => "string", "description" => "Only runs of this task, by its identifier (optional)" },
+               "run" => { "type" => "string", "description" => "Only this run, by its id starting run_, with each attempt and how it ended (optional)" },
                "status" => { "type" => "array", "items" => { "type" => "string", "enum" => RUN_STATUSES },
                              "description" => "Only runs in these states (optional)" },
                "error" => { "type" => "string", "description" => "Only the runs behind this error group, by its id from list_errors (optional)" },
@@ -247,6 +253,8 @@ module Integrations
       end
 
       def list_runs(environment_row:, arguments:)
+        return one_run(environment_row, arguments) if arguments["run"].present?
+
         started, ended = Capabilities::Answers.range(arguments)
         runs = api(environment_row).runs(filter: run_filter(arguments, started, ended).merge("error" => arguments["error"].presence),
                                          limit: Capabilities::Answers.limit(arguments, RUN_LIMIT))
@@ -555,6 +563,39 @@ module Integrations
           id: run["id"], name: run["taskIdentifier"], status: Capabilities::History.status(run["status"], HISTORY_STATUSES),
           started_at: Capabilities::RunHistory.time(run["startedAt"] || run["createdAt"]), finished_at: Capabilities::RunHistory.time(run["finishedAt"]),
           url: run_link(environment_row, run["id"])&.url, detail: ("version #{run['version']}" if run["version"])
+        )
+      end
+
+      # One run read by its id, whatever its age, with each attempt as a part. An attempt's log is its run's, since
+      # Trigger.dev keeps events per run (get_run_events_v1). The attempts are the ones retrieve_run_v3 gives.
+      def one_run(environment_row, arguments)
+        id = arguments["run"].to_s.strip.delete_prefix("#")
+        fail! "run is the run's id, starting run_. list_runs shows them." unless id.start_with?("run_")
+
+        run = begin
+          api(environment_row).run(id)
+        rescue TriggerDevApi::Error => error
+          fail! "Trigger.dev could not read run #{id}: #{error.message}"
+        end
+        task = arguments["task"].to_s.strip.presence
+        fail! "Run #{id} is a run of #{run['taskIdentifier']}, not of #{task}." if task && run["taskIdentifier"] != task
+
+        parts = Array(run["attempts"]).map.with_index(1) { |attempt, number| attempt_part(environment_row, run["id"], attempt, number) }
+        link = run_link(environment_row, run["id"])
+        text = [ "Run #{run_line(environment_row, run)}", attempt_lines(run["attempts"]) ].join("\n")
+        Capabilities::RunHistory.with_runs(Telemetry.result(text, link: link), [ history_run(environment_row, run).with(parts: parts) ], link: link)
+      end
+
+      def attempt_part(environment_row, run_id, attempt, number)
+        status = Capabilities::History.status(attempt["status"], ATTEMPT_STATUSES)
+        error = attempt["error"]
+        Capabilities::History::Part.new(
+          id: attempt["id"] || number.to_s, name: "Attempt #{number}", status: status,
+          started_at: Capabilities::RunHistory.time(attempt["startedAt"] || attempt["createdAt"]),
+          finished_at: (Capabilities::RunHistory.time(attempt["completedAt"] || attempt["updatedAt"]) if Capabilities::History::FINISHED.include?(status)),
+          url: run_link(environment_row, run_id)&.url,
+          detail: (error && "#{error['name'] || 'Error'}: #{Chat::SecretFree.redacted(error['message'].to_s).truncate(MESSAGE_LIMIT)}"),
+          log: { Capabilities::History::LOG_TOOL => "run_details", Capabilities::History::LOG_ARGUMENTS => { "run" => run_id } }
         )
       end
 

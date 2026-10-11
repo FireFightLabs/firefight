@@ -38,6 +38,14 @@ module Integrations
       query($appName: String!, $limit: Int!) { app(name: $appName) { releases: releasesUnprocessed(first: $limit) {
       nodes { id version description reason status imageRef stable user { id email name } createdAt updatedAt } } } }
     GRAPHQL
+    # The same releases a page at a time, from the cursor the last page ended at (schema.graphql, ReleaseUnprocessedConnection
+    # and PageInfo), for one release older than the newest few.
+    RELEASE_PAGE_QUERY = <<~GRAPHQL.squish.freeze
+      query($appName: String!, $limit: Int!, $after: String) { app(name: $appName) { releases: releasesUnprocessed(first: $limit, after: $after) {
+      nodes { id version description reason status imageRef stable user { id email name } createdAt updatedAt } pageInfo { hasNextPage endCursor } } } }
+    GRAPHQL
+    RELEASE_PAGE = 50
+    RELEASE_PAGES = 4
 
     def initialize(token)
       @token = token.to_s.strip
@@ -101,6 +109,21 @@ module Integrations
       Array(data.dig("app", "releases", "nodes"))
     end
 
+    # The release whose id or version is wanted, read page by page from the newest, or nil when none of the newest
+    # RELEASE_PAGE * RELEASE_PAGES is it.
+    def release(app_name, wanted)
+      after = nil
+      RELEASE_PAGES.times do
+        page = graphql(RELEASE_PAGE_QUERY, "appName" => app_name, "limit" => RELEASE_PAGE, "after" => after).dig("app", "releases").to_h
+        found = Array(page["nodes"]).find { |release| [ release["id"].to_s, release["version"].to_s ].include?(wanted.to_s) }
+        return found if found
+
+        after = page.dig("pageInfo", "endCursor")
+        return nil unless page.dig("pageInfo", "hasNextPage") && after
+      end
+      nil
+    end
+
     # One page of log lines from next_token on, a nanosecond time, oldest first. Fly calls this endpoint not officially
     # supported but stable, since flyctl depends on it.
     def logs(app_name, next_token:)
@@ -119,6 +142,9 @@ module Integrations
     # Any GET of the Machines API, by its path under MACHINES_HOST as the spec writes it (/v1/...), for the general read
     # (Integrations::ApiReads), which checks the path before it gets here.
     def read(path, query) = get(URI.parse("#{MACHINES_HOST}#{path}"), query)
+
+    # One GraphQL query, for the general GraphQL read, whose guard (ReadGuards::Fly) shows it is a query before it gets here.
+    def read_graphql(text, variables) = graphql(text, variables)
 
     private
 

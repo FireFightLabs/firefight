@@ -56,9 +56,37 @@ module Integrations
         assert_match "start with /v1", assert_raises(NativePack::Error) { call("path" => "/apps/web") }.message
       end
 
+      test "graphql_read only reads, sends the query as written and links the app's monitoring page for its releases" do
+        query = "query($app: String!) { app(name: $app) { releasesUnprocessed(first: 50) { nodes { version status } } } }"
+        FlyApi.any_instance.expects(:read_graphql).with(query, { "app" => "web" })
+              .returns("app" => { "releasesUnprocessed" => { "nodes" => [ { "version" => 12, "status" => "failed" } ] } })
+
+        shown = text(graphql("query" => query, "variables" => { "app" => "web" }))
+        assert Fly.tool_definitions.find { |each| each.name == ReadGuards::Fly::GRAPHQL }.read_only
+        assert_match "Fly.io answered the query", shown
+        assert_includes shown, "\"failed\""
+        assert_includes shown, "https://fly.io/apps/web/monitoring"
+      end
+
+      test "graphql_read is kept to the organization, never changes anything, and reads config and secrets as names" do
+        FlyApi.any_instance.expects(:read_graphql).never
+        assert_match "reaches the one theirs is in", assert_raises(PolicyRefusal) { graphql("query" => '{ app(name: "theirs") { id } }') }.message
+        assert_raises(PolicyRefusal) { graphql("query" => '{ organization(slug: "other") { name } }') }
+        assert_raises(PolicyRefusal) { graphql("query" => 'mutation { deleteApp(appId: "web") { organization { id } } }') }
+        assert_match "is not where Fly.io's GraphQL read starts", assert_raises(NativePack::Error) { graphql("query" => "{ viewer { email } }") }.message
+
+        FlyApi.any_instance.unstub(:read_graphql)
+        FlyApi.any_instance.stubs(:read_graphql).returns("app" => { "secrets" => [ { "name" => "DATABASE_URL", "digest" => "abc123" } ] })
+        shown = text(graphql("query" => '{ app(name: "web") { secrets { name digest } } }'))
+        assert_includes shown, "DATABASE_URL"
+        assert_not_includes shown, "abc123"
+      end
+
       private
 
       def call(arguments) = @pack.call(ApiReads::TOOL, environment_row: @row, arguments: arguments)
+
+      def graphql(arguments) = @pack.call(ReadGuards::Fly::GRAPHQL, environment_row: @row, arguments: arguments)
 
       def text(result) = result["content"].map { |part| part["text"] }.join("\n")
     end

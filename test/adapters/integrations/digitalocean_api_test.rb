@@ -34,6 +34,22 @@ module Integrations
       assert_equal "web 2026-10-01T10:00:00Z started\n", @api.log_file(urls.first)
     end
 
+    test "one deployment's logs, of one component or every one, and the deployment itself, are read under that deployment" do
+      Http.expects(:request).with do |uri, **|
+        uri.path == "/v2/apps/app-1/deployments/dep-9/components/web/logs" && URI.decode_www_form(uri.query).include?(%w[type BUILD])
+      end.returns(response(200, { historic_urls: [ "https://logs.example/web.log" ] }))
+      assert_equal [ "https://logs.example/web.log" ], @api.log_urls("app-1", type: "BUILD", component: "web", deployment: "dep-9")
+
+      Http.expects(:request).with { |uri, **| uri.path == "/v2/apps/app-1/deployments/dep-9/logs" }.returns(response(200, { historic_urls: [] }))
+      assert_empty @api.log_urls("app-1", type: "DEPLOY", deployment: "dep-9")
+
+      Http.expects(:request).with { |uri, **| uri.path == "/v2/apps/app-1/deployments/dep-9" }.returns(response(200, { deployment: { id: "dep-9", phase: "ERROR" } }))
+      assert_equal "ERROR", @api.deployment("app-1", "dep-9")["phase"]
+
+      Http.stubs(:request).returns(response(404, { id: "not_found", message: "deployment not found" }))
+      assert_raises(DigitaloceanApi::NotFound) { @api.deployment("app-1", "dep-0") }
+    end
+
     test "a change is sent as JSON, and DigitalOcean's refusal is raised with its own reason" do
       Http.expects(:request).with do |uri, request, **|
         uri.path == "/v2/apps/app-1/rollback" && request.is_a?(Net::HTTP::Post) && JSON.parse(request.body) == { "deployment_id" => "dep-1" }

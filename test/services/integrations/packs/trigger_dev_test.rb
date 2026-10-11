@@ -107,6 +107,35 @@ module Integrations
         assert_match "proj_acme/runs/run_c", history["content"].first["text"]
       end
 
+      test "one run is read by its id whatever its age, with each attempt as a part whose log is the run's own" do
+        # The shape of retrieve_run_v3 (docs/v3-openapi.yaml, RetrieveRunResponse).
+        TriggerDevApi.any_instance.expects(:runs).never
+        TriggerDevApi.any_instance.stubs(:run).with("run_old").returns(
+          "id" => "run_old", "taskIdentifier" => "send-email", "status" => "FAILED", "version" => "20261002.1", "createdAt" => "2026-09-01T10:00:00Z",
+          "startedAt" => "2026-09-01T10:00:02Z", "finishedAt" => "2026-09-01T10:03:00Z",
+          "attempts" => [
+            { "id" => "attempt_1", "status" => "FAILED", "createdAt" => "2026-09-01T10:00:02Z", "updatedAt" => "2026-09-01T10:01:00Z",
+              "startedAt" => "2026-09-01T10:00:02Z", "completedAt" => "2026-09-01T10:01:00Z", "error" => { "name" => "Error", "message" => "SMTP timeout" } },
+            { "id" => "attempt_2", "status" => "EXECUTING", "createdAt" => "2026-09-01T10:02:00Z", "updatedAt" => "2026-09-01T10:02:00Z" }
+          ]
+        )
+
+        result = @pack.call("list_runs", environment_row: @row, arguments: { "task" => "send-email", "run" => "run_old" })
+
+        run = Capabilities::History.runs_of(result).sole
+        assert_equal [ "run_old", "failed", "https://cloud.trigger.dev/projects/v3/proj_acme/runs/run_old" ], [ run.id, run.status, run.url ]
+        assert_equal [ [ "Attempt 1", "failed", 58, "Error: SMTP timeout" ], [ "Attempt 2", "running", nil, nil ] ],
+                     run.parts.map { |part| [ part.name, part.status, part.seconds, part.detail ] }
+        assert_equal({ Capabilities::History::LOG_TOOL => "run_details", Capabilities::History::LOG_ARGUMENTS => { "run" => "run_old" } }, run.parts.first.log)
+        assert_match "Attempt 1, FAILED", result["content"].sole["text"]
+
+        error = assert_raises(Integrations::Error) { @pack.call("list_runs", environment_row: @row, arguments: { "task" => "nightly-sync", "run" => "run_old" }) }
+        assert_equal "Run run_old is a run of send-email, not of nightly-sync.", error.message
+        TriggerDevApi.any_instance.stubs(:run).with("run_gone").raises(TriggerDevApi::Error, "Trigger.dev answered 404: Run not found")
+        error = assert_raises(Integrations::Error) { @pack.call("list_runs", environment_row: @row, arguments: { "run" => "run_gone" }) }
+        assert_equal "Trigger.dev could not read run run_gone: Trigger.dev answered 404: Run not found", error.message
+      end
+
       test "runs are listed newest first, filtered as asked, each with its page in the dashboard" do
         TriggerDevApi.any_instance.expects(:runs).with do |filter:, limit:|
           filter["taskIdentifier"] == [ "send-email" ] && filter["status"] == [ "FAILED" ] && filter["error"] == "error_1" && limit == 5

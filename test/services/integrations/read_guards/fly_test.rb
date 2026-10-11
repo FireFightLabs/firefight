@@ -19,6 +19,26 @@ module Integrations
         assert Fly.reads?(ApiReads::TOOL, "path" => "/v1/postgres/pg1/users")
       end
 
+      test "a GraphQL query reads from an app or the organization, and a change or another starting point is not sent" do
+        assert Fly.guards?(Fly::GRAPHQL)
+        query = "query($app: String!) { a: app(name: $app) { releasesUnprocessed(first: 5, after: \"x\") { nodes { version } } } " \
+                "organization(slug: \"acme\") { name } __typename } fragment F on App { id }"
+        assert Fly.reads?(Fly::GRAPHQL, "query" => query, "variables" => { "app" => "web" })
+        assert_equal [ [ "app", "web" ], [ "organization", "acme" ] ], Fly.roots(query, { "app" => "web" }).map { |root| [ root.field, root.value ] }
+
+        assert_raises(PolicyRefusal) { Fly.reading(Fly::GRAPHQL, "query" => '{ app(name: "web") { id } } mutation { pauseApp(input: {}) { app { id } } }') }
+        [ '{ node(id: "x") { id } }', "{ ...F } fragment F on Query { viewer { id } }", '{ app(id: "x") { id } }', '{ app(name: "web", id: "x") { id } }', "", "{ }" ].each do |text|
+          assert_raises(Refused, text) { Fly.reading(Fly::GRAPHQL, "query" => text) }
+          assert_not Fly.reads?(Fly::GRAPHQL, "query" => text)
+        end
+      end
+
+      test "a GraphQL query reading secrets, tokens, keys, config or the environment is read as names" do
+        [ "{ app(name: \"web\") { secrets { name } } }", "{ app(name: \"web\") { releasesUnprocessed { nodes { configDefinition } } } }",
+          "{ organization(slug: \"acme\") { limitedAccessTokens { nodes { name } } } }" ].each { |text| assert Fly.graphql_secret?(text), text }
+        assert_not Fly.graphql_secret?("{ app(name: $app) { releasesUnprocessed(first: 5) { nodes { version status imageRef } } } }")
+      end
+
       test "secrets, secret keys, a machine's lease and the token are read as names" do
         %w[/v1/apps/web/secrets /v1/apps/web/secrets/DB /v1/apps/web/secretkeys /v1/apps/web/machines/m1/lease /v1/tokens/current].each do |path|
           assert Fly.secret?(path), path

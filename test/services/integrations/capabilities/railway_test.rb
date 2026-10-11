@@ -46,6 +46,12 @@ class Integrations::Capabilities::RailwayTest < ActiveSupport::TestCase
   test "run history is Railway's deploy history of a service, by its id" do
     history = resolve(Integrations::Capabilities::HISTORY, "resource" => "web", "limit" => 5)
     assert_equal [ "deploy_history", { "resource" => "svc-web", "limit" => 5 } ], [ history.tool.name, history.arguments ]
+    assert_equal({ "resource" => "svc-web", "run" => "dep-7" }, resolve(Integrations::Capabilities::HISTORY, "resource" => "web", "run" => "dep-7").arguments)
+  end
+
+  test "a log read for one deployment reads that deployment, not the latest" do
+    logs = resolve(Integrations::Capabilities::LOGS, "resource" => "web", "stream" => "build", "deployment" => "dep-7")
+    assert_equal({ "resource" => "svc-web", "type" => "build", "deployment" => "dep-7" }, logs.arguments)
   end
 
   private

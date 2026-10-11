@@ -28,6 +28,12 @@ module Integrations
         assert_includes shown, ADMIN
       end
 
+      test "a read of one deploy links to that deploy's own page, not its site's" do
+        NetlifyApi.any_instance.expects(:read).with("/deploys/d9", {}).returns("id" => "d9", "state" => "error", "admin_url" => ADMIN)
+
+        assert_includes text(call("path" => "/deploys/d9")), "#{ADMIN}/deploys/d9"
+      end
+
       test "a site's password and build environment, and an account's variables, never come back" do
         NetlifyApi.any_instance.stubs(:read).with("/sites/site-1", {}).returns(
           "id" => "site-1", "admin_url" => ADMIN, "password" => "hunter2", "build_settings" => { "env" => { "STRIPE_KEY" => "sk_live_abc" } }

@@ -21,10 +21,17 @@ module Integrations
       DELETED = "repo:deleted".freeze
       TRANSFER = "repo:transfer".freeze
       UPDATED = "repo:updated".freeze
-      # The workspace events the map reads, from those Bitbucket lists for a workspace webhook (GET
+      # A build status created or updated on a commit, which is how Bitbucket Pipelines and any other CI report a run
+      # starting and ending (Event payloads, Build status created and Build status updated). A workspace webhook offers
+      # no event for a pipeline or a deployment of its own, only pipeline:span_created, one per span of its traces. They
+      # change nothing on the map and have a watch check now.
+      COMMIT_STATUS_CREATED = "repo:commit_status_created".freeze
+      COMMIT_STATUS_UPDATED = "repo:commit_status_updated".freeze
+      RUN_EVENTS = [ COMMIT_STATUS_CREATED, COMMIT_STATUS_UPDATED ].freeze
+      # The workspace events Firefight follows, from those Bitbucket lists for a workspace webhook (GET
       # /hook_events/workspace). repo:created and repo:imported are listed there and in the OpenAPI description, and have
       # no payload of their own on the Event payloads page, so only their repository's full_name is read.
-      EVENTS = [ PUSH, CREATED, IMPORTED, DELETED, TRANSFER, UPDATED ].freeze
+      EVENTS = [ PUSH, CREATED, IMPORTED, DELETED, TRANSFER, UPDATED, *RUN_EVENTS ].freeze
       BRANCH = "branch".freeze
       WEBHOOK_NAME = "Firefight live updates".freeze
 
@@ -75,6 +82,19 @@ module Integrations
           MapEventSource::Webhook.new(id: made.to_json, secret: secret, scopes: workspaces)
         rescue BitbucketApi::Refused, BitbucketApi::NotFound => error
           raise MapEventSource::Refused, Sentence.all(error, OWNER_NOTE)
+        end
+
+        def wakes?(payload, headers:) = RUN_EVENTS.include?(headers[EVENT_HEADER].to_s)
+
+        # Whether a workspace's webhook misses an event Firefight now follows, such as one registered before runs were
+        # followed, or is gone from Bitbucket.
+        def register_again?(row, **)
+          api = api(row)
+          registrations(row.map_events_webhook_id, ConnectionSettings.of(row)).any? do |workspace, hook|
+            (EVENTS - Array(api.get("/workspaces/#{Http.segment(workspace)}/hooks/#{Http.segment(hook)}")["events"])).any?
+          rescue BitbucketApi::NotFound
+            true
+          end
         end
 
         # Every workspace's webhook. One already gone from Bitbucket is taken back all the same.
