@@ -45,4 +45,21 @@ class AlertProviders::OpsgenieTest < ActiveSupport::TestCase
     end
     assert_not AlertProviders::Opsgenie.ignored?({ "message" => "hello" })
   end
+
+  test "an acknowledgement, a note and a close are what happened to a page, and the person is their username" do
+    acknowledged = AlertProviders::Opsgenie.page_event(opsgenie_payload(action: "Acknowledge"))
+    assert_equal [ "052652ac-5d1c-464a-812a-7dd18bbfba8c", "aliastest", Integrations::Paging::EVENT_ACKNOWLEDGED, "fili@ifountain.com", true ],
+                 [ acknowledged.external_id, acknowledged.key, acknowledged.kind, acknowledged.actor_email, acknowledged.by_person ]
+
+    noted = opsgenie_payload(action: "AddNote")
+    noted["alert"]["note"] = "note to test alert"
+    assert_equal [ Integrations::Paging::EVENT_NOTED, "note to test alert" ], AlertProviders::Opsgenie.page_event(noted).then { |event| [ event.kind, event.note ] }
+
+    by_rule = opsgenie_payload(action: "Close")
+    by_rule["alert"]["username"] = "System"
+    assert_not AlertProviders::Opsgenie.page_event(by_rule).by_person
+    assert_nil AlertProviders::Opsgenie.page_event(opsgenie_payload)
+    assert_nil AlertProviders::Opsgenie.page_event(opsgenie_payload(action: "Escalate"))
+    assert_equal "aliastest", AlertProviders::Opsgenie.page_key(opsgenie_payload)
+  end
 end

@@ -3,6 +3,7 @@ import { Deferred, Head, Link, router, usePage } from "@inertiajs/react";
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout";
 import { ActionsSkeleton } from "@/pages/incidents/components/index/actions-skeleton";
 import { AlertsPanel } from "@/pages/incidents/components/index/alerts-panel";
+import { PagesPanel } from "@/pages/incidents/components/index/pages-panel";
 import { ChangesPanel } from "@/pages/incidents/components/index/changes-panel";
 import { IncidentHeader } from "@/pages/incidents/components/index/incident-header";
 import { TestIncidentBanner } from "@/pages/incidents/components/index/test-incident-banner";
@@ -120,6 +121,7 @@ export default function IncidentPage() {
                 />
               </Deferred>
               <AlertsPanel alerts={incident.alerts} />
+              <PagesPanel pages={incident.pages} />
               <ChangesPanel incidentId={incident.id} canReadMap={canReadMap} />
               <RunbooksPanel
                 runbooks={incident.runbooks}

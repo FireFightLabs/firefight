@@ -28,7 +28,14 @@ module Slack
       IncidentEvent::MILESTONE_NOTED => { emoji: ":sparkles:", title: "AI note" },
       IncidentEvent::INVESTIGATION_STARTED => { emoji: ":mag:", title: "Investigation started" },
       IncidentEvent::INVESTIGATION_ANSWERED => { emoji: ":mag:", title: "Investigation answered" },
-      IncidentEvent::INVESTIGATION_STOPPED => { emoji: ":mag:", title: "Investigation stopped" }
+      IncidentEvent::INVESTIGATION_STOPPED => { emoji: ":mag:", title: "Investigation stopped" },
+      IncidentEvent::PAGE_RAISED => { emoji: ":rotating_light:", title: "Paged" },
+      IncidentEvent::PAGE_FAILED => { emoji: ":warning:", title: "Page not raised" },
+      IncidentEvent::PAGE_ACKNOWLEDGED => { emoji: ":white_check_mark:", title: "Page acknowledged" },
+      IncidentEvent::PAGE_ESCALATED => { emoji: ":rotating_light:", title: "Page escalated" },
+      IncidentEvent::PAGE_NOTED => { emoji: ":memo:", title: "Note on the page" },
+      IncidentEvent::PAGE_RESOLVED => { emoji: ":white_check_mark:", title: "Page resolved" },
+      IncidentEvent::PAGE_SYNC_FAILED => { emoji: ":warning:", title: "Page not updated" }
     }.freeze
 
     CHANGE_VALUE_LIMIT = 80
@@ -49,6 +56,7 @@ module Slack
     def self.actor_mention_for(event)
       user_id = (event.metadata || {})["user_id"] || event.actor&.platform_user_id
       return Mrkdwn.person(user_id, event.actor&.actor_display_name) if user_id.present? || event.actor
+      return Mrkdwn.escape(event.tool_person) if event.tool_person
 
       "System"
     end
@@ -109,6 +117,10 @@ module Slack
         "to #{Mrkdwn.person(details['escalated_to_platform_user_id'], details['escalated_to_name'])}"
       when IncidentEvent::INVESTIGATION_ANSWERED
         details["message"]
+      when *IncidentEvent::PAGE_EVENTS
+        subject = Mrkdwn.escape(details["subject"].to_s)
+        subject = "<#{Mrkdwn.escape(details['url'])}|#{subject}>" if details["url"].to_s.start_with?("https://") && subject.present?
+        [ subject.presence, details["message"].presence && Slack::Messages::Formatting.quoted_markdown(Mrkdwn.escape(details["message"])) ].compact.join("\n")
       when IncidentEvent::MILESTONE_NOTED
         link = details["permalink"].present? ? "<#{details['permalink']}|Open in Slack>" : nil
         [ details["statement"], link ].compact.join(" · ")

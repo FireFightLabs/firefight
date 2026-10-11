@@ -51,12 +51,14 @@ class TimelineEventSerializer < BaseSerializer
     event.description_stem
   end
 
-  type "{ label: string; href: string | null }", optional: true
+  # external says href is the page's own address in another tool, such as a page in an on-call tool, opened in a new tab.
+  type "{ label: string; href: string | null; external: boolean }", optional: true
   def subject
     label = event.subject_label
     return nil if label.blank? || person_backed?
 
-    { label: label, href: subject_href }
+    page_url = page_address
+    { label: label, href: page_url || subject_href, external: page_url.present? }
   end
 
   type ACTOR_TYPE, optional: true
@@ -224,6 +226,13 @@ class TimelineEventSerializer < BaseSerializer
     when *IncidentEvent::INVESTIGATION_EVENTS
       url_helpers.incident_path(event.incident_id, Investigation::QUERY_PARAM => meta[:investigation_id])
     end
+  end
+
+  def page_address
+    return nil unless IncidentEvent::PAGE_EVENTS.include?(event.event_type)
+
+    url = event.metadata.to_h["url"].to_s
+    url.start_with?("https://") ? url : nil
   end
 
   def url_helpers

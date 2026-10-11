@@ -22,6 +22,10 @@ class IntegrationProviderSerializer < BaseSerializer
   type :string
   def halon = Integrations::Capabilities.halon_sentence(provider.key, provider.name)
 
+  # When the provider ends support for the product and where its customers go, or null.
+  type :string, optional: true
+  def retiring = provider.retiring
+
   # Whether what the provider runs is read onto the resource map.
   type :boolean
   def on_map = provider.map == IntegrationProvider::MAP_FIREFIGHT

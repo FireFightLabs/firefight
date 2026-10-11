@@ -67,6 +67,13 @@ module AlertProviders
     # never stops sending. Anything else that normalizes to nothing is refused as unrecognized.
     def self.ignored?(_payload) = false
 
+    # What an on-call tool's webhook says happened to one of its pages, as an Integrations::Paging::Event, or nil for a
+    # payload that is not about a page, which is every payload of a source that is not an on-call tool.
+    def self.page_event(_payload) = nil
+
+    # The key a page Firefight raised in the tool carries, as the tool sends it back, or nil.
+    def self.page_key(_payload) = nil
+
     def self.normalize_status(value)
       RESOLVED_STATUS_VALUES.include?(value.to_s.downcase.strip) ? Alert::STATUS_RESOLVED : Alert::STATUS_FIRING
     end

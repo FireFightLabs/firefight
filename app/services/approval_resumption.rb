@@ -8,6 +8,8 @@ class ApprovalResumption
   KIND_FIX_STEP = "fix_step"
   # A call to an issue tracker for an item's issue, run again as whoever asked once approved (IssueSyncService).
   KIND_ISSUE_SYNC = "issue_sync"
+  # A call to an on-call tool for a page, run again as Firefight paging once approved (OnCallSyncService).
+  KIND_PAGING = "paging"
 
   def self.park!(approval, subject, kind)
     approval.update!(resume_payload: {
@@ -35,6 +37,7 @@ class ApprovalResumption
     return Investigation::FixRunner.resume!(approval, payload["step_id"]) if payload["kind"] == KIND_FIX_STEP
     return Conversation::HeldCalls.approved!(approval) if payload["kind"] == Chat::HeldCall::RESUME_KIND
     return IssueSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_ISSUE_SYNC
+    return OnCallSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_PAGING
     return resume_web!(approval, payload) if payload["kind"] == KIND_WEB
 
     subject = rebuild(approval, payload)
@@ -67,6 +70,7 @@ class ApprovalResumption
     return if payload.blank?
     return Investigation::FixRunner.resume!(approval, payload["step_id"]) if payload["kind"] == KIND_FIX_STEP
     return IssueSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_ISSUE_SYNC
+    return OnCallSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_PAGING
     return Conversation::HeldCalls.denied!(approval) if payload["kind"] == Chat::HeldCall::RESUME_KIND
 
     notify(approval, payload, "#{approver_name(approval)} declined your request. Nothing has changed.")

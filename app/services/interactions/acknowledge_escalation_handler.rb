@@ -8,33 +8,14 @@ module Interactions
       payload = JSON.parse(interaction.action_value || "{}")
       incident = workspace.incidents.find(payload["incident_id"])
       escalation_event = incident.incident_events.find(payload["escalation_event_id"])
-      escalated_to_platform_user_id = escalation_event.metadata["escalated_to_platform_user_id"]
 
-      return nil unless escalated_to_platform_user_id == interaction.user_id
-      return nil if escalation_event.escalation_acknowledged?
+      return nil unless escalation_event.metadata["escalated_to_platform_user_id"] == interaction.user_id
 
-      escalation_event.update!(
-        metadata: escalation_event.metadata.deep_stringify_keys.merge(
-          "acknowledged_by_platform_user_id" => interaction.user_id,
-          "acknowledged_at" => Time.current.iso8601
-        )
+      acknowledged_by = workspace.workspace_memberships.find_by(platform_user_id: interaction.user_id)
+      acknowledged = IncidentLifecycleService.new(workspace).acknowledge_escalation(
+        incident, escalation_event, platform_user_id: interaction.user_id, acknowledged_by: acknowledged_by
       )
-
-      incident.incident_events.create!(
-        event_type: IncidentEvent::ESCALATION_ACKNOWLEDGED,
-        actor: workspace.workspace_memberships.find_by(platform_user_id: interaction.user_id),
-        metadata: {
-          escalation_event_id: escalation_event.id,
-          acknowledged_by_platform_user_id: interaction.user_id,
-          escalated_to_platform_user_id: escalated_to_platform_user_id
-        }
-      )
-
-      IncidentUpdateService.new(workspace).post_escalation_acknowledged_message(
-        incident,
-        acknowledged_by_platform_user_id: interaction.user_id,
-        escalated_to_platform_user_id: escalated_to_platform_user_id
-      )
+      return nil unless acknowledged
 
       dm_channel_id = interaction.raw&.dig("container", "channel_id") || interaction.channel_id
       dm_message_ts = interaction.raw&.dig("container", "message_ts")

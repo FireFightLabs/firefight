@@ -280,6 +280,12 @@ export function ConnectedCard({
           </p>
         </div>
 
+        {provider?.retiring && (
+          <div className="border-warning-border bg-warning-tint rounded-md border px-3 py-2 text-xs">
+            {provider.retiring}
+          </div>
+        )}
+
         {healthErrors.length > 0 && (
           <div className="border-destructive/40 bg-destructive/10 text-destructive flex flex-col gap-1 rounded-md border px-3 py-2 text-xs">
             {healthErrors.map((error) => (

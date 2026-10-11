@@ -15,10 +15,13 @@ class SystemAgent < ApplicationRecord
   # Reads the documents synced handbook pages come from. It only runs tools that are switched on, with Firefight's own
   # fixed reads, so what it did is in the activity log under its name.
   SLUG_HANDBOOK_SYNC = "handbook_sync"
+  # Raises a page in an on-call tool and keeps it in step with its incident. It holds only the tools each paging
+  # connection needs for that, granted when the connection is made, so each call is in the activity log under its name.
+  SLUG_PAGING = "paging"
   # Defined in code, so a fresh install and a test database get them without a migration.
   BUILT_IN = { SLUG_INVESTIGATOR => "Firefight Investigator", SLUG_MAP_SWEEP => "Firefight map sweep",
                SLUG_HEALTH_CHECK => "Firefight health check", SLUG_ISSUE_SYNC => "Firefight issue sync",
-               SLUG_HANDBOOK_SYNC => "Firefight handbook sync" }.freeze
+               SLUG_HANDBOOK_SYNC => "Firefight handbook sync", SLUG_PAGING => "Firefight paging" }.freeze
 
   validates :slug, presence: true, uniqueness: true, format: { with: /\A[a-z0-9_]+\z/ }
   validates :name, presence: true
@@ -41,6 +44,10 @@ class SystemAgent < ApplicationRecord
 
   def self.handbook_sync
     ensure!(SLUG_HANDBOOK_SYNC)
+  end
+
+  def self.paging
+    ensure!(SLUG_PAGING)
   end
 
   def self.ensure!(slug)

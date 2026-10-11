@@ -16,8 +16,10 @@ class Investigation::Finding < ApplicationRecord
   belongs_to :investigation
   belongs_to :winning_hypothesis, class_name: "Investigation::Hypothesis", optional: true
   belongs_to :outcome_by, polymorphic: true, optional: true
-  # Whoever a run an alert started found on call, whom Firefight pages with the answer (Investigation::Paging).
+  # Whoever a run an alert started found on call, whom Firefight pages with the answer (Investigation::Paging), and the
+  # on-call tool and target the page goes to when one is connected. page_email is who the tool named, member or not.
   belongs_to :page_member, class_name: "WorkspaceMembership", optional: true
+  belongs_to :page_integration, class_name: "Integration", optional: true
   scope :in_workspace, ->(workspace) {
     joins(:investigation).where(investigations: { workspace_id: workspace.id })
   }
@@ -70,7 +72,8 @@ class Investigation::Finding < ApplicationRecord
 
   # Claims the one page, so a retried job never pages twice.
   def claim_page!
-    won = self.class.where(id: id, paged_at: nil).where.not(page_member_id: nil).update_all(paged_at: Time.current, updated_at: Time.current)
+    won = self.class.where(id: id, paged_at: nil).where("page_member_id IS NOT NULL OR page_integration_id IS NOT NULL")
+                    .update_all(paged_at: Time.current, updated_at: Time.current)
     reload
     won == 1
   end

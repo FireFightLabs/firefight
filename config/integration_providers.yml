@@ -626,7 +626,7 @@ providers:
     color: "#06ac38"
     status_page: { url: https://status.pagerduty.com, feed: page }
     hosts: [ api.pagerduty.com, events.pagerduty.com, pagerduty.com ]
-    description: See who is on call and what is paging them, and acknowledge, escalate or add responders when you allow it.
+    description: See who is on call and what is paging them, page them for an incident and keep the page in step with it, and acknowledge, escalate or add responders when you allow it.
     # PagerDuty runs a US and an EU service region, each with its own hosted MCP server (support.pagerduty.com,
     # pagerduty-mcp-server and service-regions). Both servers name their own OAuth endpoints.
     regions:
@@ -646,8 +646,10 @@ providers:
     color: "#172b4d"
     status_page: { url: https://opsgenie.status.atlassian.com, feed: statuspage }
     hosts: [ api.opsgenie.com, api.eu.opsgenie.com ]
-    description: See who is on call and which alerts are open, and acknowledge, escalate or add a note when you allow it.
+    description: See who is on call now and next and which alerts are open, page them for an incident and keep the page in step with it, and acknowledge, close, snooze, escalate or override a schedule when you allow it.
     kind: native
+    # Atlassian's announcement of Opsgenie's end of support, and where its customers move.
+    retiring: Atlassian ends support for Opsgenie on April 5, 2027, and moves its customers to Jira Service Management Operations. Halon reads on-call schedules and alerts there through a Jira connection.
     connect_with: api_token
     # An Opsgenie account lives on the US or the EU instance, each with its own app and API (Atlassian support,
     # European service region). The pack reads the API of the region chosen.

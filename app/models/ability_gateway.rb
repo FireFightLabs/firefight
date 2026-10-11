@@ -20,8 +20,10 @@ class AbilityGateway
   SOURCE_WATCH = "watch"
   # Reading the documents synced handbook pages come from, through a connection's tools with Firefight's own fixed reads.
   SOURCE_HANDBOOK_SYNC = "handbook_sync"
+  # Raising a page in an on-call tool and keeping it in step with its incident, either way.
+  SOURCE_PAGING = "paging"
   SOURCES = [ SOURCE_API, SOURCE_MCP, SOURCE_SLACK, SOURCE_WEB, SOURCE_INVESTIGATION, SOURCE_CONVERSATION, SOURCE_MAP_SWEEP,
-              SOURCE_HEALTH_CHECK, SOURCE_CODE_AGENT, SOURCE_ISSUE_SYNC, SOURCE_WATCH, SOURCE_HANDBOOK_SYNC ].freeze
+              SOURCE_HEALTH_CHECK, SOURCE_CODE_AGENT, SOURCE_ISSUE_SYNC, SOURCE_WATCH, SOURCE_HANDBOOK_SYNC, SOURCE_PAGING ].freeze
   # Where a human acts directly rather than through a key or an agent.
   HUMAN_SOURCES = [ SOURCE_SLACK, SOURCE_WEB ].freeze
 

@@ -21,6 +21,7 @@ import {
   IconLink,
   IconListSearch,
   IconListCheck,
+  IconNote,
   IconPaperclip,
   IconPencil,
   IconPin,
@@ -90,6 +91,13 @@ const eventIcons: Record<EventType, typeof IconFlame> = {
   "investigation.started": IconListSearch,
   "investigation.answered": IconListSearch,
   "investigation.stopped": IconListSearch,
+  "page.raised": IconBellRinging,
+  "page.failed": IconAlertTriangle,
+  "page.acknowledged": IconBellCheck,
+  "page.escalated": IconBellRinging,
+  "page.noted": IconNote,
+  "page.resolved": IconCircleCheck,
+  "page.sync_failed": IconAlertTriangle,
 }
 
 type DotAccent = "brand" | "success" | "warning" | "error" | "people" | "neutral"
@@ -110,6 +118,12 @@ const eventAccent: Partial<Record<EventType, DotAccent>> = {
   "investigation.started": "brand",
   "investigation.answered": "success",
   "investigation.stopped": "warning",
+  "page.raised": "error",
+  "page.failed": "warning",
+  "page.acknowledged": "success",
+  "page.escalated": "error",
+  "page.resolved": "success",
+  "page.sync_failed": "warning",
 }
 
 const solidAccent: Record<DotAccent, string> = {
@@ -236,6 +250,20 @@ function EventSubject({ event }: { event: TimelineEvent }) {
       >
         {event.subject.label}
       </Link>
+    )
+  }
+  // A page in an on-call tool opens there, in a new tab.
+  if (event.subject.href && event.subject.external) {
+    return (
+      <a
+        href={event.subject.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 font-medium text-fg-primary hover:underline"
+      >
+        {event.subject.label}
+        <IconExternalLink className="size-3.5 text-fg-muted" />
+      </a>
     )
   }
   if (event.subject.href) {

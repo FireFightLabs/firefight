@@ -42,10 +42,10 @@ module Chat::Tools::Groups
     ),
     Firefight.new(
       key: INCIDENT_RESPONSE, title: "Running an incident",
-      covers: "declare, post an update, resolve, cancel, reopen, escalate, invite people, assign roles, link incidents",
+      covers: "declare, post an update, resolve, cancel, reopen, escalate, page whoever is on call, invite people, assign roles, link incidents",
       tools: [
         Mcp::Tools::DECLARE_INCIDENT, Mcp::Tools::POST_INCIDENT_UPDATE, Mcp::Tools::RESOLVE_INCIDENT,
-        Mcp::Tools::CANCEL_INCIDENT, Mcp::Tools::REOPEN_INCIDENT, Mcp::Tools::ESCALATE_INCIDENT,
+        Mcp::Tools::CANCEL_INCIDENT, Mcp::Tools::REOPEN_INCIDENT, Mcp::Tools::ESCALATE_INCIDENT, Mcp::Tools::PAGE_ON_CALL,
         Mcp::Tools::INVITE_RESPONDERS, Mcp::Tools::ASSIGN_INCIDENT_ROLE, Mcp::Tools::LINK_INCIDENT,
         Mcp::Tools::GIVE_SHOUTOUT, Mcp::Tools::DISMISS_TIMELINE_NOTE
       ]

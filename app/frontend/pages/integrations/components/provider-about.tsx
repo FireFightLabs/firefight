@@ -38,6 +38,12 @@ export function ProviderAbout({ provider, onClose }: { provider: IntegrationProv
                   <dd className="text-fg-body">What {provider.name} holds is kept current on the map, with how it connects to everything else.</dd>
                 </div>
               )}
+              {provider.retiring && (
+                <div className="flex flex-col gap-1">
+                  <dt className="text-fg-primary font-medium">End of support</dt>
+                  <dd className="text-fg-body">{provider.retiring}</dd>
+                </div>
+              )}
               <div className="flex flex-col gap-1">
                 <dt className="text-fg-primary font-medium">What it may change</dt>
                 <dd className="text-fg-body">

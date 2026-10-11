@@ -1195,7 +1195,8 @@ export const LEDGER_SOURCES = [
   "code_agent",
   "issue_sync",
   "watch",
-  "handbook_sync"
+  "handbook_sync",
+  "paging"
 ] as const
 export type LedgerSource = (typeof LEDGER_SOURCES)[number]
 

@@ -1085,8 +1085,8 @@ search_alerts:
 get_incident:
   live: true
   description: >-
-    Fetch one incident in full by id or identifier (e.g. INC-42): details, timeline events, postmortem status, and the alerts attached to it.
-    Docs: https://firefight.app/docs/incidents/concepts.md
+    Fetch one incident in full by id or identifier (e.g. INC-42): details, timeline events, postmortem status, the alerts attached to it, and
+    its pages in on-call tools. Docs: https://firefight.app/docs/incidents/concepts.md
   reads: true
   parameters:
     properties:

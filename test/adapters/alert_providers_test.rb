@@ -17,7 +17,7 @@ class AlertProvidersTest < ActiveSupport::TestCase
   test "a provider names what its tool calls things, and only the generic webhook maps fields" do
     pagerduty = AlertProviders.catalog.find { |entry| entry[:provider] == AlertSource::PROVIDER_PAGERDUTY }
 
-    assert_includes pagerduty[:steps].join(" "), "incident.triggered, incident.reopened and incident.resolved"
+    assert_includes pagerduty[:steps].join(" "), "incident.triggered, incident.reopened, incident.resolved, incident.acknowledged, incident.escalated and incident.annotated"
     assert_equal [ AlertSource::PROVIDER_GENERIC ], AlertProviders.catalog.select { |entry| entry[:fieldMapping] }.pluck(:provider)
     assert_equal [ AlertSource::PROVIDER_SENTRY ], AlertProviders.catalog.select { |entry| entry[:secretFromProvider] }.pluck(:provider)
   end

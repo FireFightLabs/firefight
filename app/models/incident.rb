@@ -55,6 +55,8 @@ class Incident < ApplicationRecord
   has_many :alert_groups, dependent: :destroy
   has_many :incident_runbooks, dependent: :destroy
   has_many :investigations, as: :subject, dependent: :destroy
+  # Pages in on-call tools tied to the incident, kept in step with it both ways.
+  has_many :pages, class_name: "Incident::Page", dependent: :destroy
 
   validates :sequence_number, presence: true, uniqueness: { scope: :workspace_id }
   validates :identifier, presence: true, uniqueness: { scope: :workspace_id }
@@ -157,11 +159,18 @@ class Incident < ApplicationRecord
     terminal_blocked_reason("it can no longer be escalated") || channelless_blocked_reason("ask anyone")
   end
 
-  # Who is on call for this incident: the members it was escalated to, most recent first. Escalating is how a person is
-  # paged here, whether a responder, Halon or an outside agent did it.
+  # A page in an on-call tool reaches people wherever they are, so only an incident that is over refuses one.
+  def page_blocked_reason
+    terminal_blocked_reason("nobody can be paged for it")
+  end
+
+  # Who is on call for this incident: the members it was escalated to, and those an on-call tool had on call when it
+  # was paged there, most recent first. Escalating is how a person is paged here, whether a responder, Halon or an
+  # outside agent did it.
   def on_call_members
-    ids = incident_events.where(event_type: IncidentEvent::INCIDENT_ESCALATED).order(created_at: :desc)
-                         .filter_map { |event| event.metadata.to_h["escalated_to_member_id"] }.uniq
+    paged = [ IncidentEvent::INCIDENT_ESCALATED, IncidentEvent::PAGE_RAISED ]
+    ids = incident_events.where(event_type: paged).order(created_at: :desc)
+                         .filter_map { |event| event.metadata.to_h.values_at("escalated_to_member_id", "paged_member_id").compact.first }.uniq
     workspace.workspace_memberships.where(id: ids).index_by(&:id).values_at(*ids).compact
   end
 

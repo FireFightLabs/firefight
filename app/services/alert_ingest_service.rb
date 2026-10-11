@@ -58,6 +58,15 @@ class AlertIngestService
         # A duplicate delivery or an overlapping sweep may already have routed it.
         next unless alert.routing_state == Alert::ROUTING_PENDING
 
+        # A page Firefight raised in an on-call tool comes back as one of its alerts. It joins the incident it was raised
+        # for rather than being routed into another.
+        if (incident = raised_for(alert))
+          attach(alert, incident)
+          alert.mark_routed!(nil)
+          deferred_notification = -> { notify_digest(alert, force: true) }
+          next
+        end
+
         result = router.route(alert.fields)
 
         if result&.matched?
@@ -236,6 +245,21 @@ class AlertIngestService
     alert.incident = incident
     alert.save!
     record_incident_event(alert, IncidentEvent::ALERT_ATTACHED, unresolved_targets: unresolved_targets)
+    on_call_sync.alert_attached(alert)
+  end
+
+  def on_call_sync = @on_call_sync ||= OnCallSyncService.new(@workspace)
+
+  # The incident of the page Firefight raised that this alert reports, while it is open. The tool's id is taken from the
+  # alert when the page has not heard it yet, so both are one page.
+  def raised_for(alert)
+    return nil unless Integrations::Paging.reported_by?(@source.provider)
+
+    page = on_call_sync.raised_page_for(alert, AlertProviders.for(@source.provider).page_key(alert.payload))
+    return nil if page.nil? || page.incident.terminal?
+
+    page.update!(external_id: alert.fingerprint) if page.external_id.nil?
+    page.incident
   end
 
   # Skips when a digest already exists so a sweep retry after a partial failure cannot double-post.

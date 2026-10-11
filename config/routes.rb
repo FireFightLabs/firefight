@@ -384,6 +384,7 @@ Rails.application.routes.draw do
     get "/halon/performance", to: "halon_performance#show", as: :halon_performance
     get "/halon/on-call", to: "halon_on_call#show", as: :halon_on_call
     patch "/halon/on-call", to: "halon_on_call#update"
+    post "/halon/on-call/paging/:integration_id/grant", to: "paging_grants#create", as: :halon_paging_grant
     resources :unattended_rules, only: [ :create, :update, :destroy ], path: "halon/on-call/rules"
     get "/halon/monitoring", to: "halon_monitoring#show", as: :halon_monitoring
     patch "/halon/monitoring", to: "halon_monitoring#update"

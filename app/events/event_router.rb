@@ -16,7 +16,9 @@ class EventRouter
     IncidentEvent::ACTION_RENAMED,
     IncidentEvent::ACTION_REOPENED,
     IncidentEvent::ACTION_UNASSIGNED,
-    *IncidentEvent::INVESTIGATION_EVENTS
+    *IncidentEvent::INVESTIGATION_EVENTS,
+    # What happens to a page in an on-call tool. Outbound webhooks offer none of them yet.
+    *IncidentEvent::PAGE_EVENTS
   ].freeze
 
   def self.route(event)

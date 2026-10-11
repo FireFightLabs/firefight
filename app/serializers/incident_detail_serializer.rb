@@ -117,6 +117,13 @@ class IncidentDetailSerializer < BaseSerializer
     incident.alerts.includes(:alert_source).order(:received_at)
   end
 
+  # Pages in on-call tools tied to the incident, each with where it stands there.
+  has_many :pages, serializer: IncidentPageSerializer
+
+  def pages
+    incident.pages.includes(:integration, :alert_source).order(:created_at)
+  end
+
   has_many :runbooks, serializer: IncidentRunbookSerializer
 
   def runbooks

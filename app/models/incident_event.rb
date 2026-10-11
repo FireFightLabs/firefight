@@ -41,6 +41,16 @@ class IncidentEvent < ApplicationRecord
   INVESTIGATION_ANSWERED = "investigation.answered"
   INVESTIGATION_STOPPED = "investigation.stopped"
   INVESTIGATION_EVENTS = [ INVESTIGATION_STARTED, INVESTIGATION_ANSWERED, INVESTIGATION_STOPPED ].freeze
+  # A page in an on-call tool (Incident::Page): raised from here, what its people did to it there, and a change from
+  # here the tool did not take.
+  PAGE_RAISED = "page.raised"
+  PAGE_FAILED = "page.failed"
+  PAGE_ACKNOWLEDGED = "page.acknowledged"
+  PAGE_ESCALATED = "page.escalated"
+  PAGE_NOTED = "page.noted"
+  PAGE_RESOLVED = "page.resolved"
+  PAGE_SYNC_FAILED = "page.sync_failed"
+  PAGE_EVENTS = [ PAGE_RAISED, PAGE_FAILED, PAGE_ACKNOWLEDGED, PAGE_ESCALATED, PAGE_NOTED, PAGE_RESOLVED, PAGE_SYNC_FAILED ].freeze
   # The events whose snapshot carries what the responder posted, written as markdown.
   UPDATE_MESSAGE_EVENTS = [ INCIDENT_UPDATED, INCIDENT_CANCELED ].freeze
 
@@ -70,7 +80,8 @@ class IncidentEvent < ApplicationRecord
     ALERT_ATTACHED, ALERT_RESOLVED,
     RUNBOOK_ATTACHED, RUNBOOK_APPLIED,
     MILESTONE_NOTED,
-    *INVESTIGATION_EVENTS
+    *INVESTIGATION_EVENTS,
+    *PAGE_EVENTS
   ].freeze
 
   EVENT_DESCRIPTIONS = {
@@ -109,7 +120,14 @@ class IncidentEvent < ApplicationRecord
     MILESTONE_NOTED => "noted",
     INVESTIGATION_STARTED => "started",
     INVESTIGATION_ANSWERED => "found",
-    INVESTIGATION_STOPPED => "stopped"
+    INVESTIGATION_STOPPED => "stopped",
+    PAGE_RAISED => "paged",
+    PAGE_FAILED => "could not page",
+    PAGE_ACKNOWLEDGED => "acknowledged",
+    PAGE_ESCALATED => "escalated",
+    PAGE_NOTED => "added a note to",
+    PAGE_RESOLVED => "resolved",
+    PAGE_SYNC_FAILED => "could not update"
   }.freeze
 
   # Only events backed by a Recordable snapshot. Action-only events carry
@@ -188,6 +206,16 @@ class IncidentEvent < ApplicationRecord
     metadata&.dig("acknowledged_by_platform_user_id").present?
   end
 
+  # Records who acknowledged the escalation, once. The button in their direct message and the page in an on-call tool can
+  # both answer it, so the first one wins and the other is told it lost.
+  def claim_acknowledgement!(platform_user_id)
+    acknowledged = { "acknowledged_by_platform_user_id" => platform_user_id, "acknowledged_at" => Time.current.iso8601 }
+    won = self.class.where(id: id).where("metadata->>'acknowledged_by_platform_user_id' IS NULL")
+              .update_all([ "metadata = COALESCE(metadata, '{}'::jsonb) || ?::jsonb", acknowledged.to_json ])
+    reload
+    won == 1
+  end
+
   after_create_commit :publish_to_event_bus
 
   validates :event_type, presence: true, inclusion: { in: EVENT_TYPES }
@@ -211,13 +239,16 @@ class IncidentEvent < ApplicationRecord
     changed_fields.include?(field.to_s)
   end
 
+  # Someone in an on-call tool who has no account here is named, so their entry is a person's and not Firefight's.
   def automated?
-    actor.nil?
+    actor.nil? && tool_person.nil?
   end
 
   def actor_name
-    actor&.actor_display_name || AUTOMATED_ACTOR_NAME
+    actor&.actor_display_name || tool_person || AUTOMATED_ACTOR_NAME
   end
+
+  def tool_person = PAGE_EVENTS.include?(event_type) ? metadata.to_h["by_name"].presence : nil
 
   # For text surfaces. The dashboard renders stem and subject separately so
   # the subject can be a link or a person.
@@ -252,6 +283,7 @@ class IncidentEvent < ApplicationRecord
     when INVESTIGATION_STARTED then "an investigation"
     when INVESTIGATION_ANSWERED then "an answer"
     when INVESTIGATION_STOPPED then "the investigation"
+    when *PAGE_EVENTS then meta["subject"]
     end
   end
 

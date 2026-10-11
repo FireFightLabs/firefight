@@ -180,6 +180,7 @@ class Integration::Tool < ApplicationRecord
     return unless enabled?
 
     action = Ability::Action.find_or_initialize_by(workspace_id: integration.workspace_id, key: action_key)
+    minted = action.new_record?
     action.assign_attributes(
       kind: Ability::Action::KIND_TOOL,
       risk_level: read_only? ? Ability::Action::RISK_READ : Ability::Action::RISK_WRITE,
@@ -189,10 +190,19 @@ class Integration::Tool < ApplicationRecord
     )
     action.save!
     Ability::Role.file!(action, integration)
+    grant_paging!(action) if minted
     action
   end
 
   private
+
+  # A tool a page is raised and kept in step through is granted to Firefight paging the first time it is minted, like
+  # the investigator's read pack, so a grant an admin later revokes is never given back.
+  def grant_paging!(action)
+    return unless Integrations::Paging.sync_tools(integration.provider).include?(name)
+
+    Ability::Grant.grant!(workspace: integration.workspace, principal: SystemAgent.paging, target: { action: action })
+  end
 
   def ability_action_stale?
     saved_change_to_enabled? || saved_change_to_read_only? || saved_change_to_params_schema?

@@ -68,4 +68,34 @@ class AlertProviders::PagerdutyTest < ActiveSupport::TestCase
     assert_not AlertProviders::Pagerduty.ignored?({ "title" => "not PagerDuty" })
     assert_not AlertProviders::Pagerduty.ignored?(pagerduty_payload)
   end
+
+  test "an acknowledgement, an escalation and a resolve are what happened to a page, by a person or by automation" do
+    acknowledged = AlertProviders::Pagerduty.page_event(pagerduty_payload(event_type: "incident.acknowledged", event_id: "e3"))
+    assert_equal [ "e3", "PGR0VU2", "d3640fbd41094207a1c11e58e46b1662", Integrations::Paging::EVENT_ACKNOWLEDGED, true ],
+                 [ acknowledged.id, acknowledged.external_id, acknowledged.key, acknowledged.kind, acknowledged.by_person ]
+    assert_nil acknowledged.actor_email, "PagerDuty names who did it but gives no email"
+
+    escalated = pagerduty_payload(event_type: "incident.escalated")
+    escalated["event"]["data"]["assignees"] = [ { "id" => "PTUXL6G", "summary" => "Bob Ruiz", "type" => "user_reference" } ]
+    assert_equal "To Bob Ruiz.", AlertProviders::Pagerduty.page_event(escalated).note
+
+    resolved = pagerduty_payload(event_type: "incident.resolved")
+    resolved["event"]["agent"] = { "id" => "PSVC", "summary" => "Datadog", "type" => "service_reference" }
+    assert_not AlertProviders::Pagerduty.page_event(resolved).by_person
+    assert_equal Integrations::Paging::EVENT_RESOLVED, AlertProviders::Pagerduty.page_event(resolved).kind
+  end
+
+  test "a note names the incident it was added to, and the ping and a trigger are not about a page" do
+    annotated = { "event" => { "id" => "e4", "event_type" => "incident.annotated", "agent" => { "summary" => "Ana Diaz", "type" => "user_reference" },
+                               "data" => { "type" => "incident_note", "id" => "P2LA89X", "content" => "I sure am glad we are using PagerDuty!",
+                                           "incident" => { "id" => "PGR0VU2", "type" => "incident_reference" } } } }
+
+    event = AlertProviders::Pagerduty.page_event(annotated)
+
+    assert_equal [ "PGR0VU2", nil, Integrations::Paging::EVENT_NOTED, "I sure am glad we are using PagerDuty!", "Ana Diaz" ],
+                 [ event.external_id, event.key, event.kind, event.note, event.actor_name ]
+    assert_nil AlertProviders::Pagerduty.page_event(pagerduty_payload)
+    assert_nil AlertProviders::Pagerduty.page_event({ "title" => "not PagerDuty" })
+    assert_equal "d3640fbd41094207a1c11e58e46b1662", AlertProviders::Pagerduty.page_key(pagerduty_payload)
+  end
 end
