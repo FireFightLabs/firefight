@@ -3,8 +3,9 @@ module Integrations
     # Northflank for the projects an environment reads, one, several or every one its token can read (the project
     # connect field, a scope). It reads what runs there, its logs, its metrics and its builds, with the API token the
     # workspace creates in Northflank. Every tool reads except api_request, which reaches all of Northflank's API inside
-    # one project when the token's role allows it and it is switched on, and add_workflow_webhook (WorkflowWebhooks),
-    # which adds a trigger to a workflow. A call reaches one project, the one it names or the one its resource lives in
+    # one project when the token's role allows it and it is switched on, add_workflow_webhook (WorkflowWebhooks),
+    # which adds a trigger to a workflow, and run_template and abort_template_run (Templates), which start and abort a
+    # run of one of the team's templates. A call reaches one project, the one it names or the one its resource lives in
     # (Integrations::Scopes), and a listing named none lists every project.
     class Northflank < NativePack
       # The environment row's credentials, which only this pack reads.
@@ -285,6 +286,7 @@ module Integrations
 
       include WorkflowWebhooks
       include Releases
+      include Templates
       include Backups
 
       # The project is not a secret, so it is a connect field in the registry, shown on the connection's card, and read
@@ -292,7 +294,7 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "API token", secret: true, placeholder: "nf-...",
-                              hint: "A Northflank API token whose role can list and read the projects, their services, databases and jobs, and view observability. To follow releases, its role can also read workflows, pipelines and their runs. To link services to the databases their secret groups hold, its role can also read secret groups. For Halon to apply fixes, its role can also update services. To follow changes live, its role can also read, create and delete notification integrations.")
+                              hint: "A Northflank API token whose role can list and read the projects, their services, databases and jobs, and view observability. To follow releases, its role can also read workflows, pipelines and their runs. To follow the team's templates, its role can also read templates. To link services to the databases their secret groups hold, its role can also read secret groups. For Halon to apply fixes, its role can also update services. To follow changes live, its role can also read, create and delete notification integrations.")
         ]
       end
 
@@ -716,7 +718,7 @@ module Integrations
       # Northflank declares between them. A list the token may not read, or one cut short at NorthflankApi::MAX_PAGES, is a
       # gap in the map, not a failed sweep.
       def map_of(environment_row)
-        map_of_scopes(environment_row, kinds: MAP_KINDS) { |pack| pack.map_of_project(environment_row) }
+        with_templates(environment_row, map_of_scopes(environment_row, kinds: MAP_KINDS) { |pack| pack.map_of_project(environment_row) })
       end
 
       # What a node or a pipeline stage names, as the kind this sweep read it as.
@@ -982,6 +984,11 @@ module Integrations
           found = add(ResourceMap::KIND_WORKFLOW, workflow["id"], workflow["name"], page: nil, details: { "description" => workflow["description"] }.compact)
           released.each { |kind, id| link(key(kind, id), found, ResourceMap::RELATION_RELEASED_BY) }
           found
+        end
+
+        # A team's template, which defines infrastructure as one unit. Northflank documents no page of its own for one.
+        def template(template)
+          add(ResourceMap::KIND_STACK, template["id"], template["name"], page: nil, details: { "type" => Templates::TEMPLATE_KIND, "description" => template["description"] }.compact)
         end
 
         def pipeline(pipeline)
