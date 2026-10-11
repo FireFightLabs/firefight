@@ -145,8 +145,8 @@ class Conversation::Bench
       Conversation::BenchRun.transaction do
         bench = workspace
         Conversation::BenchRun.create!(
-          kind: Conversation::BenchRun::KIND_SCENARIOS, trigger: trigger, prompt_version: prompt_version(bench, choice),
-          model: choice.model, provider: choice.provider, label: label, started_by: by,
+          kind: Conversation::BenchRun::KIND_SCENARIOS, trigger: trigger, prompt_version: Conversation::BenchWorkspace.version(prompt_version(bench, choice)),
+          model: choice.model, provider: choice.provider, label: Conversation::BenchWorkspace.label(label), started_by: by,
           repeats: repeats || Conversation::BenchRun::DEFAULT_REPEATS, budget_micros: budget_micros || Conversation::BenchRun::DEFAULT_BUDGET_MICROS
         ).tap do |run|
           run.repeats.times do |index|

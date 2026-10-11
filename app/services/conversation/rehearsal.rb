@@ -29,13 +29,15 @@ class Conversation::Rehearsal
   end
 
   # The case as a live chat would hold it, with its own tools and those a chat is offered whatever the scenario lists,
-  # from the shared tools. A real chat replayed keeps exactly the tools it had.
+  # from the shared tools, and a large workspace's connections beside them when the bench runs with them
+  # (Conversation::BenchWorkspace). A real chat replayed keeps exactly the tools it had.
   def self.as_offered(bench_case, shared: Conversation::BenchCase.shared_tools)
     return bench_case if bench_case.captured?
 
-    wanted = ALWAYS_OFFERED + (bench_case.tools.any?(&:outside?) ? CONNECTED_OFFERED : [])
+    wanted = ALWAYS_OFFERED + (bench_case.tools.any?(&:outside?) || Conversation::BenchWorkspace.on? ? CONNECTED_OFFERED : [])
     added = (wanted - bench_case.tools.map(&:name)).map { |name| Conversation::BenchCase.tool_from(shared.fetch(name)) }
-    bench_case.offering(added)
+    with_shared = bench_case.offering(added)
+    Conversation::BenchWorkspace.on? ? with_shared.offering(Conversation::BenchWorkspace.offered_beside(with_shared)) : with_shared
   end
 
   # What a call asked for, without the sentence a confirmation leads with, which the tool itself never sees.

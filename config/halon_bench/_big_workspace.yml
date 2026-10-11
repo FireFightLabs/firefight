@@ -1,0 +1,32 @@
+# The connections of a large workspace the bench can add to every scenario (HALON_BENCH_BIG_WORKSPACE=on), so Halon has
+# to pick among a few hundred tools as it does in a real workspace. Each provider's tools come from definitions Firefight
+# already keeps: a native pack's own (pack), a hosted server's published list in test/fixtures/files, or the bench's
+# shared tools. bin/rails halon:bench_big_workspace writes them to _big_workspace_tools.yml, in an order the seed fixes.
+# A hosted server's list keeps only each tool's name and whether it reads, so those tools get a plain description.
+# only keeps the lines of that kind, and changes names tools a list without kinds holds that change something.
+seed: 20261011
+providers:
+  - key: github
+    from: pack
+  - key: northflank
+    from: pack
+  - key: aws
+    from: pack
+  - key: opsgenie
+    from: pack
+  - key: postgresql
+    from: pack
+  - key: notion
+    from: test/fixtures/files/notion_mcp_tools.txt
+  - key: linear
+    from: test/fixtures/files/linear_mcp_tools.txt
+  - key: datadog
+    from: test/fixtures/files/datadog_mcp_tools.txt
+  - key: sentry
+    from: test/fixtures/files/sentry_mcp_tools.txt
+    only: direct
+    changes: [ analyze_issue_with_seer, update_issue, execute_sentry_tool ]
+  - key: planetscale
+    from: config/halon_bench/_tools.yml
+  - key: cloudflare
+    from: config/halon_bench/_tools.yml
