@@ -8,6 +8,7 @@ module AlertProviders
     AlertSource::PROVIDER_GRAFANA => "AlertProviders::Grafana",
     AlertSource::PROVIDER_HONEYBADGER => "AlertProviders::Honeybadger",
     AlertSource::PROVIDER_HONEYCOMB => "AlertProviders::Honeycomb",
+    AlertSource::PROVIDER_LOGFIRE => "AlertProviders::Logfire",
     AlertSource::PROVIDER_MIXPANEL => "AlertProviders::Mixpanel",
     AlertSource::PROVIDER_NEW_RELIC => "AlertProviders::NewRelic",
     AlertSource::PROVIDER_NORTHFLANK => "AlertProviders::Northflank",

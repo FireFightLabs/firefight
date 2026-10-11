@@ -8,7 +8,7 @@ tools: [recent_deploys, recent_builds, resource_status, query_metrics, run_histo
    - a template or release flow run, which can change code and settings together
    - a change to the service's settings, such as environment variables, plan or instances, which redeploys the same code
    The reason also names who made it when a person did.
-2. When the service is released by a workflow or a pipeline's release flow, which the map links it to, call `run_history` on that workflow or release flow. A run that ended just before the trouble is the release itself, and reading it with `run` shows each step it ran and any that failed or was retried.
+2. When the service is released by a workflow or a pipeline's release flow, which the map links it to, call `run_history` on that workflow or release flow. A run that ended just before the trouble is the release itself, and reading it with `run` shows each step it ran and any that failed or was retried. When the deployment's reason is a template run, call `run_history` on that template, which the map holds as a stack, the same way.
 3. Call `query_metrics` for the errors or resources that went wrong, and line the moment they turned up against those times. A deployment that went out after the trouble began did not cause it.
 4. Call `recent_builds` to see builds that failed or never deployed. A failed build is not deployed, so the old version keeps running. It can explain a fix that is not live, rarely an outage.
 5. Call `resource_status` for the commit running now and the repository it comes from. To see what the suspect deployment changed in code, compare its commit with the one before it in the repository.

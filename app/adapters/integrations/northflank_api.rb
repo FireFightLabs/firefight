@@ -132,6 +132,28 @@ module Integrations
       get("/projects/#{segment(project_id)}/pipelines/#{segment(pipeline_id)}/release-flows/#{segment(stage)}/runs/#{segment(run_id)}")["data"] || {}
     end
 
+    # The templates of the team the token belongs to (ListTemplatesResult templates), one template, a template's runs
+    # newest first (ListTemplaterunsResult templateRuns) and one run with its nodes, the same tree a workflow run has
+    # (GetTemplaterunResult spec). /v1/templates answers for the token's own team, so no team is named.
+    def templates = list("/templates", "templates")
+
+    def template(template_id) = get("/templates/#{segment(template_id)}")["data"] || {}
+
+    def template_runs(template_id, limit:)
+      get("/templates/#{segment(template_id)}/runs", "per_page" => limit).dig("data", "templateRuns") || []
+    end
+
+    def template_run(template_id, run_id) = get("/templates/#{segment(template_id)}/runs/#{segment(run_id)}")["data"] || {}
+
+    # Starts a run with the values the template reads as ${args.<name>} (RunTemplateData arguments), and aborts one.
+    def run_template(template_id, arguments = nil)
+      changing(Net::HTTP::Post, "/templates/#{segment(template_id)}/runs", { "arguments" => arguments }.compact)["data"] || {}
+    end
+
+    def abort_template_run(template_id, run_id)
+      changing(Net::HTTP::Post, "/templates/#{segment(template_id)}/runs/#{segment(run_id)}/abort")["data"] || {}
+    end
+
     # kind is services, addons or jobs, the three things that run and log in a project. A job's logs and metrics take a
     # runId for one run (get-job-logs, get-job-metrics). query uses Northflank's own parameter names, such as startTime
     # and textIncludes.

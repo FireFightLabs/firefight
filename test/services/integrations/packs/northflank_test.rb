@@ -22,11 +22,12 @@ module Integrations
         NorthflankApi.any_instance.stubs(:jobs).returns(listed([]))
         NorthflankApi.any_instance.stubs(:workflows).returns(listed([]))
         NorthflankApi.any_instance.stubs(:pipelines).returns(listed([]))
+        NorthflankApi.any_instance.stubs(:templates).returns(listed([]))
       end
 
-      test "the token and project are stored trimmed, and every tool only reads except the ones that change the project" do
+      test "the token and project are stored trimmed, and every tool only reads except the ones that change the project or run the team's templates" do
         assert_equal "nf-token", @row.reload.credentials_hash[Northflank::API_TOKEN]
-        assert_equal %w[api_request add_workflow_webhook], Northflank.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[api_request add_workflow_webhook run_template abort_template_run], Northflank.tool_definitions.reject(&:read_only).map(&:name)
       end
 
       test "a change goes to a path inside the project only, with its body, and links to what it changed" do
@@ -279,11 +280,17 @@ module Integrations
                                          jobs: listed([ { "id" => "nightly", "name" => "Nightly", "jobType" => "cron" } ]), job_runs: [], request: {},
                                          workflow: { "name" => "Release", "triggers" => [] }, update_workflow: {}, billing_usage: listed([]),
                                          workflows: listed([ { "id" => "release", "name" => "Release" } ]), workflow_runs: [],
-                                         pipelines: listed([ { "id" => "shop", "name" => "shop" } ]), release_flow_runs: [], backups: [])
+                                         pipelines: listed([ { "id" => "shop", "name" => "shop" } ]), release_flow_runs: [], backups: [],
+                                         templates: listed([ { "id" => "nightly", "name" => "Nightly" } ]), template_runs: [], run_template: {}, abort_template_run: {})
         arguments = { "resource" => "web", "job" => "nightly", "build" => "jovial-writer-6307", "method" => "POST", "path" => "services/web/restart",
-                      "workflow" => "release", "ref" => "release-webhook", "pipeline" => "shop", "stage" => "Production" }
+                      "workflow" => "release", "ref" => "release-webhook", "pipeline" => "shop", "stage" => "Production",
+                      "template" => "nightly" }
         links = Northflank.tool_definitions.to_h do |definition|
-          given = definition.name.to_s == Northflank::Backups::BACKUP_HISTORY ? arguments.merge("resource" => "db") : arguments
+          given = case definition.name.to_s
+          when Northflank::Backups::BACKUP_HISTORY then arguments.merge("resource" => "db")
+          when Northflank::Templates::ABORT_TEMPLATE_RUN then arguments.merge("run" => "t1")
+          else arguments
+          end
           [ definition.name.to_s, call(definition.name, given).lines.last ]
         end
 
@@ -302,6 +309,8 @@ module Integrations
         assert_match %r{/project/firefight\z}, links["workflow_runs"]
         assert_match %r{/project/firefight\z}, links["release_flow_runs"]
         assert_match %r{/project/firefight/addons/db\z}, links["backup_history"]
+        %w[template_runs run_template abort_template_run].each { |name| assert_match %r{app.northflank.com/s/account/templates\z}, links[name] }
+        %w[template_runs run_template abort_template_run].each { |name| assert_match %r{app.northflank.com/s/account/templates\z}, links[name] }
       end
 
       test "a metric with more containers than a chart keeps says how many were left out" do
@@ -536,7 +545,7 @@ module Integrations
 
         assert_equal [ "The project has more than 1000 services, so only the first 1000 are on the map.",
                        "The project has more than 1000 databases, so only the first 1000 are on the map.",
-                       "The project has more than 1000 jobs, so only the first 1000 are on the map." ], snapshot.gap_texts
+                       "The project has more than 1000 jobs, so only the first 1000 are on the map.", Northflank::Templates::NO_TEAM ], snapshot.gap_texts
         assert_equal [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_BUILD_SERVICE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY,
                        ResourceMap::KIND_DATABASE, ResourceMap::KIND_JOB ], snapshot.unread_kinds
       end

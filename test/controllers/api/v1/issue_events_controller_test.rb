@@ -25,6 +25,23 @@ class Api::V1::IssueEventsControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
+  test "the workspace's token in the address reaches no request log or parameter" do
+    body, headers = linear_delivery(change)
+    recorded = []
+    subscriber = ActiveSupport::Notifications.subscribe("process_action.action_controller") { |event| recorded << event.payload }
+
+    begin
+      post api_v1_issue_events_path(@workspace.issue_webhook_token), params: body, headers: headers
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+
+    assert_response :ok
+    assert_equal "/api/v1/issue_events/#{PathSecret::MASK}", recorded.sole[:path]
+    assert_not_includes recorded.sole.to_s, @workspace.issue_webhook_token
+    assert_not_includes request.filtered_path, @workspace.issue_webhook_token
+  end
+
   test "a delivery whose signature fails is refused and nothing is applied" do
     body, headers = linear_delivery(change, secret: "someone else's")
 

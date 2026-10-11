@@ -84,6 +84,33 @@ class Conversation::ReleaseWatchTest < ActiveSupport::TestCase
     assert_enqueued_with(job: WatchCheckJob, args: [ watch.id ]) { Integrations::MapEvents.receive!(@row, events) }
   end
 
+  test "a watch on a team template follows its newest run through run history and names the node that failed" do
+    NorthflankApi.any_instance.stubs(:templates).returns(Integrations::Pages::Read.new(items: [ { "id" => "preview-stack", "name" => "Preview stack" } ], complete: true))
+    ResourceMap::Resource.create!(workspace: @workspace, provider: "northflank", account: "firefight-labs", kind: ResourceMap::KIND_STACK,
+                                  external_id: "preview-stack", name: "Preview stack", integration_environment: @row, first_seen_at: Time.current, last_seen_at: Time.current)
+    older = [ listed("t1", "success", 2.days.ago, concluded: 2.days.ago + 6.minutes) ]
+    NorthflankApi.any_instance.stubs(:template_runs).returns(older)
+    step = { "label" => "Preview stack", "capability" => "run_history", "resource" => "Preview stack", "name" => "Preview stack" }
+    Conversation::Watches.start(@turn, { "title" => "the preview stack", "steps" => [ step ] })
+    watch = @conversation.chat.watches.sole
+
+    NorthflankApi.any_instance.stubs(:template_runs).returns([ listed("t2", "failure", @started, concluded: @started + 3.minutes) ] + older)
+    NorthflankApi.any_instance.stubs(:template_run).with("preview-stack", "t2").returns(
+      "id" => "t2", "templateId" => "preview-stack", "status" => "failure", "concluded" => true, "startedAt" => @started.utc.iso8601,
+      "concludedAt" => (@started + 3.minutes).utc.iso8601,
+      "spec" => { "kind" => "Workflow", "spec" => { "type" => "sequential", "steps" => [
+        { "kind" => "Addon", "ref" => "db", "spec" => { "name" => "preview-db" },
+          "response" => { "status" => "failure", "startTime" => @started.to_i, "endTime" => @started.to_i + 180, "error" => { "message" => "Plan nf-compute-20 is not available" } } }
+      ] } }
+    )
+    Investigation.stubs(:unavailable_reason).returns("Halon is off for this test")
+    travel(4.minutes) { check!(watch) }
+
+    assert_equal [ "t2", Chat::Watch::STATUS_FAILED ], [ watch.steps.sole.reload.followed_run_id, watch.reload.status ]
+    assert_match "Addon preview-db failed Plan nf-compute-20 is not available", watch.updates.find_by!(kind: Chat::Watch::Update::KIND_PART_FAILED).text
+    assert Ability::Invocation.where(workspace: @workspace, action_key: "northflank.template_runs").exists?
+  end
+
   private
 
   def watch

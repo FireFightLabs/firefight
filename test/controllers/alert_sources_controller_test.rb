@@ -133,4 +133,49 @@ class AlertSourcesControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
     assert_equal "Theirs", source.reload.name
   end
+
+  test "a Logfire source's whole address is fetched on demand, and its token alone is never handed out" do
+    source = @workspace.alert_sources.create!(name: "Logfire", provider: AlertSource::PROVIDER_LOGFIRE)
+
+    post address_alert_source_url(source)
+    assert_response :success
+    assert_equal "#{api_v1_alert_ingest_path(endpoint_path: source.endpoint_path)}/#{source.secret_token}", response.parsed_body["path"]
+
+    post token_alert_source_url(source)
+    assert_response :not_found
+  end
+
+  test "a source whose token travels in a header has no address to fetch or regenerate" do
+    source = @workspace.alert_sources.create!(name: "Webhook", provider: AlertSource::PROVIDER_GENERIC)
+    token = source.secret_token
+
+    post address_alert_source_url(source)
+    assert_response :not_found
+    post regenerate_address_alert_source_url(source)
+    assert_response :not_found
+    assert_equal token, source.reload.secret_token
+  end
+
+  test "regenerating a Logfire source's address replaces its secret and says so" do
+    source = @workspace.alert_sources.create!(name: "Logfire", provider: AlertSource::PROVIDER_LOGFIRE)
+    old_secret = source.secret_token
+
+    post regenerate_address_alert_source_url(source)
+
+    assert_redirected_to settings_alert_sources_path
+    assert_equal "Logfire has a new address.", flash[:notice]
+    assert_not_equal old_secret, source.reload.secret_token
+    assert_equal 48, source.secret_token.length
+  end
+
+  test "the settings page shows a Logfire source's address masked, never its secret" do
+    source = @workspace.alert_sources.create!(name: "Logfire", provider: AlertSource::PROVIDER_LOGFIRE)
+
+    get settings_alert_sources_url, headers: inertia_headers
+
+    row = response.parsed_body["props"]["alertSources"].find { |entry| entry["id"] == source.id }
+    assert_equal "#{api_v1_alert_ingest_path(endpoint_path: source.endpoint_path)}/#{AlertSourceSettingsSerializer::SECRET_MASK}", row["ingestPath"]
+    assert response.parsed_body["props"]["providers"].find { |entry| entry["provider"] == AlertSource::PROVIDER_LOGFIRE }["secretInAddress"]
+    assert_not_includes response.body, source.secret_token
+  end
 end

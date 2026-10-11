@@ -24,6 +24,18 @@ module Integrations
           NorthflankApi.any_instance.stubs(:pipelines).with(project).returns(listed([]))
           NorthflankApi.any_instance.stubs(:secret_groups).with(project).returns(listed([]))
         end
+        NorthflankApi.any_instance.stubs(:templates).returns(listed([]))
+      end
+
+      test "the team's templates go on the map once for several projects, unmarked by any project, and are kept" do
+        NorthflankApi.any_instance.expects(:templates).once.returns(listed([ { "id" => "nightly", "name" => "Nightly" } ]))
+
+        snapshot = Northflank.new(@integration).map_of(@row)
+        stacks = snapshot.resources.select { |found| found.kind == ResourceMap::KIND_STACK }
+
+        assert_equal [ [ "labs", "nightly", nil ] ], stacks.map { |found| [ found.account, found.external_id, found.details[ResourceMap::SCOPE] ] }
+        ResourceMap.record!(@row, snapshot)
+        assert ResourceMap::Resource.present.exists?(workspace: @workspace, provider: "northflank", kind: ResourceMap::KIND_STACK, external_id: "nightly", account: "labs")
       end
 
       test "several projects go on the map without merging a service two of them call web, each named with its project" do

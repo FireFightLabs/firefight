@@ -22,6 +22,7 @@ module Integrations
           NorthflankApi.any_instance.stubs(:secret_groups).returns(listed([]))
           NorthflankApi.any_instance.stubs(:workflows).returns(listed([ { "id" => "release", "name" => "Release" } ]))
           NorthflankApi.any_instance.stubs(:pipelines).returns(listed([ { "id" => "shop", "name" => "shop" } ]))
+          NorthflankApi.any_instance.stubs(:templates).returns(listed([]))
         end
 
         test "a workflow's runs are its run history, named by the workflow, each status in Firefight's words" do
