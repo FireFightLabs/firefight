@@ -295,4 +295,49 @@ class Api::V1::AlertsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "delivery-7", alert.external_id
     assert_not alert.payload.key?("shared_secret")
   end
+
+  test "a Logfire alert arrives with the secret in its address, which no log or parameter carries" do
+    source = AlertSource.create!(workspace: @workspace, name: "Logfire", provider: AlertSource::PROVIDER_LOGFIRE)
+    body = file_fixture("alert_providers/logfire_alert.json").read
+    Net::HTTP.any_instance.expects(:start).never
+    recorded = []
+    subscriber = ActiveSupport::Notifications.subscribe("process_action.action_controller") { |event| recorded << event.payload }
+
+    begin
+      post "#{api_v1_alert_ingest_path(endpoint_path: source.endpoint_path)}/#{source.secret_token}",
+           params: body, headers: { "Content-Type" => "application/json" }
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+
+    assert_response :success
+    assert_equal "Example alert", source.alerts.sole.title
+    payload = recorded.sole
+    assert_equal "#{api_v1_alert_ingest_path(endpoint_path: source.endpoint_path)}/#{PathSecret::MASK}", payload[:path]
+    assert_not_includes payload.to_s, source.secret_token
+    assert_not_includes request.filtered_path, source.secret_token
+  end
+
+  test "a Logfire source refuses its bare address, a wrong secret and a token sent as a header" do
+    source = AlertSource.create!(workspace: @workspace, name: "Logfire", provider: AlertSource::PROVIDER_LOGFIRE)
+    body = file_fixture("alert_providers/logfire_alert.json").read
+    bare = api_v1_alert_ingest_path(endpoint_path: source.endpoint_path)
+
+    [
+      [ bare, { "Authorization" => "Bearer #{source.secret_token}" } ],
+      [ "#{bare}/#{source.secret_token.reverse}", {} ]
+    ].each do |path, headers|
+      post path, params: body, headers: headers.merge("Content-Type" => "application/json")
+      assert_response :unauthorized
+    end
+    assert_equal "invalid token", source.reload.last_rejection_reason
+    assert_equal 0, source.alerts.count
+  end
+
+  test "a secret in the address means nothing to a source whose token travels in a header" do
+    post "#{api_v1_alert_ingest_path(endpoint_path: @source.endpoint_path)}/#{@source.secret_token}",
+         params: { "title" => "x" }.to_json, headers: { "Content-Type" => "application/json" }
+
+    assert_response :unauthorized
+  end
 end

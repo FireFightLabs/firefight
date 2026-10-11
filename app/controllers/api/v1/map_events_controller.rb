@@ -5,10 +5,11 @@
 class Api::V1::MapEventsController < ActionController::API
   MAX_BYTES = 1.megabyte
 
-  rate_limit to: 600, within: 1.minute, by: -> { params[:token].to_s }, with: -> { head :too_many_requests }
+  rate_limit to: 600, within: 1.minute, by: -> { PathSecret.from(request).to_s }, with: -> { head :too_many_requests }
 
   def create
-    row = IntegrationEnvironment.reachable.find_by(map_events_token: params[:token].to_s) if params[:token].present?
+    token = PathSecret.from(request)
+    row = IntegrationEnvironment.reachable.find_by(map_events_token: token) if token
     source = row && Integrations::MapEvents.source_of(row.integration.provider)
     return head :not_found unless source
 

@@ -5,7 +5,7 @@ import { Link, router } from "@inertiajs/react"
 import type { AlertSourceSettings, IncidentSeveritySettings } from "@/types/serializers"
 import { alertSourcePath, settingsAlertRoutingPath, settingsAlertsPath, tokenAlertSourcePath } from "@/lib/routes"
 import { postJson } from "@/lib/http"
-import { providerLabel, type AlertProviderSetup } from "@/pages/settings/lib/alerts"
+import { fetchSourceAddress, providerLabel, providerSetup, type AlertProviderSetup } from "@/pages/settings/lib/alerts"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { AddSourceDialog } from "@/pages/settings/components/alert-sources/add-source-dialog"
 import { EditSourceDialog } from "@/pages/settings/components/alert-sources/edit-source-dialog"
 import { LastEventCell } from "@/pages/settings/components/alert-sources/last-event-cell"
@@ -71,6 +72,20 @@ export function AlertSourcesTab({
       }
     } catch {
       // The button stays as it was and the user can retry.
+    }
+  }
+
+  function secretInAddress(source: AlertSourceSettings) {
+    return providerSetup(providers, source.provider)?.secretInAddress ?? false
+  }
+
+  // A URL holding the source's secret is fetched whole only when copied, as the page holds it masked.
+  async function copyIngestUrl(source: AlertSourceSettings) {
+    const url = secretInAddress(source)
+      ? await fetchSourceAddress(source.id)
+      : `${window.location.origin}${source.ingestPath}`
+    if (url) {
+      handleCopy(url, `url-${source.id}`)
     }
   }
 
@@ -140,23 +155,38 @@ export function AlertSourcesTab({
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 gap-1.5 px-2 font-mono text-xs text-muted-foreground"
-                        onClick={() => handleCopy(`${window.location.origin}${source.ingestPath}`, `url-${source.id}`)}
-                      >
-                        {copiedField === `url-${source.id}` ? <IconCheck className="size-3.5" /> : <IconCopy className="size-3.5" />}
-                        {source.ingestPath}
-                      </Button>
+                      {secretInAddress(source) && !canManage ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="px-2 font-mono text-xs text-muted-foreground">{source.ingestPath}</span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-64">
+                            This URL holds the source's secret, so only people who can change alert sources see it whole.
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 gap-1.5 px-2 font-mono text-xs text-muted-foreground"
+                          onClick={() => void copyIngestUrl(source)}
+                        >
+                          {copiedField === `url-${source.id}` ? <IconCheck className="size-3.5" /> : <IconCopy className="size-3.5" />}
+                          {source.ingestPath}
+                        </Button>
+                      )}
                     </TableCell>
                     {canManage && (
                       <TableCell className="hidden lg:table-cell">
-                        {secretFromProvider(source) ? (
+                        {secretFromProvider(source) && (
                           <span className="px-2 text-xs text-muted-foreground">
                             {source.secretSummary ? "Secret saved" : "No secret yet"}
                           </span>
-                        ) : (
+                        )}
+                        {secretInAddress(source) && (
+                          <span className="px-2 text-xs text-muted-foreground">Part of the URL</span>
+                        )}
+                        {!secretFromProvider(source) && !secretInAddress(source) && (
                           <Button
                             variant="ghost"
                             size="sm"

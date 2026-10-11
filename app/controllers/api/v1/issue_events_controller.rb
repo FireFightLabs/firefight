@@ -4,10 +4,11 @@
 class Api::V1::IssueEventsController < ActionController::API
   MAX_BYTES = 1.megabyte
 
-  rate_limit to: 600, within: 1.minute, by: -> { params[:token].to_s }, with: -> { head :too_many_requests }
+  rate_limit to: 600, within: 1.minute, by: -> { PathSecret.from(request).to_s }, with: -> { head :too_many_requests }
 
   def create
-    workspace = Workspace.find_by(issue_webhook_token: params[:token].to_s) if params[:token].present?
+    token = PathSecret.from(request)
+    workspace = Workspace.find_by(issue_webhook_token: token) if token
     integration = workspace&.issue_sync_connection
     row = workspace&.issue_webhook_row(integration)
     return head :not_found unless row
