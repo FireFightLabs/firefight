@@ -24,8 +24,7 @@ class Chat::HandbookChunk < ApplicationRecord
   private
 
   def index_words
-    self.document = self.class.connection.select_value(
-      self.class.sanitize_sql_array([ "SELECT strip(to_tsvector('simple', ?))::text", "#{heading_path} #{text}" ])
-    )
+    sql = self.class.sanitize_sql_array([ "SELECT strip(to_tsvector('simple', ?))::text", "#{heading_path} #{text}" ])
+    self.document = self.class.with_connection { |connection| connection.select_value(sql) }
   end
 end

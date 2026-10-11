@@ -27,7 +27,7 @@ class IncidentTranscriptMessageTest < ActiveSupport::TestCase
   test "raw DB column stores ciphertext, not plaintext" do
     message = build_message(content: "ssh into prod-3 and tail logs").tap(&:save!)
 
-    raw = IncidentTranscriptMessage.connection.select_value(
+    raw = IncidentTranscriptMessage.lease_connection.select_value(
       "SELECT content FROM incident_transcript_messages WHERE id = '#{message.id}'"
     )
 

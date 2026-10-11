@@ -16,9 +16,9 @@ class Chat::Tools::SearchHandbookTest < ActiveSupport::TestCase
     chunks = @guide.chunks.to_a
 
     assert_equal [ "Release guide > Before", "Release guide > Rollback" ], chunks.map(&:heading_path)
-    stored = Chat::HandbookChunk.connection.select_values("SELECT text FROM chat_handbook_chunks WHERE handbook_page_id = '#{@guide.id}'")
+    stored = Chat::HandbookChunk.lease_connection.select_values("SELECT text FROM chat_handbook_chunks WHERE handbook_page_id = '#{@guide.id}'")
     assert(stored.none? { |text| text.include?("rollback") })
-    document = Chat::HandbookChunk.connection.select_value("SELECT document::text FROM chat_handbook_chunks WHERE handbook_page_id = '#{@guide.id}' AND position = 1")
+    document = Chat::HandbookChunk.lease_connection.select_value("SELECT document::text FROM chat_handbook_chunks WHERE handbook_page_id = '#{@guide.id}' AND position = 1")
     assert_not_includes document, ":"
   end
 

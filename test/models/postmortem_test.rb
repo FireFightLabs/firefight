@@ -180,7 +180,7 @@ class PostmortemTest < ActiveSupport::TestCase
     assert_not_includes items, "Block the IPs"
     assert_includes postmortem.generation_prompt, "[REDACTED:"
     assert_not_includes postmortem.generation_prompt, "ghp_"
-    assert_not_includes Postmortem.connection.select_value("SELECT generation_prompt FROM postmortems WHERE id = '#{postmortem.id}'"), "Incident Details"
+    assert_not_includes Postmortem.lease_connection.select_value("SELECT generation_prompt FROM postmortems WHERE id = '#{postmortem.id}'"), "Incident Details"
   end
 
   test "the timeline section shows an update as its first line and what it changed" do

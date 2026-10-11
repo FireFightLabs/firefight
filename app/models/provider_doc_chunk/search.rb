@@ -44,9 +44,8 @@ class ProviderDocChunk::Search
   # The query's own words, as the chunks' document splits them, so a dotted name or a path is one word on both sides.
   def words
     @words ||= begin
-      lexemes = ProviderDocChunk.connection.select_values(
-        ProviderDocChunk.sanitize_sql_array([ "SELECT unnest(tsvector_to_array(to_tsvector('simple', ?)))", @query ])
-      )
+      sql = ProviderDocChunk.sanitize_sql_array([ "SELECT unnest(tsvector_to_array(to_tsvector('simple', ?)))", @query ])
+      lexemes = ProviderDocChunk.with_connection { |connection| connection.select_values(sql) }
       meaningful = lexemes.reject { |lexeme| Chat::Memory::Words::STOP_WORDS.include?(lexeme) }
       meaningful.presence || lexemes
     end

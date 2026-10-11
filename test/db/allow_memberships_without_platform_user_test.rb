@@ -28,7 +28,7 @@ class AllowMembershipsWithoutPlatformUserTest < ActiveSupport::TestCase
 
   private
 
-  def connection = ActiveRecord::Base.connection
+  def connection = ActiveRecord::Base.lease_connection
 
   def migrate
     ActiveRecord::Migration.suppress_messages { AllowMembershipsWithoutPlatformUser.new.migrate(:up) }

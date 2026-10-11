@@ -113,7 +113,7 @@ module Integrations
       test "the one database the URL reaches is on the map, named by its host, port and name, with no credential" do
         snapshot = @pack.map_of(@row)
         database = snapshot.resources.sole
-        name = ActiveRecord::Base.connection.current_database
+        name = ActiveRecord::Base.lease_connection.current_database
 
         assert_equal [ Postgres::PROVIDER, database_host, ResourceMap::KIND_DATABASE, name ], [ database.provider, database.account, database.kind, database.name ]
         assert_match %r{\A#{Regexp.escape(database_host)}:\d+/#{name}\z}, database.external_id

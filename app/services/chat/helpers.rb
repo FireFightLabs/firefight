@@ -87,7 +87,7 @@ module Chat::Helpers
   end
 
   # Helper threads one worker process runs at once. Each can hold a database connection while it works, and the pool is
-  # sized for the worker's own threads plus a few, so past this a helper waits for another to finish rather than for a
+  # shared with the worker's own jobs, so past this a helper waits for another to finish rather than for a
   # connection it might never get.
   THREADS_PER_PROCESS = 6
   SLOTS = Concurrent::Semaphore.new(THREADS_PER_PROCESS)

@@ -168,6 +168,6 @@ class SearchDocumentTest < ActiveSupport::TestCase
   def resource(external_id) = ResourceMap::Resource.find_by!(workspace: @workspace, external_id: external_id)
 
   def matches?(document, word)
-    SearchDocument.where(id: document.id).where("document @@ to_tsquery('simple', ?)", ActiveRecord::Base.connection.quote(word)).exists?
+    SearchDocument.where(id: document.id).where("document @@ to_tsquery('simple', ?)", ActiveRecord::Base.lease_connection.quote(word)).exists?
   end
 end

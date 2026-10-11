@@ -41,7 +41,7 @@ class AddFounderLetterSeenAtToWorkspaceOnboardingsTest < ActiveSupport::TestCase
   end
 
   def column_exists?
-    ActiveRecord::Base.connection.column_exists?(:workspace_onboardings, :founder_letter_seen_at)
+    ActiveRecord::Base.lease_connection.column_exists?(:workspace_onboardings, :founder_letter_seen_at)
   end
 
   def migrate(direction)

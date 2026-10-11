@@ -200,7 +200,7 @@ class AlertIngestService
   def lock_signature!(alert)
     key = Zlib.crc32("alert_grouping:#{@workspace.id}:#{content_signature(alert)}")
     sql = ActiveRecord::Base.sanitize_sql_array([ "SELECT pg_advisory_xact_lock(?)::text", key ])
-    ActiveRecord::Base.connection.select_value(sql)
+    ActiveRecord::Base.with_connection { |connection| connection.select_value(sql) }
   end
 
   def grouped_incident(alert)

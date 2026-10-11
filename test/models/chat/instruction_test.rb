@@ -46,7 +46,7 @@ class Chat::InstructionTest < ActiveSupport::TestCase
   test "the text is stored encrypted" do
     note = write("Never restart the primary database")
 
-    assert_not_includes Chat::Instruction.connection.select_value("SELECT text FROM chat_instructions WHERE id = '#{note.id}'"), "primary"
+    assert_not_includes Chat::Instruction.lease_connection.select_value("SELECT text FROM chat_instructions WHERE id = '#{note.id}'"), "primary"
   end
 
   test "instructions that look like they hold a secret are refused, since they reach every prompt" do

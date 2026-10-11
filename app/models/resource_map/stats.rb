@@ -70,10 +70,11 @@ class ResourceMap::Stats
 
   def health_sql
     words = ResourceMap::Resource::STATUS_HEALTH.group_by(&:last).transform_values { |pairs| pairs.map(&:first) }
-    connection = ResourceMap::Resource.connection
-    cases = words.map do |health, listed|
-      "WHEN lower(resource_map_resources.status) IN (#{listed.map { |word| connection.quote(word) }.join(', ')}) THEN #{connection.quote(health)}"
+    ResourceMap::Resource.with_connection do |connection|
+      cases = words.map do |health, listed|
+        "WHEN lower(resource_map_resources.status) IN (#{listed.map { |word| connection.quote(word) }.join(', ')}) THEN #{connection.quote(health)}"
+      end
+      "CASE #{cases.join(' ')} ELSE #{connection.quote(ResourceMap::Resource::HEALTH_UNKNOWN)} END"
     end
-    "CASE #{cases.join(' ')} ELSE #{connection.quote(ResourceMap::Resource::HEALTH_UNKNOWN)} END"
   end
 end

@@ -25,6 +25,8 @@ gem "tzinfo-data", platforms: %i[ windows jruby ]
 # Use the database-backed adapters for Rails.cache, Active Job, and Action Cable
 gem "solid_cache"
 gem "solid_queue"
+# The fiber reactor of the workers that mostly wait on a model or a provider (config/queue.yml)
+gem "async"
 gem "solid_cable"
 gem "solid_workflow", path: "engines/solid_workflow"
 
