@@ -1,0 +1,109 @@
+# DigitalOcean's key reads through api_read, at most 40, which close the digitalocean_api skill
+# (Integrations::ApiIndex). Edit a read's call, purpose or query here, then run bin/rails provider_docs:api_indexes.
+tool: api_read
+skill: digitalocean_api
+reference: api
+reads:
+  - call: GET /v2/apps
+    purpose: The account's App Platform apps, with each one's active deployment and phase.
+    query: [ page, per_page ]
+  - call: GET /v2/apps/{id}
+    purpose: One app, with its spec, active and in progress deployments, and live URL.
+  - call: GET /v2/apps/{app_id}/deployments
+    purpose: An app's deployments, newest first, with each one's phase, cause and progress.
+    query: [ page, per_page ]
+  - call: GET /v2/apps/{app_id}/deployments/{deployment_id}
+    purpose: One deployment, with its phase, steps, cause and any error.
+  - call: GET /v2/apps/{app_id}/health
+    purpose: The health of an app's components, with their running and failing instances.
+  - call: GET /v2/apps/{app_id}/alerts
+    purpose: An app's alerts, with each one's rule and phase.
+  - call: GET /v2/apps/{app_id}/events
+    purpose: An app's events, such as deploys, autoscaling and restarts, newest first.
+    query: [ page, per_page ]
+  - call: GET /v2/monitoring/metrics/apps/cpu_percentage
+    purpose: An app component's CPU use over a time range.
+    query: [ app_id, start, end ]
+  - call: GET /v2/monitoring/metrics/apps/memory_percentage
+    purpose: An app component's memory use over a time range.
+    query: [ app_id, start, end ]
+  - call: GET /v2/monitoring/metrics/apps/restart_count
+    purpose: How often an app component restarted over a time range.
+    query: [ app_id, start, end ]
+  - call: GET /v2/droplets
+    purpose: The account's Droplets, with each one's status, size, region and addresses.
+    query: [ per_page, page, type ]
+  - call: GET /v2/droplets/{droplet_id}
+    purpose: One Droplet, with its status, size, image, networks and features.
+  - call: GET /v2/droplets/{droplet_id}/actions
+    purpose: Actions taken on a Droplet, such as reboots, resizes and power cycles, newest first.
+    query: [ per_page, page ]
+  - call: GET /v2/monitoring/metrics/droplet/cpu
+    purpose: A Droplet's CPU use over a time range.
+    query: [ host_id, start, end ]
+  - call: GET /v2/monitoring/metrics/droplet/memory_available
+    purpose: A Droplet's available memory over a time range.
+    query: [ host_id, start, end ]
+  - call: GET /v2/monitoring/metrics/droplet/filesystem_free
+    purpose: A Droplet's free disk space over a time range.
+    query: [ host_id, start, end ]
+  - call: GET /v2/droplets/autoscale
+    purpose: The account's Droplet autoscale pools, with their size and status.
+    query: [ per_page, page ]
+  - call: GET /v2/droplets/autoscale/{autoscale_pool_id}/history
+    purpose: An autoscale pool's scaling events, newest first.
+    query: [ per_page, page ]
+  - call: GET /v2/actions
+    purpose: Every action taken across the account, newest first, with its type, status and resource.
+    query: [ per_page, page ]
+  - call: GET /v2/kubernetes/clusters
+    purpose: The account's Kubernetes clusters, with their status, version and node pools.
+    query: [ per_page, page ]
+  - call: GET /v2/kubernetes/clusters/{cluster_id}
+    purpose: One Kubernetes cluster, with its status, version, node pools and maintenance window.
+  - call: GET /v2/kubernetes/clusters/{cluster_id}/node_pools
+    purpose: A cluster's node pools, with their size, node count and each node's status.
+  - call: GET /v2/kubernetes/clusters/{cluster_id}/status_messages
+    purpose: A cluster's status messages, such as control plane problems, newest first.
+    query: [ since ]
+  - call: GET /v2/databases
+    purpose: The account's database clusters, with their engine, status, size and region.
+  - call: GET /v2/databases/{database_cluster_uuid}
+    purpose: One database cluster, with its status, engine version, nodes and maintenance window.
+  - call: GET /v2/databases/{database_cluster_uuid}/events
+    purpose: A database cluster's events, such as failovers, resizes and maintenance.
+  - call: GET /v2/databases/{database_cluster_uuid}/backups
+    purpose: A database cluster's backups, with when each was taken and its size.
+  - call: GET /v2/databases/{database_cluster_uuid}/replicas
+    purpose: A database cluster's read replicas, with their status and region.
+  - call: GET /v2/databases/{database_cluster_uuid}/firewall
+    purpose: Which sources may reach a database cluster.
+  - call: GET /v2/databases/{database_cluster_uuid}/users
+    purpose: A database cluster's users, by name and role, never their passwords.
+  - call: GET /v2/load_balancers
+    purpose: The account's load balancers, with their status, rules, health checks and Droplets.
+    query: [ per_page, page ]
+  - call: GET /v2/load_balancers/{lb_id}
+    purpose: One load balancer, with its status, forwarding rules and health check.
+  - call: GET /v2/monitoring/metrics/load_balancer/droplets_health_checks
+    purpose: Whether a load balancer's Droplets passed their health checks over a time range.
+    query: [ lb_id, start, end ]
+  - call: GET /v2/monitoring/metrics/load_balancer/frontend_http_responses
+    purpose: A load balancer's responses by status code over a time range.
+    query: [ lb_id, start, end ]
+  - call: GET /v2/monitoring/alerts
+    purpose: The account's alert policies, with what each watches and where it notifies.
+    query: [ per_page, page ]
+  - call: GET /v2/uptime/checks
+    purpose: The account's uptime checks, with their target and regions.
+    query: [ per_page, page ]
+  - call: GET /v2/uptime/checks/{check_id}/state
+    purpose: Whether an uptime check is up or down now, by region, with its latency.
+  - call: GET /v2/domains/{domain_name}/records
+    purpose: A domain's DNS records, with each one's type, name, value and TTL.
+    query: [ type, per_page, page ]
+  - call: GET /v2/certificates
+    purpose: The account's certificates, with their domains, state and expiry.
+    query: [ per_page, page ]
+  - call: GET /v2/customers/my/balance
+    purpose: The account's balance and usage so far this month.

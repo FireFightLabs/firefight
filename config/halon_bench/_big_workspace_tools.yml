@@ -1593,7 +1593,7 @@
     in one of this connection's regions. A list answers one page, and its next token
     goes in params for the next. Only reads, so it never changes anything. Environment
     variables, user data and secret values come back as names or not at all. The aws_api
-    skill says how to find an operation
+    skill lists the key operations and says how to find any other
   source: aws
   reads: true
   parameters:
@@ -2970,11 +2970,11 @@
       path:
         type: string
         description: The API path to read, as the API reference writes it with its
-          ids filled in. Take it from the reference, through the provider's API skill
-          or search_docs. A 404 or 405 on a path you wrote may mean the API has no
-          such call, so look it up there before another try, and when the reference
-          does not list it, say the API does not offer it and how a person can do
-          it instead, such as /repos/<owner>/<repo>/environments
+          ids filled in. Take it from the key reads the provider's API skill lists,
+          or else from the reference through that skill or search_docs. A read that
+          fails on a path the key reads do not list answers with the nearest ones
+          they do, and when neither they nor the reference list it, say the API does
+          not offer it and how a person can do it instead, such as /repos/<owner>/<repo>/environments
       query:
         type: object
         description: 'Query parameters by name, each text, a number, true or false,
@@ -3139,9 +3139,10 @@
     rest. The path is relative to the project, such as services/web/restart, and query
     options go in query, never in the path. A list answers one page. Pass per_page,
     at most 100, and while the answer''s pagination says hasNextPage, pass its cursor
-    for the next page. Load the northflank_fixes skill first. It lists common fixes,
-    and its API reference lists every call Northflank''s API offers with the body
-    and query options each takes, so a call it does not list does not exist'
+    for the next page. Load the northflank_fixes skill first. It lists common fixes
+    and the key reads with their paths, and its API reference lists every call Northflank''s
+    API offers with the body and query options each takes, so a call it does not list
+    does not exist'
   source: northflank
   confirms: true
   parameters:

@@ -139,7 +139,12 @@ module Integrations
 
       key = environment_row && ConnectionSettings.of(environment_row).scope_field&.key
       @scope = arguments[key].to_s.strip.presence if key && @scope.nil?
-      public_send(definition.name, environment_row: environment_row, arguments: arguments)
+      begin
+        public_send(definition.name, environment_row: environment_row, arguments: arguments)
+      rescue Integrations::Error => error
+        hint = ApiIndex.hint_after(error, integration.provider, tool_name, arguments)
+        raise hint ? error.exception("#{Sentence.ended(error.message.strip)} #{hint}") : error
+      end
     end
 
     # The scope this pack reads, such as one Northflank project, for a connection that may reach several, or nil while it

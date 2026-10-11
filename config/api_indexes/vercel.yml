@@ -1,0 +1,99 @@
+# Vercel's key reads through api_read, at most 40, which close the vercel_api skill
+# (Integrations::ApiIndex). Edit a read's call, purpose or query here, then run bin/rails provider_docs:api_indexes.
+tool: api_read
+skill: vercel_api
+reference: api
+reads:
+  - call: GET /v7/deployments
+    purpose: Deployments, newest first, with each one's state, target, branch and commit.
+    query: [ projectId, target, state, branch, sha, since, until, limit ]
+  - call: GET /v13/deployments/{idOrUrl}
+    purpose: One deployment, with its state, error, commit, target and aliases.
+  - call: GET /v3/deployments/{idOrUrl}/events
+    purpose: A deployment's build log lines, in order, to see why a build failed.
+    query: [ direction, limit, since, until, statusCode ]
+  - call: GET /v1/projects/{projectId}/deployments/{deploymentId}/runtime-logs
+    purpose: A deployment's function and request logs, with status codes and errors.
+  - call: GET /v1/deployments/{deploymentId}/checks
+    purpose: The checks run against a deployment, with each one's status and conclusion.
+  - call: GET /v2/deployments/{id}/aliases
+    purpose: The domains and aliases a deployment serves.
+  - call: GET /v10/projects
+    purpose: The team's projects, with each one's framework and latest deployments.
+    query: [ search, limit, from ]
+  - call: GET /v9/projects/{idOrName}
+    purpose: One project, with its settings, framework, repository and production deployment.
+  - call: GET /v9/projects/{idOrName}/domains
+    purpose: A project's domains, with each one's branch, redirect and verification.
+    query: [ production, verified, limit ]
+  - call: GET /v1/projects/{idOrName}/rolling-release
+    purpose: A project's active rolling release, with its stage and traffic share.
+    query: [ state ]
+  - call: GET /v1/projects/{idOrName}/rolling-release/config
+    purpose: How a project's rolling releases are set up, stage by stage.
+  - call: GET /v1/projects/{projectId}/promote/aliases
+    purpose: The aliases of a promotion in progress, with each one's status.
+    query: [ limit, since, until ]
+  - call: GET /v9/projects/{idOrName}/custom-environments
+    purpose: A project's custom environments, with their branches and domains.
+  - call: GET /v10/projects/{idOrName}/env
+    purpose: A project's environment variables, by name and target, never their values.
+  - call: GET /v1/env
+    purpose: The team's shared environment variables, by name, never their values.
+  - call: GET /v1/projects/{idOrName}/members
+    purpose: A project's members and their roles.
+    query: [ limit, since, until ]
+  - call: GET /v3/events
+    purpose: The team's activity log, such as deploys, setting changes and member changes, newest first.
+    query: [ types, projectIds, since, until, limit ]
+  - call: GET /v2/teams/{teamId}
+    purpose: One team, with its plan and settings.
+  - call: GET /v3/teams/{teamId}/members
+    purpose: The team's members, with their roles and when they joined.
+    query: [ role, search, limit ]
+  - call: GET /v1/access-groups
+    purpose: The team's access groups and the roles they grant.
+    query: [ limit ]
+  - call: GET /v6/user/tokens
+    purpose: The user's tokens, by name, scope and expiry, never their values.
+  - call: GET /v5/domains
+    purpose: The team's domains, with who serves their DNS and whether each is verified.
+    query: [ limit, since, until ]
+  - call: GET /v5/domains/{domain}
+    purpose: One domain, with its nameservers, verification and expiry.
+  - call: GET /v6/domains/{domain}/config
+    purpose: Whether a domain is set up to point at Vercel, and what is wrong if not.
+  - call: GET /v5/domains/{domain}/records
+    purpose: A domain's DNS records held at Vercel.
+    query: [ limit, since, until ]
+  - call: GET /v8/certs
+    purpose: The team's TLS certificates, with their domains and expiry.
+  - call: GET /v8/certs/{id}
+    purpose: One certificate, with its domains, issuer and expiry.
+  - call: GET /v4/aliases
+    purpose: Every alias, with the deployment each points at.
+    query: [ projectId, domain, limit ]
+  - call: GET /v1/security/firewall/config
+    purpose: A project's active firewall rules and managed rule sets.
+  - call: GET /v1/security/firewall/attack-status
+    purpose: Whether a project is under attack now, and what is being blocked.
+    query: [ projectId, since ]
+  - call: GET /v1/security/firewall/events
+    purpose: What the firewall blocked or challenged for a project, over time.
+    query: [ projectId, startTimestamp, endTimestamp, action, limit, cursor ]
+  - call: GET /v1/drains
+    purpose: Where logs and traces are sent, by name and type, never their keys.
+    query: [ projectId ]
+  - call: GET /v1/webhooks
+    purpose: The team's webhooks, with the events each sends and where.
+    query: [ projectId ]
+  - call: GET /v1/global-config
+    purpose: The team's Edge Configs, with their size and last change.
+  - call: GET /v1/global-config/{edgeConfigId}/backups
+    purpose: An Edge Config's earlier versions, newest first, to see what changed.
+    query: [ limit ]
+  - call: GET /v1/billing/charges
+    purpose: The team's charges by service over a time range.
+    query: [ from, to ]
+  - call: GET /v1/connect/networks
+    purpose: The team's Secure Compute networks, with their region and status.

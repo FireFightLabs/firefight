@@ -1,0 +1,109 @@
+# Bitbucket's key reads through api_read, at most 40, which close the bitbucket_api skill
+# (Integrations::ApiIndex). Edit a read's call, purpose or query here, then run bin/rails provider_docs:api_indexes.
+tool: api_read
+skill: bitbucket_api
+source: https://developer.atlassian.com/cloud/bitbucket/rest/
+reads:
+  - call: GET /repositories/{workspace}/{repo_slug}
+    purpose: One repository, with its main branch, size and when it was last updated.
+  - call: GET /repositories/{workspace}/{repo_slug}/pipelines
+    purpose: The repository's pipelines, by branch, status or what started them.
+    query: [ target.branch, status, trigger_type, sort, pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/pipelines/{pipeline_uuid}
+    purpose: One pipeline, with its state, result, commit, who started it and how long it took.
+  - call: GET /repositories/{workspace}/{repo_slug}/pipelines/{pipeline_uuid}/steps
+    purpose: A pipeline's steps, each with its state, result and timings.
+    query: [ pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/pipelines/{pipeline_uuid}/steps/{step_uuid}
+    purpose: One step of a pipeline, with its image, commands and result.
+  - call: GET /repositories/{workspace}/{repo_slug}/pipelines/{pipeline_uuid}/steps/{step_uuid}/test_reports
+    purpose: How many tests passed, failed and were skipped in a step.
+  - call: GET /repositories/{workspace}/{repo_slug}/pipelines_config/schedules
+    purpose: Scheduled pipelines, with their branch, timing and whether each is on.
+    query: [ pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/pipelines_config/schedules/{schedule_uuid}/executions
+    purpose: The pipelines a schedule started.
+    query: [ pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/deployments
+    purpose: Deployments to each environment, with their state and the commit they shipped.
+    query: [ pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/deployments/{deployment_uuid}
+    purpose: One deployment, with its environment, state, commit and pipeline.
+  - call: GET /repositories/{workspace}/{repo_slug}/environments
+    purpose: The repository's deployment environments, such as Test, Staging and Production.
+    query: [ pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/environments/{environment_uuid}
+    purpose: One environment, with its type, lock and restrictions.
+  - call: GET /repositories/{workspace}/{repo_slug}/deployments_config/environments/{environment_uuid}/variables
+    purpose: An environment's deployment variables, by name, never their values.
+    query: [ pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/pipelines_config/variables
+    purpose: The repository's pipeline variables, by name, never their values.
+    query: [ pagelen, page ]
+  - call: GET /workspaces/{workspace}/pipelines-config/variables
+    purpose: The workspace's pipeline variables, by name, never their values.
+    query: [ pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/commits
+    purpose: Commits on a branch or touching a path, newest first.
+    query: [ include, exclude, path, pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/commit/{commit}
+    purpose: One commit, with its author, message, date and parents.
+  - call: GET /repositories/{workspace}/{repo_slug}/commit/{commit}/statuses
+    purpose: Builds and checks reported on a commit, with their state.
+    query: [ refname, q, sort, pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/commit/{commit}/pullrequests
+    purpose: The pull requests that contain a commit.
+    query: [ pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/refs/branches
+    purpose: The repository's open branches, with their latest commit.
+    query: [ q, sort, pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/refs/tags
+    purpose: The repository's tags, with the commit each points at.
+    query: [ q, sort, pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/pullrequests
+    purpose: Pull requests, by state, newest first.
+    query: [ state, q, sort, pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/pullrequests/{pull_request_id}
+    purpose: One pull request, with its state, branches, merge commit and who merged it.
+  - call: GET /repositories/{workspace}/{repo_slug}/pullrequests/activity
+    purpose: Recent pull request activity in the repository, such as approvals, updates and comments.
+    query: [ pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/branch-restrictions
+    purpose: Branch restrictions, such as who can push or merge and how many approvals are needed.
+    query: [ kind, pattern, pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/permissions-config/users
+    purpose: People given access to the repository directly, with their permission.
+    query: [ pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/permissions-config/groups
+    purpose: Groups given access to the repository, with their permission.
+    query: [ pagelen, page ]
+  - call: GET /workspaces/{workspace}/permissions/repositories/{repo_slug}
+    purpose: Everyone's effective permission on a repository, however they got it.
+    query: [ q, sort, pagelen, page ]
+  - call: GET /workspaces/{workspace}/members
+    purpose: The workspace's members.
+    query: [ pagelen, page ]
+  - call: GET /workspaces/{workspace}/permissions
+    purpose: Each member's role in the workspace, such as owner, collaborator or member.
+    query: [ q, pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/deploy-keys
+    purpose: The repository's deploy keys, with their label and when each was last used.
+    query: [ pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/hooks
+    purpose: The repository's webhooks, with their events and whether each is active.
+    query: [ pagelen, page ]
+  - call: GET /workspaces/{workspace}/hooks
+    purpose: The workspace's webhooks, with their events and whether each is active.
+    query: [ pagelen, page ]
+  - call: GET /repositories/{workspace}/{repo_slug}/pipelines-config/runners
+    purpose: The repository's self-hosted runners and whether each is online.
+    query: [ pagelen, page ]
+  - call: GET /workspaces/{workspace}/pipelines-config/runners
+    purpose: The workspace's self-hosted runners and whether each is online.
+    query: [ pagelen, page ]
+  - call: GET /repositories/{workspace}
+    purpose: The workspace's repositories, filtered or sorted, such as by when each was last updated.
+    query: [ q, sort, role, pagelen, page ]
+  - call: GET /workspaces/{workspace}/projects
+    purpose: The workspace's projects.
+    query: [ pagelen, page ]

@@ -1,0 +1,106 @@
+# Cloudflare's key reads through execute, at most 40, which close the cloudflare_api skill
+# (Integrations::ApiIndex). Edit a read's call, purpose or query here, then run bin/rails provider_docs:api_indexes.
+tool: execute
+skill: cloudflare_api
+source: https://developers.cloudflare.com/api/
+reads:
+  - call: GET /accounts/{account_id}/audit_logs
+    purpose: The account's audit log, who changed what and when, newest first.
+    query: [ since, before, action.type, actor.email, zone.name, per_page, page ]
+  - call: GET /user/tokens
+    purpose: The person's API tokens by name, status, policies and expiry, never their values.
+    query: [ include_expired, per_page, page ]
+  - call: GET /accounts/{account_id}/tokens
+    purpose: The account's API tokens by name, status, policies and expiry, never their values.
+    query: [ include_expired, per_page, page ]
+  - call: GET /accounts/{account_id}/members
+    purpose: The account's members, their roles and status.
+    query: [ status, per_page, page ]
+  - call: GET /zones
+    purpose: The zones the connection reaches, with each one's status, plan and name servers.
+    query: [ name, status, account.id, per_page, page ]
+  - call: GET /zones/{zone_id}
+    purpose: One zone, with its status, plan, name servers and whether it is paused.
+  - call: GET /zones/{zone_id}/settings
+    purpose: Every setting of a zone, such as SSL mode, caching, HTTP/3 and security level.
+  - call: GET /zones/{zone_id}/settings/{setting_id}
+    purpose: One zone setting, such as ssl or always_use_https, and when it changed.
+  - call: GET /zones/{zone_id}/dns_records
+    purpose: A zone's DNS records, narrowed by name, type or content, and whether each is proxied.
+    query: [ name, type, content, proxied, per_page, page ]
+  - call: GET /zones/{zone_id}/dnssec
+    purpose: Whether DNSSEC is on for a zone and its DS record.
+  - call: GET /zones/{zone_id}/ssl/certificate_packs
+    purpose: A zone's certificate packs, with their hosts, status and expiry.
+    query: [ status, per_page, page ]
+  - call: GET /zones/{zone_id}/ssl/certificate_packs/{certificate_pack_id}
+    purpose: One certificate pack, with its hosts, authority, validation and expiry.
+  - call: GET /zones/{zone_id}/ssl/universal/settings
+    purpose: Whether Universal SSL is on for a zone.
+  - call: GET /zones/{zone_id}/ssl/verification
+    purpose: The validation status of a zone's certificates.
+  - call: GET /zones/{zone_id}/custom_hostnames
+    purpose: A zone's custom hostnames, with their SSL and ownership status.
+    query: [ hostname, ssl_status, per_page, page ]
+  - call: GET /accounts/{account_id}/workers/scripts
+    purpose: The account's Workers, with when each was changed.
+  - call: GET /accounts/{account_id}/workers/scripts/{script_name}/settings
+    purpose: A Worker's settings, such as its bindings, compatibility date and logging.
+  - call: GET /accounts/{account_id}/workers/scripts/{script_name}/deployments
+    purpose: A Worker's deployments, newest first, with the versions each sent traffic to.
+  - call: GET /accounts/{account_id}/workers/scripts/{script_name}/versions
+    purpose: A Worker's versions, with who made each and when.
+    query: [ deployable, per_page, page ]
+  - call: GET /accounts/{account_id}/workers/scripts/{script_name}/versions/{version_id}
+    purpose: One version of a Worker, with its bindings and how it was made.
+  - call: GET /accounts/{account_id}/workers/scripts/{script_name}/schedules
+    purpose: A Worker's cron triggers.
+  - call: GET /accounts/{account_id}/workers/domains
+    purpose: The custom domains Workers answer on, narrowed by zone, Worker or hostname.
+    query: [ zone_name, service, hostname ]
+  - call: GET /accounts/{account_id}/workers/observability/issues
+    purpose: Errors Workers Observability detected, narrowed by Worker or status.
+    query: [ service, status, search, page, perPage ]
+  - call: GET /accounts/{account_id}/pages/projects
+    purpose: The account's Pages projects, with each one's latest deployment.
+    query: [ per_page, page ]
+  - call: GET /accounts/{account_id}/pages/projects/{project_name}/deployments
+    purpose: A Pages project's deployments, newest first, with each one's status and commit.
+    query: [ env, per_page, page ]
+  - call: GET /accounts/{account_id}/pages/projects/{project_name}/deployments/{deployment_id}
+    purpose: One Pages deployment, with its stages, commit and status.
+  - call: GET /accounts/{account_id}/pages/projects/{project_name}/deployments/{deployment_id}/history/logs
+    purpose: A Pages deployment's build log.
+  - call: GET /accounts/{account_id}/cfd_tunnel
+    purpose: The account's tunnels, with each one's status and connections, never a token.
+    query: [ name, status, is_deleted, per_page, page ]
+  - call: GET /accounts/{account_id}/cfd_tunnel/{tunnel_id}/connections
+    purpose: A tunnel's connectors, their versions and the data centres they reach.
+  - call: GET /zones/{zone_id}/load_balancers
+    purpose: A zone's load balancers, with their pools, steering and whether each is on.
+  - call: GET /accounts/{account_id}/load_balancers/pools
+    purpose: The account's load balancer pools, their origins and monitor.
+    query: [ monitor ]
+  - call: GET /accounts/{account_id}/load_balancers/pools/{pool_id}/health
+    purpose: A pool's health, each origin's state as seen from each region.
+  - call: GET /accounts/{account_id}/load_balancers/monitors
+    purpose: The account's load balancer monitors, what each checks and how often.
+  - call: GET /zones/{zone_id}/healthchecks
+    purpose: A zone's standalone health checks and each one's status.
+    query: [ per_page, page ]
+  - call: GET /zones/{zone_id}/rulesets
+    purpose: A zone's rulesets, such as WAF, custom rules and rate limiting, by phase.
+    query: [ per_page, cursor ]
+  - call: GET /zones/{zone_id}/rulesets/phases/{ruleset_phase}/entrypoint
+    purpose: The rules a zone runs in one phase, such as http_request_firewall_custom.
+  - call: GET /zones/{zone_id}/rate_limits
+    purpose: A zone's older rate limits, what each matches and does.
+    query: [ per_page, page ]
+  - call: GET /zones/{zone_id}/pagerules
+    purpose: A zone's page rules, in order, with their actions and status.
+    query: [ status ]
+  - call: GET /accounts/{account_id}/alerting/v3/history
+    purpose: Notifications Cloudflare sent the account, such as health check or DDoS alerts.
+    query: [ since, before, per_page, page ]
+  - call: GET /accounts/{account_id}/subscriptions
+    purpose: The account's subscriptions, with each one's plan, price and state.

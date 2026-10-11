@@ -365,7 +365,7 @@ module Integrations
                         "service, named Describe, List, Get or BatchGet, with its input as the operation's API reference gives it, " \
                         "in one of this connection's regions. A list answers one page, and its next token goes in params for the " \
                         "next. Only reads, so it never changes anything. Environment variables, user data and secret values " \
-                        "come back as names or not at all. The aws_api skill says how to find an operation",
+                        "come back as names or not at all. The aws_api skill lists the key operations and says how to find any other",
            params_schema: {
              "type" => "object",
              "properties" => {

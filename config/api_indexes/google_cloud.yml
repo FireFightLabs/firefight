@@ -1,0 +1,131 @@
+# Google Cloud's key reads through api_read, at most 40, which close the google_cloud_api skill
+# (Integrations::ApiIndex). Edit a read's call, purpose or query here, then run bin/rails provider_docs:api_indexes.
+tool: api_read
+skill: google_cloud_api
+reference: api
+reads:
+  - call: GET /v2/projects/{projectsId}/locations/{locationsId}/services
+    service: run
+    purpose: Cloud Run services in a region with their latest revision and traffic.
+    query: [ pageSize, pageToken ]
+  - call: GET /v2/projects/{projectsId}/locations/{locationsId}/services/{servicesId}
+    service: run
+    purpose: One Cloud Run service with its conditions, traffic and scaling.
+  - call: GET /v2/projects/{projectsId}/locations/{locationsId}/services/{servicesId}/revisions
+    service: run
+    purpose: A service's revisions with their image, conditions and readiness.
+    query: [ pageSize, pageToken ]
+  - call: GET /v2/projects/{projectsId}/locations/{locationsId}/jobs/{jobsId}/executions
+    service: run
+    purpose: A Cloud Run job's runs with how many tasks succeeded and failed.
+    query: [ pageSize, pageToken ]
+  - call: GET /v1/projects/{projectsId}/locations/{locationsId}/builds
+    service: cloudbuild
+    purpose: Builds in a region, newest first, filtered by status or trigger.
+    query: [ filter, pageSize, pageToken ]
+  - call: GET /v1/projects/{projectsId}/locations/{locationsId}/builds/{buildsId}
+    service: cloudbuild
+    purpose: One build with its status, steps, commit and log address.
+  - call: GET /v1/projects/{projectsId}/locations/{locationsId}/deliveryPipelines
+    service: clouddeploy
+    purpose: Cloud Deploy pipelines with their stages and targets.
+    query: [ filter, pageSize, pageToken ]
+  - call: GET /v1/projects/{projectsId}/locations/{locationsId}/deliveryPipelines/{deliveryPipelinesId}/releases
+    service: clouddeploy
+    purpose: A pipeline's releases with their render state and when each was made.
+    query: [ filter, pageSize, pageToken ]
+  - call: GET /v1/projects/{projectsId}/locations/{locationsId}/deliveryPipelines/{deliveryPipelinesId}/releases/{releasesId}/rollouts
+    service: clouddeploy
+    purpose: A release's rollouts with their state and failure reason.
+    query: [ filter, pageSize, pageToken ]
+  - call: GET /v1/projects/{projectsId}/locations/{locationsId}/clusters
+    service: container
+    purpose: GKE clusters with their version and status, in every location when the location is a hyphen.
+  - call: GET /v1/projects/{projectsId}/locations/{locationsId}/clusters/{clustersId}
+    service: container
+    purpose: One GKE cluster with its status, version and conditions.
+  - call: GET /v1/projects/{projectsId}/locations/{locationsId}/clusters/{clustersId}/nodePools
+    service: container
+    purpose: A cluster's node pools with their machine type, size and status.
+  - call: GET /v1/projects/{project}/instances
+    service: sqladmin
+    purpose: Cloud SQL instances with their state, version, tier and region.
+    query: [ filter, maxResults, pageToken ]
+  - call: GET /v1/projects/{project}/instances/{instance}
+    service: sqladmin
+    purpose: One Cloud SQL instance with its settings, flags and maintenance.
+  - call: GET /v1/projects/{project}/instances/{instance}/backupRuns
+    service: sqladmin
+    purpose: An instance's backups with their status and when each ran.
+    query: [ maxResults, pageToken ]
+  - call: GET /v1/projects/{project}/operations
+    service: sqladmin
+    purpose: Cloud SQL operations such as restarts and failovers, newest first.
+    query: [ instance, maxResults, pageToken ]
+  - call: GET /v3/projects/{projectsId}/timeSeries
+    service: monitoring
+    purpose: A metric's values over a time range, filtered to one resource.
+    query: [ filter, interval.startTime, interval.endTime, aggregation.alignmentPeriod, aggregation.perSeriesAligner, aggregation.crossSeriesReducer, view, pageSize, pageToken ]
+  - call: GET /v3/projects/{projectsId}/alertPolicies
+    service: monitoring
+    purpose: Alerting policies with their conditions and whether each is on.
+    query: [ filter, pageSize, pageToken ]
+  - call: GET /v3/projects/{projectsId}/alerts
+    service: monitoring
+    purpose: Alerts that fired, open or closed, with their policy and resource.
+    query: [ filter, pageSize, pageToken ]
+  - call: GET /v3/projects/{projectsId}/uptimeCheckConfigs
+    service: monitoring
+    purpose: Uptime checks with what each one checks and how often.
+    query: [ filter, pageSize, pageToken ]
+  - call: GET /compute/v1/projects/{project}/aggregated/instances
+    service: compute
+    purpose: Every VM across zones, with its status and machine type.
+    query: [ filter, maxResults, pageToken ]
+  - call: GET /compute/v1/projects/{project}/aggregated/instanceGroupManagers
+    service: compute
+    purpose: Managed instance groups with their size and current actions.
+    query: [ filter, maxResults, pageToken ]
+  - call: GET /compute/v1/projects/{project}/aggregated/backendServices
+    service: compute
+    purpose: Load balancer backends and their health checks.
+    query: [ filter, maxResults, pageToken ]
+  - call: GET /compute/v1/projects/{project}/aggregated/sslCertificates
+    service: compute
+    purpose: Load balancer certificates with their domains, status and expiry.
+    query: [ filter, maxResults, pageToken ]
+  - call: GET /compute/v1/projects/{project}/global/firewalls
+    service: compute
+    purpose: VPC firewall rules with what each one allows or denies.
+    query: [ filter, maxResults, pageToken ]
+  - call: GET /v3/projects/{projectsId}
+    service: cloudresourcemanager
+    purpose: One project with its state, parent and labels.
+  - call: GET /v1/projects/{projectsId}/serviceAccounts
+    service: iam
+    purpose: The project's service accounts and whether each is switched off.
+    query: [ pageSize, pageToken ]
+  - call: GET /v1/projects/{projectsId}/serviceAccounts/{serviceAccountsId}/keys
+    service: iam
+    purpose: A service account's keys with their validity dates, never the key.
+    query: [ keyTypes ]
+  - call: GET /dns/v1/projects/{project}/managedZones
+    service: dns
+    purpose: The project's Cloud DNS zones.
+    query: [ maxResults, pageToken ]
+  - call: GET /dns/v1/projects/{project}/managedZones/{managedZone}/rrsets
+    service: dns
+    purpose: The DNS records in one zone.
+    query: [ name, type, maxResults, pageToken ]
+  - call: GET /v1/projects/{projectsId}/secrets
+    service: secretmanager
+    purpose: Secrets by name, never their values.
+    query: [ filter, pageSize, pageToken ]
+  - call: GET /v1/projects/{projectsId}/secrets/{secretsId}/versions
+    service: secretmanager
+    purpose: A secret's versions with their state, never their values.
+    query: [ filter, pageSize, pageToken ]
+  - call: GET /v2/projects/{projectsId}/locations/{locationsId}/functions
+    service: cloudfunctions
+    purpose: Cloud Functions with their state, runtime and last update.
+    query: [ filter, pageSize, pageToken ]

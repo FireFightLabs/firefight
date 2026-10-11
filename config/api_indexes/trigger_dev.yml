@@ -1,0 +1,69 @@
+# Trigger.dev's key reads through api_read, at most 40, which close the trigger_dev_api skill
+# (Integrations::ApiIndex). Edit a read's call, purpose or query here, then run bin/rails provider_docs:api_indexes.
+tool: api_read
+skill: trigger_dev_api
+reference: api
+reads:
+  - call: GET /api/v1/runs
+    purpose: Runs in the environment, newest first, filtered by status, task, version or time.
+    query: [ page, filter ]
+  - call: GET /api/v1/projects/{projectRef}/runs
+    purpose: Runs across every environment of a project, filtered by status, task or time.
+    query: [ page, filter ]
+  - call: GET /api/v3/runs/{runId}
+    purpose: One run, with its status, attempts, error, task, version and timings.
+  - call: GET /api/v1/runs/{runId}/events
+    purpose: A run's events in order, such as attempts, retries, waits and failures.
+  - call: GET /api/v1/runs/{runId}/result
+    purpose: A finished run's output or the error it ended with.
+  - call: GET /api/v1/errors
+    purpose: The environment's error groups, with how often each happened and when last.
+    query: [ page, filter ]
+  - call: GET /api/v1/errors/{errorId}
+    purpose: One error group, with its message, stack, affected tasks and counts.
+  - call: GET /api/v1/deployments
+    purpose: The environment's deployments, newest first, with their status and version.
+    query: [ status, period, from, to ]
+  - call: GET /api/v1/deployments/latest
+    purpose: The newest deployment, with its status, version and any error.
+  - call: GET /api/v1/deployments/{deploymentId}
+    purpose: One deployment, with its status, version, tasks and any build error.
+  - call: GET /api/v1/queues
+    purpose: The environment's queues, with how many runs are queued and running and their limits.
+    query: [ page, perPage ]
+  - call: GET /api/v1/queues/{queueParam}
+    purpose: One queue, with its queued and running counts, limit and whether it is paused.
+    query: [ type ]
+  - call: GET /api/v1/concurrency-limits
+    purpose: The environment's concurrency limits.
+    query: [ page, perPage ]
+  - call: GET /api/v1/concurrency-limits/{name}
+    purpose: One concurrency limit and how much of it is in use.
+  - call: GET /api/v1/runs/{runId}/trace
+    purpose: A run's trace, its spans and how long each took.
+    query: [ "page[size]" ]
+  - call: GET /api/v1/batches/{batchId}
+    purpose: One batch, with its status and how many of its runs finished.
+  - call: GET /api/v1/batches/{batchId}/results
+    purpose: Each run's result in a batch.
+  - call: GET /api/v1/schedules
+    purpose: The project's schedules, with each one's task, cron and next run.
+    query: [ page, perPage ]
+  - call: GET /api/v1/schedules/{schedule_id}
+    purpose: One schedule, with its cron, timezone, whether it is active and its next runs.
+  - call: GET /api/v1/waitpoints/tokens
+    purpose: Waitpoint tokens, with their status, such as runs waiting on a person or an outside event.
+    query: [ "page[size]" ]
+  - call: GET /api/v1/waitpoints/tokens/{waitpointId}
+    purpose: One waitpoint token, with its status and when it times out.
+  - call: GET /api/v1/bulk-actions
+    purpose: Bulk actions taken on runs, such as mass cancels or replays, newest first.
+    query: [ page ]
+  - call: GET /api/v1/bulk-actions/{bulkActionId}
+    purpose: One bulk action, with who started it, its status and how many runs it touched.
+  - call: GET /api/v1/projects/{projectRef}/envvars/{env}
+    purpose: An environment's variables, by name, never their values.
+  - call: GET /api/v1/query/dashboards
+    purpose: The built-in dashboards and the queries behind them.
+  - call: GET /api/v1/query/schema
+    purpose: The tables and columns the query API can read.

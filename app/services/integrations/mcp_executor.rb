@@ -10,12 +10,23 @@ module Integrations
       result = client_for(tool.integration, environment_row, within: within)
                .call_tool(name: tool.remote_name, arguments: arguments)
       kept = Redactions.apply(ToolResult.normalize(result), **Redactions.rules(tool.integration.provider))
+      kept = ApiIndex.hinted(kept, tool.integration.provider, tool.name, arguments, failed: failed?(tool, kept))
       SourceLinks.attach(kept, settings: ConnectionSettings.of(environment_row), tool_name: tool.name, arguments: arguments)
     rescue TimedOut
       raise unless within
 
       raise Error, slow(tool)
     end
+
+    # Whether the server said the call failed, by marking its answer an error or in the words its provider's error reader
+    # reads as a not found.
+    def self.failed?(tool, result)
+      return true if result["isError"] == true
+
+      reader = Provider.for(tool.integration.provider).error_reader
+      reader.present? && reader.not_found?(Array(result["content"]).filter_map { |part| part["text"] }.join("\n"))
+    end
+    private_class_method :failed?
 
     # Seen in a real chat, a database's server took 35 seconds to say nothing, twice, while the person waited. A read
     # from a database provider's server is given QUICK_READ seconds in all, handshake included, as Firefight's own
