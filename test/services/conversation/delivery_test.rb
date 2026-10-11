@@ -27,6 +27,21 @@ class Conversation::DeliveryTest < ActiveSupport::TestCase
     delivery.answered!("CPU peaked at 0.8.")
   end
 
+  test "the pages Halon's browser saw are posted under the answer, and before a send it asks about, never twice" do
+    Chat::Screenshot.record!(@chat, [ { "name" => "desktop", "final_url" => "https://shop.example.com", "title" => "Shop",
+                                        "screenshot" => Base64.strict_encode64("\xFF\xD8\xFFjpeg".b) } ], tool_call_id: "call_8")
+    delivery = Conversation::Delivery.for(@conversation)
+    @adapter.stubs(:report_agent_step)
+    delivery.step(key: "call_8", step: Chat::Tools.step(Chat::Tools::Browser::NAME, { "url" => "https://shop.example.com" }), status: FirefightAi::AgentLoop::STEP_DONE)
+    @adapter.expects(:post_screenshots).with do |screenshots:, left_out:, **|
+      screenshots.sole.caption == "Desktop: Shop at https://shop.example.com" && screenshots.sole.jpeg == "\xFF\xD8\xFFjpeg".b && left_out.zero?
+    end.returns([]).once
+    @adapter.stubs(:ask_agent_confirmation).returns({ message_id: "1.9" })
+
+    delivery.confirm!([])
+    delivery.answered!("Checkout loads.")
+  end
+
   test "an answer whose steps drew nothing posts no charts" do
     @adapter.expects(:post_charts).never
 

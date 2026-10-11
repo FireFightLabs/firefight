@@ -43,6 +43,9 @@ module Ability
     RESOURCE_AI_ACCOUNTS = "ai_accounts"
     # The workspace's handbook, which Halon reads first. Members read it, and writing it needs a grant.
     RESOURCE_HANDBOOK = "handbook"
+    # Halon's browser in the sandbox. Looking at a page is open like a web lookup. Sending what a page would send, such as
+    # a form, is a change, so it needs a grant, the person confirms each one and approval rules hold it.
+    RESOURCE_BROWSER = "browser"
 
     # Nobody can be granted these, so a member or an agent can never mint keys
     # or rewrite who has what.
@@ -55,7 +58,7 @@ module Ability
       RESOURCE_CUSTOM_FIELDS, RESOURCE_FORMS, RESOURCE_CATALOG, RESOURCE_ALERTS, RESOURCE_POLICIES,
       RESOURCE_RUNBOOKS, RESOURCE_APPROVALS, RESOURCE_INCIDENT_ROLES, RESOURCE_WEBHOOKS,
       RESOURCE_INCIDENT_TRANSCRIPTS, RESOURCE_INVESTIGATIONS, RESOURCE_CHATS, RESOURCE_MEMORY, RESOURCE_MAP,
-      RESOURCE_MONITORING, RESOURCE_HANDBOOK
+      RESOURCE_MONITORING, RESOURCE_HANDBOOK, RESOURCE_BROWSER
     ].freeze
 
     RESOURCES = (GRANTABLE_RESOURCES + ADMIN_ONLY_RESOURCES).freeze
@@ -87,6 +90,7 @@ module Ability
       RESOURCE_MAP => "Resource Map",
       RESOURCE_MONITORING => "Monitoring",
       RESOURCE_HANDBOOK => "Handbook",
+      RESOURCE_BROWSER => "Halon's Browser",
       RESOURCE_WEBHOOKS => "Webhooks",
       RESOURCE_INTEGRATIONS => "Integrations",
       RESOURCE_API_KEYS => "API Keys",
@@ -102,12 +106,15 @@ module Ability
 
     ACTIONS = [ ACTION_READ, ACTION_CREATE, ACTION_UPDATE, ACTION_DELETE ].freeze
     # A resource that only offers some of the actions. Everything else offers all four.
-    RESOURCE_ACTIONS = { RESOURCE_MAP => [ ACTION_READ ].freeze }.freeze
+    # The browser's read is open (BROWSER_READ), so only sending is offered.
+    RESOURCE_ACTIONS = { RESOURCE_MAP => [ ACTION_READ ].freeze, RESOURCE_BROWSER => [ ACTION_UPDATE ].freeze }.freeze
 
     MAP_READ = "#{RESOURCE_MAP}.#{ACTION_READ}".freeze
     HANDBOOK_READ = "#{RESOURCE_HANDBOOK}.#{ACTION_READ}".freeze
     # Asking Halon and starting, steering or stopping an investigation.
     INVESTIGATIONS_CREATE = "#{RESOURCE_INVESTIGATIONS}.#{ACTION_CREATE}".freeze
+    # Halon's browser sending what a page would send, such as a form or a button that saves something.
+    BROWSER_SUBMIT = "#{RESOURCE_BROWSER}.#{ACTION_UPDATE}".freeze
     # Reads whose environment scope narrows what comes back rather than whether the call runs. A call that names no
     # environment is admitted when the principal holds the action in any environment, and the reader keeps to
     # AbilityGateway.reach (ResourceMap::Resource.visible_to for the map).
@@ -120,6 +127,12 @@ module Ability
         description: "See what runs where on the resource map, how its resources depend on each other, and each one's fact sheet. " \
                      "Members hold it in every environment without a grant. Granting it to a member, alone or in a set, " \
                      "limits them to the environments ticked here, and an expired grant leaves them none. No access takes it away at once."
+      }.freeze,
+      BROWSER_SUBMIT => {
+        title: "Let Halon send forms in its browser",
+        description: "Let Halon submit a form, or press a button that sends data, on a website it checks in its browser, such as " \
+                     "placing a test order. Halon stops before anything is sent and the person confirms each one, and approval " \
+                     "rules can hold it. Looking at a page needs no grant."
       }.freeze,
       INVESTIGATIONS_CREATE => {
         title: "Ask Halon and start investigations",
@@ -134,7 +147,10 @@ module Ability
     # A command Halon runs in its terminal, or a check of an address from there. The box holds no key and reaches the
     # workspace's systems only through their own tools, each call authorized as that tool, so the command itself is open.
     SANDBOX_COMMAND = "#{RESOURCE_SANDBOX}.#{ACTION_READ}".freeze
-    OPEN_KEYS = [ WEB_READ, SANDBOX_SERVICE, SANDBOX_COMMAND ].freeze
+    # Looking at a page in Halon's browser and following its links, menus and searches. The browser sends nothing but
+    # GET requests on it, so it reaches nothing of the workspace's and is open the same way, ledgered like the rest.
+    BROWSER_READ = "#{RESOURCE_BROWSER}.#{ACTION_READ}".freeze
+    OPEN_KEYS = [ WEB_READ, SANDBOX_SERVICE, SANDBOX_COMMAND, BROWSER_READ ].freeze
 
     RISK_READ = "read"
     RISK_WRITE = "write"

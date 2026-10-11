@@ -194,7 +194,7 @@ module TypescriptConstants
       }, nil),
       Export.new("AGENT_CARD_KINDS", {
         "INTEGRATIONS" => Chat::Tools::CARD_INTEGRATIONS, "INVESTIGATION" => Chat::Tools::CARD_INVESTIGATION,
-        "CHART" => Chat::Tools::CARD_CHART, "HELPERS" => Chat::Tools::CARD_HELPERS
+        "CHART" => Chat::Tools::CARD_CHART, "HELPERS" => Chat::Tools::CARD_HELPERS, "SCREENSHOTS" => Chat::Tools::CARD_SCREENSHOTS
       }, nil),
       Export.new("HELPER_STATUSES", {
         "RUNNING" => Chat::Helper::STATUS_RUNNING, "REPORTED" => Chat::Helper::STATUS_REPORTED, "FAILED" => Chat::Helper::STATUS_FAILED,

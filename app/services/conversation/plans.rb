@@ -45,14 +45,17 @@ module Conversation::Plans
     nil
   end
 
-  # The tools whose answer is a reading of how something stands, which a check after a change needs.
+  # The tools whose answer is a reading of how something stands, which a check after a change needs. A look at the page in
+  # Halon's browser is one, so confirming a page works for people can be a plan's check.
   def self.reading_names(workspace)
     Integrations::Capabilities::SPECS.values.reject(&:writes).map(&:tool_name) +
-      [ ResourceMap::KeyQueries::TOOL_NAME, Chat::Tools::LogPatterns::NAME ] + workspace.reading_tool_names.to_a
+      [ ResourceMap::KeyQueries::TOOL_NAME, Chat::Tools::LogPatterns::NAME, Chat::Tools::Browser::NAME ] + workspace.reading_tool_names.to_a
   end
 
   def self.read_since?(chat, time)
-    chat.tool_calls.where(created_at: time.., failed: false, name: reading_names(chat.workspace)).exists?
+    chat.tool_calls.where(created_at: time.., failed: false, name: reading_names(chat.workspace)).any? do |call|
+      call.name != Chat::Tools::Browser::NAME || !Chat::Tools::Browser.sends?(call.arguments)
+    end
   end
 
   # The chat's page looks again, and the platform's message is posted or redrawn.

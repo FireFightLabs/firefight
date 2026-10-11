@@ -44,12 +44,15 @@ module Chat::Tools
   # Helpers a run_helpers call started, drawn under its step while they work and after. The page finds them by the
   # step's tool call, and draws them from the chat's helpers as they are now.
   CARD_HELPERS = "helpers".freeze
-  CARD_KINDS = [ CARD_INTEGRATIONS, CARD_INVESTIGATION, CARD_CHART, CARD_HELPERS ].freeze
+  # The pages Halon's browser saw. The page finds them by the step's tool call, since they exist once the check ran.
+  CARD_SCREENSHOTS = "screenshots".freeze
+  CARD_KINDS = [ CARD_INTEGRATIONS, CARD_INVESTIGATION, CARD_CHART, CARD_HELPERS, CARD_SCREENSHOTS ].freeze
 
   def self.chart_card = Card.new(kind: CARD_CHART, category: nil)
 
   def self.card_for(tool_name, arguments)
     return Card.new(kind: CARD_INVESTIGATION, category: nil) if tool_name.to_s == Mcp::Tools::START_INVESTIGATION
+    return Card.new(kind: CARD_SCREENSHOTS, category: nil) if tool_name.to_s == Browser::NAME
     return nil unless tool_name.to_s == Mcp::Tools::LIST_INTEGRATIONS
 
     category = arguments.to_h.stringify_keys["category"]
@@ -65,6 +68,7 @@ module Chat::Tools
   def self.kind(tool_name, workspace, arguments = nil)
     name = tool_name.to_s
     reading = [ ReadResult.tool_name, Helpers::NAME, Web::SEARCH, Web::READ, Docs::SEARCH, Docs::READ, OutsideCheck::NAME, WhatChanged::NAME ].include?(name) ||
+              (name == Browser::NAME && !Browser.sends?(arguments)) ||
               firefight_reading_names.include?(name) || workspace.reading_tool_names.include?(name) || guarded_read?(workspace, name, arguments)
     reading ? KIND_READ : KIND_ACT
   end
@@ -87,9 +91,11 @@ module Chat::Tools
   # a statement that writes rows, which is asked about on its own each time. waiting_on names the owner a confirmed call
   # waits for. A call may be allowed for the rest of the chat only when nothing was read from outside and for_chat holds.
   # support is the reads from the call's turn that Halon named as showing the change will help (Chat::Tools::LookFirst).
+  # page is the screenshot of the page a browser send would go from, taken when the check stopped before it, and its
+  # would_send_rows say what it sends.
   Confirmation = Data.define(:tool_call_id, :question, :intent, :asked, :status, :target, :call, :read, :safeguards, :expires, :for_chat, :waiting_on,
-                             :support) do
-    def initialize(read: nil, safeguards: [], expires: [], for_chat: true, waiting_on: nil, support: [], **) = super
+                             :support, :page) do
+    def initialize(read: nil, safeguards: [], expires: [], for_chat: true, waiting_on: nil, support: [], page: nil, **) = super
 
     # The question as a label, which the dashboard shows above the agent's own sentence about the call.
     def tool_label = question.delete_suffix("?")
@@ -244,13 +250,36 @@ module Chat::Tools
     owner = Chat::OwnerAsk.for_call(chat, tool_call.tool_call_id)
     workspace = chat&.workspace
     mitigation = Chat::Mitigation.for_call(chat, tool_call.tool_call_id)
+    page = browser_page(chat, tool_call)
     Confirmation.new(
-      tool_call_id: tool_call.tool_call_id, question: target ? "#{call} on #{target}?" : "#{step&.title || tool_call.name.humanize}?",
+      tool_call_id: tool_call.tool_call_id, question: browser_question(tool_call) || (target ? "#{call} on #{target}?" : "#{step&.title || tool_call.name.humanize}?"),
       intent: intent_of(tool_call.arguments), asked: (step&.asked || []) + planned(tool_call), status: CONFIRMATION_STATUSES.fetch(tool_call.approval, :awaiting),
-      target: target, call: call, read: Provenance.stored(tool_call), safeguards: [ *repair&.confirmation_rows, owner&.confirmation_row ].compact,
-      expires: expiries(mitigation), for_chat: repair.nil?, waiting_on: (owner.owner_name if tool_call.approval == Chat::APPROVAL_OWNER_ASKED && owner),
-      support: workspace ? LookFirst.support(chat, tool_call, workspace) : []
+      target: target, call: call, read: Provenance.stored(tool_call),
+      safeguards: [ *repair&.confirmation_rows, owner&.confirmation_row, *page&.would_send_rows ].compact,
+      expires: expiries(mitigation), for_chat: repair.nil? && !Browser.sends?(tool_call.arguments),
+      waiting_on: (owner.owner_name if tool_call.approval == Chat::APPROVAL_OWNER_ASKED && owner),
+      support: workspace ? LookFirst.support(chat, tool_call, workspace) : [], page: page
     )
+  end
+
+  # The page a browser send goes from, as the check that stopped before it saw it, or nil for any other call.
+  def self.browser_page(chat, tool_call)
+    return unless tool_call.name.to_s == Browser::NAME && Browser.sends?(tool_call.arguments)
+
+    check = Chat::BrowserCheck.from(tool_call.arguments.to_h.except(INTENT_ARG, LookFirst::BECAUSE))
+    Chat::Screenshot.stopped_before(chat, check.digest, check.send_step, fresh: false)
+  rescue Chat::BrowserCheck::Refused
+    nil
+  end
+
+  # A send is asked about as what it does, on the site it goes to, rather than as a check.
+  def self.browser_question(tool_call)
+    return unless tool_call.name.to_s == Browser::NAME && Browser.sends?(tool_call.arguments)
+
+    host = URI.parse(tool_call.arguments.to_h.stringify_keys[Browser::URL_ARG].to_s).host
+    "Let Halon's browser send step #{tool_call.arguments.to_h.stringify_keys[Browser::SEND_STEP_ARG]} on #{host || 'the page'}?"
+  rescue URI::InvalidURIError
+    nil
   end
 
   # The times a change customers feel may be undone after, the one chosen so far first, then keeping it. Empty for a

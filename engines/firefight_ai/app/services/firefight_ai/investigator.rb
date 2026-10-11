@@ -70,6 +70,7 @@ module FirefightAi
         - #{OutsideRule::CHANGED_RULE}
         - #{OutsideRule::STATUS_RULE}
         - #{OutsideRule::BLIND_SPOT_RULE}
+        - #{OutsideRule::BROWSER_RULE}
         - #{NormalRule::RULE}
         - #{Helper::RULE}
         - #{MAP_START}
@@ -93,6 +94,7 @@ module FirefightAi
         - #{Evidence::RULE}
         - #{Evidence::REFUSAL_RULE}
         - #{Evidence::FILE_RULE}
+        - #{Evidence::PAGE_IMAGE_RULE}
         - When the cause may sit in a library the code uses, read that library at the version the repository installs with library_source, and its documentation with search_web and read_web_page, before deciding how it behaves. Cite the page or the file.
         - A past incident's finding_outcome says what the team made of that answer. A confirmed one is a worked example, and one marked wrong is a mistake not to repeat, never a lead.
 

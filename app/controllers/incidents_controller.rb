@@ -8,7 +8,7 @@ class IncidentsController < InertiaController
   include ServesChatAttachment
 
   authorizes Ability::Action::RESOURCE_INCIDENTS,
-    read: %i[show postmortem postmortem_revisions investigation_file],
+    read: %i[show postmortem postmortem_revisions investigation_file investigation_screenshot],
     update: %i[update_postmortem update_postmortem_status generate_postmortem start_blank_postmortem ai_rewrite_postmortem]
 
   def show
@@ -44,6 +44,12 @@ class IncidentsController < InertiaController
     incident = current_workspace.incidents.find(params[:incident_id])
     investigation = incident.investigations.seen.find(params[:id])
     send_chat_attachment(investigation.note_file(params[:file_id]))
+  end
+
+  def investigation_screenshot
+    incident = current_workspace.incidents.find(params[:incident_id])
+    investigation = incident.investigations.seen.find(params[:id])
+    send_chat_attachment(investigation.screenshot(params[:screenshot_id]))
   end
 
   def postmortem
@@ -166,7 +172,8 @@ class IncidentsController < InertiaController
   def open_investigation(incident)
     id = params[Investigation::QUERY_PARAM]
     investigation = id.presence && incident.investigations.seen.find_by(id: id)
-    investigation && InvestigationDetailSerializer.one(investigation, file_path: ->(file) { incident_investigation_file_path(incident, investigation, file) })
+    investigation && InvestigationDetailSerializer.one(investigation, file_path: ->(file) { incident_investigation_file_path(incident, investigation, file) },
+                                                                    screenshot_path: ->(shot) { incident_investigation_screenshot_path(incident, investigation, shot) })
   end
 
   # Capped, the picker searches rather than scrolls.

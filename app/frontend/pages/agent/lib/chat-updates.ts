@@ -15,7 +15,7 @@ type ChatChange = { title: string } | { pinned: boolean } | { archived: boolean 
 
 const OPEN_CHAT = [
   AGENT_CHAT_PROPS.CONVERSATION, AGENT_CHAT_PROPS.MESSAGES, AGENT_CHAT_PROPS.CONFIRMATIONS,
-  AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION, AGENT_CHAT_PROPS.CHARTS,
+  AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION, AGENT_CHAT_PROPS.CHARTS, AGENT_CHAT_PROPS.SCREENSHOTS,
   AGENT_CHAT_PROPS.WAITING_MESSAGES, AGENT_CHAT_PROPS.ATTACHMENT_RULES, AGENT_CHAT_PROPS.COMPACTIONS, AGENT_CHAT_PROPS.HELD_CALLS,
   AGENT_CHAT_PROPS.PACK_REFUSALS, AGENT_CHAT_PROPS.SECRET_ENTRIES, AGENT_CHAT_PROPS.SETUP_GUIDE, AGENT_CHAT_PROPS.WATCHES, AGENT_CHAT_PROPS.WATCH_UPDATES,
   AGENT_CHAT_PROPS.PULL_REQUEST_NOTICES, AGENT_CHAT_PROPS.MEMORY_QUESTIONS, AGENT_CHAT_PROPS.PLANS, AGENT_CHAT_PROPS.DATA_REPAIRS,
@@ -23,6 +23,8 @@ const OPEN_CHAT = [
   AGENT_CHAT_PROPS.CHAT_MODELS,
 ]
 const CHARTS = [ AGENT_CHAT_PROPS.CHARTS ]
+// A check's screenshots exist once it ran, and a send asked about after it shows the page it sends from.
+const SCREENSHOTS = [ AGENT_CHAT_PROPS.SCREENSHOTS, AGENT_CHAT_PROPS.CONFIRMATIONS ]
 // A held call moves on when someone approves it, Halon checks it, it runs or it expires, so the chat is told to look.
 const HELD_CALLS = [ AGENT_CHAT_PROPS.HELD_CALLS, AGENT_CHAT_PROPS.CONVERSATION ]
 // A refusal appears after Halon was refused a change, and says when the admins were asked once someone asks.
@@ -196,6 +198,10 @@ export function refreshRuns() {
 // A step that returned charts arrives while the answer is still being written, so only the charts are loaded.
 export function refreshCharts() {
   router.reload({ only: CHARTS })
+}
+
+export function refreshScreenshots() {
+  router.reload({ only: SCREENSHOTS })
 }
 
 export function refreshHeldCalls() {

@@ -8,6 +8,9 @@ module Slack
         withdrawn: ":heavy_minus_sign: Withdrawn. Something else was asked first, so this was not run."
       }.freeze
 
+      # A browser send is asked about under the screenshot of the page it sends from, posted just before.
+      PAGE_ABOVE = "The page this sends from is in the screenshot above, as Halon's browser saw it before stopping.".freeze
+
       def self.build(conversation_id:, confirmations:)
         [ { type: "section", text: { type: "mrkdwn", text: TITLE } } ] +
           confirmations.flat_map { |confirmation| question_blocks(conversation_id, confirmation) }
@@ -36,6 +39,7 @@ module Slack
         if guarded.any?
           blocks << { type: "section", text: { type: "mrkdwn", text: guarded.join("\n").truncate(Formatting::SECTION_TEXT_LIMIT) } }
         end
+        blocks << { type: "context", elements: [ { type: "mrkdwn", text: PAGE_ABOVE } ] } if confirmation.page
         blocks.concat(support_blocks(confirmation))
         blocks.concat(read_blocks(confirmation))
         blocks << answer_block(conversation_id, confirmation)

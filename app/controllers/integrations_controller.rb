@@ -19,17 +19,19 @@ class IntegrationsController < InertiaController
   def index
     render inertia: "integrations/index", props: {
       integrations: IntegrationSerializer.many(
-        current_workspace.integrations.where(deleted_at: nil).order(:name)
+        current_workspace.integrations.connections.where(deleted_at: nil).order(:name)
                          .includes(:tools, :repository_setups, integration_environments: :environment)
       ),
-      providers: IntegrationProviderSerializer.many(IntegrationProvider.all),
+      providers: IntegrationProviderSerializer.many(IntegrationProvider.connectable),
       categories: IntegrationProvider.categories,
       environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries)
     }
   end
 
   def create
-    provider = IntegrationProvider.find(params[:provider]) || IntegrationProvider.find(Integration::PROVIDER_CUSTOM_MCP)
+    # A test login is saved from its own screen (TestLoginsController), never connected from here.
+    provider = IntegrationProvider.find(params[:provider]).then { |entry| entry unless entry&.test_logins } ||
+               IntegrationProvider.find(Integration::PROVIDER_CUSTOM_MCP)
     return connect_with_url(provider) if provider&.connection_url? && params.key?(:connection_url)
     # A provider connected with credentials may offer its own MCP server instead, which the token form reaches.
     return connect_with_credentials(provider) if provider&.api_token? && (params.key?(:credentials) || !provider.mcp_alternative?)
@@ -480,7 +482,7 @@ class IntegrationsController < InertiaController
   end
 
   def set_integration
-    @integration = current_workspace.integrations.where(deleted_at: nil).find(params[:id])
+    @integration = current_workspace.integrations.connections.where(deleted_at: nil).find(params[:id])
   end
 
   # Only MCP kinds carry a server URL. The block defers reading it so a native connect never demands one.

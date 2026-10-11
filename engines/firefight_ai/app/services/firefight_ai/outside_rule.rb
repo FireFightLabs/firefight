@@ -15,5 +15,12 @@ module FirefightAi
     BLIND_SPOT_RULE = "When a question needs a system you hold no tool for, such as failed logins while sign-in runs through an " \
                       "outside provider, call blind_spots and say which system it is, where it was seen and how to connect it. " \
                       "Never guess what a system nothing connects did.".freeze
+
+    BROWSER_RULE = "When you hold check_in_browser, look at a page the way a person uses it whenever that settles the question: " \
+                   "a report that a page or a button does not work, such as the checkout button does nothing, and after a change " \
+                   "to something people use in a browser, to confirm it works. Open the page, follow the steps they take, and say " \
+                   "what it showed: the status, console errors, failed requests and what is on the screen. Log in with log_in only " \
+                   "where a test login is saved. The browser stops before anything a page would send, such as a form, so ask the " \
+                   "person before sending one, and never send while investigating.".freeze
   end
 end

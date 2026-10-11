@@ -16,6 +16,7 @@ import { formatSeconds } from "@/components/investigations/format"
 import { SETTLED_LABELS, isKeyOf, labelFor } from "@/components/investigations/labels"
 import { HelperGroups } from "@/components/investigations/helper-groups"
 import { NoteFiles } from "@/components/investigations/note-files"
+import { PageScreenshots } from "@/components/investigations/page-screenshots"
 import { StepDetails } from "@/components/investigations/step-row"
 import { StepLinks } from "@/components/investigations/step-links"
 import { StoryEndRow } from "@/components/investigations/story-end-row"
@@ -67,6 +68,7 @@ export function StoryEntryRow({ entry, investigation, connected }: { entry: Stor
       const { step } = entry
       const tone = stepTone(step)
       const stepCharts = investigation.charts.filter((chart) => chart.stepPosition === step.position)
+      const stepScreenshots = investigation.screenshots.filter((screenshot) => screenshot.stepPosition === step.position)
       return (
         <StoryRow
           id={`step-${step.position}`}
@@ -90,6 +92,7 @@ export function StoryEntryRow({ entry, investigation, connected }: { entry: Stor
               <MetricChart chart={chart} />
             </div>
           ))}
+          <PageScreenshots screenshots={stepScreenshots} />
         </StoryRow>
       )
     }

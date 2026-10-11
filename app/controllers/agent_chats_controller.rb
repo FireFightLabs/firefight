@@ -15,6 +15,8 @@ class AgentChatsController < InertiaController
   PROP_INVESTIGATIONS = "investigations"
   PROP_OPEN_INVESTIGATION = "openInvestigation"
   PROP_CHARTS = "charts"
+  # What Halon's browser saw in the open chat, each drawn under the step that took it.
+  PROP_SCREENSHOTS = "screenshots"
   # What the person sent while the agent worked, which joins the answer at its next step.
   PROP_WAITING_MESSAGES = "waitingMessages"
   # What the composer takes, and whether the open chat's model reads images.
@@ -56,7 +58,7 @@ class AgentChatsController < InertiaController
     "CONVERSATION" => PROP_CONVERSATION, "MESSAGES" => PROP_MESSAGES, "INCIDENTS" => PROP_INCIDENTS,
     "CONFIRMATIONS" => PROP_CONFIRMATIONS, "INTEGRATION_CARDS" => PROP_INTEGRATION_CARDS,
     "ENVIRONMENTS" => PROP_ENVIRONMENTS, "INVESTIGATIONS" => PROP_INVESTIGATIONS,
-    "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS, "WAITING_MESSAGES" => PROP_WAITING_MESSAGES,
+    "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS, "SCREENSHOTS" => PROP_SCREENSHOTS, "WAITING_MESSAGES" => PROP_WAITING_MESSAGES,
     "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES, "COMPACTIONS" => PROP_COMPACTIONS, "HELD_CALLS" => PROP_HELD_CALLS,
     "PACK_REFUSALS" => PROP_PACK_REFUSALS, "SECRET_ENTRIES" => PROP_SECRET_ENTRIES, "SETUP_GUIDE" => PROP_SETUP_GUIDE, "WATCHES" => PROP_WATCHES, "WATCH_UPDATES" => PROP_WATCH_UPDATES,
     "PULL_REQUEST_NOTICES" => PROP_PULL_REQUEST_NOTICES, "MEMORY_QUESTIONS" => PROP_MEMORY_QUESTIONS, "PLANS" => PROP_PLANS,
@@ -72,7 +74,7 @@ class AgentChatsController < InertiaController
   include ServesChatAttachment
 
   # Asking spends money, so it needs the same permission as starting an investigation.
-  authorizes Ability::Action::RESOURCE_CHATS, read: %i[index show search investigation_file data_repair_copy],
+  authorizes Ability::Action::RESOURCE_CHATS, read: %i[index show search investigation_file screenshot investigation_screenshot data_repair_copy],
                                              update: %i[update ask_pack fill_secret reveal_secret], delete: %i[destroy]
   authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask confirm stop run_held_call dismiss_held_call ask_held_call_again stop_watch fix_pull_request
                                                                 schedule_plan cancel_plan retry_plan undo_plan keep_mitigation extend_mitigation
@@ -88,7 +90,7 @@ class AgentChatsController < InertiaController
   def index
     render inertia: "agent/index", props: base_props.merge(
       PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [], PROP_INVESTIGATIONS => [], PROP_OPEN_INVESTIGATION => nil,
-      PROP_CHARTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => [],
+      PROP_CHARTS => [], PROP_SCREENSHOTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => [],
       PROP_HELD_CALLS => [], PROP_PACK_REFUSALS => [], PROP_SECRET_ENTRIES => [], PROP_WATCHES => [], PROP_WATCH_UPDATES => [],
       PROP_PULL_REQUEST_NOTICES => [], PROP_MEMORY_QUESTIONS => [], PROP_PLANS => [], PROP_DATA_REPAIRS => [], PROP_MITIGATIONS => [],
       PROP_OWNER_ASKS => [], PROP_HELPERS => [], PROP_HANDBOOK_PROPOSALS => [], PROP_CHAT_MODELS => chat_models(nil)
@@ -100,10 +102,11 @@ class AgentChatsController < InertiaController
       PROP_CONVERSATION => AgentChatSerializer.one(conversation),
       PROP_MESSAGES => AgentChatMessageSerializer.many(conversation.chat&.readable_messages&.includes(:attached_files, :ruby_llm_usages, ruby_llm_tool_calls: :result) || [],
                                                        member: current_membership),
-      PROP_CONFIRMATIONS => AgentChatConfirmationSerializer.many(conversation.chat&.awaiting_decision || []),
+      PROP_CONFIRMATIONS => AgentChatConfirmationSerializer.many(conversation.chat&.awaiting_decision || [], screenshot_path: screenshot_path),
       PROP_INVESTIGATIONS => InvestigationCardSerializer.many(started_investigations),
       PROP_OPEN_INVESTIGATION => open_investigation,
       PROP_CHARTS => ChatChartSerializer.many(conversation.chat&.charts || []),
+      PROP_SCREENSHOTS => ChatScreenshotSerializer.many(conversation.chat&.screenshots || [], screenshot_path: screenshot_path),
       PROP_WAITING_MESSAGES => AgentChatWaitingMessageSerializer.many(conversation.chat&.queued_messages&.waiting&.includes(:attached_files) || []),
       PROP_ATTACHMENT_RULES => attachment_rules(conversation.chat, picked: conversation.picked_model_choice),
       PROP_COMPACTIONS => ChatCompactionSerializer.many(conversation.chat&.compactions || []),
@@ -129,6 +132,20 @@ class AgentChatsController < InertiaController
   def investigation_file
     investigation = conversation.investigations.seen.find(params[:investigation_id])
     send_chat_attachment(investigation.note_file(params[:file_id]))
+  end
+
+  # A page Halon's browser saw in this chat, for whoever may read the chat.
+  def screenshot
+    chat = conversation.chat
+    raise ActiveRecord::RecordNotFound unless chat
+
+    send_chat_attachment(chat.screenshots.find(params[:screenshot_id]))
+  end
+
+  # A page the browser saw in a run this chat started, for whoever may read the chat and so the run.
+  def investigation_screenshot
+    investigation = conversation.investigations.seen.find(params[:investigation_id])
+    send_chat_attachment(investigation.screenshot(params[:screenshot_id]))
   end
 
   def search
@@ -385,7 +402,8 @@ class AgentChatsController < InertiaController
   def open_investigation
     id = params[Investigation::QUERY_PARAM]
     investigation = id.presence && conversation.investigations.seen.find_by(id: id)
-    investigation && InvestigationDetailSerializer.one(investigation, file_path: ->(file) { agent_chat_investigation_file_path(conversation, investigation, file) })
+    investigation && InvestigationDetailSerializer.one(investigation, file_path: ->(file) { agent_chat_investigation_file_path(conversation, investigation, file) },
+                                                                    screenshot_path: ->(shot) { agent_chat_investigation_screenshot_path(conversation, investigation, shot) })
   end
 
   def question = params[:question].to_s.strip
@@ -450,6 +468,8 @@ class AgentChatsController < InertiaController
   def conversation
     @conversation ||= own_chats.find(params[:id])
   end
+
+  def screenshot_path = ->(shot) { agent_chat_screenshot_path(conversation, shot) }
 
   def base_props
     {

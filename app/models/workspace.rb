@@ -5,6 +5,7 @@ class Workspace < ApplicationRecord
   include Workspace::Connection
   include Workspace::ChannelArchival
   include Workspace::Settings
+  include Workspace::Browsing
   include Workspace::InvestigationLimits
   include Workspace::OnCall
   include Workspace::CodeFixes

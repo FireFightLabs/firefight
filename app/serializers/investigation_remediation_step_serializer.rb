@@ -17,9 +17,9 @@ class InvestigationRemediationStepSerializer < BaseSerializer
   type :string, optional: true
   def repository = step.repository
 
-  # The tool an action runs, as the workspace knows it, such as cloudflare.execute.
+  # The tool an action runs, as the workspace knows it, such as cloudflare.execute, or the address a page check opens.
   type :string, optional: true
-  def action = step.action_key
+  def action = step.page_check? ? step.arguments.to_h["url"] : step.action_key
 
   type :string, optional: true
   def missing = step.missing
@@ -40,7 +40,7 @@ class InvestigationRemediationStepSerializer < BaseSerializer
   # What a tool step sends, shown before anyone applies it, since it runs as them. Written by the agent and checked for
   # anything that looks like a credential when the fix was written.
   type :string, optional: true
-  def arguments = (JSON.pretty_generate(step.arguments) if step.action? && step.arguments.present?)
+  def arguments = (JSON.pretty_generate(step.arguments) if (step.action? || step.page_check?) && step.arguments.present?)
 
   # Whether Firefight runs it when the fix is applied, an action or a code change it can open, rather than a person.
   type :boolean

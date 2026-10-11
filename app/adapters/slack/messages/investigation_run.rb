@@ -10,7 +10,8 @@ module Slack
       STEP_KINDS = {
         Investigation::RemediationStep::KIND_PULL_REQUEST => "Code change",
         Investigation::RemediationStep::KIND_ACTION => "Change through a tool",
-        Investigation::RemediationStep::KIND_MANUAL => "For a person"
+        Investigation::RemediationStep::KIND_MANUAL => "For a person",
+        Investigation::RemediationStep::KIND_PAGE_CHECK => "Page check"
       }.freeze
 
       # A question with no incident is named by its own words, which came from a person and are escaped.
@@ -179,7 +180,7 @@ module Slack
       def self.fix_block(plan, title: "How to fix it")
         all = plan.steps.to_a
         steps = all.first(FIX_STEPS_SHOWN).map do |step|
-          where = step.repository ? Mrkdwn.escape(step.repository) : step.action_key
+          where = step.repository ? Mrkdwn.escape(step.repository) : (step.page_check? ? Mrkdwn.escape(step.arguments.to_h["url"].to_s) : step.action_key)
           "#{step.position}. _#{STEP_KINDS.fetch(step.kind)}#{" in `#{where}`" if where}_ #{Formatting.markdown_to_mrkdwn(Mrkdwn.escape(step.description))}#{sends(step)}"
         end
         hidden = all.size - FIX_STEPS_SHOWN

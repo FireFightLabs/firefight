@@ -4,7 +4,7 @@ import type { SharedProps } from "@/types"
 import type { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
 import type {
   AgentChat, AgentChatAttachment, AgentChatAttachmentRules, AgentChatConfirmation, AgentChatDataRepair, AgentChatHeldCall, AgentChatHelper, AgentChatIncident,
-  AgentChatMemoryQuestion, AgentChatMessage, AgentChatMitigation, AgentChatOwnerAsk, AgentChatPackRefusal, AgentChatPlan, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage, AgentChatWatch, AgentChatWatchUpdate, ChatChart, ChatCompaction, ChatModelMenu, EnvironmentOption,
+  AgentChatMemoryQuestion, AgentChatMessage, AgentChatMitigation, AgentChatOwnerAsk, AgentChatPackRefusal, AgentChatPlan, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage, AgentChatWatch, AgentChatWatchUpdate, ChatChart, ChatCompaction, ChatModelMenu, ChatScreenshot, EnvironmentOption,
   HandbookProposal, IntegrationCard, InvestigationCard, InvestigationDetail,
 } from "@/types/serializers"
 
@@ -28,6 +28,7 @@ export interface AgentPageProps extends SharedProps {
   investigations: InvestigationCard[]
   openInvestigation: InvestigationDetail | null
   charts: ChatChart[]
+  screenshots: ChatScreenshot[]
   waitingMessages: AgentChatWaitingMessage[]
   attachmentRules: AgentChatAttachmentRules
   compactions: ChatCompaction[]

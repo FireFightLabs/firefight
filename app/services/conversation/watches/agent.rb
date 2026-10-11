@@ -12,8 +12,10 @@ class Conversation::Watches::Agent
   end
 
   # Ready for the asker and reading only, by the name Halon calls each.
+  # Halon's browser is among them, so a watch can wait until a page loads with no console errors. It only looks, since a
+  # watch never sends what a page would send.
   def tools
-    @tools ||= Chat::Tools.catalog(self).select { |entry| entry.state == Chat::Tools::STATE_READY && entry.tool }.index_by(&:name)
+    @tools ||= (Chat::Tools.catalog(self).select { |entry| entry.state == Chat::Tools::STATE_READY && entry.tool } + browser).index_by(&:name)
   end
 
   # Whether the last call was refused or the provider failed it.
@@ -42,6 +44,13 @@ class Conversation::Watches::Agent
   def pack_refused!(_action_key, _tool_call_id) = nil
 
   def refusal(action_key) = "#{@asker.try(:display_name) || 'The person who asked'} may not use #{action_key}."
+
+  def browser
+    Chat::Tools::Browser.all(self).map do |tool|
+      Chat::Tools::Entry.new(name: tool.name, description: Chat::Tools.clean(tool.description, Chat::Tools::ONE_LINE), state: Chat::Tools::STATE_READY,
+                             tool: tool, group: nil, source: Chat::Skill::SOURCE_FIREFIGHT, handle: tool.name)
+    end
+  end
 
   # A tool no approval rule holds, such as the map search, is read whatever the rules say.
   def tool_call(action_key:, params: {}, scope: {}, approval_id: nil, holdable: true, **, &block)

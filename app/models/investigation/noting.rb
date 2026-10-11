@@ -62,6 +62,13 @@ module Investigation::Noting
     Chat::Attachment.where(queued_message_id: chat.queued_messages.select(:id)).find(id)
   end
 
+  # A page the run's browser saw, served by the page the run is drawn over, under that page's own rule like a note's file.
+  def screenshot(id)
+    raise ActiveRecord::RecordNotFound unless chat
+
+    chat.screenshots.find(id)
+  end
+
   # A note can arrive before the worker opens the chat, so either may open it. The worker names the model it runs on.
   def chat_record(model = ai_model)
     chat || Chat.open!(owner: self, workspace: workspace, model_choice: model).tap { |opened| self.chat = opened }

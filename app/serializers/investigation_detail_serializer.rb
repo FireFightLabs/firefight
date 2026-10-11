@@ -73,6 +73,12 @@ class InvestigationDetailSerializer < BaseSerializer
     investigation.chat&.charts || []
   end
 
+  # Pages the run's browser saw, each shown under the step that took it, a fix's page check under that fix step. Served by
+  # the page the run is drawn over, which names the address as screenshot_path.
+  has_many :screenshots, serializer: ChatScreenshotSerializer do
+    investigation.chat&.screenshots || []
+  end
+
   # Why the run cannot be stopped now, or nil while it can. The story offers Stop only then.
   type :string, optional: true
   def stop_blocked_reason

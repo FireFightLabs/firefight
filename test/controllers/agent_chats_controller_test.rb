@@ -506,6 +506,30 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "a", response.body
   end
 
+  test "a page Halon's browser saw is drawn under its step and opens only for the person whose chat it is" do
+    mine = start_chat
+    shot = Chat::Screenshot.record!(mine.chat_record, [ { "name" => "desktop", "final_url" => "https://shop.example.com", "title" => "Shop",
+                                                          "screenshot" => Base64.strict_encode64("\xFF\xD8\xFFjpeg".b) } ], tool_call_id: "call_1").sole
+
+    get agent_chat_url(mine), headers: inertia_headers
+    shown = inertia_props.fetch(AgentChatsController::PROP_SCREENSHOTS).sole
+    assert_equal [ "call_1", agent_chat_screenshot_path(mine, shot), "Desktop: Shop at https://shop.example.com" ], shown.values_at("toolCallId", "path", "caption")
+
+    get shown["path"]
+    assert_response :success
+    assert_equal [ "image/jpeg", "\xFF\xD8\xFFjpeg".b ], [ response.media_type, response.body.b ]
+    assert_match "inline", response.headers["Content-Disposition"]
+    assert_equal "private, no-store", response.headers["Cache-Control"]
+
+    theirs = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:bob_workspace_one))
+    get agent_chat_screenshot_url(theirs, shot)
+    assert_response :not_found
+
+    sign_in(users(:bob), @workspace)
+    get agent_chat_screenshot_url(mine, shot)
+    assert_response :not_found
+  end
+
   test "a file on a run opens under a chat only for the person whose chat started it" do
     theirs = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:bob_workspace_one))
     run = chat_run(theirs)

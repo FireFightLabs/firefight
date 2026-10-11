@@ -365,9 +365,12 @@ Rails.application.routes.draw do
     post "/incidents/:incident_id/postmortem/ai_rewrite", to: "incidents#ai_rewrite_postmortem", as: :incident_postmortem_ai_rewrite
     post "/incidents/:incident_id/investigations", to: "investigations#start", as: :incident_investigations
     get "/incidents/:incident_id/investigations/:id/files/:file_id", to: "incidents#investigation_file", as: :incident_investigation_file
+    get "/incidents/:incident_id/investigations/:id/screenshots/:screenshot_id", to: "incidents#investigation_screenshot",
+                                                                              as: :incident_investigation_screenshot
     get "/investigations/:id", to: "investigations#show", as: :investigation
     post "/investigations/:id/notes", to: "investigations#add_note", as: :investigation_notes
     get "/investigations/:id/files/:file_id", to: "investigations#file", as: :investigation_file
+    get "/investigations/:id/screenshots/:screenshot_id", to: "investigations#screenshot", as: :investigation_screenshot
     post "/investigations/:id/stop", to: "investigations#stop", as: :investigation_stop
     post "/investigations/:id/rating", to: "investigations#rate", as: :investigation_rating
     post "/investigations/:id/fix", to: "investigations#apply_fix", as: :investigation_fix
@@ -404,6 +407,9 @@ Rails.application.routes.draw do
     delete "/agent/attachments/:id", to: "agent_chat_attachments#destroy"
     get "/agent/:id", to: "agent_chats#show", as: :agent_chat
     get "/agent/:id/investigations/:investigation_id/files/:file_id", to: "agent_chats#investigation_file", as: :agent_chat_investigation_file
+    get "/agent/:id/screenshots/:screenshot_id", to: "agent_chats#screenshot", as: :agent_chat_screenshot
+    get "/agent/:id/investigations/:investigation_id/screenshots/:screenshot_id", to: "agent_chats#investigation_screenshot",
+                                                                                as: :agent_chat_investigation_screenshot
     patch "/agent/:id", to: "agent_chats#update"
     delete "/agent/:id", to: "agent_chats#destroy"
     post "/agent/:id/ask", to: "agent_chats#ask", as: :agent_chat_ask
@@ -456,6 +462,8 @@ Rails.application.routes.draw do
     post "/settings/handbook/draft", to: "handbook#draft", as: :draft_handbook
     post "/settings/handbook/proposals/:id/accept", to: "handbook#accept_proposal", as: :accept_handbook_proposal
     post "/settings/handbook/proposals/:id/dismiss", to: "handbook#dismiss_proposal", as: :dismiss_handbook_proposal
+    get "/settings/test-logins", to: "test_logins#index", as: :settings_test_logins
+    resources :test_logins, only: [ :create, :update, :destroy ], path: "settings/test-logins"
 
     get "/map", to: "resource_map#index", as: :resource_map
     get "/search", to: "map_search#index", as: :map_search

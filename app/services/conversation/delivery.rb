@@ -59,6 +59,7 @@ class Conversation::Delivery
     cards << step.card if step.card && status == FirefightAi::AgentLoop::STEP_DONE && answered
     # Helpers keep the charts they read under the step that started them.
     charted << key if [ Chat::Tools::CARD_CHART, Chat::Tools::CARD_HELPERS ].include?(step.card&.kind)
+    screenshotted << key if step.card&.kind == Chat::Tools::CARD_SCREENSHOTS
     @text.flush!
     adapter.report_agent_step(
       channel_id: @conversation.channel_id, answer_id: @answer_id, key: key, title: step.title, status: status, outcome: outcome&.kind,
@@ -120,8 +121,10 @@ class Conversation::Delivery
   end
 
   # Where it was posted is kept, so it can be redrawn if the person moves past it.
+  # The pages Halon's browser saw in this turn go first, so a send is asked about under the page it sends from.
   def confirm!(tool_calls)
     @text.flush!
+    post_screenshots
     posted = adapter.ask_agent_confirmation(
       channel_id: @conversation.channel_id, thread_id: @conversation.thread_id, answer_id: @answer_id,
       conversation_id: @conversation.id, confirmations: tool_calls.map { |tool_call| Chat::Tools.confirmation(tool_call) }
@@ -156,9 +159,12 @@ class Conversation::Delivery
 
   def charted = @charted ||= []
 
+  def screenshotted = @screenshotted ||= []
+
   # Posted under the answer rather than into the stream, so the reply reads first and the table follows it.
   def post_cards
     post_charts
+    post_screenshots
     cards.uniq.each do |card|
       next unless card.kind == Chat::Tools::CARD_INTEGRATIONS
 
@@ -175,6 +181,16 @@ class Conversation::Delivery
     charts = @conversation.chat.charts.where(tool_call_id: charted.uniq)
     Chat::Chart.posted_under_answer(charts) do |posts|
       adapter.post_charts(channel_id: @conversation.channel_id, thread_id: @conversation.thread_id, charts: posts)
+    end
+  end
+
+  def post_screenshots
+    return if screenshotted.empty?
+
+    screenshots = @conversation.chat.screenshots.where(tool_call_id: screenshotted.uniq)
+    screenshotted.clear
+    Chat::Screenshot.posted_under_answer(screenshots) do |posts, left_out|
+      adapter.post_screenshots(channel_id: @conversation.channel_id, thread_id: @conversation.thread_id, screenshots: posts, left_out: left_out)
     end
   end
 

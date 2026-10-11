@@ -130,6 +130,10 @@ module Conversation::HeldCalls
                                                                          shown_as: held.tool_name, approval_id: approval.id, call_id: held.tool_call_id)
     end
 
+    if held.tool_name == Chat::Tools::Browser::NAME
+      return Chat::Tools::Browser.new(turn).run_approved(approval.params, approval_id: approval.id, tool_call_id: held.tool_call_id)
+    end
+
     tool_class = Mcp::Tools.all.find { |each| each.name_value.to_s == held.tool_name }
     return "#{held.tool_name} is no longer a tool here, so it did not run." unless tool_class
 

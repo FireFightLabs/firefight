@@ -102,12 +102,12 @@ export function Answer({ investigation, onDeclare }: AnswerProps) {
         )}
         {finding.fix && (
           <AnswerPart label="How to fix it">
-            <FixPlan investigationId={investigation.id} fix={finding.fix} />
+            <FixPlan investigationId={investigation.id} fix={finding.fix} screenshots={investigation.screenshots} />
           </AnswerPart>
         )}
         {finding.fix?.undo && (
           <AnswerPart label="How to undo it">
-            <FixPlan investigationId={investigation.id} fix={finding.fix.undo} />
+            <FixPlan investigationId={investigation.id} fix={finding.fix.undo} screenshots={investigation.screenshots} />
           </AnswerPart>
         )}
         {finding.gaps && (

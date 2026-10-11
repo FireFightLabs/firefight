@@ -45,13 +45,15 @@ function questionFor(confirmation: AgentChatConfirmation, choices: Choice[]): Ap
   const basis = confirmation.supportLead
   const basisDetails = confirmation.supportRows.map(([ label, meta ]) => ({ label, meta }))
   const options = choices.map((choice) => choice.label)
+  const image = confirmation.pagePath ? { src: confirmation.pagePath, alt: confirmation.pageCaption ?? confirmation.question } : undefined
   if (confirmation.target) {
-    return { q: confirmation.target, subtitle: confirmation.callName, note: confirmation.intent, details, basis, basisDetails, caution, cautionDetails, type: "radio", options }
+    return { q: confirmation.target, subtitle: confirmation.callName, note: confirmation.intent, details, image, basis, basisDetails, caution, cautionDetails, type: "radio", options }
   }
   return {
     q: confirmation.intent ?? confirmation.question,
     eyebrow: confirmation.intent ? confirmation.toolLabel : undefined,
     details,
+    image,
     basis,
     basisDetails,
     caution,

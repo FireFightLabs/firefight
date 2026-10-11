@@ -1,5 +1,7 @@
 # One step of a fix. A pull request changes code in one repository. An action runs one of the workspace's integration
-# tools with the arguments given. A manual step is for a person, and says what is missing for Firefight to do it.
+# tools with the arguments given. A manual step is for a person, and says what is missing for Firefight to do it. A page
+# check opens a page in Halon's browser once the steps before it are done, to confirm the fix works for people, and fails
+# when the page does not.
 # Firefight runs action steps once the fix is applied. A person marks the others done, which lets what waits on them go.
 class Investigation::RemediationStep < ApplicationRecord
   include Chat::SecretFree
@@ -12,7 +14,8 @@ class Investigation::RemediationStep < ApplicationRecord
   KIND_PULL_REQUEST = "pull_request".freeze
   KIND_ACTION = "action".freeze
   KIND_MANUAL = "manual".freeze
-  KINDS = [ KIND_PULL_REQUEST, KIND_ACTION, KIND_MANUAL ].freeze
+  KIND_PAGE_CHECK = "page_check".freeze
+  KINDS = [ KIND_PULL_REQUEST, KIND_ACTION, KIND_MANUAL, KIND_PAGE_CHECK ].freeze
 
   STATUS_PROPOSED = "proposed".freeze
   STATUS_RUNNING = "running".freeze
@@ -85,19 +88,39 @@ class Investigation::RemediationStep < ApplicationRecord
       step.assign_attributes(tool_name: asked["tool"], action_key: tool.action_key, arguments: arguments, resource: resource)
     when KIND_MANUAL
       step.missing = asked["missing"].presence
+    when KIND_PAGE_CHECK
+      step.assign_attributes(page_check_of(asked["arguments"], position))
+      step.depends_on = (1...position).to_a if step.depends_on.empty?
     end
     refuse(position, "has no description. Say in a sentence what it changes") if step.description.empty?
     refuse(position, "holds what looks like a secret. Never put a credential in a fix") unless step.valid? || step.errors[:text].empty?
     step
   end
 
+  # What a page check opens, read the way check_in_browser reads it, and never anything it would send.
+  def self.page_check_of(arguments, position)
+    refuse(position, "has its arguments as something other than an object") unless arguments.nil? || arguments.is_a?(Hash)
+    check = Chat::BrowserCheck.from(arguments.to_h, sends_allowed: false)
+    { tool_name: Chat::BrowserCheck::TOOL_NAME, action_key: Ability::Action::BROWSER_READ, arguments: check.to_params }
+  rescue Chat::BrowserCheck::Refused => error
+    refuse(position, "is a page check Halon's browser cannot follow: #{error.message.delete_suffix('.')}")
+  end
+
   def action? = kind == KIND_ACTION
+
+  def page_check? = kind == KIND_PAGE_CHECK
+
+  # The check this step makes, as asked when the fix was written.
+  def page_check = Chat::BrowserCheck.from(arguments.to_h, sends_allowed: false)
 
   def pull_request? = kind == KIND_PULL_REQUEST
 
   # Run by Firefight rather than done by a person. That is every action, and a code change once the workspace can open
   # the pull request for its repository.
-  def runs_itself?(workspace = plan.finding.investigation.workspace) = action? || (pull_request? && tool_to_run(workspace).present?)
+  def runs_itself?(workspace = plan.finding.investigation.workspace) = action? || page_check? || (pull_request? && tool_to_run(workspace).present?)
+
+  # Runs itself and changes something, which a page check never does, so a fix of page checks alone is not one to apply.
+  def changes_something?(workspace = plan.finding.investigation.workspace) = runs_itself?(workspace) && !page_check?
 
   def proposed? = status == STATUS_PROPOSED
 
@@ -164,7 +187,7 @@ class Investigation::RemediationStep < ApplicationRecord
   # A person's step goes in order like any other, so marking it done never lets a step run past one that has not gone
   # through.
   def mark_done_blocked_reason(siblings = plan.steps)
-    return "Firefight runs step #{position} itself once the fix is applied." if action?
+    return "Firefight runs step #{position} itself once the fix is applied." if action? || page_check?
     return code_runs_itself_reason if pull_request? && runs_itself?
     return "Step #{position} is already #{STATUS_WORDS.fetch(status)}." unless proposed?
     return "Step #{position} waits on step #{depends_on.join(' and ')}, which #{depends_on.size == 1 ? 'is' : 'are'} not done yet." unless ready?(siblings)
@@ -198,6 +221,17 @@ class Investigation::RemediationStep < ApplicationRecord
       principal: plan.acting_principal, action_key: tool.action_key, workspace: investigation.workspace, scope: scope, params: arguments,
       context: { source: plan.applied_from, approval_id: approval_id, incident_id: investigation.incident&.id,
                  unattended_rule_id: applied_under_rule_id, triggered_by_label: triggered_by_label }.compact
+    )
+  end
+
+  # A page check is a look in Halon's browser as whoever applied the fix, ledgered like any other step, with the most
+  # pages it may load so the workspace's hour counts it.
+  def authorize_page_check!(check)
+    investigation = plan.finding.investigation
+    AbilityGateway.authorize!(
+      principal: plan.acting_principal, action_key: Ability::Action::BROWSER_READ, workspace: investigation.workspace,
+      params: check.to_params.merge("pages" => check.planned_pages),
+      context: { source: plan.applied_from, incident_id: investigation.incident&.id, triggered_by_label: triggered_by_label }.compact
     )
   end
 

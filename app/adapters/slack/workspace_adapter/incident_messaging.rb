@@ -794,6 +794,17 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     end
   end
 
+  def post_screenshots(channel_id:, thread_id:, screenshots:, left_out: 0)
+    translate_errors do
+      posted = screenshots.map { |shot| { message_id: post_screenshot(channel_id, thread_id, shot)[:ts], channel_id: channel_id } }
+      if left_out.positive?
+        Slack::Client.post_message(workspace: @workspace, channel: channel_id, thread_ts: thread_id,
+                                   text: Slack::Messages::ScreenshotCaption.left_out(left_out))
+      end
+      posted
+    end
+  end
+
   def post_agent_reply(channel_id:, thread_id:, answer_id:, text:, streamed: false)
     finish_agent_answer(
       channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,
@@ -898,6 +909,14 @@ module Slack::WorkspaceAdapter::IncidentMessaging
       workspace: @workspace, channel: channel_id, thread_ts: thread_id, filename: Slack::Messages::ChartCaption.filename(chart),
       content: chart.png, title: chart.title, comment: caption
     )
+  rescue AdapterError::MissingPermission
+    Slack::Client.post_message(workspace: @workspace, channel: channel_id, thread_ts: thread_id, text: caption)
+  end
+
+  def post_screenshot(channel_id, thread_id, shot)
+    caption = Slack::Messages::ScreenshotCaption.build(shot)
+    Slack::Client.upload_file(workspace: @workspace, channel: channel_id, thread_ts: thread_id, filename: shot.filename, content: shot.jpeg,
+                              title: shot.caption.truncate(250), comment: caption)
   rescue AdapterError::MissingPermission
     Slack::Client.post_message(workspace: @workspace, channel: channel_id, thread_ts: thread_id, text: caption)
   end

@@ -14,6 +14,15 @@ export const REMEDIATION_STEP_LABELS: Record<RemediationStepKind, string> = {
   pull_request: "Code change",
   action: "Change through a tool",
   manual: "For a person",
+  page_check: "Page check",
+}
+
+// What a step's arguments are called on the run page: what a change sends, or what a page check opens.
+export const REMEDIATION_STEP_ARGUMENTS_LABELS: Record<RemediationStepKind, string> = {
+  pull_request: "What it sends",
+  action: "What it sends",
+  manual: "What it sends",
+  page_check: "What it opens",
 }
 
 // Where applying a fix has got to. A fix nobody applied yet shows no status.

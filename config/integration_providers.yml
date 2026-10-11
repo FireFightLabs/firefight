@@ -45,6 +45,8 @@
 # are kept there and read with its own tools.
 # holds_code marks a code host, whose repositories a code change can be written to. Each of its connections keeps the
 # paths Halon may not change (Integration::CodeChanges), which its page shows under Code changes.
+# test_logins marks the provider whose connections keep the test logins Halon's browser signs in with
+# (Integrations::SiteLogins). It is never offered on the gallery and none of its connections is one of the workspace's.
 # Section headings on the gallery, listed in the order the gallery shows them. A provider naming a category that is
 # not listed here still renders, it just shows no tagline, so adding a provider in a new category stays a registry edit
 # rather than a code change. Each has a tagline, halon (what Halon can do with a tool from it, in a sentence or two,
@@ -1239,3 +1241,25 @@ providers:
     history: none
     history_note: "A custom server is the team's own, so Firefight cannot know what its runs look like."
     map_note: "A custom server is the team's own, so Firefight cannot know what it holds."
+  # A site Halon's browser logs in to with a test account an admin saved under Settings, Test logins. Each site is one
+  # connection, so its password is kept like any credential, encrypted on its row. test_logins keeps it off the gallery
+  # and out of the workspace's connections, since it mints no tools and is managed from its own screen.
+  - key: website
+    name: Website
+    category: Websites
+    mark: WW
+    color: "#2f6f8f"
+    description: A test account Halon's browser logs in with when it checks a page, saved per site. The password never reaches Halon.
+    kind: native
+    connect_with: api_token
+    test_logins: true
+    connect_fields:
+      - { key: site_url, label: Site address, hint: "The address of the site, such as https://shop.example.com.", placeholder: "https://shop.example.com" }
+      - { key: login_url, label: Login page, hint: "Where the login form is, when it is not the site's own address.", placeholder: "https://shop.example.com/login", optional: true }
+      - { key: username, label: Username, hint: "The test account's username or email address.", placeholder: "halon-test@example.com" }
+    source_links: none
+    source_links_note: "It keeps a login and answers nothing, so there is no result to link."
+    map: none
+    map_note: "It keeps a login for a site and holds no infrastructure."
+    history: none
+    history_note: "It keeps a login and runs nothing whose length could be read."

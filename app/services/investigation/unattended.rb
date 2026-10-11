@@ -28,7 +28,7 @@ class Investigation::Unattended
   end
 
   def consider!
-    changes = @plan.steps.select { |step| step.runs_itself?(@workspace) }
+    changes = @plan.steps.select { |step| step.changes_something?(@workspace) }
     covering = changes.to_h { |step| [ step, Ability::UnattendedRule.covering(@workspace, step) ] }
     rules = covering.values.compact.uniq
     # No rule touches this fix, so nothing changes from a fix anyone would apply by hand, and nothing is said.

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react"
 
 import { AGENT_CARD_KINDS, AGENT_CHANNEL, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
 import {
-  refreshCharts, refreshHandbookProposals, refreshHeldCalls, refreshHelpers, refreshMemoryQuestions, refreshOpenChat, refreshPackRefusals, refreshPlans,
+  refreshCharts, refreshHandbookProposals, refreshScreenshots, refreshHeldCalls, refreshHelpers, refreshMemoryQuestions, refreshOpenChat, refreshPackRefusals, refreshPlans,
   refreshPullRequestNotices, refreshRuns,
   refreshSafeguards, refreshSecretEntries,
   refreshWatches,
@@ -114,6 +114,9 @@ export function useAgentStream(conversationId: string | null, owed: boolean): Ag
           }
           if (event.type === AGENT_STREAM_EVENTS.STEP && event.card?.kind === AGENT_CARD_KINDS.CHART) {
             refreshCharts()
+          }
+          if (event.type === AGENT_STREAM_EVENTS.STEP && event.card?.kind === AGENT_CARD_KINDS.SCREENSHOTS) {
+            refreshScreenshots()
           }
           setStreamed((shown) => withEvent(shown, event))
           if (

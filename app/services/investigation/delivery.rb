@@ -67,6 +67,7 @@ class Investigation::Delivery
     )
     posted!(answer.to_h[:message_id])
     post_charts
+    post_screenshots
   end
 
   # rerunnable is for a stop on our side. A spent budget or a person's stop would only end the same way.
@@ -82,6 +83,7 @@ class Investigation::Delivery
     )
     posted!
     post_charts
+    post_screenshots
   end
 
   private
@@ -102,6 +104,19 @@ class Investigation::Delivery
     end
   rescue AdapterError => error
     Rails.logger.warn({ event: "investigation.charts_undelivered", investigation_id: @investigation.id, error: error.message }.to_json)
+  end
+
+  # The pages the run's browser saw while it worked, under its answer like its charts. A fix's page check is drawn on the run
+  # page under its step, and the fix's own message says how it went.
+  def post_screenshots
+    screenshots = @investigation.chat&.screenshots&.where(remediation_step_id: nil)
+    return if screenshots.blank?
+
+    Chat::Screenshot.posted_under_answer(screenshots) do |posts, left_out|
+      adapter.post_screenshots(channel_id: channel_id, thread_id: thread_id, screenshots: posts, left_out: left_out)
+    end
+  rescue AdapterError => error
+    Rails.logger.warn({ event: "investigation.screenshots_undelivered", investigation_id: @investigation.id, error: error.message }.to_json)
   end
 
   def tell_chat
