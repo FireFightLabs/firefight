@@ -7,7 +7,7 @@ class SyncReleasePipelineToolsTest < ActiveSupport::TestCase
     added = {
       "aws" => %w[pipeline_executions codedeploy_deployments stack_events app_runner_operations beanstalk_events describe_app stop_service_deployment
                   stop_pipeline_execution rollback_pipeline_stage stop_codedeploy_deployment cancel_stack_update],
-      "google_cloud" => %w[list_executions list_rollouts rollback_target cancel_rollout],
+      "google_cloud" => %w[list_executions list_rollouts rollback_target cancel_rollout approve_rollout advance_rollout],
       "kubernetes" => %w[workload_runs rollout_pause rollout_resume run_cronjob_now suspend_cronjob resume_cronjob]
     }
     connections = added.keys.to_h do |provider|

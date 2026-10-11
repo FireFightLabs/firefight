@@ -10,6 +10,16 @@ module Integrations
         LIST_ROLLOUTS = "list_rollouts".freeze
         ROLLBACK_TARGET = "rollback_target".freeze
         CANCEL_ROLLOUT = "cancel_rollout".freeze
+        # Approving a rollout and advancing a canary are changes like any other: each its own tool, granted, confirmed and
+        # held by approval rules. Neither is a capability, so no unattended rule or fix step can reach them, and an
+        # investigation or a watch is offered no change at all.
+        APPROVE_ROLLOUT = "approve_rollout".freeze
+        ADVANCE_ROLLOUT = "advance_rollout".freeze
+        # Rollout.approvalState and Phase.state, as the approve and advance calls need them.
+        NEEDS_APPROVAL = "NEEDS_APPROVAL".freeze
+        PENDING_APPROVAL = "PENDING_APPROVAL".freeze
+        PHASE_PENDING = "PENDING".freeze
+        ROLLOUT_IN_PROGRESS = "IN_PROGRESS".freeze
         ROLLOUT_LIMIT = 20
         # How many releases a stage's rollouts are looked for in, since a later stage has a rollout of fewer of them.
         RELEASE_SCAN = 30
@@ -98,6 +108,68 @@ module Integrations
                       "required" => %w[resource run]
                     },
                     read_only: false
+          rollout_tools(pack)
+        end
+
+        def self.rollout_tools(pack)
+          rollout = { "type" => "string", "description" => "The rollout, as release/rollout, as list_rollouts shows it" }
+          pack.tool APPROVE_ROLLOUT,
+                    description: "Approve a Cloud Deploy rollout waiting for an approval, so it deploys to its stage. Read the rollout with " \
+                                 "list_rollouts first, and only when the person asks for it",
+                    params_schema: {
+                      "type" => "object",
+                      "properties" => { "resource" => { "type" => "string", "description" => "The pipeline or stage the rollout is in, by name or id" }, "run" => rollout },
+                      "required" => %w[resource run]
+                    },
+                    read_only: false
+          pack.tool ADVANCE_ROLLOUT,
+                    description: "Start the next phase of a Cloud Deploy rollout that waits to be advanced, such as a canary going from 25% to " \
+                                 "stable. Read the rollout with list_rollouts first, and only when the person asks for it",
+                    params_schema: {
+                      "type" => "object",
+                      "properties" => {
+                        "resource" => { "type" => "string", "description" => "The pipeline or stage the rollout is in, by name or id" },
+                        "run" => rollout,
+                        "phase" => { "type" => "string", "description" => "The phase to start, by its id as list_rollouts shows it, such as stable (optional, the next one waiting)" }
+                      },
+                      "required" => %w[resource run]
+                    },
+                    read_only: false
+        end
+
+        # Only a rollout Cloud Deploy says needs an approval is approved, read first so a stale request never approves a
+        # rollout that moved on.
+        def approve_rollout(environment_row:, arguments:)
+          target = deploy_target(environment_row, arguments["resource"])
+          release, rollout = rollout_of(environment_row, target, arguments["run"])
+          name = short(rollout["name"])
+          unless rollout["state"] == PENDING_APPROVAL && rollout["approvalState"] == NEEDS_APPROVAL
+            fail!("Rollout #{name} of release #{release} is #{rollout['state'].to_s.downcase.tr('_', ' ')} and needs no approval, so nothing was approved.")
+          end
+
+          api(environment_row).approve_rollout(target.project, target.location, target.pipeline, release, name)
+          Telemetry.result("Approved rollout #{name} of release #{release}, so Cloud Deploy deploys it to #{rollout['targetId']}. " \
+                           "To stop it, cancel the rollout, and roll #{target.pipeline} #{rollout['targetId']} back to undo what it deployed.",
+                           link: page_link(environment_row, target.project, target.type))
+        end
+
+        # The phase named, or the first one still waiting, of a rollout in progress. A phase already going or done is refused.
+        def advance_rollout(environment_row:, arguments:)
+          target = deploy_target(environment_row, arguments["resource"])
+          release, rollout = rollout_of(environment_row, target, arguments["run"])
+          name = short(rollout["name"])
+          fail!("Rollout #{name} of release #{release} is #{rollout['state'].to_s.downcase.tr('_', ' ')}, so it cannot be advanced.") unless rollout["state"] == ROLLOUT_IN_PROGRESS
+
+          phases = Array(rollout["phases"])
+          asked = arguments["phase"].to_s.strip.presence
+          phase = asked ? phases.find { |each| each["id"] == asked } : phases.find { |each| each["state"] == PHASE_PENDING }
+          fail!("Rollout #{name} has no phase #{asked}. Its phases are #{phases.map { |each| each['id'] }.join(', ')}.") if asked && phase.nil?
+          fail!("Rollout #{name} has no phase waiting to start.") unless phase
+          fail!("Phase #{phase['id']} of rollout #{name} is #{phase['state'].to_s.downcase.tr('_', ' ')}, so it cannot be started.") unless phase["state"] == PHASE_PENDING
+
+          api(environment_row).advance_rollout(target.project, target.location, target.pipeline, release, name, phase["id"])
+          Telemetry.result("Rollout #{name} of release #{release} is starting phase #{phase['id']} on #{rollout['targetId']}. " \
+                           "Roll #{target.pipeline} #{rollout['targetId']} back to undo it.", link: page_link(environment_row, target.project, target.type))
         end
 
         def list_rollouts(environment_row:, arguments:)

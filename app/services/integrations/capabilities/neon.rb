@@ -30,6 +30,9 @@ module Integrations
       }.freeze
       # What a rollback names to go back to the parent's current state rather than to a snapshot.
       PARENT = "parent".freeze
+      # What reset_from_parent keeps a branch with children under, and the month, day, hour and minute its name ends with.
+      PRESERVE = "preserve_under_name".freeze
+      KEPT_STAMP = "%m%d%H%M".freeze
       # An operation's status in the API's own words (OperationStatus), in the words every run history uses.
       OPERATION_STATUSES = {
         "scheduling" => History::QUEUED, "running" => History::RUNNING, "cancelling" => History::RUNNING, "finished" => History::SUCCEEDED,
@@ -102,11 +105,14 @@ module Integrations
 
         page = Answers.page(resource, PROVIDER)
         if to.casecmp?(PARENT)
-          return Route.new(tool_name: RESET_FROM_PARENT, arguments: { "project_id" => project, "branch_id" => branch },
+          kept = kept_branch(resource, project, branch)
+          return Route.new(tool_name: RESET_FROM_PARENT, arguments: { "project_id" => project, "branch_id" => branch, PRESERVE => kept }.compact,
+                           keeps: (kept && "its current state as branch #{kept}"),
                            present: lambda { |result|
                              Answers.read(result, PROVIDER) do |_data|
-                               Telemetry.result("Neon reset #{resource.name} to its parent's current state. What it wrote since it " \
-                                                "branched is gone, and its computes restart, so open connections drop.", link: page)
+                               words = kept ? "Its state before is kept as branch #{kept}, which its child branches now hang from." : "What it wrote since it branched is gone."
+                               Telemetry.result("Neon reset #{resource.name} to its parent's current state. #{words} Its computes restart, so " \
+                                                "open connections drop.", link: page)
                              end
                            })
         end
@@ -118,6 +124,18 @@ module Integrations
                                        "connections drop and the app reconnects to the restored data.", link: page)
                     end
                   })
+      end
+
+      # Neon resets a branch that has children only when its current state is kept under a name (reset_from_parent,
+      # preserve_under_name), and the children move onto that branch. The name says what it was and when, such as
+      # main-before-rollback-10111530. nil for a branch the map holds no children of.
+      def self.kept_branch(resource, project, branch)
+        children = ResourceMap::Resource.present.where(workspace_id: resource.workspace_id, provider: resource.provider, kind: ResourceMap::KIND_BRANCH)
+                                        .where("external_id LIKE ?", "#{ResourceMap::Resource.sanitize_sql_like(project)}/%")
+                                        .where("details ->> ? = ?", MapReaders::Neon::PARENT_DETAIL, branch)
+        return unless children.exists?
+
+        "#{resource.name.split('/').last}-before-rollback-#{Time.current.utc.strftime(KEPT_STAMP)}"
       end
 
       # The project's id and the branch's or compute's own, as the map's reader writes them, project/id.
@@ -248,7 +266,7 @@ module Integrations
                              .to_h { |external_id, name| [ external_id.split("/", 2).last, name ] }
       end
 
-      private_class_method :history, :operation_of, :rollback, :ids_of, :logs, :window, :logs_result, :history_result, :operations_on, :deploys_result, :status_result, :compute_line, :suspends, :branch_names
+      private_class_method :history, :operation_of, :rollback, :kept_branch, :ids_of, :logs, :window, :logs_result, :history_result, :operations_on, :deploys_result, :status_result, :compute_line, :suspends, :branch_names
     end
   end
 end

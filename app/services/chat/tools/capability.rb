@@ -136,11 +136,13 @@ class Chat::Tools::Capability < RubyLLM::Tool
     answers.join("\n\n")
   end
 
-  # The resource and the connection it was routed to, as a person confirming the call reads it.
+  # The resource and the connection it was routed to, as a person confirming the call reads it, with what the change
+  # keeps aside first when it keeps something.
   def target_of(found)
     resource = found.resource
     where = found.environment_row ? found.tool.integration.target_label(found.environment_row) : found.tool.integration.target_label
-    resource ? "#{resource.kind.humanize(capitalize: false)} #{resource.name} on #{where}" : where
+    named = resource ? "#{resource.kind.humanize(capitalize: false)} #{resource.name} on #{where}" : where
+    found.keeps ? "#{named}, keeping #{found.keeps}" : named
   end
 
   def refused(tool_call, text, kind: Chat::StepOutcome::FAILURE_ERROR)

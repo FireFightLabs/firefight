@@ -243,6 +243,16 @@ module Integrations
 
     def cancel_rollout(project_id, location, pipeline, release, rollout) = post("#{rollout_path(project_id, location, pipeline, release, rollout)}:cancel")
 
+    # Approves a rollout waiting for an approval (rollouts.approve, ApproveRolloutRequest), and starts the phase named of a
+    # rollout waiting to be advanced (rollouts.advance, AdvanceRolloutRequest).
+    def approve_rollout(project_id, location, pipeline, release, rollout)
+      post("#{rollout_path(project_id, location, pipeline, release, rollout)}:approve", { "approved" => true })
+    end
+
+    def advance_rollout(project_id, location, pipeline, release, rollout, phase)
+      post("#{rollout_path(project_id, location, pipeline, release, rollout)}:advance", { "phaseId" => phase })
+    end
+
     private
 
     def job_path(project_id, location, name) = "#{RUN}/projects/#{segment(project_id)}/locations/#{segment(location)}/jobs/#{segment(name)}"

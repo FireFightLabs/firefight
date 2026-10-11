@@ -135,6 +135,24 @@ class Integrations::Capabilities::NeonTest < ActiveSupport::TestCase
     assert_match "no connection offers a rollback", unroutable(Capabilities::ROLLBACK, "resource" => "ep-cool-1", "to" => "parent")
   end
 
+  test "a branch with children keeps its state as a named branch when it is reset, and the confirmation says so" do
+    child = ResourceMap::Found.new(provider: "neon", account: "Acme", kind: ResourceMap::KIND_BRANCH, external_id: "shop-123/br-preview-2", name: "shop/preview",
+                                   details: { Integrations::MapReaders::Neon::PARENT_DETAIL => "br-main-1" })
+    ResourceMap.record!(@row, ResourceMap::Snapshot.new(resources: [ @project, @branch, @compute, child ]))
+
+    travel_to Time.utc(2026, 10, 11, 15, 30) do
+      parent = resolve(Capabilities::ROLLBACK, "resource" => "shop/main", "to" => "parent")
+      assert_equal({ "project_id" => "shop-123", "branch_id" => "br-main-1", "preserve_under_name" => "main-before-rollback-10111530" }, parent.arguments)
+      assert_equal "its current state as branch main-before-rollback-10111530", parent.keeps
+      assert_match "Its state before is kept as branch main-before-rollback-10111530", answer_text(parent, { "branch" => { "id" => "br-main-1" } })
+
+      tool = Chat::Tools::Capability.allocate
+      assert_equal "branch shop/main on Neon, account Acme, keeping its current state as branch main-before-rollback-10111530", tool.send(:target_of, parent)
+    end
+
+    assert_nil resolve(Capabilities::ROLLBACK, "resource" => "shop/preview", "to" => "parent").keeps, "a branch with no children keeps nothing aside"
+  end
+
   def resolve(key, given) = Capabilities.resolve(@workspace, key, given, principal: map_reader)
 
   def unroutable(key, given) = assert_raises(Capabilities::Unroutable) { resolve(key, given) }.message

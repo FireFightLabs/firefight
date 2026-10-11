@@ -38,13 +38,13 @@ module Integrations
         GoogleCloudApi.any_instance.stubs(:clusters).returns(reached([ { "name" => "apps", "location" => "europe-west1", "status" => "RUNNING", "currentMasterVersion" => "1.33" } ]))
       end
 
-      test "only the key is a credential, stored trimmed with the token minted before dropped, and only the five changes are not read only" do
+      test "only the key is a credential, stored trimmed with the token minted before dropped, and only the changes are not read only" do
         @row.store_credential!(GoogleCloudApi::TOKEN_CACHE_KEY, { "token" => "old" })
         GoogleCloud.store_credentials!(@row, GoogleCloud::KEY => KEY)
 
         assert_equal({ GoogleCloud::KEY => KEY }, @row.reload.credentials_hash.compact)
         assert_equal [ GoogleCloud::KEY ], GoogleCloud.credential_fields.map(&:key)
-        assert_equal %w[rollback_service scale_service restart_resource rollback_target cancel_rollout], GoogleCloud.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[rollback_service scale_service restart_resource rollback_target cancel_rollout approve_rollout advance_rollout], GoogleCloud.tool_definitions.reject(&:read_only).map(&:name)
       end
 
       test "a key or project Google refuses is said before anything is saved" do

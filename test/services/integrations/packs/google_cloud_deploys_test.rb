@@ -199,6 +199,41 @@ module Integrations
         assert_includes IntegrationProvider.find("google_cloud").stopping_tools, "cancel_rollout"
       end
 
+      test "a rollout waiting for an approval is approved after it is read, and one that needs none is refused" do
+        GoogleCloudApi.any_instance.stubs(:rollout).returns(ROLLOUT.merge("state" => "PENDING_APPROVAL", "approvalState" => "NEEDS_APPROVAL"))
+        GoogleCloudApi.any_instance.expects(:approve_rollout).with("acme-prod", "us-central1", "web", "rel-7", "rel-7-to-prod-0001").returns({})
+
+        assert_match "Approved rollout rel-7-to-prod-0001 of release rel-7, so Cloud Deploy deploys it to prod",
+                     text(call("approve_rollout", "resource" => STAGE_ID, "run" => "rel-7/rel-7-to-prod-0001"))
+
+        GoogleCloudApi.any_instance.stubs(:rollout).returns(ROLLOUT.merge("state" => "IN_PROGRESS", "approvalState" => "APPROVED"))
+        assert_match "needs no approval, so nothing was approved",
+                     assert_raises(NativePack::Error) { call("approve_rollout", "resource" => STAGE_ID, "run" => "rel-7/rel-7-to-prod-0001") }.message
+      end
+
+      test "a canary advances to the phase waiting next, and a phase already going or a rollout not in progress is refused" do
+        waiting = ROLLOUT.merge("state" => "IN_PROGRESS", "phases" => [ { "id" => "canary-25", "state" => "SUCCEEDED" }, { "id" => "stable", "state" => "PENDING" } ])
+        GoogleCloudApi.any_instance.stubs(:rollout).returns(waiting)
+        GoogleCloudApi.any_instance.expects(:advance_rollout).with("acme-prod", "us-central1", "web", "rel-7", "rel-7-to-prod-0001", "stable").returns({})
+
+        assert_match "is starting phase stable on prod", text(call("advance_rollout", "resource" => STAGE_ID, "run" => "rel-7/rel-7-to-prod-0001"))
+        assert_match "Phase canary-25 of rollout rel-7-to-prod-0001 is succeeded",
+                     assert_raises(NativePack::Error) { call("advance_rollout", "resource" => STAGE_ID, "run" => "rel-7/rel-7-to-prod-0001", "phase" => "canary-25") }.message
+        assert_match "has no phase blue", assert_raises(NativePack::Error) { call("advance_rollout", "resource" => STAGE_ID, "run" => "rel-7/rel-7-to-prod-0001", "phase" => "blue") }.message
+
+        GoogleCloudApi.any_instance.stubs(:rollout).returns(ROLLOUT)
+        assert_match "is failed, so it cannot be advanced", assert_raises(NativePack::Error) { call("advance_rollout", "resource" => STAGE_ID, "run" => "rel-7/rel-7-to-prod-0001") }.message
+      end
+
+      test "approving and advancing are changes of their own that no capability, unattended rule or fix step runs" do
+        definitions = GoogleCloud.tool_definitions.index_by(&:name)
+        %w[approve_rollout advance_rollout].each do |name|
+          assert_not definitions.fetch(name).read_only, "#{name} needs a grant and asks first"
+          assert_not Capabilities::GoogleCloud::TOOLS.values.flatten.include?(name), "#{name} is reached only when someone asks for it"
+          assert_not Capabilities::GoogleCloud.wraps?(name)
+        end
+      end
+
       test "a pipeline's details list its stages in order, where each releases to and which need an approval" do
         shown = text(call("describe_resource", "resource" => STAGE_ID))
 

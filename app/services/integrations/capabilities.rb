@@ -122,9 +122,10 @@ module Integrations
     ].index_by(&:key).freeze
 
     # What an adapter answers: the provider tool to run, its own arguments, and how to read its answer back into the
-    # shapes every capability returns, or nil when the tool already answers in them.
-    Route = Data.define(:tool_name, :arguments, :present) do
-      def initialize(present: nil, **) = super
+    # shapes every capability returns, or nil when the tool already answers in them. keeps says what a change keeps aside
+    # before it runs, such as a branch saving the state it replaces, in words the person confirming it reads.
+    Route = Data.define(:tool_name, :arguments, :present, :keeps) do
+      def initialize(present: nil, keeps: nil, **) = super
     end
 
     # A connection that can answer for a resource: one that runs it, or an observability tool that watches it.
@@ -137,8 +138,8 @@ module Integrations
 
     # A request resolved to one connection: the resource, the row that reaches it, and the provider tool it runs as.
     # fallback is the platform's call to make when the observability tool asked by default has no answer.
-    Call = Data.define(:spec, :resource, :environment_row, :tool, :arguments, :present, :fallback) do
-      def initialize(fallback: nil, **) = super
+    Call = Data.define(:spec, :resource, :environment_row, :tool, :arguments, :present, :fallback, :keeps) do
+      def initialize(fallback: nil, keeps: nil, **) = super
       def environment_entry = environment_row.environment
 
       def scope = environment_row.ability_scope
@@ -423,7 +424,8 @@ module Integrations
       end
 
       arguments = candidate.observer ? route.arguments : Scopes.for_resource(candidate.row, candidate.resource, route.arguments)
-      Call.new(spec: spec, resource: candidate.resource, environment_row: candidate.row, tool: tool, arguments: arguments, present: route.present)
+      Call.new(spec: spec, resource: candidate.resource, environment_row: candidate.row, tool: tool, arguments: arguments, present: route.present,
+               keeps: route.keeps)
     end
 
     def self.switched_off(candidate, tool_name)

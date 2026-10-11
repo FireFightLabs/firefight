@@ -325,7 +325,7 @@ providers:
     source_links_note: "Kubernetes has no hosted console of its own, and the dashboard a team may run sits at an address Firefight does not know, so each answer names the kubectl command that shows the same."
     map: firefight
     history: firefight
-    stopping_tools: [rollout_pause]
+    stopping_tools: [rollout_pause, suspend_cronjob]
   - key: modal
     name: Modal
     category: Cloud and hosting
