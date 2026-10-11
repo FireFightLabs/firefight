@@ -135,10 +135,19 @@ class Conversation::Rehearsal
       say(chat, turn.said)
       play(chat, turn)
     end
-    Replay.new(chat: chat.reload, transcript: Conversation::BenchTranscript.new(chat, @case, unscripted: @unscripted), turns_used: @turns_used)
+    transcript = Conversation::BenchTranscript.new(chat, @case, unscripted: @unscripted, sources: sources_of(chat))
+    Replay.new(chat: chat.reload, transcript: transcript, turns_used: @turns_used)
   end
 
   private
+
+  # What each reply that ended a turn lists as read, as live (Chat::Sources), a call judged a read by the scenario.
+  def sources_of(chat)
+    reads = ->(name, arguments) { @case.tool(name)&.reads?(arguments) || @case.answers.any? { |answer| answer.reads && answer.matches?(name, arguments) } }
+    chat.messages.where(role: Chat::Message::ROLE_ASSISTANT).includes(:ruby_llm_tool_calls).to_a
+        .select { |message| message.ruby_llm_tool_calls.empty? && message.content.present? }
+        .to_h { |message| [ message.id, Chat::Sources.for_reply(message, reads: reads) ] }
+  end
 
   # Saying something new moves past a confirmation still waiting, as it does live.
   def say(chat, text)

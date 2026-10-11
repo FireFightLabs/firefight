@@ -90,7 +90,7 @@ function askedNow(props: AgentPageProps, question: string, attachments: AgentCha
   }
 
   const asked = {
-    id: `asking-${props.messages.length}`, body: question, role: CHAT_MESSAGE_ROLES.USER, tools: [], attachments,
+    id: `asking-${props.messages.length}`, body: question, role: CHAT_MESSAGE_ROLES.USER, tools: [], sources: [], attachments,
     createdAt: new Date().toISOString(), model: null,
   }
   const title = question || attachments.map((attachment) => attachment.name).join(", ")

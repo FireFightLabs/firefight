@@ -50,6 +50,12 @@ module FirefightAi
     SPECIALISTS_MODES = [ SPECIALISTS_AUTO, SPECIALISTS_ON, SPECIALISTS_OFF ].freeze
     attr_reader :specialists
 
+    # The sampling temperature of Halon's own loop, in a chat and an investigation, so two runs of one question differ as
+    # little as the model allows. 0 unless set. none leaves every provider its own default. A model the registry says
+    # takes no temperature is never sent one (FirefightAi.loop_temperature).
+    DEFAULT_LOOP_TEMPERATURE = 0.0
+    attr_reader :loop_temperature
+
     # A specialist runs on the quick model, as helpers do, or on the main model.
     SPECIALIST_QUICK = :quick
     SPECIALIST_MAIN = :main
@@ -107,6 +113,7 @@ module FirefightAi
       @trace_calls = false
       @judgments = JUDGMENT_STRUCTURED
       @specialists = SPECIALISTS_AUTO
+      @loop_temperature = DEFAULT_LOOP_TEMPERATURE
       @specialist_model = SPECIALIST_QUICK
     end
 
@@ -116,6 +123,18 @@ module FirefightAi
       raise ArgumentError, "FIREFIGHT_AI_SPECIALISTS must be one of #{SPECIALISTS_MODES.join(', ')}, not #{value}" unless SPECIALISTS_MODES.include?(mode)
 
       @specialists = mode
+    end
+
+    # Blank keeps 0, none leaves the provider's own, and anything but a number from 0 to 2 is refused at boot.
+    def loop_temperature=(value)
+      text = value.to_s.strip.downcase
+      return @loop_temperature = DEFAULT_LOOP_TEMPERATURE if text.empty?
+      return @loop_temperature = nil if text == "none"
+
+      number = Float(text, exception: false)
+      raise ArgumentError, "FIREFIGHT_AI_TEMPERATURE must be a number from 0 to 2, or none, not #{value}" unless number&.between?(0, 2)
+
+      @loop_temperature = number
     end
 
     def specialist_model=(value)

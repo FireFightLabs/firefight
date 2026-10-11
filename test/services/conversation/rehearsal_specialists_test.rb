@@ -92,6 +92,29 @@ class Conversation::RehearsalSpecialistsTest < ActiveSupport::TestCase
     assert_equal "/zones/7c1e/rulesets", read.arguments["path"], "answered through the script Firefight writes for that read"
   end
 
+  # The page and a thread list what Halon read under each answer, so a replay's judge reads the same list and citing
+  # counts a link there as it counts one in the words.
+  test "what an answer lists as read counts as citing, and the judge reads the list, while the line saying the next step never shows" do
+    script(call("planetscale_get_insights", "database" => "orders"), reply("orders is at 498 of 500 connections.\n[next step: none]"))
+
+    replay = Conversation::Rehearsal.replay!(bench_case, result: @result, model: @model)
+
+    assert_equal [ "orders is at 498 of 500 connections." ], replay.transcript.replies
+    assert replay.transcript.cites_any?([ "orders/main/insights" ]), "the source under the answer links the insights page"
+    assert_includes replay.transcript.to_text, "Listed under that answer as read: Planetscale get insights https://app.planetscale.com/larkspur/orders/main/insights"
+  end
+
+  # Written before Halon could read a Northflank workflow's runs itself, the scenario now holds them, so following the
+  # release by its run is a fair ask.
+  test "the release scenario's world answers the workflow's own runs, as the run moves from running to failed" do
+    scenario = Conversation::BenchCase.scenario("release_watch_followed_nothing")
+    world = Conversation::BenchCase::World.new(scenario)
+
+    assert scenario.tool("northflank_workflow_runs")&.reads
+    assert_match "running since 14:19", world.answer!("northflank_workflow_runs", { "workflow" => "release", "run" => "4182" }).result
+    assert_match "failed at 14:26", world.answer!("northflank_workflow_runs", { "workflow" => "release", "run" => "4182" }).result
+  end
+
   test "the two ways have different prompt versions, so a bench run says which it measured" do
     FirefightAi.configuration.stubs(:specialists).returns(:off)
     off = Conversation::Bench.send(:prompt_version, @result.workspace, @model)

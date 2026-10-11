@@ -23,7 +23,7 @@ class Conversation::QuietDelivery
 
   def chunk(_text) = nil
 
-  def answered!(_reply) = nil
+  def answered!(_reply, sources: []) = nil
 
   def failed!(_text = nil) = nil
 
