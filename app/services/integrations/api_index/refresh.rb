@@ -21,6 +21,7 @@ module Integrations
         branch since until from to starttime endtime start end event type filter
       ].freeze
       KEY_LIMIT = 5
+      SKILL_FILES = Chat::Skill::DIRECTORY.join("*", "*", "*.md").to_s
 
       Section = Data.define(:parameters, :values)
       Result = Data.define(:index, :stale, :dropped, :changed) do
@@ -176,13 +177,21 @@ module Integrations
         found.transform_values! { |each| each.is_a?(Hash) ? Section.new(parameters: each[:parameters], values: each[:values]) : each }
       end
 
-      def skill_steps(index)
-        file = Dir[Chat::Skill::DIRECTORY.join(index.provider, "*", "*.md")].sort.find do |path|
-          File.read(path)[Chat::Skill::FRONT_MATTER, 1].then { |header| header && YAML.safe_load(header)["name"] == index.skill }
+      # Every skill's file and words, by its provider and name.
+      def skill_files
+        Dir[SKILL_FILES].sort.each_with_object({}) do |path, found|
+          written = File.read(path)
+          header = written[Chat::Skill::FRONT_MATTER, 1]
+          next unless header
+
+          found[[ Pathname(path).relative_path_from(Chat::Skill::DIRECTORY).each_filename.first, YAML.safe_load(header)["name"] ]] = [ path, written ]
         end
+      end
+
+      def skill_steps(index)
+        file, written = skill_files[[ index.provider, index.skill ]]
         raise ArgumentError, "#{index.provider}'s API index closes the #{index.skill} skill, which does not exist" unless file
 
-        written = File.read(file)
         kept = written.split("\n#{ApiIndex::HEADING}\n", 2).first.split("\n#{ApiIndex::HEADING}", 2).first.rstrip
         [ file, "#{kept}\n\n#{index.text}\n" ]
       end
