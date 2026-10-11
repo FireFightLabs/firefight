@@ -94,9 +94,6 @@ class Conversation::Runner
     stopped!(@conversation.chat_record)
   end
 
-  # What the person was told, for a caller that waits for the answer rather than watching it arrive.
-  attr_reader :reply
-
   private
 
   def delivery = @delivery ||= Conversation::Delivery.for(@conversation)
