@@ -13,7 +13,10 @@ module Integrations
       SQL = "cloudsql.googleapis.com".freeze
       COMPUTE = "compute.googleapis.com".freeze
       GKE = "container.googleapis.com".freeze
-      SERVICES = [ RUN, SQL, COMPUTE, GKE ].freeze
+      DEPLOY = "clouddeploy.googleapis.com".freeze
+      SERVICES = [ RUN, SQL, COMPUTE, GKE, DEPLOY ].freeze
+      # The monitored resource a Cloud Run job's entries are written on (Cloud Run, Audit logging).
+      RUN_JOB = "cloud_run_job".freeze
       # The project's Admin Activity log, by the name Cloud Audit Logs gives it.
       ACTIVITY_LOG = "projects/%<project>s/logs/cloudaudit.googleapis.com%%2Factivity".freeze
       # Each read starts this far before the last one ended, so an entry Logging stored late is still read. One read twice
@@ -28,15 +31,16 @@ module Integrations
 
         def events(_payload, headers:) = []
 
-        # Each project's entries after its own cursor, oldest first, as events about the Cloud Run service, Cloud SQL
-        # instance, Compute Engine instance or GKE cluster each names. A project's first read starts from now. A read cut
+        # Each project's entries after its own cursor, oldest first, as events about the Cloud Run service or job, Cloud
+        # SQL instance, Compute Engine instance, GKE cluster or Cloud Deploy pipeline each names. A project's first read starts from now. A read cut
         # short continues from its last entry.
         def poll(row, since:)
           api = api(row)
           poll_each_scope(row, since: since) { |project, cursor| poll_project(api, project, cursor) }
         end
 
-        def limits = "Firefight reads Google Cloud's audit log every 5 minutes, so a change reaches the map within about 6 minutes."
+        def limits = "Firefight reads Google Cloud's audit log every 5 minutes, so a change reaches the map within about 6 minutes. " \
+                     "A Cloud Run job's execution or a Cloud Deploy rollout finishing is not in the audit log, so a watch on one reads it each minute."
 
         private
 
@@ -60,22 +64,25 @@ module Integrations
           "logName=\"#{format(ACTIVITY_LOG, project: project)}\" AND timestamp>=\"#{from.utc.iso8601(6)}\" AND protoPayload.serviceName=(#{services})"
         end
 
-        # The resource an entry is about, with the id the pack keeps for it on the map, or nil for anything else, such as a
-        # Cloud Run job.
+        # The resource an entry is about, with the id the pack keeps for it on the map, or nil for anything else.
         def event_of(project, entry)
           payload = entry["protoPayload"].to_h
           labels = entry.dig("resource", "labels").to_h
           name = payload["resourceName"].to_s
           kind, id = case payload["serviceName"]
-          when RUN then run_resource(project, labels, name)
+          when RUN then entry.dig("resource", "type") == RUN_JOB || name.match?(JOB_NAME) ? job_resource(project, labels, name) : run_resource(project, labels, name)
           when SQL then sql_resource(project, labels, name)
           when COMPUTE then machine_resource(project, labels, name)
           when GKE then cluster_resource(project, labels, name)
+          when DEPLOY then deploy_resource(project, name)
           end
           return unless kind
 
           method = payload["methodName"].to_s
-          action = if method.match?(REMOVED) then ResourceMap::Event::REMOVED
+          # A call on something inside a resource, such as an execution of a job or a rollout of a pipeline, changes the
+          # resource, whatever it did to the thing inside.
+          action = if within?(name) then ResourceMap::Event::UPDATED
+          elsif method.match?(REMOVED) then ResourceMap::Event::REMOVED
           elsif method.match?(ADDED) then ResourceMap::Event::ADDED
           else ResourceMap::Event::UPDATED
           end
@@ -89,6 +96,28 @@ module Integrations
           service = labels["service_name"].presence || name[%r{/services/([^/]+)}, 1]
           location = labels["location"].presence || name[%r{locations/([^/]+)}, 1]
           [ ResourceMap::KIND_SERVICE, "projects/#{project}/locations/#{location}/services/#{service}" ] if service && location
+        end
+
+        JOB_NAME = %r{/jobs/[^/]+}
+        WITHIN = %r{/(?:jobs/[^/]+/executions|deliveryPipelines/[^/]+/releases)/}
+
+        def within?(name) = name.match?(WITHIN)
+
+        # A Cloud Run job's entries are on cloud_run_job with its job_name and location, and a v2 call's resource name holds
+        # both, a v1 call's namespaces/<project>/jobs/<name> only the job.
+        def job_resource(project, labels, name)
+          job = labels["job_name"].presence || name[%r{/jobs/([^/]+)}, 1]
+          location = labels["location"].presence || name[%r{locations/([^/]+)}, 1]
+          [ ResourceMap::KIND_JOB, "projects/#{project}/locations/#{location}/jobs/#{job}" ] if job && location
+        end
+
+        # A Cloud Deploy call names its pipeline, or a release or rollout inside it, which reads the pipeline and its stages
+        # again. A target can be in any pipeline, so a change to one reads the stages in a sweep.
+        def deploy_resource(project, name)
+          found = name.match(%r{locations/(?<location>[^/]+)/deliveryPipelines/(?<pipeline>[^/:]+)})
+          return [ ResourceMap::KIND_PIPELINE, "projects/#{project}/locations/#{found[:location]}/deliveryPipelines/#{found[:pipeline]}" ] if found
+
+          [ ResourceMap::KIND_RELEASE_FLOW, nil ] if name.match?(%r{/targets/})
         end
 
         # A Cloud SQL instance's entries are on cloudsql_database, whose database_id is project:instance and region its

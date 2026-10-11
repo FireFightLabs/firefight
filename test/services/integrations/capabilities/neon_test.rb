@@ -7,8 +7,9 @@ class Integrations::Capabilities::NeonTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     neon = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "neon", name: "Neon", slug: "neon", settings: { "server_url" => "https://mcp.neon.tech/mcp" })
     @row = neon.integration_environments.create!
-    Capabilities::Neon::TOOLS.values.uniq.each do |name|
-      neon.tools.create!(name: name, description: name, read_only: name != "restart_postgres_endpoint", enabled: true, params_schema: { "type" => "object" })
+    changes = %w[restart_postgres_endpoint restore_snapshot reset_from_parent]
+    Capabilities::Neon::TOOLS.values.flatten.uniq.each do |name|
+      neon.tools.create!(name: name, description: name, read_only: changes.exclude?(name), enabled: true, params_schema: { "type" => "object" })
     end
     found = ->(kind, id, name) { ResourceMap::Found.new(provider: "neon", account: "Acme", kind: kind, external_id: id, name: name, url: "https://console.neon.tech/app/projects/shop-123") }
     @project = found.(ResourceMap::KIND_DATABASE, "shop-123", "shop")
@@ -86,7 +87,7 @@ class Integrations::Capabilities::NeonTest < ActiveSupport::TestCase
 
   test "Halon says what it can do through Neon" do
     assert_equal "Halon can read its logs, see what was deployed, check how a resource stands, see how long its operations usually take, " \
-                 "and restart a compute for anything Neon runs, " \
+                 "roll a branch back to a snapshot or to its parent, and restart a compute for anything Neon runs, " \
                  "through the tools that are switched on. It also uses Neon's other tools that are switched on.", Capabilities.halon_sentence("neon", "Neon")
   end
 
@@ -106,6 +107,32 @@ class Integrations::Capabilities::NeonTest < ActiveSupport::TestCase
 
     assert_equal [ [ "op-3", "running", nil ], [ "op-2", "succeeded", 4 ] ], Capabilities::History.runs_of(result).map { |run| [ run.id, run.status, run.seconds ] }
     assert_match "Finished ones usually take 4 seconds", result["content"].first["text"]
+  end
+
+  test "one run asked by its id is read with get_operation, however old it is" do
+    call = resolve(Capabilities::HISTORY, "resource" => "shop/main", "run" => "op-0")
+    assert_equal [ "get_operation", { "project_id" => "shop-123", "operation_id" => "op-0" } ], [ call.tool.name, call.arguments ]
+
+    operation = { "operation" => { "id" => "op-0", "branch_id" => "br-main-1", "action" => "apply_config", "status" => "failed",
+                                   "error" => "compute did not start", "created_at" => "2026-09-01T07:00:00Z", "total_duration_ms" => 3000 } }
+    runs = Capabilities::History.runs_of(call.present_result({ "content" => [ { "type" => "text", "text" => operation.to_json } ] }))
+
+    assert_equal [ [ "op-0", "apply_config", "failed", 3, "compute did not start" ] ], runs.map { |run| [ run.id, run.name, run.status, run.seconds, run.detail ] }
+  end
+
+  test "a branch rolls back to a snapshot onto itself, finalized, or to its parent, and each is a change" do
+    snapshot = resolve(Capabilities::ROLLBACK, "resource" => "shop/main", "to" => "snap-123")
+    assert_equal [ "restore_snapshot", { "project_id" => "shop-123", "snapshot_id" => "snap-123", "target_branch_id" => "br-main-1", "finalize" => true } ],
+                 [ snapshot.tool.name, snapshot.arguments ]
+    assert snapshot.spec.writes
+    assert_match "Neon restored snapshot snap-123 onto shop/main and moved its computes onto it", answer_text(snapshot, { "branch" => { "id" => "br-main-1" } })
+
+    parent = resolve(Capabilities::ROLLBACK, "resource" => "shop/main", "to" => "Parent")
+    assert_equal [ "reset_from_parent", { "project_id" => "shop-123", "branch_id" => "br-main-1" } ], [ parent.tool.name, parent.arguments ]
+    assert_match "Neon reset shop/main to its parent's current state", answer_text(parent, { "branch" => { "id" => "br-main-1" } })
+
+    assert_match "a snapshot's id, as list_snapshots gives it, or parent", unroutable(Capabilities::ROLLBACK, "resource" => "shop/main", "to" => " ")
+    assert_match "no connection offers a rollback", unroutable(Capabilities::ROLLBACK, "resource" => "ep-cool-1", "to" => "parent")
   end
 
   def resolve(key, given) = Capabilities.resolve(@workspace, key, given, principal: map_reader)

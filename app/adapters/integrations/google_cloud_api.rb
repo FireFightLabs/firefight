@@ -193,7 +193,69 @@ module Integrations
 
     def segment(value) = Http.segment(value)
 
+    CLOUD_DEPLOY = "https://clouddeploy.googleapis.com/v1".freeze
+    DEPLOY_PAGE = 50
+    EXECUTION_PAGE = 100
+
+    # A region's Cloud Run jobs (Cloud Run Admin API v2, projects.locations.jobs.list).
+    def run_jobs(project_id, location) = list("#{RUN}/projects/#{segment(project_id)}/locations/#{segment(location)}/jobs", "jobs")
+
+    def run_job(project_id, location, name) = get(job_path(project_id, location, name))
+
+    # Every page of a job's executions, up to PAGE_LIMIT, in no order Google documents (jobs.executions.list).
+    def job_executions(project_id, location, name) = list("#{job_path(project_id, location, name)}/executions", "executions", "pageSize" => EXECUTION_PAGE)
+
+    def job_execution(project_id, location, name, execution) = get("#{job_path(project_id, location, name)}/executions/#{segment(execution)}")
+
+    def execution_tasks(project_id, location, name, execution)
+      list("#{job_path(project_id, location, name)}/executions/#{segment(execution)}/tasks", "tasks", "pageSize" => EXECUTION_PAGE)
+    end
+
+    # The regions Cloud Deploy serves the project in (locations.list).
+    def deploy_locations(project_id) = list("#{CLOUD_DEPLOY}/projects/#{segment(project_id)}/locations", "locations")
+
+    def delivery_pipelines(project_id, location) = list("#{deploy_location(project_id, location)}/deliveryPipelines", "deliveryPipelines")
+
+    def delivery_pipeline(project_id, location, name) = get(pipeline_path(project_id, location, name))
+
+    def deploy_targets(project_id, location) = list("#{deploy_location(project_id, location)}/targets", "targets")
+
+    # The newest releases of a pipeline, one page, newest first as AIP-132 orders by a field (releases.list orderBy).
+    def releases(project_id, location, pipeline, page_size:)
+      Array(get("#{pipeline_path(project_id, location, pipeline)}/releases", "orderBy" => "create_time desc", "pageSize" => page_size)["releases"])
+    end
+
+    def release(project_id, location, pipeline, release) = get(release_path(project_id, location, pipeline, release))
+
+    def rollouts(project_id, location, pipeline, release)
+      Array(get("#{release_path(project_id, location, pipeline, release)}/rollouts", "pageSize" => DEPLOY_PAGE)["rollouts"])
+    end
+
+    def rollout(project_id, location, pipeline, release, rollout) = get(rollout_path(project_id, location, pipeline, release, rollout))
+
+    def job_runs(project_id, location, pipeline, release, rollout)
+      list("#{rollout_path(project_id, location, pipeline, release, rollout)}/jobRuns", "jobRuns", "pageSize" => DEPLOY_PAGE).items
+    end
+
+    # A rollback rollout to a target, which Cloud Deploy makes from the release named or the target's last successful one
+    # (deliveryPipelines.rollbackTarget, RollbackTargetRequest).
+    def rollback_target(project_id, location, pipeline, body) = post("#{pipeline_path(project_id, location, pipeline)}:rollbackTarget", body)
+
+    def cancel_rollout(project_id, location, pipeline, release, rollout) = post("#{rollout_path(project_id, location, pipeline, release, rollout)}:cancel")
+
     private
+
+    def job_path(project_id, location, name) = "#{RUN}/projects/#{segment(project_id)}/locations/#{segment(location)}/jobs/#{segment(name)}"
+
+    def deploy_location(project_id, location) = "#{CLOUD_DEPLOY}/projects/#{segment(project_id)}/locations/#{segment(location)}"
+
+    def pipeline_path(project_id, location, name) = "#{deploy_location(project_id, location)}/deliveryPipelines/#{segment(name)}"
+
+    def release_path(project_id, location, pipeline, release) = "#{pipeline_path(project_id, location, pipeline)}/releases/#{segment(release)}"
+
+    def rollout_path(project_id, location, pipeline, release, rollout)
+      "#{release_path(project_id, location, pipeline, release)}/rollouts/#{segment(rollout)}"
+    end
 
     def reached(items, complete, unreachable)
       zones = unreachable.map { |zone| zone.to_s.delete_prefix("zones/") }.uniq

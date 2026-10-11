@@ -12,6 +12,10 @@ module Integrations
         { "id" => "b2", "name" => "feature", "project_ref" => "zyxwvutsrqponmlkjihg", "parent_project_ref" => "abcdefghijklmnopqrst", "is_default" => false,
           "git_branch" => "feature/checkout", "persistent" => false, "status" => "MIGRATIONS_FAILED" }
       ] }.freeze
+      # edgeFunctionSchema, updated_at in milliseconds.
+      FUNCTIONS = { "functions" => [
+        { "id" => "f1a2", "slug" => "send-email", "name" => "send-email", "status" => "ACTIVE", "version" => 12, "updated_at" => 1_791_190_800_000 }
+      ] }.freeze
 
       test "every project is a database, and each branch is a project of its own linked to it" do
         snapshot = Supabase.new(settings) { |tool, _arguments| answer(tool) }.map
@@ -24,7 +28,8 @@ module Integrations
         assert_equal [ ResourceMap::KIND_BRANCH, "zyxwvutsrqponmlkjihg", "shop/feature", "MIGRATIONS_FAILED" ], [ feature.kind, feature.external_id, feature.name, feature.status ]
         assert_equal "https://supabase.com/dashboard/project/zyxwvutsrqponmlkjihg", feature.url
         assert_equal "feature/checkout", feature.details["branch"]
-        assert_equal [ ResourceMap::RELATION_BRANCH_OF ] * 2, snapshot.links.map(&:relation)
+        assert_equal "b2", feature.details[Supabase::BRANCH_ID]
+        assert_equal [ ResourceMap::RELATION_BRANCH_OF ] * 2 + [ ResourceMap::RELATION_PART_OF ], snapshot.links.map(&:relation)
         words = Integrations::Provider.for(Supabase::PROVIDER)
         assert_equal ResourceMap::Resource::HEALTH_FAILING, ResourceMap::Resource.new(status: words.status_of(feature.status)).health
         assert_equal ResourceMap::Resource::HEALTH_OK, ResourceMap::Resource.new(status: words.status_of(project.status)).health
@@ -33,27 +38,30 @@ module Integrations
 
       test "a list switched off, or one Supabase refuses, is a gap in the map" do
         off = Supabase.new { |tool, _arguments| tool == Supabase::LIST_PROJECTS ? nil : answer(tool) }.map
-        assert_equal [ [ "list_projects is switched off for Supabase, so the projects are not on the map.", [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ] ] ],
+        assert_equal [ [ "list_projects is switched off for Supabase, so the projects are not on the map.", ALL_KINDS ] ],
                      off.gaps.map { |gap| [ gap.text, gap.kinds ] }
-        assert_equal [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ], off.unread_kinds
+        assert_equal ALL_KINDS, off.unread_kinds
 
         refused = Supabase.new do |tool, _arguments|
           tool == Supabase::LIST_BRANCHES ? { "isError" => true, "content" => [ { "type" => "text", "text" => "Failed to list branches" } ] } : answer(tool)
         end.map
         assert_equal [ "Supabase refused to list the branches of shop: Failed to list branches." ], refused.gaps.map(&:text)
-        assert_equal [ ResourceMap::KIND_DATABASE ], refused.resources.map(&:kind)
+        assert_equal [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_FUNCTION ], refused.resources.map(&:kind)
       end
 
       test "a bare list is read like a wrapped one, and an answer in any other shape is a gap naming what the list holds" do
         text = ->(body) { { "content" => [ { "type" => "text", "text" => body.to_json } ] } }
-        bare = Supabase.new { |tool, _arguments| tool == Supabase::LIST_PROJECTS ? text.(PROJECTS["projects"]) : text.(BRANCHES["branches"]) }.map
-        assert_equal [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH, ResourceMap::KIND_BRANCH ], bare.resources.map(&:kind)
+        bare = Supabase.new do |tool, _arguments|
+          { Supabase::LIST_PROJECTS => text.(PROJECTS["projects"]), Supabase::LIST_BRANCHES => text.(BRANCHES["branches"]),
+            Supabase::LIST_EDGE_FUNCTIONS => text.(FUNCTIONS["functions"]) }.fetch(tool)
+        end.map
+        assert_equal [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH, ResourceMap::KIND_BRANCH, ResourceMap::KIND_FUNCTION ], bare.resources.map(&:kind)
         assert_empty bare.gaps
 
         odd = Supabase.new { |tool, _arguments| tool == Supabase::LIST_PROJECTS ? text.({ "data" => [] }) : answer(tool) }.map
         assert_empty odd.resources
         assert_equal [ "Supabase answered the projects in a shape Firefight does not read." ], odd.gap_texts
-        assert_equal [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ], odd.unread_kinds
+        assert_equal ALL_KINDS, odd.unread_kinds
 
         branches = Supabase.new { |tool, _arguments| tool == Supabase::LIST_BRANCHES ? text.({ "message" => "ok" }) : answer(tool) }.map
         assert_equal [ ResourceMap::KIND_BRANCH ], branches.unread_kinds
@@ -66,11 +74,26 @@ module Integrations
           answer(tool)
         end.map
 
-        project, *branches = snapshot.resources
+        project, *branches, function = snapshot.resources
         assert_equal [ ResourceMap::KIND_DATABASE, "abcdefghijklmnopqrst", "abcdefghijklmnopqrst" ], [ project.kind, project.external_id, project.name ]
         assert_equal 2, branches.size
-        assert_equal [ Supabase::LIST_BRANCHES ], asked.map(&:first)
+        assert_equal ResourceMap::KIND_FUNCTION, function.kind
+        assert_equal [ Supabase::LIST_BRANCHES, Supabase::LIST_EDGE_FUNCTIONS ], asked.map(&:first)
         assert_match "scoped to project abcdefghijklmnopqrst", snapshot.gaps.sole.text
+      end
+
+      test "each Edge Function is a function on the map, part of its project, with the version it runs and when it was deployed" do
+        function = Supabase.new(settings) { |tool, _arguments| answer(tool) }.map.resources.last
+
+        assert_equal [ [ "supabase", "acme", ResourceMap::KIND_FUNCTION, "abcdefghijklmnopqrst/send-email" ], "shop/send-email", "ACTIVE" ],
+                     [ function.key, function.name, function.status ]
+        assert_equal "https://supabase.com/dashboard/project/abcdefghijklmnopqrst/functions", function.url
+        assert_equal({ "function_id" => "f1a2", "version" => 12, "deployed_at" => "2026-10-05T09:00:00Z" }, function.details)
+        words = Integrations::Provider.for(Supabase::PROVIDER)
+        assert_equal ResourceMap::Resource::HEALTH_FAILING, ResourceMap::Resource.new(status: words.status_of("THROTTLED")).health
+
+        off = Supabase.new { |tool, _arguments| tool == Supabase::LIST_EDGE_FUNCTIONS ? nil : answer(tool) }.map
+        assert_equal [ ResourceMap::KIND_FUNCTION ], off.unread_kinds
       end
 
       test "a project and each branch of its own are reached at their host, their dedicated pooler, the shared pooler by ref and the API address" do
@@ -90,7 +113,7 @@ module Integrations
         assert_no_match(/supabase\.co/, snapshot.inspect.gsub(%r{https://supabase\.com/dashboard\S*}, ""))
       end
 
-      test "a re-read of one project reads it and its branches as the sweep does, and finds it gone only when Supabase says not found" do
+      test "a re-read of one project reads it, its branches and its functions as the sweep does, and finds it gone only when Supabase says not found" do
         tools = { Supabase::GET_PROJECT => Integration::Tool.new, Supabase::LIST_BRANCHES => Integration::Tool.new }
         scope = ResourceMap::Scope.new(account: "acme", kind: ResourceMap::KIND_DATABASE, external_id: "abcdefghijklmnopqrst")
         asked = []
@@ -104,7 +127,7 @@ module Integrations
         assert_equal [ Supabase::GET_PROJECT, { "id" => "abcdefghijklmnopqrst" } ], asked.first
         project = snapshot.resources.first
         assert_equal [ [ "supabase", "acme", ResourceMap::KIND_DATABASE, "abcdefghijklmnopqrst" ], "INACTIVE" ], [ project.key, project.status ]
-        assert_equal 3, snapshot.resources.size
+        assert_equal 4, snapshot.resources.size
 
         missing = { "content" => [ { "type" => "text", "text" => "Project not found" } ], "isError" => true }
         gone = Supabase.new(settings, tools) { |tool, _arguments| tool == Supabase::GET_PROJECT ? missing : answer(tool) }.map(scope: scope)
@@ -134,7 +157,12 @@ module Integrations
         ConnectionSettings.of(integration.integration_environments.build)
       end
 
-      def answer(tool) = { "content" => [ { "type" => "text", "text" => { Supabase::LIST_PROJECTS => PROJECTS, Supabase::LIST_BRANCHES => BRANCHES }.fetch(tool).to_json } ] }
+      ALL_KINDS = [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH, ResourceMap::KIND_FUNCTION ].freeze
+
+      def answer(tool)
+        body = { Supabase::LIST_PROJECTS => PROJECTS, Supabase::LIST_BRANCHES => BRANCHES, Supabase::LIST_EDGE_FUNCTIONS => FUNCTIONS }.fetch(tool)
+        { "content" => [ { "type" => "text", "text" => body.to_json } ] }
+      end
     end
   end
 end

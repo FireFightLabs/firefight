@@ -72,10 +72,11 @@ module Integrations
         assert_equal [ Packs::Aws::DATABASE, database ], [ stopped.scope.kind, stopped.scope.external_id ]
         assert_empty Aws.events(state("RDS DB Instance Event", "detail" => { "SourceType" => "SNAPSHOT", "SourceArn" => "arn:aws:rds:eu-west-1:#{ACCOUNT}:snapshot:s" }), headers: {})
 
-        deleting = state(Aws::STACK_STATUS, "detail" => { "status-details" => { "status" => "DELETE_IN_PROGRESS" } })
+        own = "arn:aws:cloudformation:eu-west-1:#{ACCOUNT}:stack/firefight-live-updates-0a1b2c3d/7f0e"
+        deleting = state(Aws::STACK_STATUS, "detail" => { "stack-id" => own, "status-details" => { "status" => "DELETE_IN_PROGRESS" } })
         assert_empty Aws.events(deleting, headers: {})
         assert Aws.delivery_ends?(deleting)
-        assert_not Aws.delivery_ends?(state(Aws::STACK_STATUS, "detail" => { "status-details" => { "status" => "CREATE_COMPLETE" } }))
+        assert_not Aws.delivery_ends?(state(Aws::STACK_STATUS, "detail" => { "stack-id" => own, "status-details" => { "status" => "CREATE_COMPLETE" } }))
         assert_equal "eu-west-1", Aws.delivery_place(deleting)
       end
 
@@ -215,12 +216,17 @@ module Integrations
         assert_equal %w[AWS::Events::ApiDestination AWS::Events::Connection AWS::Events::Rule AWS::IAM::Role], resources.values.map { |each| each["Type"] }.uniq.sort
         assert_equal %w[Address Key], template["Parameters"].keys
         assert_equal Aws::KEY_HEADER, resources.dig("FirefightConnection", "Properties", "AuthParameters", "ApiKeyAuthParameters", "ApiKeyName")
-        calls = resources.dig("FirefightApiCalls", "Properties", "EventPattern", "detail")
-        assert_equal Aws::CALLS.keys.sort, calls["eventSource"].sort
-        asked = calls["eventName"].map { |name| name.is_a?(Hash) ? name["prefix"] : name }
+        calls = %w[FirefightApiCalls FirefightReleaseApiCalls].map { |rule| resources.dig(rule, "Properties", "EventPattern", "detail") }
+        assert_equal Aws::CALLS.keys.sort, calls.flat_map { |each| each["eventSource"] }.sort
+        asked = calls.flat_map { |each| each["eventName"] }.map { |name| name.is_a?(Hash) ? name["prefix"] : name }
         assert_equal Aws::CALLS.values.flatten.uniq.sort, asked.uniq.sort
         states = resources.dig("FirefightStateChanges", "Properties", "EventPattern", "detail-type")
         assert_equal [ Aws::EC2_STATE, *Aws::ECS_SERVICE, Aws::RDS_INSTANCE, *Aws::BUILD_STATE ].sort, states.sort
+        releases = resources.dig("FirefightReleaseChanges", "Properties", "EventPattern", "detail-type")
+        assert_equal [ *Aws::PIPELINE_STATE, Aws::DEPLOYMENT_STATE, *Aws::APP_RUNNER_STATE, *Aws::BEANSTALK_STATE ].sort, releases.sort
+        others = resources.dig("FirefightStackChanges", "Properties", "EventPattern")
+        assert_equal [ Aws::STACK_STATUS ], others["detail-type"]
+        assert_equal [ { "anything-but" => [ { "Ref" => "AWS::StackId" } ] } ], others.dig("detail", "stack-id"), "this stack's own status goes through its own rule"
         assert_equal [ Aws::STACK_STATUS ], resources.dig("FirefightStackStatus", "Properties", "EventPattern", "detail-type")
         assert(resources.values.select { |each| each["Type"] == "AWS::Events::Rule" }.all? { |rule| rule.dig("Properties", "State") == "ENABLED" })
       end

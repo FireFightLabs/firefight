@@ -121,17 +121,18 @@ get_resource_map:
     The first place to find which provider and account hold a named domain, zone, service or database. It only reads, so look here before asking
     a person or using a provider's own tools. What runs where, read off the workspace's connections, every kind the map holds (services, build
     services, jobs, databases, branches, repositories, domains, zones, workers, sites, buckets, kv namespaces, queues, database proxies, tunnels,
-    load balancers, origin pools, access apps, virtual machines, functions, clusters, computes, workflows, pipelines, and release flows), by provider
-    and account, with how they depend on each other and which repository each is managed in as code, such as Terraform or Helm, so a fix to one
-    goes to that code. A zone's details carry its SSL mode, certificates and rule counts, and a change to them is recorded. Without a resource,
-    the whole map one line per resource, or from 300 resources its numbers by provider, kind, environment and health with the most depended on.
-    With a resource, its fact sheet: where it runs, its page, the catalog services it runs with what each is for and who owns it, what people
-    confirmed about it, how its recent incidents ended, what normal looks like for its metrics over the last week, its key checks with their normal
-    (run_key_query runs one), the log lines it usually prints (new_log_patterns finds the ones it does not), and every link within two hops, each
-    saying how it was found. A status is what the last sweep saw, so check live state with the provider's own tools. A link marked not confirmed
-    is a suggestion. Never state it as fact, and say it is unconfirmed if you rely on it. It holds only what runs in the environments the caller
-    may read, and a sheet counts the links it leaves out for that reason. On a large map, find_resources searches by name, provider, kind, environment,
-    owner or tag, traverse_resource_map and blast_radius walk the links, and get_resource_links lists one resource's. Docs: https://firefight.app/docs/api/mcp-server.md
+    load balancers, origin pools, access apps, virtual machines, functions, clusters, computes, workflows, pipelines, release flows, and stacks),
+    by provider and account, with how they depend on each other and which repository each is managed in as code, such as Terraform or Helm, so
+    a fix to one goes to that code. A zone's details carry its SSL mode, certificates and rule counts, and a change to them is recorded. Without
+    a resource, the whole map one line per resource, or from 300 resources its numbers by provider, kind, environment and health with the most
+    depended on. With a resource, its fact sheet: where it runs, its page, the catalog services it runs with what each is for and who owns it,
+    what people confirmed about it, how its recent incidents ended, what normal looks like for its metrics over the last week, its key checks
+    with their normal (run_key_query runs one), the log lines it usually prints (new_log_patterns finds the ones it does not), and every link
+    within two hops, each saying how it was found. A status is what the last sweep saw, so check live state with the provider's own tools. A link
+    marked not confirmed is a suggestion. Never state it as fact, and say it is unconfirmed if you rely on it. It holds only what runs in the
+    environments the caller may read, and a sheet counts the links it leaves out for that reason. On a large map, find_resources searches by name,
+    provider, kind, environment, owner or tag, traverse_resource_map and blast_radius walk the links, and get_resource_links lists one resource's.
+    Docs: https://firefight.app/docs/api/mcp-server.md
   reads: true
   parameters:
     properties:

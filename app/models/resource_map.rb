@@ -34,10 +34,13 @@ module ResourceMap
   KIND_WORKFLOW = "workflow".freeze
   KIND_PIPELINE = "pipeline".freeze
   KIND_RELEASE_FLOW = "release_flow".freeze
+  # Infrastructure defined as one unit and changed by operations, such as a CloudFormation stack. Its operations are its
+  # runs, and what it defines is released by it.
+  KIND_STACK = "stack".freeze
   KINDS = [
     KIND_SERVICE, KIND_BUILD_SERVICE, KIND_JOB, KIND_DATABASE, KIND_BRANCH, KIND_REPOSITORY, KIND_DOMAIN, KIND_ZONE, KIND_WORKER,
     KIND_SITE, KIND_BUCKET, KIND_KV_NAMESPACE, KIND_QUEUE, KIND_DATABASE_PROXY, KIND_TUNNEL, KIND_LOAD_BALANCER, KIND_ORIGIN_POOL,
-    KIND_ACCESS_APP, KIND_VIRTUAL_MACHINE, KIND_FUNCTION, KIND_CLUSTER, KIND_COMPUTE, KIND_WORKFLOW, KIND_PIPELINE, KIND_RELEASE_FLOW
+    KIND_ACCESS_APP, KIND_VIRTUAL_MACHINE, KIND_FUNCTION, KIND_CLUSTER, KIND_COMPUTE, KIND_WORKFLOW, KIND_PIPELINE, KIND_RELEASE_FLOW, KIND_STACK
   ].freeze
 
   # Read as "from runs builds of to", "from is built from to", and so on. From always depends on to, so what fails with a

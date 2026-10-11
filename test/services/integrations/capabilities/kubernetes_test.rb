@@ -2,7 +2,7 @@ require "test_helper"
 
 class Integrations::Capabilities::KubernetesTest < ActiveSupport::TestCase
   CAPABILITIES = Integrations::Capabilities
-  TOOLS = %w[workload_logs pod_metrics rollout_history describe_workload rollout_undo rollout_restart scale_workload].freeze
+  TOOLS = %w[workload_logs pod_metrics rollout_history describe_workload workload_runs rollout_undo rollout_restart scale_workload].freeze
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -45,12 +45,12 @@ class Integrations::Capabilities::KubernetesTest < ActiveSupport::TestCase
   test "every tool a capability answers whole is not offered again, and logs stay offered for a pod or an earlier container" do
     adapter = Integrations::Capabilities::Kubernetes
 
-    assert_equal %w[pod_metrics rollout_history describe_workload rollout_undo rollout_restart scale_workload], adapter::WRAPPED
+    assert_equal %w[pod_metrics rollout_history describe_workload workload_runs rollout_undo rollout_restart scale_workload], adapter::WRAPPED
     assert_not adapter.wraps?("workload_logs")
     assert_equal TOOLS.sort, adapter::TOOLS.values.sort
     pack_tools = Integrations::Packs::Kubernetes.tool_definitions.map(&:name)
     assert adapter::TOOLS.values.all? { |tool| pack_tools.include?(tool) }
-    assert_match "Halon can read its logs, read its metrics, see what was deployed, check how a resource stands, roll a resource back, " \
+    assert_match "Halon can read its logs, read its metrics, see what was deployed, check how a resource stands, see how long its runs usually take, roll a resource back, " \
                  "restart a service, and scale a service for anything Kubernetes runs", Integrations::Capabilities.halon_sentence("kubernetes", "Kubernetes")
   end
 

@@ -33,16 +33,18 @@ module Integrations
           { "id" => "4242", "name" => "worker-1", "status" => "RUNNING", "zone" => "https://www.googleapis.com/compute/v1/projects/acme-prod/zones/us-central1-a",
             "selfLink" => "https://www.googleapis.com/compute/v1/#{VM_ID}", "machineType" => ".../machineTypes/e2-medium" }
         ]))
+        GoogleCloudApi.any_instance.stubs(:run_jobs).returns(pages([]))
+        GoogleCloudApi.any_instance.stubs(:deploy_locations).returns(pages([]))
         GoogleCloudApi.any_instance.stubs(:clusters).returns(reached([ { "name" => "apps", "location" => "europe-west1", "status" => "RUNNING", "currentMasterVersion" => "1.33" } ]))
       end
 
-      test "only the key is a credential, stored trimmed with the token minted before dropped, and only the three changes are not read only" do
+      test "only the key is a credential, stored trimmed with the token minted before dropped, and only the five changes are not read only" do
         @row.store_credential!(GoogleCloudApi::TOKEN_CACHE_KEY, { "token" => "old" })
         GoogleCloud.store_credentials!(@row, GoogleCloud::KEY => KEY)
 
         assert_equal({ GoogleCloud::KEY => KEY }, @row.reload.credentials_hash.compact)
         assert_equal [ GoogleCloud::KEY ], GoogleCloud.credential_fields.map(&:key)
-        assert_equal %w[rollback_service scale_service restart_resource], GoogleCloud.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[rollback_service scale_service restart_resource rollback_target cancel_rollout], GoogleCloud.tool_definitions.reject(&:read_only).map(&:name)
       end
 
       test "a key or project Google refuses is said before anything is saved" do
@@ -413,7 +415,7 @@ module Integrations
 
         snapshot = @pack.map_of(@row)
 
-        assert_equal [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_DOMAIN ], snapshot.unread_kinds
+        assert_equal [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_JOB ], snapshot.unread_kinds, "jobs are listed by region as services are"
         assert_equal "stopped", snapshot.resources.find { |resource| resource.external_id == SQL_ID }.status
       end
 

@@ -34,6 +34,7 @@ export const KIND_TONES: Record<ResourceMapKind, string> = {
   workflow: SOURCE,
   pipeline: SOURCE,
   release_flow: SOURCE,
+  stack: SOURCE,
 }
 
 export const HEALTH_DOTS: Record<ResourceMapHealth, string> = {

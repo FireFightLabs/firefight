@@ -21,6 +21,7 @@ import {
   IconServerCog,
   IconShieldLock,
   IconStack2,
+  IconStack3,
   IconTimeline,
   IconTopologyStar3,
   IconWorld,
@@ -55,6 +56,7 @@ export const KIND_ICONS: Record<ResourceMapKind, Icon> = {
   workflow: IconGitMerge,
   pipeline: IconTimeline,
   release_flow: IconRocket,
+  stack: IconStack3,
 }
 
 export const KIND_LABELS: Record<ResourceMapKind, string> = {
@@ -83,4 +85,5 @@ export const KIND_LABELS: Record<ResourceMapKind, string> = {
   workflow: "Workflow",
   pipeline: "Pipeline",
   release_flow: "Release flow",
+  stack: "Stack",
 }

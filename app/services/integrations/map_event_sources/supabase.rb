@@ -17,9 +17,14 @@ module Integrations
       # The project events that change what the map shows of a project or its branches, from the catalog
       # (supabase.com/docs/guides/platform/webhooks/events, Project events). A branch is a project of its own under its
       # parent, which the map reads with the parent. A branch removed, or a project moved to another organization, is
-      # read in a full sweep, since only reading every project says where it is now.
+      # read in a full sweep, since only reading every project says where it is now. A backup starting reads the project
+      # again too, so a watch on it wakes. The catalog has no event for a branch action run, a migration or an Edge
+      # Function deploy.
       PROJECT_CREATED = "v1.project.created".freeze
-      PROJECT_EVENTS = [ PROJECT_CREATED, "v1.project.paused", "v1.project.restored", "v1.project.restarted", "v1.project.removed", "v1.project.status.changed" ].freeze
+      PROJECT_EVENTS = [
+        PROJECT_CREATED, "v1.project.paused", "v1.project.restored", "v1.project.restarted", "v1.project.removed", "v1.project.status.changed",
+        "v1.project.backup.started"
+      ].freeze
       BRANCH_EVENTS = %w[v1.project.branch.created v1.project.branch.updated].freeze
       RESCOPE_EVENTS = %w[v1.project.branch.removed v1.project.transferred].freeze
       EVENTS = (PROJECT_EVENTS + BRANCH_EVENTS + RESCOPE_EVENTS).freeze
