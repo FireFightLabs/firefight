@@ -1,0 +1,41 @@
+# The tools New Relic's hosted MCP server documents, from docs.newrelic.com/docs/agentic-ai/mcp/tool-reference. It
+# documents every one as a read.
+# Each line is a tool as its server names it and whether it only reads or changes something.
+convert_time_period_to_epoch_ms read
+get_dashboard read
+get_entity read
+list_related_entities read
+list_available_new_relic_accounts read
+list_dashboards read
+search_entity_with_tag read
+list_metric_names read
+execute_nrql_query read
+natural_language_to_nrql_query read
+list_alert_conditions read
+search_incident read
+list_alert_policies read
+list_recent_issues read
+list_synthetic_monitors read
+list_synthetic_monitor_results read
+get_synthetic_check_statistics read
+analyze_deployment_impact read
+generate_alert_insights_report read
+generate_user_impact_report read
+list_entity_error_groups read
+list_change_events read
+get_error_statistics read
+search_errors read
+analyze_entity_logs read
+analyze_golden_metrics read
+analyze_kafka_metrics read
+analyze_threads read
+analyze_transactions read
+list_garbage_collection_metrics read
+list_recent_logs read
+list_entity_performance_risk_groups read
+get_metric_statistics read
+get_log_statistics read
+get_distributed_trace_details read
+search_traces read
+analyze_trace_anomaly read
+analyze_service_dependencies read

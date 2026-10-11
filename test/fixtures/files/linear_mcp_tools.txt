@@ -1,0 +1,11 @@
+# The tools of Linear's hosted MCP server that Linear names in public, from linear.app/changelog. linear.app/docs/mcp lists none,
+# so the rest of its tools are not here. save_issue, get_issue, list_issue_statuses and list_users are the ones Firefight's
+# issue sync calls (Integrations::IssueTrackers::Linear).
+# Each line is a tool as its server names it and whether it only reads or changes something.
+list_customer_needs read
+list_teams read
+get_team read
+list_projects read
+get_project read
+list_comments read
+save_issue change

@@ -1827,6 +1827,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_170000) do
     t.string "description"
     t.boolean "enabled", default: false, null: false
     t.uuid "integration_id", null: false
+    t.boolean "marked_read", default: false, null: false
     t.string "name", null: false
     t.jsonb "params_schema", default: {}, null: false
     t.boolean "read_only", default: false, null: false

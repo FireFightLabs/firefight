@@ -25,7 +25,7 @@ class IntegrationRegionTest < ApplicationSystemTestCase
       find("#connect-region").click
     end
     find("[role=option]", text: "UK1 (uk1.datadoghq.com)").click
-    within("[role=dialog]") { assert_field "MCP server URL", with: "https://mcp.uk1.datadoghq.com/v1/mcp" }
+    within("[role=dialog]") { assert_field "MCP server URL", with: "https://mcp.uk1.datadoghq.com/v1/mcp?toolsets=core,error-tracking" }
     page.save_screenshot(Rails.root.join("tmp/screenshots/integration-region-token.png"))
 
     datadog = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "datadog", name: "Datadog",

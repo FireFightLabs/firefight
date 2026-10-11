@@ -176,9 +176,25 @@ class IntegrationProvider
   # regions has a site per region instead.
   Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
                       :source_links, :source_links_note, :map, :map_note, :history, :history_note, :code_fix_tool, :regions, :connect_fields, :site, :code_agent,
-                      :app, :setting_words, :holds_code, :mitigation_tools, :stopping_tools, :status_page, :hosts, :holds_flags) do
-    def initialize(connect_with: nil, read_only_tools: [], mitigation_tools: [], stopping_tools: [], source_links_note: nil, map_note: nil, history: HISTORY_NONE, history_note: nil, code_fix_tool: nil, regions: [],
+                      :app, :setting_words, :holds_code, :mitigation_tools, :stopping_tools, :status_page, :hosts, :holds_flags, :write_tools,
+                      :admin_marks_reads) do
+    def initialize(connect_with: nil, read_only_tools: [], write_tools: [], admin_marks_reads: false, mitigation_tools: [], stopping_tools: [], source_links_note: nil, map_note: nil, history: HISTORY_NONE, history_note: nil, code_fix_tool: nil, regions: [],
                    connect_fields: [], site: nil, code_agent: false, app: nil, setting_words: [], holds_code: false, status_page: nil, hosts: [], holds_flags: false, **) = super
+
+    # Whether a tool only reads, from what its server declares and what the registry says of it. write_tools wins over
+    # both, for a tool a server marks read only although it sends something.
+    def reads?(tool_name, declared:) = (declared || read_only_tools.include?(tool_name)) && !write_tools.include?(tool_name)
+
+    # Whether the address is one of the servers the registry names for this provider, which needs no check of where it
+    # points. Any other address was pasted, so it is checked like any host a workspace names itself.
+    def serves?(url)
+      host = URI.parse(url.to_s).host&.downcase
+      return false if host.blank?
+
+      [ server_url, *regions.map(&:server_url) ].any? { |known| URI.parse(known.to_s).host&.downcase == host }
+    rescue URI::InvalidURIError
+      false
+    end
 
     # A provider reached through its MCP server that Firefight's own app also connects, once this install registered it.
     def app_connect? = kind == Integration::KIND_MCP && app.present? && IntegrationProvider.app_client(key).present?
@@ -281,6 +297,10 @@ class IntegrationProvider
         # read_only_tools names tools a provider's server does not mark read only although they only read, so they are
         # treated as reads rather than as writes that each ask to be confirmed.
         connect_with: raw["connect_with"], read_only_tools: Array(raw["read_only_tools"]),
+        # write_tools names tools a provider's server marks read only although they send or change something, so they are
+        # treated as changes that ask to be confirmed. admin_marks_reads lets an admin mark a tool as a read themselves,
+        # for a server Firefight cannot know, such as a team's own.
+        write_tools: Array(raw["write_tools"]), admin_marks_reads: raw["admin_marks_reads"] == true,
         # mitigation_tools change what customers get for a while, such as turning a feature flag off, so a change through
         # one is undone after a time the person sees unless someone keeps it. stopping_tools end or remove something
         # someone started, such as cancelling a run, so whoever started it is asked first (Ability::Action::EFFECTS).

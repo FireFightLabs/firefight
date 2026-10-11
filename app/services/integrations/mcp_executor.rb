@@ -123,8 +123,14 @@ module Integrations
     end
 
     def self.client_for(integration, environment_row, within: nil)
-      McpClient.new(server_url: integration.server_url, headers: Credentials.headers_for(environment_row), within: within)
+      McpClient.new(server_url: integration.server_url, headers: Credentials.headers_for(environment_row), within: within,
+                    checked_for: checked_for(integration))
     end
-    private_class_method :client_for, :reader, :narrows?, :quick_read?, :slow
+
+    # The provider whose operator allowlist applies to a pasted server address, or nil for a server the registry names.
+    def self.checked_for(integration)
+      integration.provider unless IntegrationProvider.find(integration.provider)&.serves?(integration.server_url)
+    end
+    private_class_method :client_for, :checked_for, :reader, :narrows?, :quick_read?, :slow
   end
 end

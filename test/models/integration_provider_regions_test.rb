@@ -5,7 +5,7 @@ class IntegrationProviderRegionsTest < ActiveSupport::TestCase
     datadog = IntegrationProvider.find("datadog")
 
     assert datadog.regional?
-    assert_equal "https://mcp.datadoghq.com/v1/mcp", datadog.server_url
+    assert_equal "https://mcp.datadoghq.com/v1/mcp?toolsets=core,error-tracking", datadog.server_url
     assert_equal "us1", datadog.region.key
     assert_equal "https://app.datadoghq.eu", datadog.region("eu1").site
     assert_nil datadog.region("mars1")

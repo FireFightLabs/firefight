@@ -14,8 +14,7 @@ module Integrations
         end
       end
       unchecked = IntegrationProvider.all.select { |provider| provider.source_links == IntegrationProvider::SOURCE_LINKS_UNCHECKED }.map(&:key)
-      assert_equal %w[linear confluence], unchecked,
-                   "A provider added since the rule was written has to check its links before it lands"
+      assert_empty unchecked, "A provider added since the rule was written has to check its links before it lands"
     end
 
     test "a remote provider that relies on Firefight for its links has a builder" do

@@ -1,0 +1,34 @@
+# The tools Axiom's hosted MCP server documents, each marked read or write there, from axiomhq/docs,
+# console/intelligence/mcp-server/tools.mdx.
+# Each line is a tool as its server names it and whether it only reads or changes something.
+queryDataset read
+getSavedQueries read
+listDatasets read
+getDatasetFields read
+listMetrics read
+listMetricTags read
+getMetricTagValues read
+searchMetrics read
+queryMetrics read
+listDashboards read
+getDashboard read
+exportDashboard read
+checkMonitors read
+getMonitor read
+getMonitorHistory read
+listNotifiers read
+services-getMap read
+services-getChanges read
+services-getEdgeHistory read
+createDataset change
+createDashboard change
+updateDashboard change
+updateDashboardChart change
+deleteDashboard change
+createMonitor change
+updateMonitor change
+deleteMonitor change
+createNotifier change
+updateNotifier change
+deleteNotifier change
+sendFeedback change

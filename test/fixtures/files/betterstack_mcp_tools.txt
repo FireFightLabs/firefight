@@ -1,0 +1,31 @@
+# The tools of Better Stack's hosted MCP server that Better Stack names by their identifiers, from BetterStackHQ/claude-plugin,
+# skills/investigate-incident/SKILL.md, and the tool filter examples of betterstack.com/docs/getting-started/integrations/mcp.
+# Its documentation lists the rest by title only, so they are not here.
+# Each line is a tool as its server names it and whether it only reads or changes something.
+incident read
+incident_timeline read
+incident_comments read
+incidents read
+chart_alerts read
+monitor read
+monitors read
+monitor_response_times read
+monitor_availability read
+on_calls read
+on_call read
+escalation_policy read
+sources read
+source read
+source_fields read
+applications read
+errors read
+error read
+releases read
+query_help read
+metrics_schema read
+metrics_query_help read
+errors_query_help read
+query read
+query_windows read
+remove_dashboard change
+remove_chart change

@@ -11,10 +11,14 @@ module Integrations
     MAX_TOOL_PAGES = 50
 
     # within bounds a whole tool call, its handshake included, in seconds. Without it each request waits READ_TIMEOUT.
-    def initialize(server_url:, headers: {}, within: nil)
+    # checked_for names the provider whose INTEGRATION_<KEY>_PRIVATE_HOSTS may allow a private address, for a server
+    # address a workspace pasted. Such an address is checked before anything is sent (PublicAddress), and every request
+    # goes to the address checked. nil is a server the registry names, which needs no check.
+    def initialize(server_url:, headers: {}, within: nil, checked_for: nil)
       @server_url = server_url
       @headers = headers
       @within = within
+      @checked_for = checked_for
       @session_id = nil
       @initialized = false
       @id = 0
@@ -88,7 +92,16 @@ module Integrations
       @headers.each { |key, value| req[key] = value }
       req.body = payload.to_json
 
-      Http.request(uri, req, error_class: Error, read_timeout: read_timeout)
+      Http.request(uri, req, error_class: Error, read_timeout: read_timeout, ipaddr: address(uri))
+    end
+
+    # Checked once per client, so the name cannot point somewhere else between one request and the next.
+    def address(uri)
+      return unless @checked_for
+
+      @address ||= PublicAddress.check!(uri.host, provider_key: @checked_for).ip.to_s
+    rescue PublicAddress::Refused => error
+      raise Error, error.message
     end
 
     def read_timeout

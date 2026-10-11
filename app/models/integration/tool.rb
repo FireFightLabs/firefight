@@ -102,6 +102,41 @@ class Integration::Tool < ApplicationRecord
     removed_at.nil?
   end
 
+  # Whether discovery found the tool to read, from its server or the registry, kept in spec beside the server's name.
+  DECLARED_READ = "declared_read_only".freeze
+
+  def declared_read? = spec[DECLARED_READ] == true
+
+  # An admin marks a tool as a read on a server Firefight cannot know, such as a team's own, and it is then a read
+  # everywhere, exactly as if its server had said so. Unmarking it leaves what its server says.
+  def mark_read!(read)
+    update!(marked_read: read, read_only: read || declared_read?)
+  end
+
+  # Whether an admin may mark this tool as a read: one on a server Firefight cannot know, that its server does not
+  # already say only reads.
+  def read_markable? = IntegrationProvider.find(integration.provider)&.admin_marks_reads == true && !declared_read?
+
+  # What marking the tool as a read, or taking the mark away, does, which the admin confirms.
+  def mark_read_words(read)
+    if read
+      "Halon will call #{name} without asking, approval rules will not hold it, investigations and watches can use it, and " \
+        "every member can call it without a grant, as for any tool that only reads. Mark it only if it never changes anything."
+    else
+      "Halon will ask before each call to #{name} again, approval rules will hold it, and members will need a grant to call it."
+    end
+  end
+
+  # Why an admin cannot mark this tool as a read, or take the mark away, or nil.
+  def mark_read_blocked_reason(read)
+    return "#{integration.name}'s server is one Firefight knows, so its tools are marked as it says." unless IntegrationProvider.find(integration.provider)&.admin_marks_reads
+    return "The provider no longer offers this capability. Refresh the tools to check again." unless available?
+    return "#{integration.name}'s server already says #{name} only reads." if declared_read?
+    return "#{name} is already marked as a read." if read && marked_read?
+
+    "#{name} is not marked as a read." if !read && !marked_read?
+  end
+
   def toggle_blocked_reason
     return "The provider no longer offers this capability. Refresh the tools to check again." unless available?
     return if enabled? || namesake.nil?

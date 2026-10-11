@@ -3,7 +3,7 @@ require "test_helper"
 # Regions and connect fields, on every way a connection is made: one-click OAuth, a pasted server address, and
 # credentials a pack asks for.
 class IntegrationConnectSettingsTest < ActionDispatch::IntegrationTest
-  EU1 = "https://mcp.datadoghq.eu/v1/mcp".freeze
+  EU1 = "https://mcp.datadoghq.eu/v1/mcp?toolsets=core,error-tracking".freeze
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -27,7 +27,7 @@ class IntegrationConnectSettingsTest < ActionDispatch::IntegrationTest
   end
 
   test "without a region a provider's connection reaches its first one" do
-    Integrations::OauthClient.expects(:begin_flow).with(has_entries(server_url: "https://mcp.datadoghq.com/v1/mcp")).returns(flow)
+    Integrations::OauthClient.expects(:begin_flow).with(has_entries(server_url: "https://mcp.datadoghq.com/v1/mcp?toolsets=core,error-tracking")).returns(flow)
 
     get oauth_start_integrations_url(provider: "datadog")
 

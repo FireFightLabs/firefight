@@ -1,0 +1,33 @@
+# The tools Datadog's remote MCP server documents in the core and error-tracking toolsets Firefight connects with,
+# from docs.datadoghq.com/mcp_server/tools and docs.datadoghq.com/mcp_server/setup.
+# Each line is a tool as its server names it and whether it only reads or changes something.
+search_datadog_events read
+get_datadog_incident read
+get_datadog_metric read
+get_datadog_metric_context read
+search_datadog_monitors read
+get_datadog_trace read
+search_datadog_dashboards read
+get_datadog_notebook read
+search_datadog_notebooks read
+search_datadog_hosts read
+search_datadog_incidents read
+search_datadog_metrics read
+search_datadog_entities read
+search_datadog_spans read
+aggregate_spans read
+analyze_datadog_logs read
+search_datadog_logs read
+search_datadog_rum_events read
+aggregate_rum_events read
+get_datadog_dashboard read
+search_datadog_error_tracking_issues read
+get_datadog_error_tracking_issue read
+analyze_datadog_error_tracking_errors read
+get_datadog_error_tracking_analytics read
+upsert_datadog_dashboard change
+create_datadog_notebook change
+edit_datadog_notebook change
+update_datadog_error_tracking_issue change
+manage_datadog_error_tracking_issue_comments change
+manage_datadog_error_tracking_issue_links change

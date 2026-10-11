@@ -71,6 +71,55 @@ module Integrations
       assert_equal SystemAgent.handbook_sync, logged.principal
     end
 
+    def confluence_connection(tools)
+      confluence = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "confluence", name: "Confluence", slug: "confluence",
+                                                   settings: { "server_url" => "https://mcp.atlassian.com/v2/mcp?tools=all" })
+      confluence.integration_environments.create!(credentials: { authorization: "Bearer x" }.to_json)
+      tools.each do |name, remote|
+        confluence.tools.create!(name: name, description: name, read_only: true, enabled: true, params_schema: {}, spec: { "tool_name" => remote })
+      end
+      confluence
+    end
+
+    test "a Confluence page is read by its link through getConfluenceContent as Markdown, keeping its body, title and address" do
+      confluence = confluence_connection("getconfluencecontent" => "getConfluenceContent")
+      answer = { "id" => "123456", "title" => "Checkout runbook", "body" => { "markdown" => "## Steps\n\nRestart checkout." },
+                 "_links" => { "webui" => "/spaces/ENG/pages/123456/Checkout+runbook", "base" => "https://acme.atlassian.net/wiki" } }
+      McpClient.any_instance.expects(:call_tool)
+               .with(name: "getConfluenceContent", arguments: { "cloudId" => "acme.atlassian.net", "content_id" => "123456", "content_format" => "markdown" })
+               .returns({ "content" => [ { "type" => "text", "text" => answer.to_json } ] })
+
+      page = Documents.read(confluence, "https://acme.atlassian.net/wiki/spaces/ENG/pages/123456/Checkout+runbook")
+
+      assert Documents.reads?(confluence)
+      assert_equal [ "Checkout runbook", "## Steps\n\nRestart checkout.", "https://acme.atlassian.net/wiki/spaces/ENG/pages/123456/Checkout+runbook" ],
+                   [ page.title, page.text, page.url ]
+      assert_equal SystemAgent.handbook_sync, Ability::Invocation.find_by!(workspace: @workspace, source: AbilityGateway::SOURCE_HANDBOOK_SYNC).principal
+    end
+
+    test "a Confluence page named by its id alone is read on the one site the connection reaches, and kept whole when its shape is not known" do
+      confluence = confluence_connection("getconfluencecontent" => "getConfluenceContent", "getaccessibleatlassianresources" => "getAccessibleAtlassianResources")
+      sites = [ { "id" => "1324a887", "url" => "https://acme.atlassian.net", "name" => "acme" } ]
+      McpClient.any_instance.expects(:call_tool).with(name: "getAccessibleAtlassianResources", arguments: {})
+               .returns({ "content" => [ { "type" => "text", "text" => sites.to_json } ] })
+      McpClient.any_instance.expects(:call_tool)
+               .with(name: "getConfluenceContent", arguments: { "cloudId" => "acme.atlassian.net", "content_id" => "77", "content_format" => "markdown" })
+               .returns({ "content" => [ { "type" => "text", "text" => "# Deploys\n\nShip on Tuesdays." } ] })
+
+      page = Documents.read(confluence, "77")
+
+      assert_equal [ "Confluence page", "# Deploys\n\nShip on Tuesdays.", "https://acme.atlassian.net/wiki/pages/viewpage.action?pageId=77" ],
+                   [ page.title, page.text, page.url ]
+    end
+
+    test "a Confluence reference that names no page, or a page whose read is switched off, says so" do
+      confluence = confluence_connection({})
+
+      assert_match "Paste the Confluence page's link", assert_raises(Integrations::Error) { Documents.read(confluence, "the runbook") }.message
+      assert_match "getConfluenceContent is switched off",
+                   assert_raises(Integrations::Error) { Documents.read(confluence, "https://acme.atlassian.net/wiki/spaces/ENG/pages/1/Runbook") }.message
+    end
+
     test "each code host says which branch a push moved" do
       github = MapEventSources::Github.branch_pushes({ "ref" => "refs/heads/main", "repository" => { "full_name" => "acme/web" } },
                                                     headers: { "x-github-event" => "push" })

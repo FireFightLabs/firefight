@@ -1,0 +1,37 @@
+# The tools Honeycomb's hosted MCP server documents, each marked read or write there, from
+# docs.honeycomb.io/integrations/mcp/tools.
+# Each line is a tool as its server names it and whether it only reads or changes something.
+get_workspace_context read
+get_environment read
+get_dataset read
+get_dataset_columns read
+run_query read
+get_query_results read
+find_queries read
+find_columns read
+run_bubbleup read
+get_trace read
+list_spans read
+get_span_details read
+get_service_map read
+get_anomaly_service_profiles read
+search_semconv read
+get_semconv_attribute read
+list_semconv_namespaces read
+list_boards read
+get_triggers read
+get_slos read
+list_recipients read
+canvas_agent_poll_response read
+list_aiconversations read
+get_aiconversation read
+refinery_docs read
+create_board change
+update_board change
+create_trigger change
+update_trigger change
+create_slo change
+update_slo change
+create_recipient change
+canvas_agent_invoke change
+feedback change
