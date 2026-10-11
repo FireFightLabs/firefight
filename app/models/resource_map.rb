@@ -29,10 +29,15 @@ module ResourceMap
   KIND_FUNCTION = "function".freeze
   KIND_CLUSTER = "cluster".freeze
   KIND_COMPUTE = "compute".freeze
+  # What releases code rather than running it: a workflow of steps, a pipeline of stages, and the release flow that
+  # promotes one stage of a pipeline. Each has runs, the release history a watch follows.
+  KIND_WORKFLOW = "workflow".freeze
+  KIND_PIPELINE = "pipeline".freeze
+  KIND_RELEASE_FLOW = "release_flow".freeze
   KINDS = [
     KIND_SERVICE, KIND_BUILD_SERVICE, KIND_JOB, KIND_DATABASE, KIND_BRANCH, KIND_REPOSITORY, KIND_DOMAIN, KIND_ZONE, KIND_WORKER,
     KIND_SITE, KIND_BUCKET, KIND_KV_NAMESPACE, KIND_QUEUE, KIND_DATABASE_PROXY, KIND_TUNNEL, KIND_LOAD_BALANCER, KIND_ORIGIN_POOL,
-    KIND_ACCESS_APP, KIND_VIRTUAL_MACHINE, KIND_FUNCTION, KIND_CLUSTER, KIND_COMPUTE
+    KIND_ACCESS_APP, KIND_VIRTUAL_MACHINE, KIND_FUNCTION, KIND_CLUSTER, KIND_COMPUTE, KIND_WORKFLOW, KIND_PIPELINE, KIND_RELEASE_FLOW
   ].freeze
 
   # Read as "from runs builds of to", "from is built from to", and so on. From always depends on to, so what fails with a
@@ -46,16 +51,21 @@ module ResourceMap
   RELATION_PROTECTED_BY = "protected_by".freeze
   # Where a resource is defined as code. Ownership, not a dependency, so a repository failing stops nothing that runs.
   RELATION_MANAGED_BY = "managed_by".freeze
+  # The workflow or release flow that ships a resource. How it gets released, not a dependency, so a release flow failing
+  # stops nothing that runs.
+  RELATION_RELEASED_BY = "released_by".freeze
   RELATIONS = [
     RELATION_RUNS_BUILDS_OF, RELATION_BUILT_FROM, RELATION_SERVED_BY, RELATION_BRANCH_OF, RELATION_USES, RELATION_PART_OF,
-    RELATION_PROTECTED_BY, RELATION_MANAGED_BY
+    RELATION_PROTECTED_BY, RELATION_MANAGED_BY, RELATION_RELEASED_BY
   ].freeze
+  # Links a failure does not travel along, so a walk that reaches one ends there.
+  OWNING_RELATIONS = [ RELATION_MANAGED_BY, RELATION_RELEASED_BY ].freeze
   # The links along which a failure travels.
-  RUNTIME_RELATIONS = (RELATIONS - [ RELATION_MANAGED_BY ]).freeze
+  RUNTIME_RELATIONS = (RELATIONS - OWNING_RELATIONS).freeze
   RELATION_WORDS = {
     RELATION_RUNS_BUILDS_OF => "runs builds of", RELATION_BUILT_FROM => "is built from", RELATION_SERVED_BY => "is served by",
     RELATION_BRANCH_OF => "is a branch of", RELATION_USES => "uses", RELATION_PART_OF => "is part of",
-    RELATION_PROTECTED_BY => "is protected by", RELATION_MANAGED_BY => "is managed in"
+    RELATION_PROTECTED_BY => "is protected by", RELATION_MANAGED_BY => "is managed in", RELATION_RELEASED_BY => "is released by"
   }.freeze
 
   # The map page's address, so a link from search, a chat or a teammate opens the same view on the same resource.

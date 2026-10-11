@@ -61,6 +61,35 @@ module Integrations
         assert_nil Northflank.remove(@row, "firefight-live-updates")
       end
 
+      test "a release flow's run names its pipeline and stage, a template run the project's workflows, and an eviction its service" do
+        headers = { "x-northflank-notification-integration-event-id" => "evt-2" }
+
+        assert_equal ResourceMap::Scope.new(kind: ResourceMap::KIND_RELEASE_FLOW, external_id: "shop/production"),
+                     Northflank.events(delivery("release-flow-template-run:failure", "pipeline" => { "id" => "shop" }, "stage" => "Production"), headers: headers).sole.scope
+        assert_equal ResourceMap::Scope.new(kind: ResourceMap::KIND_PIPELINE, external_id: "shop"),
+                     Northflank.events(delivery("release-flow-template-run:start", "pipeline" => { "id" => "shop" }), headers: headers).sole.scope
+        assert_equal ResourceMap::Scope.new(kind: ResourceMap::KIND_RELEASE_FLOW),
+                     Northflank.events(delivery("release-flow-template-run:success", {}), headers: headers).sole.scope
+        assert_equal ResourceMap::Scope.new(kind: ResourceMap::KIND_WORKFLOW), Northflank.events(delivery("template-run:update", "template" => { "id" => "t" }), headers: headers).sole.scope
+        assert_equal ResourceMap::Scope.new(external_id: "web"),
+                     Northflank.events(delivery("infrastructure:service:container-eviction", "service" => { "id" => "web" }), headers: headers).sole.scope
+        assert_includes Northflank::EVENTS, "infrastructure:addon-volume:usage-90-exceeded"
+        assert_match "A workflow's run sends nothing, so a watch on one reads it each minute.", Northflank.limits
+      end
+
+      test "an integration made before an event joined is registered again, and one that sends them all is left as it is" do
+        @row.update!(map_events_webhook_id: "firefight-live-updates")
+        every = Northflank::EVENTS.to_h { |event| [ "trigger:#{event}", true ] }
+        NorthflankApi.any_instance.stubs(:notification).with("firefight-live-updates").returns("events" => every)
+        assert_not Northflank.register_again?(@row, url: URL)
+
+        NorthflankApi.any_instance.stubs(:notification).with("firefight-live-updates").returns("events" => every.except("trigger:release-flow-template-run:failure"))
+        assert Northflank.register_again?(@row, url: URL)
+
+        NorthflankApi.any_instance.stubs(:notification).with("firefight-live-updates").raises(NorthflankApi::NotFound, "Northflank answered 404")
+        assert Northflank.register_again?(@row, url: URL)
+      end
+
       private
 
       def delivery(event, data) = { "event" => event, "data" => data }

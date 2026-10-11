@@ -93,6 +93,22 @@ class ResourceMap::TimelineTest < ActiveSupport::TestCase
     assert_equal [ "web deployed bbbbbbb" ], listed.entries.map(&:what)
   end
 
+  test "a resource's runs are read with those of the workflow and release flow that release it" do
+    flow = ResourceMap::Resource.create!(workspace: @workspace, provider: "northflank", account: "acme/shop", kind: ResourceMap::KIND_RELEASE_FLOW,
+                                         external_id: "shop/production", name: "shop Production", integration_environment: @row,
+                                         first_seen_at: 2.days.ago, last_seen_at: Time.current)
+    ResourceMap::Link.create!(workspace: @workspace, from_resource: @web, to_resource: flow, relation: ResourceMap::RELATION_RELEASED_BY,
+                              integration_environment: @row, origin: ResourceMap::ORIGIN_DECLARED, last_seen_at: Time.current)
+    subject = ResourceMap::Timeline.subject(@workspace, @admin, { "resource" => "web" })
+
+    listed = ResourceMap::Timeline.new(workspace: @workspace, principal: @admin, subject: subject, from: 1.day.ago, to: Time.current)
+
+    assert_equal [ @web, flow ], listed.live_targets
+    assert_equal [ @web, flow ], ResourceMap::WhatChanged.targets(listed), "Northflank reads the release flow's runs as run history"
+    run = { "id" => "f12", "name" => "shop Production", "status" => "failed", "started_at" => 12.minutes.ago.iso8601, "seconds" => 180 }
+    assert_equal "shop Production run f12 failed, took 3 minutes, from Northflank", ResourceMap::Timeline.run_entry(flow, run, through: "Northflank").what
+  end
+
   test "an incident whose catalog entries run nothing on the map says so" do
     subject, from, to = ResourceMap::Timeline.for_incident(@workspace, @admin, incidents(:active_critical_ws1))
 

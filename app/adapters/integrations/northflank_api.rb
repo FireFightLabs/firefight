@@ -30,6 +30,7 @@ module Integrations
     MAX_PAGES = 10
     # The notification integration type that posts to an address of one's own.
     RAW_WEBHOOK = "RAW_WEBHOOK".freeze
+    SERVICES = "services".freeze
 
     def initialize(token)
       @token = token
@@ -44,8 +45,13 @@ module Integrations
 
     def addons(project_id) = list("/projects/#{segment(project_id)}/addons", "addons")
 
-    def builds(project_id, service_id, limit:)
-      get("/projects/#{segment(project_id)}/services/#{segment(service_id)}/build", "per_page" => limit).dig("data", "builds") || []
+    def builds(project_id, service_id, limit:, kind: SERVICES)
+      get("/projects/#{segment(project_id)}/#{kind}/#{segment(service_id)}/build", "per_page" => limit).dig("data", "builds") || []
+    end
+
+    # One build of a service or job (GetServiceBuildResult, GET .../build/{buildId}), the same shape the list gives.
+    def build(project_id, kind, resource_id, build_id)
+      get("/projects/#{segment(project_id)}/#{kind}/#{segment(resource_id)}/build/#{segment(build_id)}")["data"] || {}
     end
 
     def service(project_id, service_id) = get("/projects/#{segment(project_id)}/services/#{segment(service_id)}")["data"] || {}
@@ -64,7 +70,7 @@ module Integrations
       get("/projects/#{segment(project_id)}/services/#{segment(service_id)}/deployments", "per_page" => limit).dig("data", "deployments") || []
     end
 
-    # kind is services or addons, the two that run containers.
+    # kind is services, addons or jobs, each of which runs containers.
     def containers(project_id, kind, resource_id, limit:)
       get("/projects/#{segment(project_id)}/#{kind}/#{segment(resource_id)}/containers", "per_page" => limit).dig("data", "containers") || []
     end
@@ -73,18 +79,62 @@ module Integrations
       get("/projects/#{segment(project_id)}/addons/#{segment(addon_id)}/backups", "per_page" => limit).dig("data", "backups") || []
     end
 
-    def jobs(project_id) = list("/projects/#{segment(project_id)}/jobs", "jobs")
+    def backup(project_id, addon_id, backup_id)
+      get("/projects/#{segment(project_id)}/addons/#{segment(addon_id)}/backups/#{segment(backup_id)}")["data"] || {}
+    end
+
+    def jobs(project_id) =list("/projects/#{segment(project_id)}/jobs", "jobs")
 
     def job_runs(project_id, job_id, limit:)
       get("/projects/#{segment(project_id)}/jobs/#{segment(job_id)}/runs", "per_page" => limit).dig("data", "runs") || []
     end
 
-    def build_logs(project_id, service_id, query)
-      get("/projects/#{segment(project_id)}/services/#{segment(service_id)}/build-logs", { "queryType" => "range" }.merge(query))["data"] || []
+    # One run of a job (GetJobRunResult), the same shape the list gives.
+    def job_run(project_id, job_id, run_id)
+      get("/projects/#{segment(project_id)}/jobs/#{segment(job_id)}/runs/#{segment(run_id)}")["data"] || {}
     end
 
-    # kind is services or addons, the two things that run and log in a project. query uses Northflank's own parameter
-    # names, such as startTime and textIncludes.
+    # A service's or job's build logs (get-service-build-logs, get-job-build-logs), which take a buildId.
+    def build_logs(project_id, service_id, query, kind: SERVICES)
+      get("/projects/#{segment(project_id)}/#{kind}/#{segment(service_id)}/build-logs", { "queryType" => "range" }.merge(query))["data"] || []
+    end
+
+    # The project's workflows (ListWorkflowsResult), which Northflank lists under pipelines, as its reference and its own
+    # client both write it.
+    def workflows(project_id) = list("/projects/#{segment(project_id)}/workflows", "pipelines")
+
+    # A workflow's runs, newest first (ListWorkflowrunsResult), and one run with its nodes and how each went
+    # (GetWorkflowrunResult spec, each node's response).
+    def workflow_runs(project_id, workflow_id, limit:)
+      get("/projects/#{segment(project_id)}/workflows/#{segment(workflow_id)}/runs", "per_page" => limit).dig("data", "runs") || []
+    end
+
+    def workflow_run(project_id, workflow_id, run_id)
+      get("/projects/#{segment(project_id)}/workflows/#{segment(workflow_id)}/runs/#{segment(run_id)}")["data"] || {}
+    end
+
+    # The project's pipelines (ListPipelinesResult), one with the services, jobs and addons in each stage
+    # (GetPipelineResult nfObjects), and a stage's release flow, which is not there when Northflank answers not found.
+    def pipelines(project_id) = list("/projects/#{segment(project_id)}/pipelines", "pipelines")
+
+    def pipeline(project_id, pipeline_id) = get("/projects/#{segment(project_id)}/pipelines/#{segment(pipeline_id)}")["data"] || {}
+
+    def release_flow(project_id, pipeline_id, stage)
+      get("/projects/#{segment(project_id)}/pipelines/#{segment(pipeline_id)}/release-flows/#{segment(stage)}")["data"] || {}
+    end
+
+    # A release flow's runs and one run, the same shapes as a workflow's (ListReleaseflowrunsResult, GetReleaseflowrunResult).
+    def release_flow_runs(project_id, pipeline_id, stage, limit:)
+      get("/projects/#{segment(project_id)}/pipelines/#{segment(pipeline_id)}/release-flows/#{segment(stage)}/runs", "per_page" => limit).dig("data", "runs") || []
+    end
+
+    def release_flow_run(project_id, pipeline_id, stage, run_id)
+      get("/projects/#{segment(project_id)}/pipelines/#{segment(pipeline_id)}/release-flows/#{segment(stage)}/runs/#{segment(run_id)}")["data"] || {}
+    end
+
+    # kind is services, addons or jobs, the three things that run and log in a project. A job's logs and metrics take a
+    # runId for one run (get-job-logs, get-job-metrics). query uses Northflank's own parameter names, such as startTime
+    # and textIncludes.
     def logs(project_id, kind, resource_id, query)
       get("/projects/#{segment(project_id)}/#{kind}/#{segment(resource_id)}/logs", { "queryType" => "range" }.merge(query))["data"] || []
     end
@@ -118,6 +168,9 @@ module Integrations
                "events" => events.index_with(true) }
       changing(Net::HTTP::Post, "/integrations/notifications", body)["data"] || {}
     end
+
+    # One notification integration with the events it sends (GetNotificationResult events, each true when sent).
+    def notification(notification_id) = get("/integrations/notifications/#{segment(notification_id)}")["data"] || {}
 
     def delete_notification(notification_id) = changing(Net::HTTP::Delete, "/integrations/notifications/#{segment(notification_id)}")
 

@@ -19,6 +19,8 @@ module Integrations
 
     RESOURCE_ARG = "resource".freeze
     CONNECTION_ARG = "connection".freeze
+    PLAN_ARG = "plan".freeze
+    RUN_ARG = "run".freeze
     # connection: all asks every connection that can answer, each answer labelled with where it came from.
     ALL = Integration::SLUG_ALL
     # What an observability tool answers by default when the platform that runs a resource could too.
@@ -64,6 +66,7 @@ module Integrations
                  "exclude" => { "type" => "string", "description" => "Leave out lines containing this text (optional)" },
                  "stream" => { "type" => "string", "enum" => LOG_STREAMS,
                                "description" => "Which logs: app (what the code prints), build, requests (traffic reaching it), internal (calls between services), cdn, backup or restore (optional, app)" },
+                 RUN_ARG => { "type" => "string", "description" => "Only one run's lines, by the run's id as run_history gives it, for a job whose provider keeps them per run (optional)" },
                  "limit" => LIMIT, **RANGE
                }, required: []),
       Spec.new(key: METRICS, tool_name: "query_metrics", writes: false, what: "metrics",
@@ -109,7 +112,9 @@ module Integrations
                params: {}, required: []),
       Spec.new(key: SCALE, tool_name: "scale", writes: true, what: "scaling",
                description: "Set how many instances one resource on the map runs, through whichever connection runs it",
-               params: { "instances" => { "type" => "integer", "description" => "How many instances to run" } },
+               params: { "instances" => { "type" => "integer", "description" => "How many instances to run" },
+                         PLAN_ARG => { "type" => "string", "description" => "The size to run at, by the provider's own id for its plan, such as " \
+                                                                       "nf-compute-20, where the provider sizes by plan (optional)" } },
                required: [ "instances" ])
     ].index_by(&:key).freeze
 
@@ -390,6 +395,13 @@ module Integrations
       switched_on = Integration::Tool.in_workspace(workspace).where(integration_id: candidate.row.integration_id)
       usual = candidate.adapter.tool_for(spec.key)
       usual_tool = switched_on.find_by(name: usual)
+      if given[PLAN_ARG].present? && !candidate.adapter.takes_plan?
+        raise Unroutable, "#{candidate.row.integration.name} sizes #{candidate.resource.name} by instances alone, so leave plan out."
+      end
+      if run_logs_refused?(candidate, spec, given)
+        raise Unroutable, "#{candidate.row.integration.name} keeps no logs per run for #{candidate.resource.name}, so leave run out and narrow by time."
+      end
+
       begin
         route = candidate.adapter.route(spec.key, candidate.resource, given.except(RESOURCE_ARG, CONNECTION_ARG), tool: usual_tool, settings: candidate.settings)
       rescue Unroutable
@@ -451,6 +463,9 @@ module Integrations
       end
     end
 
+    # Asked for one run's logs of a connection that keeps none per run, which an observability tool is passed over for.
+    def self.run_logs_refused?(candidate, spec, given) = spec.key == LOGS && given[RUN_ARG].present? && !candidate.adapter.logs_by_run?
+
     # One resource on one connection. Two resources of the same name are told apart by their id. Between connections,
     # an observability tool answers logs, metrics, traces and errors by default, and the one that runs the resource
     # answers the rest, so a request never lands somewhere it did not mean and Halon need not choose every time.
@@ -464,7 +479,7 @@ module Integrations
       return unique.first if unique.one?
 
       one_resource!(unique, reference)
-      able = unique.reject { |candidate| candidate.observer && !candidate.adapter.accepts?(spec.key, given, settings: candidate.settings) }
+      able = unique.reject { |candidate| candidate.observer && (!candidate.adapter.accepts?(spec.key, given, settings: candidate.settings) || run_logs_refused?(candidate, spec, given)) }
       preferred = able.select { |candidate| candidate.observer == SIGNALS.include?(spec.key) }
       return preferred.first if preferred.one?
       return able.first if able.one?

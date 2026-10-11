@@ -1,6 +1,6 @@
 # What a resource depends on, or what depends on it, walked along the map's links in one recursive query. A link reads
 # "from depends on to", so dependents are found against the links and what it depends on along them. Only present
-# resources inside within are walked, and a repository a resource is managed in ends the walk there, as in
+# resources inside within are walked, and a repository a resource is managed in or the release flow that ships it ends the walk there, as in
 # ResourceMap::Resource#neighborhood. Suggestions count only when asked for, the way ResourceMap::Link.facts reads.
 class ResourceMap::Graph
   DEPENDS_ON = "depends_on".freeze
@@ -20,11 +20,11 @@ class ResourceMap::Graph
            "AND (:everywhere OR next.id IN (:within))"
     sql = <<~SQL.squish
       WITH RECURSIVE walk(resource_id, hop, ends) AS (
-        SELECT next.id, 1, links.relation = :managed_by
+        SELECT next.id, 1, links.relation IN (:owning)
         FROM resource_map_links links JOIN resource_map_resources next ON next.id = links.#{near}
         WHERE links.#{far} = :root AND #{step}
         UNION
-        SELECT next.id, walk.hop + 1, links.relation = :managed_by
+        SELECT next.id, walk.hop + 1, links.relation IN (:owning)
         FROM walk JOIN resource_map_links links ON links.#{far} = walk.resource_id
         JOIN resource_map_resources next ON next.id = links.#{near}
         WHERE walk.hop < :hops AND NOT walk.ends AND #{step}
@@ -95,7 +95,7 @@ class ResourceMap::Graph
     {
       root: root.id, relations: relations, suggestions: @suggestions, suggestion_origins: ResourceMap::SUGGESTION_ORIGINS,
       everywhere: @within.nil?, within: @within ? @within.select(:id) : ResourceMap::Resource.none.select(:id),
-      managed_by: ResourceMap::RELATION_MANAGED_BY, hops: hops, any_kind: @kinds.nil?, kinds: @kinds || [ "" ]
+      owning: ResourceMap::OWNING_RELATIONS, hops: hops, any_kind: @kinds.nil?, kinds: @kinds || [ "" ]
     }
   end
 end

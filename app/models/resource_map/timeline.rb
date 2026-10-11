@@ -184,7 +184,8 @@ class ResourceMap::Timeline
     at = Time.zone.parse(run["started_at"].to_s) || Time.zone.parse(run["finished_at"].to_s)
     return unless at
 
-    named = [ run["number"] ? "##{run['number']}" : run["id"], run["name"] ].compact_blank.join(" ")
+    # A release flow's runs are named by the flow itself, which the line already names.
+    named = [ run["number"] ? "##{run['number']}" : run["id"], (run["name"] unless run["name"].to_s.casecmp?(resource.name)) ].compact_blank.join(" ")
     took = run["seconds"] ? ", took #{ActiveSupport::Duration.build(run['seconds'].to_i).inspect}" : ""
     detail = run["detail"].present? ? " (#{run['detail']})" : ""
     Entry.new(at: at, kind: KIND_RUN, source: SOURCE_PROVIDER, what: "#{resource.scoped_name} run #{named} #{run['status']}#{took}#{detail}, from #{through}",
@@ -200,10 +201,15 @@ class ResourceMap::Timeline
   end
 
   # The resources a caller reads runs for live, those of one resource or service and never the whole workspace.
+  # With them, the workflows and release flows that release them, whose runs are often the change itself.
   def live_targets
     return [] if @subject.kind == SUBJECT_WORKSPACE
 
-    @subject.resources.to_a.select { |resource| resource.removed_at.nil? }.first(LIVE_AT_MOST)
+    present = @subject.resources.to_a.select { |resource| resource.removed_at.nil? }
+    releasing = ResourceMap::Resource.visible_to(@principal, @workspace).present.where(
+      id: ResourceMap::Link.facts.where(from_resource_id: present.map(&:id), relation: ResourceMap::RELATION_RELEASED_BY).select(:to_resource_id)
+    ).where.not(id: present.map(&:id)).order(:name).to_a
+    (present + releasing).first(LIVE_AT_MOST)
   end
 
   # Every entry, newest first, with the runs a caller read live.

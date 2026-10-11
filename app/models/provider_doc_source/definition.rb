@@ -20,7 +20,7 @@ class ProviderDocSource
       KIND_REPOSITORY => %w[license notice extensions exclude recursive],
       KIND_SITE => %w[page_url],
       KIND_INDEX => %w[license],
-      KIND_PACKAGE => %w[leave_out],
+      KIND_PACKAGE => %w[leave_out paths],
       KIND_API => %w[relative_to include leave_out service]
     }.freeze
     SHARED = %w[provider to].freeze

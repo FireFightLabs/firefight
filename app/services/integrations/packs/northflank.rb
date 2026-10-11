@@ -19,6 +19,7 @@ module Integrations
       KIND_SERVICES = "services".freeze
       KIND_ADDONS = "addons".freeze
       KIND_JOBS = "jobs".freeze
+      KIND_NOUNS = { KIND_SERVICES => "service", KIND_ADDONS => "database", KIND_JOBS => "job" }.freeze
 
       LOG_TYPES = %w[runtime build ingress mesh cdn backup restore].freeze
       DEFAULT_LOG_TYPE = LOG_TYPES.first
@@ -85,7 +86,8 @@ module Integrations
         "start" => { "type" => "string", "description" => "Start of the range as an ISO 8601 time, instead of minutes (optional)" },
         "end" => { "type" => "string", "description" => "End of the range as an ISO 8601 time (optional, now)" }
       }.freeze
-      RESOURCE = { "type" => "string", "description" => "A service or database (addon) in the project, by name or id, as list_resources shows it" }.freeze
+      RESOURCE = { "type" => "string", "description" => "A service, database (addon) or job in the project, by name or id, as list_resources or list_jobs shows it" }.freeze
+      JOB_RUN = { "type" => "string", "description" => "For a job, one of its runs by its id, as job_runs shows it, for that run alone (optional)" }.freeze
 
       COST_DAYS = 30
       COST_DAYS_MAX = 365
@@ -128,7 +130,7 @@ module Integrations
            read_only: false
 
       tool :search_logs,
-           description: "Log lines from one service or database, newest first, at most #{LOG_LIMIT}. Filter by text or a regular " \
+           description: "Log lines from one service, database or job, newest first, at most #{LOG_LIMIT}, one run of a job when it is named. Filter by text or a regular " \
                         "expression, and by log type: runtime for what the app prints, build, ingress for HTTP requests reaching it " \
                         "where Northflank has ingress logs switched on for the account. The app's runtime logs usually carry each " \
                         "request's path too",
@@ -141,6 +143,7 @@ module Integrations
                "exclude" => { "type" => "string", "description" => "Leave out lines containing this text (optional)" },
                "type" => { "type" => "string", "enum" => LOG_TYPES, "description" => "Which logs (optional, runtime)" },
                "limit" => { "type" => "integer", "description" => "At most this many lines (optional, #{LOG_LIMIT})" },
+               "run" => JOB_RUN,
                **RANGE
              },
              "required" => [ "resource" ]
@@ -148,7 +151,7 @@ module Integrations
            read_only: true
 
       tool :query_metrics,
-           description: "Metrics of one service or database over time: CPU, memory, requests, 4xx and 5xx responses, network, " \
+           description: "Metrics of one service, database or job over time: CPU, memory, requests, 4xx and 5xx responses, network, " \
                         "open TCP connections and disk. Returns min, average, max and latest per container, and the person " \
                         "sees each metric as a chart",
            params_schema: {
@@ -157,6 +160,7 @@ module Integrations
                "resource" => RESOURCE,
                "metrics" => { "type" => "array", "items" => { "type" => "string", "enum" => METRICS },
                               "description" => "Which metrics (optional, #{DEFAULT_METRICS.join(', ')})" },
+               "run" => JOB_RUN,
                **RANGE
              },
              "required" => [ "resource" ]
@@ -164,7 +168,7 @@ module Integrations
            read_only: true
 
       tool :recent_builds,
-           description: "The latest builds of one service, newest first, with commit, branch, when it ran and whether it succeeded. " \
+           description: "The latest builds of one service or job, newest first, with commit, branch, when it ran and whether it succeeded. " \
                         "Use it to see what changed before something broke",
            params_schema: {
              "type" => "object",
@@ -177,13 +181,14 @@ module Integrations
            read_only: true
 
       tool :build_history,
-           description: "A service's recent builds, with each one's status, when it started and finished and how long it took, " \
+           description: "A service's or job's recent builds, with each one's status, when it started and finished and how long it took, " \
                         "and how long finished ones usually take. Northflank keeps no end time for a deployment, so this reads builds",
            params_schema: {
              "type" => "object",
              "properties" => {
                "resource" => RESOURCE,
                "name" => { "type" => "string", "description" => "Only runs of this kind, build (optional)" },
+               "run" => { "type" => "string", "description" => "Only this build, by its id, however old (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many builds (optional, #{BUILD_LIMIT * 2})" }
              },
              "required" => [ "resource" ]
@@ -191,17 +196,18 @@ module Integrations
            read_only: true
 
       tool :describe_resource,
-           description: "How one service or database is set up and how it stands now. A service: its rollout status, " \
+           description: "How one service, database or job is set up and how it stands now. A service: its rollout status, " \
                         "instances, plan, the repository, branch and commit it runs or the image, ephemeral storage, health " \
                         "checks and ports. A database: its type and version, status, replicas, storage, plan, network access, " \
-                        "secret rotation, pending actions and latest backups",
+                        "secret rotation, pending actions and latest backups. A job: cron or manual, its schedule, whether it is " \
+                        "suspended, its plan, retries and time limit, and its latest runs",
            params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
            read_only: true
 
       tool :list_deployments,
-           description: "A service's deployments, newest first: when each went out, the commit or image, how many instances, " \
-                        "and why (such as a build, a template or release run, or a change to its settings) and by whom. " \
-                        "Use it to see what changed before something broke",
+           description: "A service's deployments, newest first: each one's id, when it went out, the commit or image, how many instances, " \
+                        "whether it is the stable or canary side of a rollout, and why (such as a build, a template or release run, or a " \
+                        "change to its settings) and by whom. Use it to see what changed before something broke",
            params_schema: {
              "type" => "object",
              "properties" => {
@@ -213,7 +219,7 @@ module Integrations
            read_only: true
 
       tool :list_containers,
-           description: "The containers of a service or database, newest first, running and past, with each one's state " \
+           description: "The containers of a service, database or job, newest first, running and past, with each one's state " \
                         "(running, starting, stopped, failed, finished) and when it started and last changed. Many short lived " \
                         "containers mean restarts",
            params_schema: {
@@ -233,12 +239,13 @@ module Integrations
            read_only: true
 
       tool :job_runs,
-           description: "A job's runs, newest first, with each one's outcome (succeeded, running, failed), when it started and " \
-                        "finished, and how many attempts failed",
+           description: "A job's runs, newest first, with each one's id, outcome (succeeded, running, failed), when it started and " \
+                        "finished, and how many attempts failed. Name a run for that run alone, however old",
            params_schema: {
              "type" => "object",
              "properties" => {
                "job" => { "type" => "string", "description" => "The job, by name or id, as list_jobs shows it" },
+               "run" => { "type" => "string", "description" => "Only this run, by its id (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many runs (optional, #{RUN_LIMIT})" }
              },
              "required" => [ "job" ]
@@ -246,7 +253,7 @@ module Integrations
            read_only: true
 
       tool :build_logs,
-           description: "Log lines from a service's builds, newest first, at most #{LOG_LIMIT}. Name a build from recent_builds " \
+           description: "Log lines from a service's or job's builds, newest first, at most #{LOG_LIMIT}. Name a build from recent_builds " \
                         "to read one build, such as the one that failed",
            params_schema: {
              "type" => "object",
@@ -277,13 +284,15 @@ module Integrations
            read_only: true
 
       include WorkflowWebhooks
+      include Releases
+      include Backups
 
       # The project is not a secret, so it is a connect field in the registry, shown on the connection's card, and read
       # with ConnectionSettings#field.
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "API token", secret: true, placeholder: "nf-...",
-                              hint: "A Northflank API token whose role can list and read the projects, their services, databases and jobs, and view observability. To link services to the databases their secret groups hold, its role can also read secret groups. For Halon to apply fixes, its role can also update services. To follow changes live, its role can also read, create and delete notification integrations.")
+                              hint: "A Northflank API token whose role can list and read the projects, their services, databases and jobs, and view observability. To follow releases, its role can also read workflows, pipelines and their runs. To link services to the databases their secret groups hold, its role can also read secret groups. For Halon to apply fixes, its role can also update services. To follow changes live, its role can also read, create and delete notification integrations.")
         ]
       end
 
@@ -323,10 +332,11 @@ module Integrations
         raise NativePack::Error, Sentence.all("Northflank did not list this token's projects.", error)
       end
 
-      # A tool names what it acts on by resource or job, and api_request by the service, addon or job its path starts with.
+      # A tool names what it acts on by resource, job, workflow or pipeline, and api_request by what its path starts with.
       def self.scope_references(arguments)
         kind, id = arguments["path"].to_s.delete_prefix("/").split("/").first(2)
-        [ arguments["resource"], arguments["job"], (id if [ KIND_SERVICES, KIND_ADDONS, KIND_JOBS ].include?(kind)) ]
+        [ arguments["resource"], arguments["job"], arguments["workflow"], arguments["pipeline"],
+          (id if [ KIND_SERVICES, KIND_ADDONS, KIND_JOBS, Releases::KIND_WORKFLOWS, Releases::KIND_PIPELINES ].include?(kind)) ]
       end
 
       def self.store_credentials!(environment_row, values)
@@ -354,8 +364,9 @@ module Integrations
         query = {
           "startTime" => started.utc.iso8601, "endTime" => ended.utc.iso8601, "lineLimit" => limit, "direction" => "backward",
           "type" => arguments["type"].presence_in(LOG_TYPES) || DEFAULT_LOG_TYPE, "textIncludes" => arguments["text"].presence,
-          "regexIncludes" => arguments["regex"].presence, "textNotIncludes" => arguments["exclude"].presence
-        }
+          "regexIncludes" => arguments["regex"].presence, "textNotIncludes" => arguments["exclude"].presence,
+          "runId" => job_run_of(resource, arguments)
+        }.compact
         begin
           found = api(environment_row).logs(project_of(environment_row), resource[:kind], resource[:id], query)
         rescue NorthflankApi::NotEnabled
@@ -495,7 +506,7 @@ module Integrations
         started, ended = Telemetry.range(arguments, default_minutes: DEFAULT_MINUTES, max_minutes: MAX_MINUTES)
         asked = Array(arguments["metrics"]) & METRICS
         asked = DEFAULT_METRICS if asked.empty?
-        query = { "startTime" => started.utc.iso8601, "endTime" => ended.utc.iso8601, "metricTypes" => asked }
+        query = { "startTime" => started.utc.iso8601, "endTime" => ended.utc.iso8601, "metricTypes" => asked, "runId" => job_run_of(resource, arguments) }.compact
         data = api(environment_row).metrics(project_of(environment_row), resource[:kind], resource[:id], query)
         link = observe_link(environment_row, resource, OBSERVE_METRICS, range_query(started, ended))
         charts = asked.filter_map { |metric| chart(resource, metric, data[metric], started, ended, link) if data[metric] }
@@ -503,12 +514,10 @@ module Integrations
       end
 
       def recent_builds(environment_row:, arguments:)
-        resource = find_resource(environment_row, arguments["resource"])
-        fail! "#{resource[:name]} is a database, and only services have builds." unless resource[:kind] == KIND_SERVICES
-
+        resource = builder!(environment_row, arguments)
         limit = arguments["limit"].to_i.positive? ? [ arguments["limit"].to_i, BUILD_LIMIT ].min : BUILD_LIMIT
-        builds = api(environment_row).builds(project_of(environment_row), resource[:id], limit: limit)
-        link = resource_link(environment_row, resource, "builds")
+        builds = api(environment_row).builds(project_of(environment_row), resource[:id], limit: limit, kind: resource[:kind])
+        link = builds_link(environment_row, resource)
         return Telemetry.result("#{resource[:name]} has no builds.", link: link) if builds.empty?
 
         rows = builds.map do |build|
@@ -527,32 +536,64 @@ module Integrations
         "aborted" => Capabilities::History::CANCELLED
       }.freeze
 
-      # A build from createdAt, an ISO 8601 time, to buildConcludedAt, in Unix seconds (GetServiceBuildsResult).
+      # A build from createdAt, an ISO 8601 time, to buildConcludedAt, in Unix seconds (GetServiceBuildsResult). One build
+      # named by its id is read on its own, so a watch follows a build however many came after it.
       def build_history(environment_row:, arguments:)
-        resource = find_resource(environment_row, arguments["resource"])
-        fail! "#{resource[:name]} is a database, and only services have builds." unless resource[:kind] == KIND_SERVICES
-
-        builds = api(environment_row).builds(project_of(environment_row), resource[:id], limit: limit(arguments, BUILD_LIMIT * 2))
-        runs = builds.map do |build|
+        resource = builder!(environment_row, arguments)
+        project = project_of(environment_row)
+        builds = if arguments["run"].present?
+          [ api(environment_row).build(project, resource[:kind], resource[:id], arguments["run"].to_s.strip.delete_prefix("#")) ]
+        else
+          api(environment_row).builds(project, resource[:id], limit: limit(arguments, BUILD_LIMIT * 2), kind: resource[:kind])
+        end
+        runs = builds.compact_blank.map do |build|
           Capabilities::History::Run.new(
             id: build["id"], name: "build", status: Capabilities::History.status(build["status"], BUILD_STATUSES),
             started_at: Telemetry.parse_time(build["createdAt"]),
             finished_at: (Time.zone.at(build["buildConcludedAt"].to_i).utc if build["buildConcludedAt"].to_i.positive?),
+            url: build_link(environment_row, resource, build["id"])&.url,
             detail: [ build["branch"], build["sha"].to_s.first(12).presence, build["message"].presence ].compact.join(", ").presence
           )
         end
-        Capabilities::History.result(runs, what: resource[:name], link: resource_link(environment_row, resource, "builds"), name: arguments["name"])
+        Capabilities::History.result(runs, what: resource[:name], link: builds_link(environment_row, resource), name: arguments["name"])
+      rescue NorthflankApi::NotFound
+        fail! "#{resource[:name]} has no build #{arguments['run']}. build_history lists its builds."
       end
+
+      # What has builds, a service or a job, refusing a database in words.
+      def builder!(environment_row, arguments)
+        resource = find_resource(environment_row, arguments["resource"])
+        fail! "#{resource[:name]} is a database, and only services and jobs have builds." if resource[:kind] == KIND_ADDONS
+
+        resource
+      end
+      private :builder!
+
+      # A service's builds page and one build's, as Northflank's pages write them. A job keeps its own page, since its builds
+      # address has not been checked.
+      def builds_link(environment_row, resource)
+        resource[:kind] == KIND_SERVICES ? resource_link(environment_row, resource, "builds") : resource_link(environment_row, resource)
+      end
+      private :builds_link
+
+      def build_link(environment_row, resource, build_id)
+        resource[:kind] == KIND_SERVICES && build_id.present? ? resource_link(environment_row, resource, "builds", build_id) : nil
+      end
+      private :build_link
 
       def describe_resource(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
-        lines = resource[:kind] == KIND_SERVICES ? service_lines(environment_row, resource) : database_lines(environment_row, resource)
+        lines = case resource[:kind]
+        when KIND_SERVICES then service_lines(environment_row, resource)
+        when KIND_JOBS then job_lines(environment_row, resource)
+        else database_lines(environment_row, resource)
+        end
         Telemetry.result(lines.compact.join("\n"), link: resource_link(environment_row, resource))
       end
 
       def list_deployments(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
-        fail! "#{resource[:name]} is a database, and only services have deployments." unless resource[:kind] == KIND_SERVICES
+        fail! "#{resource[:name]} is a #{KIND_NOUNS.fetch(resource[:kind])}, and only services have deployments." unless resource[:kind] == KIND_SERVICES
 
         deployments = api(environment_row).deployments(project_of(environment_row), resource[:id], limit: limit(arguments, DEPLOYMENT_LIMIT))
         link = resource_link(environment_row, resource, "deployments")
@@ -592,25 +633,56 @@ module Integrations
         Telemetry.result("Project #{project}, #{rows.size} jobs.#{cut}\n#{rows.join("\n")}", link: link)
       end
 
+      # A job run's status (GetJobRunsResult) in Firefight's words.
+      JOB_RUN_STATUSES = {
+        "running" => Capabilities::History::RUNNING, "success" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED
+      }.freeze
+
+      # The runs as text, and as run history beside it (Capabilities::RunHistory), so run_history follows a job's runs and
+      # reads one by its id.
       def job_runs(environment_row:, arguments:)
         project = project_of(environment_row)
-        wanted = arguments["job"].to_s.strip.downcase
+        job = job_named(environment_row, project, arguments["job"])
+        runs = if arguments["run"].present?
+          [ api(environment_row).job_run(project, job["id"], arguments["run"].to_s.strip.delete_prefix("#")) ].compact_blank
+        else
+          api(environment_row).job_runs(project, job["id"], limit: limit(arguments, RUN_LIMIT))
+        end
+        link = project_link(environment_row, KIND_JOBS, job["id"], "runs")
+        result = if runs.empty?
+          Telemetry.result("#{job['name']} has no runs.", link: link)
+        else
+          rows = runs.map do |run|
+            [ run["startedAt"], run["status"].to_s.downcase, ("finished #{run['concludedAt']}" if run["concludedAt"]),
+              ("#{run['failed']} failed attempts" if run["failed"].to_i.positive?), ("run #{run['id']}" if run["id"].present?) ].compact.join(", ")
+          end
+          Telemetry.result("Latest #{rows.size} runs of #{job['name']}, newest first.\n#{rows.join("\n")}", link: link)
+        end
+        Capabilities::RunHistory.with_runs(result, runs.map { |run| job_history_run(job, run) }, link: link)
+      rescue NorthflankApi::NotFound
+        fail! "#{job&.dig('name') || arguments['job']} has no run #{arguments['run']}. job_runs lists its runs."
+      end
+
+      def job_history_run(job, run)
+        status = Capabilities::History.status(run["status"], JOB_RUN_STATUSES)
+        Capabilities::History::Run.new(
+          id: run["id"].to_s, name: job["name"].presence || job["id"], status: status, started_at: Telemetry.parse_time(run["startedAt"]),
+          finished_at: (Telemetry.parse_time(run["concludedAt"]) if run["concluded"] || Capabilities::History::FINISHED.include?(status)),
+          detail: [ run["runName"].presence, ("#{run['failed']} failed attempts" if run["failed"].to_i.positive?) ].compact.join(", ").presence
+        )
+      end
+      private :job_history_run
+
+      # The job named by its id or name, read past the listing's cut by its id.
+      def job_named(environment_row, project, asked)
+        wanted = asked.to_s.strip.downcase
         fail! "Say which job, by name or id. list_jobs shows them." if wanted.empty?
 
         jobs = api(environment_row).jobs(project)
-        job = jobs.items.find { |each| [ each["id"], each["name"] ].compact.map(&:downcase).include?(wanted) }
-        job ||= job_past_cut(environment_row, project, arguments["job"].to_s.strip, jobs)
-
-        runs = api(environment_row).job_runs(project, job["id"], limit: limit(arguments, RUN_LIMIT))
-        link = project_link(environment_row, KIND_JOBS, job["id"], "runs")
-        return Telemetry.result("#{job['name']} has no runs.", link: link) if runs.empty?
-
-        rows = runs.map do |run|
-          [ run["startedAt"], run["status"].to_s.downcase, ("finished #{run['concludedAt']}" if run["concludedAt"]),
-            ("#{run['failed']} failed attempts" if run["failed"].to_i.positive?) ].compact.join(", ")
-        end
-        Telemetry.result("Latest #{rows.size} runs of #{job['name']}, newest first.\n#{rows.join("\n")}", link: link)
+        jobs.items.find { |each| [ each["id"], each["name"] ].compact.map(&:downcase).include?(wanted) } ||
+          job_past_cut(environment_row, project, asked.to_s.strip, jobs)
       end
+      private :job_named
 
       # A job the listing did not reach, read by its id, or the refusal that says why it was not found.
       def job_past_cut(environment_row, project, asked, jobs)
@@ -624,32 +696,43 @@ module Integrations
       private :job_past_cut
 
       def build_logs(environment_row:, arguments:)
-        resource = find_resource(environment_row, arguments["resource"])
-        fail! "#{resource[:name]} is a database, and only services have builds." unless resource[:kind] == KIND_SERVICES
-
+        resource = builder!(environment_row, arguments)
         started, ended = Telemetry.range(arguments, default_minutes: DEFAULT_MINUTES, max_minutes: MAX_MINUTES)
         line_limit = limit(arguments, LOG_LIMIT)
         query = {
           "startTime" => started.utc.iso8601, "endTime" => ended.utc.iso8601, "lineLimit" => line_limit, "direction" => "backward",
           "buildId" => arguments["build"].presence, "textIncludes" => arguments["text"].presence, "regexIncludes" => arguments["regex"].presence
         }
-        lines = api(environment_row).build_logs(project_of(environment_row), resource[:id], query).map do |line|
+        lines = api(environment_row).build_logs(project_of(environment_row), resource[:id], query, kind: resource[:kind]).map do |line|
           Telemetry::LogLine.new(at: Telemetry.parse_time(line["ts"]) || ended, source: arguments["build"].to_s, text: line["log"])
         end
         asked = "the builds of #{resource[:name]} from #{started.utc.iso8601} to #{ended.utc.iso8601}"
-        link = resource_link(environment_row, resource, "builds", arguments["build"].presence)
+        link = build_link(environment_row, resource, arguments["build"].presence) || builds_link(environment_row, resource)
         Telemetry.result(Telemetry.logs_text(lines, asked: asked, limit: line_limit), link: link)
       end
 
       # The project on the resource map: its services, build services, databases and jobs, the repositories they build
-      # from and the domains they serve, with the links Northflank declares between them. A list the token may not read,
-      # or one cut short at NorthflankApi::MAX_PAGES, is a gap in the map, not a failed sweep.
+      # from and the domains they serve, its workflows, pipelines and release flows with what each releases, and the links
+      # Northflank declares between them. A list the token may not read, or one cut short at NorthflankApi::MAX_PAGES, is a
+      # gap in the map, not a failed sweep.
       def map_of(environment_row)
         map_of_scopes(environment_row, kinds: MAP_KINDS) { |pack| pack.map_of_project(environment_row) }
       end
 
+      # What a node or a pipeline stage names, as the kind this sweep read it as.
+      def kinds_read(services, addons, jobs)
+        held = services.to_h { |service| [ service["id"].to_s, [ MapReading::SERVICE_KINDS.fetch(service["serviceType"].to_s, ResourceMap::KIND_SERVICE) ] ] }
+        addons.each { |addon| held[addon["id"].to_s] = Array(held[addon["id"].to_s]) + [ ResourceMap::KIND_DATABASE ] }
+        jobs.each { |job| held[job["id"].to_s] = Array(held[job["id"].to_s]) + [ ResourceMap::KIND_JOB ] }
+        kinds_lookup { |id, wanted| (held.fetch(id.to_s, []) & wanted).first }
+      end
+      private :kinds_read
+
       # What a sweep puts on the map for one project.
-      MAP_KINDS = [ *MAP_SERVICE_KINDS, ResourceMap::KIND_DATABASE, ResourceMap::KIND_JOB ].freeze
+      MAP_KINDS = [
+        *MAP_SERVICE_KINDS, ResourceMap::KIND_DATABASE, ResourceMap::KIND_JOB, ResourceMap::KIND_WORKFLOW, ResourceMap::KIND_PIPELINE,
+        ResourceMap::KIND_RELEASE_FLOW
+      ].freeze
 
       def map_of_project(environment_row)
         project = project_of(environment_row)
@@ -666,13 +749,16 @@ module Integrations
         gaps = []
         gaps << cut_short("services", MAP_SERVICE_KINDS) if services.incomplete?
         gaps << cut_short("databases", [ ResourceMap::KIND_DATABASE ]) if addons.incomplete?
-        begin
-          jobs = api.jobs(project)
-          jobs.items.each { |job| mapping.job(job) }
-          gaps << cut_short("jobs", [ ResourceMap::KIND_JOB ]) if jobs.incomplete?
+        jobs = begin
+          read = api.jobs(project)
+          read.items.each { |job| mapping.job(job) }
+          gaps << cut_short("jobs", [ ResourceMap::KIND_JOB ]) if read.incomplete?
+          read.items
         rescue NorthflankApi::Error => error
           gaps << ResourceMap::Gap.new(text: Sentence.join("Jobs could not be read", error), kinds: [ ResourceMap::KIND_JOB ])
+          []
         end
+        map_releases(api, project, mapping, kinds_read(details, addons.items, jobs), gaps)
         groups = secret_groups(api, project, gaps)
         uses = details.flat_map { |service| service_uses(environment_row, mapping, service, groups) }
         ResourceMap::Snapshot.new(resources: mapping.resources, links: mapping.links, gaps: gaps, uses: uses)
@@ -683,6 +769,8 @@ module Integrations
       # has the project in, and otherwise nil, for a sweep to say. A service's id may be a build service's, so both are
       # gone. nil for a scope Northflank cannot narrow to.
       def map_refresh(environment_row, scope)
+        return releases_refresh(environment_row, scope) if RELEASE_KINDS.include?(scope.kind)
+
         reader = REFRESHERS[scope.kind]
         return unless scope.external_id && reader
         return project_holding(environment_row, scope)&.map_refresh(environment_row, scope) if every_scope?(environment_row)
@@ -712,6 +800,22 @@ module Integrations
       # The read for each kind a notification names. A service's kind is not known until it is read.
       REFRESHERS = { nil => :service, ResourceMap::KIND_DATABASE => :addon, ResourceMap::KIND_JOB => :job }.freeze
       private_constant :REFRESHERS
+      RELEASE_KINDS = [ ResourceMap::KIND_WORKFLOW, ResourceMap::KIND_PIPELINE, ResourceMap::KIND_RELEASE_FLOW ].freeze
+
+      # A workflow, pipeline or release flow a notification named, in the project the map has it in, or in each project
+      # when it named none or the map has not seen it yet. Several projects' answers are one snapshot.
+      def releases_refresh(environment_row, scope)
+        return release_refresh(environment_row, scope) unless every_scope?(environment_row)
+
+        held = scope.external_id && Scopes.holding(environment_row, scope.external_id.split("/").first)
+        projects = held.present? ? [ held ] : ConnectionSettings.of(environment_row).scopes
+        found = projects.filter_map { |project| scoped(project).release_refresh(environment_row, scope) }
+        return if found.empty?
+
+        ResourceMap::Snapshot.new(resources: found.flat_map(&:resources), links: found.flat_map(&:links), gaps: found.flat_map(&:gaps),
+                                  gone: (found.flat_map(&:gone) if held.present?).to_a)
+      end
+      private :releases_refresh
 
       # The settings a service runs with, from the secret groups that apply to it and its own runtime variables, and the
       # databases those groups link it to. A build service runs nothing.
@@ -817,6 +921,10 @@ module Integrations
       # Builds the snapshot for map_of, one resource at a time.
       class MapReading
         SERVICE_KINDS = { BUILD_SERVICE => ResourceMap::KIND_BUILD_SERVICE }.freeze
+        # A service that deploys an image from a registry rather than a build, and the saved registry credentials it pulls
+        # with, by their id, which a rollback to an earlier image sends again.
+        IMAGE = "image".freeze
+        IMAGE_CREDENTIALS = "image_credentials".freeze
 
         attr_reader :resources, :links
 
@@ -836,7 +944,8 @@ module Integrations
                       details: {
                         "type" => service["serviceType"], "instances" => service.dig("deployment", "instances"),
                         "plan" => service.dig("billing", "deploymentPlan"), ResourceMap::DEPLOYED_COMMIT => internal["deployedSHA"],
-                        "branch" => internal["branch"]
+                        "branch" => internal["branch"], IMAGE => service.dig("deployment", "external", "imagePath").presence,
+                        IMAGE_CREDENTIALS => service.dig("deployment", "external", "credentials").presence
                       }.compact)
 
           built = internal["nfObjectId"]
@@ -867,10 +976,30 @@ module Integrations
               details: { "type" => job["jobType"], "suspended" => job["suspended"] }.compact)
         end
 
+        # A workflow and what its nodes build, run and release. Its page in Northflank's app has not been checked, so it
+        # carries none.
+        def workflow(workflow, released)
+          found = add(ResourceMap::KIND_WORKFLOW, workflow["id"], workflow["name"], page: nil, details: { "description" => workflow["description"] }.compact)
+          released.each { |kind, id| link(key(kind, id), found, ResourceMap::RELATION_RELEASED_BY) }
+          found
+        end
+
+        def pipeline(pipeline)
+          add(ResourceMap::KIND_PIPELINE, pipeline["id"], pipeline["name"], page: nil, details: { "description" => pipeline["description"] }.compact)
+        end
+
+        # A stage's release flow, part of its pipeline, which releases what the stage holds.
+        def release_flow(id, name, pipeline, released)
+          found = add(ResourceMap::KIND_RELEASE_FLOW, id, name, page: nil, details: { "stage" => id.split("/").last }.compact)
+          link(found, pipeline, ResourceMap::RELATION_PART_OF)
+          released.each { |kind, each| link(key(kind, each), found, ResourceMap::RELATION_RELEASED_BY) }
+          found
+        end
+
         private
 
         def add(kind, id, name, page:, status: nil, details: {})
-          url = @page_of.call(*page)
+          url = page && @page_of.call(*page)
           found = ResourceMap::Found.new(provider: PROVIDER_KEY, account: @account, kind: kind, external_id: id.to_s,
                                          name: name.presence || id.to_s, status: status, url: url, details: details)
           @resources << found
@@ -991,17 +1120,44 @@ module Integrations
 
         found = resources(environment_row).find { |resource| [ resource[:id], resource[:name] ].compact.map(&:downcase).include?(wanted) }
         return found if found
-        fail!("No service or database called #{asked} in this project. list_resources shows what there is.") unless resources_cut?(environment_row)
+
+        job = job_resource(environment_row, wanted)
+        return job if job
+        fail!("No service, database or job called #{asked} in this project. list_resources and list_jobs show what there is.") unless resources_cut?(environment_row) || @jobs_cut
 
         resource_by_id(environment_row, asked.to_s.strip) ||
           fail!("Only the first #{resources(environment_row).size} services and databases were read, and none is called #{asked}. " \
                 "Name it by its id, which Northflank shows on its page.")
       end
 
-      # A service or database past the listing's cut, read by its id.
+      # A job by its id or name, read only when no service or database has it, so a name both share is the service's. A
+      # token that may not read jobs leaves them out.
+      def job_resource(environment_row, wanted)
+        @jobs ||= api(environment_row).jobs(project_of(environment_row)).tap { |read| @jobs_cut = read.incomplete? }.items
+        job = @jobs.find { |each| [ each["id"], each["name"] ].compact.map(&:downcase).include?(wanted) }
+        job && job_entry(job)
+      rescue NorthflankApi::Forbidden
+        nil
+      end
+
+      def job_entry(job)
+        { kind: KIND_JOBS, id: job["id"], name: job["name"].presence || job["id"], type: "#{job['jobType']} job",
+          status: (job["suspended"] ? "suspended" : "ready"), app_id: job["appId"] }
+      end
+
+      # The run a job's logs or metrics are narrowed to, which only a job has.
+      def job_run_of(resource, arguments)
+        run = arguments["run"].to_s.strip.delete_prefix("#").presence
+        return unless run
+
+        fail! "#{resource[:name]} is a #{KIND_NOUNS.fetch(resource[:kind])}, and only a job has runs. Leave run out." unless resource[:kind] == KIND_JOBS
+        run
+      end
+
+      # A service, database or job past the listing's cut, read by its id.
       def resource_by_id(environment_row, id)
         project = project_of(environment_row)
-        [ [ :service, :service_entry ], [ :addon, :addon_entry ] ].each do |reader, entry|
+        [ [ :service, :service_entry ], [ :addon, :addon_entry ], [ :job, :job_entry ] ].each do |reader, entry|
           found = api(environment_row).public_send(reader, project, id)
           return send(entry, found) if found.present?
         rescue NorthflankApi::NotFound
@@ -1074,6 +1230,34 @@ module Integrations
         ]
       end
 
+      JOB_RUNS_SHOWN = 3
+
+      # A job as GetJobResult gives it: cron or manual, its schedule and how runs overlap, its plan, retries and time limit,
+      # what it runs, and its latest runs.
+      def job_lines(environment_row, resource)
+        project = project_of(environment_row)
+        job = api(environment_row).job(project, resource[:id])
+        settings = job["settings"] || {}
+        cron = settings["cron"] || {}
+        source = job["vcsData"] || {}
+        [
+          "#{resource[:name]}, #{job['jobType']} job#{', suspended, so it does not run' if job['suspended']}",
+          ("Schedule: #{cron['schedule']} (UTC), when a run is still going: #{cron['concurrencyPolicy']}" if cron["schedule"].present?),
+          "Retries: #{settings['backoffLimit'] || 'none'}, time limit #{settings['activeDeadlineSeconds'] ? "#{settings['activeDeadlineSeconds']} seconds" : 'none'}, plan #{job.dig('billing', 'deploymentPlan') || 'unknown'}",
+          ("Builds #{source['projectUrl']}, branch #{source['projectBranch']}" if source["projectUrl"].present?),
+          job_run_lines(environment_row, project, resource)
+        ]
+      end
+
+      def job_run_lines(environment_row, project, resource)
+        runs = api(environment_row).job_runs(project, resource[:id], limit: JOB_RUNS_SHOWN)
+        return "Runs: none yet" if runs.empty?
+
+        "Latest runs: #{runs.map { |run| "#{run['startedAt']} #{run['status'].to_s.downcase}" }.to_sentence}"
+      rescue NorthflankApi::Error => error
+        Sentence.join("Runs could not be read", error)
+      end
+
       def backup_lines(environment_row, project, resource)
         backups = api(environment_row).backups(project, resource[:id], limit: BACKUPS_SHOWN)
         return "Backups: none" if backups.empty?
@@ -1087,7 +1271,8 @@ module Integrations
         commit = deployment["commit"]
         what = commit ? "#{commit['sha'].to_s.first(12)} \"#{commit['message'].to_s.lines.first.to_s.strip}\" by #{commit['author']}" : "image #{deployment.dig('image', 'imagePath') || deployment.dig('image', 'image')}:#{deployment.dig('image', 'tag')}"
         who = deployment.dig("reason", "user", "name")
-        [ deployment["createdAt"], ("active" if deployment["active"]), "#{deployment['instances']} instances", what,
+        [ deployment["createdAt"], ("deployment #{deployment['id']}" if deployment["id"].present?), ("active" if deployment["active"]),
+          ("#{deployment['releaseType']} side of a rollout" if deployment["releaseType"].present?), "#{deployment['instances']} instances", what,
           "reason #{deployment.dig('reason', 'id') || 'unknown'}#{" by #{who}" if who}" ].compact.join(", ")
       end
 

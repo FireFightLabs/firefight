@@ -88,7 +88,10 @@ export const RESOURCE_MAP_KINDS = [
   "virtual_machine",
   "function",
   "cluster",
-  "compute"
+  "compute",
+  "workflow",
+  "pipeline",
+  "release_flow"
 ] as const
 export type ResourceMapKind = (typeof RESOURCE_MAP_KINDS)[number]
 
@@ -398,7 +401,8 @@ export const RESOURCE_MAP_RELATIONS = [
   "uses",
   "part_of",
   "protected_by",
-  "managed_by"
+  "managed_by",
+  "released_by"
 ] as const
 export type ResourceMapRelation = (typeof RESOURCE_MAP_RELATIONS)[number]
 
@@ -410,7 +414,8 @@ export const RESOURCE_MAP_RELATION = {
   "USES": "uses",
   "PART_OF": "part_of",
   "PROTECTED_BY": "protected_by",
-  "MANAGED_BY": "managed_by"
+  "MANAGED_BY": "managed_by",
+  "RELEASED_BY": "released_by"
 } as const
 
 export const RESOURCE_MAP_ORIGINS = [

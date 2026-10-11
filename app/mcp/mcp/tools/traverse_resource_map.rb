@@ -13,7 +13,7 @@ module Mcp
       description "Walk the resource map's links from one resource, towards what it depends on (depends_on) or what " \
                   "depends on it (dependents), up to #{MAX_HOPS} links away. Each resource reached is a row with the " \
                   "fewest links between it and the start (hop) and the link it was reached by (via). Runtime links only " \
-                  "unless relations are named, so a repository a resource is managed in is left out, and facts only " \
+                  "unless relations are named, so a repository a resource is managed in and the release flow that ships it are left out, and facts only " \
                   "unless suggestions are asked for. At most #{LIMIT} resources, nearest first, " \
                   "and it says how many more it reached. blast_radius sums up what fails with a resource. Docs: #{Docs::MCP_SERVER}"
       annotations(**READ_ONLY)
@@ -22,7 +22,7 @@ module Mcp
           resource: MapPayloads::RESOURCE_PROPERTY,
           direction: { type: "string", enum: ResourceMap::Graph::DIRECTIONS, description: "depends_on or dependents" },
           hops: { type: "integer", description: "How many links to follow, 1 to #{MAX_HOPS}. Default #{DEFAULT_HOPS}" },
-          relations: relations_property("Only follow these relations. The runtime ones by default, every relation but managed_by"),
+          relations: relations_property("Only follow these relations. The runtime ones by default, every relation but managed_by and released_by"),
           kinds: { type: "array", items: { type: "string", enum: ResourceMap::KINDS },
                    description: "Only list resources of these kinds. The walk still goes through others" },
           include_suggestions: { type: "boolean", description: "Also follow links suggested and not yet confirmed. Off by default" }
