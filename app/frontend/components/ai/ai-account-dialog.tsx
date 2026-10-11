@@ -209,7 +209,7 @@ export function AiAccountDialog({
             <AiAccountModelField
               id={fieldId("fast")}
               label="Quick model"
-              hint="Side jobs: summaries, timeline notes, replies to mentions, and checking what Halon watches and remembers."
+              hint="Side jobs: summaries, timeline notes, replies to mentions, helpers, and checking what Halon watches and remembers."
               provider={provider}
               value={draft.fast}
               error={errorText(errors["models.fast"])}

@@ -156,7 +156,7 @@ class FirefightAi::ModelResolutionTest < ActiveSupport::TestCase
     side = FirefightAi.model_for(AiPurpose::SUMMARY, workspace: @workspace)
 
     assert_equal [ "claude-sonnet-5-5", "anthropic" ], [ loop.model, loop.provider ]
-    assert_equal [ "claude-haiku-4-5", "anthropic" ], [ side.model, side.provider ]
+    assert_equal [ "claude-haiku-5-5", "anthropic" ], [ side.model, side.provider ]
     assert_equal "claude-sonnet-5-5", FirefightAi.model_for(AiPurpose::POSTMORTEM, workspace: @workspace).model, "what grows from the loop follows it"
   end
 
@@ -166,7 +166,7 @@ class FirefightAi::ModelResolutionTest < ActiveSupport::TestCase
     FirefightAi.configuration.default_provider = "anthropic"
 
     assert_equal "claude-sonnet-4-5", FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace).model
-    assert_equal "claude-haiku-4-5", FirefightAi.model_for(AiPurpose::MILESTONES, workspace: @workspace).model
+    assert_equal "claude-haiku-5-5", FirefightAi.model_for(AiPurpose::MILESTONES, workspace: @workspace).model
   end
 
   test "FIREFIGHT_AI_QUICK_MODEL names the side jobs' model and leaves the loop alone" do

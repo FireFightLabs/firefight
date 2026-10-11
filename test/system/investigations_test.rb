@@ -71,7 +71,8 @@ class InvestigationsTest < ApplicationSystemTestCase
 
   test "the story says where the run carried on with a backup model, between the steps it came between" do
     switch = @investigation.chat_record.model_switches.create!(failed_model: "claude-opus-5-5", failed_provider: "anthropic",
-                                                                backup_model: "gpt-5.6", backup_provider: "openai", created_at: 90.seconds.ago)
+                                                                backup_model: "gpt-5.6", backup_provider: "openai", cause: Chat::ModelSwitch::CAUSE_DOWN,
+                                                                created_at: 90.seconds.ago)
 
     visit incident_path(@incident, Investigation::QUERY_PARAM => @investigation.id)
 

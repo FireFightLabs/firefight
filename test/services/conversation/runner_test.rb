@@ -461,7 +461,7 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
                  kept.attributes.values_at("failed_model", "failed_provider", "backup_model", "backup_provider", "reason")
     said = broadcasts(ConversationChannel.broadcasting_for(personal)).map { |message| JSON.parse(message) }
                                                                      .select { |event| event["type"] == Conversation::LiveDelivery::EVENT_SWITCHED_MODEL }
-    assert_equal [ [ kept.step_key, "Carried on with gpt-5.6, since claude-opus-5-5 stopped answering" ] ], said.map { |event| event.values_at("key", "title") }
+    assert_equal [ [ kept.step_key, "Claude Opus 5.5 is not answering, so I switched to gpt-5.6 for this reply." ] ], said.map { |event| event.values_at("key", "title") }
 
     @conversation = @workspace.conversations.create!(
       subject: @incident, kind: Conversation::KIND_CHANNEL, channel_id: @incident.channel_id, thread_id: "1700000000.000300",
@@ -474,7 +474,7 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     ask(@conversation, "what changed today")
 
     lines = reported.select { |chunk| chunk[:type] == "task_update" }
-    assert_equal [ [ "Carried on with gpt-5.6, since claude-opus-5-5 stopped answering", "complete" ] ], lines.map { |chunk| chunk.values_at(:title, :status) }
+    assert_equal [ [ "Claude Opus 5.5 is not answering, so I switched to gpt-5.6 for this reply.", "complete" ] ], lines.map { |chunk| chunk.values_at(:title, :status) }
   end
 
   test "a dashboard answer is asked for without Slack markup, because the page shows it as written" do
@@ -742,6 +742,30 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_equal [ "z-ai/glm-5.2", "openrouter" ], responder.options[:model].to_h.values_at(:model, :provider)
     assert_equal "openai/shared-vision", share.choose.call(true).model
     assert_equal "openai/shared-vision", share.choose.call(false).model
+  end
+
+  test "when the account behind a picked model runs dry, the chat says it switched, and a chat with no pick hands over quietly" do
+    add_ai_account!(@workspace, provider: "openrouter", key: "sk-or-own")
+    personal_chat
+    @conversation.choose_model!("anthropic/claude-opus-5.5")
+    @conversation.ask!("what changed today")
+    dry = RubyLLM::PaymentRequiredError.new("Insufficient credits", response: Struct.new(:status, :body, :headers).new(402, {}, {}))
+    take_over = lambda do |arguments|
+      arguments[:on_take_over].call(FirefightAi::ModelChoice.new(model: "anthropic/claude-opus-5.5", provider: "openrouter"),
+                                    FirefightAi::ModelChoice.new(model: "anthropic/claude-sonnet-5.5", provider: "openrouter"), dry)
+    end
+    fake(reply: "Nothing changed.", during: take_over)
+
+    Conversation::Runner.new(@conversation, asker: @conversation.started_by).run
+
+    assert_equal "The account behind Claude Opus 5.5 is out of credit, so I switched to Claude Sonnet 5.5 for this reply.",
+                 @conversation.chat.model_switches.sole.shown_as
+
+    @conversation.choose_model!(@conversation.model_menu.default_model)
+    @conversation.ask!("and now")
+    responder = fake(reply: "Still nothing.")
+    Conversation::Runner.new(@conversation, asker: @conversation.started_by).run
+    assert_nil responder.calls.sole[:on_take_over]
   end
 
   test "a chat with no pick answers on the workspace's model as before" do

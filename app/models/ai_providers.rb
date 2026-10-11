@@ -30,9 +30,9 @@ module AiProviders
 
   Field = Data.define(:key, :option, :label, :secret, :required)
 
-  # main_models are the models Halon's loop runs on, preferred first, and backup_models what it carries on with when the
-  # main one stops answering. The last of each is always in RubyLLM's catalog.
-  Provider = Data.define(:slug, :name, :main_models, :fast_model, :backup_models, :code_fix_model, :fields, :local, :code_fixes, :sign_in, :assumes_models) do
+  # main_models are the models Halon's loop runs on and fast_models its quick work, preferred first, and backup_models what
+  # the loop carries on with when the main one stops answering. The last main and fast model is always in RubyLLM's catalog.
+  Provider = Data.define(:slug, :name, :main_models, :fast_models, :backup_models, :code_fix_model, :fields, :local, :code_fixes, :sign_in, :assumes_models) do
     def field(key) = fields.find { |field| field.key == key.to_s }
 
     def secret_fields = fields.select(&:secret)
@@ -45,11 +45,15 @@ module AiProviders
     # can make room in it. Falls back to the last, which the catalog RubyLLM ships always holds.
     def main_model = main_models.find { |model| loop_ready?(model) } || main_models.last
 
-    # The backup the loop carries on with, while the registry can price and size it. A provider with no backup of its own
-    # carries on with its main model, since what failed was another provider or another model.
-    def backup_model
-      model = backup_models.find { |candidate| loop_ready?(candidate) } || main_model
-      model if loop_ready?(model)
+    # The first quick model the registry holds for this provider with a price, falling back to the last like main_model.
+    def fast_model = fast_models.find { |model| FirefightAi.priced_for?(model, slug) } || fast_models.last
+
+    # The backups the loop tries in turn. Each is a model, or several read like main_models, and counts while the registry
+    # can price and size it. A provider with no backup of its own carries on with its main model, since what failed was
+    # another provider or another model.
+    def backup_models_ready
+      ready = backup_models.filter_map { |entry| Array(entry).find { |model| loop_ready?(model) } }.uniq
+      ready.presence || [ main_model ].compact.select { |model| loop_ready?(model) }
     end
 
     def loop_ready?(model) = FirefightAi.priced_for?(model, slug) && FirefightAi.context_window(model, provider: slug).present?
@@ -136,6 +140,9 @@ module AiProviders
     end
   end
 
+  # What people are told a model is called, by the picker's name, else the registry's, else the id.
+  def self.model_label(slug, model) = chat_model_label(slug, model) || FirefightAi.model_name(model, provider: slug) || model.to_s
+
   # The name the picker gives a model this provider serves, or nil for a model it does not list.
   def self.chat_model_label(slug, model) = listed_chat_models(slug).find { |entry| entry.model == model.to_s }&.label
 
@@ -171,17 +178,26 @@ module AiProviders
   end
 
   # What the deployment's own keys can carry Halon's loop on when failing stops answering, in the order to try them.
-  # Other providers come first, since an outage usually takes a whole provider. The failing provider's own backup comes
-  # last, where it is another model, since an outage can be one model's.
+  # Other providers come first, since an outage usually takes a whole provider. The failing provider's own backups come
+  # last, where they are other models, since an outage can be one model's.
   def self.deployment_backup_choices(failing, config: RubyLLM.config)
     others, same = all.partition { |provider| provider.slug != failing.provider_name }
-    (others + same).filter_map do |provider|
-      model = provider.backup_model
-      next unless model && provider.configured?(config)
-      next if provider.slug == failing.provider_name && model == failing.model
+    (others + same).select { |provider| provider.configured?(config) }.flat_map do |provider|
+      provider.backup_models_ready.filter_map do |model|
+        next if provider.slug == failing.provider_name && model == failing.model
 
-      FirefightAi::ModelChoice.new(model: model, provider: provider.slug)
+        FirefightAi::ModelChoice.new(model: model, provider: provider.slug)
+      end
     end
+  end
+
+  # The models a workspace's own account carries Halon's loop on when its model failed, before any other account: the
+  # backups of the account's provider that are not the model that failed. The account and its payer stay the same.
+  def self.account_backup_choices(failing)
+    provider = find(failing.provider_name)
+    return [] unless provider
+
+    (provider.backup_models_ready - [ failing.model ]).map { |model| failing.with(model: model) }
   end
 
   # The ChatGPT sign in seam, when the flag is on and every address it needs is set. Nil otherwise.
@@ -202,7 +218,7 @@ module AiProviders
       Field.new(key: key, option: option, label: labels.fetch(key), secret: SECRET_SETTINGS.include?(key), required: required.include?(option.to_s))
     end
     Provider.new(
-      slug: slug, name: entry.fetch("name"), main_models: Array(entry["main"]).freeze, fast_model: entry["fast"], backup_models: Array(entry["backup"]).freeze, code_fix_model: code_fix_model(slug, entry), fields: fields.freeze,
+      slug: slug, name: entry.fetch("name"), main_models: Array(entry["main"]).freeze, fast_models: Array(entry["fast"]).freeze, backup_models: Array(entry["backup"]).freeze, code_fix_model: code_fix_model(slug, entry), fields: fields.freeze,
       local: klass.local?, code_fixes: FirefightAi::ModelProxy.supported?(slug), sign_in: sign_in(entry["sign_in"]),
       assumes_models: klass.assume_models_exist?
     )

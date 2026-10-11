@@ -101,7 +101,7 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
 
     switch = @investigation.chat.model_switches.sole
     assert_equal [ "claude-sonnet-4-5", "gpt-4o", "TimeoutError" ], switch.attributes.values_at("failed_model", "backup_model", "reason")
-    assert_equal [ [ "Carried on with gpt-4o, since claude-sonnet-4-5 stopped answering", FirefightAi::AgentLoop::STEP_DONE ] ], shown
+    assert_equal [ [ "Claude Sonnet 4.5 is not answering, so I switched to GPT-4o for the rest of this run.", FirefightAi::AgentLoop::STEP_DONE ] ], shown
     assert_equal [ switch.step_key ], InvestigationDetailSerializer.one(@investigation.reload)[:modelSwitches].map { |line| line[:key] }
 
     rehearsal = @workspace.investigations.create!(

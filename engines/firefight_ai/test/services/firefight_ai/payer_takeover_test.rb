@@ -129,22 +129,35 @@ class FirefightAi::PayerTakeoverTest < ActiveSupport::TestCase
     assert_equal [ "anthropic", "openai" ], Inference.where(workspace: @workspace, feature: "takeover_loop").order(:created_at).pluck(:provider)
   end
 
-  test "a run whose provider stops answering carries on at the same step on a backup, says so once, and leaves the account in use" do
+  test "a run whose provider stops answering carries on with its own account's backup first, then the next account, and leaves the account in use" do
     first = add_ai_account!(@workspace, key: "sk-ant-first", label: "First")
     add_ai_account!(@workspace, provider: "openai", key: "sk-openai-second", label: "Second")
     choice = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
-    chat = FakeChat.new([ overloaded, answer ], model_id: choice.model)
+    chat = FakeChat.new([ overloaded, overloaded, answer ], model_id: choice.model)
     FirefightAi.bind(chat, choice)
     switches = []
 
     outcome = run_loop(chat, choice, on_backup: ->(from, to, error) { switches << [ from.model, to.model, error.class ] })
 
     assert_equal FirefightAi::AgentLoop::STATUS_ANSWERED, outcome.status
-    assert_equal [ [ "claude-sonnet-4-5", "sk-ant-first" ], [ "gpt-4o", "sk-openai-second" ] ], chat.turns
-    assert_equal [ [ "claude-sonnet-4-5", "gpt-4o", RubyLLM::OverloadedError ] ], switches
-    assert_equal [ Inference::STATUS_ERROR, Inference::STATUS_SUCCESS ],
-                 Inference.where(workspace: @workspace, feature: "takeover_loop").order(:created_at).pluck(:status), "both calls show in the ledger"
+    assert_equal [ [ "claude-sonnet-4-5", "sk-ant-first" ], [ "claude-haiku-5-5", "sk-ant-first" ], [ "gpt-4o", "sk-openai-second" ] ], chat.turns
+    assert_equal [ [ "claude-sonnet-4-5", "claude-haiku-5-5", RubyLLM::OverloadedError ], [ "claude-haiku-5-5", "gpt-4o", RubyLLM::OverloadedError ] ], switches
+    assert_equal [ Inference::STATUS_ERROR, Inference::STATUS_ERROR, Inference::STATUS_SUCCESS ],
+                 Inference.where(workspace: @workspace, feature: "takeover_loop").order(:created_at).pluck(:status), "every call shows in the ledger"
     assert_equal :unchecked, first.reload.state, "a provider being down says nothing about the account"
+  end
+
+  test "a model the account cannot reach carries on with the account's backup, as Claude on a Vertex AI project without it" do
+    add_ai_account!(@workspace, key: "sk-ant-first", label: "First")
+    choice = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
+    missing = RubyLLM::Error.new("Publisher model was not found or your project does not have access to it", response: Response.new(404, {}, {}))
+    chat = FakeChat.new([ missing, answer ], model_id: choice.model)
+    FirefightAi.bind(chat, choice)
+    switches = []
+
+    run_loop(chat, choice, on_backup: ->(from, to, _error) { switches << [ from.model, to.model ] })
+
+    assert_equal [ [ "claude-sonnet-4-5", "claude-haiku-5-5" ] ], switches
   end
 
   test "a provider that stops answering fails the run as before when no backup is set up or the caller wants none" do
@@ -154,9 +167,23 @@ class FirefightAi::PayerTakeoverTest < ActiveSupport::TestCase
     assert_raises(RubyLLM::OverloadedError) { run_loop(FakeChat.new([ overloaded, answer ], model_id: choice.model), choice, on_backup: nil) }
 
     on_firefights_cloud!
+    switches = []
     assert_raises(RubyLLM::OverloadedError) do
-      run_loop(FakeChat.new([ overloaded, answer ], model_id: choice.model), choice, on_backup: ->(*) { flunk "no backup to take" })
+      run_loop(FakeChat.new([ overloaded, overloaded, answer ], model_id: choice.model), choice, on_backup: ->(from, to, _error) { switches << [ from.model, to.model ] })
     end
+    assert_equal [ [ "claude-sonnet-4-5", "claude-haiku-5-5" ] ], switches, "the account's own backup, and nothing after it the workspace can pay for"
+  end
+
+  test "the next account taking over from one that ran dry is told to whoever asked to hear it" do
+    add_ai_account!(@workspace, key: "sk-ant-first", label: "First")
+    add_ai_account!(@workspace, provider: "openai", key: "sk-openai-second", label: "Second")
+    choice = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
+    handed = []
+
+    run_loop(FakeChat.new([ payment_required, answer ], model_id: choice.model), choice, on_backup: ->(*) { flunk "credit is not an outage" },
+                                                                                       on_take_over: ->(from, to, _error) { handed << [ from.model, to.model ] })
+
+    assert_equal [ [ "claude-sonnet-4-5", "gpt-4o" ] ], handed
   end
 
   test "running out of credit is never taken for a provider being down" do
@@ -171,12 +198,12 @@ class FirefightAi::PayerTakeoverTest < ActiveSupport::TestCase
 
   private
 
-  def run_loop(chat, choice, on_backup:)
+  def run_loop(chat, choice, on_backup:, on_take_over: nil)
     FirefightAi::AgentLoop.new(
       chat: chat, answered: -> { false }, reply_is_answer: true, choice: choice, purpose: AiPurpose::INVESTIGATION,
       budget: FirefightAi::AgentLoop::Budget.new(max_spend_cents: 400, max_turns: 50),
       inference: { workspace: @workspace, feature: "takeover_loop", inferable: @incident },
-      output: FirefightAi.output_cap(AiPurpose::INVESTIGATION, choice: choice), on_backup: on_backup
+      output: FirefightAi.output_cap(AiPurpose::INVESTIGATION, choice: choice), on_backup: on_backup, on_take_over: on_take_over
     ).run
   end
 

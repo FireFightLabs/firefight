@@ -12,15 +12,19 @@ module AiFunding
     payer ? own + [ house_model.with(payer: payer) ] : own
   end
 
-  # What Halon's loop carries on with when the provider behind failing stops answering, or nil when nothing can. That is
-  # the next choice in the order on another provider, the workspace's own accounts first, then the house's backups. A backup the
-  # deployment names (FIREFIGHT_AI_BACKUP_MODEL) is taken even on the same provider, since an outage can be one model's,
-  # and so is a provider's own backup model on the deployment's keys.
+  # What Halon's loop carries on with when the model behind failing stops answering, or nil when nothing can. A
+  # workspace's own account tries its own backups first (AiProviders.account_backup_choices), so the customer's key
+  # carries on before anyone else's. Then the next choice in the order on a provider not yet given up on, the
+  # workspace's own accounts first, then the house's backups. A backup the deployment names (FIREFIGHT_AI_BACKUP_MODEL)
+  # is taken even on the same provider, since an outage can be one model's, and so is a provider's own backup model on
+  # the deployment's keys.
   # tried holds the choices already given up on in this run, so the loop never goes back to one.
   def self.backup_for(workspace, purpose, failing:, tried: [])
     spent = tried + [ failing ]
-    own = self.for(workspace, purpose).reject { |choice| choice.provider_name == failing.provider_name }
-    (own + house_backups(workspace, failing)).find { |choice| spent.none? { |seen| same?(seen, choice) } }
+    same_account = failing.own_account? ? AiProviders.account_backup_choices(failing) : []
+    down = spent.map(&:provider_name)
+    others = self.for(workspace, purpose).reject { |choice| down.include?(choice.provider_name) }
+    (same_account + others + house_backups(workspace, failing)).find { |choice| spent.none? { |seen| same?(seen, choice) } }
   end
 
   # The deployment's named backup, then the backups its keys reach (AiProviders.deployment_backup_choices), with the house

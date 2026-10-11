@@ -64,6 +64,15 @@ module FirefightAi
     Faraday::ConnectionFailed
   ].freeze
 
+  # The provider says the model is not there for this account, such as Claude on a Vertex AI project that has not enabled
+  # it. Another model on the same account may well be.
+  MODEL_UNAVAILABLE_STATUS = 404
+
+  def self.model_unavailable?(error) = error.is_a?(RubyLLM::Error) && error.try(:response).try(:status) == MODEL_UNAVAILABLE_STATUS
+
+  # Halon's loop carries on with a backup when the provider is down or the model is not there for the account.
+  def self.backup_helps?(error) = provider_down?(error) || model_unavailable?(error)
+
   # Credit is the payer's to fix and a wait for spend in flight clears by itself, so neither is the provider being down.
   def self.provider_down?(error)
     down = PROVIDER_DOWN_ERRORS.any? { |kind| error.is_a?(kind) } || (error.is_a?(RubyLLM::Error) && rate_limited?(error))

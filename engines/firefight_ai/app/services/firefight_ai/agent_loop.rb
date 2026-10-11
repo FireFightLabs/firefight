@@ -44,9 +44,11 @@ module FirefightAi
     # against this budget too. A fresh one starts from the budget's spend.
     # on_backup is called with the choice that stopped answering, the backup taking over and the error, once per switch. Without it
     # a provider that stops answering fails the run as before, which a rehearsal needs to measure one model.
+    # on_take_over is called the same way when the next account takes over from one that ran dry or refused its key. Without
+    # it the handover is quiet, as it is unless a person picked the model.
     def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil, on_chunk: nil,
                    reply_is_answer: false, nudge: nil, memory: nil, check: nil, hold: nil, take_messages: nil, output: nil,
-                   choice: nil, purpose: AiPurpose::INVESTIGATION, purse: nil, on_backup: nil)
+                   choice: nil, purpose: AiPurpose::INVESTIGATION, purse: nil, on_backup: nil, on_take_over: nil)
       @chat = chat
       @choice = choice || ModelChoice.new(model: inference[:model], provider: inference[:provider])
       @purpose = purpose
@@ -68,6 +70,7 @@ module FirefightAi
       @hold = hold
       @take_messages = take_messages
       @on_backup = on_backup
+      @on_take_over = on_take_over
       @given_up_on = []
       @seen_tool_call_ids = messages.flat_map { |message| message.tool_calls&.keys || [] }.to_set
       report_steps_to(on_step) if on_step
@@ -165,13 +168,15 @@ module FirefightAi
       following = FirefightAi.take_over(@choice, error, purpose: @purpose, workspace: @inference[:workspace])
       return false unless following
 
+      failing = @choice
       switch_to(following)
+      @on_take_over&.call(failing, following, error)
       true
     end
 
     # The backup carries on from the same step, and the app is told once for each switch so it can say so.
     def back_up(error)
-      return false unless @on_backup && FirefightAi.provider_down?(error)
+      return false unless @on_backup && FirefightAi.backup_helps?(error)
 
       backup = FirefightAi.backup_for(@choice, purpose: @purpose, workspace: @inference[:workspace], tried: @given_up_on)
       return false unless backup

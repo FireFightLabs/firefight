@@ -40,9 +40,9 @@ module FirefightAi
     end
 
     # The app has already saved the question as the last message.
-    # check, hold, purse and on_backup go to the loop, see AgentLoop.
+    # check, hold, purse, on_backup and on_take_over go to the loop, see AgentLoop.
     def run(chat:, tools:, context:, budget:, canceled: -> { false }, on_step: nil, on_chunk: nil, nudge: nil, memory: nil,
-            check: nil, hold: nil, take_messages: nil, purse: nil, on_backup: nil, &on_turn)
+            check: nil, hold: nil, take_messages: nil, purse: nil, on_backup: nil, on_take_over: nil, &on_turn)
       FirefightAi.translating_errors do
         FirefightAi.bind(chat, ai_model)
         chat.with_instructions("#{template_text}\n#{context}")
@@ -55,7 +55,8 @@ module FirefightAi
           on_step: on_step, on_chunk: on_chunk, nudge: nudge, memory: memory, inference: inference_context, reply_is_answer: true,
           check: check, hold: hold, take_messages: take_messages, output: output_cap, choice: ai_model, purpose: AiPurpose::INVESTIGATION,
           purse: purse,
-          on_backup: on_backup
+          on_backup: on_backup,
+          on_take_over: on_take_over
         ).run(&on_turn)
       end
     end

@@ -7,6 +7,7 @@ class CreateChatModelSwitches < ActiveRecord::Migration[8.1]
       t.string :backup_model, null: false
       t.string :backup_provider
       t.string :reason
+      t.string :cause, null: false
       t.timestamps
     end
   end

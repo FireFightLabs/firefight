@@ -10,7 +10,7 @@ class AiProvidersTest < ActiveSupport::TestCase
       # A deployment's own models, such as an Azure deployment or a local Ollama, are named by whoever runs them.
       next if provider.assumes_models || provider.local
 
-      [ provider.main_models.last, provider.fast_model, provider.backup_models.last ].compact.each do |model_id|
+      [ provider.main_models.last, provider.fast_models.last, *provider.backup_models.map { |entry| Array(entry).last } ].compact.each do |model_id|
         model = catalog[[ provider.slug, model_id ]]
         assert model, "#{provider.slug} offers #{model_id}"
         assert_includes model["capabilities"], "function_calling", "#{provider.slug} #{model_id} calls tools"
@@ -43,7 +43,7 @@ class AiProvidersTest < ActiveSupport::TestCase
   end
 
   test "a listed model the registry cannot bill or size is left out" do
-    assert_equal [ "z-ai/glm-5.2", "anthropic/claude-sonnet-5.5", "anthropic/claude-opus-5.5" ], AiProviders.chat_models("openrouter").map(&:model)
+    assert_equal [ "anthropic/claude-haiku-5.5", "z-ai/glm-5.2", "anthropic/claude-sonnet-5.5", "anthropic/claude-opus-5.5" ], AiProviders.chat_models("openrouter").map(&:model)
 
     FirefightAi.stubs(:priced_for?).returns(false)
     assert_empty AiProviders.chat_models("openrouter")
@@ -94,9 +94,37 @@ class AiProvidersTest < ActiveSupport::TestCase
     assert_nil AiProviders.deployment_choice(WorkspaceAiAccount::MAIN), "no key, no pick"
     assert_equal [ "claude-sonnet-5-5", "anthropic" ], AiProviders.deployment_choice(WorkspaceAiAccount::MAIN, config: keyed).to_h.values_at(:model, :provider)
     assert_equal "openrouter", AiProviders.deployment_choice(WorkspaceAiAccount::MAIN, prefer: "openrouter", config: keyed).provider
-    assert_equal [ "claude-haiku-4-5", "anthropic" ], AiProviders.deployment_choice(WorkspaceAiAccount::FAST, config: keyed).to_h.values_at(:model, :provider)
-    assert_equal [ "z-ai/glm-5.2", "openrouter" ],
+    assert_equal [ "claude-haiku-5-5", "anthropic" ], AiProviders.deployment_choice(WorkspaceAiAccount::FAST, config: keyed).to_h.values_at(:model, :provider)
+    assert_equal [ "anthropic/claude-haiku-5.5", "openrouter" ],
                  AiProviders.deployment_choice(WorkspaceAiAccount::FAST, prefer: "openrouter", config: keyed).to_h.values_at(:model, :provider)
+  end
+
+  test "quick work and the backup run on Claude Haiku 5.5 where the provider runs it, Mistral on GLM-5.2, and the catalog's Haiku until the registry prices 5.5" do
+    assert_equal [ "claude-haiku-5-5", "anthropic/claude-haiku-5.5" ], %w[anthropic openrouter].map { |slug| AiProviders.find(slug).fast_model }
+    assert_equal [ "claude-haiku-5-5" ], AiProviders.find("anthropic").backup_models_ready
+    assert_equal "glm-5-2", AiProviders.find("mistral").fast_model
+    assert_equal "claude-sonnet-5-5", AiProviders.find("vertexai").main_models.first
+
+    FirefightAi.stubs(:priced_for?).returns(false)
+    assert_equal "claude-haiku-4-5", AiProviders.find("anthropic").fast_model
+  end
+
+  test "Vertex AI tries Claude Haiku and then Gemini, so a project without Claude enabled still answers" do
+    FirefightAi.stubs(:priced_for?).returns(true)
+    FirefightAi.stubs(:context_window).returns(200_000)
+
+    assert_equal [ "claude-haiku-5-5", "gemini-3.1-pro-preview" ], AiProviders.find("vertexai").backup_models_ready
+  end
+
+  test "a workspace's own account carries on with its provider's backups, on the same account, never the model that failed" do
+    account = add_ai_account!(workspaces(:slack_workspace_one), key: "sk-ant-own")
+    failing = account.choice_for(AiPurpose::INVESTIGATION)
+
+    backups = AiProviders.account_backup_choices(failing)
+
+    assert_equal [ [ "claude-haiku-5-5", account ] ], backups.map { |choice| [ choice.model, choice.payer.account ] }
+    assert_equal failing.context, backups.sole.context, "the customer's own key"
+    assert_empty AiProviders.account_backup_choices(backups.sole)
   end
 
   test "the deployment's backups try other providers first, then the failing provider's own backup, never the model that failed" do
@@ -105,8 +133,8 @@ class AiProvidersTest < ActiveSupport::TestCase
     keyed.openrouter_api_key = "sk-or-deployment"
     backups = ->(model, provider) { AiProviders.deployment_backup_choices(FirefightAi::ModelChoice.new(model: model, provider: provider), config: keyed).map { |choice| choice.to_h.values_at(:model, :provider) } }
 
-    assert_equal [ [ "z-ai/glm-5.2", "openrouter" ] ], backups.call("claude-sonnet-5-5", "anthropic"), "Anthropic has no backup of its own, so only its main model, which failed"
-    assert_equal [ [ "claude-sonnet-5-5", "anthropic" ], [ "z-ai/glm-5.2", "openrouter" ] ], backups.call("anthropic/claude-sonnet-5.5", "openrouter")
-    assert_equal [ [ "claude-sonnet-5-5", "anthropic" ] ], backups.call("z-ai/glm-5.2", "openrouter")
+    assert_equal [ [ "anthropic/claude-haiku-5.5", "openrouter" ], [ "claude-haiku-5-5", "anthropic" ] ], backups.call("claude-sonnet-5-5", "anthropic")
+    assert_equal [ [ "claude-haiku-5-5", "anthropic" ], [ "anthropic/claude-haiku-5.5", "openrouter" ] ], backups.call("anthropic/claude-sonnet-5.5", "openrouter")
+    assert_equal [ [ "claude-haiku-5-5", "anthropic" ] ], backups.call("anthropic/claude-haiku-5.5", "openrouter"), "never the model that failed"
   end
 end

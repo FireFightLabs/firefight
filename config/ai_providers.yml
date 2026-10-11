@@ -4,17 +4,19 @@
 # not listed here is not offered. A local provider (RubyLLM's local?) is offered only where Entitlements allows private
 # AI endpoints, which an install someone runs themselves does and Firefight's cloud does not.
 #
-# main is the model Halon's own loop runs on: chats, investigations and what grows from them. It may list several,
-# preferred first, and Claude Sonnet 5.5 leads where a provider runs it, since it did Halon's work best for the money.
-# The first one the registry holds for the provider with a price and a size is used, so a model newer than the catalog
-# RubyLLM ships is picked up once the nightly refresh brings it in, and its cost shows like any other. The last one must
-# be one RubyLLM's catalog holds, with tool calling and a known size, which test/models/ai_providers_test.rb checks, so
-# there is always one to fall back to. fast is the quick model for side jobs (summaries, milestones, mention replies,
-# judging a watch or a memory), GLM-5.2 where the provider runs it. Providers whose models are named by whoever runs
-# them (an Azure deployment, a local Ollama or GPUStack) recommend none.
+# main is the model Halon's own loop runs on: chats, investigations and what grows from them. Claude Sonnet 5.5 leads
+# wherever the provider runs it, since it did Halon's work best for the money. fast is the quick model for side jobs and
+# helpers (summaries, milestones, mention replies, judging a watch or a memory), Claude Haiku 5.5 wherever the provider
+# runs it. backup is what the loop carries on with when the main model stops answering or is not available to the
+# account, the same Claude Haiku 5.5, and a provider with none carries on with its main model.
 #
-# backup is what the deployment's own keys carry Halon's loop on when its model stops answering, GLM-5.2 where the
-# provider runs it. It may list several like main, and a provider with none carries on with its main model.
+# Each may list several, preferred first. The first one the registry holds for the provider with a price is used, and
+# main and backup need a known size too, so a model newer than the catalog RubyLLM ships is picked up once the nightly
+# refresh brings it in. The last of main and fast must be one RubyLLM's catalog holds, with tool calling and a known
+# size, which test/models/ai_providers_test.rb checks, so there is always one to fall back to. backup lists backups
+# tried in turn, and each may itself be a list read the same way. That is how a Vertex AI project without Claude enabled
+# ends on Gemini. Providers whose models are named by whoever runs them (an Azure deployment, a local Ollama or
+# GPUStack) recommend none.
 #
 # The deployment's own keys follow the same picks when no env var names a model (FirefightAi.deployment_model_for).
 #
@@ -25,7 +27,8 @@
 anthropic:
   name: Anthropic
   main: [ claude-sonnet-5-5, claude-sonnet-5 ]
-  fast: claude-haiku-4-5
+  fast: [ claude-haiku-5-5, claude-haiku-4-5 ]
+  backup: [ [ claude-haiku-5-5, claude-haiku-4-5 ] ]
   code_fix: claude-opus-5-5
 openai:
   name: OpenAI
@@ -46,12 +49,15 @@ gemini:
   fast: gemini-3.5-flash
 vertexai:
   name: Google Vertex AI
-  main: gemini-3.1-pro-preview
-  fast: gemini-2.5-flash
+  main: [ claude-sonnet-5-5, claude-sonnet-5 ]
+  fast: [ claude-haiku-5-5, claude-haiku-4-5 ]
+  # Claude runs on Vertex AI only where the project has it enabled, so Gemini comes last.
+  backup: [ [ claude-haiku-5-5, claude-haiku-4-5 ], gemini-3.1-pro-preview ]
 bedrock:
   name: Amazon Bedrock
   main: [ anthropic.claude-sonnet-5-5, anthropic.claude-sonnet-5 ]
-  fast: anthropic.claude-haiku-4-5-20251001-v1:0
+  fast: [ anthropic.claude-haiku-5-5, anthropic.claude-haiku-4-5-20251001-v1:0 ]
+  backup: [ [ anthropic.claude-haiku-5-5, anthropic.claude-haiku-4-5-20251001-v1:0 ] ]
   labels:
     api_key: Access key ID
 azure:
@@ -59,8 +65,8 @@ azure:
 openrouter:
   name: OpenRouter
   main: [ anthropic/claude-sonnet-5.5, anthropic/claude-sonnet-5 ]
-  fast: z-ai/glm-5.2
-  backup: z-ai/glm-5.2
+  fast: [ anthropic/claude-haiku-5.5, anthropic/claude-haiku-4.5 ]
+  backup: [ [ anthropic/claude-haiku-5.5, anthropic/claude-haiku-4.5 ] ]
   code_fix: anthropic/claude-opus-5.5
 deepseek:
   name: DeepSeek
@@ -94,44 +100,48 @@ settings:
   project_id: Project ID
   organization_id: Organization ID
 
-# The models a person can switch a dashboard chat to, per provider, in the order the picker lists them, cheapest first.
-# label is what the picker and each reply call the model, and note says in a few words what it is good for. A model is
-# offered only while the registry holds it for the provider with a price and a size, so one newer than the catalog
-# RubyLLM ships appears once the nightly refresh brings it in. The workspace's main model is always offered, listed here
-# or not. Providers whose models are named by whoever runs them offer none.
+# The models a person can switch a dashboard chat to, per provider, in the order the picker lists them, everyday models
+# first. label is what the picker and each reply call the model, and note says in a few words what it is for. Only the
+# model that costs clearly more says so. A model is offered only while the registry holds it for the provider with a
+# price and a size, so one newer than the catalog RubyLLM ships appears once the nightly refresh brings it in. The
+# workspace's main model is always offered, listed here or not. Providers whose models are named by whoever runs them
+# offer none.
 chat_models:
   anthropic:
-    - { model: claude-haiku-4-5, label: Claude Haiku 4.5, note: "Fast and low cost" }
-    - { model: claude-sonnet-5-5, label: Claude Sonnet 5.5, note: "Strong and quick at a mid price" }
-    - { model: claude-opus-5-5, label: Claude Opus 5.5, note: "Strongest, slower and pricier" }
+    - { model: claude-haiku-5-5, label: Claude Haiku 5.5, note: "Everyday questions" }
+    - { model: claude-sonnet-5-5, label: Claude Sonnet 5.5, note: "Investigations and tricky problems" }
+    - { model: claude-opus-5-5, label: Claude Opus 5.5, note: "Hardest problems and production changes, costs more" }
   openai:
-    - { model: gpt-6-luna, label: GPT-6 Luna, note: "Fast and low cost" }
-    - { model: gpt-6-sol, label: GPT-6 Sol, note: "Careful reasoning at a mid price" }
-    - { model: gpt-6-astra, label: GPT-6 Astra, note: "Strongest, slower and pricier" }
+    - { model: gpt-6-luna, label: GPT-6 Luna, note: "Everyday questions" }
+    - { model: gpt-6-sol, label: GPT-6 Sol, note: "Investigations and tricky problems" }
+    - { model: gpt-6-astra, label: GPT-6 Astra, note: "Hardest problems and production changes, costs more" }
   gemini:
-    - { model: gemini-3.8-flash, label: Gemini 3.8 Flash, note: "Fast and low cost" }
-    - { model: gemini-3.1-pro-preview, label: Gemini 3.1 Pro, note: "Strongest, slower and pricier" }
+    - { model: gemini-3.8-flash, label: Gemini 3.8 Flash, note: "Everyday questions" }
+    - { model: gemini-3.1-pro-preview, label: Gemini 3.1 Pro, note: "Investigations and tricky problems" }
   vertexai:
-    - { model: gemini-3.8-flash, label: Gemini 3.8 Flash, note: "Fast and low cost" }
-    - { model: gemini-3.1-pro-preview, label: Gemini 3.1 Pro, note: "Strong reasoning at a mid price" }
-    - { model: claude-sonnet-5-5, label: Claude Sonnet 5.5, note: "Strong and quick at a mid price" }
-    - { model: claude-opus-5-5, label: Claude Opus 5.5, note: "Strongest, slower and pricier" }
+    - { model: claude-haiku-5-5, label: Claude Haiku 5.5, note: "Everyday questions" }
+    - { model: gemini-3.8-flash, label: Gemini 3.8 Flash, note: "Everyday questions" }
+    - { model: claude-sonnet-5-5, label: Claude Sonnet 5.5, note: "Investigations and tricky problems" }
+    - { model: gemini-3.1-pro-preview, label: Gemini 3.1 Pro, note: "Investigations and tricky problems" }
+    - { model: claude-opus-5-5, label: Claude Opus 5.5, note: "Hardest problems and production changes, costs more" }
   bedrock:
-    - { model: anthropic.claude-sonnet-5-5, label: Claude Sonnet 5.5, note: "Strong and quick at a mid price" }
-    - { model: openai.gpt-6-sol, label: GPT-6 Sol, note: "Careful reasoning at a mid price" }
-    - { model: anthropic.claude-opus-5-5, label: Claude Opus 5.5, note: "Strongest, slower and pricier" }
+    - { model: anthropic.claude-haiku-5-5, label: Claude Haiku 5.5, note: "Everyday questions" }
+    - { model: anthropic.claude-sonnet-5-5, label: Claude Sonnet 5.5, note: "Investigations and tricky problems" }
+    - { model: openai.gpt-6-sol, label: GPT-6 Sol, note: "Investigations and tricky problems" }
+    - { model: anthropic.claude-opus-5-5, label: Claude Opus 5.5, note: "Hardest problems and production changes, costs more" }
   openrouter:
-    - { model: deepseek/deepseek-v4-pro, label: DeepSeek V4 Pro, note: "Lowest cost, reads text only" }
-    - { model: z-ai/glm-5.2, label: GLM-5.2, note: "Fast and low cost for everyday questions" }
-    - { model: anthropic/claude-sonnet-5.5, label: Claude Sonnet 5.5, note: "Strong and quick at a mid price" }
-    - { model: openai/gpt-6-sol, label: GPT-6 Sol, note: "Careful reasoning at a mid price" }
-    - { model: anthropic/claude-opus-5.5, label: Claude Opus 5.5, note: "Strongest, slower and pricier" }
+    - { model: anthropic/claude-haiku-5.5, label: Claude Haiku 5.5, note: "Everyday questions" }
+    - { model: z-ai/glm-5.2, label: GLM-5.2, note: "Everyday questions" }
+    - { model: deepseek/deepseek-v4-pro, label: DeepSeek V4 Pro, note: "Everyday questions, reads text only" }
+    - { model: anthropic/claude-sonnet-5.5, label: Claude Sonnet 5.5, note: "Investigations and tricky problems" }
+    - { model: openai/gpt-6-sol, label: GPT-6 Sol, note: "Investigations and tricky problems" }
+    - { model: anthropic/claude-opus-5.5, label: Claude Opus 5.5, note: "Hardest problems and production changes, costs more" }
   deepseek:
-    - { model: deepseek-v4-flash, label: DeepSeek V4 Flash, note: "Fast and lowest cost" }
-    - { model: deepseek-v4-pro, label: DeepSeek V4 Pro, note: "Stronger, still low cost" }
+    - { model: deepseek-v4-flash, label: DeepSeek V4 Flash, note: "Everyday questions" }
+    - { model: deepseek-v4-pro, label: DeepSeek V4 Pro, note: "Everyday questions, reads text only" }
   mistral:
-    - { model: mistral-medium-latest, label: Mistral Medium, note: "Fast and low cost" }
-    - { model: mistral-large-4, label: Mistral Large 4, note: "Strongest, still low cost" }
+    - { model: mistral-medium-latest, label: Mistral Medium, note: "Everyday questions" }
+    - { model: mistral-large-4, label: Mistral Large 4, note: "Investigations and tricky problems" }
   xai:
-    - { model: grok-4.3, label: Grok 4.3, note: "Fast and low cost" }
-    - { model: grok-4.7, label: Grok 4.7, note: "Strongest, slower and pricier" }
+    - { model: grok-4.3, label: Grok 4.3, note: "Everyday questions" }
+    - { model: grok-4.7, label: Grok 4.7, note: "Investigations and tricky problems" }
