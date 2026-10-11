@@ -769,15 +769,21 @@ module Conversation::Watches
     nil
   end
 
-  # Before the new deploy starts the step's reading only shows the old one, so it is not read.
+  # Before the new deploy starts the step's reading only shows the old one, so it is not read. A newest deploy that was
+  # cancelled or replaced is waited past, and one that failed is told at once while a newer one may still come.
   def self.gate_lets_read?(watch, step, gate)
     step.summarized!(gate.words)
+    keys = Chat::Watch::Step::NewDeploy
     case gate.state
-    when Chat::Watch::Step::NewDeploy::WAITING then false
-    when Chat::Watch::Step::NewDeploy::FAILED
+    when keys::WAITING, keys::CANCELLED then false
+    when keys::FAILED
       finish_reading(watch, step, Chat::Watch::Step::STATUS_FAILED, gate.words)
       false
+    when keys::FAILED_FOR_NOW
+      tell!(watch, Chat::Watch::Update::KIND_PART_FAILED, standing(watch, step.deploy_failure)) if step.deploy_failed!(gate)
+      false
     else
+      step.deploy_failure_passed!
       deploy = gate.deploy
       if step.started_told_at.nil? && step.started!(run_id: deploy.id || deploy.short, at: deploy.started_at)
         tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "#{step.label} started.") if step.report_start
@@ -991,11 +997,23 @@ module Conversation::Watches
 
   # Only while the limit is still past, since steps added meanwhile may have moved it.
   def self.time_out!(watch, now = Time.current)
+    return if deploy_failed_out!(watch, now)
+
     state = watch.open_steps.map { |step| "#{step.label}: #{step.last_state.presence || 'nothing seen yet'}" }.join(" ")
     took = Integrations::Capabilities::History.duration(watch.expires_at - watch.created_at)
     finish!(watch, Chat::Watch::STATUS_TIMED_OUT,
             standing(watch, "I stopped #{Chat::Watch::Shown.named(watch)} after #{took}, its time limit. Last I saw: #{state.truncate(600)}"),
             expired_by: now)
+  end
+
+  # A step whose new deploy failed with nothing newer by the time limit ends the watch failed, rather than timed out.
+  def self.deploy_failed_out!(watch, now)
+    step = watch.open_steps.find(&:deploy_failure)
+    return false unless step
+
+    reason = "#{step.deploy_failure} Nothing newer went out before the time limit."
+    step.finished!(Chat::Watch::Step::STATUS_FAILED, reason: reason)
+    finish!(watch, Chat::Watch::STATUS_FAILED, failed_words(watch, step.reload), expired_by: now)
   end
 
   def self.finish!(watch, status, outcome, stopped_by: nil, **guards)
