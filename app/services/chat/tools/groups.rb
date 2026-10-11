@@ -21,7 +21,9 @@ module Chat::Tools::Groups
 
   # Ways in for an outside agent. Halon does not ask itself a question, and a chat has its own start_investigation and
   # its own watches.
-  NOT_FOR_HALON = [ Mcp::Tools::ASK_HALON, Mcp::Tools::START_INVESTIGATION, Mcp::Tools::LIST_WATCHES, Mcp::Tools::STOP_WATCH ].freeze
+  NOT_FOR_HALON = [
+    Mcp::Tools::ASK_HALON, Mcp::Tools::GET_HALON_ANSWER, Mcp::Tools::START_INVESTIGATION, Mcp::Tools::LIST_WATCHES, Mcp::Tools::STOP_WATCH
+  ].freeze
 
   # The registry's catch all, whose connections have nothing in common but their kind.
   CUSTOM_CATEGORY = "Custom".freeze

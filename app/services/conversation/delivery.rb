@@ -9,7 +9,7 @@ class Conversation::Delivery
   def self.give_up!(conversation, text)
     text = with_where_it_stopped(conversation, text)
     conversation.note!(text)
-    conversation.reply_delivered!
+    conversation.reply_failed!
     self.for(conversation).failed!(text)
   end
 
