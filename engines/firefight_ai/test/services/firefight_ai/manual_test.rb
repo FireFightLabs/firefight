@@ -5,10 +5,12 @@ require "test_helper"
 class FirefightAi::ManualTest < ActiveSupport::TestCase
   HABITS = [
     "Understand before you act", "look for the evidence that would prove it wrong", "Reads are free, so read",
-    "Ask a person only for what only a person knows", "Follow the evidence to its source", "Changes are deliberate",
+    "Asking is for what only a person knows", "Follow the evidence to its source", "Changes are deliberate",
     "Prefer the smallest change that stops the damage", "Verify, do not assume", "A change is done when a fresh read shows it worked",
     "Be honest about certainty", "Lead with the answer, then the evidence", "Link each claim to where you read it",
-    "Propose the next useful step and ask before taking it when it changes something", "Respect the person's decision",
+    "When a read can answer it, read before asking the person", "look a service's code, account or project up there first",
+    "Take the next useful step when it only reads", "Propose a change, or a choice that is theirs, and ask before taking it",
+    "Respect the person's decision",
     "What done means"
   ].freeze
 

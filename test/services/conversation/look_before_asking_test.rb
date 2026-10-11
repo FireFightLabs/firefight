@@ -25,7 +25,7 @@ class Conversation::LookBeforeAskingTest < ActiveSupport::TestCase
     instructions, tools = answer(PASTED)
 
     assert_includes instructions, "Reads are free, so read."
-    assert_includes instructions, "Ask a person only for what only a person knows"
+    assert_includes instructions, "When a read can answer it, read before asking the person"
 
     turn = Conversation::Turn.new(@conversation, asker: @asker)
     map = Chat::Tools.catalog(turn).find { |entry| entry.name == Mcp::Tools::GET_RESOURCE_MAP }
