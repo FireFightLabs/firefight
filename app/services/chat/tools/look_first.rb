@@ -1,13 +1,18 @@
-# Look before you change. In a chat, a call that changes something names the reads from this same turn that show it
-# will help, in BECAUSE, and the call is checked against the reads the turn really made. A change with none goes back to
+# Look before you change. In a chat, a call that changes something in a connected system, or that resolves, cancels,
+# deletes or revokes something in Firefight, names the reads that show it will help, in BECAUSE, and the call is checked
+# against the reads Halon really made: in this turn, or in its previous answer while they are fresh, since a person
+# approving what Halon just proposed needs no second look at the same thing. A change with none goes back to
 # Halon before anyone is asked, and the confirmation shows the reads it named, so the person approves the reasoning and
 # not only the call. Only a chat turn asks this. Investigations and watches only read, and a run nobody is in, such as a
 # held call run once approved, keeps its own guards.
 module Chat::Tools::LookFirst
   BECAUSE = "because".freeze
-  DESCRIPTION = "Each read from this turn that shows this change will help, by the name of the tool you called, then what it " \
-                "showed, such as \"northflank_list_deployments: web has run 7676c83 since 14:02, when errors started\". Only " \
-                "reads you made in this turn count. Needed for any call that changes something".freeze
+  # A read in Halon's previous answer still backs a change this long after it was made.
+  PROPOSAL_FRESH_FOR = 10.minutes
+  DESCRIPTION = "Each read that shows this change will help, by the name of the tool you called, then what it showed, such as " \
+                "\"northflank_list_deployments: web has run 7676c83 since 14:02, when errors started\". Reads you made in this " \
+                "turn count, and reads from your previous answer while they are under #{PROPOSAL_FRESH_FOR.in_minutes.to_i} minutes " \
+                "old. Needed for any call that changes something".freeze
   SCHEMA = { "type" => "array", "items" => { "type" => "string" }, "description" => DESCRIPTION }.freeze
   BOUNCE = "Nothing you read in this turn shows this will help. Read first, then propose it.".freeze
   # A tool name, the first word of each entry.
@@ -42,7 +47,7 @@ module Chat::Tools::LookFirst
     return if backed.any?
 
     missing = unread.map { |entry| tool_name(entry) }.uniq
-    [ BOUNCE, ("You named #{missing.to_sentence}, which you did not read in this turn." if missing.any?) ].compact.join(" ")
+    [ BOUNCE, ("You named #{missing.to_sentence}, which you did not read in this turn or recently enough." if missing.any?) ].compact.join(" ")
   end
 
   # The reads a change put to the person named, each as the step is titled and what Halon said it showed, from the turn
@@ -65,18 +70,22 @@ module Chat::Tools::LookFirst
 
   def self.read_names(chat, workspace) = reads(chat, workspace).map { |call| call.name.downcase }.to_set
 
-  # The calls of the turn running at until_at that read and answered. A turn starts at the person's latest message.
+  # The calls that read and answered in the turn running at until_at, which starts at the person's latest message, and
+  # those of the answer before it made within PROPOSAL_FRESH_FOR of until_at.
   def self.reads(chat, workspace, until_at: nil)
     person = chat.messages.where(role: Chat::Message::ROLE_USER, nudge: false)
     person = person.where(created_at: ..until_at) if until_at
-    started = person.maximum(:created_at)
+    started, before = person.reorder(created_at: :desc).limit(2).pluck(:created_at)
+    fresh_from = (until_at || Time.current) - PROPOSAL_FRESH_FOR
     messages = chat.messages.where(role: Chat::Message::ROLE_ASSISTANT)
-    messages = messages.where(created_at: started..) if started
+    messages = messages.where(created_at: (before || started)..) if started
     messages = messages.where(created_at: ..until_at) if until_at
     RubyLLM::ActiveRecord::ToolCall.where(message_type: Chat::Message.polymorphic_name, message_id: messages.select(:id))
-                                   .where.not(result_id: nil).where(failed: false).order(:created_at, :id)
-                                   .select { |call| read?(workspace, call.name, call.arguments) }
+                                   .where.not(result_id: nil).where(failed: false).includes(:message).order(:created_at, :id)
+                                   .select { |call| backs?(call, started, fresh_from) && read?(workspace, call.name, call.arguments) }
   end
+
+  def self.backs?(call, started, fresh_from) = started.nil? || call.message.created_at >= started || call.message.created_at >= fresh_from
 
   # A read through any tool: one the page shows as looking something up, or a capability that only reads.
   def self.read?(workspace, name, arguments)

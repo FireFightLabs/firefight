@@ -720,7 +720,7 @@ module Conversation::Watches
     took = Integrations::Capabilities::History.duration(Time.current - watch.created_at)
     lost = steps.size - followed.size
     finish!(watch, Chat::Watch::STATUS_SUCCEEDED,
-            standing(watch, "#{Chat::Watch::Shown.name(watch)}: done in #{took}.#{" #{lost} step#{'s' if lost > 1} could not be followed." if lost.positive?}",
+            standing(watch, "Done in #{took}.#{" #{lost} step#{'s' if lost > 1} could not be followed." if lost.positive?}",
                      offer: false))
   end
 

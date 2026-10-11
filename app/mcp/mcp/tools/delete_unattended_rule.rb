@@ -5,6 +5,7 @@ module Mcp
       description "Delete an unattended rule by id. A rule Halon already acted under is refused with the reason, and is " \
                   "switched off with upsert_unattended_rule instead. Docs: #{Docs::ON_CALL}"
       annotations(**DESTRUCTIVE)
+      ends_something
       authorize_as Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_DELETE
       input_schema(
         properties: {

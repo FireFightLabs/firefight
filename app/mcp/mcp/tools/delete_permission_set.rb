@@ -5,6 +5,7 @@ module Mcp
       description "Delete a permission set by slug. Everyone holding it loses it at once. Built-in packs cannot be deleted. " \
                   "Docs: #{Docs::PERMISSIONS}"
       annotations(**DESTRUCTIVE)
+      ends_something
       authorize_as Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_DELETE
       input_schema(
         properties: {

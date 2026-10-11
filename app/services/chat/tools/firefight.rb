@@ -54,7 +54,8 @@ class Chat::Tools::Firefight < RubyLLM::Tool
 
   private
 
-  def looks_first? = !@tool_class.annotations_value&.read_only_hint && Chat::Tools::LookFirst.applies?(@agent_run)
+  # Only a tool that resolves, cancels, deletes or revokes something. An action item or an incident update needs no read first.
+  def looks_first? = @tool_class.ends_something? && Chat::Tools::LookFirst.applies?(@agent_run)
 
   def unsupported(given, tool_call_id)
     Chat::Tools::LookFirst.refusal(@agent_run, given, tool_call_id: tool_call_id) if looks_first?

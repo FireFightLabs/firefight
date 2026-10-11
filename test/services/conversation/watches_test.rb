@@ -75,7 +75,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
 
     assert_equal "Release run #46 succeeded after 17 minutes.", watch.updates.reload.second.text
     assert_equal Chat::Watch::STATUS_SUCCEEDED, watch.reload.status
-    assert_match "Watch \"release run #46\": done in", watch.outcome
+    assert_match(/\ADone in /, watch.outcome, "the watch's name already heads the line wherever it shows")
     assert_equal 3, watch.updates.count
   end
 

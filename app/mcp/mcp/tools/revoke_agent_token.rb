@@ -8,6 +8,7 @@ module Mcp
                   "than to the secret. Authorizes as permissions, which is admin-only. " \
                   "Docs: #{Docs::PERMISSIONS}"
       annotations(**DESTRUCTIVE)
+      ends_something
       input_schema(
         properties: {
           slug: { type: "string", description: "Slug of the agent the token belongs to" },

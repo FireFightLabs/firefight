@@ -58,12 +58,13 @@ module FirefightAi
 
     # Seen in real chats, Halon proposed a rollback from what it remembered of an earlier turn, and the person approved a
     # change nothing current backed. A chat only.
-    CHANGE_RULE = "Look before you change. Before any call that changes something, such as a rollback, a restart, scaling, " \
-                  "pausing, deleting or resolving an incident, read in this same turn what shows it will help, and name " \
-                  "those reads in the call's because, each by the tool you called and what it showed. Firefight checks " \
-                  "them against the reads this turn made, sends a change with none back to you before anyone is asked, " \
-                  "and shows the person the reads you named. What you read in an earlier turn does not count, so read " \
-                  "again when the person agrees to something you proposed before.".freeze
+    CHANGE_RULE = "Look before you change. Before a call that changes a connected system, such as a rollback, a restart, " \
+                  "scaling, pausing or a change to data or configuration, or one that resolves, cancels, deletes or revokes " \
+                  "anything, read what shows it will help, and name those reads in the call's because, each by the tool you " \
+                  "called and what it showed. Firefight checks them against the reads you made, sends a change with none back " \
+                  "to you before anyone is asked, and shows the person the reads you named. Reads from this turn count, and " \
+                  "reads from your previous answer while they are under ten minutes old, so when the person agrees to what you " \
+                  "just proposed you may go ahead, and when it is older read again.".freeze
 
     CAUSE_RULE ="Never state why something failed or cannot be done, such as a missing permission, a routing fault or a " \
                  "missing parameter, unless a tool result said so. When you do not know why, say what you saw and that " \
