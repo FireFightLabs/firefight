@@ -29,10 +29,12 @@ class SetupController < InertiaController
       email: current_user.email,
       steps: OnboardingStepSerializer.many(@onboarding.steps),
       plan: @onboarding.plan && SetupPlanSerializer.one(@onboarding.plan),
-      aiChoice: @onboarding.ai_choice,
+      openStep: returning_step,
+      aiChoice: returning_ai_choice || @onboarding.ai_choice,
       # Each choice offered here, with why it cannot be chosen yet, or nil.
       aiChoices: @onboarding.ai_choices.index_with { |choice| @onboarding.ai_choice_blocked_reason(choice) },
       **ai_account_props,
+      aiCreditPurchase: AiCredit::Purchase.for(current_workspace, return_to: onboarding_checklist_path(step: WorkspaceOnboarding::STEP_AI, ai: WorkspaceOnboarding::AI_CREDITS)),
       categories: OnboardingCategorySerializer.many(cards),
       stackAnswers: @onboarding.stack_answers,
       environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries),
@@ -91,6 +93,11 @@ class SetupController < InertiaController
   def require_plan
     back(alert: WorkspaceOnboarding::PLAN_FIRST) if @onboarding.plan_pending?
   end
+
+  # Someone back from buying credits lands on the step and the choice they left from, even once the step is done.
+  def returning_step = params[:step].presence_in(WorkspaceOnboarding::CHECKLIST_STEPS)
+
+  def returning_ai_choice = params[:ai].presence_in(@onboarding.ai_choices)
 
   def back(alert:)
     redirect_to onboarding_checklist_path, alert: alert

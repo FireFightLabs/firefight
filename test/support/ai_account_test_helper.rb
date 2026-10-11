@@ -1,18 +1,39 @@
 # A workspace's own AI accounts, made without the check call, and backends standing in for Firefight's cloud.
 module AiAccountTestHelper
-  # The cloud build's backend: Firefight's own workspaces stay on Firefight's key, the rest pay with credits.
-  HostedBackend = Struct.new(:own, :credit) do
+  # The cloud build's backend: Firefight's own workspaces stay on Firefight's key, the rest pay with credits. created
+  # holds each workspace it was told was created, in order.
+  HostedBackend = Struct.new(:own, :credit, :created) do
     def check(_workspace, _feature) = Entitlements.allow
     def firefight_pays_for_ai?(_workspace) = own
     def ai_credit(_workspace) = credit
+
+    def workspace_created!(workspace)
+      self.created ||= []
+      created << workspace.id
+    end
   end
 
-  # spendable: it can pay for a call now. used: it held credit and has none left.
-  Credit = Struct.new(:spendable, :used) do
+  # Where the stand in for the hosted build's checkout is drawn, by tests that follow a purchase.
+  CHECKOUT_PATH = "/test/credits/checkout".freeze
+  PACK_CENTS = [ 2500, 5000, 10_000, 25_000 ].freeze
+
+  # spendable: it can pay for a call now. used: it held credit and has none left. starter_micros: the starter credit
+  # the workspace was given. balance: what the row says is left.
+  Credit = Struct.new(:spendable, :used, :starter_micros, :balance) do
     def spendable? = spendable
     def used? = used
-    def summary = { title: "Firefight credits", detail: "$12.40 left", action: { label: "Buy credits", href: "/app/settings/billing#credits" } }
+    def summary = { title: "Firefight credits", detail: "#{balance || '$12.40'} left", action: { label: "Buy credits", href: "/app/settings/billing#credits" } }
     def top_up = "An admin can buy more under Settings, Billing"
+
+    def purchase(return_to:)
+      {
+        packs: PACK_CENTS.map { |cents| { cents: cents, price: "$#{cents / 100}" } },
+        markupPercent: 20,
+        blockedReason: nil,
+        checkoutPath: "#{CHECKOUT_PATH}?#{{ return_to: return_to }.to_query}",
+        starterMicros: starter_micros
+      }
+    end
   end
 
   # Models the test registry holds, since the recommended ones are newer than its few rows.

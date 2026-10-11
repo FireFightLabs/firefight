@@ -3,6 +3,7 @@ require "application_system_test_case"
 class SetupChecklistTest < ApplicationSystemTestCase
   include ActiveJob::TestHelper
   include AiAccountTestHelper
+  include CreditCheckoutTestHelper
 
   PHONE = [ 390, 844 ].freeze
 
@@ -164,8 +165,9 @@ class SetupChecklistTest < ApplicationSystemTestCase
     assert_button "Save"
   end
 
-  test "on Firefight's cloud, Firefight credits are the other choice, once there is a balance to spend" do
-    credit = AiAccountTestHelper::Credit.new(false, false)
+  test "on Firefight's cloud, credits are bought from the step itself, and a cancelled checkout changes nothing" do
+    draw_credit_checkout!
+    credit = AiAccountTestHelper::Credit.new(false, false, nil, "$0.00")
     on_firefights_cloud!(credit: credit)
     owner = signed_up_owner
     sign_in(owner.user, owner.workspace)
@@ -174,21 +176,63 @@ class SetupChecklistTest < ApplicationSystemTestCase
     assert_no_text "Use the AI keys this Firefight runs on"
     find("label", text: "Use Firefight credits").click
 
-    assert_text "$12.40 left"
-    assert_link "Buy credits", href: "/app/settings/billing#credits"
+    assert_text "$0.00 left"
+    assert_text "Each call costs the model's list price plus 20%."
+    assert_text "Packs are charged with tax added on top."
+    assert_no_text "Includes"
+    assert_no_link "Buy credits"
     assert_no_button "Add account"
+    %w[$25 $50 $100 $250].each { |price| assert_button "Buy #{price}" }
     find("button", text: "Continue").find(:xpath, "..").hover
     assert_text "Buy Firefight credits first."
     screenshot("ai-credits")
     phone_screenshot("ai-credits")
 
-    credit.spendable = true
-    visit onboarding_checklist_path
-    find("label", text: "Use Firefight credits").click
+    click_button "Buy $50"
+    assert_selector "h1", text: "Pay for $50 of credits"
+    click_link "Back"
+
+    assert_selector "h1", text: "Choose Halon's AI"
+    assert_selector "#ai-choice-credits[aria-checked=true]"
+    assert_text "$0.00 left"
+    assert_button "Buy $50"
+    assert_nil owner.workspace.onboarding.reload.ai_choice
+
+    click_button "Buy $50"
+    click_link "Pay"
+
+    assert_text CreditCheckoutTestHelper::ADDED
+    assert_selector "h1", text: "Choose Halon's AI"
+    assert_selector "#ai-choice-credits[aria-checked=true]"
+    assert_text "$50.00 left"
+    assert_button "Buy $25"
+    screenshot("ai-credits-bought")
     click_button "Continue"
 
     assert_text "Halon will use your Firefight credits."
     assert_selector "h1", text: "Connect your stack"
+    assert_equal WorkspaceOnboarding::AI_CREDITS, owner.workspace.onboarding.reload.ai_choice
+  end
+
+  test "a new workspace's starter credits let Halon start straight away, with more on offer" do
+    on_firefights_cloud!(credit: AiAccountTestHelper::Credit.new(true, false, 10_000_000, "$10.00"))
+    owner = signed_up_owner
+    sign_in(owner.user, owner.workspace)
+
+    visit onboarding_checklist_path
+    find("label", text: "Use Firefight credits").click
+
+    assert_text "$10.00 left"
+    assert_text "Includes $10 to get started. Buy more any time."
+    assert_text "Each call costs the model's list price plus 20%."
+    assert_text "As a rough guide, $10 is about 90 questions to Halon."
+    assert_text "Buy more"
+    %w[$25 $50 $100 $250].each { |price| assert_button "Buy #{price}" }
+    screenshot("ai-credits-starter")
+    phone_screenshot("ai-credits-starter")
+    click_button "Continue"
+
+    assert_text "Halon will use your Firefight credits."
     assert_equal WorkspaceOnboarding::AI_CREDITS, owner.workspace.onboarding.reload.ai_choice
   end
 

@@ -56,8 +56,15 @@ module Entitlements
   # The workspace's Firefight credit balance on a hosted build, responding to spendable? (it can pay for a call), used?
   # (it held credit and has none left), summary ({ title:, detail:, action: { label:, href: } } for the row under the
   # workspace's own AI accounts, action optional) and top_up (who can buy more and where, for the out of credit
-  # message). Nil where credits are not sold, which is every install someone runs themselves.
+  # message). Nil where credits are not sold, which is every install someone runs themselves. It may also answer
+  # purchase(return_to:), what setup offers to buy without leaving the page: { packs: [{ cents:, price: }],
+  # markupPercent:, blockedReason:, checkoutPath:, starterMicros: } where checkoutPath takes a pack and brings the
+  # buyer back to return_to whether they pay or cancel, and starterMicros is the starter credit the workspace was given.
   def self.ai_credit(workspace) = backend.try(:ai_credit, workspace)
+
+  # A workspace was just created, inside the transaction that creates it. A hosted build gives a new workspace its
+  # starter credits here, once however often it is asked. The open-source backend does nothing.
+  def self.workspace_created!(workspace) = backend.try(:workspace_created!, workspace)
 
   # Whether an AI account may point at a private or loopback address, such as an Ollama on the same machine. An install
   # someone runs themselves may, since the network is theirs. A hosted build may not unless its backend says so, since

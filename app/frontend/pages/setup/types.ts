@@ -1,5 +1,6 @@
 import type { SharedProps } from "@/types"
 import type { AiCredits } from "@/components/ai/ai-credits-row"
+import type { CreditPurchase } from "@/components/ai/credit-packs"
 import type { AiSignIn } from "@/components/ai/ai-accounts-card"
 import type {
   AbilityRole,
@@ -23,6 +24,8 @@ export interface SetupPageProps extends SharedProps {
   steps: OnboardingStep[]
   // The plan a hosted build sells, absent where none is sold.
   plan: SetupPlan | null
+  // The step to open on, when someone comes back to one from paying for credits.
+  openStep: string | null
   aiChoice: string | null
   // Each choice offered, with why it cannot be chosen yet.
   aiChoices: Record<string, string | null>
@@ -31,6 +34,7 @@ export interface SetupPageProps extends SharedProps {
   aiSignIn: AiSignIn | null
   aiFallback: string
   aiCredits: AiCredits | null
+  aiCreditPurchase: CreditPurchase | null
   categories: OnboardingCategory[]
   stackAnswers: Record<string, string>
   environments: EnvironmentOption[]
