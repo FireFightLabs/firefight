@@ -1,15 +1,39 @@
 import { usePage } from "@inertiajs/react";
-import { IconCreditCard } from "@tabler/icons-react";
+import { IconClock, IconCreditCard } from "@tabler/icons-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import type { CloudBanner as CloudBannerProps } from "@/types";
 
-// Set by the cloud engine while a billing problem needs attention, absent on an install someone runs themselves.
+// A note that needs nothing done, such as the days left in a trial, sits in one quiet line.
+function QuietBanner({ banner }: { banner: CloudBannerProps }) {
+  return (
+    <div className="mx-6 mt-6 flex flex-col items-start gap-2 rounded-lg border border-border bg-surface-card px-4 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between">
+      <p className="flex items-start gap-2.5 text-fg-body">
+        <IconClock className="mt-0.5 size-4 shrink-0 text-fg-secondary" />
+        <span>
+          <span className="font-medium text-fg-primary">{banner.title}</span> {banner.detail}
+        </span>
+      </p>
+      {banner.action ? (
+        <Button asChild variant="ghost" size="sm" className="shrink-0">
+          <a href={banner.action.href}>{banner.action.label}</a>
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+// Set by the cloud engine while there is something to say about billing, absent on an install someone runs themselves.
 export function CloudBanner() {
   const { cloudBanner } = usePage().props;
 
   if (!cloudBanner) {
     return null;
+  }
+
+  if (cloudBanner.tone === "quiet") {
+    return <QuietBanner banner={cloudBanner} />;
   }
 
   return (

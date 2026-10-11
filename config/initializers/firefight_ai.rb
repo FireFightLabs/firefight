@@ -23,6 +23,8 @@ FirefightAi.configure do |config|
   config.http_adapter = ENV["FIREFIGHT_AI_HTTP_ADAPTER"]
   # On unless an explicit false, 0 or off, as for a bench run comparing tool search with opening groups.
   config.tool_search = ENV["FIREFIGHT_AI_TOOL_SEARCH"].blank? || ActiveModel::Type::Boolean.new.cast(ENV["FIREFIGHT_AI_TOOL_SEARCH"])
+  # Tokens of tool definitions held whole from the start where the provider does not search tools, blank for the default.
+  config.held_tools_budget = ENV["FIREFIGHT_AI_HELD_TOOLS_BUDGET"]
   # Off unless set, and exported only where OTEL_EXPORTER_OTLP_ENDPOINT starts the OpenTelemetry SDK.
   config.trace_calls = ActiveModel::Type::Boolean.new.cast(ENV["FIREFIGHT_AI_TRACING"]) == true
   config.judgments = ENV["FIREFIGHT_AI_JUDGMENTS"]

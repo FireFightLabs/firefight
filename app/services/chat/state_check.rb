@@ -32,7 +32,7 @@ class Chat::StateCheck
     @chat.add_message(role: Chat::Message::ROLE_USER, content: question(call))
     presented = Chat::Tools.presented(self, checker.ai_model)
     checker.run(
-      chat: @chat, tools: [ Chat::Tools::Open.new(self, offer: Chat::Tools.offer_to(@chat), searched: presented.searched), Chat::Tools::ReadResult.new(self), report ] +
+      chat: @chat, tools: [ Chat::Tools::Open.new(self, offer: Chat::Tools.offer_to(@chat), presented: presented), Chat::Tools::ReadResult.new(self), report ] +
                          presented.loaded,
       deferred_tools: presented.deferred, max_spend_cents: @workspace.conversation_limits.max_spend_cents, answered: -> { report.report.present? }
     )

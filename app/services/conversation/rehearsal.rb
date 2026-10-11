@@ -194,23 +194,32 @@ class Conversation::Rehearsal
 
   # A chat starts with its own tools and open_tools, which makes the rest callable group by group, as it does live. Where
   # the model's provider searches tools itself, Firefight's own tools are in hand from the start too and every connected
-  # tool waits to be searched for (deferred), as Chat::Tools.presented hands them live. A case that offers no open_tools
-  # hands every tool over from the start.
+  # tool waits to be searched for (deferred). Anywhere else every tool is in hand from the start when they all fit the
+  # budget (FirefightAi.fits_up_front?). Both are as Chat::Tools.presented hands them live. A case that offers no
+  # open_tools hands every tool over from the start.
   def tools(chat)
     return @case.tools.map { |definition| recorded(definition, chat) } unless @case.tool(Chat::Tools::Open.tool_name)
 
-    in_hand = @case.tools.select { |definition| in_hand?(definition) }
+    in_hand = @case.tools.select { |definition| in_hand?(definition, chat) }
     in_hand.reject { |definition| definition.name == Chat::Tools::Open.tool_name }.map { |definition| recorded(definition, chat) } +
-      [ Conversation::Rehearsal::OpenTools.new(groups: groups, open: ->(names) { open(chat, names) }, searched: searched?) ]
+      [ Conversation::Rehearsal::OpenTools.new(groups: groups, open: ->(names) { open(chat, names) }, searched: searched?, held: held?(chat)) ]
   end
 
   def deferred(chat)
     return [] unless searched? && @case.tool(Chat::Tools::Open.tool_name)
 
-    @case.tools.reject { |definition| in_hand?(definition) || definition.name == Chat::Tools::Open.tool_name }.map { |definition| recorded(definition, chat) }
+    @case.tools.reject { |definition| in_hand?(definition, chat) || definition.name == Chat::Tools::Open.tool_name }.map { |definition| recorded(definition, chat) }
   end
 
-  def in_hand?(definition) = definition.base || @opened.include?(definition.name) || (searched? && !definition.outside?)
+  def in_hand?(definition, chat)
+    definition.base || @opened.include?(definition.name) || (searched? ? !definition.outside? : held?(chat))
+  end
+
+  # Measured once, since a scenario's tools stay the same for the whole chat.
+  def held?(chat)
+    @held = !searched? && FirefightAi.fits_up_front?(groups.values.flatten.map { |definition| recorded(definition, chat) }) unless defined?(@held)
+    @held
+  end
 
   def searched?
     @searched = FirefightAi.tool_search?(responder.ai_model) unless defined?(@searched)

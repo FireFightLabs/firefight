@@ -6,6 +6,7 @@ export type SetupStepKey = (typeof SETUP_STEPS)[keyof typeof SETUP_STEPS]
 // Each step's name in the list and its heading when open.
 export const STEP_TITLES: Record<SetupStepKey, string> = {
   [SETUP_STEPS.ACCOUNT]: "Your account",
+  [SETUP_STEPS.PLAN]: "Your plan",
   [SETUP_STEPS.AI]: "Choose Halon's AI",
   [SETUP_STEPS.STACK]: "Connect your stack",
   [SETUP_STEPS.PERMISSIONS]: "Who can do what",
