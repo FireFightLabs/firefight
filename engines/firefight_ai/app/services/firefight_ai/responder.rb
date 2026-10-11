@@ -27,15 +27,13 @@ module FirefightAi
     end
 
     # The app has already saved the question as the last message. deferred_tools are found by the provider's own tool
-    # search where it has one (FirefightAi.ready_chat). cache_ttl is how long the cached front of the chat lasts, nil for
-    # the provider's default.
+    # search where it has one (FirefightAi.ready_chat).
     # purse, on_backup, on_take_over and on_progress go to the loop, see AgentLoop.
-    def run(chat:, tools:, context:, budget:, deferred_tools: [], cache_ttl: nil, canceled: -> { false }, on_step: nil, on_chunk: nil,
+    def run(chat:, tools:, context:, budget:, deferred_tools: [], canceled: -> { false }, on_step: nil, on_chunk: nil,
             nudge: nil, memory: nil, take_messages: nil, purse: nil, on_backup: nil, on_take_over: nil, on_progress: nil, &on_turn)
       FirefightAi.translating_errors do
         # A chat grows with every question and each turn resends all of it, so the provider is asked to cache it.
-        FirefightAi.ready_chat(chat, choice: ai_model, instructions: "#{template_text}\n#{context}", tools: tools, deferred_tools: deferred_tools,
-                                     cache_ttl: cache_ttl)
+        FirefightAi.ready_chat(chat, choice: ai_model, instructions: "#{template_text}\n#{context}", tools: tools, deferred_tools: deferred_tools)
 
         AgentLoop.new(
           chat: chat, budget: budget, answered: -> { false }, canceled: canceled,

@@ -49,12 +49,12 @@ class FirefightAi::InvestigatorTest < ActiveSupport::TestCase
     investigator.run(chat: chat, tools: [], seed_pack: @seed_pack, budget: budget, answered: -> { false })
   end
 
-  # A run's tools, instructions and facts never change, and a run can wait longer than five minutes between turns on a
-  # helper or a code fix, so each ends in a boundary kept for an hour.
-  test "the instructions and the facts each end in a cache boundary that lasts an hour" do
+  # A run's tools, instructions and facts never change, so each ends in a boundary, written once and read on every turn
+  # after it, with the provider's default lifetime since a run's turns follow each other within seconds.
+  test "the instructions and the facts each end in a cache boundary of the default lifetime" do
     chat = chat_double(messages: [])
-    chat.expects(:with_instructions).with(FirefightAi::Investigator.system_prompt, cache_until_here: { ttl: FirefightAi::LONG_CACHE })
-    chat.expects(:add_message).with { |role:, cache_until_here:, cache_ttl:, **| role == :user && cache_until_here && cache_ttl == FirefightAi::LONG_CACHE }
+    chat.expects(:with_instructions).with(FirefightAi::Investigator.system_prompt, cache_until_here: true)
+    chat.expects(:add_message).with { |role:, cache_until_here:, **rest| role == :user && cache_until_here == true && !rest.key?(:cache_ttl) }
 
     investigator.run(chat: chat, tools: [], seed_pack: @seed_pack, budget: budget, answered: -> { false })
   end

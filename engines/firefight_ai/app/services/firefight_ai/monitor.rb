@@ -29,10 +29,9 @@ module FirefightAi
     def run(chat:, tools:, seed_pack:, budget:, answered:, deferred_tools: [], canceled: -> { false }, on_step: nil, nudge: nil,
             memory: nil, take_messages: nil, purse: nil, on_backup: nil, &on_turn)
       FirefightAi.translating_errors do
-        FirefightAi.ready_chat(chat, choice: ai_model, instructions: system_prompt, tools: tools, deferred_tools: deferred_tools,
-                                     cache_ttl: FirefightAi::LONG_CACHE)
+        FirefightAi.ready_chat(chat, choice: ai_model, instructions: system_prompt, tools: tools, deferred_tools: deferred_tools)
         if chat.to_llm.messages.none? { |message| message.role == :user }
-          chat.add_message(role: :user, content: opening(seed_pack), cache_until_here: true, cache_ttl: FirefightAi::LONG_CACHE)
+          chat.add_message(role: :user, content: opening(seed_pack), cache_until_here: true)
         end
 
         AgentLoop.new(

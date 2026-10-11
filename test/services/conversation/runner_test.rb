@@ -372,16 +372,6 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_not_includes reported.to_json, "page 2 of 5"
   end
 
-  test "a chat the person came back to keeps its cached front for an hour, a first question the provider's default" do
-    personal = personal_chat
-    responder = fake(reply: "First.")
-    ask(personal, "what is going on")
-    assert_nil responder.calls.last[:cache_ttl]
-
-    ask(personal, "and now")
-    assert_equal FirefightAi::LONG_CACHE, responder.calls.last[:cache_ttl]
-  end
-
   test "a finished step in a thread says how it went in a word, a failure as an error" do
     reported = []
     Slack::Client.stubs(:append_stream).with { |arguments| reported.concat(arguments[:chunks]) }.returns({ ok: true })

@@ -35,10 +35,8 @@ module FirefightAi
     def run(chat:, tools:, seed_pack:, budget:, answered:, deferred_tools: [], canceled: -> { false }, on_step: nil, nudge: nil,
             memory: nil, take_messages: nil, purse: nil, on_backup: nil, &on_turn)
       FirefightAi.translating_errors do
-        # One agent resends everything it has read on every turn, so the provider is asked to cache it, the instructions
-        # and the facts for as long as a run can take between turns.
-        FirefightAi.ready_chat(chat, choice: ai_model, instructions: system_prompt, tools: tools, deferred_tools: deferred_tools,
-                                     cache_ttl: FirefightAi::LONG_CACHE)
+        # One agent resends everything it has read on every turn, so the provider is asked to cache it.
+        FirefightAi.ready_chat(chat, choice: ai_model, instructions: system_prompt, tools: tools, deferred_tools: deferred_tools)
         open_with(chat, seed_pack)
 
         AgentLoop.new(
@@ -101,7 +99,7 @@ module FirefightAi
     def open_with(chat, seed_pack)
       return if chat.to_llm.messages.any? { |message| message.role == :user }
 
-      chat.add_message(role: :user, content: opening(seed_pack), cache_until_here: true, cache_ttl: FirefightAi::LONG_CACHE)
+      chat.add_message(role: :user, content: opening(seed_pack), cache_until_here: true)
     end
 
     def opening(seed_pack) = Facts.opening("Investigate this. These are the facts Firefight already holds.", seed_pack)
