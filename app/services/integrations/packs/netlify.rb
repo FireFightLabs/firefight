@@ -132,12 +132,13 @@ module Integrations
         limit = Capabilities::Answers.limit(arguments, DEPLOY_LIMIT)
         production = arguments["production"] == true ? true : nil
         deploys = api(environment_row).deploys(site["id"], limit: limit, production: production, branch: arguments["branch"])
-        return Telemetry.result("#{site['name']} has no deploys that match.", link: site_link(site)) if deploys.empty?
+        return Capabilities::Deploys.with_deploys(Telemetry.result("#{site['name']} has no deploys that match.", link: site_link(site)), []) if deploys.empty?
 
         live = site.dig("published_deploy", "id")
         rows = deploys.first(limit).map { |deploy| deploy_line(deploy, live) }
-        Telemetry.result("Latest #{rows.size} deploys of #{site['name']}, newest first. restore_deploy and rollback take a " \
-                         "deploy id, and only a #{READY} deploy can be published.\n#{rows.join("\n")}", link: site_link(site))
+        result = Telemetry.result("Latest #{rows.size} deploys of #{site['name']}, newest first. restore_deploy and rollback take a " \
+                                  "deploy id, and only a #{READY} deploy can be published.\n#{rows.join("\n")}", link: site_link(site))
+        Capabilities::Deploys.with_deploys(result, deploys.first(limit).map { |deploy| deploy_of(deploy, live) })
       end
 
       # Netlify's deploy states (swagger.yml, deploy.state) in Firefight's words. Everything between enqueued and ready is
@@ -374,6 +375,15 @@ module Integrations
           finished_at: (Telemetry.parse_time(deploy["updated_at"]) if Capabilities::History::FINISHED.include?(status)), url: deploy_link(deploy)&.url,
           detail: [ ("#{deploy['commit_ref'].to_s.first(12)} #{title(deploy)}".strip if deploy["commit_ref"]), deploy["error_message"].presence ].compact.join(", ").presence
         )
+      end
+
+      # The site names the deploy it publishes, so every other is not serving. A site that publishes none does not say.
+      # A deploy finished rolling out when it was published, or else when it last changed once it ended.
+      def deploy_of(deploy, live)
+        status = Capabilities::Deploys.status(deploy["state"], DEPLOY_STATES)
+        finished = deploy["published_at"].presence || (deploy["updated_at"] if Capabilities::History::FINISHED.include?(status))
+        Capabilities::Deploys::Deploy.new(id: deploy["id"], commit: deploy["commit_ref"], branch: deploy["branch"], status: status,
+                                          live: (deploy["id"] == live if live.present?), started_at: deploy["created_at"], finished_at: finished)
       end
 
       def deploy_id(arguments)

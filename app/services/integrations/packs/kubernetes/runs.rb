@@ -104,6 +104,13 @@ module Integrations
                            started_at: started, finished_at: finished, detail: said.compact.join(", "))
         end
 
+        # A revision as a deploy, read as its rollout is, from the workload already read. Only the current revision serves.
+        def revision_deploy(workload, revision, after)
+          run = rollout_run(workload, revision, after)
+          Capabilities::Deploys::Deploy.new(id: run.id, version: revision[:number], status: run.status, live: revision[:current],
+                                            started_at: run.started_at, finished_at: run.finished_at)
+        end
+
         def replaced_words(after, rolled_back)
           return "rolled back by revision #{after[:number]}" if rolled_back
           return "replaced by revision #{after[:number]}, #{NO_END}" if after

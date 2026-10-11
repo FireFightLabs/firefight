@@ -37,6 +37,16 @@ module Integrations
       PULL_LOOKUP_LIMIT = 25
       CODEOWNERS_PATHS = [ ".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS" ].freeze
       PRODUCTION = /\Aprod/i
+      DEPLOYMENT_INACTIVE = "inactive".freeze
+      # A deployment's state in Firefight's words. Inactive is one that rolled out and was replaced since.
+      DEPLOYMENT_STATUSES = {
+        "success" => Capabilities::History::SUCCEEDED, DEPLOYMENT_INACTIVE => Capabilities::History::SUCCEEDED,
+        "failure" => Capabilities::History::FAILED, "error" => Capabilities::History::FAILED,
+        "in_progress" => Capabilities::History::RUNNING, "queued" => Capabilities::History::QUEUED,
+        "pending" => Capabilities::History::QUEUED
+      }.freeze
+      # The states a rollout ends in, whose status row is written when it ended.
+      DEPLOYMENT_ENDED = %w[success failure error].freeze
 
       tool :commit_lookup,
            description: "Fetch a commit: message, author, stats, and changed files",
@@ -44,7 +54,7 @@ module Integrations
              "type" => "object",
              "properties" => {
                "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout. Read it off the resource map or the catalog first, or list the repositories, and ask only when several fit" },
-               "sha" => { "type" => "string", "description" => "Commit SHA" }
+               "sha" => { "type" => "string", "description" => COMMIT_REFERENCE }
              },
              "required" => [ "repo", "sha" ]
            },
@@ -316,8 +326,7 @@ module Integrations
 
       def commit_lookup(environment_row:, arguments:)
         repo = repo_argument(arguments)
-        sha = arguments["sha"].to_s
-        fail! "sha must be a commit SHA" unless sha.match?(/\A\h{6,40}\z/)
+        sha = commit_reference(arguments)
 
         token = GithubApp.installation_token(environment_row)
         commit = GithubApp.get("/repos/#{repo}/commits/#{sha}", token: token)
@@ -337,9 +346,11 @@ module Integrations
         repo = repo_argument(arguments)
         token = GithubApp.installation_token(environment_row)
         deployments = GithubApp.get("/repos/#{repo}/deployments?#{deployment_query(arguments)}", token: token)
-        return "No deployments recorded for #{repo}." if deployments.blank?
+        return Capabilities::Deploys.with_deploys("No deployments recorded for #{repo}.", []) if deployments.blank?
 
-        Array(deployments).map { |deployment| deployment_line(repo, deployment, token) }.join("\n")
+        read = Array(deployments).map { |deployment| [ deployment, newest_status(repo, deployment["id"], token) ] }
+        text = read.map { |deployment, status| deployment_line(deployment, status) }.join("\n")
+        Capabilities::Deploys.with_deploys(text, read.map { |deployment, status| deploy_of(deployment, status) })
       end
 
       def merged_pull_requests(environment_row:, arguments:)
@@ -518,21 +529,40 @@ module Integrations
         query.to_query
       end
 
-      def deployment_line(repo, deployment, token)
-        state = deployment_state(repo, deployment["id"], token)
+      def deployment_line(deployment, status)
         ref = deployment["ref"].presence || deployment["sha"].to_s[0, 8]
         target = deployment["environment"].presence || "unknown environment"
         creator = deployment.dig("creator", "login").presence || "unknown"
 
-        "#{deployment['created_at']}  #{target}  #{ref}  #{state}  by #{creator}"
+        "#{deployment['created_at']}  #{target}  #{ref}  #{state_word(status)}  by #{creator}"
       end
 
-      # A deployment has no state field. Its newest status row is the outcome.
-      def deployment_state(repo, deployment_id, token)
-        statuses = GithubApp.get("/repos/#{repo}/deployments/#{deployment_id}/statuses?per_page=1", token: token)
-        Array(statuses).first&.fetch("state", nil).presence || "no status"
+      # GitHub's ref is a branch, a tag or the commit itself and does not say which, so a ref that is not the commit is
+      # kept as the branch. A deployment GitHub marked inactive was replaced, so it no longer serves.
+      def deploy_of(deployment, status)
+        state = status&.fetch("state", nil).presence
+        ref = deployment["ref"].presence
+        Capabilities::Deploys::Deploy.new(
+          id: deployment["id"], commit: deployment["sha"], branch: (ref unless ref == deployment["sha"]),
+          status: state && Capabilities::Deploys.status(state, DEPLOYMENT_STATUSES), live: (false if state == DEPLOYMENT_INACTIVE),
+          started_at: deployment["created_at"], finished_at: (status["created_at"] if DEPLOYMENT_ENDED.include?(state))
+        )
+      end
+
+      def deployment_state(repo, deployment_id, token) = state_word(newest_status(repo, deployment_id, token))
+
+      # A deployment has no state field. Its newest status row is the outcome, empty when nobody reported one and nil
+      # when GitHub would not say.
+      def newest_status(repo, deployment_id, token)
+        Array(GithubApp.get("/repos/#{repo}/deployments/#{deployment_id}/statuses?per_page=1", token: token)).first || {}
       rescue GithubApp::Error
-        "state unavailable"
+        nil
+      end
+
+      def state_word(status)
+        return "state unavailable" if status.nil?
+
+        status["state"].presence || "no status"
       end
 
       def merged_since?(pull, since)

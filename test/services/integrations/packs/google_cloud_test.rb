@@ -159,6 +159,34 @@ module Integrations
                      Capabilities::History.runs_of(result).map { |run| [ run.id, run.status, run.seconds ] }
       end
 
+      test "revisions are kept as deploys, live by their share of the traffic, with the commit Cloud Build labels them with" do
+        GoogleCloudApi.any_instance.stubs(:run_revisions).returns(Pages::Read.new(complete: true, items: [
+          { "name" => "#{RUN_ID}/revisions/web-00001-abc", "createTime" => "2026-10-01T09:00:00Z", "labels" => { "commit-sha" => "AAA1111222233334444555566667777888899990" },
+            "conditions" => [ { "type" => "Ready", "state" => "CONDITION_SUCCEEDED", "lastTransitionTime" => "2026-10-01T09:01:30Z" } ] },
+          { "name" => "#{RUN_ID}/revisions/web-00002-xyz", "createTime" => "2026-10-03T09:00:00Z", "labels" => { "commit-sha" => "bbb1111222233334444555566667777888899990" },
+            "conditions" => [ { "type" => "Ready", "state" => "CONDITION_SUCCEEDED", "lastTransitionTime" => "2026-10-03T09:02:00Z" } ] },
+          { "name" => "#{RUN_ID}/revisions/web-00003-new", "createTime" => "2026-10-04T09:00:00Z", "reconciling" => true,
+            "conditions" => [ { "type" => "Ready", "state" => "CONDITION_PENDING" } ] }
+        ]))
+
+        result = GoogleCloud.new(@integration).call("list_revisions", environment_row: @row, arguments: { "resource" => "web" })
+        deploys = Capabilities::Deploys.deploys_of(result)
+
+        assert_equal [
+          [ "web-00003-new", "web-00003-new", nil, Capabilities::History::RUNNING, false, nil ],
+          [ "web-00002-xyz", "web-00002-xyz", "bbb1111222233334444555566667777888899990", Capabilities::History::SUCCEEDED, true, Time.utc(2026, 10, 3, 9, 2) ],
+          [ "web-00001-abc", "web-00001-abc", "aaa1111222233334444555566667777888899990", Capabilities::History::SUCCEEDED, false, Time.utc(2026, 10, 1, 9, 1, 30) ]
+        ], deploys.map { |deploy| [ deploy.id, deploy.version, deploy.commit, deploy.status, deploy.live, deploy.finished_at ] }
+        assert_equal Time.utc(2026, 10, 4, 9), deploys.first.started_at
+        assert_equal "web-00002-xyz", Capabilities::Deploys.live(deploys).id
+        assert_equal 3, Capabilities::History.runs_of(result).size
+        assert_match "web-00002-xyz, image , ready succeeded, 100% of traffic\n", result["content"].sole["text"]
+
+        GoogleCloudApi.any_instance.stubs(:run_service).returns(SERVICE.except("trafficStatuses"))
+        unsaid = GoogleCloud.new(@integration).call("list_revisions", environment_row: @row, arguments: { "resource" => "web" })
+        assert_equal [ nil ], Capabilities::Deploys.deploys_of(unsaid).map(&:live).uniq
+      end
+
       test "one revision by its name is read with the conditions of its rollout as parts, each read in that revision's logs" do
         GoogleCloudApi.any_instance.expects(:run_revisions).never
         GoogleCloudApi.any_instance.expects(:run_revision).with("acme-prod", "us-central1", "web", "web-00003-bad").returns(

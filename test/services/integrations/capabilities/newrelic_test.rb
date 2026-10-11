@@ -57,6 +57,29 @@ class Integrations::Capabilities::NewrelicTest < ActiveSupport::TestCase
     assert_match "FROM Deployment, ChangeTrackingEvent WHERE entity.name = 'api' SINCE 30 days ago ORDER BY timestamp DESC LIMIT 20", deploys.arguments["query"]
   end
 
+  test "deploy markers are kept as deploys by their commit and version, with no rollout state New Relic does not record" do
+    render_service
+    deploys = resolve(Integrations::Capabilities::DEPLOYS, "resource" => "api")
+    rows = [ { "timestamp" => 1_788_264_000_000, "version" => "v42", "commit" => "A" * 40, "category" => "Deployment" },
+             { "timestamp" => 1_788_263_000_000, "category" => "Feature Flag", "description" => "checkout on" },
+             { "timestamp" => 1_788_260_000_000, "version" => "v41", "commit" => "b" * 40 } ]
+    raw = answer({ "results" => rows })
+
+    presented = deploys.present_result(raw)
+    newest, older = Integrations::Capabilities::Deploys.deploys_of(presented)
+
+    assert_equal raw["content"], presented["content"]
+    assert Integrations::Capabilities.definitive?(presented)
+    assert_equal [ "a" * 40, "v42", nil, nil, Time.zone.at(1_788_264_000), nil ],
+                 [ newest.commit, newest.version, newest.status, newest.live, newest.started_at, newest.finished_at ]
+    assert_equal [ "b" * 40, "v41" ], [ older.commit, older.version ]
+
+    flags = deploys.present_result(answer({ "results" => [ rows.second ] }))
+    assert_nil Integrations::Capabilities::Deploys.deploys_of(flags)
+    assert Integrations::Capabilities.definitive?(flags)
+    assert_not Integrations::Capabilities.definitive?(deploys.present_result(answer({ "results" => [] })))
+  end
+
   test "New Relic answers requests and errors per minute, and the platform every other metric" do
     metrics = resolve(Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => %w[requests errors], "minutes" => 600)
 

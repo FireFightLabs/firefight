@@ -354,11 +354,14 @@ module Integrations
         rows = data_of(query(api(environment_row), Queries.jobs(arguments, days, Capabilities::Answers.limit(arguments, JOB_LIMIT))))
         what = arguments["job_type"].present? ? "#{arguments['job_type']} jobs" : "jobs"
         link = jobs_link(environment_row)
-        return Capabilities::RunHistory.with_runs(Telemetry.result("No #{what} in the last #{days} days.", link: link), [], link: link) if rows.empty?
-
         lines = rows.map { |row| job_line(row) }
-        result = Telemetry.result("Latest #{rows.size} #{what} in the last #{days} days, newest first.\n#{lines.join("\n")}", link: link)
-        Capabilities::RunHistory.with_runs(result, rows.map { |row| history_run(row) }, link: link)
+        result = if rows.empty?
+          Telemetry.result("No #{what} in the last #{days} days.", link: link)
+        else
+          Telemetry.result("Latest #{rows.size} #{what} in the last #{days} days, newest first.\n#{lines.join("\n")}", link: link)
+        end
+        result = Capabilities::RunHistory.with_runs(result, rows.map { |row| history_run(row) }, link: link)
+        arguments["job_type"] == Queries::JOB_DEPLOYMENT ? Capabilities::Deploys.with_deploys(result, rows.map { |row| deploy_of(row) }) : result
       end
 
       # The workspace, its data sources and its API endpoints on the resource map, each endpoint linked to the data
@@ -587,6 +590,12 @@ module Integrations
           finished_at: (Capabilities::RunHistory.time(row["updated_at"]) if Capabilities::History::FINISHED.include?(status)),
           detail: row["message"].presence
         )
+      end
+
+      # A deployment job, known by its job id alone. The jobs log does not say which deployment is live.
+      def deploy_of(row)
+        run = history_run(row)
+        Capabilities::Deploys::Deploy.new(id: run.id, status: run.status, started_at: run.started_at, finished_at: run.finished_at)
       end
 
       def job_line(row)

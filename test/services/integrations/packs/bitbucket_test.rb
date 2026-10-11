@@ -85,7 +85,15 @@ module Integrations
 
         assert_match "Changes: +5 -1", text
         assert_match "https://bitbucket.org/acme/web/commits/#{HEAD}", text
-        assert_match "sha must be a commit SHA", assert_raises(NativePack::Error) { call(:commit_lookup, "repo" => "acme/web", "sha" => "nope") }.message
+        assert_match "sha must be a commit SHA", assert_raises(NativePack::Error) { call(:commit_lookup, "repo" => "acme/web", "sha" => "no;pe") }.message
+      end
+
+      test "a tag is read as the commit it points at" do
+        get("#{REPO}/commits/v1.4.0", { "values" => [ { "hash" => HEAD } ] })
+        get("#{REPO}/commit/#{HEAD}", { "hash" => HEAD, "author" => { "raw" => "Ana" }, "date" => "2026-10-01T10:00:00Z", "message" => "Release" })
+        list("#{REPO}/diffstat/#{HEAD}", [])
+
+        assert_match "Commit #{HEAD}", body(call(:commit_lookup, "repo" => "acme/web", "sha" => "v1.4.0"))
       end
 
       test "deployments are newest first, named by their environment, and filtered by it" do
@@ -97,6 +105,21 @@ module Integrations
         assert_match "successful  by Ana  deployment {d2}  https://bitbucket.org/acme/web/pipelines/results/7", text
         assert_no_match "acme/web/deployments", text, "Bitbucket gives its deployments list no address, so only each release's pipeline is linked"
         assert_equal 2, body(call(:recent_deployments, "repo" => "acme/web", "deployment_environment" => "production")).lines.count { |line| line.include?("Production") }
+      end
+
+      test "deployments are kept as data, each by its release and outcome" do
+        list("#{REPO}/environments", [ { "uuid" => "{prod}", "name" => "Production" } ])
+        running = { "uuid" => "{d3}", "environment" => { "uuid" => "{prod}" }, "release" => { "name" => "8", "commit" => { "hash" => HEAD } },
+                    "state" => { "name" => "IN_PROGRESS", "start_date" => "2026-10-02T12:00:00Z" } }
+        list("#{REPO}/deployments", [ running, deployment("{d2}", "{prod}", BASE, "2026-10-02T11:30:00Z", "FAILED").deep_merge("state" => { "start_date" => "2026-10-02T11:20:00Z" }) ])
+
+        result = call(:recent_deployments, "repo" => "acme/web")
+        newest, failed = Capabilities::Deploys.deploys_of(result)
+
+        assert_match "failed  by Ana  deployment {d2}", body(result)
+        assert_equal [ "{d3}", HEAD.downcase, "8", Capabilities::History::RUNNING, nil, Time.utc(2026, 10, 2, 12), nil ],
+                     [ newest.id, newest.commit, newest.version, newest.status, newest.live, newest.started_at, newest.finished_at ]
+        assert_equal [ "{d2}", BASE.downcase, Capabilities::History::FAILED, Time.utc(2026, 10, 2, 11, 30) ], [ failed.id, failed.commit, failed.status, failed.finished_at ]
       end
 
       test "merged pull requests are read by state, newest update first, since a time" do

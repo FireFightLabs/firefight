@@ -101,6 +101,23 @@ module Integrations
         assert_equal "v6, 2026-10-02T00:00:00Z, by ana, commit abcdef123456 with uncommitted changes on main", lines.third.strip
       end
 
+      test "the history keeps each version as data, the newest live and the rest replaced" do
+        ModalApi.any_instance.stubs(:history).with(APP_ID).returns(Proto::AppDeploymentHistoryResponse.new(app_deployment_histories: [
+          Proto::AppDeploymentHistory.new(version: 6, deployed_at: Time.utc(2026, 10, 2).to_f, tag: "release-6",
+                                          commit_info: Proto::CommitInfo.new(commit_hash: "abcdef1234567890", branch: "main")),
+          Proto::AppDeploymentHistory.new(version: 7, deployed_at: Time.utc(2026, 10, 3).to_f)
+        ]))
+
+        result = @pack.call("deployment_history", environment_row: @row, arguments: { "app" => "inference" })
+        live, replaced = Capabilities::Deploys.deploys_of(result)
+
+        assert_match "v7, 2026-10-03T00:00:00Z", result["content"].sole["text"]
+        assert_equal [ "v7", nil, nil, Capabilities::History::SUCCEEDED, true, Time.utc(2026, 10, 3) ],
+                     [ live.version, live.commit, live.tag, live.status, live.live, live.finished_at ]
+        assert_equal [ "v6", "abcdef1234567890", "main", "release-6", false, Time.utc(2026, 10, 2) ],
+                     [ replaced.version, replaced.commit, replaced.branch, replaced.tag, replaced.live, replaced.started_at ]
+      end
+
       test "a rollback takes v5 or 5, goes one back when left out, and says what Modal needs when it refuses" do
         answer = Proto::AppRollbackResponse.new(url: "https://modal.com/apps/acme/main/deployed/inference", server_warnings: [ Proto::Warning.new(message: "Old client.") ])
         ModalApi.any_instance.expects(:rollback).with(APP_ID, 5).twice.returns(answer)

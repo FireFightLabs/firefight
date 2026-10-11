@@ -328,7 +328,9 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     answers("describe_resource" => { "content" => [ { "type" => "text", "text" => "web is live" } ] })
     check!(watch)
 
-    assert_equal "web is live on the new version It is done when the readings show live.", asked.last.first
+    assert_equal "web is live on the new version It is done when the readings show live. Only a deploy of web that finished rolling out " \
+                 "after #{watch.created_at.utc.strftime('%H:%M UTC')} counts as done. The first reading shows what was already live when the " \
+                 "watch began, so it is not the new one.", asked.last.first, "Render's deploys are switched off here, so it cannot tell them apart"
     assert_equal [ "web is deploying, updated 2 minutes ago", "web is live" ], asked.last.last, "both readings that changed, oldest first"
     assert_equal "web back: done. web is live.", watch.updates.reload.first.text
     assert_equal Chat::Watch::STATUS_SUCCEEDED, watch.reload.status

@@ -33,6 +33,7 @@ module Integrations
           "succeeded" => History::SUCCEEDED, "failed" => History::FAILED, "rollback_failed" => History::FAILED,
           "rollback_succeeded" => History::FAILED
         }.freeze
+        DEPLOY_OPERATIONS = %w[START_DEPLOYMENT CREATE_SERVICE UPDATE_SERVICE].freeze
         # How an App Runner service stands (ServiceStatus), in the words the map reads.
         SERVICE_STATUSES = {
           "RUNNING" => "running", "OPERATION_IN_PROGRESS" => "in_progress", "PAUSED" => "paused",
@@ -110,10 +111,11 @@ module Integrations
           if wanted
             operation = operations.find { |each| each[:id] == wanted } || fail!("#{entry.name} has no operation #{wanted} among its recent ones. app_runner_operations shows them.")
             run = operation_run(operation).with(parts: [ operation_part(entry, operation) ])
-            return app_result([ run ], what, link)
+            return Capabilities::Deploys.with_deploys(app_result([ run ], what, link), operation_deploys([ operation ]))
           end
 
-          app_result(operations.map { |operation| operation_run(operation) }, what, link, name: arguments["name"], limit: limit)
+          Capabilities::Deploys.with_deploys(app_result(operations.map { |operation| operation_run(operation) }, what, link, name: arguments["name"], limit: limit),
+                                             operation_deploys(operations))
         end
 
         def beanstalk_events(environment_row:, arguments:)
@@ -133,11 +135,13 @@ module Integrations
             run = request_run(wanted, own, busy && wanted == newest)
             log = deploy_log(environment_row, entry, run)
             parts = own.map { |event| event_part(event, log) }
-            return app_result([ run.with(parts: parts) ], what, link)
+            deploys = request_deploys(groups, newest, environment, busy).select { |deploy| deploy.id == wanted }
+            return Capabilities::Deploys.with_deploys(app_result([ run.with(parts: parts) ], what, link), deploys)
           end
 
           runs = groups.map { |id, own| request_run(id, own, busy && id == newest) }
-          app_result(runs, what, link, name: arguments["name"], limit: Capabilities::Answers.limit(arguments, RUN_LIMIT))
+          Capabilities::Deploys.with_deploys(app_result(runs, what, link, name: arguments["name"], limit: Capabilities::Answers.limit(arguments, RUN_LIMIT)),
+                                             request_deploys(groups, newest, environment, busy))
         end
 
         def describe_app(environment_row:, arguments:)
@@ -276,6 +280,28 @@ module Integrations
                            started_at: Capabilities::RunHistory.time(own.first[:event_date]),
                            finished_at: (Capabilities::RunHistory.time(own.last[:event_date]) if History::FINISHED.include?(status)),
                            detail: [ ("version #{version}" if version), failed&.dig(:message) ].compact.join(", ").presence)
+        end
+
+        # A request whose events name the version it put out is a deploy. Once no operation is under way, the environment's
+        # own version label says which version serves.
+        def request_deploys(groups, newest, environment, busy)
+          deploys = groups.filter_map do |id, own|
+            version = own.filter_map { |event| event[:version_label].presence }.last
+            next unless version
+
+            run = request_run(id, own, busy && id == newest)
+            Capabilities::Deploys::Deploy.new(id: id, version: version, status: run.status, started_at: run.started_at, finished_at: run.finished_at)
+          end.sort_by { |deploy| -deploy.started_at.to_f }
+          busy ? deploys : serving_marked(deploys, environment[:version_label])
+        end
+
+        # Deployments, a service's creation and its updates put out code or configuration (OperationType). Pauses, resumes
+        # and deletions do not. App Runner does not say which operation serves.
+        def operation_deploys(operations)
+          operations.select { |operation| DEPLOY_OPERATIONS.include?(operation[:type]) }.map do |operation|
+            run = operation_run(operation)
+            Capabilities::Deploys::Deploy.new(id: operation[:id], status: run.status, started_at: run.started_at, finished_at: run.finished_at)
+          end
         end
 
         def event_part(event, log)

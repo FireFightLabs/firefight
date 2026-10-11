@@ -349,8 +349,22 @@ module Integrations
         return Telemetry.result("#{resource[:name]} has no deploys.", link: link(resource)) if deploys.empty?
 
         rows = deploys.map { |deploy| deploy_line(resource, deploy) }
-        Telemetry.result("Latest #{rows.size} deploys of #{resource[:name]}, newest first. rollback_deploy takes a deploy id.\n#{rows.join("\n")}", link: link(resource))
+        result = Telemetry.result("Latest #{rows.size} deploys of #{resource[:name]}, newest first. rollback_deploy takes a deploy id.\n#{rows.join("\n")}", link: link(resource))
+        Capabilities::Deploys.with_deploys(result, deploys.map { |deploy| deploy_of(deploy) })
       end
+
+      # The deploy serving now, and one that served and was replaced. Render says neither of a deploy in any other state.
+      DEPLOY_LIVE = { "live" => true, "deactivated" => false }.freeze
+
+      def deploy_of(deploy)
+        Capabilities::Deploys::Deploy.new(
+          id: deploy["id"], commit: deploy.dig("commit", "id"), version: deploy.dig("image", "ref"),
+          status: Capabilities::Deploys.status(deploy["status"], DEPLOY_STATUSES),
+          live: DEPLOY_LIVE[deploy["status"].to_s],
+          started_at: deploy["startedAt"] || deploy["createdAt"], finished_at: deploy["finishedAt"]
+        )
+      end
+      private :deploy_of
 
       # Render's deploy statuses (spec, schema deployStatus) in Firefight's words. A deploy that went live and was later
       # replaced finished well.

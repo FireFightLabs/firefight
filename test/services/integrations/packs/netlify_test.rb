@@ -79,6 +79,27 @@ module Integrations
         assert_match "deploy d2, ready, live, production, commit abc123def456", text
       end
 
+      test "deploys are kept as data, the one the site publishes serving and the rest not" do
+        NetlifyApi.any_instance.stubs(:deploys).returns([
+          { "id" => "d3", "state" => "building", "context" => "production", "branch" => "main", "commit_ref" => "fedcba9876543210", "created_at" => "2026-10-03T11:00:00Z",
+            "updated_at" => "2026-10-03T11:01:00Z" },
+          { "id" => "d2", "state" => "ready", "context" => "production", "branch" => "main", "commit_ref" => "abc123def4567890", "created_at" => "2026-10-03T09:58:00Z",
+            "updated_at" => "2026-10-03T10:00:30Z", "published_at" => "2026-10-03T10:00:00Z" },
+          { "id" => "d1", "state" => "error", "context" => "production", "created_at" => "2026-10-02T09:00:00Z", "updated_at" => "2026-10-02T09:02:00Z" }
+        ])
+
+        result = @pack.call("list_deploys", environment_row: @row, arguments: { "site" => "shop" })
+
+        assert_equal [ [ "d3", "fedcba9876543210", "main", "running", false, nil ], [ "d2", "abc123def4567890", "main", "succeeded", true, Time.utc(2026, 10, 3, 10) ],
+                       [ "d1", nil, nil, "failed", false, Time.utc(2026, 10, 2, 9, 2) ] ],
+                     Capabilities::Deploys.deploys_of(result).map { |deploy| [ deploy.id, deploy.commit, deploy.branch, deploy.status, deploy.live, deploy.finished_at ] }
+        assert_match "deploy d2, ready, live, production, branch main, commit abc123def456", result["content"].sole["text"]
+
+        NetlifyApi.any_instance.stubs(:sites).returns(Pages::Read.new(items: [ SITE.except("published_deploy") ], complete: true))
+        assert_equal [ nil, nil, nil ], Capabilities::Deploys.deploys_of(Netlify.new(@integration).call("list_deploys", environment_row: @row, arguments: { "site" => "shop" })).map(&:live),
+                     "a site that publishes no deploy does not say which serves"
+      end
+
       test "a deploy's details link to its own page in Netlify" do
         NetlifyApi.any_instance.expects(:deploy).with("site-1", "d2").returns(SITE["published_deploy"].merge(
           "admin_url" => ADMIN, "context" => "production", "locked" => true,

@@ -321,9 +321,24 @@ module Integrations
         return Telemetry.result("#{resource[:name]} has no deployments.", link: page) if deployments.empty?
 
         rows = deployments.map { |deployment| deployment_line(deployment) }
-        Telemetry.result("Latest #{rows.size} deployments of #{resource[:name]}, newest first. rollback_deployment takes an id " \
-                         "Railway can still roll back to.\n#{rows.join("\n")}", link: page)
+        result = Telemetry.result("Latest #{rows.size} deployments of #{resource[:name]}, newest first. rollback_deployment takes an id " \
+                                  "Railway can still roll back to.\n#{rows.join("\n")}", link: page)
+        Capabilities::Deploys.with_deploys(result, deployments.map { |deployment| deploy_of(deployment) })
       end
+
+      # The deployment serving now, asleep until a request wakes it, and one that was replaced. Railway says neither of a
+      # deployment in any other state.
+      DEPLOYMENT_LIVE = { "SUCCESS" => true, "SLEEPING" => true, "REMOVING" => false, "REMOVED" => false }.freeze
+
+      def deploy_of(deployment)
+        meta = deployment["meta"].is_a?(Hash) ? deployment["meta"] : {}
+        Capabilities::Deploys::Deploy.new(
+          id: deployment["id"], commit: meta["commitHash"], branch: meta["branch"],
+          status: Capabilities::Deploys.status(deployment["status"], DEPLOYMENT_STATUSES), live: DEPLOYMENT_LIVE[deployment["status"].to_s],
+          started_at: deployment["createdAt"], finished_at: (deployment["updatedAt"] if ENDED_AT.include?(deployment["status"]))
+        )
+      end
+      private :deploy_of
 
       # Railway's DeploymentStatus in Firefight's words. A deployment that slept or was replaced had gone live, and one that
       # crashed went live and then failed.

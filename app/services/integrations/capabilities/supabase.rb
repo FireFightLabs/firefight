@@ -26,6 +26,8 @@ module Integrations
       LIST_MIGRATIONS = "list_migrations".freeze
       LIST_EDGE_FUNCTIONS = MapReaders::Supabase::LIST_EDGE_FUNCTIONS
       RESET_BRANCH = "reset_branch".freeze
+      # An Edge Function serving requests, as edgeFunctionSchema names its status.
+      FUNCTION_ACTIVE = "ACTIVE".freeze
       TOOLS = {
         LOGS => "query_logs", DEPLOYS => [ LIST_MIGRATIONS, LIST_EDGE_FUNCTIONS ], STATUS => [ GET_PROJECT, LIST_EDGE_FUNCTIONS ],
         ROLLBACK => RESET_BRANCH
@@ -168,13 +170,20 @@ module Integrations
 
         deployed = Answers.time_of(function["updated_at"])&.iso8601
         if key == DEPLOYS
-          return Telemetry.result("#{resource.name} runs version #{function['version']}#{", deployed #{deployed}" if deployed}. Supabase keeps only " \
-                                  "the version a function runs, so earlier deploys are not listed.", link: link)
+          result = Telemetry.result("#{resource.name} runs version #{function['version']}#{", deployed #{deployed}" if deployed}. Supabase keeps only " \
+                                    "the version a function runs, so earlier deploys are not listed.", link: link)
+          return Deploys.with_deploys(result, [ function_deploy(function) ])
         end
 
         facts = [ ("status #{function['status']}" if function["status"]), ("version #{function['version']}" if function["version"]),
                   ("deployed #{deployed}" if deployed), (function["verify_jwt"] ? "requires a signed in user's JWT" : "open without a JWT" unless function["verify_jwt"].nil?) ]
         Telemetry.result("How #{resource.name} stands on Supabase now: #{facts.compact.join(', ')}.", link: link)
+      end
+
+      # The version a function runs is the one Supabase deployed last, so it rolled out, and it serves while the function is active.
+      def self.function_deploy(function)
+        Deploys::Deploy.new(version: function["version"], status: History::SUCCEEDED, live: (true if function["status"] == FUNCTION_ACTIVE),
+                            finished_at: Answers.time_of(function["updated_at"]))
       end
 
       # A connection scoped to one project reads only that one, whatever is asked, so another project is refused.
@@ -267,7 +276,7 @@ module Integrations
         Telemetry.result("How #{resource.name} stands on Supabase now: #{facts.compact.join(', ')}.", link: Answers.page(resource, PROVIDER))
       end
 
-      private_class_method :ref_of, :function_route, :rollback, :function_logs, :function_logs_result, :function_result
+      private_class_method :ref_of, :function_route, :rollback, :function_logs, :function_logs_result, :function_result, :function_deploy
       private_class_method :scoped!, :page, :takes_project?, :project, :logs, :window, :literal, :logs_result, :deploys_result, :status_result
     end
   end

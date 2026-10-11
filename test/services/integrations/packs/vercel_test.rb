@@ -69,6 +69,23 @@ module Integrations
         assert text.end_with?(PROJECT_PAGE)
       end
 
+      test "deployments carry their commit, branch, state and whether they serve production as data" do
+        VercelApi.any_instance.stubs(:deployments).with("prj_1", limit: 20, target: nil).returns([
+          { "uid" => "dpl_4", "target" => "production", "readyState" => "BUILDING", "createdAt" => 1_790_000_100_000, "buildingAt" => 1_790_000_105_000,
+            "meta" => { "githubCommitSha" => "BBBBCCCCDDDDEEEE", "githubCommitRef" => "main" } },
+          { "uid" => "dpl_2", "target" => "production", "readyState" => "READY", "createdAt" => 1_789_990_000_000, "ready" => 1_789_990_060_000,
+            "meta" => { "githubCommitSha" => "c4e4267d46e638ac", "githubCommitRef" => "main" } },
+          { "uid" => "dpl_1", "target" => "production", "readyState" => "READY", "createdAt" => 1_789_980_000_000, "ready" => 1_789_980_060_000 }
+        ])
+
+        deploys = Capabilities::Deploys.deploys_of(@pack.call("list_deployments", environment_row: @row, arguments: { "resource" => "shop" }))
+
+        assert_equal [ [ "dpl_4", "bbbbccccddddeeee", "main", Capabilities::History::RUNNING, false, Time.zone.at(1_790_000_105), nil ],
+                       [ "dpl_2", "c4e4267d46e638ac", "main", Capabilities::History::SUCCEEDED, true, Time.zone.at(1_789_990_000), Time.zone.at(1_789_990_060) ],
+                       [ "dpl_1", nil, nil, Capabilities::History::SUCCEEDED, false, Time.zone.at(1_789_980_000), Time.zone.at(1_789_980_060) ] ],
+                     deploys.map { |deploy| [ deploy.id, deploy.commit, deploy.branch, deploy.status, deploy.live, deploy.started_at, deploy.finished_at ] }
+      end
+
       test "a project's status names the repository, production, the last rollback and its domains" do
         VercelApi.any_instance.stubs(:project).with("prj_1").returns(
           "name" => "shop", "framework" => "nextjs", "link" => { "type" => "github", "org" => "acme", "repo" => "shop", "productionBranch" => "main" },

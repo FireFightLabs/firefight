@@ -366,13 +366,14 @@ module Integrations
         rolling!(workload, "has no rollout history")
         revisions = revisions_of(environment_row, workload).first(Capabilities::Answers.limit(arguments, HISTORY_LIMIT))
         command = "kubectl rollout history #{workload[:kind].key}/#{workload[:name]} -n #{workload[:namespace]}"
-        return answer("#{label(workload)} has no recorded revisions.", command) if revisions.empty?
+        return Capabilities::Deploys.with_deploys(answer("#{label(workload)} has no recorded revisions.", command), []) if revisions.empty?
 
         rows = revisions.map do |revision|
           [ "revision #{revision[:number]}", revision[:created], (revision[:current] ? "current" : nil), "images #{revision[:images].join(', ').presence || 'unknown'}",
             ("change cause #{revision[:cause]}" if revision[:cause].present?) ].compact.join(", ")
         end
-        answer("Revisions of #{label(workload)}, newest first.\n#{rows.join("\n")}", command)
+        deploys = revisions.each_with_index.map { |revision, index| revision_deploy(workload, revision, (revisions[index - 1] if index.positive?)) }
+        Capabilities::Deploys.with_deploys(answer("Revisions of #{label(workload)}, newest first.\n#{rows.join("\n")}", command), deploys)
       end
 
       def list_events(environment_row:, arguments:)

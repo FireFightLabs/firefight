@@ -30,7 +30,23 @@ class Conversation::Tools::StartWatch < RubyLLM::Tool
                                                        "the new version, or the error rate stays under 1% for ten minutes. A read other than run_history is " \
                                                        "judged by a model over its recent readings, with done_when and failed_when as what to look for, on " \
                                                        "each reading that changed and every few minutes on one that did not (optional)" },
-      "arguments" => { "type" => "object", "description" => "Other arguments the capability takes, such as stream for search_logs, or all of the tool's arguments (optional)" }
+      "arguments" => { "type" => "object", "description" => "Other arguments the capability takes, such as stream for search_logs, or all of the tool's arguments (optional)" },
+      "new_deploy" => {
+        "type" => "object",
+        "description" => "When the step waits for a deploy, a rollout or a release to go live: what counts as the new one. The watch keeps the deploy " \
+                         "live when it starts and counts only a newer one that finished rolling out and is serving, so the deploy already live " \
+                         "never reads as the new one. Name the version whenever you know it, such as the commit the release run built, and give " \
+                         "{} for any newer deploy. A recent_deploys step, and a resource_status or tool step whose goal speaks of a deploy, " \
+                         "rollout or release, waits for a new deploy on its own (optional)",
+        "properties" => {
+          "resource" => { "type" => "string", "description" => "The resource deployed, by name or map id, when the step reads with a tool (optional, the step's resource)" },
+          "connection" => { "type" => "string", "description" => "The connection that deploys it, when more than one could (optional)" },
+          "commit" => { "type" => "string", "description" => "The commit that has to be live, at least its first 7 characters (optional)" },
+          "tag" => { "type" => "string", "description" => "The tag that has to be live, such as v1.4.0. It is read as its commit through the connected code host (optional)" },
+          "branch" => { "type" => "string", "description" => "Only a newer deploy from this branch counts (optional)" },
+          "repository" => { "type" => "string", "description" => "The repository a tag is in, by name on the map, when the resource is not linked to one (optional)" }
+        }
+      }
     },
     "required" => %w[label]
   }.freeze
@@ -50,7 +66,9 @@ class Conversation::Tools::StartWatch < RubyLLM::Tool
               "deploy, run or incident as a watch going in this chat, such as the rollout and health checks after a release " \
               "build, join it with add_to, and something unrelated, such as a database backup during a release, is separate. " \
               "In the dashboard chat the person sees the watches going in the Watching strip above the message box, so point " \
-              "there rather than listing them."
+              "there rather than listing them. A step waiting for a deploy, a rollout or a release to go live counts only a " \
+              "deploy newer than the one live when the watch starts, so pass new_deploy with the version you expect whenever " \
+              "you know it, such as the commit the release run built or the tag it pushed."
 
   def self.tool_name = "start_watch"
 

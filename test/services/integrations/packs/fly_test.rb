@@ -109,6 +109,25 @@ module Integrations
         assert_match "v41, complete, stable, Deploy image, by ada@acme.dev, image registry.fly.io/web:deployment-41", text
       end
 
+      test "releases are kept as deploys by id and version, with how each rolled out" do
+        FlyApi.any_instance.stubs(:releases).returns([
+          { "id" => "r41", "version" => 41, "status" => "complete", "stable" => true, "createdAt" => "2026-09-30T10:00:00Z", "updatedAt" => "2026-09-30T10:04:00Z",
+            "imageRef" => "registry.fly.io/web:deployment-41" },
+          { "id" => "r42", "version" => 42, "status" => "running", "stable" => false, "createdAt" => "2026-10-01T10:00:00Z", "updatedAt" => "2026-10-01T10:01:00Z" }
+        ])
+
+        result = @pack.call("list_deployments", environment_row: @row, arguments: { "resource" => "web" })
+        deploys = Capabilities::Deploys.deploys_of(result)
+
+        assert_equal [ [ "r42", "42", Capabilities::History::RUNNING, nil ], [ "r41", "41", Capabilities::History::SUCCEEDED, Time.utc(2026, 9, 30, 10, 4) ] ],
+                     deploys.map { |deploy| [ deploy.id, deploy.version, deploy.status, deploy.finished_at ] }
+        assert_equal [ nil, nil ], deploys.map(&:commit)
+        assert_equal [ nil, nil ], deploys.map(&:live)
+        assert_equal Time.utc(2026, 10, 1, 10), deploys.first.started_at
+        assert_equal "r41", Capabilities::Deploys.live(deploys).id
+        assert_match "v41, complete, stable", result["content"].sole["text"]
+      end
+
       test "a machine's status says why it exited, and how its checks stand" do
         FlyApi.any_instance.stubs(:machines).returns([ machine("m1", "started", events: [
           { "type" => "exit", "status" => "stopped", "timestamp" => 1_790_000_000_000,

@@ -130,7 +130,7 @@ module Integrations
       def self.deploys(resource, account, given, path)
         limit = given["limit"].to_i.positive? ? [ given["limit"].to_i, DEPLOY_LIMIT ].min : DEPLOY_LIMIT
         Route.new(tool_name: EXECUTE, arguments: script({ "method" => "GET", "path" => path }, account),
-                  present: ->(result) { read(result) { |data| deploys_result(resource, data, limit) } })
+                  present: ->(result) { read(result) { |data| deploys_result(resource, account, data, limit) } })
       end
 
       # A Pages project's build log, of the deployment named, or of its newest one. A named deployment's log is one
@@ -321,13 +321,37 @@ module Integrations
         rows.filter_map { |row| (at = time_of(row.dig("dimensions", "datetimeHour"))) && [ at, row["count"].to_f ] }.sort_by(&:first)
       end
 
-      def self.deploys_result(resource, data, limit)
+      def self.deploys_result(resource, account, data, limit)
         listed = data["result"].is_a?(Hash) ? data.dig("result", "deployments") : data["result"]
-        rows = Array(listed).first(limit).map { |deployment| deploy_line(resource, deployment) }
-        return Telemetry.result("#{resource.name} has no deployments.", link: link(resource)) if rows.empty?
+        shown = Array(listed).first(limit)
+        rows = shown.map { |deployment| deploy_line(resource, deployment) }
+        return Deploys.with_deploys(Telemetry.result("#{resource.name} has no deployments.", link: link(resource)), []) if rows.empty?
 
         to = resource.kind == ResourceMap::KIND_WORKER ? "a version id" : "a deployment id"
-        Telemetry.result("Latest #{rows.size} deployments of #{resource.name}, newest first. rollback takes #{to}.\n#{rows.join("\n")}", link: link(resource))
+        result = Telemetry.result("Latest #{rows.size} deployments of #{resource.name}, newest first. rollback takes #{to}.\n#{rows.join("\n")}", link: link(resource))
+        deploys = if resource.kind == ResourceMap::KIND_WORKER
+          shown.map { |deployment| worker_deploy(deployment, serving: deployment.equal?(shown.first)) }
+        else
+          shown.map { |deployment| pages_deploy(resource, account, deployment) }
+        end
+        Deploys.with_deploys(result, deploys)
+      end
+
+      # The first of a Worker's deployments is the one serving traffic (Workers API, list deployments). A deployment
+      # switches its versions in at once, so it finished when it was made.
+      def self.worker_deploy(deployment, serving:)
+        versions = Array(deployment["versions"]).sort_by { |version| -version["percentage"].to_f }.filter_map { |version| version["version_id"].presence }
+        made = time_of(deployment["created_on"])
+        Deploys::Deploy.new(id: deployment["id"], version: versions.join(","), status: History::SUCCEEDED, live: serving, started_at: made, finished_at: made)
+      end
+
+      # A Pages deployment's state as its run history reads it. The list does not say which production deployment
+      # serves, and a preview one never serves the project's own address.
+      def self.pages_deploy(resource, account, deployment)
+        run = history_run(resource, account, deployment)
+        meta = deployment.dig("deployment_trigger", "metadata") || {}
+        Deploys::Deploy.new(id: deployment["id"], commit: meta["commit_hash"], branch: meta["branch"], status: run.status,
+                            live: (false if deployment["environment"] == PREVIEW), started_at: run.started_at, finished_at: run.finished_at)
       end
 
       # A Pages deployment's stages run queued, initialize, clone_repo, build and deploy, each with its status and when it
@@ -336,6 +360,7 @@ module Integrations
       STAGE_STATUSES = { "idle" => History::QUEUED, "active" => History::RUNNING, "success" => History::SUCCEEDED, "failure" => History::FAILED,
                          "canceled" => History::CANCELLED }.freeze
       LAST_STAGE = "deploy".freeze
+      PREVIEW = "preview".freeze
 
       def self.history_result(resource, account, data, name, limit)
         listed = data["result"].is_a?(Hash) ? data.dig("result", "deployments") : data["result"]
@@ -393,7 +418,7 @@ module Integrations
 
       private_class_method :account_of, :logs, :build_logs, :build_log_arguments, :newest_build_log, :build_logs_result, :log_matcher,
                            :one_run, :stage_part, :history_run, :uuid?, :deployments_path, :deployment_page, :metrics, :deploys, :status, :change, :read, :logs_result, :metrics_result,
-                           :worker_points, :zone_points, :deploys_result, :deploy_line, :history, :history_result, :link, :time_of, :bucket_minutes, :floor, :script, :range_js
+                           :worker_points, :zone_points, :deploys_result, :worker_deploy, :pages_deploy, :deploy_line, :history, :history_result, :link, :time_of, :bucket_minutes, :floor, :script, :range_js
     end
   end
 end

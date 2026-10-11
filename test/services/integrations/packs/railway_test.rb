@@ -288,6 +288,28 @@ module Integrations
         assert_equal "c4e4267d46e6 Speed up checkout", runs.second.detail
       end
 
+      test "deployments carry their commit, branch, rollout and whether they serve as data, with the text unchanged" do
+        RailwayApi.any_instance.stubs(:deployments).returns([
+          { "id" => "dep-3", "status" => "DEPLOYING", "createdAt" => "2026-10-01T10:00:00Z", "updatedAt" => "2026-10-01T10:01:00Z",
+            "meta" => { "commitHash" => "BBBBCCCCDDDDEEEE", "branch" => "main" } },
+          { "id" => "dep-2", "status" => "SUCCESS", "createdAt" => "2026-10-01T09:00:00Z", "updatedAt" => "2026-10-01T09:03:00Z",
+            "meta" => { "commitHash" => "c4e4267d46e638ac", "commitMessage" => "Speed up checkout" } },
+          { "id" => "dep-1", "status" => "REMOVED", "createdAt" => "2026-10-01T08:00:00Z", "updatedAt" => "2026-10-01T09:03:00Z" },
+          { "id" => "dep-0", "status" => "CRASHED", "createdAt" => "2026-10-01T07:00:00Z", "updatedAt" => "2026-10-01T07:05:00Z" }
+        ])
+
+        result = @pack.call("list_deployments", environment_row: @row, arguments: { "resource" => "web" })
+        deploys = Capabilities::Deploys.deploys_of(result)
+
+        assert_match "2026-10-01T09:00:00Z, deployment dep-2, SUCCESS, c4e4267d46e6 \"Speed up checkout\"", result["content"].sole["text"]
+        assert_equal [ [ "dep-3", "bbbbccccddddeeee", "main", Capabilities::History::RUNNING, nil, nil ],
+                       [ "dep-2", "c4e4267d46e638ac", nil, Capabilities::History::SUCCEEDED, true, Time.zone.parse("2026-10-01T09:03:00Z") ],
+                       [ "dep-1", nil, nil, Capabilities::History::SUCCEEDED, false, nil ],
+                       [ "dep-0", nil, nil, Capabilities::History::FAILED, nil, nil ] ],
+                     deploys.map { |deploy| [ deploy.id, deploy.commit, deploy.branch, deploy.status, deploy.live, deploy.finished_at ] }
+        assert_equal Time.zone.parse("2026-10-01T10:00:00Z"), deploys.first.started_at
+      end
+
       test "one deployment by its id is read with each step it went through, each step's log read from that deployment" do
         RailwayApi.any_instance.stubs(:deployment).with("dep-4").returns(
           "id" => "dep-4", "status" => "FAILED", "createdAt" => "2026-10-01T10:00:00Z", "updatedAt" => "2026-10-01T10:06:00Z",

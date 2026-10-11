@@ -96,6 +96,32 @@ class Integrations::Capabilities::CloudflareTest < ActiveSupport::TestCase
     assert_equal "not json", call.present_result(text_result("not json")).dig("content", 0, "text")
   end
 
+  test "a Worker's deployments are its deploys, the first one serving, and a Pages project's carry their commit and stage, a preview never serving" do
+    worker = resolve(Integrations::Capabilities::DEPLOYS, "resource" => "api-worker").present_result(text_result({ "result" => { "deployments" => [
+      { "id" => "dep-2", "created_on" => "2026-10-03T10:00:00Z", "versions" => [ { "version_id" => "ver-9", "percentage" => 10 }, { "version_id" => "ver-10", "percentage" => 90 } ] },
+      { "id" => "dep-1", "created_on" => "2026-10-03T09:00:00Z", "versions" => [ { "version_id" => "ver-9", "percentage" => 100 } ] }
+    ] } }))
+    assert_equal [ [ "dep-2", "ver-10,ver-9", "succeeded", true, Time.utc(2026, 10, 3, 10) ], [ "dep-1", "ver-9", "succeeded", false, Time.utc(2026, 10, 3, 9) ] ],
+                 Integrations::Capabilities::Deploys.deploys_of(worker).map { |deploy| [ deploy.id, deploy.version, deploy.status, deploy.live, deploy.finished_at ] }
+    assert_match "Latest 2 deployments of api-worker, newest first. rollback takes a version id.\n2026-10-03T10:00:00Z, deployment dep-2, version ver-9 at 10% and version ver-10 at 90%",
+                 worker.dig("content", 0, "text")
+
+    pages = resolve(Integrations::Capabilities::DEPLOYS, "resource" => "docs").present_result(text_result({ "result" => [
+      { "id" => "d3", "environment" => "production", "created_on" => "2026-10-01T10:00:00Z",
+        "latest_stage" => { "name" => "build", "status" => "active" } },
+      { "id" => "d2", "environment" => "production", "created_on" => "2026-10-01T09:00:00Z",
+        "latest_stage" => { "name" => "deploy", "status" => "success", "ended_on" => "2026-10-01T09:03:10Z" },
+        "deployment_trigger" => { "metadata" => { "commit_hash" => "C4E4267D46E638AC", "branch" => "main", "commit_message" => "Fix nav" } } },
+      { "id" => "d1", "environment" => "preview", "created_on" => "2026-10-01T08:00:00Z",
+        "latest_stage" => { "name" => "build", "status" => "failure", "ended_on" => "2026-10-01T08:02:00Z" } }
+    ] }))
+    assert_equal [ [ "d3", nil, "running", nil, nil ], [ "d2", "c4e4267d46e638ac", "succeeded", nil, Time.utc(2026, 10, 1, 9, 3, 10) ],
+                   [ "d1", nil, "failed", false, Time.utc(2026, 10, 1, 8, 2) ] ],
+                 Integrations::Capabilities::Deploys.deploys_of(pages).map { |deploy| [ deploy.id, deploy.commit, deploy.status, deploy.live, deploy.finished_at ] }
+    assert_equal "main", Integrations::Capabilities::Deploys.deploys_of(pages).second.branch
+    assert_equal [], Integrations::Capabilities::Deploys.deploys_of(resolve(Integrations::Capabilities::DEPLOYS, "resource" => "docs").present_result(text_result({ "result" => [] })))
+  end
+
   test "run history is a Pages project's deployments read stage by stage, and a Worker, whose deploys switch at once, has none" do
     call = resolve(Integrations::Capabilities::HISTORY, "resource" => "docs", "name" => "production")
     assert_equal [ "GET", "/accounts/#{ACCOUNT}/pages/projects/docs/deployments" ], request_of(call).values_at("method", "path")

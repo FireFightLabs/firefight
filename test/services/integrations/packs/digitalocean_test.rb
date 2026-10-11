@@ -111,6 +111,27 @@ module Integrations
         assert_match "deployment dep-1, SUPERSEDED", text
       end
 
+      test "deployments are kept as deploys, the active one live and its commit where every component shares one" do
+        DigitaloceanApi.any_instance.stubs(:deployments).returns([
+          { "id" => "dep-3", "phase" => "DEPLOYING", "created_at" => "2026-10-02T10:00:00Z",
+            "services" => [ { "name" => "web", "source_commit_hash" => "def4567" } ], "workers" => [ { "name" => "jobs", "source_commit_hash" => "fed7654" } ] },
+          APP["active_deployment"].merge("phase_last_updated_at" => "2026-10-01T10:05:00Z"),
+          { "id" => "dep-1", "phase" => "SUPERSEDED", "created_at" => "2026-09-30T10:00:00Z", "phase_last_updated_at" => "2026-09-30T10:06:00Z" }
+        ])
+
+        result = @pack.call("list_deployments", environment_row: @row, arguments: { "resource" => APP_ID })
+        deploys = Capabilities::Deploys.deploys_of(result)
+
+        assert_equal [
+          [ "dep-3", nil, Capabilities::History::RUNNING, nil, nil ],
+          [ "dep-2", "abc1234567890def", Capabilities::History::SUCCEEDED, true, Time.utc(2026, 10, 1, 10, 5) ],
+          [ "dep-1", nil, Capabilities::History::SUCCEEDED, false, Time.utc(2026, 9, 30, 10, 6) ]
+        ], deploys.map { |deploy| [ deploy.id, deploy.commit, deploy.status, deploy.live, deploy.finished_at ] }
+        assert_equal Time.utc(2026, 10, 2, 10), deploys.first.started_at
+        assert_equal "dep-2", Capabilities::Deploys.live(deploys).id
+        assert_match "deployment dep-3, DEPLOYING, commits web def4567", result["content"].sole["text"]
+      end
+
       test "an app's metrics are charted per instance, and a Droplet's CPU is worked out from its counters" do
         DigitaloceanApi.any_instance.stubs(:metrics).with("apps/cpu_percentage", has_entry("app_id", APP_ID))
                        .returns([ { "metric" => { "app_component_instance" => "web-0" }, "values" => [ [ 1_759_312_800, "12.5" ], [ 1_759_312_920, "30" ] ] } ])

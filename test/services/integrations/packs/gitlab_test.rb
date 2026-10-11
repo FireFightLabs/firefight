@@ -77,6 +77,24 @@ module Integrations
         assert_equal "2026-10-01T10:00:00Z  production  main  #{'a' * 12}  success  by ana  deployment 9  job 77 https://gitlab.com/acme/platform/web/-/jobs/77", text
       end
 
+      test "deployments are kept as data, a finished one ending when its job did" do
+        GitlabApi.any_instance.expects(:get).with("#{PROJECT}/deployments", { "order_by" => "id", "sort" => "desc", "per_page" => 10, "environment" => nil })
+                 .returns([ { "id" => 10, "created_at" => "2026-10-01T11:00:00Z", "updated_at" => "2026-10-01T11:01:00Z", "ref" => "main",
+                              "sha" => "b" * 40, "status" => "running", "deployable" => { "id" => 78 } },
+                            { "id" => 9, "created_at" => "2026-10-01T10:00:00Z", "updated_at" => "2026-10-01T10:09:00Z", "ref" => "main",
+                              "sha" => "a" * 40, "status" => "success", "deployable" => { "id" => 77, "finished_at" => "2026-10-01T10:08:00Z" } },
+                            { "id" => 8, "created_at" => "2026-10-01T09:00:00Z", "updated_at" => "2026-10-01T09:05:00Z", "ref" => "main",
+                              "sha" => "c" * 40, "status" => "failed" } ])
+
+        running, succeeded, failed = Capabilities::Deploys.deploys_of(@pack.recent_deployments(environment_row: @row, arguments: { "repo" => "acme/platform/web" }))
+
+        assert_equal [ "10", "b" * 40, "main", Capabilities::History::RUNNING, nil, nil ],
+                     [ running.id, running.commit, running.branch, running.status, running.live, running.finished_at ]
+        assert_equal [ "9", Capabilities::History::SUCCEEDED, Time.utc(2026, 10, 1, 10), Time.utc(2026, 10, 1, 10, 8) ],
+                     [ succeeded.id, succeeded.status, succeeded.started_at, succeeded.finished_at ]
+        assert_equal [ "8", Capabilities::History::FAILED, Time.utc(2026, 10, 1, 9, 5) ], [ failed.id, failed.status, failed.finished_at ]
+      end
+
       test "merged merge requests are the newest merged first, by when each was merged" do
         stub_get("#{PROJECT}/merge_requests", { "state" => "merged", "order_by" => "updated_at", "sort" => "desc", "per_page" => 50, "merged_after" => nil },
                  [ { "iid" => 1, "title" => "Older", "merged_at" => "2026-09-01T00:00:00Z", "target_branch" => "main", "web_url" => "u1" },

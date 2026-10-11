@@ -129,6 +129,17 @@ class Integrations::Capabilities::SupabaseTest < ActiveSupport::TestCase
     assert_match "lists no Edge Function send-email", answer_text(call, { "functions" => [] })
   end
 
+  test "an Edge Function's deploy is the version it runs, live while the function is active" do
+    call = resolve(Capabilities::DEPLOYS, "resource" => "shop/send-email")
+    function = { "id" => "f1a2", "slug" => "send-email", "status" => "ACTIVE", "version" => 12, "updated_at" => 1_791_190_800_000 }
+
+    deploy = Capabilities::Deploys.deploys_of(call.present_result({ "content" => [ { "type" => "text", "text" => { "functions" => [ function ] }.to_json } ] })).sole
+    assert_equal [ "12", Capabilities::History::SUCCEEDED, true, Time.utc(2026, 10, 5, 9) ], [ deploy.version, deploy.status, deploy.live, deploy.finished_at ]
+
+    throttled = call.present_result({ "content" => [ { "type" => "text", "text" => { "functions" => [ function.merge("status" => "THROTTLED") ] }.to_json } ] })
+    assert_nil Capabilities::Deploys.deploys_of(throttled).sole.live
+  end
+
   test "an Edge Function's logs are what it printed or its invocations, by its id" do
     call = resolve(Capabilities::LOGS, "resource" => "shop/send-email", "text" => "timeout", "minutes" => 30)
     assert_equal "query_logs", call.tool.name

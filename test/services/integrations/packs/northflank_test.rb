@@ -379,11 +379,56 @@ module Integrations
           { "id" => "6560a1b2c3d4e5f6a7b8c9d0", "createdAt" => "2026-09-24T12:00:00Z", "active" => true, "releaseType" => "stable", "instances" => 2,
             "image" => { "imagePath" => "ghcr.io/acme/web", "tag" => "1.3" }, "reason" => { "id" => "release-flow" } }
         ])
+        NorthflankApi.any_instance.stubs(:service).with("firefight", "web").returns(
+          "status" => { "deployment" => { "status" => "COMPLETED", "reason" => "DEPLOYING", "lastTransitionTime" => "2026-09-24T13:07:00Z" } },
+          "deployment" => { "internal" => { "branch" => "main", "deployedSHA" => "c4e4267d46e638ac" } }
+        )
 
         text = call(:list_deployments, "resource" => "web")
 
         assert_match "2026-09-24T13:05:25Z, active, 1 instances, c4e4267d46e6 \"Argue with an answer\" by ada, reason service-updated by Ada", text
         assert_match "2026-09-24T12:00:00Z, deployment 6560a1b2c3d4e5f6a7b8c9d0, active, stable side of a rollout, 2 instances, image ghcr.io/acme/web:1.3", text
+      end
+
+      test "deployments carry the service's rollout on the newest, and older ones as rolled out" do
+        NorthflankApi.any_instance.stubs(:deployments).with("firefight", "web", limit: 20).returns([
+          { "id" => "dep-new", "createdAt" => "2026-10-11T10:24:50Z", "active" => true, "commit" => { "sha" => "CF0BCBE400E34759DF35B4011771AA8C776CA049" } },
+          { "id" => "dep-old", "createdAt" => "2026-10-10T09:00:00Z", "active" => false, "commit" => { "sha" => "aaaaaaa1111111" },
+            "image" => { "imagePath" => "ghcr.io/acme/web", "tag" => "1.2" } }
+        ])
+        NorthflankApi.any_instance.stubs(:service).with("firefight", "web").returns(
+          "status" => { "deployment" => { "status" => "COMPLETED", "reason" => "DEPLOYING", "lastTransitionTime" => "2026-10-11T10:24:54Z" } },
+          "deployment" => { "internal" => { "branch" => "main", "deployedSHA" => "cf0bcbe400e34759df35b4011771aa8c776ca049" } }
+        )
+
+        newest, older = Capabilities::Deploys.deploys_of(@pack.call("list_deployments", environment_row: @row, arguments: { "resource" => "web" }))
+
+        assert_equal [ "dep-new", "cf0bcbe400e34759df35b4011771aa8c776ca049", "main", Capabilities::History::SUCCEEDED, true ],
+                     [ newest.id, newest.commit, newest.branch, newest.status, newest.live ]
+        assert_equal Time.zone.parse("2026-10-11T10:24:50Z"), newest.started_at
+        assert_equal Time.zone.parse("2026-10-11T10:24:54Z"), newest.finished_at
+        assert_equal [ "dep-old", "aaaaaaa1111111", nil, "1.2", Capabilities::History::SUCCEEDED, false, nil ],
+                     [ older.id, older.commit, older.branch, older.tag, older.status, older.live, older.finished_at ]
+      end
+
+      test "a completed rollout older than the newest deployment is the one before's, so the newest still goes" do
+        NorthflankApi.any_instance.stubs(:deployments).returns([ { "id" => "dep-new", "createdAt" => "2026-10-11T10:30:00Z", "active" => false } ])
+        NorthflankApi.any_instance.stubs(:service).returns(
+          "status" => { "deployment" => { "status" => "COMPLETED", "lastTransitionTime" => "2026-10-11T10:24:54Z" } }
+        )
+
+        deploy = Capabilities::Deploys.deploys_of(@pack.call("list_deployments", environment_row: @row, arguments: { "resource" => "web" })).sole
+
+        assert_equal [ Capabilities::History::RUNNING, false, nil ], [ deploy.status, deploy.live, deploy.finished_at ]
+      end
+
+      test "a service that cannot be read leaves the newest deployment still going" do
+        NorthflankApi.any_instance.stubs(:deployments).returns([ { "id" => "dep-new", "createdAt" => "2026-10-11T10:30:00Z", "active" => true } ])
+        NorthflankApi.any_instance.stubs(:service).raises(NorthflankApi::Error, "Northflank answered 500")
+
+        deploy = Capabilities::Deploys.deploys_of(@pack.call("list_deployments", environment_row: @row, arguments: { "resource" => "web" })).sole
+
+        assert_equal [ Capabilities::History::RUNNING, true ], [ deploy.status, deploy.live ]
       end
 
       test "containers are listed newest first in words, with how many run and failed" do

@@ -373,6 +373,39 @@ module Integrations
       end
     end
 
+    # Which commit a tag or branch points at, read through the code host holding the repository named or the one the
+    # resource named is built from. tools are the ones the principal may run.
+    def self.commit_call(workspace, reference, ref, tools, principal:)
+      visible = ResourceMap::Resource.visible_to(principal, workspace)
+      named = visible.referenced(workspace, reference.to_s.strip).present.to_a
+      repositories = repositories_of(named, visible)
+      found = repositories.flat_map { |resource| resource.holders.map { |row| [ resource, row, adapter_for(row.integration.provider) ] } }
+                          .find { |_resource, _row, adapter| adapter.respond_to?(:commit_route) }
+      raise Unroutable, "No code host on the map holds the repository #{reference} is built from, so #{ref} cannot be read as a commit." unless found
+
+      resource, row, adapter = found
+      route = adapter.commit_route(resource, ref)
+      tool = tools.find { |each| each.integration_id == row.integration_id && each.name == route.tool_name }
+      raise Unroutable, "#{row.integration.name} reads a commit with its #{route.tool_name} tool, which is switched off or you may not run." unless tool
+
+      Call.new(spec: nil, resource: resource, environment_row: row, tool: tool, arguments: Scopes.for_resource(row, resource, route.arguments), present: nil)
+    end
+
+    # The repositories among resources, or the ones they are built from, directly or through the build service whose
+    # builds they run.
+    def self.repositories_of(resources, visible, depth: 2)
+      repositories = resources.select { |resource| resource.kind == ResourceMap::KIND_REPOSITORY }
+      return repositories if repositories.any? || depth.zero? || resources.empty?
+
+      sources = ResourceMap::Link.facts.where(from_resource: resources, relation: [ ResourceMap::RELATION_BUILT_FROM, ResourceMap::RELATION_RUNS_BUILDS_OF ],
+                                              to_resource_id: visible.select(:id))
+                                 .includes(:to_resource).map(&:to_resource).select { |resource| resource.removed_at.nil? }.uniq
+      repositories_of(sources, visible, depth: depth - 1)
+    end
+
+    # The full commit an answer of a code host's commit read names first, or nil.
+    def self.commit_in(result) = Answers.text(result)[/\b\h{40}\b/]&.downcase
+
     # One connection's answer under connection: all, headed with where it came from.
     def self.headed(environment_row, text) = "From #{connection_label(environment_row)}:\n#{text}"
 
@@ -527,6 +560,6 @@ module Integrations
     end
 
     def self.labels(candidates) = candidates.map { |candidate| connection_label(candidate.row) }.uniq
-    private_class_method :parsed, :holds_something?, :fallback_for, :routed, :candidates_for, :call_for, :switched_off, :holders, :observers, :choose, :one_resource!, :labels
+    private_class_method :parsed, :holds_something?, :fallback_for, :routed, :candidates_for, :repositories_of, :call_for, :switched_off, :holders, :observers, :choose, :one_resource!, :labels
   end
 end

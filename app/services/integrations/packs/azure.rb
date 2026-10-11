@@ -70,6 +70,12 @@ module Integrations
         0 => Capabilities::History::QUEUED, 1 => Capabilities::History::RUNNING, 2 => Capabilities::History::RUNNING,
         3 => Capabilities::History::FAILED, 4 => Capabilities::History::SUCCEEDED
       }.freeze
+      # A Container App revision's provisioningState (RevisionProvisioningState). One deprovisioned went out and was
+      # deactivated since.
+      REVISION_STATES = {
+        "provisioning" => Capabilities::History::RUNNING, "provisioned" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED,
+        "deprovisioning" => Capabilities::History::SUCCEEDED, "deprovisioned" => Capabilities::History::SUCCEEDED
+      }.freeze
       MISSING_TABLE = /resolve (?:table|scalar|column)/i
 
       LOG_LIMIT = 200
@@ -381,13 +387,14 @@ module Integrations
         if target.site?
           return one_deployment(environment_row, target, arguments["deployment"]) if arguments["deployment"].present?
 
-          text, runs = site_deployments(environment_row, target, limit)
-          return Capabilities::RunHistory.with_runs(Telemetry.result(text, link: link), runs, link: link)
+          text, runs, deploys = site_deployments(environment_row, target, limit)
+          return Capabilities::Deploys.with_deploys(Capabilities::RunHistory.with_runs(Telemetry.result(text, link: link), runs, link: link), deploys)
         end
         fail!("#{target.name} is a #{target.type}, which has no deployments. This works on an app.") unless target.container?
         fail!("#{target.name} is a Container App, which has revisions rather than deployments. Leave deployment out to list them.") if arguments["deployment"].present?
 
-        Telemetry.result(container_revisions(environment_row, target, limit), link: link)
+        text, deploys = container_revisions(environment_row, target, limit)
+        Capabilities::Deploys.with_deploys(Telemetry.result(text, link: link), deploys)
       end
 
       def deployment_log(environment_row:, arguments:)
@@ -939,7 +946,16 @@ module Integrations
         end
         text = [ rows.any? ? "Latest #{rows.size} deployments of #{target.name}, newest first.\n#{rows.join("\n")}" : "#{target.name} has no deployments recorded.",
                  slots.any? ? "Deployment slots, which rollback_app swaps with production: #{slots.join(', ')}." : "It has no deployment slots, so it cannot be rolled back by a swap." ].join("\n")
-        [ text, deployments.map { |deployment| history_run(deployment) } ]
+        [ text, deployments.map { |deployment| history_run(deployment) }, deployments.map { |deployment| site_deploy(deployment) } ]
+      end
+
+      # App Service marks the deployment the app runs now active, and every other not.
+      def site_deploy(deployment)
+        properties = deployment["properties"].to_h
+        Capabilities::Deploys::Deploy.new(
+          id: deployment["name"].to_s.split("/").last, status: HISTORY_STATES.fetch(properties["status"], Capabilities::History::RUNNING),
+          live: (properties["active"] if [ true, false ].include?(properties["active"])), started_at: properties["start_time"], finished_at: properties["end_time"]
+        )
       end
 
       # A deployment as every run history reads it, from the start_time, end_time and status App Service's Deployment
@@ -1028,7 +1044,8 @@ module Integrations
       def container_revisions(environment_row, target, limit)
         app = read(environment_row, target)
         traffic = app.dig("properties", "configuration", "ingress", "traffic").to_a
-        rows = revisions(environment_row, target).sort_by { |revision| revision.dig("properties", "createdTime").to_s }.reverse.first(limit).map do |revision|
+        listed = revisions(environment_row, target).sort_by { |revision| revision.dig("properties", "createdTime").to_s }.reverse.first(limit)
+        rows = listed.map do |revision|
           properties = revision["properties"].to_h
           image = Array(properties.dig("template", "containers")).filter_map { |container| container["image"] }.join(", ")
           [ properties["createdTime"], revision["name"], (properties["active"] ? "active" : "inactive"), "health #{properties['healthState'].to_s.downcase}",
@@ -1036,10 +1053,23 @@ module Integrations
             "image #{image}" ].join(", ")
         end
         mode = app.dig("properties", "configuration", "activeRevisionsMode")
-        return "#{target.name} has no revisions." if rows.empty?
+        return [ "#{target.name} has no revisions.", [] ] if rows.empty?
 
-        "Latest #{rows.size} revisions of #{target.name}, newest first, in #{mode.to_s.downcase} revision mode#{" with traffic split #{traffic_text(traffic)}" if traffic.any?}. " \
-          "rollback_app takes a revision's name#{', which needs multiple revision mode' unless mode == MULTIPLE}.\n#{rows.join("\n")}"
+        text = "Latest #{rows.size} revisions of #{target.name}, newest first, in #{mode.to_s.downcase} revision mode#{" with traffic split #{traffic_text(traffic)}" if traffic.any?}. " \
+               "rollback_app takes a revision's name#{', which needs multiple revision mode' unless mode == MULTIPLE}.\n#{rows.join("\n")}"
+        [ text, listed.map { |revision| revision_deploy(revision) } ]
+      end
+
+      # A revision serves while it holds a share of the traffic, and one inactive serves none. Azure records when a
+      # revision was made, not when it finished provisioning.
+      def revision_deploy(revision)
+        properties = revision["properties"].to_h
+        weight = properties["trafficWeight"]
+        live = if weight.is_a?(Numeric) then weight.positive?
+        elsif properties["active"] == false then false
+        end
+        Capabilities::Deploys::Deploy.new(id: revision["name"], status: Capabilities::Deploys.status(properties["provisioningState"], REVISION_STATES), live: live,
+                                          started_at: properties["createdTime"])
       end
 
       def traffic_text(traffic)

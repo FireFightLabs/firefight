@@ -277,6 +277,35 @@ module Integrations
         assert_match "https://eu-west-1.console.aws.amazon.com/ecs/v2", Capabilities::RunHistory.link_of(result).url
       end
 
+      test "an ECS service's deployments are its deploys, the newest that went out with the task definition ECS completed rolling out serving" do
+        answer(:list_service_deployments, service_deployments: [
+          { service_deployment_arn: "arn:aws:ecs:eu-west-1:1:service-deployment/prod/web/dep-3", created_at: Time.utc(2026, 10, 2), started_at: Time.utc(2026, 10, 2), status: "ROLLBACK_SUCCESSFUL",
+            target_service_revision_arn: "rev-43" },
+          { service_deployment_arn: "arn:aws:ecs:eu-west-1:1:service-deployment/prod/web/dep-2", created_at: Time.utc(2026, 10, 1), started_at: Time.utc(2026, 10, 1), finished_at: Time.utc(2026, 10, 1, 0, 6),
+            status: "SUCCESSFUL", target_service_revision_arn: "rev-42" },
+          { service_deployment_arn: "arn:aws:ecs:eu-west-1:1:service-deployment/prod/web/dep-1", created_at: Time.utc(2026, 9, 30), started_at: Time.utc(2026, 9, 30), finished_at: Time.utc(2026, 9, 30, 0, 5),
+            status: "SUCCESSFUL", target_service_revision_arn: "rev-41" }
+        ])
+        answer(:describe_service_deployments, service_deployments: [])
+        answer(:describe_service_revisions, service_revisions: [
+          { service_revision_arn: "rev-43", task_definition: TASK_DEFINITION.sub(":42", ":43") }, { service_revision_arn: "rev-42", task_definition: TASK_DEFINITION },
+          { service_revision_arn: "rev-41", task_definition: TASK_DEFINITION.sub(":42", ":41") }
+        ])
+        answer(:list_task_definitions, task_definition_arns: [ TASK_DEFINITION ])
+
+        result = @pack.call("list_deployments", environment_row: @row, arguments: { "resource" => SERVICE_ARN })
+        deploys = Capabilities::Deploys.deploys_of(result)
+
+        assert_equal [ [ "dep-3", "web:43", "failed", nil, nil ], [ "dep-2", "web:42", "succeeded", true, Time.utc(2026, 10, 1, 0, 6) ],
+                       [ "dep-1", "web:41", "succeeded", false, Time.utc(2026, 9, 30, 0, 5) ] ],
+                     deploys.map { |deploy| [ deploy.id, deploy.version, deploy.status, deploy.live, deploy.finished_at ] }
+        assert_match "Latest 3 deployments of web, newest first.\n2026-10-02T00:00:00Z, rollback_successful, task definition web:43", result["content"].sole["text"]
+
+        answer(:describe_services, services: [ service(rollout: "IN_PROGRESS") ])
+        result = @pack.call("list_deployments", environment_row: @row, arguments: { "resource" => SERVICE_ARN })
+        assert_equal [ nil, nil, nil ], Capabilities::Deploys.deploys_of(result).map(&:live), "ECS does not say which serves while one rolls out"
+      end
+
       test "a service ECS has no deployment history for shows its current deployments instead" do
         answer(:list_service_deployments, raises: [ AwsApi::Error, "AWS answered InvalidParameterException: not supported" ])
         answer(:list_task_definitions, task_definition_arns: [ TASK_DEFINITION ])
@@ -298,6 +327,17 @@ module Integrations
         assert_match "alias live\nversion 11", text
         assert_no_match "more versions than Firefight reads", text
         assert_match "only ECS services and Lambda functions have deployments", refusal(:list_deployments, "resource" => DATABASE_ARN)
+
+        deploys = Capabilities::Deploys.deploys_of(@pack.call("list_deployments", environment_row: @row, arguments: { "resource" => FUNCTION_ARN }))
+        assert_equal [ [ "12", "succeeded", true, Time.utc(2026, 10, 1) ], [ "11", "succeeded", false, Time.utc(2026, 9, 30) ] ],
+                     deploys.map { |deploy| [ deploy.version, deploy.status, deploy.live, deploy.started_at ] }
+        assert deploys.none?(&:commit), "a code sha256 is not a commit"
+
+        answer(:list_aliases, aliases: [ { name: "live", function_version: "12", routing_config: { additional_version_weights: { "11" => 0.1 } } } ])
+        assert_equal [ true, true ], Capabilities::Deploys.deploys_of(@pack.call("list_deployments", environment_row: @row, arguments: { "resource" => FUNCTION_ARN })).map(&:live)
+        answer(:list_aliases, aliases: [])
+        assert_equal [ nil, nil ], Capabilities::Deploys.deploys_of(@pack.call("list_deployments", environment_row: @row, arguments: { "resource" => FUNCTION_ARN })).map(&:live),
+                     "with no alias Lambda does not say which version serves"
 
         AwsApi.any_instance.stubs(:all).with { |_service, _region, operation, *| operation == :list_versions_by_function }.returns([ [ { version: "11" } ], true ])
         assert_match "Lambda has more versions of checkout than Firefight reads, so the newest may be missing.", call(:list_deployments, "resource" => FUNCTION_ARN)

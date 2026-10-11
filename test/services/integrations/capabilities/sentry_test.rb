@@ -86,6 +86,20 @@ class Integrations::Capabilities::SentryTest < ActiveSupport::TestCase
     assert_equal error, releases.present_result(error)
   end
 
+  test "the releases are kept as deploys by their version and newest commit, finished when their deploy did" do
+    releases = resolve(Integrations::Capabilities::DEPLOYS, "resource" => "web", "connection" => "sentry")
+    result = releases.present_result({ "content" => [ { "type" => "text", "text" => RELEASES.to_json } ], "structuredContent" => RELEASES })
+    deployed, created = Integrations::Capabilities::Deploys.deploys_of(result)
+
+    assert_match "release 2.4.1, created 2026-09-01T10:00:00.000Z", result["content"].first["text"]
+    assert_equal [ nil, "2.4.1", "a1b2c3d4e5f6a7b8", Integrations::Capabilities::History::SUCCEEDED, nil, Time.utc(2026, 9, 1, 10, 2), Time.utc(2026, 9, 1, 10, 4) ],
+                 [ deployed.id, deployed.version, deployed.commit, deployed.status, deployed.live, deployed.started_at, deployed.finished_at ]
+    assert_equal [ "2.4.0", nil, nil, Time.utc(2026, 8, 30, 10), nil ], [ created.version, created.commit, created.status, created.started_at, created.finished_at ]
+
+    empty = releases.present_result({ "content" => [ { "type" => "text", "text" => { "releases" => [], "hasMore" => false }.to_json } ] })
+    assert_empty Integrations::Capabilities::Deploys.deploys_of(empty)
+  end
+
   test "a connection held to one project answers only for it and leaves the project to the server" do
     @sentry.update!(settings: { "server_url" => "https://mcp.sentry.dev/mcp/acme/web" })
     errors = resolve(Integrations::Capabilities::ERRORS, "resource" => "web")

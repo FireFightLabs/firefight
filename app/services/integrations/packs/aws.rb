@@ -124,6 +124,9 @@ module Integrations
       }.freeze
       # A service deployment's own id, the last part of its ARN (ECS developer guide, Viewing service deployments).
       DEPLOYMENT_ID = /\A[A-Za-z0-9_-]{1,255}\z/
+      # The deployment a service runs now and how far its rollout got (ECS API reference, Deployment.status and rolloutState).
+      PRIMARY_DEPLOYMENT = "PRIMARY".freeze
+      ROLLOUT_COMPLETED = "COMPLETED".freeze
       STOP_REASONS = 3
       # A build's and a build phase's status (CodeBuild API reference, Build.buildStatus and BuildPhase.phaseStatus, both
       # StatusType). A phase still going has none, which reads as running.
@@ -973,7 +976,7 @@ module Integrations
       # A rollout stays COMPLETED after its tasks start failing, so a service running fewer tasks than it wants once its
       # rollout completed is degraded (ECS Service, runningCount and desiredCount).
       def service_entry(service, region)
-        primary = Array(service[:deployments]).find { |deployment| deployment[:status] == "PRIMARY" } || {}
+        primary = Array(service[:deployments]).find { |deployment| deployment[:status] == PRIMARY_DEPLOYMENT } || {}
         status = (primary[:rollout_state] || service[:status]).to_s.downcase.presence
         status = "degraded" if status == "completed" && service[:running_count].to_i < service[:desired_count].to_i
         cluster = service[:cluster_arn].to_s.split("/").last
@@ -1494,7 +1497,34 @@ module Integrations
         result = Telemetry.result("#{text}\nIt runs #{running}. A rollback takes a revision of #{family}: #{choices.map { |each| each == running ? "#{each} (running)" : each }.join(', ')}.",
                                   link: link)
         runs = recent.map { |deployment| history_run(deployment, revisions[deployment[:target_service_revision_arn]] || {}).with(url: deployments_link(entry)&.url) }
-        Capabilities::RunHistory.with_runs(result, runs, link: link)
+        result = Capabilities::RunHistory.with_runs(result, runs, link: link)
+        recent.any? ? Capabilities::Deploys.with_deploys(result, service_deploys(recent, revisions, service)) : result
+      end
+
+      # ECS marks the deployment a service runs now PRIMARY and says once its rollout completed. While one rolls out, ECS
+      # does not say which serves.
+      def service_deploys(recent, revisions, service)
+        deploys = recent.map do |listed|
+          revision = revisions[listed[:target_service_revision_arn]] || {}
+          Capabilities::Deploys::Deploy.new(
+            id: listed[:service_deployment_arn].to_s.split("/").last, version: family_revision(revision[:task_definition]),
+            status: Capabilities::Deploys.status(listed[:status], DEPLOYMENT_HISTORY_STATUSES), started_at: listed[:started_at] || listed[:created_at],
+            finished_at: listed[:finished_at]
+          )
+        end
+        primary = Array(service[:deployments]).find { |deployment| deployment[:status] == PRIMARY_DEPLOYMENT }
+        return deploys unless primary && primary[:rollout_state] == ROLLOUT_COMPLETED
+
+        serving_marked(deploys, family_revision(primary[:task_definition]))
+      end
+
+      # Where AWS names the version running now, the newest deploy, of those listed newest first, that went out with it
+      # is serving and every other that went out was replaced.
+      def serving_marked(deploys, version)
+        serving = version.presence && deploys.index { |deploy| deploy.status == Capabilities::History::SUCCEEDED && deploy.version == version }
+        return deploys unless serving
+
+        deploys.each_with_index.map { |deploy, index| deploy.status == Capabilities::History::SUCCEEDED ? deploy.with(live: index == serving) : deploy }
       end
 
       # A service deployment as every run history reads it, from the startedAt, finishedAt and status ListServiceDeployments
@@ -1718,7 +1748,22 @@ module Integrations
         end
         how = aliases.size > 1 ? "A rollback takes alias:version, such as #{aliases.first[:name]}:#{published.last[:version]}" : "A rollback takes a version"
         cut = "\nLambda has more versions of #{entry.name} than Firefight reads, so the newest may be missing." if more
-        Telemetry.result("Latest #{rows.size} versions of #{entry.name}, newest first. #{how}.\n#{rows.join("\n")}\n#{alias_line(aliases)}#{cut}", link: link)
+        result = Telemetry.result("Latest #{rows.size} versions of #{entry.name}, newest first. #{how}.\n#{rows.join("\n")}\n#{alias_line(aliases)}#{cut}", link: link)
+        Capabilities::Deploys.with_deploys(result, version_deploys(published, aliases))
+      end
+
+      # A version is out once Lambda publishes it, when it was last modified. It serves where an alias points at it or
+      # routes a share of traffic to it. A function with no alias is called at $LATEST or by a version's number, so
+      # Lambda does not say which version serves.
+      def version_deploys(published, aliases)
+        served = aliases.flat_map do |each|
+          weighted = each.dig(:routing_config, :additional_version_weights).to_h.select { |_, weight| weight.to_f.positive? }.keys
+          [ each[:function_version], *weighted ].map(&:to_s)
+        end
+        published.map do |version|
+          Capabilities::Deploys::Deploy.new(version: version[:version], status: Capabilities::History::SUCCEEDED, live: (served.include?(version[:version].to_s) if aliases.any?),
+                                            started_at: version[:last_modified], finished_at: version[:last_modified])
+        end
       end
 
       # Only a revision of the family the service runs, so a rollback can never swap in a different application.

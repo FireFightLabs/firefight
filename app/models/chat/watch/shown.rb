@@ -64,6 +64,8 @@ module Chat::Watch::Shown
       return step.running? ? "Still running when the watch ended." : "Not started when the watch ended."
     end
 
+    return step.summary if waiting_on_deploy?(step) && step.summary.present?
+
     words = STEP_WORDS.fetch(step.status)
     detail = step.over? ? step.reason : running_detail(step)
     took = step.seconds_taken && step.status == Chat::Watch::Step::STATUS_SUCCEEDED ? " after #{Integrations::Capabilities::History.duration(step.seconds_taken)}" : ""
@@ -98,6 +100,9 @@ module Chat::Watch::Shown
     now = "#{current.label}: #{current.running? && current.summary.present? ? current.summary : STEP_PHRASES.fetch(current.status)}"
     steps.size > 1 ? "#{steps.count(&:over?)} of #{steps.size} done. #{now}" : now
   end
+
+  # Its summary says which deploy it waits for, such as "Waiting for a new deploy of web to start (live now: cf0bcbe since 15:40 UTC)."
+  def waiting_on_deploy?(step) = step.status == Chat::Watch::Step::STATUS_WAITING && step.waits_for_deploy?
 
   # The page of the run or what a step follows, when the provider gave one.
   def link(watch) = watch.steps.reverse.find { |step| step.run_url.present? }&.run_url

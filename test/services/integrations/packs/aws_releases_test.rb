@@ -205,6 +205,40 @@ module Integrations
         assert_equal [ "/aws/elasticbeanstalk/shop-prod/var/log/eb-engine.log" ], run.first_failed_part.log.dig(History::LOG_ARGUMENTS, "log_groups")
       end
 
+      test "an App Runner service's deploying operations and an environment's versioned requests are its deploys, the one serving by the environment's version" do
+        answer(:list_operations, operation_summary_list: [
+          { id: "op-10", type: "PAUSE_SERVICE", status: "SUCCEEDED", started_at: Time.utc(2026, 10, 2, 10), ended_at: Time.utc(2026, 10, 2, 10, 1) },
+          { id: "op-9", type: "START_DEPLOYMENT", status: "ROLLBACK_SUCCEEDED", started_at: Time.utc(2026, 10, 1, 10), ended_at: Time.utc(2026, 10, 1, 10, 6) },
+          { id: "op-8", type: "UPDATE_SERVICE", status: "SUCCEEDED", started_at: Time.utc(2026, 9, 30, 10), ended_at: Time.utc(2026, 9, 30, 10, 4) }
+        ])
+        answer(:describe_service, service: { service_arn: APP_ARN, service_name: "api", status: "RUNNING" })
+        deploys = Capabilities::Deploys.deploys_of(call(:app_runner_operations, "resource" => APP_ARN))
+        assert_equal [ [ "op-9", History::FAILED, nil, Time.utc(2026, 10, 1, 10, 6) ], [ "op-8", History::SUCCEEDED, nil, Time.utc(2026, 9, 30, 10, 4) ] ],
+                     deploys.map { |deploy| [ deploy.id, deploy.status, deploy.live, deploy.finished_at ] }
+
+        ready = { environment_arn: ENVIRONMENT_ARN, environment_name: "shop-prod", application_name: "shop", status: "Ready", version_label: "v42" }
+        answer(:describe_environments, environments: [ ready ])
+        answer(:describe_events, events: [
+          beanstalk_event("r-4", "Environment update completed successfully.", at: 40),
+          beanstalk_event("r-4", "Environment update is starting.", at: 39),
+          beanstalk_event("r-3", "Environment update completed successfully.", at: 31, version: "v42"),
+          beanstalk_event("r-3", "Environment update is starting.", at: 30),
+          beanstalk_event("r-2", "Environment update completed successfully.", at: 21, version: "v41"),
+          beanstalk_event("r-2", "Environment update is starting.", at: 20),
+          beanstalk_event("r-1", "Environment update completed successfully.", at: 11, version: "v42"),
+          beanstalk_event("r-1", "Environment update is starting.", at: 10)
+        ])
+        result = call(:beanstalk_events, "resource" => ENVIRONMENT_ARN)
+        assert_equal [ [ "r-3", "v42", History::SUCCEEDED, true ], [ "r-2", "v41", History::SUCCEEDED, false ], [ "r-1", "v42", History::SUCCEEDED, false ] ],
+                     Capabilities::Deploys.deploys_of(result).map { |deploy| [ deploy.id, deploy.version, deploy.status, deploy.live ] }
+        assert_equal [ Time.utc(2026, 10, 1, 10, 30), Time.utc(2026, 10, 1, 10, 31) ], Capabilities::Deploys.deploys_of(result).first.then { |deploy| [ deploy.started_at, deploy.finished_at ] }
+        answer(:describe_configuration_settings, configuration_settings: [])
+        assert_equal [ "r-2" ], Capabilities::Deploys.deploys_of(call(:beanstalk_events, "resource" => ENVIRONMENT_ARN, "run" => "r-2")).map(&:id)
+
+        answer(:describe_environments, environments: [ ready.merge(status: "Updating") ])
+        assert_equal [ nil, nil, nil ], Capabilities::Deploys.deploys_of(call(:beanstalk_events, "resource" => ENVIRONMENT_ARN)).map(&:live), "a busy environment does not say which serves"
+      end
+
       test "an ECS deployment still going stops and rolls back, and one already over is refused" do
         answer(:describe_service_deployments, service_deployments: [ { status: "IN_PROGRESS" } ])
         AwsApi.any_instance.expects(:call).with(:ecs, REGION, :stop_service_deployment,

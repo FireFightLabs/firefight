@@ -91,6 +91,7 @@ module Conversation::Watches
     watch = create!(turn, title, limit, planned, purpose: arguments["purpose"].to_s.strip.presence, reads_per_hour: ceiling,
                     reads_per_hour_asked: arguments["reads_per_hour"].to_i.positive?)
     watch.count_reads!(meter.count)
+    deploys = deploy_words(watch.steps)
     Conversation::LiveDelivery.watch_moved(turn.conversation)
     # Something that fails the moment it starts is told within seconds rather than at the next sweep.
     WatchCheckJob.perform_later(watch.id)
@@ -98,6 +99,7 @@ module Conversation::Watches
     [ "Started #{Chat::Watch::Shown.name(watch)}. Tell the person, in your own words: #{limit_sentence(limit)} " \
       "It reads at most #{ceiling} times an hour, which the card shows.",
       cannot.any? ? "Also tell them what it cannot follow: #{cannot.join(' ')}" : nil,
+      deploys,
       "Each milestone and the end come to this chat and to their direct messages on their own, so never check it " \
       "again yourself unless they ask. When a step's read finds nothing to follow, it is handed back to you to repair " \
       "with repair_watch. It can be stopped from the chat or with stop_watch (watch #{watch.id}).", strip_note(turn) ].compact.join("\n")
@@ -146,11 +148,13 @@ module Conversation::Watches
     until_at = kept ? watch.expires_at : needed
     limit_before = watch.expires_at
     steps = planned.map { |planned_step| { label: planned_step[:label].truncate(120), **read_of(planned_step) } }
+    last_before = watch.steps.maximum(:position).to_i
     added = watch.add_steps!(steps, until_at: until_at, reads_per_hour: ceiling, title: arguments["title"].to_s.strip.presence,
                                     purpose: arguments["purpose"].to_s.strip.presence, now: now)
     return "#{Chat::Watch::Shown.name(watch)} ended just now, so nothing was added. Start a new watch for these steps." unless added
 
     watch.count_reads!(meter.count)
+    deploys = deploy_words(watch.steps.where("position > ?", last_before))
     labels = planned.map { |planned_step| planned_step[:label] }.to_sentence
     moved = watch.expires_at > limit_before
     # Halon says it in its own answer, so it is not heard again at the next turn.
@@ -161,8 +165,18 @@ module Conversation::Watches
       "in your own words, that the watch they have now follows these too. #{added_limit_words(watch, limit, moved, short: kept && needed > watch.expires_at)} " \
       "It reads at most #{watch.reads_per_hour} times an hour, which the card shows.",
       cannot.any? ? "Also tell them what it cannot follow: #{cannot.join(' ')}" : nil,
+      deploys,
       "Each milestone and the end come to this chat and to their direct messages on their own, so never check it again yourself unless they ask.",
       strip_note(turn) ].compact.join("\n")
+  end
+
+  # Each step that begins waiting for a deploy says on its row which deploy, and Halon tells the person.
+  def self.deploy_words(steps)
+    waiting = steps.select(&:waits_for_deploy?).each { |step| step.summarized!(step.deploy_start_words) }
+    return if waiting.empty?
+
+    "Each step that waits for a deploy counts only one newer than the deploy live when it began. Tell them what it waits for: " \
+      "#{waiting.map { |step| "#{step.label}: #{step.summary}" }.join(' ')}"
   end
 
   NO_STEPS = "Say what to watch, as one or more steps, each naming a capability that reads and a resource.".freeze
@@ -213,7 +227,8 @@ module Conversation::Watches
       usual, row = first_read(reader, key, arguments, step)
       signature = Chat::Watch::Step.signature(key, arguments) unless key == HISTORY
       usual ||= Chat::Watch::Step.usual_for(reader.workspace, signature)
-      planned << { label: label, key: key, arguments: arguments, step: step, usual: usual, row: row, signature: signature }
+      new_deploy = (baseline(reader, step, key, arguments) { reader.read(key, arguments).text } if Chat::Watch::Step.waits_for_deploy?(step, key))
+      planned << { label: label, key: key, arguments: arguments, step: step, usual: usual, row: row, signature: signature, new_deploy: new_deploy }
     rescue Conversation::Watches::Reader::Refused, Conversation::Watches::Reader::Unanswered => refused
       cannot << "#{label} cannot be followed. #{refused.message}"
     rescue Chat::Watch::Meter::Spent
@@ -238,8 +253,10 @@ module Conversation::Watches
     end
 
     signature = Chat::Watch::Step.signature(tool, arguments)
+    waits = Chat::Watch::Step.waits_for_deploy?(step, Chat::Watch::Step::READ_TOOL)
     planned << { label: label, key: Chat::Watch::Step::READ_TOOL, tool: tool, arguments: arguments, step: step, signature: signature,
-                 usual: Chat::Watch::Step.usual_for(reader.workspace, signature), row: connection_of(reader.workspace, tool, arguments) }
+                 usual: Chat::Watch::Step.usual_for(reader.workspace, signature), row: connection_of(reader.workspace, tool, arguments),
+                 new_deploy: (baseline(reader, step, Chat::Watch::Step::READ_TOOL, {}) { said.text } if waits) }
   rescue Conversation::Watches::Reader::Refused, Conversation::Watches::Reader::Unanswered => refused
     cannot << "#{label} cannot be followed. #{refused.message}"
   rescue Chat::Watch::Meter::Spent
@@ -327,8 +344,38 @@ module Conversation::Watches
       integration_environment_id: planned_step[:row]&.id, run_name: given["name"].presence, run_ref: given["run"].presence,
       report_start: ActiveModel::Type::Boolean.new.cast(given["report_start"]) || false, done_when: given["done_when"].presence,
       failed_when: given["failed_when"].presence, goal: given["goal"].presence, usual_seconds: planned_step[:usual],
-      focus: given["focus"].to_s.strip.presence
+      focus: given["focus"].to_s.strip.presence, new_deploy: planned_step[:new_deploy]
     }
+  end
+
+  # The deploy live when the step starts, or the digest of its first reading where the provider cannot tell deploys
+  # apart, since a done can never be that reading.
+  def self.baseline(reader, step, key, arguments, now: Time.current)
+    target = Chat::Watch::Step.deploy_target(step, arguments)
+    answer = deploys_answer(reader, target)
+    deploys = answer && Integrations::Capabilities::Deploys.deploys_of(answer.result)
+    provider = answer&.call&.environment_row&.integration&.name
+    kept = Chat::Watch::Step.new_deploy_for(target, since: now, deploys: deploys, provider: provider)
+    return kept if kept[Chat::Watch::Step::NewDeploy::IDENTITY]
+
+    kept.merge(Chat::Watch::Step::NewDeploy::BASELINE_DIGEST => reading_digest(yield, step["focus"].to_s.strip.presence))
+  rescue Conversation::Watches::Reader::Refused, Conversation::Watches::Reader::Unanswered
+    kept || Chat::Watch::Step.new_deploy_for(target, since: now, deploys: nil)
+  end
+
+  # The resource's deploys, read as the asker. nil when no resource is named.
+  def self.deploys_answer(reader, target)
+    resource = target[Chat::Watch::Step::NewDeploy::RESOURCE]
+    return if resource.blank?
+
+    reader.read(Integrations::Capabilities::DEPLOYS, target.slice(Chat::Watch::Step::NewDeploy::RESOURCE, Chat::Watch::Step::NewDeploy::CONNECTION))
+  rescue Conversation::Watches::Reader::Refused, Conversation::Watches::Reader::Unanswered
+    nil
+  end
+
+  # The part judged, without secrets or the times that move every minute.
+  def self.reading_digest(text, focus)
+    Digest::SHA256.hexdigest(Chat::Watch::Step.focused(Chat::SecretFree.redacted(text.to_s), focus).gsub(CLOCK, ""))
   end
 
   def self.key_for(name) = Chat::Watch::Step.read_key(name)
@@ -408,9 +455,12 @@ module Conversation::Watches
     return repair_lapsed!(watch, step) if step.repair_overdue?(now)
     return if step.repairing?
     return follow_run(watch, step, reader, now, progress) if step.history?
-    return take_reading(watch, step, reading, progress, now: now) if reading
 
-    follow_reading(watch, step, reader, agent, progress, now: now)
+    gate = deploy_gate(watch, step, reader)
+    return if gate && !gate_lets_read?(watch, step, gate)
+    return take_reading(watch, step, reading, progress, now: now, gate: gate) if reading
+
+    follow_reading(watch, step, reader, agent, progress, now: now, gate: gate)
   rescue Conversation::Watches::Reader::Unanswered => unanswered
     step.seen!(digest: step.last_digest, state: "Could not read it just now: #{unanswered.message}", read: false)
   rescue Conversation::Watches::Reader::Refused => refused
@@ -608,12 +658,32 @@ module Conversation::Watches
 
     before = step.read_attributes
     before_words = step.read_words
-    return "#{step.label} has already ended, so there is nothing to repair." unless step.repaired!(read_of(planned.first))
+    read = read_of(planned.first)
+    read[:new_deploy] = repaired_deploy(step, read[:new_deploy])
+    return "#{step.label} has already ended, so there is nothing to repair." unless step.repaired!(read)
+
+    step.summarized!(step.deploy_start_words) if step.waits_for_deploy?
 
     tell!(watch, Chat::Watch::Update::KIND_REPAIRED,
           "Changed how I follow #{step.label}: #{change_words(before, before_words, step)}. #{why.to_s.strip.presence || 'The old read showed nothing to follow.'}")
     WatchCheckJob.perform_later(watch.id)
     "Repaired #{step.label} in #{Chat::Watch::Shown.named(watch)}. Tell the person in a sentence what you changed and why."
+  end
+
+  # A repair keeps the baseline unless the new read follows another resource. The new read's first reading replaces the
+  # old one's, which says nothing about it.
+  def self.repaired_deploy(step, fresh)
+    return fresh unless step.waits_for_deploy?
+    return step.new_deploy if fresh.nil?
+
+    keys = Chat::Watch::Step::NewDeploy
+    moved = [ keys::RESOURCE, keys::CONNECTION ].any? { |key| fresh[key].present? && !fresh[key].to_s.casecmp?(step.new_deploy[key].to_s) }
+    return fresh if moved
+
+    named = [ keys::COMMIT, keys::TAG, keys::BRANCH ]
+    target = fresh.slice(*named).presence ? fresh.slice(*named, keys::REPOSITORY) : step.new_deploy.slice(*named, keys::REPOSITORY, keys::TAG_COMMIT, keys::TAG_UNREAD)
+    step.new_deploy.except(*named, keys::REPOSITORY, keys::TAG_COMMIT, keys::TAG_UNREAD, keys::BASELINE_DIGEST, keys::LIVE_SEEN).merge(target)
+        .merge(fresh.slice(keys::BASELINE_DIGEST))
   end
 
   # The read a repair asks for, as a step keeps it, worked out without reading. nil when it names no read a watch makes.
@@ -669,11 +739,51 @@ module Conversation::Watches
   end
 
   # A reading that is not a run, read by the step's own read.
-  def self.follow_reading(watch, step, reader, agent, progress, now: Time.current)
+  def self.follow_reading(watch, step, reader, agent, progress, now: Time.current, gate: nil)
     answer = step.read_tool? ? reader.read_tool(agent, step.tool_name, step.arguments) : reader.read(step.capability, step.arguments)
     raise Conversation::Watches::Reader::Unanswered, answer.text.truncate(300) if answer.failed?
 
-    take_reading(watch, step, answer.text, progress, now: now)
+    take_reading(watch, step, answer.text, progress, now: now, gate: gate)
+  end
+
+  # nil for a step that waits for no deploy, or whose provider cannot tell deploys apart, which its reading decides.
+  def self.deploy_gate(watch, step, reader)
+    return unless step.deploy_identity?
+
+    resolve_tag!(step, reader) if step.unresolved_tag
+    answer = deploys_answer(reader, step.new_deploy)
+    deploys = answer && Integrations::Capabilities::Deploys.deploys_of(answer.result)
+    raise Conversation::Watches::Reader::Unanswered, "the deploys of #{step.deploy_resource} could not be read" if deploys.nil?
+
+    step.deploy_gate(deploys)
+  end
+
+  # A tag a release has not pushed yet is asked again next check. One no code host can read is matched by the deploys'
+  # own tag or version.
+  def self.resolve_tag!(step, reader)
+    keys = Chat::Watch::Step::NewDeploy
+    step.tag_resolved!(reader.commit_of(step.new_deploy[keys::REPOSITORY].presence || step.deploy_resource, step.unresolved_tag))
+  rescue Conversation::Watches::Reader::Refused => refused
+    step.tag_unresolvable!(refused.message)
+  rescue Conversation::Watches::Reader::Unanswered
+    nil
+  end
+
+  # Before the new deploy starts the step's reading only shows the old one, so it is not read.
+  def self.gate_lets_read?(watch, step, gate)
+    step.summarized!(gate.words)
+    case gate.state
+    when Chat::Watch::Step::NewDeploy::WAITING then false
+    when Chat::Watch::Step::NewDeploy::FAILED
+      finish_reading(watch, step, Chat::Watch::Step::STATUS_FAILED, gate.words)
+      false
+    else
+      deploy = gate.deploy
+      if step.started_told_at.nil? && step.started!(run_id: deploy.id || deploy.short, at: deploy.started_at)
+        tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "#{step.label} started.") if step.report_start
+      end
+      true
+    end
   end
 
   # Judged by the workspace's quick model answering the step's question over its recent readings, into not started,
@@ -682,18 +792,20 @@ module Conversation::Watches
   # shows it begun moves the step to running, a job or step in it that failed is said at once with why, and a first
   # reading with nothing to follow is handed back to Halon to repair. Only where no model may answer does the text the
   # step was given decide, as words the reading holds.
-  def self.take_reading(watch, step, text, progress, now: Time.current)
+  def self.take_reading(watch, step, text, progress, now: Time.current, gate: nil)
     text = Chat::Watch::Step.focused(Chat::SecretFree.redacted(text), step.focus)
     digest = Digest::SHA256.hexdigest(text.gsub(CLOCK, ""))
     changed = digest != step.last_digest
     step.seen!(digest: digest, state: text, now: now, kept: true)
-    return unless changed || step.judge_again?(now)
+    opened = gate&.open? && step.deploy_live_seen!(gate.deploy)
+    return unless changed || opened || step.judge_again?(now)
 
     first = step.judged_at.nil? && step.status == Chat::Watch::Step::STATUS_WAITING
     model = judge(watch)
-    return by_words(watch, step, text) unless model
+    return deploy_by_gate(watch, step, gate) if !model && gate
+    return (by_words(watch, step, text) unless step.unchanged_since_baseline?(digest)) unless model
 
-    judged = judged_reading(model, step, now)
+    judged = held_back(step, judged_reading(model, step, now, gate: gate), gate, digest)
     return unless judged
 
     step.judged!(now)
@@ -717,9 +829,28 @@ module Conversation::Watches
     end
   end
 
+  # With no model to judge, the new deploy being live is enough.
+  def self.deploy_by_gate(watch, step, gate)
+    finish_reading(watch, step, Chat::Watch::Step::STATUS_SUCCEEDED, gate.words) if gate.open?
+  end
+
+  # Done before the new deploy is live, or an end judged on a reading unchanged since the watch began, is about the
+  # deploy already live then, so the step keeps going.
+  def self.held_back(step, judged, gate, digest)
+    return judged unless judged && step.waits_for_deploy?
+
+    reading = FirefightAi::Schemas::WatchReading
+    ending = [ reading::DONE, reading::FAILED ].include?(judged.state)
+    early = (judged.state == reading::DONE && gate && !gate.open?) || (ending && step.unchanged_since_baseline?(digest))
+    return judged unless early
+
+    said = gate ? gate.words : step.no_identity_words
+    judged.with(state: step.running? ? reading::RUNNING : reading::NOT_STARTED, said: said)
+  end
+
   # nil when the model could not answer this time, which the next check asks again.
-  def self.judged_reading(model, step, now)
-    model.reading(question: reading_goal(step), readings: step.recent_readings, so_far: step.running? ? "running" : "not started",
+  def self.judged_reading(model, step, now, gate: nil)
+    model.reading(question: reading_goal(step, gate), readings: step.recent_readings, so_far: step.running? ? "running" : "not started",
                   steady: steady_words(step, now))
   rescue FirefightAi::TransientError, FirefightAi::TerminalError, FirefightAi::OutOfCredit => error
     Rails.logger.warn({ event: "watch.reading_unjudged", step_id: step.id, error: error.class.name }.to_json)
@@ -752,10 +883,11 @@ module Conversation::Watches
     "The reading has stayed the same for #{Integrations::Capabilities::History.duration(steady)}." if steady && steady >= Chat::Watch::CHECK_EVERY
   end
 
-  # What done means for a reading, from the condition and the words it was given.
-  def self.reading_goal(step)
+  # What done means for a reading, and for a step waiting for a new deploy, which deploy that is.
+  def self.reading_goal(step, gate = nil)
     [ step.goal.presence || "#{step.label} finishes.", ("It is done when the readings show #{step.done_when}." if step.done_when.present?),
-      ("It failed when the readings show #{step.failed_when}." if step.failed_when.present?) ].compact.join(" ")
+      ("It failed when the readings show #{step.failed_when}." if step.failed_when.present?),
+      ("The deploy it waits for: #{gate.words}" if gate), step.deploy_question ].compact.join(" ")
   end
 
   def self.reading_started(watch, step)

@@ -241,9 +241,23 @@ module Integrations
 
         current = project.dig("targets", PRODUCTION, "id")
         rows = deployments.map { |deployment| deployment_line(deployment, current: current) }
-        Telemetry.result("Latest #{rows.size} deployments of #{project['name']}, newest first. rollback_deployment and promote_deployment take an id.\n" \
-                         "#{rows.join("\n")}", link: link)
+        result = Telemetry.result("Latest #{rows.size} deployments of #{project['name']}, newest first. rollback_deployment and promote_deployment take an id.\n" \
+                                  "#{rows.join("\n")}", link: link)
+        Capabilities::Deploys.with_deploys(result, deployments.map { |deployment| deploy_of(deployment, current) })
       end
+
+      # The one serving production is the project's production target. Every other deployment does not serve it, and
+      # without a target Vercel does not say which serves.
+      def deploy_of(deployment, current)
+        id = deployment["uid"] || deployment["id"]
+        Capabilities::Deploys::Deploy.new(
+          id: id, commit: meta(deployment, COMMIT_SHA), branch: meta(deployment, COMMIT_REF),
+          status: Capabilities::Deploys.status(deployment["readyState"] || deployment["state"], DEPLOYMENT_STATES),
+          live: (id == current if current), started_at: millis(deployment["buildingAt"] || deployment["createdAt"] || deployment["created"]),
+          finished_at: millis(deployment["ready"])
+        )
+      end
+      private :deploy_of
 
       # Vercel's deployment states (spec, getDeployments, readyState) in Firefight's words.
       DEPLOYMENT_STATES = {
