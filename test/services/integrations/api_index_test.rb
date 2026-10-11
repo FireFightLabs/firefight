@@ -10,7 +10,6 @@ module Integrations
     SAMPLE = "sample1".freeze
     # What an index may add to its skill, in tokens (FirefightAi::TOOL_CHARS_PER_TOKEN), so loading it stays cheap.
     TOKEN_CAP = 1_600
-    AWS_READ = /\A(Describe|List|Get|BatchGet)[A-Z]/
 
     test "every provider with a general read keeps an index of at most forty reads, each with a purpose" do
       assert_equal PROVIDERS, ApiIndex.all.map(&:provider)
@@ -30,7 +29,7 @@ module Integrations
       ApiIndex.all.each do |index|
         index.reads.each do |read|
           case index.shape
-          when ApiIndex::SHAPE_OPERATION then assert_match AWS_READ, read.call, "#{index.provider} #{read.call}"
+          when ApiIndex::SHAPE_OPERATION then assert ReadGuards::Aws.read?(read.service, read.call), "#{index.provider} #{read.call}"
           when ApiIndex::SHAPE_GRAPHQL then assert read.call.start_with?("query "), "#{index.provider} #{read.call}"
           else assert_equal ApiIndex::GET, read.verb, "#{index.provider} #{read.call}"
           end

@@ -28,7 +28,7 @@ namespace :provider_docs do
       result.dropped.each { |dropped| puts "#{index.provider}: the reference lists no query parameter #{dropped}, so it was left out." }
       result.stale.each { |call| puts "#{index.provider}: STALE #{call} is not in the reference the docs store holds. Replace or remove it." }
       changed = result.changed.map { |path| Pathname(path).relative_path_from(Rails.root) }.join(" and ")
-      puts "#{index.provider}: #{check ? 'would change' : 'changed'} #{changed}" if result.changed.any?
+      puts "#{index.provider}: #{check || result.stale? ? 'would change' : 'changed'} #{changed}" if result.changed.any?
     end
     failed = results.select { |result| result.stale? || (check && result.changed.any?) }
     abort "#{failed.map { |result| result.index.provider }.to_sentence} out of step with the docs store." if failed.any?

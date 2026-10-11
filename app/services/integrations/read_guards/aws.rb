@@ -2,7 +2,9 @@ module Integrations
   module ReadGuards
     # AWS's API is operations, not paths. A call reads when the service's own API description defines the operation and
     # AWS names it Describe, List, Get or BatchGet, so no other method of the client is ever called. Those that still
-    # answer a credential are refused, each from its service's API reference.
+    # answer a credential are refused, each from its service's API reference. CloudTrail's LookupEvents searches the
+    # audit log and only reads (CloudTrail API reference, LookupEvents), though AWS names it otherwise, so it reads too.
+    # CloudTrail leaves secrets out of the events it records, and its answer passes the same redaction as any other.
     module Aws
       TOOL = ApiReads::TOOL
       SERVICE = "service".freeze
@@ -10,6 +12,7 @@ module Integrations
       PARAMS = "params".freeze
       REGION = "region".freeze
       READ = /\A(Describe|List|Get|BatchGet)[A-Z]/
+      ALSO_READS = { "cloudtrail" => %w[LookupEvents] }.freeze
       # Only these reads hand nothing secret. Secrets Manager's Get reads answer a secret's value (GetSecretValue), KMS's
       # give import material, and STS's other Get reads mint credentials (GetSessionToken, GetFederationToken).
       ONLY = {
@@ -62,7 +65,7 @@ module Integrations
         api = AwsApi.api_of(service) or raise Refused, "service must be one of #{AwsApi::SERVICES.join(', ')}."
         operation = operation_of(api, arguments[OPERATION])
         name = api.operation(operation).name
-        raise PolicyRefusal, "#{name} is not a read. AWS names its reads Describe, List, Get or BatchGet, and api_read makes no other call." unless name.match?(READ)
+        raise PolicyRefusal, "#{name} is not a read. AWS names its reads Describe, List, Get or BatchGet, and api_read makes no other call." unless read?(service, name)
 
         reason = refusal(service, name)
         raise PolicyRefusal, reason if reason
@@ -77,6 +80,8 @@ module Integrations
 
         arguments.merge(SERVICE => service, OPERATION => operation.to_s, PARAMS => input)
       end
+
+      def self.read?(service, name) = name.match?(READ) || ALSO_READS.fetch(service, []).include?(name)
 
       def self.refusal(service, name)
         return REFUSED.fetch(service) if ONLY.key?(service) && !name.match?(ONLY.fetch(service))

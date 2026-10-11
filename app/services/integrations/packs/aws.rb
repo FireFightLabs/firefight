@@ -362,7 +362,7 @@ module Integrations
            description: "Anything else AWS's API reads that the other tools do not cover, such as load balancers and their target " \
                         "health, Auto Scaling groups, CloudFormation change sets, CodePipeline action types, " \
                         "SQS queues, DynamoDB tables, EKS clusters, Route 53 records or certificates. One operation of one " \
-                        "service, named Describe, List, Get or BatchGet, with its input as the operation's API reference gives it, " \
+                        "service, named Describe, List, Get or BatchGet, or CloudTrail's LookupEvents for the audit log, with its input as the operation's API reference gives it, " \
                         "in one of this connection's regions. A list answers one page, and its next token goes in params for the " \
                         "next. Only reads, so it never changes anything. Environment variables, user data and secret values " \
                         "come back as names or not at all. The aws_api skill lists the key operations and says how to find any other",

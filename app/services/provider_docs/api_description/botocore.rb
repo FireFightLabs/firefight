@@ -2,9 +2,10 @@ module ProviderDocs
   class ApiDescription
     # An AWS service's description as AWS's SDKs are built from it (botocore's service-2.json). Each operation named
     # Describe, List, Get or BatchGet is a read, written by its name and its name in AWS's SDK for Ruby, which is how the
-    # AWS general read takes it, with its input members by their SDK names.
+    # AWS general read takes it, with its input members by their SDK names. CloudTrail's LookupEvents searches the audit
+    # log and only reads, though AWS names it otherwise, so it is written with the reads.
     class Botocore
-      READ = /\A(Describe|List|Get|BatchGet)[A-Z]/
+      READ = /\A(Describe|List|Get|BatchGet)[A-Z]|\ALookupEvents\z/
 
       def initialize(document, definition)
         @document = document

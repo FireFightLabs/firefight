@@ -29,6 +29,18 @@ module Integrations
 
       def self.all(write: true) = ApiIndex.all.map { |index| new(index).run(write: write) }
 
+      # Each index's reads the reference in the store no longer lists, by provider, written nowhere. An index whose
+      # reference the store does not hold yet is left out, since every read would look stale on a fresh install.
+      def self.stale
+        ApiIndex.all.select { |index| index.reference && held?(index) }.to_h { |index| [ index.provider, new(index).run(write: false).stale ] }
+                .reject { |_provider, calls| calls.empty? }
+      end
+
+      def self.held?(index)
+        ProviderDocPage.where(provider: index.provider).where("path LIKE ?", "#{ProviderDocPage.sanitize_sql_like(index.reference)}/%").exists?
+      end
+      private_class_method :held?
+
       def initialize(index)
         @index = index
       end

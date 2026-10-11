@@ -11,6 +11,10 @@ reads:
   - call: DescribeTrails
     service: cloudtrail
     purpose: Trails and the log group or bucket each writes the audit log to.
+  - call: LookupEvents
+    service: cloudtrail
+    purpose: The audit log of the last 90 days, who called which API with which access key and from where.
+    query: [ lookup_attributes, start_time, end_time, max_results, next_token ]
   - call: DescribeEvents
     service: health
     purpose: AWS's own outages and scheduled changes that touch the account.
@@ -51,10 +55,6 @@ reads:
     service: ecs
     purpose: Services with their deployments, task counts and recent events.
     query: [ cluster, services ]
-  - call: ListTasks
-    service: ecs
-    purpose: A cluster's tasks, running or stopped, for one service.
-    query: [ cluster, service_name, desired_status, max_results, next_token ]
   - call: DescribeTasks
     service: ecs
     purpose: Tasks with their status, stop reason and container exit codes.

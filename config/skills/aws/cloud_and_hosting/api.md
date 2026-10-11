@@ -4,7 +4,7 @@ when: A question about AWS that the other AWS tools do not answer, such as a loa
 tools: [api_read, list_resources, run_history, build_log]
 references: [api/acm/index.md, api/apigateway/index.md, api/apigatewayv2/index.md, api/apprunner/index.md, api/autoscaling/index.md, api/cloudformation/index.md, api/cloudfront/index.md, api/cloudtrail/index.md, api/cloudwatch/index.md, api/codebuild/index.md, api/codedeploy/index.md, api/codepipeline/index.md, api/dynamodb/index.md, api/ec2/index.md, api/ecr/index.md, api/ecs/index.md, api/eks/index.md, api/elasticache/index.md, api/elasticbeanstalk/index.md, api/elbv2/index.md, api/health/index.md, api/iam/index.md, api/kms/index.md, api/lambda/index.md, api/logs/index.md, api/rds/index.md, api/route53/index.md, api/s3/index.md, api/secretsmanager/index.md, api/sns/index.md, api/sqs/index.md, api/ssm/index.md, api/sts/index.md]
 ---
-`api_read` calls one operation of one AWS service and answers what AWS said. It only reads, operations AWS names Describe, List, Get or BatchGet, so it never needs the person's go ahead and works while investigating and watching. Changes go through the rollback, restart and scale tools, never through this.
+`api_read` calls one operation of one AWS service and answers what AWS said. It only reads, operations AWS names Describe, List, Get or BatchGet and CloudTrail's LookupEvents, the audit log, so it never needs the person's go ahead and works while investigating and watching. Changes go through the rollback, restart and scale tools, never through this.
 
 1. Use the named tools first where they answer the question, since their answers are shaped and linked: `list_resources` for what is on the map, and `run_history` and `build_log` for a CodeBuild project's builds and what each printed. Reach for `api_read` for the rest.
 2. Find the operation in the service's API reference before the first call, not by guessing: read api/<service>/index.md for the service (use_skill with this skill and that reference), such as api/codepipeline/index.md, which lists every read the service offers with its input and what it answers. When the reference lists no read for the question, AWS's API does not offer one. Say so, and give the steps in the AWS console instead.
@@ -16,6 +16,7 @@ references: [api/acm/index.md, api/apigateway/index.md, api/apigatewayv2/index.m
 Key reads, the ones an investigation reaches for most, with what to fill in braces and the query parameters that matter. The API reference lists every other read.
 - sts: GetCallerIdentity: Which account and role the connection reads as.
 - cloudtrail: DescribeTrails: Trails and the log group or bucket each writes the audit log to.
+- cloudtrail: LookupEvents (lookup_attributes, start_time, end_time, max_results, next_token): The audit log of the last 90 days, who called which API with which access key and from where.
 - health: DescribeEvents (filter, max_results, next_token): AWS's own outages and scheduled changes that touch the account.
 - cloudwatch: DescribeAlarms (state_value, alarm_name_prefix, alarm_types, max_records, next_token): CloudWatch alarms with their state, filtered to those firing.
 - cloudwatch: DescribeAlarmHistory (alarm_name, history_item_type, start_date, end_date, scan_by, next_token): When each alarm changed state and why, between two times.
@@ -26,7 +27,6 @@ Key reads, the ones an investigation reaches for most, with what to fill in brac
 - ecs: ListClusters (next_token, max_results): The ECS clusters in the region.
 - ecs: ListServices (cluster, max_results, next_token): The services running in one ECS cluster.
 - ecs: DescribeServices (cluster, services): Services with their deployments, task counts and recent events.
-- ecs: ListTasks (cluster, service_name, desired_status, max_results, next_token): A cluster's tasks, running or stopped, for one service.
 - ecs: DescribeTasks (cluster, tasks): Tasks with their status, stop reason and container exit codes.
 - ecs: DescribeTaskDefinition (task_definition): A task definition with its image, CPU and memory.
 - lambda: ListFunctions (marker, max_items): Lambda functions with their runtime and last change.
