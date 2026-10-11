@@ -103,16 +103,25 @@ module Runbook::Procedure
 
     steps = watch.is_a?(Hash) ? watch["steps"] : nil
     unless steps.is_a?(Array) && steps.any? && steps.all? { |step| step.is_a?(Hash) }
-      return errors.add(:watch, "Watch needs steps, each naming the capability to check and the resource")
+      return errors.add(:watch, "Watch needs steps, each naming the capability to check and the resource, or a read tool")
     end
 
-    steps.each_with_index do |step, index|
-      if step["capability"].blank? || step["resource"].blank?
-        errors.add(:watch, "Watch #{item_name(step, index)}: needs the capability to check and the resource")
-      elsif Chat::Watch::Step.undecided?(step)
-        errors.add(:watch, "Watch #{item_name(step, index)}: needs what counts as done (done when, failed when or a goal)")
-      end
+    steps.each_with_index { |step, index| watch_step_well_formed(step, index) }
+  end
+
+  # A step reads with a capability on a resource, or with any read tool Halon can make in a chat, by its name and arguments.
+  # Whether the tool reads, and what it answers, is checked when the watch starts, as the person it runs for.
+  def watch_step_well_formed(step, index)
+    keys = Chat::Watch::SPEC_KEYS
+    tool = step[keys[:tool]]
+    if tool.present?
+      return errors.add(:watch, "Watch #{item_name(step, index)}: needs the read tool's name as Halon calls it") unless tool.to_s.match?(RunbookStep::TOOL_NAME)
+      return errors.add(:watch, "Watch #{item_name(step, index)}: needs the tool's arguments as an object") unless step.fetch(keys[:arguments], {}).is_a?(Hash)
+    elsif step[keys[:capability]].blank? || step[keys[:resource]].blank?
+      return errors.add(:watch, "Watch #{item_name(step, index)}: needs the capability to check and the resource, or a read tool")
     end
+
+    errors.add(:watch, "Watch #{item_name(step, index)}: needs what counts as done (done when, failed when or a goal)") if Chat::Watch::Step.undecided?(step)
   end
 
   # An error names a watch item by its name, or by its number as the settings page numbers them when it has none.

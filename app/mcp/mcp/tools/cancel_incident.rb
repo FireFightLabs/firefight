@@ -11,6 +11,7 @@ module Mcp
                   "call requires approval, retry the identical call with approval_id once approved. " \
                   "Docs: #{Docs::INCIDENTS}"
       annotations(**WRITE)
+      ends_something
       input_schema(
         properties: {
           incident: { type: "string", description: "Incident UUID or identifier like INC-42" },

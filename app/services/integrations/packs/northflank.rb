@@ -53,7 +53,6 @@ module Integrations
       VARIABLE_MAPS = /environment|argument|secret|credential|registr|key|token|password|connection|variables|envs|files|headers/i
       # A pre-signed address that downloads a whole database for anyone who has it.
       DOWNLOAD_LINK = %r{(\A|/)backups/[^/]+/download-link\z}
-      API_RESULT_LIMIT = 6_000
       PROJECT_PATH = %r{\A[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*\z}
       QUERY_NAME = /\A[A-Za-z0-9_.]{1,64}\z/
       QUERY_VALUE_LIMIT = 500
@@ -445,8 +444,7 @@ module Integrations
       # that holds secrets, so no secret reaches the model, the chat or the ledger. Whether a list has another page comes
       # first, since a long answer is cut short at its end.
       def answer_text(path, answer)
-        Chat::SecretFree.redacted(shown_answer(path, answer).to_json)
-                                         .truncate(API_RESULT_LIMIT)
+        ApiReads.cut(Chat::SecretFree.redacted(shown_answer(path, answer).to_json))
       end
 
       # The answer with what holds secrets reduced to names, whole, as the model's text and a command line tool both read it.

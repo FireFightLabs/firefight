@@ -61,6 +61,7 @@ module Mcp
         # Same rule the settings screen shows as a tooltip.
         def deletes_option(model, resource:)
           define_singleton_method(:option_model) { model }
+          ends_something
 
           noun = model::NOUN
           description "Delete one #{noun} by slug. It is refused while incidents still point at " \

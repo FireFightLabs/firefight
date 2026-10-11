@@ -9,6 +9,7 @@ module Mcp
                   "picker. The refusal names what is in the way. If the call requires approval, " \
                   "retry the identical call with approval_id once approved. Docs: #{Docs::CATALOG}"
       annotations(**DESTRUCTIVE)
+      ends_something
       input_schema(
         properties: {
           slug: { type: "string", description: "Slug of the type to remove" },

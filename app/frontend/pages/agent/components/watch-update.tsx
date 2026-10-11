@@ -32,10 +32,27 @@ const TONE_ICONS: Record<AgentChatWatchUpdate["tone"], { icon: Icon; className: 
   [WATCH_TONES.STOPPED]: { icon: IconPlayerStop, className: "text-ink-3" },
 }
 
-// One line a watch said after Halon's answer, placed where it happened among the chat's messages.
-export function WatchUpdate({ update }: { update: AgentChatWatchUpdate }) {
+interface WatchUpdateProps {
+  update: AgentChatWatchUpdate
+  // Inside the card's Details, smaller and without the watch's name, which the card already shows.
+  compact?: boolean
+}
+
+// One line a watch said. In the chat it is something the person may need to act on, placed where it happened among the
+// chat's messages. In the card's Details it is one line of everything the watch said.
+export function WatchUpdate({ update, compact = false }: WatchUpdateProps) {
   const mark = TONE_ICONS[update.tone]
   const Mark = mark.icon
+  if (compact) {
+    return (
+      <div className="flex items-start gap-2">
+        <Mark className={`mt-0.5 size-3.5 shrink-0 ${mark.className}`} />
+        <p className="min-w-0 text-[12.5px] leading-relaxed text-ink-2 [overflow-wrap:anywhere]">
+          <span className="text-ink-3 tabular-nums">{formatTime(update.at)}</span> {update.text}
+        </p>
+      </div>
+    )
+  }
   return (
     <div className="flex max-w-160 items-start gap-2" aria-label="Watch update">
       <Mark className={`mt-1 size-4 shrink-0 ${mark.className}`} />

@@ -50,12 +50,23 @@ module FirefightAi
 
     # Seen on the chat bench, models stopped at "no tool for that" while the provider's general read reached it.
     GENERAL_READ_RULE = "When no dedicated tool covers what you need from a connected provider, read it through that " \
-                        "connection's general read: api_read, or api_request or execute with a read such as a GET. Find " \
+                        "connection's general read: api_read, api_request with a GET, or execute with method and path and no " \
+                        "code. Find " \
                         "the call in the provider's API reference first, through its API skill with use_skill or with " \
                         "search_docs, then make it. A read never asks, so never stop at not having a tool while the " \
                         "general read reaches it.".freeze
 
-    CAUSE_RULE = "Never state why something failed or cannot be done, such as a missing permission, a routing fault or a " \
+    # Seen in real chats, Halon proposed a rollback from what it remembered of an earlier turn, and the person approved a
+    # change nothing current backed. A chat only.
+    CHANGE_RULE = "Look before you change. Before a call that changes a connected system, such as a rollback, a restart, " \
+                  "scaling, pausing or a change to data or configuration, or one that resolves, cancels, deletes or revokes " \
+                  "anything, read what shows it will help, and name those reads in the call's because, each by the tool you " \
+                  "called and what it showed. Firefight checks them against the reads you made, sends a change with none back " \
+                  "to you before anyone is asked, and shows the person the reads you named. Reads from this turn count, and " \
+                  "reads from your previous answer while they are under ten minutes old, so when the person agrees to what you " \
+                  "just proposed you may go ahead, and when it is older read again.".freeze
+
+    CAUSE_RULE ="Never state why something failed or cannot be done, such as a missing permission, a routing fault or a " \
                  "missing parameter, unless a tool result said so. When you do not know why, say what you saw and that " \
                  "the cause is not known.".freeze
   end

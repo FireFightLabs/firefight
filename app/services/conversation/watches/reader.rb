@@ -13,7 +13,7 @@ class Conversation::Watches::Reader
     def failed? = result["isError"] == true
   end
 
-  attr_reader :meter
+  attr_reader :meter, :workspace
 
   def initialize(workspace:, principal:, conversation:, meter: Chat::Watch::Meter.new(nil))
     @workspace = workspace

@@ -33,16 +33,25 @@ class Chat::Watch::Step < ApplicationRecord
   # A run that has not shown up in its history this long after it could have is handed back to Halon to find another
   # way to follow it, rather than waited on in silence for the whole limit.
   HAND_BACK_AFTER = 3.minutes
+  # The readings that changed, newest last, kept so done and failed are judged over how a reading moved rather than one
+  # reading on its own.
+  READINGS_KEPT = 5
+  READING_LIMIT = 8_000
+  READING_AT = "at"
+  READING_TEXT = "text"
+  # How long a read usually takes to reach done, learned from this many of the same read that finished before.
+  USUAL_FROM = 5
+  SUMMARY_LIMIT = 200
+  # Numbers and ids change from one run to the next, so the same read of a newer run counts as the same read.
+  CHANGING_PART = /\b(?=[0-9a-f-]*\d)[0-9a-f]{6,}(?:-[0-9a-f]+)*\b|\d+/i
 
   # How a job or step inside what it follows stands, in the words its progress is said in.
   PART_WAITING = "waiting"
   PART_RUNNING = "running"
   PART_PASSED = "passed"
   PART_FAILED = "failed"
-  # Starting and passing are said as progress. A failed job inside a run is said on its own with why, and one a reading
-  # shows is said with the progress, since nothing else says it.
+  # Starting and passing are said as progress. A failed job inside a run or a reading is said on its own with why.
   PART_SAID = [ PART_RUNNING, PART_PASSED ].freeze
-  READING_SAID = [ PART_RUNNING, PART_PASSED, PART_FAILED ].freeze
 
   belongs_to :watch, class_name: "Chat::Watch", inverse_of: :steps
   belongs_to :integration_environment, optional: true
@@ -70,6 +79,72 @@ class Chat::Watch::Step < ApplicationRecord
 
   # Whether a step given to start_watch, with string keys, lacks what counts as its end. A run in a resource's history
   # ends on its own, anything else needs done_when, failed_when or a goal. Checked when a runbook saves and when a watch starts.
+  # What a read is the same as, kept as a digest so its usual time can be learned from the same read before: the tool or
+  # capability with its arguments, numbers and ids left out.
+  def self.signature(read_name, arguments)
+    given = arguments.to_h.deep_stringify_keys.sort.to_h
+    Digest::SHA256.hexdigest([ read_name.to_s, given.to_json.gsub(CHANGING_PART, "#") ].join("|"))
+  end
+
+  FOCUS_PATH = /\A[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*\z/
+  JSON_START = /[\[{]/
+
+  # The part of a reading a watch judges. With a focus, a path into the JSON the answer holds such as data.status or
+  # data.nodes, only that part. Otherwise the whole reading, and one too long to judge keeps its start, where a run says
+  # how it stands, and its end, where a later job or step that failed is listed.
+  def self.focused(text, focus, limit = READING_LIMIT)
+    picked = focus.present? ? at_path(text, focus) : nil
+    text = picked ? "#{focus}: #{picked}" : text.to_s
+    return text if text.length <= limit
+
+    head = limit / 3
+    tail = limit - head
+    "#{text[0, head]}\n[... #{text.length - limit} characters between here and the end were left out ...]\n#{text[-tail..]}"
+  end
+
+  # The value at a dotted path in the first JSON value the text holds, as JSON, or nil when there is none there.
+  def self.at_path(text, path)
+    parsed = first_json(text.to_s)
+    return if parsed.nil? || !path.to_s.match?(FOCUS_PATH)
+
+    value = path.split(".").reduce(parsed) do |inner, key|
+      case inner
+      when Hash then inner.fetch(key) { return nil }
+      when Array then key.match?(/\A\d+\z/) ? inner.fetch(key.to_i) { return nil } : inner.map { |item| item.is_a?(Hash) ? item[key] : nil }
+      else return nil
+      end
+    end
+    value.is_a?(String) ? value : JSON.generate(value)
+  end
+
+  # A provider's answer may lead with a line such as "Northflank answered GET ..." and end with a link, so the JSON is
+  # what runs from its first bracket to one of its last closing ones.
+  def self.first_json(text)
+    start = text.index(JSON_START)
+    return unless start
+
+    ends = text.enum_for(:scan, /[\]}]/).map { Regexp.last_match.begin(0) }.last(5).reverse
+    ends.each do |stop|
+      return JSON.parse(text[start..stop])
+    rescue JSON::ParserError
+      next
+    end
+    nil
+  end
+
+  # How long the same read usually took to reach done in this workspace, the middle of the newest that did, or nil.
+  def self.usual_for(workspace, signature)
+    return if signature.blank?
+
+    took = joins(:watch).where(chat_watches: { workspace_id: workspace.id }, read_signature: signature, status: STATUS_SUCCEEDED)
+                        .where.not(started_at: nil).where.not(finished_at: nil).order(finished_at: :desc).limit(USUAL_FROM)
+                        .pluck(:started_at, :finished_at).map { |started, finished| (finished - started).round }.select(&:positive?).sort
+    return if took.empty?
+
+    middle = took.size / 2
+    took.size.odd? ? took[middle] : ((took[middle - 1] + took[middle]) / 2.0).round
+  end
+
   def self.undecided?(step)
     keys = Chat::Watch::SPEC_KEYS
     return false if step[keys[:tool]].blank? && read_key(step[keys[:capability]]) == Integrations::Capabilities::HISTORY
@@ -120,6 +195,9 @@ class Chat::Watch::Step < ApplicationRecord
     moved == 1
   end
 
+  # The read it makes, as a repair compares it: what it reads with, its arguments and the run it names.
+  def read_attributes = { capability: capability, tool_name: tool_name, arguments: arguments, run_name: run_name, run_ref: run_ref, focus: focus }
+
   # Follows it with another read from here on, starting over as if the watch began now. Only while it is still open,
   # so a step that ended meanwhile keeps its end. False when it had ended.
   def repaired!(read)
@@ -127,7 +205,7 @@ class Chat::Watch::Step < ApplicationRecord
       **read, status: STATUS_WAITING, repairs: Arel.sql("repairs + 1"), repaired_at: Time.current, repair_reason: nil, handed_back_at: nil, hand_back_noted_at: nil,
               followed_run_id: nil, run_url: nil, started_at: nil, started_told_at: nil, slow_told_at: nil, failed_part: nil,
               failed_part_told_at: nil, parts_told: {}, last_digest: nil, last_state: nil, judged_at: nil, steady_since: nil, read_at: nil,
-              updated_at: Time.current
+              readings: [], summary: nil, updated_at: Time.current
     )
     reload
     moved == 1
@@ -210,13 +288,24 @@ class Chat::Watch::Step < ApplicationRecord
 
   # What a read showed last, kept so a check that sees nothing new asks no model.
   # read is false when nothing was read, such as when the provider did not answer, so when it was last read stays true.
-  # A reading that changed starts its steady time over.
-  def seen!(digest:, state:, read: true, now: Time.current)
+  # A reading that changed starts its steady time over, and a whole reading that changed is kept among its recent ones
+  # when kept is true.
+  def seen!(digest:, state:, read: true, now: Time.current, kept: false)
     changed = digest != last_digest
+    recent = kept && read && changed ? (readings + [ { READING_AT => now.utc.iso8601, READING_TEXT => state.to_s.truncate(READING_LIMIT) } ]).last(READINGS_KEPT) : readings
     update_columns(
-      last_digest: digest, last_state: state.to_s.truncate(STATE_LIMIT), updated_at: now,
+      last_digest: digest, last_state: state.to_s.truncate(STATE_LIMIT), readings: recent, updated_at: now,
       **(read ? { read_at: now, steady_since: (changed || steady_since.nil? ? now : steady_since) } : {})
     )
+  end
+
+  # The recent readings, oldest first, as pairs of when and what.
+  def recent_readings = readings.map { |reading| [ Time.zone.parse(reading[READING_AT].to_s), reading[READING_TEXT].to_s ] }
+
+  # Where it stands now in a few words, such as "build-images running, 4 of 7 done", for its row on the card.
+  def summarized!(text)
+    said = text.to_s.squish.truncate(SUMMARY_LIMIT).presence
+    update_columns(summary: said) if said != summary
   end
 
   def judged!(now = Time.current) = update_columns(judged_at: now)

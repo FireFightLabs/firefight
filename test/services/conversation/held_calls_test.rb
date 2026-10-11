@@ -6,6 +6,8 @@ class Conversation::HeldCallsTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
   setup do
+    # What this covers runs after a change was backed by a read, which Chat::Tools::LookFirstTest covers.
+    Chat::Tools::LookFirst.stubs(:refusal).returns(nil)
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
     @bob = workspace_memberships(:bob_workspace_one)

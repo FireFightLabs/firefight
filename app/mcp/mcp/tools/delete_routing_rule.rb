@@ -6,6 +6,7 @@ module Mcp
                   "policy; omit it for the workspace default. If the call requires approval, " \
                   "retry the identical call with approval_id once approved. Docs: #{Docs::ROUTING_RULES}"
       annotations(**DESTRUCTIVE)
+      ends_something
       authorize_as Ability::Action::RESOURCE_POLICIES, Ability::Action::ACTION_DELETE
       input_schema(
         properties: {

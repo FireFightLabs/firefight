@@ -64,6 +64,17 @@ class AgentChatConfirmationSerializer < BaseSerializer
     confirmation.read_rows
   end
 
+  # The reads from the call's turn Halon named as showing the change will help, led by one sentence. Absent when it named none.
+  type :string, optional: true
+  def support_lead
+    confirmation.support_lead
+  end
+
+  type "string[][]"
+  def support_rows
+    confirmation.support_rows
+  end
+
   # What the call touches beyond its arguments, such as the rows a statement changes or who started what it stops.
   type "string[][]"
   def safeguards

@@ -112,6 +112,7 @@ class FirefightAi::ResponderTest < ActiveSupport::TestCase
 
     assert_includes instructions, FirefightAi::LookFirstRule::RULE
     assert_includes instructions, FirefightAi::LookFirstRule::MAP_RULE
+    assert_includes instructions, FirefightAi::LookFirstRule::CHANGE_RULE
     rule = FirefightAi::LookFirstRule::RULE
     assert_match "check the resource map, the connected integrations, the catalog, what the workspace remembers, its instructions and past incidents", rule
     assert_match "ask only to confirm it or to choose between what you found", rule

@@ -12,6 +12,10 @@ module Integrations
   #   schema                          what a run that only reads is offered instead of the tool's own schema, or nil
   #   withheld(tool_name, arguments)  optional, why a read whose whole answer is a secret is refused, or nil
   #                                   (Integrations::SecretReads)
+  #   structured?(tool_name, arguments)  optional, whether a call is in the shape of schema rather than the tool's own.
+  #                                   A guard that answers it is offered schema beside the tool's own in a chat as well,
+  #                                   with chat_description saying when to use which, so a read there is written by
+  #                                   Firefight and never asks, while a change keeps the tool's own shape.
   # A guard's module also holds DESCRIPTION when it has a schema, which a run that only reads is told with it.
   module ReadGuards
     # Raised with a reason the agent can act on when a call is not shaped the way a guard reads it. A call that would
@@ -27,7 +31,19 @@ module Integrations
     end
 
     # Whether a call to a tool that can make both was shown to read. A call the guard cannot prove reads counts as a change.
-    def self.reads?(tool, arguments) = self.for(tool)&.reads?(tool.name, arguments.to_h.stringify_keys) == true
+    def self.reads?(tool, arguments)
+      guard = self.for(tool)
+      return false unless guard
+
+      given = arguments.to_h.stringify_keys
+      given = guard.reading(tool.name, given) if alongside?(guard) && guard.structured?(tool.name, given)
+      guard.reads?(tool.name, given) == true
+    rescue Refused, PolicyRefusal
+      false
+    end
+
+    # Whether a guard's reading shape is offered beside the tool's own where the tool may also change things.
+    def self.alongside?(guard) = guard.respond_to?(:structured?) && guard.schema.present?
 
     # Whether a call only reads, because its tool only reads or its guard shows the call does.
     def self.read_call?(tool, arguments) = tool.read_only? || reads?(tool, arguments)

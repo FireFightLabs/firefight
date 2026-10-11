@@ -438,6 +438,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
   end
 
   test "one of Firefight's own tools answering with an error marks the card failed and is ledgered as an error" do
+    Chat::Tools::LookFirst.stubs(:refusal).returns(nil)
     member = workspace_memberships(:alice_workspace_one)
     conversation = Conversation.start_personal!(workspace: @workspace, member: member)
     turn = Conversation::Turn.new(conversation, asker: member)

@@ -92,7 +92,7 @@ module Chat::Tools::Provenance
   # Each text the change was given, and each long line of a longer one such as a script, so a command copied from a log
   # is found even inside a bigger one.
   def self.values_of(arguments, said)
-    texts = leaves(arguments.to_h.stringify_keys.except(Chat::Tools::INTENT_ARG, Integration::Tool::ENVIRONMENT_ARG))
+    texts = leaves(arguments.to_h.stringify_keys.except(Chat::Tools::INTENT_ARG, Chat::Tools::LookFirst::BECAUSE, Integration::Tool::ENVIRONMENT_ARG))
     texts += texts.flat_map { |text| text.lines.map(&:strip).select { |line| line.length >= LINE_SHORTEST } }
     texts.map(&:strip).uniq.select { |text| text.length >= SHORTEST_VALUE && !said.include?(text) }
   end

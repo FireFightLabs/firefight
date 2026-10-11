@@ -10,16 +10,21 @@ import { WATCH_SPEC_KEYS } from "@/lib/generated/constants"
 import { WatchStepEditor } from "@/pages/settings/components/runbooks/watch-step-editor"
 import {
   isHistoryRead,
+  newWatchStep,
+  readOf,
   stepText,
+  withRead,
   withStepField,
-  type JsonObject,
+  type ArgumentsState,
   type WatchState,
+  type WatchStepState,
 } from "@/pages/settings/lib/runbook-procedure"
-import type { RunbookWatchRead } from "@/types/serializers"
+import type { RunbookToolChoice, RunbookWatchRead } from "@/types/serializers"
 
 interface RunbookWatchEditorProps {
   watch: WatchState
   reads: RunbookWatchRead[] | null
+  tools: RunbookToolChoice[] | null
   placeholders: SearchableSelectOption[]
   places: SearchableSelectOption[]
   error: string | null
@@ -27,10 +32,16 @@ interface RunbookWatchEditorProps {
   onChange: (watch: WatchState) => void
 }
 
-// What Halon watches once every step went through: a title, each thing to follow (a run in a resource's history, or a
-// reading that says when it is done) and an optional time limit. Anything saved that this does not show is kept.
-export function RunbookWatchEditor({ watch, reads, placeholders, places, error, serverErrors, onChange }: RunbookWatchEditorProps) {
-  const readOptions = (reads ?? []).map((read) => ({ value: read.name, label: read.label }))
+// What Halon watches once every step went through: a title, each thing to follow (a run in a resource's history, a
+// reading of a resource, or any read tool Halon can make in a chat, with what counts as done) and an optional time limit.
+// Anything saved that this does not show is kept.
+export function RunbookWatchEditor({ watch, reads, tools, placeholders, places, error, serverErrors, onChange }: RunbookWatchEditorProps) {
+  const capabilityNames = new Set((reads ?? []).map((read) => read.name))
+  const readTools = (tools ?? []).filter((tool) => tool.reads && !capabilityNames.has(tool.name))
+  const readOptions = [
+    ...(reads ?? []).map((read) => ({ value: read.name, label: read.label, group: "Anything on the resource map" })),
+    ...readTools.map((tool) => ({ value: tool.name, label: tool.name, group: tool.group })),
+  ]
 
   function patch(next: Partial<WatchState>) {
     onChange({ ...watch, ...next })
@@ -49,8 +60,20 @@ export function RunbookWatchEditor({ watch, reads, placeholders, places, error, 
     patch({ minutesDraft: event.target.value })
   }
 
+  function changeStep(key: string, change: (step: WatchStepState) => WatchStepState) {
+    patch({ steps: watch.steps.map((step) => (step.key === key ? change(step) : step)) })
+  }
+
   function setStep(key: string, field: string, entered: string | boolean) {
-    patch({ steps: watch.steps.map((step) => (step.key === key ? { ...step, spec: withStepField(step.spec, field, entered) } : step)) })
+    changeStep(key, (step) => ({ ...step, spec: withStepField(step.spec, field, entered) }))
+  }
+
+  function chooseRead(key: string, name: string) {
+    changeStep(key, (step) => withRead(step, name, capabilityNames.has(name)))
+  }
+
+  function setArgs(key: string, args: ArgumentsState) {
+    changeStep(key, (step) => ({ ...step, args }))
   }
 
   function addStep() {
@@ -91,11 +114,18 @@ export function RunbookWatchEditor({ watch, reads, placeholders, places, error, 
             <WatchStepEditor
               key={step.key}
               number={index + 1}
-              spec={step.spec}
+              step={step}
               history={isHistoryRead(step.spec, reads ?? [])}
+              tool={readTools.find((tool) => tool.name === stepText(step.spec, WATCH_SPEC_KEYS.TOOL)) ?? null}
+              toolsLoaded={tools !== null}
               readOptions={readOptions}
+              selectedRead={readOf(step.spec)}
               resourceOptions={[ ...places, ...placeholders ]}
+              placeholders={placeholders}
+              places={places}
               onChange={(field, entered) => setStep(step.key, field, entered)}
+              onChooseRead={(name) => chooseRead(step.key, name)}
+              onArgsChange={(args) => setArgs(step.key, args)}
               onRemove={() => removeStep(step.key)}
             />
           ))}
@@ -113,7 +143,7 @@ export function RunbookWatchEditor({ watch, reads, placeholders, places, error, 
   )
 }
 
-function newStep(reads: RunbookWatchRead[] | null): { key: string; spec: JsonObject } {
+function newStep(reads: RunbookWatchRead[] | null): WatchStepState {
   const first = reads?.[0]?.name
-  return { key: crypto.randomUUID(), spec: first ? { [WATCH_SPEC_KEYS.CAPABILITY]: first } : {} }
+  return newWatchStep(first ? { [WATCH_SPEC_KEYS.CAPABILITY]: first } : {})
 }

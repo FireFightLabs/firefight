@@ -27,7 +27,8 @@ class AgentChatsController < InertiaController
   PROP_PACK_REFUSALS = "packRefusals"
   # Secrets a tool call in the open chat handed to the person who asked, to type or to reveal, never their values.
   PROP_SECRET_ENTRIES = "secretEntries"
-  # What Halon watches for the open chat, going and ended, and every line the watches said, placed by when they said it.
+  # What Halon watches for the open chat, going and ended, each a card that moves in place, and the lines the person may
+  # need to act on (Chat::Watch::Update::KINDS_ON_THEIR_OWN), placed by when they were said.
   PROP_WATCHES = "watches"
   PROP_WATCH_UPDATES = "watchUpdates"
   # What Halon said about pull requests it opened from this chat that need attention, each with Fix it.
@@ -323,7 +324,7 @@ class AgentChatsController < InertiaController
 
   def watches_shown
     chat = conversation.chat
-    chat ? chat.watches.includes(:steps, :asker) : []
+    chat ? chat.watches.includes(:steps, :asker, :updates) : []
   end
 
   def plans_shown
@@ -344,7 +345,7 @@ class AgentChatsController < InertiaController
 
   def watch_updates_shown
     chat = conversation.chat
-    chat ? chat.watch_updates.includes(:watch).reorder(:created_at) : []
+    chat ? chat.watch_updates.on_their_own.includes(:watch).reorder(:created_at) : []
   end
 
   def pull_request_notices_shown

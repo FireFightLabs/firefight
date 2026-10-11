@@ -11,10 +11,12 @@ class Chat::Tools::Connection < RubyLLM::Tool
   def requires_approval? = confirms_as_usual? || data_writes? || stops?
 
   # A call shown to read runs without asking, since reads never wait. A call whose words name another connection is
-  # refused rather than put to the person (Chat::Tools::Target), and so is a write Firefight cannot count first.
+  # refused rather than put to the person (Chat::Tools::Target), and so is a write Firefight cannot count first, and a
+  # change that names no read from this turn (Chat::Tools::LookFirst).
   def approval_resolver
     Chat::Tools::Target.resolver(@agent_run) do |given, tool_call|
-      reads?(given) || misdirection(given).present? || (data_writes? && runs_unasked?(given, tool_call)) || (stops? && stops_unasked?(given, tool_call))
+      reads?(given) || misdirection(given).present? || unsupported(given, tool_call&.id).present? ||
+        (data_writes? && runs_unasked?(given, tool_call)) || (stops? && stops_unasked?(given, tool_call))
     end
   end
 
@@ -24,7 +26,10 @@ class Chat::Tools::Connection < RubyLLM::Tool
   def description
     said = Chat::Tools.clean(@tool.described_for_agents, Chat::Tools::FULL_DESCRIPTION)
     said = "#{said} #{Chat::DataRepairs::DESCRIPTION}" if data_writes?
-    reading_schema ? "#{said} #{guard::DESCRIPTION}" : said
+    return "#{said} #{guard::DESCRIPTION}" if reading_schema
+    return "#{said} #{guard.chat_description}" if reads_alongside?
+
+    said
   end
 
   # The same schema an outside MCP client is handed, so a connection wired per environment is reachable from a chat.
@@ -32,8 +37,10 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # A tool that can open an issue in a chat or run about an incident also asks how the issue is kept on it.
   def parameters_schema
     schema = reading_schema || Integrations::Replicas.offered(@tool, @tool.offered_schema)
+    schema = with_reading(schema) if reads_alongside?
     schema = Chat::Tools::TrackedIssues.with_kind(schema) if tracks_issues?
     schema = Chat::DataRepairs.with_check(schema) if data_writes?
+    schema = Chat::Tools::LookFirst.with_because(schema, required: false) if changes_at_all?
     requires_approval? ? Chat::Tools.with_intent(schema) : schema
   end
 
@@ -45,8 +52,12 @@ class Chat::Tools::Connection < RubyLLM::Tool
     refused = misdirection(given) || Chat::Tools::Target.drift(@agent_run, tool_call&.id, Chat::Tools::Target.connection_label(@tool, given))
     return failed(tool_call&.id, refused) if refused
 
+    unbacked = unsupported(given, tool_call&.id)
+    return failed(tool_call&.id, unbacked, kind: Chat::StepOutcome::FAILURE_REFUSED) if unbacked
+
     @issue_kind = given[Chat::Tools::TrackedIssues::KIND_ARG]
-    invoke(given.except(Chat::Tools::INTENT_ARG, Chat::Tools::TrackedIssues::KIND_ARG, Chat::DataRepairs::CHECK_ARG), tool_call_id: tool_call&.id)
+    invoke(given.except(Chat::Tools::INTENT_ARG, Chat::Tools::TrackedIssues::KIND_ARG, Chat::DataRepairs::CHECK_ARG, Chat::Tools::LookFirst::BECAUSE),
+           tool_call_id: tool_call&.id)
   end
 
   private
@@ -57,7 +68,21 @@ class Chat::Tools::Connection < RubyLLM::Tool
       "Tell the person, and open the tools again once they say it is on."
   end
 
-  def reads?(given) = Integrations::ReadGuards.reads?(@tool, given.except(Chat::Tools::INTENT_ARG, Integration::Tool::ENVIRONMENT_ARG))
+  def reads?(given) = Integrations::ReadGuards.reads?(@tool, own_arguments(given))
+
+  def own_arguments(given) = given.except(Chat::Tools::INTENT_ARG, Integration::Tool::ENVIRONMENT_ARG, Chat::Tools::LookFirst::BECAUSE)
+
+  # Whether some call of this tool changes something, which is when a call names the reads behind it.
+  def changes_at_all? = !@tool.read_only? && Chat::Tools::LookFirst.applies?(@agent_run)
+
+  # Why a change goes back to Halon before anyone is asked, since nothing it read this turn backs it, or nil. A read, and
+  # a statement that only reads through a tool that can also write, never needs one.
+  def unsupported(given, tool_call_id)
+    return unless changes_at_all?
+    return if reads?(given) || (data_writes? && Chat::DataRepairs.reads?(@tool, given))
+
+    Chat::Tools::LookFirst.refusal(@agent_run, given, tool_call_id: tool_call_id)
+  end
 
   def misdirection(given)
     Chat::Tools::Target.misdirection(@tool.integration, Chat::Tools.intent_of(given), called: name) do |other|
@@ -303,8 +328,10 @@ class Chat::Tools::Connection < RubyLLM::Tool
     Array(result["content"]).filter_map { |part| part["text"] }.join("\n").presence || result.to_json
   end
 
-  # A run that only reads calls a tool that can write only once the call is shown to read, as its guard rewrites it.
+  # A run that only reads calls a tool that can write only once the call is shown to read, as its guard rewrites it. A
+  # chat's read in the guard's own shape is rewritten the same way, so it runs as the read it was shown to be.
   def reading(arguments)
+    return guard.reading(@tool.name, arguments) if reads_alongside? && guard.structured?(@tool.name, arguments)
     return arguments unless guarded?
     raise Integrations::PolicyRefusal, "#{name} can change things, so it is not used while investigating." unless guard
 
@@ -314,6 +341,20 @@ class Chat::Tools::Connection < RubyLLM::Tool
   def guarded? = @agent_run.reads_only? && !@tool.read_only?
 
   def guard = @guard ||= Integrations::ReadGuards.for(@tool)
+
+  # A chat that may change things is offered the guard's reading shape beside the tool's own, when the guard offers it,
+  # so it reads in a shape Firefight writes and changes in the tool's own.
+  def reads_alongside? = !@agent_run.reads_only? && Integrations::ReadGuards.alongside?(guard)
+
+  # The tool's own schema with the guard's reading fields beside it. Neither shape's own fields are required, since a call
+  # is one or the other, while what every call needs, such as the environment, still is.
+  def with_reading(schema)
+    schema = schema.deep_dup
+    schema["properties"] = schema.fetch("properties", {}).merge(guard.schema["properties"].except(*schema.fetch("properties", {}).keys))
+    required = Array(schema.delete("required")) - Array(@tool.params_schema.to_h["required"])
+    schema["required"] = required if required.any?
+    schema
+  end
 
   # What the guard takes instead of the tool's own arguments, when it rewrites them, keeping the choices every caller is
   # offered beside them, the environment and the scope.

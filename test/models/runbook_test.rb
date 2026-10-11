@@ -32,7 +32,7 @@ class RunbookTest < ActiveSupport::TestCase
     unplaced = { "label" => "Deploy finished", "capability" => "resource_status" }
     runbook = @workspace.runbooks.new(name: "Deploy", watch: { "title" => "web", "steps" => [ named, unplaced ] })
     assert_not runbook.valid?
-    assert_equal [ "Watch 'Deploy finished': needs the capability to check and the resource" ], runbook.errors.full_messages
+    assert_equal [ "Watch 'Deploy finished': needs the capability to check and the resource, or a read tool" ], runbook.errors.full_messages
     assert_equal runbook.errors.full_messages, runbook.errors[:watch], "the settings page shows the same sentence"
 
     undecided = { "capability" => "resource_status", "resource" => "web" }
@@ -41,6 +41,23 @@ class RunbookTest < ActiveSupport::TestCase
     assert_equal [ "Watch 1: needs what counts as done (done when, failed when or a goal)", "Watch 3: needs what counts as done (done when, failed when or a goal)" ],
                  runbook.errors.full_messages
     assert_no_match(/step/i, runbook.errors.full_messages.join)
+  end
+
+  test "a watch item can be any read Halon makes in a chat, such as following the release workflow's newest run through the general read" do
+    newest = { "label" => "Release workflow", "tool" => "northflank_api_request", "focus" => "data.status",
+               "arguments" => { "method" => "GET", "path" => "workflows/release/runs", "query" => { "per_page" => 1 } },
+               "goal" => "workflow release's newest run, started for {{version}}, finished" }
+    runbook = @workspace.runbooks.new(name: "Release", inputs: [ { "key" => "version", "question" => "Which version?" } ],
+                                      watch: { "title" => "Release", "steps" => [ newest ] })
+
+    assert runbook.valid?, runbook.errors.full_messages.to_sentence
+    runbook.save!
+    assert_equal "workflow release's newest run, started for v2, finished", runbook.filled_watch("version" => "v2")["steps"].sole["goal"]
+
+    runbook.watch = { "title" => "Release", "steps" => [ newest.merge("tool" => "not a tool!") ] }
+    assert_equal [ "Watch 'Release workflow': needs the read tool's name as Halon calls it" ], runbook.tap(&:validate).errors[:watch]
+    runbook.watch = { "title" => "Release", "steps" => [ newest.except("goal") ] }
+    assert_match "needs what counts as done", runbook.tap(&:validate).errors[:watch].join
   end
 
   test "a watch item's name is optional, and one left without is named after what it reads when the runbook runs" do

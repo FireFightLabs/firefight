@@ -21,9 +21,14 @@ class Chat::Watch::Update < ApplicationRecord
     KIND_STARTED, KIND_MILESTONE, KIND_PART_FAILED, KIND_HANDED_BACK, KIND_REPAIRED, KIND_CORRECTED, KIND_CEILING, KIND_SLOW, KIND_PROGRESS, KIND_ENDED
   ].freeze
 
+  # What the person may need to act on, shown as its own line in the dashboard chat: a job or step that failed, a step
+  # slower than usual, and how the watch ended. Everything else moves the watch's card, under its Details.
+  KINDS_ON_THEIR_OWN = [ KIND_PART_FAILED, KIND_SLOW, KIND_ENDED ].freeze
+
   belongs_to :watch, class_name: "Chat::Watch", inverse_of: :updates
 
   validates :kind, inclusion: { in: KINDS }
 
   scope :untold, -> { where(told_at: nil) }
+  scope :on_their_own, -> { where(kind: KINDS_ON_THEIR_OWN) }
 end

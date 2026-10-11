@@ -11,6 +11,8 @@ class Chat::Tools::StepOutcomesTest < ActiveSupport::TestCase
   NOT_FOUND = "Error: Cloudflare API error: 8000007: Project not found. The specified project name does not match any of your existing projects.".freeze
 
   setup do
+    # What this covers runs after a change was backed by a read, which Chat::Tools::LookFirstTest covers.
+    Chat::Tools::LookFirst.stubs(:refusal).returns(nil)
     @workspace = workspaces(:slack_workspace_one)
     member = workspace_memberships(:alice_workspace_one)
     @conversation = Conversation.start_personal!(workspace: @workspace, member: member)

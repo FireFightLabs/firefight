@@ -36,8 +36,19 @@ module Slack
         if guarded.any?
           blocks << { type: "section", text: { type: "mrkdwn", text: guarded.join("\n").truncate(Formatting::SECTION_TEXT_LIMIT) } }
         end
+        blocks.concat(support_blocks(confirmation))
         blocks.concat(read_blocks(confirmation))
         blocks << answer_block(conversation_id, confirmation)
+      end
+
+      # The reads from this turn Halon named as showing the change will help, so the person approves the reasoning too.
+      # Labels and what Halon said came from the model and other systems, so they are escaped.
+      def self.support_blocks(confirmation)
+        return [] unless confirmation.support_lead
+
+        rows = confirmation.support_rows.map { |label, said| "• #{Slack::Mrkdwn.escape(label)}: #{Slack::Mrkdwn.escape(said)}" }
+        text = "#{confirmation.support_lead}\n#{rows.join("\n")}".truncate(Formatting::SECTION_TEXT_LIMIT)
+        [ { type: "context", elements: [ { type: "mrkdwn", text: text } ] } ]
       end
 
       # What Halon read from outside before asking, so the person can tell where the change came from. Labels and values

@@ -7,6 +7,7 @@ module Mcp
                   "upsert_outbound_webhook is the reversible move. If the call requires approval, " \
                   "retry the identical call with approval_id once approved. Docs: #{Docs::MCP_SERVER}"
       annotations(**DESTRUCTIVE)
+      ends_something
       input_schema(
         properties: {
           id: { type: "string", description: "Id of the webhook to delete" },

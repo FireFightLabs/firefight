@@ -5,6 +5,7 @@ module Mcp
       description "Revoke a grant by its id, from list_principals. Takes effect immediately. " \
                   "Docs: #{Docs::PERMISSIONS}"
       annotations(**DESTRUCTIVE)
+      ends_something
       authorize_as Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_DELETE
       input_schema(
         properties: {

@@ -9,22 +9,27 @@ class Conversation::Tools::StartWatch < RubyLLM::Tool
                         "description" => "The read that checks it. run_history follows a run, build or deploy by its status, and says at once " \
                                          "when a job or step inside it fails. Any other read needs done_when, failed_when or goal. Give this or tool" },
       "tool" => { "type" => "string",
-                  "description" => "Instead of a capability, any read tool you hold, by the name you call it, with its arguments, such as a " \
-                                   "provider's API request with method GET for one workflow run by its id (workflows/release/runs/<id>), never a " \
-                                   "list of recent runs. For a code host's CI, prefer run_history with run, which brings its jobs. A tool that can also change things only " \
-                                   "reads here. Needs done_when, failed_when or goal. Find the right read in the provider's skill, " \
-                                   "search_docs or the web (optional)" },
+                  "description" => "Instead of a capability, any read you can make in this chat, by the tool's name, with its arguments: a " \
+                                   "provider's general read, such as its API request with method GET for one workflow run by its id " \
+                                   "(workflows/release/runs/<id>) or for a workflow's newest run, any tool that reads, or one of Firefight's " \
+                                   "own reads. For a code host's CI, prefer run_history with run, which brings its jobs. A tool that can also " \
+                                   "change things only reads here. Needs done_when, failed_when or goal. Find the right read in the " \
+                                   "provider's skill, search_docs or the web (optional)" },
+      "focus" => { "type" => "string",
+                   "description" => "tool only: the part of a JSON answer to watch, as a dotted path such as data.status or data.nodes, when " \
+                                    "the answer is long and only that part says how it stands (optional)" },
       "resource" => { "type" => "string", "description" => "The resource on the map, by name or map id, as for the capability itself (a capability only)" },
       "connection" => { "type" => "string", "description" => "The connection to ask, when the capability needs one named (optional)" },
       "name" => { "type" => "string", "description" => "run_history only: follow runs whose workflow, pipeline or kind contains this, such as release, build or deploy (optional)" },
       "run" => { "type" => "string", "description" => "run_history only: the run to follow by its id or number, such as 46. Always give it when you started the run or can identify it, " \
                                        "so the watch follows that exact run. Without it, the first run of that name that starts around now (optional)" },
       "report_start" => { "type" => "boolean", "description" => "run_history only: also say when the run starts, when the person asked to hear that (optional)" },
-      "done_when" => { "type" => "string", "description" => "Text in the read's answer that means it is done, such as running (optional)" },
-      "failed_when" => { "type" => "string", "description" => "Text in the read's answer that means it failed, such as crashed (optional)" },
-      "goal" => { "type" => "string", "description" => "Keep checking until this holds: the condition in plain words, such as every instance of web runs " \
-                                                       "the new version, or the error rate stays under 1% for ten minutes. Judged on each reading that " \
-                                                       "changed and every few minutes on one that did not, when no text above decides (optional)" },
+      "done_when" => { "type" => "string", "description" => "What in the read's answer means it is done, such as status success (optional)" },
+      "failed_when" => { "type" => "string", "description" => "What in the read's answer means it failed, such as status failure or crashed (optional)" },
+      "goal" => { "type" => "string", "description" => "Keep checking until this holds: the question in plain words, such as every instance of web runs " \
+                                                       "the new version, or the error rate stays under 1% for ten minutes. A read other than run_history is " \
+                                                       "judged by a model over its recent readings, with done_when and failed_when as what to look for, on " \
+                                                       "each reading that changed and every few minutes on one that did not (optional)" },
       "arguments" => { "type" => "object", "description" => "Other arguments the capability takes, such as stream for search_logs, or all of the tool's arguments (optional)" }
     },
     "required" => %w[label]

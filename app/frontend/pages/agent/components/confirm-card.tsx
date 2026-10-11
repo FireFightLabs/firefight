@@ -35,20 +35,25 @@ function choicesFor(confirmation: AgentChatConfirmation): Choice[] {
 // A call through a connection leads with what it reaches, worked out from the tool, then the call, with the agent's
 // sentence quieter below, since the agent's words can name another account than the one the tool reaches. Any other
 // call leads with the agent's sentence when it wrote one, with the tool named above it. What the call touches beyond its
-// arguments, such as the rows it changes, comes before what it was given, and what Halon read from outside before asking
-// comes last as a warning.
+// arguments, such as the rows it changes, comes before what it was given. The reads Halon named as showing the change
+// will help follow, so the person approves the reasoning, and what Halon read from outside before asking comes last as a
+// warning.
 function questionFor(confirmation: AgentChatConfirmation, choices: Choice[]): ApprovalQuestion {
   const details = [ ...confirmation.safeguards, ...confirmation.asked ].map(([ label, meta ]) => ({ label, meta }))
   const caution = confirmation.readLead
   const cautionDetails = confirmation.readRows.map(([ label, meta ]) => ({ label, meta }))
+  const basis = confirmation.supportLead
+  const basisDetails = confirmation.supportRows.map(([ label, meta ]) => ({ label, meta }))
   const options = choices.map((choice) => choice.label)
   if (confirmation.target) {
-    return { q: confirmation.target, subtitle: confirmation.callName, note: confirmation.intent, details, caution, cautionDetails, type: "radio", options }
+    return { q: confirmation.target, subtitle: confirmation.callName, note: confirmation.intent, details, basis, basisDetails, caution, cautionDetails, type: "radio", options }
   }
   return {
     q: confirmation.intent ?? confirmation.question,
     eyebrow: confirmation.intent ? confirmation.toolLabel : undefined,
     details,
+    basis,
+    basisDetails,
     caution,
     cautionDetails,
     type: "radio",
