@@ -83,8 +83,9 @@ class Conversation::RehearsalTest < ActiveSupport::TestCase
 
   # On the first real bench run a replay handed every tool over up front and open_tools said groups had nothing
   # connected, so models opened groups again and again and said tools they held were missing.
-  test "a chat holds only its own tools until open_tools opens the group a tool sits in, as it does live" do
+  test "past the budget a chat holds only its own tools until open_tools opens the group a tool sits in, as it does live" do
     FirefightAi.stubs(:tool_search?).returns(false)
+    FirefightAi.configuration.stubs(:held_tools_budget).returns(0)
     bench_case = build("tools" => [
       { "name" => "open_tools", "description" => "Opens groups", "base" => true },
       { "name" => "read_run", "description" => "Reads a run", "reads" => true, "source" => "northflank" }
@@ -117,6 +118,26 @@ class Conversation::RehearsalTest < ActiveSupport::TestCase
     assert_equal false, offered[:search_runbooks]
     assert_equal true, offered[:read_run]
     assert_equal false, offered[:open_tools], "open_tools stays, to say what exists that cannot be used"
+  end
+
+  # Opening a group changed the tool list, which comes first in what a provider caches, so each opening wrote the whole
+  # cached front again. A replay holds every tool from the start when they fit, as Chat::Tools.presented does live.
+  test "where the provider does not search and the tools fit, every tool is held from the start and the tool list never changes" do
+    FirefightAi.stubs(:tool_search?).returns(false)
+    bench_case = build("tools" => [
+      { "name" => "open_tools", "description" => "Opens groups", "base" => true },
+      { "name" => "read_run", "description" => "Reads a run", "reads" => true, "source" => "northflank" }
+    ], "answers" => [ { "tool" => "read_run", "result" => "Run 412 failed." } ])
+    offered = []
+    RubyLLM::Provider.any_instance.stubs(:complete).with { |_messages, tools:, **| offered << tools.dup }
+                     .returns(call("read_run", {})).then.returns(call("open_tools", "group" => "northflank")).then.returns(reply("Run 412 failed."))
+
+    replay = Conversation::Rehearsal.replay!(bench_case, result: @result, model: @model)
+
+    assert_equal "Run 412 failed.", replay.transcript.calls.first.result
+    assert_includes offered.first.keys, :read_run
+    assert_equal [ offered.first.keys ], offered.map(&:keys).uniq
+    assert offered.first[:open_tools].description.start_with?(Chat::Tools::Open::HOLDS)
   end
 
   test "open_tools lists the scenario's own groups as ready, never as not connected" do

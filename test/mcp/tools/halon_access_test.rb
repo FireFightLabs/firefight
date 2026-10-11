@@ -11,14 +11,12 @@ class Mcp::Tools::HalonAccessTest < ActiveSupport::TestCase
     @member = workspace_memberships(:bob_workspace_one)
     Entitlements.stubs(:allows?).returns(true)
     FirefightAi.stubs(:context_window).returns(200_000)
-    Conversation::Runner.stubs(:new).returns(
-      stub(run: FirefightAi::AgentLoop::Outcome.new(status: FirefightAi::AgentLoop::STATUS_ANSWERED, turns_used: 1, spent_micros: 0),
-           reply: "Two deploys went out.")
-    )
+    Mcp::Tools::HalonAnswer.stubs(:pause)
+    halon_replies("Two deploys went out.")
   end
 
   test "a member asks Halon and starts an investigation without any grant" do
-    asked = call(Mcp::Tools::AskHalon, @member, question: "What changed today?")
+    asked = perform_enqueued_jobs(only: ConversationReplyJob) { call(Mcp::Tools::AskHalon, @member, question: "What changed today?") }
     started = call(Mcp::Tools::StartInvestigation, @member, incident: @incident.identifier)
 
     assert_equal "Two deploys went out.", asked.structured_content[:answer]
@@ -41,7 +39,7 @@ class Mcp::Tools::HalonAccessTest < ActiveSupport::TestCase
     assert_equal run.id, call(Mcp::Tools::GetInvestigation, @member, investigation: run.id).structured_content[:id]
   end
 
-  test "a service key without a grant is refused all three, and a grant lets it ask" do
+  test "a service key without a grant is refused each of them, and a grant lets it ask" do
     key = api_keys(:read_only_key)
     run = @workspace.investigations.create!(
       subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND, triggered_by: @member, max_turns: 10, max_spend_cents: 400
@@ -49,6 +47,7 @@ class Mcp::Tools::HalonAccessTest < ActiveSupport::TestCase
 
     { Mcp::Tools::AskHalon => [ { question: "What changed today?" }, "investigations:create" ],
       Mcp::Tools::StartInvestigation => [ { incident: @incident.identifier }, "investigations:create" ],
+      Mcp::Tools::GetHalonAnswer => [ { conversation_id: SecureRandom.uuid }, "investigations:create" ],
       Mcp::Tools::GetInvestigation => [ { investigation: run.id }, "investigations:read" ] }.each do |tool, (args, permission)|
       refused = call(tool, key, **args)
       assert refused.error?, tool.name_value
@@ -56,7 +55,8 @@ class Mcp::Tools::HalonAccessTest < ActiveSupport::TestCase
     end
 
     Ability::Grant.grant!(workspace: @workspace, principal: key, target: { action: Ability::Action.system!(Ability::Action::INVESTIGATIONS_CREATE) })
-    assert_equal "Two deploys went out.", call(Mcp::Tools::AskHalon, key, question: "What changed today?").structured_content[:answer]
+    asked = perform_enqueued_jobs(only: ConversationReplyJob) { call(Mcp::Tools::AskHalon, key, question: "What changed today?") }
+    assert_equal "Two deploys went out.", asked.structured_content[:answer]
   end
 
   private

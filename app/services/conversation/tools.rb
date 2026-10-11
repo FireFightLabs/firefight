@@ -1,10 +1,10 @@
 # What a conversation hands the agent. Everything else it opens with open_tools, loads with a skill, or finds with its
-# provider's own tool search (Chat::Tools.presented, which says whether searched). helpers is what the turn lends the
-# helpers it hands checks to (Chat::Helpers::Share), nil where it has none to lend.
+# provider's own tool search (Chat::Tools.presented). helpers is what the turn lends the helpers it hands checks to
+# (Chat::Helpers::Share), nil where it has none to lend.
 module Conversation::Tools
-  def self.for(turn, offer:, helpers: nil, searched: false)
+  def self.for(turn, offer:, helpers: nil, presented: Chat::Tools::Presented.none)
     [
-      Chat::Tools::Open.new(turn, offer: offer, searched: searched), Chat::Tools::UseSkill.new(turn, offer: offer), *Chat::Tools::Docs.all(turn), Chat::Tools::ReadResult.new(turn),
+      Chat::Tools::Open.new(turn, offer: offer, presented: presented), Chat::Tools::UseSkill.new(turn, offer: offer), *Chat::Tools::Docs.all(turn), Chat::Tools::ReadResult.new(turn),
       *(Chat::Tools::Helpers.new(turn, share: helpers) if helpers),
       StartInvestigation.new(turn), RunRunbook.new(turn), StartWatch.new(turn), RepairWatch.new(turn), ExtendWatch.new(turn), StopWatch.new(turn),
       ListWatches.new(turn), *plans(turn),

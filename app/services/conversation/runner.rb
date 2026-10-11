@@ -58,7 +58,7 @@ class Conversation::Runner
 
     outcome = responder.run(
       chat: chat,
-      tools: Conversation::Tools.for(@turn, offer: Chat::Tools.offer_to(chat), helpers: helper_share(chat, purse), searched: presented.searched) +
+      tools: Conversation::Tools.for(@turn, offer: Chat::Tools.offer_to(chat), helpers: helper_share(chat, purse), presented: presented) +
              presented.loaded + Chat::Tools.known(@turn, chat),
       deferred_tools: presented.deferred,
       context: context,
@@ -93,9 +93,6 @@ class Conversation::Runner
   rescue FirefightAi::Canceled
     stopped!(@conversation.chat_record)
   end
-
-  # What the person was told, for a caller that waits for the answer rather than watching it arrive.
-  attr_reader :reply
 
   private
 

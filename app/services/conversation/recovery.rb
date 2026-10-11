@@ -8,13 +8,12 @@ class Conversation::Recovery
 
   # Past the ceiling the page has stopped waiting, so an old turn is not answered out of nowhere.
   def self.sweep!(jobs: Conversation::ReplyJobs)
-    Conversation.where.not(kind: Conversation::KIND_MCP)
-      .where(answer_owed_since: Conversation::REPLY_CEILING.ago..SETTLING.ago)
+    Conversation.where(answer_owed_since: Conversation::REPLY_CEILING.ago..SETTLING.ago)
       .find_each { |conversation| recover(conversation, jobs: jobs) }
   end
 
-  # An MCP chat is answered inside the request that asked, with no job to lose, so it is never swept. Each transition is
-  # one guarded statement on the turn as it was read, so a turn started since, or one another sweep took, is never touched.
+  # Each transition is one guarded statement on the turn as it was read, so a turn started since, or one another sweep
+  # took, is never touched.
   def self.recover(conversation, jobs:)
     checked_at = Time.current
     return if jobs.waiting_or_running?(conversation)

@@ -30,7 +30,7 @@ class Investigation::Runner
 
     outcome = investigator.run(
       chat: chat,
-      tools: Investigation::Tools.for(@investigation, offer: Chat::Tools.offer_to(chat), helpers: helper_share(purse), searched: presented.searched) +
+      tools: Investigation::Tools.for(@investigation, offer: Chat::Tools.offer_to(chat), helpers: helper_share(purse), presented: presented) +
              presented.loaded + Chat::Tools.known(@investigation, chat),
       deferred_tools: presented.deferred,
       seed_pack: @investigation.starting_facts,
