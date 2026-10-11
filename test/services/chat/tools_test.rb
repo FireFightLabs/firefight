@@ -863,6 +863,20 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert(presented.loaded.none? { |tool| tool.is_a?(Chat::Tools::Connection) })
   end
 
+  # Reads are what Halon reaches for in most turns, about 9,500 tokens of Firefight's own, so only they are held whole.
+  test "where the provider searches tools, Firefight's own writes are found by searching while its reads are held" do
+    FirefightAi.stubs(:tool_search?).returns(true)
+    alice = workspace_memberships(:alice_workspace_one)
+    turn = Conversation::Turn.new(Conversation.start_personal!(workspace: @workspace, member: alice), asker: alice)
+
+    presented = Chat::Tools.presented(turn, searching_choice)
+
+    assert_includes presented.loaded.map(&:name), Mcp::Tools::SEARCH_INCIDENTS
+    assert_includes presented.deferred.map(&:name), Mcp::Tools::DECLARE_INCIDENT
+    assert_not_includes presented.loaded.map(&:name), Mcp::Tools::DECLARE_INCIDENT
+    assert(presented.loaded.none? { |tool| Chat::Tools.writing_names.include?(tool.name.to_s) })
+  end
+
   test "a tool whoever acts may not call is never handed over, deferred or not, and open_tools still says it exists" do
     FirefightAi.stubs(:tool_search?).returns(true)
 
