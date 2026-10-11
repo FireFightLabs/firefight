@@ -60,7 +60,7 @@ class Chat::Tools::ProposeHandbookEdit < RubyLLM::Tool
   end
 
   def where_asked(proposal)
-    return "A card in this chat asks the person to accept, edit or dismiss it." if proposal.conversation&.personal?
+    return "A card in this chat asks the person to accept, edit or dismiss it." if proposal.conversation&.belongs_to_one_person?
     return "The incident's channel is asked to accept, edit or dismiss it, and so is the Handbook page." if proposal.incident&.channel_id.present?
 
     "It waits on the Handbook page for a person to accept, edit or dismiss it."

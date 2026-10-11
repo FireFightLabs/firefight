@@ -1,11 +1,13 @@
 # Asks people to accept, edit or dismiss a handbook edit or new page Halon proposed. It asks with a card in a dashboard
-# chat, with a message in the incident thread a chat or run speaks in, and always on the Handbook page. Each place is redrawn once
+# chat, with a message in the thread a chat or run speaks in, and always on the Handbook page. Each place is redrawn once
 # someone decides.
 class HandbookProposalService
   # What a platform message shows, so the adapter never reads a proposal record. new_page says it adds a page.
   Shown = Data.define(:id, :page_title, :new_page, :current_wording, :text, :evidence, :decided)
 
   NOT_POSTED = [ AdapterError::IsArchived, AdapterError::NotFound, AdapterError::NotInChannel ].freeze
+  # The chats that speak in a platform thread.
+  THREADED_KINDS = [ Conversation::KIND_CHANNEL, Conversation::KIND_DIRECT ].freeze
 
   def initialize(workspace)
     @workspace = workspace
@@ -94,11 +96,11 @@ class HandbookProposalService
 
   def find(id) = Chat::HandbookProposal.find_by(workspace: @workspace, id: id.to_s)
 
-  # A chat in an incident's channel answers in its thread, and a run speaks in its incident's channel. A dashboard or
-  # MCP chat has no channel, so its proposal waits on the Handbook page.
+  # A chat in an incident's channel or a person's direct messages answers in its thread, and a run speaks in its incident's
+  # channel. A dashboard or MCP chat has no channel, so its proposal waits on the Handbook page.
   def place(owner)
     return nil unless owner
-    return [ owner.channel_id, owner.thread_id ] if owner.is_a?(Conversation) && owner.kind == Conversation::KIND_CHANNEL && owner.channel_id.present?
+    return [ owner.channel_id, owner.thread_id ] if owner.is_a?(Conversation) && THREADED_KINDS.include?(owner.kind) && owner.channel_id.present?
 
     channel_id = owner.incident&.channel_id if owner.is_a?(Investigation)
     return nil if channel_id.blank?

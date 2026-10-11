@@ -248,6 +248,23 @@ module Slack
       end
     end
 
+    # The root of a thread Slack starts when someone opens a new chat in the app's agent view.
+    AGENT_THREAD_SUBTYPE = "assistant_app_thread".freeze
+
+    # Read from the thread's first message. One that cannot be read, or is not there any more, counts as the person's,
+    # so their message is answered rather than dropped.
+    def direct_thread_start(channel_id:, thread_id:)
+      root = fetch_message(channel_id: channel_id, message_id: thread_id)[:raw].to_h.with_indifferent_access
+      return PlatformAdapter::THREAD_STARTED_BY_PERSON unless root[:ts] == thread_id
+      return PlatformAdapter::THREAD_STARTED_AS_CHAT if root[:subtype] == AGENT_THREAD_SUBTYPE
+      return PlatformAdapter::THREAD_STARTED_BY_APP if root[:bot_id].present? || root[:app_id].present?
+
+      PlatformAdapter::THREAD_STARTED_BY_PERSON
+    rescue AdapterError => error
+      Rails.logger.info({ event: "slack.direct_thread_start.unread", error: error.class.name }.to_json)
+      PlatformAdapter::THREAD_STARTED_BY_PERSON
+    end
+
     def get_user_info(user_id:)
       translate_errors do
         raw = Slack::Client.get_user_info(workspace: @workspace, user_id: user_id)

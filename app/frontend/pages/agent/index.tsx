@@ -3,6 +3,7 @@ import { Head, Link, usePage } from "@inertiajs/react"
 import { IconChevronLeft, IconLayoutSidebarLeftExpand, IconPencilPlus } from "@tabler/icons-react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
+import { AskedElsewhere } from "@/pages/agent/components/asked-elsewhere"
 import { ChatList } from "@/pages/agent/components/chat-list"
 import { StartExamples, StartHeading } from "@/pages/agent/components/chat-start"
 import { Composer, type ComposerFill } from "@/pages/agent/components/composer"
@@ -27,7 +28,9 @@ export default function AgentPage() {
     mitigations, ownerAsks, handbookProposals, setupGuide, chatModels,
   } = usePage<AgentPageProps>().props
   const conversationId = conversation?.id ?? null
-  const stream = useAgentStream(conversationId, conversation?.busy ?? false)
+  // A chat asked elsewhere streams its answer there, so the page shows what was saved and never waits on a stream.
+  const askedIn = conversation?.askedIn ?? null
+  const stream = useAgentStream(conversationId, askedIn === null && (conversation?.busy ?? false))
   // Setup's first chat starts with its suggested question in the box.
   const [ fill, setFill ] = useState<ComposerFill | null>(setupGuide && !setupGuide.answered && !conversation ? { draft: setupGuide.question, key: 1 } : null)
   // Below 48rem the page is one panel at a time, and New chat has to show the start page rather than the list. Setup's
@@ -135,16 +138,20 @@ export default function AgentPage() {
             )}
           </div>
           <div className="p-3">
-            <Composer
-              conversationId={conversationId}
-              incidents={incidents}
-              busy={stream.busy}
-              fill={fill}
-              attachmentRules={attachmentRules}
-              chatModels={chatModels}
-              newChatModel={newChatModel}
-              onPickNewChatModel={setNewChatModel}
-            />
+            {askedIn ? (
+              <AskedElsewhere place={askedIn} url={conversation?.askedInUrl ?? null} />
+            ) : (
+              <Composer
+                conversationId={conversationId}
+                incidents={incidents}
+                busy={stream.busy}
+                fill={fill}
+                attachmentRules={attachmentRules}
+                chatModels={chatModels}
+                newChatModel={newChatModel}
+                onPickNewChatModel={setNewChatModel}
+              />
+            )}
           </div>
           <div className="min-h-0 overflow-hidden">
             {!conversation && <StartExamples onPick={fillComposer} />}

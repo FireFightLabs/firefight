@@ -17,6 +17,41 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [], inertia_props["conversations"]
   end
 
+  test "a chat the person had in their direct messages is listed with theirs, marked with where it lives" do
+    direct = Conversation.start_direct!(workspace: @workspace, member: @member, channel_id: "D0ALICE", thread_id: "1700000000.000100")
+    direct.ask!("What changed today?")
+    Conversation.start_direct!(workspace: @workspace, member: workspace_memberships(:bob_workspace_one), channel_id: "D0BOB", thread_id: "1700000000.000200")
+    dashboard = start_chat
+
+    get agent_chats_url, headers: inertia_headers
+
+    listed = inertia_props["conversations"].index_by { |chat| chat["id"] }
+    assert_equal [ dashboard.id, direct.id ].sort, listed.keys.sort
+    assert_equal "Slack", listed[direct.id]["askedIn"]
+    assert_nil listed[dashboard.id]["askedIn"]
+  end
+
+  test "an open direct message chat is read with a link to it, and asking in it from here is refused" do
+    direct = Conversation.start_direct!(workspace: @workspace, member: @member, channel_id: "D0ALICE", thread_id: "1700000000.000100")
+    direct.ask!("What changed today?")
+
+    get agent_chat_url(direct), headers: inertia_headers
+
+    assert_equal "What changed today?", inertia_props["messages"].sole["body"]
+    assert_equal "slack://channel?team=#{@workspace.platform_id}&id=D0ALICE", inertia_props.dig("conversation", "askedInUrl")
+
+    assert_no_enqueued_jobs(only: ConversationReplyJob) { post agent_chat_ask_url(direct), params: { question: "And now?" } }
+    assert_equal "This chat is in Slack, so carry on there.", flash[:alert]
+  end
+
+  test "someone else's direct message chat is not theirs to open" do
+    direct = Conversation.start_direct!(workspace: @workspace, member: workspace_memberships(:bob_workspace_one), channel_id: "D0BOB", thread_id: "1")
+
+    get agent_chat_url(direct), headers: inertia_headers
+
+    assert_response :not_found
+  end
+
   test "an open chat arrives with what has been said in it" do
     conversation = start_chat
     conversation.ask!("What changed today?")

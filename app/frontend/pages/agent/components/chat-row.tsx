@@ -23,9 +23,10 @@ export function ChatRow({ chat, current }: ChatRowProps) {
       <Link
         href={agentChatPath(chat.id)}
         {...OPEN_CHAT_VISIT}
-        className={`min-w-0 flex-1 truncate rounded-control py-1.5 pr-8 pl-2.5 text-[13px] transition-colors duration-150 ${current ? "text-ink" : "text-ink-2 group-hover:text-ink"}`}
+        className={`flex min-w-0 flex-1 items-center gap-1.5 rounded-control py-1.5 pr-8 pl-2.5 text-[13px] transition-colors duration-150 ${current ? "text-ink" : "text-ink-2 group-hover:text-ink"}`}
       >
-        {chat.title}
+        <span className="min-w-0 truncate">{chat.title}</span>
+        {chat.askedIn && <span className="shrink-0 rounded-full bg-hover px-1.5 text-[11px] leading-[18px] text-ink-3">{chat.askedIn}</span>}
       </Link>
       <ChatRowActions chat={chat} open={current} className={`absolute right-1 ${reveal} data-[state=open]:opacity-100`} />
     </div>

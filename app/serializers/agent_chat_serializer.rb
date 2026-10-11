@@ -34,6 +34,19 @@ class AgentChatSerializer < BaseSerializer
     conversation.archived?
   end
 
+  # Where a chat asked elsewhere lives, such as Slack for a direct message chat, and nil for a dashboard chat. The page
+  # marks it in the list and points there rather than offering to ask.
+  type "string | null"
+  def askedIn
+    conversation.asked_in
+  end
+
+  # A link that opens that place, sent only for the open chat.
+  type "string | null"
+  def askedInUrl
+    options[:asked_in_url]
+  end
+
   # An answer is owed, so the page shows the agent working and keeps the live stream over the saved copy.
   type :boolean
   def busy
