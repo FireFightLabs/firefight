@@ -36,6 +36,8 @@ export interface CloudBanner {
   title: string
   detail: string
   action?: { label: string; href: string }
+  // A quiet banner is a note, such as the days left in a trial, rather than something to fix.
+  tone?: "quiet"
 }
 
 export interface SlackChannel {

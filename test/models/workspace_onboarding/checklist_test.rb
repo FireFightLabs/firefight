@@ -12,12 +12,38 @@ class WorkspaceOnboarding::ChecklistTest < ActiveSupport::TestCase
   test "a new workspace starts on choosing Halon's AI, with the account already done" do
     steps = @onboarding.steps
 
-    assert_equal WorkspaceOnboarding::CHECKLIST_STEPS, steps.map(&:key)
+    assert_equal WorkspaceOnboarding::CHECKLIST_STEPS - [ WorkspaceOnboarding::STEP_PLAN ], steps.map(&:key)
     assert_equal WorkspaceOnboarding::STATE_DONE, steps.first.state
     assert_equal WorkspaceOnboarding::STEP_AI, @onboarding.current_step.key
     later = steps.drop(2).reject { |step| step.key == WorkspaceOnboarding::STEP_HALON }
     assert(later.all? { |step| step.state == WorkspaceOnboarding::STATE_WAITING })
     assert_equal WorkspaceOnboarding::NOT_YET, steps.find { |step| step.key == WorkspaceOnboarding::STEP_STACK }.note
+  end
+
+  test "where a plan is sold it comes straight after the account, and everything after it waits for it" do
+    sell_plan!
+
+    steps = @onboarding.steps
+
+    assert_equal WorkspaceOnboarding::CHECKLIST_STEPS, steps.map(&:key)
+    assert_equal WorkspaceOnboarding::STEP_PLAN, @onboarding.current_step.key
+    assert @onboarding.plan_pending?
+    assert_equal WorkspaceOnboarding::STATE_WAITING, steps.find { |step| step.key == WorkspaceOnboarding::STEP_AI }.state
+  end
+
+  test "a running trial or plan finishes the plan step and setup moves on to Halon's AI" do
+    sell_plan!(stage: :active)
+
+    assert_not @onboarding.plan_pending?
+    assert_equal WorkspaceOnboarding::STATE_DONE, @onboarding.steps.find { |step| step.key == WorkspaceOnboarding::STEP_PLAN }.state
+    assert_equal WorkspaceOnboarding::STEP_AI, @onboarding.current_step.key
+  end
+
+  test "a plan that lapsed before setup finished puts the plan step back up next" do
+    sell_plan!(stage: :lapsed)
+
+    assert @onboarding.plan_pending?
+    assert_equal WorkspaceOnboarding::STEP_PLAN, @onboarding.current_step.key
   end
 
   test "the test incident waits on Slack and says so" do

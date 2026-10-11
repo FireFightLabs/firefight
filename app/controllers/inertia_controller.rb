@@ -41,14 +41,20 @@ class InertiaController < ApplicationController
   end
 
   # A backend that names a page to lift the block, such as billing, sends the person there. That page's controller
-  # skips this guard.
+  # skips this guard. A workspace whose setup starts its plan sends the admin setting it up to setup instead.
   def block_inaccessible_workspace
     blocked = user_signed_in? && current_workspace&.access_blocked
     return unless blocked
+    return redirect_to(onboarding_checklist_path) if blocked.path.present? && plan_starts_in_setup?
     return redirect_to(blocked.path) if blocked.path.present?
 
     render inertia: "errors/suspended",
       props: { message: blocked.message },
       status: :forbidden
+  end
+
+  def plan_starts_in_setup?
+    onboarding = current_workspace.onboarding
+    onboarding.present? && onboarding.steers?(current_membership) && onboarding.plan_pending?
   end
 end

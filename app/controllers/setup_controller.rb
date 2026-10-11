@@ -1,6 +1,7 @@
 # The setup checklist after the founder's letter. An admin works through it in order and cannot leave it for another
 # page until it is done (ContinuesSetup). Anyone else is sent to the dashboard. Each answer is kept on the workspace's
-# onboarding row, and the last one finishes setup and opens the dashboard.
+# onboarding row, and the last one finishes setup and opens the dashboard. On a hosted build the plan is started here,
+# so a workspace closed until it has one still opens setup, and nothing after the plan step can be answered before it.
 class SetupController < InertiaController
   include AiAccountProps
 
@@ -14,7 +15,10 @@ class SetupController < InertiaController
   authorizes Ability::Action::RESOURCE_WORKSPACE, read: :show, update: %i[choose_ai answer_category review_permissions skip_slack]
 
   skip_before_action :continue_setup
+  skip_before_action :block_inaccessible_workspace
   before_action :set_onboarding
+  before_action :block_inaccessible_workspace, unless: :plan_opens_here?
+  before_action :require_plan, only: %i[choose_ai answer_category review_permissions skip_slack]
 
   def show
     return redirect_to(dashboard_path) if @onboarding.finish_if_done!
@@ -24,6 +28,7 @@ class SetupController < InertiaController
       workspaceName: current_workspace.name,
       email: current_user.email,
       steps: OnboardingStepSerializer.many(@onboarding.steps),
+      plan: @onboarding.plan && SetupPlanSerializer.one(@onboarding.plan),
       aiChoice: @onboarding.ai_choice,
       # Each choice offered here, with why it cannot be chosen yet, or nil.
       aiChoices: @onboarding.ai_choices.index_with { |choice| @onboarding.ai_choice_blocked_reason(choice) },
@@ -78,6 +83,13 @@ class SetupController < InertiaController
   def set_onboarding
     @onboarding = current_workspace.onboarding
     redirect_to dashboard_path unless @onboarding&.steers?(current_membership)
+  end
+
+  # A suspension still closes setup. Only waiting on the plan, which starts here, does not.
+  def plan_opens_here? = @onboarding.plan_pending? && !current_workspace.suspended?
+
+  def require_plan
+    back(alert: WorkspaceOnboarding::PLAN_FIRST) if @onboarding.plan_pending?
   end
 
   def back(alert:)
