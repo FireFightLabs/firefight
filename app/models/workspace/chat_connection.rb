@@ -20,10 +20,6 @@ module Workspace::ChatConnection
     platform.present?
   end
 
-  def incidents_blocked_reason
-    INCIDENTS_BLOCKED_MESSAGE unless chat_connected?
-  end
-
   # The name stays the one the team chose when it signed up. The row is locked so two installs finishing at once
   # cannot both connect it.
   def connect_slack!(auth_hash)

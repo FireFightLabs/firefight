@@ -19,7 +19,8 @@ class SetupControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     props = inertia_props
     assert_equal "setup/index", JSON.parse(response.body)["component"]
-    assert_equal WorkspaceOnboarding::CHECKLIST_STEPS, props["steps"].pluck("key")
+    assert_equal WorkspaceOnboarding::CHECKLIST_STEPS - [ WorkspaceOnboarding::STEP_PLAN ], props["steps"].pluck("key")
+    assert_nil props["plan"]
     assert_equal IntegrationProvider.category_list.map(&:slug), props["categories"].pluck("slug")
     assert_equal WorkspaceOnboarding::CATEGORY_REQUIRED, props["categories"].find { |category| category["slug"] == "code" }["unusedBlockedReason"]
     assert_equal WorkspaceOnboarding::NO_WORKING_ACCOUNT, props["aiChoices"][WorkspaceOnboarding::AI_ACCOUNT]

@@ -208,7 +208,8 @@ module TypescriptConstants
       Export.new("AGENT_CHANNEL", ConversationChannel.name, nil),
       Export.new("AGENT_CHAT_PROPS", AgentChatsController::PROPS, nil),
       Export.new("SETUP_STEPS", {
-        "ACCOUNT" => WorkspaceOnboarding::STEP_ACCOUNT, "AI" => WorkspaceOnboarding::STEP_AI, "STACK" => WorkspaceOnboarding::STEP_STACK,
+        "ACCOUNT" => WorkspaceOnboarding::STEP_ACCOUNT, "PLAN" => WorkspaceOnboarding::STEP_PLAN, "AI" => WorkspaceOnboarding::STEP_AI,
+        "STACK" => WorkspaceOnboarding::STEP_STACK,
         "PERMISSIONS" => WorkspaceOnboarding::STEP_PERMISSIONS, "HALON" => WorkspaceOnboarding::STEP_HALON,
         "SLACK" => WorkspaceOnboarding::STEP_SLACK, "TEST_INCIDENT" => WorkspaceOnboarding::STEP_TEST_INCIDENT
       }, nil),
