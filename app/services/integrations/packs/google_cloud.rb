@@ -2,10 +2,12 @@ module Integrations
   module Packs
     # Google Cloud for the projects an environment reads, one, several or every one its service account key can read (the
     # project connect field, a scope). It reads Cloud Run services with their revisions, logs, metrics and errors, Cloud
-    # SQL instances, Compute Engine instances and GKE clusters. A call reaches one project, the one it names or the one
-    # its resource is in. Three tools change something, each as Google's own API does it, and only when the service account's roles
-    # allow it and the tool is switched on: moving a Cloud Run service's traffic to a revision, setting its
-    # instances, and restarting a Cloud SQL instance or resetting a Compute Engine instance.
+    # Run jobs with their executions (Jobs), Cloud Deploy delivery pipelines with their rollouts (Deploys), Cloud SQL
+    # instances, Compute Engine instances and GKE clusters. A call reaches one project, the one it names or the one its
+    # resource is in. Five tools change something, each as Google's own API does it, and only when the service account's
+    # roles allow it and the tool is switched on: moving a Cloud Run service's traffic to a revision, setting its
+    # instances, restarting a Cloud SQL instance or resetting a Compute Engine instance, rolling a Cloud Deploy stage
+    # back, and cancelling a rollout.
     #
     # Every endpoint, parameter and field is from Google's REST references and discovery documents (Cloud Run Admin v1
     # and v2, Cloud Logging v2, Cloud Monitoring v3, Cloud SQL Admin v1, Compute Engine v1, GKE v1, Error Reporting
@@ -23,9 +25,13 @@ module Integrations
       TYPE_SQL = "Cloud SQL instance".freeze
       TYPE_MACHINE = "Compute Engine instance".freeze
       TYPE_CLUSTER = "GKE cluster".freeze
+      TYPE_JOB = "Cloud Run job".freeze
+      TYPE_PIPELINE = "Cloud Deploy delivery pipeline".freeze
+      TYPE_STAGE = "Cloud Deploy stage".freeze
       KINDS = {
         TYPE_RUN => ResourceMap::KIND_SERVICE, TYPE_SQL => ResourceMap::KIND_DATABASE, TYPE_MACHINE => ResourceMap::KIND_VIRTUAL_MACHINE,
-        TYPE_CLUSTER => ResourceMap::KIND_CLUSTER
+        TYPE_CLUSTER => ResourceMap::KIND_CLUSTER, TYPE_JOB => ResourceMap::KIND_JOB, TYPE_PIPELINE => ResourceMap::KIND_PIPELINE,
+        TYPE_STAGE => ResourceMap::KIND_RELEASE_FLOW
       }.freeze
       TYPES_BY_KIND = KINDS.invert.freeze
       SQL_STOPPED = "NEVER".freeze
@@ -34,7 +40,10 @@ module Integrations
       SQL_PORTS = { "POSTGRES" => 5432, "MYSQL" => 3306, "SQLSERVER" => 1433 }.freeze
 
       # The console pages Google's documentation links to, each opened on the connected project.
-      PAGES = { TYPE_RUN => "run/services", TYPE_SQL => "sql", TYPE_MACHINE => "compute/instances", TYPE_CLUSTER => "kubernetes/list" }.freeze
+      PAGES = {
+        TYPE_RUN => "run/services", TYPE_SQL => "sql", TYPE_MACHINE => "compute/instances", TYPE_CLUSTER => "kubernetes/list", TYPE_JOB => "run/jobs",
+        TYPE_PIPELINE => "deploy/delivery-pipelines", TYPE_STAGE => "deploy/delivery-pipelines"
+      }.freeze
       LOGS_PAGE = "logs/query".freeze
       ERRORS_PAGE = "errors".freeze
 
@@ -78,12 +87,12 @@ module Integrations
       ERROR_LIMIT = 20
       LOG_TEXT_LIMIT = 2_000
 
-      RESOURCE = { "type" => "string", "description" => "A Cloud Run service, Cloud SQL instance, Compute Engine instance or GKE cluster, by name or id, as list_resources shows it" }.freeze
+      RESOURCE = { "type" => "string", "description" => "A Cloud Run service or job, Cloud SQL instance, Compute Engine instance, GKE cluster, or Cloud Deploy pipeline or stage, by name or id, as list_resources shows it" }.freeze
       SERVICE = { "type" => "string", "description" => "A Cloud Run service, by name or id, as list_resources shows it" }.freeze
 
       tool :list_resources,
-           description: "The Cloud Run services, Cloud SQL instances, Compute Engine instances and GKE clusters in the Google Cloud " \
-                        "project for this environment, with where each runs and how it stands. Use it first to find the name " \
+           description: "The Cloud Run services and jobs, Cloud Deploy delivery pipelines and their stages, Cloud SQL instances, " \
+                        "Compute Engine instances and GKE clusters in the Google Cloud project for this environment, with where each runs and how it stands. Use it first to find the name " \
                         "to pass to the other tools",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
@@ -104,7 +113,10 @@ module Integrations
                "revision" => { "type" => "string", "description" => "Only the app or request logs of this revision of a Cloud Run service, by its name (optional)" },
                "build" => { "type" => "string", "description" => "With stream build, only this build's log, by its id as list_builds shows it (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many lines (optional, #{LOG_LIMIT})" },
-               **Capabilities::RANGE
+               **Capabilities::RANGE,
+               "run" => { "type" => "string", "description" => "Only one run's lines: a Cloud Run job's execution by its name, or a Cloud Deploy rollout as " \
+                                                               "release/rollout. Add a task's index or a phase and job for one part of it, such as " \
+                                                               "nightly-x2k9p/1 or rel-7/rel-7-to-prod-0001/stable/deploy (optional)" }
              },
              "required" => [ "resource" ]
            },
@@ -161,7 +173,8 @@ module Integrations
            description: "How one resource is set up and how it stands now. A Cloud Run service: its readiness, traffic split, " \
                         "image, instance limits and address. A Cloud SQL instance: its engine, state, tier, availability and " \
                         "disk. A Compute Engine instance: its state, machine type and addresses. A GKE cluster: its state, " \
-                        "version and node pools",
+                        "version and node pools. A Cloud Run job: its last execution, image, tasks and retries. A Cloud Deploy " \
+                        "pipeline or stage: its stages in order, where each releases to and which need an approval",
            params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
            read_only: true
 
@@ -214,6 +227,9 @@ module Integrations
            params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
            read_only: false
 
+      include Jobs
+      include Deploys
+
       # Each API's page in the console, for what the general read answers. Another API links the project's dashboard.
       READ_PAGES = {
         "run" => "run", "compute" => "compute/instances", "sqladmin" => "sql/instances", "container" => "kubernetes/list/overview",
@@ -243,7 +259,7 @@ module Integrations
         [
           CredentialField.new(key: KEY, label: "Service account key", secret: true, multiline: true, placeholder: "{\"type\": \"service_account\", ...}",
                               hint: "The JSON key of a service account with the Viewer, Logs Viewer and Monitoring Viewer roles on each project it reads. " \
-                                    "For Halon to apply fixes, add Cloud Run Developer, Cloud SQL Editor and Compute Instance Admin.")
+                                    "For Halon to apply fixes, add Cloud Run Developer, Cloud SQL Editor, Compute Instance Admin and Cloud Deploy Releaser.")
         ]
       end
 
@@ -315,6 +331,8 @@ module Integrations
 
       def search_logs(environment_row:, arguments:)
         target = find(environment_row, arguments["resource"])
+        return run_logs(environment_row, target, arguments) if target.job? || target.deploy?
+
         stream = arguments["stream"].presence || STREAM_APP
         fail!("stream must be #{STREAMS.join(' or ')}.") unless STREAMS.include?(stream)
         fail!("Only a Cloud Run service keeps request logs. Ask for stream #{STREAM_APP}.") if stream == STREAM_REQUESTS && !target.run?
@@ -400,6 +418,8 @@ module Integrations
         when TYPE_SQL then sql_lines(api(environment_row).sql_instance(target.project, target.name))
         when TYPE_MACHINE then machine_lines(api(environment_row).compute_instance(target.project, target.location, target.name))
         when TYPE_CLUSTER then cluster_lines(api(environment_row).cluster(target.project, target.location, target.name))
+        when TYPE_JOB then job_lines(api(environment_row).run_job(target.project, target.location, target.name))
+        when TYPE_PIPELINE, TYPE_STAGE then pipeline_lines(environment_row, target)
         end
         Telemetry.result(lines.compact.join("\n"), link: page_link(environment_row, target.project, target.type))
       end
@@ -583,6 +603,7 @@ module Integrations
         end
         project = project_of(environment_row)
         return unless target && target.project == project
+        return deploy_refresh(environment_row, project, target) if target.deploy?
 
         api = api(environment_row)
         item = begin
@@ -591,6 +612,7 @@ module Integrations
           when TYPE_SQL then sql_item(project, api.sql_instance(project, target.name))
           when TYPE_MACHINE then machine_item(api.compute_instance(project, target.location, target.name))
           when TYPE_CLUSTER then cluster_item(project, api.cluster(project, target.location, target.name))
+          when TYPE_JOB then job_item(api.run_job(project, target.location, target.name))
           end
         rescue GoogleCloudApi::NotFound
           return ResourceMap::Snapshot.new(resources: [], gone: [ [ PROVIDER_KEY, project, target.kind, target.id ] ])
@@ -618,6 +640,7 @@ module Integrations
           reading.resources << domain
           reading.links << ResourceMap::FoundLink.new(from: domain.key, to: found.key, relation: ResourceMap::RELATION_SERVED_BY)
         end
+        release_links(found.key, item, reading)
         case item[:type]
         when TYPE_RUN
           reading.uses.concat(run_settings(found.key, item[:source], reading.workspace))
@@ -689,7 +712,9 @@ module Integrations
             TYPE_RUN => -> { run_items(api, project) },
             TYPE_SQL => -> { whole(api.sql_instances(project)) { |instance| sql_item(project, instance) } },
             TYPE_MACHINE => -> { whole(api.compute_instances(project)) { |instance| machine_item(instance) } },
-            TYPE_CLUSTER => -> { whole(api.clusters(project)) { |cluster| cluster_item(project, cluster) } }
+            TYPE_CLUSTER => -> { whole(api.clusters(project)) { |cluster| cluster_item(project, cluster) } },
+            TYPE_JOB => -> { job_items(api, project) },
+            TYPE_PIPELINE => -> { deploy_items(api, project) }
           }.each do |type, read|
             found, complete, unreachable = read.call
             items.concat(found)
@@ -744,7 +769,7 @@ module Integrations
       def whole(read, &) = [ read.items.map(&), read.complete, read.try(:unreachable).to_a ]
 
       # What a list puts on the map. A Cloud Run service also puts the run.app addresses it serves there.
-      def listed_kinds(type) = [ KINDS.fetch(type), (ResourceMap::KIND_DOMAIN if type == TYPE_RUN) ].compact
+      def listed_kinds(type) = [ KINDS.fetch(type), (ResourceMap::KIND_DOMAIN if type == TYPE_RUN), (KINDS.fetch(TYPE_STAGE) if type == TYPE_PIPELINE) ].compact
 
       # Every region's services. A region list or a service list cut short leaves the services incomplete.
       def run_items(api, project)

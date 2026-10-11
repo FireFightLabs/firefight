@@ -2,17 +2,19 @@ module Integrations
   module Capabilities
     # The Kubernetes pack's own tools answer every capability, given the workload's namespace and kind/name, which the
     # map's id holds as namespace/kind/name. Metrics are cpu and memory as they are now, the only two that metrics.k8s.io
-    # PodMetrics keeps.
+    # PodMetrics keeps. Run history is a rolling workload's rollouts, one per revision, and a cronjob's or job's runs.
     module Kubernetes
       extend Adapter
 
       SUPPORTS = {
         LOGS => [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_JOB ], METRICS => [ ResourceMap::KIND_SERVICE ],
         DEPLOYS => [ ResourceMap::KIND_SERVICE ], STATUS => [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_JOB ],
+        HISTORY => [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_JOB ],
         ROLLBACK => [ ResourceMap::KIND_SERVICE ], RESTART => [ ResourceMap::KIND_SERVICE ], SCALE => [ ResourceMap::KIND_SERVICE ]
       }.freeze
       TOOLS = {
         LOGS => "workload_logs", METRICS => "pod_metrics", DEPLOYS => "rollout_history", STATUS => "describe_workload",
+        HISTORY => Packs::Kubernetes::Runs::WORKLOAD_RUNS,
         ROLLBACK => "rollout_undo", RESTART => "rollout_restart", SCALE => "scale_workload"
       }.freeze
       # workload_logs also reads one pod, or each container before its last restart, which search_logs does not ask, so
@@ -36,6 +38,7 @@ module Integrations
           Route.new(tool_name: TOOLS[METRICS], arguments: workload)
         when DEPLOYS then Route.new(tool_name: TOOLS[DEPLOYS], arguments: workload.merge(given.slice("limit")))
         when STATUS then Route.new(tool_name: TOOLS[STATUS], arguments: workload)
+        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: workload.merge(given.slice("name", "run", "limit").compact_blank))
         when ROLLBACK then Route.new(tool_name: TOOLS[ROLLBACK], arguments: workload.merge("revision" => revision(given)))
         when RESTART then Route.new(tool_name: TOOLS[RESTART], arguments: workload)
         when SCALE

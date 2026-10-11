@@ -17,7 +17,8 @@ module Integrations
     end
 
     # Each service the integration reads, by the name botocore keeps its description under, with the gem and client class
-    # AWS publishes for it. Those after logs are reached only by the general read (Integrations::ApiReads).
+    # AWS publishes for it. Those after logs are reached by the general read (Integrations::ApiReads), and some by the
+    # pack's own reads of releases and of App Runner and Elastic Beanstalk.
     CLIENTS = {
       sts: [ "aws-sdk-core", "Aws::STS::Client" ],
       ecs: [ "aws-sdk-ecs", "Aws::ECS::Client" ],
@@ -30,6 +31,7 @@ module Integrations
       acm: [ "aws-sdk-acm", "Aws::ACM::Client" ],
       apigateway: [ "aws-sdk-apigateway", "Aws::APIGateway::Client" ],
       apigatewayv2: [ "aws-sdk-apigatewayv2", "Aws::ApiGatewayV2::Client" ],
+      apprunner: [ "aws-sdk-apprunner", "Aws::AppRunner::Client" ],
       autoscaling: [ "aws-sdk-autoscaling", "Aws::AutoScaling::Client" ],
       cloudformation: [ "aws-sdk-cloudformation", "Aws::CloudFormation::Client" ],
       cloudfront: [ "aws-sdk-cloudfront", "Aws::CloudFront::Client" ],
@@ -40,6 +42,7 @@ module Integrations
       ecr: [ "aws-sdk-ecr", "Aws::ECR::Client" ],
       eks: [ "aws-sdk-eks", "Aws::EKS::Client" ],
       elasticache: [ "aws-sdk-elasticache", "Aws::ElastiCache::Client" ],
+      elasticbeanstalk: [ "aws-sdk-elasticbeanstalk", "Aws::ElasticBeanstalk::Client" ],
       elbv2: [ "aws-sdk-elasticloadbalancingv2", "Aws::ElasticLoadBalancingV2::Client" ],
       health: [ "aws-sdk-health", "Aws::Health::Client" ],
       iam: [ "aws-sdk-iam", "Aws::IAM::Client" ],
@@ -61,7 +64,8 @@ module Integrations
     ].freeze
     NOT_FOUND = %w[
       ResourceNotFoundException ServiceNotFoundException ClusterNotFoundException DBInstanceNotFound DBInstanceNotFoundFault
-      InvalidInstanceID.NotFound
+      InvalidInstanceID.NotFound PipelineNotFoundException PipelineExecutionNotFoundException DeploymentGroupDoesNotExistException
+      ApplicationDoesNotExistException DeploymentDoesNotExistException
     ].freeze
     # The codes AWS's services answer when a caller is asked to slow down, such as Throttling from EC2 and RDS,
     # ThrottlingException from ECS and CloudWatch, TooManyRequestsException from Lambda, and LimitExceededException from

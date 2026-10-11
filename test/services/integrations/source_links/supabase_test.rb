@@ -20,6 +20,13 @@ module Integrations
         assert_equal "Supabase, on its migrations page", @links.link(tool_name: "list_migrations", arguments: { "project_id" => REF }).provider
       end
 
+      test "an Edge Function's answer and its logs link to the project's Functions page" do
+        assert_equal "https://supabase.com/dashboard/project/#{REF}/functions", url("list_edge_functions", "project_id" => REF)
+        assert_equal "https://supabase.com/dashboard/project/#{REF}/functions", url("get_edge_function", "project_id" => REF, "function_slug" => "send-email")
+        assert_equal "https://supabase.com/dashboard/project/#{REF}/functions", url("get_logs", "project_id" => REF, "service" => "edge-function-runtime")
+        assert_equal "Supabase, on its functions page", @links.link(tool_name: "list_edge_functions", arguments: { "project_id" => REF }).provider
+      end
+
       test "a connection scoped to one project links to that project" do
         scoped = Supabase.new(settings("project_ref" => REF, "read_only" => "true"))
 

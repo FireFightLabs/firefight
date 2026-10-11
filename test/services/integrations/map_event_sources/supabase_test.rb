@@ -32,7 +32,7 @@ module Integrations
         Supabase::RESCOPE_EVENTS.each { |type| assert Supabase.events(SAMPLE.merge("type" => type), headers: {}).sole.rescope? }
 
         assert_empty Supabase.events(SAMPLE.merge("type" => "v1.organization.member.added", "payload" => SAMPLE["payload"].merge("project_ref" => nil)), headers: {})
-        assert_empty Supabase.events(SAMPLE.merge("type" => "v1.project.backup.started"), headers: {})
+        assert_equal "abcdefghijklmnoprstu", Supabase.events(SAMPLE.merge("type" => "v1.project.backup.started"), headers: {}).sole.scope.external_id
         assert_empty Supabase.events(SAMPLE.merge("payload" => SAMPLE["payload"].merge("is_test" => true)), headers: {})
       end
 

@@ -19,6 +19,7 @@ module Integrations
     PATCH_MERGE = "application/merge-patch+json".freeze
     PATCH_STRATEGIC = "application/strategic-merge-patch+json".freeze
     PATCH_TYPES = [ PATCH_JSON, PATCH_MERGE, PATCH_STRATEGIC ].freeze
+    JSON_TYPE = "application/json".freeze
     PAGE_SIZE = 500
     MAX_PAGES = 10
     READ_TIMEOUT = 30
@@ -81,8 +82,8 @@ module Integrations
     # keeps raises Gone, said as a 410 answer or an ERROR event holding a Status with code 410. (Kubernetes API concepts,
     # Efficient detection of changes, Watch bookmarks and 410 Gone responses,
     # https://kubernetes.io/docs/reference/using-api/api-concepts/#efficient-detection-of-changes)
-    def watch(path, resource_version:, timeout: WATCH_SECONDS, &)
-      query = { "watch" => "true", "resourceVersion" => resource_version, "allowWatchBookmarks" => "true", "timeoutSeconds" => timeout }
+    def watch(path, resource_version:, timeout: WATCH_SECONDS, query: {}, &)
+      query = query.merge("watch" => "true", "resourceVersion" => resource_version, "allowWatchBookmarks" => "true", "timeoutSeconds" => timeout)
       uri, request = request_for(Net::HTTP::Get, path, query)
       reaching do
         Http.request(uri, request, error_class: Error, read_timeout: timeout + WATCH_MARGIN, ipaddr: @ipaddr, cert_store: @store) do |response|
@@ -97,6 +98,9 @@ module Integrations
 
       json(Net::HTTP::Patch, path, {}, body: body.to_json, type: type)
     end
+
+    # Creates an object in a collection, such as a Job in a namespace's jobs.
+    def post(path, body) = json(Net::HTTP::Post, path, {}, body: body.to_json, type: JSON_TYPE)
 
     private
 

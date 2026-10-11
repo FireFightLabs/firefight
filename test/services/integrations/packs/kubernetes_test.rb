@@ -25,7 +25,7 @@ module Integrations
         stub_list(PODS, [ pod("web-old", "2026-10-04T09:00:00Z"), pod("web-new", "2026-10-04T11:00:00Z", crashing: true) ])
       end
 
-      test "the token and CA are the only credentials, the address and namespaces are the registry's connect fields, and only the three changes write" do
+      test "the token and CA are the only credentials, the address and namespaces are the registry's connect fields, and only the changes write" do
         settings = ConnectionSettings.of(@row.reload)
         assert_equal "sa-token", settings.credential(Kubernetes::TOKEN)
         assert_equal [ Kubernetes::CA, Kubernetes::TOKEN ], @row.credentials_hash.keys.sort
@@ -33,7 +33,8 @@ module Integrations
         assert_equal [ Kubernetes::TOKEN ], Kubernetes.credential_fields.select(&:secret).map(&:key)
         assert_equal [ Kubernetes::CA ], Kubernetes.credential_fields.select(&:multiline).map(&:key)
         assert_equal [ Kubernetes::SERVER, Kubernetes::NAMESPACES ], IntegrationProvider.find(Kubernetes::PROVIDER_KEY).connect_fields.map(&:key)
-        assert_equal %w[rollout_undo rollout_restart scale_workload], Kubernetes.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[rollout_undo rollout_restart scale_workload rollout_pause rollout_resume run_cronjob_now suspend_cronjob resume_cronjob],
+                     Kubernetes.tool_definitions.reject(&:read_only).map(&:name)
       end
 
       test "the registry refuses an address that is not https and namespaces that are not names, before the pack is asked" do
@@ -179,7 +180,7 @@ module Integrations
         assert_match "has no revision 9", call_error(:rollout_undo, "resource" => "deployment/web", "revision" => 9)
 
         stub_get("#{DEPLOYMENTS}/web", deployment.deep_merge("spec" => { "paused" => true }))
-        assert_match "is paused", call_error(:rollout_undo, "resource" => "deployment/web", "revision" => 2)
+        assert_match "is paused. Resume it with rollout_resume before rolling it back.", call_error(:rollout_undo, "resource" => "deployment/web", "revision" => 2)
       end
 
       test "a statefulset goes back by applying its controller revision as a strategic merge patch" do

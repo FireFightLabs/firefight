@@ -40,7 +40,8 @@ module Integrations
         polled = travel_to(Time.zone.parse("2026-10-06T12:05:00Z")) { GoogleCloud.poll(@row, since: "2026-10-06T12:00:00.000000Z") }
 
         assert_equal 'logName="projects/acme-prod/logs/cloudaudit.googleapis.com%2Factivity" AND timestamp>="2026-10-06T11:50:00.000000Z" AND ' \
-                     'protoPayload.serviceName=("run.googleapis.com" OR "cloudsql.googleapis.com" OR "compute.googleapis.com" OR "container.googleapis.com")', filter
+                     'protoPayload.serviceName=("run.googleapis.com" OR "cloudsql.googleapis.com" OR "compute.googleapis.com" OR "container.googleapis.com" OR ' \
+                     '"clouddeploy.googleapis.com")', filter
         assert_equal({ "acme-prod" => "2026-10-06T12:05:00.000000Z" }, JSON.parse(polled.cursor), "a cursor from before is the project's")
         assert_equal %w[e1 e2 e3 e4 e6], polled.events.map(&:id)
         assert_equal [
@@ -52,6 +53,30 @@ module Integrations
         ], polled.events.map { |event| [ event.scope.kind, event.scope.external_id, event.action ] }
         assert_equal [ "acme-prod" ], polled.events.map { |event| event.scope.account }.uniq
         assert_equal Time.iso8601("2026-10-06T12:01:00Z"), polled.events.first.at
+      end
+
+      test "a Cloud Run job's and a Cloud Deploy pipeline's entries name the job or pipeline, and a call on what is inside one only changes it" do
+        GoogleCloudApi.any_instance.stubs(:log_entries_since).returns(Pages::Read.new(items: [
+          entry("j1", "run.googleapis.com", "google.cloud.run.v2.Jobs.RunJob", "projects/acme-prod/locations/us-central1/jobs/nightly",
+                labels: { "job_name" => "nightly", "location" => "us-central1" }).deep_merge("resource" => { "type" => "cloud_run_job" }),
+          entry("j2", "run.googleapis.com", "google.cloud.run.v2.Executions.DeleteExecution",
+                "projects/acme-prod/locations/us-central1/jobs/nightly/executions/nightly-x2k9p"),
+          entry("d1", "clouddeploy.googleapis.com", "google.cloud.deploy.v1.CloudDeploy.CreateRollout",
+                "projects/acme-prod/locations/us-central1/deliveryPipelines/web/releases/rel-7/rollouts/rel-7-to-prod-0001"),
+          entry("d2", "clouddeploy.googleapis.com", "google.cloud.deploy.v1.CloudDeploy.DeleteDeliveryPipeline", "projects/acme-prod/locations/us-central1/deliveryPipelines/old"),
+          entry("d3", "clouddeploy.googleapis.com", "google.cloud.deploy.v1.CloudDeploy.UpdateTarget", "projects/acme-prod/locations/us-central1/targets/prod")
+        ], complete: true))
+
+        polled = GoogleCloud.poll(@row, since: "2026-10-06T12:00:00.000000Z")
+
+        assert_equal [
+          [ ResourceMap::KIND_JOB, "projects/acme-prod/locations/us-central1/jobs/nightly", ResourceMap::Event::UPDATED ],
+          [ ResourceMap::KIND_JOB, "projects/acme-prod/locations/us-central1/jobs/nightly", ResourceMap::Event::UPDATED ],
+          [ ResourceMap::KIND_PIPELINE, "projects/acme-prod/locations/us-central1/deliveryPipelines/web", ResourceMap::Event::UPDATED ],
+          [ ResourceMap::KIND_PIPELINE, "projects/acme-prod/locations/us-central1/deliveryPipelines/old", ResourceMap::Event::REMOVED ],
+          [ ResourceMap::KIND_RELEASE_FLOW, nil, ResourceMap::Event::UPDATED ]
+        ], polled.events.map { |event| [ event.scope.kind, event.scope.external_id, event.action ] }
+        assert_match "Cloud Deploy rollout", GoogleCloud.limits
       end
 
       test "a read cut short continues from its last entry, and a key the log refuses is the provider's words" do

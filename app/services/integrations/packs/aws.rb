@@ -347,17 +347,17 @@ module Integrations
       CONSOLE_PATHS = {
         "ecs" => "ecs/v2", "lambda" => "lambda/home", "ec2" => "ec2/home", "rds" => "rds/home", "cloudwatch" => "cloudwatch/home",
         "logs" => "cloudwatch/home", "cloudtrail" => "cloudtrail/home", "acm" => "acm/home", "apigateway" => "apigateway/main",
-        "apigatewayv2" => "apigateway/main", "autoscaling" => "ec2/home", "cloudformation" => "cloudformation/home",
+        "apigatewayv2" => "apigateway/main", "apprunner" => "apprunner/home", "autoscaling" => "ec2/home", "cloudformation" => "cloudformation/home",
         "cloudfront" => "cloudfront/v4/home", "codebuild" => "codesuite/codebuild/projects", "codedeploy" => "codesuite/codedeploy/applications",
         "codepipeline" => "codesuite/codepipeline/pipelines", "dynamodb" => "dynamodbv2/home", "ecr" => "ecr/private-registry/repositories",
-        "eks" => "eks/home", "elasticache" => "elasticache/home", "elbv2" => "ec2/home", "health" => "health/home", "iam" => "iam/home",
+        "eks" => "eks/home", "elasticache" => "elasticache/home", "elasticbeanstalk" => "elasticbeanstalk/home", "elbv2" => "ec2/home", "health" => "health/home", "iam" => "iam/home",
         "kms" => "kms/home", "route53" => "route53/v2/home", "s3" => "s3/home", "secretsmanager" => "secretsmanager/listsecrets",
         "sns" => "sns/v3/home", "sqs" => "sqs/v3/home", "ssm" => "systems-manager/home", "costexplorer" => "costmanagement/home"
       }.freeze
 
       tool :api_read,
-           description: "Anything else AWS's API reads that the other tools do not cover, such as CodePipeline executions, CodeDeploy " \
-                        "deployments, load balancers and their target health, Auto Scaling groups, CloudFormation stacks and events, " \
+           description: "Anything else AWS's API reads that the other tools do not cover, such as load balancers and their target " \
+                        "health, Auto Scaling groups, CloudFormation change sets, CodePipeline action types, " \
                         "SQS queues, DynamoDB tables, EKS clusters, Route 53 records or certificates. One operation of one " \
                         "service, named Describe, List, Get or BatchGet, with its input as the operation's API reference gives it, " \
                         "in one of this connection's regions. A list answers one page, and its next token goes in params for the " \
@@ -389,10 +389,13 @@ module Integrations
            },
            read_only: true
 
+      include Releases
+      include AppPlatforms
+
       def self.credential_fields
         [
           CredentialField.new(key: ACCESS_KEY_ID, label: "Access key ID", secret: false, placeholder: "AKIA...",
-                              hint: "The access key of an IAM user that can read ECS, Lambda, EC2, RDS, CloudWatch metrics and CloudWatch Logs Insights, CodeBuild's projects and builds (codebuild:ListProjects, codebuild:BatchGetProjects, codebuild:ListBuildsForProject and codebuild:BatchGetBuilds) with their logs (logs:GetLogEvents), the tags of ECS services and Lambda functions (ecs:ListTagsForResource and lambda:ListTags), Cost Explorer's spend (ce:GetCostAndUsage), which lets Halon watch the bill, ECS task definitions (ecs:DescribeTaskDefinition), which say which database a service uses, and CloudTrail's event history (cloudtrail:LookupEvents), which lets the map follow changes every five minutes. For Halon to apply fixes, also allow it to update ECS services and Lambda aliases."),
+                              hint: "The access key of an IAM user that can read ECS, Lambda, EC2, RDS, CloudWatch metrics and CloudWatch Logs Insights, CodeBuild's projects and builds (codebuild:ListProjects, codebuild:BatchGetProjects, codebuild:ListBuildsForProject and codebuild:BatchGetBuilds) with their logs (logs:GetLogEvents), the tags of ECS services and Lambda functions (ecs:ListTagsForResource and lambda:ListTags), Cost Explorer's spend (ce:GetCostAndUsage), which lets Halon watch the bill, ECS task definitions (ecs:DescribeTaskDefinition), which say which database a service uses, and CloudTrail's event history (cloudtrail:LookupEvents), which lets the map follow changes every five minutes. To follow releases, also allow it to read CodePipeline, CodeDeploy, CloudFormation stacks and their events, App Runner and Elastic Beanstalk. For Halon to apply fixes, also allow it to update ECS services and Lambda aliases, and to stop or roll back a release (ecs:StopServiceDeployment, codepipeline:StopPipelineExecution and RollbackStage, codedeploy:StopDeployment, cloudformation:CancelUpdateStack)."),
           CredentialField.new(key: SECRET_ACCESS_KEY, label: "Secret access key", secret: true, placeholder: "",
                               hint: "The secret AWS shows once, when you create the access key.")
         ]
@@ -699,11 +702,21 @@ module Integrations
       # each with its page in the console. A list AWS refuses, or one cut short, is a gap, and its kind is not taken as gone.
       # Each service's and function's settings are read in memory, and each database's address and the secret its
       # password is kept in are reported, so the map links a service to the database its settings name (ResourceMap::Use).
+      # App Runner services and Elastic Beanstalk environments join the services, and pipelines, deployment groups and
+      # stacks are read last, linked to what they release among everything read before. AWS asking to slow down ends the
+      # read where it was.
       def map_of(environment_row)
         account = account_of(environment_row)
         settings = SettingsReading.new(account: account, workspace: environment_row.integration.workspace, task_definitions: {}, stopped: Set.new)
         reading = inventory(environment_row, kinds: KIND_NAMES.keys, regions: regions(environment_row), tags: true, settings: settings, map: true)
-        snapshot_of(reading, account)
+        return snapshot_of(reading, account) if reading.stopped
+
+        platforms = app_platform_reading(environment_row, regions(environment_row))
+        return snapshot_of(Reading.new(entries: reading.entries + platforms.entries, gaps: reading.gaps + platforms.gaps), account) if platforms.stopped
+
+        entries = reading.entries + platforms.entries
+        ResourceMap::Snapshot.merged([ snapshot_of(Reading.new(entries: entries, gaps: reading.gaps + platforms.gaps), account),
+                                       release_snapshot(environment_row, account, regions(environment_row), entries) ])
       end
 
       # Only the resource a change named, by its ARN, read again as the sweep reads it, tags and settings included
@@ -713,11 +726,18 @@ module Integrations
       # older form without its cluster, which a sweep reads.
       def map_refresh(environment_row, scope)
         parts = scope.external_id.to_s.match(ARN)
-        return unless parts && KIND_NAMES.key?(scope.kind)
-        return if scope.kind == SERVICE && parts[:resource].split("/").size < 3
+        platform = AppPlatforms.platform_of(scope.external_id)
+        return unless parts && (KIND_NAMES.key?(scope.kind) || RELEASE_KINDS.key?(scope.kind))
+        return if scope.kind == SERVICE && platform.nil? && parts[:resource].split("/").size < 3
 
         account = account_of(environment_row)
         return ResourceMap::Snapshot.new(resources: []) if (scope.account && scope.account != account) || regions(environment_row).exclude?(parts[:region])
+        return release_refresh(environment_row, scope, account, parts[:region]) if RELEASE_KINDS.key?(scope.kind)
+
+        if platform
+          entry = app_refreshed(environment_row, scope.external_id, parts[:region])
+          return entry ? snapshot_of(Reading.new(entries: [ entry ], gaps: []), account) : ResourceMap::Snapshot.new(resources: [], gone: [ [ PROVIDER_KEY, account, scope.kind, scope.external_id ] ])
+        end
 
         settings = SettingsReading.new(account: account, workspace: environment_row.integration.workspace, task_definitions: {}, stopped: Set.new)
         entry, gaps = refreshed(environment_row, scope.kind, scope.external_id, parts, settings)
@@ -734,7 +754,7 @@ module Integrations
       def baselines_of(environment_row, resources, window)
         resources.flat_map do |resource|
           names = BASELINE_METRICS[resource.kind]
-          entry = entry_from_arn(resource.external_id, environment_row) if names
+          entry = entry_from_arn(resource.external_id, environment_row) if names && AppPlatforms.platform_of(resource.external_id).nil?
           next [] unless entry
 
           series = metric_data(environment_row, entry, names, window.begin, window.end, BASELINE_PERIOD)
@@ -763,7 +783,10 @@ module Integrations
       Entry = Data.define(:kind, :arn, :name, :region, :cluster, :status, :details, :settings) do
         def initialize(cluster: nil, status: nil, details: {}, settings: nil, **) = super
       end
-      Reading = Data.define(:entries, :gaps)
+      # stopped says AWS asked to slow down, so nothing more is read in the same sweep.
+      Reading = Data.define(:entries, :gaps, :stopped) do
+        def initialize(stopped: false, **) = super
+      end
       # What one map read needs to turn settings into uses, and the task definitions it already read, by ARN.
       SettingsReading = Data.define(:account, :workspace, :task_definitions, :stopped)
       # A resource's settings as uses, a database's addresses as endpoints, and what could not be read. Never a value.
@@ -857,7 +880,7 @@ module Integrations
             gaps << ResourceMap::Gap.new(text: "Only the first #{AwsApi::MAX_PAGES} pages of #{KIND_PLURALS.fetch(kind)} in #{region} were read.", kinds: [ kind ])
           rescue Integrations::RateLimited => error
             text = Sentence.join("AWS asked to slow down while listing #{KIND_PLURALS.fetch(kind)} in #{region}, so the rest was not read", error)
-            return Reading.new(entries: entries, gaps: gaps + [ ResourceMap::Gap.new(text: text, kinds: kinds) ])
+            return Reading.new(entries: entries, gaps: gaps + [ ResourceMap::Gap.new(text: text, kinds: kinds) ], stopped: true)
           rescue AwsApi::Error => error
             gaps << ResourceMap::Gap.new(text: Sentence.join("#{KIND_PLURALS.fetch(kind)} in #{region} could not be read", error), kinds: [ kind ])
           end
@@ -1142,6 +1165,12 @@ module Integrations
         fail!("#{arn} is in account #{parts[:account]}, and this connection reads #{account}.") if parts[:account].present? && parts[:account] != account
 
         resource = parts[:resource]
+        if AppPlatforms.platform_of(arn)
+          fail!("#{arn} is #{AppPlatforms::PLATFORM_NAMES.fetch(AppPlatforms.platform_of(arn)).then { |what| "#{what.start_with?('A') ? 'an' : 'a'} #{what}" }}. " \
+                "describe_app reads how it stands, and #{AppPlatforms.platform_of(arn) == AppPlatforms::APP_RUNNER ? AppPlatforms::APP_OPERATIONS : AppPlatforms::ENVIRONMENT_EVENTS} its deploys.")
+        end
+        fail!("#{arn} releases code rather than running it. Read its runs with #{Releases::PIPELINE_EXECUTIONS}, #{Releases::CODEDEPLOY_DEPLOYMENTS} or #{Releases::STACK_EVENTS}.") if Releases.release_arn?(arn)
+
         case parts[:service]
         when "ecs"
           _, cluster, name = resource.split("/")
@@ -1747,6 +1776,8 @@ module Integrations
 
       # Pages in the AWS console, on the console host of the region's partition, at the service paths AWS's own guides link to.
       def resource_link(entry)
+        return app_link(entry) if AppPlatforms.platform_of(entry.arn)
+
         case entry.kind
         when SERVICE then console_link(entry.region, "ecs/v2")
         when FUNCTION then console_link(entry.region, "lambda/home", "/functions")

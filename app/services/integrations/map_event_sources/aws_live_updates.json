@@ -1,6 +1,6 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "Sends changes to the ECS services, Lambda functions, EC2 instances, RDS databases and CodeBuild projects in this region to one Firefight connection, so its resource map follows them as they happen. Delete this stack to stop.",
+  "Description": "Sends changes to the ECS services, Lambda functions, EC2 instances, RDS databases, CodeBuild projects, pipelines, deployments, stacks, App Runner services and Elastic Beanstalk environments in this region to one Firefight connection, so its resource map follows them as they happen. Delete this stack to stop.",
   "Parameters": {
     "Address": {
       "Type": "String",
@@ -95,6 +95,66 @@
               "ModifyDBInstance", "RebootDBInstance", "StartDBInstance", "StopDBInstance", "PromoteReadReplica", "DeleteDBInstance",
               "AddTagsToResource", "RemoveTagsFromResource",
               "CreateProject", "UpdateProject", "DeleteProject"
+            ]
+          }
+        },
+        "Targets": [
+          { "Id": "firefight", "Arn": { "Fn::GetAtt": [ "FirefightDestination", "Arn" ] }, "RoleArn": { "Fn::GetAtt": [ "FirefightRole", "Arn" ] } }
+        ]
+      }
+    },
+    "FirefightReleaseChanges": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "Description": "Pipeline executions, CodeDeploy deployments, App Runner services and Elastic Beanstalk environments changing state, sent to Firefight",
+        "State": "ENABLED",
+        "EventPattern": {
+          "source": [ "aws.codepipeline", "aws.codedeploy", "aws.apprunner", "aws.elasticbeanstalk" ],
+          "detail-type": [
+            "CodePipeline Pipeline Execution State Change", "CodePipeline Stage Execution State Change", "CodePipeline Action Execution State Change",
+            "CodeDeploy Deployment State-change Notification", "AppRunner Service Operation Status Change", "AppRunner Service Status Change",
+            "Elastic Beanstalk resource status change", "Health status change"
+          ]
+        },
+        "Targets": [
+          { "Id": "firefight", "Arn": { "Fn::GetAtt": [ "FirefightDestination", "Arn" ] }, "RoleArn": { "Fn::GetAtt": [ "FirefightRole", "Arn" ] } }
+        ]
+      }
+    },
+    "FirefightStackChanges": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "Description": "The account's other CloudFormation stacks changing status, sent to Firefight",
+        "State": "ENABLED",
+        "EventPattern": {
+          "source": [ "aws.cloudformation" ],
+          "detail-type": [ "CloudFormation Stack Status Change" ],
+          "detail": { "stack-id": [ { "anything-but": [ { "Ref": "AWS::StackId" } ] } ] }
+        },
+        "Targets": [
+          { "Id": "firefight", "Arn": { "Fn::GetAtt": [ "FirefightDestination", "Arn" ] }, "RoleArn": { "Fn::GetAtt": [ "FirefightRole", "Arn" ] } }
+        ]
+      }
+    },
+    "FirefightReleaseApiCalls": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "Description": "Releases started, stopped or rolled back, and pipelines, deployment groups, stacks, App Runner services and Elastic Beanstalk environments made, changed or removed through their APIs, sent to Firefight",
+        "State": "ENABLED",
+        "EventPattern": {
+          "source": [ "aws.codepipeline", "aws.codedeploy", "aws.cloudformation", "aws.apprunner", "aws.elasticbeanstalk" ],
+          "detail-type": [ "AWS API Call via CloudTrail" ],
+          "detail": {
+            "eventSource": [
+              "codepipeline.amazonaws.com", "codedeploy.amazonaws.com", "cloudformation.amazonaws.com", "apprunner.amazonaws.com",
+              "elasticbeanstalk.amazonaws.com"
+            ],
+            "eventName": [
+              "CreatePipeline", "UpdatePipeline", "DeletePipeline", "StartPipelineExecution", "StopPipelineExecution", "RollbackStage", "RetryStageExecution",
+              "CreateDeployment", "CreateDeploymentGroup", "UpdateDeploymentGroup", "DeleteDeploymentGroup",
+              "CreateStack", "UpdateStack", "DeleteStack", "CancelUpdateStack", "ExecuteChangeSet", "ContinueUpdateRollback",
+              "CreateService", "UpdateService", "DeleteService", "StartDeployment", "PauseService", "ResumeService",
+              "CreateEnvironment", "UpdateEnvironment", "TerminateEnvironment", "RestartAppServer", "RebuildEnvironment"
             ]
           }
         },

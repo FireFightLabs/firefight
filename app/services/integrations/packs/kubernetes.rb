@@ -1,9 +1,9 @@
 module Integrations
   module Packs
     # Reads the workloads in one or more namespaces of a cluster with a service account token the team creates, with
-    # their pods' logs, current usage, rollout history and events. rollout_undo, rollout_restart and scale_workload change
-    # a workload as kubectl rollout undo, rollout restart and scale do, when the token's role allows it and an admin
-    # switched them on. Paths and fields follow the Kubernetes API reference. The changes follow kubectl's own source in
+    # their pods' logs, current usage, rollout history, runs and events. rollout_undo, rollout_restart, scale_workload,
+    # the rollout pause and resume and a cronjob's run, suspend and resume (Controls) change a workload as kubectl does,
+    # when the token's role allows it and an admin switched them on. Paths and fields follow the Kubernetes API reference. The changes follow kubectl's own source in
     # kubernetes/kubectl, pkg/polymorphichelpers, files rollback.go, objectrestarter.go and history.go.
     class Kubernetes < NativePack
       # The secrets this pack keeps on the environment row, and the connect fields the registry asks beside them.
@@ -43,6 +43,8 @@ module Integrations
       INGRESS = Kind.new(key: "ingress", name: "Ingress", plural: "ingresses", api: NETWORKING, map_kind: ResourceMap::KIND_LOAD_BALANCER, aliases: %w[ingresses ing])
       # Every kind the map lists in each namespace.
       MAPPED = [ *WORKLOADS.values, SERVICE, INGRESS ].freeze
+      # Events, watched for warnings about what the map holds (MapEventSources::Kubernetes), never put on the map.
+      WARNINGS = Kind.new(key: "event", name: "Event", plural: "events", api: CORE, map_kind: nil, aliases: []).freeze
 
       # kubectl's annotations and labels, from k8s.io/api and kubectl's deployment util.
       REVISION = "deployment.kubernetes.io/revision".freeze
@@ -193,10 +195,13 @@ module Integrations
            params_schema: ApiReads.path_schema("/api/v1/namespaces/<namespace>/configmaps"),
            read_only: true
 
+      include Runs
+      include Controls
+
       def self.credential_fields
         [
           CredentialField.new(key: TOKEN, label: "Service account token", secret: true, placeholder: "eyJhbGciOi...",
-                              hint: "The token of a service account whose role can get and list workloads, replica sets, controller revisions, pods, pod logs, services, ingresses, events and pod metrics. For the map to follow changes as they happen, it also needs watch on deployments, statefulsets, daemonsets, cronjobs, jobs, services and ingresses. For Halon to apply fixes, its role also needs patch on deployments, statefulsets, daemonsets and their scale."),
+                              hint: "The token of a service account whose role can get and list workloads, replica sets, controller revisions, pods, pod logs, services, ingresses, events and pod metrics. For the map to follow changes as they happen, it also needs watch on deployments, statefulsets, daemonsets, cronjobs, jobs, services and ingresses, and watch on events tells Halon of warnings as they happen. For Halon to apply fixes, its role also needs patch on deployments, statefulsets, daemonsets, cronjobs and their scale, and create on jobs to start a cronjob by hand."),
           CredentialField.new(key: CA, label: "CA certificate", secret: false, multiline: true, placeholder: "LS0tLS1CRUdJTi...",
                               hint: "The certificate-authority-data from your kubeconfig, or the cluster's CA in PEM. Firefight trusts only this CA for this cluster.")
         ]
@@ -395,7 +400,7 @@ module Integrations
         return answer("#{label(workload)} already runs revision #{number}, so nothing changed.", status_command(workload)) if revision[:current]
 
         if workload[:kind].key == DEPLOYMENT
-          fail! "#{label(workload)} is paused. Resume it before rolling it back." if workload[:object].dig("spec", "paused")
+          fail! "#{label(workload)} is paused. Resume it with rollout_resume before rolling it back." if workload[:object].dig("spec", "paused")
 
           change!(environment_row, workload, deployment_undo(workload[:object], revision[:source]), KubernetesApi::PATCH_JSON)
         else
@@ -408,7 +413,7 @@ module Integrations
       def rollout_restart(environment_row:, arguments:)
         workload = find_workload(environment_row, arguments)
         rolling!(workload, "cannot be restarted this way")
-        fail! "#{label(workload)} is paused. Resume it before restarting it." if workload[:object].dig("spec", "paused")
+        fail! "#{label(workload)} is paused. Resume it with rollout_resume before restarting it." if workload[:object].dig("spec", "paused")
 
         at = Time.current.utc.iso8601
         body = { "spec" => { "template" => { "metadata" => { "annotations" => { RESTARTED_AT => at } } } } }

@@ -61,6 +61,7 @@ gem "aws-sdk-rds", require: false
 gem "aws-sdk-acm", require: false
 gem "aws-sdk-apigateway", require: false
 gem "aws-sdk-apigatewayv2", require: false
+gem "aws-sdk-apprunner", require: false
 gem "aws-sdk-autoscaling", require: false
 gem "aws-sdk-cloudformation", require: false
 gem "aws-sdk-cloudfront", require: false
@@ -71,6 +72,7 @@ gem "aws-sdk-dynamodb", require: false
 gem "aws-sdk-ecr", require: false
 gem "aws-sdk-eks", require: false
 gem "aws-sdk-elasticache", require: false
+gem "aws-sdk-elasticbeanstalk", require: false
 gem "aws-sdk-elasticloadbalancingv2", require: false
 gem "aws-sdk-health", require: false
 gem "aws-sdk-iam", require: false

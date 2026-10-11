@@ -53,6 +53,11 @@ module Integrations
       EC2 = "ec2.amazonaws.com".freeze
       RDS = "rds.amazonaws.com".freeze
       CODEBUILD = "codebuild.amazonaws.com".freeze
+      CODEPIPELINE = "codepipeline.amazonaws.com".freeze
+      CODEDEPLOY = "codedeploy.amazonaws.com".freeze
+      CLOUDFORMATION = "cloudformation.amazonaws.com".freeze
+      APPRUNNER = "apprunner.amazonaws.com".freeze
+      BEANSTALK = "elasticbeanstalk.amazonaws.com".freeze
       # The calls that change what the map shows of each kind, by the name CloudTrail records. Lambda's carry a date and
       # version, such as UpdateFunctionCode20150331v2 (Lambda developer guide, Logging AWS Lambda API calls using AWS
       # CloudTrail), which LAMBDA_VERSION takes off. aws_live_updates.json asks EventBridge for the same calls.
@@ -63,12 +68,20 @@ module Integrations
         RDS => %w[CreateDBInstance CreateDBInstanceReadReplica RestoreDBInstanceFromDBSnapshot RestoreDBInstanceToPointInTime
                   ModifyDBInstance RebootDBInstance StartDBInstance StopDBInstance PromoteReadReplica DeleteDBInstance
                   AddTagsToResource RemoveTagsFromResource],
-        CODEBUILD => %w[CreateProject UpdateProject DeleteProject]
+        CODEBUILD => %w[CreateProject UpdateProject DeleteProject],
+        # What starts, stops or changes a release, and what makes or removes the pipeline, deployment group, stack, App
+        # Runner service or Elastic Beanstalk environment it runs in (each service's CloudTrail logging page).
+        CODEPIPELINE => %w[CreatePipeline UpdatePipeline DeletePipeline StartPipelineExecution StopPipelineExecution RollbackStage RetryStageExecution],
+        CODEDEPLOY => %w[CreateDeployment CreateDeploymentGroup UpdateDeploymentGroup DeleteDeploymentGroup],
+        CLOUDFORMATION => %w[CreateStack UpdateStack DeleteStack CancelUpdateStack ExecuteChangeSet ContinueUpdateRollback],
+        APPRUNNER => %w[CreateService UpdateService DeleteService StartDeployment PauseService ResumeService],
+        BEANSTALK => %w[CreateEnvironment UpdateEnvironment TerminateEnvironment RestartAppServer RebuildEnvironment]
       }.freeze
       LAMBDA_VERSION = /\d{8}(v\d+)?\z/
       ADDING = %w[RunInstances CreateService CreateFunction CreateDBInstance CreateDBInstanceReadReplica RestoreDBInstanceFromDBSnapshot
-                  RestoreDBInstanceToPointInTime CreateProject].freeze
-      REMOVING = %w[TerminateInstances DeleteService DeleteFunction DeleteDBInstance DeleteProject].freeze
+                  RestoreDBInstanceToPointInTime CreateProject CreatePipeline CreateDeploymentGroup CreateStack CreateEnvironment].freeze
+      REMOVING = %w[TerminateInstances DeleteService DeleteFunction DeleteDBInstance DeleteProject DeletePipeline DeleteDeploymentGroup DeleteStack
+                    TerminateEnvironment].freeze
 
       API_CALL = "AWS API Call via CloudTrail".freeze
       EC2_STATE = "EC2 Instance State-change Notification".freeze
@@ -80,6 +93,17 @@ module Integrations
       # input format reference). It reads the project again and wakes a watch on its builds.
       BUILD_STATE = [ "CodeBuild Build State Change", "CodeBuild Build Phase Change" ].freeze
       STACK_STATUS = "CloudFormation Stack Status Change".freeze
+      # A pipeline's execution, stage or action changing state names the pipeline in resources (CodePipeline user guide,
+      # Monitoring CodePipeline events). A deployment names its application and deployment group in detail (CodeDeploy
+      # user guide, Monitoring deployments with Amazon CloudWatch Events). An App Runner service's operation or status
+      # changing names the service in resources (App Runner developer guide, Handling App Runner events in EventBridge),
+      # and an Elastic Beanstalk environment's operation or health its application and environment in detail (Elastic
+      # Beanstalk developer guide, Using Elastic Beanstalk with Amazon EventBridge).
+      PIPELINE_STATE = [ "CodePipeline Pipeline Execution State Change", "CodePipeline Stage Execution State Change",
+                         "CodePipeline Action Execution State Change" ].freeze
+      DEPLOYMENT_STATE = "CodeDeploy Deployment State-change Notification".freeze
+      APP_RUNNER_STATE = [ "AppRunner Service Operation Status Change", "AppRunner Service Status Change" ].freeze
+      BEANSTALK_STATE = [ "Elastic Beanstalk resource status change", "Health status change" ].freeze
       # The first status of a stack being deleted, sent while its rules still exist (CloudFormation user guide, Stack
       # Status Change event detail).
       STACK_DELETING = "DELETE_IN_PROGRESS".freeze
@@ -108,6 +132,25 @@ module Integrations
           when RDS_INSTANCE
             detail["SourceType"] == "DB_INSTANCE" ? state_event(payload, Packs::Aws::DATABASE, detail["SourceArn"].presence || Array(payload["resources"]).first, false) : []
           when *BUILD_STATE then state_event(payload, Packs::Aws::PROJECT, project_arn(payload["region"], payload["account"], detail["project-name"]), false)
+          else release_events(payload, detail)
+          end
+        end
+
+        # A release changing state, which reads the pipeline, deployment group, stack, service or environment again and
+        # wakes a watch on its runs. Firefight's own stack says only whether its region sends changes.
+        def release_events(payload, detail)
+          region = payload["region"]
+          account = payload["account"]
+          case payload["detail-type"]
+          when *PIPELINE_STATE then state_event(payload, Packs::Aws::Releases::PIPELINE, Array(payload["resources"]).first, false)
+          when DEPLOYMENT_STATE
+            state_event(payload, Packs::Aws::Releases::DEPLOYMENT_GROUP, deployment_group_arn(region, account, detail["application"], detail["deploymentGroup"]), false)
+          when STACK_STATUS
+            stack = detail["stack-id"].to_s
+            own_stack?(stack) ? [] : state_event(payload, Packs::Aws::Releases::STACK, stack.presence, detail.dig("status-details", "status") == "DELETE_COMPLETE")
+          when *APP_RUNNER_STATE then state_event(payload, Packs::Aws::SERVICE, detail["serviceArn"].presence || Array(payload["resources"]).first, false)
+          when *BEANSTALK_STATE
+            state_event(payload, Packs::Aws::SERVICE, environment_arn(region, account, detail["ApplicationName"], detail["EnvironmentName"]), false)
           else []
           end
         end
@@ -151,7 +194,8 @@ module Integrations
         end
 
         def offer_words = "CloudTrail is read every five minutes. To get changes as they happen, create Firefight's CloudFormation stack in each region. " \
-                          "It sends changes to EC2 instances, ECS services, Lambda functions, RDS databases and CodeBuild projects and their builds to this " \
+                          "It sends changes to EC2 instances, ECS services, Lambda functions, RDS databases, CodeBuild projects and their builds, " \
+                          "pipelines, CodeDeploy deployments, CloudFormation stacks, App Runner services and Elastic Beanstalk environments to this " \
                           "connection. Lambda's arrive only " \
                           "while the account has a CloudTrail trail logging."
 
@@ -170,8 +214,12 @@ module Integrations
         def delivery_place(payload) = payload["region"].presence
 
         def delivery_ends?(payload)
-          payload["detail-type"] == STACK_STATUS && payload.dig("detail", "status-details", "status") == STACK_DELETING
+          payload["detail-type"] == STACK_STATUS && own_stack?(payload.dig("detail", "stack-id")) &&
+            payload.dig("detail", "status-details", "status") == STACK_DELETING
         end
+
+        # Firefight's own stack, by the name it is created under (stack_name), as against a stack of the team's.
+        def own_stack?(stack_id) = stack_id.to_s.split(":", 6).last.to_s.start_with?("stack/#{STACK_PREFIX}")
 
         def removal_words(row, places)
           where = places.any? ? " in #{places.to_sentence}" : " in each region you created it in"
@@ -239,8 +287,42 @@ module Integrations
           when CODEBUILD
             given = answered.dig("project", "arn").presence || asked["name"].presence
             [ Packs::Aws::PROJECT, [ given.to_s.start_with?("arn:") ? given : project_arn(region, account, given) ] ]
-          else [ Packs::Aws::DATABASE, database_arns(name, asked, answered, region, account) ]
+          when RDS then [ Packs::Aws::DATABASE, database_arns(name, asked, answered, region, account) ]
+          else release_named_by(source, asked, answered, region, account)
           end
+        end
+
+        # The pipeline, deployment group, stack, service or environment a call names, by the ARN the map keeps for it. A
+        # stack named only by its name has no id to read, and the hourly sweep finds it.
+        def release_named_by(source, asked, answered, region, account)
+          case source
+          when CODEPIPELINE
+            pipeline = asked.dig("pipeline", "name").presence || asked["name"].presence || asked["pipelineName"]
+            [ Packs::Aws::Releases::PIPELINE, [ ("arn:#{Packs::Aws.partition(region)}:codepipeline:#{region}:#{account}:#{pipeline}" if pipeline.present? && region.present?) ] ]
+          when CODEDEPLOY
+            groups = [ asked["deploymentGroupName"], asked["currentDeploymentGroupName"], asked["newDeploymentGroupName"] ].compact_blank
+            [ Packs::Aws::Releases::DEPLOYMENT_GROUP, groups.map { |group| deployment_group_arn(region, account, asked["applicationName"], group) } ]
+          when CLOUDFORMATION
+            stack = answered["stackId"].presence || asked["stackName"]
+            [ Packs::Aws::Releases::STACK, [ (stack if stack.to_s.start_with?("arn:")) ] ]
+          when APPRUNNER then [ Packs::Aws::SERVICE, [ answered.dig("service", "serviceArn").presence || asked["serviceArn"] ] ]
+          else
+            arn = answered["environmentArn"].presence || environment_arn(region, account, asked["applicationName"], asked["environmentName"])
+            [ Packs::Aws::SERVICE, [ arn ] ]
+          end
+        end
+
+        # A deployment group's and an environment's ARN, in the forms AWS's service authorization reference gives.
+        def deployment_group_arn(region, account, application, group)
+          return unless [ region, account, application, group ].all?(&:present?)
+
+          "arn:#{Packs::Aws.partition(region)}:codedeploy:#{region}:#{account}:deploymentgroup:#{application}/#{group}"
+        end
+
+        def environment_arn(region, account, application, environment)
+          return unless [ region, account, application, environment ].all?(&:present?)
+
+          "arn:#{Packs::Aws.partition(region)}:elasticbeanstalk:#{region}:#{account}:environment/#{application}/#{environment}"
         end
 
         # RunInstances answers the instances it started, the other instance calls name theirs in instancesSet, and tags
