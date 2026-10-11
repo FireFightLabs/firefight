@@ -545,7 +545,8 @@ module Integrations
         Capabilities::Deploys::Deploy.new(
           id: deployment["id"], commit: deployment["sha"], branch: (ref unless ref == deployment["sha"]),
           status: state && Capabilities::Deploys.status(state, DEPLOYMENT_STATUSES), live: (false if state == DEPLOYMENT_INACTIVE),
-          started_at: deployment["created_at"], finished_at: (status["created_at"] if DEPLOYMENT_ENDED.include?(state))
+          started_at: deployment["created_at"], finished_at: (status["created_at"] if DEPLOYMENT_ENDED.include?(state)),
+          environment: deployment["environment"]
         )
       end
 

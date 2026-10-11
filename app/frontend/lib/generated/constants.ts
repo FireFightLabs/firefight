@@ -1263,7 +1263,18 @@ export const WATCH_SPEC_KEYS = {
   "GOAL": "goal",
   "TOOL": "tool",
   "FOCUS": "focus",
-  "ARGUMENTS": "arguments"
+  "ARGUMENTS": "arguments",
+  "NEW_DEPLOY": "new_deploy"
+} as const
+
+export const WATCH_NEW_DEPLOY_KEYS = {
+  "RESOURCE": "resource",
+  "CONNECTION": "connection",
+  "COMMIT": "commit",
+  "TAG": "tag",
+  "BRANCH": "branch",
+  "REPOSITORY": "repository",
+  "ENVIRONMENT": "environment"
 } as const
 
 export const IMPLICIT_AUTHORITIES = {

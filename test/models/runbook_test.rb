@@ -43,6 +43,18 @@ class RunbookTest < ActiveSupport::TestCase
     assert_no_match(/step/i, runbook.errors.full_messages.join)
   end
 
+  test "a watch item may wait for a new deploy named by an input, and only in words" do
+    rollout = { "label" => "Web rollout", "capability" => "resource_status", "resource" => "web", "goal" => "web serves the new version",
+                "new_deploy" => { "commit" => "{{commit}}", "environment" => "production" } }
+    runbook = @workspace.runbooks.new(name: "Ship", inputs: [ { "key" => "commit", "question" => "Which commit?" } ], watch: { "title" => "web", "steps" => [ rollout ] })
+    assert runbook.valid?, runbook.errors.full_messages.to_sentence
+    runbook.save!
+    assert_equal({ "commit" => "f23b4dc", "environment" => "production" }, runbook.filled_watch("commit" => "f23b4dc")["steps"].sole["new_deploy"])
+
+    runbook.watch = { "title" => "web", "steps" => [ rollout.merge("new_deploy" => "the latest") ] }
+    assert_equal [ "Watch 'Web rollout': needs the new deploy it waits for as words, such as a commit, a tag or a branch" ], runbook.tap(&:validate).errors[:watch]
+  end
+
   test "a watch item can be any read Halon makes in a chat, such as following the release workflow's newest run through the general read" do
     newest = { "label" => "Release workflow", "tool" => "northflank_api_request", "focus" => "data.status",
                "arguments" => { "method" => "GET", "path" => "workflows/release/runs", "query" => { "per_page" => 1 } },

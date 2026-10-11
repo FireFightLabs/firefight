@@ -8,11 +8,24 @@ module Integrations
       # A commit is matched by its first characters, as a person names it, never by fewer than this.
       SHORT_COMMIT = 7
 
+      # A deploy's environment, where a provider names one, that counts as production when none is asked for.
+      PRODUCTION = /\Aprod/i
+
       # live is true for the deploy serving now, false for one that no longer is, and nil when the provider does not say.
-      Deploy = Data.define(:id, :commit, :branch, :tag, :version, :status, :live, :started_at, :finished_at) do
-        def initialize(id: nil, commit: nil, branch: nil, tag: nil, version: nil, status: nil, live: nil, started_at: nil, finished_at: nil)
+      # environment is where it went, such as production or staging, only where one provider target holds several.
+      Deploy = Data.define(:id, :commit, :branch, :tag, :version, :status, :live, :started_at, :finished_at, :environment) do
+        def initialize(id: nil, commit: nil, branch: nil, tag: nil, version: nil, status: nil, live: nil, started_at: nil, finished_at: nil, environment: nil)
           super(id: id.presence&.to_s, commit: commit.presence&.to_s&.downcase, branch: branch.presence&.to_s, tag: tag.presence&.to_s,
-                version: version.presence&.to_s, status: status, live: live, started_at: RunHistory.time(started_at), finished_at: RunHistory.time(finished_at))
+                version: version.presence&.to_s, status: status, live: live, started_at: RunHistory.time(started_at), finished_at: RunHistory.time(finished_at),
+                environment: environment.presence&.to_s)
+        end
+
+        # Whether it went to the environment asked for, production when none is. One that names no environment goes to the
+        # only one there is.
+        def in?(wanted)
+          return true if environment.nil?
+
+          wanted.present? ? environment.casecmp?(wanted.to_s.strip) : environment.match?(PRODUCTION)
         end
 
         # Whether it can be told apart from another deploy, by its id, its commit or its version.
@@ -40,7 +53,7 @@ module Integrations
 
         def to_h
           { "id" => id, "commit" => commit, "branch" => branch, "tag" => tag, "version" => version, "status" => status, "live" => live,
-            "started_at" => started_at&.utc&.iso8601, "finished_at" => finished_at&.utc&.iso8601 }.compact
+            "started_at" => started_at&.utc&.iso8601, "finished_at" => finished_at&.utc&.iso8601, "environment" => environment }.compact
         end
 
         def self.from_h(hash)

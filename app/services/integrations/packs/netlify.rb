@@ -383,7 +383,8 @@ module Integrations
         status = Capabilities::Deploys.status(deploy["state"], DEPLOY_STATES)
         finished = deploy["published_at"].presence || (deploy["updated_at"] if Capabilities::History::FINISHED.include?(status))
         Capabilities::Deploys::Deploy.new(id: deploy["id"], commit: deploy["commit_ref"], branch: deploy["branch"], status: status,
-                                          live: (deploy["id"] == live if live.present?), started_at: deploy["created_at"], finished_at: finished)
+                                          live: (deploy["id"] == live if live.present?), started_at: deploy["created_at"], finished_at: finished,
+                                          environment: deploy["context"])
       end
 
       def deploy_id(arguments)

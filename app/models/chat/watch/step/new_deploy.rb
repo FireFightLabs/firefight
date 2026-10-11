@@ -13,7 +13,9 @@ module Chat::Watch::Step::NewDeploy
   TAG = "tag".freeze
   BRANCH = "branch".freeze
   REPOSITORY = "repository".freeze
-  GIVEN = [ RESOURCE, CONNECTION, COMMIT, TAG, BRANCH, REPOSITORY ].freeze
+  # Only deploys to this environment count, production when none is named.
+  ENVIRONMENT = "environment".freeze
+  GIVEN = [ RESOURCE, CONNECTION, COMMIT, TAG, BRANCH, REPOSITORY, ENVIRONMENT ].freeze
   TAG_COMMIT = "tag_commit".freeze
   TAG_UNREAD = "tag_unread".freeze
   SINCE = "since".freeze
@@ -45,7 +47,7 @@ module Chat::Watch::Step::NewDeploy
     # A run in a resource's history already follows a run that started around the watch, so it never waits here.
     def waits_for_deploy?(step, key)
       return false if key == Integrations::Capabilities::HISTORY
-      return true if step["new_deploy"].is_a?(Hash)
+      return true if step[Chat::Watch::SPEC_KEYS[:new_deploy]].is_a?(Hash)
       return true if key == Integrations::Capabilities::DEPLOYS
 
       case key
@@ -57,7 +59,8 @@ module Chat::Watch::Step::NewDeploy
 
     # The resource deployed and the commit, tag or branch named, from a step given to start_watch.
     def deploy_target(step, arguments)
-      given = step["new_deploy"].is_a?(Hash) ? step["new_deploy"].transform_keys(&:to_s).slice(*GIVEN).transform_values { |value| value.to_s.strip }.compact_blank : {}
+      asked = step[Chat::Watch::SPEC_KEYS[:new_deploy]]
+      given = asked.is_a?(Hash) ? asked.transform_keys(&:to_s).slice(*GIVEN).transform_values { |value| value.to_s.strip }.compact_blank : {}
       named = arguments.to_h.slice(RESOURCE, CONNECTION).compact_blank
       named.merge(given) { |_key, from_read, from_given| from_given.presence || from_read }
     end
@@ -66,7 +69,8 @@ module Chat::Watch::Step::NewDeploy
     def new_deploy_for(target, since:, deploys:, provider: nil)
       kept = target.merge(SINCE => since.utc.iso8601, PROVIDER => provider).compact
       identified = !deploys.nil? && (deploys.empty? || deploys.any? { |deploy| deploy.identified? && deploy.status.present? })
-      kept.merge(IDENTITY => identified, BASELINE => (Deploys.live(deploys)&.to_h if identified))
+      wanted = deploys.to_a.select { |deploy| deploy.in?(target[ENVIRONMENT]) }
+      kept.merge(IDENTITY => identified, BASELINE => (Deploys.live(wanted)&.to_h if identified))
     end
   end
 
@@ -111,6 +115,7 @@ module Chat::Watch::Step::NewDeploy
   def unchanged_since_baseline?(digest) = waits_for_deploy? && !deploy_identity? && new_deploy[BASELINE_DIGEST] == digest
 
   def deploy_gate(deploys)
+    deploys = deploys.select { |deploy| deploy.in?(new_deploy[ENVIRONMENT]) }
     target_live = live_target(deploys)
     return gate(LIVE, target_live) if target_live
 
@@ -218,7 +223,10 @@ module Chat::Watch::Step::NewDeploy
 
   def deploy_name(deploy) = pinned? ? target_words : deploy.short
 
-  def target_resource_words = deploy_resource.presence || label
+  def target_resource_words
+    resource = deploy_resource.presence || label
+    new_deploy.to_h[ENVIRONMENT].present? ? "#{resource} in #{new_deploy[ENVIRONMENT]}" : resource
+  end
 
   def clock(time) = time.utc.strftime("%H:%M UTC")
 end

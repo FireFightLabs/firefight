@@ -1065,6 +1065,10 @@ start_watch:
                 branch:
                   type: string
                   description: Only a newer deploy from this branch counts (optional)
+                environment:
+                  type: string
+                  description: Only deploys to this environment count, such as staging, where the provider deploys one resource to several (optional,
+                    production)
                 repository:
                   type: string
                   description: The repository a tag is in, by name on the map, when the resource is not linked to one (optional)
@@ -1186,6 +1190,10 @@ repair_watch:
           branch:
             type: string
             description: Only a newer deploy from this branch counts (optional)
+          environment:
+            type: string
+            description: Only deploys to this environment count, such as staging, where the provider deploys one resource to several (optional,
+              production)
           repository:
             type: string
             description: The repository a tag is in, by name on the map, when the resource is not linked to one (optional)

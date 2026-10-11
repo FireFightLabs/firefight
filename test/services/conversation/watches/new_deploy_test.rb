@@ -131,6 +131,26 @@ class Conversation::Watches::NewDeployTest < ActiveSupport::TestCase
     assert_equal Chat::Watch::Step::STATUS_SUCCEEDED, step.reload.status
   end
 
+  test "a newer deploy to staging is not the new production deploy, unless staging is the environment named" do
+    production = @old.with(environment: "production")
+    staging_old = Deploys::Deploy.new(id: "dep-staging-old", commit: "5555555aaaaaaa", status: History::SUCCEEDED, live: true,
+                                      started_at: @began - 1.hour, environment: "staging")
+    deploys([ staging_old, production ])
+    start(rollout_step)
+    start(rollout_step("label" => "Staging rollout", "new_deploy" => { "environment" => "staging" }))
+    watches = @conversation.chat.watches.order(:created_at).to_a
+    to_production, to_staging = watches.map { |watch| watch.steps.sole }
+    assert_equal [ "dep-old", "dep-staging-old" ], [ to_production.deploy_baseline.id, to_staging.deploy_baseline.id ]
+
+    staging = Deploys::Deploy.new(id: "dep-staging", commit: NEW, status: History::SUCCEEDED, live: true, started_at: @began + 1.minute,
+                                  finished_at: @began + 2.minutes, environment: "staging")
+    deploys([ staging, staging_old.with(live: false), production ])
+    travel(3.minutes) { watches.each { |watch| check!(watch) } }
+
+    assert_equal Chat::Watch::Step::STATUS_WAITING, to_production.reload.status, "a deploy to staging is not production's"
+    assert_equal Chat::Watch::Step::STATUS_SUCCEEDED, to_staging.reload.status
+  end
+
   test "with nothing named, a new deploy that failed ends the step failed" do
     deploys([ @old ])
     start(rollout_step)

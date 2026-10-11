@@ -122,6 +122,10 @@ module Runbook::Procedure
     end
 
     errors.add(:watch, "Watch #{item_name(step, index)}: needs what counts as done (done when, failed when or a goal)") if Chat::Watch::Step.undecided?(step)
+    new_deploy = step[keys[:new_deploy]]
+    return if new_deploy.nil? || (new_deploy.is_a?(Hash) && new_deploy.values.all? { |value| value.is_a?(String) })
+
+    errors.add(:watch, "Watch #{item_name(step, index)}: needs the new deploy it waits for as words, such as a commit, a tag or a branch")
   end
 
   # An error names a watch item by its name, or by its number as the settings page numbers them when it has none.

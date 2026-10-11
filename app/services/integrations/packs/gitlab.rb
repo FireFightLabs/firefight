@@ -489,7 +489,7 @@ module Integrations
         status = Capabilities::Deploys.status(deployment["status"], DEPLOYMENT_STATUSES)
         finished = (deployment.dig("deployable", "finished_at") || deployment["updated_at"]) if Capabilities::History::FINISHED.include?(status)
         Capabilities::Deploys::Deploy.new(id: deployment["id"], commit: deployment["sha"], branch: deployment["ref"], status: status,
-                                          started_at: deployment["created_at"], finished_at: finished)
+                                          started_at: deployment["created_at"], finished_at: finished, environment: deployment.dig("environment", "name"))
       end
 
       # An environment asked for by name, else anything that looks like production, else every environment.

@@ -31,7 +31,7 @@ class Conversation::Tools::StartWatch < RubyLLM::Tool
                                                        "judged by a model over its recent readings, with done_when and failed_when as what to look for, on " \
                                                        "each reading that changed and every few minutes on one that did not (optional)" },
       "arguments" => { "type" => "object", "description" => "Other arguments the capability takes, such as stream for search_logs, or all of the tool's arguments (optional)" },
-      "new_deploy" => {
+      Chat::Watch::SPEC_KEYS[:new_deploy] => {
         "type" => "object",
         "description" => "When the step waits for a deploy, a rollout or a release to go live: what counts as the new one. The watch keeps the deploy " \
                          "live when it starts and counts only a newer one that finished rolling out and is serving, so the deploy already live " \
@@ -44,6 +44,8 @@ class Conversation::Tools::StartWatch < RubyLLM::Tool
           "commit" => { "type" => "string", "description" => "The commit that has to be live, at least its first 7 characters (optional)" },
           "tag" => { "type" => "string", "description" => "The tag that has to be live, such as v1.4.0. It is read as its commit through the connected code host (optional)" },
           "branch" => { "type" => "string", "description" => "Only a newer deploy from this branch counts (optional)" },
+          "environment" => { "type" => "string", "description" => "Only deploys to this environment count, such as staging, where the provider deploys one " \
+                                                                  "resource to several (optional, production)" },
           "repository" => { "type" => "string", "description" => "The repository a tag is in, by name on the map, when the resource is not linked to one (optional)" }
         }
       }

@@ -595,7 +595,8 @@ module Integrations
         status = Capabilities::Deploys.status(state.dig("status", "name") || state["name"], DEPLOYMENT_STATUSES)
         Capabilities::Deploys::Deploy.new(
           id: deployment["uuid"], commit: deployment.dig("release", "commit", "hash"), version: deployment.dig("release", "name"), status: status,
-          started_at: state["start_date"], finished_at: (state["completion_date"] if Capabilities::History::FINISHED.include?(status))
+          started_at: state["start_date"], finished_at: (state["completion_date"] if Capabilities::History::FINISHED.include?(status)),
+          environment: deployment["environment_name"]
         )
       end
 

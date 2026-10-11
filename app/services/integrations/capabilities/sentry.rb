@@ -136,7 +136,7 @@ module Integrations
           History::RUNNING
         end
         Deploys::Deploy.new(version: release["version"], commit: release.dig("lastCommit", "id"), status: status,
-                            started_at: deploy["dateStarted"] || release["dateCreated"], finished_at: deploy["dateFinished"])
+                            started_at: deploy["dateStarted"] || release["dateCreated"], finished_at: deploy["dateFinished"], environment: deploy["environment"])
       end
 
       def self.release_line(release)

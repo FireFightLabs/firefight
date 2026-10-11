@@ -346,12 +346,14 @@ module Integrations
       end
 
       # A Pages deployment's state as its run history reads it. The list does not say which production deployment
-      # serves, and a preview one never serves the project's own address.
+      # serves, so after a rollback the newest finished one is still taken as live. A preview one never serves the
+      # project's own address.
       def self.pages_deploy(resource, account, deployment)
         run = history_run(resource, account, deployment)
         meta = deployment.dig("deployment_trigger", "metadata") || {}
         Deploys::Deploy.new(id: deployment["id"], commit: meta["commit_hash"], branch: meta["branch"], status: run.status,
-                            live: (false if deployment["environment"] == PREVIEW), started_at: run.started_at, finished_at: run.finished_at)
+                            live: (false if deployment["environment"] == PREVIEW), started_at: run.started_at, finished_at: run.finished_at,
+                            environment: deployment["environment"])
       end
 
       # A Pages deployment's stages run queued, initialize, clone_repo, build and deploy, each with its status and when it

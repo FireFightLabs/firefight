@@ -677,7 +677,7 @@ module Conversation::Watches
     return step.new_deploy if fresh.nil?
 
     keys = Chat::Watch::Step::NewDeploy
-    moved = [ keys::RESOURCE, keys::CONNECTION ].any? { |key| fresh[key].present? && !fresh[key].to_s.casecmp?(step.new_deploy[key].to_s) }
+    moved = [ keys::RESOURCE, keys::CONNECTION, keys::ENVIRONMENT ].any? { |key| fresh[key].present? && !fresh[key].to_s.casecmp?(step.new_deploy[key].to_s) }
     return fresh if moved
 
     named = [ keys::COMMIT, keys::TAG, keys::BRANCH ]

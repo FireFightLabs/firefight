@@ -592,7 +592,8 @@ module Integrations
         )
       end
 
-      # A deployment job, known by its job id alone. The jobs log does not say which deployment is live.
+      # A deployment job, known by its job id alone. The jobs log does not say which deployment is live. A job that is
+      # done is taken as the deployment serving, though the jobs log does not say it was promoted.
       def deploy_of(row)
         run = history_run(row)
         Capabilities::Deploys::Deploy.new(id: run.id, status: run.status, started_at: run.started_at, finished_at: run.finished_at)

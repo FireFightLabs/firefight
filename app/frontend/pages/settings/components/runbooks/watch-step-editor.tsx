@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { WATCH_SPEC_KEYS } from "@/lib/generated/constants"
+import { NewDeployFields } from "@/pages/settings/components/runbooks/new-deploy-fields"
 import { RunbookToolFields } from "@/pages/settings/components/runbooks/runbook-tool-fields"
-import { stepText, type ArgumentsState, type WatchStepState } from "@/pages/settings/lib/runbook-procedure"
+import { newDeployOf, stepText, type ArgumentsState, type WatchStepState } from "@/pages/settings/lib/runbook-procedure"
 import type { RunbookToolChoice } from "@/types/serializers"
 
 interface WatchStepEditorProps {
@@ -25,13 +26,16 @@ interface WatchStepEditorProps {
   onChange: (field: string, entered: string | boolean) => void
   onChooseRead: (name: string) => void
   onArgsChange: (args: ArgumentsState) => void
+  onNewDeployTurn: (on: boolean) => void
+  onNewDeployChange: (key: string, entered: string) => void
   onRemove: () => void
 }
 
 // One thing a watch follows: a capability on a resource from the map, or any read tool Halon can make in a chat with its
 // arguments, and what counts as done. A run in a resource's history ends on its own status.
 export function WatchStepEditor({
-  number, step, history, tool, toolsLoaded, readOptions, selectedRead, resourceOptions, placeholders, places, onChange, onChooseRead, onArgsChange, onRemove,
+  number, step, history, tool, toolsLoaded, readOptions, selectedRead, resourceOptions, placeholders, places, onChange, onChooseRead, onArgsChange,
+  onNewDeployTurn, onNewDeployChange, onRemove,
 }: WatchStepEditorProps) {
   const spec = step.spec
   const toolName = stepText(spec, WATCH_SPEC_KEYS.TOOL)
@@ -140,6 +144,17 @@ export function WatchStepEditor({
           <Input aria-label={`Watch ${number} failed when`} value={stepText(spec, WATCH_SPEC_KEYS.FAILED_WHEN)} onChange={typed(WATCH_SPEC_KEYS.FAILED_WHEN)} placeholder="Failed when it shows, such as crashed" />
           <Input aria-label={`Watch ${number} goal`} className="sm:col-span-2" value={stepText(spec, WATCH_SPEC_KEYS.GOAL)} onChange={typed(WATCH_SPEC_KEYS.GOAL)} placeholder="Or the question in a sentence, such as workflow release's newest run finished" />
         </div>
+      )}
+      {!history && (
+        <NewDeployFields
+          id={`watch-${step.key}`}
+          number={number}
+          newDeploy={newDeployOf(spec)}
+          askResource={Boolean(toolName)}
+          resourceOptions={resourceOptions}
+          onTurn={onNewDeployTurn}
+          onChange={onNewDeployChange}
+        />
       )}
     </div>
   )

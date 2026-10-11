@@ -247,17 +247,19 @@ module Integrations
       end
 
       # The one serving production is the project's production target. Every other deployment does not serve it, and
-      # without a target Vercel does not say which serves.
+      # without a target Vercel does not say which serves. A deployment with no target is a preview.
       def deploy_of(deployment, current)
         id = deployment["uid"] || deployment["id"]
         Capabilities::Deploys::Deploy.new(
           id: id, commit: meta(deployment, COMMIT_SHA), branch: meta(deployment, COMMIT_REF),
           status: Capabilities::Deploys.status(deployment["readyState"] || deployment["state"], DEPLOYMENT_STATES),
           live: (id == current if current), started_at: millis(deployment["buildingAt"] || deployment["createdAt"] || deployment["created"]),
-          finished_at: millis(deployment["ready"])
+          finished_at: millis(deployment["ready"]), environment: deployment["target"].presence || PREVIEW_TARGET
         )
       end
       private :deploy_of
+
+      PREVIEW_TARGET = "preview".freeze
 
       # Vercel's deployment states (spec, getDeployments, readyState) in Firefight's words.
       DEPLOYMENT_STATES = {

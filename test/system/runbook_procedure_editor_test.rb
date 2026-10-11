@@ -132,6 +132,27 @@ class RunbookProcedureEditorTest < ApplicationSystemTestCase
                  @runbook.reload.watch)
   end
 
+  test "a watch item can wait for a new deploy, of the version named or any newer one to production" do
+    github = @workspace.integrations.find_by!(provider: "github")
+    github.tools.create!(name: "ci_status", description: "CI status", read_only: true, enabled: true, params_schema: { "type" => "object" })
+    @runbook.update!(watch: nil)
+    open_editor
+    find("#runbook-watch-on").click
+    find("input[aria-label='Watch 1 label']").fill_in(with: "Web rollout")
+    find("button[role='combobox']", text: /How to check it|Run history/).click
+    find("[cmdk-item]", text: "Status").click
+    find("button[role='combobox']", text: "On which resource").click
+    find("[cmdk-item]", text: "firefight").click
+    find("input[aria-label='Watch 1 goal']").fill_in(with: "the new version is serving")
+    find("label", text: "Wait for a new deploy").click
+    find("input[aria-label='Watch 1 commit']").fill_in(with: "{{bump}}")
+    find("input[aria-label='Watch 1 environment']").fill_in(with: "staging")
+    click_button "Save changes"
+    assert_text "Release Firefight was updated."
+
+    assert_equal({ "commit" => "{{bump}}", "environment" => "staging" }, @runbook.reload.watch["steps"].sole["new_deploy"])
+  end
+
   def open_editor
     visit settings_runbooks_path
     within(:xpath, "//tr[.//*[text()='Release Firefight']]") { click_button "Actions" }
