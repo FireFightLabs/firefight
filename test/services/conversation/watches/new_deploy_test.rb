@@ -151,16 +151,128 @@ class Conversation::Watches::NewDeployTest < ActiveSupport::TestCase
     assert_equal Chat::Watch::Step::STATUS_SUCCEEDED, to_staging.reload.status
   end
 
-  test "with nothing named, a new deploy that failed ends the step failed" do
+  test "the commit named failing ends the step failed at once" do
     deploys([ @old ])
-    start(rollout_step)
+    start(rollout_step("new_deploy" => { "commit" => NEW }))
     watch = @conversation.chat.watches.sole
 
-    deploys([ Deploys::Deploy.new(id: "dep-new", commit: NEW, status: History::FAILED, started_at: @began + 1.minute, finished_at: @began + 3.minutes), @old ])
+    deploys([ deploy("A", NEW, History::FAILED, 1, finished: 3), @old ])
     travel(4.minutes) { check!(watch) }
 
     assert_equal [ Chat::Watch::Step::STATUS_FAILED, "The new deploy of web failed (f23b4dc)." ], [ watch.steps.sole.reload.status, watch.steps.sole.reason ]
     assert_equal Chat::Watch::STATUS_FAILED, watch.reload.status
+  end
+
+  test "A cancelled before B appears keeps the step waiting, and B going live ends it" do
+    deploys([ @old ])
+    start(rollout_step)
+    watch = @conversation.chat.watches.sole
+    step = watch.steps.sole
+
+    a = deploy("A", "aaaaaaa1111111", History::CANCELLED, 1, finished: 2)
+    deploys([ a, @old ])
+    travel(3.minutes) { check!(watch) }
+    assert_equal Chat::Watch::Step::STATUS_WAITING, step.reload.status
+    assert_equal "The new deploy of web (aaaaaaa) was cancelled. Waiting for the next one.", step.summary
+    assert_equal Chat::Watch::STATUS_ACTIVE, watch.reload.status
+
+    b = deploy("B", "bbbbbbb2222222", History::RUNNING, 4, live: true)
+    deploys([ b, a, @old ])
+    travel(5.minutes) { check!(watch) }
+    assert_equal [ Chat::Watch::Step::STATUS_RUNNING, "B" ], [ step.reload.status, step.followed_run_id ]
+
+    deploys([ b.with(status: History::SUCCEEDED, finished_at: @began + 6.minutes), a, @old.with(live: false) ])
+    travel(7.minutes) { check!(watch) }
+    assert_equal Chat::Watch::Step::STATUS_SUCCEEDED, step.reload.status
+  end
+
+  test "A cancelled because B replaced it says so, and B is followed" do
+    deploys([ @old ])
+    start(rollout_step("new_deploy" => { "branch" => "main" }))
+    watch = @conversation.chat.watches.sole
+    step = watch.steps.sole
+
+    a = deploy("A", "aaaaaaa1111111", History::CANCELLED, 1, finished: 2, branch: "main")
+    other = deploy("C", "ccccccc3333333", History::RUNNING, 2, branch: "preview")
+    deploys([ other, a, @old ])
+    travel(3.minutes) { check!(watch) }
+
+    assert_equal "The new deploy of web (aaaaaaa) was replaced by a newer deploy. Waiting for the next one.", step.reload.summary
+  end
+
+  test "A failed is told once while the step stays open, and B, a fix, going live ends it done" do
+    deploys([ @old ])
+    start(rollout_step)
+    watch = @conversation.chat.watches.sole
+    step = watch.steps.sole
+
+    a = deploy("A", "aaaaaaa1111111", History::FAILED, 1, finished: 2)
+    deploys([ a, @old ])
+    travel(3.minutes) { check!(watch) }
+    travel(4.minutes) { check!(watch) }
+    assert_equal Chat::Watch::STATUS_ACTIVE, watch.reload.status
+    assert_not step.reload.over?
+    assert_equal [ "The new deploy of web failed (aaaaaaa)." ], watch.updates.where(kind: Chat::Watch::Update::KIND_PART_FAILED).map(&:text),
+                 "said at once, and once"
+    assert_equal "The new deploy of web failed (aaaaaaa). Waiting for a newer deploy until the time limit.", step.summary
+
+    b = deploy("B", "bbbbbbb2222222", History::SUCCEEDED, 5, finished: 6, live: true)
+    deploys([ b, a, @old.with(live: false) ])
+    travel(7.minutes) { check!(watch) }
+    assert_equal Chat::Watch::Step::STATUS_SUCCEEDED, step.reload.status
+    assert_equal Chat::Watch::STATUS_SUCCEEDED, watch.reload.status
+  end
+
+  test "A failed with nothing newer by the time limit ends the watch failed" do
+    deploys([ @old ])
+    start(rollout_step)
+    watch = @conversation.chat.watches.sole
+    deploys([ deploy("A", "aaaaaaa1111111", History::FAILED, 1, finished: 2), @old ])
+    travel(3.minutes) { check!(watch) }
+
+    travel_to(watch.reload.expires_at + 1.minute) { check!(watch) }
+
+    assert_equal Chat::Watch::STATUS_FAILED, watch.reload.status
+    assert_match "The new deploy of web failed (aaaaaaa). Nothing newer went out before the time limit.", watch.outcome
+    assert_equal Chat::Watch::Step::STATUS_FAILED, watch.steps.sole.status
+  end
+
+  test "A live then B started finishes on A when nothing is named, and waits for B when B's commit is named" do
+    deploys([ @old ])
+    start(rollout_step)
+    start(rollout_step("label" => "B rollout", "new_deploy" => { "commit" => "bbbbbbb2222222" }))
+    any, named = @conversation.chat.watches.order(:created_at).to_a
+
+    a = deploy("A", "aaaaaaa1111111", History::SUCCEEDED, 1, finished: 2, live: true)
+    b = deploy("B", "bbbbbbb2222222", History::RUNNING, 3, live: true)
+    deploys([ b, a, @old.with(live: false) ])
+    travel(4.minutes) { [ any, named ].each { |watch| check!(watch) } }
+
+    assert_equal Chat::Watch::Step::STATUS_SUCCEEDED, any.steps.sole.reload.status
+    assert_equal [ Chat::Watch::Step::STATUS_RUNNING, "B" ], [ named.steps.sole.reload.status, named.steps.sole.followed_run_id ]
+
+    deploys([ b.with(status: History::SUCCEEDED, finished_at: @began + 5.minutes), a.with(live: false), @old.with(live: false) ])
+    travel(6.minutes) { check!(named) }
+    assert_equal Chat::Watch::Step::STATUS_SUCCEEDED, named.steps.sole.reload.status
+  end
+
+  test "A and B rolling out together follow B, the newer, whatever order the provider lists them in" do
+    deploys([ @old ])
+    start(rollout_step)
+    watch = @conversation.chat.watches.sole
+    step = watch.steps.sole
+
+    a = deploy("A", "aaaaaaa1111111", History::RUNNING, 1)
+    b = deploy("B", "bbbbbbb2222222", History::RUNNING, 2)
+    deploys([ a, b, @old ])
+    travel(3.minutes) { check!(watch) }
+    assert_equal [ Chat::Watch::Step::STATUS_RUNNING, "B" ], [ step.reload.status, step.followed_run_id ]
+    assert_match "bbbbbbb", step.summary
+
+    deploys([ a.with(status: History::CANCELLED, finished_at: @began + 3.minutes), b.with(status: History::SUCCEEDED, finished_at: @began + 4.minutes, live: true),
+              @old.with(live: false) ])
+    travel(5.minutes) { check!(watch) }
+    assert_equal Chat::Watch::Step::STATUS_SUCCEEDED, step.reload.status
   end
 
   test "the baseline is kept on the step, so a restart and a repair to the same resource keep it" do
@@ -270,6 +382,12 @@ class Conversation::Watches::NewDeployTest < ActiveSupport::TestCase
   end
 
   def text(words) = { "content" => [ { "type" => "text", "text" => words } ] }
+
+  # A deploy that started minutes after the watch began, and finished minutes after it when finished is given.
+  def deploy(id, commit, status, started, finished: nil, live: nil, branch: nil)
+    Deploys::Deploy.new(id: id, commit: commit, status: status, live: live, branch: branch, started_at: @began + started.minutes,
+                        finished_at: (@began + finished.minutes if finished))
+  end
 
   def deploys(listed)
     Integrations::NativeExecutor.stubs(:call).with { |tool:, **| tool.name == "list_deployments" }

@@ -27,11 +27,19 @@ module Chat::Watch::Step::NewDeploy
   BASELINE_DIGEST = "baseline_digest".freeze
   # The new deploy first seen live, so it is judged once at once.
   LIVE_SEEN = "live_seen".freeze
+  # The new deploy that failed with nothing newer after it, told once, and what the step ends with at the time limit.
+  FAILED_SEEN = "failed_seen".freeze
+  FAILED_WORDS = "failed_words".freeze
 
   WAITING = "waiting".freeze
   ROLLING_OUT = "rolling_out".freeze
   LIVE = "live".freeze
+  # The commit or tag named failed, which ends the step.
   FAILED = "failed".freeze
+  # The newest deploy failed, and a newer one, such as a fix, may still come before the time limit.
+  FAILED_FOR_NOW = "failed_for_now".freeze
+  # The newest deploy was cancelled or replaced, so the next one is waited for.
+  CANCELLED = "cancelled".freeze
   Gate = Data.define(:state, :deploy, :words) do
     def open? = state == LIVE
   end
@@ -124,12 +132,31 @@ module Chat::Watch::Step::NewDeploy
     serving = candidates.find { |deploy| deploy.serving? && (live.nil? || live.same?(deploy)) }
     return gate(LIVE, serving) if serving
 
-    newest = candidates.first
-    return gate(WAITING, nil) unless newest
-    return gate(FAILED, newest) if newest.failed?
+    newest = candidates.reject(&:cancelled?).first
+    return candidates.empty? ? gate(WAITING, nil) : gate(CANCELLED, candidates.first, replaced: deploys.first != candidates.first) unless newest
+    return gate(pinned? ? FAILED : FAILED_FOR_NOW, newest) if newest.failed?
 
     gate(ROLLING_OUT, newest)
   end
+
+  # The newest deploy failed with nothing newer yet. True once for that deploy, so the person is told at once and once.
+  def deploy_failed!(gate)
+    key = gate.deploy.id || gate.deploy.short
+    return false if new_deploy[FAILED_SEEN] == key
+
+    update_columns(new_deploy: new_deploy.merge(FAILED_SEEN => key, FAILED_WORDS => gate_words(FAILED, gate.deploy, false)), updated_at: Time.current)
+    true
+  end
+
+  # A newer deploy came after the one that failed, so the step follows it and the failure no longer ends it.
+  def deploy_failure_passed!
+    return if new_deploy.to_h[FAILED_WORDS].blank?
+
+    update_columns(new_deploy: new_deploy.except(FAILED_WORDS), updated_at: Time.current)
+  end
+
+  # What a step still waiting after its new deploy failed ends with at the time limit, or nil.
+  def deploy_failure = new_deploy.to_h[FAILED_WORDS].presence
 
   def deploy_question
     return unless waits_for_deploy? && !deploy_identity?
@@ -190,9 +217,9 @@ module Chat::Watch::Step::NewDeploy
     (deploy.started_at && deploy.started_at >= since - Chat::Watch::Step::STARTED_BEFORE_WATCH) || (deploy.finished_at && deploy.finished_at > since)
   end
 
-  def gate(state, deploy) = Gate.new(state: state, deploy: deploy, words: gate_words(state, deploy))
+  def gate(state, deploy, replaced: false) = Gate.new(state: state, deploy: deploy, words: gate_words(state, deploy, replaced))
 
-  def gate_words(state, deploy)
+  def gate_words(state, deploy, replaced)
     case state
     when LIVE
       return "#{deploy_name(deploy)} was already live on #{target_resource_words} when the watch began." if deploy_baseline&.same?(deploy)
@@ -201,6 +228,10 @@ module Chat::Watch::Step::NewDeploy
     when ROLLING_OUT
       "A new deploy of #{target_resource_words} is rolling out (#{[ deploy.short, (" started #{clock(deploy.started_at)}" if deploy.started_at) ].compact.join(',')})."
     when FAILED then "The new deploy of #{target_resource_words} failed (#{deploy.short})."
+    when FAILED_FOR_NOW
+      "The new deploy of #{target_resource_words} failed (#{deploy.short}). Waiting for a newer deploy until the time limit."
+    when CANCELLED
+      "The new deploy of #{target_resource_words} (#{deploy.short}) was #{replaced ? 'replaced by a newer deploy' : 'cancelled'}. Waiting for the next one."
     else waiting_words
     end
   end

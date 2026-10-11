@@ -33,7 +33,10 @@ module Integrations
 
         def finished? = History::FINISHED.include?(status)
 
-        def failed? = [ History::FAILED, History::CANCELLED ].include?(status)
+        def failed? = status == History::FAILED
+
+        # Cancelled, superseded or aborted, which a newer deploy usually explains rather than a fault.
+        def cancelled? = status == History::CANCELLED
 
         # Rolled out and serving, as far as the provider says.
         def serving? = status == History::SUCCEEDED && live != false
@@ -80,12 +83,16 @@ module Integrations
         listed = structured.is_a?(Hash) ? (structured[DEPLOYS] || structured[DEPLOYS.to_sym]) : nil
         return unless listed.is_a?(Array)
 
-        listed.map { |hash| Deploy.from_h(hash) }.sort_by { |deploy| -(deploy.started_at || deploy.finished_at || Time.zone.at(0)).to_f }
+        # Newest first by when each started, so of two back to back the later is followed. Ties and deploys with no time
+        # keep the provider's own order.
+        listed.map { |hash| Deploy.from_h(hash) }.each_with_index
+              .sort_by { |deploy, index| [ -(deploy.started_at || deploy.finished_at || Time.zone.at(0)).to_f, index ] }.map(&:first)
       end
 
-      # The deploy the provider marks live, or else the newest that finished rolling out.
+      # The deploy the provider marks live, one that finished rolling out first, since a provider may mark the next deploy
+      # live while it still rolls out. Else the newest that finished rolling out.
       def live(deploys)
-        deploys.find { |deploy| deploy.live == true } ||
+        deploys.find { |deploy| deploy.live == true && deploy.status == History::SUCCEEDED } || deploys.find { |deploy| deploy.live == true } ||
           deploys.select { |deploy| deploy.status == History::SUCCEEDED && deploy.live.nil? }.max_by { |deploy| (deploy.finished_at || deploy.started_at || Time.zone.at(0)).to_f }
       end
 
