@@ -39,6 +39,8 @@ The one thing to remember. Every layer exists because the one above it can be by
 
 A monitor that fires 10,000 times in five minutes produces one alert row, one incident, and one Slack message reading `fired 10000x`.
 
+**Resolving by hand.** A tool that never says an alert cleared would leave it firing forever, so a person who can update alerts resolves it from the Alerts screen (`AlertsController#resolve`). `Alert#resolve_blocked_reason` refuses one already resolved. The controller calls `AlertIngestService#resolve`, which is `handle_resolved`, the same path a tool's resolve takes, so the timeline event, the digest and the flap window behave the same. The gateway's ledger records who did it.
+
 **Incidents are never auto-closed from a resolved alert.** A resolve marks the alert and updates the digest, nothing else. Closing is a human decision, and a resolved-then-refired alert is a fresh episode, not a reopened one.
 
 ## Entry point
@@ -187,7 +189,7 @@ One digest message per alert, posted once and updated in place. `#notify_digest`
 |---|---|---|
 | Alert sources | `/settings/alert-sources` | Sources, endpoint URL and token, severity map, field map, `items_path`, fingerprint fields, flap window |
 | Alert routing | `/settings/alert-routing` | The policy: rules, conditions, outcomes, grouping window, content match fields, route tester |
-| Alerts | `/settings/alerts` | Recent alerts filtered by source and matched rule. Operational, not configuration |
+| Alerts | `/settings/alerts` | Recent alerts filtered by source and matched rule, and Resolve for a firing alert. Operational, not configuration |
 
 - **Creating a source opens its setup.** The create redirect carries `setup=<id>` and the page opens that source's dialog, whose setup box holds the URL, the token (or the field for a provider's own secret), the provider's steps and any template.
 - **Secrets never enter page props.** `AlertSourcesController#token` serves the secret on demand behind the copy button, mirroring API keys. `#sample_payload` returns the latest raw payload so the field-mapping UI offers real keys to click instead of asking for dot-paths typed blind.

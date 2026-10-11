@@ -17,6 +17,11 @@ class AlertSettingsSerializer < BaseSerializer
     alert.title
   end
 
+  type :string, optional: true
+  def resolve_blocked_reason
+    alert.resolve_blocked_reason
+  end
+
   type :string
   def source_id
     alert.alert_source_id

@@ -42,6 +42,12 @@ class AlertIngestService
     alert
   end
 
+  # A person resolving a firing alert by hand takes the same path as the tool resolving it, so the incident timeline and
+  # the digest say so too.
+  def resolve(alert)
+    handle_resolved(alert.fingerprint, Time.current)
+  end
+
   # A routing failure leaves the alert pending for the sweep (failed after
   # MAX_ROUTING_ATTEMPTS), so ingestion never returns a 500 for a routing problem.
   def route(alert)

@@ -207,6 +207,11 @@ Rails.application.routes.draw do
       end
     end
     get "/settings/alerts", to: "settings#alerts", as: :settings_alerts
+    resources :alerts, only: [], path: "settings/alerts" do
+      member do
+        patch :resolve
+      end
+    end
     get "/settings/alert-routing", to: "settings#alert_routing", as: :settings_alert_routing
     patch "/settings/alert-routing", to: "alert_routing#update", as: :alert_routing
     post "/settings/alert-routing/test", to: "alert_routing#test", as: :alert_routing_test

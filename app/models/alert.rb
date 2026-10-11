@@ -50,6 +50,11 @@ class Alert < ApplicationRecord
     status == STATUS_FIRING
   end
 
+  # A person resolves an alert by hand when its tool never says it cleared.
+  def resolve_blocked_reason
+    "#{title} is already resolved." unless firing?
+  end
+
   # One atomic UPDATE so concurrent firings never lose event_count increments.
   def record_firing!(now = Time.current)
     self.class.where(id: id).update_all([
