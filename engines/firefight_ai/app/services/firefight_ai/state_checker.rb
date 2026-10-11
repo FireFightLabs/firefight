@@ -14,11 +14,10 @@ module FirefightAi
     end
 
     # The app has already saved the call to check as the last message. answered says whether the report is in.
-    def run(chat:, tools:, max_spend_cents:, answered:, on_step: nil, &on_turn)
+    # deferred_tools are found by the provider's own tool search where it has one (FirefightAi.ready_chat).
+    def run(chat:, tools:, max_spend_cents:, answered:, deferred_tools: [], on_step: nil, &on_turn)
       FirefightAi.translating_errors do
-        FirefightAi.bind(chat, ai_model)
-        chat.with_instructions(template_text)
-        chat.with_tools(*tools)
+        FirefightAi.ready_chat(chat, choice: ai_model, instructions: template_text, tools: tools, deferred_tools: deferred_tools, rolling: false)
 
         AgentLoop.new(
           chat: chat, budget: AgentLoop::Budget.new(max_spend_cents: max_spend_cents, max_turns: MAX_TURNS),

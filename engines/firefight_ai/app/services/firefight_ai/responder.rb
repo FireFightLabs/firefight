@@ -39,16 +39,17 @@ module FirefightAi
       @ai_model = model
     end
 
-    # The app has already saved the question as the last message.
-    # check, hold, purse, on_backup and on_take_over go to the loop, see AgentLoop.
-    def run(chat:, tools:, context:, budget:, canceled: -> { false }, on_step: nil, on_chunk: nil, nudge: nil, memory: nil,
-            check: nil, hold: nil, take_messages: nil, purse: nil, on_backup: nil, on_take_over: nil, &on_turn)
+    # The app has already saved the question as the last message. deferred_tools are found by the provider's own tool
+    # search where it has one (FirefightAi.ready_chat). cache_ttl is how long the cached front of the chat lasts, nil for
+    # the provider's default.
+    # check, hold, purse, on_backup, on_take_over and on_progress go to the loop, see AgentLoop.
+    def run(chat:, tools:, context:, budget:, deferred_tools: [], cache_ttl: nil, canceled: -> { false }, on_step: nil, on_chunk: nil,
+            nudge: nil, memory: nil, check: nil, hold: nil, take_messages: nil, purse: nil, on_backup: nil, on_take_over: nil,
+            on_progress: nil, &on_turn)
       FirefightAi.translating_errors do
-        FirefightAi.bind(chat, ai_model)
-        chat.with_instructions("#{template_text}\n#{context}")
-        chat.with_tools(*tools)
         # A chat grows with every question and each turn resends all of it, so the provider is asked to cache it.
-        chat.with_caching
+        FirefightAi.ready_chat(chat, choice: ai_model, instructions: "#{template_text}\n#{context}", tools: tools, deferred_tools: deferred_tools,
+                                     cache_ttl: cache_ttl)
 
         AgentLoop.new(
           chat: chat, budget: budget, answered: -> { false }, canceled: canceled,
@@ -56,7 +57,8 @@ module FirefightAi
           check: check, hold: hold, take_messages: take_messages, output: output_cap, choice: ai_model, purpose: AiPurpose::INVESTIGATION,
           purse: purse,
           on_backup: on_backup,
-          on_take_over: on_take_over
+          on_take_over: on_take_over,
+          on_progress: on_progress
         ).run(&on_turn)
       end
     end
@@ -86,7 +88,7 @@ module FirefightAi
         You are Firefight, working for the person talking to you. You answer questions and you act in Firefight on their behalf, with exactly the permissions they have. Be brief and exact.
 
         How to work:
-        - You hold almost no tools to begin with. open_tools lists every group of tools there is. Open the group that fits what you need next, and the tools in it this person may use become callable.
+        - #{ToolFinding::RULE}
         - For a common task, such as declaring, updating or ending an incident, use_skill lists the skills. Load the one that fits before opening any group, since it makes the tools it needs callable and says the steps.
         - You can do anything this person can do in Firefight: open and update incidents, invite people, assign roles, manage runbooks and settings, and for an admin, manage permissions. Open the group, find the tool and use it rather than explaining how to do it by hand.
         - Change something only when the person asked for that change. Say what you changed.

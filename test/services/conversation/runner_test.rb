@@ -340,6 +340,47 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
                  [ shown["status"], shown.dig("outcome", "kind"), shown.dig("outcome", "said") ]
   end
 
+  test "what a long tool says while it runs streams to the dashboard under its step, once a beat, without a credential" do
+    personal = personal_chat
+    fake(reply: "Counted.", during: lambda do |arguments|
+      arguments[:on_step].call(FirefightAi::AgentLoop::Step.new(key: "call_9", tool: Chat::Tools::Terminal::NAME, status: :running, arguments: { "command" => "./count.sh" }))
+      arguments[:on_progress].call(FirefightAi::AgentLoop::Progress.new(key: "call_9", message: "page 2 of 5 with ghp_abcdefghijklmnopqrstuvwxyz0123456789", value: 2, total: 5))
+      arguments[:on_progress].call(FirefightAi::AgentLoop::Progress.new(key: "call_9", message: "page 3 of 5", value: 3, total: 5))
+      arguments[:on_progress].call(FirefightAi::AgentLoop::Progress.new(key: "call_other", message: "never started here", value: nil, total: nil))
+    end)
+
+    ask(personal, "count the pages")
+
+    shown = broadcasts(ConversationChannel.broadcasting_for(personal)).map { |message| JSON.parse(message) }.select { |event| event["activity"] }
+    assert_equal 1, shown.size, "a second report within a beat waits for the next, and a call never started here is not shown"
+    assert_equal [ "call_9", Conversation::LiveDelivery::STATUS_RUNNING, "Run command", 2, 5 ],
+                 [ shown.sole["key"], shown.sole["status"], shown.sole["title"], shown.sole.dig("activity", "value"), shown.sole.dig("activity", "total") ]
+    assert_match "page 2 of 5 with [REDACTED", shown.sole.dig("activity", "message")
+  end
+
+  test "what a long tool says while it runs is never posted to a thread" do
+    reported = []
+    Slack::Client.stubs(:append_stream).with { |arguments| reported.concat(arguments[:chunks]) }.returns({ ok: true })
+    fake(reply: "Counted.", during: lambda do |arguments|
+      arguments[:on_step].call(FirefightAi::AgentLoop::Step.new(key: "call_9", tool: Chat::Tools::Terminal::NAME, status: :running, arguments: { "command" => "./count.sh" }))
+      arguments[:on_progress].call(FirefightAi::AgentLoop::Progress.new(key: "call_9", message: "page 2 of 5", value: 2, total: 5))
+    end)
+
+    ask(@conversation, "count the pages")
+
+    assert_not_includes reported.to_json, "page 2 of 5"
+  end
+
+  test "a chat the person came back to keeps its cached front for an hour, a first question the provider's default" do
+    personal = personal_chat
+    responder = fake(reply: "First.")
+    ask(personal, "what is going on")
+    assert_nil responder.calls.last[:cache_ttl]
+
+    ask(personal, "and now")
+    assert_equal FirefightAi::LONG_CACHE, responder.calls.last[:cache_ttl]
+  end
+
   test "a finished step in a thread says how it went in a word, a failure as an error" do
     reported = []
     Slack::Client.stubs(:append_stream).with { |arguments| reported.concat(arguments[:chunks]) }.returns({ ok: true })

@@ -28,6 +28,9 @@ module FirefightAi
       def initialize(key:, tool:, status:, arguments: {}) = super
     end
     Outcome = Data.define(:status, :turns_used, :spent_micros)
+    # What a long running tool said about how far it got while it worked, by its call's key. value and total are counts
+    # in the tool's own unit when it can count the work, nil when it says only message.
+    Progress = Data.define(:key, :message, :value, :total)
 
     # reply_is_answer is what separates a conversation from an investigation. In a chat the person
     # is waiting for a reply, in a run only a conclusion ends it.
@@ -46,9 +49,11 @@ module FirefightAi
     # a provider that stops answering fails the run as before, which a rehearsal needs to measure one model.
     # on_take_over is called the same way when the next account takes over from one that ran dry or refused its key. Without
     # it the handover is quiet, as it is unless a person picked the model.
+    # on_progress hears a Progress each time a running tool reports how far it got (RubyLLM::Tool#progress), on the thread
+    # the tool reports from, before the tool answers.
     def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil, on_chunk: nil,
                    reply_is_answer: false, nudge: nil, memory: nil, check: nil, hold: nil, take_messages: nil, output: nil,
-                   choice: nil, purpose: AiPurpose::INVESTIGATION, purse: nil, on_backup: nil, on_take_over: nil)
+                   choice: nil, purpose: AiPurpose::INVESTIGATION, purse: nil, on_backup: nil, on_take_over: nil, on_progress: nil)
       @chat = chat
       @choice = choice || ModelChoice.new(model: inference[:model], provider: inference[:provider])
       @purpose = purpose
@@ -74,6 +79,13 @@ module FirefightAi
       @given_up_on = []
       @seen_tool_call_ids = messages.flat_map { |message| message.tool_calls&.keys || [] }.to_set
       report_steps_to(on_step) if on_step
+      report_progress_to(on_progress) if on_progress
+    end
+
+    def report_progress_to(on_progress)
+      @chat.to_llm.after_tool_progress do |tool_call, progress|
+        on_progress.call(Progress.new(key: tool_call.id, message: progress.message&.to_s, value: progress.value, total: progress.total))
+      end
     end
 
     # The caller hears about a tool as the agent reaches for it, and again when it answers.
@@ -201,6 +213,7 @@ module FirefightAi
     def switch_to(following)
       @choice = following
       FirefightAi.bind(@chat, following)
+      FirefightAi.present_tools(@chat, following)
       @inference = @inference.merge(following.ledger)
       return unless @output
 

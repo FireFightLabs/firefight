@@ -110,25 +110,49 @@ module Integrations
                        .returns("stdout" => { "viewports" => [] }.to_json)
 
       with_env(Terminal::BROWSER_PRIVATE_HOSTS => "staging.internal, 10.1.0.0/16") do
-        terminal.browse("url" => "http://staging.internal/", "deadline_seconds" => 999, "private_hosts" => [ "169.254.169.254" ])
+        terminal.browse({ "url" => "http://staging.internal/", "deadline_seconds" => 999, "private_hosts" => [ "169.254.169.254" ] })
       end
 
       assert_equal [ [ "staging.internal", "10.1.0.0/16" ], Terminal::BROWSER_MAX_DEADLINE ], [ handed.first["private_hosts"], handed.first["deadline_seconds"] ]
       assert_equal Terminal::BROWSER_MAX_DEADLINE + Terminal::BROWSER_MARGIN, handed.last
     end
 
+    test "the browser's reports of how far it got reach whoever listens, the newest of each read, and other lines are passed over" do
+      heard = []
+      Sandboxes::Client.any_instance.stubs(:browser?).returns(true)
+      Sandboxes::Client.any_instance.stubs(:browse).with do |on_output:, **|
+        on_output.call("")
+        on_output.call(%({"message":"Opening https://x.dev/","value":0,"total":2}\nnot a report\n{"message":"Step 1 of 1: Click \\"Pay\\"","value":1,"total":2}\n))
+        on_output.call(%({"value":3}\n))
+        true
+      end.returns("stdout" => { "viewports" => [] }.to_json)
+
+      terminal.browse({ "url" => "https://x.dev/" }, on_progress: ->(found) { heard << found })
+
+      assert_equal [ Terminal::Progress.new(message: "Step 1 of 1: Click \"Pay\"", value: 1, total: 2) ], heard
+    end
+
+    test "a command's run hears the lines it wrote to its progress file" do
+      heard = []
+      Sandboxes::Client.any_instance.stubs(:terminal).with { |on_output:, **| on_output.call("page 2 of 9\n") || true }.returns("exit_code" => 0)
+
+      terminal.run("./count.sh", on_output: ->(text) { heard << text })
+
+      assert_equal [ "page 2 of 9\n" ], heard
+    end
+
     test "a browser that answers with something that is not JSON says so" do
       Sandboxes::Client.any_instance.stubs(:browser?).returns(true)
       Sandboxes::Client.any_instance.stubs(:browse).returns("stdout" => "", "stderr" => "Cannot find module 'playwright'\n")
 
-      assert_match "Cannot find module", assert_raises(Integrations::Error) { terminal.browse("url" => "https://x.dev/") }.message
+      assert_match "Cannot find module", assert_raises(Integrations::Error) { terminal.browse({ "url" => "https://x.dev/" }) }.message
     end
 
     test "a box on an image from before the browser says so rather than failing a page check" do
       Sandboxes::Client.any_instance.stubs(:browser?).returns(false)
       Sandboxes::Client.any_instance.expects(:browse).never
 
-      assert_equal CodeReading::OLD_BROWSER_IMAGE, assert_raises(Sandboxes::Error) { terminal.browse("url" => "https://x.dev/") }.message
+      assert_equal CodeReading::OLD_BROWSER_IMAGE, assert_raises(Sandboxes::Error) { terminal.browse({ "url" => "https://x.dev/" }) }.message
     end
 
     test "each provider says where its boxes run, boat in the EU, Docker where the deployment says, and none unnamed" do

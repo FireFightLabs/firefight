@@ -6,6 +6,7 @@ import { useSettledSteps } from "@/pages/agent/hooks/use-settled-steps"
 import { CODE_AGENT_RELOADS } from "@/pages/agent/lib/chat-updates"
 import { rowStatus } from "@/pages/agent/lib/step-rows"
 import { HelperRuns } from "@/pages/agent/components/helper-runs"
+import { StepActivity } from "@/pages/agent/components/step-activity"
 import { StepOutcomeDetails } from "@/pages/agent/components/step-outcome"
 import type { AgentStep } from "@/pages/agent/types"
 
@@ -47,16 +48,24 @@ function toRow(step: AgentStep): ThinkingRow {
     details: step.asked.map(([ label, meta ]) => ({ label, meta })),
     outcome: step.outcome ? <StepOutcomeDetails outcome={step.outcome} /> : undefined,
     quiet: step.kind === AGENT_STEP_KINDS.ROOM,
-    live: step.card?.kind === AGENT_CARD_KINDS.HELPERS
-      ? <HelperRuns toolCallKey={step.key} />
-      : liveWork(step, status),
+    live: liveWork(step, status),
   }
 }
 
-// A coding agent's work as it goes, under the step that runs it.
+// What a long step is doing as it goes, under the step that runs it. Helpers and a coding agent show their own work, and
+// any other tool shows the last thing it said about how far it got while it runs.
 function liveWork(step: AgentStep, status: ThinkingRow["status"]) {
+  const activity = status === "running" && step.activity ? <StepActivity activity={step.activity} /> : undefined
+  if (step.card?.kind === AGENT_CARD_KINDS.HELPERS) {
+    return (
+      <div className="flex min-w-0 flex-col gap-2">
+        {activity}
+        <HelperRuns toolCallKey={step.key} />
+      </div>
+    )
+  }
   if (!step.progress) {
-    return undefined
+    return activity
   }
 
   return (

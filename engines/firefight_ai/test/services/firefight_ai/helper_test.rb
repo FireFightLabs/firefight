@@ -27,7 +27,7 @@ class FirefightAi::HelperTest < ActiveSupport::TestCase
     chat = mock("chat")
     chat.stubs(:with_tools)
     chat.stubs(:with_caching)
-    chat.expects(:with_instructions).with(FirefightAi::Helper.template_text)
+    chat.expects(:with_instructions).with(FirefightAi::Helper.template_text, cache_until_here: true)
     FirefightAi::AgentLoop.expects(:new).with do |**given|
       given[:reply_is_answer] && given[:choice] == @choice && given[:purpose] == AiPurpose::HELPER &&
         given[:budget].max_turns == FirefightAi::Helper::MAX_TURNS && given[:budget].max_spend_cents == 25 &&

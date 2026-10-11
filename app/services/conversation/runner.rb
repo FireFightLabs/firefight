@@ -20,6 +20,7 @@ class Conversation::Runner
     @handed_back = handed_back
     @pull_request_fix = pull_request_fix
     @code_pause = code_pause
+    @progress_lock = Mutex.new
   end
 
   def run
@@ -53,13 +54,18 @@ class Conversation::Runner
     chat.on_making_room { |compaction| delivery.made_room(compaction) }
     @changes = Chat::Tools::Changes.catch_up!(@turn, chat).then { |caught| caught if caught.note }
     purse = FirefightAi::AgentLoop::Purse.new
+    presented = Chat::Tools.presented(@turn, responder.ai_model)
 
     outcome = responder.run(
       chat: chat,
-      tools: Conversation::Tools.for(@turn, offer: Chat::Tools.offer_to(chat), helpers: helper_share(chat, purse)) + Chat::Tools.known(@turn, chat),
+      tools: Conversation::Tools.for(@turn, offer: Chat::Tools.offer_to(chat), helpers: helper_share(chat, purse), searched: presented.searched) +
+             presented.loaded + Chat::Tools.known(@turn, chat),
+      deferred_tools: presented.deferred,
+      cache_ttl: cache_ttl(chat),
       context: context,
       budget: budget,
       on_step: method(:report_step),
+      on_progress: method(:report_tool_progress),
       on_chunk: ->(text) { delivery.chunk(text) },
       nudge: chat.method(:nudge!),
       memory: chat,
@@ -304,6 +310,26 @@ class Conversation::Runner
   end
 
   def saving_pace = @saving_pace ||= Chat::CodeFixProgress::Pace.new(every: PROGRESS_SAVED_EVERY)
+
+  # Any other long tool says how far it got through RubyLLM's progress, such as helpers reporting or a command running,
+  # which the dashboard shows under its step while it runs. It may report from a thread it started, so one report goes
+  # out at a time, and one that cannot be shown never stops the call. A coding agent's own work is shown as above.
+  def report_tool_progress(progress)
+    shown = seen[progress.key]
+    activity = Chat::ToolActivity.from(progress)
+    return if shown.nil? || activity.empty? || works.key?(progress.key)
+
+    @progress_lock.synchronize { delivery.activity(key: progress.key, step: shown, kind: kinds[progress.key], activity: activity) }
+  rescue StandardError => error
+    Rails.logger.warn({ event: "conversation.tool_progress_not_shown", conversation_id: @conversation.id, error: error.class.name }.to_json)
+  end
+
+  # A chat the person came back to is likely to be read again more than five minutes later, so the front of it is kept
+  # in the provider's cache for an hour from the second question on. A first question keeps the provider's default.
+  def cache_ttl(chat)
+    asked = chat.messages.where(role: Chat::Message::ROLE_USER, nudge: false).count
+    FirefightAi::LONG_CACHE if asked > 1
+  end
 
   def works = @works ||= {}
 

@@ -71,6 +71,27 @@ class FirefightAi::InvestigatorTest < ActiveSupport::TestCase
     investigator.run(chat: chat, tools: [], seed_pack: @seed_pack, budget: budget, answered: -> { false })
   end
 
+  # A run's tools, instructions and facts never change, and a run can wait longer than five minutes between turns on a
+  # helper or a code fix, so each ends in a boundary kept for an hour.
+  test "the instructions and the facts each end in a cache boundary that lasts an hour" do
+    chat = chat_double(messages: [])
+    chat.expects(:with_instructions).with(FirefightAi::Investigator.system_prompt, cache_until_here: { ttl: FirefightAi::LONG_CACHE })
+    chat.expects(:add_message).with { |role:, cache_until_here:, cache_ttl:, **| role == :user && cache_until_here && cache_ttl == FirefightAi::LONG_CACHE }
+
+    investigator.run(chat: chat, tools: [], seed_pack: @seed_pack, budget: budget, answered: -> { false })
+  end
+
+  test "a scheduled check takes the purse and the backup the run hands it, as an investigation does" do
+    chat = chat_double(messages: [])
+    shared = FirefightAi::AgentLoop::Purse.new
+    backup = ->(*) { }
+    FirefightAi::AgentLoop.expects(:new).with { |purse: nil, on_backup: nil, **| purse.equal?(shared) && on_backup.equal?(backup) }
+                          .returns(stub(run: FirefightAi::AgentLoop::Outcome.new(status: :answered, turns_used: 0, spent_micros: 0)))
+
+    FirefightAi::Monitor.new(@workspace, inferable: @incident).run(chat: chat, tools: [], seed_pack: @seed_pack, budget: budget, answered: -> { false },
+                                                                   purse: shared, on_backup: backup)
+  end
+
   test "a client error stops at the engine boundary" do
     chat = chat_double(messages: [])
     chat.stubs(:with_instructions).raises(RubyLLM::RateLimitError.new("slow down"))

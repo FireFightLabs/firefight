@@ -38,12 +38,12 @@ class CodeAgent::Relay
   def record(proxy, started)
     usage = proxy.usage
     cost = FirefightAi.cost_micros(@session.model, provider: @session.provider, input: usage.input, output: usage.output,
-                                   cache_read: usage.cache_read, cache_write: usage.cache_write)
+                                   cache_read: usage.cache_read, cache_write: usage.cache_write, cache_write_by_ttl: usage.cache_write_by_ttl)
     payer = @session.payer
     inference = Inference.create!(
       workspace: @session.workspace, feature: CodeAgentSession::FEATURE, provider: @session.provider, model: @session.model,
       inferable: @session, input_tokens: usage.input, output_tokens: usage.output, cache_read_tokens: usage.cache_read,
-      cache_write_tokens: usage.cache_write, cost_micros: cost,
+      cache_write_tokens: usage.cache_write, cache_write_tokens_by_ttl: usage.cache_write_by_ttl, cost_micros: cost,
       status: proxy.status.to_i.between?(200, 299) ? Inference::STATUS_SUCCESS : Inference::STATUS_ERROR,
       error_kind: (Inference::ERROR_OUT_OF_CREDIT if proxy.refusal&.out_of_credit?),
       latency_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round,
@@ -61,7 +61,7 @@ class CodeAgent::Relay
     elsif proxy.refusal&.out_of_credit?
       payer.own_account? ? AiRefusal.account_ran_out!(payer.account, FirefightAi::OutOfCredit.new) : AiRefusal.house_ran_out!(@session.provider)
     elsif proxy.status.to_i.in?(CodeAgentSession::KEY_REFUSED_STATUSES) && payer.own_account?
-      AiRefusal.key_refused!(payer.account, FirefightAi::TerminalError.new(reason: AiAccountError::KEY_REASONS.first))
+      AiRefusal.key_refused!(payer.account, FirefightAi::TerminalError.new(reason: FirefightAi::KEY_REFUSED_REASONS.first))
     end
   end
 end

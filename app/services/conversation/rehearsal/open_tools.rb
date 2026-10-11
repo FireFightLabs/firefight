@@ -11,18 +11,19 @@ class Conversation::Rehearsal::OpenTools < RubyLLM::Tool
   }.freeze
 
   # groups maps each group's key to the tool definitions in it. open takes the names to make callable and returns the
-  # definitions it opened.
-  def initialize(groups:, open:)
+  # definitions it opened. searched says the model's provider searches tools itself, as Chat::Tools::Open says live.
+  def initialize(groups:, open:, searched: false)
     super()
     @groups = groups
     @open = open
+    @searched = searched
   end
 
   def name = Chat::Tools::Open.tool_name
 
   def description
     lines = @groups.map { |key, tools| "#{key}: #{COVERS.fetch(key) { "#{key.to_s.humanize}'s own tools" }}, such as #{tools.first(4).map(&:name).join(', ')} (ready)" }
-    "#{INTRO}\n#{lines.join("\n")}"
+    "#{@searched ? "#{Chat::Tools::Open::LISTS} The groups:" : INTRO}\n#{lines.join("\n")}"
   end
 
   def parameters_schema

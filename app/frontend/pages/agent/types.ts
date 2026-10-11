@@ -50,7 +50,15 @@ export interface AgentPageProps extends SharedProps {
   chatModels: ChatModelMenu | null
 }
 
-export type AgentStep = AgentChatMessage["tools"][number]
+// What a long tool last said about how far it got, sent live while it runs and never saved, so only a step the socket
+// reported carries one.
+export interface ToolActivity {
+  message: string | null
+  value: number | null
+  total: number | null
+}
+
+export type AgentStep = AgentChatMessage["tools"][number] & { activity?: ToolActivity | null }
 
 export type AgentCard = NonNullable<AgentStep["card"]>
 

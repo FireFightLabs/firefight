@@ -119,7 +119,8 @@ class Conversation::ConfirmingTest < ActiveSupport::TestCase
     ask_about("call_1")
     Chat.any_instance.stubs(:to_llm).returns(stub(pending_approvals: [ Struct.new(:id).new("call_1") ]))
     stub_agent_session
-    responder = stub(run: FirefightAi::AgentLoop::Outcome.new(status: FirefightAi::AgentLoop::STATUS_WAITING, turns_used: 1, spent_micros: 0))
+    responder = stub(run: FirefightAi::AgentLoop::Outcome.new(status: FirefightAi::AgentLoop::STATUS_WAITING, turns_used: 1, spent_micros: 0),
+                     ai_model: FirefightAi::ModelChoice.new(model: "gpt-4o"))
     FirefightAi::Responder.stubs(:new).returns(responder)
     Slack::Client.expects(:stop_stream).with do |arguments|
       blocks = arguments[:blocks].to_json

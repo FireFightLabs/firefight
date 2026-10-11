@@ -206,7 +206,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
       environment_row = integration.resolve_environment(environment_entry&.id)
       result = begin
         integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments, box_key: @agent_run.code_box_key,
-                                  progress: (@agent_run.progress_listener(tool_call_id) if tool_call_id), request: code_request(tool_call_id),
+                                  progress: progress_reporter(tool_call_id), request: code_request(tool_call_id),
                                   **(relayed ? { relayed: true } : {}))
       rescue Integrations::PolicyRefusal => policy
         next refused_by_rule!(tool_call_id, authorization, policy.message)
@@ -249,6 +249,18 @@ class Chat::Tools::Connection < RubyLLM::Tool
   end
 
   private
+
+  # A coding agent writing a change in Firefight's sandbox hands over its whole work each time it moves
+  # (Chat::CodeFixProgress), which the turn shows and keeps as it always has. Anything else a long tool says, such as an
+  # outside coding agent's latest step, is a sentence, which goes out as RubyLLM's progress for the call.
+  def progress_reporter(tool_call_id)
+    listener = (@agent_run.progress_listener(tool_call_id) if tool_call_id)
+    lambda do |update|
+      next listener&.call(update) if update.is_a?(Chat::CodeFixProgress)
+
+      progress(update.to_s) if update.present?
+    end
+  end
 
   # The words still go to the model. The mark is for whoever reads the chat afterwards.
   def failed(tool_call_id, text, kind: Chat::StepOutcome::FAILURE_ERROR)

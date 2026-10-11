@@ -16,7 +16,7 @@ class Chat::Tools::HelpersTest < ActiveSupport::TestCase
   end
 
   test "the checks are handed off with their titles and briefs, and what came back reaches the model framed as evidence" do
-    Chat::Helpers.expects(:run!).with do |agent_run, share:, tool_call_id:, checks:|
+    Chat::Helpers.expects(:run!).with do |agent_run, share:, tool_call_id:, checks:, **|
       agent_run == @turn && share == @share && tool_call_id == "call_1" &&
         checks == [ Chat::Helpers::Check.new(title: "Logs of web", brief: "Read web's error logs", deep: false),
                     Chat::Helpers::Check.new(title: "Code", brief: "Read the handler", deep: true) ]
@@ -28,6 +28,20 @@ class Chat::Tools::HelpersTest < ActiveSupport::TestCase
 
     assert_match(/\A<#{FirefightAi::Evidence::TAG} /, said)
     assert_includes said, "Helpers reported, 2 of 2:"
+  end
+
+  test "the step says how many helpers have finished while they work, through the call's progress" do
+    Chat::Helpers.stubs(:run!).with do |*, on_done:, **|
+      on_done.call(1, 2)
+      on_done.call(2, 2)
+      true
+    end.returns(Chat::Helpers::Result.new(text: "Helpers reported, 2 of 2:", failed: false))
+    reports = sequence("reports")
+    @tool.expects(:progress).with(Chat::Tools::Helpers::STARTED, value: 0, total: 2).in_sequence(reports)
+    @tool.expects(:progress).with("1 of 2 done", value: 1, total: 2).in_sequence(reports)
+    @tool.expects(:progress).with("2 of 2 done", value: 2, total: 2).in_sequence(reports)
+
+    @tool.call(tool_call: tool_call("call_1"), checks: [ { "title" => "Logs", "brief" => "Read the logs" }, { "title" => "Deploys", "brief" => "Read the deploys" } ])
   end
 
   test "a call where no helper reported is marked failed, so the step shows it" do

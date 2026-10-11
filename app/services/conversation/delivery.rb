@@ -85,6 +85,10 @@ class Conversation::Delivery
     )
   end
 
+  # What a long tool says about how far it got is the dashboard's to show. A thread redrawn on every report would be
+  # noise, and the step says how it went once it is done.
+  def activity(**) = nil
+
   # Each helper a run_helpers step started, as a line of its own right under that step, redrawn in place as it reads and
   # once it reports, no more often than the platform allows.
   def helpers(key:, helpers:)

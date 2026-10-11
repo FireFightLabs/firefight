@@ -34,6 +34,17 @@ module FirefightAi
       assert_equal ModelProxy::Usage.new(input: 140, output: 25, cache_read: 40, cache_write: 0), usage
     end
 
+    # A coding agent may cache for an hour, which Anthropic bills at twice the input price, so the split is read off too.
+    test "an Anthropic answer's cache writes are read by how long they last" do
+      usage = { input_tokens: 10, cache_creation_input_tokens: 3_000, cache_creation: { ephemeral_5m_input_tokens: 1_000, ephemeral_1h_input_tokens: 2_000 } }
+      answer(FakeResponse.new("200", "text/event-stream", [ "event: message_start\ndata: #{({ type: 'message_start', message: { usage: usage } }).to_json}\n\n" ])) { |_| nil }
+
+      read = ModelProxy.new("anthropic").forward(path: "messages", body: { stream: true }.to_json, model: "claude-sonnet-4-5",
+                                                 headers: { "anthropic-version" => "2023-06-01" }) { |*| nil }
+
+      assert_equal [ 3_000, { "5m" => 1_000, "1h" => 2_000 } ], [ read.cache_write, read.cache_write_by_ttl ]
+    end
+
     test "an OpenAI answer's usage is read from its last chunk, with the key as a bearer" do
       sent = nil
       answer(FakeResponse.new("200", "text/event-stream", [ "data: {\"choices\":[]}\n\n", "data: {\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":3}}\n\ndata: [DONE]\n\n" ])) { |request| sent = request }
