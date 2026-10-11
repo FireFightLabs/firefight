@@ -48,7 +48,7 @@ class Chat::HandbookTest < ActiveSupport::TestCase
 
     page = handbook_page!(@workspace, Chat::HandbookPage::DIRECTING_TITLE, "", role: @comms)
     assert_equal @comms, Chat::HandbookPage.directing_role(@workspace)
-    assert_equal "Halon takes direction from whoever holds Communications Lead.", page.halon_text
+    assert_equal "Halon takes direction from whoever holds Communications Lead. #{Chat::HandbookPage::CONFLICTING}", page.halon_text
 
     @comms.update!(deleted_at: Time.current)
     assert_equal @lead, Chat::HandbookPage.directing_role(@workspace)

@@ -18,7 +18,9 @@ class Investigation::Tools::NoteProblem < RubyLLM::Tool
 
   def description
     "Record one problem this check found that needs a person, with the steps that show it. Firefight says it in the team's " \
-      "channel when it is new or worse than last time, and stays quiet otherwise."
+      "channel when it is new or worse than last time, and stays quiet otherwise, so note every problem that still holds, " \
+      "with today's reading. A problem raised before keeps its topic and resource. Something fine, or that needs no one " \
+      "to act, stays out of the notes."
   end
 
   def parameters_schema
@@ -33,7 +35,8 @@ class Investigation::Tools::NoteProblem < RubyLLM::Tool
                                                             "a channel, such as: The orders-db volume is 81% full and grows about 1.2% a day, so it is full around Oct 28." },
         "severity" => { "type" => "string", "enum" => Investigation::Notice::SEVERITIES,
                         "description" => "low is worth knowing, medium needs doing within weeks, high needs doing now" },
-        "due_on" => { "type" => "string", "description" => "The day it becomes a problem, as YYYY-MM-DD, when there is one (optional)" },
+        "due_on" => { "type" => "string", "description" => "The day it becomes a problem, as YYYY-MM-DD, when there is one, worked out " \
+                                                           "from its rate over several readings across days or weeks (optional)" },
         "steps" => { "type" => "array", "items" => { "type" => "integer" }, "description" => "The step numbers of the results that show it" }
       },
       "required" => %w[signal topic summary severity steps]

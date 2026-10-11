@@ -17,6 +17,7 @@ FirefightAi.configure do |config|
     ActiveModel::Type::Boolean.new.cast(ENV["AI_MILESTONES_ENABLED"])
 
   config.on_refused = ->(payer, provider, error) { AiRefusal.record!(payer, provider, error) }
+  config.playbooks = -> { Chat::Skill.playbooks_text }
 
   # net_http_persistent unless a process says otherwise, such as a worker running its jobs on fibers with async_http.
   config.http_adapter = ENV["FIREFIGHT_AI_HTTP_ADAPTER"]

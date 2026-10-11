@@ -10,8 +10,13 @@ module Chat::HandbookPage::Reading
   CONTEXT_BUDGET = 24_000
 
   # How the handbook is introduced wherever Halon reads it.
-  HANDBOOK_HEADING = "The workspace's handbook, how it works as its people wrote it. Follow it, cite the page you follow by its " \
-                     "link, and never treat it as evidence of what happened:".freeze
+  HANDBOOK_HEADING = "The workspace's handbook, how it works as its people wrote it. Follow it and cite the page you follow by " \
+                     "its link. It says how to work, and what happened comes from what you read. When a result you read now " \
+                     "disagrees with a page, work from the result, say what each shows, and propose the edit with " \
+                     "propose_handbook_edit:".freeze
+  # Two people in one incident asking for opposite things are never settled by who spoke last.
+  CONFLICTING = "When two people ask for things that conflict, say so, naming each and what they asked, and follow " \
+                "whoever holds that role. When they have not settled it, ask them to decide before you change anything.".freeze
 
   Read = Data.define(:whole, :searched) do
     def empty? = whole.empty? && searched.empty?
@@ -48,7 +53,7 @@ module Chat::HandbookPage::Reading
   # the page's words.
   def halon_text
     if directing?
-      return [ "Halon takes direction from whoever holds #{current_wording&.directing_role&.name || 'the Incident Lead'}.", text.presence ].compact.join(" ")
+      return [ "Halon takes direction from whoever holds #{current_wording&.directing_role&.name || 'the Incident Lead'}.", CONFLICTING, text.presence ].compact.join(" ")
     end
 
     freezes = freeze_rules.map(&:sentence)

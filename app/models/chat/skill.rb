@@ -1,5 +1,7 @@
 # A short recipe for a common task, read from config/skills/<source>/<domain>/<name>.md. The source is whose tools the
 # skill drives (firefight for Firefight's own, else a provider's key) and the domain is the tool group it belongs to.
+# Firefight's playbooks sit under their own domain: one area of the SRE job each, what good looks like and how to
+# approach it, which the always on instructions name (FirefightAi::Manual::PLAYBOOK_NAMES).
 # The agent sees each one's name and when to use it, and loads one when a question matches, which makes the tools it
 # names callable and says the steps. So a declare does not spend calls opening groups and reading config the form
 # already lists.
@@ -7,6 +9,7 @@ class Chat::Skill
   DIRECTORY = Rails.root.join("config/skills")
   FRONT_MATTER = /\A---\n(.*?)\n---\n(.*)\z/m
   SOURCE_FIREFIGHT = "firefight".freeze
+  DOMAIN_PLAYBOOKS = "playbooks".freeze
 
   # A provider's skill names its tools as the provider does, and its domain is the provider's category. references are
   # pages of the provider's documentation in the docs store (ProviderDocPage), by their path within the provider. A skill
@@ -47,6 +50,12 @@ class Chat::Skill
     end
 
     def find(name) = all.find { |skill| skill.name == name.to_s }
+
+    # Every playbook's name and words, in a fixed order, which the version of Halon's prompts includes.
+    def playbooks_text
+      all.select { |skill| skill.firefight? && skill.domain == DOMAIN_PLAYBOOKS }.sort_by(&:name)
+         .map { |skill| "#{skill.name}: #{skill.used_when}\n#{skill.tools.join(', ')}\n#{skill.steps}" }.join("\n\n")
+    end
 
     # The skills that read a signal, and the providers that have one.
     def reading(signal) = all.select { |skill| skill.signals.include?(signal) }

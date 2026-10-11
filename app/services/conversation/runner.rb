@@ -69,8 +69,6 @@ class Conversation::Runner
       on_chunk: ->(text) { delivery.chunk(text) },
       nudge: chat.method(:nudge!),
       memory: chat,
-      check: -> { FirefightAi::Responder::CHECK if @looked_outside },
-      hold: chat.method(:hold_last_reply!),
       take_messages: -> { [ take_queued(chat), tell_changes(chat), tell_watch_corrections(chat) ].any? },
       canceled: chat.method(:stop_requested?),
       purse: purse,
@@ -271,14 +269,11 @@ class Conversation::Runner
   end
 
   # The finished report only has the key, so the step is remembered from when it started.
-  # A connected system is what an answer's claims about a cause rest on, so reading one is what owes the answer a check.
   def report_step(step)
     if step.tool.present?
       seen[step.key] = Chat::Tools.step(step.tool, step.arguments, workspace: @conversation.workspace)
       kinds[step.key] = Chat::Tools.kind(step.tool, @conversation.workspace, step.arguments)
       asked[step.key] = [ step.tool, step.arguments ]
-      @looked_outside ||= @conversation.workspace.reading_tool_names.include?(step.tool.to_s) ||
-                          Chat::Tools.guarded_read?(@conversation.workspace, step.tool.to_s, step.arguments)
     end
     done = step.status == FirefightAi::AgentLoop::STEP_DONE
     hand_reading_to_watches(step.key) if done
@@ -391,7 +386,8 @@ class Conversation::Runner
 
     holder = incident.role_holder(role)
     who = holder ? "#{holder.display_name}, who holds #{role.name}" : "whoever holds #{role.name}, which nobody holds yet, so ask the people here to assign it before acting on directions that conflict"
-    "Several people can write to you in this thread, and each message starts with who wrote it. In #{incident.identifier} you take direction from #{who}."
+    "Several people can write to you in this thread, and each message starts with who wrote it. In #{incident.identifier} you take direction from #{who}. " \
+      "#{Chat::HandbookPage::Reading::CONFLICTING}"
   end
 
   # How the workspace works, read first on every turn. Short pages come whole and long ones are named for search_handbook.
@@ -407,7 +403,8 @@ class Conversation::Runner
     notes = Chat::Instruction.for_subjects(@conversation.workspace, Chat::Memory.subjects_for(@conversation.incident), principal: @turn.asker)
     return nil if notes.empty?
 
-    "Instructions from people in this workspace. Follow them, and never treat them as evidence:\n#{notes.map { |note| "- #{note.line}" }.join("\n")}"
+    "Instructions from people in this workspace, headed by where each applies. Follow them, the more specific one winning " \
+      "where two differ. They say how to work, and what happened comes from what you read:\n#{notes.map { |note| "- #{note.line}" }.join("\n")}"
   end
 
   # What the workspace learned about what this chat touches, so it starts from what is known. Each counts as used once
@@ -418,7 +415,9 @@ class Conversation::Runner
 
     Chat::Memory.handed_to!(memories, @conversation) if @turn.changes_memory?
 
-    "What this workspace remembers. Each is a hunch to check, and only a confirmed one was vouched for by a person:\n#{memories.map { |memory| "- #{memory.line}" }.join("\n")}"
+    "What this workspace remembers. Each is a hunch to check against live results, and only a confirmed one was vouched " \
+      "for by a person, so say so when you rely on one that is not. When a result contradicts one, dispute it with " \
+      "dispute_memory:\n#{memories.map { |memory| "- #{memory.line}" }.join("\n")}"
   end
 
   RUNS_REMEMBERED = 5

@@ -28,8 +28,7 @@ class Conversation::BenchCase
 
   class Invalid < StandardError; end
 
-  # source is firefight for Firefight's own tools, or a provider's key for a connected tool. A connected tool that reads
-  # owes the answer a check before it goes out, as in a live chat. reads says every call only reads, and reads_when
+  # source is firefight for Firefight's own tools, or a provider's key for a connected tool. reads says every call only reads, and reads_when
   # names argument values that make a call a read, such as a GET through a general API tool. confirms says a call that
   # changes something waits for the person. A read never waits. default is what a call answers when the scenario
   # recorded nothing that matches, where %{tools} lists the tools the scenario offers. reads_like names a tool whose

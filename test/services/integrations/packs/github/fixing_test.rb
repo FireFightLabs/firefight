@@ -54,7 +54,7 @@ module Integrations
                                                                      "context" => "The fix is already on halon/fix-1. Open the PR from that existing branch." })
 
           assert_equal "Opened https://github.com/acme/api/pull/7 on acme/api against main.\n\nChanges:\n- `config/database.yml` (+1 -1)\n\n" \
-                       "The code host says PR #7 can merge into main. Say only this about whether it can merge, never more than the code host said.", text
+                       "#{Integrations::CodeWriteUp::TELLING}\n\nThe code host says PR #7 can merge into main. Say only this about whether it can merge, never more than the code host said.", text
           credential, config_line = told.lines.map(&:chomp)
           config = JSON.parse(config_line)
           assert_equal "https://ff.example.com/code_agent/anthropic", config.dig("provider", "anthropic", "options", "baseURL")
@@ -401,7 +401,7 @@ module Integrations
           text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Raise the pool", "brief" => "Raise it", "pull_request" => 7 })
 
           assert_equal "Pushed #{'c' * 12} to fix-pool in acme/api, updating https://github.com/acme/api/pull/7. Said so on the pull request.\n\n" \
-                       "Changed in this update: `config/database.yml`.\n\nThe code host says PR #7 can merge into main. Say only this about whether it can merge, never more than the code host said.", text
+                       "Changed in this update: `config/database.yml`.\n\n#{Integrations::CodeWriteUp::TELLING}\n\nThe code host says PR #7 can merge into main. Say only this about whether it can merge, never more than the code host said.", text
         end
 
         test "an update to a pull request Halon opened writes its description again for the whole change, and says what GitHub shows" do

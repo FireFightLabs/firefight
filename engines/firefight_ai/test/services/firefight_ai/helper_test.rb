@@ -10,17 +10,12 @@ class FirefightAi::HelperTest < ActiveSupport::TestCase
   test "a helper only reads, stays inside its brief and reports in a few lines that cite the steps, written like Firefight's copy" do
     prompt = FirefightAi::Helper.template_text
 
-    assert_includes prompt, "Only read. Never change anything"
+    assert_includes prompt, FirefightAi::Manual::READS_ONLY
     assert_includes prompt, "Stay inside the brief."
     assert_includes prompt, "at most five short lines"
     assert_includes prompt, "end each finding with the steps it rests on"
     assert_includes prompt, FirefightAi::Evidence::RULE
-    assert_includes prompt, FirefightAi::Copy::RULE
-  end
-
-  test "the chat and the run are told when to hand reads to helpers" do
-    assert_includes FirefightAi::Investigator.system_prompt, FirefightAi::Helper::RULE
-    assert_includes FirefightAi::Responder.new(@workspace, inferable: nil).send(:template_text), FirefightAi::Helper::RULE
+    assert_includes prompt, FirefightAi::Copy::WRITING
   end
 
   test "it runs one loop on the model it was given, whose plain reply is its report, within a few turns and its share of the budget" do

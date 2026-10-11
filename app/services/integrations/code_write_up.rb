@@ -9,6 +9,9 @@ module Integrations
     FOOTER = "Written by Halon. Review it like any other change before merging.".freeze
     # The section for what could not run here, which the coding agent's summary uses as its heading too.
     NOT_RUN = FirefightAi::Copy::NOT_RUN_HEADING
+    # Said last in Halon's answer, since what a person checks before merging is in it.
+    TELLING = "Tell the person what this change does, the CI warning when there is one, and what review found and could " \
+              "not verify, since those are what they check before merging. #{FirefightAi::Copy::NOT_RUN}".freeze
     # Said when the repository has no CI, after the host's own words for where it looked.
     NO_CI = "With no CI, nothing beyond the checks that ran in Firefight's sandbox tested this change, and the owner's review decides whether it is ready.".freeze
 
@@ -32,7 +35,7 @@ module Integrations
     # What Halon reads back once the change opened or was added, to tell the person in the same terms.
     def self.answer(done:, warning:, reviewed:, change:, base:, updating:, no_ci: nil)
       changed = updating ? update_words(change, base) : files("Changes:", change.counts)
-      [ done, warning, changed, *sections(reviewed, change, bold: false), without_ci(no_ci, bold: false) ].compact.join("\n\n")
+      [ done, warning, changed, *sections(reviewed, change, bold: false), without_ci(no_ci, bold: false), TELLING ].compact.join("\n\n")
     end
 
     def self.without_ci(said, bold:)

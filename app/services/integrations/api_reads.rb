@@ -26,7 +26,12 @@ module Integrations
     DESCRIBING = %w[id key name description type kind target scope created_at createdAt updated_at updatedAt].freeze
 
     PATH_PARAMS = {
-      "path" => { "type" => "string", "description" => "The API path to read, as the API reference writes it with its ids filled in" },
+      # Seen in a real chat, Halon guessed a path three times over for a call the provider's API did not have.
+      "path" => { "type" => "string", "description" => "The API path to read, as the API reference writes it with its ids filled in. " \
+                                                       "Take it from the reference, through the provider's API skill or search_docs. " \
+                                                       "A 404 or 405 on a path you wrote may mean the API has no such call, so look " \
+                                                       "it up there before another try, and when the reference does not list it, " \
+                                                       "say the API does not offer it and how a person can do it instead" },
       "query" => { "type" => "object",
                    "description" => "Query parameters by name, each text, a number, true or false, such as {\"limit\": 20}. Never put " \
                                     "them in the path (optional)" }
