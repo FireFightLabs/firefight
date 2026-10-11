@@ -9,15 +9,17 @@ import { SETUP_STEP_STATES } from "@/lib/generated/constants"
 import { SetupHeader } from "@/pages/setup/components/setup-header"
 import { SetupRail } from "@/pages/setup/components/setup-rail"
 import { StepPanel } from "@/pages/setup/components/step-panel"
-import type { SetupStepKey } from "@/pages/setup/lib/steps"
+import { canOpen, type SetupStepKey } from "@/pages/setup/lib/steps"
 import type { SetupPageProps } from "@/pages/setup/types"
 
-// The checklist after the founder's letter. It opens on the step that is up next, and moves on with it once an answer
-// finishes that step, while a finished step stays open for as long as the person looks at it.
+// The checklist after the founder's letter. It opens on the step that is up next, or the one someone came back to,
+// and moves on with it once an answer finishes that step, while a finished step stays open for as long as the person
+// looks at it.
 export default function Setup() {
-  const { steps, workspaceName, email } = usePage<SetupPageProps>().props
+  const { steps, workspaceName, email, openStep } = usePage<SetupPageProps>().props
   const upNext = steps.find((step) => step.state === SETUP_STEP_STATES.CURRENT) ?? steps[steps.length - 1]
-  const [ openKey, setOpenKey ] = useState<SetupStepKey>(upNext.key)
+  const returnedTo = steps.find((step) => step.key === openStep && canOpen(step))
+  const [ openKey, setOpenKey ] = useState<SetupStepKey>(returnedTo?.key ?? upNext.key)
   const [ followed, setFollowed ] = useState<SetupStepKey>(upNext.key)
   if (upNext.key !== followed) {
     setFollowed(upNext.key)

@@ -1,4 +1,6 @@
 class IntegrationsController < InertiaController
+  include ReturnTo
+
   class NameTaken < StandardError
     def initialize(message = "Another connection already uses that name. Pick a different one.") = super
   end
@@ -411,21 +413,6 @@ class IntegrationsController < InertiaController
     return "Only the tools on #{@integration.name} that read are on." if reads_only
 
     "Every tool on #{@integration.name} is on."
-  end
-
-  def return_to_param = safe_return_to(params[:return_to])
-
-  # Only a chat on this dashboard or the setup checklist, so a crafted link cannot send someone elsewhere after they connect.
-  def safe_return_to(path)
-    path = path.to_s
-    return nil unless path.start_with?("/") && !path.start_with?("//")
-
-    route = Rails.application.routes.recognize_path(path)
-    chat = route[:controller] == AgentChatsController.controller_path && %w[index show].include?(route[:action])
-    setup = route[:controller] == SetupController.controller_path && route[:action] == "show"
-    path if chat || setup
-  rescue ActionController::RoutingError
-    nil
   end
 
   # Keyed on the slug so one provider can back several accounts with their own credentials.

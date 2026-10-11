@@ -249,6 +249,7 @@ class Workspace < ApplicationRecord
         workspace.setup_incident_configuration!
         workspace.setup_catalogue!
         workspace.grant_agent_defaults!
+        Entitlements.workspace_created!(workspace)
       end
 
       first_install = workspace.previously_new_record? || workspace.incidents_channel_id.blank?

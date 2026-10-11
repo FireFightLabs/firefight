@@ -2,6 +2,7 @@ require "test_helper"
 
 class SetupControllerTest < ActionDispatch::IntegrationTest
   include AiAccountTestHelper
+  include CreditCheckoutTestHelper
 
   setup do
     @owner = Workspace.sign_up!(name: "Setup Co", user: User.create!(email: "setup-#{SecureRandom.hex(4)}@example.com", name: "Sam Setup"))
@@ -82,6 +83,80 @@ class SetupControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal "Pick how Halon pays for its AI.", flash[:alert]
     assert_nil @onboarding.reload.ai_chosen_at
+  end
+
+  test "on Firefight's cloud, setup offers the packs with the starter credit and roughly what it buys" do
+    on_firefights_cloud!(credit: AiAccountTestHelper::Credit.new(true, false, 10_000_000, "$10.00"))
+    sign_in(@owner.user, @workspace)
+
+    get onboarding_checklist_path, headers: inertia_headers
+
+    purchase = inertia_props["aiCreditPurchase"]
+    assert_equal AiAccountTestHelper::PACK_CENTS, purchase["packs"].pluck("cents")
+    assert_equal %w[$25 $50 $100 $250], purchase["packs"].pluck("price")
+    assert_equal 20, purchase["markupPercent"]
+    assert_equal "Includes $10 to get started. Buy more any time.", purchase["starterNote"]
+    assert_equal "As a rough guide, $10 is about 90 questions to Halon.", purchase["starterEstimate"]
+    returning = onboarding_checklist_path(step: WorkspaceOnboarding::STEP_AI, ai: WorkspaceOnboarding::AI_CREDITS)
+    assert_equal "#{AiAccountTestHelper::CHECKOUT_PATH}?#{{ return_to: returning }.to_query}", purchase["checkoutPath"]
+    assert_nil inertia_props["aiChoices"][WorkspaceOnboarding::AI_CREDITS]
+  end
+
+  test "with no starter credit the packs are offered without saying what it buys" do
+    on_firefights_cloud!(credit: AiAccountTestHelper::Credit.new(false, false))
+    sign_in(@owner.user, @workspace)
+
+    get onboarding_checklist_path, headers: inertia_headers
+
+    purchase = inertia_props["aiCreditPurchase"]
+    assert_equal 4, purchase["packs"].size
+    assert_nil purchase["starterNote"]
+    assert_nil purchase["starterEstimate"]
+    assert_equal WorkspaceOnboarding::NO_CREDIT_BALANCE, inertia_props["aiChoices"][WorkspaceOnboarding::AI_CREDITS]
+  end
+
+  test "an install someone runs themselves offers no credits and no packs" do
+    sign_in(@owner.user, @workspace)
+
+    get onboarding_checklist_path, headers: inertia_headers
+
+    assert_nil inertia_props["aiCredits"]
+    assert_nil inertia_props["aiCreditPurchase"]
+    assert_not_includes inertia_props["aiChoices"].keys, WorkspaceOnboarding::AI_CREDITS
+  end
+
+  test "back from paying, setup opens on the AI step with credits chosen, even once the step is done" do
+    on_firefights_cloud!(credit: AiAccountTestHelper::Credit.new(true, false))
+    @onboarding.update!(ai_choice: WorkspaceOnboarding::AI_ACCOUNT, ai_chosen_at: Time.current)
+    sign_in(@owner.user, @workspace)
+
+    get onboarding_checklist_path(step: WorkspaceOnboarding::STEP_AI, ai: WorkspaceOnboarding::AI_CREDITS), headers: inertia_headers
+
+    assert_equal WorkspaceOnboarding::STEP_AI, inertia_props["openStep"]
+    assert_equal WorkspaceOnboarding::AI_CREDITS, inertia_props["aiChoice"]
+
+    get onboarding_checklist_path(step: "elsewhere", ai: "free"), headers: inertia_headers
+
+    assert_nil inertia_props["openStep"]
+    assert_equal WorkspaceOnboarding::AI_ACCOUNT, inertia_props["aiChoice"]
+  end
+
+  test "a pack bought from setup brings the buyer back to the step with the purchase notice" do
+    draw_credit_checkout!
+    on_firefights_cloud!(credit: AiAccountTestHelper::Credit.new(false, false))
+    sign_in(@owner.user, @workspace)
+    returning = onboarding_checklist_path(step: WorkspaceOnboarding::STEP_AI, ai: WorkspaceOnboarding::AI_CREDITS)
+
+    get CreditCheckoutTestHelper::CONFIRM_PATH, params: { return_to: returning }
+
+    assert_redirected_to returning
+    assert_equal CreditCheckoutTestHelper::ADDED, flash[:notice]
+
+    get CreditCheckoutTestHelper::CONFIRM_PATH, params: { return_to: "https://evil.example/phish" }
+    assert_redirected_to dashboard_path
+
+    get CreditCheckoutTestHelper::CONFIRM_PATH, params: { return_to: settings_workspace_path }
+    assert_redirected_to dashboard_path
   end
 
   test "a required category is answered only by connecting, another may be skipped" do

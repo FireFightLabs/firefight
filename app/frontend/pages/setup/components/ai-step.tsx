@@ -9,6 +9,7 @@ import { onboardingChecklistAiPath } from "@/lib/routes"
 import { cn } from "@/lib/utils"
 import { AiAccountsCard } from "@/components/ai/ai-accounts-card"
 import { AiCreditsRow } from "@/components/ai/ai-credits-row"
+import { CreditPacks, creditPriceNote } from "@/components/ai/credit-packs"
 import { StepActions } from "@/pages/setup/components/step-actions"
 import type { SetupPageProps } from "@/pages/setup/types"
 import type { OnboardingStep } from "@/types/serializers"
@@ -37,8 +38,10 @@ function isChoice(value: string): value is AiChoice {
 // Halon needs a model to write with. The person's own key is always offered, with its live check, and Firefight credits
 // or the deployment's own keys where this Firefight has them.
 export function AiStep({ step }: { step: OnboardingStep }) {
-  const { aiChoice, aiChoices, aiAccounts, aiProviders, aiSignIn, aiFallback, aiCredits } = usePage<SetupPageProps>().props
+  const { aiChoice, aiChoices, aiAccounts, aiProviders, aiSignIn, aiFallback, aiCredits, aiCreditPurchase } = usePage<SetupPageProps>().props
   const canManageAccounts = useCan("ai_accounts")
+  // Packs bought here bring the person back to this step, so the row's link away to billing is left off.
+  const purchase = canManageAccounts ? aiCreditPurchase : null
   const offered = Object.keys(aiChoices).filter(isChoice)
   const [ choice, setChoice ] = useState<AiChoice>(aiChoice && isChoice(aiChoice) && offered.includes(aiChoice) ? aiChoice : SETUP_AI_CHOICES.ACCOUNT)
   const [ saving, setSaving ] = useState(false)
@@ -98,8 +101,21 @@ export function AiStep({ step }: { step: OnboardingStep }) {
       )}
 
       {choice === SETUP_AI_CHOICES.CREDITS && aiCredits && (
-        <div className="border-border overflow-hidden rounded-lg border [&>div]:border-t-0">
-          <AiCreditsRow credits={aiCredits} canManage={canManageAccounts} />
+        <div className="border-border overflow-hidden rounded-lg border [&>div:first-child]:border-t-0">
+          <AiCreditsRow credits={aiCredits} canManage={canManageAccounts && !purchase} />
+          {purchase && (
+            <div className="flex flex-col gap-3 border-t px-4 py-3">
+              <div className="flex flex-col gap-1 text-xs leading-relaxed text-muted-foreground">
+                {purchase.starterNote && <p className="text-sm text-fg-primary">{purchase.starterNote}</p>}
+                <p>{creditPriceNote(purchase.markupPercent)}</p>
+                {purchase.starterEstimate && <p>{purchase.starterEstimate}</p>}
+              </div>
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-medium text-fg-secondary">Buy more</span>
+                <CreditPacks packs={purchase.packs} blockedReason={purchase.blockedReason} checkoutPath={purchase.checkoutPath} />
+              </div>
+            </div>
+          )}
         </div>
       )}
 

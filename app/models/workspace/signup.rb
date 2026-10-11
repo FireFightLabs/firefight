@@ -19,6 +19,7 @@ module Workspace::Signup
         workspace.setup_incident_configuration!
         workspace.setup_catalogue!
         workspace.grant_agent_defaults!
+        Entitlements.workspace_created!(workspace)
         membership = workspace.workspace_memberships.create!(user: user, role: :owner, joined_at: Time.current)
         workspace.create_onboarding!(installer: membership)
         membership
