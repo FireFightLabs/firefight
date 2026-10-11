@@ -63,7 +63,7 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
     page.current_window.resize_to(1280, 900)
 
     recommended.click
-    assert_text "Your answer was sent to the coding agent."
+    assert_toast "Your answer was sent to the coding agent."
     assert_equal [ CodeAgentQuestion::STATUS_ANSWERED, 0 ], question.reload.values_at(:status, :chosen)
 
     travel 2.seconds do
@@ -118,7 +118,7 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
     shot("code-question-changing")
 
     click_button "Submit"
-    assert_text "Your new answer was sent to the coding agent."
+    assert_toast "Your new answer was sent to the coding agent."
     assert_text "Changed to Send the commit by Alice Smith"
     assert_text "Halon chose: Send the tag"
     assert_no_button "Submit"
@@ -156,10 +156,13 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
     within("[role=dialog]") do
       assert_text "Nobody answered in time, so the change went with the recommendation."
       click_button "Change answer"
-      fill_in "Or write your own answer", with: "From dns.tf only, and leave staging alone."
+      # Typed key by key. Past 30 characters Capybara otherwise types the first four, sets the middle straight on the
+      # field without an input event, then types the last three, and the step's running clock redraws the form every
+      # second, putting back the four React saw. The answer arrived as "Fromne.".
+      fill_in "Or write your own answer", with: "From dns.tf only, and leave staging alone.", fill_options: { rapid: false }
       click_button "Submit"
     end
-    assert_text "Your new answer was sent to the coding agent."
+    assert_toast "Your new answer was sent to the coding agent."
     within("[role=dialog]") do
       assert_text "Changed to From dns.tf only, and leave staging alone. by Alice Smith"
     end
@@ -245,7 +248,7 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
     assert pause.reload.offered?, "Stop asks first, so cancelling leaves the choice open"
 
     click_button "Continue"
-    assert_text "The change carries on."
+    assert_toast "The change carries on."
     trace = find("button[aria-expanded]", text: /Worked for/)
     trace.click if trace["aria-expanded"] == "false"
     assert_text "Alice Smith chose Continue."
