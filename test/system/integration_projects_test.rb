@@ -26,10 +26,7 @@ class IntegrationProjectsTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/northflank-connect-projects.png"))
     within("[role=dialog]") { click_button "Connect" }
 
-    # Connecting writes each of the provider's tools, its action and its place in the connection's permission packs, several
-    # hundred queries in one request. That takes half a second here and has taken over two on a busy CI runner, past
-    # Capybara's usual wait, while the dialog stayed open with Connect disabled. The toast is what the person waits for.
-    assert_toast "Faylee is connected.", wait: 10
+    assert_toast "Faylee is connected."
     assert_no_selector "[role=dialog]"
     row = @workspace.integrations.find_by!(name: "Faylee").integration_environments.sole
     assert_equal %w[faylee acme], row.fields["project"]
