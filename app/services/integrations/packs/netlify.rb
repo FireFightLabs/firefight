@@ -55,6 +55,7 @@ module Integrations
              "properties" => {
                "site" => SITE,
                "name" => { "type" => "string", "description" => "Only deploys of this context, such as production or deploy-preview (optional)" },
+               "run" => { "type" => "string", "description" => "Only this deploy, by its id, read on its own however old it is (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many deploys (optional, #{DEPLOY_LIMIT})" }
              },
              "required" => [ "site" ]
@@ -147,20 +148,14 @@ module Integrations
         "rejected" => Capabilities::History::CANCELLED
       }.freeze
 
-      # A deploy from created_at to updated_at, which is when it last changed and so when a ready or failed one ended.
+      # A deploy from created_at to updated_at, which is when it last changed and so when a ready or failed one ended. One
+      # deploy asked by its id is read on its own. Netlify documents no phases of a deploy, so it has none to follow.
       def deploy_history(environment_row:, arguments:)
         site = find_site(environment_row, arguments["site"])
+        return one_deploy(environment_row, site, arguments["run"].to_s.strip) if arguments["run"].present?
+
         deploys = api(environment_row).deploys(site["id"], limit: Capabilities::Answers.limit(arguments, DEPLOY_LIMIT), production: nil, branch: nil)
-        runs = deploys.map do |deploy|
-          status = Capabilities::History.status(deploy["state"], DEPLOY_STATES)
-          Capabilities::History::Run.new(
-            id: deploy["id"], name: "#{deploy['context'] || 'production'} deploy", status: status,
-            started_at: Telemetry.parse_time(deploy["created_at"]),
-            finished_at: (Telemetry.parse_time(deploy["updated_at"]) if Capabilities::History::FINISHED.include?(status)), url: deploy["admin_url"],
-            detail: [ ("#{deploy['commit_ref'].to_s.first(12)} #{title(deploy)}".strip if deploy["commit_ref"]), deploy["error_message"].presence ].compact.join(", ").presence
-          )
-        end
-        Capabilities::History.result(runs, what: site["name"], link: site_link(site), name: arguments["name"])
+        Capabilities::History.result(deploys.map { |deploy| history_run(deploy) }, what: site["name"], link: site_link(site), name: arguments["name"])
       end
 
       def describe_deploy(environment_row:, arguments:)
@@ -211,11 +206,14 @@ module Integrations
       end
 
       SITE_PATH = %r{\A/sites/([^/]+)}
+      DEPLOY_PATH = %r{\A(/sites/[^/]+)?/deploys/[^/]+\z}
 
-      # The page Netlify gives what was read (admin_url, a deploy's or a site's), or the page of the site the path reads
-      # inside.
+      # The page of what was read: a deploy's own page for one deploy, the page Netlify gives a site (admin_url), or the
+      # page of the site the path reads inside.
       def read_link(environment_row, path, answer)
-        own = answer.is_a?(Hash) && answer["admin_url"].present? ? Telemetry::Link.new(provider: PROVIDER, url: answer["admin_url"]) : nil
+        own = if path.match?(DEPLOY_PATH) then deploy_link(answer)
+        elsif answer.is_a?(Hash) && answer["admin_url"].present? then Telemetry::Link.new(provider: PROVIDER, url: answer["admin_url"])
+        end
         return own if own
 
         named = path.match(SITE_PATH)&.captures&.first
@@ -359,6 +357,25 @@ module Integrations
         found || fail!("No site called #{asked} reached by this token. list_sites shows what there is.")
       end
 
+      def one_deploy(environment_row, site, id)
+        deploy = begin
+          api(environment_row).deploy(site["id"], id)
+        rescue NetlifyApi::NotFound
+          fail!("#{site['name']} has no deploy #{id}. deploy_history lists its recent ones.")
+        end
+        Capabilities::History.result([ history_run(deploy).with(parts: []) ], what: site["name"], link: deploy_link(deploy) || site_link(site))
+      end
+
+      def history_run(deploy)
+        status = Capabilities::History.status(deploy["state"], DEPLOY_STATES)
+        Capabilities::History::Run.new(
+          id: deploy["id"], name: "#{deploy['context'] || 'production'} deploy", status: status,
+          started_at: Telemetry.parse_time(deploy["created_at"]),
+          finished_at: (Telemetry.parse_time(deploy["updated_at"]) if Capabilities::History::FINISHED.include?(status)), url: deploy_link(deploy)&.url,
+          detail: [ ("#{deploy['commit_ref'].to_s.first(12)} #{title(deploy)}".strip if deploy["commit_ref"]), deploy["error_message"].presence ].compact.join(", ").presence
+        )
+      end
+
       def deploy_id(arguments)
         arguments["deploy"].to_s.strip.presence || fail!("Say which deploy, by the id list_deploys shows.")
       end
@@ -417,7 +434,14 @@ module Integrations
 
       def site_link(site) = site["admin_url"].present? ? Telemetry::Link.new(provider: PROVIDER, url: site["admin_url"]) : nil
 
-      def deploy_link(deploy) = deploy.is_a?(Hash) && deploy["admin_url"].present? ? Telemetry::Link.new(provider: PROVIDER, url: deploy["admin_url"]) : nil
+      # A deploy's admin_url is its site's page, and its own page is under the site's deploys.
+      def deploy_link(deploy)
+        return unless deploy.is_a?(Hash) && deploy["admin_url"].present? && deploy["id"].present?
+
+        page = deploy["admin_url"].chomp("/")
+        own = page.end_with?("/deploys/#{deploy['id']}") ? page : "#{page}/deploys/#{Http.segment(deploy['id'])}"
+        Telemetry::Link.new(provider: PROVIDER, url: own)
+      end
     end
   end
 end

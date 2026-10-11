@@ -113,7 +113,66 @@ class Integrations::Capabilities::CloudflareTest < ActiveSupport::TestCase
     runs = Integrations::Capabilities::History.runs_of(answer)
     assert_equal [ [ "d3", "running", nil ], [ "d2", "succeeded", 180 ] ], runs.map { |run| [ run.id, run.status, run.seconds ] }
     assert_equal "c4e4267d46e6 Fix nav", runs.second.detail
+    assert_equal "https://dash.cloudflare.com/#{ACCOUNT}/pages/view/docs/d2", runs.second.url
     assert_raises(Integrations::Capabilities::Unroutable) { resolve(Integrations::Capabilities::HISTORY, "resource" => "api-worker") }
+  end
+
+  test "one Pages deployment is read by its id, its stages are its parts, and each reads that deployment's build log as a read" do
+    call = resolve(Integrations::Capabilities::HISTORY, "resource" => "docs", "run" => "d2a1-4b")
+    assert_equal [ "GET", "/accounts/#{ACCOUNT}/pages/projects/docs/deployments/d2a1-4b" ], request_of(call).values_at("method", "path")
+    assert_raises(Integrations::Capabilities::Unroutable) { resolve(Integrations::Capabilities::HISTORY, "resource" => "docs", "run" => "../zones") }
+
+    # The shape of Cloudflare's Pages API, deployments, get deployment info.
+    answer = call.present_result(text_result({ "success" => true, "result" => {
+      "id" => "d2a1-4b", "environment" => "production", "created_on" => "2026-10-01T09:00:00Z", "url" => "https://d2a1.docs.pages.dev",
+      "latest_stage" => { "name" => "build", "status" => "failure", "started_on" => "2026-10-01T09:01:00Z", "ended_on" => "2026-10-01T09:02:30Z" },
+      "stages" => [
+        { "name" => "queued", "status" => "success", "started_on" => "2026-10-01T09:00:00Z", "ended_on" => "2026-10-01T09:00:05Z" },
+        { "name" => "initialize", "status" => "success", "started_on" => "2026-10-01T09:00:05Z", "ended_on" => "2026-10-01T09:00:40Z" },
+        { "name" => "clone_repo", "status" => "success", "started_on" => "2026-10-01T09:00:40Z", "ended_on" => "2026-10-01T09:01:00Z" },
+        { "name" => "build", "status" => "failure", "started_on" => "2026-10-01T09:01:00Z", "ended_on" => "2026-10-01T09:02:30Z" },
+        { "name" => "deploy", "status" => "idle", "started_on" => nil, "ended_on" => nil }
+      ]
+    } }))
+    run = Integrations::Capabilities::History.runs_of(answer).sole
+    assert_equal [ "d2a1-4b", "failed", "https://dash.cloudflare.com/#{ACCOUNT}/pages/view/docs/d2a1-4b" ], [ run.id, run.status, run.url ]
+    assert_equal [ %w[queued succeeded], %w[initialize succeeded], %w[clone_repo succeeded], %w[build failed], %w[deploy queued] ],
+                 run.parts.map { |part| [ part.name, part.status ] }
+    failed = run.first_failed_part
+    assert_equal [ "build", 90 ], [ failed.name, failed.seconds ]
+    log = failed.log
+    assert_equal "execute", log[Integrations::Capabilities::History::LOG_TOOL]
+    arguments = log[Integrations::Capabilities::History::LOG_ARGUMENTS]
+    assert_includes arguments["code"], "/accounts/#{ACCOUNT}/pages/projects/docs/deployments/d2a1-4b/history/logs"
+    assert Integrations::ReadGuards::Cloudflare.reads?("execute", arguments)
+
+    missing = call.present_result(text_result({ "success" => true, "result" => nil }))
+    assert_match "Cloudflare has no deployment d2a1-4b of docs.", missing.dig("content", 0, "text")
+  end
+
+  test "a Pages project's build log is the named deployment's, or its newest one's, read as lines with their time" do
+    named = resolve(Integrations::Capabilities::LOGS, "resource" => "docs", "deployment" => "d2a1-4b", "text" => "error")
+    assert Integrations::ReadGuards::Cloudflare.reads?("execute", named.arguments)
+    assert_includes named.arguments["code"], "/pages/projects/docs/deployments/d2a1-4b/history/logs"
+
+    # The shape of Cloudflare's Pages API, deployments, get deployment logs.
+    answer = named.present_result(text_result({ "success" => true, "result" => { "total" => 2, "includes_container_logs" => true, "data" => [
+      { "line" => "Installing dependencies", "ts" => "2026-10-01T09:01:05Z" },
+      { "line" => "error: Cannot find module 'astro'", "ts" => "2026-10-01T09:02:20Z" }
+    ] } }))
+    text = answer.dig("content", 0, "text")
+    assert_match "Cannot find module 'astro'", text
+    assert_no_match "Installing dependencies", text
+    assert_match "https://dash.cloudflare.com/#{ACCOUNT}/pages/view/docs/d2a1-4b", text
+
+    newest = resolve(Integrations::Capabilities::LOGS, "resource" => "docs")
+    assert_includes newest.arguments["code"], %("path":"/accounts/#{ACCOUNT}/pages/projects/docs/deployments")
+    answer = newest.present_result(text_result({ "success" => true, "deployment" => "e5f6", "result" => { "data" => [ { "line" => "Build failed", "ts" => "2026-10-01T09:02:20Z" } ] } }))
+    assert_match "deployment e5f6 of docs", answer.dig("content", 0, "text")
+    assert_match "has no deployments", newest.present_result(text_result({ "result" => nil })).dig("content", 0, "text")
+
+    assert_raises(Integrations::Capabilities::Unroutable) { resolve(Integrations::Capabilities::LOGS, "resource" => "docs", "stream" => "app") }
+    assert_raises(Integrations::Capabilities::Unroutable) { resolve(Integrations::Capabilities::LOGS, "resource" => "docs", "deployment" => "x/../y") }
   end
 
   private

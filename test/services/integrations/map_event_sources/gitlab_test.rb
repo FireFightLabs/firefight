@@ -46,7 +46,8 @@ module Integrations
         GitlabApi.any_instance.stubs(:get).with("/groups/acme%2Fplatform", { "with_projects" => false }).returns("id" => 7)
         GitlabApi.any_instance.stubs(:list).with("/groups/7/hooks").returns([ [ { "id" => 3, "url" => "https://example.com/theirs" } ], false ])
         GitlabApi.any_instance.expects(:put).never
-        GitlabApi.any_instance.expects(:post).with("/groups/7/hooks", has_entries("url" => URL, "push_events" => true, "project_events" => true, "enable_ssl_verification" => true))
+        GitlabApi.any_instance.expects(:post).with("/groups/7/hooks", has_entries("url" => URL, "push_events" => true, "project_events" => true, "enable_ssl_verification" => true,
+                                                                                    "pipeline_events" => true, "job_events" => true, "deployment_events" => true))
                  .returns("id" => 11, "group_id" => 7)
 
         webhook = Gitlab.register(@row, url: URL)
@@ -100,6 +101,30 @@ module Integrations
         GitlabApi.any_instance.stubs(:delete).raises(GitlabApi::NotFound, "GitLab answered 404: 404 Not found")
         assert_nil Gitlab.remove(@row, "/projects/5/hooks/9")
         assert_raises(Integrations::Error) { Gitlab.remove(@row, "/projects/5") }
+      end
+
+      test "a pipeline or deployment at any change and a job once it ended wake watches, and change nothing on the map" do
+        headers = ->(event) { { "x-gitlab-event" => event, "idempotency-key" => "id-1" } }
+        pipeline = { "object_kind" => "pipeline", "object_attributes" => { "id" => 31, "status" => "running" }, "project" => { "path_with_namespace" => "acme/platform/web" } }
+        assert Gitlab.wakes?(pipeline, headers: headers.("Pipeline Hook"))
+        assert_empty Gitlab.events(pipeline, headers: headers.("Pipeline Hook"))
+        assert Gitlab.wakes?({ "object_kind" => "deployment", "status" => "success" }, headers: headers.("Deployment Hook"))
+        assert Gitlab.wakes?({ "object_kind" => "build", "build_status" => "failed" }, headers: headers.("Job Hook"))
+        assert_not Gitlab.wakes?({ "object_kind" => "build", "build_status" => "running" }, headers: headers.("Job Hook"))
+        assert_not Gitlab.wakes?(push([]), headers: headers.("Push Hook"))
+      end
+
+      test "a webhook registered before runs were followed is registered again, and one that follows them is left" do
+        @row.update!(map_events_webhook_id: "/groups/7/hooks/11")
+        GitlabApi.any_instance.stubs(:get).with("/groups/7/hooks/11").returns("id" => 11, "url" => URL, "push_events" => true, "pipeline_events" => false)
+        assert Gitlab.register_again?(@row, url: URL)
+
+        GitlabApi.any_instance.stubs(:get).with("/groups/7/hooks/11")
+                 .returns("id" => 11, "url" => URL, "push_events" => true, "pipeline_events" => true, "job_events" => true, "deployment_events" => true)
+        assert_not Gitlab.register_again?(@row, url: URL)
+
+        GitlabApi.any_instance.stubs(:get).with("/groups/7/hooks/11").raises(GitlabApi::NotFound, "GitLab answered 404")
+        assert Gitlab.register_again?(@row, url: URL)
       end
 
       private

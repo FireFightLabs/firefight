@@ -57,6 +57,8 @@ class Integrations::Capabilities::TriggerDevTest < ActiveSupport::TestCase
   test "a task's run history is its own runs over the last week, read from list_runs, which stays offered for its other filters" do
     history = resolve(Integrations::Capabilities::HISTORY, "resource" => "send-email", "limit" => 5)
     assert_equal [ "list_runs", { "task" => "send-email", "minutes" => Integrations::Capabilities::MAX_MINUTES, "limit" => 5 } ], [ history.tool.name, history.arguments ]
+    one = resolve(Integrations::Capabilities::HISTORY, "resource" => "send-email", "run" => "run_b")
+    assert_equal [ "list_runs", { "task" => "send-email", "run" => "run_b" } ], [ one.tool.name, one.arguments ]
     assert_not Integrations::Capabilities.wrapped?(history.tool)
 
     answer = Integrations::Capabilities::RunHistory.with_runs({ "content" => [ { "type" => "text", "text" => "2 runs" } ] }, [

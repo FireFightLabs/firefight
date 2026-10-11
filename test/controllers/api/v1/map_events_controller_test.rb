@@ -21,6 +21,23 @@ class Api::V1::MapEventsControllerTest < ActionDispatch::IntegrationTest
     assert ResourceMap::ReceivedEvent.exists?(integration_environment: @row, provider_event_id: "e1")
   end
 
+  test "a delivery about a run has each watch reading through the connection check now, once, and keeps nothing for the map" do
+    watch = watch_through(@row)
+    body, headers = live_delivery([], secret: "whsec", run: "build 46 failed")
+
+    assert_enqueued_jobs 1, only: WatchCheckJob do
+      assert_no_enqueued_jobs(only: Integrations::MapEventJob) { post api_v1_map_events_path(@row.map_events_token), params: body, headers: headers }
+    end
+    assert_response :ok
+    assert_enqueued_with(job: WatchCheckJob, args: [ watch.id ])
+    assert_not ResourceMap::ReceivedEvent.exists?(integration_environment: @row)
+
+    body, headers = live_delivery([ change("e2", at: 1.minute.ago) ], secret: "whsec", run: "deploy 12 published")
+    assert_enqueued_jobs 1, only: WatchCheckJob do
+      post api_v1_map_events_path(@row.map_events_token), params: body, headers: headers
+    end
+  end
+
   test "a delivery whose signature fails is refused, logged and kept nowhere" do
     body, headers = live_delivery([ change("e1", at: 1.minute.ago) ], secret: "someone else's")
     Rails.logger.expects(:warn).with { |line| line.include?("map_events.signature_refused") }

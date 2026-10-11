@@ -1,12 +1,12 @@
 module Integrations
   module Packs
     # AWS for one account per environment, in the regions the connection names: its ECS services, Lambda functions, EC2
-    # instances and RDS databases, their CloudWatch logs and metrics, ECS deployments and Lambda versions, and three
-    # changes Halon may make when the keys allow them and the tools are switched on (roll an ECS service or a Lambda
-    # alias back, restart an ECS service, scale one). Every call goes through AWS's SDK for Ruby (Integrations::AwsApi),
-    # with the operations, parameters and answers the API references of ECS, Lambda, EC2, RDS, CloudWatch and
-    # CloudWatch Logs give. The metric names, dimensions and statistics are the ones each service's CloudWatch metrics
-    # page documents (AWS/ECS, AWS/Lambda, AWS/EC2, AWS/RDS). Console addresses are the console host of the region's
+    # instances, RDS databases and CodeBuild projects, their CloudWatch logs and metrics, ECS deployments, Lambda
+    # versions and CodeBuild builds, and three changes Halon may make when the keys allow them and the tools are switched
+    # on (roll an ECS service or a Lambda alias back, restart an ECS service, scale one). Every call goes through AWS's
+    # SDK for Ruby (Integrations::AwsApi), with the operations, parameters and answers the API references of ECS,
+    # Lambda, EC2, RDS, CodeBuild, CloudWatch and CloudWatch Logs give. The metric names, dimensions and statistics are
+    # the ones each service's CloudWatch metrics page documents (AWS/ECS, AWS/Lambda, AWS/EC2, AWS/RDS). Console addresses are the console host of the region's
     # partition (console_host) with the service paths AWS's guides link to.
     class Aws < NativePack
       # The environment row's credentials, which only this pack reads.
@@ -29,9 +29,13 @@ module Integrations
       FUNCTION = ResourceMap::KIND_FUNCTION
       INSTANCE = ResourceMap::KIND_VIRTUAL_MACHINE
       DATABASE = ResourceMap::KIND_DATABASE
-      KIND_NAMES = { SERVICE => "ECS service", FUNCTION => "Lambda function", INSTANCE => "EC2 instance", DATABASE => "RDS database" }.freeze
-      KIND_ARTICLED = { SERVICE => "an ECS service", FUNCTION => "a Lambda function", INSTANCE => "an EC2 instance", DATABASE => "an RDS database" }.freeze
-      KIND_PLURALS = { SERVICE => "ECS services", FUNCTION => "Lambda functions", INSTANCE => "EC2 instances", DATABASE => "RDS databases" }.freeze
+      PROJECT = ResourceMap::KIND_BUILD_SERVICE
+      KIND_NAMES = { SERVICE => "ECS service", FUNCTION => "Lambda function", INSTANCE => "EC2 instance", DATABASE => "RDS database",
+                     PROJECT => "CodeBuild project" }.freeze
+      KIND_ARTICLED = { SERVICE => "an ECS service", FUNCTION => "a Lambda function", INSTANCE => "an EC2 instance", DATABASE => "an RDS database",
+                        PROJECT => "a CodeBuild project" }.freeze
+      KIND_PLURALS = { SERVICE => "ECS services", FUNCTION => "Lambda functions", INSTANCE => "EC2 instances", DATABASE => "RDS databases",
+                       PROJECT => "CodeBuild projects" }.freeze
 
       # One CloudWatch metric as Firefight reads it: the statistic AWS's metrics page recommends, the unit shown, what a
       # reading is multiplied by to reach it, and whether it is a sum per period, which is shown per minute so a reading
@@ -109,6 +113,37 @@ module Integrations
         "rollback_successful" => Capabilities::History::FAILED, "rollback_failed" => Capabilities::History::FAILED,
         "stopped" => Capabilities::History::CANCELLED
       }.freeze
+      # A deployment read by its id has two halves. Its rollout failed once ECS began rolling it back, and the rollback
+      # then goes as ECS says.
+      ROLLOUT_STATUSES = DEPLOYMENT_HISTORY_STATUSES.merge(
+        "rollback_requested" => Capabilities::History::FAILED, "rollback_in_progress" => Capabilities::History::FAILED
+      ).freeze
+      ROLLBACK_STATUSES = {
+        "rollback_requested" => Capabilities::History::QUEUED, "rollback_in_progress" => Capabilities::History::RUNNING,
+        "rollback_successful" => Capabilities::History::SUCCEEDED, "rollback_failed" => Capabilities::History::FAILED
+      }.freeze
+      # A service deployment's own id, the last part of its ARN (ECS developer guide, Viewing service deployments).
+      DEPLOYMENT_ID = /\A[A-Za-z0-9_-]{1,255}\z/
+      STOP_REASONS = 3
+      # A build's and a build phase's status (CodeBuild API reference, Build.buildStatus and BuildPhase.phaseStatus, both
+      # StatusType). A phase still going has none, which reads as running.
+      BUILD_STATUSES = {
+        "in_progress" => Capabilities::History::RUNNING, "succeeded" => Capabilities::History::SUCCEEDED,
+        "failed" => Capabilities::History::FAILED, "fault" => Capabilities::History::FAILED, "timed_out" => Capabilities::History::FAILED,
+        "stopped" => Capabilities::History::CANCELLED
+      }.freeze
+      # The phase CodeBuild adds once a build ended, which has no status of its own.
+      COMPLETED_PHASE = "COMPLETED".freeze
+      BUILD_LIMIT = 20
+      # ListBuildsForProject answers at most 100 ids a page, and BatchGetBuilds and BatchGetProjects take at most 100.
+      PER_BATCH = 100
+      BUILDS_SHOWN = 5
+      BUILD_LOG_LINES = 200
+      # GetLogEvents' largest page, read from the newest event back.
+      LOG_EVENTS = 10_000
+      REGEX_TIMEOUT = 1
+      # A build's id is its project's name and a UUID (CodeBuild API reference, Build.id).
+      BUILD_ID = /\A(?<project>[A-Za-z0-9][A-Za-z0-9_-]{1,254}):(?<uuid>[A-Za-z0-9-]+)\z/
       VERSION_LIMIT = 20
       VERSION_PAGES = 100
       # ListTasks answers at most 100 a page and DescribeTasks takes at most 100 tasks a call.
@@ -134,10 +169,11 @@ module Integrations
       UNESCAPED_SLASH = %r{(?<!\\)/}
       ARN = /\Aarn:(?<partition>[a-z-]+):(?<service>[a-z0-9-]+):(?<region>[a-z0-9-]*):(?<account>\d*):(?<resource>.+)\z/
 
-      RESOURCE = { "type" => "string", "description" => "An ECS service, Lambda function, EC2 instance or RDS database, by its name or ARN as list_resources shows it" }.freeze
+      RESOURCE = { "type" => "string", "description" => "An ECS service, Lambda function, EC2 instance, RDS database or CodeBuild project, by its name or ARN as list_resources shows it" }.freeze
+      PROJECT_RESOURCE = { "type" => "string", "description" => "A CodeBuild project, by its name or ARN as list_resources shows it" }.freeze
 
       tool :list_resources,
-           description: "The ECS services, Lambda functions, EC2 instances and RDS databases this connection reaches, in each of " \
+           description: "The ECS services, Lambda functions, EC2 instances, RDS databases and CodeBuild projects this connection reaches, in each of " \
                         "its regions, with their state and ARN. Use it first to find the name to pass to the other tools",
            params_schema: {
              "type" => "object",
@@ -152,8 +188,8 @@ module Integrations
            description: "How one resource is set up and how it stands now. An ECS service: its rollout, task counts, task " \
                         "definition, containers, health checks, load balancers and latest events. A Lambda function: its state, " \
                         "last update, runtime, memory, timeout and aliases. An EC2 instance: its state, type and status checks. An " \
-                        "RDS database: its status, engine, class, storage, pending changes and latest events. Environment " \
-                        "variables are named, never shown",
+                        "RDS database: its status, engine, class, storage, pending changes and latest events. A CodeBuild project: " \
+                        "its source, build environment, where it logs and its latest builds. Environment variables are named, never shown",
            params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
            read_only: true
 
@@ -221,7 +257,41 @@ module Integrations
              "type" => "object",
              "properties" => {
                "resource" => RESOURCE,
+               "run" => { "type" => "string", "description" => "An ECS service only: just this deployment, by its id or ARN, with its rollout " \
+                                                               "and any rollback, the stage it is in, its circuit breaker and why tasks stopped (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many (optional, #{DEPLOYMENT_LIMIT})" }
+             },
+             "required" => [ "resource" ]
+           },
+           read_only: true
+
+      tool :list_builds,
+           description: "A CodeBuild project's builds, newest first, each with its status, when it started and finished, how long it " \
+                        "took and the source version it built, and how long finished builds usually take. With run, that one " \
+                        "build with each phase, how it ended and why a failed phase failed",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => PROJECT_RESOURCE,
+               "run" => { "type" => "string", "description" => "Only this build, by its id (project:uuid), ARN or number, with each phase (optional)" },
+               "limit" => { "type" => "integer", "description" => "At most this many (optional, #{BUILD_LIMIT})" }
+             },
+             "required" => [ "resource" ]
+           },
+           read_only: true
+
+      tool :build_log,
+           description: "The end of a CodeBuild build's log from CloudWatch Logs, where it says why it failed, filtered by text, a " \
+                        "regular expression or text to leave out. Without a build, the project's newest build",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => PROJECT_RESOURCE,
+               "build" => { "type" => "string", "description" => "The build, by its id (project:uuid), ARN or number, as list_builds shows it (optional, the newest)" },
+               "text" => { "type" => "string", "description" => "Only lines containing this text, case sensitive (optional)" },
+               "regex" => { "type" => "string", "description" => "Only lines matching this regular expression (optional)" },
+               "exclude" => { "type" => "string", "description" => "Leave out lines containing this text (optional)" },
+               "limit" => { "type" => "integer", "description" => "At most this many of the last lines (optional, #{BUILD_LOG_LINES})" }
              },
              "required" => [ "resource" ]
            },
@@ -286,8 +356,8 @@ module Integrations
       }.freeze
 
       tool :api_read,
-           description: "Anything else AWS's API reads that the other tools do not cover, such as CodePipeline executions, CodeBuild " \
-                        "builds, load balancers and their target health, Auto Scaling groups, CloudFormation stacks and events, " \
+           description: "Anything else AWS's API reads that the other tools do not cover, such as CodePipeline executions, CodeDeploy " \
+                        "deployments, load balancers and their target health, Auto Scaling groups, CloudFormation stacks and events, " \
                         "SQS queues, DynamoDB tables, EKS clusters, Route 53 records or certificates. One operation of one " \
                         "service, named Describe, List, Get or BatchGet, with its input as the operation's API reference gives it, " \
                         "in one of this connection's regions. A list answers one page, and its next token goes in params for the " \
@@ -322,7 +392,7 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: ACCESS_KEY_ID, label: "Access key ID", secret: false, placeholder: "AKIA...",
-                              hint: "The access key of an IAM user that can read ECS, Lambda, EC2, RDS, CloudWatch metrics and CloudWatch Logs Insights, the tags of ECS services and Lambda functions (ecs:ListTagsForResource and lambda:ListTags), Cost Explorer's spend (ce:GetCostAndUsage), which lets Halon watch the bill, ECS task definitions (ecs:DescribeTaskDefinition), which say which database a service uses, and CloudTrail's event history (cloudtrail:LookupEvents), which lets the map follow changes every five minutes. For Halon to apply fixes, also allow it to update ECS services and Lambda aliases."),
+                              hint: "The access key of an IAM user that can read ECS, Lambda, EC2, RDS, CloudWatch metrics and CloudWatch Logs Insights, CodeBuild's projects and builds (codebuild:ListProjects, codebuild:BatchGetProjects, codebuild:ListBuildsForProject and codebuild:BatchGetBuilds) with their logs (logs:GetLogEvents), the tags of ECS services and Lambda functions (ecs:ListTagsForResource and lambda:ListTags), Cost Explorer's spend (ce:GetCostAndUsage), which lets Halon watch the bill, ECS task definitions (ecs:DescribeTaskDefinition), which say which database a service uses, and CloudTrail's event history (cloudtrail:LookupEvents), which lets the map follow changes every five minutes. For Halon to apply fixes, also allow it to update ECS services and Lambda aliases."),
           CredentialField.new(key: SECRET_ACCESS_KEY, label: "Secret access key", secret: true, placeholder: "",
                               hint: "The secret AWS shows once, when you create the access key.")
         ]
@@ -395,6 +465,7 @@ module Integrations
         when SERVICE then service_lines(environment_row, entry)
         when FUNCTION then function_lines(environment_row, entry)
         when INSTANCE then instance_lines(environment_row, entry)
+        when PROJECT then project_lines(environment_row, entry)
         else database_lines(environment_row, entry)
         end
         Telemetry.result(lines.compact.join("\n"), link: resource_link(entry))
@@ -436,7 +507,7 @@ module Integrations
 
       def cloudwatch_metrics(environment_row:, arguments:)
         entry = find_resource(environment_row, arguments["resource"])
-        known = METRICS.fetch(entry.kind)
+        known = METRICS[entry.kind] || fail!("#{entry.name} is #{KIND_ARTICLED.fetch(entry.kind)}, and Firefight reads no CloudWatch metrics for it. list_builds says how its builds went.")
         asked = Array(arguments["metrics"]).map(&:to_s).uniq
         missing = asked - known.keys
         fail!("#{KIND_ARTICLED.fetch(entry.kind).upcase_first} has no #{missing.join(', ')} in CloudWatch. It has #{known.keys.join(', ')}.") if missing.any?
@@ -456,9 +527,13 @@ module Integrations
 
       def list_deployments(environment_row:, arguments:)
         entry = find_resource(environment_row, arguments["resource"])
+        run = arguments["run"].to_s.strip.presence
         case entry.kind
-        when SERVICE then service_deployments(environment_row, entry, Capabilities::Answers.limit(arguments, DEPLOYMENT_LIMIT))
-        when FUNCTION then function_versions(environment_row, entry, Capabilities::Answers.limit(arguments, VERSION_LIMIT))
+        when SERVICE
+          run ? one_deployment(environment_row, entry, run) : service_deployments(environment_row, entry, Capabilities::Answers.limit(arguments, DEPLOYMENT_LIMIT))
+        when FUNCTION
+          fail!("#{entry.name} is a Lambda function, whose versions are not runs to read by id. Leave run out to list them.") if run
+          function_versions(environment_row, entry, Capabilities::Answers.limit(arguments, VERSION_LIMIT))
         else fail!("#{entry.name} is #{KIND_ARTICLED.fetch(entry.kind)}, and only ECS services and Lambda functions have deployments.")
         end
       end
@@ -478,6 +553,49 @@ module Integrations
         running = tasks.count { |task| task[:last_status] == "RUNNING" }
         stopped = tasks.count { |task| task[:last_status] == "STOPPED" }
         Telemetry.result("#{entry.name}: #{running} running, #{stopped} stopped recently, newest first.\n#{tasks.map { |task| task_line(task) }.join("\n")}", link: link)
+      end
+
+      # A project's builds, newest first, from ListBuildsForProject and BatchGetBuilds, or one build by its id with each
+      # phase, read by its own id rather than found in the newest page.
+      def list_builds(environment_row:, arguments:)
+        entry = project!(environment_row, arguments["resource"])
+        what = "the builds of #{entry.name}"
+        if arguments["run"].present?
+          build = build_of(environment_row, entry, arguments["run"])
+          run = build_run(entry, build).with(parts: build_parts(entry, build))
+          link = build_link(entry, build[:id])
+          return Capabilities::RunHistory.with_runs(Capabilities::History.result([ run ], what: what, link: link), [ run ], link: link)
+        end
+
+        limit = Capabilities::Answers.limit(arguments, BUILD_LIMIT)
+        runs = newest_builds(environment_row, entry, limit).map { |build| build_run(entry, build) }
+        link = resource_link(entry)
+        Capabilities::RunHistory.with_runs(Capabilities::History.result(runs, what: what, link: link, limit: limit), runs, link: link)
+      end
+
+      # The end of one build's log, read from the CloudWatch Logs group and stream the build names (Build.logs), since a
+      # project's log group can hold every build's streams.
+      def build_log(environment_row:, arguments:)
+        entry = project!(environment_row, arguments["resource"])
+        build = arguments["build"].present? ? build_of(environment_row, entry, arguments["build"]) : newest_builds(environment_row, entry, 1).first
+        fail!("#{entry.name} has no builds yet.") unless build
+
+        logs = build[:logs] || {}
+        group, stream = logs.values_at(:group_name, :stream_name)
+        heading = "Build #{build[:build_number]} (#{build[:id]}) of #{entry.name}, #{build[:build_status].to_s.downcase}, " \
+                  "started #{time(build[:start_time])}#{", ended #{time(build[:end_time])}" if build[:end_time]}."
+        if logs.dig(:cloud_watch_logs, :status) == "DISABLED" || group.blank? || stream.blank?
+          fail!("#{heading} It has written no log to CloudWatch Logs yet.") if build[:build_status] == "IN_PROGRESS" && logs.dig(:cloud_watch_logs, :status) != "DISABLED"
+
+          fail!("#{heading} It keeps no log in CloudWatch Logs, so it cannot be read here. Its page in the console shows where it went: #{build_link(entry, build[:id]).url}")
+        end
+
+        events = Array(api(environment_row).call(:logs, entry.region, :get_log_events, log_group_name: group, log_stream_name: stream,
+                                                                                         start_from_head: false, limit: LOG_EVENTS)[:events])
+        kept, matched = log_lines(events.map { |event| event[:message].to_s.chomp }, arguments)
+        text = kept.empty? ? "#{heading}\nNo line matched." : "#{heading}\nIts log, #{kept.size < matched ? "the last #{kept.size} of #{matched} lines" : "#{kept.size} lines"}:\n#{kept.join("\n")}"
+        link = logs[:deep_link].presence ? Telemetry::Link.new(provider: PROVIDER, url: logs[:deep_link]) : build_link(entry, build[:id])
+        Telemetry.result(text, link: link)
       end
 
       def rollback_deployment(environment_row:, arguments:)
@@ -542,7 +660,28 @@ module Integrations
         answer = ReadGuards::Aws.hidden(api(environment_row).call(service.to_sym, region, operation.to_sym, params))
         name = AwsApi.api_of(service).operation(operation.to_sym).name
         text = ApiReads.answer(PROVIDER, "#{service} #{name} in #{region}", answer, secret: ReadGuards::Aws.secret?(service, name))
-        Telemetry.result(text, link: console_link(region, CONSOLE_PATHS.fetch(service, "#{service}/home")))
+        link = run_page(environment_row, region, "#{service}:#{name}", params) || console_link(region, CONSOLE_PATHS.fetch(service, "#{service}/home"))
+        Telemetry.result(text, link: link)
+      end
+
+      # A read of one run links to that run's own page: a CodeBuild build, an ECS service's deployments, a CodePipeline
+      # execution or a CodeDeploy deployment, at the console paths their guides open them at.
+      def run_page(environment_row, region, operation, params)
+        case operation
+        when "codebuild:BatchGetBuilds"
+          ids = Array(params[:ids])
+          parts = ids.one? && ids.first.to_s.split("build/").last.match(BUILD_ID)
+          console_link(region, "codesuite/codebuild/#{account_of(environment_row)}/projects/#{parts[:project]}/build/#{Http.segment(parts[0])}") if parts
+        when "ecs:DescribeServiceDeployments"
+          arns = Array(params[:service_deployment_arns])
+          _, cluster, service = arns.first.to_s.match(ARN)&.[](:resource).to_s.split("/")
+          console_link(region, "ecs/v2/clusters/#{Http.segment(cluster)}/services/#{Http.segment(service)}/deployments") if arns.one? && service.present?
+        when "codepipeline:GetPipelineExecution"
+          pipeline, execution = params.values_at(:pipeline_name, :pipeline_execution_id)
+          console_link(region, "codesuite/codepipeline/pipelines/#{Http.segment(pipeline)}/executions/#{Http.segment(execution)}/timeline") if pipeline.present? && execution.present?
+        when "codedeploy:GetDeployment"
+          console_link(region, "codesuite/codedeploy/deployments/#{Http.segment(params[:deployment_id])}") if params[:deployment_id].present?
+        end
       end
 
       # The region asked, when the connection reads it, or the connection's only one.
@@ -554,7 +693,7 @@ module Integrations
 
         asked.to_s
       end
-      private :read_region
+      private :read_region, :run_page
 
       # The account on the resource map, per region: its ECS services, Lambda functions, EC2 instances and RDS databases,
       # each with its page in the console. A list AWS refuses, or one cut short, is a gap, and its kind is not taken as gone.
@@ -563,7 +702,7 @@ module Integrations
       def map_of(environment_row)
         account = account_of(environment_row)
         settings = SettingsReading.new(account: account, workspace: environment_row.integration.workspace, task_definitions: {}, stopped: Set.new)
-        reading = inventory(environment_row, kinds: KIND_NAMES.keys, regions: regions(environment_row), tags: true, settings: settings)
+        reading = inventory(environment_row, kinds: KIND_NAMES.keys, regions: regions(environment_row), tags: true, settings: settings, map: true)
         snapshot_of(reading, account)
       end
 
@@ -669,6 +808,9 @@ module Integrations
           return unless reservation
 
           [ instance_entry(Array(reservation[:instances]).first, reservation[:owner_id], region), [] ]
+        when PROJECT
+          project = Array(api(environment_row).call(:codebuild, region, :batch_get_projects, names: [ arn ])[:projects]).first
+          project && [ latest_builds(environment_row, region, [ project_entry(project, region) ]).first, [] ]
         else
           database = Array(api(environment_row).call(:rds, region, :describe_db_instances, db_instance_identifier: arn)[:db_instances]).first
           return unless database
@@ -701,13 +843,13 @@ module Integrations
 
       # What the connection reaches, kind by kind and region by region. A list AWS refuses is a gap naming its kind and
       # leaves the rest read, and being asked to slow down stops the read with a gap naming every kind. Only the map asks
-      # for tags, since ECS and Lambda return them only on request.
-      def inventory(environment_row, kinds:, regions:, tags: false, settings: nil)
+      # for tags, since ECS and Lambda return them only on request, and for each CodeBuild project's newest build.
+      def inventory(environment_row, kinds:, regions:, tags: false, settings: nil, map: false)
         entries = []
         gaps = []
         regions.each do |region|
           kinds.each do |kind|
-            found, more, untagged = list_kind(environment_row, kind, region, tags, settings)
+            found, more, untagged = list_kind(environment_row, kind, region, tags, settings, map: map)
             entries.concat(found)
             gaps << untagged if untagged
             next unless more
@@ -723,13 +865,52 @@ module Integrations
         Reading.new(entries: entries, gaps: gaps)
       end
 
-      def list_kind(environment_row, kind, region, tags, settings = nil)
+      def list_kind(environment_row, kind, region, tags, settings = nil, map: false)
         case kind
         when SERVICE then ecs_services(environment_row, region, tags, settings)
         when FUNCTION then lambda_functions(environment_row, region, tags, settings)
         when INSTANCE then ec2_instances(environment_row, region)
+        when PROJECT then codebuild_projects(environment_row, region, statuses: map)
         else rds_databases(environment_row, region, settings)
         end
+      end
+
+      # ListProjects names them and BatchGetProjects describes up to 100 at a time, tags included. A project's settings
+      # are not read, so the map links nothing from what its environment variables name.
+      def codebuild_projects(environment_row, region, statuses: false)
+        names, more = api(environment_row).all(:codebuild, region, :list_projects, {}, :projects)
+        entries = names.each_slice(PER_BATCH).flat_map do |slice|
+          Array(api(environment_row).call(:codebuild, region, :batch_get_projects, names: slice)[:projects]).map { |project| project_entry(project, region) }
+        end
+        return [ entries, more ] unless statuses
+
+        begin
+          [ latest_builds(environment_row, region, entries), more ]
+        rescue AwsApi::Denied => error
+          # Builds left unread hold no project back, so the projects are on the map without a status.
+          [ entries, more, ResourceMap::Gap.new(text: Sentence.join("Builds of CodeBuild projects in #{region} could not be read, so they are on the map without a status", error),
+                                                kinds: []) ]
+        end
+      end
+
+      # A project stands as its newest build ended, or is building: one ListBuildsForProject a project for its newest
+      # build's id, and one BatchGetBuilds for every hundred of them. A project never built has no status.
+      def latest_builds(environment_row, region, entries)
+        newest = entries.to_h do |entry|
+          ids = api(environment_row).call(:codebuild, region, :list_builds_for_project, project_name: entry.name, sort_order: "DESCENDING")[:ids]
+          [ entry.arn, Array(ids).first ]
+        end
+        builds = newest.values.compact.each_slice(PER_BATCH).flat_map do |slice|
+          Array(api(environment_row).call(:codebuild, region, :batch_get_builds, ids: slice)[:builds])
+        end
+        status = builds.to_h { |build| [ build[:id], build[:build_status].to_s.downcase.presence ] }
+        entries.map { |entry| newest[entry.arn] ? entry.with(status: status[newest[entry.arn]]) : entry }
+      end
+
+      def project_entry(project, region)
+        Entry.new(kind: PROJECT, arn: project[:arn], name: project[:name], region: region,
+                  details: { "region" => region, "type" => project.dig(:environment, :type), "source" => project.dig(:source, :type),
+                             ResourceMap::TAGS => tags_of(project[:tags]) }.compact)
       end
 
       # With tags, DescribeServices returns each service's tags (include TAGS). A key whose policy refuses that still reads
@@ -973,6 +1154,8 @@ module Integrations
           Entry.new(kind: INSTANCE, arn: arn, name: id, region: region, details: { "instance_id" => id }) if resource.start_with?("instance/")
         when "rds"
           Entry.new(kind: DATABASE, arn: arn, name: resource.delete_prefix("db:"), region: region) if resource.start_with?("db:")
+        when "codebuild"
+          Entry.new(kind: PROJECT, arn: arn, name: resource.delete_prefix("project/"), region: region) if resource.start_with?("project/")
         end
       end
 
@@ -1141,6 +1324,8 @@ module Integrations
           fail!("#{entry.name} exports no logs to CloudWatch Logs. Turn on log exports for it in RDS to read them here.") if exported.empty?
 
           [ entry.region, exported.map { |type| "/aws/rds/instance/#{entry.name}/#{type}" }, [] ]
+        when PROJECT
+          fail!("#{entry.name} is a CodeBuild project, whose logs are its builds'. Read one with build_log.")
         else
           fail!("An EC2 instance sends no logs to CloudWatch Logs by itself. When the CloudWatch agent writes its logs, " \
                 "read them with logs_insights_query on the agent's log group.")
@@ -1279,7 +1464,7 @@ module Integrations
         link = resource_link(entry)
         result = Telemetry.result("#{text}\nIt runs #{running}. A rollback takes a revision of #{family}: #{choices.map { |each| each == running ? "#{each} (running)" : each }.join(', ')}.",
                                   link: link)
-        runs = recent.map { |deployment| history_run(deployment, revisions[deployment[:target_service_revision_arn]] || {}) }
+        runs = recent.map { |deployment| history_run(deployment, revisions[deployment[:target_service_revision_arn]] || {}).with(url: deployments_link(entry)&.url) }
         Capabilities::RunHistory.with_runs(result, runs, link: link)
       end
 
@@ -1312,6 +1497,179 @@ module Integrations
           ("rolled back at #{time(rollback[:started_at])}: #{rollback[:reason]}" if rollback),
           ("circuit breaker #{breaker[:status].to_s.downcase}, #{breaker[:failure_count]} of #{breaker[:threshold]} failed tasks" if breaker && breaker[:status].present?),
           ("finished #{time(listed[:finished_at])}" if listed[:finished_at]) ].compact.join(", ")
+      end
+
+      # One deployment read by its id with DescribeServiceDeployments, its ARN written from the service's as the ECS guide
+      # gives it (service-deployment/cluster/service/id), so it is found however long ago it ran.
+      def one_deployment(environment_row, entry, run)
+        id = run.split("/").last.to_s
+        fail!("run must be the deployment's id or ARN, as list_deployments shows it.") unless id.match?(DEPLOYMENT_ID)
+
+        prefix = entry.arn.match(ARN)
+        arn = "arn:#{prefix[:partition]}:ecs:#{entry.region}:#{prefix[:account]}:service-deployment/#{entry.cluster}/#{entry.name}/#{id}"
+        aws = api(environment_row)
+        deployment = Array(aws.call(:ecs, entry.region, :describe_service_deployments, service_deployment_arns: [ arn ])[:service_deployments]).first
+        fail!("ECS has no deployment #{id} of #{entry.name}. list_deployments shows the deployments of the last 90 days.") unless deployment
+
+        target = deployment.dig(:target_service_revision, :arn)
+        revision = target ? Array(aws.call(:ecs, entry.region, :describe_service_revisions, service_revision_arns: [ target ])[:service_revisions]).first || {} : {}
+        run = history_run(deployment, revision).with(url: deployments_link(entry)&.url, parts: deployment_parts(environment_row, entry, deployment, revision))
+        link = deployments_link(entry)
+        Capabilities::RunHistory.with_runs(Capabilities::History.result([ run ], what: "the deployments of #{entry.name}", link: link), [ run ], link: link)
+      end
+
+      # A deployment's rollout of its new revision and, once ECS began one, its rollback. The rollout's log is the service's
+      # own over the deployment's time, and a failed one says why its tasks stopped, since a task that never started
+      # writes no log.
+      def deployment_parts(environment_row, entry, deployment, revision)
+        history = Capabilities::History
+        status = history.status(deployment[:status], ROLLOUT_STATUSES)
+        started = Capabilities::RunHistory.time(deployment[:started_at] || deployment[:created_at])
+        ended = Capabilities::RunHistory.time(deployment[:finished_at] || deployment[:stopped_at] || deployment.dig(:rollback, :started_at))
+        target = deployment[:target_service_revision] || {}
+        breaker = deployment[:deployment_circuit_breaker]
+        alarms = Array(deployment.dig(:alarms, :triggered_alarm_names))
+        stopped = stop_reasons(environment_row, entry, revision[:task_definition]) if status == history::FAILED
+        detail = [
+          ("at #{deployment[:lifecycle_stage].to_s.downcase.tr('_', ' ')}" if status == history::RUNNING && deployment[:lifecycle_stage].present?),
+          ("#{target[:running_task_count]} of #{target[:requested_task_count]} tasks running" if target[:requested_task_count]),
+          ("circuit breaker #{breaker[:status].to_s.downcase}, #{breaker[:failure_count]} of #{breaker[:threshold]} failed tasks" if breaker && breaker[:status].present?),
+          ("alarms #{alarms.join(', ')} went off" if alarms.any?),
+          deployment[:status_reason].presence,
+          ("tasks stopped: #{stopped.join(' / ')}" if stopped.present?)
+        ].compact.join(", ").presence
+        log = { "resource" => entry.arn, "start" => started&.utc&.iso8601, "end" => (ended&.utc&.iso8601 if history::FINISHED.include?(status)) }.compact
+        rollout = history::Part.new(
+          id: "rollout", name: "rollout of #{family_revision(revision[:task_definition]) || 'the new revision'}", status: status, started_at: started,
+          finished_at: (ended if history::FINISHED.include?(status)), url: deployments_link(entry)&.url, detail: detail,
+          log: { history::LOG_TOOL => "search_logs", history::LOG_ARGUMENTS => log }
+        )
+        rollback = deployment[:rollback]
+        return [ rollout ] unless rollback
+
+        state = history.status(deployment[:status], ROLLBACK_STATUSES)
+        [ rollout, history::Part.new(id: "rollback", name: "rollback", status: state, started_at: Capabilities::RunHistory.time(rollback[:started_at]),
+                                     finished_at: (Capabilities::RunHistory.time(deployment[:finished_at]) if history::FINISHED.include?(state)),
+                                     url: deployments_link(entry)&.url, detail: rollback[:reason].presence) ]
+      end
+
+      # Why the revision's tasks stopped, from the stopped tasks ECS still keeps, about an hour of them. A refusal leaves
+      # them out rather than fail the whole read.
+      def stop_reasons(environment_row, entry, task_definition)
+        return [] if task_definition.blank?
+
+        aws = api(environment_row)
+        arns = Array(aws.call(:ecs, entry.region, :list_tasks, cluster: entry.cluster, service_name: entry.name, desired_status: "STOPPED", max_results: TASK_LIMIT)[:task_arns])
+        return [] if arns.empty?
+
+        tasks = Array(aws.call(:ecs, entry.region, :describe_tasks, cluster: entry.cluster, tasks: arns)[:tasks]).select { |task| task[:task_definition_arn] == task_definition }
+        tasks.flat_map do |task|
+          [ ("#{task[:stop_code]}: #{task[:stopped_reason]}" if task[:stopped_reason].present?),
+            *Array(task[:containers]).filter_map { |container| "#{container[:name]} #{container[:reason]}" if container[:reason].present? } ]
+        end.compact.uniq.first(STOP_REASONS)
+      rescue Integrations::RateLimited
+        raise
+      rescue AwsApi::Error
+        []
+      end
+
+      def project!(environment_row, asked)
+        entry = find_resource(environment_row, asked)
+        return entry if entry.kind == PROJECT
+
+        fail!("#{entry.name} is #{KIND_ARTICLED.fetch(entry.kind)}, and only CodeBuild projects have builds.")
+      end
+
+      # The newest builds of a project, ListBuildsForProject's first page newest first, described with BatchGetBuilds.
+      def newest_builds(environment_row, entry, limit)
+        ids = Array(api(environment_row).call(:codebuild, entry.region, :list_builds_for_project, project_name: entry.name, sort_order: "DESCENDING")[:ids]).first(limit)
+        builds(environment_row, entry, ids).sort_by { |build| build[:start_time] || Time.current }.reverse
+      end
+
+      def builds(environment_row, entry, ids)
+        ids.each_slice(PER_BATCH).flat_map { |slice| Array(api(environment_row).call(:codebuild, entry.region, :batch_get_builds, ids: slice)[:builds]) }
+      end
+
+      # One build by its id, its ARN or its number, which only the newest page of the project's builds can find.
+      def build_of(environment_row, entry, asked)
+        wanted = asked.to_s.strip.delete_prefix("#").split("build/").last.to_s
+        build = if wanted.match?(/\A\d+\z/)
+          newest_builds(environment_row, entry, PER_BATCH).find { |each| each[:build_number].to_s == wanted }
+        else
+          id = wanted.include?(":") ? wanted : "#{entry.name}:#{wanted}"
+          parts = id.match(BUILD_ID)
+          fail!("A build is named by its id, project:uuid, its ARN or its number, as list_builds shows it.") unless parts
+          fail!("#{id} is a build of #{parts[:project]}, not of #{entry.name}.") unless parts[:project] == entry.name
+
+          builds(environment_row, entry, [ id ]).first
+        end
+        build || fail!("CodeBuild has no build #{wanted} of #{entry.name}. list_builds shows its builds.")
+      end
+
+      # A build as every run history reads it (CodeBuild API reference, Build): its number, from startTime to endTime once
+      # it ended, and the source version it built.
+      def build_run(entry, build)
+        history = Capabilities::History
+        status = history.status(build[:build_status], BUILD_STATUSES)
+        version = build[:resolved_source_version].presence || build[:source_version].presence
+        Capabilities::History::Run.new(
+          id: build[:id].to_s, number: build[:build_number]&.to_s, name: "#{entry.name} build", status: status,
+          started_at: Capabilities::RunHistory.time(build[:start_time]),
+          finished_at: (Capabilities::RunHistory.time(build[:end_time]) if history::FINISHED.include?(status)),
+          url: build_link(entry, build[:id])&.url,
+          detail: [ ("at #{version.to_s.first(12)}" if version), ("in #{build[:current_phase].to_s.downcase.tr('_', ' ')}" if status == history::RUNNING),
+                    ("started by #{build[:initiator]}" if build[:initiator].present?) ].compact.join(", ").presence
+        )
+      end
+
+      # Each phase of a build, how it ended and the messages CodeBuild gave for it (BuildPhase.contexts), its log the build's.
+      def build_parts(entry, build)
+        history = Capabilities::History
+        Array(build[:phases]).reject { |phase| phase[:phase_type] == COMPLETED_PHASE }.map do |phase|
+          status = history.status(phase[:phase_status], BUILD_STATUSES)
+          said = Array(phase[:contexts]).filter_map { |context| [ context[:status_code], context[:message] ].compact_blank.join(": ").presence }
+          history::Part.new(
+            id: phase[:phase_type].to_s, name: phase[:phase_type].to_s.downcase.tr("_", " "), status: status,
+            started_at: Capabilities::RunHistory.time(phase[:start_time]),
+            finished_at: (Capabilities::RunHistory.time(phase[:end_time]) if history::FINISHED.include?(status)),
+            url: build_link(entry, build[:id])&.url, detail: said.join(" / ").presence,
+            log: { history::LOG_TOOL => "build_log", history::LOG_ARGUMENTS => { "resource" => entry.arn, "build" => build[:id].to_s } }
+          )
+        end
+      end
+
+      def project_lines(environment_row, entry)
+        project = Array(api(environment_row).call(:codebuild, entry.region, :batch_get_projects, names: [ entry.arn ])[:projects]).first
+        fail!("CodeBuild has no project #{entry.name}. list_resources shows what there is.") unless project
+
+        source = project[:source] || {}
+        environment = project[:environment] || {}
+        variables = Array(environment[:environment_variables]).map { |variable| variable[:name] }
+        logs = project.dig(:logs_config, :cloud_watch_logs) || {}
+        recent = newest_builds(environment_row, entry, BUILDS_SHOWN).map { |build| Capabilities::History.line(build_run(entry, build)) }
+        [
+          "#{project[:name]}, CodeBuild project, #{entry.region}#{" (#{project[:description]})" if project[:description].present?}",
+          "Source: #{source[:type]}#{" #{source[:location].to_s.sub(%r{//[^/@]*@}, '//')}" if source[:location].present?}#{", version #{project[:source_version]}" if project[:source_version].present?}",
+          "Environment: #{[ environment[:type], environment[:image], environment[:compute_type] ].compact.join(', ')}",
+          ("Environment variables: #{variables.join(' ')}" if variables.any?),
+          "Timeout: #{project[:timeout_in_minutes]} minutes",
+          (logs[:status] == "DISABLED" ? "Logs: not sent to CloudWatch Logs" : "Logs: CloudWatch Logs#{" group #{logs[:group_name]}" if logs[:group_name].present?}"),
+          (recent.any? ? "Latest builds, newest first:\n#{recent.join("\n")}" : "No builds yet.")
+        ]
+      end
+
+      # The last lines of a log matching what was asked, and how many matched.
+      def log_lines(lines, arguments)
+        text, exclude = arguments["text"].to_s, arguments["exclude"].to_s
+        pattern = arguments["regex"].present? ? Regexp.new(arguments["regex"].to_s, timeout: REGEX_TIMEOUT) : nil
+        matched = lines.reject(&:blank?).select do |line|
+          (text.empty? || line.include?(text)) && (exclude.empty? || !line.include?(exclude)) && (pattern.nil? || pattern.match?(line))
+        end
+        [ matched.last(Capabilities::Answers.limit(arguments, BUILD_LOG_LINES)), matched.size ]
+      rescue Regexp::TimeoutError
+        fail!("The regular expression took too long on this log. Give a simpler one, or text instead.")
+      rescue RegexpError => error
+        fail!("regex is not a regular expression: #{error.message}")
       end
 
       def function_versions(environment_row, entry, limit)
@@ -1393,9 +1751,22 @@ module Integrations
         when SERVICE then console_link(entry.region, "ecs/v2")
         when FUNCTION then console_link(entry.region, "lambda/home", "/functions")
         when INSTANCE then console_link(entry.region, "ec2/")
+        when PROJECT then console_link(entry.region, "codesuite/codebuild/#{arn_account(entry.arn)}/projects/#{Http.segment(entry.name)}/history")
         else console_link(entry.region, "rds/")
         end
       end
+
+      # A build's own page in the CodeBuild console, by the project's account and the build's id.
+      def build_link(entry, id)
+        console_link(entry.region, "codesuite/codebuild/#{arn_account(entry.arn)}/projects/#{Http.segment(entry.name)}/build/#{Http.segment(id)}")
+      end
+
+      # An ECS service's deployments, its console page's Deployments tab, where each deployment is opened by its id.
+      def deployments_link(entry)
+        console_link(entry.region, "ecs/v2/clusters/#{Http.segment(entry.cluster)}/services/#{Http.segment(entry.name)}/deployments")
+      end
+
+      def arn_account(arn) = arn.to_s.match(ARN)&.[](:account)
 
       # CloudWatch's metrics page opened on the resource's namespace, in the form Lambda's guide links to (namespace=~'AWS*2fLambda).
       def metrics_link(entry)

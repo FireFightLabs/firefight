@@ -16,6 +16,7 @@ module Integrations
       PANEL_APPS = "apps".freeze
       PANEL_DROPLETS = "droplets".freeze
       PANEL_DATABASES = "databases".freeze
+      PANEL_DEPLOYMENTS = "deployments".freeze
 
       KIND_APP = :app
       KIND_DROPLET = :droplet
@@ -109,13 +110,16 @@ module Integrations
            read_only: true
 
       tool :app_logs,
-           description: "Log lines of an App Platform app's active deployment, newest first, at most #{LOG_LIMIT}. type picks run " \
-                        "logs (what the app prints), build, deploy, or RUN_RESTARTED for instances that crashed or restarted. " \
-                        "Filter by text or a regular expression, and to one component",
+           description: "Log lines of an App Platform app's active deployment, or of any one deployment by its id, such as one " \
+                        "that failed, newest first, at most #{LOG_LIMIT}. type picks run logs (what the app prints), build, deploy, " \
+                        "or RUN_RESTARTED for instances that crashed or restarted. Filter by text or a regular expression, and to " \
+                        "one component",
            params_schema: {
              "type" => "object",
              "properties" => {
                "resource" => APP, "component" => COMPONENT.merge("description" => "#{COMPONENT['description']} (optional, every component)"),
+               "deployment" => { "type" => "string", "description" => "One deployment, by its id, as list_deployments or deploy_history " \
+                                                                       "shows it, with every line it logged unless a time is asked (optional, the active one)" },
                "type" => { "type" => "string", "enum" => LOG_TYPES, "description" => "Which logs (optional, #{DEFAULT_LOG_TYPE})" },
                "text" => { "type" => "string", "description" => "Only lines containing this text (optional)" },
                "regex" => { "type" => "string", "description" => "Only lines matching this regular expression (optional)" },
@@ -148,6 +152,8 @@ module Integrations
              "properties" => {
                "resource" => APP,
                "name" => { "type" => "string", "description" => "Only runs of this kind, deploy (optional)" },
+               "run" => { "type" => "string", "description" => "Only this deployment, by its id, with each step, the component it " \
+                                                                "ran for and where it failed (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many deployments (optional, #{DEPLOYMENT_LIMIT})" }
              },
              "required" => [ "resource" ]
@@ -277,20 +283,27 @@ module Integrations
         Telemetry.result(lines.compact.join("\n"), link: link_of(environment_row, resource))
       end
 
+      # One deployment's logs are read whole unless a time is asked, since a failed build may be hours old. The signed
+      # addresses DigitalOcean answers with are read here and never shown.
       def app_logs(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"], only: KIND_APP)
         type = arguments["type"].presence || DEFAULT_LOG_TYPE
         fail!("type must be one of #{LOG_TYPES.join(', ')}.") unless LOG_TYPES.include?(type)
+        deployment = arguments["deployment"].to_s.strip.presence
+        timed = deployment.nil? || arguments.values_at("minutes", "start", "end").any?(&:present?)
         started, ended = Capabilities::Answers.range(arguments)
         limit = Capabilities::Answers.limit(arguments, LOG_LIMIT)
         pattern = regex(arguments["regex"])
         api = api(environment_row)
-        raw = api.log_urls(resource[:id], type: type, component: arguments["component"].presence).flat_map { |url| api.log_file(url).lines }
+        raw = known_deployment(resource, deployment) do
+          api.log_urls(resource[:id], type: type, component: arguments["component"].presence, deployment: deployment).flat_map { |url| api.log_file(url).lines }
+        end
         lines = raw.filter_map { |line| log_line(line, ended) }
-                   .select { |line| line.at.between?(started, ended) && matches?(line.text, arguments, pattern) }
+                   .select { |line| (!timed || line.at.between?(started, ended)) && matches?(line.text, arguments, pattern) }
                    .sort_by(&:at).reverse.first(limit)
-        asked = "#{type} logs of #{resource[:name]}#{" (#{arguments['component']})" if arguments['component'].present?} from #{started.utc.iso8601} to #{ended.utc.iso8601}"
-        Telemetry.result(Telemetry.logs_text(lines, asked: asked, limit: limit), link: link_of(environment_row, resource))
+        asked = logs_asked(resource, arguments["component"].presence, type, deployment, (timed ? [ started, ended ] : nil))
+        Telemetry.result(Telemetry.logs_text(lines, asked: asked, limit: limit),
+                         link: deployment ? deployment_link(environment_row, resource[:id], deployment) : link_of(environment_row, resource))
       end
 
       def list_deployments(environment_row:, arguments:)
@@ -312,21 +325,23 @@ module Integrations
         "superseded" => Capabilities::History::SUCCEEDED, "error" => Capabilities::History::FAILED,
         "canceled" => Capabilities::History::CANCELLED
       }.freeze
+      # A deployment's steps (apps_deployment_progress_step_status) in Firefight's words.
+      STEP_STATUSES = {
+        "unknown" => Capabilities::History::QUEUED, "pending" => Capabilities::History::QUEUED, "running" => Capabilities::History::RUNNING,
+        "success" => Capabilities::History::SUCCEEDED, "error" => Capabilities::History::FAILED
+      }.freeze
+      # The log type that holds what a top step did, by a word in its name.
+      STEP_LOGS = { "build" => "BUILD", "deploy" => "DEPLOY" }.freeze
 
       # A deployment from created_at to when its last step ended (progress.steps, ended_at), or to when its phase last
-      # changed (phase_last_updated_at) when it gives no steps.
+      # changed (phase_last_updated_at) when it gives no steps. One deployment asked by its id is read on its own, with
+      # its steps as parts.
       def deploy_history(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"], only: KIND_APP)
+        return one_deployment(environment_row, resource, arguments["run"].to_s.strip) if arguments["run"].present?
+
         deployments = api(environment_row).deployments(resource[:id], limit: Capabilities::Answers.limit(arguments, DEPLOYMENT_LIMIT))
-        runs = deployments.map do |deployment|
-          status = Capabilities::History.status(deployment["phase"], DEPLOYMENT_PHASES)
-          commits = Array(deployment["services"]).filter_map { |service| "#{service['name']} #{service['source_commit_hash'].to_s.first(12)}" if service["source_commit_hash"].present? }
-          Capabilities::History::Run.new(
-            id: deployment["id"], name: "deploy", status: status, started_at: Telemetry.parse_time(deployment["created_at"]),
-            finished_at: (deployment_ended_at(deployment) if Capabilities::History::FINISHED.include?(status)),
-            detail: [ deployment["cause"].presence, ("commits #{commits.join(', ')}" if commits.any?) ].compact.join(", ").presence
-          )
-        end
+        runs = deployments.map { |deployment| history_run(environment_row, resource, deployment) }
         Capabilities::History.result(runs, what: resource[:name], link: link_of(environment_row, resource), name: arguments["name"])
       end
 
@@ -477,11 +492,17 @@ module Integrations
         Telemetry.result(text, link: read_link(environment_row, path))
       end
 
-      # An app's own page for a path inside one, and the section of the control panel for a Droplet or database.
+      DEPLOYMENT_PATH = %r{\Adeployments/([^/]+)}
+
+      # A deployment's own page for a path inside one, an app's own page for a path inside one, and the section of the
+      # control panel for a Droplet or database.
       READ_PAGES = { "apps" => KIND_APP, "droplets" => KIND_DROPLET, "databases" => KIND_DATABASE }.freeze
 
       def read_link(environment_row, path)
-        _version, section, id = path.delete_prefix("/").split("/", 4)
+        _version, section, id, rest = path.delete_prefix("/").split("/", 4)
+        deployment = rest.to_s.match(DEPLOYMENT_PATH)&.captures&.first
+        return deployment_link(environment_row, id, deployment) if section == PANEL_APPS && id.present? && deployment
+
         kind = READ_PAGES[section]
         return panel_link(environment_row) unless kind && id.present?
 
@@ -628,6 +649,11 @@ module Integrations
 
       def link_of(environment_row, resource) = Telemetry::Link.new(provider: PROVIDER, url: page(environment_row, resource[:kind], resource[:id]))
 
+      # A deployment's own page in the control panel, under its app's.
+      def deployment_link(environment_row, app_id, deployment_id)
+        Telemetry::Link.new(provider: PROVIDER, url: "#{page(environment_row, KIND_APP, app_id)}/#{PANEL_DEPLOYMENTS}/#{Http.segment(deployment_id)}")
+      end
+
       def panel_link(environment_row) = Telemetry::Link.new(provider: PROVIDER, url: panel(environment_row))
 
       # The control panel, the registry's site for DigitalOcean.
@@ -773,6 +799,64 @@ module Integrations
           ("Version end of life: #{database['version_end_of_life']}" if database["version_end_of_life"]),
           "Created #{database['created_at']}"
         ]
+      end
+
+      def one_deployment(environment_row, resource, id)
+        deployment = known_deployment(resource, id) { api(environment_row).deployment(resource[:id], id) }
+        run = history_run(environment_row, resource, deployment).with(parts: steps_of(environment_row, resource, deployment))
+        Capabilities::History.result([ run ], what: resource[:name], link: deployment_link(environment_row, resource[:id], deployment["id"] || id))
+      end
+
+      def history_run(environment_row, resource, deployment)
+        status = Capabilities::History.status(deployment["phase"], DEPLOYMENT_PHASES)
+        commits = Array(deployment["services"]).filter_map { |service| "#{service['name']} #{service['source_commit_hash'].to_s.first(12)}" if service["source_commit_hash"].present? }
+        Capabilities::History::Run.new(
+          id: deployment["id"], name: "deploy", status: status, started_at: Telemetry.parse_time(deployment["created_at"]),
+          finished_at: (deployment_ended_at(deployment) if Capabilities::History::FINISHED.include?(status)),
+          url: (deployment_link(environment_row, resource[:id], deployment["id"]).url if deployment["id"].present?),
+          detail: [ deployment["cause"].presence, ("commits #{commits.join(', ')}" if commits.any?) ].compact.join(", ").presence
+        )
+      end
+
+      # Each top step of a deployment (progress.steps), or each component it ran for where its child steps name one
+      # (component_name), with the build or deploy log of that deployment and component.
+      def steps_of(environment_row, resource, deployment)
+        page = deployment_link(environment_row, resource[:id], deployment["id"]).url
+        Array(deployment.dig("progress", "steps")).flat_map do |step|
+          log_type = STEP_LOGS.find { |word, _type| step["name"].to_s.downcase.include?(word) }&.last
+          (component_steps(Array(step["steps"])).presence || [ step ]).map { |each| step_part(resource, deployment, step, each, log_type, page) }
+        end
+      end
+
+      def component_steps(steps)
+        steps.flat_map { |step| step["component_name"].present? ? [ step ] : component_steps(Array(step["steps"])) }
+      end
+
+      def step_part(resource, deployment, top, step, log_type, page)
+        component = step["component_name"].presence
+        status = Capabilities::History.status(step["status"], STEP_STATUSES)
+        name = if component then [ step["message_base"].presence || top["name"], component ].join(" ")
+        else top["name"].to_s
+        end
+        log = log_type && { "resource" => resource[:id], "deployment" => deployment["id"], "type" => log_type, "component" => component }.compact
+        Capabilities::History::Part.new(
+          id: [ top["name"], component ].compact.join("/"), name: name, status: status, started_at: Telemetry.parse_time(step["started_at"]),
+          finished_at: (Telemetry.parse_time(step["ended_at"]) if Capabilities::History::FINISHED.include?(status)), url: page,
+          detail: step.dig("reason", "message").presence || step.dig("reason", "code").presence,
+          log: log && { Capabilities::History::LOG_TOOL => "app_logs", Capabilities::History::LOG_ARGUMENTS => log }
+        )
+      end
+
+      # A deployment DigitalOcean does not hold for the app is said in words rather than as its 404.
+      def known_deployment(resource, deployment)
+        yield
+      rescue DigitaloceanApi::NotFound
+        fail!("#{resource[:name]} has no deployment #{deployment}. deploy_history lists its recent ones.")
+      end
+
+      def logs_asked(resource, component, type, deployment, range)
+        [ "#{type} logs of #{resource[:name]}", (" (#{component})" if component), (" deployment #{deployment}" if deployment),
+          (" from #{range.first.utc.iso8601} to #{range.last.utc.iso8601}" if range) ].compact.join
       end
 
       def deployment_ended_at(deployment)

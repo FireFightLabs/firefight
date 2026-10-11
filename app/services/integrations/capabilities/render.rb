@@ -31,7 +31,7 @@ module Integrations
           Route.new(tool_name: TOOLS[METRICS], arguments: { "resource" => id, "metrics" => names.presence }.compact.merge(given.slice("minutes", "start", "end")))
         when DEPLOYS then Route.new(tool_name: TOOLS[DEPLOYS], arguments: { "resource" => id }.merge(given.slice("limit")))
         when STATUS then Route.new(tool_name: TOOLS[STATUS], arguments: { "resource" => id })
-        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: { "resource" => id }.merge(given.slice("name", "limit")))
+        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: { "resource" => id }.merge(given.slice("name", "run", "limit").compact_blank))
         when ROLLBACK then Route.new(tool_name: TOOLS[ROLLBACK], arguments: { "resource" => id, "deploy" => target(given) })
         when RESTART then Route.new(tool_name: TOOLS[RESTART], arguments: { "resource" => id })
         when SCALE then Route.new(tool_name: TOOLS[SCALE], arguments: { "resource" => id, "instances" => instances(given) })
@@ -50,7 +50,8 @@ module Integrations
       def self.logs(given)
         raise Unroutable, "Render's log search cannot leave lines out, so search by text or regex instead of exclude." if given["exclude"].present?
 
-        given.slice("text", "regex", "limit", "minutes", "start", "end")
+        deploy = { "deploy" => given["deployment"] } if given["stream"] == STREAM_BUILD && given["deployment"].present?
+        given.slice("text", "regex", "limit", "minutes", "start", "end").merge(deploy.to_h)
       end
       private_class_method :stream, :logs
     end

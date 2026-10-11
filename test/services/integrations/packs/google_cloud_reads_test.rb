@@ -33,6 +33,16 @@ module Integrations
         assert_includes text(result), "cloud-build/builds?project=acme-prod"
       end
 
+      test "a read of one build links that build's page, and a read inside a Cloud Run service links its revisions" do
+        GoogleCloudApi.any_instance.stubs(:read).returns("id" => "b-1")
+
+        build = text(call("service" => "cloudbuild", "path" => "/v1/projects/acme-prod/locations/us-central1/builds/b-1"))
+        assert_includes build, "https://console.cloud.google.com/cloud-build/builds;region=us-central1/b-1?project=acme-prod"
+        assert_includes text(call("service" => "cloudbuild", "path" => "/v1/projects/acme-prod/builds/b-1")), "cloud-build/builds;region=global/b-1?project=acme-prod"
+        revision = text(call("service" => "run", "path" => "/v2/projects/acme-prod/locations/us-central1/services/web/revisions/web-00002-xyz"))
+        assert_includes revision, "https://console.cloud.google.com/run/detail/us-central1/web/revisions?project=acme-prod"
+      end
+
       test "a project the connection does not read is refused before anything is sent" do
         GoogleCloudApi.any_instance.expects(:read).never
 

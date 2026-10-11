@@ -63,6 +63,7 @@ class Chat::Watch < ApplicationRecord
   validates :limit_basis, inclusion: { in: BASES }
 
   scope :active, -> { where(status: STATUS_ACTIVE) }
+  scope :not_checked_within, ->(duration) { where("checked_at IS NULL OR checked_at < ?", duration.ago) }
   scope :untold, -> { where(status: ENDED, told_at: nil) }
   # Active, not checked within the last minute and not held back to keep under its ceiling, or held by a worker that died.
   scope :due, lambda { |now = Time.current|

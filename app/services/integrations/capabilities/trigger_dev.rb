@@ -3,7 +3,7 @@ module Integrations
     # Trigger.dev's own tools answer for a task on the map, by its identifier. Deployments and their rollback belong to the
     # environment, not to one task, so recent_deploys lists the environment's versions and a rollback promotes one for
     # every task in it. Trigger.dev keeps only what a task logs, so stream must be app. run_history is the task's own runs
-    # from list_runs over the last week, each with when it started and finished.
+    # from list_runs over the last week, each with when it started and finished, or one run by its id with its attempts.
     module TriggerDev
       extend Adapter
 
@@ -38,6 +38,9 @@ module Integrations
         when ERRORS then Route.new(tool_name: TOOLS[ERRORS], arguments: task.merge(given.slice("text", "limit", "minutes", "start", "end")))
         when ROLLBACK then Route.new(tool_name: TOOLS[ROLLBACK], arguments: { "version" => target(given) })
         when HISTORY
+          run = given["run"].to_s.strip.delete_prefix("#").presence
+          return Route.new(tool_name: TOOLS[HISTORY], arguments: task.merge("run" => run), present: RunHistory.presenter(resource.name, given.except("name"))) if run
+
           Route.new(tool_name: TOOLS[HISTORY], arguments: task.merge("minutes" => MAX_MINUTES, "limit" => Answers.limit(given, Packs::TriggerDev::RUN_LIMIT)),
                     present: RunHistory.presenter(resource.name, given))
         end

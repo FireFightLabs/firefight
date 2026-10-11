@@ -157,6 +157,112 @@ module Integrations
                      Capabilities::History.runs_of(result).map { |run| [ run.id, run.status, run.seconds ] }
       end
 
+      test "one revision by its name is read with the conditions of its rollout as parts, each read in that revision's logs" do
+        GoogleCloudApi.any_instance.expects(:run_revisions).never
+        GoogleCloudApi.any_instance.expects(:run_revision).with("acme-prod", "us-central1", "web", "web-00003-bad").returns(
+          "name" => "#{RUN_ID}/revisions/web-00003-bad", "createTime" => "2026-10-02T09:00:00Z", "logUri" => "https://console.cloud.google.com/logs/viewer?r=web-00003-bad",
+          "containers" => [ { "image" => "web:v3" } ],
+          "conditions" => [
+            { "type" => "Ready", "state" => "CONDITION_FAILED", "lastTransitionTime" => "2026-10-02T09:02:00Z" },
+            { "type" => "ResourcesAvailable", "state" => "CONDITION_SUCCEEDED", "lastTransitionTime" => "2026-10-02T09:00:40Z" },
+            { "type" => "ContainerHealthy", "state" => "CONDITION_FAILED", "lastTransitionTime" => "2026-10-02T09:02:00Z",
+              "message" => "The user-provided container failed to start and listen on the port defined provided by the PORT=8080" },
+            { "type" => "Active", "state" => "CONDITION_FAILED" }
+          ]
+        )
+
+        result = GoogleCloud.new(@integration).call("list_revisions", environment_row: @row, arguments: { "resource" => "web", "revision" => "#{RUN_ID}/revisions/web-00003-bad" })
+
+        run = Capabilities::History.runs_of(result).sole
+        assert_equal [ "web-00003-bad", "failed", "https://console.cloud.google.com/run/detail/us-central1/web/revisions?project=acme-prod" ], [ run.id, run.status, run.url ]
+        assert_equal [ [ "ResourcesAvailable", "succeeded" ], [ "ContainerHealthy", "failed" ] ], run.parts.map { |part| [ part.name, part.status ] }
+        assert_match "failed to start", run.first_failed_part.detail
+        assert_equal({ "tool" => "search_logs", "arguments" => { "resource" => RUN_ID, "revision" => "web-00003-bad" } }, run.first_failed_part.log)
+        assert_match "ContainerHealthy: failed", result["content"].first["text"]
+      end
+
+      test "a revision Cloud Run does not have is said in words" do
+        GoogleCloudApi.any_instance.stubs(:run_revision).raises(GoogleCloudApi::NotFound, "Google Cloud answered 404")
+
+        assert_match "web has no revision called web-9", assert_raises(Integrations::Error) { call(:list_revisions, "resource" => "web", "revision" => "web-9") }.message
+      end
+
+      test "a revision's logs are read for that revision alone" do
+        GoogleCloudApi.any_instance.expects(:log_entries).with { |_, filter, **| filter.include?('resource.labels.revision_name="web-00003-bad" AND NOT log_id') }.returns([])
+        GoogleCloudApi.any_instance.stubs(:get).raises(GoogleCloudApi::Error, "nope")
+
+        call(:search_logs, "resource" => "web", "revision" => "web-00003-bad")
+        assert_match "Only a Cloud Run service has revisions", assert_raises(Integrations::Error) { call(:search_logs, "resource" => "orders", "revision" => "x") }.message
+      end
+
+      BUILD = {
+        "id" => "4fd8d9e2-6c2f-4b1e-9b3a-2f0e1c7d5a10", "status" => "FAILURE", "createTime" => "2026-10-03T09:00:00Z", "startTime" => "2026-10-03T09:00:05Z",
+        "finishTime" => "2026-10-03T09:04:05Z", "logUrl" => "https://console.cloud.google.com/cloud-build/builds;region=global/4fd8d9e2-6c2f-4b1e-9b3a-2f0e1c7d5a10?project=123",
+        "substitutions" => { "BRANCH_NAME" => "main", "SHORT_SHA" => "abc1234", "TRIGGER_NAME" => "deploy-web" },
+        "failureInfo" => { "type" => "USER_BUILD_STEP", "detail" => "Build step failure: build step 1 \"gcr.io/cloud-builders/docker\" failed: step exited with non-zero status: 1" },
+        "steps" => [
+          { "id" => "test", "name" => "gcr.io/cloud-builders/npm", "status" => "SUCCESS", "timing" => { "startTime" => "2026-10-03T09:00:05Z", "endTime" => "2026-10-03T09:02:05Z" } },
+          { "name" => "gcr.io/cloud-builders/docker", "status" => "FAILURE", "exitCode" => 1, "timing" => { "startTime" => "2026-10-03T09:02:05Z", "endTime" => "2026-10-03T09:04:00Z" } },
+          { "id" => "deploy", "name" => "gcr.io/google.com/cloudsdktool/cloud-sdk", "status" => "QUEUED" }
+        ]
+      }.freeze
+
+      test "a service's builds are its deploying trigger's, read in its region and in global, newest first, each with its own page" do
+        GoogleCloudApi.any_instance.stubs(:run_service).returns(SERVICE.merge("labels" => { "gcb-trigger-id" => "trig-1" }))
+        GoogleCloudApi.any_instance.expects(:builds).with("acme-prod", "us-central1", filter: 'trigger_id="trig-1"', page_size: 20).returns([])
+        GoogleCloudApi.any_instance.expects(:builds).with("acme-prod", "global", filter: 'trigger_id="trig-1"', page_size: 20).returns([ BUILD.except("steps") ])
+
+        result = GoogleCloud.new(@integration).call("list_builds", environment_row: @row, arguments: { "resource" => "web" })
+
+        run = Capabilities::History.runs_of(result).sole
+        assert_equal [ "build deploy-web", "failed", 240, BUILD["logUrl"], nil ], [ run.name, run.status, run.seconds, run.url, run.parts ]
+        assert_match "main at abc1234, Build step failure", run.detail
+      end
+
+      test "one build by its id is read with each step, the failed one with its exit code and the build's own log" do
+        GoogleCloudApi.any_instance.stubs(:build).with("acme-prod", "us-central1", BUILD["id"]).raises(GoogleCloudApi::NotFound, "Google Cloud answered 404")
+        GoogleCloudApi.any_instance.stubs(:build).with("acme-prod", "global", BUILD["id"]).returns(BUILD)
+
+        result = GoogleCloud.new(@integration).call("list_builds", environment_row: @row, arguments: { "resource" => "web", "build" => BUILD["id"] })
+
+        run = Capabilities::History.runs_of(result).sole
+        assert_equal [ [ "test", "succeeded" ], [ "step 1 (docker)", "failed" ], [ "deploy", "queued" ] ], run.parts.map { |part| [ part.name, part.status ] }
+        failed = run.first_failed_part
+        assert_equal [ "exit code 1", 115 ], [ failed.detail, failed.seconds ]
+        assert_equal({ "tool" => "search_logs", "arguments" => { "resource" => RUN_ID, "stream" => "build", "build" => BUILD["id"] } }, failed.log)
+      end
+
+      test "a build no region holds, a malformed id and a service no trigger deploys are said in words" do
+        GoogleCloudApi.any_instance.stubs(:build).raises(GoogleCloudApi::NotFound, "Google Cloud answered 404")
+
+        assert_match "Cloud Build has no build #{BUILD['id']} in us-central1 or global", assert_raises(Integrations::Error) { call(:list_builds, "resource" => "web", "build" => BUILD["id"]) }.message
+        assert_match "build must be a build's id", assert_raises(Integrations::Error) { call(:list_builds, "resource" => "web", "build" => "nope") }.message
+        assert_match "web names no Cloud Build trigger", assert_raises(Integrations::Error) { call(:list_builds, "resource" => "web") }.message
+      end
+
+      test "without a service, a region's builds are listed" do
+        GoogleCloudApi.any_instance.expects(:builds).with("acme-prod", "europe-west1", page_size: 5).returns([ BUILD ])
+
+        assert_match "1 recent runs of Cloud Build builds in acme-prod", call(:list_builds, "region" => "europe-west1", "limit" => 5)
+      end
+
+      test "a build's log is read by its id over the build's own time, and a service's by its trigger" do
+        GoogleCloudApi.any_instance.stubs(:build).returns(BUILD)
+        GoogleCloudApi.any_instance.expects(:log_entries).with do |_, filter, **|
+          filter.start_with?("resource.type=\"build\" AND resource.labels.build_id=\"#{BUILD['id']}\"") &&
+            filter.include?('timestamp>="2026-10-03T08:59:00Z"') && filter.include?('timestamp<="2026-10-03T09:05:05Z"')
+        end.returns([ { "timestamp" => "2026-10-03T09:03:59Z", "textPayload" => "npm ERR! missing script: build" } ])
+
+        text = call(:search_logs, "resource" => "web", "stream" => "build", "build" => BUILD["id"])
+        assert_match "npm ERR! missing script: build", text
+        assert_includes text, BUILD["logUrl"]
+
+        GoogleCloudApi.any_instance.stubs(:run_service).returns(SERVICE.merge("labels" => { "gcb-trigger-id" => "trig-1" }))
+        GoogleCloudApi.any_instance.expects(:log_entries).with { |_, filter, **| filter.include?('resource.labels.build_trigger_id="trig-1"') }.returns([])
+        call(:search_logs, "resource" => "web", "stream" => "build")
+        assert_match "Only a Cloud Run service is deployed", assert_raises(Integrations::Error) { call(:search_logs, "resource" => "orders", "stream" => "build") }.message
+      end
+
       test "errors are asked of Error Reporting for the service over the shortest period that covers the range, and filtered by text" do
         GoogleCloudApi.any_instance.expects(:every_error_group_stat).with do |project, query|
           project == "acme-prod" && query == { "serviceFilter.service" => "web", "timeRange.period" => "PERIOD_6_HOURS", "order" => "COUNT_DESC", "pageSize" => 20 }

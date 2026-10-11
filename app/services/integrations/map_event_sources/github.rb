@@ -26,6 +26,19 @@ module Integrations
       # html_url, and never the secret itself.
       SECRET_SCANNING_ALERT = "secret_scanning_alert".freeze
       SECRET_RAISED = { "created" => false, "publicly_leaked" => true }.freeze
+      # About a run a watch may follow (Webhook events and payloads): a workflow run, a deployment's status and a commit's
+      # status at every change, and a job, a check suite or a check run once it ends and a release once it goes out. Workflow
+      # runs, workflow jobs, deployment statuses and releases arrive only once the App subscribes to them, and until then
+      # a watch reads at its minute.
+      WORKFLOW_RUN = "workflow_run".freeze
+      WORKFLOW_JOB = "workflow_job".freeze
+      DEPLOYMENT_STATUS = "deployment_status".freeze
+      RELEASE = "release".freeze
+      COMPLETED = "completed".freeze
+      WAKE_ACTIONS = {
+        WORKFLOW_RUN => nil, DEPLOYMENT_STATUS => nil, STATUS => nil, WORKFLOW_JOB => [ COMPLETED ],
+        CHECK_SUITE => [ COMPLETED ], CHECK_RUN => [ COMPLETED ], RELEASE => %w[published released]
+      }.freeze
       # Sent to every GitHub App without subscribing (docs.github.com, Webhook events and payloads, installation_repositories).
       INSTALLATION_REPOSITORIES = "installation_repositories".freeze
       # Also sent to every GitHub App, for the installation itself (Webhook events and payloads, installation): deleted,
@@ -102,6 +115,14 @@ module Integrations
           return [] if numbers.empty? && branches.empty?
 
           [ Integrations::PullRequests::Nudge.new(repository: repository, numbers: numbers, branches: branches) ]
+        end
+
+        def wakes?(payload, headers:)
+          event = headers[EVENT_HEADER].to_s
+          return false unless WAKE_ACTIONS.key?(event)
+
+          actions = WAKE_ACTIONS[event]
+          actions.nil? || actions.include?(payload["action"].to_s)
         end
 
         # What a delivery says leaked (Integrations::SecurityEvents), for the security module to look into.

@@ -40,7 +40,7 @@ class Integrations::Capabilities::AzureTest < ActiveSupport::TestCase
   test "Azure answers no errors or traces, and a database has no deploys" do
     assert_equal Integrations::Capabilities::SPECS.keys - [ Integrations::Capabilities::ERRORS, Integrations::Capabilities::TRACES ], Integrations::Capabilities::Azure.capabilities
     assert_match "no connection offers deploys for it", unroutable(Integrations::Capabilities::DEPLOYS, "resource" => "catalog")
-    assert_equal %w[search_logs query_metrics list_deployments describe_resource rollback_app restart_resource scale_app], Integrations::Capabilities::Azure::WRAPPED
+    assert_equal %w[search_logs deployment_log query_metrics list_deployments describe_resource rollback_app restart_resource scale_app], Integrations::Capabilities::Azure::WRAPPED
     assert_match "restart an app or a PostgreSQL server", Integrations::Capabilities.halon_sentence("azure", "Azure")
   end
 
@@ -49,6 +49,14 @@ class Integrations::Capabilities::AzureTest < ActiveSupport::TestCase
     assert_equal [ "list_deployments", { "resource" => WEB_ID, "limit" => Integrations::Capabilities::History::LIMIT } ], [ history.tool.name, history.arguments ]
     assert_match "not when it finished rolling out", unroutable(Integrations::Capabilities::HISTORY, "resource" => "api")
     assert_match "no connection offers run history", unroutable(Integrations::Capabilities::HISTORY, "resource" => "catalog")
+  end
+
+  test "a run is read by its deployment id, and an app's build log is the deployment's log, the one named or the newest" do
+    assert_equal({ "resource" => WEB_ID, "deployment" => "abc123", "limit" => 20 }, resolve(Integrations::Capabilities::HISTORY, "resource" => "storefront", "run" => "abc123").arguments)
+    build = resolve(Integrations::Capabilities::LOGS, "resource" => "storefront", "stream" => "build", "deployment" => "abc123", "text" => "x")
+    assert_equal [ "deployment_log", { "resource" => WEB_ID, "deployment" => "abc123" } ], [ build.tool.name, build.arguments ]
+    assert_equal({ "resource" => WEB_ID }, resolve(Integrations::Capabilities::LOGS, "resource" => "storefront", "stream" => "build").arguments)
+    assert_match "Azure keeps build logs for an App Service or Function app's deployments", unroutable(Integrations::Capabilities::LOGS, "resource" => "api", "stream" => "build")
   end
 
   private

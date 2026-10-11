@@ -7,6 +7,8 @@ module Integrations
   module MapEvents
     # Events about one scope wait this long, so a burst of them is read again once.
     COALESCE = 30.seconds
+    # A watch checked this recently is not woken again by a run's next event.
+    RUN_WAKE_GAP = 15.seconds
     # A webhook that lapses is extended once it has this long left.
     REFRESH_WITHIN = 7.days
     # What Firefight says in a connection's gaps when the provider asked it to slow down while reading a change.
@@ -52,6 +54,20 @@ module Integrations
       # A watch reading through this connection checks now rather than at its next minute.
       Conversation::Watches.wake!(environment_row) if kept.rows.any?
       kept.rows.size
+    end
+
+    # One delivery to these connections: its map events kept for each, and the watches of a connection those did not
+    # already wake woken when the delivery is about a run, build or deploy.
+    def receive_delivery!(rows, events, payload, headers:)
+      woken = rows.select { |row| receive!(row, events).positive? }
+      wake_for_runs!(rows - woken, payload, headers: headers)
+    end
+
+    def wake_for_runs!(rows, payload, headers:)
+      return if rows.empty?
+
+      source = source_of(rows.first.integration.provider)
+      rows.each { |row| Conversation::Watches.wake!(row, unless_checked_within: RUN_WAKE_GAP) } if source&.wakes?(payload, headers: headers)
     end
 
     # What a delivery says about pull requests reaches the ones Halon follows through each of these connections at once.

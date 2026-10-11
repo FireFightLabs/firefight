@@ -49,9 +49,20 @@ class Integrations::Capabilities::SupabaseTest < ActiveSupport::TestCase
     assert_equal [ true, "Supabase could not read the logs: bad sql." ], [ failed["isError"], failed["content"].first["text"] ]
   end
 
+  test "a build is the branch's action runs, as the server's branch-action logs read them" do
+    call = resolve(Capabilities::LOGS, "resource" => "shop", "stream" => "build", "text" => "migrate")
+    assert_match "log_attributes['workflow_run'] as workflow_run from logs where source = 'workflow_run_logs'", call.arguments["sql"]
+
+    rows = [ { "timestamp" => 1_791_201_540_000_000, "event_message" => "migration failed: relation exists", "workflow_run" => "run_8f2" } ]
+    text = answer_text(call, { "result" => rows })
+    assert_match "1 log lines for Branch action runs of shop, newest first.", text
+    assert_match "run run_8f2 migration failed: relation exists", text
+    assert_match "https://supabase.com/dashboard/project/#{REF}/logs/explorer", text
+  end
+
   test "what Supabase cannot read is said" do
     assert_match "at most a day of logs", unroutable(Capabilities::LOGS, "resource" => "shop", "minutes" => 2000)
-    assert_match "Postgres logs with stream app and the API requests", unroutable(Capabilities::LOGS, "resource" => "shop", "stream" => "build")
+    assert_match "branch action runs with stream build", unroutable(Capabilities::LOGS, "resource" => "shop", "stream" => "cdn")
     assert_match "no connection offers a rollback", unroutable(Capabilities::ROLLBACK, "resource" => "shop", "to" => "1")
   end
 

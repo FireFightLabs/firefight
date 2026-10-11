@@ -35,6 +35,12 @@ class Integrations::Capabilities::VercelTest < ActiveSupport::TestCase
   test "run history is a project's deployments, by its Vercel id" do
     history = resolve(Integrations::Capabilities::HISTORY, "name" => "production")
     assert_equal [ "deploy_history", { "resource" => "prj_1", "name" => "production" } ], [ history.tool.name, history.arguments ]
+    assert_equal "dpl_9", resolve(Integrations::Capabilities::HISTORY, "run" => "dpl_9").arguments["run"]
+  end
+
+  test "a build log names the deployment a watch follows, so it is never the newest one's by default" do
+    assert_equal({ "resource" => "prj_1", "type" => "build", "deployment" => "dpl_9" },
+                 resolve(Integrations::Capabilities::LOGS, "stream" => "build", "deployment" => "dpl_9").arguments)
   end
 
   private

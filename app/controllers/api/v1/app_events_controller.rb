@@ -25,7 +25,7 @@ class Api::V1::AppEventsController < ActionController::API
     Integrations::Installations.delivered!(provider_key, source, payload, headers: request.headers)
     rows = Integrations::MapEvents.rows_for_installation(provider_key, source.installation_of(payload, headers: request.headers)).to_a
     events = rows.any? ? source.events(payload, headers: request.headers) : []
-    rows.each { |row| Integrations::MapEvents.receive!(row, events) }
+    Integrations::MapEvents.receive_delivery!(rows, events, payload, headers: request.headers)
     Integrations::MapEvents.nudge_pull_requests!(rows, payload, headers: request.headers)
     Integrations::MapEvents.report_security_events!(rows, payload, headers: request.headers)
     Integrations::MapEvents.nudge_handbook!(rows, payload, headers: request.headers)

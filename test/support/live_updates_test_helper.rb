@@ -59,6 +59,9 @@ class LiveTestEvents < Integrations::MapEventSource
     end
 
     def setup_steps = [ "Open the webhook settings in Live test.", "Add a webhook to the address above, then copy its signing secret here." ]
+
+    # A delivery about a run, which changes nothing on the map.
+    def wakes?(payload, headers:) = payload["run"].present?
   end
 end
 
@@ -139,9 +142,20 @@ module LiveUpdatesTestHelper
     ENV["APP_HOST"] = previous
   end
 
-  def live_delivery(changes, secret:)
-    body = { "changes" => changes }.to_json
+  def live_delivery(changes, secret:, run: nil)
+    body = { "changes" => changes, "run" => run }.compact.to_json
     [ body, { LiveTestEvents::SIGNATURE => OpenSSL::HMAC.hexdigest("SHA256", secret, body), "Content-Type" => "application/json" } ]
+  end
+
+  # An active watch with a step reading through the connection, as a run step a live update wakes.
+  def watch_through(row)
+    member = workspace_memberships(:alice_workspace_one)
+    chat = Conversation.start_personal!(workspace: row.integration.workspace, member: member).chat_record
+    watch = Chat::Watch.create!(chat: chat, workspace: row.integration.workspace, asker: member, title: "Deploy", expires_at: 1.hour.from_now,
+                                limit_basis: Chat::Watch::BASIS_DEFAULT)
+    watch.steps.create!(position: 0, label: "Deploy", capability: Integrations::Capabilities::HISTORY, integration_environment: row,
+                        status: Chat::Watch::Step::STATUS_WAITING)
+    watch
   end
 
   def change(id, at:, kind: ResourceMap::KIND_SERVICE, name: "web", action: ResourceMap::Event::UPDATED)

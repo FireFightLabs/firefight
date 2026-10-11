@@ -22,6 +22,14 @@ module Integrations
         assert_match "/apps/app-1", text(result)
       end
 
+      test "a read of one deployment links that deployment's page, and its logs are left to app_logs" do
+        DigitaloceanApi.any_instance.expects(:read).with("/v2/apps/app-1/deployments/dep-9", {}).returns("deployment" => { "id" => "dep-9", "phase" => "ERROR" })
+
+        assert_match "https://cloud.digitalocean.com/apps/app-1/deployments/dep-9", text(call("path" => "/v2/apps/app-1/deployments/dep-9"))
+        refused = assert_raises(PolicyRefusal) { call("path" => "/v2/apps/app-1/deployments/dep-9/logs") }
+        assert_match "app_logs, which takes a deployment", refused.message
+      end
+
       test "a database's password never comes back, and a path outside /v2 is said as a failure the agent can fix" do
         DigitaloceanApi.any_instance.stubs(:read).returns("database" => { "id" => "db-1", "connection" => { "host" => "db.example", "password" => "s3cret" } })
 

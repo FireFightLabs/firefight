@@ -18,7 +18,14 @@ module Integrations
       # sends does, and it sends nothing when a site is added, removed or its settings change.
       PUBLISHED = "deploy_created".freeze
       RESTORED = "deploy_restored".freeze
-      EVENTS = [ PUBLISHED, RESTORED ].freeze
+      MAP_EVENTS = [ PUBLISHED, RESTORED ].freeze
+      # A deploy starting to build and one that failed change nothing on the map, and have a watch reading through the
+      # connection check now, as every deploy event does, a deploy preview's or branch deploy's too. Netlify also sends a
+      # failure after a success and a success after a failure (deploy_failed_after_succeeding,
+      # deploy_succeeded_after_failing), which only repeat these.
+      BUILDING = "deploy_building".freeze
+      FAILED = "deploy_failed".freeze
+      EVENTS = [ *MAP_EVENTS, BUILDING, FAILED ].freeze
       # A deploy preview or branch deploy is not what the site serves.
       PRODUCTION = "production".freeze
       # Stands for every hook Firefight added, which are one per site and event.
@@ -41,13 +48,15 @@ module Integrations
         def events(payload, headers:)
           type = headers[EVENT_HEADER].to_s
           site = payload["site_id"].presence
-          return [] unless site && EVENTS.include?(type)
+          return [] unless site && MAP_EVENTS.include?(type)
           return [] unless [ nil, "", PRODUCTION ].include?(payload["context"])
 
           at = payload["published_at"].presence || payload["updated_at"]
           [ ResourceMap::Event.new(id: [ type, payload["id"], payload["updated_at"] ].join(":"), at: time(at), action: ResourceMap::Event::UPDATED,
                                    scope: ResourceMap::Scope.new(kind: ResourceMap::KIND_SITE, external_id: site)) ]
         end
+
+        def wakes?(payload, headers:) = payload["site_id"].present? && EVENTS.include?(headers[EVENT_HEADER].to_s)
 
         # Adds a hook for each event to every site, or takes back one Firefight added before at this connection's own
         # address, turning it on again if Netlify disabled it. Every site's hooks share the connection's secret, which is

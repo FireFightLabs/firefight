@@ -4,6 +4,11 @@ module Integrations
   # specification/DigitalOcean-public.v2.yaml and specification/resources/{apps,droplets,databases,monitoring}).
   class DigitaloceanApi
     class Error < Integrations::Error; end
+    # DigitalOcean answered that what was named is not there, such as a deployment of another app.
+    class NotFound < Error
+      include Integrations::NotFound
+    end
+    REFINE = ->(code, _reason) { NotFound if code == 404 }
     # The provider this client calls, by its registry key and name, for the address check and its errors.
     PROVIDER_KEY = "digitalocean".freeze
     PROVIDER = "DigitalOcean".freeze
@@ -32,13 +37,19 @@ module Integrations
 
     def deployments(app_id, limit:) = get("/apps/#{Http.segment(app_id)}/deployments", "per_page" => limit)["deployments"] || []
 
+    # One deployment with its progress, steps and the phase it is in (apps_get_deployment).
+    def deployment(app_id, deployment_id) = get("/apps/#{Http.segment(app_id)}/deployments/#{Http.segment(deployment_id)}")["deployment"] || {}
+
     def health(app_id) = get("/apps/#{Http.segment(app_id)}/health")["app_health"] || {}
 
-    # The archived logs of the active deployment, of one component or of every one. DigitalOcean answers with the
-    # addresses of the files (historic_urls), which are read next, and a live address Firefight does not follow.
-    def log_urls(app_id, type:, component: nil)
-      path = component ? "/apps/#{Http.segment(app_id)}/components/#{Http.segment(component)}/logs" : "/apps/#{Http.segment(app_id)}/logs"
-      Array(get(path, "type" => type, "follow" => false)["historic_urls"])
+    # The archived logs of one deployment, the active one unless named, of one component or of every one
+    # (apps_get_logs_active_deployment, apps_get_logs and their aggregate forms). DigitalOcean answers with the addresses
+    # of the files (historic_urls), which are read next, and a live address Firefight does not follow.
+    def log_urls(app_id, type:, component: nil, deployment: nil)
+      path = "/apps/#{Http.segment(app_id)}"
+      path += "/deployments/#{Http.segment(deployment)}" if deployment
+      path += "/components/#{Http.segment(component)}" if component
+      Array(get("#{path}/logs", "type" => type, "follow" => false)["historic_urls"])
     end
 
     # One archived log file at DigitalOcean's signed address, read without the token, which only ever goes to the API,
@@ -105,7 +116,7 @@ module Integrations
         request["Content-Type"] = "application/json"
         request.body = body.to_json
       end
-      Http.json(uri, request, error_class: Error, provider_name: PROVIDER, reason: REASON)
+      Http.json(uri, request, error_class: Error, provider_name: PROVIDER, reason: REASON, refine: REFINE)
     end
   end
 end

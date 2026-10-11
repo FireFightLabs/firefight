@@ -328,6 +328,10 @@ search_logs:
       run:
         type: string
         description: Only one run's lines, by the run's id as run_history gives it, for a job whose provider keeps them per run (optional)
+      deployment:
+        type: string
+        description: 'build stream only: the deployment or build whose log to read, by the id run_history or recent_deploys shows (optional, the
+          newest otherwise)'
       limit:
         type: integer
         description: At most this many (optional)

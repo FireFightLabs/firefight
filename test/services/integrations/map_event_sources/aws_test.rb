@@ -192,6 +192,22 @@ module Integrations
         end
       end
 
+      test "a CodeBuild project created, changed or deleted, and a build moving on, name the project, which a watch on its builds wakes for" do
+        project = "arn:aws:codebuild:eu-west-1:#{ACCOUNT}:project/web-build"
+        named = ->(name, asked: {}, answered: {}) { Aws.record_events(record(Aws::CODEBUILD, name, asked, answered)).map { |event| [ event.action, event.scope.kind, event.scope.external_id ] } }
+
+        assert_equal [ [ ResourceMap::Event::ADDED, ResourceMap::KIND_BUILD_SERVICE, project ] ],
+                     named.call("CreateProject", asked: { "name" => "web-build" }, answered: { "project" => { "arn" => project } })
+        assert_equal [ [ ResourceMap::Event::UPDATED, ResourceMap::KIND_BUILD_SERVICE, project ] ], named.call("UpdateProject", asked: { "name" => "web-build" })
+        assert_equal [ [ ResourceMap::Event::REMOVED, ResourceMap::KIND_BUILD_SERVICE, project ] ], named.call("DeleteProject", asked: { "name" => "web-build" })
+        assert_empty named.call("StartBuild", asked: { "projectName" => "web-build" }), "a build started through the API changes nothing the map shows"
+
+        sent = Aws.events(state("CodeBuild Build State Change", "source" => "aws.codebuild",
+                                                                "detail" => { "build-status" => "FAILED", "project-name" => "web-build", "build-id" => "arn:aws:codebuild:eu-west-1:#{ACCOUNT}:build/web-build:x" }), headers: {}).sole
+        assert_equal [ "eb-1", ResourceMap::Event::UPDATED, project ], [ sent.id, sent.action, sent.scope.external_id ]
+        assert_equal project, Aws.events(state("CodeBuild Build Phase Change", "detail" => { "project-name" => "web-build" }), headers: {}).sole.scope.external_id
+      end
+
       test "the template asks EventBridge for what the source reads, with the key in the header Firefight checks" do
         template = Aws.template
         resources = template["Resources"]
@@ -204,7 +220,7 @@ module Integrations
         asked = calls["eventName"].map { |name| name.is_a?(Hash) ? name["prefix"] : name }
         assert_equal Aws::CALLS.values.flatten.uniq.sort, asked.uniq.sort
         states = resources.dig("FirefightStateChanges", "Properties", "EventPattern", "detail-type")
-        assert_equal [ Aws::EC2_STATE, *Aws::ECS_SERVICE, Aws::RDS_INSTANCE ].sort, states.sort
+        assert_equal [ Aws::EC2_STATE, *Aws::ECS_SERVICE, Aws::RDS_INSTANCE, *Aws::BUILD_STATE ].sort, states.sort
         assert_equal [ Aws::STACK_STATUS ], resources.dig("FirefightStackStatus", "Properties", "EventPattern", "detail-type")
         assert(resources.values.select { |each| each["Type"] == "AWS::Events::Rule" }.all? { |rule| rule.dig("Properties", "State") == "ENABLED" })
       end

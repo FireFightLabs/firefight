@@ -79,7 +79,8 @@ module Integrations
 
       tool :search_logs,
            description: "Log lines from one service, newest first, at most #{LOG_LIMIT}. type app is what the code prints, across " \
-                        "its deployments in the range. build is one deployment's build. http is the requests reaching one " \
+                        "its deployments in the range, or one deployment's when deployment is given. build is one deployment's " \
+                        "build. http is the requests reaching one " \
                         "deployment through a public domain, with status and duration. Filter by text, or leave lines out with exclude",
            params_schema: {
              "type" => "object",
@@ -135,6 +136,7 @@ module Integrations
              "properties" => {
                "resource" => RESOURCE,
                "name" => { "type" => "string", "description" => "Only runs of this kind, deploy (optional)" },
+               "run" => { "type" => "string", "description" => "Only this deployment, by its id, with each step it went through and how each ended (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many deployments (optional, #{DEPLOYMENT_LIMIT})" }
              },
              "required" => [ "resource" ]
@@ -339,19 +341,69 @@ module Integrations
 
       def deploy_history(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
+        return one_deployment(environment_row, resource, arguments["run"]) if arguments["run"].present?
+
         deployments = api(environment_row).deployments(project_of(environment_row), environment(environment_row)["id"], resource[:id],
                                                        limit: Capabilities::Answers.limit(arguments, DEPLOYMENT_LIMIT))
-        runs = deployments.map do |deployment|
-          meta = deployment["meta"].is_a?(Hash) ? deployment["meta"] : {}
-          Capabilities::History::Run.new(
-            id: deployment["id"], name: "deploy", status: Capabilities::History.status(deployment["status"], DEPLOYMENT_STATUSES),
-            started_at: Telemetry.parse_time(deployment["createdAt"]),
-            finished_at: (Telemetry.parse_time(deployment["updatedAt"]) if ENDED_AT.include?(deployment["status"])),
-            detail: ("#{meta['commitHash'].to_s.first(12)} #{meta['commitMessage'].to_s.lines.first.to_s.strip}".strip if meta["commitHash"].present?)
-          )
-        end
+        runs = deployments.map { |deployment| deployment_run(deployment) }
         Capabilities::History.result(runs, what: resource[:name], link: link(environment_row, resource), name: arguments["name"])
       end
+
+      # The steps of a deployment (schema, enum DeploymentEventStep) in words, and the log each prints to. Taking the code,
+      # building and publishing the image print to the build log, and the rest to the deployment's own log.
+      STEPS = {
+        "SNAPSHOT_CODE" => "take the code", "BUILD_IMAGE" => "build", "PUBLISH_IMAGE" => "publish the image",
+        "WAIT_FOR_DEPENDENCIES" => "wait for dependencies", "MIGRATE_VOLUMES" => "migrate volumes", "PRE_DEPLOY_COMMAND" => "pre-deploy command",
+        "CREATE_CONTAINER" => "create containers", "HEALTHCHECK" => "healthcheck", "CONFIGURE_NETWORK" => "configure the network",
+        "DRAIN_INSTANCES" => "drain old instances"
+      }.freeze
+      BUILD_STEPS = %w[SNAPSHOT_CODE BUILD_IMAGE PUBLISH_IMAGE].freeze
+      STEP_LIMIT = 50
+      # A step's log is read to a little past when it completed.
+      STEP_MARGIN = 1.minute
+
+      def deployment_run(deployment)
+        meta = deployment["meta"].is_a?(Hash) ? deployment["meta"] : {}
+        Capabilities::History::Run.new(
+          id: deployment["id"], name: "deploy", status: Capabilities::History.status(deployment["status"], DEPLOYMENT_STATUSES),
+          started_at: Telemetry.parse_time(deployment["createdAt"]),
+          finished_at: (Telemetry.parse_time(deployment["updatedAt"]) if ENDED_AT.include?(deployment["status"])),
+          detail: ("#{meta['commitHash'].to_s.first(12)} #{meta['commitMessage'].to_s.lines.first.to_s.strip}".strip if meta["commitHash"].present?)
+        )
+      end
+      private :deployment_run
+
+      # One deployment of this service in this environment by its id, with each step it went through. Railway documents
+      # no address for a deployment's page, so it links to the service.
+      def one_deployment(environment_row, resource, asked)
+        id = asked.to_s.strip
+        deployment = own_deployment!(environment_row, resource, id)
+
+        run = deployment_run(deployment)
+        events = api(environment_row).deployment_events(id, limit: STEP_LIMIT).sort_by { |event| event["createdAt"].to_s }
+        run = run.with(parts: events.map { |event| step_part(resource, run, event) })
+        Capabilities::History.result([ run ], what: resource[:name], link: link(environment_row, resource))
+      end
+      private :one_deployment
+
+      def step_part(resource, run, event)
+        payload = event["payload"].is_a?(Hash) ? event["payload"] : {}
+        started_at = Telemetry.parse_time(event["createdAt"])
+        finished_at = Telemetry.parse_time(event["completedAt"])
+        status = if payload["error"].present? then Capabilities::History::FAILED
+        elsif finished_at || payload["skipped"] then Capabilities::History::SUCCEEDED
+        elsif run.finished? then run.status
+        else Capabilities::History::RUNNING
+        end
+        log = { "resource" => resource[:id], "type" => BUILD_STEPS.include?(event["step"]) ? BUILD : APP, "deployment" => run.id,
+                "start" => run.started_at&.utc&.iso8601, "end" => (finished_at && (finished_at + STEP_MARGIN).utc.iso8601) }.compact
+        Capabilities::History::Part.new(
+          id: event["id"], name: STEPS.fetch(event["step"].to_s) { event["step"].to_s.downcase.tr("_", " ") }, status: status,
+          started_at: started_at, finished_at: finished_at, detail: payload["error"].presence || ("skipped" if payload["skipped"]),
+          log: { Capabilities::History::LOG_TOOL => "search_logs", Capabilities::History::LOG_ARGUMENTS => log }
+        )
+      end
+      private :step_part
 
       def restart_deployment(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
@@ -758,6 +810,8 @@ module Integrations
       # Environment logs filtered to the service, read back from the end of the range, as the CLI reads an anchored window
       # (railwayapp/cli, src/controllers/deployment.rs, anchored_log_window).
       def app_logs(environment_row, resource, started, ended, limit, arguments)
+        return deployment_app_logs(environment_row, resource, arguments["deployment"], started, ended, limit, arguments) if arguments["deployment"].present?
+
         found = api(environment_row).environment_logs(
           "environmentId" => environment(environment_row)["id"], "filter" => filter("@service:#{resource[:id]}", arguments),
           "beforeDate" => stamp(started), "anchorDate" => stamp(ended), "afterDate" => stamp(ended), "afterLimit" => 0, "beforeLimit" => limit
@@ -765,15 +819,24 @@ module Integrations
         found.filter_map { |line| log_line(line, line.dig("tags", "deploymentInstanceId")) }.select { |line| line.at.between?(started, ended) }
       end
 
+      # What one deployment printed, such as a deployment that failed its healthcheck and was never the latest. Only one of
+      # this service in this environment, so a deployment id never reaches past what the connection reads.
+      def deployment_app_logs(environment_row, resource, deployment, started, ended, limit, arguments)
+        own_deployment!(environment_row, resource, deployment)
+        found = api(environment_row).deployment_logs("deploymentId" => deployment, "filter" => filter(arguments), "limit" => limit,
+                                                     "startDate" => started.utc.iso8601, "endDate" => ended.utc.iso8601)
+        found.filter_map { |line| log_line(line, deployment) }
+      end
+
       def build_logs(environment_row, resource, started, ended, limit, arguments)
-        deployment = deployment_of(resource, arguments)
+        deployment = deployment_of(environment_row, resource, arguments)
         found = api(environment_row).build_logs("deploymentId" => deployment, "filter" => filter(arguments), "limit" => limit,
                                                 "startDate" => started.utc.iso8601, "endDate" => ended.utc.iso8601)
         found.filter_map { |line| log_line(line, deployment) }
       end
 
       def http_logs(environment_row, resource, started, ended, limit, arguments)
-        deployment = deployment_of(resource, arguments)
+        deployment = deployment_of(environment_row, resource, arguments)
         found = api(environment_row).http_logs("deploymentId" => deployment, "filter" => filter(arguments), "beforeLimit" => limit,
                                                "beforeDate" => stamp(started), "anchorDate" => stamp(ended), "afterDate" => stamp(ended), "afterLimit" => 0)
         found.filter_map do |request|
@@ -786,9 +849,24 @@ module Integrations
         end
       end
 
-      def deployment_of(resource, arguments)
-        arguments["deployment"].presence || resource[:instance].dig("latestDeployment", "id") ||
-          fail!("#{resource[:name]} has no deployment yet, so it has no build or HTTP logs.")
+      # A deployment named by its id is read only when it is this service's in this environment, so an id never reaches
+      # past what the connection reads.
+      def deployment_of(environment_row, resource, arguments)
+        asked = arguments["deployment"].presence
+        return own_deployment!(environment_row, resource, asked)["id"] if asked
+
+        resource[:instance].dig("latestDeployment", "id") || fail!("#{resource[:name]} has no deployment yet, so it has no build or HTTP logs.")
+      end
+
+      def own_deployment!(environment_row, resource, id)
+        found = begin
+          api(environment_row).deployment(id)
+        rescue RailwayApi::NotFound
+          nil
+        end
+        return found if found && found["serviceId"] == resource[:id] && found["environmentId"] == environment(environment_row)["id"]
+
+        fail! "#{resource[:name]} has no deployment #{id} in this environment. deploy_history lists its recent deployments."
       end
 
       def log_line(line, source)

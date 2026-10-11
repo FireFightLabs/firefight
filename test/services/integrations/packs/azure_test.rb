@@ -177,6 +177,52 @@ module Integrations
         assert_equal [ [ "def456", "running", nil ], [ "abc123", "succeeded", 300 ] ], Capabilities::History.runs_of(result).map { |run| [ run.id, run.status, run.seconds ] }
       end
 
+      LOG = { "value" => [
+        { "properties" => { "id" => "e1", "log_time" => "2026-10-03T09:00:00Z", "message" => "Updating branch 'main'.", "type" => 0 } },
+        { "properties" => { "id" => "e2", "log_time" => "2026-10-03T09:00:20Z", "message" => "Running deployment command...", "type" => 0 } },
+        { "properties" => { "id" => "e3", "log_time" => "2026-10-03T09:03:00Z", "message" => "npm ERR! code ELIFECYCLE\nnpm ERR! errno 1", "type" => 2 } }
+      ] }.freeze
+
+      test "one deployment by its id is read with each step its log records, the failed one read by deployment_log, linking its Deployment Center" do
+        AzureApi.any_instance.expects(:list).with { |path, *| path == "#{WEB_ID}/deployments" }.never
+        AzureApi.any_instance.stubs(:get).with("#{WEB_ID}/deployments/abc123", Azure::WEB_VERSION).returns(
+          "name" => "storefront/abc123", "properties" => { "status" => 3, "start_time" => "2026-10-03T09:00:00Z", "end_time" => "2026-10-03T09:03:10Z", "message" => "Fix checkout" }
+        )
+        AzureApi.any_instance.stubs(:get).with("#{WEB_ID}/deployments/abc123/log", Azure::WEB_VERSION).returns(LOG)
+
+        result = Azure.new(@integration).call("list_deployments", environment_row: @row, arguments: { "resource" => "storefront", "deployment" => "abc123" })
+
+        run = Capabilities::History.runs_of(result).sole
+        assert_equal [ "abc123", "failed", "#{PORTAL}#{WEB_ID}/vstscd" ], [ run.id, run.status, run.url ]
+        assert_equal [ [ "Updating branch 'main'.", "succeeded", 20 ], [ "Running deployment command...", "succeeded", 160 ], [ "npm ERR! code ELIFECYCLE", "failed", 10 ] ],
+                     run.parts.map { |part| [ part.name, part.status, part.seconds ] }
+        assert_equal({ "tool" => "deployment_log", "arguments" => { "resource" => WEB_ID, "deployment" => "abc123" } }, run.first_failed_part.log)
+        assert_match "errno 1", run.first_failed_part.detail
+      end
+
+      test "a deployment's log is read line by line, the newest deployment's when none is named, and one Azure lacks is said in words" do
+        AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{WEB_ID}/deployments" }.returns(pages([
+          { "name" => "storefront/old", "properties" => { "status" => 4, "start_time" => "2026-10-02T09:00:00Z" } },
+          { "name" => "storefront/abc123", "properties" => { "status" => 3, "start_time" => "2026-10-03T09:00:00Z" } }
+        ]))
+        AzureApi.any_instance.stubs(:get).with("#{WEB_ID}/deployments/abc123/log", Azure::WEB_VERSION).returns(LOG)
+        AzureApi.any_instance.stubs(:get).with("#{WEB_ID}/deployments/gone", Azure::WEB_VERSION).raises(AzureApi::NotFound, "Azure answered 404")
+
+        text = call(:deployment_log, "resource" => "storefront")
+        assert_match "Log of deployment abc123 of storefront, failed, started 2026-10-03T09:00:00Z.", text
+        assert_match "2026-10-03T09:03:00Z ERROR npm ERR! code ELIFECYCLE", text
+        assert_match "storefront has no deployment gone", assert_raises(Integrations::Error) { call(:deployment_log, "resource" => "storefront", "deployment" => "gone") }.message
+        assert_match "Deployment logs are an App Service or Function app's", assert_raises(Integrations::Error) { call(:deployment_log, "resource" => "api") }.message
+      end
+
+      test "a deployment log Azure answers as one Deployment is read from its message" do
+        AzureApi.any_instance.stubs(:get).with("#{WEB_ID}/deployments/abc123", Azure::WEB_VERSION).returns("name" => "abc123", "properties" => { "status" => 3 })
+        AzureApi.any_instance.stubs(:get).with("#{WEB_ID}/deployments/abc123/log", Azure::WEB_VERSION)
+                .returns("name" => "abc123", "properties" => { "start_time" => "2026-10-03T09:00:00Z", "message" => "Deployment failed: zip is empty" })
+
+        assert_match "Deployment failed: zip is empty", call(:deployment_log, "resource" => "storefront", "deployment" => "abc123")
+      end
+
       test "a rollback swaps a slot the app has, or sends a Container App's traffic to an earlier revision, activating it first" do
         AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{WEB_ID}/slots" }.returns(pages([ { "name" => "storefront/staging" } ]))
         AzureApi.any_instance.expects(:post).with("#{WEB_ID}/slotsswap", Azure::WEB_VERSION, { "targetSlot" => "staging", "preserveVnet" => true }).returns({})

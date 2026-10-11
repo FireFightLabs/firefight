@@ -38,13 +38,15 @@ module Integrations
             raise Unroutable, "App Platform keeps what an app prints (app) and its builds (build), so stream must be one of those. " \
                               "Its deploy logs and the logs of crashed instances are read with app_logs."
           end
-          Route.new(tool_name: TOOLS[LOGS], arguments: { "resource" => id, "type" => STREAMS.fetch(stream) }.merge(given.slice(*PASSED)))
+          # A build's log is of the deployment named, such as a failed one a watch follows, rather than the active one's.
+          deployment = given["deployment"].presence if stream == STREAM_BUILD
+          Route.new(tool_name: TOOLS[LOGS], arguments: { "resource" => id, "type" => STREAMS.fetch(stream), "deployment" => deployment }.compact.merge(given.slice(*PASSED)))
         when METRICS
           names = metric_names(given, METRIC_MAP, "DigitalOcean")
           Route.new(tool_name: TOOLS[METRICS], arguments: { "resource" => id, "metrics" => names.presence }.compact.merge(given.slice("minutes", "start", "end")))
         when DEPLOYS then Route.new(tool_name: TOOLS[DEPLOYS], arguments: { "resource" => id }.merge(given.slice("limit")))
         when STATUS then Route.new(tool_name: TOOLS[STATUS], arguments: { "resource" => id })
-        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: { "resource" => id }.merge(given.slice("name", "limit")))
+        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: { "resource" => id }.merge(given.slice("name", "run", "limit").compact_blank))
         when ROLLBACK then Route.new(tool_name: TOOLS[ROLLBACK], arguments: { "resource" => id, "deployment" => target(given) })
         # A Droplet restarts by rebooting, gracefully, through droplet_actions_post with type reboot.
         when RESTART then Route.new(tool_name: resource.kind == DROPLET ? REBOOT : tool_for(RESTART), arguments: { "resource" => id })

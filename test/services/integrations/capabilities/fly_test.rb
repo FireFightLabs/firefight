@@ -55,6 +55,7 @@ class Integrations::Capabilities::FlyTest < ActiveSupport::TestCase
   test "run history is an app's releases, by its name, and a Postgres cluster has none" do
     history = resolve(Integrations::Capabilities::HISTORY, "resource" => "web", "name" => "deploy")
     assert_equal [ "deploy_history", { "resource" => "web", "name" => "deploy" } ], [ history.tool.name, history.arguments ]
+    assert_equal "v12", resolve(Integrations::Capabilities::HISTORY, "resource" => "web", "run" => "v12").arguments["run"]
     assert_match "no connection offers run history", unroutable(Integrations::Capabilities::HISTORY, "resource" => "main-db")
   end
 

@@ -20,13 +20,18 @@ module Integrations
       PROJECT_ID = "project_id".freeze
       SCOPED_TO = "project_ref".freeze
       # The log sources a stream reads, and the columns each is read with, as the server's get_logs reads them.
-      SOURCES = { STREAM_APP => "postgres_logs", "requests" => "edge_logs" }.freeze
+      # A branch's build is its branch action, the run that migrates and seeds it, logged as workflow_run_logs (get_logs'
+      # branch-action service).
+      BRANCH_ACTIONS = "workflow_run_logs".freeze
+      SOURCES = { STREAM_APP => "postgres_logs", "requests" => "edge_logs", STREAM_BUILD => BRANCH_ACTIONS }.freeze
       COLUMNS = {
         "postgres_logs" => "timestamp, event_message, log_attributes['parsed.error_severity'] as error_severity",
         "edge_logs" => "timestamp, event_message, log_attributes['request.method'] as method, log_attributes['request.path'] as path, " \
-                       "log_attributes['response.status_code'] as status_code"
+                       "log_attributes['response.status_code'] as status_code",
+        BRANCH_ACTIONS => "timestamp, event_message, log_attributes['workflow_run'] as workflow_run"
       }.freeze
-      PAGES = { "postgres_logs" => "logs/postgres-logs", "edge_logs" => "logs/edge-logs" }.freeze
+      PAGES = { "postgres_logs" => "logs/postgres-logs", "edge_logs" => "logs/edge-logs", BRANCH_ACTIONS => "logs/explorer" }.freeze
+      READS = { "postgres_logs" => "Postgres logs of", "edge_logs" => "API requests to", BRANCH_ACTIONS => "Branch action runs of" }.freeze
       MIGRATIONS_PAGE = "database/migrations".freeze
       LOG_LIMIT = 200
       LOG_MOST = 1_000
@@ -69,7 +74,10 @@ module Integrations
 
       def self.logs(resource, ref, given, tool)
         source = SOURCES[given["stream"].presence || STREAM_APP]
-        raise Unroutable, "Supabase reads a project's Postgres logs with stream app and the API requests reaching it with stream requests. Ask query_logs for its other logs." unless source
+        unless source
+          raise Unroutable, "Supabase reads a project's Postgres logs with stream app, the API requests reaching it with stream requests and " \
+                            "its branch action runs with stream build. Ask query_logs for its other logs."
+        end
 
         limit = Answers.limit(given, LOG_MOST, default: LOG_LIMIT)
         started, ended = window(given)
@@ -108,12 +116,12 @@ module Integrations
         rows = Array(inner.is_a?(Hash) ? inner["result"] : inner)
         lines = rows.filter_map do |row|
           at = Answers.time_of(row["timestamp"])
-          text = [ row["error_severity"], row["method"], row["path"], row["status_code"], row["event_message"] ].compact_blank.join(" ")
+          run = row["workflow_run"].presence && "run #{row['workflow_run']}"
+          text = [ run, row["error_severity"], row["method"], row["path"], row["status_code"], row["event_message"] ].compact_blank.join(" ")
           Telemetry::LogLine.new(at: at, source: resource.name, text: text) if at && text.present?
         end.sort_by(&:at).reverse
         link = Telemetry::Link.new(provider: PROVIDER, url: page(resource, PAGES.fetch(source)))
-        what = source == "edge_logs" ? "API requests to" : "Postgres logs of"
-        Telemetry.result(Telemetry.logs_text(lines, asked: "#{what} #{resource.name}", limit: limit), link: link)
+        Telemetry.result(Telemetry.logs_text(lines, asked: "#{READS.fetch(source)} #{resource.name}", limit: limit), link: link)
       end
 
       def self.deploys_result(resource, data, given)

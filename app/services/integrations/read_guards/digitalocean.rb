@@ -4,8 +4,8 @@ module Integrations
     # the guard settles is which GETs answer secrets. A Kubernetes cluster's kubeconfig and credentials
     # (kubernetes_get_kubeconfig, kubernetes_get_credentials) and the registry's Docker credentials
     # (registry_get_dockerCredentials) are nothing but credentials. An app's logs answer signed addresses that read the
-    # logs for anyone who has them (apps_get_logs, historic_urls and live_url), so app_logs reads them instead. A database
-    # cluster's users and connection pools answer passwords, Spaces keys their secret, a Functions namespace the key that
+    # logs for anyone who has them (apps_get_logs, historic_urls and live_url), so app_logs reads them instead, for any
+    # deployment. A database cluster's users and connection pools answer passwords, Spaces keys their secret, a Functions namespace the key that
     # calls it, and an agent's API keys their values, so they are read as names.
     module Digitalocean
       extend PathReads
@@ -18,7 +18,7 @@ module Integrations
           "The registry's Docker credentials are a key to push and pull, so a read never fetches them.",
         %r{\A/v2/apps/[^/]+/(deployments/[^/]+/)?(components/[^/]+/)?logs\z} =>
           "An app's logs come back as signed addresses that read them for anyone who has them, so the general read never " \
-          "fetches them. Read them with app_logs, which keeps the addresses to itself."
+          "fetches them. Read them with app_logs, which takes a deployment and a component and keeps the addresses to itself."
       }.freeze
       SECRET_PATHS = %r{\A/v2/databases/[^/]+/(users|pools)|\A/v2/spaces/keys|\A/v2/functions/namespaces|/api_keys(/|\z)}
     end

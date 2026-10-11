@@ -72,7 +72,7 @@ module Integrations
       end
 
       test "logs are the newest lines in range, filtered, and every answer is redacted on its way out of the executor" do
-        DigitaloceanApi.any_instance.expects(:log_urls).with(APP_ID, type: "RUN_RESTARTED", component: "web").twice.returns([ "https://logs.example/1.log" ])
+        DigitaloceanApi.any_instance.expects(:log_urls).with(APP_ID, type: "RUN_RESTARTED", component: "web", deployment: nil).twice.returns([ "https://logs.example/1.log" ])
         DigitaloceanApi.any_instance.stubs(:log_file).returns(<<~LOG)
           web 2026-10-01T10:00:00Z booting
           web 2026-10-01T10:01:00Z error token ghp_#{'a' * 36}
@@ -296,6 +296,74 @@ module Integrations
         runs = Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "resource" => APP_ID }))
 
         assert_equal [ [ "dep-3", "running", nil ], [ "dep-2", "succeeded", 360 ], [ "dep-1", "failed", 120 ] ], runs.map { |run| [ run.id, run.status, run.seconds ] }
+        assert_equal "https://cloud.digitalocean.com/apps/#{APP_ID}/deployments/dep-2", runs.second.url
+      end
+
+      # The shape of apps_get_deployment and apps_deployment_progress_step in digitalocean/openapi, with a build step whose
+      # child steps run per component and a deploy step that never started.
+      DEPLOYMENT = {
+        "id" => "dep-9", "phase" => "ERROR", "cause" => "commit 9f8e7d6 pushed to github/acme/shop", "created_at" => "2026-10-01T06:00:00Z",
+        "phase_last_updated_at" => "2026-10-01T06:05:00Z",
+        "progress" => {
+          "error_steps" => 1, "total_steps" => 3,
+          "steps" => [
+            { "name" => "build", "status" => "ERROR", "started_at" => "2026-10-01T06:00:10Z", "ended_at" => "2026-10-01T06:04:00Z",
+              "steps" => [
+                { "name" => "initialize", "status" => "SUCCESS", "started_at" => "2026-10-01T06:00:10Z", "ended_at" => "2026-10-01T06:00:20Z" },
+                { "name" => "components", "status" => "ERROR",
+                  "steps" => [
+                    { "name" => "web", "component_name" => "web", "message_base" => "Building service", "status" => "ERROR",
+                      "started_at" => "2026-10-01T06:00:20Z", "ended_at" => "2026-10-01T06:04:00Z",
+                      "reason" => { "code" => "BuildJobExitNonZero", "message" => "Your build job failed because it returned a non-zero exit code." } },
+                    { "name" => "jobs", "component_name" => "jobs", "message_base" => "Building worker", "status" => "SUCCESS",
+                      "started_at" => "2026-10-01T06:00:20Z", "ended_at" => "2026-10-01T06:02:00Z" }
+                  ] }
+              ] },
+            { "name" => "deploy", "status" => "PENDING", "steps" => [] }
+          ]
+        }
+      }.freeze
+
+      test "one deployment asked by its id is read on its own, with each component it built and the log of that deployment" do
+        DigitaloceanApi.any_instance.expects(:deployment).with(APP_ID, "dep-9").returns(DEPLOYMENT.deep_dup)
+        DigitaloceanApi.any_instance.expects(:deployments).never
+
+        run = Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "resource" => APP_ID, "run" => "dep-9" })).sole
+
+        assert_equal [ "dep-9", "failed", 240 ], [ run.id, run.status, run.seconds ]
+        assert_equal "https://cloud.digitalocean.com/apps/#{APP_ID}/deployments/dep-9", run.url
+        assert_equal [ [ "Building service web", "failed" ], [ "Building worker jobs", "succeeded" ], [ "deploy", "queued" ] ],
+                     run.parts.map { |part| [ part.name, part.status ] }
+        failed = run.first_failed_part
+        assert_equal "Your build job failed because it returned a non-zero exit code.", failed.detail
+        assert_equal 220, failed.seconds
+        assert_equal({ Capabilities::History::LOG_TOOL => "app_logs",
+                       Capabilities::History::LOG_ARGUMENTS => { "resource" => APP_ID, "deployment" => "dep-9", "type" => "BUILD", "component" => "web" } }, failed.log)
+        assert_equal({ "resource" => APP_ID, "deployment" => "dep-9", "type" => "DEPLOY" }, run.parts.last.log[Capabilities::History::LOG_ARGUMENTS])
+      end
+
+      test "a deployment the app does not hold is said in words" do
+        DigitaloceanApi.any_instance.stubs(:deployment).raises(DigitaloceanApi::NotFound, "DigitalOcean answered 404: not found")
+
+        error = assert_raises(NativePack::Error) { call(:deploy_history, "resource" => APP_ID, "run" => "dep-0") }
+
+        assert_equal "shop has no deployment dep-0. deploy_history lists its recent ones.", error.message
+      end
+
+      test "the logs of one deployment are read whole, however old, and link to that deployment" do
+        DigitaloceanApi.any_instance.expects(:log_urls).with(APP_ID, type: "BUILD", component: "web", deployment: "dep-9").returns([ "https://logs.example/build.log" ])
+        DigitaloceanApi.any_instance.stubs(:log_file).returns(<<~LOG)
+          web 2026-09-01T06:01:00Z npm ci
+          web 2026-09-01T06:03:59Z npm ERR! missing script: build
+        LOG
+
+        text = call(:app_logs, "resource" => "shop", "deployment" => "dep-9", "component" => "web", "type" => "BUILD")
+
+        assert_match "BUILD logs of shop (web) deployment dep-9", text
+        assert_match "missing script: build", text
+        assert_match "npm ci", text
+        assert_match "https://cloud.digitalocean.com/apps/#{APP_ID}/deployments/dep-9", text
+        assert_no_match "logs.example", text
       end
 
       test "billing reads the month so far by product and the months before, and links the billing page" do

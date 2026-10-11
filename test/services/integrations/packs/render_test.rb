@@ -336,6 +336,56 @@ module Integrations
         assert_match "usually take 4 minutes", result["content"].sole["text"]
       end
 
+      test "one deploy by its id is read with its build, pre-deploy and release, each with the log of the time it ran" do
+        RenderApi.any_instance.stubs(:deploy).with("srv-web", "dep-4").returns(
+          "id" => "dep-4", "status" => "update_failed", "createdAt" => "2026-10-01T10:00:00Z", "startedAt" => "2026-10-01T10:00:02Z",
+          "finishedAt" => "2026-10-01T10:09:00Z", "commit" => { "id" => "abc123", "message" => "Bump" }
+        )
+        RenderApi.any_instance.expects(:events).with("srv-web", has_entries("startTime" => "2026-10-01T09:59:00Z", "endTime" => "2026-10-01T10:10:00Z")).returns([
+          { "id" => "evt-6", "timestamp" => "2026-10-01T10:08:30Z", "type" => "deploy_ended",
+            "details" => { "deployId" => "dep-4", "deployStatus" => "failed", "reason" => { "failure" => { "nonZeroExit" => 1 } } } },
+          { "id" => "evt-5", "timestamp" => "2026-10-01T10:04:00Z", "type" => "deploy_started", "details" => { "deployId" => "dep-4" } },
+          { "id" => "evt-4", "timestamp" => "2026-10-01T10:03:50Z", "type" => "pre_deploy_ended",
+            "details" => { "deployId" => "dep-4", "preDeployStatus" => "succeeded" } },
+          { "id" => "evt-3", "timestamp" => "2026-10-01T10:03:00Z", "type" => "pre_deploy_started", "details" => { "deployId" => "dep-4" } },
+          { "id" => "evt-2", "timestamp" => "2026-10-01T10:02:30Z", "type" => "build_ended", "details" => { "buildId" => "bld-9", "buildStatus" => "succeeded" } },
+          { "id" => "evt-1", "timestamp" => "2026-10-01T10:00:05Z", "type" => "build_started", "details" => { "buildId" => "bld-9" } },
+          { "id" => "evt-0", "timestamp" => "2026-10-01T09:59:30Z", "type" => "deploy_ended", "details" => { "deployId" => "dep-3", "deployStatus" => "succeeded" } }
+        ])
+
+        result = @pack.call("deploy_history", environment_row: @row, arguments: { "resource" => "web", "run" => "dep-4" })
+        run = Capabilities::History.runs_of(result).sole
+
+        assert_equal "failed", run.status
+        assert_equal "#{WEB_PAGE}/deploys/dep-4", run.url
+        assert_equal [ %w[build succeeded], %w[pre-deploy succeeded], %w[deploy failed] ], run.parts.map { |part| [ part.name, part.status ] }
+        assert_equal "deploy", run.first_failed_part.name
+        assert_equal "exited with code 1", run.first_failed_part.detail
+        assert_equal({ "tool" => "search_logs", "arguments" => { "resource" => "srv-web", "type" => "build", "start" => "2026-10-01T10:00:05Z",
+                                                                 "end" => "2026-10-01T10:03:30Z" } }, run.parts.first.log)
+        assert_equal "app", run.parts.last.log.dig("arguments", "type")
+        assert_includes result["content"].sole["text"], "#{WEB_PAGE}/deploys/dep-4"
+      end
+
+      test "one deploy's logs are the lines from the time it ran" do
+        RenderApi.any_instance.stubs(:deploy).with("srv-web", "dep-4").returns(
+          "id" => "dep-4", "status" => "build_failed", "createdAt" => "2026-10-01T10:00:00Z", "finishedAt" => "2026-10-01T10:03:00Z"
+        )
+        RenderApi.any_instance.expects(:logs).with(has_entries("startTime" => "2026-10-01T10:00:00Z", "endTime" => "2026-10-01T10:04:00Z", "type" => "build"))
+                 .returns("logs" => [ { "timestamp" => "2026-10-01T10:02:00Z", "message" => "npm ERR! missing script: build" } ], "hasMore" => false)
+
+        text = @pack.call("search_logs", environment_row: @row, arguments: { "resource" => "web", "type" => "build", "deploy" => "dep-4" })["content"].sole["text"]
+
+        assert_match "missing script: build", text
+      end
+
+      test "a deploy Render does not have is said, never read as no runs" do
+        RenderApi.any_instance.stubs(:deploy).raises(RenderApi::NotFound, "Render answered 404: not found")
+
+        error = assert_raises(NativePack::Error) { @pack.call("deploy_history", environment_row: @row, arguments: { "resource" => "web", "run" => "dep-x" }) }
+        assert_match "web has no deploy dep-x", error.message
+      end
+
       private
 
       def call(tool, arguments = {})

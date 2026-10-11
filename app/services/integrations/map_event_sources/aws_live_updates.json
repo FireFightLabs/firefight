@@ -1,6 +1,6 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "Sends changes to the ECS services, Lambda functions, EC2 instances and RDS databases in this region to one Firefight connection, so its resource map follows them as they happen. Delete this stack to stop.",
+  "Description": "Sends changes to the ECS services, Lambda functions, EC2 instances, RDS databases and CodeBuild projects in this region to one Firefight connection, so its resource map follows them as they happen. Delete this stack to stop.",
   "Parameters": {
     "Address": {
       "Type": "String",
@@ -62,11 +62,14 @@
     "FirefightStateChanges": {
       "Type": "AWS::Events::Rule",
       "Properties": {
-        "Description": "State changes of EC2 instances, ECS services and RDS databases, sent to Firefight",
+        "Description": "State changes of EC2 instances, ECS services, RDS databases and CodeBuild builds, sent to Firefight",
         "State": "ENABLED",
         "EventPattern": {
-          "source": [ "aws.ec2", "aws.ecs", "aws.rds" ],
-          "detail-type": [ "EC2 Instance State-change Notification", "ECS Service Action", "ECS Deployment State Change", "RDS DB Instance Event" ]
+          "source": [ "aws.ec2", "aws.ecs", "aws.rds", "aws.codebuild" ],
+          "detail-type": [
+            "EC2 Instance State-change Notification", "ECS Service Action", "ECS Deployment State Change", "RDS DB Instance Event",
+            "CodeBuild Build State Change", "CodeBuild Build Phase Change"
+          ]
         },
         "Targets": [
           { "Id": "firefight", "Arn": { "Fn::GetAtt": [ "FirefightDestination", "Arn" ] }, "RoleArn": { "Fn::GetAtt": [ "FirefightRole", "Arn" ] } }
@@ -76,13 +79,13 @@
     "FirefightApiCalls": {
       "Type": "AWS::Events::Rule",
       "Properties": {
-        "Description": "Changes made to EC2 instances, ECS services, Lambda functions and RDS databases through their APIs, sent to Firefight",
+        "Description": "Changes made to EC2 instances, ECS services, Lambda functions, RDS databases and CodeBuild projects through their APIs, sent to Firefight",
         "State": "ENABLED",
         "EventPattern": {
-          "source": [ "aws.ec2", "aws.ecs", "aws.lambda", "aws.rds" ],
+          "source": [ "aws.ec2", "aws.ecs", "aws.lambda", "aws.rds", "aws.codebuild" ],
           "detail-type": [ "AWS API Call via CloudTrail" ],
           "detail": {
-            "eventSource": [ "ec2.amazonaws.com", "ecs.amazonaws.com", "lambda.amazonaws.com", "rds.amazonaws.com" ],
+            "eventSource": [ "ec2.amazonaws.com", "ecs.amazonaws.com", "lambda.amazonaws.com", "rds.amazonaws.com", "codebuild.amazonaws.com" ],
             "eventName": [
               "RunInstances", "StartInstances", "StopInstances", "TerminateInstances", "ModifyInstanceAttribute", "CreateTags", "DeleteTags",
               "CreateService", "UpdateService", "DeleteService", "TagResource", "UntagResource",
@@ -90,7 +93,8 @@
               { "prefix": "DeleteFunction" }, { "prefix": "TagResource" }, { "prefix": "UntagResource" },
               "CreateDBInstance", "CreateDBInstanceReadReplica", "RestoreDBInstanceFromDBSnapshot", "RestoreDBInstanceToPointInTime",
               "ModifyDBInstance", "RebootDBInstance", "StartDBInstance", "StopDBInstance", "PromoteReadReplica", "DeleteDBInstance",
-              "AddTagsToResource", "RemoveTagsFromResource"
+              "AddTagsToResource", "RemoveTagsFromResource",
+              "CreateProject", "UpdateProject", "DeleteProject"
             ]
           }
         },

@@ -13,8 +13,10 @@ module Integrations
       ACCOUNT = ":account".freeze
       ZONE = ":zone".freeze
       ACCOUNT_ID = /\A[0-9a-f]{32}\z/
-      # The path handed to cloudflare.request, in quotes or a template string.
-      REQUESTED_PATH = /path\s*:\s*[`'"]([^`'"]+)[`'"]/
+      # The path handed to cloudflare.request, in quotes or a template string, or as the JSON Firefight writes.
+      REQUESTED_PATH = /path["']?\s*:\s*[`'"]([^`'"]+)[`'"]/
+      # A Pages project and one of its deployments have their own pages, which a read of either opens.
+      PAGES_PATH = %r{\A/accounts/[^/]+/pages/projects/(?<project>[a-z0-9-]+)(?:/deployments/(?<deployment>\h[\h-]*))?(?:/|\z)}
 
       # By the API path's segments after /zones/<id> or /accounts/<id>, the dashboard page that shows them.
       ZONE_PAGES = {
@@ -40,7 +42,7 @@ module Integrations
         account = account(asked, paths.first, text)
         path = case scope
         when "zones" then ZONE_PAGES[section] && [ account, one(text, "zone_name") || ZONE, ZONE_PAGES[section] ]
-        when "accounts" then ACCOUNT_PAGES[section] && [ account, ACCOUNT_PAGES[section] ]
+        when "accounts" then pages(account, paths.first) || (ACCOUNT_PAGES[section] && [ account, ACCOUNT_PAGES[section] ])
         end
         return unless path
 
@@ -48,6 +50,11 @@ module Integrations
       end
 
       private
+
+      def pages(account, path)
+        found = path.match(PAGES_PATH)
+        found && [ account, "pages", "view", found[:project], found[:deployment] ].compact
+      end
 
       # A fully known page opens directly. Otherwise Cloudflare's own deep link asks the person for what is missing.
       def url(path)
