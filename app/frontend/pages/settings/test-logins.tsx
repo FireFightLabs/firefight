@@ -15,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { TestLoginDialog } from "@/pages/settings/components/test-logins/test-login-dialog"
+import { useCan } from "@/lib/permissions"
 import { testLoginPath } from "@/lib/routes"
 import type { TestLogin } from "@/types/serializers"
 import type { SharedProps } from "@/types"
@@ -25,10 +26,12 @@ interface TestLoginsPageProps extends SharedProps {
 
 function TestLoginRow({
   login,
+  canManage,
   onEdit,
   onDelete,
 }: {
   login: TestLogin
+  canManage: boolean
   onEdit: (login: TestLogin) => void
   onDelete: (login: TestLogin) => void
 }) {
@@ -38,20 +41,25 @@ function TestLoginRow({
         <span className="font-medium text-foreground">{login.name}</span>
         <span className="block break-all text-xs text-muted-foreground">{login.siteUrl}</span>
       </TableCell>
-      <TableCell className="hidden md:table-cell break-all text-sm text-muted-foreground">
-        {login.loginUrl ?? "-"}
-      </TableCell>
-      <TableCell className="text-sm break-all">{login.username}</TableCell>
-      <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">{login.passwordHint}</TableCell>
-      <TableCell>
-        <RowActions onEdit={() => onEdit(login)} onDelete={() => onDelete(login)} />
-      </TableCell>
+      {canManage && (
+        <TableCell className="hidden md:table-cell break-all text-sm text-muted-foreground">
+          {login.loginUrl ?? "-"}
+        </TableCell>
+      )}
+      {canManage && <TableCell className="text-sm break-all">{login.username}</TableCell>}
+      <TableCell className={`${canManage ? "hidden lg:table-cell" : ""} text-sm text-muted-foreground`}>{login.passwordHint}</TableCell>
+      {canManage && (
+        <TableCell>
+          <RowActions onEdit={() => onEdit(login)} onDelete={() => onDelete(login)} />
+        </TableCell>
+      )}
     </TableRow>
   )
 }
 
 export default function TestLoginsPage() {
   const { testLogins } = usePage<TestLoginsPageProps>().props
+  const canManage = useCan("integrations")
   const [editing, setEditing] = useState<TestLogin | null>(null)
   const [deleting, setDeleting] = useState<TestLogin | null>(null)
 
@@ -86,7 +94,7 @@ export default function TestLoginsPage() {
                   Firefight signs in itself, so the password never reaches Halon, a chat or the activity log.
                 </CardDescription>
               </div>
-              <TestLoginDialog />
+              {canManage && <TestLoginDialog />}
             </div>
           </CardHeader>
 
@@ -95,8 +103,9 @@ export default function TestLoginsPage() {
               <div className="flex flex-col items-center gap-2 py-10 text-center">
                 <IconLogin2 className="size-7 text-fg-disabled" aria-hidden />
                 <p className="max-w-md text-sm text-muted-foreground">
-                  No test logins yet. Save one for a site behind a login, and Halon can check the pages there the way
-                  a signed in customer sees them.
+                  {canManage
+                    ? "No test logins yet. Save one for a site behind a login, and Halon can check the pages there the way a signed in customer sees them."
+                    : "No test logins yet. An admin can save one for a site behind a login, so Halon can check the pages there the way a signed in customer sees them."}
                 </p>
               </div>
             </CardContent>
@@ -106,15 +115,15 @@ export default function TestLoginsPage() {
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead>Site</TableHead>
-                    <TableHead className="hidden md:table-cell">Login page</TableHead>
-                    <TableHead>Username</TableHead>
-                    <TableHead className="hidden lg:table-cell">Password</TableHead>
-                    <TableHead className="w-12" />
+                    {canManage && <TableHead className="hidden md:table-cell">Login page</TableHead>}
+                    {canManage && <TableHead>Username</TableHead>}
+                    <TableHead className={canManage ? "hidden lg:table-cell" : ""}>Password</TableHead>
+                    {canManage && <TableHead className="w-12" />}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {testLogins.map((login) => (
-                    <TestLoginRow key={login.id} login={login} onEdit={setEditing} onDelete={setDeleting} />
+                    <TestLoginRow key={login.id} login={login} canManage={canManage} onEdit={setEditing} onDelete={setDeleting} />
                   ))}
                 </TableBody>
               </Table>

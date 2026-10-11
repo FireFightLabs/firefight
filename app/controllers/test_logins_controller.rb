@@ -1,8 +1,9 @@
-# The test accounts Halon's browser signs in with, one per site. Each is a connection's credential, so only admins manage
-# them, and the password is taken here and never sent back.
+# The test accounts Halon's browser signs in with, one per site. Each is a connection's credential, so only whoever manages
+# integrations adds, edits or deletes one and sees its username, and the password is taken here and never sent back.
+# Anyone who chats with Halon sees which sites have one and when its password was saved, since Halon signs in there for them.
 class TestLoginsController < InertiaController
+  authorizes Ability::Action::RESOURCE_CHATS, read: :index
   authorizes Ability::Action::RESOURCE_INTEGRATIONS,
-    read: :index,
     create: :create,
     update: :update,
     delete: :destroy
@@ -15,7 +16,8 @@ class TestLoginsController < InertiaController
 
   def index
     render inertia: "settings/test-logins", props: {
-      testLogins: TestLoginSerializer.many(Integrations::SiteLogins.listed(current_workspace))
+      testLogins: TestLoginSerializer.many(Integrations::SiteLogins.listed(current_workspace),
+                                           manage: manageable_resources[Ability::Action::RESOURCE_INTEGRATIONS])
     }
   end
 

@@ -23,7 +23,7 @@ class BrowserCheckTest < ActiveSupport::TestCase
       response["Content-Disposition"] = "attachment; filename=report.csv"
       response.body = "a,b\n"
     end
-    %w[/order /api/cart /beacon /other].each do |path|
+    %w[/order /api/cart /beacon /other /graphql /suggest].each do |path|
       @server.mount_proc(path) do |request, response|
         @received << [ request.request_method, path, request.body.to_s ] unless request.request_method == "OPTIONS"
         response["Access-Control-Allow-Origin"] = "*"
@@ -85,6 +85,35 @@ class BrowserCheckTest < ActiveSupport::TestCase
     assert_equal [ { "name" => "item", "value" => "1" } ], viewport["stopped"]["would_send"]["fields"]
     assert_equal 1, viewport["steps"].size
     assert_empty received
+  end
+
+  test "a page's own requests while it loads go through whatever their method, and are listed" do
+    viewport = check(url: "#{base}/app", steps: [ { action: "wait_for_text", text: "Loaded" } ]).first
+
+    assert_nil viewport["stopped"]
+    assert_includes received.map { |method, path, _body| "#{method} #{path}" }, "POST /graphql"
+    assert_equal [ "#{base}/graphql", "http://localhost:#{@port}/beacon" ].sort, viewport["load_sends"].map { |each| each["url"] }.sort
+    assert_empty viewport["blocked_requests"]
+  end
+
+  test "a post a step fires once the page has loaded is never the page's load, so it stops and nothing is sent" do
+    viewport = check(url: "#{base}/app", steps: [ { action: "wait_for_text", text: "Loaded" }, { action: "click", text: "Load more" } ]).first
+
+    assert_equal [ "sends_data", 2, "#{base}/graphql" ], [ viewport["stopped"]["reason"], viewport["stopped"]["step"], viewport["stopped"]["would_send"]["url"] ]
+    assert_equal [ "{\"query\":\"products\"}" ], received.select { |_method, path, _body| path == "/graphql" }.map(&:last), "only the load's own post arrived"
+  end
+
+  test "a page a step opens loads as it does for anyone, and typing that sends stops" do
+    opened = check(url: "#{base}/menu", steps: [ { action: "click", text: "Open the app" }, { action: "wait_for_text", text: "Loaded" } ]).first
+
+    assert_nil opened["stopped"]
+    assert_equal "#{base}/app", opened["final_url"]
+    assert_equal 1, received.count { |_method, path, _body| path == "/graphql" }
+
+    typed = check(url: "#{base}/app", steps: [ { action: "wait_for_text", text: "Loaded" }, { action: "fill", label: "Find", value: "shoes" } ]).first
+
+    assert_equal [ "sends_data", "#{base}/suggest" ], [ typed["stopped"]["reason"], typed["stopped"]["would_send"]["url"] ]
+    assert_not(received.any? { |_method, path, _body| path == "/suggest" })
   end
 
   test "a third party's post is blocked without stopping the path" do
@@ -206,6 +235,17 @@ class BrowserCheckTest < ActiveSupport::TestCase
         <html><head><title>Tracked</title></head><body><p>Tracked page</p>
         <button onclick="fetch('http://localhost:#{@port}/beacon', { method: 'POST', body: 'x=1' }).catch(() => {})">Track</button></body></html>
       HTML
+      "/app" => <<~HTML,
+        <html><head><title>App</title></head><body><p id="state">Loading</p>
+        <label>Find <input oninput="fetch('/suggest', { method: 'POST', body: this.value })"></label>
+        <button onclick="fetch('/graphql', { method: 'POST', body: 'more' })">Load more</button>
+        <script>
+          Promise.allSettled([ fetch('/graphql', { method: 'POST', body: '{"query":"products"}' }),
+                        fetch('http://localhost:#{@port}/beacon', { method: 'POST', body: 'view=1' }) ])
+            .then(() => { document.getElementById('state').textContent = 'Loaded' })
+        </script></body></html>
+      HTML
+      "/menu" => '<html><body><a href="/app">Open the app</a></body></html>',
       "/login" => <<~HTML,
         <html><body><form method="post" action="/session"><label>Username <input name="username"></label>
         <label>Password <input type="password" name="password"></label><button type="submit">Sign in</button></form></body></html>

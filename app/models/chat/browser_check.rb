@@ -21,8 +21,10 @@ class Chat::BrowserCheck
   ACTION_EXPECT_TEXT = "expect_text".freeze
   ACTIONS = [ ACTION_GOTO, ACTION_CLICK, ACTION_FILL, ACTION_PRESS, ACTION_WAIT_FOR_TEXT,
                     ACTION_EXPECT_TEXT ].freeze
-  # Only a click or a key press can send what a page sends, so only those can be the step a person lets send.
-  SENDING_ACTIONS = [ ACTION_CLICK, ACTION_PRESS ].freeze
+  # Only a click, typing or a key press can make a page send something, so only those can be the step a person lets send.
+  SENDING_ACTIONS = [ ACTION_CLICK, ACTION_FILL, ACTION_PRESS ].freeze
+  # The steps that can load a new page.
+  LOADING_ACTIONS = [ ACTION_GOTO, ACTION_CLICK, ACTION_PRESS ].freeze
   STEP_FIELDS = %w[action url text role name label placeholder value key].freeze
 
   MAX_STEPS = 12
@@ -55,7 +57,7 @@ class Chat::BrowserCheck
       raise Refused, "This run only reads, so nothing a page would send is sent from here." unless sends_allowed
       raise Refused, "send_step #{send_step} is not one of the steps." unless send_step.between?(1, steps.size)
       unless SENDING_ACTIONS.include?(steps[send_step - 1]["action"])
-        raise Refused, "Step #{send_step} is not a click or a key press, so it sends nothing."
+        raise Refused, "Step #{send_step} is not a click, typing or a key press, so it sends nothing."
       end
 
       sizes = sizes.first(1)
@@ -134,7 +136,7 @@ class Chat::BrowserCheck
 
   # The most pages this check may load, counted against the workspace's hour before it runs.
   def planned_pages
-    loads = 1 + steps.count { |step| [ ACTION_GOTO, *SENDING_ACTIONS ].include?(step["action"]) } + (log_in ? 2 : 0)
+    loads = 1 + steps.count { |step| LOADING_ACTIONS.include?(step["action"]) } + (log_in ? 2 : 0)
     viewports.size * [ loads, PAGES_PER_VIEWPORT ].min
   end
 

@@ -1,6 +1,7 @@
 require "test_helper"
 
-# Test logins are credentials, so only admins manage them, and the password goes in and never comes back out.
+# Test logins are credentials, so only admins manage them and see their usernames, and the password goes in and never
+# comes back out. Members see which sites have one.
 class TestLoginsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -62,15 +63,22 @@ class TestLoginsControllerTest < ActionDispatch::IntegrationTest
     assert_not IntegrationEnvironment.exists?(integration_id: login.id)
   end
 
-  test "a member who is not an admin can neither see nor change test logins" do
-    login = save_login!(site_url: "https://shop.example.com", username: "halon-test@example.com", password: "member-secret")
+  test "a member sees which sites have a test login and when it was saved, but not its username, and cannot change one" do
+    login = save_login!(site_url: "https://shop.example.com", username: "halon-test@example.com", password: "member-secret",
+                        login_url: "https://shop.example.com/sign-in")
     sign_in(users(:bob), @workspace)
 
     get settings_test_logins_path, headers: inertia_headers
-    assert_not_includes response.body, "shop.example.com"
+    shown = inertia_props["testLogins"].sole
+    assert_equal [ "https://shop.example.com", nil, nil ], shown.values_at("siteUrl", "username", "loginUrl")
+    assert_match(/\APassword saved on /, shown["passwordHint"])
+    assert_not_includes response.body, "halon-test@example.com"
+    assert_not_includes response.body, "member-secret"
 
     delete test_login_path(login.id)
-    assert_equal 1, Integrations::SiteLogins.listed(@workspace).size
+    patch test_login_path(login.id), params: { username: "taken@example.com" }
+    post test_logins_path, params: { site_url: "https://other.example.com", username: "x", password: "y" }
+    assert_equal [ "halon-test@example.com" ], Integration::SiteLogin.all_in(@workspace).map(&:username)
   end
 
   test "a test login is none of the workspace's connections on the Integrations page" do

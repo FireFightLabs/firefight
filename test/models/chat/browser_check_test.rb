@@ -23,8 +23,8 @@ class Chat::BrowserCheckTest < ActiveSupport::TestCase
     assert_raises_with("not a screen size") { Chat::BrowserCheck.from({ "url" => "https://shop.example.com", "viewports" => [ "watch" ] }) }
   end
 
-  test "only a click or a key press can be sent, a send runs on one screen size, and a run that only reads never sends" do
-    steps = [ { "action" => "fill", "label" => "Email", "value" => "qa@example.com" }, { "action" => "click", "text" => "Subscribe" } ]
+  test "only a click, typing or a key press can be sent, a send runs on one screen size, and a run that only reads never sends" do
+    steps = [ { "action" => "wait_for_text", "text" => "Newsletter" }, { "action" => "click", "text" => "Subscribe" } ]
     check = Chat::BrowserCheck.from({ "url" => "https://shop.example.com", "steps" => steps, "send_step" => 2 })
 
     assert check.sends?

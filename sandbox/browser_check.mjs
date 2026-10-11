@@ -1,7 +1,8 @@
 // Opens a page in a real browser the way a person would, on a desktop and a phone screen, and reports what they would
 // meet: the status, how long it took, console errors, failed requests, the page's words and a screenshot. It can follow
-// a short path of steps. Reading is free and sending is not. Every request that is not a GET, HEAD or OPTIONS is blocked
-// here unless it belongs to the one step the person confirmed, so a path stops before it would send anything.
+// a short path of steps. Reading is free and sending is not. A page loads as it does for anyone, its own requests of any
+// method included, and is listed. Every other request that is not a GET, HEAD or OPTIONS is one of Halon's steps
+// sending, so it is blocked here unless it belongs to the one step the person confirmed, and the path stops before it.
 // The spec arrives on stdin, never in argv or on disk, since it may hold a saved login's password for this one run.
 // Prints one JSON object on its last line.
 import { createRequire } from "node:module"
@@ -31,6 +32,12 @@ const MAX_DEADLINE = 170
 const ACTION_TIMEOUT = 10_000
 const NAVIGATION_TIMEOUT = 30_000
 const SETTLE = 2_000
+// A page's own load is from the moment a new document commits until the network is idle, at most this long after it.
+const LOAD_WINDOW = 10_000
+// A step that clicks, types or presses a key may set off a request a moment later, so it is judged after this, and once
+// every request it set off has been decided, for at most STEP_QUIET_MAX.
+const STEP_QUIET = 300
+const STEP_QUIET_MAX = 3_000
 const LIST_LIMIT = 50
 const TEXT_LIMIT = 500
 const PAGE_TEXT_LIMIT = 1_500
@@ -335,7 +342,7 @@ async function runViewport(browser, name, run, proxyRefused) {
   const report = {
     name, width: null, height: null, status: null, final_url: null, title: null, timings_ms: null, console: [], failed_requests: [],
     blocked_requests: [], page_text: null, error_text: null, steps: [], stopped: null, pages: 0, login: null, screenshot: null,
-    downloads_refused: 0, notes: []
+    downloads_refused: 0, notes: [], load_sends: []
   }
   const context = await browser.newContext({ ...VIEWPORTS[name], acceptDownloads: false, serviceWorkers: "block" })
   const page = await context.newPage()
@@ -346,7 +353,11 @@ async function runViewport(browser, name, run, proxyRefused) {
   page.setDefaultTimeout(ACTION_TIMEOUT)
   page.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT)
 
-  const state = { phase: "load", step: null, loginSite: null, sameSiteBlocked: null, changed: null, matched: false, pageCap: false, fileChooser: false }
+  // loadingUntil is when the page's own load ends. It opens only when a new document commits in the main frame after a
+  // document request, never on a same-document change, and closes at network idle and as each step starts, so a request
+  // a step fires on the page it acts on is always the step's.
+  const state = { phase: "load", step: null, loginSite: null, sameSiteBlocked: null, changed: null, matched: false, pageCap: false, fileChooser: false,
+                  navigating: false, loadingUntil: 0, inflight: 0 }
   const aborted = new WeakSet()
   const check = run.check
   const pageSite = () => siteOf(page.url().startsWith("http") ? page.url() : run.url)
@@ -356,7 +367,7 @@ async function runViewport(browser, name, run, proxyRefused) {
     await route.abort("blockedbyclient").catch(() => {})
   }
 
-  await context.route("**/*", async (route) => {
+  const handle = async (route) => {
     const request = route.request()
     const url = request.url()
     let parsed
@@ -371,8 +382,18 @@ async function runViewport(browser, name, run, proxyRefused) {
     if (!verdict.ok) return block(route, request, verdict.reason)
 
     const method = request.method().toUpperCase()
+    let mainFrame = false
+    try {
+      mainFrame = request.isNavigationRequest() && request.frame() === page.mainFrame()
+    } catch {
+      mainFrame = false
+    }
     if (!READ_METHODS.has(method)) {
       const sameSite = siteOf(url) === pageSite()
+      if (state.phase !== "login" && !mainFrame && Date.now() < state.loadingUntil) {
+        if (report.load_sends.length < LIST_LIMIT) report.load_sends.push({ method, url: redact(url) })
+        return route.continue().catch(() => {})
+      }
       if (state.phase === "login") {
         if (siteOf(url) === state.loginSite) return route.continue().catch(() => {})
         return block(route, request, "the login only sends to its own site")
@@ -393,13 +414,8 @@ async function runViewport(browser, name, run, proxyRefused) {
       return block(route, request, sameSite ? "it would send data, which needs the person's yes" : "a third party request that sends data")
     }
 
-    let mainFrame = false
-    try {
-      mainFrame = request.isNavigationRequest() && request.frame() === page.mainFrame()
-    } catch {
-      mainFrame = false
-    }
     if (mainFrame) {
+      state.navigating = true
       if (report.pages >= run.maxPages) {
         state.pageCap = true
         return block(route, request, `the run opens at most ${run.maxPages} pages`)
@@ -407,8 +423,22 @@ async function runViewport(browser, name, run, proxyRefused) {
       report.pages += 1
     }
     return route.continue().catch(() => {})
+  }
+  // Each request being decided is counted, so a step waits until what it set off has been decided before it is judged.
+  await context.route("**/*", async (route) => {
+    state.inflight += 1
+    try {
+      return await handle(route)
+    } finally {
+      state.inflight -= 1
+    }
   })
 
+  page.on("framenavigated", (frame) => {
+    if (frame !== page.mainFrame() || !state.navigating) return
+    state.navigating = false
+    state.loadingUntil = Date.now() + LOAD_WINDOW
+  })
   page.on("console", (message) => {
     const type = message.type()
     if (!["error", "warning"].includes(type) || report.console.length >= LIST_LIMIT) return
@@ -449,7 +479,7 @@ async function runViewport(browser, name, run, proxyRefused) {
       if (/Download is starting/i.test(error.message)) throw new Refused("That address is a download, and the browser does not download files.")
       throw error
     }
-    await settle(page, remaining)
+    await settle(page, remaining, state)
   }
 
   try {
@@ -459,6 +489,7 @@ async function runViewport(browser, name, run, proxyRefused) {
     }
     if (!report.stopped) {
       state.phase = "load"
+      state.loadingUntil = 0
       await open(run.url)
       if (state.pageCap) report.stopped = { step: 0, reason: "page_cap" }
     }
@@ -471,6 +502,7 @@ async function runViewport(browser, name, run, proxyRefused) {
         break
       }
       state.phase = "steps"
+      state.loadingUntil = 0
       state.step = n
       state.sameSiteBlocked = null
       state.changed = null
@@ -492,7 +524,7 @@ async function runViewport(browser, name, run, proxyRefused) {
             break
           }
         }
-        await act(page, step, run, open, remaining)
+        await act(page, step, run, open, remaining, state)
         if (state.fileChooser) throw new Refused("The step opened a file picker, and the browser does not upload files.")
       } catch (error) {
         result.ok = false
@@ -510,7 +542,7 @@ async function runViewport(browser, name, run, proxyRefused) {
         report.screenshot = before
         break
       }
-      if (state.sameSiteBlocked && ["click", "press"].includes(step.action)) {
+      if (state.sameSiteBlocked && ["click", "fill", "press"].includes(step.action)) {
         const fields = bodyFields(state.sameSiteBlocked.postData).map((field) => ({ ...field, secret: false }))
         result.ok = false
         result.error ||= "Not done. It would send data."
@@ -545,11 +577,19 @@ async function runViewport(browser, name, run, proxyRefused) {
   return report
 }
 
-async function settle(page, remaining) {
-  await page.waitForLoadState("networkidle", { timeout: Math.max(100, Math.min(SETTLE, remaining())) }).catch(() => {})
+async function quiet(state, remaining) {
+  const until = Date.now() + Math.max(0, Math.min(STEP_QUIET_MAX, remaining()))
+  await new Promise((resolve) => setTimeout(resolve, STEP_QUIET))
+  while (state.inflight > 0 && Date.now() < until) await new Promise((resolve) => setTimeout(resolve, 50))
 }
 
-async function act(page, step, run, open, remaining) {
+// Waits for the network to go quiet. A page's own load ends there, and otherwise when its window runs out.
+async function settle(page, remaining, state) {
+  const idle = await page.waitForLoadState("networkidle", { timeout: Math.max(100, Math.min(SETTLE, remaining())) }).then(() => true, () => false)
+  if (idle) state.loadingUntil = 0
+}
+
+async function act(page, step, run, open, remaining, state) {
   const timeout = Math.max(1_000, Math.min(ACTION_TIMEOUT, remaining()))
   switch (step.action) {
     case "goto":
@@ -558,18 +598,22 @@ async function act(page, step, run, open, remaining) {
       const target = await locate(page, step)
       if (!target) throw new Refused("Say what to click by its text, role and name, or label.")
       await target.click({ timeout })
-      return settle(page, remaining)
+      await quiet(state, remaining)
+      return settle(page, remaining, state)
     }
     case "fill": {
       const target = await locate(page, step)
       if (!target) throw new Refused("Say which field to fill by its label, placeholder, or role and name.")
-      return target.fill(String(step.value ?? ""), { timeout })
+      await target.fill(String(step.value ?? ""), { timeout })
+      await quiet(state, remaining)
+      return settle(page, remaining, state)
     }
     case "press": {
       const target = await locate(page, step)
       if (target) await target.press(String(step.key || "Enter"), { timeout })
       else await page.keyboard.press(String(step.key || "Enter"))
-      return settle(page, remaining)
+      await quiet(state, remaining)
+      return settle(page, remaining, state)
     }
     case "wait_for_text":
       return page.getByText(String(step.text ?? "")).first().waitFor({ state: "visible", timeout })
@@ -610,7 +654,7 @@ async function logIn(page, login, state, open, remaining) {
     if (found.submit) await page.click("[data-firefight-login=submit]")
     else await page.press("[data-firefight-login=password]", "Enter")
     await page.waitForLoadState("load").catch(() => {})
-    await settle(page, remaining)
+    await settle(page, remaining, state)
     const stillAsked = page.url() === at && await page.locator("input[type=password]").first().isVisible().catch(() => false)
     if (stillAsked) {
       const said = await errorText(page)

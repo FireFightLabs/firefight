@@ -10,6 +10,10 @@ class Chat::BrowserCheck::AnswerTest < ActiveSupport::TestCase
                          "failed_requests" => [ { "method" => "GET", "url" => "https://shop.example.com/favicon.ico", "status" => 404 } ])
 
     assert answer.ok?, "a missing icon is not a broken page"
+
+    loaded = answer_with("status" => 200, "load_sends" => [ { "method" => "POST", "url" => "https://shop.example.com/graphql" } ])
+    assert_includes loaded.words, "Sent by the page on its own while it loaded:
+- POST https://shop.example.com/graphql"
   end
 
   test "a server error, a console error, a failed step and a request that never answered are each trouble" do

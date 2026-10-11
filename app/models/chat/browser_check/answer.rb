@@ -75,6 +75,7 @@ class Chat::BrowserCheck::Answer
       login_line(viewport), timings_line(viewport), steps_line(viewport), stopped_line(viewport),
       list("Console", console(viewport)) { |line| "#{line['type']}: #{line['text']}#{" (#{line['url']})" if line['url'].present?}" },
       list("Failed requests", viewport["failed_requests"]) { |request| "#{request['method']} #{request['url']}: #{request['status'] || request['error']}" },
+      list("Sent by the page on its own while it loaded", viewport["load_sends"]) { |request| "#{request['method']} #{request['url']}" },
       list("Blocked by Firefight, since they would send data (not the site's fault)", viewport["blocked_requests"]) do |request|
         "#{request['method']} #{request['url']}#{" (#{request['reason']})" if request['reason'].present?}"
       end,
