@@ -51,6 +51,7 @@ module Mcp
     CLAIM_RUNBOOK_STEP = "claim_runbook_step".freeze
     LINK_INCIDENT = "link_incident".freeze
     GIVE_SHOUTOUT = "give_shoutout".freeze
+    POST_TO_CHANNEL = "post_to_channel".freeze
     ESCALATE_INCIDENT = "escalate_incident".freeze
     PAGE_ON_CALL = "page_on_call".freeze
     INVITE_RESPONDERS = "invite_responders".freeze
@@ -128,7 +129,7 @@ module Mcp
         UpsertApprovalRule, DeleteApprovalRule, ListUnattendedRules, UpsertUnattendedRule, DeleteUnattendedRule, SearchActivity,
         CreateActionItem, AssignActionItem, CompleteActionItem, RenameActionItem, ReopenActionItem, UnassignActionItem,
         CreateActionItemIssue, ClaimRunbookStep,
-        LinkIncident, GiveShoutout, EscalateIncident, PageOnCall, InviteResponders,
+        LinkIncident, GiveShoutout, EscalateIncident, PageOnCall, InviteResponders, PostToChannel,
         GetWorkspaceConfig, UpdateWorkspaceSettings, UpdateProtectedPaths, ListIntegrations, GetResourceMap, SuggestResourceLink,
         FindResources, SearchMap, GetResource, GetResourceLinks, GetResourceNeighbours, TraverseResourceMap, BlastRadius, ResourceMapStats,
         CheckStatusPage, BlindSpots,

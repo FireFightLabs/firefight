@@ -51,6 +51,20 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # A channel someone named, by its name, its id, a mention of it or its link, as the platform writes them.
+  # Raises AdapterError::NotFound when Firefight cannot see it.
+  # @return [Hash] { channel_id:, channel_name: }, channel_name nil when only the id is known.
+  def find_channel(reference:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # A message posted as Firefight in any channel at someone's request, naming who asked. by_halon says Halon wrote it
+  # for them rather than an outside agent or a script.
+  # @return [Hash] { message_id: ..., channel_id: ... }
+  def post_channel_message(channel_id:, message:, posted_by:, by_halon:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # @return [Hash] { message_id: ..., channel_id: ... }
   def post_threaded_message(channel_id:, parent_message_id:, text:, blocks: nil)
     raise NotImplemented.new(__method__, self.class)

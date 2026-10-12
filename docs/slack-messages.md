@@ -265,6 +265,26 @@ that (confirmations, held calls, plans, watch updates, handbook proposals) goes 
 never as a new top-level DM. A reply under one of Firefight's own DMs is answered in that thread too, by the person's
 chat. A refusal is one plain line in the same thread. See docs/ai.md, Direct messages.
 
+## Posting in a channel
+
+`ChannelPost` (`:mega:`) is a message posted as Firefight in a channel someone named, such as release notes in
+#general, by `post_to_channel` from Halon's chat, a runbook step or an outside agent over MCP. Title, divider, the
+message as the body, and who asked in the footer. Halon or an outside agent wrote the words, not a person in one of our
+modals, so the message is escaped with `Slack::Mrkdwn.escape` before `Formatting.quoted_blocks` draws its markdown,
+and a post can never ping `@here` or the channel or fake a link. A long one runs on into further sections.
+
+```
+:mega:  *Message from Halon*
+─────────────────────────
+> Release 2.4 is out.
+>
+> • Faster search
+Posted by Halon at the request of @Dana
+```
+
+From an outside agent the title is "Message from Firefight" and the footer "Posted through Firefight by" its principal,
+named in bold when it has no Slack account. The fallback text is the title and the message's first line.
+
 ## Adding a message
 
 1. New module in `app/adapters/slack/messages/`, one per concept, class methods

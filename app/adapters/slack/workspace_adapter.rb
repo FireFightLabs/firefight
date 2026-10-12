@@ -102,6 +102,36 @@ module Slack
       end
     end
 
+    # Slack writes a channel in a message as <#C123|name>, and its link ends in /archives/C123. A private channel is
+    # never listed to the app, so it is found only by its id, its mention or its link.
+    CHANNEL_MENTION = /\A<#([CG][A-Z0-9]+)(?:\|([^>]*))?>\z/
+    CHANNEL_LINK = %r{\Ahttps://[a-z0-9.-]+\.slack\.com/archives/([CG][A-Z0-9]+)}i
+    CHANNEL_ID = /\A[CG][A-Z0-9]{8,}\z/
+
+    def find_channel(reference:)
+      text = reference.to_s.strip
+      id, named = channel_reference(text)
+      channels = list_channels
+      if id
+        listed = channels.find { |channel| channel[:id] == id }
+        return { channel_id: id, channel_name: listed&.dig(:name) || named.presence }
+      end
+
+      wanted = text.delete_prefix("#").downcase
+      found = channels.find { |channel| channel[:name].to_s.downcase == wanted }
+      raise AdapterError::NotFound, "no channel named #{wanted}" unless found
+
+      { channel_id: found[:id], channel_name: found[:name] }
+    end
+
+    def post_channel_message(channel_id:, message:, posted_by:, by_halon:)
+      post_message(
+        channel_id: channel_id,
+        text: Slack::Messages::ChannelPost.fallback(message, by_halon: by_halon),
+        blocks: Slack::Messages::ChannelPost.build(message, posted_by: posted_by, by_halon: by_halon)
+      )
+    end
+
     def add_reaction(channel_id:, message_id:, name:)
       translate_errors do
         Slack::Client.add_reaction(
@@ -388,6 +418,17 @@ module Slack
     end
 
     private
+
+    # The id and the name the reference carries, or nil for a bare name.
+    def channel_reference(text)
+      mention = text.match(CHANNEL_MENTION)
+      return [ mention[1], mention[2] ] if mention
+
+      link = text.match(CHANNEL_LINK)
+      return [ link[1].upcase, nil ] if link
+
+      text.match?(CHANNEL_ID) ? [ text, nil ] : nil
+    end
 
     def translate_errors
       yield

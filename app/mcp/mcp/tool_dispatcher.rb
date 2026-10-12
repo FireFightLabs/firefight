@@ -41,10 +41,12 @@ module Mcp
                      "must approve this call. Retry the identical call with approval_id: \"#{e.approval.id}\" once approved.")
     end
 
-    # Shared with the agent's chat, so a tool behaves the same over MCP and in chat.
-    def self.run(tool:, workspace:, principal:, args:)
+    # Shared with the agent's chat, so a tool behaves the same over MCP and in chat. by_halon is true only from Halon's
+    # chat, for a tool whose post names who wrote it.
+    def self.run(tool:, workspace:, principal:, args:, by_halon: false)
       if tool.respond_to?(:perform_with_principal)
-        tool.perform_with_principal(workspace: workspace, principal: principal, args: args)
+        named = tool.respond_to?(:names_halon?) && tool.names_halon? ? { by_halon: by_halon } : {}
+        tool.perform_with_principal(workspace: workspace, principal: principal, args: args, **named)
       else
         tool.perform(workspace: workspace, args: args)
       end

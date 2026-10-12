@@ -8,6 +8,6 @@ _fixture:
   kind: system
   key: <%= resource %>.<%= action %>
   risk_level: <%= risk_by_action.fetch(action) %>
-  reversible: <%= action == "delete" ? "false" : "true" %>
+  reversible: <%= action == "delete" || Ability::Action::IRREVERSIBLE_KEYS.include?("#{resource}.#{action}") ? "false" : "true" %>
 <% end %>
 <% end %>

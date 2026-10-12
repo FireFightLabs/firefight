@@ -83,7 +83,7 @@ class Chat::Tools::Firefight < RubyLLM::Tool
       label: Chat::Tools.label(name, arguments), holdable: @tool_class.holdable?, **{ approval_id: approval_id }.compact
     ) do |authorization|
       response = Mcp::ToolDispatcher.run(
-        tool: @tool_class, workspace: @agent_run.workspace, principal: @agent_run.acting_principal, args: arguments
+        tool: @tool_class, workspace: @agent_run.workspace, principal: @agent_run.acting_principal, args: arguments, by_halon: true
       )
       if response.error?
         Chat::Tools.mark_failed(@agent_run, tool_call_id)
