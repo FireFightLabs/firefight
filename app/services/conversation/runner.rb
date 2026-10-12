@@ -4,6 +4,12 @@ class Conversation::Runner
   STOPPED = "Stopped.".freeze
   # What the model is told for a tool it asked for and never got, so the chat stays one a provider accepts.
   STOPPED_BEFORE_RUNNING = "Not run. The person stopped this answer first.".freeze
+  PHASE_EVENT = "conversation_reply.phase".freeze
+  FIRST_TOKEN_EVENT = "conversation_reply.first_token".freeze
+  PHASE_SETUP = "setup".freeze
+  PHASE_RESPONDER = "responder".freeze
+  PHASE_AFTER = "after".freeze
+  TRACER = OpenTelemetry.tracer_provider.tracer("conversation")
 
   # held_call is an approved call someone pressed Run on, which this turn runs first. handed_back is a watch step that
   # could not find what it followed, which this turn re-plans, reading only. pull_request_fix is a pull request notice
@@ -25,75 +31,83 @@ class Conversation::Runner
 
   def run
     @marked = Time.current
-    chat = @conversation.chat_record
-    # A turn paused on the person's confirmation is theirs, so a hand back waits for their next turn, which tells it.
-    return nil if @handed_back && !room_for_a_note?(chat)
+    chat, purse, presented, suspects = timed_phase(PHASE_SETUP) do
+      chat = @conversation.chat_record
+      # A turn paused on the person's confirmation is theirs, so a hand back waits for their next turn, which tells it.
+      return nil if @handed_back && !room_for_a_note?(chat)
 
-    chat.discard_interrupted_reply!
-    withdraw(chat.close_unfinished_calls!)
-    take_queued(chat)
-    run_held_call(chat) if @held_call
-    run_pull_request_fix(chat) if @pull_request_fix
-    run_code_pause(chat) if @code_pause
-    chat.nudge!(Conversation::Plans.note(@plan, @plan_move, @turn.asker)) if @plan && room_for_a_note?(chat)
-    chat.nudge!(Conversation::Watches.hand_back_note(@handed_back)) if @handed_back&.hand_back_noted!
-    # The turn before this one already answered what this job was queued for.
-    if answered_already?(chat)
+      chat.discard_interrupted_reply!
+      withdraw(chat.close_unfinished_calls!)
+      take_queued(chat)
+      run_held_call(chat) if @held_call
+      run_pull_request_fix(chat) if @pull_request_fix
+      run_code_pause(chat) if @code_pause
+      chat.nudge!(Conversation::Plans.note(@plan, @plan_move, @turn.asker)) if @plan && room_for_a_note?(chat)
+      chat.nudge!(Conversation::Watches.hand_back_note(@handed_back)) if @handed_back&.hand_back_noted!
+      # The turn before this one already answered what this job was queued for.
+      if answered_already?(chat)
+        @conversation.reply_delivered!
+        return nil
+      end
+
+      # A question that waited behind the last turn was never marked as owed, since one already was.
+      @conversation.expect_reply!
+      # Pressed while this turn waited behind the last one.
+      return stopped!(chat) if chat.stop_requested?
+
+      delivery.thinking!
+      @turn.listen_to_progress { |key, update| report_progress(key, update) }
+      tell_held_outcomes(chat)
+      chat.on_making_room { |compaction| delivery.made_room(compaction) }
+      @changes = Chat::Tools::Changes.catch_up!(@turn, chat).then { |caught| caught if caught.note }
+      purse = FirefightAi::AgentLoop::Purse.new
+      @turn.asks_specialists = Chat::Specialists.ask?(@turn, picked_model || FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @conversation.workspace))
+      presented = Chat::Tools.presented(@turn, responder.ai_model)
+      suspects = tell_suspects(chat)
+      [ chat, purse, presented, suspects ]
+    end
+
+    outcome = timed_phase(PHASE_RESPONDER) do |started|
+      @responder_started = started
+      responder.run(
+        chat: chat,
+        tools: Conversation::Tools.for(@turn, offer: Chat::Tools.offer_to(chat), helpers: helper_share(chat, purse), presented: presented) +
+               presented.loaded + Chat::Tools.known(@turn, chat),
+        deferred_tools: presented.deferred,
+        context: context,
+        budget: budget,
+        on_step: method(:report_step),
+        on_progress: method(:report_tool_progress),
+        on_chunk: shown_text.method(:add),
+        nudge: chat.method(:nudge!),
+        memory: chat,
+        take_messages: -> { [ take_queued(chat), tell_changes(chat), tell_watch_corrections(chat) ].any? },
+        canceled: chat.method(:stop_requested?),
+        purse: purse,
+        checks: Conversation::Checks.new(chat, since: @marked, choice: Chat::Helpers.side_model(@conversation.workspace, main: helper_main_model),
+                                               inferable: @conversation, member: member, facts: suspects).all,
+        on_backup: ->(failed, backup, error) { switched_model(chat, failed, backup, error) },
+        # A model the person picked is theirs to know about, so its account running dry is said too.
+        on_take_over: (->(failed, following, error) { switched_model(chat, failed, following, error) } if picked_model)
+      ) do |turn|
+        record(turn)
+      end
+    end
+
+    timed_phase(PHASE_AFTER) do
+      shown_text.finish
+      return stopped!(chat) if outcome.status == FirefightAi::AgentLoop::STATUS_CANCELED
+      return ask_to_confirm(chat, outcome) if waiting?(outcome)
+
+      @reply = reply_for(outcome, chat)
+      # Cleared before the page is told, so its reload sees the turn as over.
       @conversation.reply_delivered!
-      return nil
+      # A stop pressed as the answer finished has nothing left to stop, and must not stop the next question.
+      chat.clear_stop!
+      # Before the page is told, so the setup guide it reloads already says Halon answered.
+      @conversation.workspace.onboarding&.halon_answered!(@conversation) if answered?(outcome)
+      delivery.answered!(@reply, sources: (sources_of(chat) if answered?(outcome)) || [])
     end
-
-    # A question that waited behind the last turn was never marked as owed, since one already was.
-    @conversation.expect_reply!
-    # Pressed while this turn waited behind the last one.
-    return stopped!(chat) if chat.stop_requested?
-
-    delivery.thinking!
-    @turn.listen_to_progress { |key, update| report_progress(key, update) }
-    tell_held_outcomes(chat)
-    chat.on_making_room { |compaction| delivery.made_room(compaction) }
-    @changes = Chat::Tools::Changes.catch_up!(@turn, chat).then { |caught| caught if caught.note }
-    purse = FirefightAi::AgentLoop::Purse.new
-    @turn.asks_specialists = Chat::Specialists.ask?(@turn, picked_model || FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @conversation.workspace))
-    presented = Chat::Tools.presented(@turn, responder.ai_model)
-    suspects = tell_suspects(chat)
-
-    outcome = responder.run(
-      chat: chat,
-      tools: Conversation::Tools.for(@turn, offer: Chat::Tools.offer_to(chat), helpers: helper_share(chat, purse), presented: presented) +
-             presented.loaded + Chat::Tools.known(@turn, chat),
-      deferred_tools: presented.deferred,
-      context: context,
-      budget: budget,
-      on_step: method(:report_step),
-      on_progress: method(:report_tool_progress),
-      on_chunk: shown_text.method(:add),
-      nudge: chat.method(:nudge!),
-      memory: chat,
-      take_messages: -> { [ take_queued(chat), tell_changes(chat), tell_watch_corrections(chat) ].any? },
-      canceled: chat.method(:stop_requested?),
-      purse: purse,
-      checks: Conversation::Checks.new(chat, since: @marked, choice: Chat::Helpers.side_model(@conversation.workspace, main: helper_main_model),
-                                             inferable: @conversation, member: member, facts: suspects).all,
-      on_backup: ->(failed, backup, error) { switched_model(chat, failed, backup, error) },
-      # A model the person picked is theirs to know about, so its account running dry is said too.
-      on_take_over: (->(failed, following, error) { switched_model(chat, failed, following, error) } if picked_model)
-    ) do |turn|
-      record(turn)
-    end
-
-    shown_text.finish
-    return stopped!(chat) if outcome.status == FirefightAi::AgentLoop::STATUS_CANCELED
-    return ask_to_confirm(chat, outcome) if waiting?(outcome)
-
-    @reply = reply_for(outcome, chat)
-    # Cleared before the page is told, so its reload sees the turn as over.
-    @conversation.reply_delivered!
-    # A stop pressed as the answer finished has nothing left to stop, and must not stop the next question.
-    chat.clear_stop!
-    # Before the page is told, so the setup guide it reloads already says Halon answered.
-    @conversation.workspace.onboarding&.halon_answered!(@conversation) if answered?(outcome)
-    delivery.answered!(@reply, sources: (sources_of(chat) if answered?(outcome)) || [])
     outcome
   rescue FirefightAi::Canceled
     stopped!(@conversation.chat_record)
@@ -107,7 +121,29 @@ class Conversation::Runner
   def member = (@turn.asker unless @conversation.issue?)
 
   # The reply as it streams, without the line saying Halon's next step (FirefightAi::NextStep).
-  def shown_text = @shown_text ||= FirefightAi::NextStep::Stream.new { |text| delivery.chunk(text) }
+  def shown_text
+    @shown_text ||= FirefightAi::NextStep::Stream.new do |text|
+      first_token_shown
+      delivery.chunk(text)
+    end
+  end
+
+  # Where a reply's time goes, logged per phase and spanned when a tracer is set (config/initializers/opentelemetry.rb).
+  def timed_phase(name)
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    TRACER.in_span("conversation.reply.#{name}", attributes: { "conversation.id" => @conversation.id }) { yield started }
+  ensure
+    Rails.logger.info({ event: PHASE_EVENT, phase: name, duration_ms: elapsed_ms(started), conversation_id: @conversation.id }.to_json)
+  end
+
+  def first_token_shown
+    return if @first_token_logged || !@responder_started
+
+    @first_token_logged = true
+    Rails.logger.info({ event: FIRST_TOKEN_EVENT, duration_ms: elapsed_ms(@responder_started), conversation_id: @conversation.id }.to_json)
+  end
+
+  def elapsed_ms(started) = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
 
   def responder
     @responder ||= FirefightAi::Responder.new(
