@@ -15,7 +15,13 @@ module Ability::Role::MemberAccess
 
   # Where one pack stands for the members. people are those holding it by a grant when it is chosen people, and left_out
   # are members a No access or a lapsed grant keeps from a read every member otherwise has.
-  Standing = Data.define(:role, :choice, :people_ids, :left_out_ids)
+  Standing = Data.define(:role, :choice, :people_ids, :left_out_ids, :through)
+  # Members not on a row who still reach its tools through other access, grouped by that access: a set or pack, or
+  # abilities granted one by one (role nil).
+  Through = Data.define(:role_id, :role_slug, :role_name, :people_ids)
+  # One member's live grant as the resolver reads it, with each action it reaches. A grant of a set comes once per
+  # action in the set.
+  Reach = Data.define(:principal_id, :role_id, :role_slug, :role_name, :action_id, :no_access)
   # A connection's row: its read pack and its changes pack.
   Connection = Data.define(:integration, :read, :change)
   # Every connection's row, the members who can be chosen, and how many people the workspace has, admins included.
@@ -32,13 +38,28 @@ module Ability::Role::MemberAccess
       packs = workspace.ability_roles.where(pack: [ Ability::Role::PACK_READ, Ability::Role::PACK_CHANGES ])
                        .joins(:integration).merge(Integration.where(deleted_at: nil))
                        .includes(:integration, :grants, :role_actions)
+      reach = reach_of(workspace, members)
       connections = packs.group_by(&:integration).filter_map do |integration, pair|
         by_pack = pair.index_by(&:pack)
         read, change = by_pack.values_at(Ability::Role::PACK_READ, Ability::Role::PACK_CHANGES)
-        Connection.new(integration: integration, read: read.standing(members), change: change.standing(members)) if read && change
+        next unless read && change
+
+        Connection.new(integration: integration, read: read.standing(members, reach), change: change.standing(members, reach))
       end
       Overview.new(connections: connections.sort_by { |connection| connection.integration.display_name.downcase },
                    members: members, people_count: workspace.workspace_memberships.count)
+    end
+
+    # Every live grant the members hold, each set opened into the actions it holds, read in one query the way
+    # Ability::Resolver.compute reads one member's.
+    def reach_of(workspace, members)
+      Ability::Grant.live.where(workspace_id: workspace.id, principal_type: WorkspaceMembership.polymorphic_name, principal_id: members.map(&:id))
+                    .left_joins(role: :role_actions)
+                    .pluck(:principal_id, :role_id, "ability_roles.slug", "ability_roles.name", Arel.sql("COALESCE(ability_role_actions.action_id, ability_grants.action_id)"), :scope)
+                    .map do |principal_id, role_id, role_slug, role_name, action_id, scope|
+                      Reach.new(principal_id: principal_id, role_id: role_id, role_slug: role_slug, role_name: role_name, action_id: action_id,
+                                no_access: Ability::Scope.no_access?(scope))
+                    end
     end
 
     # The packs every member of the workspace holds without a grant, of the kind given.
@@ -57,13 +78,18 @@ module Ability::Role::MemberAccess
   # Whether every member's resolved grants depend on this pack, rather than only its holders'.
   def reaches_every_member? = member_access_pack? && (read_pack? ? !every_member? : every_member?)
 
-  def standing(members)
+  # reach is every member's live grants, from reach_of.
+  def standing(members, reach = [])
     member_ids = members.map(&:id).to_set
     held = grants.select { |grant| grant.principal_type == WorkspaceMembership.name && member_ids.include?(grant.principal_id) }
     lapsed, live = held.partition { |grant| grant.no_access? || grant.expired? }
-    return Standing.new(role: self, choice: EVERYONE, people_ids: [], left_out_ids: read_pack? ? lapsed.map(&:principal_id) : []) if every_member?
+    if every_member?
+      return Standing.new(role: self, choice: EVERYONE, people_ids: [], left_out_ids: read_pack? ? lapsed.map(&:principal_id) : [], through: [])
+    end
 
-    Standing.new(role: self, choice: live.any? ? CHOSEN : NOBODY, people_ids: live.map(&:principal_id), left_out_ids: [])
+    people_ids = live.map(&:principal_id)
+    Standing.new(role: self, choice: people_ids.any? ? CHOSEN : NOBODY, people_ids: people_ids, left_out_ids: [],
+                 through: through(reach, people_ids))
   end
 
   # Why this pack cannot be set to the choice for these people, or nil.
@@ -115,6 +141,17 @@ module Ability::Role::MemberAccess
 
   def member_verb = read_pack? ? "read" : "change"
 
+  # Members the row leaves out who reach one of its tools anyway, through another set or a single ability. No access on a
+  # pack outranks every set holding its tools, as it does in the resolver.
+  def through(reach, chosen_ids)
+    actions = role_actions.map(&:action_id).to_set
+    withheld = reach.select { |row| row.no_access && row.role_id == id }.map(&:principal_id)
+    others = reach.reject { |row| row.no_access || row.role_id == id || chosen_ids.include?(row.principal_id) || withheld.include?(row.principal_id) }
+    others.select { |row| actions.include?(row.action_id) }.group_by { |row| [ row.role_id, row.role_slug, row.role_name ] }.map do |(role_id, role_slug, role_name), rows|
+      Through.new(role_id: role_id, role_slug: role_slug, role_name: role_name, people_ids: rows.map(&:principal_id).uniq)
+    end.sort_by { |access| [ access.role_id ? 0 : 1, access.role_name.to_s ] }
+  end
+
   def empty_pack_reason
     read_pack? ? "#{integration.display_name} has no tools that only read." : "#{integration.display_name} has no tools that change anything."
   end
@@ -132,7 +169,7 @@ module Ability::Role::MemberAccess
   def settle_waiting_requests(by)
     requests = Ability::PackRequest.waiting.where(role_id: id)
     settled = requests.pluck(:id)
-    requests.update_all(given_at: Time.current, given_by_id: by&.id, updated_at: Time.current)
+    requests.update_all(given_at: Time.current, given_by_id: (by.id if by.is_a?(WorkspaceMembership)), updated_at: Time.current)
     settled.each { |request_id| PackRequestSettledJob.perform_later(request_id) }
   end
 

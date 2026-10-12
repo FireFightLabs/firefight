@@ -5,6 +5,7 @@ import type { MemberAccessStanding } from "@/types/serializers"
 import { Blocked } from "@/components/blocked-tooltip"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { BroaderAccessLine, peopleCount } from "@/components/permissions/broader-access-line"
 import { ChoosePeopleDialog } from "@/components/permissions/choose-people-dialog"
 import { MEMBER_ACCESS } from "@/lib/generated/constants"
 import { membersAbilityRolePath } from "@/lib/routes"
@@ -25,10 +26,6 @@ const CHOICE_ORDER: Record<MemberAccessVerb, Choice[]> = {
   change: [MEMBER_ACCESS.NOBODY, MEMBER_ACCESS.EVERYONE, MEMBER_ACCESS.CHOSEN],
 }
 
-function peopleCount(count: number): string {
-  return `${count} ${count === 1 ? "person" : "people"}`
-}
-
 // One dropdown of a connection's row. Everyone and Nobody save at once, and Choose people asks who first. The server
 // answers each with a toast, and the page reloads with the grants as they stand.
 export function MemberAccessSelect({
@@ -37,12 +34,14 @@ export function MemberAccessSelect({
   standing,
   members,
   canManage,
+  onOpenSet,
 }: {
   verb: MemberAccessVerb
   connectionName: string
   standing: MemberAccessStanding
   members: { id: string; name: string }[]
   canManage: boolean
+  onOpenSet?: (setId: string) => void
 }) {
   const [choosing, setChoosing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -108,6 +107,9 @@ export function MemberAccessSelect({
       {standing.choice === MEMBER_ACCESS.EVERYONE && standing.leftOutIds.length > 0 && (
         <p className="text-muted-foreground text-xs">Except {peopleCount(standing.leftOutIds.length)}</p>
       )}
+      {standing.through.map((access) => (
+        <BroaderAccessLine key={access.permissionSetId ?? "one-by-one"} access={access} members={members} onOpenSet={onOpenSet} />
+      ))}
       {standing.choice === MEMBER_ACCESS.CHOSEN && canManage && (
         <Button type="button" variant="link" size="sm" className="h-auto self-start p-0 text-xs" onClick={startChoosing}>
           Edit people

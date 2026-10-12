@@ -25,6 +25,13 @@ class MemberAccessStandingSerializer < BaseSerializer
     standing.left_out_ids
   end
 
+  # Members the row leaves out who still reach its tools through other access, by that access: a set or pack (id and
+  # name), or abilities granted one by one (both null).
+  type "{ permissionSetId: string | null; name: string | null; peopleIds: string[] }[]"
+  def through
+    standing.through.map { |access| { permissionSetId: access.role_id, name: access.role_name, peopleIds: access.people_ids } }
+  end
+
   # Why there is nothing to choose, such as a connection with no tools that change anything, or nil.
   type :string, optional: true
   def unavailable_reason

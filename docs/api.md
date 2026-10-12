@@ -31,6 +31,7 @@ app/controllers/api/v1/abilities_controller.rb   # Gateway: grantable abilities 
 app/controllers/api/v1/principals_controller.rb  # Gateway: people, agents, service keys and their grants
 app/controllers/api/v1/permission_sets_controller.rb # Gateway: sets by slug, abilities by key, built-in packs read only
 app/controllers/api/v1/grants_controller.rb      # Gateway: grants by id, environments by slug
+app/controllers/api/v1/member_access_controller.rb # Gateway: what members can read and change in each connection, set by pack slug
 app/controllers/api/v1/approval_rules_controller.rb # Gateway: rules by id, partial updates, move_up/move_down
 app/controllers/api/v1/unattended_rules_controller.rb # Gateway: changes Halon may make on its own, partial updates, delete refused once used
 app/controllers/api/v1/approvals_controller.rb   # Gateway: list, approve, deny
@@ -86,6 +87,15 @@ since re-enabling one means seeing it first.
 `api_keys` and `agents` authorize as `ADMIN_ONLY_RESOURCES`, so an admin's
 personal token reaches them and no service key or agent can. A token appears
 once, in the response that minted it, and never in a listing.
+
+**Member access endpoints**: the Who can do what rows of setup and the Permissions screen, one per connection, authorized as `permissions` (admin only) and in the activity log like the other gateway endpoints. Setting a row calls `Ability::Role#let_members!`, the same as the dashboard (docs/integrations.md, What members can do in each tool).
+
+```
+GET    /api/v1/member_access         # connections, each with read and change: permission_set, choice, people, left_out, through, unavailable_reason
+PATCH  /api/v1/member_access/:slug   # the row's read or change permission_set slug. choice (everyone, nobody, chosen), people (member ids or emails, with chosen)
+```
+
+`choice` is `everyone` (every member, including people who join later), `nobody` or `chosen`. `left_out` names members a No access or a lapsed grant keeps from a read everyone has. `through` names members the row leaves out who still reach the connection through another permission set (`permission_set` and `name`) or through abilities granted one by one (both null). A refused choice is 422 with the model's sentence, and a person who resolves to nobody is 404.
 
 **Handbook endpoints**: the workspace's handbook pages, authorized as `handbook` (members read it, writing needs a grant, a service key holds only what it is granted), through the same `HandbookService` the dashboard and MCP write through.
 

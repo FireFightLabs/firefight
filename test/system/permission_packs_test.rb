@@ -17,7 +17,7 @@ class PermissionPacksTest < ApplicationSystemTestCase
     visit gateway_permissions_path
 
     assert_text "Who can do what"
-    assert_text "Everyone reads every connected tool. Changes need a pack."
+    assert_no_text "Everyone reads every connected tool."
     click_button "Pick a person"
     find("[role=option]", text: "Bob Jones").click
     click_button "Pick a pack"
@@ -28,6 +28,27 @@ class PermissionPacksTest < ApplicationSystemTestCase
 
     assert_text "Bob Jones was granted Faylee (Northflank): changes."
     assert @bob.permitted_to?(@restart.ability_action, @workspace)
+  end
+
+  test "the per-tool card saves a choice with a toast and names who can still change a tool through a broader pack" do
+    everywhere = @workspace.ability_roles.find_by!(pack: Ability::Role::PACK_CHANGES_EVERYWHERE)
+    Ability::Grant.grant!(workspace: @workspace, principal: @bob, target: { role: everywhere })
+
+    visit gateway_permissions_path
+
+    assert_text "What members can do in each tool"
+    assert_selector "button[aria-label='Members can change Faylee (Northflank)']", text: "Nobody"
+    assert_text "1 person can through Changes everywhere"
+    find("button", text: "1 person", exact_text: true).hover
+    assert_text "Bob Jones"
+    click_button "Changes everywhere"
+    assert_text "Every tool that changes something, on every connection."
+
+    find("button[aria-label='Members can change Faylee (Northflank)']").click
+    find("[role=option]", text: "Everyone", exact_text: true).click
+    assert_text "Members can change Faylee (Northflank)."
+    assert_no_text "can through Changes everywhere"
+    assert @changes.reload.every_member?
   end
 
   test "an admin sees how many packs wait on the Permissions link, and the request at the top of the page" do

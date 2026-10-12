@@ -68,6 +68,8 @@ Rails.application.routes.draw do
       resources :abilities, only: [ :index ]
       resources :principals, only: [ :index ]
       resources :permission_sets, only: [ :index, :create, :update, :destroy ]
+      # Each connection's row of Who can do what, set through its read or changes pack's slug.
+      resources :member_access, only: [ :index, :update ]
       resources :grants, only: [ :index, :create, :update, :destroy ]
       resources :approval_rules, only: [ :index, :create, :update, :destroy ] do
         member do

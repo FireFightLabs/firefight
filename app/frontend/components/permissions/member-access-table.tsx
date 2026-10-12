@@ -9,10 +9,13 @@ export function MemberAccessTable({
   access,
   canManage,
   empty,
+  onOpenSet,
 }: {
   access: MemberAccess
   canManage: boolean
   empty: ReactNode
+  // Opens a set on the page, where the page lists them, so a row can say which set reaches a tool.
+  onOpenSet?: (setId: string) => void
 }) {
   if (access.connections.length === 0) {
     return <div className="text-muted-foreground text-sm">{empty}</div>
@@ -40,6 +43,7 @@ export function MemberAccessTable({
                 standing={connection.read}
                 members={access.members}
                 canManage={canManage}
+                onOpenSet={onOpenSet}
               />
             </div>
             <div className="flex min-w-0 flex-col gap-1">
@@ -50,6 +54,7 @@ export function MemberAccessTable({
                 standing={connection.change}
                 members={access.members}
                 canManage={canManage}
+                onOpenSet={onOpenSet}
               />
             </div>
           </div>

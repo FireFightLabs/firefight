@@ -19,6 +19,18 @@ module Mcp
           grant_count: set.grants.size }
       end
 
+      # One connection's row of Who can do what. names is the members by id, from the same overview.
+      def member_access_payload(connection, names)
+        people = ->(ids) { ids.filter_map { |id| names[id] }.map { |member| { id: member.id, name: member.display_name } } }
+        standing = lambda do |row|
+          { permission_set: row.role.slug, choice: row.choice, people: people.call(row.people_ids), left_out: people.call(row.left_out_ids),
+            through: row.through.map { |access| { permission_set: access.role_slug, name: access.role_name, people: people.call(access.people_ids) } },
+            unavailable_reason: row.role.member_access_unavailable_reason }
+        end
+        { connection: { id: connection.integration.id, name: connection.integration.display_name },
+          read: standing.call(connection.read), change: standing.call(connection.change) }
+      end
+
       def approval_rule_payload(rule)
         requirement = PolicyRule::ApprovalOutcome.requirement(rule.outcome)
         environment_ids = PolicyRule::ApprovalConditions.values_for(rule.conditions, PolicyRule::ApprovalConditions::FIELD_ENVIRONMENT)

@@ -40,6 +40,7 @@ interface PermissionsPageProps extends SharedProps {
 
 type Selection = { kind: "principal" | "set"; id: string } | { kind: "approvals" }
 
+const DETAIL_ID = "permissions-detail"
 const KIND_ICON = { user: IconUser, agent: IconRobot, api_key: IconKey, system_agent: IconRobot }
 const SECTIONS: { kind: string; title: string; blurb: string }[] = [
   { kind: "user", title: "People", blurb: "Members of this workspace" },
@@ -70,6 +71,12 @@ export default function Permissions() {
   const enabledRuleCount = approvalRules.filter((rule) => rule.enabled).length
   const authorityNote = selected?.implicitAuthorityNote ?? null
 
+  // A row of the per-tool card names a set someone reaches a tool through, and opening it shows the set below.
+  function openSet(setId: string) {
+    setSelection({ kind: "set", id: setId })
+    document.getElementById(DETAIL_ID)?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
+
 
   return (
     <AuthenticatedLayout title="Permissions">
@@ -99,11 +106,12 @@ export default function Permissions() {
               access={memberAccess}
               canManage={canManage}
               empty="Nothing is connected yet. Each tool you connect gets a row here."
+              onOpenSet={openSet}
             />
           </CardContent>
         </Card>
 
-        <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
+        <div id={DETAIL_ID} className="grid scroll-mt-4 gap-6 lg:grid-cols-[18rem_1fr]">
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-1.5">
               <div className="flex items-start justify-between gap-2">

@@ -48,8 +48,11 @@ class SetupWhoCanDoWhatTest < ApplicationSystemTestCase
     assert_equal 2, pack(production, Ability::Role::PACK_CHANGES).grants.count
 
     Ability::Grant.withhold!(workspace: @workspace, principal: ana, role: pack(staging, Ability::Role::PACK_READ))
+    Ability::Grant.grant!(workspace: @workspace, principal: ana, target: { role: pack(production, Ability::Role::PACK_EVERYTHING) })
     visit onboarding_checklist_path
     assert_text "Except 1 person"
+    assert_text "1 person can through Production (Northflank): everything"
+    assert_no_button "Production (Northflank): everything"
 
     click_button "Continue"
     assert_text "Permissions are set."

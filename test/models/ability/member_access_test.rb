@@ -203,6 +203,62 @@ class Ability::MemberAccessTest < ActiveSupport::TestCase
                  @changes.member_access_notice(Ability::Role::CHOSEN, [ @bob, @charlie ])
   end
 
+  test "a row saying nobody can change names who still can through Changes everywhere" do
+    everywhere = @workspace.ability_roles.find_by!(pack: Ability::Role::PACK_CHANGES_EVERYWHERE)
+    Ability::Grant.grant!(workspace: @workspace, principal: @bob, target: { role: everywhere })
+
+    through = row.change.through.sole
+    assert_equal [ everywhere.id, "Changes everywhere", [ @bob.id ] ], [ through.role_id, through.role_name, through.people_ids ]
+    assert @bob.permitted_to?(@restart, @workspace)
+  end
+
+  test "a row of chosen people names who else can through the connection's everything pack, and leaves the chosen out" do
+    everything = @northflank.permission_packs.find_by!(pack: Ability::Role::PACK_EVERYTHING)
+    @changes.let_members!(Ability::Role::CHOSEN, people: [ @bob ])
+    Ability::Grant.grant!(workspace: @workspace, principal: @bob, target: { role: everything })
+    Ability::Grant.grant!(workspace: @workspace, principal: @charlie, target: { role: everything })
+
+    through = row.change.through.sole
+    assert_equal [ "Faylee (Northflank): everything", [ @charlie.id ] ], [ through.role_name, through.people_ids ]
+  end
+
+  test "reads through a set of the workspace's own and through a single ability are grouped apart" do
+    set = @workspace.ability_roles.create!(name: "Northflank readers")
+    Ability::RoleAction.create!(role: set, action: @list)
+    @read.let_members!(Ability::Role::NOBODY)
+    Ability::Grant.grant!(workspace: @workspace, principal: @bob, target: { role: set })
+    Ability::Grant.grant!(workspace: @workspace, principal: @charlie, target: { action: @list })
+
+    assert_equal [ [ "Northflank readers", [ @bob.id ] ], [ nil, [ @charlie.id ] ] ],
+                 row.read.through.map { |access| [ access.role_name, access.people_ids ] }
+    assert @charlie.permitted_to?(@list, @workspace)
+  end
+
+  test "a grant that has expired reaches nothing, so nobody is named through it" do
+    everything = @northflank.permission_packs.find_by!(pack: Ability::Role::PACK_EVERYTHING)
+    @read.let_members!(Ability::Role::CHOSEN, people: [ @bob ])
+    Ability::Grant.grant!(workspace: @workspace, principal: @charlie, target: { role: everything })
+    Ability::Grant.where(principal: @charlie).update_all(expires_at: 1.minute.ago)
+
+    assert_empty row.read.through
+    assert_empty row.change.through
+  end
+
+  test "a row everyone holds names no broader access, and every row's broader access is read in one query" do
+    everywhere = @workspace.ability_roles.find_by!(pack: Ability::Role::PACK_CHANGES_EVERYWHERE)
+    Ability::Grant.grant!(workspace: @workspace, principal: @bob, target: { role: everywhere })
+    other = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Staging")
+    other.tools.create!(name: "restart_service", read_only: false, enabled: true)
+
+    assert_empty row.read.through
+    queries = []
+    counter = ->(_, _, _, _, payload) { queries << payload[:sql] if payload[:sql].include?("ability_grants") }
+    connections = ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { Ability::Role.member_access_of(@workspace).connections }
+
+    assert_equal [ [ @bob.id ] ] * 2, connections.map { |connection| connection.change.through.sole.people_ids }
+    assert_equal 2, queries.size, "one for the packs' own grants and one for every member's reach"
+  end
+
   private
 
   def row = Ability::Role.member_access_of(@workspace).connections.find { |connection| connection.integration == @northflank }
