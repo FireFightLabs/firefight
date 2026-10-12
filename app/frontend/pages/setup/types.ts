@@ -3,12 +3,11 @@ import type { AiCredits } from "@/components/ai/ai-credits-row"
 import type { CreditPurchase } from "@/components/ai/credit-packs"
 import type { AiSignIn } from "@/components/ai/ai-accounts-card"
 import type {
-  AbilityRole,
   AiProviderOption,
   EnvironmentOption,
+  MemberAccess,
   OnboardingCategory,
   OnboardingStep,
-  Principal,
   SetupPlan,
   WorkspaceAiAccount,
 } from "@/types/serializers"
@@ -38,8 +37,8 @@ export interface SetupPageProps extends SharedProps {
   categories: OnboardingCategory[]
   stackAnswers: Record<string, string>
   environments: EnvironmentOption[]
-  principals: Principal[]
-  packs: AbilityRole[]
+  // What members can read and change in each connection, as the Permissions screen also shows it.
+  memberAccess: MemberAccess
   firstQuestion: string
   walkthrough: WalkthroughStep[]
 }

@@ -99,7 +99,7 @@ app/frontend/
     options-table.tsx, sortable-option-row.tsx, row-actions.tsx, blocked-tooltip.tsx, form-errors.tsx  # the option list kit, used by settings, memory, setup and the AI accounts card
     ai/                    # AI accounts card, its dialog and credits row (Settings, Workspace and the setup checklist)
     incidents/             # lifecycle-form-dialog, declaring and updating an incident from any page
-    permissions/           # who-can-do-what, the quick grant panel (Permissions screen and the setup checklist)
+    permissions/           # who-can-do-what, the quick grant panel (Permissions screen), and member-access-table, each connection's read and change dropdowns (Permissions screen and the setup checklist)
     agent-ui/              # Vendored from Beautiful UI, outside eslint, see its README
     auth/                  # auth-layout, card-header, slack-button (used by login + onboarding)
     layout/                # App shell (authenticated-layout)

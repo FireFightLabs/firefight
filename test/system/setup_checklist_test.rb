@@ -101,7 +101,9 @@ class SetupChecklistTest < ApplicationSystemTestCase
 
     assert_text "Code is set."
     assert_text "Who can do what"
-    assert_text "Everyone reads every connected tool. Changes need a pack."
+    assert_text "Choose what people in your workspace can ask Halon to look at or change in each tool."
+    assert_text "You are the only one here so far, so these choices apply to people you invite later."
+    assert_selector "button[aria-label='Members can change GitHub']", text: "Nobody"
     screenshot("permissions")
     phone_screenshot("permissions")
     Investigation.stubs(:unavailable_reason).returns(nil)

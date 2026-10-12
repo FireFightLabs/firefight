@@ -27,6 +27,32 @@ class SetupControllerTest < ActionDispatch::IntegrationTest
     assert_equal WorkspaceOnboarding::NO_WORKING_ACCOUNT, props["aiChoices"][WorkspaceOnboarding::AI_ACCOUNT]
   end
 
+  test "Who can do what starts with nothing connected and nobody but the owner to choose" do
+    sign_in(@owner.user, @workspace)
+
+    get onboarding_checklist_path, headers: inertia_headers
+
+    assert_equal({ "connections" => [], "members" => [], "peopleCount" => 1 }, inertia_props["memberAccess"])
+  end
+
+  test "Who can do what has a row for each connection, read from the same grants as the Permissions screen" do
+    member = @workspace.workspace_memberships.create!(user: User.create!(email: "ana-#{SecureRandom.hex(4)}@example.com", name: "Ana Ruiz"), role: :member, joined_at: Time.current)
+    first = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Production")
+    second = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Staging")
+    [ first, second ].each { |integration| integration.tools.create!(name: "restart_service", read_only: false, enabled: true) }
+    Ability::Grant.grant!(workspace: @workspace, principal: member, target: { role: second.permission_packs.find_by!(pack: Ability::Role::PACK_CHANGES) })
+    sign_in(@owner.user, @workspace)
+
+    get onboarding_checklist_path, headers: inertia_headers
+
+    access = inertia_props["memberAccess"]
+    assert_equal [ { "id" => member.id, "name" => "Ana Ruiz" } ], access["members"]
+    assert_equal 2, access["peopleCount"]
+    assert_equal [ "Production (Northflank)", "Staging (Northflank)" ], access["connections"].pluck("name")
+    assert_equal [ Ability::Role::NOBODY, Ability::Role::CHOSEN ], access["connections"].map { |row| row["change"]["choice"] }
+    assert_equal "Production (Northflank) has no tools that only read.", access["connections"].first["read"]["unavailableReason"]
+  end
+
   class StaysOpenController < InertiaController
     skip_before_action :block_inaccessible_workspace
 

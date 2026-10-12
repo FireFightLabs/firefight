@@ -7,10 +7,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 export function Blocked({
   reason,
   side = "left",
+  className = "inline-block",
   children,
 }: {
   reason?: string
   side?: "top" | "right" | "bottom" | "left"
+  // The span the tooltip rides on, block when the control fills its column.
+  className?: string
   children: ReactNode
 }) {
   if (!reason) {
@@ -20,7 +23,7 @@ export function Blocked({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="inline-block">{children}</span>
+        <span className={className}>{children}</span>
       </TooltipTrigger>
       <TooltipContent side={side} className="max-w-56">{reason}</TooltipContent>
     </Tooltip>

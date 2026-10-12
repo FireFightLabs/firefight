@@ -3,9 +3,10 @@ import { Head, usePage } from "@inertiajs/react"
 import { IconKey, IconPackage, IconPlus, IconRobot, IconShieldCheck, IconStack2, IconUser } from "@tabler/icons-react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
+import { MemberAccessTable } from "@/components/permissions/member-access-table"
 import { WhoCanDoWhat } from "@/components/permissions/who-can-do-what"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ApprovalRulesEditor } from "@/pages/settings/components/permissions/approval-rules-editor"
 import { DefaultAccessList } from "@/pages/settings/components/permissions/default-access-list"
 import { PackRequestsNotice } from "@/pages/settings/components/permissions/pack-requests-notice"
@@ -18,6 +19,7 @@ import type {
   AbilityRole,
   ApprovalRule,
   EnvironmentOption,
+  MemberAccess,
   PackRequest,
   Principal,
 } from "@/types/serializers"
@@ -32,6 +34,7 @@ interface PermissionsPageProps extends SharedProps {
   sets: AbilityRole[]
   environments: EnvironmentOption[]
   approvalRules: ApprovalRule[]
+  memberAccess: MemberAccess
   packRequests: PackRequest[]
 }
 
@@ -50,7 +53,7 @@ const SECTIONS: { kind: string; title: string; blurb: string }[] = [
 ]
 
 export default function Permissions() {
-  const { principals, actions, sets, environments, approvalRules, packRequests } = usePage<PermissionsPageProps>().props
+  const { principals, actions, sets, environments, approvalRules, memberAccess, packRequests } = usePage<PermissionsPageProps>().props
   const canManage = useCan("permissions")
   const [selection, setSelection] = useState<Selection>({ kind: "principal", id: principals[0]?.id ?? "" })
   const [granting, setGranting] = useState<Principal | null>(null)
@@ -83,6 +86,22 @@ export default function Permissions() {
         <PackRequestsNotice requests={packRequests} canManage={canManage} />
 
         <WhoCanDoWhat people={principals} packs={packs} canManage={canManage} />
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">What members can do in each tool</CardTitle>
+            <CardDescription>
+              Choose what members can ask Halon to look at or change in each tool. Admins can always do everything.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <MemberAccessTable
+              access={memberAccess}
+              canManage={canManage}
+              empty="Nothing is connected yet. Each tool you connect gets a row here."
+            />
+          </CardContent>
+        </Card>
 
         <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
           <div className="flex flex-col gap-5">

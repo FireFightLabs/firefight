@@ -264,7 +264,9 @@ Rails.application.routes.draw do
     resources :ability_grants, only: [ :create, :update, :destroy ], path: "gateway/permissions/grants" do
       post :withhold, on: :collection, path: "no-access"
     end
-    resources :ability_roles, only: [ :create, :update, :destroy ], path: "gateway/permissions/sets"
+    resources :ability_roles, only: [ :create, :update, :destroy ], path: "gateway/permissions/sets" do
+      patch :members, on: :member
+    end
     resources :pack_requests, only: [], path: "gateway/permissions/pack-requests" do
       member do
         post :give

@@ -121,6 +121,7 @@ class SettingsController < InertiaController
       ),
       environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries),
       approvalRules: ApprovalRuleSerializer.many(current_workspace.approval_rules),
+      memberAccess: MemberAccessSerializer.one(Ability::Role.member_access_of(current_workspace)),
       packRequests: PackRequestSerializer.many(current_workspace.ability_pack_requests.waiting.includes({ requester: :user }, :role).order(:requested_at))
     }
   end

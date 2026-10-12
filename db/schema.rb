@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_12_141500) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_12_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -148,6 +148,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_12_141500) do
     t.uuid "workspace_id", null: false
     t.string "pack"
     t.uuid "integration_id"
+    t.boolean "every_member", default: false, null: false
     t.index ["integration_id", "pack"], name: "index_ability_roles_one_pack_per_connection", unique: true, where: "(integration_id IS NOT NULL)"
     t.index ["workspace_id", "pack"], name: "index_ability_roles_one_workspace_pack", unique: true, where: "((pack IS NOT NULL) AND (integration_id IS NULL))"
     t.index ["workspace_id", "slug"], name: "index_ability_roles_on_workspace_id_and_slug", unique: true

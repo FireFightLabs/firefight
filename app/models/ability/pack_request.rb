@@ -82,7 +82,12 @@ module Ability
 
     def waiting? = requested_at.present? && given_at.nil? && dismissed_at.nil?
 
-    def holds_pack? = workspace.ability_grants.where(principal: requester, role: role).reject(&:no_access?).any? { |grant| !grant.expired? }
+    # A pack every member holds is held without a grant.
+    def holds_pack?
+      return true if role.every_member?
+
+      workspace.ability_grants.where(principal: requester, role: role).reject(&:no_access?).any? { |grant| !grant.expired? }
+    end
 
     def add_notification!(channel_id:, message_id:)
       self.class.where(id: id).update_all([ "notifications = notifications || ?::jsonb", [ { channel_id: channel_id, message_id: message_id } ].to_json ])
