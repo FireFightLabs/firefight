@@ -3,8 +3,11 @@ module Integrations
   class McpExecutor
     # A remote server keeps its own state, so the run's box key means nothing to it, and it says nothing until it
     # answers, so nobody hears progress from it. Nor does it write code in Firefight's sandbox, so it takes no request.
-    # Its answer is the same whoever relays it, so relayed changes nothing.
+    # Its answer is the same whoever relays it, so relayed changes nothing. A connection made with Firefight's own app
+    # whose installation stopped answers why instead of calling the server (Installations.refusal), as a native one does.
     def self.call(tool:, environment_row:, arguments:, box_key: nil, progress: nil, request: nil, relayed: false)
+      refused = Installations.refusal(environment_row, tool)
+      return { "content" => [ { "type" => "text", "text" => refused } ], "isError" => true } if refused
       SecretReads.refuse!(tool, arguments)
       within = QUICK_READ if quick_read?(tool)
       result = client_for(tool.integration, environment_row, within: within)
@@ -64,12 +67,14 @@ module Integrations
 
     # A server that answers a ping may still not reach the account behind it, so a provider with a health probe is also
     # asked through its own tools, only those switched on, each call recorded under the health check. What the
-    # probe learned is kept on the row, for the provider's adapter and links to read.
+    # probe learned is kept on the row, for the provider's adapter and links to read. A connection made with Firefight's
+    # own app (IntegrationProvider::App#mcp) is also checked as the app by the provider's pack, which learns its installation.
     def self.check_health!(environment_row)
       client = client_for(environment_row.integration, environment_row)
       client.ping
       learned = reader(environment_row, :health_probe, :checked!, client)&.check!
       environment_row.store_learned!(learned) if learned
+      NativePack.for(environment_row.integration.provider)&.check_app!(environment_row) if environment_row.integration.through_app?
     end
 
     # Whether the health check reads through the connection's tools, so switching one on or off checks it again.

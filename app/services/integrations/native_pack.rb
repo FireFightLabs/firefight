@@ -21,6 +21,10 @@ module Integrations
       # coding agent. nil says it the usual way (Capabilities.halon_sentence).
       def halon_sentence(_name) = nil
 
+      # A provider whose MCP server takes the token of Firefight's own app (IntegrationProvider::App#mcp) checks a
+      # connection the app made as the app, beside the server's own check, raising Integrations::Error with why it fails.
+      def check_app!(_environment_row) = nil
+
       # Providers that gate access behind installing an app return the URL to send
       # the customer to. nil means no install-first flow.
       def install_url(state:)

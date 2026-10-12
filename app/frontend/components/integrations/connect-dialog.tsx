@@ -40,6 +40,8 @@ import { whenClosed } from "@/lib/handlers";
 interface OauthStart {
   providerKey: string;
   kind?: string;
+  // Connects with Firefight's own app with the provider rather than signing in.
+  app?: boolean;
   name: string;
   environmentId: string;
   region: string;
@@ -47,10 +49,13 @@ interface OauthStart {
   returnTo?: string;
 }
 
-function oauthHref({ providerKey, kind, name, environmentId, region, fields, returnTo }: OauthStart) {
+function oauthHref({ providerKey, kind, app, name, environmentId, region, fields, returnTo }: OauthStart) {
   const params = new URLSearchParams({ provider: providerKey });
   if (kind) {
     params.set("kind", kind);
+  }
+  if (app) {
+    params.set("app", "true");
   }
   if (returnTo) {
     params.set("return_to", returnTo);
@@ -156,9 +161,12 @@ function ConnectForm({
   const showOauth = oauthAvailable && !useToken && !connectsWithUrl && !showCredentials;
   const showManualForm = connectsWithUrl ? useToken : (!oauthAvailable || useToken) && !nativeConnect && !showCredentials;
   const mcpKind = useMcpServer ? INTEGRATION_KINDS.MCP : undefined;
-  const showSecondAccountLink = !separateAccount;
-  const showTokenLink = !nativeConnect;
   const alreadyConnected = existingNames.length > 0;
+  // Firefight's own app may be the one way to connect the provider, in place of signing in.
+  const onlyApp = provider.app?.only ? provider.app : null;
+  const appBeside = provider.app && !provider.app.only && !useMcpServer ? provider.app : null;
+  const showSecondAccountLink = !separateAccount && (!onlyApp || alreadyConnected);
+  const showTokenLink = !nativeConnect;
   const nameTaken = separateAccount && existingNames.includes(name.trim());
 
   function switchToMcpServer() {
@@ -237,7 +245,9 @@ function ConnectForm({
             ? "Authorize another environment on the connection you have, or name this one to keep a second account's permissions separate."
             : nativeConnect
               ? "Install the Firefight app and choose what it can reach. Its tools arrive switched on, and you can switch any of them off."
-              : "Firefight discovers this server's tools and switches them on. You can switch any of them off."}
+              : onlyApp
+                ? onlyApp.description
+                : "Firefight discovers this server's tools and switches them on. You can switch any of them off."}
         </DialogDescription>
       </DialogHeader>
 
@@ -347,7 +357,7 @@ function ConnectForm({
               </Button>
             ) : (
               <Button asChild size="lg" className="w-full">
-                <a href={oauthHref({ providerKey: provider.key, kind: mcpKind, name, environmentId, region, fields, returnTo })}>
+                <a href={oauthHref({ providerKey: provider.key, kind: mcpKind, app: onlyApp !== null, name, environmentId, region, fields, returnTo })}>
                   Continue with {provider.name}
                 </a>
               </Button>
@@ -355,19 +365,21 @@ function ConnectForm({
             <p className="text-muted-foreground text-center text-xs">
               {nativeConnect
                 ? `You choose what Firefight can reach on ${provider.name}'s install screen. No keys to copy.`
-                : `You approve access on ${provider.name}'s consent screen. No keys to copy.`}
+                : onlyApp?.consentNote
+                  ? onlyApp.consentNote
+                  : `You approve access on ${provider.name}'s consent screen. No keys to copy.`}
             </p>
-            {provider.consentNote && !nativeConnect && (
+            {provider.consentNote && !nativeConnect && !onlyApp && (
               <p className="text-muted-foreground text-center text-xs">{provider.consentNote}</p>
             )}
           </div>
 
-          {provider.app && !useMcpServer && (
+          {appBeside && (
             <div className="border-border flex flex-col gap-2 rounded-lg border p-3">
-              <p className="text-sm font-medium">{provider.app.label}</p>
-              <p className="text-muted-foreground text-xs">{provider.app.description}</p>
+              <p className="text-sm font-medium">{appBeside.label}</p>
+              <p className="text-muted-foreground text-xs">{appBeside.description}</p>
               <Button asChild size="sm" variant="outline" className="self-start">
-                <a href={oauthHref({ providerKey: provider.key, kind: INTEGRATION_KINDS.NATIVE, name: separateAccount ? name : provider.app.connectionName, environmentId, region: "", fields: {}, returnTo })}>
+                <a href={oauthHref({ providerKey: provider.key, app: true, name: separateAccount ? name : appBeside.connectionName, environmentId, region: "", fields: {}, returnTo })}>
                   Connect the {provider.name} app
                 </a>
               </Button>

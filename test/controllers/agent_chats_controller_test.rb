@@ -45,7 +45,8 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "a chat someone started in a tracker's issue lives only there, like a chat in a channel, so nobody lists, finds or opens it here" do
-    integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "linear", name: "Linear issue sync", settings: {})
+    integration = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "linear", name: "Linear issue sync",
+      settings: { "server_url" => "https://mcp.linear.app/mcp", Integration::APP_SETTING => true })
     issue_chat = Conversation.start_in_issue!(integration: integration, session_id: "session-1", title: "ENG-12 Checkout", issue_key: "ENG-12",
                                               issue_url: "https://linear.app/acme/issue/ENG-12", asked_by: @member)
     issue_chat.ask!("Why is checkout failing?", asker: issue_chat.started_by)

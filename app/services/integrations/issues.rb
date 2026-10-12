@@ -138,9 +138,10 @@ module Integrations
     end
 
     # Whether the connection's issue changes arrive at its provider's app wide address, sent by the provider for every
-    # account that installed Firefight's app (IssueSyncService.app_delivered!).
+    # account that installed Firefight's app (IssueSyncService.app_delivered!). The connection the app made may be native
+    # or reach the provider's MCP server with the app's token (IntegrationProvider::App#mcp), and the pack says either way.
     def self.through_app?(integration)
-      pack = integration.native? && NativePack.for(integration.provider)
+      pack = NativePack.for(integration.provider)
       pack.present? && pack.respond_to?(:issue_changes_through_app?) && pack.issue_changes_through_app?(integration.resolve_environment(nil))
     end
 

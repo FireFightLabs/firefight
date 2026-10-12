@@ -140,6 +140,35 @@ module Workspace::IssueSync
     )
   end
 
+  ISSUE_TRACKER_CHOICE_CONTEXT = { source: AbilityGateway::SOURCE_ISSUE_SYNC, triggered_by_label: "Issue tracking settings" }.freeze
+
+  # Whether the connection is the only tracker connected here and is not chosen yet, so choosing it asks nobody anything.
+  def sole_issue_tracker?(integration)
+    return false unless integration.operational? && Integrations::Issues.syncs?(integration.provider) && issue_tracker != integration.slug
+
+    !integrations.where(deleted_at: nil, provider: issue_tracker_providers).where.not(id: integration.id).exists?
+  end
+
+  # Whether an approval rule holds changing these settings, so a tracker is chosen here only by someone on the page.
+  def issue_tracker_choice_held?
+    action = Ability::Action.lookup(WEBHOOK_ACTION_KEY, self)
+    action.present? && AbilityGateway.approval_requirement(self, action, WEBHOOK_ACTION_KEY, {}, ISSUE_TRACKER_CHOICE_CONTEXT).present?
+  end
+
+  # Choosing a tracker without the settings page is authorized and ledgered as whoever it was chosen for.
+  def authorize_issue_tracker_choice!(integration, by:, &)
+    AbilityGateway.authorize!(principal: by, action_key: WEBHOOK_ACTION_KEY, workspace: self, params: { "issue_tracker" => integration.slug },
+                              context: ISSUE_TRACKER_CHOICE_CONTEXT, &)
+  end
+
+  # What a person is told once a tracker was chosen for them, with what it still needs before it opens issues.
+  def issue_tracker_chosen_words
+    integration = issue_tracker_connection
+    missing = Integrations::Issues.target_fields(integration.provider).find { |field| field.required && issue_tracker_target[field.key].blank? }
+    chosen = "It is now this workspace's issue tracker, so incident items are kept in step with its issues."
+    missing ? "#{chosen} Choose the #{missing.label.downcase} new issues go to under Settings, Workspace." : chosen
+  end
+
   def issue_webhook_registered!(webhook) = issue_webhook_row&.issue_webhook_registered!(webhook)
 
   def issue_webhook_failed!(words) = issue_webhook_row&.issue_webhook_failed!(words)

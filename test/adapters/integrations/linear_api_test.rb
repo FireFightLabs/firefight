@@ -11,37 +11,20 @@ module Integrations
 
     def api = LinearApi.new("Authorization" => "Bearer lin_oauth")
 
-    test "a team is found by its key or its name, ignoring case, with the app's token" do
-      sent = capture("data" => { "teams" => { "nodes" => [ { "id" => "team-1", "key" => "ENG" } ] } })
-
-      assert_equal "team-1", api.team("eng")["id"]
-      url, auth, body = sent.sole
-      assert_equal [ "https://api.linear.app/graphql", "Bearer lin_oauth" ], [ url, auth ]
-      assert_equal({ "or" => [ { "key" => { "eqIgnoreCase" => "eng" } }, { "name" => { "eqIgnoreCase" => "eng" } } ] }, body.dig("variables", "filter"))
-    end
-
-    test "a webhook is created with its url, team, resource types and secret, and deleted by its id" do
-      sent = capture("data" => { "webhookCreate" => { "success" => true, "webhook" => { "id" => "wh-1", "enabled" => true } } })
-
-      webhook = api.create_webhook("url" => "https://ff.example.com/hook", "teamId" => "team-1", "resourceTypes" => [ "Issue" ], "secret" => "s")
-
-      assert_equal "wh-1", webhook["id"]
-      assert_match "webhookCreate(input: $input)", sent.sole.last["query"]
-      assert_equal "s", sent.sole.last.dig("variables", "input", "secret")
-    end
-
     test "Linear's errors list is its refusal" do
-      capture("errors" => [ { "message" => "Entity not found: Issue" } ])
+      capture("errors" => [ { "message" => "Entity not found: AgentSession" } ])
 
-      error = assert_raises(LinearApi::Error) { api.issue("ENG-1") }
-      assert_equal "Linear refused this: Entity not found: Issue", error.message
+      error = assert_raises(LinearApi::Error) { api.create_activity("agentSessionId" => "gone") }
+      assert_equal "Linear refused this: Entity not found: AgentSession", error.message
     end
 
-    test "an agent activity is sent as agentActivityCreate takes it" do
+    test "an agent activity is sent as agentActivityCreate takes it, with the app's token" do
       sent = capture("data" => { "agentActivityCreate" => { "success" => true } })
       assert api.create_activity("agentSessionId" => "session-1", "content" => { "type" => "thought", "body" => "On it." })
-      assert_match "agentActivityCreate(input: $input)", sent.sole.last["query"]
-      assert_equal "thought", sent.sole.last.dig("variables", "input", "content", "type")
+      url, auth, body = sent.sole
+      assert_equal [ "https://api.linear.app/graphql", "Bearer lin_oauth" ], [ url, auth ]
+      assert_match "agentActivityCreate(input: $input)", body["query"]
+      assert_equal "thought", body.dig("variables", "input", "content", "type")
     end
 
     test "who the token acts as comes with its organization and whether it reaches a team" do
@@ -53,7 +36,7 @@ module Integrations
     test "a token Linear no longer takes is told apart from any other refusal" do
       Http.stubs(:request).returns(stub(code: "401", body: { "errors" => [ { "message" => "Authentication required" } ] }.to_json, each_header: []))
 
-      assert_raises(LinearApi::Unauthorized) { api.viewer }
+      assert_raises(LinearApi::Unauthorized) { api.actor }
     end
 
     test "revoking sends the token in the token field, and one already revoked leaves nothing to do" do

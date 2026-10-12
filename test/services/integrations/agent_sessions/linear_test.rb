@@ -72,7 +72,8 @@ module Integrations
 
       test "an activity is posted in the session's shape, and choices go as the select signal's options" do
         workspace = workspaces(:slack_workspace_one)
-        row = workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "linear", name: "Linear issue sync", settings: {})
+        row = workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "linear", name: "Linear issue sync",
+      settings: { "server_url" => "https://mcp.linear.app/mcp", Integration::APP_SETTING => true })
                        .integration_environments.create!
         Credentials.stubs(:headers_for).returns("Authorization" => "Bearer lin_app")
         LinearApi.any_instance.expects(:create_activity).with({
@@ -89,7 +90,8 @@ module Integrations
       end
 
       test "Linear's refusal is said in words" do
-        row = workspaces(:slack_workspace_one).integrations.create!(kind: Integration::KIND_NATIVE, provider: "linear", name: "Linear issue sync", settings: {})
+        row = workspaces(:slack_workspace_one).integrations.create!(kind: Integration::KIND_MCP, provider: "linear", name: "Linear issue sync",
+      settings: { "server_url" => "https://mcp.linear.app/mcp", Integration::APP_SETTING => true })
                                               .integration_environments.create!
         Credentials.stubs(:headers_for).returns({})
         LinearApi.any_instance.stubs(:create_activity).raises(LinearApi::Error, "Linear refused this: Agent session not found")

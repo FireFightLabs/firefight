@@ -12,10 +12,10 @@ class Api::V1::AppEventsIssueChangesTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    @app = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "linear", name: "Linear issue sync", slug: "linear_issue_sync", settings: {})
+    @app = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "linear", name: "Linear issue sync", slug: "linear_issue_sync",
+      settings: { "server_url" => "https://mcp.linear.app/mcp", Integration::APP_SETTING => true })
     @app.integration_environments.create!.store_installation!("org-1")
     LINEAR_TOOLS.each { |tool| @app.tools.create!(name: tool, description: tool, read_only: READS.include?(tool), enabled: true, params_schema: {}) }
-    Integrations::Packs::Linear.any_instance.expects(:register_issue_webhook).never
     sync_with!(@workspace, @app, secret: "")
     incident = Incident.create!(
       workspace: @workspace, declared_by: @alice, incident_status: incident_statuses(:investigating_ws1),

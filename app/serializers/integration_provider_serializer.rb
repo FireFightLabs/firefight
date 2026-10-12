@@ -68,9 +68,15 @@ class IntegrationProviderSerializer < BaseSerializer
   def mcp_alternative = provider.mcp_alternative?
 
   # Firefight's own app with the provider, which connects it to keep incident items in step with issues, or null when
-  # the provider has none or this install did not register it.
-  type "{ label: string, description: string, connectionName: string } | null"
-  def app = provider.app_connect? ? { label: provider.app.label, description: provider.app.description, connectionName: provider.app.connection_name } : nil
+  # the provider has none or this install did not register it. only says it is the one way to connect, offered in place
+  # of signing in with consentNote under it, and otherwise it is offered beside the sign-in under its label.
+  type "{ label: string | null, description: string, connectionName: string, consentNote: string | null, only: boolean } | null"
+  def app
+    return unless provider.app_connect?
+
+    { label: provider.app.label, description: provider.app.description, connectionName: provider.app_connection_name,
+      consentNote: provider.app.consent_note, only: provider.app_only? }
+  end
 
   # What the connect form says about the provider's consent screen when signing in, such as which access to leave off,
   # or null.
