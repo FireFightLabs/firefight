@@ -9,13 +9,17 @@ class Conversation::ModelMenuTest < ActiveSupport::TestCase
     account = add_ai_account!(@workspace, provider: "openrouter", key: "sk-or-own")
     menu = Conversation::ModelMenu.for(@workspace)
 
-    assert_equal [ "openai/shared-vision", "anthropic/claude-haiku-5.5", "z-ai/glm-5.2", "anthropic/claude-sonnet-5.5", "anthropic/claude-opus-5.5" ], menu.models.map(&:model)
-    main, _haiku, glm, _sonnet, opus = menu.models
+    assert_equal [ "openai/shared-vision", "anthropic/claude-haiku-5.5", "z-ai/glm-5.3-flash", "z-ai/glm-5.2", "anthropic/claude-sonnet-5.5", "z-ai/glm-5.3", "anthropic/claude-opus-5.5" ], menu.models.map(&:model)
+    main, _haiku, flash, glm, _sonnet, glm_full, opus = menu.models
     assert main.default
     assert_equal [ "Shared Vision", Conversation::ModelMenu::DEFAULT_NOTE ], [ main.label, main.note ]
     assert_equal [ "GLM-5.2", "Everyday questions" ], [ glm.label, glm.note ]
     assert_equal [ "Claude Opus 5.5", "Hardest problems and production changes, costs more" ], [ opus.label, opus.note ]
     assert_not glm.reads_images
+    assert_equal [ "GLM-5.3 Flash", "Everyday questions" ], [ flash.label, flash.note ]
+    assert flash.reads_images
+    assert_equal [ "GLM-5.3", "Investigations and tricky problems, reads text only" ], [ glm_full.label, glm_full.note ]
+    assert_not glm_full.reads_images
     assert menu.offers_choice?
 
     picked = menu.choice("z-ai/glm-5.2")
@@ -28,8 +32,8 @@ class Conversation::ModelMenuTest < ActiveSupport::TestCase
     add_ai_account!(@workspace, provider: "openrouter", key: "sk-or-own", models: { "main" => "anthropic/claude-opus-5.5", "fast" => "openai/shared-vision" })
     menu = Conversation::ModelMenu.for(@workspace)
 
-    assert_equal [ "anthropic/claude-haiku-5.5", "z-ai/glm-5.2", "anthropic/claude-sonnet-5.5", "anthropic/claude-opus-5.5" ], menu.models.map(&:model)
-    assert_equal [ false, false, false, true ], menu.models.map(&:default)
+    assert_equal [ "anthropic/claude-haiku-5.5", "z-ai/glm-5.3-flash", "z-ai/glm-5.2", "anthropic/claude-sonnet-5.5", "z-ai/glm-5.3", "anthropic/claude-opus-5.5" ], menu.models.map(&:model)
+    assert_equal [ false, false, false, false, false, true ], menu.models.map(&:default)
     assert_nil menu.choice("anthropic/claude-opus-5.5")
   end
 
@@ -54,7 +58,7 @@ class Conversation::ModelMenuTest < ActiveSupport::TestCase
     RubyLLM.stubs(:config).returns(keyed)
     menu = Conversation::ModelMenu.for(@workspace)
 
-    assert_equal [ "anthropic/claude-haiku-5.5", "z-ai/glm-5.2", "anthropic/claude-sonnet-5.5", "anthropic/claude-opus-5.5" ], menu.models.map(&:model)
+    assert_equal [ "anthropic/claude-haiku-5.5", "z-ai/glm-5.3-flash", "z-ai/glm-5.2", "anthropic/claude-sonnet-5.5", "z-ai/glm-5.3", "anthropic/claude-opus-5.5" ], menu.models.map(&:model)
     picked = menu.choice("z-ai/glm-5.2")
     assert_equal Inference::PAID_BY_OPERATOR, picked.payer.paid_by
     assert_nil picked.context
