@@ -116,6 +116,23 @@ openrouter_glm_5_2:
   capabilities: ["function_calling", "reasoning"]
   pricing: {"text_tokens": {"standard": {"input_per_million": 1.4, "output_per_million": 4.4}}}
 
+openrouter_glm_5_3:
+  model_id: z-ai/glm-5.3
+  context_window: 1048576
+  name: "Z.ai: GLM 5.3"
+  provider: openrouter
+  capabilities: ["function_calling", "reasoning"]
+  pricing: {"text_tokens": {"standard": {"input_per_million": 0.079, "output_per_million": 4.8}}}
+
+openrouter_glm_5_3_flash:
+  model_id: z-ai/glm-5.3-flash
+  context_window: 1048576
+  name: "Z.ai: GLM 5.3 Flash"
+  provider: openrouter
+  capabilities: ["function_calling", "reasoning", "vision"]
+  modalities: {"input": ["text", "image", "video"], "output": ["text"]}
+  pricing: {"text_tokens": {"standard": {"input_per_million": 0.15, "output_per_million": 0.5}}}
+
 # Quick work, helpers and the loop's backup where the provider runs Claude.
 claude_haiku_5_5:
   model_id: claude-haiku-5-5
