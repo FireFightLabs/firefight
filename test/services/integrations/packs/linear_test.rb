@@ -13,7 +13,11 @@ module Integrations
         @row = @integration.integration_environments.create!
         Credentials.stubs(:headers_for).returns("Authorization" => "Bearer lin_oauth")
         @pack = NativePack.fetch!(@integration)
+        @previous_secret = ENV["INTEGRATION_LINEAR_WEBHOOK_SECRET"]
+        ENV["INTEGRATION_LINEAR_WEBHOOK_SECRET"] = "app-secret"
       end
+
+      teardown { ENV["INTEGRATION_LINEAR_WEBHOOK_SECRET"] = @previous_secret }
 
       def data(result) = JSON.parse(result["content"].first["text"])
 
@@ -69,6 +73,18 @@ module Integrations
 
         assert_equal [ "org-1", IntegrationEnvironment::HEALTH_HEALTHY ], [ @row.reload.installation_id, @row.health_status ]
         assert Installations.installed?(@row)
+      end
+
+      test "without the app's webhook signing secret set on the deployment, an app connection needs attention and says why" do
+        ENV["INTEGRATION_LINEAR_WEBHOOK_SECRET"] = nil
+        LinearApi.any_instance.stubs(:actor).returns(APP)
+
+        HealthCheckService.check!(@row)
+
+        assert_equal [ IntegrationEnvironment::HEALTH_FAILING, Linear::APP_WEBHOOK_UNSET ], [ @row.reload.health_status, @row.health_error ]
+        assert_equal "org-1", @row.installation_id
+        assert_equal IntegrationProvider::STATE_NEEDS_ATTENTION, IntegrationProvider.card_for(@workspace, IntegrationProvider.category_for!("Issues"))
+                                                                                     .rows.find { |row| row.provider.key == "linear" }.state
       end
 
       test "a connection made before the app acted as itself keeps working but needs attention, saying to reconnect" do

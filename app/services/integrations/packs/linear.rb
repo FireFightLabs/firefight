@@ -85,14 +85,19 @@ module Integrations
       ACTS_AS_A_PERSON = "Firefight's Linear app acts as the person who connected it, so it cannot be assigned issues or mentioned, and it stops " \
                          "when they leave Linear. Reconnect it, and have a Linear admin approve the install, so it acts as itself.".freeze
 
+      APP_WEBHOOK_UNSET = "Firefight cannot receive Linear's changes or mentions until whoever runs Firefight sets the app's webhook " \
+                          "signing secret.".freeze
+
       # The installation is learned here, on connecting and with every check, so a reconnect that installed the app in
-      # another organization follows it.
+      # another organization follows it. An app connection hears of changes and mentions only at the app's own webhook,
+      # which exists only once the deployment has its signing secret (MapEvents.app_secret).
       def check_health!(environment_row)
         actor = api(environment_row).actor.to_h
         fail! ACTS_AS_A_PERSON unless actor["app"]
 
         organization = actor.dig("organization", "id")
         Installations.connected!(environment_row, organization) if organization.present? && environment_row.installation_id != organization
+        fail! APP_WEBHOOK_UNSET if MapEvents.app_secret(environment_row.integration.provider).blank?
       rescue LinearApi::Error => error
         fail! error.message
       end
