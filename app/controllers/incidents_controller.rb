@@ -18,7 +18,7 @@ class IncidentsController < InertiaController
 
     render inertia: "incidents/index", props: {
       incident: IncidentDetailSerializer.one(incident),
-      timelineEvents: InertiaRails.defer { TimelineEventSerializer.many(incident.timeline_events) },
+      timelineEvents: InertiaRails.defer { timeline_events(incident) },
       actions: InertiaRails.defer {
         IncidentActionSerializer.many(
           IncidentAction.with_actors(incident.incident_actions.active.includes(:assignee, :created_by).to_a)
@@ -184,6 +184,19 @@ class IncidentsController < InertiaController
       .recent
       .limit(LINKABLE_LIMIT)
       .map { |other| { id: other.id, identifier: other.identifier, name: other.name } }
+  end
+
+  # A quoted chat message is in the platform's own markup, so the platform says what it reads as.
+  def timeline_events(incident)
+    events = incident.timeline_events
+    TimelineEventSerializer.many(events, quotes: quotes_as_markdown(events))
+  end
+
+  def quotes_as_markdown(events)
+    texts = events.filter_map(&:quoted_message).uniq
+    return {} if texts.empty?
+
+    WorkspaceAdapter.for(current_workspace).messages_as_markdown(texts: texts)
   end
 
   # Read by both the lead picker and the roles panel.

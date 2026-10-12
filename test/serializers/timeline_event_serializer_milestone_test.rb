@@ -20,6 +20,15 @@ class TimelineEventSerializerMilestoneTest < ActiveSupport::TestCase
     assert_nil rendered[:subject]
   end
 
+  test "a note's quote is the markdown handed in for its text" do
+    note
+
+    rendered = TimelineEventSerializer.many(@incident.reload.timeline_events, quotes: { "rolling back" => "**rolling back**" })
+      .map(&:deep_symbolize_keys).find { |event| event[:eventType] == IncidentEvent::MILESTONE_NOTED }
+
+    assert_equal "**rolling back**", rendered.dig(:milestone, :quote)
+  end
+
   test "the avatar comes from the person who said it, not from an actor" do
     note
 

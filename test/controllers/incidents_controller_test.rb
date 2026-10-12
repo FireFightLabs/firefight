@@ -89,6 +89,27 @@ class IncidentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "The postmortem was marked as completed.", flash[:notice]
   end
 
+  test "a quoted Slack message reaches the timeline as markdown, mentions named" do
+    incident = incidents(:active_critical_ws1)
+    alice = workspace_memberships(:alice_workspace_one)
+    text = "<@#{alice.platform_user_id}> says ```Customers are seeing 502s```"
+    note = incident.incident_events.create!(
+      event_type: IncidentEvent::MILESTONE_NOTED,
+      metadata: { kind: "finding", statement: "Alice saw 502s", message_text: text }
+    )
+    pin = incident.incident_events.create!(event_type: IncidentEvent::MESSAGE_PINNED, metadata: { message_text: "*Pinned* ~old~" })
+
+    get incident_path(incident), headers: inertia_headers.merge(
+      "X-Inertia-Partial-Data" => "timelineEvents", "X-Inertia-Partial-Component" => "incidents/index"
+    )
+
+    assert_response :success
+    events = inertia_props["timelineEvents"].index_by { |event| event["id"] }
+    assert_equal "@#{alice.display_name} says \n```\nCustomers are seeing 502s\n```", events[note.id].dig("milestone", "quote")
+    assert_equal "**Pinned** ~old~", events[pin.id].dig("pin", "text")
+    assert_equal text, note.reload.metadata["message_text"]
+  end
+
   private
 
   def sign_in(user, workspace)

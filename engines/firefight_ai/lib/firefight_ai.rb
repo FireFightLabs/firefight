@@ -180,7 +180,7 @@ module FirefightAi
   # The deployment's own model for the purpose, most specific first: workspace override for the purpose, for any
   # purpose, the purpose's env var, the model the providers recommend for it, then the parent purpose's model when it
   # has one. After that it depends on the purpose's tier. Halon's own loop takes FIREFIGHT_AI_MODEL, then the main
-  # model of the first provider this deployment holds a key for. A side job takes FIREFIGHT_AI_QUICK_MODEL, then the
+  # model of FIREFIGHT_AI_PROVIDER when it is set and holds a key, else of the first provider this deployment holds a key for. A side job takes FIREFIGHT_AI_QUICK_MODEL, then the
   # quick model of the provider the loop runs on, then FIREFIGHT_AI_MODEL. Both end at the purpose's fallback.
   def deployment_model_for(purpose, workspace: nil)
     override = workspace && workspace.ai_model_overrides.for_purpose(purpose).min_by { |row| row.purpose == purpose ? 0 : 1 }
@@ -200,7 +200,7 @@ module FirefightAi
 
     default = default_choice
     return default if default
-    return AiProviders.deployment_choice(WorkspaceAiAccount::MAIN) || fallback_choice(purpose) if purpose == AiPurpose::INVESTIGATION
+    return AiProviders.deployment_choice(WorkspaceAiAccount::MAIN, prefer: configuration.default_provider) || fallback_choice(purpose) if purpose == AiPurpose::INVESTIGATION
 
     fallback_choice(purpose)
   end
