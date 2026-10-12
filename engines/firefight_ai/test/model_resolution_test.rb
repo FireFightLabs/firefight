@@ -160,6 +160,18 @@ class FirefightAi::ModelResolutionTest < ActiveSupport::TestCase
     assert_equal "claude-sonnet-5-5", FirefightAi.model_for(AiPurpose::POSTMORTEM, workspace: @workspace).model, "what grows from the loop follows it"
   end
 
+  test "FIREFIGHT_AI_PROVIDER alone picks the provider whose main model the loop runs on, ahead of others with a key" do
+    RubyLLM.config.stubs(:anthropic_api_key).returns("sk-ant-test")
+    RubyLLM.config.stubs(:openrouter_api_key).returns("sk-or-test")
+    FirefightAi.configuration.default_provider = "openrouter"
+
+    loop = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
+    side = FirefightAi.model_for(AiPurpose::SUMMARY, workspace: @workspace)
+
+    assert_equal "openrouter", loop.provider
+    assert_equal "openrouter", side.provider, "side jobs follow the loop's provider"
+  end
+
   test "the deployment default still leads Halon's loop, and side jobs move to its provider's quick model" do
     RubyLLM.config.stubs(:anthropic_api_key).returns("sk-ant-test")
     FirefightAi.configuration.default_model = "claude-sonnet-4-5"
