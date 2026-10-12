@@ -10,6 +10,30 @@ class Conversation::Runner
   PHASE_CONTEXT = "context".freeze
   PHASE_RESPONDER = "responder".freeze
   PHASE_AFTER = "after".freeze
+  # Each step of setup, logged under SETUP_STEP_EVENT with how long it took and how many queries it sent.
+  SETUP_STEP_EVENT = "conversation_reply.setup_step".freeze
+  STEP_CHAT = "chat".freeze
+  STEP_HAND_BACK_ROOM = "hand_back_room".freeze
+  STEP_DISCARD = "discard_interrupted".freeze
+  STEP_CLOSE_CALLS = "close_unfinished_calls".freeze
+  STEP_TAKE_QUEUED = "take_queued".freeze
+  STEP_HELD_CALL = "held_call".freeze
+  STEP_PULL_REQUEST_FIX = "pull_request_fix".freeze
+  STEP_CODE_PAUSE = "code_pause".freeze
+  STEP_PLAN_NOTE = "plan_note".freeze
+  STEP_HAND_BACK_NOTE = "hand_back_note".freeze
+  STEP_ANSWERED_ALREADY = "answered_already".freeze
+  STEP_DELIVERED = "delivered".freeze
+  STEP_EXPECT_REPLY = "expect_reply".freeze
+  STEP_STOP_REQUESTED = "stop_requested".freeze
+  STEP_STOPPED = "stopped".freeze
+  STEP_THINKING = "thinking".freeze
+  STEP_LISTENERS = "listeners".freeze
+  STEP_HELD_OUTCOMES = "held_outcomes".freeze
+  STEP_CATCH_UP = "catch_up".freeze
+  STEP_SPECIALISTS = "specialists".freeze
+  STEP_PRESENTED = "presented".freeze
+  STEP_SUSPECTS = "suspects".freeze
 
   # held_call is an approved call someone pressed Run on, which this turn runs first. handed_back is a watch step that
   # could not find what it followed, which this turn re-plans, reading only. pull_request_fix is a pull request notice
@@ -31,39 +55,44 @@ class Conversation::Runner
 
   def run
     @marked = Time.current
+    @turn.hold_catalog!
     chat, purse, presented, suspects = timed_phase(PHASE_SETUP) do
-      chat = @conversation.chat_record
+      chat = setup_step(STEP_CHAT) { @conversation.chat_record }
       # A turn paused on the person's confirmation is theirs, so a hand back waits for their next turn, which tells it.
-      return nil if @handed_back && !room_for_a_note?(chat)
+      return nil if @handed_back && !setup_step(STEP_HAND_BACK_ROOM) { room_for_a_note?(chat) }
 
-      chat.discard_interrupted_reply!
-      withdraw(chat.close_unfinished_calls!)
-      take_queued(chat)
-      run_held_call(chat) if @held_call
-      run_pull_request_fix(chat) if @pull_request_fix
-      run_code_pause(chat) if @code_pause
-      chat.nudge!(Conversation::Plans.note(@plan, @plan_move, @turn.asker)) if @plan && room_for_a_note?(chat)
-      chat.nudge!(Conversation::Watches.hand_back_note(@handed_back)) if @handed_back&.hand_back_noted!
+      setup_step(STEP_DISCARD) { chat.discard_interrupted_reply! }
+      setup_step(STEP_CLOSE_CALLS) { withdraw(chat.close_unfinished_calls!) }
+      setup_step(STEP_TAKE_QUEUED) { take_queued(chat) }
+      setup_step(STEP_HELD_CALL) { run_held_call(chat) } if @held_call
+      setup_step(STEP_PULL_REQUEST_FIX) { run_pull_request_fix(chat) } if @pull_request_fix
+      setup_step(STEP_CODE_PAUSE) { run_code_pause(chat) } if @code_pause
+      setup_step(STEP_PLAN_NOTE) { chat.nudge!(Conversation::Plans.note(@plan, @plan_move, @turn.asker)) if room_for_a_note?(chat) } if @plan
+      setup_step(STEP_HAND_BACK_NOTE) { chat.nudge!(Conversation::Watches.hand_back_note(@handed_back)) if @handed_back.hand_back_noted! } if @handed_back
       # The turn before this one already answered what this job was queued for.
-      if answered_already?(chat)
-        @conversation.reply_delivered!
+      if setup_step(STEP_ANSWERED_ALREADY) { answered_already?(chat) }
+        setup_step(STEP_DELIVERED) { @conversation.reply_delivered! }
         return nil
       end
 
       # A question that waited behind the last turn was never marked as owed, since one already was.
-      @conversation.expect_reply!
+      setup_step(STEP_EXPECT_REPLY) { @conversation.expect_reply! }
       # Pressed while this turn waited behind the last one.
-      return stopped!(chat) if chat.stop_requested?
+      return setup_step(STEP_STOPPED) { stopped!(chat) } if setup_step(STEP_STOP_REQUESTED) { chat.stop_requested? }
 
-      delivery.thinking!
-      @turn.listen_to_progress { |key, update| report_progress(key, update) }
-      tell_held_outcomes(chat)
-      chat.on_making_room { |compaction| delivery.made_room(compaction) }
-      @changes = Chat::Tools::Changes.catch_up!(@turn, chat).then { |caught| caught if caught.note }
-      purse = FirefightAi::AgentLoop::Purse.new
-      @turn.asks_specialists = Chat::Specialists.ask?(@turn, picked_model || FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @conversation.workspace))
-      presented = Chat::Tools.presented(@turn, responder.ai_model)
-      suspects = tell_suspects(chat)
+      setup_step(STEP_THINKING) { delivery.thinking! }
+      purse = setup_step(STEP_LISTENERS) do
+        @turn.listen_to_progress { |key, update| report_progress(key, update) }
+        chat.on_making_room { |compaction| delivery.made_room(compaction) }
+        FirefightAi::AgentLoop::Purse.new
+      end
+      setup_step(STEP_HELD_OUTCOMES) { tell_held_outcomes(chat) }
+      @changes = setup_step(STEP_CATCH_UP) { Chat::Tools::Changes.catch_up!(@turn, chat).then { |caught| caught if caught.note } }
+      setup_step(STEP_SPECIALISTS) do
+        @turn.asks_specialists = Chat::Specialists.ask?(@turn, picked_model || FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @conversation.workspace))
+      end
+      presented = setup_step(STEP_PRESENTED) { Chat::Tools.presented(@turn, responder.ai_model) }
+      suspects = setup_step(STEP_SUSPECTS) { tell_suspects(chat) }
       [ chat, purse, presented, suspects ]
     end
 
@@ -78,6 +107,7 @@ class Conversation::Runner
       ]
     end
 
+    @turn.release_catalog!
     outcome = timed_phase(PHASE_RESPONDER) do |started|
       @responder_started = started
       responder.run(
@@ -138,12 +168,29 @@ class Conversation::Runner
   end
 
   # Where a reply's time goes, logged per phase and spanned when a tracer is set (config/initializers/opentelemetry.rb).
-  # A stop is the person pressing Stop, so its span ends as OK with no exception on it, which the SDK keeps over the error
-  # in_span sets after. Any other failure is recorded here, since in_span is told not to.
   def timed_phase(name)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    Firefight::TRACER.in_span("conversation.reply.#{name}", attributes: { "conversation.id" => @conversation.id }, record_exception: false) do |span|
-      yield started
+    traced("conversation.reply.#{name}") { yield started }
+  ensure
+    Rails.logger.info({ event: PHASE_EVENT, phase: name, duration_ms: elapsed_ms(started), conversation_id: @conversation.id }.to_json)
+  end
+
+  # One step of setup, logged and spanned inside the setup phase's span with the queries it sent, since setup's time is
+  # mostly round trips to the database.
+  def setup_step(name, &)
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    queries = Conversation::Runner::QueryCount.new
+    traced("conversation.reply.#{PHASE_SETUP}.#{name}") { queries.count(&) }
+  ensure
+    Rails.logger.info({ event: SETUP_STEP_EVENT, step: name, duration_ms: elapsed_ms(started), queries: queries&.total, cached: queries&.cached,
+                        conversation_id: @conversation.id }.to_json)
+  end
+
+  # A stop is the person pressing Stop, so its span ends as OK with no exception on it, which the SDK keeps over the error
+  # in_span sets after. Any other failure is recorded here, since in_span is told not to.
+  def traced(span_name)
+    Firefight::TRACER.in_span(span_name, attributes: { "conversation.id" => @conversation.id }, record_exception: false) do |span|
+      yield
     rescue FirefightAi::Canceled
       span.status = OpenTelemetry::Trace::Status.ok
       raise
@@ -151,8 +198,6 @@ class Conversation::Runner
       span.record_exception(error)
       raise
     end
-  ensure
-    Rails.logger.info({ event: PHASE_EVENT, phase: name, duration_ms: elapsed_ms(started), conversation_id: @conversation.id }.to_json)
   end
 
   # The first text shown to the person, which on a turn that calls tools first comes after them, and on one that only

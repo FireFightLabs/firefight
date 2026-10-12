@@ -25,6 +25,22 @@ class Conversation::Turn
 
   def acting_principal = asker
 
+  # While the runner gets the turn ready, deciding on specialists, handing tools over and what the chat found earlier read
+  # one catalogue (Chat::Tools.catalog), built by the block the first time. Once the model works each read builds it
+  # fresh, so a grant or a connection changed during the turn is seen. A turn is never reused, so neither is its catalogue.
+  def hold_catalog! = @catalog_held = true
+
+  def release_catalog!
+    @catalog_held = false
+    @catalog = nil
+  end
+
+  def catalog
+    return yield unless @catalog_held
+
+    @catalog ||= yield
+  end
+
   # A tool of a scheduled plan whose changes the person approved ahead, run without asking since nobody may be there.
   def approved_ahead?(tool_name) = @approved_tools.include?(tool_name.to_s)
 

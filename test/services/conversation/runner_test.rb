@@ -887,7 +887,52 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_kind_of Integer, phases_in(logged).sole["duration_ms"]
   end
 
+  test "each step of setup logs how long it took and the queries it sent, inside the setup phase's span" do
+    exporter = OpenTelemetry::SDK::Trace::Export::InMemorySpanExporter.new
+    provider = OpenTelemetry::SDK::Trace::TracerProvider.new
+    provider.add_span_processor(OpenTelemetry::SDK::Trace::Export::SimpleSpanProcessor.new(exporter))
+    # The global provider takes a delegate once per process, so the tracer is swapped rather than the provider.
+    before = Firefight::TRACER
+    swap_tracer(provider.tracer("firefight"))
+    logged = []
+    Rails.logger.stubs(:info).with { |line| logged << line }
+    fake(reply: "ok")
+
+    ask(@conversation, "what is going on")
+
+    steps = logged.grep(String).filter_map { |line| JSON.parse(line) if line.include?(Conversation::Runner::SETUP_STEP_EVENT) }
+    assert_equal [ Conversation::Runner::STEP_CHAT, Conversation::Runner::STEP_DISCARD, Conversation::Runner::STEP_CLOSE_CALLS,
+                   Conversation::Runner::STEP_TAKE_QUEUED, Conversation::Runner::STEP_ANSWERED_ALREADY, Conversation::Runner::STEP_EXPECT_REPLY,
+                   Conversation::Runner::STEP_STOP_REQUESTED, Conversation::Runner::STEP_THINKING, Conversation::Runner::STEP_LISTENERS,
+                   Conversation::Runner::STEP_HELD_OUTCOMES, Conversation::Runner::STEP_CATCH_UP, Conversation::Runner::STEP_SPECIALISTS,
+                   Conversation::Runner::STEP_PRESENTED, Conversation::Runner::STEP_SUSPECTS ], steps.map { |step| step["step"] }
+    assert steps.all? { |step| [ step["duration_ms"], step["queries"], step["cached"] ].all?(Integer) && step["conversation_id"] == @conversation.id }
+    assert_operator steps.sum { |step| step["queries"] }, :>, 0
+
+    setup = exporter.finished_spans.find { |span| span.name == "conversation.reply.#{Conversation::Runner::PHASE_SETUP}" }
+    chat_step = exporter.finished_spans.find { |span| span.name == "conversation.reply.#{Conversation::Runner::PHASE_SETUP}.#{Conversation::Runner::STEP_CHAT}" }
+    assert_equal setup.span_id, chat_step.parent_span_id
+  ensure
+    swap_tracer(before) if before
+    provider&.shutdown
+  end
+
+  test "a query another fiber sends while a step runs is not counted as the step's" do
+    counted = Conversation::Runner::QueryCount.new
+    counted.count do
+      Fiber.new { Workspace.where(name: "elsewhere").count }.resume
+      Workspace.where(name: "here").count
+    end
+
+    assert_equal 1, counted.total
+  end
+
   private
+
+  def swap_tracer(tracer)
+    Firefight.send(:remove_const, :TRACER)
+    Firefight.const_set(:TRACER, tracer)
+  end
 
   def phases_in(logged)
     logged.grep(String).filter_map { |line| JSON.parse(line) if line.include?(Conversation::Runner::PHASE_EVENT) }

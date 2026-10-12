@@ -450,15 +450,22 @@ module Chat::Tools
     end
   end
 
-  # The workspace's tools and the principal's grants are read once, since both lists need them.
+  # A chat's turn holds one while its runner gets it ready (Conversation::Turn#catalog).
   def self.catalog(agent_run)
+    return build_catalog(agent_run) unless agent_run.is_a?(Conversation::Turn)
+
+    agent_run.catalog { build_catalog(agent_run) }
+  end
+
+  # The workspace's tools and the principal's grants are read once, since both lists need them.
+  def self.build_catalog(agent_run)
     tools = Integration::Tool.in_workspace(agent_run.workspace).to_a
     resolved = agent_run.acting_principal && granted(agent_run)
-    firefight_entries(agent_run) + capability_entries(agent_run, tools: tools, resolved: resolved) +
+    firefight_entries(agent_run, resolved: resolved) + capability_entries(agent_run, tools: tools, resolved: resolved) +
       connection_entries(agent_run, tools: tools, resolved: resolved)
   end
 
-  def self.firefight_entries(agent_run)
+  def self.firefight_entries(agent_run, resolved: nil)
     principal = agent_run.acting_principal
     workspace = agent_run.workspace
     offered = Mcp::Tools.all.reject { |tool_class| Groups::NOT_FOR_HALON.include?(tool_class.name_value.to_s) }
@@ -470,7 +477,7 @@ module Chat::Tools
     keys.map do |tool_class, action_key|
       # A run that only reads is never handed one of Firefight's own tools that writes, whatever its principal was granted.
       writes = agent_run.reads_only? && !tool_class.annotations_value&.read_only_hint
-      ready = !writes && principal.present? && principal.permitted_to?(actions[action_key], workspace)
+      ready = !writes && principal.present? && principal.permitted_to?(actions[action_key], workspace, resolved: resolved)
       Entry.new(
         name: tool_class.name_value, description: clean(tool_class.description_value, ONE_LINE),
         state: (writes && STATE_READS_ONLY) || (ready ? STATE_READY : STATE_NOT_GRANTED),
@@ -486,11 +493,13 @@ module Chat::Tools
 
     # A provider tool a capability answers one to one is reached through the capability, so it is not offered twice,
     # and a connection tool that happens to share a capability's name is left out rather than shadowing it.
+    packs = nil
     tools.reject { |tool| Integrations::Capabilities.wrapped?(tool) || Integrations::Capabilities.tool_names.include?(tool.model_facing_name) }.map do |tool|
       writes = agent_run.reads_only? && !tool.read_only? && Integrations::ReadGuards.for(tool).nil?
       ready = !writes && principal.present? && tool.callable_by?(principal, resolved)
+      packs ||= changes_packs(tools) unless ready || writes
       Entry.new(
-        name: tool.model_facing_name, description: clean([ (pack_needed(tool) unless ready || writes), tool.described_for_agents ].compact.join(" "), ONE_LINE),
+        name: tool.model_facing_name, description: clean([ (pack_needed(tool, packs) unless ready || writes), tool.described_for_agents ].compact.join(" "), ONE_LINE),
         state: (writes && STATE_READS_ONLY) || (ready ? STATE_READY : STATE_NOT_GRANTED),
         tool: (Connection.new(agent_run, tool) if ready),
         group: Groups.of_connection(tool.integration), source: tool.integration.provider, handle: tool.name
@@ -499,9 +508,17 @@ module Chat::Tools
   end
 
   # Leads a tool that changes something and is not granted, so the agent can tell the person which pack to ask for.
-  def self.pack_needed(tool)
-    pack = Ability::Role.to_ask_for(tool.ability_action)
+  # packs is each connection's changes pack by its id, when the caller read them for many tools at once. The tool is its
+  # action's source, so it answers as Ability::Role.to_ask_for does.
+  def self.pack_needed(tool, packs = nil)
+    action = tool.ability_action
+    pack = packs.nil? ? Ability::Role.to_ask_for(action) : (packs[tool.integration_id] if action && !action.read?)
     "Needs the #{pack.name} pack, which a workspace admin can give." if pack
+  end
+
+  # The pack Ability::Role.to_ask_for names, for every connection of these tools in one query.
+  def self.changes_packs(tools)
+    Ability::Role.where(integration_id: tools.map(&:integration_id).uniq, pack: Ability::Role::PACK_CHANGES).index_by(&:integration_id)
   end
 
   # One entry per capability some connection in the workspace can answer. It is ready when the principal may call at
