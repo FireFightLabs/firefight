@@ -223,7 +223,8 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: API_KEY, label: "API key", secret: true, placeholder: "rnd_...",
-                              hint: "A Render API key, created under Account Settings, API Keys. It acts with the access of the person who created it.")
+                              hint: "A Render API key, created under Account Settings, API Keys. It acts with the access of the person who created it. " \
+                                    "Make it as a dedicated user, such as Firefight, so changes do not show as a teammate and the connection keeps working when someone leaves.")
         ]
       end
 

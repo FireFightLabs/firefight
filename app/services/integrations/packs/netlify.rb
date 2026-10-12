@@ -89,7 +89,7 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "Personal access token", secret: true, placeholder: "nfp_...",
-                              hint: "A Netlify personal access token, from User settings, Applications. It reaches every site its user " \
+                              hint: "A Netlify personal access token, from User settings, Applications. Make it as a dedicated user, such as Firefight, so changes do not show as a teammate and the connection keeps working when someone leaves. It reaches every site its user " \
                                     "can. restore_deploy is its one tool that changes anything, and a member needs a grant to use it.")
         ]
       end

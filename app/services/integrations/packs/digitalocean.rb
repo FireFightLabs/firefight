@@ -243,7 +243,8 @@ module Integrations
         [
           CredentialField.new(key: API_TOKEN, label: "Personal access token", secret: true, placeholder: "dop_v1_...",
                               hint: "A DigitalOcean personal access token with the account:read, app:read, droplet:read, database:read and " \
-                                    "monitoring:read scopes, and billing:read for Halon to watch spend. For Halon to roll back, restart or scale apps and reboot Droplets, add app:update and droplet:update.")
+                                    "monitoring:read scopes, and billing:read for Halon to watch spend. For Halon to roll back, restart or scale apps and reboot Droplets, add app:update and droplet:update. " \
+                                    "Make it as a dedicated user, such as Firefight, so changes do not show as a teammate and the connection keeps working when someone leaves.")
         ]
       end
 
