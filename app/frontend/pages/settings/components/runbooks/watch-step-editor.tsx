@@ -1,6 +1,7 @@
 import { IconX } from "@tabler/icons-react"
 import type { ChangeEvent } from "react"
 
+import { SearchableMultiSelect } from "@/components/searchable-multi-select"
 import { SearchableSelect, type SearchableSelectOption } from "@/components/searchable-select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,6 +15,8 @@ import type { RunbookToolChoice } from "@/types/serializers"
 interface WatchStepEditorProps {
   number: number
   step: WatchStepState
+  // The steps before it, which it may wait for, by key and as they are named.
+  earlier: SearchableSelectOption[]
   history: boolean
   // The read tool the step names, or null for a capability or one this person cannot see.
   tool: RunbookToolChoice | null
@@ -26,16 +29,19 @@ interface WatchStepEditorProps {
   onChange: (field: string, entered: string | boolean) => void
   onChooseRead: (name: string) => void
   onArgsChange: (args: ArgumentsState) => void
+  onWaitsChange: (waitsFor: string[], keptWaits: string[]) => void
   onNewDeployTurn: (on: boolean) => void
   onNewDeployChange: (key: string, entered: string) => void
   onRemove: () => void
 }
 
+const KEPT_WAIT = "saved:"
+
 // One thing a watch follows: a capability on a resource from the map, or any read tool Halon can make in a chat with its
 // arguments, and what counts as done. A run in a resource's history ends on its own status.
 export function WatchStepEditor({
-  number, step, history, tool, toolsLoaded, readOptions, selectedRead, resourceOptions, placeholders, places, onChange, onChooseRead, onArgsChange,
-  onNewDeployTurn, onNewDeployChange, onRemove,
+  number, step, earlier, history, tool, toolsLoaded, readOptions, selectedRead, resourceOptions, placeholders, places, onChange, onChooseRead, onArgsChange,
+  onWaitsChange, onNewDeployTurn, onNewDeployChange, onRemove,
 }: WatchStepEditorProps) {
   const spec = step.spec
   const toolName = stepText(spec, WATCH_SPEC_KEYS.TOOL)
@@ -65,6 +71,15 @@ export function WatchStepEditor({
 
   function reportStart(checked: boolean) {
     onChange(WATCH_SPEC_KEYS.REPORT_START, checked)
+  }
+
+  // What was saved naming no step here stays chosen under its saved words until it is taken off.
+  const keptOptions = step.keptWaits.map((ref) => ({ value: `${KEPT_WAIT}${ref}`, label: ref }))
+  const waits = [ ...step.waitsFor, ...keptOptions.map((option) => option.value) ]
+
+  function chooseWaits(values: string[]) {
+    const kept = values.filter((value) => value.startsWith(KEPT_WAIT)).map((value) => value.slice(KEPT_WAIT.length))
+    onWaitsChange(values.filter((value) => !value.startsWith(KEPT_WAIT)), kept)
   }
 
   return (
@@ -131,7 +146,7 @@ export function WatchStepEditor({
         <div className="space-y-2">
           <div className="grid gap-2 sm:grid-cols-2">
             <Input aria-label={`Watch ${number} run name`} value={stepText(spec, WATCH_SPEC_KEYS.NAME)} onChange={typed(WATCH_SPEC_KEYS.NAME)} placeholder="Only runs named, such as release (optional)" />
-            <Input aria-label={`Watch ${number} run`} value={stepText(spec, WATCH_SPEC_KEYS.RUN)} onChange={typed(WATCH_SPEC_KEYS.RUN)} placeholder="A run by its number (optional)" />
+            <Input aria-label={`Watch ${number} run`} value={stepText(spec, WATCH_SPEC_KEYS.RUN)} onChange={typed(WATCH_SPEC_KEYS.RUN)} placeholder="A run by its id, number or name (optional)" />
           </div>
           <div className="flex items-center gap-2">
             <Switch id={`watch-${number}-report-start`} checked={spec[WATCH_SPEC_KEYS.REPORT_START] === true} onCheckedChange={reportStart} />
@@ -143,6 +158,22 @@ export function WatchStepEditor({
           <Input aria-label={`Watch ${number} done when`} value={stepText(spec, WATCH_SPEC_KEYS.DONE_WHEN)} onChange={typed(WATCH_SPEC_KEYS.DONE_WHEN)} placeholder="Done when it shows, such as status success" />
           <Input aria-label={`Watch ${number} failed when`} value={stepText(spec, WATCH_SPEC_KEYS.FAILED_WHEN)} onChange={typed(WATCH_SPEC_KEYS.FAILED_WHEN)} placeholder="Failed when it shows, such as crashed" />
           <Input aria-label={`Watch ${number} goal`} className="sm:col-span-2" value={stepText(spec, WATCH_SPEC_KEYS.GOAL)} onChange={typed(WATCH_SPEC_KEYS.GOAL)} placeholder="Or the question in a sentence, such as workflow release's newest run finished" />
+        </div>
+      )}
+      {(earlier.length > 0 || keptOptions.length > 0) && (
+        <div className="space-y-1">
+          <Label className="text-xs">Waits for</Label>
+          <SearchableMultiSelect
+            value={waits}
+            onValueChange={chooseWaits}
+            options={[ ...earlier, ...keptOptions ]}
+            placeholder="Nothing, it starts at once"
+            searchPlaceholder="Search the items above"
+            emptyText="No item above by that name"
+          />
+          <p className="text-xs text-muted-foreground">
+            Halon starts checking it once these succeeded, and counts only what came after them. If one fails, it is skipped.
+          </p>
         </div>
       )}
       {!history && (

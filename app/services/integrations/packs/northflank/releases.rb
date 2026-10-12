@@ -122,12 +122,13 @@ module Integrations
         def release_flow_name(pipeline, stage) = "#{pipeline['name'].presence || pipeline['id']} #{stage}"
 
         # A run as the list or the details give it, named by what ran it so a watch's name finds it, with its own name and
-        # description beside the status words a person needs, such as waiting for an approval.
+        # description beside the status words a person needs, such as waiting for an approval. Its own name, such as
+        # release-v0-0-29, is its title, so a watch given that name follows exactly that run.
         def release_run(run, name)
           status = run["status"].to_s.downcase
           detail = [ run["name"].presence, run["description"].presence, WAITING_WORDS[status] ].compact.join(", ").presence
           History::Run.new(
-            id: run["id"].to_s, name: name, status: History.status(status, RUN_STATUSES),
+            id: run["id"].to_s, name: name, title: run["name"].presence, status: History.status(status, RUN_STATUSES),
             started_at: Telemetry.parse_time(run["startedAt"] || run["createdAt"]),
             finished_at: (Telemetry.parse_time(run["concludedAt"] || run["updatedAt"]) if run["concluded"]), detail: detail
           )

@@ -5,13 +5,14 @@ module Chat::Watch::Shown
     Chat::Watch::Step::STATUS_WAITING => "Waiting for it to start", Chat::Watch::Step::STATUS_RUNNING => "Running",
     Chat::Watch::Step::STATUS_REPAIRING => "Finding a better way to follow it",
     Chat::Watch::Step::STATUS_SUCCEEDED => "Succeeded", Chat::Watch::Step::STATUS_FAILED => "Failed",
-    Chat::Watch::Step::STATUS_UNFOLLOWABLE => "No longer followed"
+    Chat::Watch::Step::STATUS_UNFOLLOWABLE => "No longer followed", Chat::Watch::Step::STATUS_SKIPPED => "Skipped"
   }.freeze
   # A step's status within a sentence, such as "shows Deploy done, where it still had it not started".
   STEP_PHRASES = {
     Chat::Watch::Step::STATUS_WAITING => "not started", Chat::Watch::Step::STATUS_RUNNING => "running",
     Chat::Watch::Step::STATUS_REPAIRING => "being repaired", Chat::Watch::Step::STATUS_SUCCEEDED => "done",
-    Chat::Watch::Step::STATUS_FAILED => "failed", Chat::Watch::Step::STATUS_UNFOLLOWABLE => "no longer followed"
+    Chat::Watch::Step::STATUS_FAILED => "failed", Chat::Watch::Step::STATUS_UNFOLLOWABLE => "no longer followed",
+    Chat::Watch::Step::STATUS_SKIPPED => "skipped"
   }.freeze
   ENDED = {
     Chat::Watch::STATUS_SUCCEEDED => "%s: done", Chat::Watch::STATUS_FAILED => "%s: failed", Chat::Watch::STATUS_TIMED_OUT => "%s: time limit reached",
@@ -58,12 +59,15 @@ module Chat::Watch::Shown
   # A step still open when its watch ended is no longer followed, whatever it last read.
   def step_status(step) = step.over? || step.watch.active? ? step.status : Chat::Watch::Step::STATUS_UNFOLLOWABLE
 
-  # The step's status in words, with what the last read showed or why it failed.
+  # The step's status in words, with what the last read showed or why it failed. One waiting for other steps names
+  # them, and one skipped says which step went wrong.
   def step_state(step)
     unless step.over? || step.watch.active?
       return step.running? ? "Still running when the watch ended." : "Not started when the watch ended."
     end
 
+    return step.reason.presence || STEP_WORDS.fetch(step.status) if step.status == Chat::Watch::Step::STATUS_SKIPPED
+    return step.prerequisites_words unless step.over? || step.ready?
     return step.summary if waiting_on_deploy?(step) && step.summary.present?
 
     words = STEP_WORDS.fetch(step.status)
@@ -92,9 +96,10 @@ module Chat::Watch::Shown
 
   # Where a watch still going stands, in a line, for the strip above the message box. That is the step it is on, with how
   # many are done when it follows more than one, such as "1 of 3 done. Production web rollout: build-images running, 4 of 7 done".
+  # A step still waiting for others is not the one it is on while another is read.
   def standing(watch)
     steps = watch.steps.to_a
-    current = steps.find { |step| !step.over? }
+    current = steps.find { |step| !step.over? && step.ready? } || steps.find { |step| !step.over? }
     return if current.nil?
 
     now = "#{current.label}: #{current.running? && current.summary.present? ? current.summary : STEP_PHRASES.fetch(current.status)}"
@@ -115,7 +120,8 @@ module Chat::Watch::Shown
       expires_at: watch.expires_at.utc.iso8601, limit: limit_label(watch), basis: basis(watch), reads: reads(watch), outcome: watch.outcome,
       steps: watch.steps.map do |step|
         { label: step.label, reads_with: step.read_words, status: step_status(step), state: step_state(step), last_seen: step.last_state&.truncate(300),
-          last_read: step.read_at&.utc&.iso8601, url: step.run_url, added_at: step.added_at&.utc&.iso8601 }
+          last_read: step.read_at&.utc&.iso8601, url: step.run_url, added_at: step.added_at&.utc&.iso8601,
+          waits_for: step.prerequisites.map(&:label).presence }
       end,
       said: watch.updates.map { |update| { at: update.created_at.utc.iso8601, text: update.text } }
     }

@@ -55,6 +55,21 @@ class RunbookTest < ActiveSupport::TestCase
     assert_equal [ "Watch 'Web rollout': needs the new deploy it waits for as words, such as a commit, a tag or a branch" ], runbook.tap(&:validate).errors[:watch]
   end
 
+  test "a watch item may wait for items before it, by their names or numbers, and only those" do
+    run = { "label" => "Release run", "capability" => "run_history", "resource" => "firefight", "name" => "release" }
+    rollout = { "label" => "Web rollout", "capability" => "resource_status", "resource" => "web", "goal" => "web serves the new version", "waits_for" => [ "Release run" ] }
+    health = { "capability" => "search_logs", "resource" => "web", "goal" => "no errors", "waits_for" => [ 2 ] }
+    runbook = @workspace.runbooks.new(name: "Ship", watch: { "title" => "release", "steps" => [ run, rollout, health ] })
+    assert runbook.valid?, runbook.errors.full_messages.to_sentence
+
+    runbook.watch = { "title" => "release", "steps" => [ run.merge("waits_for" => [ "Web rollout" ]), rollout, health.merge("waits_for" => [ "Deploy" ]) ] }
+    assert_equal [ "Watch 'Release run': waits for Web rollout, which does not come before it, and an item waits only for items before it",
+                   "Watch 3: waits for Deploy, which is not one of its items" ], runbook.tap(&:validate).errors[:watch]
+
+    runbook.watch = { "title" => "release", "steps" => [ run, rollout.merge("waits_for" => "Release run") ] }
+    assert_equal [ "Watch 'Web rollout': needs the items it waits for as a list of their names or numbers" ], runbook.tap(&:validate).errors[:watch]
+  end
+
   test "a watch item can be any read Halon makes in a chat, such as following the release workflow's newest run through the general read" do
     newest = { "label" => "Release workflow", "tool" => "northflank_api_request", "focus" => "data.status",
                "arguments" => { "method" => "GET", "path" => "workflows/release/runs", "query" => { "per_page" => 1 } },

@@ -18,10 +18,12 @@ class Chat::Watch::Update < ApplicationRecord
   KIND_PROGRESS = "progress"
   # Halon added steps on the same subject, rather than starting another watch.
   KIND_STEPS_ADDED = "steps_added"
+  # How a step ended was shown to be wrong, so Halon follows it again, and the watch with it when it had ended.
+  KIND_REOPENED = "reopened"
   KIND_ENDED = "ended"
   KINDS = [
     KIND_STARTED, KIND_MILESTONE, KIND_PART_FAILED, KIND_HANDED_BACK, KIND_REPAIRED, KIND_CORRECTED, KIND_CEILING, KIND_SLOW, KIND_PROGRESS,
-    KIND_STEPS_ADDED, KIND_ENDED
+    KIND_STEPS_ADDED, KIND_REOPENED, KIND_ENDED
   ].freeze
 
   # What the person may need to act on, shown as its own line in the dashboard chat: a job or step that failed, a step

@@ -1,4 +1,4 @@
-import { type Icon, IconCheck, IconCircleDashed, IconExternalLink, IconLoader2, IconMinus, IconTool, IconX } from "@tabler/icons-react"
+import { type Icon, IconCheck, IconCircleDashed, IconExternalLink, IconLoader2, IconMinus, IconPlayerSkipForward, IconTool, IconX } from "@tabler/icons-react"
 
 import { WATCH_STEP_STATUSES } from "@/lib/generated/constants"
 import type { AgentChatWatch } from "@/types/serializers"
@@ -12,6 +12,7 @@ const STEP_ICONS: Record<WatchStepStatus, { icon: Icon; className: string }> = {
   [WATCH_STEP_STATUSES.SUCCEEDED]: { icon: IconCheck, className: "text-success" },
   [WATCH_STEP_STATUSES.FAILED]: { icon: IconX, className: "text-danger" },
   [WATCH_STEP_STATUSES.UNFOLLOWABLE]: { icon: IconMinus, className: "text-ink-3" },
+  [WATCH_STEP_STATUSES.SKIPPED]: { icon: IconPlayerSkipForward, className: "text-ink-3" },
 }
 
 interface WatchStepProps {

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_12_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_12_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1029,6 +1029,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_12_120000) do
     t.string "focus"
     t.datetime "added_at"
     t.jsonb "new_deploy"
+    t.integer "waits_for", default: [], null: false, array: true
+    t.datetime "failure_seen_at"
+    t.string "sources_before", array: true
     t.index ["integration_environment_id"], name: "index_chat_watch_steps_on_integration_environment_id"
     t.index ["read_signature"], name: "index_chat_watch_steps_on_read_signature"
     t.index ["watch_id", "position"], name: "index_chat_watch_steps_on_watch_id_and_position", unique: true
@@ -1043,6 +1046,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_12_120000) do
     t.datetime "created_at", null: false
     t.string "message_channel_id"
     t.string "message_id"
+    t.string "ended_as"
     t.index ["message_channel_id", "message_id"], name: "index_chat_watch_updates_on_message_channel_id_and_message_id"
     t.index ["watch_id"], name: "index_chat_watch_updates_on_watch_id"
   end

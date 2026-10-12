@@ -953,17 +953,20 @@ start_watch:
     your own. Use it when the person asks to be told when something finishes or reaches a step: a CI run, a build, a deploy, a resource coming
     back. It only reads, as the person, about every minute and at once when a connection reports a change, within a ceiling on reads an hour.
     Each milestone the person asked about, each job or step as it starts or passes, and the end are posted in this chat, its thread and their
-    direct messages, with the reason and what the logs show when something fails, and where it leaves the purpose. Give it the steps in order.
-    A read that finds nothing to follow, such as a run that never shows up, is handed back to you to repair with repair_watch. The time limit
-    is learned from run history (twice the usual, at most 24 hours). Pass minutes only when the person asked for a limit, and expected_minutes
-    only from memory when run history has none. Say what it answers about the limit. Anything you start that keeps running, such as a workflow,
-    a build, a deploy or a test run, is yours to follow: start a watch on it in the same turn, with its purpose. When the person starts something
-    that takes a while, offer to watch it for them. One watch per subject: steps on the same release, deploy, run or incident as a watch going
-    in this chat, such as the rollout and health checks after a release build, join it with add_to, and something unrelated, such as a database
-    backup during a release, is separate. In the dashboard chat the person sees the watches going in the Watching strip above the message box,
-    so point there rather than listing them. A step waiting for a deploy, a rollout or a release to go live counts only a deploy newer than the
-    one live when the watch starts, so pass new_deploy with the version you expect whenever you know it, such as the commit the release run built
-    or the tag it pushed.
+    direct messages, with the reason and what the logs show when something fails, and where it leaves the purpose. Give it the steps in order,
+    and say which steps each one waits for with waits_for, from the order the person described or the runbook gives: something that only makes
+    sense once another thing is done, such as a deploy after the run that starts it or a health check after its own deploy, waits for it, and
+    things that happen side by side wait for nothing. A reading that shows a step failed is read once more before the watch ends on it. A read
+    that finds nothing to follow, such as a run that never shows up, is handed back to you to repair with repair_watch. The time limit is learned
+    from run history (twice the usual, at most 24 hours). Pass minutes only when the person asked for a limit, and expected_minutes only from
+    memory when run history has none. Say what it answers about the limit. Anything you start that keeps running, such as a workflow, a build,
+    a deploy or a test run, is yours to follow: start a watch on it in the same turn, with its purpose. When the person starts something that
+    takes a while, offer to watch it for them. One watch per subject: steps on the same release, deploy, run or incident as a watch going in this
+    chat, such as the rollout and health checks after a release build, join it with add_to, and something unrelated, such as a database backup
+    during a release, is separate. In the dashboard chat the person sees the watches going in the Watching strip above the message box, so point
+    there rather than listing them. A step waiting for a deploy, a rollout or a release to go live counts only a deploy newer than the one live
+    when the watch starts, so pass new_deploy with the version you expect whenever you know it, such as the commit the release run built or the
+    tag it pushed.
   parameters:
     type: object
     properties:
@@ -1023,8 +1026,9 @@ start_watch:
             run:
               type: string
               description: >-
-                run_history only: the run to follow by its id or number, such as 46. Always give it when you started the run or can identify it,
-                so the watch follows that exact run. Without it, the first run of that name that starts around now (optional)
+                run_history only: the run to follow by its id, its number, such as 46, or its own name where the provider names each run, such
+                as release-v1-4-0. Always give it when you started the run or can identify it, so the watch follows that exact run. Without it,
+                the first run of that name that starts around now, or after the steps it waits for began (optional)
             report_start:
               type: boolean
               description: 'run_history only: also say when the run starts, when the person asked to hear that (optional)'
@@ -1043,6 +1047,16 @@ start_watch:
             arguments:
               type: object
               description: Other arguments the capability takes, such as stream for search_logs, or all of the tool's arguments (optional)
+            waits_for:
+              type: array
+              items:
+                type: string
+              description: >-
+                The earlier steps this one waits for, by their labels or their numbers counting from 1, such as a health check that waits for
+                the deploy it checks. It is not read until every one of them succeeded, and then counts only what came after them: runs and deploys
+                started once they began, containers created since, and log lines since they finished. When one of them fails or cannot be followed,
+                this step is skipped. A step that waits for nothing is read at once, so steps that do not depend on each other go side by side.
+                With add_to, it may name the watch's own steps (optional)
             new_deploy:
               type: object
               description: >-
@@ -1107,7 +1121,10 @@ repair_watch:
   description: >-
     Repair a watch this chat keeps: give one of its steps a better read when its read found nothing to follow, when a reading you took shows it
     follows the wrong thing, or when you are handed a step back. The same watch follows it from here and says what changed. Try the new read once
-    yourself first. Pass give_up when no read can show it. list_watches names the watches and their steps.
+    yourself first. Pass give_up when no read can show it. When a step ended wrongly, such as done or failed on what was there before the change
+    it waits for, and the person or a reading you took shows it, pass reopen: the same watch follows that step again from now, and goes again
+    when it had ended, so the wrong ending is not repeated. waits_for changes which earlier steps it waits for. list_watches names the watches
+    and their steps.
   parameters:
     type: object
     properties:
@@ -1149,8 +1166,9 @@ repair_watch:
       run:
         type: string
         description: >-
-          run_history only: the run to follow by its id or number, such as 46. Always give it when you started the run or can identify it, so
-          the watch follows that exact run. Without it, the first run of that name that starts around now (optional)
+          run_history only: the run to follow by its id, its number, such as 46, or its own name where the provider names each run, such as release-v1-4-0.
+          Always give it when you started the run or can identify it, so the watch follows that exact run. Without it, the first run of that name
+          that starts around now, or after the steps it waits for began (optional)
       report_start:
         type: boolean
         description: 'run_history only: also say when the run starts, when the person asked to hear that (optional)'
@@ -1169,6 +1187,16 @@ repair_watch:
       arguments:
         type: object
         description: Other arguments the capability takes, such as stream for search_logs, or all of the tool's arguments (optional)
+      waits_for:
+        type: array
+        items:
+          type: string
+        description: >-
+          The earlier steps this one waits for, by their labels or their numbers counting from 1, such as a health check that waits for the deploy
+          it checks. It is not read until every one of them succeeded, and then counts only what came after them: runs and deploys started once
+          they began, containers created since, and log lines since they finished. When one of them fails or cannot be followed, this step is
+          skipped. A step that waits for nothing is read at once, so steps that do not depend on each other go side by side. With add_to, it may
+          name the watch's own steps (optional)
       new_deploy:
         type: object
         description: >-
@@ -1211,6 +1239,11 @@ repair_watch:
       give_up:
         type: boolean
         description: Stop following this step, when no read you can make shows it (optional)
+      reopen:
+        type: boolean
+        description: >-
+          Follow this step again from now, when how it ended was wrong, with a new read when you give one. A watch that ended goes again. A watch
+          a person stopped stays stopped (optional)
     required:
     - watch
     - step
@@ -1532,9 +1565,10 @@ northflank_api_request:
   request: path
   default: '{"error":{"status":404,"message":"Not found"}}'
 northflank_workflow_runs:
-  description: A Northflank workflow's recent runs, newest first, each with its status, when it started and finished and how long it
-    took, and how long finished runs usually take. Name a run to read it with each node, such as a build, a release or a job run, how
-    each went, the error a failed one gave and its retries
+  description: >-
+    A Northflank workflow's recent runs, newest first, each with its status, when it started and finished and how long it took, and how long finished
+    runs usually take. Name a run to read it with each node, such as a build, a release or a job run, how each went, the error a failed one gave
+    and its retries
   source: northflank
   reads: true
   parameters:
@@ -1555,9 +1589,10 @@ northflank_workflow_runs:
     required:
     - workflow
 northflank_billing_usage:
-  description: 'What the Northflank account or team was charged, by day or by month, with each period''s total and what cost most: CPU,
-    memory, storage and GPU, bring your own cloud, egress IPs and load balancers. Use it to watch spend and find what grew and since
-    when. The token''s role needs Billing read'
+  description: >-
+    What the Northflank account or team was charged, by day or by month, with each period's total and what cost most: CPU, memory, storage and
+    GPU, bring your own cloud, egress IPs and load balancers. Use it to watch spend and find what grew and since when. The token's role needs
+    Billing read
   source: northflank
   reads: true
   parameters:

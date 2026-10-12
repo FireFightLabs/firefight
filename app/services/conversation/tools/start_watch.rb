@@ -21,8 +21,9 @@ class Conversation::Tools::StartWatch < RubyLLM::Tool
       "resource" => { "type" => "string", "description" => "The resource on the map, by name or map id, as for the capability itself (a capability only)" },
       "connection" => { "type" => "string", "description" => "The connection to ask, when the capability needs one named (optional)" },
       "name" => { "type" => "string", "description" => "run_history only: follow runs whose workflow, pipeline or kind contains this, such as release, build or deploy (optional)" },
-      "run" => { "type" => "string", "description" => "run_history only: the run to follow by its id or number, such as 46. Always give it when you started the run or can identify it, " \
-                                       "so the watch follows that exact run. Without it, the first run of that name that starts around now (optional)" },
+      "run" => { "type" => "string", "description" => "run_history only: the run to follow by its id, its number, such as 46, or its own name where the provider " \
+                                       "names each run, such as release-v1-4-0. Always give it when you started the run or can identify it, so the watch " \
+                                       "follows that exact run. Without it, the first run of that name that starts around now, or after the steps it waits for began (optional)" },
       "report_start" => { "type" => "boolean", "description" => "run_history only: also say when the run starts, when the person asked to hear that (optional)" },
       "done_when" => { "type" => "string", "description" => "What in the read's answer means it is done, such as status success (optional)" },
       "failed_when" => { "type" => "string", "description" => "What in the read's answer means it failed, such as status failure or crashed (optional)" },
@@ -31,6 +32,15 @@ class Conversation::Tools::StartWatch < RubyLLM::Tool
                                                        "judged by a model over its recent readings, with done_when and failed_when as what to look for, on " \
                                                        "each reading that changed and every few minutes on one that did not (optional)" },
       "arguments" => { "type" => "object", "description" => "Other arguments the capability takes, such as stream for search_logs, or all of the tool's arguments (optional)" },
+      Chat::Watch::SPEC_KEYS[:waits_for] => {
+        "type" => "array", "items" => { "type" => "string" },
+        "description" => "The earlier steps this one waits for, by their labels or their numbers counting from 1, such as a health check " \
+                         "that waits for the deploy it checks. It is not read until every one of them succeeded, and then counts only " \
+                         "what came after them: runs and deploys started once they began, containers created since, and log lines " \
+                         "since they finished. When one of them fails or cannot be followed, this step is skipped. A step that waits " \
+                         "for nothing is read at once, so steps that do not depend on each other go side by side. With add_to, it may " \
+                         "name the watch's own steps (optional)"
+      },
       Chat::Watch::SPEC_KEYS[:new_deploy] => {
         "type" => "object",
         "description" => "When the step waits for a deploy, a rollout or a release to go live: what counts as the new one. The watch keeps the deploy " \
@@ -58,7 +68,11 @@ class Conversation::Tools::StartWatch < RubyLLM::Tool
               "a CI run, a build, a deploy, a resource coming back. It only reads, as the person, about every minute and at once when " \
               "a connection reports a change, within a ceiling on reads an hour. Each milestone the person asked about, each job or " \
               "step as it starts or passes, and the end are posted in this chat, its thread and their direct messages, with the " \
-              "reason and what the logs show when something fails, and where it leaves the purpose. Give it the steps in order. " \
+              "reason and what the logs show when something fails, and where it leaves the purpose. Give it the steps in order, " \
+              "and say which steps each one waits for with waits_for, from the order the person described or the runbook " \
+              "gives: something that only makes sense once another thing is done, such as a deploy after the run that starts " \
+              "it or a health check after its own deploy, waits for it, and things that happen side by side wait for nothing. " \
+              "A reading that shows a step failed is read once more before the watch ends on it. " \
               "A read that finds nothing to follow, such as a run that never shows up, is handed back to you to repair with " \
               "repair_watch. The time limit is learned from run history (twice the usual, at most 24 hours). Pass minutes only " \
               "when the person asked for a limit, and expected_minutes only from memory when run history has none. Say what it " \

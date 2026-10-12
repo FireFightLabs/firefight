@@ -111,6 +111,22 @@ class Conversation::ReleaseWatchTest < ActiveSupport::TestCase
     assert Ability::Invocation.where(workspace: @workspace, action_key: "northflank.template_runs").exists?
   end
 
+  # A release workflow's run is named by the tag the release made, such as release-v0-0-29. A watch given that name
+  # follows that exact run by its id from then on, rather than whichever run of the workflow starts next.
+  test "a run named by its own name is followed by its id, however many runs of the workflow start" do
+    runs(history)
+    NorthflankApi.any_instance.stubs(:workflow_run).with("firefight", "release", "release-v0-0-29").raises(NorthflankApi::NotFound.new("No run release-v0-0-29"))
+    step = watch["steps"].sole.merge("run" => "release-v0-0-29")
+    Conversation::Watches.start(@turn, watch.merge("steps" => [ step ]))
+    watch = @conversation.chat.watches.sole
+
+    runs([ listed("r30", "running", @started + 1.minute, name: "release-v0-0-30"), listed("r29", "running", @started, name: "release-v0-0-29") ] + history)
+    run_details("r29", "running", build: "running")
+    check!(watch)
+
+    assert_equal [ "r29", Chat::Watch::Step::STATUS_RUNNING ], [ watch.steps.sole.reload.followed_run_id, watch.steps.sole.status ]
+  end
+
   private
 
   def watch
@@ -121,8 +137,9 @@ class Conversation::ReleaseWatchTest < ActiveSupport::TestCase
     [ 5, 4, 3 ].map { |days| listed("r#{days}", "success", days.days.ago, concluded: days.days.ago + 18.minutes) }
   end
 
-  def listed(id, status, started, concluded: nil)
-    { "id" => id, "status" => status, "concluded" => concluded.present?, "startedAt" => started.utc.iso8601, "concludedAt" => concluded&.utc&.iso8601 }.compact
+  def listed(id, status, started, concluded: nil, name: nil)
+    { "id" => id, "name" => name, "status" => status, "concluded" => concluded.present?, "startedAt" => started.utc.iso8601,
+      "concludedAt" => concluded&.utc&.iso8601 }.compact
   end
 
   def runs(listed) = NorthflankApi.any_instance.stubs(:workflow_runs).returns(listed)

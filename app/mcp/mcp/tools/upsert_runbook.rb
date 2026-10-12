@@ -38,8 +38,8 @@ module Mcp
             type: "object",
             description: "What Halon watches once every step went through, as start_watch takes it: title, steps (each with capability and " \
                          "resource, or any read tool Halon can make in a chat as tool with its arguments and an optional focus, what " \
-                         "counts as done or failed, and label, optional and named after what it reads when left out) and minutes " \
-                         "(optional). Inputs fill in as {{key}}"
+                         "counts as done or failed, label, optional and named after what it reads when left out, and waits_for, the " \
+                         "earlier steps it waits for by label or number) and minutes (optional). Inputs fill in as {{key}}"
           },
           conditions: {
             type: "array",

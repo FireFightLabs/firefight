@@ -348,6 +348,8 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_equal Chat::Watch::STATUS_ACTIVE, watch.reload.status
     answers("describe_resource" => { "content" => [ { "type" => "text", "text" => "web crashed on boot" } ] })
     check!(watch)
+    assert_equal Chat::Watch::STATUS_ACTIVE, watch.reload.status, "a failure is read once more before it ends the watch"
+    check!(watch)
 
     assert_equal Chat::Watch::STATUS_FAILED, watch.reload.status
     assert_match "It reads: web crashed on boot", watch.outcome
@@ -430,7 +432,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
 
     answers("api_request" => { "content" => [ { "type" => "text", "text" => '{"data":{"id":"90a3ba2f","status":"failure"}}' } ] })
     Investigation.stubs(:unavailable_reason).returns("unavailable")
-    check!(watch)
+    2.times { check!(watch) }
 
     assert_equal Chat::Watch::STATUS_FAILED, watch.reload.status
     assert_match "Northflank release workflow failed", watch.outcome
@@ -700,8 +702,9 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
 
     assert_nil Conversation::Watches.observe!(@conversation.chat, "northflank_api_request", arguments.merge("path" => "workflows/other"), "anything")
     Integrations::NativeExecutor.expects(:call).never
-    note = Conversation::Watches.observe!(@conversation.chat, "northflank_api_request", arguments.merge("intent" => "Check the run"),
-                                          northflank_run("failure")["content"].first["text"])
+    failed = northflank_run("failure")["content"].first["text"]
+    assert_nil Conversation::Watches.observe!(@conversation.chat, "northflank_api_request", arguments, failed), "a failure is read once more first"
+    note = Conversation::Watches.observe!(@conversation.chat, "northflank_api_request", arguments.merge("intent" => "Check the run"), failed)
 
     assert_match 'Watch "Release finished" had Release run as: Waiting for it to start.', note
     assert_match "The fresh reading wins", note
