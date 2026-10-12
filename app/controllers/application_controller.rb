@@ -10,6 +10,9 @@ class ApplicationController < ActionController::Base
     policy.frame_src(:self, FAYLEE_ORIGIN)
   end
 
+  # Read once, as the page starts. Nil unless the deployment reports browser errors.
+  inertia_share errorReporting: -> { ErrorReporting.browser }
+
   before_action { Current.trace_id = request.request_id }
 
   around_action do |_, action|

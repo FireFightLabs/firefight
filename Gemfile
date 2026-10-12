@@ -203,6 +203,10 @@ gem "opentelemetry-sdk", require: false
 gem "opentelemetry-exporter-otlp", require: false
 gem "opentelemetry-instrumentation-all", require: false
 
+# Error reporting, loaded only when SENTRY_DSN is set (config/initializers/sentry.rb).
+gem "sentry-ruby", "~> 7.0.0", require: false
+gem "sentry-rails", "~> 7.0.0", require: false
+
 gem "vite_rails", "~> 3.0"
 
 gem "oj_serializers"

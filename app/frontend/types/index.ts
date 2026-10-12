@@ -30,6 +30,14 @@ export type SharedProps = PageProps & {
   cloudBillingPath?: string
   // A billing notice from the cloud engine, shown on every dashboard page while it applies.
   cloudBanner?: CloudBanner
+  // Set only where the deployment reports browser errors to Sentry.
+  errorReporting?: ErrorReportingSettings | null
+}
+
+export interface ErrorReportingSettings {
+  dsn: string
+  environment: string
+  release: string | null
 }
 
 export interface CloudBanner {

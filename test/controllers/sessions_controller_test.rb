@@ -6,6 +6,22 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "a page gets browser error reporting settings only where the deployment set a frontend DSN" do
+    get login_path, headers: inertia_headers
+
+    assert_nil inertia_props["errorReporting"]
+
+    begin
+      ENV["SENTRY_FRONTEND_DSN"] = "https://browser@sentry.invalid/2"
+      get login_path, headers: inertia_headers
+    ensure
+      ENV.delete("SENTRY_FRONTEND_DSN")
+    end
+
+    assert_equal "https://browser@sentry.invalid/2", inertia_props.dig("errorReporting", "dsn")
+    assert_equal ErrorReporting.environment, inertia_props.dig("errorReporting", "environment")
+  end
+
   test "the sign-in page offers only Slack while self-serve sign-in is off" do
     Rails.application.config.x.stubs(:google_sign_in).returns(true)
 
