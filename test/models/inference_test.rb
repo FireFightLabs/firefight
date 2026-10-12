@@ -95,4 +95,29 @@ class InferenceTest < ActiveSupport::TestCase
     assert_equal [ Inference::ERROR_OUT_OF_CREDIT, 4_000 ], [ out.error_kind, out.max_output_tokens ]
     assert_nil down.error_kind
   end
+
+  # A streamed answer leaves no body to read the id from, which is how every chat turn on OpenRouter was recorded with none.
+  test "a streamed answer is recorded with the id its headers name, OpenRouter's generation id first" do
+    streamed = ->(headers) { RubyLLM::Message.new(role: :assistant, content: "ok", raw: Faraday::Response.new(status: 200, body: "", response_headers: headers)) }
+
+    _, openrouter = Inference.track(@context) { streamed.call("X-Generation-Id" => "gen-1760000000-abc", "x-request-id" => "edge-1") }
+    _, anthropic = Inference.track(@context) { streamed.call("request-id" => "req_011ABC") }
+    _, openai = Inference.track(@context) { streamed.call("x-request-id" => "req_openai") }
+    _, bedrock = Inference.track(@context) { streamed.call("x-amzn-RequestId" => "bedrock-1") }
+    _, unnamed = Inference.track(@context) { streamed.call("content-type" => "text/event-stream") }
+
+    assert_equal [ "gen-1760000000-abc", "req_011ABC", "req_openai", "bedrock-1", nil ],
+                 [ openrouter, anthropic, openai, bedrock, unnamed ].map(&:provider_request_id)
+  end
+
+  test "Gemini's answer names its id responseId, and a refused call keeps the id its answer carried" do
+    gemini = RubyLLM::Message.new(role: :assistant, content: "ok", raw: Faraday::Response.new(status: 200, body: { "responseId" => "gemini-1" }))
+    refused = RubyLLM::ServerError.new("down", response: Faraday::Response.new(status: 500, body: "", response_headers: { "x-generation-id" => "gen-failed" }))
+
+    _, answered = Inference.track(@context) { gemini }
+    assert_raises(RubyLLM::ServerError) { Inference.track(@context.merge(feature: "refused_call")) { raise refused } }
+
+    assert_equal "gemini-1", answered.provider_request_id
+    assert_equal "gen-failed", Inference.find_by!(workspace: @workspace, feature: "refused_call").provider_request_id
+  end
 end

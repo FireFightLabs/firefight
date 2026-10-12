@@ -17,6 +17,9 @@ module FirefightAi
       - A result saying the user denied a call means the person cancelled it on its card, so it was not done because they chose not to.
     TEXT
 
+    # What the context sent after the chat on every call opens with, since it rides where the person's words do.
+    CONTEXT_HEADING = "How things stand as of now, from Firefight rather than from the person:".freeze
+
     # model is a ModelChoice for a chat told to use one, such as a bench replay comparing models. nil means the workspace's.
     # specialists says the chat hands reads of connected systems to specialists, which its prompt then says.
     def initialize(workspace, inferable:, member: nil, output_style: nil, model: nil, specialists: false)
@@ -28,20 +31,23 @@ module FirefightAi
       @specialists = specialists
     end
 
-    # The app has already saved the question as the last message. deferred_tools are found by the provider's own tool
-    # search where it has one (FirefightAi.ready_chat). A reply whose tool call could not be read is asked for once
-    # more, and a second one fails the turn as UnreadableReply.
+    # The app has already saved the question as the last message. stable_context holds for the whole chat and joins the
+    # instructions. context can change between turns, so it is sent after the chat on every model call and never saved
+    # (AgentLoop), which keeps the instructions and the cached history in front of it the same from turn to turn.
+    # deferred_tools are found by the provider's own tool search where it has one (FirefightAi.ready_chat). A reply whose
+    # tool call could not be read is asked for once more, and a second one fails the turn as UnreadableReply.
     # purse, on_backup, on_take_over and on_progress go to the loop, see AgentLoop. checks are the app's own checks on a
     # reply that would end the turn, such as the theory board and the challenger, to which the line saying the next step
     # is added when the deployment finishes reads (Configuration#finish_reads).
-    def run(chat:, tools:, context:, budget:, deferred_tools: [], canceled: -> { false }, on_step: nil, on_chunk: nil,
+    def run(chat:, tools:, context:, budget:, stable_context: nil, deferred_tools: [], canceled: -> { false }, on_step: nil, on_chunk: nil,
             nudge: nil, memory: nil, take_messages: nil, purse: nil, on_backup: nil, on_take_over: nil, on_progress: nil, checks: [], &on_turn)
       FirefightAi.translating_errors do
         # A chat grows with every question and each turn resends all of it, so the provider is asked to cache it.
-        FirefightAi.ready_chat(chat, choice: ai_model, instructions: "#{template_text}\n#{context}", tools: tools, deferred_tools: deferred_tools)
+        FirefightAi.ready_chat(chat, choice: ai_model, instructions: [ template_text, stable_context ].compact_blank.join("\n"), tools: tools, deferred_tools: deferred_tools)
 
         AgentLoop.new(
           chat: chat, budget: budget, answered: -> { false }, canceled: canceled,
+          context: ("#{CONTEXT_HEADING}\n#{context}" if context.present?),
           on_step: on_step, on_chunk: on_chunk, nudge: nudge, memory: memory, inference: inference_context, reply_is_answer: true,
           take_messages: take_messages, output: output_cap, choice: ai_model, purpose: AiPurpose::INVESTIGATION,
           purse: purse, on_backup: on_backup, on_take_over: on_take_over, on_progress: on_progress, steady: true,
@@ -56,8 +62,9 @@ module FirefightAi
       @ai_model ||= FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
     end
 
-    # The wording as this responder sends it, which names the version of Halon a bench run tested.
-    def prompt_version = Manual.version(template_text)
+    # The wording as this responder sends it, which names the version of Halon a bench run tested. The heading the
+    # context opens with is wording too, though it rides after the chat.
+    def prompt_version = Manual.version(worded)
 
     private
 
@@ -67,14 +74,16 @@ module FirefightAi
       {
         workspace: @workspace, feature: FEATURE, provider: ai_model.provider_name,
         model: ai_model.model, inferable: @inferable, member: @member,
-        prompt_template: FEATURE, prompt_version: prompt_version, prompt_text: Manual.recorded(template_text)
+        prompt_template: FEATURE, prompt_version: prompt_version, prompt_text: Manual.recorded(worded)
       }
     end
 
     # A reply that only offers a read is sent back when the deployment finishes reads, and only then is Halon told the line.
     def answering = FirefightAi.configuration.finish_reads ? "#{ANSWERING}\n- #{NextStep::RULE}" : ANSWERING
 
-    # The wording, without the per run context, which is what the version is taken from.
+    def worded = "#{template_text}\n#{CONTEXT_HEADING}"
+
+    # The wording, without the per run context.
     def template_text
       <<~PROMPT
         #{ROLE}

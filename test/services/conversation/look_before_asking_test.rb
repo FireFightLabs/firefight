@@ -65,6 +65,7 @@ class Conversation::LookBeforeAskingTest < ActiveSupport::TestCase
     @offered = []
     Chat.any_instance.stubs(:with_instructions).with { |text| instructions = text }
     Chat.any_instance.stubs(:with_caching)
+    Chat.any_instance.stubs(:with_provider_options)
     Chat.any_instance.stubs(:with_tools).with { |*given| tools ? @offered << given : tools = given }
     outcome = FirefightAi::AgentLoop::Outcome.new(status: FirefightAi::AgentLoop::STATUS_ANSWERED, turns_used: 1, spent_micros: 0)
     FirefightAi::AgentLoop.stubs(:new).returns(stub(run: outcome))

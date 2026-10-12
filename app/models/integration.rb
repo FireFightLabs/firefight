@@ -258,12 +258,14 @@ class Integration < ApplicationRecord
       raise(UnknownEnvironment, "Unknown environment '#{slug}'. #{environments_named}")
   end
 
-  # The slugs a caller has to choose between, empty when the connection resolves one on its own.
-  # Slugs are catalog data any member can read, so nothing is disclosed.
+  # The slugs a caller has to choose between, empty when the connection resolves one on its own, as resolve_environment
+  # does with a default row (there is at most one) or a single enabled row. Read in one query, since every tool's schema
+  # asks. Slugs are catalog data any member can read, so nothing is disclosed.
   def environment_choices
-    return [] if resolve_environment(nil).present?
+    rows = integration_environments.enabled.includes(:environment).order(:created_at).to_a
+    return [] if rows.one? || rows.any? { |row| row.catalog_entry_id.nil? }
 
-    slugs = environment_slugs
+    slugs = rows.filter_map { |row| row.environment&.slug }
     slugs.size < 2 ? [] : slugs
   end
 
@@ -282,6 +284,27 @@ class Integration < ApplicationRecord
     "This connection has: #{slugs.join(', ')}."
   end
 
+  # The accounts the sweep put on the map for each of these connections, read in one query, so a list of them says what
+  # each reaches (reach) without a query each. They keep the database's order, as mapped_accounts reads them one
+  # connection at a time.
+  def self.with_mapped_accounts(integrations)
+    row_ids = integrations.flat_map(&:integration_environments).map(&:id)
+    found = row_ids.empty? ? [] : mapped_account_pairs(integrations.map(&:workspace_id).uniq, row_ids)
+    mapped = MappedAccounts.new(by_row: found.group_by(&:last).transform_values { |pairs| pairs.map(&:first) },
+                                rank: found.map(&:first).uniq.each_with_index.to_h)
+    integrations.each { |integration| integration.mapped_accounts_read = mapped }
+    integrations
+  end
+
+  def self.mapped_account_pairs(workspace_ids, row_ids)
+    ResourceMap::Resource.present.where(workspace_id: workspace_ids, integration_environment_id: row_ids)
+                         .distinct.order(:account).pluck(:account, :integration_environment_id)
+  end
+
+  MappedAccounts = Data.define(:by_row, :rank)
+
+  attr_writer :mapped_accounts_read
+
   private
 
   def keep_packs_in_step
@@ -294,9 +317,18 @@ class Integration < ApplicationRecord
     errors.add(:slug, "cannot be changed after creation") if slug_changed?
   end
 
+  def query_mapped_accounts(rows)
+    ResourceMap::Resource.present.where(workspace_id: workspace_id, integration_environment_id: rows.map(&:id))
+                         .distinct.order(:account).limit(ACCOUNTS_SHOWN + 1).pluck(:account)
+  end
+
+  # The accounts with_mapped_accounts read, merged across rows in the database's order, as query_mapped_accounts answers.
+  def read_mapped_accounts(rows)
+    rows.flat_map { |row| @mapped_accounts_read.by_row[row.id].to_a }.uniq.sort_by { |account| @mapped_accounts_read.rank[account] }.first(ACCOUNTS_SHOWN + 1)
+  end
+
   def mapped_accounts(rows)
-    accounts = ResourceMap::Resource.present.where(workspace_id: workspace_id, integration_environment_id: rows.map(&:id))
-                                    .distinct.order(:account).limit(ACCOUNTS_SHOWN + 1).pluck(:account)
+    accounts = @mapped_accounts_read ? read_mapped_accounts(rows) : query_mapped_accounts(rows)
     return [] if accounts.empty?
 
     shown = accounts.first(ACCOUNTS_SHOWN)

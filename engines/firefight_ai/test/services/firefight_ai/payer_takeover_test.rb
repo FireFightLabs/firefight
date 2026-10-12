@@ -22,6 +22,8 @@ class FirefightAi::PayerTakeoverTest < ActiveSupport::TestCase
     def awaiting_approval? = false
     def with_max_output_tokens(_limit) = self
     def deferred_tools = {}
+    def id = "chat-1"
+    def with_provider_options(_options) = self
 
     def with_context(context)
       @context = context

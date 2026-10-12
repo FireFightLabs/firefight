@@ -10,6 +10,30 @@ class Conversation::Runner
   PHASE_CONTEXT = "context".freeze
   PHASE_RESPONDER = "responder".freeze
   PHASE_AFTER = "after".freeze
+  # Each step of setup, logged under SETUP_STEP_EVENT with how long it took and how many queries it sent.
+  SETUP_STEP_EVENT = "conversation_reply.setup_step".freeze
+  STEP_CHAT = "chat".freeze
+  STEP_HAND_BACK_ROOM = "hand_back_room".freeze
+  STEP_DISCARD = "discard_interrupted".freeze
+  STEP_CLOSE_CALLS = "close_unfinished_calls".freeze
+  STEP_TAKE_QUEUED = "take_queued".freeze
+  STEP_HELD_CALL = "held_call".freeze
+  STEP_PULL_REQUEST_FIX = "pull_request_fix".freeze
+  STEP_CODE_PAUSE = "code_pause".freeze
+  STEP_PLAN_NOTE = "plan_note".freeze
+  STEP_HAND_BACK_NOTE = "hand_back_note".freeze
+  STEP_ANSWERED_ALREADY = "answered_already".freeze
+  STEP_DELIVERED = "delivered".freeze
+  STEP_EXPECT_REPLY = "expect_reply".freeze
+  STEP_STOP_REQUESTED = "stop_requested".freeze
+  STEP_STOPPED = "stopped".freeze
+  STEP_THINKING = "thinking".freeze
+  STEP_LISTENERS = "listeners".freeze
+  STEP_HELD_OUTCOMES = "held_outcomes".freeze
+  STEP_CATCH_UP = "catch_up".freeze
+  STEP_SPECIALISTS = "specialists".freeze
+  STEP_PRESENTED = "presented".freeze
+  STEP_SUSPECTS = "suspects".freeze
 
   # held_call is an approved call someone pressed Run on, which this turn runs first. handed_back is a watch step that
   # could not find what it followed, which this turn re-plans, reading only. pull_request_fix is a pull request notice
@@ -31,59 +55,68 @@ class Conversation::Runner
 
   def run
     @marked = Time.current
+    @turn.hold_catalog!
     chat, purse, presented, suspects = timed_phase(PHASE_SETUP) do
-      chat = @conversation.chat_record
+      chat = setup_step(STEP_CHAT) { @conversation.chat_record }
       # A turn paused on the person's confirmation is theirs, so a hand back waits for their next turn, which tells it.
-      return nil if @handed_back && !room_for_a_note?(chat)
+      return nil if @handed_back && !setup_step(STEP_HAND_BACK_ROOM) { room_for_a_note?(chat) }
 
-      chat.discard_interrupted_reply!
-      withdraw(chat.close_unfinished_calls!)
-      take_queued(chat)
-      run_held_call(chat) if @held_call
-      run_pull_request_fix(chat) if @pull_request_fix
-      run_code_pause(chat) if @code_pause
-      chat.nudge!(Conversation::Plans.note(@plan, @plan_move, @turn.asker)) if @plan && room_for_a_note?(chat)
-      chat.nudge!(Conversation::Watches.hand_back_note(@handed_back)) if @handed_back&.hand_back_noted!
+      setup_step(STEP_DISCARD) { chat.discard_interrupted_reply! }
+      setup_step(STEP_CLOSE_CALLS) { withdraw(chat.close_unfinished_calls!) }
+      setup_step(STEP_TAKE_QUEUED) { take_queued(chat) }
+      setup_step(STEP_HELD_CALL) { run_held_call(chat) } if @held_call
+      setup_step(STEP_PULL_REQUEST_FIX) { run_pull_request_fix(chat) } if @pull_request_fix
+      setup_step(STEP_CODE_PAUSE) { run_code_pause(chat) } if @code_pause
+      setup_step(STEP_PLAN_NOTE) { chat.nudge!(Conversation::Plans.note(@plan, @plan_move, @turn.asker)) if room_for_a_note?(chat) } if @plan
+      setup_step(STEP_HAND_BACK_NOTE) { chat.nudge!(Conversation::Watches.hand_back_note(@handed_back)) if @handed_back.hand_back_noted! } if @handed_back
       # The turn before this one already answered what this job was queued for.
-      if answered_already?(chat)
-        @conversation.reply_delivered!
+      if setup_step(STEP_ANSWERED_ALREADY) { answered_already?(chat) }
+        setup_step(STEP_DELIVERED) { @conversation.reply_delivered! }
         return nil
       end
 
       # A question that waited behind the last turn was never marked as owed, since one already was.
-      @conversation.expect_reply!
+      setup_step(STEP_EXPECT_REPLY) { @conversation.expect_reply! }
       # Pressed while this turn waited behind the last one.
-      return stopped!(chat) if chat.stop_requested?
+      return setup_step(STEP_STOPPED) { stopped!(chat) } if setup_step(STEP_STOP_REQUESTED) { chat.stop_requested? }
 
-      delivery.thinking!
-      @turn.listen_to_progress { |key, update| report_progress(key, update) }
-      tell_held_outcomes(chat)
-      chat.on_making_room { |compaction| delivery.made_room(compaction) }
-      @changes = Chat::Tools::Changes.catch_up!(@turn, chat).then { |caught| caught if caught.note }
-      purse = FirefightAi::AgentLoop::Purse.new
-      @turn.asks_specialists = Chat::Specialists.ask?(@turn, picked_model || FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @conversation.workspace))
-      presented = Chat::Tools.presented(@turn, responder.ai_model)
-      suspects = tell_suspects(chat)
+      setup_step(STEP_THINKING) { delivery.thinking! }
+      purse = setup_step(STEP_LISTENERS) do
+        @turn.listen_to_progress { |key, update| report_progress(key, update) }
+        chat.on_making_room { |compaction| delivery.made_room(compaction) }
+        FirefightAi::AgentLoop::Purse.new
+      end
+      setup_step(STEP_HELD_OUTCOMES) { tell_held_outcomes(chat) }
+      @changes = setup_step(STEP_CATCH_UP) { Chat::Tools::Changes.catch_up!(@turn, chat).then { |caught| caught if caught.note } }
+      setup_step(STEP_SPECIALISTS) do
+        @turn.asks_specialists = Chat::Specialists.ask?(@turn, picked_model || FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @conversation.workspace))
+      end
+      presented = setup_step(STEP_PRESENTED) { Chat::Tools.presented(@turn, responder.ai_model) }
+      suspects = setup_step(STEP_SUSPECTS) { tell_suspects(chat) }
       [ chat, purse, presented, suspects ]
     end
 
-    tools, turn_context, turn_budget, checks = timed_phase(PHASE_CONTEXT) do
+    tools, stable_context, turn_context, turn_budget, checks = timed_phase(PHASE_CONTEXT) do
+      context = Conversation::Context.new(@conversation, @turn)
       [
         Conversation::Tools.for(@turn, offer: Chat::Tools.offer_to(chat), helpers: helper_share(chat, purse), presented: presented) +
           presented.loaded + Chat::Tools.known(@turn, chat),
-        context,
+        context.stable,
+        context.current,
         budget,
         Conversation::Checks.new(chat, since: @marked, choice: Chat::Helpers.side_model(@conversation.workspace, main: helper_main_model),
                                        inferable: @conversation, member: member, facts: suspects).all
       ]
     end
 
+    @turn.release_catalog!
     outcome = timed_phase(PHASE_RESPONDER) do |started|
       @responder_started = started
       responder.run(
         chat: chat,
         tools: tools,
         deferred_tools: presented.deferred,
+        stable_context: stable_context,
         context: turn_context,
         budget: turn_budget,
         on_step: method(:report_step),
@@ -138,12 +171,29 @@ class Conversation::Runner
   end
 
   # Where a reply's time goes, logged per phase and spanned when a tracer is set (config/initializers/opentelemetry.rb).
-  # A stop is the person pressing Stop, so its span ends as OK with no exception on it, which the SDK keeps over the error
-  # in_span sets after. Any other failure is recorded here, since in_span is told not to.
   def timed_phase(name)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    Firefight::TRACER.in_span("conversation.reply.#{name}", attributes: { "conversation.id" => @conversation.id }, record_exception: false) do |span|
-      yield started
+    traced("conversation.reply.#{name}") { yield started }
+  ensure
+    Rails.logger.info({ event: PHASE_EVENT, phase: name, duration_ms: elapsed_ms(started), conversation_id: @conversation.id }.to_json)
+  end
+
+  # One step of setup, logged and spanned inside the setup phase's span with the queries it sent, since setup's time is
+  # mostly round trips to the database.
+  def setup_step(name, &)
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    queries = Conversation::Runner::QueryCount.new
+    traced("conversation.reply.#{PHASE_SETUP}.#{name}") { queries.count(&) }
+  ensure
+    Rails.logger.info({ event: SETUP_STEP_EVENT, step: name, duration_ms: elapsed_ms(started), queries: queries&.total, cached: queries&.cached,
+                        conversation_id: @conversation.id }.to_json)
+  end
+
+  # A stop is the person pressing Stop, so its span ends as OK with no exception on it, which the SDK keeps over the error
+  # in_span sets after. Any other failure is recorded here, since in_span is told not to.
+  def traced(span_name)
+    Firefight::TRACER.in_span(span_name, attributes: { "conversation.id" => @conversation.id }, record_exception: false) do |span|
+      yield
     rescue FirefightAi::Canceled
       span.status = OpenTelemetry::Trace::Status.ok
       raise
@@ -151,8 +201,6 @@ class Conversation::Runner
       span.record_exception(error)
       raise
     end
-  ensure
-    Rails.logger.info({ event: PHASE_EVENT, phase: name, duration_ms: elapsed_ms(started), conversation_id: @conversation.id }.to_json)
   end
 
   # The first text shown to the person, which on a turn that calls tools first comes after them, and on one that only
@@ -423,105 +471,6 @@ class Conversation::Runner
   def seen = @seen ||= {}
 
   def kinds = @kinds ||= {}
-
-  # Who the agent acts for, so it can answer what they may do and say who else can.
-  def context
-    [ asker_line, today_line, incident_line, directing_line, investigations_line, handbook_line, instructions_line, memories_line, plans_line ].compact.join("\n")
-  end
-
-  def asker_line
-    asker = @turn.asker
-    return "You are acting for nobody known, so every tool will refuse." unless asker
-    return issue_line(asker) if @conversation.issue?
-
-    "You are acting for #{asker.display_name}, whose role in this workspace is #{asker.role}. Owners and admins can change settings and permissions, members respond to incidents."
-  end
-
-  # Someone asked in an issue in a connected tracker, whose words and what the tracker gathered around them are in the
-  # chat. Every answer is posted there, where anyone who can see the issue reads it.
-  def issue_line(agent)
-    session = @conversation.issue_session
-    issue = [ session&.issue_key, session&.issue_url ].compact.join(" ")
-    "You were asked in #{session&.place || 'a tracker'}#{" issue #{issue}" if issue.present?}, by someone assigning the issue to " \
-      "Firefight or mentioning it. You act as #{agent.actor_display_name}, Firefight's own agent, which holds only the permissions an " \
-      "admin granted it, never the person's. Your answer is posted in the issue, where anyone who can see it reads it."
-  end
-
-  # The day only, so the prompt stays the same all day and the provider keeps reusing what it read. A plan's time is
-  # worked out from it.
-  def today_line = "Today is #{Time.current.utc.strftime('%A %-d %B %Y')} (UTC)."
-
-  # What Halon is carrying out in this chat, so a goal is never dropped between turns.
-  def plans_line
-    chat = @conversation.chat
-    chat && Conversation::Plans.for_halon(chat)
-  end
-
-  def incident_line
-    incident = @conversation.incident
-    return nil unless incident
-
-    "You are in the channel for #{incident.identifier} #{incident.name}, status #{incident.incident_status.name}."
-  end
-
-  # Anyone in an incident's channel can ask in the same thread, so Halon is told whose direction it follows when they
-  # disagree. It is whoever holds the role the handbook names, the Incident Lead unless it names another.
-  def directing_line
-    incident = @conversation.incident
-    return nil unless incident && @conversation.chat_record.speakers_named?
-
-    role = Chat::HandbookPage.directing_role(@conversation.workspace)
-    return nil unless role
-
-    holder = incident.role_holder(role)
-    who = holder ? "#{holder.display_name}, who holds #{role.name}" : "whoever holds #{role.name}, which nobody holds yet, so ask the people here to assign it before acting on directions that conflict"
-    "Several people can write to you in this thread, and each message starts with who wrote it. In #{incident.identifier} you take direction from #{who}. " \
-      "#{Chat::HandbookPage::Reading::CONFLICTING}"
-  end
-
-  # How the workspace works, read first on every turn. Short pages come whole and long ones are named for search_handbook.
-  def handbook_line
-    lines = Chat::HandbookPage.halon_lines(@conversation.workspace)
-    return nil if lines.empty?
-
-    "#{Chat::HandbookPage::HANDBOOK_HEADING}\n#{lines.join("\n\n")}"
-  end
-
-  # How people here want Halon to work on what this chat touches, most specific last.
-  def instructions_line
-    notes = Chat::Instruction.for_subjects(@conversation.workspace, Chat::Memory.subjects_for(@conversation.incident), principal: @turn.asker)
-    return nil if notes.empty?
-
-    "Instructions from people in this workspace, headed by where each applies. Follow them, the more specific one winning " \
-      "where two differ. They say how to work, and what happened comes from what you read:\n#{notes.map { |note| "- #{note.line}" }.join("\n")}"
-  end
-
-  # What the workspace learned about what this chat touches, so it starts from what is known. Each counts as used once
-  # for the whole chat.
-  def memories_line
-    memories = Chat::Memory.starting_with(@conversation.workspace, Chat::Memory.subjects_for(@conversation.incident), principal: @turn.asker)
-    return nil if memories.empty?
-
-    Chat::Memory.handed_to!(memories, @conversation) if @turn.changes_memory?
-
-    "What this workspace remembers. Each is a hunch to check against live results, and only a confirmed one was vouched " \
-      "for by a person, so say so when you rely on one that is not. When a result contradicts one, dispute it with " \
-      "dispute_memory:\n#{memories.map { |memory| "- #{memory.line}" }.join("\n")}"
-  end
-
-  RUNS_REMEMBERED = 5
-
-  # A run answers on its own, after the turn that started it ended, so the chat is told how its runs went.
-  def investigations_line
-    runs = @conversation.investigations.seen.includes(:finding).order(created_at: :desc).limit(RUNS_REMEMBERED).to_a
-    return nil if runs.empty?
-
-    lines = runs.reverse.map do |run|
-      outcome = run.finding&.summary || run.stopped_because || "still running"
-      "- #{run.question || run.incident&.identifier}: #{outcome}"
-    end
-    "Investigations started from this chat, and how each went:\n#{lines.join("\n")}"
-  end
 
   # The loop counts from the start of this question, so the conversation is given what each turn added.
   def record(turn)

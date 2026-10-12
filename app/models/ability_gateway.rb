@@ -168,12 +168,12 @@ class AbilityGateway
 
   # params is the call itself, which matters only for a tool that both reads and changes. A call it shows to read is a
   # read of its connection, held by default like any read and granted with the connection's read pack.
-  def self.permitted?(principal, action, action_key, workspace, scope, params: nil)
+  def self.permitted?(principal, action, action_key, workspace, scope, params: nil, resolved: nil)
     return false unless action
     return true if Ability::Action.open?(action_key)
-    return true if principal.implicitly_allowed?(action)
+    return true if principal.implicitly_allowed?(action, resolved)
 
-    resolved = Ability::Resolver.resolve(principal, workspace)
+    resolved ||= Ability::Resolver.resolve(principal, workspace)
     return !resolved.reach(action_key).nil? if Ability::Action.filtered?(action_key) && scope.blank?
     return true if resolved.covers?(action_key, scope)
 

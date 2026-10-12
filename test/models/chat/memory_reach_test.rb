@@ -26,7 +26,7 @@ class Chat::MemoryReachTest < ActiveSupport::TestCase
     assert_includes lines, "web keeps sessions"
     assert_no_hidden(lines)
     assert_includes Chat::Memory.starting_with(@workspace, subjects, principal: SystemAgent.investigator), @hidden
-    assert_no_hidden(Conversation::Runner.new(@conversation, asker: @member).send(:memories_line).to_s)
+    assert_no_hidden(Conversation::Context.new(@conversation, Conversation::Turn.new(@conversation, asker: @member)).current)
   end
 
   test "recall about a hidden resource answers as for nothing on the map, and a word search skips its memories" do

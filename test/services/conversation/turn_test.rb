@@ -2,6 +2,8 @@ require "test_helper"
 
 # A chat acts as the person who asked, with exactly the reach they have in the dashboard.
 class Conversation::TurnTest < ActiveSupport::TestCase
+  include IssueTrackerTestHelper
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)
@@ -50,6 +52,26 @@ class Conversation::TurnTest < ActiveSupport::TestCase
     assert_includes member_ready, "search_incidents"
     assert_not_includes member_ready, "grant_ability"
     assert_includes admin_ready, "grant_ability"
+  end
+
+  test "a turn being got ready reads one catalogue, and once released each read builds it fresh" do
+    turn = turn(@member)
+    Chat::Tools.expects(:build_catalog).with(turn).times(3).returns([])
+
+    turn.hold_catalog!
+    2.times { Chat::Tools.catalog(turn) }
+    turn.release_catalog!
+    2.times { Chat::Tools.catalog(turn) }
+  end
+
+  test "a member is told which pack to ask for, the same with the packs read for every tool at once as one by one" do
+    integration = connect_tracker!(@workspace, provider: "linear")
+    writer = integration.tools.find_by!(name: "save_issue")
+    packs = Chat::Tools.changes_packs([ writer ])
+
+    assert_match "Needs the", Chat::Tools.pack_needed(writer)
+    assert_equal Chat::Tools.pack_needed(writer), Chat::Tools.pack_needed(writer, packs)
+    assert_nil Chat::Tools.pack_needed(integration.tools.find_by!(name: "get_issue"), packs)
   end
 
   test "a turn nobody can be credited with does nothing" do
