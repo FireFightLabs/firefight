@@ -10,6 +10,7 @@ require "firefight_ai/prompt"
 require "firefight_ai/http_adapter"
 require "firefight_ai/tracing"
 require "firefight_ai/tool_search"
+require "firefight_ai/request_id"
 require "firefight_ai/engine"
 
 module FirefightAi
@@ -230,9 +231,21 @@ module FirefightAi
   def bind(chat, choice)
     same = chat.model_id.to_s == choice.model && (choice.provider.blank? || chat.provider.to_s == choice.provider.to_s)
     rebind_context(chat, choice.context, moving: !same)
-    return chat if same
+    unless same
+      chat.with_model(choice.model, provider: choice.provider, assume_model_exists: choice.provider.present? && !registered?(choice.model, choice.provider))
+    end
+    name_session(chat)
+  end
 
-    chat.with_model(choice.model, provider: choice.provider, assume_model_exists: choice.provider.present? && !registered?(choice.model, choice.provider))
+  # The provider that routes each call of a chat to one of several hosts, and keeps a chat's calls on the host whose
+  # cache holds what it read when every call names the chat's session.
+  SESSION_ROUTER = "openrouter".freeze
+
+  # The session is the saved chat's own id, which holds nothing secret or personal. Without it OpenRouter keys the route
+  # on the chat's opening messages and moves a chat whose opening changed to another host, which has read none of it.
+  # Any other provider is sent nothing, and a chat moved off OpenRouter by a backup stops sending it.
+  def name_session(chat)
+    chat.with_provider_options(chat.provider.to_s == SESSION_ROUTER ? { session_id: chat.id.to_s } : nil)
   end
 
   # RubyLLM resolves the chat's current model again under the new context, which a context holding only another

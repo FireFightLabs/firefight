@@ -90,5 +90,5 @@ class Conversation::DirectingTest < ActiveSupport::TestCase
 
   private
 
-  def directing_line(conversation) = Conversation::Runner.new(conversation, asker: @alice).send(:directing_line)
+  def directing_line(conversation) = Conversation::Context.new(conversation, Conversation::Turn.new(conversation, asker: @alice)).send(:directing_line)
 end

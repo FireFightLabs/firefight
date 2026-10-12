@@ -30,7 +30,7 @@ class Chat::InstructionReachTest < ActiveSupport::TestCase
   test "a chat's instructions use the asker's reach" do
     conversation = Conversation.for_mcp!(workspace: @workspace, principal: @member, incident: @incident)
 
-    line = Conversation::Runner.new(conversation, asker: @member).send(:instructions_line)
+    line = Conversation::Context.new(conversation, Conversation::Turn.new(conversation, asker: @member)).send(:instructions_line)
 
     assert_includes line, @shown.line
     assert_includes line, @about_entry.line

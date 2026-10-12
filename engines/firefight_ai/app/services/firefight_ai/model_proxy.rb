@@ -34,6 +34,9 @@ module FirefightAi
     # The provider's answer to a refused call, kept so the refusal can be read, such as for credit.
     attr_reader :refusal
 
+    # The provider's own id for the call, from its answer's headers (RequestId).
+    attr_reader :request_id
+
     def self.providers(config = RubyLLM.config)
       {
         # Anthropic calls remote MCP servers named at the top of the body and keeps code execution state in a container,
@@ -98,6 +101,7 @@ module FirefightAi
       Net::HTTP.start(uri.host, uri.port, **options) do |http|
         http.request(request) do |response|
           @status = response.code.to_i
+          @request_id = RequestId.in_headers(RequestId::HEADERS.to_h { |name| [ name, response[name] ] })
           json = response["Content-Type"].to_s.include?("json")
           yield :start, @status, response["Content-Type"].to_s
           response.read_body do |chunk|

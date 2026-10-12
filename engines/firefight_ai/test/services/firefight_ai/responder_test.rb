@@ -8,17 +8,29 @@ class FirefightAi::ResponderTest < ActiveSupport::TestCase
     FirefightAi::AgentLoop.any_instance.stubs(:run).returns(:outcome)
   end
 
-  test "a turn is told the manual, then who it acts for" do
+  test "a turn is told the manual and what holds for the whole chat, and who it acts for after the chat" do
     instructions = nil
     chat = chat_double { |text| instructions = text }
+    FirefightAi::AgentLoop.expects(:new).with { |**options| options[:context] == "#{FirefightAi::Responder::CONTEXT_HEADING}\nYou are acting for Ada." }
+                          .returns(stub(run: :outcome))
 
-    answer(chat)
+    answer(chat, stable_context: "The workspace's handbook.")
 
     assert instructions.start_with?(FirefightAi::Responder::ROLE)
     assert_includes instructions, FirefightAi::Manual::THINKING
     assert_includes instructions, FirefightAi::Manual::TOOLS
     assert_includes instructions, FirefightAi::Responder::ANSWERING
-    assert instructions.end_with?("You are acting for Ada.")
+    assert instructions.end_with?("The workspace's handbook.")
+    assert_not_includes instructions, "You are acting for Ada."
+  end
+
+  test "the heading the context opens with is part of the wording the version names" do
+    responder = FirefightAi::Responder.new(@workspace, inferable: nil)
+    shipped = responder.prompt_version
+
+    stub_const(FirefightAi::Responder, :CONTEXT_HEADING, "Another heading:") do
+      refute_equal shipped, responder.prompt_version
+    end
   end
 
   # Seen in a real chat, asked to assign a role, the agent typed "lead" instead of reading the workspace's roles.
@@ -59,9 +71,9 @@ class FirefightAi::ResponderTest < ActiveSupport::TestCase
 
   private
 
-  def answer(chat)
+  def answer(chat, stable_context: nil)
     FirefightAi::Responder.new(@workspace, inferable: nil).run(
-      chat: chat, tools: [], context: "You are acting for Ada.",
+      chat: chat, tools: [], context: "You are acting for Ada.", stable_context: stable_context,
       budget: FirefightAi::AgentLoop::Budget.new(max_spend_cents: 50, max_turns: 10)
     )
   end

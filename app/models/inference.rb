@@ -54,7 +54,7 @@ class Inference < ApplicationRecord
         cost_micros:         cost_to_micros(response.try(:cost)),
         latency_ms:          elapsed_ms_since(started),
         stop_reason:         response.try(:finish_reason)&.to_s,
-        provider_request_id: provider_request_id(response),
+        provider_request_id: FirefightAi::RequestId.from(response.try(:raw)),
         status:              STATUS_SUCCESS
       )
       inference.payer.answered!(inference.provider)
@@ -64,6 +64,7 @@ class Inference < ApplicationRecord
       create!(
         **attrs,
         latency_ms:  elapsed_ms_since(started),
+        provider_request_id: FirefightAi::RequestId.from(e.try(:response)),
         status:      STATUS_ERROR,
         error_class: e.class.name,
         error_kind:  (ERROR_OUT_OF_CREDIT if FirefightAi::Credit.from(e).out_of_credit?)
@@ -88,13 +89,6 @@ class Inference < ApplicationRecord
     ((dollars || 0).to_f * 1_000_000).round
   end
   private_class_method :cost_to_micros
-
-  # The provider's own id for the call, read off the raw body since RubyLLM does not surface it.
-  def self.provider_request_id(response)
-    body = response.try(:raw).try(:body)
-    body["id"].presence if body.is_a?(Hash)
-  end
-  private_class_method :provider_request_id
 
   def self.monotonic_now
     Process.clock_gettime(Process::CLOCK_MONOTONIC)

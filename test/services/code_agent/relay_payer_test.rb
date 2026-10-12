@@ -3,7 +3,7 @@ require "test_helper"
 # A code fix runs on the payer the workspace's order chose. The proxy forwards with that payer's own key, which never
 # leaves Firefight, and the ledger says who paid.
 class CodeAgent::RelayPayerTest < ActiveSupport::TestCase
-  FakeProxy = Struct.new(:usage, :status, :refusal) do
+  FakeProxy = Struct.new(:usage, :status, :refusal, :request_id) do
     def forward(**) = usage
   end
 
@@ -17,13 +17,14 @@ class CodeAgent::RelayPayerTest < ActiveSupport::TestCase
     session, = CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi.model_for(AiPurpose::CODE_FIX, workspace: @workspace), repository: "acme/api")
     keys = []
     FirefightAi::ModelProxy.expects(:new).with { |provider, config:, connect_to:| keys << [ provider, config&.anthropic_api_key, connect_to ] }
-                           .returns(FakeProxy.new(FirefightAi::ModelProxy::Usage.new(input: 10, output: 5, cache_read: 0, cache_write: 0), 200, nil))
+                           .returns(FakeProxy.new(FirefightAi::ModelProxy::Usage.new(input: 10, output: 5, cache_read: 0, cache_write: 0), 200, nil, "req_011CODE"))
 
     CodeAgent::Relay.new(session).forward(path: "messages", body: "{}", headers: {}) { |*| nil }
 
     assert_equal [ [ "anthropic", "sk-ant-workspace", nil ] ], keys
     inference = Inference.find_by!(inferable: session)
     assert_equal [ Inference::PAID_BY_ACCOUNT, account ], [ inference.paid_by, inference.workspace_ai_account ]
+    assert_equal "req_011CODE", inference.provider_request_id
     assert_not_nil account.reload.last_used_at
   end
 
