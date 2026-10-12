@@ -6,6 +6,7 @@ class IncidentsController < InertiaController
   PROP_INVESTIGATION_START = "investigationStart"
 
   include ServesChatAttachment
+  include PlatformText
 
   authorizes Ability::Action::RESOURCE_INCIDENTS,
     read: %i[show postmortem postmortem_revisions investigation_file investigation_screenshot],
@@ -173,7 +174,8 @@ class IncidentsController < InertiaController
     id = params[Investigation::QUERY_PARAM]
     investigation = id.presence && incident.investigations.seen.find_by(id: id)
     investigation && InvestigationDetailSerializer.one(investigation, file_path: ->(file) { incident_investigation_file_path(incident, investigation, file) },
-                                                                    screenshot_path: ->(shot) { incident_investigation_screenshot_path(incident, investigation, shot) })
+                                                                    screenshot_path: ->(shot) { incident_investigation_screenshot_path(incident, investigation, shot) },
+                                                                    platform_texts: investigation_platform_texts(investigation))
   end
 
   # Capped, the picker searches rather than scrolls.
@@ -186,10 +188,23 @@ class IncidentsController < InertiaController
       .map { |other| { id: other.id, identifier: other.identifier, name: other.name } }
   end
 
-  # A quoted chat message is in the platform's own markup, so the platform says what it reads as.
+  # A quoted chat message is in the platform's own markup, so the platform says what it reads as. So is the question a run
+  # asked for there started with.
   def timeline_events(incident)
     events = incident.timeline_events
-    TimelineEventSerializer.many(events, quotes: quotes_as_markdown(events))
+    TimelineEventSerializer.many(events, quotes: quotes_as_markdown(events), started_questions: started_questions(events))
+  end
+
+  # Each start of a run asked for in the platform, to its question as the platform shows it.
+  def started_questions(events)
+    started = events.select { |event| event.event_type == IncidentEvent::INVESTIGATION_STARTED }
+    ids = started.filter_map { |event| event.metadata.to_h["investigation_id"] }
+    asked = current_workspace.investigations.where(id: ids).select(&:question_in_platform_markup?).index_by(&:id)
+    shown = platform_texts(asked.values.map(&:question))
+    started.each_with_object({}) do |event, questions|
+      run = asked[event.metadata.to_h["investigation_id"]]
+      questions[event.id] = shown.fetch(run.question, run.question) if run&.question.present?
+    end
   end
 
   def quotes_as_markdown(events)

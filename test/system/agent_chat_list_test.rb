@@ -30,6 +30,21 @@ class AgentChatListTest < ApplicationSystemTestCase
     assert_selector "aside.agent-chat-list", text: "Chats", visible: true
   end
 
+  test "a chat from Slack direct messages reads as Slack showed it, in the list and in the chat" do
+    bob = workspace_memberships(:bob_workspace_one)
+    direct = Conversation.start_direct!(workspace: workspaces(:slack_workspace_one), member: workspace_memberships(:alice_workspace_one),
+                                        channel_id: "D0ALICE", thread_id: "1700000000.000100")
+    direct.ask!("<@#{bob.platform_user_id}> says *checkout* is slow &amp; :fire:")
+
+    visit agent_chat_path(direct)
+
+    shown = "@#{bob.display_name} says checkout is slow & 🔥"
+    assert_selector "aside.agent-chat-list", text: shown
+    assert_selector "p", exact_text: shown
+    assert_no_text "<@#{bob.platform_user_id}>"
+    assert_no_text ":fire:"
+  end
+
   # A step that finished before the chat opened shows finished. It once replayed as running, one step after
   # another, which opened and closed its card every time the chat was opened.
   test "an opened chat shows its finished steps as finished, with no replay" do

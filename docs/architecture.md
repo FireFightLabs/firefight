@@ -386,6 +386,18 @@ Two things about it are worth knowing before adding a control:
   `:name:`, since only Slack holds the image. The incidents controller hands the
   result to `TimelineEventSerializer` as `quotes:`. The stored text is never
   rewritten, so the API, MCP and the model still read what was said.
+  `PlatformAdapter#messages_as_text` is the same reading as plain text, for a
+  place that shows text as typed: a person's bubble in the Halon chat, a form
+  field such as the action a reaction pre-fills, or a Slack post that quotes
+  the words back (escaped again, so a `<!here>` in them never notifies twice).
+  Every surface converts at the edge and only text it knows was written in the
+  platform: a direct message chat's questions and the title taken from the
+  first one (`Conversation#said_in_platform_markup?`, `#title_question`), a run
+  asked for by the command or a mention (`Investigation#question_in_platform_markup?`)
+  and notes written in a thread (`Chat::QueuedMessage#from_platform`). Text
+  typed on the dashboard, over the API or MCP is shown exactly as typed.
+  Controllers convert through the `PlatformText` concern and hand the result to
+  serializers as `platform_texts:`, since serializers never call an adapter.
 
 ## Outbound Webhooks
 

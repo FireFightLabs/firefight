@@ -21,6 +21,23 @@ class HalonPerformanceControllerTest < ActionDispatch::IntegrationTest
     assert_equal Investigation::Performance::WINDOWS, inertia_props["windows"]
   end
 
+  test "a wrong answer to a question asked in Slack is named by the question as Slack shows it" do
+    sign_in(users(:bob), @workspace)
+    bob = workspace_memberships(:bob_workspace_one)
+    run = @workspace.investigations.create!(
+      trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400, status: Investigation::STATUS_SUCCEEDED,
+      started_at: 2.hours.ago, completed_at: 110.minutes.ago,
+      brief: Investigation::Brief.from({ Investigation::Brief::KEY_SYMPTOM => "<@#{bob.platform_user_id}> says *checkout* is slow" },
+                                       source: Investigation::Brief::SOURCE_COMMAND)
+    )
+    run.create_finding!(summary: "The cache did it", outcome: Investigation::Finding::OUTCOME_WRONG, outcome_at: 100.minutes.ago)
+
+    get halon_performance_path(days: 7), headers: inertia_headers
+
+    mistake = inertia_props["performance"]["mistakes"].find { |shown| shown["summary"] == "The cache did it" }
+    assert_equal "@#{bob.display_name} says checkout is slow", mistake["label"]
+  end
+
   test "a workspace without Halon is sent back with why" do
     sign_in(users(:alice), @workspace)
     Investigation.stubs(:available_for?).returns(false)

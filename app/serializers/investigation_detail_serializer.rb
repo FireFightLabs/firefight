@@ -27,10 +27,12 @@ class InvestigationDetailSerializer < BaseSerializer
     investigation.incident&.name
   end
 
-  # What whoever asked said was wrong, the run's own question.
+  # What whoever asked said was wrong, the run's own question. Asked in the chat platform, it reads as the platform shows
+  # it, from the platform_texts handed in.
   type :string, optional: true
   def question
-    investigation.brief&.dig(Investigation::Brief::KEY_SYMPTOM)
+    question = investigation.question
+    investigation.question_in_platform_markup? ? options.fetch(:platform_texts, {}).fetch(question, question) : question
   end
 
   has_one :asker, serializer: ActorCompactSerializer, optional: true do

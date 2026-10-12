@@ -21,9 +21,11 @@ class AgentChatMessageSerializer < BaseSerializer
 
   attributes(id: { type: :string }, role: { type: :string })
 
+  # A person's message in a chat asked in the platform reads as the platform shows it, from the platform_texts handed in.
   type :string
   def body
-    message.content.to_s
+    content = message.content.to_s
+    message.role == Chat::Message::ROLE_USER ? options.fetch(:platform_texts, {}).fetch(content, content) : content
   end
 
   # Where the times Halon made room fall among the turns.

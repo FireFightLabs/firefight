@@ -61,6 +61,15 @@ class Chat < ApplicationRecord
     },
     class_name: "Chat::Message", inverse_of: false
 
+  # The first thing the person asked, which a chat's title is taken from. Loaded the same way, one row per chat.
+  has_one :first_question,
+    -> {
+      where(role: Chat::Message::ROLE_USER, nudge: false)
+        .select("DISTINCT ON (chat_messages.chat_id) chat_messages.*")
+        .order("chat_messages.chat_id, chat_messages.created_at")
+    },
+    class_name: "Chat::Message", inverse_of: false
+
   validate :owner_in_same_workspace
 
   # Only the two sides of the conversation, not the system prompt, tool results or the agent's nudges to itself.
@@ -68,10 +77,11 @@ class Chat < ApplicationRecord
     messages.where(role: Chat::Message::READABLE_ROLES, nudge: false).order(:created_at)
   end
 
-  def queue_message!(content, sender:, files: [])
+  # from_platform marks words written in the chat platform, in its own markup.
+  def queue_message!(content, sender:, files: [], from_platform: false)
     transaction do
       files.each_with_index { |file, index| file.update!(chat: self, position: index) }
-      queued_messages.create!(content: content, sender: sender, attached_files: files)
+      queued_messages.create!(content: content, sender: sender, attached_files: files, from_platform: from_platform)
     end
   end
 

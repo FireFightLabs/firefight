@@ -121,7 +121,6 @@ module Slack
       text.gsub(Regexp.union(ENTITIES.keys), ENTITIES)
     end
 
-    private_class_method :fenced, :prose, :formatted, :plain, :token_markdown, :token_text, :person, :special, :label_markdown, :emoji,
-                         :escape, :decode
+    private_class_method :fenced, :prose, :formatted, :plain, :token_markdown, :person, :special, :label_markdown, :escape
   end
 end

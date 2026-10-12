@@ -19,6 +19,20 @@ class Investigation::DeliveryTest < ActiveSupport::TestCase
     assert_equal "1234567890.123456", @investigation.reload.thread_id
   end
 
+  test "a question asked in Slack is posted back as Slack shows it, so nobody is notified again and nothing is escaped twice" do
+    bob = workspace_memberships(:bob_workspace_one)
+    run = @workspace.investigations.create!(
+      trigger_source: Investigation::TRIGGER_COMMAND, triggered_by: workspace_memberships(:alice_workspace_one), max_turns: 10, max_spend_cents: 400,
+      channel_id: "C0OPS", brief: Investigation::Brief.from({ Investigation::Brief::KEY_SYMPTOM => "<!here> <@#{bob.platform_user_id}> &amp; :fire:" },
+                                                            source: Investigation::Brief::SOURCE_COMMAND)
+    )
+    Slack::WorkspaceAdapter.any_instance.expects(:post_investigation_started).with do |arguments|
+      arguments[:question] == "@here @#{bob.display_name} & 🔥"
+    end.returns({ message_id: "1.2", channel_id: "C0OPS" })
+
+    Investigation::Delivery.new(run).start!
+  end
+
   test "the agent shows as working in the thread it opened" do
     Slack::Client.expects(:set_agent_session_status).with do |arguments|
       arguments[:status] == "processing" && arguments[:channel] == @incident.channel_id

@@ -278,14 +278,24 @@ module Slack
       end
     end
 
-    # Names come from Firefight's own members in one query, so a page of quotes never calls Slack.
     def messages_as_markdown(texts:)
-      ids = texts.flat_map { |text| Slack::MessageMarkdown.mentioned_ids(text) }.uniq
-      names = ids.empty? ? {} : @workspace.workspace_memberships.where(platform_user_id: ids).includes(:user)
-        .to_h { |member| [ member.platform_user_id, member.display_name ] }
-
+      names = mentioned_names(texts)
       texts.to_h { |text| [ text, Slack::MessageMarkdown.convert(text, names: names) ] }
     end
+
+    def messages_as_text(texts:)
+      names = mentioned_names(texts)
+      texts.to_h { |text| [ text, Slack::MessageText.convert(text, names: names) ] }
+    end
+
+    # Names come from Firefight's own members in one query, so a page of messages never calls Slack.
+    def mentioned_names(texts)
+      ids = texts.flat_map { |text| Slack::MessageMarkdown.mentioned_ids(text) }.uniq
+      return {} if ids.empty?
+
+      @workspace.workspace_memberships.where(platform_user_id: ids).includes(:user).to_h { |member| [ member.platform_user_id, member.display_name ] }
+    end
+    private :mentioned_names
 
     # The root of a thread Slack starts when someone opens a new chat in the app's agent view.
     AGENT_THREAD_SUBTYPE = "assistant_app_thread".freeze

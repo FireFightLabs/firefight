@@ -22,7 +22,7 @@ class Investigation::Delivery
     return if thread_id
 
     started = adapter.post_investigation_started(
-      channel_id: channel_id, incident: @investigation.incident, question: @investigation.question, started_by: started_by,
+      channel_id: channel_id, incident: @investigation.incident, question: shown_question, started_by: started_by,
       fallback_user_id: (platform_user_id unless @investigation.incident)
     )
     # A question may have been answered somewhere else than asked, directly to whoever asked.
@@ -138,4 +138,12 @@ class Investigation::Delivery
   def started_by = @investigation.started_by_alert? ? "the alert that opened this incident" : @investigation.triggered_by.try(:display_name)
 
   def platform_user_id = @investigation.triggered_by.try(:platform_user_id)
+
+  # Posted back as the platform shows it, so a mention or a broadcast in it never notifies anyone again.
+  def shown_question
+    question = @investigation.question
+    return question unless question.present? && @investigation.question_in_platform_markup?
+
+    adapter.messages_as_text(texts: [ question ])[question]
+  end
 end

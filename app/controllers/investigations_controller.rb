@@ -4,6 +4,7 @@ class InvestigationsController < InertiaController
   PROP_INVESTIGATION = "investigation"
 
   include ServesChatAttachment
+  include PlatformText
 
   authorizes Ability::Action::RESOURCE_INVESTIGATIONS, read: %i[show file screenshot rate], create: %i[start add_note stop apply_fix mark_fix_step_done undo_fix cancel_fix run_fix_step dismiss_fix_step ask_fix_step_again]
 
@@ -14,7 +15,8 @@ class InvestigationsController < InertiaController
 
     render inertia: "investigations/investigation", props: {
       PROP_INVESTIGATION => InvestigationDetailSerializer.one(investigation, file_path: ->(file) { investigation_file_path(investigation, file) },
-                                                                                screenshot_path: ->(shot) { investigation_screenshot_path(investigation, shot) })
+                                                                                screenshot_path: ->(shot) { investigation_screenshot_path(investigation, shot) },
+                                                                                platform_texts: investigation_platform_texts(investigation))
     }
   end
 

@@ -44,6 +44,48 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "This chat is in Slack, so carry on there.", flash[:alert]
   end
 
+  test "a direct message chat shows what was asked in Slack as Slack shows it, and keeps the words as they were sent" do
+    bob = workspace_memberships(:bob_workspace_one)
+    first = "<@#{bob.platform_user_id}> *why* is <#C1|checkout> slow :fire:"
+    later = "see <https://grafana.example.com/d/1|the graph> &amp; ```p99```"
+    direct = Conversation.start_direct!(workspace: @workspace, member: @member, channel_id: "D0ALICE", thread_id: "1700000000.000100")
+    direct.ask!(first)
+    direct.chat.add_message(role: Chat::Message::ROLE_ASSISTANT, content: "Checking *now*.")
+    direct.chat.add_person_message!(later, sender: @member)
+    direct.chat.queue_message!("<!here> :eyes:", sender: @member)
+
+    get agent_chat_url(direct), headers: inertia_headers
+
+    assert_equal [ "@#{bob.display_name} why is #checkout slow 🔥", "Checking *now*.", "see the graph (https://grafana.example.com/d/1) & p99" ],
+                 inertia_props["messages"].map { |message| message["body"] }
+    assert_equal "@here 👀", inertia_props["waitingMessages"].sole["body"]
+    assert_equal "@#{bob.display_name} why is #checkout slow 🔥", inertia_props.dig("conversation", "title")
+    assert_equal "see the graph (https://grafana.example.com/d/1) & p99", inertia_props.dig("conversation", "preview")
+    assert_equal first, direct.reload.title
+    assert_equal later, direct.chat.last_readable_message.content
+  end
+
+  test "the chat list shows a direct message chat's question as Slack shows it, and a name the person gave it as they wrote it" do
+    asked = Conversation.start_direct!(workspace: @workspace, member: @member, channel_id: "D0ALICE", thread_id: "1")
+    asked.ask!("*deploy* status &amp; errors?")
+    renamed = Conversation.start_direct!(workspace: @workspace, member: @member, channel_id: "D0ALICE", thread_id: "2")
+    renamed.ask!("<!here> anything?")
+    renamed.rename!("*Mine* & <yours>")
+    dashboard = start_chat
+    dashboard.ask!("Why is *checkout* slow &amp; <b>?")
+
+    get agent_chats_url, headers: inertia_headers
+
+    listed = inertia_props["conversations"].index_by { |chat| chat["id"] }
+    assert_equal [ "deploy status & errors?", "deploy status & errors?" ], listed[asked.id].values_at("title", "preview")
+    assert_equal [ "*Mine* & <yours>", "@here anything?" ], listed[renamed.id].values_at("title", "preview")
+    assert_equal [ "Why is *checkout* slow &amp; <b>?" ] * 2, listed[dashboard.id].values_at("title", "preview")
+
+    get agent_chats_search_url(q: "deploy"), as: :json
+
+    assert_equal "deploy status & errors?", response.parsed_body.sole["title"]
+  end
+
   test "a chat someone started in a tracker's issue lives only there, like a chat in a channel, so nobody lists, finds or opens it here" do
     integration = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "linear", name: "Linear issue sync",
       settings: { "server_url" => "https://mcp.linear.app/mcp", Integration::APP_SETTING => true })

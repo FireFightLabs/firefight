@@ -45,10 +45,15 @@ module Slack
         }.compact
       end
 
-      # Declared from an investigation's answer, the incident is first named by the question the run was asked.
+      # Declared from an investigation's answer, the incident is first named by the question the run was asked, as Slack
+      # shows it when it was asked in Slack, since the field takes no markup.
       def self.question_from(workspace, private_metadata)
         id = private_metadata.present? && ModalState.parse(private_metadata).investigation_id
-        id.present? ? workspace.investigations.find_by(id: id)&.question : nil
+        run = id.present? ? workspace.investigations.find_by(id: id) : nil
+        question = run&.question
+        return question unless question.present? && run.question_in_platform_markup?
+
+        workspace.adapter.messages_as_text(texts: [ question ])[question]
       rescue ModalState::InvalidError
         nil
       end

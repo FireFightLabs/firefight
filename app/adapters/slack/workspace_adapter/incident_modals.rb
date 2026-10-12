@@ -91,7 +91,7 @@ module Slack::WorkspaceAdapter::IncidentModals
   end
 
   def open_action_item_modal(kind:, trigger_id:, incident:, private_metadata: nil, push: false)
-    view = Slack::Modals::ActionItemsForm.build(incident, kind: kind, private_metadata: private_metadata)
+    view = Slack::Modals::ActionItemsForm.build(incident, kind: kind, private_metadata: private_metadata, description: reacted_to_text(private_metadata))
     push ? push_modal(trigger_id: trigger_id, view: view) : open_modal(trigger_id: trigger_id, view: view)
   end
 
@@ -142,5 +142,13 @@ module Slack::WorkspaceAdapter::IncidentModals
     return unless view
 
     open_modal(trigger_id: trigger_id, view: view)
+  end
+
+  private
+
+  # A reaction carries the message it was added to, which the field shows as plain text since it takes no markup.
+  def reacted_to_text(private_metadata)
+    text = private_metadata && ModalState.parse(private_metadata).source_message_text
+    messages_as_text(texts: [ text ])[text] if text.present?
   end
 end

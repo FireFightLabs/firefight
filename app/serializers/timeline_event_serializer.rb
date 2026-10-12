@@ -143,6 +143,9 @@ class TimelineEventSerializer < BaseSerializer
     eventable = event.eventable
     return eventable.message if eventable.respond_to?(:message) && eventable.message.present?
 
+    started = options.fetch(:started_questions, {})[event.id]
+    return started if started
+
     meta = event.metadata.to_h.with_indifferent_access
     text = meta[:message].presence || meta[:reason].presence
     text.is_a?(String) ? text : nil

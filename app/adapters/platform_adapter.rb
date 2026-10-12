@@ -225,6 +225,13 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # The same messages as plain text, for a place that shows text as typed, such as a form field or a question in the
+  # dashboard's chat. A mention reads as the person's name and an emoji as the emoji, and formatting marks drop away.
+  # @return [Hash{String => String}] each text given, mapped to its plain text.
+  def messages_as_text(texts:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # What started a thread in a person's direct messages with the app.
   THREAD_STARTED_BY_PERSON = :person
   # One of the app's own messages, such as a watch update, an approval or a question for its owner.

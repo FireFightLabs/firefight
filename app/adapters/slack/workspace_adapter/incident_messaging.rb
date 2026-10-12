@@ -493,10 +493,14 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { streaming: false }
   end
 
+  # A question asked in Slack is posted back as Slack shows it, so a mention or a broadcast in it never notifies again.
   def post_investigation_carried_over(channel_id:, finding:)
+    run = finding.investigation
+    question = run.question
+    question = messages_as_text(texts: [ question ])[question] if question.present? && run.question_in_platform_markup?
     post_message(
       channel_id: channel_id, text: finding.summary.to_s,
-      blocks: Slack::Messages::InvestigationRun.carried_over(finding: finding)
+      blocks: Slack::Messages::InvestigationRun.carried_over(finding: finding, question: question)
     )
   end
 

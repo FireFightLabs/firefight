@@ -106,6 +106,38 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
     assert_nil shown["takenAt"]
   end
 
+  test "a run asked for in Slack shows its question and the notes written there as Slack shows them, and a note added here as typed" do
+    bob = workspace_memberships(:bob_workspace_one)
+    asked = "<@#{bob.platform_user_id}> says *checkout* is slow &amp; :fire:"
+    investigation = investigation_run(status: Investigation::STATUS_RUNNING,
+                                      brief: Investigation::Brief.from({ Investigation::Brief::KEY_SYMPTOM => asked }, source: Investigation::Brief::SOURCE_COMMAND))
+    investigation.note_started!
+    investigation.add_note_from("look at <#C1|deploys> :eyes:", member: bob, source: AbilityGateway::SOURCE_SLACK)
+    post investigation_notes_url(investigation), params: { note: "and *this* &amp; <that>" }
+
+    get incident_url(@incident, Investigation::QUERY_PARAM => investigation.id), headers: inertia_headers
+
+    shown = inertia_props[IncidentsController::PROP_OPEN_INVESTIGATION]
+    assert_equal "@#{bob.display_name} says checkout is slow & 🔥", shown["question"]
+    assert_equal [ "look at #deploys 👀", "and *this* &amp; <that>" ], shown["notes"].map { |note| note["content"] }
+    get incident_url(@incident), headers: timeline_headers
+    started = inertia_props["timelineEvents"].find { |event| event["eventType"] == IncidentEvent::INVESTIGATION_STARTED }
+    assert_equal "@#{bob.display_name} says checkout is slow & 🔥", started["details"]
+    assert_equal asked, investigation.reload.question
+  end
+
+  test "a run asked for here shows its question exactly as typed" do
+    asked = "is *checkout* slow &amp; <b>"
+    investigation = investigation_run(brief: Investigation::Brief.from({ Investigation::Brief::KEY_SYMPTOM => asked }, source: Investigation::Brief::SOURCE_MCP))
+    investigation.note_started!
+
+    get incident_url(@incident, Investigation::QUERY_PARAM => investigation.id), headers: inertia_headers
+
+    assert_equal asked, inertia_props[IncidentsController::PROP_OPEN_INVESTIGATION]["question"]
+    get incident_url(@incident), headers: timeline_headers
+    assert_equal asked, inertia_props["timelineEvents"].find { |event| event["eventType"] == IncidentEvent::INVESTIGATION_STARTED }["details"]
+  end
+
   test "a member steers a run without any grant, and one an admin took it away from is refused with the usual sentence" do
     bob = workspace_memberships(:bob_workspace_one)
     sign_in(users(:bob), @workspace)
@@ -426,6 +458,11 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
     file = Chat::Attachment.take!(workspace: @workspace, uploaded_by: workspace_memberships(:alice_workspace_one), filename: name, bytes: bytes)
     investigation.add_note!("", by: workspace_memberships(:alice_workspace_one), files: [ file ])
     file
+  end
+
+  # timelineEvents is deferred, it only arrives on the page's follow-up partial reload.
+  def timeline_headers
+    inertia_headers.merge("X-Inertia-Partial-Data" => "timelineEvents", "X-Inertia-Partial-Component" => "incidents/index")
   end
 
   def investigation_run(**attributes)
