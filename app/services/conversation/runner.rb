@@ -138,13 +138,17 @@ class Conversation::Runner
   end
 
   # Where a reply's time goes, logged per phase and spanned when a tracer is set (config/initializers/opentelemetry.rb).
-  # A stop is the person pressing Stop, so its span ends as OK, which the SDK keeps over the error in_span sets after.
+  # A stop is the person pressing Stop, so its span ends as OK with no exception on it, which the SDK keeps over the error
+  # in_span sets after. Any other failure is recorded here, since in_span is told not to.
   def timed_phase(name)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    Firefight::TRACER.in_span("conversation.reply.#{name}", attributes: { "conversation.id" => @conversation.id }) do |span|
+    Firefight::TRACER.in_span("conversation.reply.#{name}", attributes: { "conversation.id" => @conversation.id }, record_exception: false) do |span|
       yield started
     rescue FirefightAi::Canceled
       span.status = OpenTelemetry::Trace::Status.ok
+      raise
+    rescue StandardError => error
+      span.record_exception(error)
       raise
     end
   ensure
