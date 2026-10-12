@@ -13,7 +13,7 @@ class Integration::Tool < ApplicationRecord
   scope :in_workspace, ->(workspace) {
     enabled.available.joins(:integration)
       .where(integrations: { workspace_id: workspace.id, disabled_at: nil, deleted_at: nil })
-      .includes(:integration, :ability_action)
+      .eager_load(:ability_action, integration: :integration_environments)
   }
 
   # Synced on every mirrored attribute, a stale risk_level on the action

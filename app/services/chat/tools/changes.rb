@@ -10,9 +10,11 @@ module Chat::Tools::Changes
   NOTHING = Caught.new(note: nil, offered: [])
 
   # How each connection stood, by id, with the name a person tells it by, what it reaches, whether it is on, and the tools it
-  # has switched on, as the agent calls them.
+  # has switched on, as the agent calls them. Read in a few queries whatever the number of connections, since it runs before
+  # every model call of a turn.
   def self.snapshot(workspace)
-    workspace.integrations.connections.where(deleted_at: nil).includes(:tools, :integration_environments).order(:created_at).to_h do |integration|
+    integrations = workspace.integrations.connections.where(deleted_at: nil).includes(:tools, :integration_environments).order(:created_at).to_a
+    Integration.with_mapped_accounts(integrations).to_h do |integration|
       tools = integration.tools.select { |tool| tool.enabled? && tool.available? }.map(&:model_facing_name).sort
       [ integration.id.to_s, { "name" => integration.display_name, "reach" => integration.reach, "on" => integration.operational?,
                                "group" => Chat::Tools::Groups.of_connection(integration), "tools" => tools } ]

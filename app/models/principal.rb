@@ -49,9 +49,10 @@ module Principal
     false
   end
 
-  # What the gateway would answer, without taking the action or writing to the ledger.
-  def permitted_to?(action, workspace)
-    action.present? && AbilityGateway.permitted?(self, action, action.key, workspace, {})
+  # What the gateway would answer, without taking the action or writing to the ledger. resolved is this principal's
+  # grants when the caller already read them, so a long list of actions is answered without reading them again.
+  def permitted_to?(action, workspace, resolved: nil)
+    action.present? && AbilityGateway.permitted?(self, action, action.key, workspace, {}, resolved: resolved)
   end
 
   # The same answer for one of Firefight's own resources, named by resource and verb rather than by action.

@@ -203,7 +203,10 @@ module Integrations
     # The connections that could answer a capability, as an agent names them: the slug, then the environment's slug
     # when one connection is wired to several.
     def self.connections(tools)
-      tools.map(&:integration).uniq.flat_map { |integration| integration.integration_environments.enabled.includes(:environment).map { |row| connection_label(row) } }.uniq
+      tools.map(&:integration).uniq.flat_map do |integration|
+        rows = integration.integration_environments.enabled.includes(:environment).to_a
+        rows.map { |row| connection_label(row, enabled: rows.size) }
+      end.uniq
     end
 
     # The connections an agent may name for a capability, which are every one whose provider answers it, its tools switched on or
@@ -213,11 +216,14 @@ module Integrations
       rows = IntegrationEnvironment.reachable.includes(:integration, :environment).where(integrations: { workspace_id: workspace.id })
                                    .order("integrations.created_at").to_a
       answering = rows.select { |row| adapter_for(row.integration.provider)&.capabilities.to_a.include?(spec.key) }
-      (connections(tools) + answering.map { |row| connection_label(row) }).uniq
+      # The same query for every capability, so a turn sizing every capability's schema sends it once.
+      enabled = IntegrationEnvironment.enabled.joins(:integration).where(integrations: { workspace_id: workspace.id }).group(:integration_id).count
+      (connections(tools) + answering.map { |row| connection_label(row, enabled: enabled[row.integration_id].to_i) }).uniq
     end
 
-    def self.connection_label(row)
-      wired = row.integration.integration_environments.enabled.count > 1 && row.environment
+    # enabled is how many of the connection's rows are switched on, when the caller already read them.
+    def self.connection_label(row, enabled: row.integration.integration_environments.enabled.count)
+      wired = enabled > 1 && row.environment
       wired ? "#{row.integration.slug}/#{row.environment.slug}" : row.integration.slug
     end
 
