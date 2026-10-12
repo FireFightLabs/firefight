@@ -56,15 +56,17 @@ class Investigation::Performance
   def fixes = @fixes ||= count_fixes
 
   # The answers the team marked wrong, newest first, each with what Halon learned from its incident.
-  def mistakes
+  def mistakes = @mistakes ||= read_mistakes
+
+  private
+
+  def read_mistakes
     findings = Investigation::Finding.where(id: answered.select("investigation_findings.id"), outcome: Investigation::Finding::OUTCOME_WRONG)
                                      .includes(:winning_hypothesis, investigation: :subject).order(outcome_at: :desc).limit(MISTAKES_SHOWN).to_a
     incidents = findings.filter_map { |finding| finding.investigation.incident }
     lessons = Chat::Memory.in_use.where(workspace: @workspace, source: incidents).order(:created_at).group_by(&:source_id)
     findings.map { |finding| Mistake.new(finding: finding, lessons: lessons.fetch(finding.investigation.incident&.id, [])) }
   end
-
-  private
 
   def count_fixes
     plans = Investigation::RemediationPlan.where(undoes_id: nil, finding_id: answered.select("investigation_findings.id"))

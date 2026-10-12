@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_12_160000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_13_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -872,6 +872,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_12_160000) do
     t.uuid "sender_id"
     t.datetime "taken_at"
     t.datetime "updated_at", null: false
+    t.boolean "from_platform", default: false, null: false
     t.index ["chat_id"], name: "index_chat_queued_messages_waiting", where: "(taken_at IS NULL)"
     t.index ["sender_id"], name: "index_chat_queued_messages_on_sender_id"
   end

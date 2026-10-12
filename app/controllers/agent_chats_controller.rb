@@ -76,6 +76,7 @@ class AgentChatsController < InertiaController
   CHAT_DELETED = "Chat deleted."
 
   include ServesChatAttachment
+  include PlatformText
 
   # Asking spends money, so it needs the same permission as starting an investigation.
   authorizes Ability::Action::RESOURCE_CHATS, read: %i[index show search investigation_file screenshot investigation_screenshot data_repair_copy],
@@ -102,16 +103,18 @@ class AgentChatsController < InertiaController
   end
 
   def show
+    messages = conversation.chat&.readable_messages&.includes(:attached_files, :ruby_llm_usages, ruby_llm_tool_calls: :result).to_a
+    waiting = conversation.chat&.queued_messages&.waiting&.includes(:attached_files).to_a
+    said = said_in_platform(conversation, messages, waiting)
     render inertia: "agent/index", props: base_props.merge(
-      PROP_CONVERSATION => AgentChatSerializer.one(conversation, asked_in_url: asked_in_url),
-      PROP_MESSAGES => AgentChatMessageSerializer.many(conversation.chat&.readable_messages&.includes(:attached_files, :ruby_llm_usages, ruby_llm_tool_calls: :result) || [],
-                                                       member: current_membership),
+      PROP_CONVERSATION => AgentChatSerializer.one(conversation, asked_in_url: asked_in_url, platform_texts: said),
+      PROP_MESSAGES => AgentChatMessageSerializer.many(messages, member: current_membership, platform_texts: said),
       PROP_CONFIRMATIONS => AgentChatConfirmationSerializer.many(conversation.chat&.awaiting_decision || [], screenshot_path: screenshot_path),
       PROP_INVESTIGATIONS => InvestigationCardSerializer.many(started_investigations),
       PROP_OPEN_INVESTIGATION => open_investigation,
       PROP_CHARTS => ChatChartSerializer.many(conversation.chat&.charts || []),
       PROP_SCREENSHOTS => ChatScreenshotSerializer.many(conversation.chat&.screenshots || [], screenshot_path: screenshot_path),
-      PROP_WAITING_MESSAGES => AgentChatWaitingMessageSerializer.many(conversation.chat&.queued_messages&.waiting&.includes(:attached_files) || []),
+      PROP_WAITING_MESSAGES => AgentChatWaitingMessageSerializer.many(waiting, platform_texts: said),
       PROP_ATTACHMENT_RULES => attachment_rules(conversation.chat, picked: conversation.picked_model_choice),
       PROP_COMPACTIONS => ChatCompactionSerializer.many(conversation.chat&.compactions || []),
       PROP_MODEL_SWITCHES => ChatModelSwitchSerializer.many(conversation.chat&.model_switches || []),
@@ -155,7 +158,8 @@ class AgentChatsController < InertiaController
   end
 
   def search
-    render json: AgentChatSerializer.many(Conversation.search_for(current_membership, params[:q]))
+    found = Conversation.search_for(current_membership, params[:q])
+    render json: AgentChatSerializer.many(found, platform_texts: listed_in_platform(found))
   end
 
   def incidents
@@ -412,7 +416,8 @@ class AgentChatsController < InertiaController
     id = params[Investigation::QUERY_PARAM]
     investigation = id.presence && conversation.investigations.seen.find_by(id: id)
     investigation && InvestigationDetailSerializer.one(investigation, file_path: ->(file) { agent_chat_investigation_file_path(conversation, investigation, file) },
-                                                                    screenshot_path: ->(shot) { agent_chat_investigation_screenshot_path(conversation, investigation, shot) })
+                                                                    screenshot_path: ->(shot) { agent_chat_investigation_screenshot_path(conversation, investigation, shot) },
+                                                                    platform_texts: investigation_platform_texts(investigation))
   end
 
   def question = params[:question].to_s.strip
@@ -486,7 +491,7 @@ class AgentChatsController < InertiaController
 
   def base_props
     {
-      PROP_CONVERSATIONS => InertiaRails.scroll(chat_page_metadata) { AgentChatSerializer.many(chat_page) },
+      PROP_CONVERSATIONS => InertiaRails.scroll(chat_page_metadata) { AgentChatSerializer.many(chat_page, platform_texts: listed_in_platform(chat_page)) },
       PROP_ARCHIVED_COUNT => own_chats.archived.count,
       PROP_INCIDENTS => AgentChatIncidentSerializer.many(mentionable_incidents),
       # What an integrations card draws, read fresh on every visit, so returning from connecting shows it connected.
@@ -509,7 +514,7 @@ class AgentChatsController < InertiaController
 
   # One row over a page says whether there is another, without a count.
   def chat_page_rows
-    @chat_page_rows ||= own_chats.includes(chat: :last_readable_message).in_reading_order
+    @chat_page_rows ||= own_chats.includes(chat: [ :last_readable_message, :first_question ]).in_reading_order
       .offset((chat_page_number - 1) * chats_per_page).limit(chats_per_page + 1).to_a
   end
 
@@ -531,4 +536,14 @@ class AgentChatsController < InertiaController
   end
 
   def own_chats = current_workspace.conversations.own_for(current_membership)
+
+  # What the person said in a chat asked in the platform, in the platform's own markup, as the platform shows it.
+  def said_in_platform(chat, messages, waiting)
+    return {} unless chat.said_in_platform_markup?
+
+    questions = messages.select { |message| message.role == Chat::Message::ROLE_USER }.map(&:content) + waiting.map(&:content)
+    platform_texts([ chat.title_question, chat.preview_question, *questions ])
+  end
+
+  def listed_in_platform(chats) = platform_texts(chats.flat_map { |chat| [ chat.title_question, chat.preview_question ] })
 end

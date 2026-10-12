@@ -11,9 +11,14 @@ class HalonMistakeSerializer < BaseSerializer
   type :string, optional: true
   def incident_id = incident&.id
 
-  # Named by its incident, or by its question when it has no incident.
+  # Named by its incident, or by its question when it has no incident, as the chat platform shows it when asked there.
   type :string
-  def label = finding.investigation.label
+  def label
+    run = finding.investigation
+    return run.label if incident || !run.question_in_platform_markup?
+
+    options.fetch(:platform_texts, {}).fetch(run.question, run.label)
+  end
 
   type :string
   def summary = finding.summary

@@ -34,8 +34,7 @@ module Slack
       end
 
       # The answer that led someone to declare this incident, so whoever joins the channel starts from it.
-      def self.carried_over(finding:)
-        question = finding.investigation.question
+      def self.carried_over(finding:, question: finding.investigation.question)
         intro = ":mag: *Declared from an investigation*" \
                 "#{question.present? ? " into \"#{Mrkdwn.escape(question.to_s.truncate(200))}\"" : ''}. This is what it found."
         [ { type: "section", text: { type: "mrkdwn", text: intro } }, *finding(finding: finding) ]

@@ -14,20 +14,21 @@ module Slack
         }
       }.freeze
 
-      def self.build(incident, kind:, private_metadata: nil)
+      DESCRIPTION_LIMIT = 3000
+
+      # description is what the field starts with, such as the message a reaction was added to.
+      def self.build(incident, kind:, private_metadata: nil, description: nil)
         cfg = KINDS.fetch(kind)
         metadata = private_metadata || ModalState.encode(incident_id: incident.id)
-        # A reaction carries the source message so the description starts from it.
-        initial_description = ModalState.parse(metadata).source_message_text
 
         description_element = {
           type: "plain_text_input",
           action_id: "description_input",
           multiline: true,
           placeholder: { type: "plain_text", text: "Write something" },
-          max_length: 3000
+          max_length: DESCRIPTION_LIMIT
         }
-        description_element[:initial_value] = initial_description if initial_description.present?
+        description_element[:initial_value] = description.truncate(DESCRIPTION_LIMIT) if description.present?
 
         {
           type: "modal",

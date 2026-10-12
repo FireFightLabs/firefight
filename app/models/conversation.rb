@@ -163,7 +163,7 @@ class Conversation < ApplicationRecord
     wanted = text.to_s.strip.downcase
     return [] if wanted.empty?
 
-    own_for(member).includes(chat: :last_readable_message).in_reading_order.to_a
+    own_for(member).includes(chat: [ :last_readable_message, :first_question ]).in_reading_order.to_a
       .select { |conversation| "#{conversation.display_title} #{conversation.preview}".downcase.include?(wanted) }
       .first(limit)
   end
@@ -298,6 +298,22 @@ class Conversation < ApplicationRecord
 
   def preview
     chat&.last_readable_message&.content.to_s.truncate(PREVIEW_LIMIT)
+  end
+
+  # A direct message chat is asked only in the platform, so what the person said is in the platform's own markup, which
+  # the page shows as the platform reads it (PlatformAdapter#messages_as_text).
+  def said_in_platform_markup? = direct?
+
+  # The question the title was taken from, while the chat still goes by it. A name someone gave it is their own words.
+  def title_question
+    question = chat&.first_question&.content
+    question if said_in_platform_markup? && title.present? && title == question.to_s.truncate(TITLE_LIMIT)
+  end
+
+  # The person's last message, when the preview shows theirs rather than the agent's.
+  def preview_question
+    last = chat&.last_readable_message
+    last.content if said_in_platform_markup? && last&.role == Chat::Message::ROLE_USER
   end
 
   def watchable_by?(user)

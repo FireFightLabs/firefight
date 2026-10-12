@@ -4,9 +4,10 @@ class AgentChatWaitingMessageSerializer < BaseSerializer
 
   attributes(id: { type: :string })
 
+  # Read as the platform shows it in a chat asked there, from the platform_texts handed in.
   type :string
   def body
-    message.content
+    options.fetch(:platform_texts, {}).fetch(message.content, message.content)
   end
 
   has_many :attached_files, as: :attachments, serializer: AgentChatAttachmentSerializer

@@ -15,8 +15,8 @@ module Investigation::Noting
     NOTE_EMPTY if text && text.strip.empty?
   end
 
-  def add_note!(text, by:, files: [])
-    chat_record.queue_message!(text, sender: by, files: files)
+  def add_note!(text, by:, files: [], from_platform: false)
+    chat_record.queue_message!(text, sender: by, files: files, from_platform: from_platform)
   end
 
   # Files handed over as a run starts wait for it like notes, as many to a note as a person may send with one message.
@@ -36,7 +36,7 @@ module Investigation::Noting
       principal: member, workspace: workspace, action_key: Ability::Action::INVESTIGATIONS_CREATE,
       context: { source: source, incident_id: incident_id }, holdable: false
     )
-    add_note!(text.to_s.strip, by: member, files: files)
+    add_note!(text.to_s.strip, by: member, files: files, from_platform: true)
     nil
   rescue AbilityGateway::Denied
     not_allowed(member)

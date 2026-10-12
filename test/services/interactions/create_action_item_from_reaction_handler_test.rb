@@ -26,6 +26,18 @@ class Interactions::CreateActionItemFromReactionHandlerTest < ActiveSupport::Tes
     end
   end
 
+  test "the description starts from the message as readable text, never Slack's own markup" do
+    bob = workspace_memberships(:bob_workspace_one)
+    raw = "<@#{bob.platform_user_id}> *roll back* <https://deploys.example.com/42|deploy 42> &amp; check :fire:"
+    Slack::Client.expects(:open_modal).with do |args|
+      args[:view][:blocks].first.dig(:element, :initial_value) == "@#{bob.display_name} roll back deploy 42 (https://deploys.example.com/42) & check 🔥"
+    end.returns({ ok: true, view: { id: "V12345678" } })
+
+    assert_nil Interactions::CreateActionItemFromReactionHandler.execute(
+      build_interaction(action_id: Identifiers::CREATE_ACTION_FROM_REACTION, incident_id: @incident.id, text: raw)
+    )
+  end
+
   test "handles a missing incident silently" do
     assert_nil Interactions::CreateActionItemFromReactionHandler.execute(
       build_interaction(action_id: Identifiers::CREATE_ACTION_FROM_REACTION, incident_id: SecureRandom.uuid)
@@ -34,12 +46,12 @@ class Interactions::CreateActionItemFromReactionHandlerTest < ActiveSupport::Tes
 
   private
 
-  def build_interaction(action_id:, incident_id:)
+  def build_interaction(action_id:, incident_id:, text: "The database is slow")
     Interaction.new(
       platform: Platforms::SLACK, type: Interaction::BLOCK_ACTIONS, team_id: @workspace.platform_id,
       user_id: @member.platform_user_id, action_id: action_id, trigger_id: "12345.trigger",
       prompt_handle: "https://hooks.slack.com/actions/T123/456/abc",
-      action_value: { incident_id: incident_id, source_message_text: "The database is slow",
+      action_value: { incident_id: incident_id, source_message_text: text,
                       source_message_link: "https://workspace.slack.com/archives/C123/p123" }.to_json
     )
   end

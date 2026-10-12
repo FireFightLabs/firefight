@@ -178,6 +178,14 @@ class Investigation < ApplicationRecord
     brief&.dig(Investigation::Brief::KEY_SYMPTOM)
   end
 
+  # A run asked for in the chat platform, by its command or by mentioning Halon, holds the question in the platform's own
+  # markup, as it does every note written there. Pages and posts show both as the platform reads them.
+  def question_in_platform_markup? = brief&.dig(Investigation::Brief::KEY_SOURCE) == Investigation::Brief::SOURCE_COMMAND
+
+  def said_in_platform
+    [ (question if question_in_platform_markup?), *notes.select(&:from_platform).map(&:content) ].compact
+  end
+
   # Named by its incident, or by its question when it has no incident.
   def label
     return "#{incident.identifier} #{incident.name}" if incident

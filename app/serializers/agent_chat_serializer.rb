@@ -3,14 +3,17 @@ class AgentChatSerializer < BaseSerializer
 
   attributes(id: { type: :string })
 
+  # A chat asked in the platform shows the person's words as the platform does, from the platform_texts handed in.
   type :string
   def title
-    conversation.display_title
+    question = conversation.title_question
+    question ? platform_text(question).truncate(Conversation::TITLE_LIMIT) : conversation.display_title
   end
 
   type :string
   def preview
-    conversation.preview
+    question = conversation.preview_question
+    question ? platform_text(question).truncate(Conversation::PREVIEW_LIMIT) : conversation.preview
   end
 
   type :boolean
@@ -52,4 +55,6 @@ class AgentChatSerializer < BaseSerializer
   def busy
     conversation.answer_owed?
   end
+
+  def platform_text(text) = options.fetch(:platform_texts, {}).fetch(text, text)
 end
