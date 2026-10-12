@@ -74,7 +74,7 @@ class Conversation::Runner
       canceled: chat.method(:stop_requested?),
       purse: purse,
       checks: Conversation::Checks.new(chat, since: @marked, choice: Chat::Helpers.side_model(@conversation.workspace, main: helper_main_model),
-                                             inferable: @conversation.subject, member: member, facts: suspects).all,
+                                             inferable: @conversation, member: member, facts: suspects).all,
       on_backup: ->(failed, backup, error) { switched_model(chat, failed, backup, error) },
       # A model the person picked is theirs to know about, so its account running dry is said too.
       on_take_over: (->(failed, following, error) { switched_model(chat, failed, following, error) } if picked_model)
@@ -111,7 +111,7 @@ class Conversation::Runner
 
   def responder
     @responder ||= FirefightAi::Responder.new(
-      @conversation.workspace, inferable: @conversation.subject, member: member,
+      @conversation.workspace, inferable: @conversation, member: member,
       output_style: delivery.output_style, model: picked_model, specialists: @turn.asks_specialists?
     )
   end
@@ -486,7 +486,7 @@ class Conversation::Runner
       moved: Chat::Helpers.teller(delivery, chat),
       fresh_parent: -> { Conversation::Turn.new(Conversation.find(conversation.id), asker: asker&.class&.find(asker.id), reads_only: true) },
       choose: ->(deep) { deep ? helper_main_model : Chat::Helpers.side_model(conversation.workspace, main: helper_main_model) },
-      inferable: conversation.subject, member: member,
+      inferable: conversation, member: member,
       specialists: (Chat::Specialists::Live.new(@turn) if Chat::Specialists.for?(@turn))
     )
   end

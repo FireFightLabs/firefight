@@ -219,7 +219,7 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     tool = call[:tools].find { |each| each.name == Chat::Tools::Helpers::NAME }
     share = tool.instance_variable_get(:@share)
     assert_same call[:purse], share.purse
-    assert_equal [ 50, @incident ], [ share.max_spend_cents, share.inferable ]
+    assert_equal [ 50, @conversation ], [ share.max_spend_cents, share.inferable ]
     assert_equal workspace_memberships(:alice_workspace_one), share.fresh_parent.call.acting_principal
   end
 

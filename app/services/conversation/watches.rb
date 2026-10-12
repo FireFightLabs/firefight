@@ -1118,7 +1118,7 @@ module Conversation::Watches
   def self.judge(watch)
     return if Investigation.unavailable_reason(watch.workspace)
 
-    FirefightAi::WatchJudge.new(watch.workspace, inferable: watch.conversation.try(:subject), member: (watch.asker if watch.asker.is_a?(WorkspaceMembership)))
+    FirefightAi::WatchJudge.new(watch.workspace, inferable: watch, member: (watch.asker if watch.asker.is_a?(WorkspaceMembership)))
   end
 
   # Whether every step is over is decided over the steps as they were read, so steps added meanwhile keep it going. What
