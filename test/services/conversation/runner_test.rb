@@ -1,4 +1,5 @@
 require "test_helper"
+require "opentelemetry/sdk"
 
 class Conversation::RunnerTest < ActiveSupport::TestCase
   include ActionCable::TestHelper
@@ -745,6 +746,34 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_equal Conversation::Runner::STOPPED, @conversation.chat.readable_messages.last.content
   end
 
+  test "a stop while the model answers ends the reply's span as OK with no exception on it, and a failure records it" do
+    exporter = OpenTelemetry::SDK::Trace::Export::InMemorySpanExporter.new
+    provider = OpenTelemetry::SDK::Trace::TracerProvider.new
+    provider.add_span_processor(OpenTelemetry::SDK::Trace::Export::SimpleSpanProcessor.new(exporter))
+    before = OpenTelemetry.tracer_provider
+    OpenTelemetry.tracer_provider = provider
+    Slack::Client.stubs(:stop_stream).returns({ ok: true, ts: "1" })
+
+    fake(during: ->(_arguments) { raise FirefightAi::Canceled, "cancelled" })
+    ask(@conversation, "anything in metrics?")
+
+    stopped = exporter.finished_spans.find { |span| span.name == "conversation.reply.#{Conversation::Runner::PHASE_RESPONDER}" }
+    assert_equal OpenTelemetry::Trace::Status::OK, stopped.status.code
+    assert_empty Array(stopped.events)
+
+    exporter.reset
+    fake(during: ->(_arguments) { raise ArgumentError, "broken" })
+    @conversation.ask!("and in logs?")
+    assert_raises(ArgumentError) { Conversation::Runner.new(@conversation, asker: @conversation.started_by).run }
+
+    failed = exporter.finished_spans.find { |span| span.name == "conversation.reply.#{Conversation::Runner::PHASE_RESPONDER}" }
+    assert_equal OpenTelemetry::Trace::Status::ERROR, failed.status.code
+    assert_equal [ "exception" ], failed.events.map(&:name)
+  ensure
+    provider&.shutdown
+    OpenTelemetry.tracer_provider = before if before
+  end
+
   test "a stop pressed while the turn waited to start ends it before the model is asked" do
     responder = fake(reply: "never")
     Slack::Client.stubs(:stop_stream).returns({ ok: true, ts: "1" })
@@ -836,7 +865,33 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_nil responder.options[:model]
   end
 
+  test "each phase of a reply logs how long it took, and a turn that ends early still logs the phase it ended in" do
+    logged = []
+    Rails.logger.stubs(:info).with { |line| logged << line }
+    fake(reply: "ok")
+
+    ask(@conversation, "what is going on")
+
+    assert_equal [ Conversation::Runner::PHASE_SETUP, Conversation::Runner::PHASE_CONTEXT, Conversation::Runner::PHASE_RESPONDER, Conversation::Runner::PHASE_AFTER ],
+                 phases_in(logged).map { |line| line["phase"] }
+    assert phases_in(logged).all? { |line| line["duration_ms"].is_a?(Integer) && line["conversation_id"] == @conversation.id }
+
+    logged.clear
+    @conversation.ask!("anything in metrics?")
+    @conversation.request_stop!
+    Slack::Client.stubs(:stop_stream).returns({ ok: true, ts: "1" })
+
+    Conversation::Runner.new(@conversation, asker: @conversation.started_by).run
+
+    assert_equal [ Conversation::Runner::PHASE_SETUP ], phases_in(logged).map { |line| line["phase"] }
+    assert_kind_of Integer, phases_in(logged).sole["duration_ms"]
+  end
+
   private
+
+  def phases_in(logged)
+    logged.grep(String).filter_map { |line| JSON.parse(line) if line.include?(Conversation::Runner::PHASE_EVENT) }
+  end
 
   def with_app_host
     previous = ENV["APP_HOST"]

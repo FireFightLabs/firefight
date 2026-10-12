@@ -35,7 +35,7 @@ class ProviderDocs::ApiClientEndpointsTest < ActiveSupport::TestCase
         { method: "GET", path: "jobs/{jobId}/build-logs", description: "Get logs for a job build." }
       ].to_json)
 
-      _output, error, status = Open3.capture3({ "PATH" => ENV.fetch("PATH") }, "node", "--experimental-permission", "--allow-fs-read=#{install}", "--allow-fs-read=#{SCRIPT.dirname}",
+      _output, error, status = Open3.capture3({ "PATH" => ENV.fetch("PATH") }, "node", "--permission", "--allow-fs-read=#{install}", "--allow-fs-read=#{SCRIPT.dirname}",
                                               "--allow-fs-write=#{out}", SCRIPT.to_s, install, "fake-client", out, "/v1/projects/{projectId}/", paths,
                                               unsetenv_others: true)
       assert status.success?, error
