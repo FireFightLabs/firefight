@@ -3,9 +3,10 @@ import { Head, usePage } from "@inertiajs/react"
 import { IconKey, IconPackage, IconPlus, IconRobot, IconShieldCheck, IconStack2, IconUser } from "@tabler/icons-react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
+import { MemberAccessTable } from "@/components/permissions/member-access-table"
 import { WhoCanDoWhat } from "@/components/permissions/who-can-do-what"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ApprovalRulesEditor } from "@/pages/settings/components/permissions/approval-rules-editor"
 import { DefaultAccessList } from "@/pages/settings/components/permissions/default-access-list"
 import { PackRequestsNotice } from "@/pages/settings/components/permissions/pack-requests-notice"
@@ -18,6 +19,7 @@ import type {
   AbilityRole,
   ApprovalRule,
   EnvironmentOption,
+  MemberAccess,
   PackRequest,
   Principal,
 } from "@/types/serializers"
@@ -32,11 +34,13 @@ interface PermissionsPageProps extends SharedProps {
   sets: AbilityRole[]
   environments: EnvironmentOption[]
   approvalRules: ApprovalRule[]
+  memberAccess: MemberAccess
   packRequests: PackRequest[]
 }
 
 type Selection = { kind: "principal" | "set"; id: string } | { kind: "approvals" }
 
+const DETAIL_ID = "permissions-detail"
 const KIND_ICON = { user: IconUser, agent: IconRobot, api_key: IconKey, system_agent: IconRobot }
 const SECTIONS: { kind: string; title: string; blurb: string }[] = [
   { kind: "user", title: "People", blurb: "Members of this workspace" },
@@ -50,7 +54,7 @@ const SECTIONS: { kind: string; title: string; blurb: string }[] = [
 ]
 
 export default function Permissions() {
-  const { principals, actions, sets, environments, approvalRules, packRequests } = usePage<PermissionsPageProps>().props
+  const { principals, actions, sets, environments, approvalRules, memberAccess, packRequests } = usePage<PermissionsPageProps>().props
   const canManage = useCan("permissions")
   const [selection, setSelection] = useState<Selection>({ kind: "principal", id: principals[0]?.id ?? "" })
   const [granting, setGranting] = useState<Principal | null>(null)
@@ -66,6 +70,12 @@ export default function Permissions() {
   const packs = sets.filter((set) => set.builtIn)
   const enabledRuleCount = approvalRules.filter((rule) => rule.enabled).length
   const authorityNote = selected?.implicitAuthorityNote ?? null
+
+  // A row of the per-tool card names a set someone reaches a tool through, and opening it shows the set below.
+  function openSet(setId: string) {
+    setSelection({ kind: "set", id: setId })
+    document.getElementById(DETAIL_ID)?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
 
 
   return (
@@ -84,7 +94,24 @@ export default function Permissions() {
 
         <WhoCanDoWhat people={principals} packs={packs} canManage={canManage} />
 
-        <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">What members can do in each tool</CardTitle>
+            <CardDescription>
+              Choose what members can ask Halon to look at or change in each tool. Admins can always do everything.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <MemberAccessTable
+              access={memberAccess}
+              canManage={canManage}
+              empty="Nothing is connected yet. Each tool you connect gets a row here."
+              onOpenSet={openSet}
+            />
+          </CardContent>
+        </Card>
+
+        <div id={DETAIL_ID} className="grid scroll-mt-4 gap-6 lg:grid-cols-[18rem_1fr]">
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-1.5">
               <div className="flex items-start justify-between gap-2">

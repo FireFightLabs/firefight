@@ -1,20 +1,22 @@
 import { useState } from "react"
-import { router, usePage } from "@inertiajs/react"
+import { Link, router, usePage } from "@inertiajs/react"
 
-import { WhoCanDoWhat } from "@/components/permissions/who-can-do-what"
-import { SETUP_STEP_STATES } from "@/lib/generated/constants"
+import { MemberAccessTable } from "@/components/permissions/member-access-table"
+import { SETUP_STEPS, SETUP_STEP_STATES } from "@/lib/generated/constants"
 import { useCan } from "@/lib/permissions"
-import { onboardingChecklistPermissionsPath } from "@/lib/routes"
+import { onboardingChecklistPath, onboardingChecklistPermissionsPath } from "@/lib/routes"
 import { StepActions } from "@/pages/setup/components/step-actions"
+import { STEP_TITLES } from "@/pages/setup/lib/steps"
 import type { SetupPageProps } from "@/pages/setup/types"
-import type { OnboardingStep } from "@/types/serializers"
+import type { MemberAccess, OnboardingStep } from "@/types/serializers"
 
-// The defaults already hold: everyone reads, and changes need a pack. Giving someone a pack here is the same grant as
-// under Permissions.
+// Each choice saves the moment it is made, to the same grants as the Permissions screen, so Continue only moves setup on
+// and a row left alone changes nothing.
 export function PermissionsStep({ step }: { step: OnboardingStep }) {
-  const { principals, packs } = usePage<SetupPageProps>().props
+  const { memberAccess } = usePage<SetupPageProps>().props
   const canManage = useCan("permissions")
   const [ saving, setSaving ] = useState(false)
+  const laterNote = invitedLaterNote(memberAccess)
 
   function stopSaving() {
     setSaving(false)
@@ -29,15 +31,38 @@ export function PermissionsStep({ step }: { step: OnboardingStep }) {
     <div className="flex flex-col gap-6">
       <div className="flex max-w-prose flex-col gap-3 text-sm leading-relaxed text-fg-body">
         <p>
-          Everyone in this workspace can ask Halon to read any tool you connected. Anything that changes something, such
-          as a restart or a rollback, needs a pack. Each connection brings its own packs, and only an admin gives them.
+          Choose what people in your workspace can ask Halon to look at or change in each tool. Admins can always do
+          everything.
         </p>
-        <p>That is already set up. Give someone a pack now if they will need one, or later under Permissions.</p>
+        {laterNote && <p>{laterNote}</p>}
       </div>
 
-      <WhoCanDoWhat people={principals} packs={packs} canManage={canManage} />
+      <MemberAccessTable
+        access={memberAccess}
+        canManage={canManage}
+        empty={
+          <p>
+            Nothing is connected yet, so there is nothing to choose.{" "}
+            <Link href={onboardingChecklistPath({ step: SETUP_STEPS.STACK })} className="text-fg-primary underline underline-offset-4">
+              Go back to {STEP_TITLES[SETUP_STEPS.STACK]}
+            </Link>{" "}
+            to connect a tool.
+          </p>
+        }
+      />
 
       {step.state !== SETUP_STEP_STATES.DONE && <StepActions busy={saving} onContinue={continueOn} />}
     </div>
   )
+}
+
+// With nobody but admins here yet, the choices are for whoever is invited next.
+function invitedLaterNote(access: MemberAccess): string | null {
+  if (access.members.length > 0) {
+    return null
+  }
+  if (access.peopleCount <= 1) {
+    return "You are the only one here so far, so these choices apply to people you invite later."
+  }
+  return "Everyone here so far is an admin, so these choices apply to people you invite later."
 }

@@ -3,6 +3,7 @@ module Ability
   class Role < ApplicationRecord
     include Sluggable
     include Packs
+    include MemberAccess
 
     belongs_to :workspace
 
@@ -51,7 +52,7 @@ module Ability
     private
 
     def bust_holder_caches
-      Ability::Resolver.bust_for_role!(self)
+      Ability::Resolver.bust_for_role!(self, every_member: saved_change_to_every_member?)
     end
   end
 end

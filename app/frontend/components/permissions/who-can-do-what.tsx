@@ -6,7 +6,7 @@ import type { AbilityRole, Principal } from "@/types/serializers"
 import { abilityGrantsPath } from "@/lib/routes"
 import { GRANT_KINDS, IMPLICIT_AUTHORITIES, PRINCIPAL_KINDS } from "@/lib/generated/constants"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { SearchableSelect, type SearchableSelectOption } from "@/components/searchable-select"
 
@@ -81,7 +81,6 @@ export function WhoCanDoWhat({
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Who can do what</CardTitle>
-        <CardDescription>Everyone reads every connected tool. Changes need a pack.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {unavailable ? (

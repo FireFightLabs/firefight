@@ -68,6 +68,8 @@ Rails.application.routes.draw do
       resources :abilities, only: [ :index ]
       resources :principals, only: [ :index ]
       resources :permission_sets, only: [ :index, :create, :update, :destroy ]
+      # Each connection's row of Who can do what, set through its read or changes pack's slug.
+      resources :member_access, only: [ :index, :update ]
       resources :grants, only: [ :index, :create, :update, :destroy ]
       resources :approval_rules, only: [ :index, :create, :update, :destroy ] do
         member do
@@ -264,7 +266,9 @@ Rails.application.routes.draw do
     resources :ability_grants, only: [ :create, :update, :destroy ], path: "gateway/permissions/grants" do
       post :withhold, on: :collection, path: "no-access"
     end
-    resources :ability_roles, only: [ :create, :update, :destroy ], path: "gateway/permissions/sets"
+    resources :ability_roles, only: [ :create, :update, :destroy ], path: "gateway/permissions/sets" do
+      patch :members, on: :member
+    end
     resources :pack_requests, only: [], path: "gateway/permissions/pack-requests" do
       member do
         post :give

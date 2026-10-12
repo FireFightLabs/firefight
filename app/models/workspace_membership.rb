@@ -97,7 +97,8 @@ class WorkspaceMembership < ApplicationRecord
 
   # A connected tool that only reads, held until a grant of it, alone or in a set such as its connection's read pack,
   # narrows it. A read through a tool that can also change things is held the same way, narrowed by a grant of its
-  # connection's read pack.
+  # connection's read pack. A connection whose read pack not every member holds is narrowed for all of them at once
+  # (Ability::Resolver.read_by_chosen_members).
   def default_read?(action, resolved = nil, reads: false)
     return false unless action.tool? && action.workspace_id == workspace_id
 
@@ -105,9 +106,10 @@ class WorkspaceMembership < ApplicationRecord
     narrowed_by.present? && !(resolved || Ability::Resolver.resolve(self, workspace_id)).granted_ever?(narrowed_by)
   end
 
-  # Whether an admin may take this away from a member with No access: a default above, or a connection's read pack.
+  # Whether an admin may take this away from a member with No access: a default above, or a connection's read pack every
+  # member reads by default.
   def self.default_target?(action: nil, role: nil)
-    return role.read_pack? if role
+    return role.read_pack? && role.every_member? if role
 
     action.present? && (NARROWABLE_KEYS.include?(action.key) || (action.tool? && action.read?))
   end
@@ -126,7 +128,8 @@ class WorkspaceMembership < ApplicationRecord
       "including a read through a tool that can also change things, such as a GET through an API request tool, " \
       "take part in incidents, and ask Halon or start investigations without a grant, whether from Slack, the dashboard, " \
       "the API, or MCP. A grant of map.read limits the map to the environments it names, a grant of investigations.create " \
-      "decides who may ask, and a grant of a connection's reads, alone or in a pack, decides where they read it. No access " \
+      "decides who may ask, and a grant of a connection's reads, alone or in a pack, decides where they read it. What members " \
+      "can do in each tool, above, can leave a connection's reads to the people chosen for it, or let every member change it. No access " \
       "below takes any of these away at once, and Restore gives it back. Configuring the workspace and any tool that " \
       "changes something needs one of the grants below, such as a connection's changes pack."
   }.freeze
@@ -165,9 +168,10 @@ class WorkspaceMembership < ApplicationRecord
   end
   private :pack_state
 
-  # Every connection's read pack that holds a tool. A listing of every member sets it once for all of them.
+  # Every connection's read pack that holds a tool and that every member reads by default. A listing of every member sets
+  # it once for all of them.
   def self.read_packs_of(workspace)
-    workspace.ability_roles.where(pack: Ability::Role::PACK_READ).joins(:integration).merge(Integration.where(deleted_at: nil))
+    workspace.ability_roles.where(pack: Ability::Role::PACK_READ, every_member: true).joins(:integration).merge(Integration.where(deleted_at: nil))
              .includes(:actions, :integration).order(:name).select { |pack| pack.actions.any? }
   end
 

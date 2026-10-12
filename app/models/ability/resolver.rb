@@ -62,9 +62,16 @@ module Ability
       Rails.cache.delete(cache_key(principal_type, principal_id, workspace_id))
     end
 
-    def self.bust_for_role!(role)
+    # A pack every member's grants depend on, or one whose every_member just changed, reaches every member, not only
+    # whoever holds it by a grant.
+    def self.bust_for_role!(role, every_member: false)
       Grant.where(role_id: role.id).pluck(:principal_type, :principal_id, :workspace_id).each do |type, id, workspace_id|
         bust!(principal_type: type, principal_id: id, workspace_id: workspace_id)
+      end
+      return unless every_member || role.reaches_every_member?
+
+      WorkspaceMembership.where(workspace_id: role.workspace_id).pluck(:id).each do |id|
+        bust!(principal_type: WorkspaceMembership.polymorphic_name, principal_id: id, workspace_id: role.workspace_id)
       end
     end
 
@@ -89,9 +96,21 @@ module Ability
         end
       end
 
+      held_by_every_member(principal, workspace_id).each { |key, scope| (by_key[key] ||= []) << scope }
+
       # No access outranks any set that would otherwise reach the same ability.
       by_key.except(*withheld)
     end
+
+    # A member holds a changes pack every member holds, in every environment, as though it were granted to them.
+    def self.held_by_every_member(principal, workspace_id)
+      return [] unless member_of?(principal, workspace_id)
+
+      RoleAction.joins(:action, :role).merge(Role.held_by_every_member(workspace_id, Role::PACK_CHANGES))
+                .pluck("ability_actions.key", :default_scope)
+    end
+
+    def self.member_of?(principal, workspace_id) = principal.is_a?(WorkspaceMembership) && principal.workspace_id == workspace_id
 
     # Every key a grant names, live or expired, directly or through a set.
     def self.ever_granted(principal, workspace_id)
@@ -99,7 +118,16 @@ module Ability
       direct = Action.where(id: grants.select(:action_id)).pluck(:key)
       through_sets = Action.joins(:role_actions).where(ability_role_actions: { role_id: grants.select(:role_id) }).pluck(:key)
       read_packs = grants.joins(:role).where(ability_roles: { pack: Role::PACK_READ }).pluck("ability_roles.integration_id").map { |id| Role.reads_key(id) }
-      (direct + through_sets + read_packs).uniq
+      (direct + through_sets + read_packs + read_by_chosen_members(principal, workspace_id)).uniq
+    end
+
+    # A read pack not every member holds narrows each member's default read of its tools, as a grant of it would, so only
+    # their own grants decide.
+    def self.read_by_chosen_members(principal, workspace_id)
+      return [] unless member_of?(principal, workspace_id)
+
+      held = RoleAction.joins(:action, :role).merge(Role.read_by_chosen_members(workspace_id)).pluck("ability_actions.key", "ability_roles.integration_id")
+      held.map(&:first) + held.map(&:last).uniq.map { |id| Role.reads_key(id) }
     end
 
     def self.cache_key(principal_type, principal_id, workspace_id)

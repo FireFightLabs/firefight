@@ -153,6 +153,7 @@ module Ability::Role::Packs
       role.slug ||= free_slug(workspace, integration ? "#{integration.slug}_#{pack}" : pack)
       role.assign_attributes(name: pack_name(pack, integration), description: pack_description(pack, integration))
       made = role.new_record?
+      role.every_member = true if made && pack == PACK_READ
       role.keep_in_step { transaction(requires_new: true) { role.save! } } if role.changed?
       grant_investigator(workspace, role) if made && pack == PACK_READ
       role

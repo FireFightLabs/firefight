@@ -94,6 +94,8 @@ The Ability Gateway is administered over MCP with the same model calls the dashb
 | `delete_permission_set` | Delete a set, revoking it from everyone holding it. A built-in pack refuses with why |
 | `grant_ability` | Grant an ability key or a set slug to a principal, with environment slugs and an expiry. Regranting retargets the existing row |
 | `revoke_grant` | Revoke a grant by id |
+| `list_member_access` | Each connection's Who can do what row: read and change, each `everyone`, `nobody` or `chosen` with its people, who is left out of a read everyone has, and who reaches it through another set or single abilities (`through`) |
+| `set_member_access` | Set one row by its read or change `permission_set` slug, with `choice` and, for `chosen`, `people` by id or email. Calls `Ability::Role#let_members!`, the same as the dashboard, and answers the row with the dashboard's notice |
 | `upsert_approval_rule` | Create (no id) or update (id) an approval rule. Only the keys given change |
 | `delete_approval_rule` | Delete a rule by id |
 | `list_unattended_rules` | Every unattended rule (docs/ai.md, On call) with its sentence, why it cannot act yet and how many times Halon acted under it |

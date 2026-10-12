@@ -1255,6 +1255,12 @@ export const GRANT_KINDS = {
   "SET": "set"
 } as const
 
+export const MEMBER_ACCESS = {
+  "EVERYONE": "everyone",
+  "NOBODY": "nobody",
+  "CHOSEN": "chosen"
+} as const
+
 export const AI_ACCOUNT_STATES = {
   "VERIFIED": "verified",
   "UNCHECKED": "unchecked",
