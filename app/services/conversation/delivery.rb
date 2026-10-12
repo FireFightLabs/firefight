@@ -1,6 +1,9 @@
 # What the agent says while it is answering someone. The platform decides how it looks.
 class Conversation::Delivery
   FAILED = "Something went wrong on my side, so I did not finish that one. Ask me again.".freeze
+  UNREADABLE = "The model sent back a reply I could not read, so I did not finish that one.".freeze
+  ASK_AGAIN = "Ask me again.".freeze
+  ASK_AGAIN_OR_PICK = "Ask me again, or pick another model for this chat.".freeze
   # The last line of an answer a lost turn was writing, so what it said so far never reads as finished.
   INTERRUPTED_HERE = "Interrupted here.".freeze
 
@@ -11,6 +14,12 @@ class Conversation::Delivery
     conversation.note!(text)
     conversation.reply_failed!
     self.for(conversation).failed!(text)
+  end
+
+  # Another model is offered only where the chat has a picker, a person's own chat with more than one model to choose.
+  def self.unreadable(conversation)
+    picks = conversation.personal? && conversation.model_menu.offers_choice?
+    "#{UNREADABLE} #{picks ? ASK_AGAIN_OR_PICK : ASK_AGAIN}"
   end
 
   def self.with_where_it_stopped(conversation, text)

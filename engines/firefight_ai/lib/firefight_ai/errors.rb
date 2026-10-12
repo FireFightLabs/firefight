@@ -19,6 +19,9 @@ module FirefightAi
   # every retry is refused the same way.
   class OutOfCredit < TerminalError; end
 
+  # The model sent a reply whose tool call could not be read, again after being asked once more (Responder).
+  class UnreadableReply < TerminalError; end
+
   # A provider asked to wait while too much was in flight at once, which is a wait and never a spent balance.
   IN_FLIGHT = "InFlightBudget".freeze
 

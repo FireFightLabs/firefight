@@ -54,10 +54,12 @@ module FirefightAi
     # checks look at a reply that would end the turn, each a callable given the reply that answers words to send it back
     # with, or nil to let it end. Each sends a turn back at most once, so a model that keeps answering the same way still
     # ends. A chat's checks are the line saying its next step (NextStep), its theory board and the challenger.
+    # retry_malformed asks the same model once more, once per run, when its reply held a tool call whose arguments could not
+    # be read (RubyLLM::ToolCallParseError), which a chat does so the person is not left without an answer by one bad reply.
     def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil, on_chunk: nil,
                    reply_is_answer: false, nudge: nil, memory: nil, take_messages: nil, output: nil,
                    choice: nil, purpose: AiPurpose::INVESTIGATION, purse: nil, on_backup: nil, on_take_over: nil, on_progress: nil,
-                   steady: false, checks: [])
+                   steady: false, checks: [], retry_malformed: false)
       @chat = chat
       @choice = choice || ModelChoice.new(model: inference[:model], provider: inference[:provider])
       @purpose = purpose
@@ -81,6 +83,7 @@ module FirefightAi
       @given_up_on = []
       @steady = steady
       @checks = checks.dup
+      @retry_malformed = retry_malformed
       steady!
       @seen_tool_call_ids = messages.flat_map { |message| message.tool_calls&.keys || [] }.to_set
       report_steps_to(on_step) if on_step
@@ -163,9 +166,10 @@ module FirefightAi
       generate
     end
 
-    # A provider that still says too long gets the chat rebuilt and one more try, never a second. A refusal for credit
-    # goes to the next account when one can carry on, and otherwise fails the run. A provider that stopped answering,
-    # after RubyLLM's own retries, hands the run to a backup when one is set up.
+    # A provider that still says too long gets the chat rebuilt and one more try, never a second. A reply that could not
+    # be read is asked for again when the caller wants it (retry_malformed). A refusal for credit goes to the next account
+    # when one can carry on, and otherwise fails the run. A provider that stopped answering, after RubyLLM's own retries,
+    # hands the run to a backup when one is set up.
     def generate
       Inference.track(tracked) { @chat.step(&streamer) }.first
     rescue RubyLLM::ContextLengthExceededError
@@ -175,9 +179,17 @@ module FirefightAi
       @room.make_after_refusal
       retry
     rescue RubyLLM::Error, *FirefightAi::PROVIDER_DOWN_ERRORS => e
+      retry if ask_again?(e)
       raise unless take_over(e) || back_up(e) || fall_back(e)
 
       retry
+    end
+
+    # RubyLLM already took the unreadable reply out of the chat, so the same model is asked the same thing again.
+    def ask_again?(error)
+      return false unless @retry_malformed && error.is_a?(RubyLLM::ToolCallParseError) && !@asked_again
+
+      @asked_again = true
     end
 
     # The next account carries on from the same step, on its own model and with its own cap. False when none can.

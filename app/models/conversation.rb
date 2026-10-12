@@ -282,9 +282,7 @@ class Conversation < ApplicationRecord
   def answer_owed? = answer_owed_since.present? && answer_owed_since > REPLY_CEILING.ago
 
   # Saved, so the notice is still there on the next visit.
-  def note!(text)
-    chat_record.add_message(role: Chat::Message::ROLE_ASSISTANT, content: text)
-  end
+  def note!(text) = chat_record.notice!(text)
 
   def display_title = title.presence || UNTITLED
 

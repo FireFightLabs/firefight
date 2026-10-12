@@ -151,6 +151,23 @@ class ChatTest < ActiveSupport::TestCase
     assert_equal "What changed today?", Chat.find(@chat.id).last_readable_message.content
   end
 
+  # Seen live: four "Something went wrong" notices sent back as Halon's own replies, and the next answer copied them.
+  test "a chat whose history holds failure notices shows them to the person and sends none of them to the model" do
+    RubyLLM.config.stubs(:openai_api_key).returns("not-used")
+    conversation = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one))
+    conversation.ask!("stop the watch")
+    conversation.note!(Conversation::Delivery::FAILED)
+    conversation.note!(Conversation::Runner::STOPPED)
+    conversation.ask!("hey")
+
+    chat = Chat.find(conversation.chat.id)
+    sent = chat.to_llm.messages.reject { |message| message.role == :system }
+
+    assert_equal [ [ :user, "stop the watch" ], [ :user, "hey" ] ], sent.map { |message| [ message.role, message.content ] }
+    assert_equal [ "stop the watch", Conversation::Delivery::FAILED, Conversation::Runner::STOPPED, "hey" ], chat.readable_messages.map(&:content)
+    assert_equal "hey", chat.last_readable_message.content
+  end
+
   test "a chat belongs to its owner's workspace" do
     chat = workspaces(:slack_workspace_two).chats.build(owner: @investigation, model: "claude-sonnet-4-5", provider: :anthropic)
 

@@ -46,6 +46,17 @@ class FirefightAi::ResponderTest < ActiveSupport::TestCase
     refute_equal responder.prompt_version, FirefightAi::Responder.new(@workspace, inferable: nil, model: chosen, output_style: "Use Slack markup.").prompt_version
   end
 
+  test "a chat asks its model again for a reply it could not read, and a second one comes back as a reply nobody could read" do
+    FirefightAi::AgentLoop.expects(:new).with { |**options| options[:retry_malformed] == true }.returns(stub(run: :outcome))
+    answer(chat_double)
+
+    FirefightAi::AgentLoop.unstub(:new)
+    FirefightAi::AgentLoop.any_instance.stubs(:run).raises(RubyLLM::ToolCallParseError.new(finish_reason: :tool_calls))
+    raised = assert_raises(FirefightAi::UnreadableReply) { answer(chat_double) }
+    assert_kind_of FirefightAi::TerminalError, raised
+    assert_equal "ToolCallParseError", raised.reason
+  end
+
   private
 
   def answer(chat)
