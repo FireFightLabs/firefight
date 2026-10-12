@@ -15,8 +15,13 @@ module Integrations
       include Checks
       include Releases
       include Branches
+      include Reverting
       include Security
       include ActionsSecrets
+      include PendingDeployments
+      include RepositoryAccess
+      include Artifacts
+      include ActionsCaches
       include Billing
       include Workflows
       include GeneralRead
@@ -193,7 +198,8 @@ module Integrations
         "actions" => "Actions", "administration" => "Administration", "checks" => "Checks", "contents" => "Contents", "deployments" => "Deployments",
         "issues" => "Issues", "pull_requests" => "Pull requests", "statuses" => "Commit statuses", "vulnerability_alerts" => "Dependabot alerts",
         "security_events" => "Code scanning alerts", "secret_scanning_alerts" => "Secret scanning alerts", "workflows" => "Workflows",
-        "secrets" => "Secrets", "environments" => "Environments", "organization_administration" => "Organization administration"
+        "secrets" => "Secrets", "environments" => "Environments", "organization_administration" => "Organization administration",
+        "actions_variables" => "Variables", "members" => "Members"
       }.freeze
       # The permissions each tool cannot answer without, from GitHub's list of the permission every REST endpoint needs
       # (docs.github.com, REST API, Permissions required for GitHub Apps). A tool that reads a further endpoint only to
@@ -203,12 +209,17 @@ module Integrations
       # commits through the Git database (blobs, trees, commits, refs) and opens a pull request, and GitHub asks for
       # Workflows write besides when the change touches a workflow file, which only the change itself shows. A pull request
       # is an issue to GitHub, so its comments and labels go through issues/{number}, which takes Pull requests write for
-      # one. Merging (PUT pulls/{number}/merge) and draft releases (POST releases) are Contents write, and a branch's
-      # rules (rules/branches/{branch}) and tags are Metadata, which every App holds. pr_lookup, branch_protection and
-      # ref_checks read checks, statuses, Dependabot alerts and branch protection only to add to their answer. A
-      # repository's Actions secrets are Secrets, and an environment's are Environments, which the secrets tools name
-      # themselves when GitHub refuses one. api_read reads whatever path it is given, so it needs nothing of its own, and
-      # GitHub's refusal names what the path needed.
+      # one. Merging (PUT pulls/{number}/merge) and writing, editing and publishing releases (POST releases,
+      # PATCH releases/{release_id}) are Contents write, and a branch's rules (rules/branches/{branch}) and tags are
+      # Metadata, which every App holds. pr_lookup, branch_protection and ref_checks read checks, statuses, Dependabot
+      # alerts and branch protection only to add to their answer. A repository's Actions secrets are Secrets, and an
+      # environment's are Environments, which the secrets tools name themselves when GitHub refuses one. A repository's
+      # Actions variables are Variables, and an environment's are Environments in the same way. Reverting a pull request
+      # is Contents write for the Git database and the merge, and Pull requests write to open the revert. A run's pending
+      # deployments are Actions read and reviewing one is Deployments write. Collaborators are Metadata, and a
+      # repository's teams (Administration read) and an organization's outside collaborators (Members read) only add to
+      # that answer. Artifacts and caches are Actions. api_read reads whatever path it is given, so it needs nothing of
+      # its own, and GitHub's refusal names what the path needed.
       NEEDS = {
         "pr_lookup" => { "pull_requests" => READ },
         "commit_lookup" => { "contents" => READ },
@@ -256,6 +267,16 @@ module Integrations
         "release_lookup" => { "contents" => READ },
         "list_tags" => {},
         "create_draft_release" => { "contents" => WRITE },
+        "update_release" => { "contents" => WRITE },
+        "publish_release" => { "contents" => WRITE },
+        "revert_pull_request" => { "contents" => WRITE, "pull_requests" => WRITE },
+        "pending_deployments" => { "actions" => READ },
+        "review_pending_deployment" => { "actions" => READ, "deployments" => WRITE },
+        "repository_access" => {},
+        "list_actions_variables" => { "actions_variables" => READ },
+        "list_artifacts" => { "actions" => READ },
+        "read_artifact" => { "actions" => READ },
+        "clear_actions_cache" => { "actions" => WRITE },
         "list_branches" => { "contents" => READ },
         "branch_protection" => { "contents" => READ },
         "create_branch" => { "contents" => WRITE },

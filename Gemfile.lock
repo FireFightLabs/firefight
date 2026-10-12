@@ -1081,6 +1081,7 @@ DEPENDENCIES
   rqrcode (~> 3.2)
   rubocop-rails-omakase
   ruby-vips (~> 2.0)
+  rubyzip (~> 3.7)
   selenium-webdriver
   sentry-rails (~> 7.0.0)
   sentry-ruby (~> 7.0.0)
