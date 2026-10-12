@@ -17,13 +17,13 @@ class IncidentTimelineNoteTest < ApplicationSystemTestCase
         statement: STATEMENT,
         member_id: @member.id,
         member_name: @member.display_name,
-        message_text: "*Found it* <@#{@member.platform_user_id}>: ```Customers are seeing 502s on checkout```",
+        message_text: "*Found it* :white_check_mark: :partyparrot: <@#{@member.platform_user_id}>: ```Customers are seeing 502s on checkout```",
         permalink: "https://slack.test/p1"
       }
     )
   end
 
-  test "a note's statement sits on its own line below the header, and its quote renders its Slack formatting" do
+  test "a note's statement sits on its own line below the header, and its quote renders its Slack formatting and emoji" do
     visit incident_path(@incident)
 
     statement = find("p", text: STATEMENT)
@@ -35,6 +35,8 @@ class IncidentTimelineNoteTest < ApplicationSystemTestCase
     assert_text "@#{@member.display_name}"
     assert_no_text "```"
     assert_no_text "<@#{@member.platform_user_id}>"
+    assert_text "✅ :partyparrot:"
+    assert_no_text ":white_check_mark:"
   end
 
   private

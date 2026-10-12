@@ -46,6 +46,30 @@ class Slack::MessageMarkdownTest < ActiveSupport::TestCase
     assert_equal "@\\*Al\\* &lt;b&gt;", convert("<@U1>", names: { "U1" => "*Al* <b>" })
   end
 
+  test "a standard emoji shortcode reads as the emoji" do
+    assert_equal "Deploy is out 🚀🔥", convert("Deploy is out :rocket::fire:")
+  end
+
+  test "Slack's other names for an emoji read as the emoji too" do
+    assert_equal "👍 👍 ✅ ✔️", convert(":+1: :thumbsup: :white_check_mark: :heavy_check_mark:")
+  end
+
+  test "a skin tone reads as the toned emoji" do
+    assert_equal "👍🏼 👋🏿", convert(":thumbsup::skin-tone-3: :wave::skin-tone-6:")
+  end
+
+  test "a workspace's own emoji and anything else unknown stay as typed" do
+    assert_equal "ship it :partyparrot: at 10:30:15", convert("ship it :partyparrot: at 10:30:15")
+  end
+
+  test "a shortcode inside code stays as typed" do
+    assert_equal "`:rocket:` 🚀 \n```\nemoji: :rocket:\n```", convert("`:rocket:` :rocket: ```emoji: :rocket:```")
+  end
+
+  test "a shortcode in a link's label reads as the emoji, and its address is left alone" do
+    assert_equal "[🚀 release](<https://example.com/:rocket:>)", convert("<https://example.com/:rocket:|:rocket: release>")
+  end
+
   test "lists the people a message mentions" do
     assert_equal [ "U1", "U2" ], Slack::MessageMarkdown.mentioned_ids("<@U1> <@U2|bob> <@U1>")
   end

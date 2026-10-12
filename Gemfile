@@ -218,3 +218,6 @@ gem "types_from_serializers"
 gem "benchmark", "~> 0.5.0"
 
 gem "commonmarker", "~> 2.10"
+
+# Slack names standard emoji with this dataset's shortcodes. Loaded by the Slack adapter when a quote is converted.
+gem "emoji-datasource", "~> 16.0", require: false

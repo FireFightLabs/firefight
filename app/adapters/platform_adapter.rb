@@ -219,7 +219,7 @@ class PlatformAdapter
   end
 
   # Messages as people wrote them on the platform, such as a quote on the timeline, as markdown the dashboard renders.
-  # A mention reads as the person's name.
+  # A mention reads as the person's name, and an emoji written by its name reads as the emoji.
   # @return [Hash{String => String}] each text given, mapped to its markdown.
   def messages_as_markdown(texts:)
     raise NotImplemented.new(__method__, self.class)

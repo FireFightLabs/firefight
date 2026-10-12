@@ -19,6 +19,14 @@ class Slack::WorkspaceAdapter::MessagesAsMarkdownTest < ActiveSupport::TestCase
     assert_equal "**Thanks** @#{@bob.display_name}", markdown[second]
   end
 
+  test "standard emoji read as themselves, and the workspace's own and any in code stay as typed" do
+    text = ":white_check_mark: rolled back :+1::skin-tone-3: :partyparrot: `:rocket:`"
+
+    markdown = WorkspaceAdapter.for(@workspace).messages_as_markdown(texts: [ text ])
+
+    assert_equal "✅ rolled back 👍🏼 :partyparrot: `:rocket:`", markdown[text]
+  end
+
   test "a member of another workspace is not named" do
     other = workspace_memberships(:alice_workspace_two)
     text = "<@#{other.platform_user_id}> joined"
