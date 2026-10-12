@@ -71,7 +71,7 @@ class SubdomainRouterTest < ActiveSupport::TestCase
   test "every page the app serves outside the API is allowed on the app subdomain" do
     paths = Rails.application.routes.routes.filter_map { |route| route.path.spec.to_s.sub("(.:format)", "") }
     # Stand-ins a test draws for pages that live outside this repo, such as the hosted credits checkout, are never served.
-    served = paths.reject { |path| path.start_with?("/api/v1", "/cable", "/up", "/assets", "/*", "/test/") || %w[/404 /422 /500].include?(path) }
+    served = paths.reject { |path| path.start_with?("/api/v1", "/up", "/assets", "/*", "/test/") || %w[/404 /422 /500].include?(path) }
     blocked = served.reject { |path| SubdomainRouter.new(nil).send(:allowed?, "app", path.gsub(/:\w+/, "x")) }
     assert_empty blocked
   end
@@ -84,6 +84,10 @@ class SubdomainRouterTest < ActiveSupport::TestCase
     assert_blocked "api.firefight.app", "/engine-only/webhook"
   ensure
     SubdomainRouter.extra_app_prefixes.delete("/engine-only")
+  end
+
+  test "app subdomain allows the live connection the dashboard streams through" do
+    assert_allowed "app.firefight.app", "/cable"
   end
 
   test "app subdomain allows the mcp endpoint and its oauth flow" do
