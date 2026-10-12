@@ -229,7 +229,7 @@ module Chat::DataRepairs
 
   # What the provider is sent, as the call itself sends it: without Firefight's own arguments, and naming the scope it reaches.
   def self.provider_arguments(tool, environment_entry, given)
-    arguments = given.except(Integration::Tool::ENVIRONMENT_ARG, Chat::Tools::INTENT_ARG, CHECK_ARG, Chat::Tools::TrackedIssues::KIND_ARG)
+    arguments = given.except(Integration::Tool::ENVIRONMENT_ARG, *Chat::Tools::FOR_PERSON, CHECK_ARG, Chat::Tools::TrackedIssues::KIND_ARG)
     Integrations::Scopes.resolved(tool.integration.resolve_environment(environment_entry&.id), arguments)
   end
 end

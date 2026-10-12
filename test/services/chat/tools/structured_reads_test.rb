@@ -21,7 +21,7 @@ class Chat::Tools::StructuredReadsTest < ActiveSupport::TestCase
   test "a chat is offered method and path beside code, and neither shape is required" do
     schema = execute.parameters_schema
 
-    assert_equal [ *%w[code method path query graphql variables body account_id], Integration::Tool::ENVIRONMENT_ARG ].sort, (schema["properties"].keys - [ Chat::Tools::INTENT_ARG, Chat::Tools::LookFirst::BECAUSE ]).sort
+    assert_equal [ *%w[code method path query graphql variables body account_id], Integration::Tool::ENVIRONMENT_ARG ].sort, (schema["properties"].keys - [ *Chat::Tools::FOR_PERSON, Chat::Tools::LookFirst::BECAUSE ]).sort
     assert_not_includes Array(schema["required"]), "code"
     assert_includes execute.description, "To read, pass method and path"
   end

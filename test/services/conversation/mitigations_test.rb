@@ -39,14 +39,15 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     assert_not Ability::Action.lookup("incidents.update", @workspace).effect?(Ability::Action::EFFECT_MITIGATION)
   end
 
-  test "the confirmation offers when it is undone, an hour first, and the person's choice is kept" do
+  test "the confirmation offers when it is undone in time order, starting on an hour, and the person's choice is kept" do
     call = pause!
     Chat::Safeguards.prepare!(@turn, [ call ])
 
-    expires = Chat::Tools.confirmation(call).expires
-    assert_equal [ "60", "15", "240", "1440", "keep" ], expires.map(&:value)
-    assert_equal "Undo after 1 hour", expires.first.label
-    assert_equal "Keep it", expires.last.label
+    confirmation = Chat::Tools.confirmation(call)
+    assert_equal [ "keep", "15", "60", "240", "1440" ], confirmation.expires.map(&:value)
+    assert_equal [ "Never", "15 min", "1 h", "4 h", "24 h" ], confirmation.expires.map(&:label)
+    assert_equal "60", confirmation.chosen_expiry
+    assert_equal Chat::Tools::UNDO_AUTOMATICALLY, confirmation.undo_label
 
     Conversation::Confirming.decide(@conversation, [ { tool_call_id: "call_1", approved: true, expires: "240" } ], by: @alice)
     assert_equal 240, Chat::Mitigation.for_call(@chat, "call_1").duration_minutes

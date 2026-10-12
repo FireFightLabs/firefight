@@ -55,6 +55,12 @@ class Chat::Plan::Step < ApplicationRecord
     step
   end
 
+  # The change step of a plan in progress in the chat that is running now, which a change Halon makes now carries out.
+  def self.running_change(chat)
+    joins(:plan).where(chat_plans: { chat_id: chat.id, status: Chat::Plan::STATUS_ACTIVE })
+                .where(kind: KIND_CHANGE, status: STATUS_RUNNING).order(:updated_at).last
+  end
+
   def read? = kind == KIND_READ
   def change? = kind == KIND_CHANGE
   def check? = kind == KIND_CHECK

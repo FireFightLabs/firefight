@@ -57,7 +57,7 @@ class Chat::Tools::Terminal < RubyLLM::Tool
     unless @agent_run.reads_only?
       properties[CHANGES_ARG] = { "type" => "boolean", "description" => "True when the command changes something through a connected tool, " \
                                                                        "so the person confirms it first (optional, false)" }
-      properties[Chat::Tools::INTENT_ARG] = Chat::Tools::INTENT.merge("description" => "#{Chat::Tools::INTENT['description']}. Needed when changes is true")
+      properties.merge!(Chat::Tools.for_person_properties("Needed when changes is true"))
     end
     { "type" => "object", "properties" => properties, "required" => [ COMMAND_ARG ] }
   end
@@ -161,7 +161,7 @@ class Chat::Tools::Terminal < RubyLLM::Tool
   def changes_sentence
     return "This #{run_word} only reads, so a command that changes something through a connected tool is refused." if @agent_run.reads_only?
 
-    "A command that changes something through a connected tool needs #{CHANGES_ARG} true and an intent, and the person confirms " \
+    "A command that changes something through a connected tool needs #{CHANGES_ARG} true, an intent and a short title, and the person confirms " \
       "it first. Without it, every call it makes that changes something is refused."
   end
 

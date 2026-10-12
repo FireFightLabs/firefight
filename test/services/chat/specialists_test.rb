@@ -239,8 +239,8 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     assert change.requires_approval?, "the loaded change asks the person as any change does"
     assert_nil change.approval_resolver.call(call), "it waits for the person's answer"
     @chat.request_decisions!([ "call_change" ])
-    support = Chat::Tools.confirmation(@chat.tool_calls.find_by!(tool_call_id: "call_change")).support_rows
-    assert_equal [ "498 of 500 connections" ], support.map(&:last)
+    support = Chat::Tools.confirmation(@chat.tool_calls.find_by!(tool_call_id: "call_change")).support_points
+    assert_equal [ "498 of 500 connections" ], support.map(&:text)
   end
 
   private

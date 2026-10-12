@@ -7,44 +7,41 @@ class AgentChatConfirmationSerializer < BaseSerializer
     tool_call.tool_call_id
   end
 
-  # The tool's own name, so allowing one call for the rest of the chat can answer the others asked about it.
+  # The tool's own name, so allowing one call for the rest of the chat can answer the others asked about it, and shown
+  # under Details.
   type :string
   def tool
     tool_call.name
   end
 
+  # What will happen, in plain words, such as "Pause dev-web".
   type :string
-  def question
-    confirmation.question
+  def title
+    confirmation.title
   end
 
-  type :string
-  def tool_label
-    confirmation.tool_label
-  end
-
-  # What the call will do, in the agent's words for whoever approves it. Absent on calls saved before it was asked for.
+  # Where it happens, quieter under the title, such as "Northflank, project firefight". Absent when the title says it.
   type :string, optional: true
-  def intent
-    confirmation.intent
+  def label
+    confirmation.label
   end
 
+  # What it does and how to put it back when that is known. Absent when the agent wrote nothing beyond the title.
+  type :string, optional: true
+  def summary
+    confirmation.summary
+  end
+
+  # The button that approves it, named for the change when the agent named it.
+  type :string
+  def confirm_label
+    confirmation.confirm_label
+  end
+
+  # What the tool was given, shown under Details.
   type "string[][]"
   def asked
     confirmation.asked
-  end
-
-  # What the call reaches, such as "Production (Acme Cloud), project shop", from the tool and never the agent's words.
-  # Absent for Firefight's own tools and on calls asked before it was kept.
-  type :string, optional: true
-  def target
-    confirmation.target
-  end
-
-  # What the tool does, such as "Api request", when there is a target.
-  type :string, optional: true
-  def call_name
-    confirmation.call
   end
 
   # Whether Allow for the rest of this chat is offered, which it is not once something was read from outside.
@@ -53,10 +50,17 @@ class AgentChatConfirmationSerializer < BaseSerializer
     confirmation.allowable?
   end
 
-  # What was read from outside before the call was asked, led by one sentence. Absent when nothing was.
+  # One sentence naming where outside text holding the change's own values came from. Absent when nothing read holds
+  # any, so the warning shows only when it means something.
   type :string, optional: true
   def read_lead
     confirmation.read_lead
+  end
+
+  # Heads what was read from outside before the call was asked, under Details. Absent when nothing was.
+  type :string, optional: true
+  def read_heading
+    confirmation.read_heading
   end
 
   type "string[][]"
@@ -64,15 +68,16 @@ class AgentChatConfirmationSerializer < BaseSerializer
     confirmation.read_rows
   end
 
-  # The reads from the call's turn Halon named as showing the change will help, led by one sentence. Absent when it named none.
+  # Heads the reads from the call's turn Halon named as showing the change will help. Absent when it named none.
   type :string, optional: true
   def support_lead
     confirmation.support_lead
   end
 
-  type "string[][]"
-  def support_rows
-    confirmation.support_rows
+  # Each read Halon named: what it said the read showed, with the read as its source, or the read alone.
+  type "{ text: string; source: string | null }[]"
+  def support_points
+    confirmation.support_points.map(&:to_h)
   end
 
   # What the call touches beyond its arguments, such as the rows a statement changes or who started what it stops.
@@ -81,10 +86,22 @@ class AgentChatConfirmationSerializer < BaseSerializer
     confirmation.safeguards
   end
 
-  # When a change customers feel may be undone, the default first. Empty for any other call.
+  # When a change customers feel may be undone, in time order from never. Empty for any other call.
   type "{ value: string; label: string }[]"
   def expires
     confirmation.expires.map(&:to_h)
+  end
+
+  # The time chosen so far, which the choice starts on. Absent for any other call.
+  type :string, optional: true
+  def chosen_expiry
+    confirmation.chosen_expiry
+  end
+
+  # What the undo choice is labelled, such as "Start it again automatically". Absent for any other call.
+  type :string, optional: true
+  def undo_label
+    confirmation.undo_label
   end
 
   # The page a browser send goes from, as the check that stopped before it saw it, served under the chat. Absent for any

@@ -75,11 +75,11 @@ module Conversation::BenchTools
     { "description" => description.to_s, "parameters" => cleaned(parameters), "confirms" => confirms ? true : nil, "base" => nil }
   end
 
-  # A schema as the bench offers it: no $schema line, and no intent, which the bench adds itself to a tool that asks.
+  # A schema as the bench offers it: no $schema line, and no intent or short title, which the bench adds itself to a tool that asks.
   def cleaned(parameters)
     schema = JSON.parse(parameters.to_json).except("$schema")
-    schema["properties"] = schema["properties"].to_h.except(Chat::Tools::INTENT_ARG)
-    schema["required"] = Array(schema["required"]) - [ Chat::Tools::INTENT_ARG ] if schema.key?("required")
+    schema["properties"] = schema["properties"].to_h.except(*Chat::Tools::FOR_PERSON)
+    schema["required"] = Array(schema["required"]) - Chat::Tools::FOR_PERSON if schema.key?("required")
     schema
   end
 

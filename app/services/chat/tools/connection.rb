@@ -71,7 +71,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     return failed(tool_call&.id, unbacked, kind: Chat::StepOutcome::FAILURE_REFUSED) if unbacked
 
     @issue_kind = given[Chat::Tools::TrackedIssues::KIND_ARG]
-    invoke(given.except(Chat::Tools::INTENT_ARG, Chat::Tools::TrackedIssues::KIND_ARG, Chat::DataRepairs::CHECK_ARG, Chat::Tools::LookFirst::BECAUSE),
+    invoke(given.except(*Chat::Tools::FOR_PERSON, Chat::Tools::TrackedIssues::KIND_ARG, Chat::DataRepairs::CHECK_ARG, Chat::Tools::LookFirst::BECAUSE),
            tool_call_id: tool_call&.id)
   end
 
@@ -85,7 +85,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
   def reads?(given) = Integrations::ReadGuards.reads?(@tool, own_arguments(given))
 
-  def own_arguments(given) = given.except(Chat::Tools::INTENT_ARG, Integration::Tool::ENVIRONMENT_ARG, Chat::Tools::LookFirst::BECAUSE)
+  def own_arguments(given) = given.except(*Chat::Tools::FOR_PERSON, Integration::Tool::ENVIRONMENT_ARG, Chat::Tools::LookFirst::BECAUSE)
 
   # Whether some call of this tool changes something, which is when a call names the reads behind it.
   def changes_at_all? = !@tool.read_only? && Chat::Tools::LookFirst.applies?(@agent_run)
@@ -100,7 +100,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
   end
 
   def misdirection(given)
-    Chat::Tools::Target.misdirection(@tool.integration, Chat::Tools.intent_of(given), called: name) do |other|
+    Chat::Tools::Target.misdirection(@tool.integration, Chat::Tools.words_for_person(given), called: name) do |other|
       Chat::Tools::Target.reach_instead(other, @tool.name)
     end || scope_misdirection(given)
   end
@@ -109,7 +109,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
   def scope_misdirection(given)
     environment_row = Chat::Tools::Target.environment_row_of(@tool, given)
     scope = Integrations::Scopes.of_call(environment_row, given)
-    Chat::Tools::Target.scope_misdirection(environment_row, scope, Chat::Tools.intent_of(given), called: name) do |named, field|
+    Chat::Tools::Target.scope_misdirection(environment_row, scope, Chat::Tools.words_for_person(given), called: name) do |named, field|
       "To reach #{field.one} #{named}, call #{name} again with #{field.key} #{named}."
     end
   rescue Integration::UnknownEnvironment

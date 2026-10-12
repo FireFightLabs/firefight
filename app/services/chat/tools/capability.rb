@@ -57,7 +57,7 @@ class Chat::Tools::Capability < RubyLLM::Tool
     return refused(tool_call, unbacked, kind: Chat::StepOutcome::FAILURE_REFUSED) if unbacked
 
     asked = arguments.transform_keys(&:to_s).except(Chat::Tools::LookFirst::BECAUSE)
-    given = asked.except(Chat::Tools::INTENT_ARG)
+    given = asked.except(*Chat::Tools::FOR_PERSON)
     return everywhere(given, tool_call) if given[Integrations::Capabilities::CONNECTION_ARG] == Integrations::Capabilities::ALL
 
     found = Integrations::Capabilities.resolve(@agent_run.workspace, @spec.key, given, @callable, principal: @agent_run.acting_principal)
@@ -90,9 +90,9 @@ class Chat::Tools::Capability < RubyLLM::Tool
   def misdirection(asked, found = nil)
     return unless @spec.writes
 
-    found ||= Integrations::Capabilities.resolve(@agent_run.workspace, @spec.key, asked.except(Chat::Tools::INTENT_ARG, Chat::Tools::LookFirst::BECAUSE), @callable,
+    found ||= Integrations::Capabilities.resolve(@agent_run.workspace, @spec.key, asked.except(*Chat::Tools::FOR_PERSON, Chat::Tools::LookFirst::BECAUSE), @callable,
                                                  principal: @agent_run.acting_principal)
-    intent = Chat::Tools.intent_of(asked)
+    intent = Chat::Tools.words_for_person(asked)
     called = "#{name} of #{found.resource.scoped_name}"
     Chat::Tools::Target.misdirection(found.tool.integration, intent, called: called) do |other|
       label = Integrations::Capabilities.connections(other.tools.to_a).first || other.slug

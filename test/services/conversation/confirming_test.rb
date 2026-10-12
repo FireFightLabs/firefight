@@ -146,8 +146,9 @@ class Conversation::ConfirmingTest < ActiveSupport::TestCase
     confirmation = Chat::Tools.confirmation(@chat.tool_calls.find_by!(tool_call_id: "call_1"))
 
     assert_not confirmation.allowable?
-    assert_match "Allow for the rest of this chat does not cover it", confirmation.read_lead
-    assert_equal [ "Github issue lookup deploy error", "Holds chat_test" ], confirmation.read_rows.first
+    assert_equal "Halon read the result of github issue lookup before asking. Check the reason above is yours.", confirmation.read_lead
+    assert_match "Allow for the rest of this chat does not cover", confirmation.read_heading
+    assert_equal [ "Github issue lookup deploy error", "Mentions chat_test" ], confirmation.read_rows.first
   end
 
   test "a value the person wrote themselves is theirs, so it points at nothing read" do

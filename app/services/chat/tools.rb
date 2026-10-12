@@ -86,70 +86,133 @@ module Chat::Tools
 
   # target is what the call reaches, worked out from the tool when it was asked (Chat::Tools::Target), and call what the
   # tool does, such as "Api request". Both are nil for Firefight's own tools and for calls asked before targets were kept.
+  # short_title is the agent's few words naming the change, such as "Pause dev-web", nil on calls asked before it was.
   # read is what was read from outside before the call was asked (Chat::Tools::Provenance), nil when nothing was.
   # safeguards are rows saying what the call will touch beyond its arguments (Chat::Safeguards): the rows a statement
-  # changes, who started what it stops, when a change customers feel is undone. expires lists the times a change
-  # customers feel may be undone after, with the default first, and is empty for any other call. for_chat is false for
-  # a statement that writes rows, which is asked about on its own each time. waiting_on names the owner a confirmed call
-  # waits for. A call may be allowed for the rest of the chat only when nothing was read from outside and for_chat holds.
-  # support is the reads from the call's turn that Halon named as showing the change will help (Chat::Tools::LookFirst).
-  # page is the screenshot of the page a browser send would go from, taken when the check stopped before it, and its
-  # would_send_rows say what it sends.
+  # changes, who started what it stops. expires lists the times a change customers feel may be undone after, in time
+  # order, and is empty for any other call, with chosen_expiry the one chosen so far and undo_words what undoing it means
+  # when its provider says. for_chat is false for a statement that writes rows, which is asked about on its own each
+  # time. waiting_on names the owner a confirmed call waits for. A call may be allowed for the rest of the chat only when
+  # nothing was read from outside and for_chat holds. support is the reads from the call's turn that Halon named as
+  # showing the change will help (Chat::Tools::LookFirst). page is the screenshot of the page a browser send would go
+  # from, taken when the check stopped before it, and its would_send_rows say what it sends. plan_undo is how the plan
+  # step the call carries out says to put it back.
   Confirmation = Data.define(:tool_call_id, :question, :intent, :asked, :status, :target, :call, :read, :safeguards, :expires, :for_chat, :waiting_on,
-                             :support, :page) do
-    def initialize(read: nil, safeguards: [], expires: [], for_chat: true, waiting_on: nil, support: [], page: nil, **) = super
+                             :support, :page, :short_title, :chosen_expiry, :undo_words, :plan_undo, :tool_name) do
+    def initialize(read: nil, safeguards: [], expires: [], for_chat: true, waiting_on: nil, support: [], page: nil, short_title: nil,
+                   chosen_expiry: nil, undo_words: nil, plan_undo: nil, tool_name: nil, **) = super
 
-    # The question as a label, which the dashboard shows above the agent's own sentence about the call.
+    # The question as a label, which names the tool when the agent's words lead.
     def tool_label = question.delete_suffix("?")
+
+    # What will happen, in plain words: the agent's few words, else its sentence, else the call by its tool's name.
+    def title = short_title || intent&.delete_suffix(".") || (target ? call : tool_label)
+
+    # Where it happens, quieter under the title: what the call reaches, or the tool when the agent's words lead.
+    def label
+      shown = target || tool_label
+      shown unless shown == title
+    end
+
+    # What it does and how to put it back when that is known, under the title.
+    def summary
+      said = (Chat::Tools.sentence(intent) if short_title && intent)
+      put_back = (Chat::Tools.sentence("#{PUT_BACK} #{plan_undo}") if plan_undo)
+      [ said, put_back ].compact.join(" ").presence
+    end
+
+    # The button that approves it, named for the change when the agent named it.
+    def confirm_label = short_title&.truncate(CONFIRM_LABEL_LIMIT) || CONFIRM
+
+    # What the undo choice is labelled, present only when the call offers one.
+    def undo_label = ((undo_words || UNDO_AUTOMATICALLY) if expires.any?)
 
     def allowable? = read.nil? && for_chat
 
-    # One sentence leading what was read, in the words both the dashboard and Slack show.
+    # One sentence naming where outside text holding the change's own values came from, in the words both the dashboard
+    # and Slack show. Absent when what was read holds none of them, so the warning appears only when it means something.
     def read_lead
-      return unless read
+      holding = read&.sources&.select { |source| source.found.any? }
+      return if holding.blank?
 
-      "Halon read text from outside Firefight before asking, and text like that can be written to steer it. Check where " \
-        "this came from. Allow for the rest of this chat does not cover it."
+      "Halon read #{holding.map { |source| source.from || OUTSIDE_TEXT }.uniq.to_sentence} before asking. Check the reason above is yours."
     end
 
-    # Each read as a label and what it shows: the change's own values it holds, or that it was read earlier.
+    # Heads the list of what was read, saying why Allow for the rest of this chat is not offered.
+    def read_heading = (READ_HEADING if read)
+
+    # Each read as a label and what it shows: the change's own values it mentions, or that it was read earlier.
     def read_rows
       return [] unless read
 
-      rows = read.sources.map { |source| [ source.label, source.found.any? ? "Holds #{source.found.join(', ')}" : READ_EARLIER ] }
+      rows = read.sources.map { |source| [ source.label, source.found.any? ? "Mentions #{source.found.join(', ')}" : READ_EARLIER ] }
       read.others.positive? ? rows + [ [ "#{read.others} more #{read.others == 1 ? 'read' : 'reads'}", READ_EARLIER ] ] : rows
     end
 
-    # One sentence leading the reads Halon named, in the words both the dashboard and Slack show.
+    # Heads the reads Halon named, in the words both the dashboard and Slack show.
     def support_lead = (SUPPORT_LEAD if support.any?)
 
-    # Each read Halon named as a label and what it said the read showed.
-    def support_rows = support.map { |each| [ each.label, each.said.presence || SUPPORT_SAID_NOTHING ] }
+    # Each read Halon named as a point: what it said the read showed with the read as its source, or the read alone.
+    def support_points
+      support.map { |each| each.said.present? ? SupportPoint.new(text: each.said, source: each.label) : SupportPoint.new(text: each.label, source: nil) }
+    end
   end
-  SUPPORT_LEAD = "Halon proposes this from what it read just now:".freeze
-  SUPPORT_SAID_NOTHING = "Read in this turn".freeze
+  SupportPoint = Data.define(:text, :source)
+  SUPPORT_LEAD = "Why".freeze
   READ_EARLIER = "Read earlier in this chat".freeze
+  READ_HEADING = "Read from outside Firefight before asking. Allow for the rest of this chat does not cover a change asked after that.".freeze
+  # Where outside text came from, for a call asked before each read kept it.
+  OUTSIDE_TEXT = "text from outside Firefight".freeze
+  PUT_BACK = "To put it back:".freeze
+  CONFIRM = "Confirm".freeze
+  CONFIRM_LABEL_LIMIT = 48
+  UNDO_AUTOMATICALLY = "Undo automatically".freeze
+
+  def self.sentence(text)
+    text = text.to_s.strip
+    text.match?(/[.!?]\z/) ? text : "#{text}."
+  end
 
   # One time a change customers feel may be undone after: value is what the answer sends back, minutes or keep.
   Expiry = Data.define(:value, :label)
 
-  # A call that waits for the person's decision carries one sentence saying what it will do, written by the agent for
-  # whoever approves it. It is taken off before the call is made, so the tool never sees it.
+  # A call that waits for the person's decision carries one sentence saying what it will do, and a few words naming the
+  # change for its title and the button that approves it, both written by the agent for whoever approves it. They are
+  # taken off before the call is made, so the tool never sees them.
   INTENT_ARG = "intent".freeze
   INTENT = {
     "type" => "string",
     "description" => "One sentence for the person asked to approve this call: what it will do and why, in plain words, " \
                      "such as \"List the zones in the account to find the one for firefight.app\""
   }.freeze
+  SHORT_TITLE_ARG = "short_title".freeze
+  SHORT_TITLE = {
+    "type" => "string",
+    "description" => "The change in two to five words starting with a verb, for the title of the approval and its button, " \
+                     "such as \"Pause dev-web\" or \"Purge the firefight.app cache\""
+  }.freeze
+  # Every argument the agent writes for the person alone, which no tool is given.
+  FOR_PERSON = [ INTENT_ARG, SHORT_TITLE_ARG ].freeze
 
   def self.with_intent(schema)
     schema = schema.deep_dup
-    schema["properties"] = (schema["properties"] || {}).merge(INTENT_ARG => INTENT)
-    schema["required"] = (Array(schema["required"]) + [ INTENT_ARG ]).uniq
+    schema["properties"] = (schema["properties"] || {}).merge(INTENT_ARG => INTENT, SHORT_TITLE_ARG => SHORT_TITLE)
+    schema["required"] = (Array(schema["required"]) + FOR_PERSON).uniq
     schema
   end
 
+  # The intent and the short title for a tool that waits only for some of its calls, saying when they are needed.
+  def self.for_person_properties(needed)
+    { INTENT_ARG => INTENT.merge("description" => "#{INTENT['description']}. #{needed}"),
+      SHORT_TITLE_ARG => SHORT_TITLE.merge("description" => "#{SHORT_TITLE['description']}. #{needed}") }
+  end
+
   def self.intent_of(arguments) = arguments.to_h.stringify_keys[INTENT_ARG].to_s.strip.presence
+
+  def self.short_title_of(arguments) = arguments.to_h.stringify_keys[SHORT_TITLE_ARG].to_s.squish.presence
+
+  # Everything the agent wrote for the person about a call, which is what names the account it means to reach.
+  def self.words_for_person(arguments) = [ short_title_of(arguments), intent_of(arguments) ].compact.join(". ").presence
   CONFIRMATION_STATUSES = {
     Chat::APPROVAL_REQUESTED => :awaiting, Chat::APPROVAL_APPROVED => :confirmed, Chat::APPROVAL_DENIED => :cancelled,
     Chat::APPROVAL_WITHDRAWN => :withdrawn, Chat::APPROVAL_OWNER_ASKED => :owner_asked
@@ -179,7 +242,7 @@ module Chat::Tools
     return AskSpecialist.shown(arguments) if tool_name.to_s == AskSpecialist::NAME
     return Theories.shown(arguments) if tool_name.to_s == Theories::NAME
 
-    asked = shown_arguments(arguments.to_h.stringify_keys.except(INTENT_ARG, LookFirst::BECAUSE))
+    asked = shown_arguments(arguments.to_h.stringify_keys.except(*FOR_PERSON, LookFirst::BECAUSE))
     Step.new(
       title: title_for(tool_name, workspace, arguments.to_h.stringify_keys), headline: intent_of(arguments) || headline_for(tool_name, asked), asked: asked,
       card: card_for(tool_name, arguments)
@@ -243,8 +306,8 @@ module Chat::Tools
       "and carry on with what you can reach."
   end
 
-  # A call with a target is asked about what it reaches, the call itself and the agent's words coming after, since the
-  # agent's words can name another account than the one the tool reaches.
+  # A call leads with what it will do in the agent's words, with what it reaches worked out from the tool right under
+  # them, since the agent's words can name another account than the one the tool reaches.
   def self.confirmation(tool_call)
     step = step(tool_call.name, tool_call.arguments)
     target = tool_call.try(:target).presence
@@ -262,15 +325,33 @@ module Chat::Tools
       safeguards: [ *repair&.confirmation_rows, owner&.confirmation_row, *page&.would_send_rows ].compact,
       expires: expiries(mitigation), for_chat: repair.nil? && !Browser.sends?(tool_call.arguments),
       waiting_on: (owner.owner_name if tool_call.approval == Chat::APPROVAL_OWNER_ASKED && owner),
-      support: workspace ? LookFirst.support(chat, tool_call, workspace) : [], page: page
+      support: workspace ? LookFirst.support(chat, tool_call, workspace) : [], page: page,
+      short_title: short_title_of(tool_call.arguments), chosen_expiry: chosen_expiry(mitigation), undo_words: undo_words(workspace, mitigation),
+      plan_undo: plan_undo(chat, tool_call), tool_name: tool_call.name.to_s
     )
+  end
+
+  # What undoing a change customers feel means, when its provider says, such as starting a paused service again.
+  def self.undo_words(workspace, mitigation)
+    return unless workspace && mitigation&.proposed?
+    return Integrations::Mitigations::SCALES_BACK if mitigation.tool_name == Integrations::Capabilities.spec(Integrations::Capabilities::SCALE).tool_name
+
+    tool = workspace.connection_tools_by_name[mitigation.tool_name.to_s]
+    tool && Integrations::Mitigations.undo_words(tool, mitigation.arguments)
+  end
+
+  # How the plan step this call carries out says to put it back, while that step is running. A step of a plan's own undo
+  # is putting something back already.
+  def self.plan_undo(chat, tool_call)
+    step = chat && Chat::Plan::Step.running_change(chat)
+    step.undo.presence if step && step.tool.to_s == tool_call.name.to_s && !step.plan.undo?
   end
 
   # The page a browser send goes from, as the check that stopped before it saw it, or nil for any other call.
   def self.browser_page(chat, tool_call)
     return unless tool_call.name.to_s == Browser::NAME && Browser.sends?(tool_call.arguments)
 
-    check = Chat::BrowserCheck.from(tool_call.arguments.to_h.except(INTENT_ARG, LookFirst::BECAUSE))
+    check = Chat::BrowserCheck.from(tool_call.arguments.to_h.except(*FOR_PERSON, LookFirst::BECAUSE))
     Chat::Screenshot.stopped_before(chat, check.digest, check.send_step, fresh: false)
   rescue Chat::BrowserCheck::Refused
     nil
@@ -286,15 +367,20 @@ module Chat::Tools
     nil
   end
 
-  # The times a change customers feel may be undone after, the one chosen so far first, then keeping it. Empty for a
-  # call that is not one.
+  # The times a change customers feel may be undone after, in time order from never. Empty for a call that is not one.
   def self.expiries(mitigation)
     return [] unless mitigation&.proposed?
 
-    chosen = mitigation.duration_minutes
-    minutes = [ chosen, *Chat::Mitigation::DURATIONS ].compact.uniq
-    [ *minutes.map { |each| Expiry.new(value: each.to_s, label: "Undo after #{Chat::Mitigation.duration_words(each)}") },
-      Expiry.new(value: Chat::Mitigation::KEEP, label: "Keep it") ].then { |all| chosen.nil? ? all.rotate(-1) : all }
+    [ Expiry.new(value: Chat::Mitigation::KEEP, label: NEVER),
+      *Chat::Mitigation::DURATIONS.map { |minutes| Expiry.new(value: minutes.to_s, label: Chat::Mitigation.duration_short(minutes)) } ]
+  end
+  NEVER = "Never".freeze
+
+  # The time chosen so far, which the choice starts on: the default until someone picks another, and keep when nil.
+  def self.chosen_expiry(mitigation)
+    return unless mitigation&.proposed?
+
+    mitigation.duration_minutes&.to_s || Chat::Mitigation::KEEP
   end
 
   # What the tool does, by its own name rather than the connection's, such as "Api request".

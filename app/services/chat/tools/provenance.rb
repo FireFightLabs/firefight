@@ -9,15 +9,28 @@ module Chat::Tools::Provenance
   SHOWN = 5
   # A value of the change shorter than this is too common to say where it came from.
   SHORTEST_VALUE = 4
+  # Values any change of its kind holds, which say nothing about where this one came from: a request's method, a flag,
+  # a short word made of letters only such as pause or json, and a number this short such as a port or a size.
+  GENERIC_WORDS = %w[get post put patch delete head options true false null none yes no].to_set.freeze
+  COMMON_WORD = /\A[a-z]{1,5}\z/i
+  SHORT_NUMBER = /\A[-+]?\d{1,5}(\.\d+)?\z/
   LINE_SHORTEST = 12
   VALUE_SHOWN = 80
   SOURCES = "sources".freeze
   LABEL = "label".freeze
   FOUND = "found".freeze
+  FROM = "from".freeze
   OTHERS = "others".freeze
 
-  Source = Data.define(:label, :found)
+  # from says where the text came from in a few words, such as "Northflank's docs", nil on a call asked before it was kept.
+  Source = Data.define(:label, :found, :from) do
+    def initialize(from: nil, **) = super
+  end
   Read = Data.define(:sources, :others)
+
+  WEB = "the web".freeze
+  ATTACHED = "a file attached to this chat".freeze
+  COMMAND = "a command's output".freeze
 
   def self.own_words_names
     @own_words_names ||= [
@@ -52,7 +65,7 @@ module Chat::Tools::Provenance
     tool_calls.each do |tool_call|
       read = of(chat, tool_call, agent_run.workspace)
       tool_call.update_columns(provenance: {
-        SOURCES => read.sources.map { |source| { LABEL => source.label, FOUND => source.found } }, OTHERS => read.others
+        SOURCES => read.sources.map { |source| { LABEL => source.label, FOUND => source.found, FROM => source.from } }, OTHERS => read.others
       })
     end
   end
@@ -65,21 +78,59 @@ module Chat::Tools::Provenance
       next if call.tool_call_id == tool_call.tool_call_id
 
       text = call.result&.content.to_s
-      Source.new(label: Chat::Tools.label(call.name, call.arguments, workspace: workspace).presence || call.name, found: values.select { |value| text.include?(value) })
+      Source.new(label: Chat::Tools.label(call.name, call.arguments, workspace: workspace).presence || call.name, found: values.select { |value| text.include?(value) },
+                 from: from(call, workspace))
     end
-    reads += chat.attached_files.map { |file| Source.new(label: "File attached: #{file.filename}", found: values.select { |value| file.text.to_s.include?(value) }) }
+    reads += chat.attached_files.map do |file|
+      Source.new(label: "File attached: #{file.filename}", found: values.select { |value| file.text.to_s.include?(value) }, from: ATTACHED)
+    end
 
     found, rest = reads.partition { |source| source.found.any? }
     shown = (found + rest.reverse).first([ SHOWN, found.size ].max)
     Read.new(sources: shown.map { |source| source.with(found: source.found.map { |value| value.truncate(VALUE_SHOWN) }) }, others: reads.size - shown.size)
   end
 
-  # What the stored provenance says, or nil for a call asked before anything outside was read.
+  # What the stored provenance says, or nil for a call asked before anything outside was read. A value kept before
+  # generic ones were left out is left out here too, so an older question reads the same as a new one.
   def self.stored(tool_call)
     kept = tool_call.try(:provenance)
     return nil if kept.blank?
 
-    Read.new(sources: Array(kept[SOURCES]).map { |source| Source.new(label: source[LABEL].to_s, found: Array(source[FOUND])) }, others: kept[OTHERS].to_i)
+    sources = Array(kept[SOURCES]).map do |source|
+      Source.new(label: source[LABEL].to_s, found: Array(source[FOUND]).select { |value| specific?(value) }, from: source[FROM].presence)
+    end
+    Read.new(sources: sources, others: kept[OTHERS].to_i)
+  end
+
+  # Whether a value is this change's own, such as a service's name, an id or an address, rather than one any change of
+  # its kind holds, such as POST or true.
+  def self.specific?(value)
+    text = value.to_s.strip
+    text.length >= SHORTEST_VALUE && !GENERIC_WORDS.include?(text.downcase) && !text.match?(COMMON_WORD) && !text.match?(SHORT_NUMBER)
+  end
+
+  # Where a read's text came from, in a few words the confirmation names it by.
+  def self.from(call, workspace)
+    name = call.name.to_s
+    arguments = call.arguments.to_h.stringify_keys
+    return "#{Chat::Tools::Docs.provider_name(arguments['provider'])}'s docs" if [ Chat::Tools::Docs::SEARCH, Chat::Tools::Docs::READ ].include?(name) && arguments["provider"].present?
+    return WEB if [ Chat::Tools::Web::SEARCH, Chat::Tools::Web::READ, Chat::Tools::Browser::NAME, Chat::Tools::OutsideCheck::NAME ].include?(name)
+    return COMMAND if name == Chat::Tools::Terminal::NAME
+    return skill_from(arguments) if name == Chat::Tools::UseSkill.tool_name
+
+    tool = workspace && Chat::Tools::Target.connection_tool(workspace, name)
+    return "an answer from #{tool.integration.display_name}" if tool
+
+    "the result of #{Chat::Tools.title_for(name, nil).downcase_first}"
+  end
+
+  def self.skill_from(arguments)
+    skill = Chat::Skill.find(arguments["skill"])
+    return "a skill's steps" unless skill
+    return "a Firefight skill's steps" if skill.firefight?
+
+    provider = Chat::Tools::Docs.provider_name(skill.source)
+    arguments["reference"].present? ? "#{provider}'s docs" : "a #{provider} skill's steps"
   end
 
   def self.outside_calls(chat)
@@ -93,9 +144,9 @@ module Chat::Tools::Provenance
   # Each text the change was given, and each long line of a longer one such as a script, so a command copied from a log
   # is found even inside a bigger one.
   def self.values_of(arguments, said)
-    texts = leaves(arguments.to_h.stringify_keys.except(Chat::Tools::INTENT_ARG, Chat::Tools::LookFirst::BECAUSE, Integration::Tool::ENVIRONMENT_ARG))
+    texts = leaves(arguments.to_h.stringify_keys.except(*Chat::Tools::FOR_PERSON, Chat::Tools::LookFirst::BECAUSE, Integration::Tool::ENVIRONMENT_ARG))
     texts += texts.flat_map { |text| text.lines.map(&:strip).select { |line| line.length >= LINE_SHORTEST } }
-    texts.map(&:strip).uniq.select { |text| text.length >= SHORTEST_VALUE && !said.include?(text) }
+    texts.map(&:strip).uniq.select { |text| specific?(text) && !said.include?(text) }
   end
 
   def self.leaves(value)
@@ -106,5 +157,5 @@ module Chat::Tools::Provenance
     else []
     end
   end
-  private_class_method :outside_calls, :person_words, :values_of, :leaves
+  private_class_method :outside_calls, :person_words, :values_of, :leaves, :from, :skill_from
 end
