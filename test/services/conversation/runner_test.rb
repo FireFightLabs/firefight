@@ -836,7 +836,33 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_nil responder.options[:model]
   end
 
+  test "each phase of a reply logs how long it took, and a turn that ends early still logs the phase it ended in" do
+    logged = []
+    Rails.logger.stubs(:info).with { |line| logged << line }
+    fake(reply: "ok")
+
+    ask(@conversation, "what is going on")
+
+    assert_equal [ Conversation::Runner::PHASE_SETUP, Conversation::Runner::PHASE_CONTEXT, Conversation::Runner::PHASE_RESPONDER, Conversation::Runner::PHASE_AFTER ],
+                 phases_in(logged).map { |line| line["phase"] }
+    assert phases_in(logged).all? { |line| line["duration_ms"].is_a?(Integer) && line["conversation_id"] == @conversation.id }
+
+    logged.clear
+    @conversation.ask!("anything in metrics?")
+    @conversation.request_stop!
+    Slack::Client.stubs(:stop_stream).returns({ ok: true, ts: "1" })
+
+    Conversation::Runner.new(@conversation, asker: @conversation.started_by).run
+
+    assert_equal [ Conversation::Runner::PHASE_SETUP ], phases_in(logged).map { |line| line["phase"] }
+    assert_kind_of Integer, phases_in(logged).sole["duration_ms"]
+  end
+
   private
+
+  def phases_in(logged)
+    logged.grep(String).filter_map { |line| JSON.parse(line) if line.include?(Conversation::Runner::PHASE_EVENT) }
+  end
 
   def with_app_host
     previous = ENV["APP_HOST"]

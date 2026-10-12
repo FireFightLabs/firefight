@@ -5,11 +5,11 @@ class Conversation::Runner
   # What the model is told for a tool it asked for and never got, so the chat stays one a provider accepts.
   STOPPED_BEFORE_RUNNING = "Not run. The person stopped this answer first.".freeze
   PHASE_EVENT = "conversation_reply.phase".freeze
-  FIRST_TOKEN_EVENT = "conversation_reply.first_token".freeze
+  FIRST_TEXT_EVENT = "conversation_reply.first_text".freeze
   PHASE_SETUP = "setup".freeze
+  PHASE_CONTEXT = "context".freeze
   PHASE_RESPONDER = "responder".freeze
   PHASE_AFTER = "after".freeze
-  TRACER = OpenTelemetry.tracer_provider.tracer("conversation")
 
   # held_call is an approved call someone pressed Run on, which this turn runs first. handed_back is a watch step that
   # could not find what it followed, which this turn re-plans, reading only. pull_request_fix is a pull request notice
@@ -67,15 +67,25 @@ class Conversation::Runner
       [ chat, purse, presented, suspects ]
     end
 
+    tools, turn_context, turn_budget, checks = timed_phase(PHASE_CONTEXT) do
+      [
+        Conversation::Tools.for(@turn, offer: Chat::Tools.offer_to(chat), helpers: helper_share(chat, purse), presented: presented) +
+          presented.loaded + Chat::Tools.known(@turn, chat),
+        context,
+        budget,
+        Conversation::Checks.new(chat, since: @marked, choice: Chat::Helpers.side_model(@conversation.workspace, main: helper_main_model),
+                                       inferable: @conversation, member: member, facts: suspects).all
+      ]
+    end
+
     outcome = timed_phase(PHASE_RESPONDER) do |started|
       @responder_started = started
       responder.run(
         chat: chat,
-        tools: Conversation::Tools.for(@turn, offer: Chat::Tools.offer_to(chat), helpers: helper_share(chat, purse), presented: presented) +
-               presented.loaded + Chat::Tools.known(@turn, chat),
+        tools: tools,
         deferred_tools: presented.deferred,
-        context: context,
-        budget: budget,
+        context: turn_context,
+        budget: turn_budget,
         on_step: method(:report_step),
         on_progress: method(:report_tool_progress),
         on_chunk: shown_text.method(:add),
@@ -84,8 +94,7 @@ class Conversation::Runner
         take_messages: -> { [ take_queued(chat), tell_changes(chat), tell_watch_corrections(chat) ].any? },
         canceled: chat.method(:stop_requested?),
         purse: purse,
-        checks: Conversation::Checks.new(chat, since: @marked, choice: Chat::Helpers.side_model(@conversation.workspace, main: helper_main_model),
-                                               inferable: @conversation, member: member, facts: suspects).all,
+        checks: checks,
         on_backup: ->(failed, backup, error) { switched_model(chat, failed, backup, error) },
         # A model the person picked is theirs to know about, so its account running dry is said too.
         on_take_over: (->(failed, following, error) { switched_model(chat, failed, following, error) } if picked_model)
@@ -123,24 +132,32 @@ class Conversation::Runner
   # The reply as it streams, without the line saying Halon's next step (FirefightAi::NextStep).
   def shown_text
     @shown_text ||= FirefightAi::NextStep::Stream.new do |text|
-      first_token_shown
+      first_text_shown
       delivery.chunk(text)
     end
   end
 
   # Where a reply's time goes, logged per phase and spanned when a tracer is set (config/initializers/opentelemetry.rb).
+  # A stop is the person pressing Stop, so its span ends as OK, which the SDK keeps over the error in_span sets after.
   def timed_phase(name)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    TRACER.in_span("conversation.reply.#{name}", attributes: { "conversation.id" => @conversation.id }) { yield started }
+    Firefight::TRACER.in_span("conversation.reply.#{name}", attributes: { "conversation.id" => @conversation.id }) do |span|
+      yield started
+    rescue FirefightAi::Canceled
+      span.status = OpenTelemetry::Trace::Status.ok
+      raise
+    end
   ensure
     Rails.logger.info({ event: PHASE_EVENT, phase: name, duration_ms: elapsed_ms(started), conversation_id: @conversation.id }.to_json)
   end
 
-  def first_token_shown
-    return if @first_token_logged || !@responder_started
+  # The first text shown to the person, which on a turn that calls tools first comes after them, and on one that only
+  # calls tools never comes.
+  def first_text_shown
+    return if @first_text_logged || !@responder_started
 
-    @first_token_logged = true
-    Rails.logger.info({ event: FIRST_TOKEN_EVENT, duration_ms: elapsed_ms(@responder_started), conversation_id: @conversation.id }.to_json)
+    @first_text_logged = true
+    Rails.logger.info({ event: FIRST_TEXT_EVENT, duration_ms: elapsed_ms(@responder_started), conversation_id: @conversation.id }.to_json)
   end
 
   def elapsed_ms(started) = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
