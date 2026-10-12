@@ -376,6 +376,13 @@ Two things about it are worth knowing before adding a control:
   `https://slack.com/app_redirect?channel=...` itself, which both leaked Slack
   into React and dropped the `team`, so a browser signed into more than one
   workspace opened the wrong one.
+- **The platform reads its own markup.** A pin's text and a note's quote are
+  stored as the platform wrote them (Slack mrkdwn, with `<@U...>` mentions and
+  single-asterisk bold). `PlatformAdapter#messages_as_markdown` turns them into
+  the markdown `MarkdownText` renders, naming mentioned people from the
+  workspace's members in one query, and the incidents controller hands the
+  result to `TimelineEventSerializer` as `quotes:`. The stored text is never
+  rewritten, so the API, MCP and the model still read what was said.
 
 ## Outbound Webhooks
 

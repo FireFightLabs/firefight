@@ -218,6 +218,13 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Messages as people wrote them on the platform, such as a quote on the timeline, as markdown the dashboard renders.
+  # A mention reads as the person's name.
+  # @return [Hash{String => String}] each text given, mapped to its markdown.
+  def messages_as_markdown(texts:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # What started a thread in a person's direct messages with the app.
   THREAD_STARTED_BY_PERSON = :person
   # One of the app's own messages, such as a watch update, an approval or a question for its owner.

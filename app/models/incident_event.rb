@@ -287,6 +287,15 @@ class IncidentEvent < ApplicationRecord
     end
   end
 
+  QUOTING_EVENTS = [ MILESTONE_NOTED, MESSAGE_PINNED, MESSAGE_UNPINNED ].freeze
+
+  # A chat message the event quotes, as the platform wrote it.
+  def quoted_message
+    return nil unless QUOTING_EVENTS.include?(event_type)
+
+    metadata.to_h["message_text"].presence
+  end
+
   # What the responder posted with the update, as markdown.
   def update_message
     return nil unless UPDATE_MESSAGE_EVENTS.include?(event_type)
