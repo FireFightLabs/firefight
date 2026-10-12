@@ -41,7 +41,7 @@ class Conversation::Rehearsal
   end
 
   # What a call asked for, without the sentence a confirmation leads with, which the tool itself never sees.
-  def self.asked(arguments) = arguments.to_h.stringify_keys.except(Chat::Tools::INTENT_ARG)
+  def self.asked(arguments) = arguments.to_h.stringify_keys.except(*Chat::Tools::FOR_PERSON)
 
   # A real chat as a case: what the person said and decided, the tools its calls used as they are offered today (or
   # as the call looked, for a tool that is gone), and what each call answered. Nothing is said about its right outcome.
@@ -97,8 +97,8 @@ class Conversation::Rehearsal
     if live
       live, owner, base = live
       schema = live.parameters_schema.deep_stringify_keys
-      schema["properties"] = schema["properties"].to_h.except(Chat::Tools::INTENT_ARG)
-      schema["required"] = Array(schema["required"]) - [ Chat::Tools::INTENT_ARG ]
+      schema["properties"] = schema["properties"].to_h.except(*Chat::Tools::FOR_PERSON)
+      schema["required"] = Array(schema["required"]) - Chat::Tools::FOR_PERSON
       return Conversation::BenchCase::Tool.new(name: name, description: live.description.to_s, parameters: schema, source: owner.to_s,
                                                reads: reads, reads_when: {}, confirms: live.requires_approval?, default: nil, base: base, group: nil,
                                                reads_like: nil, request: nil)

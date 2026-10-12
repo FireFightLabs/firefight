@@ -310,7 +310,7 @@ module Conversation::Watches
   end
 
   def self.tool_arguments(step)
-    step["arguments"].is_a?(Hash) ? step["arguments"].transform_keys(&:to_s).except(Chat::Tools::INTENT_ARG) : {}
+    step["arguments"].is_a?(Hash) ? step["arguments"].transform_keys(&:to_s).except(*Chat::Tools::FOR_PERSON) : {}
   end
 
   RUN_ARG = "run".freeze
@@ -431,7 +431,7 @@ module Conversation::Watches
     extra = step["arguments"].is_a?(Hash) ? step["arguments"].transform_keys(&:to_s) : {}
     named = { Integrations::Capabilities::RESOURCE_ARG => step["resource"], Integrations::Capabilities::CONNECTION_ARG => step["connection"] }
     named["name"] = step["name"] if key == HISTORY
-    extra.merge(named.compact_blank).except(Chat::Tools::INTENT_ARG)
+    extra.merge(named.compact_blank).except(*Chat::Tools::FOR_PERSON)
   end
 
   # How long it watches and why, as the person reads it: "This usually takes about 18 minutes, I will watch for up to 40."
@@ -679,7 +679,7 @@ module Conversation::Watches
     watch = step.watch
     [
       "#{Chat::Watch::Shown.name(watch)} (watch #{watch.id}) found nothing to follow for its step #{step.label}, read with #{step.read_words} " \
-      "(#{step.arguments.except(Chat::Tools::INTENT_ARG).to_json}).",
+      "(#{step.arguments.except(*Chat::Tools::FOR_PERSON).to_json}).",
       step.repair_reason.presence,
       ("It was started for: #{watch.purpose}" if watch.purpose.present?),
       "Find a different read that shows it with the provider's read tools, its skill or search_docs, such as a GET request for that one run " \
@@ -1307,7 +1307,7 @@ module Conversation::Watches
   end
 
   def self.comparable(arguments)
-    arguments.to_h.deep_stringify_keys.except(Chat::Tools::INTENT_ARG).transform_values { |value| value.is_a?(Enumerable) ? value.to_json : value.to_s }
+    arguments.to_h.deep_stringify_keys.except(*Chat::Tools::FOR_PERSON).transform_values { |value| value.is_a?(Enumerable) ? value.to_json : value.to_s }
   end
 
   # The step moved on Halon's reading, said on the chat's page where the person sees what the watch had change, and the

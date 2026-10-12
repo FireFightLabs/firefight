@@ -63,7 +63,7 @@ module Chat::Tools::Target
     spec = capability_spec(tool_name)
     return unless spec&.writes
 
-    Integrations::Capabilities.resolve(agent_run.workspace, spec.key, given.except(Chat::Tools::INTENT_ARG), principal: agent_run.acting_principal)
+    Integrations::Capabilities.resolve(agent_run.workspace, spec.key, given.except(*Chat::Tools::FOR_PERSON), principal: agent_run.acting_principal)
   rescue Integrations::Capabilities::Unroutable
     nil
   end

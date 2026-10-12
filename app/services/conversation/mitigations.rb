@@ -38,7 +38,7 @@ module Conversation::Mitigations
       mitigation.move!(from: Chat::Mitigation::STATUS_PROPOSED, to: Chat::Mitigation::STATUS_CANCELLED)
       return nil
     end
-    step = running_plan_step(mitigation.chat)
+    step = Chat::Plan::Step.running_change(mitigation.chat)
     # A step of a plan's undo puts something back, so it is never itself counted down and undone.
     if step&.plan&.undo?
       mitigation.move!(from: Chat::Mitigation::STATUS_PROPOSED, to: Chat::Mitigation::STATUS_CANCELLED)
@@ -52,13 +52,6 @@ module Conversation::Mitigations
     Conversation::LiveDelivery.safeguard_moved(mitigation.conversation)
     started_note(mitigation)
   end
-
-  # The change step of a plan in progress in this chat that is running now, which this call is carrying out.
-  def self.running_plan_step(chat)
-    Chat::Plan::Step.joins(:plan).where(chat_plans: { chat_id: chat.id, status: Chat::Plan::STATUS_ACTIVE })
-                    .where(kind: Chat::Plan::Step::KIND_CHANGE, status: Chat::Plan::Step::STATUS_RUNNING).order(:updated_at).last
-  end
-  private_class_method :running_plan_step
 
   # Undo was pressed on a plan, so a change its steps made that is still in place is put back by the plan's undo, and
   # Firefight stops counting it down, so nothing is undone twice.

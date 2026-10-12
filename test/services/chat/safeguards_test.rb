@@ -29,7 +29,10 @@ class Chat::SafeguardsTest < ActiveSupport::TestCase
     mitigation = Chat::Mitigation.for_call(@chat, "call_1")
     assert_equal Chat::Mitigation::DEFAULT_MINUTES, mitigation.duration_minutes
     assert_equal "Scale web down to cut the load", mitigation.title
-    assert_equal "Undo after 1 hour", Chat::Tools.confirmation(call).expires.first.label
+    confirmation = Chat::Tools.confirmation(call)
+    assert_equal [ "Never", "15 min", "1 h", "4 h", "24 h" ], confirmation.expires.map(&:label)
+    assert_equal "60", confirmation.chosen_expiry
+    assert_equal Integrations::Mitigations::SCALES_BACK, confirmation.undo_label
   end
 
   test "scaling up, or a resource whose count the map does not hold, is not taken for one" do
@@ -46,15 +49,18 @@ class Chat::SafeguardsTest < ActiveSupport::TestCase
   test "the Slack confirmation lists what the call touches, offers when it is undone, and never allows a row write for the chat" do
     confirmation = Chat::Tools::Confirmation.new(
       tool_call_id: "call_1", question: "Execute write query?", intent: "Fix the currency", asked: [], status: :awaiting, target: nil, call: nil,
-      safeguards: [ [ "Rows it changes", "42 rows of orders" ] ], expires: [ Chat::Tools::Expiry.new(value: "60", label: "Undo after 1 hour") ], for_chat: false
+      safeguards: [ [ "Rows it changes", "42 rows of orders" ] ], expires: [ Chat::Tools::Expiry.new(value: "60", label: "1 h") ], chosen_expiry: "60",
+      for_chat: false
     )
 
     blocks = Slack::Messages::AgentConfirmation.build(conversation_id: "c1", confirmations: [ confirmation ])
     actions = blocks.find { |block| block[:type] == "actions" }[:elements]
 
     assert blocks.any? { |block| block.dig(:text, :text).to_s.include?("*Rows it changes:* 42 rows of orders") }
-    assert_equal [ Identifiers::AGENT_CONFIRM, Identifiers::AGENT_CANCEL, Identifiers::AGENT_EXPIRY ], actions.map { |element| element[:action_id] }
-    assert_equal "c1:call_1:60", actions.last.dig(:initial_option, :value)
+    assert_equal [ Identifiers::AGENT_CONFIRM, Identifiers::AGENT_CANCEL ], actions.map { |element| element[:action_id] }
+    undo = blocks.find { |block| block.dig(:accessory, :action_id) == Identifiers::AGENT_EXPIRY }
+    assert_equal Chat::Tools::UNDO_AUTOMATICALLY, undo.dig(:text, :text)
+    assert_equal "c1:call_1:60", undo.dig(:accessory, :initial_option, :value)
 
     waiting = Slack::Messages::AgentConfirmation.build(conversation_id: "c1", confirmations: [ confirmation.with(status: :owner_asked, waiting_on: "Bob Jones") ])
     assert waiting.any? { |block| block.dig(:elements, 0, :text).to_s.include?("Waiting for Bob Jones to agree") }

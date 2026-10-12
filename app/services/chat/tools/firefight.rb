@@ -39,7 +39,7 @@ class Chat::Tools::Firefight < RubyLLM::Tool
       return unbacked
     end
 
-    invoke(arguments.symbolize_keys.except(Chat::Tools::INTENT_ARG.to_sym, Chat::Tools::LookFirst::BECAUSE.to_sym), tool_call_id: tool_call&.id)
+    invoke(arguments.symbolize_keys.except(*Chat::Tools::FOR_PERSON.map(&:to_sym), Chat::Tools::LookFirst::BECAUSE.to_sym), tool_call_id: tool_call&.id)
   end
 
   # Runs a call an approval rule held, once it was approved and the person pressed Run, exactly as it was asked. The

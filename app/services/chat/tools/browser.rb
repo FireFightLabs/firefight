@@ -61,9 +61,9 @@ class Chat::Tools::Browser < RubyLLM::Tool
 
     schema["properties"][SEND_STEP_ARG] = {
       "type" => "integer", "description" => "The step the person agreed may send what the page sends, after a check without it " \
-                                            "stopped there. Needs an intent and because (optional)"
+                                            "stopped there. Needs an intent, a short title and because (optional)"
     }
-    schema["properties"][Chat::Tools::INTENT_ARG] = Chat::Tools::INTENT.merge("description" => "#{Chat::Tools::INTENT['description']}. Needed with #{SEND_STEP_ARG}")
+    schema["properties"].merge!(Chat::Tools.for_person_properties("Needed with #{SEND_STEP_ARG}"))
     Chat::Tools::LookFirst.with_because(schema, required: false)
   end
 
@@ -141,7 +141,7 @@ class Chat::Tools::Browser < RubyLLM::Tool
     [ [ text, *notes ].join("\n\n"), *shots.map { |shot| RubyLLM::Attachment.new(StringIO.new(shot.bytes), filename: shot.filename) } ]
   end
 
-  def check_of(given) = Chat::BrowserCheck.from(given.except(Chat::Tools::INTENT_ARG, Chat::Tools::LookFirst::BECAUSE), sends_allowed: !@agent_run.reads_only?)
+  def check_of(given) = Chat::BrowserCheck.from(given.except(*Chat::Tools::FOR_PERSON, Chat::Tools::LookFirst::BECAUSE), sends_allowed: !@agent_run.reads_only?)
 
   # Why a call is refused before anyone is asked, or nil. A send needs someone there to confirm it, the grant to send, a
   # check the person was shown, and a read behind it in this turn.
@@ -184,7 +184,7 @@ class Chat::Tools::Browser < RubyLLM::Tool
     return "This run only reads, so a step that would send data is never sent." if @agent_run.reads_only?
 
     "To send it, ask the person: call again with the same url, steps and log_in, and #{SEND_STEP_ARG} set to that step, an " \
-      "intent and because. They see the page and what it sends and confirm it first, and it needs their permission to send."
+      "intent, a short title and because. They see the page and what it sends and confirm it first, and it needs their permission to send."
   end
 
   # Read once, since the description is read on every turn.

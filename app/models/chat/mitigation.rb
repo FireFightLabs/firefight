@@ -71,6 +71,9 @@ class Chat::Mitigation < ApplicationRecord
     "#{count} #{unit.pluralize(count)}"
   end
 
+  # A duration in minutes as a choice short enough to sit beside the others, such as "15 min" or "4 h".
+  def self.duration_short(minutes) = (minutes % 60).zero? ? "#{minutes / 60} h" : "#{minutes} min"
+
   KEEP = "keep".freeze
 
   # nil keeps it. Anything not offered falls back to the default, so a crafted value cannot set a long one.

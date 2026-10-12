@@ -1,5 +1,11 @@
-import ApprovalCard, { type ApprovalQuestion } from "@/components/agent-ui/approval-card"
-import { answerConfirmations } from "@/pages/agent/lib/chat-updates"
+import { IconAlertTriangle, IconCheck, IconChevronDown, IconX } from "@tabler/icons-react"
+import { useState } from "react"
+
+import { Button } from "@/components/agent-ui/button"
+import { DetailList } from "@/components/detail-list"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { answerConfirmations, type ConfirmationAnswer } from "@/pages/agent/lib/chat-updates"
 import type { AgentChatConfirmation } from "@/types/serializers"
 
 interface ConfirmCardProps {
@@ -7,101 +13,240 @@ interface ConfirmCardProps {
   confirmations: AgentChatConfirmation[]
 }
 
-const CONFIRM = "Confirm"
+type Answer = Omit<ConfirmationAnswer, "toolCallId">
+
 const ALLOW_FOR_CHAT = "Allow for the rest of this chat"
-const CANCEL = "Cancel"
+const CANCELLED: Answer = { approved: false, forChat: false, expires: null }
 
-// One answer on the card: whether it confirms, allows the tool for the chat, and when a change customers feel is undone.
-interface Choice {
-  label: string
-  approved: boolean
-  forChat: boolean
-  expires: string | null
-}
-
-// A change customers feel is confirmed with when it is undone, each time offered as its own answer with the default
-// first. Allow for the rest of the chat is offered only where the server says it may be, never once Halon read anything
-// from outside, nor for a statement that writes rows.
-function choicesFor(confirmation: AgentChatConfirmation): Choice[] {
-  const confirming = confirmation.expires.length > 0
-    ? confirmation.expires.map((expiry) => ({ label: `${CONFIRM}, ${expiry.label.toLowerCase()}`, approved: true, forChat: false, expires: expiry.value }))
-    : [ { label: CONFIRM, approved: true, forChat: false, expires: null } ]
-  const allowing = confirmation.allowable
-    ? [ { label: ALLOW_FOR_CHAT, approved: true, forChat: true, expires: confirmation.expires[0]?.value ?? null } ]
-    : []
-  return [ ...confirming, ...allowing, { label: CANCEL, approved: false, forChat: false, expires: null } ]
-}
-
-// A call through a connection leads with what it reaches, worked out from the tool, then the call, with the agent's
-// sentence quieter below, since the agent's words can name another account than the one the tool reaches. Any other
-// call leads with the agent's sentence when it wrote one, with the tool named above it. What the call touches beyond its
-// arguments, such as the rows it changes, comes before what it was given. The reads Halon named as showing the change
-// will help follow, so the person approves the reasoning, and what Halon read from outside before asking comes last as a
-// warning.
-function questionFor(confirmation: AgentChatConfirmation, choices: Choice[]): ApprovalQuestion {
-  const details = [ ...confirmation.safeguards, ...confirmation.asked ].map(([ label, meta ]) => ({ label, meta }))
-  const caution = confirmation.readLead
-  const cautionDetails = confirmation.readRows.map(([ label, meta ]) => ({ label, meta }))
-  const basis = confirmation.supportLead
-  const basisDetails = confirmation.supportRows.map(([ label, meta ]) => ({ label, meta }))
-  const options = choices.map((choice) => choice.label)
-  const image = confirmation.pagePath ? { src: confirmation.pagePath, alt: confirmation.pageCaption ?? confirmation.question } : undefined
-  if (confirmation.target) {
-    return { q: confirmation.target, subtitle: confirmation.callName, note: confirmation.intent, details, image, basis, basisDetails, caution, cautionDetails, type: "radio", options }
+function answerWords(answer: Answer): string {
+  if (!answer.approved) {
+    return "Cancelled"
   }
-  return {
-    q: confirmation.intent ?? confirmation.question,
-    eyebrow: confirmation.intent ? confirmation.toolLabel : undefined,
-    details,
-    image,
-    basis,
-    basisDetails,
-    caution,
-    cautionDetails,
-    type: "radio",
-    options,
-  }
+  return answer.forChat ? "Confirmed and allowed for the rest of this chat" : "Confirmed"
 }
 
-// A question left unanswered stays open, so the agent carries on only once every one is answered.
-// Allowing a tool for the chat answers every question asked about it that may be allowed, since the server approves those too.
+// Every change Halon paused on, each with what will happen first and the raw call under Details. Nothing is sent until
+// every one is answered, so the agent carries on only once it knows them all. Allowing a tool for the chat answers every
+// question asked about it that may be allowed, since the server approves those too.
 export function ConfirmCard({ conversationId, confirmations }: ConfirmCardProps) {
-  const choices = confirmations.map(choicesFor)
-  const questions = confirmations.map((confirmation, index) => questionFor(confirmation, choices[index]))
+  const [ answers, setAnswers ] = useState<Record<string, Answer>>({})
+  const [ sent, setSent ] = useState(false)
+  const [ open, setOpen ] = useState(true)
+  const answered = confirmations.filter((confirmation) => answers[confirmation.toolCallId]).length
 
-  function submit(answers: Record<number, number[]>) {
-    const answered = confirmations.flatMap((confirmation, index) => {
-      const picked = answers[index]?.[0]
-      const choice = picked === undefined ? undefined : choices[index][picked]
-      if (!choice) {
-        return []
-      }
-      return [ { toolCallId: confirmation.toolCallId, approved: choice.approved, forChat: choice.forChat, expires: choice.expires } ]
-    })
-    answerConfirmations(conversationId, answered)
+  function answer(confirmation: AgentChatConfirmation, given: Answer) {
+    const alike = given.forChat
+      ? confirmations.filter((other) => other.toolCallId !== confirmation.toolCallId && other.tool === confirmation.tool && other.allowable)
+      : []
+    const next = {
+      ...answers,
+      [confirmation.toolCallId]: given,
+      ...Object.fromEntries(alike.map((other) => [ other.toolCallId, { approved: true, forChat: true, expires: other.chosenExpiry ?? null } ])),
+    }
+    setAnswers(next)
+    if (confirmations.every((each) => next[each.toolCallId])) {
+      setSent(true)
+      answerConfirmations(conversationId, confirmations.map((each) => ({ toolCallId: each.toolCallId, ...next[each.toolCallId] })))
+    }
   }
 
-  function sameTool(questionIndex: number, optionIndex: number) {
-    if (!choices[questionIndex][optionIndex]?.forChat) {
-      return []
-    }
-    const tool = confirmations[questionIndex].tool
-    return confirmations.flatMap((confirmation, index) => {
-      const allowAt = choices[index].findIndex((choice) => choice.forChat)
-      return index !== questionIndex && confirmation.tool === tool && allowAt >= 0 ? [ [ index, allowAt ] as const ] : []
-    })
+  function reopen(confirmation: AgentChatConfirmation) {
+    setAnswers((current) => Object.fromEntries(Object.entries(current).filter(([ toolCallId ]) => toolCallId !== confirmation.toolCallId)))
+  }
+
+  function dismiss() {
+    setOpen(false)
+  }
+
+  function show() {
+    setOpen(true)
+  }
+
+  if (!open) {
+    return (
+      <Button size="sm" variant="secondary" onClick={show}>
+        Open approval
+      </Button>
+    )
+  }
+
+  if (sent) {
+    return (
+      <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-green-tint py-1 pr-2.5 pl-1 text-[12.5px] font-medium text-green">
+        <span className="flex size-4.5 items-center justify-center rounded-full bg-green text-canvas">
+          <IconCheck className="size-3" stroke={3} />
+        </span>
+        Sent
+      </span>
+    )
   }
 
   return (
-    <ApprovalCard
-      key={confirmations.map((confirmation) => confirmation.toolCallId).join(" ")}
-      questions={questions}
-      allowCustom={false}
-      resettable={false}
-      wide
-      answerAlike={sameTool}
-      labels={{ sentMessage: "Sent", send: "Send", skip: "Skip" }}
-      onSubmitted={submit}
-    />
+    <section className="relative flex w-full max-w-160 flex-col rounded-card bg-surface shadow-card" aria-label="Confirm before Halon goes ahead">
+      <button
+        type="button"
+        aria-label="Dismiss"
+        onClick={dismiss}
+        className="primitive-icon-button absolute top-2.5 right-2.5 z-10 text-ink-3 transition-colors duration-100 hover:bg-hover hover:text-ink"
+      >
+        <IconX className="size-3.5" />
+      </button>
+      {confirmations.map((confirmation) => (
+        <ConfirmQuestion
+          key={confirmation.toolCallId}
+          confirmation={confirmation}
+          answer={answers[confirmation.toolCallId]}
+          onAnswer={answer}
+          onReopen={reopen}
+        />
+      ))}
+      {answered > 0 && (
+        <p className="border-t border-line px-4 py-2.5 text-[12.5px] text-ink-3">
+          Halon goes on once every change here is answered.
+        </p>
+      )}
+    </section>
+  )
+}
+
+interface ConfirmQuestionProps {
+  confirmation: AgentChatConfirmation
+  answer: Answer | undefined
+  onAnswer: (confirmation: AgentChatConfirmation, answer: Answer) => void
+  onReopen: (confirmation: AgentChatConfirmation) => void
+}
+
+// One change: what will happen and where, what it does, why Halon proposes it, a warning when outside text holds this
+// change's own values, when it is undone, and the buttons. The tool, what it was given and every read from outside sit
+// under Details.
+function ConfirmQuestion({ confirmation, answer, onAnswer, onReopen }: ConfirmQuestionProps) {
+  const [ expiry, setExpiry ] = useState<string | null>(confirmation.chosenExpiry ?? null)
+  const [ forChat, setForChat ] = useState(false)
+  const [ detailsOpen, setDetailsOpen ] = useState(false)
+  const safeguards = confirmation.safeguards.map(([ label, meta ]) => ({ label, meta }))
+  const called = [ { label: "tool", meta: confirmation.tool }, ...confirmation.asked.map(([ label, meta ]) => ({ label, meta })) ]
+  const reads = confirmation.readRows.map(([ label, meta ]) => ({ label, meta }))
+
+  function chooseExpiry(value: string) {
+    if (value) {
+      setExpiry(value)
+    }
+  }
+
+  function chooseForChat(checked: boolean | "indeterminate") {
+    setForChat(checked === true)
+  }
+
+  function toggleDetails() {
+    setDetailsOpen((current) => !current)
+  }
+
+  function confirm() {
+    onAnswer(confirmation, { approved: true, forChat, expires: expiry })
+  }
+
+  function cancel() {
+    onAnswer(confirmation, CANCELLED)
+  }
+
+  function change() {
+    onReopen(confirmation)
+  }
+
+  if (answer) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-line px-4 py-3 pr-10 not-first:border-t">
+        <h3 className="text-[14px] font-semibold leading-snug text-ink [overflow-wrap:anywhere]">{confirmation.title}</h3>
+        <span className="text-[12.5px] text-ink-3">{answerWords(answer)}</span>
+        <Button size="xs" variant="quiet" onClick={change}>
+          Change
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-3 border-line px-4 py-3.5 not-first:border-t">
+      <div className="flex flex-col gap-0.5 pr-7">
+        <h3 className="text-[15px] font-semibold leading-snug text-ink [overflow-wrap:anywhere]">{confirmation.title}</h3>
+        {confirmation.label && <p className="text-[12.5px] text-ink-3 [overflow-wrap:anywhere]">{confirmation.label}</p>}
+      </div>
+      {confirmation.summary && <p className="text-[13px] leading-relaxed text-ink-2 [overflow-wrap:anywhere]">{confirmation.summary}</p>}
+      {safeguards.length > 0 && <DetailList details={safeguards} />}
+      {confirmation.pagePath && (
+        <a href={confirmation.pagePath} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-control border border-line">
+          <img src={confirmation.pagePath} alt={confirmation.pageCaption ?? confirmation.title} className="block max-h-64 w-full object-cover object-top" />
+        </a>
+      )}
+      {confirmation.supportLead && (
+        <div className="flex flex-col gap-1">
+          <h4 className="text-[12.5px] font-medium text-ink-2">{confirmation.supportLead}</h4>
+          <ul className="flex list-disc flex-col gap-1 pl-4 text-[13px] leading-snug text-ink marker:text-ink-3">
+            {confirmation.supportPoints.map((point, index) => (
+              <li key={`${point.text}:${index}`} className="[overflow-wrap:anywhere]">
+                {point.text}
+                {point.source && <span className="text-ink-3"> ({point.source})</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {confirmation.readLead && (
+        <p className="flex items-start gap-1.5 text-[13px] font-medium text-warning">
+          <IconAlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+          {confirmation.readLead}
+        </p>
+      )}
+      {confirmation.undoLabel && (
+        <div className="flex flex-col gap-1.5">
+          <span id={`undo-${confirmation.toolCallId}`} className="text-[12.5px] font-medium text-ink-2">{confirmation.undoLabel}</span>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            size="sm"
+            value={expiry ?? ""}
+            onValueChange={chooseExpiry}
+            aria-labelledby={`undo-${confirmation.toolCallId}`}
+            className="flex-wrap"
+          >
+            {confirmation.expires.map((option) => (
+              <ToggleGroupItem key={option.value} value={option.value} className="px-3 text-[12.5px] data-[state=on]:text-accent-ink">
+                {option.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
+      )}
+      {confirmation.allowable && (
+        <label className="flex w-fit items-center gap-2 text-[13px] text-ink-2">
+          <Checkbox checked={forChat} onCheckedChange={chooseForChat} />
+          {ALLOW_FOR_CHAT}
+        </label>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" variant="primary" onClick={confirm} className="max-w-full">
+          <span className="truncate">{confirmation.confirmLabel}</span>
+        </Button>
+        <Button size="sm" variant="secondary" onClick={cancel}>
+          Cancel
+        </Button>
+        <button
+          type="button"
+          aria-expanded={detailsOpen}
+          onClick={toggleDetails}
+          className="ml-auto flex items-center gap-1 rounded-control px-1.5 py-1 text-[12.5px] text-ink-2 transition-colors duration-150 hover:bg-hover-2 hover:text-ink"
+        >
+          Details
+          <IconChevronDown className={`size-3.5 transition-transform duration-150 ${detailsOpen ? "rotate-180" : ""}`} />
+        </button>
+      </div>
+      {detailsOpen && (
+        <div className="flex flex-col gap-2.5 border-t border-line pt-3">
+          <DetailList details={called} />
+          {confirmation.readHeading && <p className="text-[12.5px] text-ink-3">{confirmation.readHeading}</p>}
+          {reads.length > 0 && <DetailList details={reads} />}
+        </div>
+      )}
+    </div>
   )
 }

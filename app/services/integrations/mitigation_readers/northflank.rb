@@ -17,6 +17,17 @@ module Integrations
         scaled.present? && fewer?(tool, scaled[:id], arguments.dig("body", "instances"))
       end
 
+      # A pause is undone by starting it again, and a scale down by scaling it back up. Asked only of a call already
+      # taken for a mitigation.
+      def self.undo_words(tool, arguments)
+        return unless tool.name == TOOL
+
+        path = arguments["path"].to_s.strip
+        return Mitigations::STARTS_AGAIN if path.match?(PAUSE)
+
+        Mitigations::SCALES_BACK if path.match?(SCALE)
+      end
+
       def self.fewer?(tool, id, asked)
         asked = Integer(asked.to_s, exception: false)
         return false if asked.nil?
