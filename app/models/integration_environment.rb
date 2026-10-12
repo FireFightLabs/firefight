@@ -46,6 +46,13 @@ class IntegrationEnvironment < ApplicationRecord
     {}
   end
 
+  # What the token form keeps, the token as the Authorization header or under the header the provider's server reads it from.
+  def self.token_credentials(token, header: nil)
+    return if token.blank?
+
+    (header.present? ? { "headers" => { header => token } } : { "authorization" => token }).to_json
+  end
+
   def request_headers
     creds = credentials_hash
     return creds["headers"] if creds["headers"].is_a?(Hash)

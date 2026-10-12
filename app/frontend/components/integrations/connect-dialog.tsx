@@ -128,6 +128,10 @@ function ConnectForm({
   const ownServer = provider.ownServer;
   const [serverUrl, setServerUrl] = useState(ownServer ? "" : provider.serverUrl);
   const [authorization, setAuthorization] = useState("");
+  // The header the provider's server reads the token from, when it is not Authorization, takes the key alone.
+  const tokenHeader = provider.token?.header;
+  const tokenLabel = tokenHeader ? `${tokenHeader} header` : "Authorization header";
+  const tokenPlaceholder = tokenHeader ? "Key (optional, use a read-only key)" : "Bearer …  (optional, use a read-only key)";
   const [environmentId, setEnvironmentId] = useState(ALL_ENVIRONMENTS);
   const [submitting, setSubmitting] = useState(false);
   const [useToken, setUseToken] = useState(false);
@@ -442,14 +446,17 @@ function ConnectForm({
             )}
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="connect-auth">Authorization header</Label>
+            <Label htmlFor="connect-auth">{tokenLabel}</Label>
             <Input
               id="connect-auth"
               type="password"
               value={authorization}
               onChange={(event) => setAuthorization(event.target.value)}
-              placeholder="Bearer …  (optional, use a read-only key)"
+              placeholder={tokenPlaceholder}
             />
+            {provider.token?.hint && (
+              <p className="text-muted-foreground text-xs">{provider.token.hint}</p>
+            )}
             <p className="text-muted-foreground text-xs">
               Stored encrypted and scoped to this connection. Never shared with
               agents or shown again.

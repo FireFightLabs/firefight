@@ -146,7 +146,7 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: TOKEN, label: "Token", secret: true, placeholder: "ATATT...",
-                              hint: "An API token, or a workspace access token, that can read repositories, pull requests and pipelines " \
+                              hint: "A workspace access token, which belongs to the workspace rather than a person (Premium), or an API token, that can read repositories, pull requests and pipelines " \
                                     "(read:repository:bitbucket, read:pullrequest:bitbucket and read:pipeline:bitbucket). Listing its workspaces to choose " \
                                     "from, or reading every one, needs read:workspace:bitbucket. Running, rerunning or stopping a " \
                                     "pipeline also needs write:pipeline:bitbucket. Following changes live " \

@@ -35,7 +35,9 @@
 # asked for, each one the server lists. Without it, every scope the server lists is asked for. consent_note is what the
 # connect form says about the provider's consent screen, such as which access to leave off. own_server is for a provider
 # whose hosted server takes only a sign-in while the server a team runs itself takes a token: the token form starts
-# empty, with its placeholder and hint.
+# empty, with its placeholder and hint. token is what the token form says for a provider reached through its MCP
+# server, a hint under the token, such as which identity that is not one person to make it for, and the header its
+# server reads the token from when that is not Authorization, which then holds the token alone.
 # setting_words are words in a service's setting names that point at this provider's stores, such as NEON in
 # NEON_DATABASE_URL. The map's matcher reads them as a clue when a setting's value is hidden or names no address a store
 # reported.
@@ -152,6 +154,8 @@ providers:
         optional: true
         pattern: "https://[^\\s/?#@]+(/[^\\s?#]*)?"
         allowed: an https address, without a query or credentials
+    # A group access token makes a bot user rather than acting as a person, with read_api and read_repository, on
+    # GitLab.com Premium or Ultimate and on any self-managed GitLab (docs.gitlab.com/user/group/settings/group_access_tokens).
     source_links: firefight
     map: firefight
     history: firefight
@@ -176,6 +180,8 @@ providers:
         hint: The Bitbucket workspaces this connection reads, by the id after bitbucket.org/ in their repositories' addresses. Choose one or several, or all this token can read, which takes in a workspace added later at the next sweep.
         placeholder: Choose workspaces
         scope: true
+    # A workspace access token is tied to the workspace, not a user, on Premium, and is sent as Bearer
+    # (support.atlassian.com/bitbucket-cloud/docs/using-workspace-access-tokens).
     source_links: firefight
     map: firefight
     history: firefight
@@ -192,6 +198,9 @@ providers:
     # CircleCI's cloud runs in one place, and its hosted server is the one address its docs give.
     server_url: https://mcp.circleci.com/v1/mcp
     site: https://app.circleci.com
+    # Personal API tokens are the only tokens API v2 and the MCP server take
+    # (circleci.com/docs/guides/toolkit/api-developers-guide, circleci.com/docs/guides/toolkit/connecting-to-the-circleci-mcp-server).
+    token: { hint: "Use a personal API token. Make it as a dedicated user, such as Firefight, so changes do not show as a teammate and the connection keeps working when someone leaves." }
     source_links: firefight
     map: none
     history: none
@@ -335,6 +344,10 @@ providers:
     server_url: https://mcp.cloudflare.com/mcp
     # The server marks only execute as a write. search reads the API's own spec and docs reads the documentation.
     read_only_tools: [search, docs]
+    # An account API token acts as a service principal rather than a person
+    # (developers.cloudflare.com/fundamentals/api/get-started/account-owned-tokens), and the hosted server takes user and
+    # account tokens as Bearer (developers.cloudflare.com/agents/model-context-protocol/cloudflare/servers-for-cloudflare).
+    token: { hint: "Use an account API token, from Manage account, Account API tokens. It belongs to the account rather than a person, so it keeps working when someone leaves." }
     source_links: firefight
     map: firefight
     history: firefight
@@ -400,6 +413,7 @@ providers:
     server_url: ""
     kind: native
     connect_with: api_token
+    # A token is its person's, limited by their team role (docs.digitalocean.com/reference/api/create-personal-access-token).
     source_links: firefight
     map: firefight
     history: firefight
@@ -414,6 +428,8 @@ providers:
     server_url: ""
     kind: native
     connect_with: api_token
+    # A personal access token is tied to one account, and Netlify has no team token
+    # (docs.netlify.com/api-and-cli-guides/api-guides/get-started-with-api).
     source_links: firefight
     map: firefight
     history: firefight
@@ -577,6 +593,7 @@ providers:
     connect_with: api_token
     connect_fields:
       - { key: team, label: Teams, placeholder: Choose teams, optional: true, scope: true, hint: "The Vercel teams this environment runs in. Choose one or several, or all this token can reach, which takes in a team joined later at the next sweep. Leave it empty for a token made for one team." }
+    # Every Vercel token belongs to a user, so a dedicated user makes it (vercel.com/docs/accounts/access-tokens).
     source_links: firefight
     map: firefight
     history: firefight
@@ -593,6 +610,7 @@ providers:
     connect_with: api_token
     connect_fields:
       - { key: workspace, label: Workspaces, placeholder: Choose workspaces, scope: true, pattern: "tea-[a-z0-9]+", allowed: "tea- followed by lowercase letters and numbers", hint: "The Render workspaces this environment runs in. Choose one or several, or all this API key can read, which takes in a workspace added later at the next sweep." }
+    # An API key belongs to its person and reaches every workspace they belong to (api-docs.render.com/reference/authentication).
     source_links: firefight
     map: firefight
     history: firefight
@@ -611,6 +629,8 @@ providers:
     connect_fields:
       - { key: project, label: Projects, placeholder: Choose projects, scope: true, hint: "The Railway projects this connection reads. Choose one or several, or all this token can read, which takes in a project added later at the next sweep." }
       - { key: environment, label: Environment, placeholder: production, hint: "The Railway environment this connection reads in each project, by its name, or by its id when it reads one project." }
+    # A workspace token reaches one workspace and is shared with teammates, where an account token is one person's
+    # (docs.railway.com/reference/public-api).
     source_links: firefight
     map: firefight
     history: firefight
@@ -680,6 +700,10 @@ providers:
       - { key: eu, label: EU (app.eu.pagerduty.com), server_url: "https://mcp.eu.pagerduty.com/mcp", site: "https://app.eu.pagerduty.com" }
     # Its tools are browse_ (reads) and manage_ (changes), as PagerDuty's documentation of the hosted server names them.
     read_only_tools: [browse_incidents, browse_services, browse_schedules, browse_teams, browse_event_orchestrations, browse_alert_grouping, browse_status_pages, browse_escalation_policies, browse_users, browse_change_events, browse_activity]
+    # A dedicated PagerDuty user (support.pagerduty.com/main/docs/users) signs in or makes a user API key, which the hosted
+    # server takes as Token token=<key> (support.pagerduty.com/main/docs/pagerduty-mcp-server-integration-guide).
+    consent_note: Sign in as a dedicated PagerDuty user, such as Firefight, so changes show as Firefight and the connection does not depend on one person.
+    token: { hint: "A user API key of a dedicated PagerDuty user, such as Firefight, pasted as Token token= followed by the key. Changes then show as Firefight, and the connection does not depend on one person." }
     source_links: firefight
     map: none
     history: none
@@ -764,6 +788,9 @@ providers:
                       get_experiment_setup_guidance, get_experiment_results_interpretation_guidance, explain_experiment_health_check,
                       run_experiment_pre_launch_checks, search_prior_experiments, list_feature_flags, get_feature_flag,
                       get_feature_flag_setup_guidance, get_feature_flag_lifecycle_guidance, get_audit_log]
+    # A service account is a Mixpanel user for a non-human (docs.mixpanel.com/reference/service-accounts). The MCP server
+    # takes it as Bearer Basic <base64 of username:secret>, which Mixpanel marks as beta (docs.mixpanel.com/docs/mcp).
+    token: { hint: "Use a service account, from Organization settings, Service Accounts, so the connection is not one person's. Paste Bearer Basic followed by its username:secret in base64, which Mixpanel calls beta." }
     source_links: firefight
     map: none
     history: none
@@ -889,6 +916,9 @@ providers:
     # link to (packages/notifications/base/src/utils/message.ts).
     server_url: https://api.openstatus.dev/mcp
     site: https://app.openstatus.dev
+    # Its MCP server reads an API key from the x-openstatus-key header, and a key belongs to the workspace, read only or
+    # read and write (openstatus.dev/docs/reference/mcp-server).
+    token: { header: x-openstatus-key, hint: "An API key from Settings, General, API Keys, which belongs to the workspace rather than a person. A read-only key gives Halon only the tools that read." }
     source_links: firefight
     map: none
     history: none
@@ -1008,6 +1038,10 @@ providers:
                       getconfluencecontentrestrictionstate, getconfluencepubliclinkstatus, getconfluencereactions, getconfluencetask,
                       listconfluencetasks, listconfluencetemplates, getconfluencetemplate, resolveconfluencecontentmacros, getconfluencemauiapp,
                       getjsmopsalerts, getjsmopsscheduleinfo, getjsmopsteaminfo]
+    # A service account is not a person (support.atlassian.com/user-management/docs/understand-service-accounts). Its API
+    # key goes to the Rovo MCP server as Bearer once an organization admin allows API token authentication
+    # (support.atlassian.com/atlassian-rovo-mcp-server/docs/configuring-authentication-via-api-token).
+    token: { hint: "Use an API key of an Atlassian service account, pasted after Bearer, once an organization admin allows API tokens for the Rovo MCP server. It is not a person, so it keeps working when someone leaves." }
     source_links: firefight
     map: none
     history: none
@@ -1074,6 +1108,9 @@ providers:
     description: Read-only queries, branch history and compute status for a Neon Postgres database, and rolling a branch back or restarting a compute when you allow it.
     server_url: https://mcp.neon.tech/mcp
     site: https://console.neon.tech
+    # An organization API key, from the organization's settings (neon.com/docs/manage/api-keys), sent as Bearer
+    # (neon.com/docs/ai/neon-mcp-server). A personal key loses the organization when its person leaves.
+    token: { hint: "Use an organization API key, from your organization's Settings, API keys. Unlike a personal key, it keeps working when someone leaves the organization." }
     source_links: firefight
     map: firefight
     history: firefight
@@ -1103,6 +1140,9 @@ providers:
         options:
           - { value: "true", label: Read-only }
           - { value: "false", label: Read and write }
+    # Supabase has no token that is not a person's for its MCP server, which takes a personal access token as a header
+    # (supabase.com/docs/guides/getting-started/mcp, supabase.com/docs/guides/platform/personal-access-tokens).
+    token: { hint: "Use a scoped personal access token. Make it as a dedicated user, such as Firefight, so changes do not show as a teammate and the connection keeps working when someone leaves." }
     source_links: firefight
     map: firefight
     history: none
@@ -1117,6 +1157,9 @@ providers:
     hosts: [ psdb.cloud, planetscale.com, pg.psdb.cloud ]
     description: Read-only queries, branch schemas and Insights for a PlanetScale database.
     server_url: https://mcp.pscale.dev/mcp/planetscale
+    # A service token belongs to the organization, and the hosted server takes its secret alone as Bearer, refusing
+    # <id>:<secret> (planetscale.com/docs/mcp/service-token).
+    token: { hint: "Use a service token from your organization's settings, so the connection is not one person's. Paste its secret alone after Bearer, without its id." }
     source_links: firefight
     map: firefight
     history: none

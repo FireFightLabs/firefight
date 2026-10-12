@@ -51,6 +51,21 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal IntegrationEnvironment::HEALTH_HEALTHY, integration.integration_environments.first.health_status
   end
 
+  test "the token form sends a token in the header its provider's server reads it from" do
+    Integrations::McpClient.any_instance.stubs(:tools_list).returns([])
+    Integrations::McpClient.any_instance.stubs(:ping).returns(true)
+
+    post integrations_url, params: {
+      provider: "openstatus", name: "OpenStatus",
+      server_url: IntegrationProvider.find("openstatus").server_url, authorization: "os_key"
+    }
+
+    assert_equal "OpenStatus is connected.", flash[:notice]
+    row = @workspace.integrations.find_by!(provider: "openstatus").integration_environments.sole
+    assert_equal({ "x-openstatus-key" => "os_key" }, Integrations::Credentials.headers_for(row))
+    assert_nil row.credentials_hash["authorization"]
+  end
+
   test "a database connects from a URL, discovers its tools and records health, and the URL is never sent back" do
     Integrations::Packs::Postgres.stubs(:connection_refusal).returns(nil)
     Integrations::Packs::Postgres.any_instance.stubs(:check_health!).returns(true)

@@ -85,6 +85,21 @@ class IntegrationProviderTest < ActiveSupport::TestCase
     assert_equal Integration::KIND_MCP, IntegrationProvider.find("circleci").connect_kind(nil)
   end
 
+  test "the token form's hint is user copy, and a header other than Authorization is named only where a server reads one" do
+    IntegrationProvider.all.filter_map(&:token).each do |token|
+      assert_no_match(/[—;]/, token.hint.to_s, "a token hint is user copy")
+    end
+
+    assert_equal "x-openstatus-key", IntegrationProvider.find("openstatus").token.header
+    assert_nil IntegrationProvider.find("pagerduty").token.header
+  end
+
+  test "a token goes in the Authorization header unless the provider's server reads it from another" do
+    assert_equal({ "authorization" => "Bearer key" }, JSON.parse(IntegrationEnvironment.token_credentials("Bearer key")))
+    assert_equal({ "headers" => { "x-openstatus-key" => "key" } }, JSON.parse(IntegrationEnvironment.token_credentials("key", header: "x-openstatus-key")))
+    assert_nil IntegrationEnvironment.token_credentials("")
+  end
+
   test "CI is a group of its own, after Code" do
     names = IntegrationProvider.category_list.map(&:name)
 

@@ -162,7 +162,8 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "Access token", secret: true, placeholder: "",
-                              hint: "A Vercel access token created under Account Settings, Tokens, scoped to the team. It acts with the access of the person who created it.")
+                              hint: "A Vercel access token created under Account Settings, Tokens, scoped to the team. It acts with the access of the person who created it. " \
+                                    "Make it as a dedicated user, such as Firefight, so changes do not show as a teammate and the connection keeps working when someone leaves.")
         ]
       end
 

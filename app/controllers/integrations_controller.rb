@@ -57,7 +57,7 @@ class IntegrationsController < InertiaController
     )
     environment_row = integration.integration_environments.create!(
       catalog_entry_id: params[:environment_id].presence,
-      credentials: params[:authorization].present? ? { "authorization" => params[:authorization] }.to_json : nil
+      credentials: IntegrationEnvironment.token_credentials(params[:authorization], header: provider&.token&.header)
     )
     environment_row.store_fields!(provider.connect_values(fields_param(provider), asked)) if asked.any?
     Integrations::ConnectionRefresh.run!(integration)

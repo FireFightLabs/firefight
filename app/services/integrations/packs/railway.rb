@@ -196,7 +196,8 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "API token", secret: true, placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-                              hint: "An account token, or a workspace token for the project's workspace, created under Account Settings, Tokens. Firefight does not accept a project token, since it cannot apply fixes.")
+                              hint: "A workspace token for the project's workspace, created under Account Settings, Tokens, which the team shares rather than one person's account. " \
+                                    "An account token works too. Firefight does not accept a project token, since it cannot apply fixes.")
         ]
       end
 

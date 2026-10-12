@@ -176,6 +176,12 @@ class IntegrationProvider
   # form is then for that server: it starts empty, with this placeholder for its address and this hint under it.
   OwnServer = Data.define(:placeholder, :hint)
 
+  # What the token form says for a provider reached through its MCP server, a hint under the token, such as which
+  # identity to make it for, and the header its server reads the token from when that is not Authorization.
+  TokenForm = Data.define(:hint, :header) do
+    def initialize(hint: nil, header: nil) = super
+  end
+
   # site is the address of the provider's app, which links open, for a provider that runs in one place. A provider with
   # regions has a site per region instead.
   #
@@ -185,10 +191,10 @@ class IntegrationProvider
   Entry =Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
                       :source_links, :source_links_note, :map, :map_note, :history, :history_note, :code_fix_tool, :regions, :connect_fields, :site, :code_agent,
                       :app, :setting_words, :holds_code, :mitigation_tools, :stopping_tools, :status_page, :hosts, :holds_flags, :write_tools,
-                      :admin_marks_reads, :retiring, :test_logins, :specialist, :oauth_scopes, :consent_note, :own_server) do
+                      :admin_marks_reads, :retiring, :test_logins, :specialist, :oauth_scopes, :consent_note, :own_server, :token) do
     def initialize(connect_with: nil, read_only_tools: [], write_tools: [], admin_marks_reads: false, mitigation_tools: [], stopping_tools: [], source_links_note: nil, map_note: nil, history: HISTORY_NONE, history_note: nil, code_fix_tool: nil, regions: [],
                    connect_fields: [], site: nil, code_agent: false, app: nil, setting_words: [], holds_code: false, status_page: nil, hosts: [], holds_flags: false, retiring: nil,
-                   test_logins: false, specialist: nil, oauth_scopes: [], consent_note: nil, own_server: nil, **) = super
+                   test_logins: false, specialist: nil, oauth_scopes: [], consent_note: nil, own_server: nil, token: nil, **) = super
 
     # Whether a tool only reads, from what its server declares and what the registry says of it. write_tools wins over
     # both, for a tool a server marks read only although it sends something.
@@ -341,7 +347,8 @@ class IntegrationProvider
         # The kind of question its tools answer when Halon asks specialists, where it differs from its category's.
         specialist: raw["specialist"].presence,
         oauth_scopes: Array(raw["oauth_scopes"]).map(&:to_s), consent_note: raw["consent_note"].presence,
-        own_server: raw["own_server"] && OwnServer.new(**raw["own_server"].symbolize_keys)
+        own_server: raw["own_server"] && OwnServer.new(**raw["own_server"].symbolize_keys),
+        token: raw["token"] && TokenForm.new(**raw["token"].symbolize_keys)
       )
     end.freeze
   end
