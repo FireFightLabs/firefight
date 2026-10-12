@@ -1,3 +1,5 @@
+require "emoji_datasource"
+
 module Slack
   # A message as someone wrote it in Slack, as the markdown the dashboard renders. Slack escapes &, < and >, wraps
   # links, mentions and channels in angle brackets, and writes bold with one asterisk, which markdown reads as italic.
@@ -15,6 +17,8 @@ module Slack
     HEADING = /^([ \t]*)#/
     ENTITIES = { "&amp;" => "&", "&lt;" => "<", "&gt;" => ">" }.freeze
     PLACEHOLDER = /\u0000(\d+)\u0000/
+    # Slack writes a standard emoji as its shortcode, and a skin tone as a second one, as in :+1::skin-tone-3:.
+    SHORTCODE = /:[a-z0-9_+-]+:(?::skin-tone-[1-6]:)*/
 
     # The platform user ids the text mentions, so their names can be loaded once for many messages.
     def self.mentioned_ids(text)
@@ -49,6 +53,7 @@ module Slack
         .gsub(QUOTE_LINE, "> ").gsub(QUOTE_END, "\\1\n\n")
         .gsub(LITERAL) { |char| "\\#{char}" }.gsub(HEADING, "\\1\\#")
         .gsub(BOLD, "**\\1**")
+        .gsub(SHORTCODE) { |code| emoji(code)&.then { |char| escape(char) } || code }
         .gsub(PLACEHOLDER) { tokens[Regexp.last_match(1).to_i] }
     end
 
@@ -62,7 +67,7 @@ module Slack
       target, label = token.split("|", 2)
       return escape(token_text(token, names)) if target.start_with?("@", "#", "!")
 
-      "[#{escape(label.presence || target)}](<#{decode(target)}>)"
+      "[#{label.present? ? label_markdown(label) : escape(target)}](<#{decode(target)}>)"
     end
 
     # Encoded the way Slack encodes text, a name from Firefight included.
@@ -90,6 +95,24 @@ module Slack
       "@#{target[1..].split('^').first}"
     end
 
+    # Each shortcode is set aside, so escaping never reaches inside its name.
+    def self.label_markdown(label)
+      label.split(/(#{SHORTCODE})/).each_with_index.map do |part, index|
+        escape(index.odd? ? emoji(part) || part : part)
+      end.join
+    end
+
+    # A workspace's own emoji is an image only Slack holds, so it has none and its shortcode stays as typed. A tone
+    # Slack has no toned emoji for shows on its own after the emoji, as Slack shows it.
+    def self.emoji(code)
+      EmojiDatasource.short_name_to_char(code) || begin
+        name, *tones = code.scan(/[^:]+/)
+        EmojiDatasource.short_name_to_char(name)&.then do |char|
+          char + tones.map { |tone| EmojiDatasource.short_name_to_char(tone).to_s }.join
+        end
+      end
+    end
+
     def self.escape(text)
       text.gsub(/[\\\[\]*_`]/) { |char| "\\#{char}" }
     end
@@ -98,6 +121,7 @@ module Slack
       text.gsub(Regexp.union(ENTITIES.keys), ENTITIES)
     end
 
-    private_class_method :fenced, :prose, :formatted, :plain, :token_markdown, :token_text, :person, :special, :escape, :decode
+    private_class_method :fenced, :prose, :formatted, :plain, :token_markdown, :token_text, :person, :special, :label_markdown, :emoji,
+                         :escape, :decode
   end
 end

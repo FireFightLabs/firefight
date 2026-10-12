@@ -380,7 +380,10 @@ Two things about it are worth knowing before adding a control:
   stored as the platform wrote them (Slack mrkdwn, with `<@U...>` mentions and
   single-asterisk bold). `PlatformAdapter#messages_as_markdown` turns them into
   the markdown `MarkdownText` renders, naming mentioned people from the
-  workspace's members in one query, and the incidents controller hands the
+  workspace's members in one query and writing standard emoji shortcodes
+  (`:+1::skin-tone-3:`) as the emoji from the `emoji-datasource` gem, the
+  dataset Slack's own names come from. A workspace's custom emoji stays as its
+  `:name:`, since only Slack holds the image. The incidents controller hands the
   result to `TimelineEventSerializer` as `quotes:`. The stored text is never
   rewritten, so the API, MCP and the model still read what was said.
 
