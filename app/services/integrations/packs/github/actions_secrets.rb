@@ -7,10 +7,14 @@ module Integrations
       # in Firefight, or the call names a value Firefight reads itself from another connection (Integrations::
       # SecretHandoffs), and it is sealed with the repository's public key before it leaves, as GitHub asks (Encrypting
       # secrets for the REST API, libsodium sealed box). A repository's secrets are the App's Secrets permission, an
-      # environment's its Environments permission.
+      # environment's its Environments permission. Variables (actions/list-repo-variables and list-environment-variables)
+      # are listed the same way, by name and date. GitHub answers a variable with its value, which is never read into the
+      # answer, since a value kept in a variable can still be one somebody should not see. A repository's variables are
+      # the App's Variables permission, an environment's its Environments permission.
       module ActionsSecrets
         LIST_SECRETS = "list_actions_secrets".freeze
         SET_SECRET = "set_actions_secret".freeze
+        LIST_VARIABLES = "list_actions_variables".freeze
         # Letters, digits and underscores, never starting with a digit or GITHUB_ (docs.github.com, Using secrets in GitHub
         # Actions, Naming your secrets).
         SECRET_NAME = /\A(?!GITHUB_)[A-Z_][A-Z0-9_]*\z/i
@@ -21,6 +25,7 @@ module Integrations
         SECRETS_LIMIT = 100
 
         ENVIRONMENT = { "type" => "string", "description" => "A deployment environment of the repository, such as production, for its own secrets (optional, the repository's)" }.freeze
+        ENVIRONMENT_VARIABLES = "A deployment environment of the repository, such as production, for its own variables (optional, the repository's)".freeze
 
         def self.included(pack)
           pack.tool LIST_SECRETS,
@@ -40,6 +45,28 @@ module Integrations
                       SecretHandoffs::VALUE_FROM => SecretHandoffs::VALUE_FROM_PARAM
                     }, %w[repo name]),
                     read_only: false
+
+          pack.tool LIST_VARIABLES,
+                    description: "The names of a repository's GitHub Actions variables, or an environment's, with when each was last " \
+                                 "changed. Their values are never shown",
+                    params_schema: Code.object_schema({ "repo" => Code::REPO, "environment" => ENVIRONMENT.merge("description" => ENVIRONMENT_VARIABLES) }, %w[repo]),
+                    read_only: true
+        end
+
+        def list_actions_variables(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          environment = environment_argument(arguments)
+          token = GithubApp.installation_token(environment_row)
+          secrets_call(LIST_VARIABLES, repo, environment) do
+            path = environment ? "/repos/#{repo}/environments/#{Http.segment(environment)}/variables" : "/repos/#{repo}/actions/variables"
+            found = GithubApp.get("#{path}?per_page=#{SECRETS_LIMIT}", token: token)
+            where = environment ? "environment #{environment} of #{repo}" : repo
+            variables = Array(found["variables"])
+            lines = variables.map { |variable| "  #{variable['name']}  last changed #{variable['updated_at'] || variable['created_at']}" }
+            more = found["total_count"].to_i > variables.size ? "\n(#{found['total_count']} in all, the first #{variables.size} shown)" : ""
+            text = variables.empty? ? "#{where} has no Actions variables." : "Actions variables in #{where}:\n#{lines.join("\n")}#{more}"
+            linked(text, repo_page(repo, environment ? "settings/environments" : "settings/variables/actions"))
+          end
         end
 
         def list_actions_secrets(environment_row:, arguments:)
@@ -108,7 +135,8 @@ module Integrations
             yield
           rescue GithubApp::NotPermitted => error
             fail! Sentence.join("GitHub refused this", error, after: "Firefight's GitHub App needs #{ENVIRONMENT_WORDS} " \
-                                                                     "#{tool == SET_SECRET ? 'read and write' : 'read'} on this installation for an environment's secrets. #{Asking::GRANT_WHERE}")
+                                                                     "#{tool == SET_SECRET ? 'read and write' : 'read'} on this installation for an environment's " \
+                                                                     "#{tool == LIST_VARIABLES ? 'variables' : 'secrets'}. #{Asking::GRANT_WHERE}")
           rescue GithubApp::NotFound
             fail! Sentence.all("GitHub found no environment #{environment} in #{repo}.", Asking::NOT_GIVEN)
           end

@@ -212,7 +212,8 @@ module Integrations
 
       # A file GitHub answers with a redirect to a short-lived signed address, such as a job's log. The address is fetched
       # without the token, on a public host only, and the text is cut to its last limit bytes, where a job says why it failed.
-      def download(path, token:, limit: DOWNLOAD_LIMIT)
+      # An archive, such as a workflow run's artifact, is read whole as its bytes, and refused when longer than limit.
+      def download(path, token:, limit: DOWNLOAD_LIMIT, archive: false)
         uri = URI.parse("#{API_ROOT}#{path}")
         response = refreshing(token) do |value|
           request = Net::HTTP::Get.new(uri)
@@ -221,7 +222,7 @@ module Integrations
           Http.request(uri, request, error_class: Error).tap { |answer| parse_response(answer) unless answer.is_a?(Net::HTTPRedirection) }
         end
 
-        Http.download(response["location"], provider_key: PROVIDER_KEY, error_class: Error, limit: limit)
+        Http.download(response["location"], provider_key: PROVIDER_KEY, error_class: Error, limit: limit, archive: archive)
       end
 
       # Blame at a given commit exists only in GitHub's GraphQL API.

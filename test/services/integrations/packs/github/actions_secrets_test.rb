@@ -24,6 +24,27 @@ module Integrations
           assert text.end_with?("https://github.com/acme/web/settings/secrets/actions")
         end
 
+        test "variables are listed by name and date, and their values never reach the answer" do
+          GithubApp.expects(:get).with("/repos/acme/web/actions/variables?per_page=100", token: "ghs_token")
+                   .returns("total_count" => 3, "variables" => [ { "name" => "REGION", "value" => "eu-west-1-sensitive", "updated_at" => "2026-10-01T10:00:00Z" } ])
+          text = text_of(@pack.list_actions_variables(environment_row: @row, arguments: { "repo" => "acme/web" }))
+          assert_includes text, "Actions variables in acme/web:\n  REGION  last changed 2026-10-01T10:00:00Z\n(3 in all, the first 1 shown)"
+          assert_not_includes text, "eu-west-1-sensitive"
+          assert text.end_with?("https://github.com/acme/web/settings/variables/actions")
+
+          GithubApp.expects(:get).with("/repos/acme/web/environments/production/variables?per_page=100", token: "ghs_token")
+                   .returns("total_count" => 1, "variables" => [ { "name" => "HOST", "value" => "db.internal", "created_at" => "2026-09-01T10:00:00Z" } ])
+          text = text_of(@pack.list_actions_variables(environment_row: @row, arguments: { "repo" => "acme/web", "environment" => "production" }))
+          assert_includes text, "Actions variables in environment production of acme/web:\n  HOST  last changed 2026-09-01T10:00:00Z"
+          assert_not_includes text, "db.internal"
+
+          GithubApp.stubs(:get).with("/repos/acme/web/environments/staging/variables?per_page=100", token: "ghs_token").raises(GithubApp::NotPermitted, "Resource not accessible by integration")
+          error = assert_raises(NativePack::Error) { @pack.list_actions_variables(environment_row: @row, arguments: { "repo" => "acme/web", "environment" => "staging" }) }
+          assert_match "needs Environments read on this installation for an environment's variables", error.message
+          assert_equal({ "actions_variables" => Github::READ }, Github::NEEDS.fetch("list_actions_variables"))
+          assert Github.tool_definitions.find { |tool| tool.name == "list_actions_variables" }.read_only
+        end
+
         test "an environment's secrets need the Environments permission, said when GitHub refuses" do
           GithubApp.stubs(:get).with("/repos/acme/web/environments/production/secrets?per_page=100", token: "ghs_token")
                    .raises(GithubApp::NotPermitted, "Resource not accessible by integration")
