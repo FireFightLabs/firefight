@@ -10,7 +10,8 @@ module Slack
         Chat::Watch::Update::KIND_REPAIRED => ":wrench:", Chat::Watch::Update::KIND_CORRECTED => ":arrows_counterclockwise:",
         Chat::Watch::Update::KIND_CEILING => ":hourglass:",
         Chat::Watch::Update::KIND_SLOW => ":hourglass_flowing_sand:", Chat::Watch::Update::KIND_PROGRESS => ":large_blue_circle:",
-        Chat::Watch::Update::KIND_STEPS_ADDED => ":heavy_plus_sign:", Conversation::Watches::TONE_DONE => ":white_check_mark:",
+        Chat::Watch::Update::KIND_STEPS_ADDED => ":heavy_plus_sign:", Chat::Watch::Update::KIND_REOPENED => ":repeat:",
+        Conversation::Watches::TONE_DONE => ":white_check_mark:",
         Conversation::Watches::TONE_FAILED => ":x:", Conversation::Watches::TONE_TIMED_OUT => ":hourglass:",
         Conversation::Watches::TONE_STOPPED => ":octagonal_sign:"
       }.freeze

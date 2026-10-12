@@ -13,6 +13,7 @@ import {
   newWatchStep,
   readOf,
   stepText,
+  waitsName,
   withNewDeploy,
   withNewDeployField,
   withRead,
@@ -78,6 +79,10 @@ export function RunbookWatchEditor({ watch, reads, tools, placeholders, places, 
     changeStep(key, (step) => ({ ...step, args }))
   }
 
+  function setWaits(key: string, waitsFor: string[], keptWaits: string[]) {
+    changeStep(key, (step) => ({ ...step, waitsFor, keptWaits }))
+  }
+
   function turnNewDeploy(key: string, on: boolean) {
     changeStep(key, (step) => ({ ...step, spec: withNewDeploy(step.spec, on) }))
   }
@@ -125,6 +130,7 @@ export function RunbookWatchEditor({ watch, reads, tools, placeholders, places, 
               key={step.key}
               number={index + 1}
               step={step}
+              earlier={watch.steps.slice(0, index).map((each, at) => ({ value: each.key, label: waitsName(each, at) }))}
               history={isHistoryRead(step.spec, reads ?? [])}
               tool={readTools.find((tool) => tool.name === stepText(step.spec, WATCH_SPEC_KEYS.TOOL)) ?? null}
               toolsLoaded={tools !== null}
@@ -136,6 +142,7 @@ export function RunbookWatchEditor({ watch, reads, tools, placeholders, places, 
               onChange={(field, entered) => setStep(step.key, field, entered)}
               onChooseRead={(name) => chooseRead(step.key, name)}
               onArgsChange={(args) => setArgs(step.key, args)}
+              onWaitsChange={(waitsFor, keptWaits) => setWaits(step.key, waitsFor, keptWaits)}
               onNewDeployTurn={(on) => turnNewDeploy(step.key, on)}
               onNewDeployChange={(field, entered) => setNewDeploy(step.key, field, entered)}
               onRemove={() => removeStep(step.key)}
