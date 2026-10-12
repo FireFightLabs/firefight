@@ -79,10 +79,14 @@ module Conversation::Watches
     return NO_STEPS if given.empty?
     return "A watch follows at most #{Chat::Watch::MAX_STEPS} steps. Watch the ones that matter most." if given.size > Chat::Watch::MAX_STEPS
 
+    orders, wrong = order_of(given)
+    return "Nothing was started. #{wrong}" if wrong
+
     ceiling = Chat::Watch.ceiling_for(arguments["reads_per_hour"], given.size)
     meter = Chat::Watch::Meter.new(ceiling)
     reader, agent = readers(workspace, asker, turn.conversation, meter)
     planned, cannot = plan(given, reader, agent)
+    planned = placed(planned, cannot, orders, given)
     return "Nothing was started, since none of it can be followed. #{cannot.join(' ')}" if planned.empty?
 
     usual = planned.filter_map { |step| step[:usual] }.sum.nonzero?
@@ -133,11 +137,15 @@ module Conversation::Watches
     blocked = watch.add_blocked_reason(turn.asker, given.size)
     return blocked if blocked
 
+    orders, wrong = order_of(given, watch.steps.to_a)
+    return "Nothing was added. #{wrong}" if wrong
+
     now = Time.current
     ceiling = watch.ceiling_after_adding(arguments["reads_per_hour"], given.size)
     meter = Chat::Watch::Meter.new(watch.reads_left(now, ceiling: ceiling))
     reader, agent = readers(turn.workspace, turn.asker, turn.conversation, meter)
     planned, cannot = plan(given, reader, agent)
+    planned = placed(planned, cannot, orders, given, before: watch.steps.to_a)
     return "Nothing was added, since none of it can be followed. #{cannot.join(' ')}" if planned.empty?
 
     usual = planned.filter_map { |step| step[:usual] }.sum.nonzero?
@@ -183,6 +191,44 @@ module Conversation::Watches
 
   def self.steps_given(arguments) = Array(arguments["steps"]).map { |step| step.to_h.transform_keys(&:to_s) }
 
+  # What a given step is called before it is planned, as plan names it.
+  def self.given_label(step, index) = step["label"].to_s.strip.presence || "Step #{index + 1}"
+
+  # The steps each given step waits for, as indexes among the watch's own steps (before) and then the given ones, from
+  # the labels or numbers counting from 1 that Halon gave. Answers [orders, nil], or [nil, why not] as a sentence.
+  def self.order_of(given, before = [])
+    labels = before.map(&:label) + given.each_with_index.map { |step, index| given_label(step, index) }
+    orders = given.each_with_index.map do |step, index|
+      refs = Array(step[Chat::Watch::SPEC_KEYS[:waits_for]]).map(&:to_s).compact_blank
+      at = before.size + index
+      indexes, wrong = Chat::Watch::Step.prerequisites_named(labels[at], refs, labels, at)
+      return [ nil, wrong ] if wrong
+
+      indexes
+    end
+    [ orders, nil ]
+  end
+
+  # The planned steps with the positions each waits for. A step waiting for one that cannot be followed is not followed
+  # either, and is said with the rest of what cannot be.
+  def self.placed(planned, cannot, orders, given, before: [])
+    positions = {}
+    next_position = before.empty? ? 0 : before.map(&:position).max + 1
+    planned.filter_map do |planned_step|
+      order = orders[planned_step[:index]]
+      missing = order.filter_map { |at| at - before.size if at >= before.size && !positions.key?(at - before.size) }
+      if missing.any?
+        names = missing.map { |index| given_label(given[index], index) }.to_sentence
+        cannot << "#{planned_step[:label]} was not followed either, since it waits for #{names}."
+        next
+      end
+
+      positions[planned_step[:index]] = next_position
+      next_position += 1
+      planned_step.merge(waits_for: order.map { |at| at < before.size ? before[at].position : positions.fetch(at - before.size) })
+    end
+  end
+
   # The line the watch says when steps join it, on the card, in the thread and in direct messages.
   def self.steps_added_words(watch, labels, moved)
     limit = moved ? " It now watches for up to #{Chat::Watch::Shown.limit_label(watch)} from when it started." : ""
@@ -216,7 +262,7 @@ module Conversation::Watches
     given.each_with_index do |step, index|
       step = as_capability(step)
       label = step["label"].to_s.strip.presence || "Step #{index + 1}"
-      next plan_tool_step(step, label, reader, agent, planned, cannot) if step["tool"].present?
+      next plan_tool_step(step, label, reader, agent, planned, cannot, index) if step["tool"].present?
 
       key = key_for(step["capability"])
       next cannot << "#{label} cannot be followed, since #{step['capability'].presence || 'it names no capability, and that'} is not a read a watch can make." unless key
@@ -228,7 +274,7 @@ module Conversation::Watches
       signature = Chat::Watch::Step.signature(key, arguments) unless key == HISTORY
       usual ||= Chat::Watch::Step.usual_for(reader.workspace, signature)
       new_deploy = (baseline(reader, step, key, arguments) { reader.read(key, arguments).text } if Chat::Watch::Step.waits_for_deploy?(step, key))
-      planned << { label: label, key: key, arguments: arguments, step: step, usual: usual, row: row, signature: signature, new_deploy: new_deploy }
+      planned << { index: index, label: label, key: key, arguments: arguments, step: step, usual: usual, row: row, signature: signature, new_deploy: new_deploy }
     rescue Conversation::Watches::Reader::Refused, Conversation::Watches::Reader::Unanswered => refused
       cannot << "#{label} cannot be followed. #{refused.message}"
     rescue Chat::Watch::Meter::Spent
@@ -239,7 +285,7 @@ module Conversation::Watches
 
   # A step that reads with any tool Halon may read with in a chat, kept with the connection it reads through so a live
   # update from that connection wakes it, and with how long the same read usually took to reach done before.
-  def self.plan_tool_step(step, label, reader, agent, planned, cannot)
+  def self.plan_tool_step(step, label, reader, agent, planned, cannot, index = 0)
     return cannot << "#{label} needs what counts as done for it (done_when, failed_when or goal)." if Chat::Watch::Step.undecided?(step)
 
     tool = step["tool"].to_s
@@ -254,7 +300,7 @@ module Conversation::Watches
 
     signature = Chat::Watch::Step.signature(tool, arguments)
     waits = Chat::Watch::Step.waits_for_deploy?(step, Chat::Watch::Step::READ_TOOL)
-    planned << { label: label, key: Chat::Watch::Step::READ_TOOL, tool: tool, arguments: arguments, step: step, signature: signature,
+    planned << { index: index, label: label, key: Chat::Watch::Step::READ_TOOL, tool: tool, arguments: arguments, step: step, signature: signature,
                  usual: Chat::Watch::Step.usual_for(reader.workspace, signature), row: connection_of(reader.workspace, tool, arguments),
                  new_deploy: (baseline(reader, step, Chat::Watch::Step::READ_TOOL, {}) { said.text } if waits) }
   rescue Conversation::Watches::Reader::Refused, Conversation::Watches::Reader::Unanswered => refused
@@ -344,7 +390,8 @@ module Conversation::Watches
       integration_environment_id: planned_step[:row]&.id, run_name: given["name"].presence, run_ref: given["run"].presence,
       report_start: ActiveModel::Type::Boolean.new.cast(given["report_start"]) || false, done_when: given["done_when"].presence,
       failed_when: given["failed_when"].presence, goal: given["goal"].presence, usual_seconds: planned_step[:usual],
-      focus: given["focus"].to_s.strip.presence, new_deploy: planned_step[:new_deploy]
+      focus: given["focus"].to_s.strip.presence, new_deploy: planned_step[:new_deploy],
+      **(planned_step.key?(:waits_for) ? { waits_for: planned_step[:waits_for] } : {})
     }
   end
 
@@ -407,9 +454,10 @@ module Conversation::Watches
     short ? words.delete_suffix(" minutes") : words
   end
 
-  # One check: each open step read once, its milestones said once, the jobs or steps that moved said together in one
-  # line, and the watch ended when they are all over or its time ran out. A watch another worker holds is left to it.
-  # Every read is counted against the watch's ceiling, and one past it waits for the next hour.
+  # One check: each open step whose prerequisites all succeeded read once, its milestones said once, the jobs or steps
+  # that moved said together in one line, and the watch ended when they are all over or its time ran out. A step whose
+  # prerequisite went wrong is skipped rather than read. A watch another worker holds is left to it. Every read is
+  # counted against the watch's ceiling, and one past it waits for the next hour.
   def self.check!(watch, now: Time.current)
     return unless watch.active? && watch.claim_check!(now)
 
@@ -419,6 +467,7 @@ module Conversation::Watches
       return time_out!(watch, now) if now >= watch.expires_at
 
       progress = []
+      skip_blocked!(watch)
       read_all = read_steps(watch, watch.open_steps, meter, now, progress)
       tell!(watch, Chat::Watch::Update::KIND_PROGRESS, progress.join("\n")) if progress.any?
       conclude!(watch)
@@ -451,7 +500,10 @@ module Conversation::Watches
     "#{Chat::Watch::Shown.name(watch)} made the #{watch.reads_per_hour} reads it allows itself an hour, so it reads again in #{wait}."
   end
 
+  # A step whose prerequisites have not all succeeded is not read at all, since what it reads would only show what came
+  # before them.
   def self.check_step(watch, step, reader, agent, now, progress, reading: nil)
+    return unless step.ready?
     return repair_lapsed!(watch, step) if step.repair_overdue?(now)
     return if step.repairing?
     return follow_run(watch, step, reader, now, progress) if step.history?
@@ -641,6 +693,7 @@ module Conversation::Watches
   # start_watch step with string keys, whose done and failed words default to the step's own. Answers what Halon tells
   # the person. The new read is tried as the watch's own asker, whom every later check reads as.
   def self.repair!(watch, step, given, why:)
+    return reopen!(watch, step, given.except("reopen"), why: why) if ActiveModel::Type::Boolean.new.cast(given["reopen"])
     return Chat::Watch::NOTHING_TO_STOP unless watch.active?
     return "#{step.label} has already ended, so there is nothing to repair." unless Chat::Watch::Step::OPEN.include?(step.status)
     return give_up!(watch, step, why) if ActiveModel::Type::Boolean.new.cast(given["give_up"])
@@ -656,9 +709,12 @@ module Conversation::Watches
     watch.count_reads!(meter.count)
     return "Not repaired. #{cannot.join(' ')}" if planned.empty?
 
+    order = reordered(watch, step, given)
+    return "Not repaired. #{order}" if order.is_a?(String)
+
     before = step.read_attributes
     before_words = step.read_words
-    read = read_of(planned.first)
+    read = read_of(planned.first).merge(order || {})
     read[:new_deploy] = repaired_deploy(step, read[:new_deploy])
     return "#{step.label} has already ended, so there is nothing to repair." unless step.repaired!(read)
 
@@ -668,6 +724,61 @@ module Conversation::Watches
           "Changed how I follow #{step.label}: #{change_words(before, before_words, step)}. #{why.to_s.strip.presence || 'The old read showed nothing to follow.'}")
     WatchCheckJob.perform_later(watch.id)
     "Repaired #{step.label} in #{Chat::Watch::Shown.named(watch)}. Tell the person in a sentence what you changed and why."
+  end
+
+  # How a step ended was shown to be wrong, by the person or by a reading Halon took, so the same watch follows it again
+  # from the start, with a new read when given, and the watch goes again when it had ended. Steps skipped because of it
+  # are followed again too, and skipped once more if what they wait for still went wrong. A watch a person stopped
+  # stays stopped. Answers what Halon tells the person.
+  def self.reopen!(watch, step, given, why:)
+    if watch.status == Chat::Watch::STATUS_STOPPED
+      return "#{Chat::Watch::Shown.name(watch)} was stopped, so it is not reopened. Start a new watch when the person wants it followed again."
+    end
+    return "#{step.label} has not ended, so there is nothing to reopen. Call repair_watch without reopen to change how it is followed." unless step.over?
+
+    until_at = watch.reopened_until
+    return "#{Chat::Watch::Shown.name(watch)} started a day ago, which is as long as a watch goes. Start a new watch instead." unless until_at
+
+    read, wrong = reopened_read(watch, step, given)
+    return "Not reopened. #{wrong}" if wrong
+    return "#{Chat::Watch::Shown.name(watch)} could not be reopened just now. Try again." unless watch.active? || watch.reopen!(until_at)
+    return "#{step.label} is already being followed again." unless step.reopened!(read)
+
+    watch.steps.reload.select { |each| each.status == Chat::Watch::Step::STATUS_SKIPPED }.each(&:reopened!)
+    step.summarized!(step.deploy_start_words) if step.waits_for_deploy?
+    # Halon says it in its own answer, so it is not heard again at the next turn.
+    tell!(watch, Chat::Watch::Update::KIND_REOPENED, "Reopened #{step.label}: #{why.to_s.strip.presence || 'How it ended was wrong.'}").update_columns(told_at: Time.current)
+    WatchCheckJob.perform_later(watch.id)
+    "Reopened #{step.label} in #{Chat::Watch::Shown.named(watch)}, which follows it again from now. Tell the person in a sentence why how it ended was wrong, " \
+      "and that the watch reports again."
+  end
+
+  # The read a reopened step makes: the new one when a read is given, tried once as the asker, or its own.
+  def self.reopened_read(watch, step, given)
+    order = reordered(watch, step, given)
+    return [ nil, order ] if order.is_a?(String)
+    return [ order || {}, nil ] if proposed_read(given.merge("label" => step.label)).nil?
+
+    kept = { "done_when" => step.done_when, "failed_when" => step.failed_when, "goal" => step.goal }.compact
+    meter = Chat::Watch::Meter.new(watch.reads_left)
+    reader, agent = readers(watch.workspace, watch.asker, watch.conversation, meter)
+    planned, cannot = plan([ kept.merge(given).merge("label" => step.label) ], reader, agent)
+    watch.count_reads!(meter.count)
+    return [ nil, cannot.join(" ") ] if planned.empty?
+
+    [ read_of(planned.first).merge(order || {}), nil ]
+  end
+
+  # The steps a repaired or reopened step waits for when given, as positions of steps before it. Nil when none are
+  # given, so it keeps its own, and a sentence when one cannot be.
+  def self.reordered(watch, step, given)
+    refs = given[Chat::Watch::SPEC_KEYS[:waits_for]]
+    return if refs.nil?
+
+    steps = watch.steps.to_a
+    at = steps.index(step)
+    indexes, wrong = Chat::Watch::Step.prerequisites_named(step.label, Array(refs).map(&:to_s).compact_blank, steps.map(&:label), at)
+    wrong || { waits_for: indexes.map { |index| steps[index].position } }
   end
 
   # A repair keeps the baseline unless the new read follows another resource. The new read's first reading replaces the
@@ -740,10 +851,31 @@ module Conversation::Watches
 
   # A reading that is not a run, read by the step's own read.
   def self.follow_reading(watch, step, reader, agent, progress, now: Time.current, gate: nil)
-    answer = step.read_tool? ? reader.read_tool(agent, step.tool_name, step.arguments) : reader.read(step.capability, step.arguments)
+    sources_before!(step, reader) if logs?(step) && step.waits? && step.sources_before.nil?
+    answer = step.read_tool? ? reader.read_tool(agent, step.tool_name, step.arguments) : reader.read(step.capability, read_arguments(step))
     raise Conversation::Watches::Reader::Unanswered, answer.text.truncate(300) if answer.failed?
 
     take_reading(watch, step, answer.text, progress, now: now, gate: gate)
+  end
+
+  def self.logs?(step) = step.capability == Integrations::Capabilities::LOGS
+
+  # A logs step that waits for others reads only the lines logged once they finished.
+  def self.read_arguments(step)
+    from = logs?(step) && step.counts_from
+    from ? step.arguments.merge("start" => from.utc.iso8601) : step.arguments
+  end
+
+  # The sources already logging in the minutes before its prerequisites began, read once with none of its filters, so
+  # whoever judges its readings can tell an old instance from a new one.
+  def self.sources_before!(step, reader)
+    began = step.runs_from || step.counts_from
+    given = step.arguments.slice(Integrations::Capabilities::RESOURCE_ARG, Integrations::Capabilities::CONNECTION_ARG, "stream")
+                .merge("start" => (began - Chat::Watch::Step::SOURCES_BEFORE).utc.iso8601, "end" => began.utc.iso8601, "limit" => Chat::Watch::Step::SOURCES_LIMIT)
+    answer = reader.read(step.capability, given)
+    step.sources_before!(answer.failed? ? [] : Chat::Watch::Step.log_sources(answer.text))
+  rescue Conversation::Watches::Reader::Refused, Conversation::Watches::Reader::Unanswered
+    step.sources_before!([])
   end
 
   # nil for a step that waits for no deploy, or whose provider cannot tell deploys apart, which its reading decides.
@@ -814,6 +946,8 @@ module Conversation::Watches
     judged = held_back(step, judged_reading(model, step, now, gate: gate), gate, digest)
     return unless judged
 
+    judged = no_error_line(step, judged, text)
+
     step.judged!(now)
     step.linked!(judged.link)
     if judged.state == FirefightAi::Schemas::WatchReading::NOTHING
@@ -825,14 +959,37 @@ module Conversation::Watches
     step.summarized!(judged.said)
     moved = step.progress!(judged.parts.filter_map { |name, state| [ name, READING_PARTS[state] ] if READING_PARTS[state] }, said: Chat::Watch::Step::PART_SAID)
     reading_part_failed(watch, step, judged, model)
+    step.failure_cleared! unless judged.state == FirefightAi::Schemas::WatchReading::FAILED
     case judged.state
     when FirefightAi::Schemas::WatchReading::DONE then finish_reading(watch, step, Chat::Watch::Step::STATUS_SUCCEEDED, judged.said)
-    when FirefightAi::Schemas::WatchReading::FAILED then finish_reading(watch, step, Chat::Watch::Step::STATUS_FAILED, judged.said)
+    when FirefightAi::Schemas::WatchReading::FAILED then reading_failed(watch, step, judged.said, now)
     when FirefightAi::Schemas::WatchReading::RUNNING
       reading_started(watch, step)
       progress << "#{step.label}: #{moved.join(', ')}." if moved.any?
       tell!(watch, Chat::Watch::Update::KIND_SLOW, slow_words(step, now)) if step.slow?(now) && step.slow_told!
     end
+  end
+
+  # A reading that shows a step failed ends it only once the next reading shows the same, so one misread reading never
+  # ends a watch. Until then it keeps going and its row says what the reading showed.
+  def self.reading_failed(watch, step, said, now)
+    return finish_reading(watch, step, Chat::Watch::Step::STATUS_FAILED, said) if step.failure_seen_at
+
+    step.summarized!(said)
+    step.failure_seen!(now)
+  end
+
+  # Logs say a step failed only in a line at error level or worse. Where the lines carry their level, one with none at
+  # that level is not a failure, whatever a warning or an instance stopping cleanly says, so the step keeps going.
+  def self.no_error_line(step, judged, text)
+    return judged unless judged.state == FirefightAi::Schemas::WatchReading::FAILED && logs?(step) && errorless?(text)
+
+    judged.with(state: step.running? ? FirefightAi::Schemas::WatchReading::RUNNING : FirefightAi::Schemas::WatchReading::NOT_STARTED)
+  end
+
+  def self.errorless?(text)
+    levels = Integrations::Telemetry.levels_in(text)
+    levels.any? && levels.none? { |level| Integrations::Telemetry.error_level?(level) }
   end
 
   # With no model to judge, the new deploy being live is enough.
@@ -878,8 +1035,10 @@ module Conversation::Watches
 
   # With no model to judge, the words the step was given decide, read as text the reading holds.
   def self.by_words(watch, step, text)
-    return finish_reading(watch, step, Chat::Watch::Step::STATUS_FAILED, excerpt(text, step.failed_when)) if says?(text, step.failed_when)
+    failed = says?(text, step.failed_when) && !(logs?(step) && errorless?(text))
+    return reading_failed(watch, step, excerpt(text, step.failed_when), Time.current) if failed
 
+    step.failure_cleared!
     finish_reading(watch, step, Chat::Watch::Step::STATUS_SUCCEEDED, nil) if says?(text, step.done_when)
   end
 
@@ -889,11 +1048,16 @@ module Conversation::Watches
     "The reading has stayed the same for #{Integrations::Capabilities::History.duration(steady)}." if steady && steady >= Chat::Watch::CHECK_EVERY
   end
 
-  # What done means for a reading, and for a step waiting for a new deploy, which deploy that is.
+  LOG_LEVEL_QUESTION = "It failed only on a log line at error level or worse, by the level the line carries. A warning or an info " \
+                       "line, and an instance stopping with exit code 0, never mean it failed.".freeze
+
+  # What done means for a reading, for a step waiting for a new deploy which deploy that is, for a step waiting for
+  # others what came after them, and for logs that only an error-level line fails it.
   def self.reading_goal(step, gate = nil)
     [ step.goal.presence || "#{step.label} finishes.", ("It is done when the readings show #{step.done_when}." if step.done_when.present?),
       ("It failed when the readings show #{step.failed_when}." if step.failed_when.present?),
-      ("The deploy it waits for: #{gate.words}" if gate), step.deploy_question ].compact.join(" ")
+      ("The deploy it waits for: #{gate.words}" if gate), step.deploy_question, step.order_question,
+      (LOG_LEVEL_QUESTION if logs?(step)) ].compact.join(" ")
   end
 
   def self.reading_started(watch, step)
@@ -957,8 +1121,10 @@ module Conversation::Watches
     FirefightAi::WatchJudge.new(watch.workspace, inferable: watch.conversation.try(:subject), member: (watch.asker if watch.asker.is_a?(WorkspaceMembership)))
   end
 
-  # Whether every step is over is decided over the steps as they were read, so steps added meanwhile keep it going.
+  # Whether every step is over is decided over the steps as they were read, so steps added meanwhile keep it going. What
+  # waits for a step that went wrong is skipped first, so the end names it.
   def self.conclude!(watch)
+    skip_blocked!(watch)
     added = Chat::Watch.where(id: watch.id).pick(:steps_added_at)
     steps = watch.steps.reload.to_a
     failed = steps.find { |step| step.status == Chat::Watch::Step::STATUS_FAILED }
@@ -972,15 +1138,39 @@ module Conversation::Watches
     end
 
     took = Integrations::Capabilities::History.duration(Time.current - watch.created_at)
-    lost = steps.size - followed.size
+    skipped = steps.count { |step| step.status == Chat::Watch::Step::STATUS_SKIPPED }
+    lost = steps.size - followed.size - skipped
     finish!(watch, Chat::Watch::STATUS_SUCCEEDED,
-            standing(watch, "Done in #{took}.#{" #{lost} step#{'s' if lost > 1} could not be followed." if lost.positive?}",
-                     offer: false), steps_added_at: added)
+            standing(watch, "Done in #{took}.#{lost_words(lost, skipped)}", offer: false), steps_added_at: added)
   end
 
+  def self.lost_words(lost, skipped)
+    return "" unless lost.positive?
+
+    skips = skipped.positive? ? ", so #{skipped} that wait#{'s' if skipped == 1} for #{lost > 1 ? 'them' : 'it'} #{skipped > 1 ? 'were' : 'was'} skipped" : ""
+    " #{lost} step#{'s' if lost > 1} could not be followed#{skips}."
+  end
+
+  # A step skipped because of this one is named after it, since what the person wanted waited on it too.
   def self.failed_words(watch, step)
     took = step.seconds_taken && " after #{Integrations::Capabilities::History.duration(step.seconds_taken)}"
-    standing(watch, "#{step.label} failed#{took}, so I stopped #{Chat::Watch::Shown.named(watch)}. #{step.reason.presence || 'It did not say why.'}")
+    skipped = skipped_after(watch, step)
+    skips = skipped.any? ? " #{skipped.map(&:label).to_sentence} #{skipped.size > 1 ? 'were' : 'was'} skipped, since #{skipped.size > 1 ? 'they wait' : 'it waits'} for it." : ""
+    standing(watch, "#{step.label} failed#{took}, so I stopped #{Chat::Watch::Shown.named(watch)}. #{step.reason.presence || 'It did not say why.'}#{skips}")
+  end
+
+  # Skips what waits for a step that failed or could not be followed, down the chain, each said on the card once.
+  def self.skip_blocked!(watch)
+    loop do
+      skipped = watch.open_steps.select { |step| (blocker = step.blocked_by) && step.skipped!(step.skip_words(blocker)) }
+      break if skipped.empty?
+    end
+  end
+
+  # The steps skipped because of this one, directly or down the chain.
+  def self.skipped_after(watch, step)
+    words = "Skipped because #{step.label} failed."
+    watch.steps.select { |each| each.status == Chat::Watch::Step::STATUS_SKIPPED && each.reason == words }
   end
 
   # What happened, then where that leaves what the person wanted, when the watch was started for a purpose. Where
@@ -999,11 +1189,22 @@ module Conversation::Watches
   def self.time_out!(watch, now = Time.current)
     return if deploy_failed_out!(watch, now)
 
-    state = watch.open_steps.map { |step| "#{step.label}: #{step.last_state.presence || 'nothing seen yet'}" }.join(" ")
+    state = watch.open_steps.map { |step| "#{step.label}: #{step.ready? ? step.last_state.presence || 'nothing seen yet' : step.prerequisites_words}" }.join(" ")
     took = Integrations::Capabilities::History.duration(watch.expires_at - watch.created_at)
-    finish!(watch, Chat::Watch::STATUS_TIMED_OUT,
-            standing(watch, "I stopped #{Chat::Watch::Shown.named(watch)} after #{took}, its time limit. Last I saw: #{state.truncate(600)}"),
-            expired_by: now)
+    ended = finish!(watch, Chat::Watch::STATUS_TIMED_OUT,
+                    standing(watch, "I stopped #{Chat::Watch::Shown.named(watch)} after #{took}, its time limit. Last I saw: #{state.truncate(600)}"),
+                    expired_by: now)
+    skip_unstarted!(watch) if ended
+    ended
+  end
+
+  # A step still waiting for others when the time ran out never started, so it is skipped rather than left open, naming
+  # the step it waited for, or the one that held that step up.
+  def self.skip_unstarted!(watch)
+    watch.steps.reload.reject(&:over?).reject(&:ready?).each do |step|
+      held = step.prerequisites.find { |each| each.status == Chat::Watch::Step::STATUS_SKIPPED }
+      step.skipped!(held&.reason.presence || "Skipped because #{step.waiting_on.map(&:label).to_sentence} did not finish within the time limit.")
+    end
   end
 
   # A step whose new deploy failed with nothing newer by the time limit ends the watch failed, rather than timed out.
@@ -1013,13 +1214,14 @@ module Conversation::Watches
 
     reason = "#{step.deploy_failure} Nothing newer went out before the time limit."
     step.finished!(Chat::Watch::Step::STATUS_FAILED, reason: reason)
+    skip_blocked!(watch)
     finish!(watch, Chat::Watch::STATUS_FAILED, failed_words(watch, step.reload), expired_by: now)
   end
 
   def self.finish!(watch, status, outcome, stopped_by: nil, **guards)
     return false unless watch.finish!(status, outcome: outcome, stopped_by: stopped_by, **guards)
 
-    tell!(watch, Chat::Watch::Update::KIND_ENDED, outcome)
+    tell!(watch, Chat::Watch::Update::KIND_ENDED, outcome, ended_as: status)
     true
   end
 
@@ -1076,7 +1278,7 @@ module Conversation::Watches
   end
 
   def self.observed(watch, tool_name, arguments, text, now)
-    steps = watch.open_steps.reject(&:repairing?).select { |step| reads_the_same?(step, tool_name, arguments) }
+    steps = watch.open_steps.reject(&:repairing?).select { |step| step.ready? && reads_the_same?(step, tool_name, arguments) }
     return [] if steps.empty? || !watch.claim_check!(now)
 
     meter = Chat::Watch::Meter.new(watch.reads_left(now))
@@ -1127,8 +1329,8 @@ module Conversation::Watches
 
   # Says one line everywhere the watch reports: kept with the chat and drawn on its page, in the chat's thread when
   # it has one, and in the asker's direct messages, unless the thread already is one with them.
-  def self.tell!(watch, kind, text)
-    update = watch.updates.create!(kind: kind, text: Chat::SecretFree.redacted(text))
+  def self.tell!(watch, kind, text, ended_as: nil)
+    update = watch.updates.create!(kind: kind, text: Chat::SecretFree.redacted(text), ended_as: ended_as)
     conversation = watch.conversation
     Conversation::LiveDelivery.watch_moved(conversation)
     said = said(watch, update)
@@ -1151,10 +1353,14 @@ module Conversation::Watches
   end
 
   def self.said(watch, update)
-    tone = update.kind == Chat::Watch::Update::KIND_ENDED ? ENDED_TONES.fetch(watch.status, TONE_DONE) : update.kind
+    # A line that said how it ended keeps that, also once a reopened watch goes on.
+    tone = update.kind == Chat::Watch::Update::KIND_ENDED ? ENDED_TONES.fetch(update.ended_as || watch.status, TONE_DONE) : update.kind
     Said.new(id: update.id, watch_id: watch.id, title: watch.title, name: Chat::Watch::Shown.name(watch), kind: update.kind, tone: tone,
              text: update.text, at: update.created_at, live: watch.active?, link: Chat::Watch::Shown.link(watch))
   end
+
+  REOPEN_NOTE = "When the person, or a reading you take, shows a watch ended wrongly, such as a step judged on what was there " \
+                "before, reopen that step with repair_watch and reopen true rather than repeating how it ended.".freeze
 
   # What Halon hears at its next turn: each line its watches said since, and the ones still going, once each.
   def self.untold_note(chat)
@@ -1164,6 +1370,7 @@ module Conversation::Watches
     Chat::Watch::Update.where(id: updates.map(&:id)).update_all(told_at: Time.current)
     Chat::Watch.where(chat_id: chat.id, id: updates.map(&:watch_id)).untold.update_all(told_at: Time.current)
     lines = updates.map { |update| "- #{Chat::Watch::Shown.name(update.watch)}#{" (for: #{update.watch.purpose})" if update.watch.purpose.present?}: #{update.text}" }
-    "What your watches said since you last looked, already told to the person. A reading you take now beats any of it:\n#{lines.join("\n")}"
+    ended = updates.any? { |update| update.kind == Chat::Watch::Update::KIND_ENDED } ? "\n#{REOPEN_NOTE}" : ""
+    "What your watches said since you last looked, already told to the person. A reading you take now beats any of it:\n#{lines.join("\n")}#{ended}"
   end
 end

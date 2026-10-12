@@ -224,7 +224,8 @@ export const WATCH_STEP_STATUSES = {
   "REPAIRING": "repairing",
   "SUCCEEDED": "succeeded",
   "FAILED": "failed",
-  "UNFOLLOWABLE": "unfollowable"
+  "UNFOLLOWABLE": "unfollowable",
+  "SKIPPED": "skipped"
 } as const
 
 export const PULL_REQUEST_NOTICE_STATUSES = {
@@ -246,6 +247,7 @@ export const WATCH_TONES = {
   "SLOW": "slow",
   "PROGRESS": "progress",
   "STEPS_ADDED": "steps_added",
+  "REOPENED": "reopened",
   "DONE": "done",
   "FAILED": "failed",
   "TIMED_OUT": "timed_out",
@@ -1273,7 +1275,8 @@ export const WATCH_SPEC_KEYS = {
   "TOOL": "tool",
   "FOCUS": "focus",
   "ARGUMENTS": "arguments",
-  "NEW_DEPLOY": "new_deploy"
+  "NEW_DEPLOY": "new_deploy",
+  "WAITS_FOR": "waits_for"
 } as const
 
 export const WATCH_NEW_DEPLOY_KEYS = {

@@ -23,10 +23,14 @@ export interface EditableInput {
 }
 
 // One thing a watch follows. args holds a read tool's arguments as they are typed, sent as the step's arguments.
+// waitsFor holds the keys of the earlier steps it waits for, so renaming or removing one keeps the rest right, and
+// keptWaits what was saved that names no step here, sent back as it was.
 export interface WatchStepState {
   key: string
   spec: JsonObject
   args: ArgumentsState
+  waitsFor: string[]
+  keptWaits: string[]
 }
 
 export interface WatchState {
@@ -137,14 +141,37 @@ export function written(value: unknown): string {
 
 function watchSteps(spec: JsonObject): WatchStepState[] {
   const steps = spec[WATCH_SPEC_KEYS.STEPS]
-  return (Array.isArray(steps) ? steps : []).filter(isObject).map((step) => {
+  const loaded = (Array.isArray(steps) ? steps : []).filter(isObject).map((step) => {
     const saved = step[WATCH_SPEC_KEYS.ARGUMENTS]
-    return { key: crypto.randomUUID(), spec: { ...step }, args: argumentsState(isObject(saved) ? saved : null) }
+    return { key: crypto.randomUUID(), spec: { ...step }, args: argumentsState(isObject(saved) ? saved : null), waitsFor: [], keptWaits: [] }
   })
+  return loaded.map((step, index) => withSavedWaits(step, loaded.slice(0, index)))
+}
+
+// The saved steps it waits for, each by its name or its number counting from 1, among the steps before it.
+function withSavedWaits(step: WatchStepState, earlier: WatchStepState[]): WatchStepState {
+  const saved = step.spec[WATCH_SPEC_KEYS.WAITS_FOR]
+  const refs = (Array.isArray(saved) ? saved : []).map(String)
+  const waitsFor: string[] = []
+  const keptWaits: string[] = []
+  refs.forEach((ref) => {
+    const found = earlier.find((each, index) => stepText(each.spec, WATCH_SPEC_KEYS.LABEL).trim().toLowerCase() === ref.trim().toLowerCase() || String(index + 1) === ref.trim())
+    if (found) {
+      waitsFor.push(found.key)
+    } else {
+      keptWaits.push(ref)
+    }
+  })
+  return { ...step, waitsFor, keptWaits }
 }
 
 export function newWatchStep(spec: JsonObject): WatchStepState {
-  return { key: crypto.randomUUID(), spec, args: emptyArguments() }
+  return { key: crypto.randomUUID(), spec, args: emptyArguments(), waitsFor: [], keptWaits: [] }
+}
+
+// How an earlier step is named where another waits for it: its name, or its number when it has none.
+export function waitsName(step: WatchStepState, index: number): string {
+  return stepText(step.spec, WATCH_SPEC_KEYS.LABEL).trim() || String(index + 1)
 }
 
 // A step picks what it reads with: a capability on a resource, or a read tool with its arguments. Choosing one clears
@@ -172,11 +199,22 @@ export function readOf(spec: JsonObject): string {
   return stepText(spec, WATCH_SPEC_KEYS.TOOL) || stepText(spec, WATCH_SPEC_KEYS.CAPABILITY)
 }
 
-function sentStep(step: WatchStepState): JsonObject {
-  if (!stepText(step.spec, WATCH_SPEC_KEYS.TOOL)) {
-    return step.spec
+// A step waits for earlier steps by their names, or their numbers when they have none, worked out as it is sent.
+function sentStep(step: WatchStepState, earlier: WatchStepState[]): JsonObject {
+  const spec = { ...step.spec }
+  const waits = [
+    ...earlier.flatMap((each, index) => (step.waitsFor.includes(each.key) ? [ waitsName(each, index) ] : [])),
+    ...step.keptWaits,
+  ]
+  if (waits.length > 0) {
+    spec[WATCH_SPEC_KEYS.WAITS_FOR] = waits
+  } else {
+    delete spec[WATCH_SPEC_KEYS.WAITS_FOR]
   }
-  return { ...step.spec, [WATCH_SPEC_KEYS.ARGUMENTS]: step.args.values }
+  if (!stepText(step.spec, WATCH_SPEC_KEYS.TOOL)) {
+    return spec
+  }
+  return { ...spec, [WATCH_SPEC_KEYS.ARGUMENTS]: step.args.values }
 }
 
 export function watchState(saved: Record<string, unknown> | null | undefined): WatchState {
@@ -260,7 +298,7 @@ function sentWatch(watch: WatchState): JsonObject | null {
   if (!watch.on) {
     return null
   }
-  const spec: JsonObject = { ...watch.spec, [WATCH_SPEC_KEYS.STEPS]: watch.steps.map(sentStep) }
+  const spec: JsonObject = { ...watch.spec, [WATCH_SPEC_KEYS.STEPS]: watch.steps.map((step, index) => sentStep(step, watch.steps.slice(0, index))) }
   const minutes = watch.minutesDraft.trim()
   if (minutes.length === 0) {
     delete spec[WATCH_SPEC_KEYS.MINUTES]

@@ -41,6 +41,28 @@ module Integrations
 
     # limit is how many lines the provider was asked for. Reaching it means older lines were not returned, and the text
     # says so, so the model narrows the range or filters rather than taking the lines as all there were.
+    # The level a log line carries in a field of its own, as structured logs write it: "level":"warn" in JSON, level=error
+    # in logfmt, or severity, levelname and lvl the same way.
+    LEVEL_FIELD = /["']?\b(?:levelname|severity|level|lvl)["']?\s*[:=]\s*["']?([A-Za-z]+)/i
+    # A provider that keeps the level apart from the text names it where logs_text puts the source.
+    LEVEL_WORDS = %w[trace debug info notice warn warning error err fatal critical crit alert emerg emergency panic].freeze
+    ERROR_LEVELS = %w[error err fatal critical crit alert emerg emergency panic].freeze
+    # A line as logs_text writes it, a time, its source and the text.
+    SHARED_LINE = /\A\d{4}-\d{2}-\d{2}T\S+\s+(\S+)\s/
+
+    # The levels the lines of a logs answer carry, one per line that carries one, lower case.
+    def self.levels_in(text)
+      text.to_s.lines.filter_map do |line|
+        field = line[LEVEL_FIELD, 1]&.downcase
+        next field if field && LEVEL_WORDS.include?(field)
+
+        source = line[SHARED_LINE, 1]&.downcase
+        source if LEVEL_WORDS.include?(source)
+      end
+    end
+
+    def self.error_level?(level) = ERROR_LEVELS.include?(level.to_s.downcase)
+
     def self.logs_text(lines, asked:, limit: LOG_LINE_LIMIT)
       return "No log lines matched #{asked}." if lines.empty?
 

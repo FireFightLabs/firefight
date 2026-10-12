@@ -122,10 +122,29 @@ module Runbook::Procedure
     end
 
     errors.add(:watch, "Watch #{item_name(step, index)}: needs what counts as done (done when, failed when or a goal)") if Chat::Watch::Step.undecided?(step)
+    watch_order_well_formed(step, index)
     new_deploy = step[keys[:new_deploy]]
     return if new_deploy.nil? || (new_deploy.is_a?(Hash) && new_deploy.values.all? { |value| value.is_a?(String) })
 
     errors.add(:watch, "Watch #{item_name(step, index)}: needs the new deploy it waits for as words, such as a commit, a tag or a branch")
+  end
+
+  # An item waits only for items before it, named by their names or their numbers as the settings page numbers them.
+  def watch_order_well_formed(step, index)
+    order = step[Chat::Watch::SPEC_KEYS[:waits_for]]
+    return if order.nil?
+    unless order.is_a?(Array) && order.all? { |ref| ref.is_a?(String) || ref.is_a?(Integer) }
+      return errors.add(:watch, "Watch #{item_name(step, index)}: needs the items it waits for as a list of their names or numbers")
+    end
+
+    labels = watch["steps"].map { |each| each[Chat::Watch::SPEC_KEYS[:label]].to_s.squish }
+    order.each do |ref|
+      at = Chat::Watch::Step.position_named(ref, labels)
+      next errors.add(:watch, "Watch #{item_name(step, index)}: waits for #{ref}, which is not one of its items") if at.nil?
+      next if at < index
+
+      errors.add(:watch, "Watch #{item_name(step, index)}: waits for #{ref}, which does not come before it, and an item waits only for items before it")
+    end
   end
 
   # An error names a watch item by its name, or by its number as the settings page numbers them when it has none.

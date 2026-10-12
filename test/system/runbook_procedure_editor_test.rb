@@ -44,6 +44,22 @@ class RunbookProcedureEditorTest < ApplicationSystemTestCase
     assert_equal [ "ship it" ], @runbook.aliases
   end
 
+  test "a watch item waits for the items above it, chosen by name, and keeps the choice when the item it waits for is renamed" do
+    checks = { "label" => "Release healthy", "capability" => "resource_status", "resource" => "firefight", "goal" => "it serves the release" }
+    @runbook.update!(watch: WATCH.merge("steps" => WATCH["steps"] + [ checks ]))
+    open_editor
+
+    assert_text "Waits for"
+    find("button", text: "Nothing, it starts at once").click
+    find("[cmdk-item]", text: "Release run").click
+    find("input[aria-label='Watch 1 label']").fill_in(with: "GitHub release run")
+    page.save_screenshot(Rails.root.join("tmp/screenshots/runbook-editor-waits-for.png"))
+    click_button "Save changes"
+    assert_text "Release Firefight was updated."
+
+    assert_equal [ "GitHub release run" ], @runbook.reload.watch["steps"].second["waits_for"]
+  end
+
   test "a step's tool is picked from the tools grouped as a person finds them, its fields are made from its parameters, and a required one left empty says so in place" do
     open_editor
     click_button "Add step"

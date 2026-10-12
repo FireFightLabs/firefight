@@ -52,7 +52,7 @@ class Chat::Watch < ApplicationRecord
   SPEC_KEYS = {
     title: "title", minutes: "minutes", steps: "steps", label: "label", capability: "capability", resource: "resource",
     name: "name", run: "run", report_start: "report_start", done_when: "done_when", failed_when: "failed_when", goal: "goal",
-    tool: "tool", focus: "focus", arguments: "arguments", new_deploy: "new_deploy"
+    tool: "tool", focus: "focus", arguments: "arguments", new_deploy: "new_deploy", waits_for: "waits_for"
   }.freeze
 
   belongs_to :chat
@@ -160,6 +160,25 @@ class Chat::Watch < ApplicationRecord
                              stopped_by_id: stopped_by&.id, updated_at: Time.current)
     reload
     moved == 1
+  end
+
+  # Ended on a reading shown to be wrong, so it goes again until until_at. A watch a person stopped stays stopped. False
+  # when it was not one that ended on its own.
+  REOPENABLE = [ STATUS_SUCCEEDED, STATUS_FAILED, STATUS_TIMED_OUT ].freeze
+
+  def reopen!(until_at, now: Time.current)
+    moved = self.class.where(id: id, status: REOPENABLE).update_all(
+      status: STATUS_ACTIVE, outcome: nil, finished_at: nil, told_at: nil, expires_at: until_at, check_claimed_at: nil, next_check_at: nil, updated_at: now
+    )
+    reload
+    moved == 1
+  end
+
+  # Until when a reopened watch goes: its whole limit again from now, never past LONGEST from when it started and never
+  # earlier than it had. Nil when that leaves no time at all.
+  def reopened_until(now = Time.current)
+    until_at = [ [ now + (expires_at - created_at), expires_at ].max, created_at + LONGEST ].min
+    until_at if until_at > now
   end
 
   # Moves the limit to minutes after it started, at most LONGEST, while it still goes. False when it had ended.

@@ -4,7 +4,10 @@ class Conversation::Tools::RepairWatch < RubyLLM::Tool
   description "Repair a watch this chat keeps: give one of its steps a better read when its read found nothing to follow, " \
               "when a reading you took shows it follows the wrong thing, or when you are handed a step back. The same " \
               "watch follows it from here and says what changed. Try the new read once yourself first. Pass give_up " \
-              "when no read can show it. list_watches names the watches and their steps."
+              "when no read can show it. When a step ended wrongly, such as done or failed on what was there before the " \
+              "change it waits for, and the person or a reading you took shows it, pass reopen: the same watch follows that " \
+              "step again from now, and goes again when it had ended, so the wrong ending is not repeated. waits_for " \
+              "changes which earlier steps it waits for. list_watches names the watches and their steps."
 
   def self.tool_name = "repair_watch"
 
@@ -21,7 +24,10 @@ class Conversation::Tools::RepairWatch < RubyLLM::Tool
         "watch" => { "type" => "string", "description" => "The watch's id, as start_watch, list_watches or the hand back gave it" },
         "step" => { "type" => "string", "description" => "The step to repair, by its label" },
         "why" => { "type" => "string", "description" => "One short sentence on what was wrong with the old read, such as Run history only lists builds, not workflow runs" },
-        "give_up" => { "type" => "boolean", "description" => "Stop following this step, when no read you can make shows it (optional)" }
+        "give_up" => { "type" => "boolean", "description" => "Stop following this step, when no read you can make shows it (optional)" },
+        "reopen" => { "type" => "boolean",
+                      "description" => "Follow this step again from now, when how it ended was wrong, with a new read when you give one. A " \
+                                       "watch that ended goes again. A watch a person stopped stays stopped (optional)" }
       ),
       "required" => %w[watch step why]
     }

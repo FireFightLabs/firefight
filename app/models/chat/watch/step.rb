@@ -3,6 +3,7 @@
 # is claimed by one guarded update, so it is reported once.
 class Chat::Watch::Step < ApplicationRecord
   include NewDeploy
+  include Order
 
   STATUS_WAITING = "waiting"
   STATUS_RUNNING = "running"
@@ -12,8 +13,10 @@ class Chat::Watch::Step < ApplicationRecord
   STATUS_UNFOLLOWABLE = "unfollowable"
   # Its read found nothing to follow, so Halon is picking a better one for it with repair_watch. It is not read meanwhile.
   STATUS_REPAIRING = "repairing"
-  STATUSES = [ STATUS_WAITING, STATUS_RUNNING, STATUS_REPAIRING, STATUS_SUCCEEDED, STATUS_FAILED, STATUS_UNFOLLOWABLE ].freeze
-  OVER = [ STATUS_SUCCEEDED, STATUS_FAILED, STATUS_UNFOLLOWABLE ].freeze
+  # A step it waits for failed or could not be followed, so it was never read. Not a failure of its own.
+  STATUS_SKIPPED = "skipped"
+  STATUSES = [ STATUS_WAITING, STATUS_RUNNING, STATUS_REPAIRING, STATUS_SUCCEEDED, STATUS_FAILED, STATUS_UNFOLLOWABLE, STATUS_SKIPPED ].freeze
+  OVER = [ STATUS_SUCCEEDED, STATUS_FAILED, STATUS_UNFOLLOWABLE, STATUS_SKIPPED ].freeze
   # A step Halon may still change the read of.
   OPEN = [ STATUS_WAITING, STATUS_RUNNING, STATUS_REPAIRING ].freeze
   # Halon picks a better read this many times for one step. Past that the step is no longer followed, rather than
@@ -172,8 +175,9 @@ class Chat::Watch::Step < ApplicationRecord
   # Waiting on a repair longer than Halon has to make one.
   def repair_overdue?(now = Time.current) = repairing? && handed_back_at.present? && now - handed_back_at >= REPAIR_WITHIN
 
-  # Its reading has not changed, and was not judged within JUDGE_STEADY_EVERY, so it is judged again.
-  def judge_again?(now = Time.current) = judged_at.nil? || now - judged_at >= JUDGE_STEADY_EVERY
+  # Its reading has not changed, and was not judged within JUDGE_STEADY_EVERY, so it is judged again. A reading that
+  # showed it failed is always judged again, since the next reading confirms it or clears it.
+  def judge_again?(now = Time.current) = judged_at.nil? || failure_seen_at.present? || now - judged_at >= JUDGE_STEADY_EVERY
 
   # The read it makes, as a person reads it, such as "Run history of firefight" or "northflank_api_request GET
   # workflows/release/runs/46".
@@ -207,10 +211,31 @@ class Chat::Watch::Step < ApplicationRecord
       **read, status: STATUS_WAITING, repairs: Arel.sql("repairs + 1"), repaired_at: Time.current, repair_reason: nil, handed_back_at: nil, hand_back_noted_at: nil,
               followed_run_id: nil, run_url: nil, started_at: nil, started_told_at: nil, slow_told_at: nil, failed_part: nil,
               failed_part_told_at: nil, parts_told: {}, last_digest: nil, last_state: nil, judged_at: nil, steady_since: nil, read_at: nil,
-              readings: [], summary: nil, updated_at: Time.current
+              readings: [], summary: nil, failure_seen_at: nil, sources_before: nil, updated_at: Time.current
     )
     reload
     moved == 1
+  end
+
+  # Follows it again from the start after it ended, with read when given, since its ending was shown to be wrong. Only
+  # from an end, so a step still going is repaired instead. False when it had not ended.
+  def reopened!(read = {})
+    moved = self.class.where(id: id, status: OVER).update_all(
+      **read, status: STATUS_WAITING, reason: nil, finished_at: nil, finished_told_at: nil, repaired_at: Time.current, repair_reason: nil,
+              handed_back_at: nil, hand_back_noted_at: nil, followed_run_id: nil, run_url: nil, started_at: nil, started_told_at: nil,
+              slow_told_at: nil, failed_part: nil, failed_part_told_at: nil, parts_told: {}, last_digest: nil, last_state: nil, judged_at: nil,
+              steady_since: nil, read_at: nil, readings: [], summary: nil, failure_seen_at: nil, sources_before: nil, updated_at: Time.current
+    )
+    reload
+    moved == 1
+  end
+
+  # A reading showed it failed, which the next reading confirms before it ends. True once, for whoever saw it first.
+  def failure_seen!(now = Time.current) = claim(failure_seen_at: nil) { { failure_seen_at: now } }
+
+  # The reading after one that showed it failed did not, so it goes on.
+  def failure_cleared!
+    update_columns(failure_seen_at: nil, updated_at: Time.current) if failure_seen_at
   end
 
   # When it began to be followed, which is when the watch started or when it was added to a watch already going.
@@ -218,11 +243,12 @@ class Chat::Watch::Step < ApplicationRecord
 
   # The run this step follows among those a history read found: the one it already follows, the one the person named,
   # or the first of its name that started around or after the step began to be followed.
+  # A step that waits for others follows only a run that started once they began, since it is the run they led to.
   def run_among(runs)
     return runs.find { |run| run.id.to_s == followed_run_id } if followed_run_id.present?
     return runs.find { |run| run.named?(run_ref) } if run_ref.present?
 
-    since = begun_at - STARTED_BEFORE_WATCH
+    since = waits? && runs_from ? runs_from - CLOCK_SLACK : begun_at - STARTED_BEFORE_WATCH
     runs.select { |run| run.called?(run_name) && run.started_at && run.started_at >= since && !finished_before_watch?(run) }
         .min_by(&:started_at)
   end
@@ -262,17 +288,18 @@ class Chat::Watch::Step < ApplicationRecord
   end
 
   # Waiting on a run that has not shown up since it could have, counted from when the step began to be followed, the
-  # step before it ended, or Halon last gave it a better read.
+  # step before it ended, or Halon last gave it a better read. A step that waits for others could start only once they
+  # all succeeded, so it counts from then, whatever else still goes.
   def overdue?(now = Time.current)
     return false unless history? && status == STATUS_WAITING && handed_back_at.nil?
 
-    earlier = watch.steps.select { |step| step.position < position }
-    return false unless earlier.all?(&:over?)
+    earlier = waits? ? prerequisites : watch.steps.select { |step| step.position < position }
+    return false unless waits? ? ready? : earlier.all?(&:over?)
 
     now - waiting_since(earlier) >= HAND_BACK_AFTER
   end
 
-  def waiting_since(earlier = watch.steps.select { |step| step.position < position })
+  def waiting_since(earlier = waits? ? prerequisites : watch.steps.select { |step| step.position < position })
     [ begun_at, repaired_at, *earlier.filter_map(&:finished_at) ].compact.max
   end
 

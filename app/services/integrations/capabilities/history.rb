@@ -50,9 +50,10 @@ module Integrations
 
       # id is the provider's own, number what a person calls it when the provider numbers its runs (#46), name the
       # workflow, pipeline or kind of run (release, build, deploy), detail a short line such as the commit or the job that
-      # failed. parts are its jobs or steps, read only when the run was asked for by its id, and nil when not read.
-      Run = Data.define(:id, :number, :name, :status, :started_at, :finished_at, :url, :detail, :parts) do
-        def initialize(number: nil, name: nil, finished_at: nil, url: nil, detail: nil, parts: nil, **) = super
+      # failed. parts are its jobs or steps, read only when the run was asked for by its id, and nil when not read. title
+      # is the run's own name where the provider names each run, such as release-v0-0-29 after the tag that started it.
+      Run = Data.define(:id, :number, :name, :status, :started_at, :finished_at, :url, :detail, :parts, :title) do
+        def initialize(number: nil, name: nil, finished_at: nil, url: nil, detail: nil, parts: nil, title: nil, **) = super
 
         # The first job or step that failed, by when it ended.
         def first_failed_part = parts&.select(&:failed?)&.min_by { |part| part.finished_at || Time.current }
@@ -65,13 +66,14 @@ module Integrations
           (finished_at - started_at).round
         end
 
-        # Matches what a person or Halon named it by: its id, its number with or without # or a version's v, or nothing.
+        # Matches what a person or Halon named it by: its id, its number with or without # or a version's v, its own name,
+        # or nothing.
         def named?(reference)
           wanted = reference.to_s.strip.delete_prefix("#")
           return false if wanted.blank?
 
           named = [ id, number ].compact.map(&:to_s)
-          named.include?(wanted) || (wanted.match?(/\Av\d+\z/i) && number.to_s == wanted[1..])
+          named.include?(wanted) || (wanted.match?(/\Av\d+\z/i) && number.to_s == wanted[1..]) || title.to_s.strip.casecmp?(reference.to_s.strip)
         end
 
         def called?(text) = text.blank? || name.to_s.downcase.include?(text.to_s.downcase.strip)
@@ -80,7 +82,7 @@ module Integrations
           {
             "id" => id.to_s, "number" => number&.to_s, "name" => name, "status" => status, "started_at" => started_at&.utc&.iso8601,
             "finished_at" => finished_at&.utc&.iso8601, "seconds" => seconds, "url" => url, "detail" => detail,
-            "parts" => parts&.map(&:to_h)
+            "parts" => parts&.map(&:to_h), "title" => title
           }.compact
         end
 
@@ -88,7 +90,7 @@ module Integrations
           parts = hash["parts"].is_a?(Array) ? hash["parts"].map { |part| Part.from_h(part.to_h.transform_keys(&:to_s)) } : nil
           new(id: hash["id"], number: hash["number"], name: hash["name"], status: hash["status"],
               started_at: Telemetry.parse_time(hash["started_at"]), finished_at: Telemetry.parse_time(hash["finished_at"]),
-              url: hash["url"], detail: hash["detail"], parts: parts)
+              url: hash["url"], detail: hash["detail"], parts: parts, title: hash["title"])
         end
       end
 

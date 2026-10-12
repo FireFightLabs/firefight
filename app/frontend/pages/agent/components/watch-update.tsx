@@ -9,6 +9,7 @@ import {
   IconPlus,
   IconProgress,
   IconRefresh,
+  IconRotateClockwise,
   IconTool,
   IconX,
 } from "@tabler/icons-react"
@@ -28,6 +29,7 @@ const TONE_ICONS: Record<AgentChatWatchUpdate["tone"], { icon: Icon; className: 
   [WATCH_TONES.SLOW]: { icon: IconHourglass, className: "text-warning" },
   [WATCH_TONES.PROGRESS]: { icon: IconProgress, className: "text-ink-2" },
   [WATCH_TONES.STEPS_ADDED]: { icon: IconPlus, className: "text-ink-2" },
+  [WATCH_TONES.REOPENED]: { icon: IconRotateClockwise, className: "text-ink-2" },
   [WATCH_TONES.DONE]: { icon: IconCheck, className: "text-success" },
   [WATCH_TONES.FAILED]: { icon: IconX, className: "text-danger" },
   [WATCH_TONES.TIMED_OUT]: { icon: IconAlertTriangle, className: "text-warning" },
