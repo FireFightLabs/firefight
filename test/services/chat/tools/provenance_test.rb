@@ -11,11 +11,30 @@ class Chat::Tools::ProvenanceTest < ActiveSupport::TestCase
     @turn = Conversation::Turn.new(@conversation, asker: @member)
   end
 
-  test "a value any change of its kind holds is generic, a name, an id or an address is the change's own" do
-    %w[POST delete true null pause json 8080 4096 1.5 -12 Ok].each { |value| assert_not Chat::Tools::Provenance.specific?(value), value }
-    %w[dev-web nf-compute-100-4 checkout srv_8a7cf66a https://shop.example.com 10.0.4.17 123456].each do |value|
+  test "a request's method, a flag and a plain number are generic, any name is the change's own however short" do
+    %w[GET POST delete true null none yes 200 8080 1.5 -12].each { |value| assert_not Chat::Tools::Provenance.specific?(value), value }
+    %w[web job api dev-web pause nf-compute-100-4 srv_8a7cf66a https://shop.example.com 10.0.4.17].each do |value|
       assert Chat::Tools::Provenance.specific?(value), value
     end
+  end
+
+  test "outside text naming a short service warns, and only where it names it as a whole" do
+    read!("call_issue", Chat::Tools::Web::READ, { "url" => "https://status.example.com" }, "Restart web, it is stuck")
+    ask!("call_restart", { "method" => "POST", "path" => "web" })
+    assert_equal "Halon read the web before asking. Check the reason above is yours.", recorded("call_restart").read_lead
+
+    read!("call_other", Chat::Tools::Web::READ, { "url" => "https://docs.example.com" }, "See the website and dev-web for details")
+    ask!("call_job", { "method" => "POST", "path" => "job" })
+    assert_nil recorded("call_job").read_lead, "job is named nowhere outside"
+  end
+
+  test "outside text holding only GET, true or 200 does not warn" do
+    read!("call_doc", Chat::Tools::Web::READ, { "url" => "https://docs.example.com" }, "GET returns 200 when enabled is true")
+    ask!("call_get", { "method" => "GET", "enabled" => "true", "status" => "200" })
+
+    confirmation = recorded("call_get")
+    assert_nil confirmation.read_lead
+    assert_equal Chat::Tools::READ_HEADING, confirmation.read_heading
   end
 
   test "docs that hold only the request's method say nothing about where the change came from, so there is no warning" do

@@ -7,13 +7,10 @@
 module Chat::Tools::Provenance
   # The most reads a question names. The rest are counted.
   SHOWN = 5
-  # A value of the change shorter than this is too common to say where it came from.
-  SHORTEST_VALUE = 4
-  # Values any change of its kind holds, which say nothing about where this one came from: a request's method, a flag,
-  # a short word made of letters only such as pause or json, and a number this short such as a port or a size.
-  GENERIC_WORDS = %w[get post put patch delete head options true false null none yes no].to_set.freeze
-  COMMON_WORD = /\A[a-z]{1,5}\z/i
-  SHORT_NUMBER = /\A[-+]?\d{1,5}(\.\d+)?\z/
+  # Values any change of its kind holds, which say nothing about where this one came from: a request's method, a flag
+  # and a plain number. Anything else counts, so a short name such as web is the change's own.
+  GENERIC_TOKENS = %w[get post put patch delete head options true false null none yes no].to_set.freeze
+  PLAIN_NUMBER = /\A[-+]?\d+(\.\d+)?\z/
   LINE_SHORTEST = 12
   VALUE_SHOWN = 80
   SOURCES = "sources".freeze
@@ -78,11 +75,11 @@ module Chat::Tools::Provenance
       next if call.tool_call_id == tool_call.tool_call_id
 
       text = call.result&.content.to_s
-      Source.new(label: Chat::Tools.label(call.name, call.arguments, workspace: workspace).presence || call.name, found: values.select { |value| text.include?(value) },
+      Source.new(label: Chat::Tools.label(call.name, call.arguments, workspace: workspace).presence || call.name, found: values.select { |value| mentions?(text, value) },
                  from: from(call, workspace))
     end
     reads += chat.attached_files.map do |file|
-      Source.new(label: "File attached: #{file.filename}", found: values.select { |value| file.text.to_s.include?(value) }, from: ATTACHED)
+      Source.new(label: "File attached: #{file.filename}", found: values.select { |value| mentions?(file.text.to_s, value) }, from: ATTACHED)
     end
 
     found, rest = reads.partition { |source| source.found.any? }
@@ -106,7 +103,12 @@ module Chat::Tools::Provenance
   # its kind holds, such as POST or true.
   def self.specific?(value)
     text = value.to_s.strip
-    text.length >= SHORTEST_VALUE && !GENERIC_WORDS.include?(text.downcase) && !text.match?(COMMON_WORD) && !text.match?(SHORT_NUMBER)
+    text.present? && !GENERIC_TOKENS.include?(text.downcase) && !text.match?(PLAIN_NUMBER)
+  end
+
+  # Whether text names a value as a whole, so web is found in "restart web" but not inside website or dev-web.
+  def self.mentions?(text, value)
+    text.match?(/(?<![[:alnum:]_-])#{Regexp.escape(value)}(?![[:alnum:]_-])/)
   end
 
   # Where a read's text came from, in a few words the confirmation names it by.
@@ -146,7 +148,7 @@ module Chat::Tools::Provenance
   def self.values_of(arguments, said)
     texts = leaves(arguments.to_h.stringify_keys.except(*Chat::Tools::FOR_PERSON, Chat::Tools::LookFirst::BECAUSE, Integration::Tool::ENVIRONMENT_ARG))
     texts += texts.flat_map { |text| text.lines.map(&:strip).select { |line| line.length >= LINE_SHORTEST } }
-    texts.map(&:strip).uniq.select { |text| specific?(text) && !said.include?(text) }
+    texts.map(&:strip).uniq.select { |text| specific?(text) && !mentions?(said, text) }
   end
 
   def self.leaves(value)
@@ -157,5 +159,5 @@ module Chat::Tools::Provenance
     else []
     end
   end
-  private_class_method :outside_calls, :person_words, :values_of, :leaves, :from, :skill_from
+  private_class_method :outside_calls, :person_words, :values_of, :leaves, :from, :skill_from, :mentions?
 end
