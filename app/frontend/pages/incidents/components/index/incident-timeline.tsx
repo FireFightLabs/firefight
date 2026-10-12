@@ -37,6 +37,7 @@ import type { ActorCompact } from "@/types/serializers"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { TimelineEvent } from "@/pages/incidents/types"
 import { ActorChip } from "@/components/actor-chip"
+import { MarkdownText } from "@/components/markdown-text"
 import { INVESTIGATION_EVENT_TYPES, OPEN_INVESTIGATION_PROP, PRINCIPAL_KINDS } from "@/lib/generated/constants"
 import {
   DismissNoteAction,
@@ -211,10 +212,10 @@ function NoteStatement({ event }: { event: TimelineEvent }) {
     return null
   }
 
-  // flex-1 with a zero basis keeps the statement beside the stem and lets a long
-  // one wrap inside itself instead of dropping below the avatar.
+  // A line of its own under the header, so a statement of any length wraps under
+  // itself. The avatar is one line tall, which keeps it level with the first line.
   return (
-    <span className="flex min-w-0 flex-1 items-center gap-2">
+    <div className="ml-[44px] mt-2 flex items-start gap-2 text-sm">
       {person && (
         <Avatar className="size-5 shrink-0">
           {person.avatarUrl ? <AvatarImage src={person.avatarUrl} alt={person.name} /> : null}
@@ -223,14 +224,15 @@ function NoteStatement({ event }: { event: TimelineEvent }) {
           </AvatarFallback>
         </Avatar>
       )}
-      <span className="font-medium text-fg-primary">{milestone.statement}</span>
-    </span>
+      <p className="min-w-0 font-medium text-fg-primary">{milestone.statement}</p>
+    </div>
   )
 }
 
 function EventSubject({ event }: { event: TimelineEvent }) {
+  // A note's statement sits below the header, in NoteStatement.
   if (event.milestone) {
-    return <NoteStatement event={event} />
+    return null
   }
   if (event.person) {
     return <ActorChip actor={event.person} fallback="" />
@@ -307,11 +309,7 @@ function ActionCard({ action }: { action: NonNullable<TimelineEvent["action"]> }
 function PinCard({ pin, withDivider }: { pin: NonNullable<TimelineEvent["pin"]>; withDivider: boolean }) {
   return (
     <div className={withDivider ? "mt-2 border-t border-border pt-2" : ""}>
-      {pin.text && (
-        <blockquote className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">
-          {pin.text}
-        </blockquote>
-      )}
+      {pin.text && <MarkdownText text={pin.text} />}
       {pin.permalink && (
         <a
           href={pin.permalink}
@@ -387,7 +385,7 @@ function EventRow({
         </div>
 
         {/* The sentence wraps on its own. Time and actions sit outside it so a
-            long note never pushes them onto a second line. */}
+            long subject never pushes them onto a second line. */}
         <div className="flex flex-1 min-w-0 items-center gap-2 flex-wrap text-sm">
           <span className={`font-medium ${highlight ? "text-fg-primary" : "text-fg-body"}`}>
             {event.actor}
@@ -408,6 +406,7 @@ function EventRow({
         </span>
       </div>
 
+      <NoteStatement event={event} />
       <EventCard event={event} />
     </div>
   )

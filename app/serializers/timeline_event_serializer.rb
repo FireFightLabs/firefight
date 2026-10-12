@@ -106,7 +106,7 @@ class TimelineEventSerializer < BaseSerializer
     {
       kind: meta[:kind],
       statement: meta[:statement].to_s,
-      quote: meta[:message_text].presence,
+      quote: quote,
       permalink: meta[:permalink].presence,
       dismissedAt: meta[:dismissed_at].presence,
       dismissedBy: dismissed_by_name(meta)
@@ -118,7 +118,7 @@ class TimelineEventSerializer < BaseSerializer
     return nil unless [ IncidentEvent::MESSAGE_PINNED, IncidentEvent::MESSAGE_UNPINNED ].include?(event.event_type)
 
     meta = event.metadata.to_h.with_indifferent_access
-    { text: meta[:message_text].presence, permalink: meta[:permalink].presence }
+    { text: quote, permalink: meta[:permalink].presence }
   end
 
   type "{ field: string; label: string; kind: #{IncidentUpdate::CHANGE_KINDS.map(&:inspect).join(" | ")}; before: string | null; after: string | null }[]", optional: true
@@ -179,6 +179,12 @@ class TimelineEventSerializer < BaseSerializer
     IncidentEvent::INCIDENT_ESCALATED, IncidentEvent::ESCALATION_NUDGED,
     IncidentEvent::MILESTONE_NOTED
   ].freeze
+
+  # The quote as markdown, from the platform's own reading of its text, which the controller hands in as quotes.
+  def quote
+    text = event.quoted_message
+    text && options.fetch(:quotes, {}).fetch(text, text)
+  end
 
   # The author may have left the workspace, and a machine never had a member row.
   def dismissed_by_name(meta)

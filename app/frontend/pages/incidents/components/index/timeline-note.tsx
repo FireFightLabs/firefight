@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
+import { MarkdownText } from "@/components/markdown-text"
 import type { TimelineEvent } from "@/pages/incidents/types"
 import { dismissIncidentEventPath } from "@/lib/routes"
 import { afterMutation } from "@/pages/incidents/lib/after-mutation"
@@ -36,11 +37,7 @@ export function NoteQuote({ milestone, withDivider }: { milestone: Milestone; wi
     <div className={withDivider ? "mt-2 border-t border-border pt-2" : ""}>
       {/* Flush with the tag row. The AI-noted label already says this is quoted,
           so a rule and an indent only break the alignment. */}
-      {milestone.quote && (
-        <blockquote className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">
-          {milestone.quote}
-        </blockquote>
-      )}
+      {milestone.quote && <MarkdownText text={milestone.quote} />}
       <div className={`flex items-center gap-3 ${milestone.quote ? "mt-2" : ""}`}>
         <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           <IconSparkles className="size-3" strokeWidth={1.75} />
