@@ -12,8 +12,6 @@ class Conversation::IssueSessionsTest < ActiveSupport::TestCase
     @row.store_installation!("org-1")
     @said = []
     Integrations::AgentSessions::Linear.any_instance.stubs(:say).with { |session_id, activity| @said << [ session_id, activity ] }
-    @linked = []
-    Integrations::AgentSessions::Linear.any_instance.stubs(:link).with { |session_id, label:, url:| @linked << [ session_id, label, url ] }
     AppUrl.stubs(:options).returns(host: "ff.example.com", protocol: "https")
     Investigation.stubs(:unavailable_reason).returns(nil)
   end
@@ -32,7 +30,7 @@ class Conversation::IssueSessionsTest < ActiveSupport::TestCase
 
   def conversation = Conversation.in_issue_session(@integration, "session-1")
 
-  test "a new session says Halon is on it first, then asks in a chat that acts as Firefight's agent and is listed for whoever asked" do
+  test "a new session says Halon is on it first, then asks in a chat that acts as Firefight's agent, which no dashboard lists" do
     assert_enqueued_with(job: ConversationReplyJob) { receive(started) }
 
     assert_equal [ Integrations::AgentSessions::THOUGHT, Conversation::IssueSessions::ON_IT ], [ @said.first.last.kind, @said.first.last.body ]
@@ -40,8 +38,7 @@ class Conversation::IssueSessionsTest < ActiveSupport::TestCase
     assert_equal [ Conversation::KIND_ISSUE, SystemAgent.investigator ], [ chat.kind, chat.started_by ]
     assert_equal "ENG-12 Checkout returns 500", chat.title
     assert_equal workspace_memberships(:alice_workspace_one), chat.issue_session.asked_by
-    assert_includes Conversation.own_for(workspace_memberships(:alice_workspace_one)), chat
-    assert_equal [ [ "session-1", "Open in Firefight", Rails.application.routes.url_helpers.agent_chat_url(chat, host: "ff.example.com", protocol: "https") ] ], @linked
+    assert_not_includes Conversation.own_for(workspace_memberships(:alice_workspace_one)), chat
 
     person = chat.chat.messages.find_by!(role: Chat::Message::ROLE_USER, nudge: false)
     assert_equal "@firefight why is checkout failing?", person.content
@@ -64,13 +61,12 @@ class Conversation::IssueSessionsTest < ActiveSupport::TestCase
     assert_equal "Look into ENG-12 Checkout returns 500.", conversation.chat.messages.find_by!(role: Chat::Message::ROLE_USER, nudge: false).content
   end
 
-  test "someone Firefight cannot match by email is listed for the workspace's admins and nobody else" do
-    receive(started(asker_email: "stranger@example.com"))
+  test "someone Firefight cannot match by email still gets an answer, and the chat is listed for nobody, admins included" do
+    assert_enqueued_with(job: ConversationReplyJob) { receive(started(asker_email: "stranger@example.com")) }
 
     assert_nil conversation.issue_session.asked_by
-    assert_includes Conversation.own_for(workspace_memberships(:alice_workspace_one)), conversation
+    assert_not_includes Conversation.own_for(workspace_memberships(:alice_workspace_one)), conversation
     assert_not_includes Conversation.own_for(workspace_memberships(:bob_workspace_one)), conversation
-    assert_not_includes Conversation.own_for(nil), conversation
   end
 
   test "a follow up carries on the same chat, and one sent while Halon works joins that turn" do
@@ -122,16 +118,75 @@ class Conversation::IssueSessionsTest < ActiveSupport::TestCase
     assert_nil conversation
   end
 
-  test "the chat reads as asked in the tracker, with the issue to carry on in, and refuses to be asked on the dashboard" do
-    receive(started)
-
-    assert_equal "Linear", conversation.asked_in
-    assert_equal "This chat is in Linear, so carry on there.", conversation.ask_blocked_reason
-  end
 
   test "a turn always acts as the agent, whoever pressed something for it in the dashboard" do
     receive(started)
 
     assert_equal SystemAgent.investigator, conversation.turn_asker(workspace_memberships(:alice_workspace_one).id)
+  end
+
+  # The turn paused on a call to confirm, as Chat::Tools leaves it.
+  def paused_on_a_call
+    receive(started)
+    chat = conversation.chat
+    asked = chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    asked.ruby_llm_tool_calls.create!(tool_call_id: "call_9", name: "restart", arguments: {})
+    chat.request_decisions!([ "call_9" ])
+    conversation.reply_delivered!
+    chat
+  end
+
+  def picked(word, email: "alice@example.com")
+    event(Integrations::AgentSessions::PROMPTED, text: word, asker_email: email, asker_name: "Alice")
+  end
+
+  test "picking Confirm in the issue confirms the waiting call as the member who picked it, and the turn carries on as the agent" do
+    chat = paused_on_a_call
+
+    assert_enqueued_with(job: ConversationReplyJob, args: [ conversation.id, workspace_memberships(:alice_workspace_one).id ]) { receive(picked("Confirm")) }
+
+    assert_equal Chat::APPROVAL_APPROVED, chat.tool_calls.find_by!(tool_call_id: "call_9").approval
+    assert_equal [ Integrations::AgentSessions::THOUGHT, Conversation::IssueSessions::GOING_AHEAD ], [ @said.last.last.kind, @said.last.last.body ]
+    assert_equal SystemAgent.investigator, conversation.turn_asker(workspace_memberships(:alice_workspace_one).id)
+    assert_equal 1, chat.messages.where(role: Chat::Message::ROLE_USER, nudge: false).count
+    ledgered = Ability::Invocation.where(workspace: @workspace, action_key: Ability::Action::INVESTIGATIONS_CREATE, principal_type: WorkspaceMembership.name)
+    assert_equal [ "Alice in Linear" ], ledgered.pluck(:triggered_by_label)
+  end
+
+  test "picking Skip skips it, and the turn carries on without it" do
+    chat = paused_on_a_call
+
+    assert_enqueued_with(job: ConversationReplyJob) { receive(picked("skip.")) }
+
+    assert_equal Chat::APPROVAL_DENIED, chat.tool_calls.find_by!(tool_call_id: "call_9").approval
+    assert_equal Conversation::IssueSessions::SKIPPED, @said.last.last.body
+  end
+
+  test "someone who matches no member, or may not ask Halon, is told the call still waits, with the choices again" do
+    chat = paused_on_a_call
+
+    assert_no_enqueued_jobs(only: ConversationReplyJob) { receive(picked("Confirm", email: "stranger@example.com")) }
+
+    assert_equal Chat::APPROVAL_REQUESTED, chat.tool_calls.find_by!(tool_call_id: "call_9").approval
+    told = @said.last.last
+    assert_equal [ Integrations::AgentSessions::ELICITATION, [ "Confirm", "Skip" ] ], [ told.kind, told.choices ]
+    assert_match "from the Linear account that uses the same email as theirs in Firefight", told.body
+
+    AbilityGateway.stubs(:permitted?).returns(false)
+    receive(picked("Confirm"))
+    assert_equal Chat::APPROVAL_REQUESTED, chat.tool_calls.find_by!(tool_call_id: "call_9").approval
+    assert_equal Integrations::AgentSessions::ELICITATION, @said.last.last.kind
+  end
+
+  test "Confirm with nothing waiting, or anything else said while a call waits, is a question like any other" do
+    receive(started)
+    conversation.reply_delivered!
+    receive(picked("Confirm"))
+    assert_equal "Confirm", conversation.chat.messages.where(role: Chat::Message::ROLE_USER, nudge: false).order(:created_at).last.content
+
+    chat = paused_on_a_call
+    receive(picked("Restart it, yes"))
+    assert_equal Chat::APPROVAL_REQUESTED, chat.tool_calls.find_by!(tool_call_id: "call_9").approval
+    assert_equal "Restart it, yes", chat.messages.where(role: Chat::Message::ROLE_USER, nudge: false).order(:created_at).last.content
   end
 end

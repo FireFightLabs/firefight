@@ -8,9 +8,10 @@ module Integrations
     #
     # The app is now installed with actor=app (linear.app/developers/oauth-actor-authorization), so its token acts as the
     # app's own user in the organization that installed it, whose id is kept as the connection's installation. Such a
-    # token may not hold admin (linear.app/developers/agents, Admin), so the webhook that sends issue changes back is set
-    # up by hand, as for a connection through Linear's MCP server. A connection made before acts as whoever connected it,
-    # keeps its webhook and keeps working, and its health says to reconnect for the app to act as itself.
+    # token may not hold admin (linear.app/developers/agents, Admin), so it registers no webhook. Its issue changes arrive
+    # instead at the OAuth application's own webhook, which the app's settings send Issues data change events to for
+    # every organization that installed it. A connection made before acts as whoever connected it, keeps its webhook and
+    # keeps working, and its health says to reconnect for the app to act as itself.
     class Linear < NativePack
       PROVIDER = "Linear".freeze
       TEAM = IssueTrackers::Linear::TEAM
@@ -84,14 +85,19 @@ module Integrations
       ACTS_AS_A_PERSON = "Firefight's Linear app acts as the person who connected it, so it cannot be assigned issues or mentioned, and it stops " \
                          "when they leave Linear. Reconnect it, and have a Linear admin approve the install, so it acts as itself.".freeze
 
+      APP_WEBHOOK_UNSET = "Firefight cannot receive Linear's changes or mentions until whoever runs Firefight sets the app's webhook " \
+                          "signing secret.".freeze
+
       # The installation is learned here, on connecting and with every check, so a reconnect that installed the app in
-      # another organization follows it.
+      # another organization follows it. An app connection hears of changes and mentions only at the app's own webhook,
+      # which exists only once the deployment has its signing secret (MapEvents.app_secret).
       def check_health!(environment_row)
         actor = api(environment_row).actor.to_h
         fail! ACTS_AS_A_PERSON unless actor["app"]
 
         organization = actor.dig("organization", "id")
         Installations.connected!(environment_row, organization) if organization.present? && environment_row.installation_id != organization
+        fail! APP_WEBHOOK_UNSET if MapEvents.app_secret(environment_row.integration.provider).blank?
       rescue LinearApi::Error => error
         fail! error.message
       end
@@ -120,8 +126,9 @@ module Integrations
       # Linear grants an app every scope it asked for at install, so a tool never lacks one.
       def self.missing_access(_environment_row, _tool_name) = []
 
-      # A token that acts as the app may not create webhooks, so its issue webhook is set up by hand.
-      def self.registers_issue_webhook?(environment_row) = environment_row.nil? || environment_row.installation_id.blank?
+      # A connection installed as the app has its issue changes sent to the app's own webhook, so nothing is registered
+      # or pasted for it.
+      def self.issue_changes_through_app?(environment_row) = environment_row.present? && environment_row.installation_id.present?
 
       # A webhook on the team issues go to, signed with a secret Firefight makes (WebhookCreateInput.secret).
       def register_issue_webhook(environment_row, url:, target:)

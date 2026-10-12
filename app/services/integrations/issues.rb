@@ -22,7 +22,8 @@ module Integrations
   # A provider whose own app connects it natively (IntegrationProvider::App) has a pack that registers the webhook
   # itself: register_issue_webhook(environment_row, url:, target:) answering a Webhook, remove_issue_webhook(
   # environment_row, id) and, where webhooks expire, refresh_issue_webhook(environment_row, id) answering when it now does.
-  # A pack whose token may not register one for some connections answers registers_issue_webhook?(environment_row).
+  # A pack whose app is sent its connections' issue changes at the provider's app wide address answers
+  # issue_changes_through_app?(environment_row), and such a connection registers nothing and is asked for nothing.
   #   event(payload)                             an Event for a change to an issue, or nil for anything else
   #   OPENS                                      the tools that can open an issue, which a chat asks how to keep
   module Issues
@@ -130,13 +131,17 @@ module Integrations
     end
 
     # Whether Firefight registers the connection's webhook itself, which a connection made with its own app does, unless
-    # its pack says this connection's token may not (registers_issue_webhook?(environment_row)), and it is then set up
-    # by hand like any other.
+    # its changes arrive through the app (through_app?).
     def self.registers_webhooks?(integration)
       pack = integration.native? && NativePack.for(integration.provider)
-      return false unless pack.present? && pack.method_defined?(:register_issue_webhook)
+      pack.present? && pack.method_defined?(:register_issue_webhook) && !through_app?(integration)
+    end
 
-      !pack.respond_to?(:registers_issue_webhook?) || pack.registers_issue_webhook?(integration.resolve_environment(nil))
+    # Whether the connection's issue changes arrive at its provider's app wide address, sent by the provider for every
+    # account that installed Firefight's app (IssueSyncService.app_delivered!).
+    def self.through_app?(integration)
+      pack = integration.native? && NativePack.for(integration.provider)
+      pack.present? && pack.respond_to?(:issue_changes_through_app?) && pack.issue_changes_through_app?(integration.resolve_environment(nil))
     end
 
     def self.register_webhook(integration, url:, target:)

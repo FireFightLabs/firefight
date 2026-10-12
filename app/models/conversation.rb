@@ -8,7 +8,8 @@ class Conversation < ApplicationRecord
   # Another agent asking over MCP, one chat per principal, as that principal.
   KIND_MCP = "mcp"
   # Someone assigning an issue in a connected tracker to Firefight's app, or mentioning it there, answered in the issue
-  # (Conversation::IssueSession). It acts as Firefight's own agent, never as a person.
+  # (Conversation::IssueSession). It acts as Firefight's own agent, never as a person, and like a chat in a channel it
+  # lives only where it was asked, so no dashboard lists or opens it.
   KIND_ISSUE = "issue"
   KINDS = [ KIND_CHANNEL, KIND_PERSONAL, KIND_DIRECT, KIND_MCP, KIND_ISSUE ].freeze
   # One person's own chats, listed on their dashboard wherever they were asked.
@@ -48,15 +49,7 @@ class Conversation < ApplicationRecord
   validates :max_turns, :max_spend_cents, numericality: { only_integer: true, greater_than: 0 }
 
   scope :personal, -> { where(kind: KIND_PERSONAL) }
-  # A chat started in an issue is listed for the member who asked there, and one asked by someone Firefight could not
-  # match is listed for whoever may connect integrations, as the app was installed by one of them.
-  scope :own_for, ->(member) {
-    asked = member ? Conversation::IssueSession.where(asked_by_id: member.id) : Conversation::IssueSession.none
-    if member&.may?(Ability::Action::RESOURCE_INTEGRATIONS, Ability::Action::ACTION_CREATE, member.workspace)
-      asked = asked.or(Conversation::IssueSession.where(asked_by_id: nil))
-    end
-    where(kind: OWN_KINDS, started_by: member).or(where(kind: KIND_ISSUE, id: asked.select(:conversation_id)))
-  }
+  scope :own_for, ->(member) { where(kind: OWN_KINDS, started_by: member) }
   scope :archived, -> { where.not(archived_at: nil) }
   # Archived last, so a list that loads page by page reaches them at the end.
   scope :in_reading_order, -> { order(Arel.sql("archived_at IS NOT NULL, pinned_at DESC NULLS LAST, updated_at DESC")) }
@@ -92,6 +85,19 @@ class Conversation < ApplicationRecord
       principal: SystemAgent.investigator, action_key: Ability::Action::INVESTIGATIONS_CREATE, workspace: workspace, params: {},
       context: { source: AbilityGateway::SOURCE_CONVERSATION, triggered_by_label: asked_by_label }, &
     )
+  end
+
+  # A member answering, in a tracker's issue, a call the chat there paused on, as pressing a button in a channel does.
+  # They must be allowed to ask Halon, and it is ledgered as theirs, never held, since nothing in the issue could pick it
+  # up again. Answers false, having run nothing, when they may not.
+  def self.answer_in_issue!(member:, workspace:, asked_by_label:, &)
+    AbilityGateway.authorize!(
+      principal: member, action_key: Ability::Action::INVESTIGATIONS_CREATE, workspace: workspace, holdable: false,
+      context: { source: AbilityGateway::SOURCE_CONVERSATION, triggered_by_label: asked_by_label }, &
+    )
+    true
+  rescue AbilityGateway::Denied
+    false
   end
 
   # The chat a platform thread belongs to, whether it started there or a direct message chat carried on in it.
@@ -157,7 +163,7 @@ class Conversation < ApplicationRecord
     wanted = text.to_s.strip.downcase
     return [] if wanted.empty?
 
-    own_for(member).includes({ chat: :last_readable_message }, { issue_session: :integration }).in_reading_order.to_a
+    own_for(member).includes(chat: :last_readable_message).in_reading_order.to_a
       .select { |conversation| "#{conversation.display_title} #{conversation.preview}".downcase.include?(wanted) }
       .first(limit)
   end
@@ -184,21 +190,16 @@ class Conversation < ApplicationRecord
     reload if moved == 1
   end
 
-  # The platform a direct message chat lives in, or the tracker an issue's chat does, as people know it. A dashboard
-  # chat lives on the dashboard.
-  def asked_in
-    return Platforms.display_name(workspace.platform) if direct?
-
-    issue_session&.place if issue?
-  end
+  # The platform a direct message chat lives in, as people know it. A dashboard chat lives on the dashboard.
+  def asked_in = (Platforms.display_name(workspace.platform) if direct?)
 
   # The dashboard reads a chat from elsewhere but never asks in it, since the answer is written where it was asked.
   def ask_blocked_reason
-    "This chat is in #{asked_in}, so carry on there." if direct? || issue?
+    "This chat is in #{asked_in}, so carry on there." if direct?
   end
 
-  # Who a turn acts as. A chat in an issue always acts as the agent it was started as, whoever pressed something for it
-  # in the dashboard, since a machine never borrows a person's reach. Any other acts as the asker, or whoever started it.
+  # Who a turn acts as. A chat in an issue always acts as the agent it was started as, whoever confirmed a call or
+  # approved one for it, since a machine never borrows a person's reach. Any other acts as the asker, or whoever started it.
   def turn_asker(asker_id)
     return started_by if issue?
 

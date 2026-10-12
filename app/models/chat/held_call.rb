@@ -59,6 +59,10 @@ class Chat::HeldCall < ApplicationRecord
 
   def asker_name = asker.try(:display_name) || approval.principal_label
 
+  # A call held in a chat nobody opens in Firefight, one in a tracker's issue, runs as soon as it is approved, since
+  # nobody could press Run.
+  def runs_when_approved? = conversation.try(:issue?) == true
+
   # What it shows now, an approved call whose window passed reading as expired before the job marks it.
   def shown_status = lapsed? ? STATUS_EXPIRED : status
 

@@ -3,7 +3,7 @@
 # issues go (Integrations::Issues target fields, such as a Linear team or a Jira project). Changes made in the tracker
 # reach Firefight through the tracker's webhook, sent to an address only this workspace has and checked with the signing
 # secret the admin pastes from the tracker, which the tracker connection's own row keeps (IntegrationEnvironment::
-# IssueWebhook). Only items linked to the chosen connection's issues are kept in step.
+# IssueWebhook), or through Firefight's own app at the provider's app wide address, which asks for nothing. Only items linked to the chosen connection's issues are kept in step.
 module Workspace::IssueSync
   extend ActiveSupport::Concern
 
@@ -76,13 +76,15 @@ module Workspace::IssueSync
   end
 
   # Why changes made in the tracker do not reach Firefight, or nil when they do or no tracker is chosen. A webhook
-  # Firefight registered itself needs no secret pasted.
+  # Firefight registered itself needs no secret pasted, and neither does a connection whose changes arrive through
+  # Firefight's own app (Integrations::Issues.through_app?).
   def issue_webhook_blocked_reason
     integration = issue_sync_connection
     return if integration.nil?
 
     row = issue_webhook_row(integration)
     return "#{integration.name} has no environment to call, so changes made there do not reach Firefight." if row.nil?
+    return if Integrations::Issues.through_app?(integration)
     return Integrations::Sentence.join("Firefight could not register #{integration.name}'s webhook, so changes made there do not reach it", row.issue_webhook_error) if row.issue_webhook_error.present?
     return if row.issue_webhook_registered?
 

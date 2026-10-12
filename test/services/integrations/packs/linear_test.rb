@@ -13,7 +13,11 @@ module Integrations
         @row = @integration.integration_environments.create!
         Credentials.stubs(:headers_for).returns("Authorization" => "Bearer lin_oauth")
         @pack = NativePack.fetch!(@integration)
+        @previous_secret = ENV["INTEGRATION_LINEAR_WEBHOOK_SECRET"]
+        ENV["INTEGRATION_LINEAR_WEBHOOK_SECRET"] = "app-secret"
       end
+
+      teardown { ENV["INTEGRATION_LINEAR_WEBHOOK_SECRET"] = @previous_secret }
 
       def data(result) = JSON.parse(result["content"].first["text"])
 
@@ -71,6 +75,18 @@ module Integrations
         assert Installations.installed?(@row)
       end
 
+      test "without the app's webhook signing secret set on the deployment, an app connection needs attention and says why" do
+        ENV["INTEGRATION_LINEAR_WEBHOOK_SECRET"] = nil
+        LinearApi.any_instance.stubs(:actor).returns(APP)
+
+        HealthCheckService.check!(@row)
+
+        assert_equal [ IntegrationEnvironment::HEALTH_FAILING, Linear::APP_WEBHOOK_UNSET ], [ @row.reload.health_status, @row.health_error ]
+        assert_equal "org-1", @row.installation_id
+        assert_equal IntegrationProvider::STATE_NEEDS_ATTENTION, IntegrationProvider.card_for(@workspace, IntegrationProvider.category_for!("Issues"))
+                                                                                     .rows.find { |row| row.provider.key == "linear" }.state
+      end
+
       test "a connection made before the app acted as itself keeps working but needs attention, saying to reconnect" do
         LinearApi.any_instance.stubs(:actor).returns(APP.merge("app" => false))
 
@@ -93,12 +109,14 @@ module Integrations
         assert_equal [ Installations::EMPTIED, "Acme", "https://linear.app/acme/settings/integrations" ], [ found.state, found.account, found.page ]
       end
 
-      test "a connection that acts as the app sets up its issue webhook by hand, and one from before still registers its own" do
+      test "a connection that acts as the app has its issue changes sent through the app, and one from before still registers its own webhook" do
         assert Issues.registers_webhooks?(@integration)
+        assert_not Issues.through_app?(@integration)
 
         @row.store_installation!("org-1")
 
         assert_not Issues.registers_webhooks?(@integration)
+        assert Issues.through_app?(@integration)
       end
 
       test "removing the app revokes its token in Linear's documented token field" do

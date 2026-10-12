@@ -1,14 +1,19 @@
 # What Halon says while it answers in a tracker's issue, as activities in the session someone opened there by assigning
 # the issue to Firefight's app or mentioning it (Integrations::AgentSessions). Each tool is an action, shown while it
-# runs and kept once it answered with how it went, and the answer is the response. The issue has no buttons, so what
-# needs a person (a call to confirm, one waiting for approval) is said with a link to the chat in Firefight, where it is
-# decided. A failure to say something is logged and never retried, since the answer is saved in the chat.
+# runs and kept once it answered with how it went, and the answer is the response. Nobody opens the chat in Firefight,
+# so what needs a person is decided without it. A call to confirm is asked with Confirm and Skip to pick in the issue
+# (Conversation::IssueSessions takes the answer), and a call an approval rule holds is said under the answer with a link
+# to Gateway, Approvals, where approving it runs it (Conversation::HeldCalls). A failure to say something is logged and
+# never retried, since the answer is saved in the chat.
 class Conversation::IssueDelivery
   OUTCOME_WORDS = {
     Chat::StepOutcome::KIND_ANSWERED => "Done", Chat::StepOutcome::KIND_FAILED => "Failed",
     Chat::StepOutcome::KIND_NOT_FOUND => "Not found", Chat::StepOutcome::KIND_REFUSED => "Not allowed"
   }.freeze
   SOURCES_SHOWN = 8
+  # What a person picks in the issue to answer a call to confirm, which comes back as a follow up saying it.
+  CONFIRM = "Confirm".freeze
+  SKIP = "Skip".freeze
 
   def initialize(conversation)
     @conversation = conversation
@@ -57,10 +62,11 @@ class Conversation::IssueDelivery
 
   def confirm!(tool_calls)
     asked = tool_calls.map { |tool_call| "- #{confirmation_line(Chat::Tools.confirmation(tool_call))}" }
+    them = tool_calls.one? ? "it" : "them"
     body = [ "Before I go on, a person needs to confirm #{tool_calls.one? ? 'this' : 'these'}:", asked.join("\n"),
-             "Confirm or skip #{tool_calls.one? ? 'it' : 'them'} in this chat in Firefight#{" (#{chat_url})" if chat_url}. " \
-             "Asking something else here skips #{tool_calls.one? ? 'it' : 'them'}." ].join("\n\n")
-    say(Integrations::AgentSessions::Activity.new(kind: Integrations::AgentSessions::ELICITATION, body: body))
+             "Choose #{CONFIRM} to go ahead or #{SKIP} to leave #{them}. Only someone with a Firefight account who may ask Halon " \
+             "can answer, and asking something else here skips #{them}." ].join("\n\n")
+    say(Integrations::AgentSessions::Activity.new(kind: Integrations::AgentSessions::ELICITATION, body: body, choices: [ CONFIRM, SKIP ]))
   end
 
   # A confirmation left behind is withdrawn on the dashboard, and the issue has nothing to redraw.
@@ -96,21 +102,15 @@ class Conversation::IssueDelivery
     "Read: #{listed.join(', ')}#{" and #{more} more" if more.positive?}"
   end
 
-  # A call an approval rule held in this turn waits for an approver, and is run from the chat in Firefight once approved.
+  # A call an approval rule held in this turn waits for an approver, and runs as soon as it is approved.
   def approval_line
     chat = @conversation.chat
     held = chat ? chat.held_calls.where(status: Chat::HeldCall::STATUS_WAITING, created_at: @since..).count : 0
     return if held.zero?
 
-    approvals = url_for(:gateway_approvals_url)
-    "#{held == 1 ? 'A call is' : "#{held} calls are"} waiting for approval. An approver decides under Gateway, Approvals#{" (#{approvals})" if approvals}, " \
-      "and it runs from this chat in Firefight#{" (#{chat_url})" if chat_url} once approved."
-  end
-
-  def chat_url = url_for(:agent_chat_url, @conversation)
-
-  def url_for(helper, *arguments)
     options = AppUrl.options
-    options && Rails.application.routes.url_helpers.public_send(helper, *arguments, **options)
+    approvals = options && Rails.application.routes.url_helpers.gateway_approvals_url(**options)
+    "#{held == 1 ? 'A call is' : "#{held} calls are"} waiting for approval. An approver decides under Gateway, Approvals in Firefight" \
+      "#{" (#{approvals})" if approvals}, and #{held == 1 ? 'it runs' : 'each runs'} as soon as it is approved."
   end
 end

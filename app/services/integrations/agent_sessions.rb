@@ -9,7 +9,6 @@ module Integrations
   #   event(payload)                            an Event, or nil for anything else, which is taken and left alone
   # and, made with the row of the connection the session came through, answers in it:
   #   say(session_id, activity)                 posts one Activity in the session
-  #   link(session_id, label:, url:)            points the session at where it can be read in Firefight
   # Each raises Integrations::Error with words a person reads when the provider refused.
   module AgentSessions
     # A session someone opened, a follow up in one, and a request to stop.
@@ -36,9 +35,10 @@ module Integrations
     end
 
     # One thing said in a session. An action names the tool in words (action), what it was asked (parameter) and, once it
-    # answered, how it went (result). An ephemeral one is replaced by whatever is said next.
-    Activity = Data.define(:kind, :body, :action, :parameter, :result, :ephemeral) do
-      def initialize(kind:, body: nil, action: nil, parameter: nil, result: nil, ephemeral: false) = super
+    # answered, how it went (result). An ephemeral one is replaced by whatever is said next. An elicitation may offer
+    # choices, each a word the person can pick, which comes back as a follow up saying it.
+    Activity = Data.define(:kind, :body, :action, :parameter, :result, :ephemeral, :choices) do
+      def initialize(kind:, body: nil, action: nil, parameter: nil, result: nil, ephemeral: false, choices: []) = super
     end
 
     module_function

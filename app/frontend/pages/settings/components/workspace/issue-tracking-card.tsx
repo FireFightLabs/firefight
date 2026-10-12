@@ -182,7 +182,12 @@ export function IssueTrackingCard({
             <Label htmlFor="issue-webhook-secret" className="text-foreground">
               Changes made in the tracker
             </Label>
-            {savedTracker && settings.issueWebhookAutomatic ? (
+            {savedTracker && settings.issueWebhookThroughApp ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                Changes made in the tracker reach Firefight through Firefight&apos;s own app there, so there is nothing to
+                set up. A change is applied as Firefight&apos;s issue sync and is in the activity log.
+              </p>
+            ) : savedTracker && settings.issueWebhookAutomatic ? (
               <>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {settings.issueWebhookRegistered

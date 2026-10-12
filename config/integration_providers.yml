@@ -981,7 +981,8 @@ providers:
     # installed it, and a Linear admin installs it (linear.app/developers/oauth-actor-authorization,
     # linear.app/developers/agents, Authentication). app:assignable lets an issue be delegated to it and app:mentionable
     # lets it be mentioned. An app installed this way may not ask for admin, so it cannot create webhooks
-    # (linear.app/developers/webhooks), and its agent sessions arrive at the app's own webhook instead.
+    # (linear.app/developers/webhooks), and its agent sessions and the Issues data change events ticked in the app's
+    # webhook settings arrive at the app's own webhook instead, signed with INTEGRATION_LINEAR_WEBHOOK_SECRET.
     app:
       label: Firefight's own Linear app
       description: Installs Firefight's own Linear app, which a Linear admin approves. It keeps incident actions and follow-ups in step with issues, and anyone can assign an issue to Firefight or mention it so Halon looks into it and answers in the issue. Choose it for issue sync under Settings, Workspace once it is connected.
