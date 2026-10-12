@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_12_141500) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_12_160000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -704,6 +704,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_12_141500) do
     t.text "content"
     t.datetime "created_at", null: false
     t.string "finish_reason"
+    t.boolean "notice", default: false, null: false
     t.boolean "nudge", default: false, null: false
     t.jsonb "raw_content"
     t.jsonb "raw_reasoning"

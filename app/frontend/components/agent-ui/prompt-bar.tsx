@@ -45,6 +45,35 @@ export type PromptModel = {
 /* The menu is this wide, and the trigger keeps it inside the composer. */
 const MODEL_MENU_WIDTH = 288;
 
+/* the space between the model menu and its trigger, and between the menu and the edge it stops at */
+const MODEL_MENU_GAP = 8;
+
+/* Where the model menu sits against the composer, grown up from the trigger or down from it, and how tall it may get. */
+type ModelMenuPlacement = {
+  left: number;
+  top?: number;
+  bottom?: number;
+  maxHeight?: number;
+};
+
+/* The part of the screen an element can draw in, which is the window cut down by every ancestor that clips what overflows it. */
+function visibleBounds(element: HTMLElement): { top: number; bottom: number } {
+  let top = 0;
+  let bottom = window.innerHeight;
+  for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+    if (getComputedStyle(ancestor).overflowY === "visible") {
+      continue;
+    }
+    const rect = ancestor.getBoundingClientRect();
+    top = Math.max(top, rect.top);
+    bottom = Math.min(bottom, rect.bottom);
+  }
+  return { top, bottom };
+}
+
+/* Below this the input would share its row with too little room to read, as on a phone, so it takes the row to itself. */
+const MIN_INLINE_INPUT_WIDTH = 240;
+
 /* The row the + menu leads with when the caller takes files. */
 const ATTACH_ROW: Source = { key: "attach-files", name: "Attach files", desc: "Images, PDFs and text files", glyph: "clip", attach: true };
 
@@ -139,18 +168,21 @@ export default function PromptBar({
   const [active, setActive] = useState(0);
   const [listening, setListening] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const shownPlaceholder = listening ? "Listening…" : placeholder ?? "Write a message…";
   const wide = expanded || tall;
   const [rowBox, setRowBox] = useState<{ top: number; height: number } | null>(null);
   const [engaged, setEngaged] = useState(false);
   const [modelBox, setModelBox] = useState<{ top: number; height: number } | null>(null);
   const [modelHovered, setModelHovered] = useState<number | null>(null);
-  const [modelMenuLeft, setModelMenuLeft] = useState(0);
-  const [modelMenuBottom, setModelMenuBottom] = useState(0);
+  const [modelMenuPlacement, setModelMenuPlacement] = useState<ModelMenuPlacement>({ left: 0, bottom: 0 });
+  const [controlsWidth, setControlsWidth] = useState(0);
   const composerAnchorRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
+  const placeholderMeasureRef = useRef<HTMLSpanElement>(null);
   const modelRef = useRef<HTMLButtonElement>(null);
+  const modelMenuRef = useRef<HTMLDivElement>(null);
   const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const modelRowRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -191,13 +223,26 @@ export default function PromptBar({
   }, [modelOpen, modelHovered, modelIndex]);
 
   /* The menu is outside the clipped composer, so align it to the model
-   * trigger by measurement instead of pinning it to the far-right edge. */
+   * trigger by measurement instead of pinning it to the far-right edge.
+   * It grows up unless the room above is too short for it and the room
+   * below is longer, as when a phone's new chat holds the composer
+   * mid page, and a menu taller than its room scrolls inside it. */
   useLayoutEffect(() => {
-    if (!modelOpen || !composerAnchorRef.current || !modelRef.current) return;
+    if (!modelOpen || !composerAnchorRef.current || !modelRef.current || !modelMenuRef.current) {
+      return;
+    }
     const anchorRect = composerAnchorRef.current.getBoundingClientRect();
     const triggerRect = modelRef.current.getBoundingClientRect();
-    setModelMenuLeft(Math.max(0, Math.min(triggerRect.left - anchorRect.left, anchorRect.width - MODEL_MENU_WIDTH)));
-    setModelMenuBottom(anchorRect.bottom - triggerRect.top + 8);
+    const bounds = visibleBounds(composerAnchorRef.current);
+    const menuHeight = modelMenuRef.current.scrollHeight;
+    const roomAbove = triggerRect.top - bounds.top - MODEL_MENU_GAP * 2;
+    const roomBelow = bounds.bottom - triggerRect.bottom - MODEL_MENU_GAP * 2;
+    const left = Math.max(0, Math.min(triggerRect.left - anchorRect.left, anchorRect.width - MODEL_MENU_WIDTH));
+    if (menuHeight <= roomAbove || roomAbove >= roomBelow) {
+      setModelMenuPlacement({ left, bottom: anchorRect.bottom - triggerRect.top + MODEL_MENU_GAP, maxHeight: menuHeight > roomAbove ? roomAbove : undefined });
+    } else {
+      setModelMenuPlacement({ left, top: triggerRect.bottom - anchorRect.top + MODEL_MENU_GAP, maxHeight: menuHeight > roomBelow ? roomBelow : undefined });
+    }
   }, [modelOpen, wide, model?.name]);
 
   useEffect(() => {
@@ -228,18 +273,34 @@ export default function PromptBar({
     return () => clearTimeout(t);
   }, [listening]);
 
+  /* a narrower composer, such as a phone turned upright, may no longer fit the input beside the controls */
+  useEffect(() => {
+    const controls = controlsRef.current;
+    if (!controls || typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const observer = new ResizeObserver(() => setControlsWidth(controls.clientWidth));
+    observer.observe(controls);
+    return () => observer.disconnect();
+  }, []);
+
   /* Move wrapped text above the controls, then grow to a compact maximum. */
   useLayoutEffect(() => {
     const input = inputRef.current;
     const controls = controlsRef.current;
     const measure = measureRef.current;
-    if (!input || !controls || !measure) return;
+    const placeholderMeasure = placeholderMeasureRef.current;
+    if (!input || !controls || !measure || !placeholderMeasure) {
+      return;
+    }
 
     // The model picker is optional, and a hidden one takes no room on the row.
     const fixedControlsWidth = 28 * 3 + (modelRef.current?.offsetWidth ?? 0);
     const inlineGaps = 4 * 4;
     const inlineInputWidth = controls.clientWidth - fixedControlsWidth - inlineGaps;
-    const needsFullWidth = draft.includes("\n") || measure.offsetWidth + 8 > inlineInputWidth;
+    // The placeholder counts as well as the draft, so a hint never wraps beside the controls.
+    const textWidth = Math.max(measure.offsetWidth, placeholderMeasure.offsetWidth) + 8;
+    const needsFullWidth = draft.includes("\n") || inlineInputWidth < Math.max(textWidth, MIN_INLINE_INPUT_WIDTH);
     if (needsFullWidth !== expanded) {
       setExpanded(needsFullWidth);
     }
@@ -250,7 +311,7 @@ export default function PromptBar({
     const contentHeight = input.scrollHeight;
     input.style.height = `${Math.min(Math.max(contentHeight, minHeight), maxHeight)}px`;
     input.style.overflowY = contentHeight > maxHeight ? "auto" : "hidden";
-  }, [draft, expanded]);
+  }, [draft, expanded, shownPlaceholder, controlsWidth, model?.name]);
 
   /* clicking anywhere outside the composer closes the open menus */
   useEffect(() => {
@@ -414,8 +475,9 @@ export default function PromptBar({
           role="menu"
           aria-label="Models"
           onMouseLeave={() => setModelHovered(null)}
-          className="absolute z-10 max-w-full rounded-[10px] bg-surface p-1 shadow-raised"
-          style={{ width: MODEL_MENU_WIDTH, left: modelMenuLeft, bottom: modelMenuBottom, animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "bottom left" }}
+          ref={modelMenuRef}
+          className="absolute z-10 max-w-full overflow-y-auto overscroll-contain rounded-[10px] bg-surface p-1 shadow-raised"
+          style={{ width: MODEL_MENU_WIDTH, ...modelMenuPlacement, animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: modelMenuPlacement.top === undefined ? "bottom left" : "top left" }}
         >
           {/* single gliding highlight that floats to the hovered or selected row */}
           <span
@@ -479,6 +541,13 @@ export default function PromptBar({
           className="pointer-events-none absolute invisible whitespace-pre text-[13px] leading-[18px]"
         >
           {draft}
+        </span>
+        <span
+          ref={placeholderMeasureRef}
+          aria-hidden="true"
+          className="pointer-events-none absolute invisible whitespace-pre text-[13px] leading-[18px]"
+        >
+          {shownPlaceholder}
         </span>
 
         {attachments && (
@@ -608,7 +677,7 @@ export default function PromptBar({
                 send();
               }
             }}
-            placeholder={listening ? "Listening…" : placeholder ?? "Write a message…"}
+            placeholder={shownPlaceholder}
             aria-label="Prompt"
             className={`${tall ? "min-h-[68px] px-2 py-2 text-[14px] leading-5" : "min-h-7 px-1 py-[5px] text-[13px] leading-[18px]"} min-w-0 w-full resize-none bg-transparent text-ink outline-none [overflow-wrap:anywhere] placeholder:text-ink-3 ${
               wide ? "col-span-full col-start-1 row-start-1" : "col-start-2 row-start-1"

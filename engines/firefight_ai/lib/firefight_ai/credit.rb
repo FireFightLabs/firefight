@@ -7,15 +7,20 @@ module FirefightAi
     # OpenAI says a spent balance with a 429 whose code is insufficient_quota, which RubyLLM raises as a rate limit.
     QUOTA_CODES = %w[insufficient_quota].freeze
     # Said only in words under a class that means something else, by Anthropic's usage limit (a bad request), Gemini's
-    # spent prepayment (a rate limit) and OpenRouter's key spending limit (the key refused, seen live as "something went
-    # wrong"). The code fix proxy reads the provider's own answer, so Anthropic's balance too low is here for it.
+    # spent prepayment (a rate limit), OpenRouter's key spending limit (the key refused, seen live as "something went
+    # wrong") and xAI's team out of credits or at its monthly spending limit. The code fix proxy reads the provider's own
+    # answer, so Anthropic's balance too low is here for it.
     OUT_OF_CREDIT_PHRASES = [
       "credit balance is too low", "prepayment credits are depleted", "key limit exceeded",
-      "reached your specified api usage limits", "reached your specified workspace usage limits"
+      "reached your specified api usage limits", "reached your specified workspace usage limits",
+      "reached its monthly spending limit"
     ].freeze
     OUT_OF_CREDIT_WORDS = Regexp.new(OUT_OF_CREDIT_PHRASES.map { |phrase| Regexp.escape(phrase) }.join("|"), Regexp::IGNORECASE)
     # OpenRouter's 402 for too much spend in flight at once, which clears by itself and says when.
     IN_FLIGHT_SOURCE = "openrouter_in_flight_budget".freeze
+    # OpenRouter's metadata.limit_source for a spent balance, key limit, guardrail budget or workspace budget. The budgets
+    # come back as a 403 whose words change with each one, so the source decides.
+    SPENT_SOURCES = %w[openrouter_credits openrouter_key_limit openrouter_guardrail_budget openrouter_workspace_budget].freeze
     RETRY_AFTER = "retry-after".freeze
 
     # From a client library error, which carries the response it came from when there was one.
@@ -50,15 +55,17 @@ module FirefightAi
       return false if in_flight?
 
       @payment_required || @status == PAYMENT_REQUIRED || QUOTA_CODES.include?(@error["code"].to_s) || QUOTA_CODES.include?(@error["type"].to_s) ||
-        @words.match?(OUT_OF_CREDIT_WORDS)
+        SPENT_SOURCES.include?(limit_source) || @words.match?(OUT_OF_CREDIT_WORDS)
     end
 
     # A wait-and-retry, never a spent balance. OpenRouter documents a 402 with Retry-After as the only one to retry.
     def in_flight?
-      @status == PAYMENT_REQUIRED && (@headers[RETRY_AFTER].present? || @error.dig("metadata", "limit_source") == IN_FLIGHT_SOURCE)
+      @status == PAYMENT_REQUIRED && (@headers[RETRY_AFTER].present? || limit_source == IN_FLIGHT_SOURCE)
     end
 
     private
+
+    def limit_source = @error.dig("metadata", "limit_source").to_s
 
     # Providers nest it under "error", as a parsed hash or as the raw JSON text.
     def error_object(body)

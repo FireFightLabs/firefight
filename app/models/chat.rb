@@ -1,9 +1,10 @@
 # The agent's saved chat with the model. A restarted or resumed job continues from it.
 class Chat < ApplicationRecord
   # The library sends the model whatever this association holds, so it is the messages still in
-  # play. messages is everything ever said, which is what a person reads and a replay needs.
+  # play. messages is everything ever said, which is what a person reads and a replay needs. A notice Firefight wrote
+  # is never sent, since the model reads it as its own reply and copies it.
   acts_as_chat messages: :sent_messages, message_class: "Chat::Message"
-  has_many :sent_messages, -> { where(archived_at: nil).order(:created_at, :id) },
+  has_many :sent_messages, -> { where(archived_at: nil, notice: false).order(:created_at, :id) },
            class_name: "Chat::Message", dependent: :destroy, inverse_of: :chat
   has_many :messages, -> { order(:created_at, :id) }, class_name: "Chat::Message", dependent: :destroy, inverse_of: :chat
 
@@ -158,6 +159,13 @@ class Chat < ApplicationRecord
     end
   end
 
+  # What was said last in the chat still in play, a notice included, since a notice ends a turn as a reply does.
+  def last_word = messages.where(archived_at: nil).reorder(created_at: :desc, id: :desc).first
+
+  # Shown to the person as Halon's words and never sent to the model (sent_messages). Saved without the library, which
+  # would also hand it to the model in memory.
+  def notice!(text) = messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: text, notice: true)
+
   # The loop keeps the agent moving by speaking as the user, which is how a model reads it.
   # Marked, because the content is encrypted and nothing else could tell it from the person's words.
   def nudge!(text)
@@ -280,7 +288,8 @@ class Chat < ApplicationRecord
   # A killed worker leaves an empty reply that RubyLLM reads as the final answer. Only the job holding the run may call
   # this, or a sweep that ended the turn, which passes when it looked so a reply begun since is kept.
   def discard_interrupted_reply!(before: nil)
-    last_message = sent_messages.reload.last
+    sent_messages.reload
+    last_message = last_word
     return unless last_message&.interrupted_reply?
     return if before && last_message.created_at >= before
 

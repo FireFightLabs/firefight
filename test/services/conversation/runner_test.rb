@@ -559,6 +559,17 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_not @conversation.reload.answer_owed?
   end
 
+  test "a job queued behind a turn that failed does not answer again, though the model never reads the notice" do
+    alice = workspace_memberships(:alice_workspace_one)
+    responder = fake(reply: "Never asked")
+    @conversation.ask!("anything in metrics?", asker: alice)
+    @conversation.note!(Conversation::Delivery::FAILED)
+
+    assert_nil Conversation::Runner.new(@conversation.reload, asker: alice).run
+    assert_empty responder.calls
+    assert_not_includes @conversation.chat.sent_messages.map(&:content), Conversation::Delivery::FAILED
+  end
+
   test "a connection's tools switched on since the last turn are told to the agent before the model is asked, as a note nobody reads" do
     alice = workspace_memberships(:alice_workspace_one)
     faylee = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Faylee")

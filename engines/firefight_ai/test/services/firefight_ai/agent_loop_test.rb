@@ -36,6 +36,7 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
       @model_calls += 1
       reply = @replies.shift
       return nil if reply.nil?
+      raise reply if reply.is_a?(Exception)
 
       @streamed = on_chunk ? true : @streamed
       stream(reply, &on_chunk) if on_chunk
@@ -313,7 +314,35 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     assert_equal FirefightAi::AgentLoop::STATUS_ANSWERED, outcome.status
   end
 
+  # Seen live: DeepSeek V4 Pro on OpenRouter sent a tool call whose arguments were not JSON, and the chat's turn failed.
+  test "a chat's reply whose tool call cannot be read is asked for once more on the same model" do
+    chat = FakeChat.new([ malformed, llm_reply(content: "Stopped the watch.") ])
+
+    outcome = run_loop(chat, reply_is_answer: true, retry_malformed: true)
+
+    assert_equal FirefightAi::AgentLoop::STATUS_ANSWERED, outcome.status
+    assert_equal 2, chat.model_calls
+    assert_equal %w[error success], Inference.where(inferable: @incident).order(:created_at).pluck(:status)
+    assert_equal [ "gpt-4o" ], Inference.where(inferable: @incident).pluck(:model).uniq
+  end
+
+  test "a second reply that cannot be read ends the run, never a third try" do
+    chat = FakeChat.new([ malformed, malformed, llm_reply(content: "never asked") ])
+
+    assert_raises(RubyLLM::ToolCallParseError) { run_loop(chat, reply_is_answer: true, retry_malformed: true) }
+    assert_equal 2, chat.model_calls
+  end
+
+  test "a loop not told to ask again fails on the first reply that cannot be read, as before" do
+    chat = FakeChat.new([ malformed, llm_reply(content: "never asked") ])
+
+    assert_raises(RubyLLM::ToolCallParseError) { run_loop(chat) }
+    assert_equal 1, chat.model_calls
+  end
+
   private
+
+  def malformed = RubyLLM::ToolCallParseError.new(finish_reason: :tool_calls)
 
   def tool_reply(tool_call_id, cost: 0.0)
     llm_reply(
@@ -329,10 +358,10 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
   end
 
   def run_loop(chat, budget: budget(), answered: -> { false }, on_step: nil, on_chunk: nil, reply_is_answer: false,
-               nudge: nil, take_messages: nil, purse: nil, &on_turn)
+               nudge: nil, take_messages: nil, purse: nil, retry_malformed: false, &on_turn)
     FirefightAi::AgentLoop.new(
       chat: chat, budget: budget, answered: answered, on_step: on_step, on_chunk: on_chunk,
-      reply_is_answer: reply_is_answer, nudge: nudge, take_messages: take_messages, purse: purse,
+      reply_is_answer: reply_is_answer, nudge: nudge, take_messages: take_messages, purse: purse, retry_malformed: retry_malformed,
       inference: { workspace: @workspace, feature: "investigation", provider: "openai", model: "gpt-4o", inferable: @incident }
     ).run(&on_turn)
   end

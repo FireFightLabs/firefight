@@ -72,12 +72,67 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
     assert AiPayer.out_of_credit?(forbidden)
   end
 
+  # OpenRouter's answer in a live chat once its workspace budget was spent, which the chat met as "something went wrong".
+  WORKSPACE_BUDGET = {
+    "error" => {
+      "message" => "Workspace lifetime budget of $140.00 exceeded. Contact your org admin. $140.03 of $140.00 used; does not reset.",
+      "code" => 403,
+      "metadata" => {
+        "limit_source" => "openrouter_workspace_budget", "remedy_hint" => "Ask your org admin to raise the workspace budget.",
+        "scope" => "workspace", "limit_usd" => 140, "spend_usd" => 140.03, "resets_at" => nil
+      }
+    }
+  }.freeze
+
+  test "a spend limit OpenRouter refuses with a 403 is out of credit for whoever paid, by the limit it names" do
+    guardrail = {
+      "error" => {
+        "message" => "Org member budget limit exceeded (weekly limit). Contact your org admin. $52.00 of $50.00 used; resets 2026-10-12T00:00:00.000Z.",
+        "code" => 403, "metadata" => { "limit_source" => "openrouter_guardrail_budget", "scope" => "member", "limit_usd" => 50, "spend_usd" => 52 }
+      }
+    }
+    key_limit = { "error" => { "message" => "Limit reached", "code" => 403, "metadata" => { "limit_source" => "openrouter_key_limit" } } }
+
+    [ WORKSPACE_BUDGET, guardrail, key_limit ].each do |body|
+      error = RubyLLM::ForbiddenError.new(body.dig("error", "message"), response: Response.new(403, body, {}))
+
+      assert_raises(FirefightAi::OutOfCredit) { FirefightAi.translating_errors { raise error } }
+      assert AiPayer.out_of_credit?(error)
+      assert_equal FirefightAi::CAUSE_OUT_OF_CREDIT, FirefightAi.cause(error)
+    end
+  end
+
+  test "OpenRouter's spent workspace budget marks the house account and tells the team, once" do
+    TeamWebhook.stubs(:configured?).returns(true)
+    refused = RubyLLM::ForbiddenError.new(WORKSPACE_BUDGET.dig("error", "message"), response: Response.new(403, WORKSPACE_BUDGET.to_json, {}))
+    choice = FirefightAi::ModelChoice.new(model: "deepseek/deepseek-v4-pro", provider: "openrouter")
+
+    assert_raises(FirefightAi::OutOfCredit) do
+      FirefightAi.generate(choice, purpose: AiPurpose::POSTMORTEM, inference: context.merge(provider: "openrouter", model: choice.model)) { raise refused }
+    end
+
+    assert_equal [ "openrouter" ], AiAccount.out_of_credit.pluck(:provider)
+    assert_enqueued_with(job: AiAccountAlertJob, args: [ "openrouter", AiAccountAlert::OUT_OF_CREDIT ])
+    assert_equal 1, Inference.where(workspace: @workspace, feature: "credit_test", error_kind: Inference::ERROR_OUT_OF_CREDIT).count
+  end
+
+  test "a 403 refusing the model itself stays the key refused, never out of credit" do
+    not_allowed = { "error" => { "message" => "This model is not allowed for your key. Pick another under Settings.", "code" => 403, "metadata" => { "provider_name" => "DeepSeek" } } }
+    error = RubyLLM::ForbiddenError.new(not_allowed.dig("error", "message"), response: Response.new(403, not_allowed, {}))
+
+    assert_not AiPayer.out_of_credit?(error)
+    assert AiPayer.key_refused?(error)
+    assert_equal FirefightAi::CAUSE_KEY_REFUSED, FirefightAi.cause(error)
+  end
+
   test "the other providers' spend limits are out of credit too" do
     anthropic = RubyLLM::BadRequestError.new("You have reached your specified API usage limits. You will regain access on 2026-11-01 at 00:00 UTC.",
                                              response: Response.new(400, {}, {}))
     deepseek = RubyLLM::PaymentRequiredError.new("Insufficient Balance", response: Response.new(402, { "error" => { "message" => "Insufficient Balance" } }, {}))
+    xai = RubyLLM::ForbiddenError.new("Your team 13a1adf5 has either used all available credits or reached its monthly spending limit. To continue making " \
+                                      "API requests, please purchase more credits or raise your spending limit.", response: Response.new(403, {}, {}))
 
-    [ anthropic, deepseek ].each { |error| assert_raises(FirefightAi::OutOfCredit) { FirefightAi.translating_errors { raise error } } }
+    [ anthropic, deepseek, xai ].each { |error| assert_raises(FirefightAi::OutOfCredit) { FirefightAi.translating_errors { raise error } } }
   end
 
   test "a 403 that is not about money is still the key refused, not out of credit" do

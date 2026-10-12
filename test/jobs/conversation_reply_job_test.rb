@@ -104,6 +104,49 @@ class ConversationReplyJobTest < ActiveSupport::TestCase
     assert conversation.reload.answer_owed?
   end
 
+  # Seen live: OpenRouter's 403 for a spent workspace budget reached the chat as "something went wrong" on every turn.
+  test "a spent budget the provider refused with a 403 reaches the chat as out of credit" do
+    conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
+    conversation.ask!("stop the watch")
+    body = { "error" => { "message" => "Workspace lifetime budget of $140.00 exceeded. Contact your org admin. $140.03 of $140.00 used; does not reset.",
+                          "code" => 403, "metadata" => { "limit_source" => "openrouter_workspace_budget", "scope" => "workspace", "resets_at" => nil } } }
+    refused = RubyLLM::ForbiddenError.new(body.dig("error", "message"), response: Struct.new(:status, :body, :headers).new(403, body, {}))
+    translated = assert_raises(FirefightAi::OutOfCredit) { FirefightAi.translating_errors { raise refused } }
+    Conversation::Runner.any_instance.stubs(:run).raises(translated)
+
+    ConversationReplyJob.perform_now(conversation.id)
+
+    assert_equal OUT_OF_CREDIT, conversation.reload.chat.messages.where(role: Chat::Message::ROLE_ASSISTANT).sole.content
+  end
+
+  # Seen live: a model sent a tool call Halon could not read twice in a row, and the job failed with the person told nothing.
+  test "a reply the model sent that could not be read says so, and the job ends without failing" do
+    conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
+    conversation.ask!("stop the watch")
+    Conversation::Runner.any_instance.stubs(:run).raises(FirefightAi::UnreadableReply.new("malformed", reason: "ToolCallParseError"))
+    Conversation::ModelMenu.any_instance.stubs(:offers_choice?).returns(true)
+
+    assert_nothing_raised { ConversationReplyJob.perform_now(conversation.id) }
+
+    said = conversation.reload.chat.messages.where(role: Chat::Message::ROLE_ASSISTANT).sole.content
+    assert_equal "The model sent back a reply I could not read, so I did not finish that one. Ask me again, or pick another model for this chat.", said
+    assert_not conversation.answer_owed?
+  end
+
+  test "a thread with no model to pick is only asked to try again" do
+    conversation = @workspace.conversations.create!(
+      kind: Conversation::KIND_CHANNEL, channel_id: "C_INCIDENT", thread_id: "1700000000.000100",
+      started_by: @member, max_turns: 10, max_spend_cents: 40
+    )
+    Conversation::Runner.any_instance.stubs(:run).raises(FirefightAi::UnreadableReply.new("malformed", reason: "ToolCallParseError"))
+    stub_agent_session
+    Slack::Client.expects(:post_message).with do |arguments|
+      arguments[:text] == "The model sent back a reply I could not read, so I did not finish that one. Ask me again."
+    end.returns({ ok: true, ts: "1" })
+
+    ConversationReplyJob.perform_now(conversation.id)
+  end
+
   test "a Slack thread whose AI account ran out of credit is told the same" do
     conversation = @workspace.conversations.create!(
       kind: Conversation::KIND_CHANNEL, channel_id: "C_INCIDENT", thread_id: "1700000000.000100",

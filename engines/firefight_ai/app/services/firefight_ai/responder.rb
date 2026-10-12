@@ -29,7 +29,8 @@ module FirefightAi
     end
 
     # The app has already saved the question as the last message. deferred_tools are found by the provider's own tool
-    # search where it has one (FirefightAi.ready_chat).
+    # search where it has one (FirefightAi.ready_chat). A reply whose tool call could not be read is asked for once
+    # more, and a second one fails the turn as UnreadableReply.
     # purse, on_backup, on_take_over and on_progress go to the loop, see AgentLoop. checks are the app's own checks on a
     # reply that would end the turn, such as the theory board and the challenger, to which the line saying the next step
     # is added when the deployment finishes reads (Configuration#finish_reads).
@@ -44,9 +45,11 @@ module FirefightAi
           on_step: on_step, on_chunk: on_chunk, nudge: nudge, memory: memory, inference: inference_context, reply_is_answer: true,
           take_messages: take_messages, output: output_cap, choice: ai_model, purpose: AiPurpose::INVESTIGATION,
           purse: purse, on_backup: on_backup, on_take_over: on_take_over, on_progress: on_progress, steady: true,
-          checks: (FirefightAi.configuration.finish_reads ? [ NextStep.check ] : []) + checks
+          checks: (FirefightAi.configuration.finish_reads ? [ NextStep.check ] : []) + checks, retry_malformed: true
         ).run(&on_turn)
       end
+    rescue RubyLLM::ToolCallParseError => e
+      raise UnreadableReply.new(e.message, reason: e.class.name.demodulize)
     end
 
     def ai_model
