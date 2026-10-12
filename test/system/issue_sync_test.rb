@@ -117,43 +117,46 @@ class IssueSyncTest < ApplicationSystemTestCase
     assert_equal IncidentAction::STATUS_OPEN, item.reload.status
   end
 
-  test "a tracker connected with Firefight's app before it acted as itself has its webhook registered, so the setting asks for nothing" do
-    ENV["INTEGRATION_LINEAR_APP_CLIENT_ID"], previous = "lin-app", ENV["INTEGRATION_LINEAR_APP_CLIENT_ID"]
-    app = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "linear", name: "Linear issue sync", slug: "linear_issue_sync", settings: {})
+  test "a tracker connected with Firefight's Jira app has its webhook registered, so the setting asks for nothing" do
+    ENV["INTEGRATION_JIRA_APP_CLIENT_ID"], previous = "atl-app", ENV["INTEGRATION_JIRA_APP_CLIENT_ID"]
+    app = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "jira", name: "Jira issue sync", slug: "jira_issue_sync",
+                                          settings: { Integration::APP_SETTING => true })
     app.integration_environments.create!
-    IssueTrackerTestHelper::LINEAR_TOOLS.each { |tool| app.tools.create!(name: tool, description: tool, read_only: tool != "save_issue", enabled: false, params_schema: {}) }
-    Integrations::Packs::Linear.any_instance.stubs(:register_issue_webhook).returns(Integrations::Issues::Webhook.new(id: "wh-1", secret: "s"))
+    IssueTrackerTestHelper::JIRA_TOOLS.each { |tool| app.tools.create!(name: tool, description: tool, read_only: READS.include?(tool), enabled: false, params_schema: {}) }
+    Integrations::Packs::Jira.any_instance.stubs(:register_issue_webhook).returns(Integrations::Issues::Webhook.new(id: "1000"))
     ENV["APP_HOST"], host = "ff.example.com", ENV["APP_HOST"]
 
-    visit integrations_path(Integration::CONNECT_QUERY_PARAM => "linear")
+    visit integrations_path(Integration::CONNECT_QUERY_PARAM => "jira")
     within("[role=dialog]") do
-      assert_text "Firefight's own Linear app"
-      assert_text "anyone can assign an issue to Firefight or mention it"
-      assert_link "Connect the Linear app"
-      page.save_screenshot(Rails.root.join("tmp/screenshots/issue-sync-connect-app.png"))
+      assert_text "Connect for issue sync"
+      assert_link "Continue with Jira"
+      assert_link "Connect the Jira app"
+      assert_button "Add a second account"
+      page.save_screenshot(Rails.root.join("tmp/screenshots/issue-sync-connect-jira-app.png"))
     end
 
     visit settings_workspace_path
     find("#issue-tracker").click
-    find("[role=option]", text: "Linear issue sync").click
-    fill_in "Team", with: "ENG"
+    find("[role=option]", text: "Jira issue sync").click
+    fill_in "Site", with: "acme.atlassian.net"
+    fill_in "Project key", with: "OPS"
     click_button "Save changes"
 
     assert_text "Firefight registered the tracker's webhook itself"
     assert_no_field "issue-webhook-secret"
-    assert_equal "wh-1", @workspace.reload.issue_webhook_row.issue_webhook_id
+    assert_equal "1000", @workspace.reload.issue_webhook_row.issue_webhook_id
     page.scroll_to(find("#issue-tracker"), align: :center)
     page.save_screenshot(Rails.root.join("tmp/screenshots/issue-sync-setting-registered.png"))
   ensure
-    ENV["INTEGRATION_LINEAR_APP_CLIENT_ID"] = previous
+    ENV["INTEGRATION_JIRA_APP_CLIENT_ID"] = previous
     ENV["APP_HOST"] = host
   end
 
   test "Linear's app installed as itself has its changes sent through the app, so the setting shows no steps and asks for no secret" do
-    app = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "linear", name: "Linear issue sync", slug: "linear_issue_sync", settings: {})
+    app = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "linear", name: "Linear issue sync", slug: "linear_issue_sync",
+      settings: { "server_url" => "https://mcp.linear.app/mcp", Integration::APP_SETTING => true })
     app.integration_environments.create!.store_installation!("org-1")
     IssueTrackerTestHelper::LINEAR_TOOLS.each { |tool| app.tools.create!(name: tool, description: tool, read_only: tool != "save_issue", enabled: false, params_schema: {}) }
-    Integrations::Packs::Linear.any_instance.expects(:register_issue_webhook).never
 
     visit settings_workspace_path
     find("#issue-tracker").click

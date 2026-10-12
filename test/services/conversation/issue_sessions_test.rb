@@ -7,7 +7,8 @@ class Conversation::IssueSessionsTest < ActiveSupport::TestCase
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
-    @integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "linear", name: "Linear issue sync", settings: {})
+    @integration = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "linear", name: "Linear issue sync",
+      settings: { "server_url" => "https://mcp.linear.app/mcp", Integration::APP_SETTING => true })
     @row = @integration.integration_environments.create!
     @row.store_installation!("org-1")
     @said = []

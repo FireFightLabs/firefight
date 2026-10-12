@@ -54,12 +54,25 @@ class IntegrationProvider
   # whether the provider takes a code challenge, and token_format whether its token endpoint takes form or JSON. Its
   # client id and secret are INTEGRATION_<KEY>_APP_CLIENT_ID and INTEGRATION_<KEY>_APP_CLIENT_SECRET.
   # description says what connecting the app does and connection_name is what the connection it makes is called.
-  App = Data.define(:label, :description, :connection_name, :authorization_endpoint, :token_endpoint, :scopes, :scope_separator, :params, :pkce,
-                    :token_format) do
-    def initialize(scopes: [], scope_separator: " ", params: {}, pkce: false, token_format: "form", **) = super
+  #
+  # mcp says the provider's MCP server takes the app's token, as the provider documents. The app's connection is then an
+  # MCP connection with every tool the server lists, and it is the one way to connect the provider: the connect dialog
+  # offers it in place of signing in, under the provider's own name, with consent_note under it, and a workspace with no
+  # other tracker keeps its items in step with it once it is connected. Such an app has no label of its own.
+  App = Data.define(:label, :description, :connection_name, :consent_note, :mcp, :authorization_endpoint, :token_endpoint, :scopes,
+                    :scope_separator, :params, :pkce, :token_format) do
+    def initialize(label: nil, connection_name: nil, consent_note: nil, mcp: false, scopes: [], scope_separator: " ", params: {}, pkce: false,
+                   token_format: "form", **)
+      raise ArgumentError, "an app beside a sign-in names its label and the connection it makes" if !mcp && (label.blank? || connection_name.blank?)
+
+      super
+    end
 
     def scope = scopes.join(scope_separator)
     def json_token? = token_format == "json"
+
+    # The kind of connection the app makes.
+    def kind = mcp ? Integration::KIND_MCP : Integration::KIND_NATIVE
   end
 
   # What the connect form asks beside the credentials, such as the account an environment reads. None is a secret.
@@ -214,15 +227,20 @@ class IntegrationProvider
     # A provider reached through its MCP server that Firefight's own app also connects, once this install registered it.
     def app_connect? = kind == Integration::KIND_MCP && app.present? && IntegrationProvider.app_client(key).present?
 
+    # Whether Firefight's own app is the one way this install connects the provider, in place of signing in (App#mcp).
+    def app_only? = app_connect? && app.mcp
+
+    # What the connection Firefight's own app makes is called unless the person names it.
+    def app_connection_name = app.connection_name || name
+
     # A native provider connected with credentials that also has an MCP server of its own, which a person may connect
     # through instead.
     def mcp_alternative? = kind == Integration::KIND_NATIVE && api_token? && server_url.present?
 
     # How a connection is made. It goes through the provider's MCP server when that was asked for and it has one, and its own
-    # way otherwise.
+    # way otherwise. A connection made with Firefight's own app is the app's kind (App#kind).
     def connect_kind(asked)
       return Integration::KIND_MCP if asked.to_s == Integration::KIND_MCP && mcp_alternative?
-      return Integration::KIND_NATIVE if asked.to_s == Integration::KIND_NATIVE && app_connect?
 
       kind
     end

@@ -4,7 +4,8 @@ module Integrations
   # without such a file, such as Notion, is used through its own tools and has no parts.
   #
   # The parts, each optional, are named as class names so a definition loads nothing it does not use:
-  #   pack             a NativePack subclass, for a provider with kind: native
+  #   pack             a NativePack subclass, for a provider with kind: native, or for what Firefight's own app with a
+  #                    provider reached through its MCP server adds, such as its installation
   #   adapter          a Capabilities adapter, answering logs, metrics and the rest for what is on the map
   #   map_reader       a RemoteReader that puts what a remote server reaches on the map (a pack reads its own, map_of)
   #   baseline_reader  a RemoteReader that reads what normal looks like (a pack reads its own, baselines_of)

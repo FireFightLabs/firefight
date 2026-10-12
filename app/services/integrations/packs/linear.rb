@@ -1,87 +1,14 @@
 module Integrations
   module Packs
-    # Linear connected with Firefight's own OAuth application, for keeping incident items in step with issues. Its tools
-    # carry the names and arguments of Linear's hosted MCP server's (save_issue, get_issue, list_issue_statuses,
-    # list_users) and answer the issue in the shape that server does, so IssueTrackers::Linear reads either connection
-    # the same way. It also registers the webhook that sends changes back, through webhookCreate, which Linear allows an
-    # OAuth application holding the admin scope (linear.app/developers/webhooks). Every call is LinearApi's.
-    #
-    # The app is now installed with actor=app (linear.app/developers/oauth-actor-authorization), so its token acts as the
-    # app's own user in the organization that installed it, whose id is kept as the connection's installation. Such a
-    # token may not hold admin (linear.app/developers/agents, Admin), so it registers no webhook. Its issue changes arrive
-    # instead at the OAuth application's own webhook, which the app's settings send Issues data change events to for
-    # every organization that installed it. A connection made before acts as whoever connected it, keeps its webhook and
-    # keeps working, and its health says to reconnect for the app to act as itself.
+    # What Firefight's own Linear OAuth application adds to a connection it made. The app is installed with actor=app
+    # (linear.app/developers/oauth-actor-authorization), so its token acts as the app's own user in the organization that
+    # installed it, whose id is kept as the connection's installation. Linear's hosted MCP server takes that token
+    # (linear.app/docs/mcp, FAQ), so the connection is an MCP connection and every tool is the server's
+    # (IntegrationProvider::App#mcp). This pack offers no tools of its own. It checks the token acts as the app, answers
+    # the installation contract (Integrations::Installations), and says the connection's issue changes arrive at the
+    # OAuth application's own webhook, since an app installed this way may not hold admin (linear.app/developers/agents,
+    # Admin) and so cannot create webhooks. Every call is LinearApi's.
     class Linear < NativePack
-      PROVIDER = "Linear".freeze
-      TEAM = IssueTrackers::Linear::TEAM
-      ISSUE_RESOURCE = "Issue".freeze
-      WEBHOOK_LABEL = "Firefight".freeze
-
-      ISSUE_ID = { "type" => "string", "description" => "The issue's identifier, such as ENG-12" }.freeze
-
-      tool :save_issue,
-           description: "Open a Linear issue when no id is given, or change the one the id names. team is the key or name of the " \
-                        "team to open it in. assignee and state are ids, from list_users and list_issue_statuses, and an " \
-                        "assignee of null unassigns it",
-           params_schema: {
-             "type" => "object",
-             "properties" => {
-               "id" => ISSUE_ID, "title" => { "type" => "string" }, "description" => { "type" => "string" },
-               "team" => { "type" => "string" }, "assignee" => { "type" => [ "string", "null" ] }, "state" => { "type" => "string" }
-             }
-           },
-           read_only: false
-
-      tool :get_issue,
-           description: "One Linear issue by its identifier, with its title, state and assignee",
-           params_schema: { "type" => "object", "properties" => { "id" => ISSUE_ID }, "required" => [ "id" ] },
-           read_only: true
-
-      tool :list_issue_statuses,
-           description: "The workflow states of a Linear team, by its key or name, each with its id, name and type",
-           params_schema: { "type" => "object", "properties" => { "team" => { "type" => "string" } }, "required" => [ "team" ] },
-           read_only: true
-
-      tool :list_users,
-           description: "The Linear people whose email is the query, each with their id, name and email",
-           params_schema: { "type" => "object", "properties" => { "query" => { "type" => "string" } }, "required" => [ "query" ] },
-           read_only: true
-
-      def save_issue(environment_row:, arguments:)
-        api = api(environment_row)
-        input = { "title" => arguments["title"], "description" => arguments["description"], "stateId" => arguments["state"] }.compact
-        input["assigneeId"] = arguments["assignee"] if arguments.key?("assignee")
-        issue = if arguments["id"].present?
-          api.update_issue(arguments["id"], input)
-        else
-          team = team!(api, arguments[TEAM])
-          api.create_issue(input.merge("teamId" => team["id"]))
-        end
-        answer(shaped(issue))
-      rescue LinearApi::Error => error
-        refused(error)
-      end
-
-      def get_issue(environment_row:, arguments:)
-        answer(shaped(api(environment_row).issue(arguments["id"].to_s)))
-      rescue LinearApi::Error => error
-        refused(error)
-      end
-
-      def list_issue_statuses(environment_row:, arguments:)
-        api = api(environment_row)
-        answer(api.states(team!(api, arguments[TEAM])["id"]).sort_by { |state| state["position"].to_f })
-      rescue LinearApi::Error => error
-        refused(error)
-      end
-
-      def list_users(environment_row:, arguments:)
-        answer(api(environment_row).users_by_email(arguments["query"].to_s.strip))
-      rescue LinearApi::Error => error
-        refused(error)
-      end
-
       ACTS_AS_A_PERSON = "Firefight's Linear app acts as the person who connected it, so it cannot be assigned issues or mentioned, and it stops " \
                          "when they leave Linear. Reconnect it, and have a Linear admin approve the install, so it acts as itself.".freeze
 
@@ -91,15 +18,15 @@ module Integrations
       # The installation is learned here, on connecting and with every check, so a reconnect that installed the app in
       # another organization follows it. An app connection hears of changes and mentions only at the app's own webhook,
       # which exists only once the deployment has its signing secret (MapEvents.app_secret).
-      def check_health!(environment_row)
-        actor = api(environment_row).actor.to_h
-        fail! ACTS_AS_A_PERSON unless actor["app"]
+      def self.check_app!(environment_row)
+        actor = LinearApi.new(Credentials.headers_for(environment_row)).actor.to_h
+        raise Error, ACTS_AS_A_PERSON unless actor["app"]
 
         organization = actor.dig("organization", "id")
         Installations.connected!(environment_row, organization) if organization.present? && environment_row.installation_id != organization
-        fail! APP_WEBHOOK_UNSET if MapEvents.app_secret(environment_row.integration.provider).blank?
+        raise Error, APP_WEBHOOK_UNSET if MapEvents.app_secret(environment_row.integration.provider).blank?
       rescue LinearApi::Error => error
-        fail! error.message
+        raise Error, error.message
       end
 
       # What Linear says of the installation now. A token Linear no longer takes means the app was removed, and an app no
@@ -129,50 +56,6 @@ module Integrations
       # A connection installed as the app has its issue changes sent to the app's own webhook, so nothing is registered
       # or pasted for it.
       def self.issue_changes_through_app?(environment_row) = environment_row.present? && environment_row.installation_id.present?
-
-      # A webhook on the team issues go to, signed with a secret Firefight makes (WebhookCreateInput.secret).
-      def register_issue_webhook(environment_row, url:, target:)
-        api = api(environment_row)
-        secret = SecureRandom.hex(32)
-        webhook = api.create_webhook(
-          "url" => url, "teamId" => team!(api, target.to_h[TEAM])["id"], "resourceTypes" => [ ISSUE_RESOURCE ], "secret" => secret,
-          "label" => WEBHOOK_LABEL
-        )
-        raise Issues::Failed, "Linear did not register the webhook." unless webhook&.dig("id")
-
-        Issues::Webhook.new(id: webhook["id"], secret: secret)
-      rescue LinearApi::Error => error
-        raise Issues::Failed, error.message
-      end
-
-      def remove_issue_webhook(environment_row, id)
-        api(environment_row).delete_webhook(id)
-      rescue LinearApi::Error => error
-        raise Issues::Failed, error.message
-      end
-
-      private
-
-      def api(environment_row) = LinearApi.new(Credentials.headers_for(environment_row))
-
-      def team!(api, key_or_name)
-        name = key_or_name.to_s.strip
-        raise LinearApi::Error, "Choose the Linear team new issues are filed in under Settings, Workspace." if name.empty?
-
-        api.team(name) || raise(LinearApi::Error, "Linear has no team called #{name}.")
-      end
-
-      # The issue as Linear's MCP server answers it, its identifier as its id and its state's type as statusType.
-      def shaped(issue)
-        return {} unless issue
-
-        { "id" => issue["identifier"], "identifier" => issue["identifier"], "title" => issue["title"], "url" => issue["url"],
-          "statusType" => issue.dig("state", "type"), "status" => issue.dig("state", "name"), "assignee" => issue["assignee"] }.compact
-      end
-
-      def answer(data) = { "content" => [ { "type" => "text", "text" => data.to_json } ] }
-
-      def refused(error) = { "isError" => true, "content" => [ { "type" => "text", "text" => error.message } ] }
     end
   end
 end

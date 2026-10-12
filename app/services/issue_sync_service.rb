@@ -12,6 +12,8 @@ class IssueSyncService
   OPENING_INTERRUPTED = "Firefight restarted while opening its issue. Check %<tracker>s for it before asking again.".freeze
   # Longer than opening one takes, so an item still opening after it lost its job.
   OPENING_LOST_AFTER = 1.hour
+  # Said once a tracker was connected but could not be chosen for the person, so they choose it themselves.
+  CHOOSE_BY_HAND = "Choose it as the issue tracker under Settings, Workspace to keep incident items in step with its issues.".freeze
 
   Issues = Integrations::Issues
 
@@ -85,6 +87,19 @@ class IssueSyncService
 
     @workspace.grant_issue_sync!(after)
     register_webhook(after, by) if !@workspace.issue_webhook_registered? || target_changed?(changes)
+  end
+
+  # A connection made by an app that is its provider's one way in becomes the workspace's tracker when the workspace has
+  # no other, as whoever connected it and only when they may change these settings without anyone's approval, since a
+  # connect could not wait for one. Answers what the person is told, or nil when there was nothing to choose.
+  def choose_sole_tracker!(integration, by:)
+    return unless @workspace.sole_issue_tracker?(integration)
+    return CHOOSE_BY_HAND if @workspace.issue_tracker_choice_held?
+
+    @workspace.authorize_issue_tracker_choice!(integration, by: by) { update_settings!({ "issue_tracker" => integration.slug }, by: by) }
+    @workspace.reload.issue_tracker_chosen_words
+  rescue AbilityGateway::Denied, AbilityGateway::PendingApproval
+    CHOOSE_BY_HAND
   end
 
   # A connection being removed takes its webhook and the grants with it, while its credentials still reach the tracker.

@@ -215,8 +215,9 @@ class IntegrationsController < InertiaController
     provider = IntegrationProvider.find(params[:provider].to_s)
     return redirect_to integrations_path, alert: "Unknown integration." if provider.nil?
 
+    return app_start(provider) if ActiveModel::Type::Boolean.new.cast(params[:app]) && provider.app_connect?
+
     kind = provider.connect_kind(params[:kind])
-    return app_start(provider) if kind == Integration::KIND_NATIVE && provider.app_connect?
     return native_install_start(provider) if kind == Integration::KIND_NATIVE
     if provider.server_url.blank?
       return redirect_to integrations_path, alert: "One-click connect needs a hosted server for this integration. Connect with a token instead."
@@ -251,8 +252,9 @@ class IntegrationsController < InertiaController
            ActiveSupport::SecurityUtils.secure_compare(pending["state"].to_s, params[:state].to_s)
       return redirect_to integrations_path, alert: "The connection attempt expired. Try again."
     end
+    return app_callback(provider, pending) if pending["app"] && provider.app_connect?
+
     kind = provider.connect_kind(pending["kind"])
-    return app_callback(provider, pending) if kind == Integration::KIND_NATIVE && pending["app"]
     return native_install_callback(provider, pending) if kind == Integration::KIND_NATIVE
 
     credentials = Integrations::OauthFlow.exchange(
@@ -355,25 +357,31 @@ class IntegrationsController < InertiaController
     redirect_back fallback_location: integrations_path, inertia: { errors: { name: e.message } }
   end
 
-  # Firefight's own app with a provider reached through its MCP server, which connects it natively. Like any OAuth,
-  # nothing is kept until the person comes back authorized.
+  # Firefight's own app with a provider reached through its MCP server, which connects it natively, or through the MCP
+  # server itself where the server takes the app's token (IntegrationProvider::App#mcp). Like any OAuth, nothing is kept
+  # until the person comes back authorized.
   def app_start(provider)
     flow = Integrations::OauthFlow.begin_app(provider, redirect_uri: oauth_callback_integrations_url)
     session[:integration_oauth] = {
-      "provider" => provider.key, "name" => params[:name].presence || "#{provider.name} issue sync", "environment_id" => environment_id_param,
+      "provider" => provider.key, "name" => params[:name].presence || provider.app_connection_name, "environment_id" => environment_id_param,
       "state" => flow[:state], "verifier" => flow[:verifier], "client_id" => flow[:client_id], "token_endpoint" => flow[:token_endpoint],
-      "kind" => Integration::KIND_NATIVE, "app" => true, "return_to" => return_to_param
+      "app" => true, "return_to" => return_to_param
     }
     redirect_to flow[:authorize_url], allow_other_host: true
   end
 
+  # A workspace with no other tracker keeps its items in step with the connection made by an app that is its provider's
+  # one way in, so nobody has to choose it.
   def app_callback(provider, pending)
     credentials = Integrations::OauthFlow.exchange_app(provider, pending, code: params[:code].to_s, redirect_uri: oauth_callback_integrations_url)
-    environment_row = connect!(provider, pending["name"], pending["environment_id"], kind: Integration::KIND_NATIVE)
+    environment_row = connect!(provider, pending["name"], pending["environment_id"], kind: provider.app.kind, app: true)
     environment_row.store_oauth!(credentials)
-    Integrations::ConnectionRefresh.run!(environment_row.integration)
+    integration = environment_row.integration
+    Integrations::ConnectionRefresh.run!(integration)
+    return connected(integration.name, safe_return_to(pending["return_to"])) unless provider.app_only?
 
-    connected(environment_row.integration.name, safe_return_to(pending["return_to"]))
+    chosen = IssueSyncService.new(current_workspace).choose_sole_tracker!(integration, by: current_membership)
+    redirect_to safe_return_to(pending["return_to"]) || integrations_path, notice: [ "#{integration.name} is connected.", chosen ].compact.join(" ")
   end
 
   # The callback brings back an installation id, not tokens. Server-to-server tokens are minted from it at call time.
@@ -419,7 +427,7 @@ class IntegrationsController < InertiaController
   # Reconnecting under the default name revives the existing row. The region and the connect fields that are part of the
   # server's address belong to the whole connection, so another environment cannot move it somewhere else. The other
   # fields belong to the environment connected now, and a way of connecting that asks none leaves them as they were.
-  def connect!(provider, name, environment_id, region: nil, fields: nil, server_url: nil, kind: provider.kind)
+  def connect!(provider, name, environment_id, region: nil, fields: nil, server_url: nil, kind: provider.kind, app: false)
     slug = Integration.slug_for(name)
     reserved = Integration.name_blocked_reason(name, workspace: current_workspace, provider: provider.key)
     raise NameTaken, reserved if reserved
@@ -434,7 +442,8 @@ class IntegrationsController < InertiaController
     integration.assign_attributes(
       kind: kind, provider: provider.key, name: name,
       settings: settings_for(kind) { server_url || provider.server_url_for(region, path_values) }
-                  .merge({ Integration::REGION_SETTING => provider.region(region)&.key, Integration::FIELDS_SETTING => path_values.presence }.compact),
+                  .merge({ Integration::REGION_SETTING => provider.region(region)&.key, Integration::FIELDS_SETTING => path_values.presence,
+                           Integration::APP_SETTING => (true if app) }.compact),
       deleted_at: nil, disabled_at: nil
     )
     integration.save!

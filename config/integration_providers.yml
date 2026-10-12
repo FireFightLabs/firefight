@@ -975,21 +975,24 @@ providers:
     hosts: [ api.linear.app, linear.app ]
     description: Read issues, projects and cycles, and open follow-up work from an incident.
     server_url: https://mcp.linear.app/mcp
-    # Firefight's own Linear OAuth application, which keeps incident items in step with issues and which people assign
-    # issues to or mention so Halon looks into them (linear.app/developers/oauth-2-0-authentication). actor=app installs it
-    # in the workspace as an app of its own, so what it creates shows as Firefight and the connection outlasts whoever
-    # installed it, and a Linear admin installs it (linear.app/developers/oauth-actor-authorization,
-    # linear.app/developers/agents, Authentication). app:assignable lets an issue be delegated to it and app:mentionable
-    # lets it be mentioned. An app installed this way may not ask for admin, so it cannot create webhooks
+    # Firefight's own Linear OAuth application is the one way to connect Linear (linear.app/developers/oauth-2-0-authentication).
+    # actor=app installs it in the workspace as an app of its own, so what it creates shows as Firefight and the connection
+    # outlasts whoever installed it, and a Linear admin installs it (linear.app/developers/oauth-actor-authorization,
+    # linear.app/developers/agents, Authentication). Linear's hosted MCP server takes an OAuth application's token as Bearer,
+    # to act as an app user (linear.app/docs/mcp, FAQ), so mcp makes the app's connection an MCP connection with every tool
+    # that server lists, offered in place of signing in. Its read and write scopes reach issues, projects, cycles and
+    # comments, and an app asks customer and initiative access by their own scopes (linear.app/developers/agents, Customer
+    # access scopes and Initiative access scopes). app:assignable lets an issue be delegated to it and app:mentionable lets
+    # it be mentioned. An app installed this way may not ask for admin, so it cannot create webhooks
     # (linear.app/developers/webhooks), and its agent sessions and the Issues data change events ticked in the app's
     # webhook settings arrive at the app's own webhook instead, signed with INTEGRATION_LINEAR_WEBHOOK_SECRET.
     app:
-      label: Firefight's own Linear app
-      description: Installs Firefight's own Linear app, which a Linear admin approves. It keeps incident actions and follow-ups in step with issues, and anyone can assign an issue to Firefight or mention it so Halon looks into it and answers in the issue. Choose it for issue sync under Settings, Workspace once it is connected.
-      connection_name: Linear issue sync
+      mcp: true
+      description: Halon reads and updates issues as Firefight, keeps incident follow-ups in step and answers when someone assigns or mentions Firefight.
+      consent_note: A Linear admin approves Firefight's app on Linear's screen. No keys to copy.
       authorization_endpoint: https://linear.app/oauth/authorize
       token_endpoint: https://api.linear.app/oauth/token
-      scopes: [read, write, "app:assignable", "app:mentionable"]
+      scopes: [read, write, "app:assignable", "app:mentionable", "customer:read", "customer:write", "initiative:read", "initiative:write"]
       scope_separator: ","
       params: { prompt: consent, actor: app }
       pkce: true

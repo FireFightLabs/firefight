@@ -69,6 +69,10 @@ class Integration < ApplicationRecord
   # Where a connection keeps the region it was made in and the connect fields that are part of its server's address.
   REGION_SETTING = "region".freeze
   FIELDS_SETTING = "fields".freeze
+  # Set on a connection made with Firefight's own app with its provider (IntegrationProvider::App).
+  APP_SETTING = "app".freeze
+
+  def through_app? = settings.to_h[APP_SETTING] == true
 
   # The provider's region the connection was made in, by its key (IntegrationProvider::Region), or nil when none was
   # chosen.
