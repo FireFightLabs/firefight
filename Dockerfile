@@ -9,6 +9,11 @@
 
 # Make sure RUBY_VERSION matches the Ruby version in .ruby-version
 ARG RUBY_VERSION=4.0.5
+# Make sure NODE_VERSION matches the version in .github/ci/Dockerfile
+ARG NODE_VERSION=22
+
+FROM docker.io/library/node:${NODE_VERSION}-trixie-slim AS node
+
 FROM docker.io/library/ruby:$RUBY_VERSION-slim AS base
 
 # Rails app lives here
@@ -16,9 +21,14 @@ WORKDIR /rails
 
 # Install base packages including Node.js for Vite
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y ca-certificates curl libjemalloc2 libsodium23 libvips fonts-dejavu-core postgresql-client nodejs npm && \
+    apt-get install --no-install-recommends -y ca-certificates curl libjemalloc2 libsodium23 libvips fonts-dejavu-core postgresql-client && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
+
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
+    ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
 # Set production environment variables and enable jemalloc for reduced memory usage and latency.
 ENV RAILS_ENV="production" \
@@ -74,11 +84,6 @@ RUN --mount=type=secret,id=git_token \
 # Precompile bootsnap code for faster boot times.
 # -j 1 disable parallel compilation to avoid a QEMU bug: https://github.com/rails/bootsnap/issues/495
 RUN bundle exec bootsnap precompile -j 1 app/ lib/
-
-# Install Node.js and build frontend assets
-RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y nodejs npm && \
-    rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
 # Install frontend dependencies
 RUN npm install
