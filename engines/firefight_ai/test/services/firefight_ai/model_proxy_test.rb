@@ -3,8 +3,8 @@ require "test_helper"
 module FirefightAi
   class ModelProxyTest < ActiveSupport::TestCase
     # Net::HTTP's streaming shape, enough to hand a request its answer a chunk at a time.
-    FakeResponse = Struct.new(:code, :content_type, :chunks) do
-      def [](name) = name == "Content-Type" ? content_type : nil
+    FakeResponse = Struct.new(:code, :content_type, :chunks, :headers) do
+      def [](name) = name == "Content-Type" ? content_type : headers.to_h[name]
       def read_body(&) = chunks.each(&)
     end
 
@@ -35,6 +35,19 @@ module FirefightAi
     end
 
     # A coding agent may cache for an hour, which Anthropic bills at twice the input price, so the split is read off too.
+    # Each provider names the call in a header, which the ledger keeps so the call can be found in the provider's own logs.
+    test "the provider's id for the call is read off its answer's headers" do
+      { "anthropic" => [ "messages", { "request-id" => "req_011ABC" } ], "openai" => [ "chat/completions", { "x-request-id" => "req_openai" } ],
+        "openrouter" => [ "chat/completions", { "x-generation-id" => "gen-1760000000-abc" } ] }.each do |provider, (path, headers)|
+        answer(FakeResponse.new("200", "text/event-stream", [ "data: {}\n\n" ], headers)) { |_| nil }
+        proxy = ModelProxy.new(provider)
+
+        proxy.forward(path: path, body: { stream: true }.to_json, model: "a-model") { |*| nil }
+
+        assert_equal headers.values.sole, proxy.request_id, provider
+      end
+    end
+
     test "an Anthropic answer's cache writes are read by how long they last" do
       usage = { input_tokens: 10, cache_creation_input_tokens: 3_000, cache_creation: { ephemeral_5m_input_tokens: 1_000, ephemeral_1h_input_tokens: 2_000 } }
       answer(FakeResponse.new("200", "text/event-stream", [ "event: message_start\ndata: #{({ type: 'message_start', message: { usage: usage } }).to_json}\n\n" ])) { |_| nil }

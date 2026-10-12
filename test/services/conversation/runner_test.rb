@@ -308,7 +308,8 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
 
     ask(@conversation, "what should we do")
 
-    assert_match "#{Chat::HandbookPage::HANDBOOK_HEADING}\nPage \"General\" (#{page.url}):\nNever restart the primary database", responder.calls.sole[:context]
+    assert_match "#{Chat::HandbookPage::HANDBOOK_HEADING}\nPage \"General\" (#{page.url}):\nNever restart the primary database", responder.calls.sole[:stable_context]
+    assert_no_match Chat::HandbookPage::HANDBOOK_HEADING, responder.calls.sole[:context], "it holds for the whole chat, so it joins the instructions"
   end
 
   test "the question is written down before the model is asked, so the person sees their own words" do

@@ -47,7 +47,7 @@ class CodeAgent::Relay
       status: proxy.status.to_i.between?(200, 299) ? Inference::STATUS_SUCCESS : Inference::STATUS_ERROR,
       error_kind: (Inference::ERROR_OUT_OF_CREDIT if proxy.refusal&.out_of_credit?),
       latency_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round,
-      **payer.ledger
+      provider_request_id: proxy.request_id, **payer.ledger
     )
     AiSpend.record!(inference)
     note_account(proxy, payer)

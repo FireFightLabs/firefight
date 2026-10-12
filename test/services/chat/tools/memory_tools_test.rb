@@ -223,7 +223,7 @@ class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
   test "a chat starts with what the workspace remembers" do
     Chat::Memory.create!(workspace: @workspace, text: "Deploys happen from main", state: Chat::Memory::STATE_UNCONFIRMED)
 
-    context = Conversation::Runner.new(@conversation, asker: @member).send(:context)
+    context = Conversation::Context.new(@conversation, Conversation::Turn.new(@conversation, asker: @member)).current
 
     assert_match "What this workspace remembers", context
     assert_match "Deploys happen from main", context
@@ -232,7 +232,7 @@ class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
   test "the memories a chat starts with count as used once for the chat, not once per question" do
     memory = Chat::Memory.create!(workspace: @workspace, text: "Deploys happen from main", state: Chat::Memory::STATE_UNCONFIRMED)
 
-    2.times { Conversation::Runner.new(@conversation, asker: @member).send(:context) }
+    2.times { Conversation::Context.new(@conversation, Conversation::Turn.new(@conversation, asker: @member)).current }
 
     assert_equal 1, memory.reload.use_count
   end

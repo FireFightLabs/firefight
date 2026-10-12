@@ -6,7 +6,8 @@
 class Conversation::Rehearsal
   Replay = Data.define(:chat, :transcript, :turns_used)
 
-  # The system message ends with what the runner added for this chat, which always starts by saying who is asking.
+  # A chat from before its context rode after the chat kept it at the end of its system message, starting by saying who
+  # is asking. A later chat saves none, so it is read from the chat as it stands (Conversation::Context).
   CONTEXT = /^You are acting for .*/m
 
   # A replay that reaches this many rounds in one turn without the person answering has a loop, not a conversation.
@@ -54,7 +55,8 @@ class Conversation::Rehearsal
 
     Conversation::BenchCase.new(
       key: "chat-#{conversation.id}", title: conversation.display_title, shape: "", source: "chat #{conversation.id}",
-      context: messages.find { |message| message.role == Chat::Message::ROLE_SYSTEM }&.content.to_s[CONTEXT].to_s.strip,
+      context: messages.find { |message| message.role == Chat::Message::ROLE_SYSTEM }&.content.to_s[CONTEXT].to_s.strip.presence ||
+        Conversation::Context.new(conversation, turn).then { |context| [ context.current(hand_memories: false), context.stable ].compact_blank.join("\n") },
       turns: captured_turns(messages),
       tools: calls.map(&:name).uniq.map { |name| captured_tool(name, live[name], calls.select { |call| call.name == name }, conversation.workspace) },
       answers: calls.select(&:result).map do |call|

@@ -18,7 +18,7 @@ class Chat::Tools::DisputeMemory < RubyLLM::Tool
     {
       "type" => "object",
       "properties" => {
-        "memory" => { "type" => "string", "description" => "The memory's id, as recall or the start of the chat shows it" },
+        "memory" => { "type" => "string", "description" => "The memory's id, as recall or the memories you were given show it" },
         "reason" => { "type" => "string", "description" => "What showed it wrong, in one sentence" }
       },
       "required" => [ "memory", "reason" ]

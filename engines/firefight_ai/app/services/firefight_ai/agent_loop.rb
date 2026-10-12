@@ -54,12 +54,15 @@ module FirefightAi
     # checks look at a reply that would end the turn, each a callable given the reply that answers words to send it back
     # with, or nil to let it end. Each sends a turn back at most once, so a model that keeps answering the same way still
     # ends. A chat's checks are the line saying its next step (NextStep), its theory board and the challenger.
+    # context is what the app says of how things stand now, which can change between turns. It is the last message of every
+    # model call and is never saved, so the instructions and the history in front of it reach the provider as it cached
+    # them, and the model reads the latest of it on each call.
     # retry_malformed asks the same model once more, once per run, when its reply held a tool call whose arguments could not
     # be read (RubyLLM::ToolCallParseError), which a chat does so the person is not left without an answer by one bad reply.
     def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil, on_chunk: nil,
                    reply_is_answer: false, nudge: nil, memory: nil, take_messages: nil, output: nil,
                    choice: nil, purpose: AiPurpose::INVESTIGATION, purse: nil, on_backup: nil, on_take_over: nil, on_progress: nil,
-                   steady: false, checks: [], retry_malformed: false)
+                   steady: false, checks: [], retry_malformed: false, context: nil)
       @chat = chat
       @choice = choice || ModelChoice.new(model: inference[:model], provider: inference[:provider])
       @purpose = purpose
@@ -84,6 +87,7 @@ module FirefightAi
       @steady = steady
       @checks = checks.dup
       @retry_malformed = retry_malformed
+      @context = context.presence
       steady!
       @seen_tool_call_ids = messages.flat_map { |message| message.tool_calls&.keys || [] }.to_set
       report_steps_to(on_step) if on_step
@@ -171,7 +175,7 @@ module FirefightAi
     # when one can carry on, and otherwise fails the run. A provider that stopped answering, after RubyLLM's own retries,
     # hands the run to a backup when one is set up.
     def generate
-      Inference.track(tracked) { @chat.step(&streamer) }.first
+      Inference.track(tracked) { with_context_last { @chat.step(&streamer) } }.first
     rescue RubyLLM::ContextLengthExceededError
       raise if @made_room_after_refusal || !@room.possible?
 
@@ -252,11 +256,41 @@ module FirefightAi
       llm = @chat.to_llm
       llm.with_tool_options(choice: :none)
       @nudge.call(Room::HANDOVER)
-      note = Inference.track(tracked) { @chat.step }.first
+      note = Inference.track(tracked) { with_context_last { @chat.step } }.first
       record_turn(note) if note
       note&.content.to_s
     ensure
       llm&.with_tool_options(choice: nil)
+    end
+
+    # The context goes after everything the chat holds for this one call, and comes out again once the reply is in, so
+    # the reply and the tool results after it are saved where they would be without it. Where the chat is cached as it
+    # grows, the message before the context is marked a cache boundary for this call only, on a copy, so no later call
+    # carries the mark. Otherwise a provider that caches at boundaries, such as Anthropic, would write the history with this context at
+    # its end and find none of it on the next call, whose context comes after more of the chat.
+    def with_context_last
+      return yield unless @context
+
+      llm = @chat.to_llm
+      last = llm.messages.last
+      marked = last.dup.tap(&:cache_until_here) if llm.caching && last && !last.cache_until_here? && !opening?(llm, last)
+      swap(llm.messages, last, marked) if marked
+      note = llm.add_message(role: :user, content: @context)
+      yield
+    ensure
+      if @context
+        messages = @chat.to_llm.messages
+        messages.delete_if { |message| message.equal?(note) } if note
+        swap(messages, marked, last) if marked
+      end
+    end
+
+    # The chat's first message after the instructions is never marked, since OpenRouter keys a route on it as sent.
+    def opening?(llm, message) = llm.messages.find { |candidate| candidate.role != :system }.equal?(message)
+
+    def swap(messages, from, to)
+      index = messages.index { |message| message.equal?(from) }
+      messages[index] = to if index
     end
 
     # Streaming still reports usage, so a streamed turn is billed like any other.

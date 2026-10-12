@@ -19,7 +19,7 @@ class Chat::Tools::CorrectMemory < RubyLLM::Tool
     {
       "type" => "object",
       "properties" => {
-        "memory" => { "type" => "string", "description" => "The memory's id, as recall or the start of the chat shows it" },
+        "memory" => { "type" => "string", "description" => "The memory's id, as recall or the memories you were given show it" },
         "reason" => { "type" => "string", "description" => "Why it is wrong, in the person's words" },
         "correction" => { "type" => "string", "description" => "What is right instead, when the person said it, as one plain sentence (optional)" }
       },
