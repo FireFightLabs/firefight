@@ -18,6 +18,8 @@ module Chat::Tools::Groups
   RESOURCES = "resources".freeze
   # Systems outside the workspace's own: a provider's public status page, and the systems its apps use that nothing connects.
   OUTSIDE = "outside_systems".freeze
+  # Posting as Firefight in a channel beyond an incident's own, such as release notes in #general.
+  CHANNELS = "channels".freeze
 
   # Ways in for an outside agent. Halon does not ask itself a question, and a chat has its own start_investigation and
   # its own watches.
@@ -51,6 +53,12 @@ module Chat::Tools::Groups
         Mcp::Tools::INVITE_RESPONDERS, Mcp::Tools::ASSIGN_INCIDENT_ROLE, Mcp::Tools::LINK_INCIDENT,
         Mcp::Tools::GIVE_SHOUTOUT, Mcp::Tools::DISMISS_TIMELINE_NOTE
       ]
+    ),
+    Firefight.new(
+      key: CHANNELS, title: "Posting in channels",
+      covers: "post a message as Firefight in any channel it can post in, such as release notes in #general or a heads up to a " \
+              "team, named by the channel's name or link",
+      tools: [ Mcp::Tools::POST_TO_CHANNEL ]
     ),
     Firefight.new(
       key: FOLLOW_UPS, title: "Follow-ups and runbooks",

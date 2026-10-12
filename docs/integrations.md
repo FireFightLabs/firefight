@@ -81,7 +81,7 @@ A credential never reaches the model, a chat, an MCP response or the ledger.
 | Principal | Implicit authority |
 |---|---|
 | Admin or owner membership | every catalogued action, tool actions included |
-| Member membership | system reads outside `ADMIN_ONLY_RESOURCES`, plus `incidents.create`, `incidents.update`, `chats.update`, `chats.delete`, `memory.create` and `memory.update`. `map.read` is every environment, and `investigations.create` (asking Halon, starting a run) and every connected tool that only reads are held until a grant narrows them. A tool that changes something needs a grant |
+| Member membership | system reads outside `ADMIN_ONLY_RESOURCES`, plus `incidents.create`, `incidents.update`, `chats.update`, `chats.delete`, `memory.create` and `memory.update`. `map.read` is every environment, and `investigations.create` (asking Halon, starting a run) and every connected tool that only reads are held until a grant narrows them. A tool that changes something needs a grant, and so do `browser.update` and `channel_posts.create` |
 | Personal token / OAuth connection | exactly what that human holds |
 | Service key | nothing, explicit grants only |
 | `Agent` | nothing, explicit grants only |
@@ -125,6 +125,14 @@ Environment scoping is the axis to reach for when the same connection serves dev
 ## Config ≠ permission
 
 Both are required and they answer different questions. A grant says *this principal may*; a wired `IntegrationEnvironment` says *this connection can*. The gateway asks `action.configured_for?(scope)` and the action delegates to whatever minted it. **Never reach into `Integration::Tool` from the gateway** — new executor kinds must not add branches to the governance layer.
+
+## Posting in a channel
+
+`channel_posts.create` (`Ability::Action::CHANNEL_POST`, "Post to a channel" on the Permissions screen, resource label Channel Posts) is Firefight posting a message as its own bot in any channel it can post in, such as release notes in #general, beyond an incident's own channel. It is a system action like `browser.update`: the resource offers only that one action (`RESOURCE_ACTIONS`), and it is not in `WorkspaceMembership::PARTICIPATION` or `NARROWABLE_KEYS`, so admins and owners hold it, a member needs a grant (alone or in a permission set), and a service key, an agent or the investigator holds it only through an explicit grant. No built-in pack carries it, since packs are kept in step with connections and this reaches no connection. It is a write (`risk_level` write), so approval rules hold it, and it is in `IRREVERSIBLE_KEYS`, so its row is `reversible: false`: a message people have read cannot be taken back, the way a connected tool's change cannot, so a chat asks the person before each post unless they allowed it for the rest of the chat (`Conversation::Turn#confirms?`). The migration `AddChannelPostAbilityAction` creates the row, since a chat offers Firefight's own tools only from rows that exist.
+
+- **One tool, three ways in.** `post_to_channel` (`Mcp::Tools::PostToChannel`) is the MCP tool, Halon's chat tool (`Chat::Tools::Firefight`, group `Chat::Tools::Groups::CHANNELS`, "Posting in channels") and a runbook step (`Chat::Tools::Choices`), so every post goes through `AbilityGateway.authorize!` at its dispatcher and lands in the activity log with its channel and message, allowed, held, denied or failed.
+- **The service and the adapter.** `ChannelPostService#post!` finds the channel through `WorkspaceAdapter.for(workspace).find_channel(reference:)` and posts with `post_channel_message`, then asks for the post's link. Every failure is `ChannelPostService::Refused` with a sentence the tool hands back as an error answer: a channel Firefight cannot see (`AdapterError::NotFound`, which is also what a private channel the bot is not in answers) says to invite Firefight and name it by its link, `NotInChannel` says to invite Firefight, and archived, restricted, an empty or a too long message (`MESSAGE_LIMIT`) are each said plainly.
+- **Who wrote it.** `Mcp::Tools::Base.names_halon` marks a tool whose post names its writer. `Mcp::ToolDispatcher.run` passes `by_halon: true` only from `Chat::Tools::Firefight`, so a post from Halon's chat or a runbook it runs reads "Posted by Halon at the request of" the person, and one from an outside agent over MCP reads "Posted through Firefight by" its principal (docs/slack-messages.md, Posting in a channel).
 
 ## Adding a provider
 
@@ -604,3 +612,4 @@ A test account an admin saves per site, which Halon's browser signs in with when
 - Capabilities are published by `Mcp::CapabilityToolFactory`, each routed to the provider tool that holds the resource and authorized as that tool's action
 - `approval_id` rides **outside** the digested params, so an approved retry hashes identically to the original request
 - Incident lifecycle writes stay out of MCP until they carry the full approval UX
+- `post_to_channel` is Firefight's own tool authorized as `channel_posts.create`, exposed over MCP like every tool in `Mcp::Tools.all` (Posting in a channel)

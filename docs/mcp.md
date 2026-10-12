@@ -142,6 +142,10 @@ Authorization is the gateway's: admin personal tokens carry the admin's authorit
 
 The server is self-describing for agents: server instructions, tool descriptions, and guidance-worthy responses (permission errors, no routing policy, unmatched dry runs) link to the relevant public docs page via `Mcp::Docs` constants — each page is fetchable as raw markdown (`https://firefight.app/docs/**/*.md`, index at `/llms.txt`).
 
+## Posting in a channel
+
+`post_to_channel` (`Mcp::Tools::PostToChannel`, `channel_posts.create`) posts a message as Firefight in any channel it can post in, named by its name, its id or its link, and answers the channel and a link to the post. It is not an incident write: `post_incident_update` is for an incident's own channel. A member needs a grant and so does a service key or an agent, approval rules hold it, and every call is in the activity log with its channel and message. A channel Firefight cannot see, a private one it is not in, an archived one and an empty or too long message come back as an error answer with what to do (docs/integrations.md, Posting in a channel). Over MCP the post's footer names the principal ("Posted through Firefight by"), and from Halon's chat or a runbook it names Halon and the person who asked.
+
 ## Halon, the agent
 
 These tools put Halon in front of an outside agent, such as one in a person's editor. All of them go through the gateway as whoever the credential resolves to: a personal token as the person, an agent token as the agent, a service key as itself.

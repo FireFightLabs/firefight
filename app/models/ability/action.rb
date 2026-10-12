@@ -46,6 +46,9 @@ module Ability
     # Halon's browser in the sandbox. Looking at a page is open like a web lookup. Sending what a page would send, such as
     # a form, is a change, so it needs a grant, the person confirms each one and approval rules hold it.
     RESOURCE_BROWSER = "browser"
+    # Posting a message as Firefight in any channel it can post in, such as release notes in #general. It reaches people
+    # beyond an incident, so it needs a grant and approval rules hold it. Only posting is offered.
+    RESOURCE_CHANNEL_POSTS = "channel_posts"
 
     # Nobody can be granted these, so a member or an agent can never mint keys
     # or rewrite who has what.
@@ -58,7 +61,7 @@ module Ability
       RESOURCE_CUSTOM_FIELDS, RESOURCE_FORMS, RESOURCE_CATALOG, RESOURCE_ALERTS, RESOURCE_POLICIES,
       RESOURCE_RUNBOOKS, RESOURCE_APPROVALS, RESOURCE_INCIDENT_ROLES, RESOURCE_WEBHOOKS,
       RESOURCE_INCIDENT_TRANSCRIPTS, RESOURCE_INVESTIGATIONS, RESOURCE_CHATS, RESOURCE_MEMORY, RESOURCE_MAP,
-      RESOURCE_MONITORING, RESOURCE_HANDBOOK, RESOURCE_BROWSER
+      RESOURCE_MONITORING, RESOURCE_HANDBOOK, RESOURCE_BROWSER, RESOURCE_CHANNEL_POSTS
     ].freeze
 
     RESOURCES = (GRANTABLE_RESOURCES + ADMIN_ONLY_RESOURCES).freeze
@@ -91,6 +94,7 @@ module Ability
       RESOURCE_MONITORING => "Monitoring",
       RESOURCE_HANDBOOK => "Handbook",
       RESOURCE_BROWSER => "Halon's Browser",
+      RESOURCE_CHANNEL_POSTS => "Channel Posts",
       RESOURCE_WEBHOOKS => "Webhooks",
       RESOURCE_INTEGRATIONS => "Integrations",
       RESOURCE_API_KEYS => "API Keys",
@@ -107,7 +111,9 @@ module Ability
     ACTIONS = [ ACTION_READ, ACTION_CREATE, ACTION_UPDATE, ACTION_DELETE ].freeze
     # A resource that only offers some of the actions. Everything else offers all four.
     # The browser's read is open (BROWSER_READ), so only sending is offered.
-    RESOURCE_ACTIONS = { RESOURCE_MAP => [ ACTION_READ ].freeze, RESOURCE_BROWSER => [ ACTION_UPDATE ].freeze }.freeze
+    RESOURCE_ACTIONS = {
+      RESOURCE_MAP => [ ACTION_READ ].freeze, RESOURCE_BROWSER => [ ACTION_UPDATE ].freeze, RESOURCE_CHANNEL_POSTS => [ ACTION_CREATE ].freeze
+    }.freeze
 
     MAP_READ = "#{RESOURCE_MAP}.#{ACTION_READ}".freeze
     HANDBOOK_READ = "#{RESOURCE_HANDBOOK}.#{ACTION_READ}".freeze
@@ -115,6 +121,11 @@ module Ability
     INVESTIGATIONS_CREATE = "#{RESOURCE_INVESTIGATIONS}.#{ACTION_CREATE}".freeze
     # Halon's browser sending what a page would send, such as a form or a button that saves something.
     BROWSER_SUBMIT = "#{RESOURCE_BROWSER}.#{ACTION_UPDATE}".freeze
+    # Posting a message as Firefight in a channel someone names.
+    CHANNEL_POST = "#{RESOURCE_CHANNEL_POSTS}.#{ACTION_CREATE}".freeze
+    # Writes that cannot be taken back once people have read them, like a connected tool's change. A chat asks the person
+    # before each one (Conversation::Turn#confirms?) unless they allowed it for the rest of the chat.
+    IRREVERSIBLE_KEYS = [ CHANNEL_POST ].freeze
     # Reads whose environment scope narrows what comes back rather than whether the call runs. A call that names no
     # environment is admitted when the principal holds the action in any environment, and the reader keeps to
     # AbilityGateway.reach (ResourceMap::Resource.visible_to for the map).
@@ -133,6 +144,12 @@ module Ability
         description: "Let Halon submit a form, or press a button that sends data, on a website it checks in its browser, such as " \
                      "placing a test order. Halon stops before anything is sent and the person confirms each one, and approval " \
                      "rules can hold it. Looking at a page needs no grant."
+      }.freeze,
+      CHANNEL_POST => {
+        title: "Post to a channel",
+        description: "Post a message as Firefight in any channel it can post in, such as asking Halon to share release notes in " \
+                     "#general or a runbook step that announces a release. The post names who asked for it. Members need a grant, " \
+                     "approval rules can hold it, and every post is in the activity log."
       }.freeze,
       INVESTIGATIONS_CREATE => {
         title: "Ask Halon and start investigations",
@@ -253,7 +270,7 @@ module Ability
       find_or_create_by!(workspace_id: nil, key: key) do |action|
         action.kind = KIND_SYSTEM
         action.risk_level = RISK_BY_CRUD_ACTION.fetch(crud_action, RISK_WRITE)
-        action.reversible = action.risk_level != RISK_DESTRUCTIVE
+        action.reversible = action.risk_level != RISK_DESTRUCTIVE && IRREVERSIBLE_KEYS.exclude?(key)
       end
     rescue ActiveRecord::RecordNotUnique
       find_by!(workspace_id: nil, key: key)

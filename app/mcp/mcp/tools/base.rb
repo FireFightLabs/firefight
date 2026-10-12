@@ -134,6 +134,14 @@ module Mcp
 
         def ends_something? = @ends_something == true
 
+        # A tool whose post says who wrote it. Halon's chat and a runbook it runs call it as Halon, so the post names Halon
+        # and the person who asked, and an outside agent's call names only who it acts for (Mcp::ToolDispatcher.run).
+        def names_halon
+          @names_halon = true
+        end
+
+        def names_halon? = @names_halon == true
+
         def authorization(_workspace, _args)
           @authorization || raise(NotImplementedError, "#{name} declares no authorization")
         end

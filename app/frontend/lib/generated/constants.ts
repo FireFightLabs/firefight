@@ -715,6 +715,7 @@ export const ABILITY_RESOURCES = [
   "monitoring",
   "handbook",
   "browser",
+  "channel_posts",
   "integrations",
   "api_keys",
   "permissions",
@@ -744,7 +745,8 @@ export const ABILITY_GRANTABLE_RESOURCES = [
   "map",
   "monitoring",
   "handbook",
-  "browser"
+  "browser",
+  "channel_posts"
 ] as const
 export type AbilityGrantableResource = (typeof ABILITY_GRANTABLE_RESOURCES)[number]
 
@@ -769,6 +771,7 @@ export const ABILITY_RESOURCE_LABELS = {
   "monitoring": "Monitoring",
   "handbook": "Handbook",
   "browser": "Halon's Browser",
+  "channel_posts": "Channel Posts",
   "webhooks": "Webhooks",
   "integrations": "Integrations",
   "api_keys": "API Keys",
@@ -905,6 +908,9 @@ export const ABILITY_RESOURCE_ACTIONS = {
   ],
   "browser": [
     "update"
+  ],
+  "channel_posts": [
+    "create"
   ]
 } as const
 
