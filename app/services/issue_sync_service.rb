@@ -113,6 +113,23 @@ class IssueSyncService
     IssueChangeJob.perform_later(workspace: @workspace, event: event.to_job)
   end
 
+  # A change Firefight's own app was sent at the provider's app wide address, whose signature the app's secret proved.
+  # rows are the connections made through the installation it names, and it reaches each workspace whose chosen tracker
+  # is one of them. The app is sent every change in the account, so only one to an issue an item is linked to is queued.
+  def self.app_delivered!(provider_key, rows, payload)
+    event = rows.any? ? Issues.event(provider_key, payload) : nil
+    return unless event
+
+    rows.each do |row|
+      integration = row.integration
+      workspace = integration.workspace
+      next unless workspace.issue_sync_connection == integration && Issues.through_app?(integration)
+      next unless IncidentAction.in_workspace(workspace).linked_to_issue(integration, event.keys).exists?
+
+      new(workspace).receive(event)
+    end
+  end
+
   # What the tracker changed, applied to every item linked to that issue on the workspace's tracker.
   def apply(event)
     integration = @workspace.issue_sync_connection

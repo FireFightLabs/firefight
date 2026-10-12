@@ -92,6 +92,13 @@ class WorkspaceSettingsSerializer < BaseSerializer
     connection.present? && Integrations::Issues.registers_webhooks?(connection)
   end
 
+  # Whether the chosen connection's changes arrive through Firefight's own app, so the setting asks for nothing.
+  type :boolean
+  def issue_webhook_through_app
+    connection = workspace.issue_sync_connection
+    connection.present? && Integrations::Issues.through_app?(connection)
+  end
+
   type :boolean
   def issue_webhook_registered
     workspace.issue_webhook_registered?

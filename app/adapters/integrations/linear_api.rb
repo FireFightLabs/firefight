@@ -3,7 +3,7 @@ module Integrations
   # application, for keeping incident items in step with issues. Every query and mutation is written against the schema
   # Linear's SDK is generated from (linear/linear, packages/sdk/src/schema.graphql): issue, issueCreate, issueUpdate,
   # teams, workflowStates, users, webhookCreate and webhookDelete, and for the app's agent sessions agentActivityCreate
-  # and agentSessionUpdate (linear.app/developers/agent-interaction). Linear answers a refusal with an errors list
+  # (linear.app/developers/agent-interaction). Linear answers a refusal with an errors list
   # (linear.app/developers/graphql, Errors), and a token it no longer takes with 401 (linear.app/developers/oauth-2-0-authentication).
   class LinearApi
     class Error < Integrations::Error; end
@@ -27,7 +27,6 @@ module Integrations
     # own user, whose app is true (User.app in the schema).
     ACTOR = "query Actor { viewer { id app organization { id name urlKey } } teams(first: 1) { nodes { id } } }".freeze
     ACTIVITY_CREATE = "mutation AgentActivityCreate($input: AgentActivityCreateInput!) { agentActivityCreate(input: $input) { success } }".freeze
-    SESSION_UPDATE = "mutation AgentSessionUpdate($id: String!, $input: AgentSessionUpdateInput!) { agentSessionUpdate(id: $id, input: $input) { success } }".freeze
     UNAUTHORIZED = 401
     WEBHOOK_DELETE = "mutation WebhookDelete($id: String!) { webhookDelete(id: $id) { success } }".freeze
 
@@ -59,8 +58,6 @@ module Integrations
     end
 
     def create_activity(input) = query(ACTIVITY_CREATE, "input" => input).dig("agentActivityCreate", "success")
-
-    def update_session(id, input) = query(SESSION_UPDATE, "id" => id, "input" => input).dig("agentSessionUpdate", "success")
 
     # Linear's issue query takes an issue's id or its identifier, such as ENG-12.
     def issue(id) = query(ISSUE, "id" => id)["issue"]

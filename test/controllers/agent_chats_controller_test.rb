@@ -44,26 +44,31 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "This chat is in Slack, so carry on there.", flash[:alert]
   end
 
-  test "a chat someone started in a tracker's issue is listed for them, read with a link to the issue, and asked in only there" do
+  test "a chat someone started in a tracker's issue lives only there, like a chat in a channel, so nobody lists, finds or opens it here" do
     integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "linear", name: "Linear issue sync", settings: {})
     issue_chat = Conversation.start_in_issue!(integration: integration, session_id: "session-1", title: "ENG-12 Checkout", issue_key: "ENG-12",
                                               issue_url: "https://linear.app/acme/issue/ENG-12", asked_by: @member)
     issue_chat.ask!("Why is checkout failing?", asker: issue_chat.started_by)
-    theirs = Conversation.start_in_issue!(integration: integration, session_id: "session-2", title: "ENG-13", asked_by: workspace_memberships(:bob_workspace_one))
+    unmatched = Conversation.start_in_issue!(integration: integration, session_id: "session-2", title: "ENG-13 Checkout")
+    limits = @workspace.conversation_limits
+    in_channel = @workspace.conversations.create!(kind: Conversation::KIND_CHANNEL, started_by: @member, channel_id: "C0OPS", thread_id: "1.2",
+                                                  max_turns: limits.max_turns, max_spend_cents: limits.max_spend_cents)
 
     get agent_chats_url, headers: inertia_headers
+    assert_equal [], inertia_props["conversations"]
 
-    listed = inertia_props["conversations"].index_by { |chat| chat["id"] }
-    assert_equal [ issue_chat.id ], listed.keys
-    assert_equal [ "Linear", "ENG-12 Checkout" ], listed[issue_chat.id].values_at("askedIn", "title")
+    get agent_chats_search_url(q: "Checkout")
+    assert_equal [], response.parsed_body
 
-    get agent_chat_url(issue_chat), headers: inertia_headers
-    assert_equal "https://linear.app/acme/issue/ENG-12", inertia_props.dig("conversation", "askedInUrl")
-
+    [ issue_chat, unmatched, in_channel ].each do |hidden|
+      get agent_chat_url(hidden), headers: inertia_headers
+      assert_response :not_found
+    end
     assert_no_enqueued_jobs(only: ConversationReplyJob) { post agent_chat_ask_url(issue_chat), params: { question: "And now?" } }
-    assert_equal "This chat is in Linear, so carry on there.", flash[:alert]
+    assert_response :not_found
 
-    get agent_chat_url(theirs), headers: inertia_headers
+    sign_in(users(:bob), @workspace)
+    get agent_chat_url(issue_chat), headers: inertia_headers
     assert_response :not_found
   end
 

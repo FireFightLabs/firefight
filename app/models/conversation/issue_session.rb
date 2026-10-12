@@ -1,6 +1,6 @@
 # The session in a tracker's issue a chat answers in, opened when someone assigned the issue to Firefight's app or
 # mentioned it there (Integrations::AgentSessions). One session is one chat, kept with the connection it came through.
-# asked_by is the member the tracker's person matched by email, whose chat list shows the chat.
+# asked_by is the member the person who opened it matched by email, or nobody.
 class Conversation::IssueSession < ApplicationRecord
   self.table_name = "conversation_issue_sessions"
 

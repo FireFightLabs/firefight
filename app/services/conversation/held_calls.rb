@@ -1,6 +1,7 @@
 # A call an approval rule held in a chat, from its approval to its run. Approving it never runs it, it unlocks the
 # call. Halon reads how things stand now, the person who asked is told where the chat lives, and nothing runs until someone
-# presses Run. The run goes through the gateway again with the approval, once.
+# presses Run. The run goes through the gateway again with the approval, once. A chat in a tracker's issue, which nobody
+# opens in Firefight, is the exception, and approving its call runs it (runs_when_approved?).
 module Conversation::HeldCalls
   # What the card and the platform's message draw. call and target name the call as the confirmation does ("Api request"
   # on "Production (Hosting), project shop"). offers is what may be done now, whoever does it.
@@ -17,12 +18,31 @@ module Conversation::HeldCalls
   # From ApprovalResumption once an approver approved. The call waits for its person and Halon reads how things stand.
   def self.approved!(approval)
     held = Chat::HeldCall.find_by(approval: approval)
+    return run_on_approval!(held) if held&.runs_when_approved?
     return unless held&.move!(from: Chat::HeldCall::STATUS_WAITING, to: Chat::HeldCall::STATUS_CHECKING)
 
     ApprovedCallExpiryJob.set(wait_until: approval.run_expires_at).perform_later(approval.id) if approval.run_expires_at
     HeldCallCheckJob.perform_later(held.id)
     tell!(held)
   end
+
+  # A chat in a tracker's issue is open to nobody in Firefight, so nobody could press Run. Approving its call is the
+  # decision to run it, so the approval runs it at once, through the chat's next turn as for Run, and Halon says in the
+  # issue how it went. Nothing is read first, since that reading is for whoever presses Run.
+  def self.runs_when_approved?(approval) = Chat::HeldCall.find_by(approval: approval)&.runs_when_approved? || false
+
+  def self.run_on_approval!(held)
+    approver = held.approval.approver
+    decided_by = approver if approver.is_a?(WorkspaceMembership)
+    return unless held.move!(from: Chat::HeldCall::STATUS_WAITING, to: Chat::HeldCall::STATUS_RUNNING, decided_by_id: decided_by&.id,
+                             decided_at: Time.current)
+
+    conversation = held.conversation
+    conversation.expect_reply!
+    ConversationReplyJob.perform_later(conversation.id, decided_by&.id, held.id)
+    tell!(held)
+  end
+  private_class_method :run_on_approval!
 
   def self.denied!(approval)
     held = Chat::HeldCall.find_by(approval: approval)

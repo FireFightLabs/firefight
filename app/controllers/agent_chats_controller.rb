@@ -479,8 +479,6 @@ class AgentChatsController < InertiaController
   end
 
   def asked_in_url
-    return conversation.issue_session&.issue_url if conversation.issue?
-
     WorkspaceAdapter.for(current_workspace).channel_url(channel_id: conversation.channel_id) if conversation.direct?
   end
 
@@ -511,7 +509,7 @@ class AgentChatsController < InertiaController
 
   # One row over a page says whether there is another, without a count.
   def chat_page_rows
-    @chat_page_rows ||= own_chats.includes({ chat: :last_readable_message }, { issue_session: :integration }).in_reading_order
+    @chat_page_rows ||= own_chats.includes(chat: :last_readable_message).in_reading_order
       .offset((chat_page_number - 1) * chats_per_page).limit(chats_per_page + 1).to_a
   end
 

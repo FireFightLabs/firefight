@@ -2,8 +2,9 @@
 # accounts, tells Firefight something changed. A delivery counts only when signed with the app's own secret, and its
 # events reach each connection made through the installation it names, as does what it says of the installation itself.
 # The same address takes an app's agent sessions (Integrations::AgentSessions), for a provider whose app people assign
-# work to. Like MapEventsController, it only queues work and never names a provider. The address carries the provider's
-# key, and its definition answers the rest.
+# work to, and the changes to issues sent for a workspace whose chosen tracker is connected through the app
+# (IssueSyncService.app_delivered!). Like MapEventsController, it only queues work and never names a provider. The
+# address carries the provider's key, and its definition answers the rest.
 class Api::V1::AppEventsController < ActionController::API
   MAX_BYTES = 1.megabyte
 
@@ -31,6 +32,7 @@ class Api::V1::AppEventsController < ActionController::API
     rows = Integrations::MapEvents.rows_for_installation(provider_key, source.installation_of(payload, headers: request.headers)).to_a
     receive_map_delivery(map_source, rows, payload) if map_source
     Integrations::AgentSessions.delivered!(provider_key, rows, payload)
+    IssueSyncService.app_delivered!(provider_key, rows, payload)
     head :ok
   rescue JSON::ParserError
     head :bad_request

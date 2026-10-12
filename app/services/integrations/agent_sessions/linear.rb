@@ -15,7 +15,8 @@ module Integrations
     #
     # Halon answers through agentActivityCreate: a thought within ten seconds of created, or the session reads as
     # unresponsive, action for each tool, then response or error, and elicitation for what needs a person. Each body is
-    # Markdown. The session's externalUrls point at its chat in Firefight (agentSessionUpdate).
+    # Markdown. An elicitation with choices carries the select signal, its options in signalMetadata, and Linear sends
+    # the one picked back as a prompted activity (linear.app/developers/agent-signals, select).
     class Linear
       TYPE_SESSION = "AgentSessionEvent".freeze
       TYPE_PERMISSION = "PermissionChange".freeze
@@ -25,6 +26,7 @@ module Integrations
       ACTION_REVOKED = "revoked".freeze
       ACTION_TEAM_ACCESS = "teamAccessChanged".freeze
       SIGNAL_STOP = "stop".freeze
+      SIGNAL_SELECT = "select".freeze
 
       class << self
         def verify(raw_body:, headers:, secret:) = IssueTrackers::Linear.verify(raw_body: raw_body, headers: headers, secret: secret)
@@ -84,13 +86,11 @@ module Integrations
                     "result" => activity.result }.compact
         input = { "agentSessionId" => session_id, "content" => content }
         input["ephemeral"] = true if activity.ephemeral
+        if activity.choices.any?
+          input["signal"] = SIGNAL_SELECT
+          input["signalMetadata"] = { "options" => activity.choices.map { |choice| { "label" => choice, "value" => choice } } }
+        end
         api.create_activity(input)
-      rescue LinearApi::Error => error
-        raise Integrations::Error, error.message
-      end
-
-      def link(session_id, label:, url:)
-        api.update_session(session_id, "externalUrls" => [ { "label" => label, "url" => url } ])
       rescue LinearApi::Error => error
         raise Integrations::Error, error.message
       end

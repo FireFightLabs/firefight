@@ -93,12 +93,14 @@ module Integrations
         assert_equal [ Installations::EMPTIED, "Acme", "https://linear.app/acme/settings/integrations" ], [ found.state, found.account, found.page ]
       end
 
-      test "a connection that acts as the app sets up its issue webhook by hand, and one from before still registers its own" do
+      test "a connection that acts as the app has its issue changes sent through the app, and one from before still registers its own webhook" do
         assert Issues.registers_webhooks?(@integration)
+        assert_not Issues.through_app?(@integration)
 
         @row.store_installation!("org-1")
 
         assert_not Issues.registers_webhooks?(@integration)
+        assert Issues.through_app?(@integration)
       end
 
       test "removing the app revokes its token in Linear's documented token field" do

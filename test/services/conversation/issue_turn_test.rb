@@ -105,11 +105,12 @@ class Conversation::IssueTurnTest < ActiveSupport::TestCase
     held = @conversation.chat.held_calls.sole
     assert_equal SystemAgent.investigator, held.asker
     answer = @said.last.last.body
-    assert_match "A call is waiting for approval. An approver decides under Gateway, Approvals (https://ff.example.com", answer
-    assert_match "/agent/#{@conversation.id}) once approved.", answer
+    assert_match "A call is waiting for approval. An approver decides under Gateway, Approvals in Firefight (https://ff.example.com", answer
+    assert_match "/gateway/approvals), and it runs as soon as it is approved.", answer
+    assert_no_match "/agent/", answer
   end
 
-  test "a change that needs confirming asks in the issue and points at the chat in Firefight" do
+  test "a change that needs confirming asks in the issue with Confirm and Skip to pick there" do
     delivery = Conversation::IssueDelivery.new(@conversation)
     call = Struct.new(:name, :arguments, :tool_call_id).new("restart", {}, "call_3")
     Chat::Tools.stubs(:confirmation).returns(Chat::Tools::Confirmation.new(tool_call_id: "call_3", question: "Restart checkout?", intent: nil, asked: nil,
@@ -120,7 +121,9 @@ class Conversation::IssueTurnTest < ActiveSupport::TestCase
     asked = @said.last.last
     assert_equal Integrations::AgentSessions::ELICITATION, asked.kind
     assert_match "- Restart checkout? on Production", asked.body
-    assert_match "Confirm or skip it in this chat in Firefight (https://ff.example.com", asked.body
+    assert_equal [ "Confirm", "Skip" ], asked.choices
+    assert_match "Choose Confirm to go ahead or Skip to leave it.", asked.body
+    assert_no_match "https://", asked.body
   end
 
   test "a turn that could not finish is the session's error" do

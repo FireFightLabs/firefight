@@ -70,7 +70,7 @@ module Integrations
         assert_not Linear.verify(raw_body: stale, headers: { "Linear-Signature" => OpenSSL::HMAC.hexdigest("SHA256", "app-secret", stale) }, secret: "app-secret")
       end
 
-      test "an activity is posted in the session's shape, and the session points at its chat" do
+      test "an activity is posted in the session's shape, and choices go as the select signal's options" do
         workspace = workspaces(:slack_workspace_one)
         row = workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "linear", name: "Linear issue sync", settings: {})
                        .integration_environments.create!
@@ -78,11 +78,14 @@ module Integrations
         LinearApi.any_instance.expects(:create_activity).with({
           "agentSessionId" => "session-1", "content" => { "type" => ACTION, "action" => "Search logs", "parameter" => "checkout errors" }, "ephemeral" => true
         }).returns(true)
-        LinearApi.any_instance.expects(:update_session).with("session-1", { "externalUrls" => [ { "label" => "Open in Firefight", "url" => "https://ff.example.com/agent/1" } ] })
+        LinearApi.any_instance.expects(:create_activity).with({
+          "agentSessionId" => "session-1", "content" => { "type" => ELICITATION, "body" => "Restart checkout?" }, "signal" => "select",
+          "signalMetadata" => { "options" => [ { "label" => "Confirm", "value" => "Confirm" }, { "label" => "Skip", "value" => "Skip" } ] }
+        }).returns(true)
 
         session = AgentSessions.for(row)
         session.say("session-1", Activity.new(kind: ACTION, action: "Search logs", parameter: "checkout errors", ephemeral: true))
-        session.link("session-1", label: "Open in Firefight", url: "https://ff.example.com/agent/1")
+        session.say("session-1", Activity.new(kind: ELICITATION, body: "Restart checkout?", choices: [ "Confirm", "Skip" ]))
       end
 
       test "Linear's refusal is said in words" do
