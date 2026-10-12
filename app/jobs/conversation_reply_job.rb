@@ -17,6 +17,11 @@ class ConversationReplyJob < ApplicationJob
     conversation = Conversation.find_by(id: job.arguments.first)
     Conversation::Delivery.give_up!(conversation, AiCredit.cannot(conversation.workspace)) if conversation
   end
+  # Declared after TerminalError too. The model answered, so the person is told which part failed and what may help.
+  discard_on FirefightAi::UnreadableReply do |job, _error|
+    conversation = Conversation.find_by(id: job.arguments.first)
+    Conversation::Delivery.give_up!(conversation, Conversation::Delivery.unreadable(conversation)) if conversation
+  end
   discard_on ActiveRecord::RecordNotFound
   # A turn that may have changed something is never run again, so Conversation::Recovery decides, not InterruptedJob.
   self.runs_again_when_interrupted = false

@@ -273,7 +273,8 @@ class Conversation::Runner
 
   # The last word is a finished reply, so nothing is waiting for one. A turn paused on a confirmation ends on a tool call.
   def answered_already?(chat)
-    last = chat.sent_messages.reload.last
+    chat.sent_messages.reload
+    last = chat.last_word
     last.present? && last.role == Chat::Message::ROLE_ASSISTANT && !last.nudge && last.ruby_llm_tool_calls.empty?
   end
 

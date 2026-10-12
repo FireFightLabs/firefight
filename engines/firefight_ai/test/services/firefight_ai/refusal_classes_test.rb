@@ -71,6 +71,31 @@ class FirefightAi::RefusalClassesTest < ActiveSupport::TestCase
     end
   end
 
+  # Seen live: every chat turn answered "something went wrong" once OpenRouter's workspace budget was spent.
+  test "OpenRouter's spent workspace budget is a refused key by its class and out of credit by the limit it names" do
+    body = {
+      error: {
+        message: "Workspace lifetime budget of $140.00 exceeded. Contact your org admin. $140.03 of $140.00 used; does not reset.", code: 403,
+        metadata: { limit_source: "openrouter_workspace_budget", remedy_hint: "Ask your org admin to raise the workspace budget.",
+                    scope: "workspace", limit_usd: 140, spend_usd: 140.03, resets_at: nil }
+      }
+    }
+    error = provider_error(:openrouter, "deepseek/deepseek-v4-pro", status: 403, body: body, **OPENROUTER)
+
+    assert_kind_of RubyLLM::ForbiddenError, error
+    assert_equal FirefightAi::CAUSE_OUT_OF_CREDIT, FirefightAi.cause(error)
+    assert_kind_of FirefightAi::OutOfCredit, translated(error)
+    assert_not FirefightAi.backup_helps?(error)
+    assert_equal "The account has no credit left.", AiAccountError.words(error, model: "deepseek/deepseek-v4-pro")
+  end
+
+  test "a 403 OpenRouter sends for anything but a spent limit stays the key refused" do
+    error = openrouter(403, "The model deepseek/deepseek-v4-pro is not allowed by your key's provider settings.")
+
+    assert_equal FirefightAi::CAUSE_KEY_REFUSED, FirefightAi.cause(error)
+    assert_not_kind_of FirefightAi::OutOfCredit, translated(error)
+  end
+
   test "a conversation too long is said by its class, so the loop makes room once" do
     error = anthropic(400, "invalid_request_error", "prompt is too long: 210000 tokens > 200000 maximum")
 
