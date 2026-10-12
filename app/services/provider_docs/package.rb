@@ -33,7 +33,7 @@ module ProviderDocs
             "npm", "install", "--prefix", install, "--ignore-scripts", "--no-save", "--no-package-lock", "--no-audit", "--no-fund", "--silent", "#{package}@#{released}")
         paths = File.join(install, PATHS_FILE)
         File.write(paths, Array(@definition["paths"]).to_json)
-        run({ "PATH" => ENV.fetch("PATH") }, "node", "--experimental-permission", "--allow-fs-read=#{install}", "--allow-fs-read=#{SCRIPT.dirname}",
+        run({ "PATH" => ENV.fetch("PATH") }, "node", "--permission", "--allow-fs-read=#{install}", "--allow-fs-read=#{SCRIPT.dirname}",
             "--allow-fs-write=#{out}", SCRIPT.to_s, install, package, out, @definition.fetch("relative_to"), paths, *Array(@definition["leave_out"]))
         pages = Dir[File.join(out, "**/*.md")].sort.map do |file|
           path = "#{@definition.prefix}#{@definition.fetch('endpoints')}/#{Pathname(file).relative_path_from(out)}"
