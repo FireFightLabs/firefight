@@ -38,7 +38,7 @@ class ObservabilityConnectTest < ApplicationSystemTestCase
     end
   end
 
-  test "Honeybadger and SigNoz offer each region their hosted servers run in, so an EU or India account can connect" do
+  test "Honeybadger and SigNoz offer each region their hosted servers run in, so an EU, India or second-region account can connect" do
     visit integrations_path(Integration::CONNECT_QUERY_PARAM => "honeybadger")
     within("[role=dialog]") { find("button[role=combobox]", text: "US (app.honeybadger.io)").click }
     find("[role=option]", text: "EU (eu-app.honeybadger.io)").click
@@ -51,7 +51,10 @@ class ObservabilityConnectTest < ApplicationSystemTestCase
       click_button "Use a token instead"
       find("#connect-region").click
     end
-    find("[role=option]", text: "India").click
+    find("[role=option]", text: "India (in.signoz.cloud)").click
     within("[role=dialog]") { assert_field "MCP server URL", with: "https://mcp.in.signoz.cloud/mcp" }
+    within("[role=dialog]") { find("#connect-region").click }
+    find("[role=option]", text: "US2 (us2.signoz.cloud)").click
+    within("[role=dialog]") { assert_field "MCP server URL", with: "https://mcp.us2.signoz.cloud/mcp" }
   end
 end

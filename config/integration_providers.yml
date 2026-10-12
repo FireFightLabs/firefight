@@ -898,12 +898,16 @@ providers:
     hosts: [ signoz.cloud ]
     description: Query logs, traces, errors and request counts in SigNoz.
     # SigNoz Cloud's regions, each its own MCP server at mcp.<region>.signoz.cloud (SigNoz/signoz-mcp-server, README.md),
-    # with the regions SigNoz's documentation lists (SigNoz/signoz.io, components/Region/RegionContext.tsx). Every team
-    # has its own address in a region, so a region has no one site and links use the address the health check read.
+    # with the regions SigNoz's documentation lists (SigNoz/signoz.io, components/Region/RegionContext.tsx, which reads
+    # api.signoz.cloud/v2/regions). Every team has its own address in a region, so a region has no one site and links
+    # use the address the health check read.
     regions:
       - { key: us, label: US (us.signoz.cloud), server_url: "https://mcp.us.signoz.cloud/mcp" }
       - { key: eu, label: EU (eu.signoz.cloud), server_url: "https://mcp.eu.signoz.cloud/mcp" }
       - { key: in, label: India (in.signoz.cloud), server_url: "https://mcp.in.signoz.cloud/mcp" }
+      - { key: us2, label: US2 (us2.signoz.cloud), server_url: "https://mcp.us2.signoz.cloud/mcp" }
+      - { key: eu2, label: EU2 (eu2.signoz.cloud), server_url: "https://mcp.eu2.signoz.cloud/mcp" }
+      - { key: in2, label: India 2 (in2.signoz.cloud), server_url: "https://mcp.in2.signoz.cloud/mcp" }
     source_links: firefight
     map: none
     history: none

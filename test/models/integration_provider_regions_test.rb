@@ -14,6 +14,15 @@ class IntegrationProviderRegionsTest < ActiveSupport::TestCase
     assert_not IntegrationProvider.find("linear").regional?
   end
 
+  test "a SigNoz address is in the region its host names, including the second region on each continent" do
+    signoz = IntegrationProvider.find("signoz")
+
+    assert_equal %w[us eu in us2 eu2 in2], signoz.regions.map(&:key)
+    assert_equal "in", signoz.region_for_url("https://mcp.in.signoz.cloud/mcp").key
+    assert_equal "us2", signoz.region_for_url("https://mcp.us2.signoz.cloud/mcp").key
+    assert_equal "https://mcp.eu2.signoz.cloud/mcp", signoz.region("eu2").server_url
+  end
+
   test "regions and a server of its own, or a key listed twice, are refused when the registry loads" do
     region = { "key" => "us", "label" => "US", "server_url" => "https://mcp.example/mcp" }
 
