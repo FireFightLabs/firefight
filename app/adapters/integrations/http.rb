@@ -82,14 +82,22 @@ module Integrations
 
     # A file at a short-lived signed address a provider handed over, such as a job's log. It is fetched without the
     # provider's credentials, only over https and on a public address (PublicAddress), and cut to its last limit bytes,
-    # where a log says why something failed.
-    def self.download(url, provider_key:, error_class:, limit:, read_timeout: 30)
+    # where a log says why something failed. An archive is kept as its bytes and refused whole when longer than limit,
+    # since a cut archive cannot be opened.
+    def self.download(url, provider_key:, error_class:, limit:, read_timeout: 30, archive: false)
       uri = URI.parse(url.to_s)
       raise error_class, "The file is at an address that is not https." unless uri.is_a?(URI::HTTPS) && uri.host.present?
 
       address = PublicAddress.check!(uri.host, provider_key: provider_key).ip.to_s
       file = self.request(uri, Net::HTTP::Get.new(uri), error_class: error_class, read_timeout: read_timeout, ipaddr: address)
       raise error_class, "The file's address answered #{file.code}." unless file.code.to_i.between?(200, 299)
+
+      if archive
+        bytes = file.body.to_s.b
+        raise error_class, "The file is #{bytes.bytesize} bytes, more than the #{limit} read." if bytes.bytesize > limit
+
+        return bytes
+      end
 
       body = String.new(file.body.to_s, encoding: Encoding::UTF_8).scrub
       body.bytesize > limit ? body.byteslice(-limit, limit).scrub : body

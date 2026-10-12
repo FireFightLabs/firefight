@@ -110,6 +110,9 @@ gem "jwt"
 # Sealed boxes, which GitHub asks a secret to be encrypted as before it is sent (libsodium)
 gem "rbnacl", "~> 7.1", require: false
 
+# GitHub hands a workflow run's artifact over as a zip archive
+gem "rubyzip", "~> 3.7", require: false
+
 # Modal's API is gRPC only, which its open source client speaks, so the Modal integration calls it the same way
 gem "grpc", require: false
 

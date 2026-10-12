@@ -14,7 +14,7 @@ module Integrations
       REFUSED = {
         %r{\A/repos/[^/]+/[^/]+/(zipball|tarball)(/|\z)} => "A repository archive #{DOWNLOADS}. Read files with fetch_file or the code tools.",
         %r{\A/repos/[^/]+/[^/]+/actions/(runs/[^/]+(/attempts/[^/]+)?|jobs/[^/]+)/logs\z} => "A run's or a job's logs #{DOWNLOADS}. Read a job's log with job_log.",
-        %r{\A/repos/[^/]+/[^/]+/actions/artifacts/[^/]+/[^/]+\z} => "An artifact #{DOWNLOADS}. Its name, size and run are at /repos/<owner>/<repo>/actions/artifacts/<id>."
+        %r{\A/repos/[^/]+/[^/]+/actions/artifacts/[^/]+/[^/]+\z} => "An artifact #{DOWNLOADS}. Read it with read_artifact."
       }.freeze
       SECRET_PATHS = %r{/(actions|dependabot|codespaces)/secrets(/|\z)|/environments/[^/]+/secrets(/|\z)}
       WEBHOOK_PATHS = %r{/hooks(/|\z)}

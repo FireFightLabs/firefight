@@ -74,6 +74,11 @@ module Integrations
       assert_equal [ "Dependabot alerts read and write" ], Packs::Github.missing_access(@row, "dismiss_dependabot_alert")
       assert_equal [ "Secret scanning alerts read" ], Packs::Github.missing_access(@row, "secret_scanning_alerts")
       assert_equal [ "Issues read and write" ], Packs::Github.missing_access(@row, "close_issue")
+      assert_equal [ "Variables read" ], Packs::Github.missing_access(@row, "list_actions_variables")
+      assert_equal [ "Actions read", "Deployments read and write" ], Packs::Github.missing_access(@row, "review_pending_deployment")
+      assert_equal [ "Contents read and write", "Pull requests read and write" ], Packs::Github.missing_access(@row, "revert_pull_request")
+      assert_equal [ "Contents read and write" ], Packs::Github.missing_access(@row, "publish_release")
+      assert_equal [], Packs::Github.missing_access(@row, "repository_access")
     end
 
     test "reading the installation marks it removed, suspended or sharing nothing, and back once it works again" do
