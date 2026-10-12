@@ -43,7 +43,7 @@ class AiProvidersTest < ActiveSupport::TestCase
   end
 
   test "a listed model the registry cannot bill or size is left out" do
-    assert_equal [ "anthropic/claude-haiku-5.5", "z-ai/glm-5.2", "anthropic/claude-sonnet-5.5", "anthropic/claude-opus-5.5" ], AiProviders.chat_models("openrouter").map(&:model)
+    assert_equal [ "anthropic/claude-haiku-5.5", "z-ai/glm-5.3-flash", "z-ai/glm-5.2", "anthropic/claude-sonnet-5.5", "z-ai/glm-5.3", "anthropic/claude-opus-5.5" ], AiProviders.chat_models("openrouter").map(&:model)
 
     FirefightAi.stubs(:priced_for?).returns(false)
     assert_empty AiProviders.chat_models("openrouter")

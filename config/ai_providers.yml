@@ -131,9 +131,12 @@ chat_models:
     - { model: anthropic.claude-opus-5-5, label: Claude Opus 5.5, note: "Hardest problems and production changes, costs more" }
   openrouter:
     - { model: anthropic/claude-haiku-5.5, label: Claude Haiku 5.5, note: "Everyday questions" }
+    - { model: z-ai/glm-5.3-flash, label: GLM-5.3 Flash, note: "Everyday questions" }
     - { model: z-ai/glm-5.2, label: GLM-5.2, note: "Everyday questions" }
+    - { model: deepseek/deepseek-v4-flash, label: DeepSeek V4 Flash, note: "Everyday questions, reads text only" }
     - { model: deepseek/deepseek-v4-pro, label: DeepSeek V4 Pro, note: "Everyday questions, reads text only" }
     - { model: anthropic/claude-sonnet-5.5, label: Claude Sonnet 5.5, note: "Investigations and tricky problems" }
+    - { model: z-ai/glm-5.3, label: GLM-5.3, note: "Investigations and tricky problems, reads text only" }
     - { model: openai/gpt-6-sol, label: GPT-6 Sol, note: "Investigations and tricky problems" }
     - { model: anthropic/claude-opus-5.5, label: Claude Opus 5.5, note: "Hardest problems and production changes, costs more" }
   deepseek:
