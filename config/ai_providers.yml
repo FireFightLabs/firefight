@@ -133,6 +133,7 @@ chat_models:
     - { model: anthropic/claude-haiku-5.5, label: Claude Haiku 5.5, note: "Everyday questions" }
     - { model: z-ai/glm-5.3-flash, label: GLM-5.3 Flash, note: "Everyday questions" }
     - { model: z-ai/glm-5.2, label: GLM-5.2, note: "Everyday questions" }
+    - { model: deepseek/deepseek-v4-flash, label: DeepSeek V4 Flash, note: "Everyday questions, reads text only" }
     - { model: deepseek/deepseek-v4-pro, label: DeepSeek V4 Pro, note: "Everyday questions, reads text only" }
     - { model: anthropic/claude-sonnet-5.5, label: Claude Sonnet 5.5, note: "Investigations and tricky problems" }
     - { model: z-ai/glm-5.3, label: GLM-5.3, note: "Investigations and tricky problems, reads text only" }
