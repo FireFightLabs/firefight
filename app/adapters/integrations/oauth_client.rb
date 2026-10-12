@@ -3,20 +3,36 @@ module Integrations
   # provider needs one, dynamic registration otherwise.
   class OauthClient
     class Error < Integrations::Error; end
+    # The authorization server refused a refresh token as no longer good (RFC 6749 section 5.2, invalid_grant), such as one
+    # past the time a provider keeps a sign-in for, so only signing in again reaches the server.
+    class SignInEnded < Error; end
+    # A token endpoint's refusal with the error code it gave.
+    class Refused < Error
+      attr_reader :code
+
+      def initialize(message, code: nil)
+        @code = code
+        super(message)
+      end
+    end
+
+    INVALID_GRANT = "invalid_grant".freeze
 
     REFRESH_MARGIN = 60.seconds
 
     class << self
       # Install-first providers such as GitHub never reach this client. endpoints holds the authorization_endpoint and
       # token_endpoint a provider's region names, used over the ones its server's metadata gives.
-      def begin_flow(server_url:, redirect_uri:, client_id: nil, endpoints: {})
-        metadata = discover(server_url, endpoints)
+      # scopes narrows what is asked for to those of the server's scopes, for a provider whose scopes include changes it
+      # should not be asked for.
+      def begin_flow(server_url:, redirect_uri:, client_id: nil, endpoints: {}, scopes: [])
+        metadata = discover(server_url, endpoints, scopes)
         client_id ||= register(metadata, redirect_uri)
         state = SecureRandom.hex(16)
 
         verifier = SecureRandom.urlsafe_base64(48)
         challenge = Base64.urlsafe_encode64(Digest::SHA256.digest(verifier), padding: false)
-        authorize_url = "#{metadata[:authorization_endpoint]}?" + {
+        authorize_url = with_query(metadata[:authorization_endpoint], {
           response_type: "code",
           client_id: client_id,
           redirect_uri: redirect_uri,
@@ -25,7 +41,7 @@ module Integrations
           code_challenge_method: "S256",
           resource: resource_of(server_url),
           scope: metadata[:scope]
-        }.compact.to_query
+        }.compact)
 
         { authorize_url: authorize_url, state: state, verifier: verifier, client_id: client_id,
           token_endpoint: metadata[:token_endpoint] }
@@ -39,7 +55,7 @@ module Integrations
         challenge = verifier && Base64.urlsafe_encode64(Digest::SHA256.digest(verifier), padding: false)
         query = { response_type: "code", client_id: client_id, redirect_uri: redirect_uri, state: state, scope: scope,
                   code_challenge: challenge, code_challenge_method: ("S256" if challenge) }.merge(params.to_h.symbolize_keys).compact
-        { authorize_url: "#{authorization_endpoint}?#{query.to_query}", state: state, verifier: verifier, client_id: client_id,
+        { authorize_url: with_query(authorization_endpoint, query), state: state, verifier: verifier, client_id: client_id,
           token_endpoint: token_endpoint }
       end
 
@@ -58,6 +74,7 @@ module Integrations
         ).compact
       end
 
+      # Raises SignInEnded when the server no longer takes the refresh token.
       def refresh(credentials)
         rotated = token_request(credentials["token_endpoint"],
                                 { grant_type: "refresh_token", refresh_token: credentials["refresh_token"],
@@ -65,6 +82,10 @@ module Integrations
                                   resource: credentials["resource"] },
                                 json: credentials["token_format"] == "json")
         credentials.merge(rotated) { |_key, previous, current| current.presence || previous }
+      rescue Refused => error
+        raise SignInEnded, error.message if error.code == INVALID_GRANT
+
+        raise
       end
 
       def access_token(credentials)
@@ -93,7 +114,9 @@ module Integrations
 
       # RFC 9728 resource metadata names the authorization server, RFC 8414 server metadata names the endpoints.
       # endpoints, from a provider's region, stand in for the ones the metadata gives, and are enough without it.
-      def discover(server_url, endpoints = {})
+      # scopes, when given, are asked for in place of every scope the server lists, and each must be one it lists. A server
+      # that lists none is asked for none, since a scope it never named cannot be known to narrow anything.
+      def discover(server_url, endpoints = {}, scopes = [])
         server_uri = URI.parse(server_url.to_s)
         raise Error, "invalid MCP server URL" unless server_uri.is_a?(URI::HTTP)
 
@@ -101,7 +124,11 @@ module Integrations
         resource_meta = get_json("#{origin}/.well-known/oauth-protected-resource#{server_uri.path.chomp('/')}") ||
                         get_json("#{origin}/.well-known/oauth-protected-resource")
         authorization_server = Array(resource_meta&.dig("authorization_servers")).first || origin
-        scopes = Array(resource_meta&.dig("scopes_supported"))
+        supported = Array(resource_meta&.dig("scopes_supported"))
+        missing = Array(scopes) - supported
+        raise Error, "the server no longer offers #{missing.join(', ')}" if supported.any? && missing.any?
+
+        scopes = Array(scopes).any? && supported.any? ? Array(scopes) : supported
 
         auth_meta = authorization_server_metadata(authorization_server).to_h.merge(endpoints.to_h.transform_keys(&:to_s))
         raise Error, "the server does not advertise OAuth support" if auth_meta.empty?
@@ -126,6 +153,13 @@ module Integrations
         get_json("#{origin}/.well-known/oauth-authorization-server#{path}") ||
           get_json("#{issuer.chomp('/')}/.well-known/oauth-authorization-server") ||
           get_json("#{origin}/.well-known/openid-configuration#{path}")
+      end
+
+      # An authorization endpoint may carry a query of its own, such as the account it signs in to, which is kept.
+      def with_query(endpoint, params)
+        uri = URI.parse(endpoint.to_s)
+        uri.query = [ uri.query.presence, params.to_query ].compact.join("&")
+        uri.to_s
       end
 
       def origin_of(uri)
@@ -159,7 +193,9 @@ module Integrations
         end
         response = Http.request(uri, request, error_class: Error)
         body = JSON.parse(response.body.to_s)
-        raise Error, body["error_description"] || body["error"] || "token request failed (HTTP #{response.code})" unless response.code.to_i.between?(200, 299)
+        unless response.code.to_i.between?(200, 299)
+          raise Refused.new(body["error_description"].presence || body["error"].presence || "token request failed (HTTP #{response.code})", code: body["error"])
+        end
 
         {
           "access_token" => body.fetch("access_token") { raise Error, "no access token returned" },

@@ -17,6 +17,7 @@ module Integrations
       DATASOURCE_ARG = "datasourceUid".freeze
       DATASOURCES = "datasources".freeze
       ADDRESS = "address".freeze
+      STACK = "stack".freeze
       # list_datasources answers at most 100 a page.
       PER_PAGE = 100
       MAX_PAGES = 5
@@ -41,8 +42,15 @@ module Integrations
         found.one? ? found.first : found.find { |source| source["default"] }
       end
 
-      # Grafana's address as Grafana gave it, such as https://acme.grafana.net, or nil when it has not been read.
-      def self.address(settings) = settings&.learned&.dig(ADDRESS).presence
+      # Grafana's address as Grafana gave it, such as https://acme.grafana.net, or else the Grafana Cloud stack the
+      # connection signed in to, or nil when neither is known.
+      def self.address(settings) = settings&.learned&.dig(ADDRESS).presence || stack_address(settings)
+
+      # The stack a connection to Grafana Cloud's hosted server names in its address, as its connect form asked it.
+      def self.stack_address(settings)
+        stack = settings&.field(STACK).presence
+        "https://#{stack}" if stack
+      end
 
       # Raises Refused with Grafana's own words when the server cannot reach Grafana. With list_datasources switched off,
       # the ping alone decides and nothing new is learned.

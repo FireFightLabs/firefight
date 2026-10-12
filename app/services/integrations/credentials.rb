@@ -11,9 +11,24 @@ module Integrations
       credentials = environment_row.oauth
       return environment_row.request_headers if credentials.blank?
 
-      credentials = environment_row.rotate_oauth!(OauthClient.refresh(credentials)) if OauthClient.stale?(credentials)
+      credentials = refreshed(environment_row) if OauthClient.stale?(credentials)
       { "Authorization" => "Bearer #{OauthClient.access_token(credentials)}" }
     end
+
+    # Two callers may find a token stale at once, and a provider that rotates refresh tokens takes each only once, so the
+    # row is locked and read again, and only the first refreshes it. A refresh token the provider no longer takes, such
+    # as one past the time it keeps a sign-in for, fails the connection's health with how to sign in again.
+    def self.refreshed(environment_row)
+      environment_row.with_lock do
+        current = environment_row.oauth
+        OauthClient.stale?(current) ? environment_row.rotate_oauth!(OauthClient.refresh(current)) : current
+      end
+    rescue OauthClient::SignInEnded
+      name = environment_row.integration.name
+      raise OauthClient::SignInEnded, "The sign-in to #{name} has ended, so Firefight can no longer reach it. Open its details, choose Add " \
+                                      "connection and sign in again under the name #{name}."
+    end
+    private_class_method :refreshed
 
     # The fields the connect form asks a provider connected with credentials for (NativePack::CredentialField).
     def self.fields_for(provider_key) = NativePack.for(provider_key)&.credential_fields.to_a

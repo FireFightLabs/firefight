@@ -31,6 +31,11 @@
 # path field without a pattern takes a slug's, so no value carries a slash, a query or a fragment into the address.
 # Every other field belongs to the environment it was connected for. The code behind a provider reads them through
 # Integrations::ConnectionSettings, never from the row.
+# oauth_scopes are the scopes signing in asks for where the server lists ones that change things Firefight should not be
+# asked for, each one the server lists. Without it, every scope the server lists is asked for. consent_note is what the
+# connect form says about the provider's consent screen, such as which access to leave off. own_server is for a provider
+# whose hosted server takes only a sign-in while the server a team runs itself takes a token: the token form starts
+# empty, with its placeholder and hint.
 # setting_words are words in a service's setting names that point at this provider's stores, such as NEON in
 # NEON_DATABASE_URL. The map's matcher reads them as a clue when a setting's value is hidden or names no address a store
 # reported.
@@ -289,10 +294,28 @@ providers:
     status_page: { url: https://status.grafana.com, feed: statuspage }
     hosts: [ grafana.net, grafana.com ]
     description: Reach dashboards and datasources behind your Grafana.
-    server_url: ""
+    # Grafana Cloud's hosted MCP server (grafana.com/docs/grafana-cloud/ai-tools/mcp-servers/cloud-mcp) takes only an
+    # OAuth sign-in, made per stack at /mcp/<stack>.grafana.net, whose resource metadata names that stack's own
+    # authorization server. Its scopes are grafana:read, grafana:query (raw SQL, which can change data) and grafana:write,
+    # so signing in asks for reads alone. Grafana keeps a sign-in for 30 days. A Grafana a team runs itself is reached
+    # through grafana/mcp-grafana, run by the team with a service account token.
+    server_url: https://mcp.grafana.com/mcp
+    oauth_scopes: [ "grafana:read" ]
+    consent_note: On Grafana's screen, leave Write access and Query access off so Firefight can only read. Query access runs SQL that can change data.
+    own_server:
+      placeholder: https://mcp-grafana.example.com/mcp
+      hint: For a Grafana you run yourself. Paste the address of the mcp-grafana server you run, and a Bearer header with a service account token if it asks for one.
     source_links: firefight
-    # Chosen on the connection's details from the datasources its health check found, when Grafana has several of a type.
+    # stack is part of the hosted server's address. The rest are chosen on the connection's details from the datasources
+    # its health check found, when Grafana has several of a type.
     connect_fields:
+      - key: stack
+        label: Stack address
+        hint: Your Grafana Cloud stack, as its address shows in your browser.
+        placeholder: mystack.grafana.net
+        path: true
+        pattern: "[A-Za-z0-9][A-Za-z0-9-]*(?:\\.[A-Za-z0-9-]+)+"
+        allowed: a stack's address, such as mystack.grafana.net, without https:// or a path
       - { key: logs_datasource, label: Logs datasource, hint: The Loki datasource that holds the logs Halon reads., learned: loki }
       - { key: metrics_datasource, label: Metrics datasource, hint: The Prometheus datasource that holds the metrics Halon reads., learned: prometheus }
       - { key: traces_datasource, label: Traces datasource, hint: The Tempo datasource that holds the traces Halon reads., learned: tempo }

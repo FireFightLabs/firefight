@@ -124,7 +124,9 @@ function ConnectForm({
   const [name, setName] = useState(
     provider.key === CUSTOM_MCP_PROVIDER_KEY ? "" : provider.name,
   );
-  const [serverUrl, setServerUrl] = useState(provider.serverUrl);
+  // A hosted server that takes only a sign-in is no use to the token form, which is then for a server the team runs.
+  const ownServer = provider.ownServer;
+  const [serverUrl, setServerUrl] = useState(ownServer ? "" : provider.serverUrl);
   const [authorization, setAuthorization] = useState("");
   const [environmentId, setEnvironmentId] = useState(ALL_ENVIRONMENTS);
   const [submitting, setSubmitting] = useState(false);
@@ -351,6 +353,9 @@ function ConnectForm({
                 ? `You choose what Firefight can reach on ${provider.name}'s install screen. No keys to copy.`
                 : `You approve access on ${provider.name}'s consent screen. No keys to copy.`}
             </p>
+            {provider.consentNote && !nativeConnect && (
+              <p className="text-muted-foreground text-center text-xs">{provider.consentNote}</p>
+            )}
           </div>
 
           {provider.app && !useMcpServer && (
@@ -385,7 +390,7 @@ function ConnectForm({
                   onClick={() => setUseToken(true)}
                   className="hover:text-foreground"
                 >
-                  Use a token instead
+                  {ownServer ? "Use a server you run" : "Use a token instead"}
                 </button>
               )}
             </div>
@@ -430,8 +435,11 @@ function ConnectForm({
               id="connect-url"
               value={serverUrl}
               onChange={(event) => setServerUrl(event.target.value)}
-              placeholder="https://example.com/mcp"
+              placeholder={ownServer?.placeholder ?? "https://example.com/mcp"}
             />
+            {ownServer && (
+              <p className="text-muted-foreground text-xs">{ownServer.hint}</p>
+            )}
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="connect-auth">Authorization header</Label>
