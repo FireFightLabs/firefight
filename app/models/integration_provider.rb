@@ -172,15 +172,23 @@ class IntegrationProvider
   ConnectField::ALL = "*".freeze
   ConnectField::ALL_LABEL = "All this token can read".freeze
 
+  # A provider whose hosted server takes only a sign-in, while its server a team runs itself takes a token. The token
+  # form is then for that server: it starts empty, with this placeholder for its address and this hint under it.
+  OwnServer = Data.define(:placeholder, :hint)
+
   # site is the address of the provider's app, which links open, for a provider that runs in one place. A provider with
   # regions has a site per region instead.
-  Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
+  #
+  # oauth_scopes are the scopes signing in asks for, in place of every scope the server lists, where those include
+  # changes Firefight should not be asked for. Each must be one the server lists. consent_note is what the connect form
+  # says about the provider's consent screen, such as which access to leave off.
+  Entry =Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
                       :source_links, :source_links_note, :map, :map_note, :history, :history_note, :code_fix_tool, :regions, :connect_fields, :site, :code_agent,
                       :app, :setting_words, :holds_code, :mitigation_tools, :stopping_tools, :status_page, :hosts, :holds_flags, :write_tools,
-                      :admin_marks_reads, :retiring, :test_logins, :specialist) do
+                      :admin_marks_reads, :retiring, :test_logins, :specialist, :oauth_scopes, :consent_note, :own_server) do
     def initialize(connect_with: nil, read_only_tools: [], write_tools: [], admin_marks_reads: false, mitigation_tools: [], stopping_tools: [], source_links_note: nil, map_note: nil, history: HISTORY_NONE, history_note: nil, code_fix_tool: nil, regions: [],
                    connect_fields: [], site: nil, code_agent: false, app: nil, setting_words: [], holds_code: false, status_page: nil, hosts: [], holds_flags: false, retiring: nil,
-                   test_logins: false, specialist: nil, **) = super
+                   test_logins: false, specialist: nil, oauth_scopes: [], consent_note: nil, own_server: nil, **) = super
 
     # Whether a tool only reads, from what its server declares and what the registry says of it. write_tools wins over
     # both, for a tool a server marks read only although it sends something.
@@ -331,7 +339,9 @@ class IntegrationProvider
         # rather than connected from the gallery, and it is none of the workspace's connections.
         test_logins: raw["test_logins"] == true,
         # The kind of question its tools answer when Halon asks specialists, where it differs from its category's.
-        specialist: raw["specialist"].presence
+        specialist: raw["specialist"].presence,
+        oauth_scopes: Array(raw["oauth_scopes"]).map(&:to_s), consent_note: raw["consent_note"].presence,
+        own_server: raw["own_server"] && OwnServer.new(**raw["own_server"].symbolize_keys)
       )
     end.freeze
   end

@@ -76,6 +76,8 @@ class SetupChecklistTest < ApplicationSystemTestCase
     end
     within("[role=dialog]") do
       assert_text "Connect Grafana"
+      # Signing in to Grafana Cloud leaves for Grafana, out of this test, so a Grafana the team runs is connected instead.
+      click_button "Use a server you run"
       fill_in "connect-url", with: "https://grafana.example.com/mcp"
       screenshot("stack-connect-dialog")
       click_button "Connect & discover tools"

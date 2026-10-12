@@ -8,7 +8,7 @@ module Integrations
       endpoints = provider.region(region).to_h.slice(:authorization_endpoint, :token_endpoint).compact
       OauthClient.begin_flow(
         server_url: server_url, redirect_uri: redirect_uri,
-        client_id: IntegrationProvider.oauth_client(provider.key)[:client_id], endpoints: endpoints
+        client_id: IntegrationProvider.oauth_client(provider.key)[:client_id], endpoints: endpoints, scopes: provider.oauth_scopes
       )
     end
 

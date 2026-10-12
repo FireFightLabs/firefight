@@ -72,6 +72,16 @@ class IntegrationProviderSerializer < BaseSerializer
   type "{ label: string, description: string, connectionName: string } | null"
   def app = provider.app_connect? ? { label: provider.app.label, description: provider.app.description, connectionName: provider.app.connection_name } : nil
 
+  # What the connect form says about the provider's consent screen when signing in, such as which access to leave off,
+  # or null.
+  type :string, optional: true
+  def consent_note = provider.consent_note
+
+  # For a provider whose hosted server takes only a sign-in, what the token form shows for the server a team runs
+  # itself, which it then starts empty for. null for any other provider.
+  type "{ placeholder: string, hint: string } | null"
+  def own_server = provider.own_server&.to_h
+
   # What the connect form shows under the URL field of a provider connected from a pasted URL, or null.
   type "{ placeholder: string, hint: string } | null"
   def connection_url = Integrations::Credentials.connection_url_words_for(provider.key)
