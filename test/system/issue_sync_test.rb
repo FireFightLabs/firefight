@@ -117,7 +117,7 @@ class IssueSyncTest < ApplicationSystemTestCase
     assert_equal IncidentAction::STATUS_OPEN, item.reload.status
   end
 
-  test "a tracker connected with Firefight's app has its webhook registered, so the setting asks for nothing" do
+  test "a tracker connected with Firefight's app before it acted as itself has its webhook registered, so the setting asks for nothing" do
     ENV["INTEGRATION_LINEAR_APP_CLIENT_ID"], previous = "lin-app", ENV["INTEGRATION_LINEAR_APP_CLIENT_ID"]
     app = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "linear", name: "Linear issue sync", slug: "linear_issue_sync", settings: {})
     app.integration_environments.create!
@@ -127,7 +127,8 @@ class IssueSyncTest < ApplicationSystemTestCase
 
     visit integrations_path(Integration::CONNECT_QUERY_PARAM => "linear")
     within("[role=dialog]") do
-      assert_text "Connect for issue sync"
+      assert_text "Firefight's own Linear app"
+      assert_text "anyone can assign an issue to Firefight or mention it"
       assert_link "Connect the Linear app"
       page.save_screenshot(Rails.root.join("tmp/screenshots/issue-sync-connect-app.png"))
     end
@@ -146,5 +147,23 @@ class IssueSyncTest < ApplicationSystemTestCase
   ensure
     ENV["INTEGRATION_LINEAR_APP_CLIENT_ID"] = previous
     ENV["APP_HOST"] = host
+  end
+  test "Linear's app installed as itself may not register webhooks, so the setting asks for its webhook by hand" do
+    app = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "linear", name: "Linear issue sync", slug: "linear_issue_sync", settings: {})
+    app.integration_environments.create!.store_installation!("org-1")
+    IssueTrackerTestHelper::LINEAR_TOOLS.each { |tool| app.tools.create!(name: tool, description: tool, read_only: tool != "save_issue", enabled: false, params_schema: {}) }
+    Integrations::Packs::Linear.any_instance.expects(:register_issue_webhook).never
+
+    visit settings_workspace_path
+    find("#issue-tracker").click
+    find("[role=option]", text: "Linear issue sync").click
+    fill_in "Team", with: "ENG"
+    click_button "Save changes"
+
+    assert_text "In Linear, open Settings, then API, and choose New webhook."
+    assert_text "Changes made in Linear issue sync do not reach Firefight until its webhook's signing secret is saved here."
+    assert_field "issue-webhook-secret"
+    page.scroll_to(find("#issue-webhook-secret"), align: :center)
+    page.save_screenshot(Rails.root.join("tmp/screenshots/issue-sync-setting-app-actor.png"))
   end
 end

@@ -35,7 +35,7 @@ class ConversationReplyJob < ApplicationJob
   def perform(conversation_id, asker_id = nil, held_call_id = nil, watch_step_id = nil, pull_request_notice_id = nil, pause_id = nil,
               plan_id = nil, plan_move = nil)
     conversation = Conversation.find(conversation_id)
-    asker = conversation.workspace.workspace_memberships.find_by(id: asker_id) || conversation.started_by
+    asker = conversation.turn_asker(asker_id)
     held = conversation.chat&.held_calls&.find_by(id: held_call_id) if held_call_id
     handed_back = Chat::Watch::Step.joins(:watch).find_by(id: watch_step_id, chat_watches: { chat_id: conversation.chat&.id }) if watch_step_id
     fixing = CodeAgentSession::Notice.find_by(id: pull_request_notice_id, conversation_id: conversation.id) if pull_request_notice_id

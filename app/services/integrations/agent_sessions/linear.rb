@@ -1,0 +1,103 @@
+module Integrations
+  module AgentSessions
+    # Linear's agents (linear.app/developers/agents and /agent-interaction). Firefight's app is installed with actor=app, so
+    # it is a user of its own that people delegate an issue to or mention, and each time Linear opens an Agent Session and
+    # sends an AgentSessionEvent to the OAuth application's own webhook, which every organization that installed it shares.
+    # Its fields are AgentSessionEventWebhookPayload in the SDK's schema.graphql (linear/linear, packages/sdk/src):
+    #   created     a new session, with agentSession (its id, issue, the comment that mentioned the app and the creator)
+    #               and promptContext, Linear's own account of the issue, its comments and the team's guidance
+    #   prompted    a follow up, its words in agentActivity's content body, and a stop request when agentActivity's signal
+    #               is stop (linear.app/developers/agent-signals)
+    # Two more categories of the same webhook say what changed about the installation (linear.app/developers/
+    # agent-best-practices, Additional webhooks): PermissionChange (teamAccessChanged) when an admin changes the teams the
+    # app may reach, and OAuthApp (revoked) when the app is removed. Every delivery names organizationId, the installation,
+    # and is signed like any Linear webhook (IssueTrackers::Linear.verify). Anything else is left alone.
+    #
+    # Halon answers through agentActivityCreate: a thought within ten seconds of created, or the session reads as
+    # unresponsive, action for each tool, then response or error, and elicitation for what needs a person. Each body is
+    # Markdown. The session's externalUrls point at its chat in Firefight (agentSessionUpdate).
+    class Linear
+      TYPE_SESSION = "AgentSessionEvent".freeze
+      TYPE_PERMISSION = "PermissionChange".freeze
+      TYPE_APP = "OAuthApp".freeze
+      ACTION_CREATED = "created".freeze
+      ACTION_PROMPTED = "prompted".freeze
+      ACTION_REVOKED = "revoked".freeze
+      ACTION_TEAM_ACCESS = "teamAccessChanged".freeze
+      SIGNAL_STOP = "stop".freeze
+
+      class << self
+        def verify(raw_body:, headers:, secret:) = IssueTrackers::Linear.verify(raw_body: raw_body, headers: headers, secret: secret)
+
+        def installation_of(payload, headers: nil) = payload["organizationId"].presence
+
+        def installation_change(payload, headers: nil)
+          case [ payload["type"], payload["action"] ]
+          when [ TYPE_APP, ACTION_REVOKED ] then Installations::CHANGE_REMOVED
+          when [ TYPE_PERMISSION, ACTION_TEAM_ACCESS ] then Installations::CHANGE_REACH
+          end
+        end
+
+        def event(payload)
+          session = payload["agentSession"]
+          return unless payload["type"] == TYPE_SESSION && session.is_a?(Hash) && session["id"].present?
+
+          case payload["action"]
+          when ACTION_CREATED then started(payload, session)
+          when ACTION_PROMPTED then prompted(payload, session)
+          end
+        end
+
+        private
+
+        def started(payload, session)
+          AgentSessions::Event.new(
+            kind: STARTED, session_id: session["id"], text: session.dig("comment", "body").presence, context: payload["promptContext"].presence,
+            **issue_of(session), **asker_of(session["creator"])
+          )
+        end
+
+        def prompted(payload, session)
+          activity = payload["agentActivity"].to_h
+          return AgentSessions::Event.new(kind: STOPPED, session_id: session["id"], **issue_of(session)) if activity["signal"] == SIGNAL_STOP
+
+          text = (activity.dig("content", "body") || activity["body"]).to_s.strip.presence
+          return unless text
+
+          AgentSessions::Event.new(kind: PROMPTED, session_id: session["id"], text: text, **issue_of(session), **asker_of(activity["user"]))
+        end
+
+        def issue_of(session)
+          issue = session["issue"].to_h
+          { issue_key: issue["identifier"].presence, issue_title: issue["title"].presence, issue_url: issue["url"].presence }
+        end
+
+        def asker_of(user) = { asker_email: user.to_h["email"].presence, asker_name: user.to_h["name"].presence }
+      end
+
+      def initialize(environment_row)
+        @environment_row = environment_row
+      end
+
+      def say(session_id, activity)
+        content = { "type" => activity.kind, "body" => activity.body, "action" => activity.action, "parameter" => activity.parameter,
+                    "result" => activity.result }.compact
+        input = { "agentSessionId" => session_id, "content" => content }
+        input["ephemeral"] = true if activity.ephemeral
+        api.create_activity(input)
+      rescue LinearApi::Error => error
+        raise Integrations::Error, error.message
+      end
+
+      def link(session_id, label:, url:)
+        api.update_session(session_id, "externalUrls" => [ { "label" => label, "url" => url } ])
+      rescue LinearApi::Error => error
+        raise Integrations::Error, error.message
+      end
+
+      private
+
+      def api = @api ||= LinearApi.new(Credentials.headers_for(@environment_row))
+    end
+  end
+end

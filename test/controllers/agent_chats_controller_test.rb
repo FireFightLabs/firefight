@@ -44,6 +44,29 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "This chat is in Slack, so carry on there.", flash[:alert]
   end
 
+  test "a chat someone started in a tracker's issue is listed for them, read with a link to the issue, and asked in only there" do
+    integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "linear", name: "Linear issue sync", settings: {})
+    issue_chat = Conversation.start_in_issue!(integration: integration, session_id: "session-1", title: "ENG-12 Checkout", issue_key: "ENG-12",
+                                              issue_url: "https://linear.app/acme/issue/ENG-12", asked_by: @member)
+    issue_chat.ask!("Why is checkout failing?", asker: issue_chat.started_by)
+    theirs = Conversation.start_in_issue!(integration: integration, session_id: "session-2", title: "ENG-13", asked_by: workspace_memberships(:bob_workspace_one))
+
+    get agent_chats_url, headers: inertia_headers
+
+    listed = inertia_props["conversations"].index_by { |chat| chat["id"] }
+    assert_equal [ issue_chat.id ], listed.keys
+    assert_equal [ "Linear", "ENG-12 Checkout" ], listed[issue_chat.id].values_at("askedIn", "title")
+
+    get agent_chat_url(issue_chat), headers: inertia_headers
+    assert_equal "https://linear.app/acme/issue/ENG-12", inertia_props.dig("conversation", "askedInUrl")
+
+    assert_no_enqueued_jobs(only: ConversationReplyJob) { post agent_chat_ask_url(issue_chat), params: { question: "And now?" } }
+    assert_equal "This chat is in Linear, so carry on there.", flash[:alert]
+
+    get agent_chat_url(theirs), headers: inertia_headers
+    assert_response :not_found
+  end
+
   test "someone else's direct message chat is not theirs to open" do
     direct = Conversation.start_direct!(workspace: @workspace, member: workspace_memberships(:bob_workspace_one), channel_id: "D0BOB", thread_id: "1")
 

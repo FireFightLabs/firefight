@@ -20,12 +20,14 @@ class IntegrationsAppConnectTest < ActionDispatch::IntegrationTest
     URI.parse(response.location)
   end
 
-  test "Linear's app asks for its scopes with a code challenge and keeps nothing until the person comes back" do
+  test "Linear's app installs as an app of its own that can be assigned and mentioned, never with admin, and keeps nothing until the person comes back" do
     location = start("linear")
     query = Rack::Utils.parse_query(location.query)
 
     assert_equal "https://linear.app/oauth/authorize", "#{location.scheme}://#{location.host}#{location.path}"
-    assert_equal [ "lin-app", "read,write,admin", "consent", "S256" ], query.values_at("client_id", "scope", "prompt", "code_challenge_method")
+    assert_equal [ "lin-app", "read,write,app:assignable,app:mentionable", "consent", "app", "S256" ],
+                 query.values_at("client_id", "scope", "prompt", "actor", "code_challenge_method")
+    assert_not_includes query["scope"].split(","), "admin"
     assert_not @workspace.integrations.exists?(provider: "linear")
   end
 

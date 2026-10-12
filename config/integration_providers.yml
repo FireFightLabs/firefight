@@ -945,18 +945,22 @@ providers:
     hosts: [ api.linear.app, linear.app ]
     description: Read issues, projects and cycles, and open follow-up work from an incident.
     server_url: https://mcp.linear.app/mcp
-    # Firefight's own Linear OAuth application, which keeps incident items in step with issues and registers the webhook
-    # that sends changes back (linear.app/developers/oauth-2-0-authentication). admin is the scope Linear asks of an app
-    # that creates webhooks (linear.app/developers/webhooks).
+    # Firefight's own Linear OAuth application, which keeps incident items in step with issues and which people assign
+    # issues to or mention so Halon looks into them (linear.app/developers/oauth-2-0-authentication). actor=app installs it
+    # in the workspace as an app of its own, so what it creates shows as Firefight and the connection outlasts whoever
+    # installed it, and a Linear admin installs it (linear.app/developers/oauth-actor-authorization,
+    # linear.app/developers/agents, Authentication). app:assignable lets an issue be delegated to it and app:mentionable
+    # lets it be mentioned. An app installed this way may not ask for admin, so it cannot create webhooks
+    # (linear.app/developers/webhooks), and its agent sessions arrive at the app's own webhook instead.
     app:
-      label: Connect for issue sync
-      description: Connects Firefight's own Linear app, which keeps incident actions and follow-ups in step with issues and sets up the webhook that sends changes back, so there is nothing to paste. Choose it under Settings, Workspace once it is connected.
+      label: Firefight's own Linear app
+      description: Installs Firefight's own Linear app, which a Linear admin approves. It keeps incident actions and follow-ups in step with issues, and anyone can assign an issue to Firefight or mention it so Halon looks into it and answers in the issue. Choose it for issue sync under Settings, Workspace once it is connected.
       connection_name: Linear issue sync
       authorization_endpoint: https://linear.app/oauth/authorize
       token_endpoint: https://api.linear.app/oauth/token
-      scopes: [read, write, admin]
+      scopes: [read, write, "app:assignable", "app:mentionable"]
       scope_separator: ","
-      params: { prompt: consent }
+      params: { prompt: consent, actor: app }
       pkce: true
     # The reads Linear names in public (linear.app/changelog). Its MCP page lists no tools, so its others are marked as its server says.
     read_only_tools: [list_customer_needs, list_teams, get_team, list_projects, get_project, list_comments]
