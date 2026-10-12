@@ -6,6 +6,7 @@ class SyncGithubOperationsTools < ActiveRecord::Migration[8.1]
   PROVIDER = "github".freeze
 
   def up
+    Ability::Role.reset_column_information
     Integration.where(kind: Integration::KIND_NATIVE, provider: PROVIDER).find_each do |integration|
       Integrations::DiscoveryService.sync!(integration)
     end
