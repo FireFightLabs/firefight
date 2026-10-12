@@ -3,10 +3,13 @@ module FeatureFlags
 
   # Sign in with ChatGPT as a workspace's AI account, until OpenAI approves its use here.
   CHATGPT_SIGN_IN = :chatgpt_sign_in
+  # Workflows a workspace builds and runs, until the whole feature ships. No run of one starts, waits out its time or
+  # carries on without it, and every page, Halon tool and MCP tool for them asks it too.
+  WORKFLOWS = :workflows
   # Google and email on the sign-in page. Global, since nobody signing in has a workspace yet.
   SELF_SERVE_SIGNUP = :self_serve_signup
 
-  WORKSPACE = [ CHATGPT_SIGN_IN ].freeze
+  WORKSPACE = [ CHATGPT_SIGN_IN, WORKFLOWS ].freeze
   GLOBAL = [ SELF_SERVE_SIGNUP ].freeze
   ALL = (WORKSPACE + GLOBAL).freeze
 

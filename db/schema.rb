@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_13_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_13_100100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -878,7 +878,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_100000) do
   end
 
   create_table "chat_saved_results", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.uuid "chat_id", null: false
+    t.uuid "chat_id"
     t.text "content", null: false
     t.datetime "created_at", null: false
     t.string "handle", null: false
@@ -886,7 +886,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_100000) do
     t.integer "step"
     t.string "tool_name", null: false
     t.datetime "updated_at", null: false
+    t.uuid "workflow_run_id"
     t.index ["chat_id", "handle"], name: "index_chat_saved_results_on_chat_id_and_handle", unique: true
+    t.index ["workflow_run_id", "handle"], name: "index_chat_saved_results_on_workflow_run_id_and_handle", unique: true, where: "(workflow_run_id IS NOT NULL)"
+    t.check_constraint "num_nonnulls(chat_id, workflow_run_id) = 1", name: "chat_saved_results_one_owner"
   end
 
   create_table "chat_screenshots", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -3093,6 +3096,130 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_100000) do
     t.index ["workspace_id"], name: "index_webhooks_on_workspace_id"
   end
 
+  create_table "workflow_edits", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workflow_id", null: false
+    t.uuid "version_id"
+    t.string "operation", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.string "targets", default: [], null: false, array: true
+    t.string "status", null: false
+    t.string "author_kind", null: false
+    t.uuid "author_id"
+    t.text "reason"
+    t.integer "base_revision"
+    t.integer "applied_revision"
+    t.uuid "change_set_id"
+    t.uuid "source_run_id"
+    t.uuid "source_chat_id"
+    t.uuid "decided_by_id"
+    t.datetime "decided_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["author_id"], name: "index_workflow_edits_on_author_id"
+    t.index ["change_set_id"], name: "index_workflow_edits_on_change_set_id"
+    t.index ["decided_by_id"], name: "index_workflow_edits_on_decided_by_id"
+    t.index ["source_chat_id"], name: "index_workflow_edits_on_source_chat_id"
+    t.index ["source_run_id"], name: "index_workflow_edits_on_source_run_id"
+    t.index ["version_id", "applied_revision"], name: "index_workflow_edits_on_version_id_and_applied_revision"
+    t.index ["workflow_id", "status"], name: "index_workflow_edits_on_workflow_id_and_status"
+  end
+
+  create_table "workflow_run_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "run_id", null: false
+    t.string "step_key", null: false
+    t.string "iteration", default: "", null: false
+    t.string "name"
+    t.string "kind"
+    t.string "status", null: false
+    t.string "route"
+    t.jsonb "input"
+    t.jsonb "output"
+    t.uuid "saved_result_ids", default: [], null: false, array: true
+    t.integer "attempts", default: 0, null: false
+    t.text "error"
+    t.datetime "started_at"
+    t.datetime "finished_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["run_id", "step_key", "iteration"], name: "index_workflow_run_steps_on_run_id_and_step_key_and_iteration", unique: true
+  end
+
+  create_table "workflow_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "workflow_id", null: false
+    t.uuid "version_id", null: false
+    t.uuid "parent_run_id"
+    t.string "parent_step_key"
+    t.string "status", default: "queued", null: false
+    t.string "trigger_kind", null: false
+    t.jsonb "trigger_payload", default: {}, null: false
+    t.jsonb "inputs", default: {}, null: false
+    t.jsonb "outputs"
+    t.string "start_key", null: false
+    t.uuid "agent_id"
+    t.string "started_by_kind", null: false
+    t.uuid "started_by_id"
+    t.text "error"
+    t.datetime "started_at"
+    t.datetime "finished_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["agent_id"], name: "index_workflow_runs_on_agent_id"
+    t.index ["parent_run_id"], name: "index_workflow_runs_on_parent_run_id"
+    t.index ["started_by_id"], name: "index_workflow_runs_on_started_by_id"
+    t.index ["status"], name: "index_workflow_runs_on_status"
+    t.index ["version_id"], name: "index_workflow_runs_on_version_id"
+    t.index ["workflow_id", "created_at"], name: "index_workflow_runs_on_workflow_id_and_created_at"
+    t.index ["workflow_id", "start_key"], name: "index_workflow_runs_on_workflow_id_and_start_key", unique: true
+    t.index ["workspace_id", "created_at"], name: "index_workflow_runs_on_workspace_id_and_created_at"
+  end
+
+  create_table "workflow_versions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workflow_id", null: false
+    t.integer "number", null: false
+    t.string "status", default: "draft", null: false
+    t.jsonb "trigger", default: {}, null: false
+    t.jsonb "steps", default: [], null: false
+    t.jsonb "edges", default: [], null: false
+    t.jsonb "outputs", default: {}, null: false
+    t.integer "revision", default: 0, null: false
+    t.string "author_kind", null: false
+    t.uuid "author_id"
+    t.text "reason"
+    t.uuid "parent_version_id"
+    t.datetime "published_at"
+    t.uuid "published_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["author_id"], name: "index_workflow_versions_on_author_id"
+    t.index ["parent_version_id"], name: "index_workflow_versions_on_parent_version_id"
+    t.index ["published_by_id"], name: "index_workflow_versions_on_published_by_id"
+    t.index ["workflow_id", "number"], name: "index_workflow_versions_on_workflow_id_and_number", unique: true
+    t.index ["workflow_id"], name: "index_workflow_versions_one_draft", unique: true, where: "((status)::text = 'draft'::text)"
+    t.index ["workflow_id"], name: "index_workflow_versions_one_live", unique: true, where: "((status)::text = 'live'::text)"
+  end
+
+  create_table "workflows", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.string "name", null: false
+    t.string "slug", null: false
+    t.string "aliases", default: [], null: false, array: true
+    t.text "description"
+    t.uuid "owner_team_id"
+    t.boolean "enabled", default: true, null: false
+    t.uuid "agent_id"
+    t.uuid "live_version_id"
+    t.integer "cost_cap_cents"
+    t.uuid "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["agent_id"], name: "index_workflows_on_agent_id"
+    t.index ["created_by_id"], name: "index_workflows_on_created_by_id"
+    t.index ["live_version_id"], name: "index_workflows_on_live_version_id"
+    t.index ["owner_team_id"], name: "index_workflows_on_owner_team_id"
+    t.index ["workspace_id", "slug"], name: "index_workflows_on_workspace_id_and_slug", unique: true
+  end
+
   create_table "workspace_ai_accounts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "workspace_id", null: false
     t.string "kind", default: "api_key", null: false
@@ -3208,6 +3335,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_100000) do
     t.boolean "on_call_paging_enabled", default: false, null: false
     t.string "halon_monitoring_channel"
     t.boolean "halon_security_events_enabled", default: true, null: false
+    t.boolean "halon_applies_workflow_read_fixes", default: false, null: false
     t.index ["created_by_id"], name: "index_workspaces_on_created_by_id"
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
     t.index ["issue_webhook_token"], name: "index_workspaces_on_issue_webhook_token", unique: true
@@ -3326,6 +3454,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_100000) do
   add_foreign_key "chat_queued_messages", "chats", on_delete: :cascade
   add_foreign_key "chat_queued_messages", "workspace_memberships", column: "sender_id", on_delete: :nullify
   add_foreign_key "chat_saved_results", "chats"
+  add_foreign_key "chat_saved_results", "workflow_runs", on_delete: :cascade
   add_foreign_key "chat_screenshots", "chats"
   add_foreign_key "chat_screenshots", "investigation_remediation_steps", column: "remediation_step_id", on_delete: :nullify
   add_foreign_key "chat_secret_entries", "chats", on_delete: :cascade
@@ -3529,6 +3658,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_100000) do
   add_foreign_key "webhook_deliveries", "incident_events"
   add_foreign_key "webhook_deliveries", "webhooks"
   add_foreign_key "webhooks", "workspaces"
+  add_foreign_key "workflow_edits", "chats", column: "source_chat_id", on_delete: :nullify
+  add_foreign_key "workflow_edits", "workflow_runs", column: "source_run_id", on_delete: :nullify
+  add_foreign_key "workflow_edits", "workflow_versions", column: "version_id", on_delete: :cascade
+  add_foreign_key "workflow_edits", "workflows", on_delete: :cascade
+  add_foreign_key "workflow_edits", "workspace_memberships", column: "author_id", on_delete: :nullify
+  add_foreign_key "workflow_edits", "workspace_memberships", column: "decided_by_id", on_delete: :nullify
+  add_foreign_key "workflow_run_steps", "workflow_runs", column: "run_id", on_delete: :cascade
+  add_foreign_key "workflow_runs", "agents", on_delete: :nullify
+  add_foreign_key "workflow_runs", "workflow_runs", column: "parent_run_id", on_delete: :nullify
+  add_foreign_key "workflow_runs", "workflow_versions", column: "version_id"
+  add_foreign_key "workflow_runs", "workflows", on_delete: :cascade
+  add_foreign_key "workflow_runs", "workspace_memberships", column: "started_by_id", on_delete: :nullify
+  add_foreign_key "workflow_runs", "workspaces"
+  add_foreign_key "workflow_versions", "workflow_versions", column: "parent_version_id", on_delete: :nullify
+  add_foreign_key "workflow_versions", "workflows", on_delete: :cascade
+  add_foreign_key "workflow_versions", "workspace_memberships", column: "author_id", on_delete: :nullify
+  add_foreign_key "workflow_versions", "workspace_memberships", column: "published_by_id", on_delete: :nullify
+  add_foreign_key "workflows", "agents", on_delete: :nullify
+  add_foreign_key "workflows", "catalog_entries", column: "owner_team_id", on_delete: :nullify
+  add_foreign_key "workflows", "workflow_versions", column: "live_version_id", on_delete: :nullify
+  add_foreign_key "workflows", "workspace_memberships", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "workflows", "workspaces"
   add_foreign_key "workspace_ai_accounts", "workspace_memberships", column: "created_by_id", on_delete: :nullify
   add_foreign_key "workspace_ai_accounts", "workspaces"
   add_foreign_key "workspace_invitations", "workspace_memberships", column: "invited_by_id", on_delete: :nullify
