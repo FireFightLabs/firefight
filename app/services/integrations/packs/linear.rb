@@ -5,6 +5,12 @@ module Integrations
     # list_users) and answer the issue in the shape that server does, so IssueTrackers::Linear reads either connection
     # the same way. It also registers the webhook that sends changes back, through webhookCreate, which Linear allows an
     # OAuth application holding the admin scope (linear.app/developers/webhooks). Every call is LinearApi's.
+    #
+    # The app is now installed with actor=app (linear.app/developers/oauth-actor-authorization), so its token acts as the
+    # app's own user in the organization that installed it, whose id is kept as the connection's installation. Such a
+    # token may not hold admin (linear.app/developers/agents, Admin), so the webhook that sends issue changes back is set
+    # up by hand, as for a connection through Linear's MCP server. A connection made before acts as whoever connected it,
+    # keeps its webhook and keeps working, and its health says to reconnect for the app to act as itself.
     class Linear < NativePack
       PROVIDER = "Linear".freeze
       TEAM = IssueTrackers::Linear::TEAM
@@ -75,11 +81,47 @@ module Integrations
         refused(error)
       end
 
+      ACTS_AS_A_PERSON = "Firefight's Linear app acts as the person who connected it, so it cannot be assigned issues or mentioned, and it stops " \
+                         "when they leave Linear. Reconnect it, and have a Linear admin approve the install, so it acts as itself.".freeze
+
+      # The installation is learned here, on connecting and with every check, so a reconnect that installed the app in
+      # another organization follows it.
       def check_health!(environment_row)
-        api(environment_row).viewer
+        actor = api(environment_row).actor.to_h
+        fail! ACTS_AS_A_PERSON unless actor["app"]
+
+        organization = actor.dig("organization", "id")
+        Installations.connected!(environment_row, organization) if organization.present? && environment_row.installation_id != organization
       rescue LinearApi::Error => error
         fail! error.message
       end
+
+      # What Linear says of the installation now. A token Linear no longer takes means the app was removed, and an app no
+      # team shares anything with reaches nothing.
+      def self.installation(environment_row)
+        actor = LinearApi.new(Credentials.headers_for(environment_row)).actor.to_h
+        organization = actor["organization"].to_h
+        page = "https://linear.app/#{organization['urlKey']}/settings/integrations" if organization["urlKey"].present?
+        Installations::Installation.new(state: (Installations::EMPTIED if actor["teams"].blank?), account: organization["name"], page: page)
+      rescue LinearApi::Unauthorized, OauthClient::SignInEnded
+        Installations::Installation.new(state: Installations::REMOVED)
+      end
+
+      # Revoking the app's token removes the app from the organization (linear.app/developers/oauth-2-0-authentication,
+      # Revoke an access token).
+      def self.uninstall(environment_row) = LinearApi.revoke(OauthClient.access_token(environment_row.oauth))
+
+      def self.forget_access(_environment_row) = nil
+
+      def self.app_name = "Linear app"
+
+      def self.reach_name = "teams"
+
+      # Linear grants an app every scope it asked for at install, so a tool never lacks one.
+      def self.missing_access(_environment_row, _tool_name) = []
+
+      # A token that acts as the app may not create webhooks, so its issue webhook is set up by hand.
+      def self.registers_issue_webhook?(environment_row) = environment_row.nil? || environment_row.installation_id.blank?
 
       # A webhook on the team issues go to, signed with a secret Firefight makes (WebhookCreateInput.secret).
       def register_issue_webhook(environment_row, url:, target:)

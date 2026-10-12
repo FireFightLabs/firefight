@@ -74,7 +74,7 @@ class Conversation::Runner
       canceled: chat.method(:stop_requested?),
       purse: purse,
       checks: Conversation::Checks.new(chat, since: @marked, choice: Chat::Helpers.side_model(@conversation.workspace, main: helper_main_model),
-                                             inferable: @conversation.subject, member: @turn.asker, facts: suspects).all,
+                                             inferable: @conversation.subject, member: member, facts: suspects).all,
       on_backup: ->(failed, backup, error) { switched_model(chat, failed, backup, error) },
       # A model the person picked is theirs to know about, so its account running dry is said too.
       on_take_over: (->(failed, following, error) { switched_model(chat, failed, following, error) } if picked_model)
@@ -103,12 +103,15 @@ class Conversation::Runner
 
   def delivery = @delivery ||= Conversation::Delivery.for(@conversation)
 
+  # Who a model call is ledgered under. A chat in an issue acts as Firefight's own agent, which is no member.
+  def member = (@turn.asker unless @conversation.issue?)
+
   # The reply as it streams, without the line saying Halon's next step (FirefightAi::NextStep).
   def shown_text = @shown_text ||= FirefightAi::NextStep::Stream.new { |text| delivery.chunk(text) }
 
   def responder
     @responder ||= FirefightAi::Responder.new(
-      @conversation.workspace, inferable: @conversation.subject, member: @turn.asker,
+      @conversation.workspace, inferable: @conversation.subject, member: member,
       output_style: delivery.output_style, model: picked_model, specialists: @turn.asks_specialists?
     )
   end
@@ -218,8 +221,11 @@ class Conversation::Runner
   # A provider refuses anything between a call and its result, so nothing is said while a call waits for the person.
   def room_for_a_note?(chat) = chat.calls_in_play.where(result_id: nil).none?
 
-  # Only the asker's own messages, since the turn acts with their permissions.
+  # Only the asker's own messages, since the turn acts with their permissions. A chat in an issue acts as its agent
+  # whoever wrote there, so it takes every follow up.
   def take_queued(chat)
+    return chat.take_queued!.any? if @conversation.issue?
+
     asker = @turn.asker
     asker.is_a?(WorkspaceMembership) && chat.take_queued!(from: asker).any?
   end
@@ -368,8 +374,19 @@ class Conversation::Runner
   def asker_line
     asker = @turn.asker
     return "You are acting for nobody known, so every tool will refuse." unless asker
+    return issue_line(asker) if @conversation.issue?
 
     "You are acting for #{asker.display_name}, whose role in this workspace is #{asker.role}. Owners and admins can change settings and permissions, members respond to incidents."
+  end
+
+  # Someone asked in an issue in a connected tracker, whose words and what the tracker gathered around them are in the
+  # chat. Every answer is posted there, where anyone who can see the issue reads it.
+  def issue_line(agent)
+    session = @conversation.issue_session
+    issue = [ session&.issue_key, session&.issue_url ].compact.join(" ")
+    "You were asked in #{session&.place || 'a tracker'}#{" issue #{issue}" if issue.present?}, by someone assigning the issue to " \
+      "Firefight or mentioning it. You act as #{agent.actor_display_name}, Firefight's own agent, which holds only the permissions an " \
+      "admin granted it, never the person's. Your answer is posted in the issue, where anyone who can see it reads it."
   end
 
   # The day only, so the prompt stays the same all day and the provider keeps reusing what it read. A plan's time is
@@ -469,7 +486,7 @@ class Conversation::Runner
       moved: Chat::Helpers.teller(delivery, chat),
       fresh_parent: -> { Conversation::Turn.new(Conversation.find(conversation.id), asker: asker&.class&.find(asker.id), reads_only: true) },
       choose: ->(deep) { deep ? helper_main_model : Chat::Helpers.side_model(conversation.workspace, main: helper_main_model) },
-      inferable: conversation.subject, member: asker,
+      inferable: conversation.subject, member: member,
       specialists: (Chat::Specialists::Live.new(@turn) if Chat::Specialists.for?(@turn))
     )
   end

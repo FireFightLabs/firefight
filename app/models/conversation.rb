@@ -7,7 +7,10 @@ class Conversation < ApplicationRecord
   KIND_DIRECT = "direct"
   # Another agent asking over MCP, one chat per principal, as that principal.
   KIND_MCP = "mcp"
-  KINDS = [ KIND_CHANNEL, KIND_PERSONAL, KIND_DIRECT, KIND_MCP ].freeze
+  # Someone assigning an issue in a connected tracker to Firefight's app, or mentioning it there, answered in the issue
+  # (Conversation::IssueSession). It acts as Firefight's own agent, never as a person.
+  KIND_ISSUE = "issue"
+  KINDS = [ KIND_CHANNEL, KIND_PERSONAL, KIND_DIRECT, KIND_MCP, KIND_ISSUE ].freeze
   # One person's own chats, listed on their dashboard wherever they were asked.
   OWN_KINDS = [ KIND_PERSONAL, KIND_DIRECT ].freeze
   # A direct message after a day without a word starts a new chat, since the old one is about something else by then.
@@ -38,12 +41,22 @@ class Conversation < ApplicationRecord
   has_many :pull_request_notices, class_name: "CodeAgentSession::Notice", dependent: :nullify, inverse_of: :conversation
   # Every thread a direct message chat was asked in, so a reply in an earlier one still reaches it.
   has_many :thread_links, class_name: "Conversation::ThreadLink", dependent: :delete_all
+  # The tracker's session a chat started in an issue answers in.
+  has_one :issue_session, class_name: "Conversation::IssueSession", dependent: :delete
 
   validates :kind, inclusion: { in: KINDS }
   validates :max_turns, :max_spend_cents, numericality: { only_integer: true, greater_than: 0 }
 
   scope :personal, -> { where(kind: KIND_PERSONAL) }
-  scope :own_for, ->(member) { where(kind: OWN_KINDS, started_by: member) }
+  # A chat started in an issue is listed for the member who asked there, and one asked by someone Firefight could not
+  # match is listed for whoever may connect integrations, as the app was installed by one of them.
+  scope :own_for, ->(member) {
+    asked = member ? Conversation::IssueSession.where(asked_by_id: member.id) : Conversation::IssueSession.none
+    if member&.may?(Ability::Action::RESOURCE_INTEGRATIONS, Ability::Action::ACTION_CREATE, member.workspace)
+      asked = asked.or(Conversation::IssueSession.where(asked_by_id: nil))
+    end
+    where(kind: OWN_KINDS, started_by: member).or(where(kind: KIND_ISSUE, id: asked.select(:conversation_id)))
+  }
   scope :archived, -> { where.not(archived_at: nil) }
   # Archived last, so a list that loads page by page reaches them at the end.
   scope :in_reading_order, -> { order(Arel.sql("archived_at IS NOT NULL, pinned_at DESC NULLS LAST, updated_at DESC")) }
@@ -71,6 +84,16 @@ class Conversation < ApplicationRecord
     )
   end
 
+  # From a tracker's issue, where nobody in Firefight asked. Firefight's own agent asks, which an admin allowed by
+  # installing the app there, and it is ledgered like any question, never held by an approval rule, since nothing in the
+  # issue could pick it up again. asked_by_label names who asked there. Returns what the block returns.
+  def self.ask_from_issue!(workspace:, asked_by_label:, &)
+    AbilityGateway.record_unattended!(
+      principal: SystemAgent.investigator, action_key: Ability::Action::INVESTIGATIONS_CREATE, workspace: workspace, params: {},
+      context: { source: AbilityGateway::SOURCE_CONVERSATION, triggered_by_label: asked_by_label }, &
+    )
+  end
+
   # The chat a platform thread belongs to, whether it started there or a direct message chat carried on in it.
   def self.in_thread(workspace, channel_id, thread_id)
     workspace.conversations.find_by(channel_id: channel_id, thread_id: thread_id) ||
@@ -89,6 +112,28 @@ class Conversation < ApplicationRecord
       kind: KIND_DIRECT, started_by: member, subject: subject, channel_id: channel_id, thread_id: thread_id,
       max_turns: limits.max_turns, max_spend_cents: limits.max_spend_cents
     )
+  end
+
+  # The chat a tracker's session belongs to, or nil.
+  def self.in_issue_session(integration, session_id)
+    joins(:issue_session).find_by(conversation_issue_sessions: { integration_id: integration.id, session_id: session_id })
+  end
+
+  # A session someone opened in an issue. The chat acts as Firefight's own agent, and is named for the issue.
+  def self.start_in_issue!(integration:, session_id:, title:, issue_key: nil, issue_url: nil, asked_by: nil)
+    workspace = integration.workspace
+    limits = workspace.conversation_limits
+    transaction do
+      workspace.conversations.create!(
+        kind: KIND_ISSUE, started_by: SystemAgent.investigator, title: title.to_s.truncate(TITLE_LIMIT).presence,
+        max_turns: limits.max_turns, max_spend_cents: limits.max_spend_cents
+      ).tap do |started|
+        started.create_issue_session!(workspace: workspace, integration: integration, session_id: session_id, issue_key: issue_key,
+                                      issue_url: issue_url, asked_by: asked_by)
+      end
+    end
+  rescue ActiveRecord::RecordNotUnique
+    in_issue_session(integration, session_id) || raise
   end
 
   # model is one the person picked before the first question, which the caller has checked is offered.
@@ -112,7 +157,7 @@ class Conversation < ApplicationRecord
     wanted = text.to_s.strip.downcase
     return [] if wanted.empty?
 
-    own_for(member).includes(chat: :last_readable_message).in_reading_order.to_a
+    own_for(member).includes({ chat: :last_readable_message }, { issue_session: :integration }).in_reading_order.to_a
       .select { |conversation| "#{conversation.display_title} #{conversation.preview}".downcase.include?(wanted) }
       .first(limit)
   end
@@ -122,6 +167,8 @@ class Conversation < ApplicationRecord
   def mcp? = kind == KIND_MCP
 
   def direct? = kind == KIND_DIRECT
+
+  def issue? = kind == KIND_ISSUE
 
   def belongs_to_one_person? = OWN_KINDS.include?(kind)
 
@@ -137,12 +184,25 @@ class Conversation < ApplicationRecord
     reload if moved == 1
   end
 
-  # The platform a direct message chat lives in, as people know it. A dashboard chat lives on the dashboard.
-  def asked_in = (Platforms.display_name(workspace.platform) if direct?)
+  # The platform a direct message chat lives in, or the tracker an issue's chat does, as people know it. A dashboard
+  # chat lives on the dashboard.
+  def asked_in
+    return Platforms.display_name(workspace.platform) if direct?
+
+    issue_session&.place if issue?
+  end
 
   # The dashboard reads a chat from elsewhere but never asks in it, since the answer is written where it was asked.
   def ask_blocked_reason
-    "This chat is in #{asked_in}, so carry on there." if direct?
+    "This chat is in #{asked_in}, so carry on there." if direct? || issue?
+  end
+
+  # Who a turn acts as. A chat in an issue always acts as the agent it was started as, whoever pressed something for it
+  # in the dashboard, since a machine never borrows a person's reach. Any other acts as the asker, or whoever started it.
+  def turn_asker(asker_id)
+    return started_by if issue?
+
+    workspace.workspace_memberships.find_by(id: asker_id) || started_by
   end
 
   # What the person and the agent said to each other is the conversation, so it is never put away.
@@ -161,13 +221,14 @@ class Conversation < ApplicationRecord
 
   # Saved before the job runs, so the person sees it at once and a retried job asks only once. From here an answer is owed.
   # While a turn is running the question waits and joins that turn at the agent's next step, so the person can steer it.
+  # A follow up in an issue waits the same way, whoever wrote it there.
   # Files go with the question, and a question may be files alone.
   # context is what Halon needs to read with the question and the person never wrote, such as the message they replied to.
   # Between turns it goes before the question as a note the page does not show. A turn already running takes only whole
   # messages between its steps, so there it heads the question.
   def ask!(question, asker: nil, files: [], context: nil)
-    if asker.is_a?(WorkspaceMembership) && answer_owed?
-      return chat_record.queue_message!([ context, question.presence ].compact.join("\n\n"), sender: asker, files: files)
+    if (asker.is_a?(WorkspaceMembership) || issue?) && answer_owed?
+      return chat_record.queue_message!([ context, question.presence ].compact.join("\n\n"), sender: (asker if asker.is_a?(WorkspaceMembership)), files: files)
     end
 
     chat_record.nudge!(context) if context

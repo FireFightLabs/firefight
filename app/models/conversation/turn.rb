@@ -109,11 +109,14 @@ class Conversation::Turn
   # Where what the agent remembers came from, and who taught it.
   def memory_source = conversation
 
-  def memory_teacher = asker
+  # Nobody in Firefight taught what a chat in an issue learned, since it acts as an agent, as a run does.
+  def memory_teacher = (asker unless conversation.issue?)
 
   # A tool that changes something names the pack to ask for and the admins who can give it, so the person knows exactly
   # what to request and from whom.
   def refusal(action_key)
+    return agent_refusal(action_key) if conversation.issue?
+
     pack = Ability::Role.to_ask_for(Ability::Action.lookup(action_key, workspace))
     unless pack
       return "Not allowed: #{asker_name} cannot use #{action_key} in this workspace. Tell them, and that a workspace admin can grant it. " \
@@ -149,6 +152,14 @@ class Conversation::Turn
   def asker_name = asker.try(:display_name) || "The person asking"
 
   private
+
+  # A chat in an issue acts as Firefight's own agent, which holds only what an admin granted it, so nobody is offered a
+  # pack.
+  def agent_refusal(action_key)
+    name = asker.try(:actor_display_name)
+    "Not allowed: #{name}, the agent this chat acts as, has no grant for #{action_key} in this workspace. Say so, and that a " \
+      "workspace admin can grant it to #{name} under Gateway, Permissions. #{Chat::StaleRefusals::AS_READ}"
+  end
 
   def self_approvable?(action)
     requirement = AbilityGateway.approval_requirement(workspace, action, action.key, {}, {})

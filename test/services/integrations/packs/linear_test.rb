@@ -59,6 +59,54 @@ module Integrations
         LinearApi.any_instance.expects(:delete_webhook).with("wh-1").returns(true)
         @pack.remove_issue_webhook(@row, "wh-1")
       end
+
+      APP = { "id" => "app-user", "app" => true, "organization" => { "id" => "org-1", "name" => "Acme", "urlKey" => "acme" }, "teams" => [ { "id" => "team-1" } ] }.freeze
+
+      test "a token that acts as the app keeps its organization as the connection's installation" do
+        LinearApi.any_instance.stubs(:actor).returns(APP)
+
+        HealthCheckService.check!(@row)
+
+        assert_equal [ "org-1", IntegrationEnvironment::HEALTH_HEALTHY ], [ @row.reload.installation_id, @row.health_status ]
+        assert Installations.installed?(@row)
+      end
+
+      test "a connection made before the app acted as itself keeps working but needs attention, saying to reconnect" do
+        LinearApi.any_instance.stubs(:actor).returns(APP.merge("app" => false))
+
+        HealthCheckService.check!(@row)
+
+        assert_equal IntegrationEnvironment::HEALTH_FAILING, @row.reload.health_status
+        assert_equal Linear::ACTS_AS_A_PERSON, @row.health_error
+        assert_nil @row.installation_id
+        assert_equal IntegrationProvider::STATE_NEEDS_ATTENTION, IntegrationProvider.card_for(@workspace, IntegrationProvider.category_for!("Issues"))
+                                                                                     .rows.find { |row| row.provider.key == "linear" }.state
+      end
+
+      test "the installation reads as removed once Linear no longer takes its token, and as reaching nothing with no team" do
+        @row.store_installation!("org-1")
+        LinearApi.any_instance.stubs(:actor).raises(LinearApi::Unauthorized, "Linear answered 401: Authentication required")
+        assert_equal Installations::REMOVED, Linear.installation(@row).state
+
+        LinearApi.any_instance.stubs(:actor).returns(APP.merge("teams" => []))
+        found = Linear.installation(@row)
+        assert_equal [ Installations::EMPTIED, "Acme", "https://linear.app/acme/settings/integrations" ], [ found.state, found.account, found.page ]
+      end
+
+      test "a connection that acts as the app sets up its issue webhook by hand, and one from before still registers its own" do
+        assert Issues.registers_webhooks?(@integration)
+
+        @row.store_installation!("org-1")
+
+        assert_not Issues.registers_webhooks?(@integration)
+      end
+
+      test "removing the app revokes its token in Linear's documented token field" do
+        @row.store_oauth!("access_token" => "lin_app_token", "refresh_token" => "r")
+        LinearApi.expects(:revoke).with("lin_app_token").returns(true)
+
+        Linear.uninstall(@row)
+      end
     end
   end
 end

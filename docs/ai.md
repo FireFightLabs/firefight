@@ -703,6 +703,24 @@ The rules:
 - **The dashboard lists these chats with the person's own** (`Conversation.own_for`, `OWN_KINDS`), marked with where they live (`AgentChatSerializer#askedIn`, from `Conversation#asked_in`). An open one is read in full, with Open in Slack in place of the composer (`askedInUrl`), and asking there is refused (`Conversation#ask_blocked_reason`), since its answers are written in Slack. Its files and screenshots are readable by its owner as a dashboard chat's are (`Conversation#watchable_by?`).
 - **The person owns its plans and watches.** `Chat::Plan#may_act?` and the watch's stop rule treat it as a dashboard chat, its owner alone.
 
+## Chats in a tracker's issue
+
+Someone assigns an issue to Firefight's app in a connected tracker, or mentions it there, and Halon answers in the issue (docs/integrations.md, Agent sessions). Each session is a chat (`Conversation::KIND_ISSUE`) with the same loop, tools, saved chat and spending as any other, kept with its session in `Conversation::IssueSession` (the connection, the tracker's session id, the issue's key and page, and `asked_by`).
+
+| Piece | Does |
+|---|---|
+| `Conversation::IssueSessions` | Posts a thought at once, refuses with the session's error where Halon cannot run (`Investigation.unavailable_reason`), opens the chat or joins the session's (`Conversation.start_in_issue!`, `in_issue_session`), points the session at it, and asks through `Conversation.ask_from_issue!` and `Conversation::Asking`. A stop request stops the running turn, or says nothing was running. |
+| `Conversation::IssueDelivery` | What a turn says there: each tool an action (ephemeral while it runs, kept with how it went once it answered), the answer the response with what Halon read under it, a failure the error, a model switch a thought. |
+
+The rules:
+
+- **It acts as Firefight's agent, never as the person.** `started_by` is `SystemAgent.investigator`, and `Conversation#turn_asker` keeps it whoever pressed something for the chat in the dashboard, so the chat reaches only what an admin granted the investigator, and every change goes through the gateway and its approval rules like any call. A refusal names the agent's missing grant and offers no pack (`Turn#refusal`). Its model calls are ledgered under no member, and nothing it learns names a teacher.
+- **Asking is ledgered, never held.** The admin who installed the app allowed it, so `Conversation.ask_from_issue!` records `investigations.create` as the agent (`AbilityGateway.record_unattended!`), naming who asked in the tracker, and no approval rule holds it, since nothing in the issue could pick it up again.
+- **The opening is the issue.** The question is the comment that mentioned the app, or "Look into ENG-12 ..." for an issue delegated without words, and the tracker's own account of the issue, its comments and the team's guidance (`promptContext`) goes before it as a note framed as evidence. The chat is named for the issue.
+- **A follow up carries on the session's chat**, and one sent while Halon works joins that turn like a dashboard message (`Conversation#ask!` queues it, `Runner#take_queued` takes every one).
+- **What needs a person is decided in Firefight.** The issue has no buttons. A call to confirm is an elicitation listing it with a link to the chat, where the person who asked or an admin confirms or skips it, and asking something else in the issue skips it. A call an approval rule holds is said under the answer with links to Gateway, Approvals and to the chat, where it is run once approved.
+- **The dashboard lists it with the person's own** when the tracker's person matched a member by email (`asked_by`), and with the list of everyone who may connect integrations (`integrations.create`, the admins by default) when nobody matched (`Conversation.own_for`). It reads as asked in the tracker, with Open in the tracker linking the issue, and asking there is refused (`ask_blocked_reason`).
+
 ## A chat's model
 
 A person can switch the model their dashboard chat runs on from the composer, to get a feel for each. The pick belongs to that chat and applies from its next question.

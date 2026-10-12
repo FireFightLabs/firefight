@@ -19,6 +19,7 @@ class Conversation::Delivery
 
   def self.for(conversation)
     return Conversation::QuietDelivery.new(conversation) if conversation.mcp?
+    return Conversation::IssueDelivery.new(conversation) if conversation.issue?
     conversation.personal? ? Conversation::LiveDelivery.new(conversation) : new(conversation)
   end
 
