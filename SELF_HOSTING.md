@@ -158,6 +158,15 @@ Set `INSTALL_NOTIFICATION_WEBHOOK_URL` to a Slack incoming webhook, or any URL t
 
 Besides `text`, the workspace messages carry `event` (`workspace.created` or `workspace.chat_connected`), `workspace_name`, `platform`, `platform_id`, `installer_name`, `installer_email`, `sign_up_method`, `created_at` and `installed_at`. A message that cannot be delivered is retried once and then logged, and never holds up the person signing up. Leave the variable unset and nothing is sent.
 
+## Reporting errors to Sentry
+
+Firefight can send its errors to your own [Sentry](https://sentry.io) project. It is off unless you set it up.
+
+- `SENTRY_DSN` reports errors from the app and its background jobs.
+- `SENTRY_FRONTEND_DSN` reports errors from the dashboard in people's browsers. It can be the same DSN or another project's, and the browser never falls back to `SENTRY_DSN`.
+
+Set either or both in `.env`, then `docker compose up -d`. Only errors are sent, with no tracing, profiling, sessions or replay. Events carry the image's version as the release and `DEPLOYMENT_ENVIRONMENT` as the environment (`production` unless set). Request bodies, query strings, cookies and every header except a few harmless ones are left out, and anything Firefight already keeps out of its logs is filtered.
+
 ## The operator console
 
 `/operator` shows your install's background jobs: what is waiting, what failed and why, with retry. Only people you name can open it. Everyone else sees a not found page.

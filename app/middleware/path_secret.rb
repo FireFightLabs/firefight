@@ -13,12 +13,20 @@ class PathSecret
 
   def self.from(request) = request.get_header(ENV_KEY).to_s.presence
 
+  # The path with its secret segment masked, as it is passed on. A path that carries none comes back unchanged.
+  def self.mask(path)
+    match = match(path)
+    match ? path.sub(match[0], "#{match[1]}#{MASK}") : path
+  end
+
+  def self.match(path) = PATTERNS.lazy.filter_map { |pattern| pattern.match(path.to_s) }.first
+
   def initialize(app)
     @app = app
   end
 
   def call(env)
-    match = PATTERNS.lazy.filter_map { |pattern| pattern.match(env["PATH_INFO"].to_s) }.first
+    match = self.class.match(env["PATH_INFO"])
     if match
       env[ENV_KEY] = match[2]
       masked = "#{match[1]}#{MASK}"

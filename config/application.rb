@@ -4,6 +4,14 @@ require "rails/all"
 
 Bundler.require(*Rails.groups)
 
+# Sentry loads only where a deployment sets SENTRY_DSN. Its Railtie has to be in place before the app initializes to
+# add its middleware and hook into Active Job, and config/initializers/sentry.rb starts it.
+require_relative "../lib/error_reporting"
+if ErrorReporting.dsn
+  require "sentry-ruby"
+  require "sentry-rails"
+end
+
 module Firefight
   class Application < Rails::Application
     config.load_defaults 8.1

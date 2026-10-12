@@ -66,6 +66,10 @@ services:
       # Leave empty to run without the AI features.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
 
+      # Leave empty to report no errors to Sentry.
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_FRONTEND_DSN: ${SENTRY_FRONTEND_DSN:-}
+
       ACTIVE_STORAGE_SERVICE: local
 
       # Halon reads code in a sandbox per run, started on this machine's Docker.
