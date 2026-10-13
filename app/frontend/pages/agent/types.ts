@@ -4,7 +4,7 @@ import type { SharedProps } from "@/types"
 import type { AGENT_CHAT_THREAD_PROPS, AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
 import type {
   AgentChat, AgentChatAttachment, AgentChatAttachmentRules, AgentChatConfirmation, AgentChatDataRepair, AgentChatHeldCall, AgentChatHelper, AgentChatIncident,
-  AgentChatMemoryQuestion, AgentChatMessage, AgentChatMitigation, AgentChatOwnerAsk, AgentChatPackRefusal, AgentChatPlan, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage, AgentChatWatch, AgentChatWatchUpdate, ChatChart, ChatCompaction, ChatModelMenu, ChatModelSwitch, ChatScreenshot, ChatTheory, EnvironmentOption,
+  AgentChatCodePause, AgentChatMemoryQuestion, AgentChatMessage, AgentChatMitigation, AgentChatOwnerAsk, AgentChatPackRefusal, AgentChatPlan, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage, AgentChatWatch, AgentChatWatchUpdate, ChatChart, ChatCompaction, ChatModelMenu, ChatModelSwitch, ChatScreenshot, ChatTheory, EnvironmentOption,
   HandbookProposal, IntegrationCard, InvestigationCard, InvestigationDetail,
 } from "@/types/serializers"
 
@@ -49,6 +49,7 @@ export interface ThreadProps extends Record<(typeof AGENT_CHAT_THREAD_PROPS)[num
   watches: AgentChatWatch[]
   watchUpdates: AgentChatWatchUpdate[]
   pullRequestNotices: AgentChatPullRequestNotice[]
+  codePauses: AgentChatCodePause[]
   memoryQuestions: AgentChatMemoryQuestion[]
   plans: AgentChatPlan[]
   dataRepairs: AgentChatDataRepair[]

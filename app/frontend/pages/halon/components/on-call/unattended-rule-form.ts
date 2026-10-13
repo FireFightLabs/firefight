@@ -55,8 +55,3 @@ export function resourceOptions(resources: UnattendedRuleResource[], capability:
 export function capabilityLabel(capability: UnattendedCapability): string {
   return UNATTENDED_CAPABILITY_CHOICES.find((choice) => choice.value === capability)?.label ?? capability
 }
-
-export function dollars(cents: number): string {
-  const amount = cents / 100
-  return Number.isInteger(amount) ? `$${amount}` : `$${amount.toFixed(2)}`
-}

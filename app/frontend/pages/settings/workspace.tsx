@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { ARCHIVE_CHANNEL_DELAY_CHOICES, MEMORY_EXPIRY_DAY_CHOICES } from "@/lib/generated/constants"
+import { dollars, dollarsField, fieldCents } from "@/lib/formatters"
+import { ARCHIVE_CHANNEL_DELAY_CHOICES, CODE_FIX_BUDGET_CENTS, MEMORY_EXPIRY_DAY_CHOICES } from "@/lib/generated/constants"
 import { useCan } from "@/lib/permissions"
 import { integrationsPath, settingsWorkspacePath } from "@/lib/routes"
 import { AiAccountsCard, type AiSignIn } from "@/components/ai/ai-accounts-card"
@@ -70,6 +71,7 @@ export default function Workspace() {
   const [regression, setRegression] = useState(settings.halonRegressionEnabled)
   const [memoryExpiry, setMemoryExpiry] = useState(expiryChoice(settings.memoryExpiryDays))
   const [codeFixAgent, setCodeFixAgent] = useState(agentChoice(settings.codeFixAgent))
+  const [codeFixBudget, setCodeFixBudget] = useState(dollarsField(settings.codeFixBudgetCents))
   const connectedAgents = settings.codeFixAgents.length > 1
   const [issueTracking, setIssueTracking] = useState<IssueTrackingState>({
     tracker: trackerChoice(settings.issueTracker),
@@ -82,6 +84,10 @@ export default function Workspace() {
 
   function changeRetention(event: React.ChangeEvent<HTMLInputElement>) {
     setRetention(event.target.value)
+  }
+
+  function changeCodeFixBudget(event: React.ChangeEvent<HTMLInputElement>) {
+    setCodeFixBudget(event.target.value)
   }
 
   function finish() {
@@ -110,6 +116,7 @@ export default function Workspace() {
         halon_regression_enabled: regression,
         memory_expiry_days: expiryDays(memoryExpiry),
         code_fix_agent: agentSlug(codeFixAgent),
+        code_fix_budget_cents: fieldCents(codeFixBudget),
         issue_tracker: trackerSlug(issueTracking.tracker),
         issue_creation: issueTracking.creation,
         issue_tracker_target: issueTracking.target,
@@ -328,6 +335,34 @@ export default function Workspace() {
                   to choose it here.
                 </p>
               )}
+            </div>
+
+            <div className="max-w-prose">
+              <Label htmlFor="code-fix-budget" className="text-foreground">
+                Spend at most
+              </Label>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">$</span>
+                <Input
+                  id="code-fix-budget"
+                  type="number"
+                  min={CODE_FIX_BUDGET_CENTS.MIN / 100}
+                  max={CODE_FIX_BUDGET_CENTS.MAX / 100}
+                  step="0.01"
+                  value={codeFixBudget}
+                  onChange={changeCodeFixBudget}
+                  className="w-28"
+                />
+                <span className="text-sm text-muted-foreground">on each code fix</span>
+              </div>
+              {errors.code_fix_budget_cents && <p className="mt-2 text-sm text-destructive">{errors.code_fix_budget_cents}</p>}
+              <p className="mt-2 text-sm text-muted-foreground">
+                {dollars(CODE_FIX_BUDGET_CENTS.DEFAULT)} by default, and anything from {dollars(CODE_FIX_BUDGET_CENTS.MIN)} to{" "}
+                {dollars(CODE_FIX_BUDGET_CENTS.MAX)}. When Firefight&apos;s own agent reaches it, the fix pauses with
+                its work saved, and the person who asked chooses on a card in the chat whether to continue. Continue gives
+                it the same amount again. A change here applies to fixes started after you save. A connected coding agent
+                works to its own time limit instead.
+              </p>
             </div>
           </CardContent>
         </Card>

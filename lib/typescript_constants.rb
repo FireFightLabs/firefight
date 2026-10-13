@@ -128,6 +128,7 @@ module TypescriptConstants
       Export.new("UNATTENDED_DEFAULT_METRIC", Ability::UnattendedRule::DEFAULT_METRIC, nil),
       Export.new("UNATTENDED_MAX_MINUTES", Ability::UnattendedRule::MAX_MINUTES, nil),
       Export.new("STORM_CEILING_CENTS", { "MIN" => Workspace::OnCall::MIN_ALERT_RUN_CENTS, "MAX" => Workspace::OnCall::MAX_STORM_CEILING_CENTS }, nil),
+      Export.new("CODE_FIX_BUDGET_CENTS", { "DEFAULT" => Workspace::CodeFixes::DEFAULT_CODE_FIX_BUDGET_CENTS, "MIN" => Workspace::CodeFixes::MIN_CODE_FIX_BUDGET_CENTS, "MAX" => Workspace::CodeFixes::MAX_CODE_FIX_BUDGET_CENTS }, nil),
       Export.new("CONDITION_FIELD_LABELS", IncidentCondition::FIELD_LABELS, nil),
       Export.new("CONDITION_OPERATOR_LABELS", IncidentCondition::OPERATOR_LABELS, nil),
       Export.new("ALERT_NORMALIZED_FIELDS", AlertProviders::Base::NORMALIZED_FIELDS, "AlertNormalizedField"),

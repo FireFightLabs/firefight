@@ -6,6 +6,7 @@ class WorkspaceSettingsController < InertiaController
   authorizes Ability::Action::RESOURCE_WORKSPACE, read: :show, update: %i[update reinstall_slack]
 
   NOT_CONNECTED_MESSAGE = "Slack is not connected to this workspace yet. Connect it first.".freeze
+  UPDATED = "Workspace settings were updated.".freeze
 
   def show
     render inertia: "settings/workspace", props: {
@@ -17,9 +18,10 @@ class WorkspaceSettingsController < InertiaController
 
   # A blank retention casts to null, which means keep everything.
   def update
+    before = current_workspace.settings
     IssueSyncService.new(current_workspace).update_settings!(params.permit(*Workspace::Settings::PERMITTED), by: current_membership)
 
-    redirect_to settings_workspace_path, notice: "Workspace settings were updated."
+    redirect_to settings_workspace_path, notice: updated_words(before)
   rescue ActiveRecord::RecordInvalid => e
     redirect_to settings_workspace_path, inertia: { errors: e.record.errors.to_hash }
   end
@@ -35,5 +37,16 @@ class WorkspaceSettingsController < InertiaController
     session[:pending_team_id] = current_workspace.platform_id
     session[:pending_team_name] = current_workspace.chat_team_name
     request.inertia? ? inertia_location(install_slack_app_path) : redirect_to(install_slack_app_path)
+  end
+
+  private
+
+  # A new code fix budget is named, since it is what every fix may spend from now on.
+  def updated_words(before)
+    changed = current_workspace.settings.reject { |key, value| before[key] == value }.keys
+    return UPDATED unless changed.include?(:code_fix_budget_cents)
+
+    budget = "Code fix budget was set to #{current_workspace.shown_code_fix_budget}."
+    changed == [ :code_fix_budget_cents ] ? budget : "#{UPDATED} #{budget}"
   end
 end

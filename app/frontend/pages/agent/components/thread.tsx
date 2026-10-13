@@ -3,8 +3,9 @@ import { IconLoader2 } from "@tabler/icons-react"
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import LoadingState from "@/components/agent-ui/loading-state"
-import { AGENT_CHAT_PROPS, AGENT_CHAT_WINDOWED_PROPS } from "@/lib/generated/constants"
+import { AGENT_CHAT_PROPS, AGENT_CHAT_WINDOWED_PROPS, CODE_FIX_PAUSE_STATUSES } from "@/lib/generated/constants"
 import { whenClosed } from "@/lib/handlers"
+import { CodePauses } from "@/pages/agent/components/code-pause-card"
 import { ConfirmCard } from "@/pages/agent/components/confirm-card"
 import { HandbookProposals } from "@/pages/agent/components/handbook-proposal-card"
 import { HeldCalls } from "@/pages/agent/components/held-calls"
@@ -21,7 +22,7 @@ import { Message } from "@/pages/agent/components/message"
 import { BEFORE_ALL_TURNS, groupedTurns, liveTurn, placeAfterTurns, settledMessages } from "@/pages/agent/lib/group-turns"
 import { type AgentStream, type ChatTurn, TURN_KINDS } from "@/pages/agent/types"
 import type {
-  AgentChatAttachment, AgentChatConfirmation, AgentChatDataRepair, AgentChatHeldCall, AgentChatMemoryQuestion, AgentChatMessage, AgentChatMitigation,
+  AgentChatAttachment, AgentChatCodePause, AgentChatConfirmation, AgentChatDataRepair, AgentChatHeldCall, AgentChatMemoryQuestion, AgentChatMessage, AgentChatMitigation,
   AgentChatOwnerAsk, AgentChatPackRefusal, AgentChatPlan, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage, AgentChatWatch,
   AgentChatWatchUpdate, ChatCompaction, ChatModelSwitch, HandbookProposal,
 } from "@/types/serializers"
@@ -53,6 +54,7 @@ interface ThreadProps {
   watches: AgentChatWatch[]
   watchUpdates: AgentChatWatchUpdate[]
   pullRequestNotices: AgentChatPullRequestNotice[]
+  codePauses: AgentChatCodePause[]
   memoryQuestions: AgentChatMemoryQuestion[]
   plans: AgentChatPlan[]
   dataRepairs: AgentChatDataRepair[]
@@ -65,7 +67,7 @@ interface ThreadProps {
 
 export function Thread({
   conversationId, confirmations, messages: newestFirst, paged, hasOlder, compactions, modelSwitches, heldCalls, packRefusals, secretEntries, watches,
-  watchUpdates, pullRequestNotices, memoryQuestions, plans, dataRepairs, mitigations, ownerAsks, handbookProposals, waiting, stream,
+  watchUpdates, pullRequestNotices, codePauses, memoryQuestions, plans, dataRepairs, mitigations, ownerAsks, handbookProposals, waiting, stream,
 }: ThreadProps) {
   const foot = useRef<HTMLDivElement>(null)
   const scroller = useRef<HTMLDivElement>(null)
@@ -91,6 +93,15 @@ export function Thread({
   const said = useMemo(() => placeAfterTurns(turns, messages, watchUpdates), [ turns, messages, watchUpdates ])
   // A pull request Halon opened sits where Halon said it needs attention.
   const noticed = useMemo(() => placeAfterTurns(turns, messages, pullRequestNotices), [ turns, messages, pullRequestNotices ])
+  // A fix paused at its spending limit sits after the turn it paused in, so Continue is where the person reads. While an
+  // answer is drawn live, the last settled turn is the question it answers, so a fix that paused since goes after the
+  // live answer instead.
+  const placedPauses = useMemo(() => placeAfterTurns(turns, messages, codePauses), [ turns, messages, codePauses ])
+  const answering = live ? turns[turns.length - 1]?.id : undefined
+  const pausedLive = answering ? placedPauses.get(answering) : undefined
+  const paused = useMemo(() => withoutTurn(placedPauses, answering), [ placedPauses, answering ])
+  // A pause still waiting for Continue or Stop shows even while its place further up has not loaded, since the fix waits on it.
+  const pausedBeforeShown = hasOlder ? paused.get(BEFORE_ALL_TURNS)?.filter((pause) => pause.status === CODE_FIX_PAUSE_STATUSES.OFFERED) : undefined
   // A memory something contradicted sits after the turn that found it, while the person still has the context.
   const asked = useMemo(() => placeAfterTurns(turns, messages, memoryQuestions), [ turns, messages, memoryQuestions ])
   // A plan sits where it last moved, so a checklist that moves on stays where the person is reading.
@@ -141,7 +152,7 @@ export function Thread({
     foot.current?.scrollIntoView({ block: "end" })
   }, [
     conversationId, oldestShown, messages.length, waiting.length, stream.text, stream.steps.length, heldCalls.length, packRefusals.length, secretEntries.length, watchUpdates.length, pullRequestNotices.length,
-    memoryQuestions.length, plans.length, dataRepairs.length, mitigations.length, ownerAsks.length, handbookProposals.length,
+    codePauses.length, memoryQuestions.length, plans.length, dataRepairs.length, mitigations.length, ownerAsks.length, handbookProposals.length,
   ])
 
   // Whatever sits before the first message loaded is drawn once the start of the chat is loaded, where it belongs.
@@ -152,6 +163,7 @@ export function Thread({
       {conversationId && <SecretEntries conversationId={conversationId} entries={handed.get(BEFORE_ALL_TURNS)} />}
       {conversationId && <Watches conversationId={conversationId} watches={watched.get(BEFORE_ALL_TURNS)} updates={said.get(BEFORE_ALL_TURNS)} />}
       {conversationId && <PullRequestNotices conversationId={conversationId} notices={noticed.get(BEFORE_ALL_TURNS)} />}
+      <CodePauses pauses={paused.get(BEFORE_ALL_TURNS)} />
       <MemoryQuestions questions={asked.get(BEFORE_ALL_TURNS)} />
       {conversationId && <Plans conversationId={conversationId} plans={planned.get(BEFORE_ALL_TURNS)} />}
       {conversationId && (
@@ -168,6 +180,7 @@ export function Thread({
 
   const shown = (
     <>
+      <CodePauses pauses={pausedBeforeShown} />
       {opening}
       {turns.map((turn) => (
         <Fragment key={turn.id}>
@@ -177,6 +190,7 @@ export function Thread({
           {conversationId && <SecretEntries conversationId={conversationId} entries={handed.get(turn.id)} />}
           {conversationId && <Watches conversationId={conversationId} watches={watched.get(turn.id)} updates={said.get(turn.id)} />}
           {conversationId && <PullRequestNotices conversationId={conversationId} notices={noticed.get(turn.id)} />}
+          <CodePauses pauses={paused.get(turn.id)} />
           <MemoryQuestions questions={asked.get(turn.id)} />
           {conversationId && <Plans conversationId={conversationId} plans={planned.get(turn.id)} />}
           {conversationId && (
@@ -186,6 +200,7 @@ export function Thread({
         </Fragment>
       ))}
       {live && <Message turn={live} live onOpenImage={setOpenImageId} />}
+      <CodePauses pauses={pausedLive} />
       {stream.busy && stream.text.length === 0 && <LoadingState label="Working" />}
       {waiting.map((message) => (
         <WaitingMessage key={message.id} body={message.body} attachments={message.attachments} onOpenImage={setOpenImageId} />
@@ -237,6 +252,16 @@ function EarlierLoading() {
       Loading earlier messages
     </p>
   )
+}
+
+function withoutTurn<T>(placed: Map<string, T[]>, turnId: string | undefined): Map<string, T[]> {
+  if (!turnId) {
+    return placed
+  }
+
+  const kept = new Map(placed)
+  kept.delete(turnId)
+  return kept
 }
 
 function sentAttachments(turns: ChatTurn[], waiting: AgentChatWaitingMessage[]): AgentChatAttachment[] {

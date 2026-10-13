@@ -455,10 +455,10 @@ module Integrations
           @not_run_here = CodeReading.not_run(reading.prepare(repo, ref: ref, setup: @setup))
           @work.add("Got #{repo} ready at #{named} (#{ref.to_s[0, 12]})")
           report(@work)
-          # Opened once the copy is ready, so its lifetime is the agent's. A change continued after its spending limit gets
-          # another budget of the same size.
+          # Opened once the copy is ready, so its lifetime is the agent's. It gets the workspace's budget, and a change continued
+          # after its spending limit gets another budget of the size it paused with.
           session, agent_token = CodeAgentSession.open!(workspace: integration.workspace, choice: choice, repository: repo, request: request, box_key: box_key,
-                                                        budget_micros: @pause&.budget_micros || CodeAgentSession::DEFAULT_BUDGET_MICROS)
+                                                        budget_micros: @pause&.budget_micros)
           session.update_columns(integration_environment_id: environment_row.id, git_branch: branch)
           @session = session
           events = SandboxAgentEvents.new(@work, hidden: [ agent_token ])
@@ -627,8 +627,10 @@ module Integrations
 
         def paused_words(pause)
           saved = pause.saved_branch ? " Its work so far is saved on #{pause.saved_branch}, and no pull request was opened or changed." : ""
-          "The code change reached its spending limit before finishing, so it is paused.#{saved} The person was asked under the step " \
-            "whether to continue, with Continue and Stop. Tell them in a sentence and stop there, since it carries on only when they press Continue."
+          "The code change reached its spending limit before finishing, so it is paused.#{saved} The person was asked on a card in this chat " \
+            "whether to continue, with Continue and Stop. Tell them in a sentence and stop there, since it carries on only when they press Continue. " \
+            "Continue is also how its limit is raised. It gives the change another #{CodeAgentSession.dollars(pause.budget_micros)} and carries on " \
+            "from the work saved so far. A workspace admin sets the budget each new code fix starts with under Settings, Workspace."
         end
 
         # What a fresh agent is told when the box the change stopped in is gone: the request and the person's answers, what

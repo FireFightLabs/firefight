@@ -97,15 +97,22 @@ class CodeAgentPauseService
                               platform_user_id: by.platform_user_id)
   end
 
+  # The code host's tool that carries the change on, while it is switched on.
+  def self.continue_tool(pause)
+    pause.session.integration_environment&.integration&.tools&.find { |each| each.writes_code? && each.enabled? && each.available? }
+  end
+
+  def self.continue_arguments(pause) = pause.arguments.merge(CodeAgentSession::Pause::CONTINUE_ARG => pause.id)
+
   # The change carried on as the person who pressed Continue, through the tool a chat offers them. Answers what it said.
-  # When it failed before carrying the change on, Continue and Stop are offered again.
-  def self.run_continue!(turn, pause)
-    row = pause.session.integration_environment
-    tool = row&.integration&.tools&.find { |each| each.writes_code? && each.enabled? && each.available? }
+  # tool_call_id is the step the chat shows it under, so its progress is reported and kept there. When it failed before
+  # carrying the change on, Continue and Stop are offered again.
+  def self.run_continue!(turn, pause, tool_call_id: nil)
+    tool = continue_tool(pause)
     return "Continue did not run, since the code host's tool that writes code changes is no longer switched on." unless tool
 
-    arguments = pause.arguments.merge(CodeAgentSession::Pause::CONTINUE_ARG => pause.id)
-    Chat::Tools::Connection.new(turn, tool).run(arguments, environment_entry: row.environment, tool_call_id: nil, shown_as: tool.model_facing_name)
+    Chat::Tools::Connection.new(turn, tool).run(continue_arguments(pause), environment_entry: pause.session.integration_environment.environment,
+                                                                            tool_call_id: tool_call_id, shown_as: tool.model_facing_name)
   rescue StandardError => error
     Rails.logger.warn({ event: "code_pause.continue_failed", pause_id: pause.id, error: error.class.name }.to_json)
     offer_again!(pause)
@@ -116,7 +123,13 @@ class CodeAgentPauseService
     moved!(pause.reload) if pause.offer_again!
   end
 
-  # What Halon reads once the change carried on, before it tells the person how it went.
+  # What Halon reads before the step that carries the change on, whose answer it then tells the person.
+  def self.continuing_note(pause)
+    "The person pressed Continue on the code change in #{pause.repository} that paused at its spending limit, so it carries on in the call " \
+      "that follows. Tell them how it went in a few sentences."
+  end
+
+  # What Halon reads once the change carried on outside a step, before it tells the person how it went.
   def self.continued_note(pause, said)
     "The person pressed Continue on the code change in #{pause.repository} that paused at its spending limit, so it carried on. It answered:\n" \
       "#{FirefightAi::Evidence.frame('fix_code', said.to_s)}\nTell them how it went in a few sentences."

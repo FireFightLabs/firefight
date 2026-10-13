@@ -37,6 +37,8 @@ class AgentChatsController < InertiaController
   PROP_WATCH_UPDATES = "watchUpdates"
   # What Halon said about pull requests it opened from this chat that need attention, each with Fix it.
   PROP_PULL_REQUEST_NOTICES = "pullRequestNotices"
+  # Code changes from this chat that reached their spending limit, each with Continue and Stop until someone decides.
+  PROP_CODE_PAUSES = "codePauses"
   # Memories something contradicted in this chat, each asking the person which is right.
   PROP_MEMORY_QUESTIONS = "memoryQuestions"
   # The checks Halon handed to helpers in this chat, each drawn under the step that started it with the steps it took.
@@ -67,7 +69,7 @@ class AgentChatsController < InertiaController
     "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS, "SCREENSHOTS" => PROP_SCREENSHOTS, "WAITING_MESSAGES" => PROP_WAITING_MESSAGES,
     "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES, "COMPACTIONS" => PROP_COMPACTIONS, "MODEL_SWITCHES" => PROP_MODEL_SWITCHES, "HELD_CALLS" => PROP_HELD_CALLS,
     "PACK_REFUSALS" => PROP_PACK_REFUSALS, "SECRET_ENTRIES" => PROP_SECRET_ENTRIES, "SETUP_GUIDE" => PROP_SETUP_GUIDE, "WATCHES" => PROP_WATCHES, "WATCH_UPDATES" => PROP_WATCH_UPDATES,
-    "PULL_REQUEST_NOTICES" => PROP_PULL_REQUEST_NOTICES, "MEMORY_QUESTIONS" => PROP_MEMORY_QUESTIONS, "PLANS" => PROP_PLANS,
+    "PULL_REQUEST_NOTICES" => PROP_PULL_REQUEST_NOTICES, "CODE_PAUSES" => PROP_CODE_PAUSES, "MEMORY_QUESTIONS" => PROP_MEMORY_QUESTIONS, "PLANS" => PROP_PLANS,
     "DATA_REPAIRS" => PROP_DATA_REPAIRS, "MITIGATIONS" => PROP_MITIGATIONS, "OWNER_ASKS" => PROP_OWNER_ASKS, "HELPERS" => PROP_HELPERS,
     "HANDBOOK_PROPOSALS" => PROP_HANDBOOK_PROPOSALS, "CHAT_MODELS" => PROP_CHAT_MODELS, "THEORIES" => PROP_THEORIES, "THREAD_FOR" => PROP_THREAD_FOR
   }.freeze
@@ -76,7 +78,7 @@ class AgentChatsController < InertiaController
   # Read for the same stretch of the chat as its messages, so scrolling up to older messages reads these again with them.
   WINDOWED_PROPS = [
     PROP_INVESTIGATIONS, PROP_CHARTS, PROP_SCREENSHOTS, PROP_COMPACTIONS, PROP_MODEL_SWITCHES, PROP_HELD_CALLS, PROP_PACK_REFUSALS,
-    PROP_SECRET_ENTRIES, PROP_WATCHES, PROP_WATCH_UPDATES, PROP_PULL_REQUEST_NOTICES, PROP_MEMORY_QUESTIONS, PROP_PLANS, PROP_DATA_REPAIRS,
+    PROP_SECRET_ENTRIES, PROP_WATCHES, PROP_WATCH_UPDATES, PROP_PULL_REQUEST_NOTICES, PROP_CODE_PAUSES, PROP_MEMORY_QUESTIONS, PROP_PLANS, PROP_DATA_REPAIRS,
     PROP_MITIGATIONS, PROP_OWNER_ASKS, PROP_HELPERS, PROP_HANDBOOK_PROPOSALS, PROP_THEORIES
   ].freeze
   # The conversation itself, loaded in one request right after the page shows. Confirmations and waiting messages are
@@ -116,7 +118,7 @@ class AgentChatsController < InertiaController
       PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [], PROP_INVESTIGATIONS => [], PROP_OPEN_INVESTIGATION => nil,
       PROP_CHARTS => [], PROP_SCREENSHOTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => [],
       PROP_MODEL_SWITCHES => [], PROP_HELD_CALLS => [], PROP_PACK_REFUSALS => [], PROP_SECRET_ENTRIES => [], PROP_WATCHES => [], PROP_WATCH_UPDATES => [],
-      PROP_PULL_REQUEST_NOTICES => [], PROP_MEMORY_QUESTIONS => [], PROP_PLANS => [], PROP_DATA_REPAIRS => [], PROP_MITIGATIONS => [],
+      PROP_PULL_REQUEST_NOTICES => [], PROP_CODE_PAUSES => [], PROP_MEMORY_QUESTIONS => [], PROP_PLANS => [], PROP_DATA_REPAIRS => [], PROP_MITIGATIONS => [],
       PROP_OWNER_ASKS => [], PROP_HELPERS => [], PROP_HANDBOOK_PROPOSALS => [], PROP_CHAT_MODELS => chat_models(nil), PROP_THEORIES => [],
       PROP_THREAD_FOR => nil
     )
@@ -146,6 +148,7 @@ class AgentChatsController < InertiaController
       PROP_WATCHES => in_thread { AgentChatWatchSerializer.many(watches_shown, member: current_membership) },
       PROP_WATCH_UPDATES => in_thread { AgentChatWatchUpdateSerializer.many(watch_updates_shown) },
       PROP_PULL_REQUEST_NOTICES => in_thread { AgentChatPullRequestNoticeSerializer.many(pull_request_notices_shown, member: current_membership) },
+      PROP_CODE_PAUSES => in_thread { AgentChatCodePauseSerializer.many(code_pauses_shown, member: current_membership) },
       PROP_MEMORY_QUESTIONS => in_thread do
         AgentChatMemoryQuestionSerializer.many(window.placed(conversation.memory_posts.order(:created_at)), member: current_membership)
       end,
@@ -438,6 +441,13 @@ class AgentChatsController < InertiaController
 
   def pull_request_notices_shown
     window.placed(conversation.pull_request_notices.includes(:fix_by, session: :principal).order(:created_at))
+  end
+
+  # One still waiting for Continue or Stop is always read, like a confirmation, since the fix waits on it however far back
+  # it paused. A decided one sits where it paused, read for the stretch shown.
+  def code_pauses_shown
+    pauses = conversation.code_pauses
+    window.placed(pauses).or(pauses.where(status: CodeAgentSession::Pause::STATUS_OFFERED)).includes(:decided_by, session: :principal).order(:created_at)
   end
 
   def pack_refusals_shown

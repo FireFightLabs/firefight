@@ -122,7 +122,8 @@ class Mcp::Tools::UpdateWorkspaceSettingsTest < ActiveSupport::TestCase
     assert_equal({ transcript_access_enabled: true, transcript_retention_days: 14, archive_channel_delay: @workspace.archive_channel_delay,
                    web_search_enabled: true, halon_regression_enabled: false, memory_expiry_days: nil, code_fix_agent: nil, issue_tracker: nil,
                    issue_creation: Workspace::IssueSync::ISSUE_CREATION_NEVER, issue_tracker_target: {}, issue_webhook_secret_set: false,
-                   alert_investigations_enabled: false, alert_storm_ceiling_cents: 2_000, on_call_paging_enabled: false }, body[:settings])
+                   alert_investigations_enabled: false, alert_storm_ceiling_cents: 2_000, on_call_paging_enabled: false,
+                   code_fix_budget_cents: 200 }, body[:settings])
   end
 
   test "a secret given in a chat is ledgered as its digest, and a held call that gave one never runs from its approval" do
@@ -143,5 +144,15 @@ class Mcp::Tools::UpdateWorkspaceSettingsTest < ActiveSupport::TestCase
     said = tool.run_approved(action.key, Mcp::Tools::UpdateWorkspaceSettings.ledger_params(issue_webhook_secret: secret).stringify_keys, approval_id: SecureRandom.uuid)
     assert_match "never keeps issue_webhook_secret", said
     assert_equal secret, linear.integration_environments.sole.issue_webhook_secret
+  end
+
+  test "an admin sets what one code fix may spend, and a budget outside the range is refused with the range" do
+    Mcp::Tools::UpdateWorkspaceSettings.perform_with_principal(workspace: @workspace, principal: @admin, args: { code_fix_budget_cents: 1_250 })
+    assert_equal 1_250, @workspace.reload.code_fix_budget_cents
+
+    refused = Mcp::Tools::UpdateWorkspaceSettings.perform_with_principal(workspace: @workspace, principal: @admin, args: { code_fix_budget_cents: 20 })
+    assert refused.error?
+    assert_match "A code fix's budget must be between $0.50 and $50.", refused.content.first[:text]
+    assert_equal 1_250, @workspace.reload.code_fix_budget_cents
   end
 end

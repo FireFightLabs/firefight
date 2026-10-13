@@ -80,7 +80,7 @@ class Conversation::Runner
       # Pressed while this turn waited behind the last one.
       return setup_step(STEP_STOPPED) { stopped!(chat) } if setup_step(STEP_STOP_REQUESTED) { chat.stop_requested? }
 
-      setup_step(STEP_THINKING) { delivery.thinking! }
+      setup_step(STEP_THINKING) { thinking! }
       purse = setup_step(STEP_LISTENERS) do
         @turn.listen_to_progress { |key, update| report_progress(key, update) }
         chat.on_making_room { |compaction| delivery.made_room(compaction) }
@@ -317,8 +317,35 @@ class Conversation::Runner
     chat.nudge!(PullRequestFollowing.fixed_note(@pull_request_fix, said)) if room_for_a_note?(chat)
   end
 
-  # The person pressed Continue, so the paused change carries on before Halon answers, and Halon reads what it said.
+  # The person pressed Continue, so the paused change carries on before Halon answers, and Halon reads what it said. It
+  # runs as a step of this turn, saved before it starts, so the page shows it working with the change's progress from
+  # the first moment and again after a reload. A chat waiting on a call takes nothing between the call and its result,
+  # so there the change carries on outside a step.
   def run_code_pause(chat)
+    tool = CodeAgentPauseService.continue_tool(@code_pause)
+    return run_code_pause_outside_a_step(chat) unless tool && room_for_a_note?(chat)
+
+    thinking!
+    @turn.listen_to_progress { |key, update| report_progress(key, update) }
+    chat.nudge!(CodeAgentPauseService.continuing_note(@code_pause))
+    arguments = CodeAgentPauseService.continue_arguments(@code_pause)
+    call = chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+               .ruby_llm_tool_calls.create!(tool_call_id: "call_#{SecureRandom.hex(12)}", name: tool.model_facing_name, arguments: arguments)
+    report_step(FirefightAi::AgentLoop::Step.new(key: call.tool_call_id, tool: call.name, status: FirefightAi::AgentLoop::STEP_RUNNING, arguments: arguments))
+    said = CodeAgentPauseService.run_continue!(@turn, @code_pause, tool_call_id: call.tool_call_id)
+    chat.add_message(role: Chat::Message::ROLE_TOOL, content: said, tool_call_id: call.tool_call_id)
+    report_step(FirefightAi::AgentLoop::Step.new(key: call.tool_call_id, tool: nil, status: FirefightAi::AgentLoop::STEP_DONE))
+  end
+
+  # A turn that carried a paused change on started its answer already, which a chat platform shows once.
+  def thinking!
+    return if @thinking
+
+    @thinking = true
+    delivery.thinking!
+  end
+
+  def run_code_pause_outside_a_step(chat)
     said = CodeAgentPauseService.run_continue!(@turn, @code_pause)
     chat.nudge!(CodeAgentPauseService.continued_note(@code_pause, said)) if room_for_a_note?(chat)
   end

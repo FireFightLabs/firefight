@@ -439,6 +439,30 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_nil pause.reload.conversation_id
   end
 
+  test "a code fix paused at its spending limit is a card in its chat, with what it spent, what Continue gives it and who may decide" do
+    conversation = start_chat
+    request = CodeAgent::Request.new(principal: @member, source: AbilityGateway::SOURCE_CONVERSATION, place: conversation, tool_call_id: "call_1")
+    session, = CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"),
+                                      repository: "acme/api", request: request)
+    session.update_columns(spent_micros: 2_034_000)
+    pause = CodeAgentSession::Pause.create!(
+      session: session, workspace: @workspace, conversation: conversation, arguments: { "repo" => "acme/api" }, repository: "acme/api",
+      base: "main", saved_branch: "halon/fix-1a2b", copy_ref: "c" * 40, budget_micros: 2_000_000, resumable_until: 15.minutes.from_now
+    )
+
+    get agent_chat_url(conversation), headers: chat_page_headers
+
+    card = inertia_props.fetch("codePauses").sole
+    assert_equal [ pause.id, CodeAgentSession::Pause::STATUS_OFFERED, "acme/api", "halon/fix-1a2b", "$2.03", "$2", nil ],
+                 card.values_at("id", "status", "repository", "savedBranch", "spent", "nextBudget", "decideBlockedReason")
+    assert_equal CodeAgentSession::Pause::QUESTION, card["question"]
+
+    pause.decide!(@member, to: CodeAgentSession::Pause::STATUS_CONTINUING)
+    get agent_chat_url(conversation), headers: chat_page_headers
+    decided = inertia_props.fetch("codePauses").sole
+    assert_equal [ CodeAgentSession::Pause::STATUS_CONTINUING, @member.display_name, nil ], decided.values_at("status", "decidedBy", "decideBlockedReason")
+  end
+
   test "deleting another chat from the list keeps the open one open" do
     open_chat = start_chat
     other = Conversation.start_personal!(workspace: @workspace, member: @member)

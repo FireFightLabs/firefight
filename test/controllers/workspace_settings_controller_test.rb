@@ -202,4 +202,33 @@ class WorkspaceSettingsControllerTest < ActionDispatch::IntegrationTest
     assert props.dig("settings", "issueWebhookSecretSet")
     assert_not response.body.include?("whsec")
   end
+
+  test "an admin sets what one code fix may spend, is told the new budget, and the screen shows it" do
+    get settings_workspace_path, headers: inertia_headers
+    assert_equal 200, inertia_props.dig("settings", "codeFixBudgetCents")
+
+    patch settings_workspace_path, params: { code_fix_budget_cents: 550 }
+
+    assert_redirected_to settings_workspace_path
+    assert_equal 550, @workspace.reload.code_fix_budget_cents
+    assert_equal "Code fix budget was set to $5.50.", flash[:notice]
+  end
+
+  test "saving the screen without changing the budget says only that the settings were updated" do
+    patch settings_workspace_path, params: { code_fix_budget_cents: 200, web_search_enabled: false }
+
+    assert_equal "Workspace settings were updated.", flash[:notice]
+
+    patch settings_workspace_path, params: { code_fix_budget_cents: 1_000, web_search_enabled: true }
+
+    assert_equal "Workspace settings were updated. Code fix budget was set to $10.", flash[:notice]
+  end
+
+  test "a budget outside the range is refused with the range, and nothing is saved" do
+    patch settings_workspace_path, params: { code_fix_budget_cents: 10_000 }
+
+    assert_equal 200, @workspace.reload.code_fix_budget_cents
+    assert_equal [ "A code fix's budget must be between $0.50 and $50." ],
+                 session[:inertia_errors].deep_stringify_keys["code_fix_budget_cents"]
+  end
 end

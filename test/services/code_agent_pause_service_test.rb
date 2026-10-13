@@ -97,6 +97,40 @@ class CodeAgentPauseServiceTest < ActionDispatch::IntegrationTest
     assert_match "The person pressed Continue on the code change in acme/api", CodeAgentPauseService.continued_note(@pause, said)
   end
 
+  test "a turn started by Continue carries the change on as a step of its own, saved and shown working before it runs, with its progress" do
+    @pause.session.update_columns(integration_environment_id: integration_row.id)
+    conversation = Conversation.start_personal!(workspace: @workspace, member: @bob)
+    @pause.update_columns(status: CodeAgentSession::Pause::STATUS_CONTINUING, conversation_id: conversation.id)
+    @pause.session.update_columns(place_id: conversation.id)
+    chat = conversation.chat_record
+    runner = Conversation::Runner.new(conversation, asker: @bob, code_pause: @pause.reload)
+    told = []
+    ConversationChannel.stubs(:broadcast_to).with { |_conversation, event| told << event }
+    work = Chat::CodeFixProgress.start
+    work.add("Carrying on from halon/fix-1a2b")
+    seen_before = nil
+    Chat::Tools::Connection.any_instance.expects(:run).with do |arguments, tool_call_id:, **|
+      call = chat.tool_calls.find_by(tool_call_id: tool_call_id)
+      seen_before = [ call&.name, call&.arguments, call&.result_id, told.map { |event| event[:type] } ]
+      runner.instance_variable_get(:@turn).progress_listener(tool_call_id).call(work)
+      arguments[CodeAgentSession::Pause::CONTINUE_ARG] == @pause.id
+    end.returns("Opened https://github.com/acme/api/pull/9.")
+
+    runner.send(:run_code_pause, chat)
+
+    call = chat.tool_calls.sole
+    assert_equal [ "github_fix_code", CodeAgentPauseService.continue_arguments(@pause), nil ], seen_before.first(3), "the step is saved before the change runs"
+    assert_equal [ Conversation::LiveDelivery::EVENT_THINKING, Conversation::LiveDelivery::EVENT_STEP ], seen_before.last.uniq.first(2),
+                 "the page is told the turn started and shown the step before the change runs"
+    assert_equal "Opened https://github.com/acme/api/pull/9.", call.reload.result.content
+    assert_equal [ "Carrying on from halon/fix-1a2b" ], chat.step_progresses.find_by!(tool_call_id: call.tool_call_id).work.lines.map(&:text),
+                 "its progress is kept under the step, so a reload shows it"
+    assert told.any? { |event| event[:type] == Conversation::LiveDelivery::EVENT_STEP && event[:key] == call.tool_call_id && event[:progress].present? }
+    assert_match "The person pressed Continue on the code change in acme/api", chat.messages.where(nudge: true).order(:created_at).last.content
+    assert_equal [ Chat::Message::ROLE_USER, Chat::Message::ROLE_ASSISTANT, Chat::Message::ROLE_TOOL ],
+                 chat.messages.order(:created_at).last(3).map(&:role), "the note comes before the call, never between the call and its answer"
+  end
+
   test "a fix's pause with no thread is asked in a direct message, and Continue there carries the change on under that message" do
     pause = step_pause
     pause.session.place.plan.finding.investigation.update_columns(thread_id: nil)

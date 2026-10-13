@@ -37,3 +37,8 @@ en:
             watch:
               # Each watch error is a whole sentence that names the watch, or the item in it, itself.
               format: "%{message}"
+        workspace:
+          attributes:
+            code_fix_budget_cents:
+              # The range is a whole sentence, so it reads the same on the page and over MCP.
+              format: "%{message}"

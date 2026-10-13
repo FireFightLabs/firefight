@@ -8,11 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { dollars, dollarsField, fieldCents } from "@/lib/formatters"
 import { STORM_CEILING_CENTS } from "@/lib/generated/constants"
 import { useCan } from "@/lib/permissions"
 import { halonOnCallPath } from "@/lib/routes"
 import { PagingTools } from "@/pages/halon/components/on-call/paging-tools"
-import { dollars } from "@/pages/halon/components/on-call/unattended-rule-form"
 import { UnattendedRulesEditor } from "@/pages/halon/components/on-call/unattended-rules-editor"
 import type { OnCallSettings, PagingTool, UnattendedRule, UnattendedRuleResource } from "@/types/serializers"
 import type { SharedProps } from "@/types"
@@ -25,21 +25,12 @@ interface OnCallPageProps extends SharedProps {
   pagingTools: PagingTool[]
 }
 
-function ceilingText(cents: number): string {
-  return String(cents / 100)
-}
-
-function ceilingCents(text: string): number | string {
-  const amount = Number(text)
-  return text.trim() === "" || Number.isNaN(amount) ? text : Math.round(amount * 100)
-}
-
 export default function OnCall() {
   const { settings, rules, resources, investigator, pagingTools } = usePage<OnCallPageProps>().props
   const canManageSettings = useCan("workspace")
   const canManageRules = useCan("permissions")
   const [alertRuns, setAlertRuns] = useState(settings.alertInvestigationsEnabled)
-  const [ceiling, setCeiling] = useState(ceilingText(settings.alertStormCeilingCents))
+  const [ceiling, setCeiling] = useState(dollarsField(settings.alertStormCeilingCents))
   const [paging, setPaging] = useState(settings.onCallPagingEnabled)
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<Errors>({})
@@ -62,7 +53,7 @@ export default function OnCall() {
       halonOnCallPath(),
       {
         alert_investigations_enabled: alertRuns,
-        alert_storm_ceiling_cents: ceilingCents(ceiling),
+        alert_storm_ceiling_cents: fieldCents(ceiling),
         on_call_paging_enabled: paging,
       },
       { preserveScroll: true, onSuccess: succeed, onError: setErrors, onFinish: finish },

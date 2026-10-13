@@ -70,3 +70,20 @@ export function minutesInWords(minutes: number): string {
 export function percent(part: number, whole: number): string {
   return whole > 0 ? `${Math.round((part / whole) * 100)}%` : "-"
 }
+
+// "$2", or "$2.50" when there are cents.
+export function dollars(cents: number): string {
+  const amount = cents / 100
+  return Number.isInteger(amount) ? `$${amount}` : `$${amount.toFixed(2)}`
+}
+
+// An amount kept in cents, as a dollar field shows it.
+export function dollarsField(cents: number): string {
+  return String(cents / 100)
+}
+
+// What a dollar field holds, in cents. Text that is no number is sent as typed, so the server's sentence says why.
+export function fieldCents(text: string): number | string {
+  const amount = Number(text)
+  return text.trim() === "" || Number.isNaN(amount) ? text : Math.round(amount * 100)
+}

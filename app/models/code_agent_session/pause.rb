@@ -20,7 +20,7 @@ class CodeAgentSession::Pause < ApplicationRecord
 
   belongs_to :session, class_name: "CodeAgentSession", inverse_of: :pauses
   belongs_to :workspace
-  belongs_to :conversation, optional: true
+  belongs_to :conversation, optional: true, inverse_of: :code_pauses
   belongs_to :decided_by, class_name: "WorkspaceMembership", optional: true
 
   # What the change was asked with can quote evidence, so it is kept like a chat's messages.

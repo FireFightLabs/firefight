@@ -643,6 +643,12 @@ export const STORM_CEILING_CENTS = {
   "MAX": 100000
 } as const
 
+export const CODE_FIX_BUDGET_CENTS = {
+  "DEFAULT": 200,
+  "MIN": 50,
+  "MAX": 5000
+} as const
+
 export const CONDITION_FIELD_LABELS = {
   "incident_type": "Incident Type",
   "severity": "Severity",
@@ -1080,6 +1086,7 @@ export const AGENT_CHAT_PROPS = {
   "WATCHES": "watches",
   "WATCH_UPDATES": "watchUpdates",
   "PULL_REQUEST_NOTICES": "pullRequestNotices",
+  "CODE_PAUSES": "codePauses",
   "MEMORY_QUESTIONS": "memoryQuestions",
   "PLANS": "plans",
   "DATA_REPAIRS": "dataRepairs",
@@ -1116,6 +1123,7 @@ export const AGENT_CHAT_THREAD_PROPS = [
   "watches",
   "watchUpdates",
   "pullRequestNotices",
+  "codePauses",
   "memoryQuestions",
   "plans",
   "dataRepairs",
@@ -1138,6 +1146,7 @@ export const AGENT_CHAT_WINDOWED_PROPS = [
   "watches",
   "watchUpdates",
   "pullRequestNotices",
+  "codePauses",
   "memoryQuestions",
   "plans",
   "dataRepairs",
