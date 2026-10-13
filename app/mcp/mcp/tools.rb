@@ -117,6 +117,10 @@ module Mcp
     CREATE_WORKFLOW = "create_workflow".freeze
     RUN_WORKFLOW = "run_workflow".freeze
     UPDATE_WORKFLOW_SETTINGS = "update_workflow_settings".freeze
+    LIST_SKILLS = "list_skills".freeze
+    GET_SKILL = "get_skill".freeze
+    UPSERT_SKILL = "upsert_skill".freeze
+    DELETE_SKILL = "delete_skill".freeze
 
     # Each tool listed with this workspace's own choices in its parameters. Calls still go to the class.
     def self.for_workspace(workspace)
@@ -152,7 +156,8 @@ module Mcp
         GetIncidentTranscript, UpsertCatalogType, DeleteCatalogType,
         StartInvestigation, GetInvestigation, GetHalonPerformance, AskHalon, GetHalonAnswer, ListWatches, StopWatch, ListNotices,
         ListHandbookPages, GetHandbookPage, UpsertHandbookPage, DeleteHandbookPage,
-        ListWorkflows, CreateWorkflow, RunWorkflow, UpdateWorkflowSettings ]
+        ListWorkflows, CreateWorkflow, RunWorkflow, UpdateWorkflowSettings,
+        ListSkills, GetSkill, UpsertSkill, DeleteSkill ]
     end
   end
 end

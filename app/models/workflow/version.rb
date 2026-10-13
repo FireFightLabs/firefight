@@ -7,6 +7,7 @@ class Workflow::Version < ApplicationRecord
   include Workflow::Version::Publishing
   include Workflow::Version::Drafting
   include Workflow::Version::Steps
+  include Workflow::PrivateInputs
   include Workflow::Version::History
   include Workflow::Version::Pins
   include Workflow::Version::Trying
@@ -31,6 +32,7 @@ class Workflow::Version < ApplicationRecord
   validates :number, presence: true, uniqueness: { scope: :workflow_id }
   validates :status, inclusion: { in: STATUSES }
   validates :author_kind, inclusion: { in: Workflow::AUTHOR_KINDS }
+  before_validation :seal_private_inputs
   validate :content_well_formed
   validate :published_content_unchanged, on: :update
 
@@ -108,6 +110,18 @@ class Workflow::Version < ApplicationRecord
   end
 
   private
+
+  # A private input's value never stays in the trigger, whoever wrote it there. It is kept with this version, so it is
+  # saved only when the version is, and an input no longer marked private keeps no value.
+  def seal_private_inputs
+    return unless trigger.is_a?(Hash)
+
+    stripped, values = Workflow::Trigger.sealed(trigger)
+    return if values.empty? && !trigger_changed?
+
+    self.trigger = stripped
+    assign_attributes(private_inputs_column_for(stripped, values))
+  end
 
   def content_well_formed
     problem = self.class.content_problem(snapshot)

@@ -5,7 +5,8 @@
 module Workflow::Editing
   extend ActiveSupport::Concern
 
-  # The open draft, or a new one made from the given version, the live one by default, or empty.
+  # The open draft, or a new one made from the given version, the live one by default, or empty. It starts with that
+  # version's private values too.
   def open_draft!(by:, halon: false, reason: nil, from: live_version)
     attempts = 0
     begin
@@ -14,7 +15,8 @@ module Workflow::Editing
           number: (versions.maximum(:number) || 0) + 1, status: Workflow::Version::STATUS_DRAFT,
           trigger: from&.trigger || Workflow::Trigger.default, steps: from&.steps || [], edges: from&.edges || [], outputs: from&.outputs || {},
           pins: from&.pins || {},
-          author_kind: halon ? Workflow::AUTHOR_HALON : Workflow::AUTHOR_PERSON, author: by, reason: reason, parent_version: from
+          author_kind: halon ? Workflow::AUTHOR_HALON : Workflow::AUTHOR_PERSON, author: by, reason: reason, parent_version: from,
+          private_inputs: from&.private_inputs
         )
       end
     rescue ActiveRecord::RecordNotUnique
@@ -27,6 +29,7 @@ module Workflow::Editing
   # Applies one operation, or proposes it when Halon may not apply it here. Returns the edit. base_revision is the
   # draft revision the editor saw, so a change made since to the same step refuses the edit with who made it.
   def edit!(operation:, payload:, by:, halon: false, reason: nil, base_revision: nil, change_set_id: nil, source_run: nil, source_chat: nil)
+    payload, private_values = sealed_payload(operation, payload)
     prepared = Workflow::Edit::Operations.prepared(operation, payload)
     attributes = { author_kind: halon ? Workflow::AUTHOR_HALON : Workflow::AUTHOR_PERSON, author: by, reason: reason,
                    source_run: source_run, source_chat: source_chat, operation: operation,
@@ -34,7 +37,7 @@ module Workflow::Editing
     return propose!(attributes, change_set_id) if halon && !halon_applies_directly?
     return rename_workflow!(attributes) if Workflow::Edit.workflow_rename?(operation, payload)
 
-    open_draft!(by: by, halon: halon, reason: reason).apply_edit!(attributes.merge(change_set_id: change_set_id), base_revision: base_revision)
+    open_draft!(by: by, halon: halon, reason: reason).apply_edit!(attributes.merge(change_set_id: change_set_id), base_revision: base_revision, private_values: private_values)
   end
 
   # Takes Halon's changes back out of the open draft, or of the live version into a new draft, keeping everything people
@@ -116,6 +119,17 @@ module Workflow::Editing
   end
 
   private
+
+  # A new trigger's private values are taken out before the edit is recorded, so the edit never holds them, and go to
+  # the draft with the edit. A proposal drops them, since a value only goes in when a person or Halon building alone puts
+  # it there.
+  def sealed_payload(operation, payload)
+    payload = payload.to_h.deep_stringify_keys
+    return [ payload, {} ] unless operation == Workflow::Edit::OPERATION_CHANGE_TRIGGER && payload["trigger"].is_a?(Hash)
+
+    stripped, values = Workflow::Trigger.sealed(payload["trigger"])
+    [ payload.merge("trigger" => stripped), values ]
+  end
 
   def decide_all(chosen, &decide)
     list = chosen.reorder(:created_at).to_a

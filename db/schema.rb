@@ -466,6 +466,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
     t.datetime "told_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "channel_id"
+    t.string "thread_id"
+    t.string "message_id"
     t.index ["author_id"], name: "index_chat_custom_skill_versions_on_author_id"
     t.index ["conversation_id"], name: "index_chat_custom_skill_versions_on_conversation_id"
     t.index ["custom_skill_id", "number"], name: "index_chat_custom_skill_versions_on_custom_skill_id_and_number", unique: true
@@ -488,6 +491,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
     t.uuid "created_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "enabled", default: true, null: false
     t.index ["created_by_id"], name: "index_chat_custom_skills_on_created_by_id"
     t.index ["live_version_id"], name: "index_chat_custom_skills_on_live_version_id"
     t.index ["workspace_id", "name"], name: "index_chat_custom_skills_on_workspace_id_and_name", unique: true
@@ -3259,6 +3263,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
     t.jsonb "stand_ins", default: {}, null: false
     t.uuid "rerun_of_id"
     t.string "rerun_from_step_key"
+    t.text "private_inputs"
     t.string "telling_job_id"
     t.index ["agent_id"], name: "index_workflow_runs_on_agent_id"
     t.index ["parent_run_id"], name: "index_workflow_runs_on_parent_run_id"
@@ -3291,6 +3296,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.jsonb "pins", default: {}, null: false
+    t.text "private_inputs"
     t.index ["author_id"], name: "index_workflow_versions_on_author_id"
     t.index ["parent_version_id"], name: "index_workflow_versions_on_parent_version_id"
     t.index ["published_by_id"], name: "index_workflow_versions_on_published_by_id"

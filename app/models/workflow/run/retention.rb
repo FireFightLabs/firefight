@@ -26,7 +26,7 @@ module Workflow::Run::Retention
   def prune_details!
     transaction do
       claimed = self.class.where(id: id, status: Workflow::Run::FINISHED, pinned: false, details_pruned_at: nil)
-                          .update_all(details_pruned_at: Time.current, inputs: {}, outputs: nil, trigger_payload: {}, updated_at: Time.current) == 1
+                          .update_all(details_pruned_at: Time.current, inputs: {}, private_inputs: nil, outputs: nil, trigger_payload: {}, updated_at: Time.current) == 1
       raise ActiveRecord::Rollback unless claimed
 
       Chat.where(owner_type: Workflow::Run::Step.name, owner_id: Workflow::Run::Step.where(run_id: id).select(:id)).destroy_all

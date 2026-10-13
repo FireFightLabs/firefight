@@ -10,6 +10,7 @@ trigger:
   inputs:
   - key: notes
     question: What should Halon look at, and what counts as a problem?
+    private: true
 steps:
 - id: step_check
   name: check

@@ -17,7 +17,7 @@ class WorkflowHalonStepJob < ApplicationJob
     return unless run
 
     record = Workflow::Run::Step.find_by(id: record_id)
-    answer = answer_for(Workflow::HalonStep.new(run, record), kind, config.to_h)
+    answer = answer_for(Workflow::HalonStep.new(run, record), kind, run.unsealed(config.to_h))
     DefinedWorkflow.deliver!(engine_step_id, key, answer)
   rescue FirefightAi::TerminalError => error
     deliver_failure(error.is_a?(FirefightAi::OutOfCredit) ? error.message : "Halon could not answer, #{error.reason || error.message}.")

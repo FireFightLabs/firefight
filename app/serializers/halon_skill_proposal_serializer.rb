@@ -47,15 +47,7 @@ class HalonSkillProposalSerializer < BaseSerializer
 
   # How it was settled, or nil while it waits.
   type :string, optional: true
-  def decided
-    who = proposal.decided_by&.display_name || "someone"
-    case proposal.status
-    when Chat::CustomSkill::Version::STATUS_PROPOSED then nil
-    when Chat::CustomSkill::Version::STATUS_DISMISSED then "Dismissed by #{who}."
-    when Chat::CustomSkill::Version::STATUS_EDITED then "Accepted with an edit by #{who}."
-    else "Accepted by #{who}."
-    end
-  end
+  def decided = proposal.decided_sentence
 
   type :string, optional: true
   def accept_blocked_reason = proposal.custom_skill.accept_blocked_reason(proposal)

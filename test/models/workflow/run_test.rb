@@ -89,7 +89,7 @@ class Workflow::RunTest < ActiveSupport::TestCase
   test "drops a run's details past the workspace's retention and keeps its one line" do
     @workspace.update!(workflow_run_retention_days: 30)
     @run.update!(status: Workflow::Run::STATUS_SUCCEEDED, finished_at: 31.days.ago, inputs: { "region" => "eu" }, outputs: { "ok" => true },
-                 trigger_payload: { "by" => "hand" }, agent: nil)
+                 trigger_payload: { "by" => "hand" }, private_inputs: { "notes" => "Leave the replica alone." }.to_json, agent: nil)
     @run.record_step!(step_key: "pause", iteration: "", name: "pause", kind: "delay", status: "succeeded", attempts: 1, input: { "seconds" => 1 })
     @run.saved_results.keep!(tool_name: "pause", text: "kept whole")
 
@@ -105,6 +105,7 @@ class Workflow::RunTest < ActiveSupport::TestCase
     assert_empty @run.saved_results
     assert_equal({}, @run.inputs)
     assert_nil @run.outputs
+    assert_equal({}, @run.private_input_values)
     assert_equal Workflow::Run::STATUS_SUCCEEDED, @run.status
     assert_equal @workflow.live_version, @run.version
     assert_equal Workflow::Trigger::KIND_MANUAL, @run.trigger_kind

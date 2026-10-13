@@ -93,8 +93,10 @@ module Workflow::FromLibrary
 
     transaction do
       opened = open_draft!(by: by, reason: "Took Firefight's version #{item.version}.")
+      trigger, sealed = Workflow::Trigger.sealed(Workflow::Trigger.with_private_marks(opened.trigger, from: item.trigger))
       moved = Workflow::Version.where(id: opened.id, status: Workflow::Version::STATUS_DRAFT, revision: opened.revision)
-                               .update_all(**self.class.body_of(item.definition).symbolize_keys, revision: opened.revision + 1, updated_at: Time.current)
+                               .update_all(**self.class.body_of(item.definition).symbolize_keys, trigger: trigger, **opened.private_inputs_column_with(sealed),
+                                           revision: opened.revision + 1, updated_at: Time.current)
       raise Workflow::Edit::Refused, "Someone changed the draft since you looked, so look again." unless moved == 1
 
       update!(library_version: item.version, library_base: item.definition, library_dismissed_version: nil)
@@ -119,10 +121,11 @@ module Workflow::FromLibrary
     missing_reach(Workflow::Version.new(workflow: self, trigger: library_trigger(item), **self.class.body_of(item.definition).symbolize_keys)).any?
   end
 
-  # The workspace's own trigger while it is the same kind as the item's, else the item's.
+  # The workspace's own trigger while it is the same kind as the item's, else the item's. An input the item keeps private
+  # is kept private in the workspace's own trigger too.
   def library_trigger(item)
     before = live_version
-    before.trigger.to_h["kind"] == item.trigger.to_h["kind"] ? before.trigger : item.trigger
+    before.trigger.to_h["kind"] == item.trigger.to_h["kind"] ? Workflow::Trigger.with_private_marks(before.trigger, from: item.trigger) : item.trigger
   end
 
   def publish_library_body!(item)
@@ -131,18 +134,24 @@ module Workflow::FromLibrary
     Workflow::Version.where(workflow_id: id, status: Workflow::Version::STATUS_LIVE).update_all(status: Workflow::Version::STATUS_RETIRED, updated_at: Time.current)
     upgraded = versions.create!(
       number: (versions.maximum(:number) || 0) + 1, status: Workflow::Version::STATUS_LIVE, trigger: trigger, **self.class.body_of(item.definition).symbolize_keys,
-      author_kind: Workflow::AUTHOR_FIREFIGHT, reason: "Firefight's library, version #{item.version}.", parent_version: before, published_at: Time.current
+      author_kind: Workflow::AUTHOR_FIREFIGHT, reason: "Firefight's library, version #{item.version}.", parent_version: before, published_at: Time.current,
+      private_inputs: before.private_inputs
     )
     self.class.where(id: id).update_all(live_version_id: upgraded.id, updated_at: Time.current)
   end
 
   # A draft whose steps are still the library's, such as one where a person changed only the schedule, takes the new
   # steps too, so publishing it never takes the workflow back a version. library_base still holds the version it left.
+  # Any draft keeps an input the item keeps private private too.
   def move_draft_body!(item)
     open = draft
-    return unless open && self.class.body_of(open.snapshot) == self.class.body_of(library_base)
+    return unless open
+
+    body = self.class.body_of(open.snapshot) == self.class.body_of(library_base) ? self.class.body_of(item.definition) : {}
+    trigger, sealed = Workflow::Trigger.sealed(Workflow::Trigger.with_private_marks(open.trigger, from: item.trigger))
+    return if body.empty? && trigger == open.trigger
 
     Workflow::Version.where(id: open.id, status: Workflow::Version::STATUS_DRAFT, revision: open.revision)
-                     .update_all(**self.class.body_of(item.definition).symbolize_keys, revision: open.revision + 1, updated_at: Time.current)
+                     .update_all(**body.symbolize_keys, trigger: trigger, **open.private_inputs_column_with(sealed), revision: open.revision + 1, updated_at: Time.current)
   end
 end

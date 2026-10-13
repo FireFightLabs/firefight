@@ -11,6 +11,8 @@ module Workflow::Version::References
   ROOT_ITEM = DefinedWorkflow::SCOPE_ITEM
   ROOT_INDEX = DefinedWorkflow::SCOPE_INDEX
   LOOP_ROOTS = [ ROOT_ITEM, ROOT_INDEX ].freeze
+  # The steps a private input may reach, since only their words are kept encrypted (Chat::Message).
+  HALON_KINDS = [ DefinedWorkflow::Steps::AskHalon.kind, DefinedWorkflow::Steps::RunSkill.kind ].freeze
 
   class_methods do
     # The value with each reference put in its place from the run's scope. A reference that is the whole value keeps
@@ -69,7 +71,10 @@ module Workflow::Version::References
     root, name = path.split(".")
     label = "#{step['name'].presence || 'A step'} uses {{#{path}}}"
     case root
-    when ROOT_INPUTS then "#{label}, which is not one of the trigger's inputs." unless Workflow::Trigger.input_keys(trigger).include?(name)
+    when ROOT_INPUTS
+      return "#{label}, which is not one of the trigger's inputs." unless Workflow::Trigger.input_keys(trigger).include?(name)
+
+      "#{label}, which is private, so only a Halon step may read it." if Workflow::Trigger.private?(trigger, name) && !HALON_KINDS.include?(step["kind"])
     when ROOT_TRIGGER then nil
     when ROOT_STEPS then "#{label}, which is not a step that runs before it." unless upstream.include?(name)
     when *LOOP_ROOTS then "#{label}, which only a step inside a for each can read." unless in_loop
@@ -81,7 +86,10 @@ module Workflow::Version::References
     root, name = path.split(".")
     case root
     when ROOT_STEPS then "The outputs use {{#{path}}}, which is not a step in the workflow." unless names.include?(name)
-    when ROOT_INPUTS then "The outputs use {{#{path}}}, which is not one of the trigger's inputs." unless Workflow::Trigger.input_keys(trigger).include?(name)
+    when ROOT_INPUTS
+      return "The outputs use {{#{path}}}, which is not one of the trigger's inputs." unless Workflow::Trigger.input_keys(trigger).include?(name)
+
+      "The outputs use {{#{path}}}, which is private, so it is never handed back." if Workflow::Trigger.private?(trigger, name)
     when ROOT_TRIGGER then nil
     else "The outputs use {{#{path}}}, which is not something a workflow can hand back."
     end

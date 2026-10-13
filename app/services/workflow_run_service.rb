@@ -18,10 +18,11 @@ class WorkflowRunService
              up_to: nil, stand_ins: {}, snapshot: nil, rerun_of: nil, rerun_from_step_key: nil)
     version = test ? tested_version(up_to) : live_version
     content = snapshot || (up_to.present? ? version.snapshot_up_to(up_to) : nil)
-    resolved = Workflow::Trigger.resolve_inputs(version.trigger, inputs)
+    resolved = Workflow::Trigger.resolve_inputs(version.trigger, inputs, private_values: version.private_input_values)
+    plain, kept = Workflow::Trigger.split_private(version.trigger, resolved.values)
     refuse!("#{@workflow.name} needs a value for #{resolved.missing.map { |input| input['key'] }.to_sentence}.") if resolved.missing.any?
     payload = Workflow::Run.redacted(trigger_payload.to_h)
-    subject = @workflow.subject_for(inputs: resolved.values, trigger_payload: payload)
+    subject = @workflow.subject_for(inputs: plain, trigger_payload: payload)
     standing = test ? earlier_results(version, content, up_to).merge(version.pinned_stand_ins(content || version.snapshot)).merge(stand_ins) : stand_ins
 
     run = Workflow.transaction do
@@ -30,8 +31,8 @@ class WorkflowRunService
 
       open_run(
         start_key, version: version, status: Workflow::Run::STATUS_QUEUED, trigger_kind: trigger_kind, trigger_payload: payload,
-                   inputs: Workflow::Run.redacted(resolved.values), agent: @workflow.agent, started_by_kind: started_by_kind, started_by: started_by,
-                   parent_run: parent_run, parent_step_key: parent_step&.name, test: test,
+                   inputs: Workflow::Run.redacted(plain), private_inputs: (kept.to_json if kept.any?), agent: @workflow.agent,
+                   started_by_kind: started_by_kind, started_by: started_by, parent_run: parent_run, parent_step_key: parent_step&.name, test: test,
                    real_step_keys: test ? real_keys(version, content, real_step_keys) : [], subject_key: subject,
                    snapshot: content, stand_ins: standing, rerun_of: rerun_of, rerun_from_step_key: rerun_from_step_key
       )
@@ -57,7 +58,7 @@ class WorkflowRunService
     stand_ins = source.steps.where(iteration: "", status: Workflow::Run::Step::STATUS_SUCCEEDED).where.not(step_key: again)
                       .to_h { |step| [ step.step_key, { Workflow::Run::Testing::KEY_OUTPUT => step.output.to_h, Workflow::Run::Testing::KEY_ROUTE => step.route }.compact ] }
     new(workflow).start!(
-      started_by_kind: Workflow::Run::STARTED_BY_PERSON, started_by: by, inputs: source.inputs, trigger_kind: source.trigger_kind,
+      started_by_kind: Workflow::Run::STARTED_BY_PERSON, started_by: by, inputs: source.inputs.merge(source.private_input_values), trigger_kind: source.trigger_kind,
       trigger_payload: source.trigger_payload, test: source.test?, real_step_keys: source.real_step_keys, stand_ins: stand_ins,
       snapshot: (source.ran_snapshot if source.test?), rerun_of: source, rerun_from_step_key: step_key
     )

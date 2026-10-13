@@ -296,6 +296,7 @@ module TypescriptConstants
       Export.new("APPROVER_ROLES", [ WorkspaceMembership.roles[:owner], WorkspaceMembership.roles[:admin] ], "ApproverRole"),
       Export.new("SANDBOX_SERVICES", CodeBox::SERVICES, "SandboxService"),
       Export.new("WORKFLOWS_RESOURCE", Ability::Action::RESOURCE_WORKFLOWS, nil),
+      Export.new("SKILLS_RESOURCE", Ability::Action::RESOURCE_SKILLS, nil),
       Export.new("WORKFLOW_STATES", Workflow::STATES, "WorkflowState"),
       Export.new("CHAT_WORKFLOW_ACTIONS", {
         "RUN_NOW" => Workflow::ACTION_RUN_NOW, "CANCEL" => Workflow::ACTION_CANCEL, "TURN_OFF" => Workflow::ACTION_TURN_OFF

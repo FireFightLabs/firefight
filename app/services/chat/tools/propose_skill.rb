@@ -50,9 +50,7 @@ class Chat::Tools::ProposeSkill < RubyLLM::Tool
     problem = tools_problem(asked["name"], content["tools"])
     return refused(tool_call, "#{problem} Name the tools as you call them. Nothing was proposed.") if problem
 
-    proposal = Chat::CustomSkill.propose_for!(@agent_run.workspace, name: asked["name"], content: content, reason: asked["reason"].to_s.strip,
-                                                                     conversation: conversation)
-    Conversation::LiveDelivery.skill_proposed(conversation) if conversation&.belongs_to_one_person?
+    SkillProposalService.new(@agent_run.workspace).propose!(conversation, name: asked["name"], content: content, reason: asked["reason"].to_s.strip)
     "Proposed. #{where_asked(conversation)} Until someone accepts it, the skill stays as it is."
   rescue ActiveRecord::RecordInvalid => error
     refused(tool_call, "#{error.record.errors.full_messages.to_sentence}. Nothing was proposed.")
@@ -75,6 +73,9 @@ class Chat::Tools::ProposeSkill < RubyLLM::Tool
 
   def where_asked(conversation)
     return "A card in this chat asks the person to accept, edit or dismiss it, and so does the Skills page." if conversation&.personal?
+    if SkillProposalService::THREADED_KINDS.include?(conversation&.kind) && conversation.channel_id.present?
+      return "A message in this thread asks for it to be accepted or dismissed, and the Skills page also offers to edit it first."
+    end
 
     options = AppUrl.options
     page = options && Rails.application.routes.url_helpers.halon_skills_url(**options)

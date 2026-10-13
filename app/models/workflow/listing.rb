@@ -15,7 +15,7 @@ module Workflow::Listing
       starts: workflow.trigger_words, next_run_at: workflow.next_run_at&.iso8601, runs: workflow.run_count,
       last_run: workflow.latest_run && { status: workflow.latest_run.status, at: (workflow.latest_run.finished_at || workflow.latest_run.created_at).iso8601,
                                          error: workflow.latest_run.error }.compact,
-      inputs: Workflow::Trigger.inputs(version&.trigger).map { |input| input.slice("key", "question", "default").compact },
+      inputs: Workflow::Trigger.inputs(version&.trigger).map { |input| input.slice("key", "question", "default", Workflow::Trigger::KEY_PRIVATE).compact },
       steps: Workflow::Version.all_steps(version&.steps).map { |step| "#{step['name']} (#{kinds[step['id']]&.label || step['kind']})" },
       page: Workflow::Links.page(workflow)
     }.compact

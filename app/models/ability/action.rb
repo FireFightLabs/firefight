@@ -233,7 +233,10 @@ module Ability
 
     # Resources whose work is not switched on for the workspace, which nothing offers until it is.
     def self.hidden_resources(workspace)
-      FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS) ? [] : [ RESOURCE_WORKFLOWS ]
+      hidden = []
+      hidden << RESOURCE_WORKFLOWS unless FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS)
+      hidden << RESOURCE_SKILLS unless FeatureFlags.enabled?(workspace, FeatureFlags::CUSTOM_SKILLS)
+      hidden
     end
 
     def self.hidden_keys(workspace) = keys_for(hidden_resources(workspace))

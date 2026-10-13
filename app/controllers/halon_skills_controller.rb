@@ -3,14 +3,14 @@
 # version of a copy.
 class HalonSkillsController < InertiaController
   include RequiresAgent
-  include RequiresWorkflows
+  include RequiresCustomSkills
 
   before_action :require_agent!
 
   authorizes Ability::Action::RESOURCE_SKILLS,
     read: %i[index export export_library],
     create: %i[create import copy],
-    update: %i[update restore take_library keep_own accept_proposal dismiss_proposal],
+    update: %i[update restore take_library keep_own accept_proposal dismiss_proposal enable disable],
     delete: %i[destroy]
 
   # The query strings that open one of Firefight's skills, a skill's history and Halon's proposal.
@@ -34,25 +34,38 @@ class HalonSkillsController < InertiaController
   end
 
   def create
-    return if tools_refused?
-
-    skill = Chat::CustomSkill.create_with!(workspace: current_workspace, name: params[:name], content: content_param, by: current_membership,
-                                           reason: params[:reason])
+    skill = writer.create!(name: params[:name], content: content_param, by: current_membership, reason: params[:reason])
     redirect_to halon_skills_path, notice: "#{skill.name} was added. Halon can load it from its next question."
   rescue ActiveRecord::RecordInvalid => error
     form_refused(error.record)
+  rescue Chat::CustomSkillService::ToolsRefused => error
+    form_refused_with(tools: [ error.message ])
   end
 
   def update
-    skill = own.live.find(params[:id])
-    return if tools_refused?(skill)
-
-    version = skill.write!(content_param, by: current_membership, reason: params[:reason], seen: params[:seen_version_id], name: params[:name])
-    redirect_to halon_skills_path, notice: "#{skill.name} was updated to version #{version.number}."
+    skill = writer.update!(own.live.find(params[:id]), by: current_membership, content: content_param, name: params[:name], reason: params[:reason],
+                                                       seen: params[:seen_version_id])
+    redirect_to halon_skills_path, notice: "#{skill.name} was updated to version #{skill.live_version.number}."
   rescue ActiveRecord::RecordInvalid => error
     form_refused(error.record)
+  rescue Chat::CustomSkillService::ToolsRefused => error
+    form_refused_with(tools: [ error.message ])
   rescue Chat::CustomSkill::Writing::Refused => error
     form_refused_with(base: [ error.message ])
+  end
+
+  def enable
+    skill = own.live.find(params[:id])
+    skill.switch!(on: true)
+    redirect_to halon_skills_path, notice: "#{skill.name} is on. Halon loads it again."
+  end
+
+  # Off, Halon no longer loads it, and a workflow step that runs it is refused at publish and fails at run time. A copy
+  # switched off leaves Firefight's skill of its name in its place.
+  def disable
+    skill = own.live.find(params[:id])
+    skill.switch!(on: false)
+    redirect_to halon_skills_path, notice: disabled_notice(skill)
   end
 
   def destroy
@@ -138,7 +151,7 @@ class HalonSkillsController < InertiaController
     edited = params.key?(:steps)
     return if edited && tools_refused?(skill)
 
-    skill.accept!(proposal, by: current_membership, content: (content_param if edited), name: (edited ? params[:name] : skill.name))
+    SkillProposalService.new(current_workspace).accept!(proposal, by: current_membership, content: (content_param if edited), name: (params[:name] if edited))
     redirect_back_or_to halon_skills_path, notice: "#{skill.name} was #{was_new ? 'added' : 'updated'}#{' with your edit' if edited}. Halon loads it as it now reads."
   rescue Chat::CustomSkill::Writing::Refused => error
     edited ? form_refused_with(base: [ error.message ]) : redirect_back_or_to(halon_skills_path, alert: error.message)
@@ -148,7 +161,7 @@ class HalonSkillsController < InertiaController
 
   def dismiss_proposal
     proposal = proposals.find(params[:id])
-    proposal.custom_skill.dismiss!(proposal, by: current_membership)
+    SkillProposalService.new(current_workspace).dismiss!(proposal, by: current_membership)
     redirect_back_or_to halon_skills_path, notice: "Halon's proposed #{proposal.custom_skill.name} was dismissed. Your skills are unchanged."
   rescue Chat::CustomSkill::Writing::Refused => error
     redirect_back_or_to halon_skills_path, alert: error.message
@@ -157,6 +170,8 @@ class HalonSkillsController < InertiaController
   private
 
   def own = Chat::CustomSkill.where(workspace: current_workspace)
+
+  def writer = Chat::CustomSkillService.new(current_workspace)
 
   def proposals = Chat::CustomSkill::Version.proposed.joins(:custom_skill).where(chat_custom_skills: { workspace_id: current_workspace.id })
 
@@ -198,6 +213,12 @@ class HalonSkillsController < InertiaController
   def send_skill(definition)
     send_data Chat::CustomSkill::Document.render(definition), filename: Chat::CustomSkill::Document::FILE_NAME, type: "text/markdown; charset=utf-8",
                                                                disposition: "attachment"
+  end
+
+  def disabled_notice(skill)
+    return "#{skill.name} is off. Halon uses Firefight's #{skill.library_name} until you turn your copy back on." if skill.copy?
+
+    "#{skill.name} is off. Halon no longer loads it, and a workflow step that runs it is refused until you turn it back on."
   end
 
   def deleted_notice(skill)

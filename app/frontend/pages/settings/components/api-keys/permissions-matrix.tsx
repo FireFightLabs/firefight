@@ -3,6 +3,7 @@ import {
   ABILITY_GRANTABLE_RESOURCES,
   ABILITY_RESOURCE_ACTIONS,
   ABILITY_RESOURCE_LABELS,
+  SKILLS_RESOURCE,
   WORKFLOWS_RESOURCE,
 } from "@/lib/generated/constants"
 import { usePage } from "@inertiajs/react"
@@ -31,9 +32,10 @@ export function PermissionsMatrix({
   perms: Record<string, Set<string>>
   onToggle: (resource: string, action: string) => void
 }) {
-  const { workflowsEnabled } = usePage<SharedProps>().props
-  // Workflows are offered only where the workspace has them.
-  const resources = workflowsEnabled ? apiResources : apiResources.filter((resource) => resource.key !== WORKFLOWS_RESOURCE)
+  const { workflowsEnabled, customSkillsEnabled } = usePage<SharedProps>().props
+  // Workflows and the workspace's own skills are offered only where the workspace has them.
+  const hidden: string[] = [ ...(workflowsEnabled ? [] : [ WORKFLOWS_RESOURCE ]), ...(customSkillsEnabled ? [] : [ SKILLS_RESOURCE ]) ]
+  const resources = apiResources.filter((resource) => !hidden.includes(resource.key))
 
   return (
     <div className="rounded-lg border overflow-hidden">

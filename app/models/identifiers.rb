@@ -200,6 +200,9 @@ module Identifiers
   HANDBOOK_PROPOSAL_ACCEPT = "handbook_proposal_accept"
   HANDBOOK_PROPOSAL_EDIT = "handbook_proposal_edit"
   HANDBOOK_PROPOSAL_DISMISS = "handbook_proposal_dismiss"
+  # A skill Halon proposed in a chat's thread. Editing it first is on the Skills page.
+  SKILL_PROPOSAL_ACCEPT = "skill_proposal_accept"
+  SKILL_PROPOSAL_DISMISS = "skill_proposal_dismiss"
   # Opens a form to answer a coding agent's question.
   CODE_QUESTION_ANSWER = "code_question_answer"
   # Picks one of a coding agent's options. Each button adds its place, since Slack wants a block's action ids unique.

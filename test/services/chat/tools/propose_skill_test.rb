@@ -6,7 +6,7 @@ class Chat::Tools::ProposeSkillTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
+    FeatureFlags.enable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
     @conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
     @turn = Conversation::Turn.new(@conversation, asker: @member)
   end
@@ -33,7 +33,7 @@ class Chat::Tools::ProposeSkillTest < ActiveSupport::TestCase
     AppUrl.stubs(:options).returns(host: "firefight.test", protocol: "https")
     channel = @workspace.conversations.create!(kind: Conversation::KIND_CHANNEL, channel_id: "C0OPS", thread_id: "1.1", max_turns: 5, max_spend_cents: 5)
 
-    assert_match "It waits on the Skills page in Firefight (https://firefight.test/app/halon/skills)", propose(Conversation::Turn.new(channel, asker: @member))
+    assert_match "A message in this thread asks for it to be accepted or dismissed", propose(Conversation::Turn.new(channel, asker: @member))
   end
 
   test "a change to one of Firefight's skills proposes the workspace's copy of it" do
@@ -52,10 +52,10 @@ class Chat::Tools::ProposeSkillTest < ActiveSupport::TestCase
     assert_match "Nothing was proposed.", answer
   end
 
-  test "it is offered only with the workflows flag" do
+  test "it is offered only with the custom skills flag" do
     assert_equal [ Chat::Tools::ProposeSkill ], Chat::Tools::ProposeSkill.all(@turn).map(&:class)
 
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
+    FeatureFlags.disable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
     assert_empty Chat::Tools::ProposeSkill.all(@turn)
   end
 end

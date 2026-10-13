@@ -23,6 +23,8 @@ class DefinedWorkflow::Steps::RunSkill < DefinedWorkflow::Steps::Base
       config = step["config"].to_h
       named = step["name"].presence || "A step"
       return [ "#{named} needs the skill Halon follows." ] if config[KEY_SKILL].to_s.strip.empty?
+      off = Chat::CustomSkill.switched_off(workspace, config[KEY_SKILL])
+      return [ "#{named} follows #{off.name}, which #{Chat::CustomSkill::SWITCHED_OFF}." ] if off
       return [ "#{named} follows #{config[KEY_SKILL]}, which is not a skill for this workspace's connections." ] unless skill(config, workspace)
       return [ "#{named} says what to look at in at most #{FOCUS_LIMIT} characters." ] if config[KEY_FOCUS].to_s.length > FOCUS_LIMIT
 

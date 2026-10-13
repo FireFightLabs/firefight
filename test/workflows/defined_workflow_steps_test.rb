@@ -333,6 +333,17 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
     assert_equal report, run.steps.find_by!(step_key: "scan").output
   end
 
+  test "a workflow cannot be published with a skill step whose skill the workspace switched off" do
+    FeatureFlags.enable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
+    skill = Chat::CustomSkill.create_with!(workspace: @workspace, name: "game_day", by: @alice,
+                                           content: { "when" => "A drill", "tools" => [ "get_form" ], "steps" => "1. Read `get_form`." })
+    skill.switch!(on: false)
+
+    problems = DefinedWorkflow::Steps::RunSkill.problems(step("drill", "run_skill", { "skill" => "game_day" }), @workspace)
+
+    assert_equal [ "drill follows game_day, which is switched off on the Skills page." ], problems
+  end
+
   test "a halon step that cannot answer fails the step with why" do
     Workflow::HalonStep.any_instance.stubs(:follow!).returns({ "error" => "Halon is not set up for this workspace." })
     workflow = published("Probe", steps: [ step("scan", "run_skill", { "skill" => "probing_scan" }) ])

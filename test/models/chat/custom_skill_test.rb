@@ -5,7 +5,7 @@ class Chat::CustomSkillTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
     @bob = workspace_memberships(:bob_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
+    FeatureFlags.enable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
   end
 
   def content(steps: "1. Declare it with `declare_incident`.", tools: [ "declare_incident" ], used_when: "Someone asks to open a game day")
@@ -26,7 +26,7 @@ class Chat::CustomSkillTest < ActiveSupport::TestCase
     assert_equal [ "declare_incident" ], version.tools
   end
 
-  test "Halon loads the workspace's live skills beside Firefight's, only with the workflows flag" do
+  test "Halon loads the workspace's live skills beside Firefight's, only with the custom skills flag" do
     skill = make
     names = Chat::Skill.available_to(@workspace).map(&:name)
     assert_includes names, "game_day"
@@ -35,8 +35,35 @@ class Chat::CustomSkillTest < ActiveSupport::TestCase
     found = Chat::Skill.available_to(@workspace).find { |each| each.name == "game_day" }
     assert_equal [ Chat::Skill::SOURCE_WORKSPACE, skill.id, 1 ], [ found.source, found.custom_skill_id, found.version ]
 
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
+    FeatureFlags.disable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
     assert_not_includes Chat::Skill.available_to(@workspace).map(&:name), "game_day"
+  end
+
+  test "the workspace's skills follow their own flag, not the workflows flag" do
+    make
+    FeatureFlags.disable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
+    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
+
+    assert_not Chat::CustomSkill.enabled_for?(@workspace)
+    assert_not_includes Chat::Skill.available_to(@workspace).map(&:name), "game_day"
+  end
+
+  test "a skill switched off is not loaded, says so to a workflow that runs it, and a copy switched off gives Firefight's back" do
+    skill = make
+    skill.switch!(on: false)
+
+    assert_not skill.reload.enabled?
+    assert_not_includes Chat::Skill.available_to(@workspace).map(&:name), "game_day"
+    assert_equal "game_day is switched off on the Skills page.", Chat::CustomSkill.off_reason(@workspace, "game_day")
+
+    copy = Chat::CustomSkill.copy!(Chat::Skill.find("declaring"), workspace: @workspace, by: @alice)
+    copy.switch!(on: false)
+    used = Chat::Skill.available_to(@workspace).select { |each| each.name == "declaring" }
+    assert_equal [ nil ], used.map(&:custom_skill_id), "Firefight's own is used while the copy is off"
+    assert_nil Chat::CustomSkill.off_reason(@workspace, "declaring"), "a copy that is off leaves Firefight's skill to run"
+
+    skill.switch!(on: true)
+    assert_includes Chat::Skill.available_to(@workspace).map(&:name), "game_day"
   end
 
   test "names must be the workspace's own and not one of Firefight's" do

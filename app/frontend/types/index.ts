@@ -26,6 +26,8 @@ export type SharedProps = PageProps & {
   agentAvailable?: boolean
   // Whether the workspace has workflows and its own skills, which are off until the feature ships.
   workflowsEnabled?: boolean
+  // Whether the workspace keeps skills of its own, which are off until the feature ships.
+  customSkillsEnabled?: boolean
   // One flag per Ability::Action resource, whether the viewer may change it.
   currentUserCan?: Record<string, boolean>
   // Set by the cloud engine when loaded, absent on self-hosted builds.
