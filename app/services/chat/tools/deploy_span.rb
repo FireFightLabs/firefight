@@ -63,6 +63,8 @@ module Chat::Tools::DeploySpan
     "#{lead} What they changed was not read: #{error.message}"
   rescue Unread => error
     "#{lead} What they changed was not read.\n#{error.message}"
+  rescue Integrations::Error => error
+    "#{lead} What they changed was not read: #{error.message}"
   end
 
   # A comparison the code host failed, with its words framed under the tool that said them.

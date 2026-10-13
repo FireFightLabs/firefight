@@ -234,6 +234,12 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     assert_includes report.text, "1. The commit changes only a test."
     assert_includes report.text, "Shows: 1 file changed, 1 insertion(+), 1 deletion(-)"
     assert_includes report.text, "2. The paging code is untouched."
+
+    finding = { "claim" => "The commit changes only a test.", "lines" => [ "1 file changed, 1 insertion(+), 1 deletion(-)" ] }
+    assert_equal "Reported.", report.call(findings: [ finding ] * (Chat::Specialists::Report::MAX_FINDINGS - 2))
+    said = report.call(claim: "One more.", lines: [ "found = scope.limit(size + 1).to_a" ])
+    assert_includes said, "Not reported. The report holds #{Chat::Specialists::Report::MAX_FINDINGS} findings already"
+    assert_not_includes report.text, "One more.", "a finding that does not fit is refused, never dropped after Reported."
   end
 
   # Seen on the big workspace bench, a rollback went ahead on thin reads. A specialist's report is another model's words,

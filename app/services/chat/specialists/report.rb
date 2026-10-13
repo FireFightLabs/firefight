@@ -70,13 +70,12 @@ class Chat::Specialists::Report < RubyLLM::Tool
     summary = given["summary"].to_s.squish
     return EMPTY if summary.empty? && findings.empty? && proposals.empty? && @report.nil?
 
-    refused = refusal(findings, proposals)
+    refused = over(findings, proposals) || refusal(findings, proposals)
     return refused if refused
 
     add(summary, findings, proposals, Array(given["not_checked"]).map(&:to_s).compact_blank)
     "Reported."
   end
-
 
   # What Halon reads, in plain lines.
   def text
@@ -101,11 +100,21 @@ class Chat::Specialists::Report < RubyLLM::Tool
 
   private
 
+  # A call whose findings or changes would not fit beside what was reported is refused, so nothing is dropped after
+  # Reported.
+  def over(findings, proposals)
+    held = @report ? [ @report[:findings].size, @report[:proposals].size ] : [ 0, 0 ]
+    return "Not reported. The report holds #{held.first} findings already, and at most #{MAX_FINDINGS} fit. Keep the ones that matter most." if held.first + findings.size > MAX_FINDINGS
+    return "Not reported. The report holds #{held.last} changes already, and at most #{MAX_CHANGES} fit." if held.last + proposals.size > MAX_CHANGES
+
+    nil
+  end
+
   def add(summary, findings, proposals, not_checked)
     @report ||= { summary: "", findings: [], proposals: [], not_checked: [] }
     @report[:summary] = summary if @report[:summary].empty?
-    @report[:findings] = (@report[:findings] + findings).first(MAX_FINDINGS)
-    @report[:proposals] = (@report[:proposals] + proposals).first(MAX_CHANGES)
+    @report[:findings] += findings
+    @report[:proposals] += proposals
     @report[:not_checked] += not_checked
   end
 
