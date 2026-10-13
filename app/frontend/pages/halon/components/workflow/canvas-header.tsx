@@ -5,18 +5,22 @@ import type { ReactNode } from "react"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { cn } from "@/lib/utils"
 import { WORKFLOW_VERSION_STATUS } from "@/lib/generated/constants"
+import { formatDateTime } from "@/lib/formatters"
 import { halonWorkflowsPath } from "@/lib/routes"
 import { formatWhen } from "@/pages/halon/components/workflows/labels"
+import { RUN_STATUS_LABELS, RUN_STATUS_TONES } from "@/pages/halon/lib/workflow/run-states"
 import { type CanvasView, VIEWS } from "@/pages/halon/lib/workflow/types"
-import type { WorkflowDetail, WorkflowDocument } from "@/types/serializers"
+import type { WorkflowDetail, WorkflowDocument, WorkflowRunDetail } from "@/types/serializers"
 
-const VIEW_LABELS: Record<CanvasView, string> = { editor: "Editor", versions: "Versions", settings: "Settings" }
+const VIEW_LABELS: Record<CanvasView, string> = { editor: "Editor", runs: "Runs", versions: "Versions", settings: "Settings" }
 const CHIP = "inline-flex h-[22px] items-center gap-1.5 rounded-full border px-2 text-[11px] font-medium whitespace-nowrap"
 
 interface CanvasHeaderProps {
   workflow: WorkflowDetail
   document: WorkflowDocument
   suggestionCount: number
+  // The run the canvas shows, whose state heads it in place of the version's.
+  run: WorkflowRunDetail | null
   view: CanvasView
   onView: (view: CanvasView) => void
   // The version's own actions, publish or restore, on the right.
@@ -25,7 +29,7 @@ interface CanvasHeaderProps {
 
 // The canvas's top line: which workflow, which version is shown and whether it is live, how many of Halon's suggestions
 // wait, the views, and what can be done with the version.
-export function CanvasHeader({ workflow, document, suggestionCount, view, onView, actions }: CanvasHeaderProps) {
+export function CanvasHeader({ workflow, document, suggestionCount, run, view, onView, actions }: CanvasHeaderProps) {
   const draft = document.status === WORKFLOW_VERSION_STATUS.DRAFT
   const status = !document.saved
     ? "Not saved yet"
@@ -49,11 +53,18 @@ export function CanvasHeader({ workflow, document, suggestionCount, view, onView
         <IconChevronRight className="size-3 opacity-60" />
         <h1 className="truncate font-medium text-fg-headline">{workflow.name}</h1>
       </div>
-      <span className={cn(CHIP, document.status === WORKFLOW_VERSION_STATUS.LIVE && document.saved ? "border-brand-border text-brand" : "border-border-strong text-fg-secondary")}>
-        <span className="size-1.5 rounded-full bg-current" />
-        {status}
-      </span>
-      {draft && document.saved && workflow.liveNumber && <span className={cn(CHIP, "border-border text-fg-muted")}>Live is v{workflow.liveNumber}</span>}
+      {run ? (
+        <span className={cn(CHIP, RUN_STATUS_TONES[run.status])}>
+          <span className="size-1.5 rounded-full bg-current" />
+          {run.test ? "Test run" : "Run"} of v{run.versionNumber} · {formatDateTime(run.createdAt)} · {RUN_STATUS_LABELS[run.status]}
+        </span>
+      ) : (
+        <span className={cn(CHIP, document.status === WORKFLOW_VERSION_STATUS.LIVE && document.saved ? "border-brand-border text-brand" : "border-border-strong text-fg-secondary")}>
+          <span className="size-1.5 rounded-full bg-current" />
+          {status}
+        </span>
+      )}
+      {!run && draft && document.saved && workflow.liveNumber && <span className={cn(CHIP, "border-border text-fg-muted")}>Live is v{workflow.liveNumber}</span>}
       <span className="text-[12px] text-fg-muted">
         {workflow.triggerWords}
         {workflow.enabled && workflow.nextRunAt && `, next ${formatWhen(workflow.nextRunAt)}`}

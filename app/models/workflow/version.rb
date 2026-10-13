@@ -8,6 +8,8 @@ class Workflow::Version < ApplicationRecord
   include Workflow::Version::Drafting
   include Workflow::Version::Steps
   include Workflow::Version::History
+  include Workflow::Version::Pins
+  include Workflow::Version::Trying
 
   self.table_name = "workflow_versions"
 

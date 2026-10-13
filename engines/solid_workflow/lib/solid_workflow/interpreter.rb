@@ -27,6 +27,11 @@ module SolidWorkflow
         raise SolidWorkflow::UnknownStepKind, "No step of kind #{kind.inspect} can run"
       end
 
+      # What stands in for a step instead of running it, such as an output pinned while trying a workflow or an earlier
+      # run's result when a run starts again from a later step: a Routed for a step that took a route, an output, or nil
+      # to run the step.
+      def stand_in(_step, workflow:) = nil
+
       # Starts the run a run_workflow step names, as a run of this class with parent_step: step, and returns it.
       def start_sub_workflow(_config, workflow:, step:)
         raise SolidWorkflow::UnknownStepKind, "#{name} cannot start a sub workflow"
@@ -111,7 +116,7 @@ module SolidWorkflow
       # Kept once, since a step that waits runs again on every wake and what it reads has already finished.
       step.update_column(:input, self.class.clean(filled, workflow: workflow, step: step)) if step.input.blank?
 
-      result = run_kind(step, filled.merge(kept), workflow)
+      result = self.class.stand_in(step, workflow: workflow) || run_kind(step, filled.merge(kept), workflow)
       case result
       when SolidWorkflow::Park then result
       when SolidWorkflow::Routed then SolidWorkflow::Routed.new(output: kept_output(result.output, workflow, step), route: result.route)

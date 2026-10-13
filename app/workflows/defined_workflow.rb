@@ -24,6 +24,12 @@ class DefinedWorkflow < SolidWorkflow::Interpreter
   ON_FAILURE_CONTINUE = SolidWorkflow::Definition::ON_FAILURE_CONTINUE
   ON_FAILURE_ERROR_ROUTE = SolidWorkflow::Definition::ON_FAILURE_ERROR_ROUTE
   CONDITION_EQUALS = SolidWorkflow::Condition::OPERATOR_EQUALS
+  STEP_PENDING = SolidWorkflow::Step.statuses.fetch("pending")
+  STEP_SUCCEEDED = SolidWorkflow::Step.statuses.fetch("succeeded")
+  STEP_FAILED = SolidWorkflow::Step.statuses.fetch("failed")
+  STEP_SKIPPED = SolidWorkflow::Step.statuses.fetch("skipped")
+  STEP_CANCELLED = SolidWorkflow::Step.statuses.fetch("cancelled")
+  STEP_WAITING = SolidWorkflow::Step.statuses.fetch("waiting")
   # What a step does when it fails, and the routes and fields the engine's own steps hand on, which the canvas offers.
   ON_FAILURE = SolidWorkflow::Definition::ON_FAILURE
   ON_FAILURE_STOP = SolidWorkflow::Definition::ON_FAILURE_STOP
@@ -107,8 +113,28 @@ class DefinedWorkflow < SolidWorkflow::Interpreter
     def error_words(error) = error.to_s.lines.first.to_s.strip.sub(ERROR_CLASS, "")
     # Starts the engine's run for a run record, once however often it is asked.
     def launch!(run, not_before: nil, parent_step: nil)
-      start!(run, definition: run.version.snapshot, start_key: start_key_for(run), not_before: not_before, parent_step: parent_step,
+      start!(run, definition: run.ran_snapshot, start_key: start_key_for(run), not_before: not_before, parent_step: parent_step,
                   context: { SCOPE_INPUTS => run.inputs, SCOPE_TRIGGER => run.trigger_payload })
+    end
+
+    # A pinned output, or an earlier run's result when a run starts again from a later step, in place of running it.
+    def stand_in(step, workflow:)
+      entry = run_of(workflow)&.stand_in_for(step.name)
+      return unless entry
+
+      route = entry[Workflow::Run::Testing::KEY_ROUTE]
+      output = entry[Workflow::Run::Testing::KEY_OUTPUT]
+      route.present? ? SolidWorkflow::Routed.new(output: output, route: route) : output
+    end
+
+    # A step of a run that failed, tried again now with its attempts counted from nothing.
+    def retry_step!(run, step_key, iteration)
+      engine_step!(run, step_key, iteration).retry_now!
+    end
+
+    # A step of a run passed over, so the rest of the run carries on without it.
+    def skip_step!(run, step_key, iteration, by:)
+      engine_step!(run, step_key, iteration).skip!(reason: "Skipped by #{by.actor_display_name}")
     end
 
     def start_key_for(run) = "#{START_KEY_PREFIX}#{run.id}"
@@ -154,6 +180,12 @@ class DefinedWorkflow < SolidWorkflow::Interpreter
     # A step that acts is tried once unless its own retry says otherwise, since doing a change again on its own is a
     # person's decision.
     def default_retry_config = { max_attempts: 1, backoff: SolidWorkflow::Step::Retryable::BACKOFF_EXPONENTIAL }
+    # The engine's step a run's step row is: in the run's own engine run, or the item's run of a for each.
+    def engine_step!(run, step_key, iteration)
+      owner = SolidWorkflow::Workflow.where(subject: run).includes(:steps)
+                                     .find { |workflow| Array(workflow.context.to_h[CONTEXT_ITERATION]).join(".") == iteration.to_s }
+      owner&.steps&.find { |step| step.name == step_key } || raise(Workflow::Run::Refused, "That step is no longer part of the run.")
+    end
 
     def record_step(run, workflow, step)
       run.record_step!(

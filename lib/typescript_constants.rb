@@ -268,6 +268,7 @@ module TypescriptConstants
       }, nil),
       Export.new("FINDING_OUTCOMES", Investigation::Finding::OUTCOMES, "FindingOutcome"),
       Export.new("LEDGER_DECISIONS", Ability::Invocation::DECISIONS, "LedgerDecision"),
+      Export.new("LEDGER_DECISION", Ability::Invocation::DECISIONS.to_h { |decision| [ decision.upcase, decision ] }, nil),
       Export.new("LEDGER_SOURCES", AbilityGateway::SOURCES, "LedgerSource"),
       Export.new("CHAT_MESSAGE_ROLES", {
         "USER" => Chat::Message::ROLE_USER, "ASSISTANT" => Chat::Message::ROLE_ASSISTANT
@@ -324,6 +325,10 @@ module TypescriptConstants
       Export.new("WORKFLOW_CANVAS_PROPS", WorkflowCanvasController::PROPS, nil),
       Export.new("WORKFLOW_VERSION_QUERY_PARAM", WorkflowCanvasController::VERSION_QUERY_PARAM, nil),
       Export.new("WORKFLOW_VIEW_QUERY_PARAM", WorkflowCanvasController::VIEW_QUERY_PARAM, nil),
+      Export.new("WORKFLOW_RUN_QUERY_PARAM", WorkflowCanvasController::RUN_QUERY_PARAM, nil),
+      Export.new("WORKFLOW_RUN_STATUS", Workflow::Run::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
+      Export.new("WORKFLOW_STEP_STATUS", Workflow::Run::Step::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
+      Export.new("WORKFLOW_RUN_STARTED_BY_KIND", Workflow::Run::STARTED_BY.to_h { |kind| [ kind.upcase, kind ] }, nil),
       Export.new("WORKFLOW_STEP_GROUPS", Workflow::StepKinds::GROUPS, "WorkflowStepGroup"),
       Export.new("WORKFLOW_STEP_GROUP", Workflow::StepKinds::GROUPS.to_h { |group| [ group.upcase, group ] }, nil),
       Export.new("WORKFLOW_STEP_EFFECT", Workflow::StepKinds::EFFECTS.to_h { |effect| [ effect.upcase, effect ] }, nil),

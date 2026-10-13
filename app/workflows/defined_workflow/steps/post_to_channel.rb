@@ -80,10 +80,8 @@ class DefinedWorkflow::Steps::PostToChannel < DefinedWorkflow::Steps::CallTool
     posted = agent_run.tool_call(action_key: Ability::Action::CHANNEL_POST, params: { KEY_REPLY => true, KEY_MESSAGE => @config[KEY_MESSAGE].to_s }) do
       ChannelPostService.new(workspace).reply!(conversation: conversation, message: @config[KEY_MESSAGE].to_s, by: principal)
     end.value
-    keep_receipts(agent_run)
     { OUTPUT_CHANNEL => posted.channel_name.presence || posted.channel_id, OUTPUT_LINK => posted.link, OUTPUT_ANSWER => "Posted." }
   rescue AbilityGateway::PendingApproval => pending
-    keep_receipts(agent_run)
     wait_for(pending.approval)
   rescue AbilityGateway::Denied
     raise Refused, agent_run.refusal(Ability::Action::CHANNEL_POST)

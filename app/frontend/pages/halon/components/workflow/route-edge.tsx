@@ -10,18 +10,20 @@ import type { RouteFlowEdge } from "@/pages/halon/lib/workflow/canvas-graph"
 import { routeWords } from "@/pages/halon/lib/workflow/labels"
 
 const CORNER_RADIUS = 10
+// A route's name sits on the last stretch into the step it leads to, clear of where routes part.
+const ROUTE_LABEL_RISE = 18
 
 // A connection between two steps, drawn as a line with rounded elbows and labelled with its route when it has one. A
 // connection Halon suggests adding is dashed in violet, and one it suggests taking away is struck. A selected
 // connection can be taken away with its own button.
 export function RouteEdge({ id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, selected, markerEnd }: EdgeProps<RouteFlowEdge>) {
   const { disconnect } = useCanvasActions()
-  const [ path, labelX, labelY ] = getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: CORNER_RADIUS })
+  const [ path, middleX, middleY ] = getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: CORNER_RADIUS })
   const suggestion = data?.suggestion ?? null
   const adding = suggestion?.operation === WORKFLOW_EDIT_OPERATIONS.CONNECT
   const removing = suggestion?.operation === WORKFLOW_EDIT_OPERATIONS.DISCONNECT
   const error = data?.route === WORKFLOW_ROUTE_ERROR
-  const stroke = suggestion ? "var(--halon)" : error ? "var(--danger)" : data?.halonMarked ? "var(--halon)" : selected ? "var(--lime)" : "var(--border-control)"
+  const stroke = suggestion || data?.halonMarked ? "var(--halon)" : error ? "var(--danger)" : selected || data?.lit ? "var(--lime)" : "var(--border-control)"
 
   function remove(event: MouseEvent) {
     event.stopPropagation()
@@ -45,21 +47,22 @@ export function RouteEdge({ id, source, target, sourceX, sourceY, targetX, targe
       />
       {(data?.route || suggestion || (selected && !data?.readOnly)) && (
         <EdgeLabelRenderer>
+          {data?.route && (
+            <span
+              className={cn(
+                "nodrag nopan pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full border bg-background px-2 py-0.5 font-mono text-[10.5px] text-fg-muted",
+                error ? "border-error-border text-error" : "border-border-strong",
+                removing && "line-through decoration-halon",
+              )}
+              style={{ left: targetX, top: targetY - ROUTE_LABEL_RISE }}
+            >
+              {routeWords(data.route)}
+            </span>
+          )}
           <div
             className="nodrag nopan pointer-events-auto absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5"
-            style={{ left: labelX, top: labelY }}
+            style={{ left: middleX, top: middleY }}
           >
-            {data?.route && (
-              <span
-                className={cn(
-                  "rounded-full border bg-background px-2 py-0.5 font-mono text-[10.5px] text-fg-muted",
-                  error ? "border-error-border text-error" : "border-border-strong",
-                  removing && "line-through decoration-halon",
-                )}
-              >
-                {routeWords(data.route)}
-              </span>
-            )}
             {suggestion && (
               <div className="rounded-md border border-halon-border bg-background p-1.5">
                 <p className="mb-1.5 max-w-48 text-[11px] leading-snug text-halon">{suggestion.words}</p>

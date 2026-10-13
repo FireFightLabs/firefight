@@ -408,6 +408,13 @@ Rails.application.routes.draw do
     post "/halon/workflows/:id/undo", to: "workflow_undos#create", as: :workflow_undo
     post "/halon/workflows/:id/versions/:version_id/discard", to: "workflow_versions#discard", as: :workflow_version_discard
     post "/halon/workflows/:id/versions/:version_id/restore", to: "workflow_versions#restore", as: :workflow_version_restore
+    post "/halon/workflows/:id/test-runs", to: "workflow_test_runs#create", as: :workflow_test_runs
+    post "/halon/workflows/:id/pins", to: "workflow_pins#create", as: :workflow_pins
+    delete "/halon/workflows/:id/pins/:step_id", to: "workflow_pins#destroy", as: :workflow_pin
+    post "/halon/workflows/:id/runs/:run_id/rerun", to: "workflow_runs#rerun", as: :workflow_run_rerun
+    post "/halon/workflows/:id/runs/:run_id/steps/:step_key/retry", to: "workflow_runs#retry_step", as: :workflow_run_step_retry
+    post "/halon/workflows/:id/runs/:run_id/steps/:step_key/skip", to: "workflow_runs#skip_step", as: :workflow_run_step_skip
+    get "/halon/workflows/:id/runs/:run_id/saved-results/:result_id", to: "workflow_saved_results#show", as: :workflow_run_saved_result
     get "/halon/monitoring", to: "halon_monitoring#show", as: :halon_monitoring
     patch "/halon/monitoring", to: "halon_monitoring#update"
     resources :investigation_checks, only: [ :create, :update, :destroy ], path: "halon/monitoring/checks" do

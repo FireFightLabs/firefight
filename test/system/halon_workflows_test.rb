@@ -74,9 +74,10 @@ class HalonWorkflowsTest < ApplicationSystemTestCase
     run = workflow.runs.sole
     assert_equal({ "query" => "api" }, run.inputs)
 
-    click_button "Pin"
+    find("#pin-run").click
     assert_toast "This run is pinned, so it keeps its details."
-    click_button "Unpin"
+    assert run.reload.pinned?
+    find("#pin-run").click
     assert_toast "This run is no longer pinned."
     assert_not run.reload.pinned?
   end

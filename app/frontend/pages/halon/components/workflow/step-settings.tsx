@@ -1,10 +1,12 @@
+import { IconFlask } from "@tabler/icons-react"
 import { type ChangeEvent, type FocusEvent, type KeyboardEvent, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { WORKFLOW_EDIT_OPERATIONS, WORKFLOW_STEP_GROUP } from "@/lib/generated/constants"
+import { WORKFLOW_EDIT_OPERATIONS, WORKFLOW_STEP_GROUP, WORKFLOW_VERSION_STATUS } from "@/lib/generated/constants"
 import { FailureSettings } from "@/pages/halon/components/workflow/failure-settings"
+import { PinnedOutput } from "@/pages/halon/components/workflow/pinned-output"
 import { StepBadges } from "@/pages/halon/components/workflow/step-badges"
 import { StepConfigEditor } from "@/pages/halon/components/workflow/step-config-editor"
 import { StepIcon } from "@/pages/halon/components/workflow/step-icon"
@@ -18,6 +20,7 @@ import type { WorkflowDocument, WorkflowStepKind, WorkflowToolChoice } from "@/t
 const STEP_NAME = /^[a-z][a-z0-9_]{0,63}$/
 
 interface StepSettingsProps {
+  workflowId: string
   item: CanvasStep
   document: WorkflowDocument
   revision: number | null
@@ -28,12 +31,14 @@ interface StepSettingsProps {
   editable: boolean
   send: SendEdit
   onRemove: () => void
+  // Opens Test run for this step with only the steps before it.
+  onTry: (stepId: string) => void
 }
 
 // A step's settings, docked beside the canvas: its name, what it does, what it hands on, what happens when it fails, and
 // Halon's suggestions for it with the old value struck beside the new. Changes are applied together, naming the draft
 // revision they were made on, so a change someone made since to the same step is refused with who made it.
-export function StepSettings({ item, document, revision, stepKinds, tools, workflows, timeZones, editable, send, onRemove }: StepSettingsProps) {
+export function StepSettings({ workflowId, item, document, revision, stepKinds, tools, workflows, timeZones, editable, send, onRemove, onTry }: StepSettingsProps) {
   const { step, suggestion, pending } = item
   const kind = stepKinds.find((each) => each.key === step.kind) ?? null
   const draft = useStepDraft(step, revision)
@@ -71,6 +76,10 @@ export function StepSettings({ item, document, revision, stepKinds, tools, workf
     }
   }
 
+  function tryIt() {
+    onTry(step.id)
+  }
+
   function apply() {
     send(WORKFLOW_EDIT_OPERATIONS.CHANGE_CONFIG, { step_id: step.id, changes: draft.changes }, { baseRevision: draft.baseRevision, onSuccess: draft.reset })
   }
@@ -84,6 +93,12 @@ export function StepSettings({ item, document, revision, stepKinds, tools, workf
           <p className="text-xs text-fg-muted">{suggestion ? `Suggested by Halon · ${step.kindLabel}` : step.kindLabel}</p>
           <StepBadges item={item} />
         </div>
+        {editable && !suggestion && document.saved && (
+          <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2 text-xs" onClick={tryIt}>
+            <IconFlask className="size-3.5" />
+            Test this step
+          </Button>
+        )}
       </header>
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-3">
         {suggestion && <SuggestionCard suggestion={suggestion} />}
@@ -123,6 +138,9 @@ export function StepSettings({ item, document, revision, stepKinds, tools, workf
           </section>
         )}
         <FailureSettings idPrefix={`step-${step.id}`} failure={draft.draft.failure} errors={draft.errors} disabled={disabled} onChange={draft.changeFailure} />
+        {!suggestion && document.saved && document.status === WORKFLOW_VERSION_STATUS.DRAFT && (
+          <PinnedOutput workflowId={workflowId} step={step} editable={editable} />
+        )}
       </div>
       {editable && !suggestion && (
         <footer className="flex items-center justify-between gap-2 border-t border-border p-3">

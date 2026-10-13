@@ -3,6 +3,7 @@ import { Handle, type NodeProps, Position } from "@xyflow/react"
 import { cn } from "@/lib/utils"
 import { WORKFLOW_EDIT_OPERATIONS, WORKFLOW_STEP_GROUP } from "@/lib/generated/constants"
 import { RouteHandles } from "@/pages/halon/components/workflow/route-handles"
+import { RunState } from "@/pages/halon/components/workflow/run-state"
 import { StepBadges } from "@/pages/halon/components/workflow/step-badges"
 import { StepIcon } from "@/pages/halon/components/workflow/step-icon"
 import { SuggestionDecision } from "@/pages/halon/components/workflow/suggestion-decision"
@@ -41,8 +42,9 @@ export function StepNode({ data }: NodeProps<StepFlowNode>) {
           <div className="mt-0.5 truncate text-[11.5px] text-fg-muted">{suggestion ? `Suggested · ${step.kindLabel}` : step.kindLabel}</div>
         </div>
       </div>
-      <div className="mt-2.5">
+      <div className="mt-2.5 flex items-center justify-between gap-2">
         <StepBadges item={item} />
+        {item.state && <RunState state={item.state} />}
       </div>
       {decided && (
         <div className="mt-2.5 space-y-2">

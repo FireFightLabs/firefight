@@ -77,7 +77,6 @@ class DefinedWorkflow::Steps::CallTool < DefinedWorkflow::Steps::Base
     raise Refused, unavailable(entry) unless entry&.tool
 
     answer = entry.tool.call(**arguments.deep_symbolize_keys)
-    keep_receipts(agent_run)
     return wait_for(agent_run.held) if agent_run.held
     raise Failed, (agent_run.raw.presence || answer).to_s.truncate(ANSWER_LIMIT) if agent_run.failed? || waiting?(entry)
 
@@ -100,12 +99,6 @@ class DefinedWorkflow::Steps::CallTool < DefinedWorkflow::Steps::Base
     value.is_a?(Hash) || value.is_a?(Array) ? value : nil
   rescue JSON::ParserError
     nil
-  end
-
-  def keep_receipts(agent_run)
-    return if agent_run.invocation_ids.empty? || record.nil?
-
-    Workflow::Run::Step.where(id: record.id).update_all([ "invocation_ids = invocation_ids || ARRAY[?]::uuid[]", agent_run.invocation_ids ])
   end
 
   # The call waits for whoever an approval rule names. The step parks, and the decision is delivered to it.

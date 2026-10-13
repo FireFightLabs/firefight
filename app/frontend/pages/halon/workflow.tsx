@@ -1,11 +1,16 @@
 import { Head, usePage, usePoll } from "@inertiajs/react"
-import { useState } from "react"
+import { IconFlask } from "@tabler/icons-react"
+import { useEffect, useState } from "react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
+import { Button } from "@/components/ui/button"
+import { WORKFLOW_RUN_OPEN_STATUSES } from "@/lib/generated/constants"
 import { CanvasHeader } from "@/pages/halon/components/workflow/canvas-header"
 import { PublishRequestsNotice } from "@/pages/halon/components/workflow/publish-requests-notice"
+import { RunsView } from "@/pages/halon/components/workflow/runs-view"
 import { SettingsView } from "@/pages/halon/components/workflow/settings-view"
 import { SuggestionsBanner } from "@/pages/halon/components/workflow/suggestions-banner"
+import { TestRunDialog } from "@/pages/halon/components/workflow/test-run-dialog"
 import { VersionActions } from "@/pages/halon/components/workflow/version-actions"
 import { VersionsView } from "@/pages/halon/components/workflow/versions-view"
 import { WorkflowAlerts } from "@/pages/halon/components/workflow/workflow-alerts"
@@ -14,24 +19,62 @@ import { WorkflowEditor } from "@/pages/halon/components/workflow/workflow-edito
 import { useCanvasActionsValue } from "@/pages/halon/hooks/use-canvas-actions-value"
 import { useCanvasView } from "@/pages/halon/hooks/use-canvas-view"
 import { useWorkflowAccess } from "@/pages/halon/hooks/use-workflow-access"
-import { CANVAS_VISIT, useWorkflowEdits } from "@/pages/halon/hooks/use-workflow-edits"
+import { CANVAS_VISIT, RUN_VISIT, useWorkflowEdits } from "@/pages/halon/hooks/use-workflow-edits"
 import { CanvasActionsContext } from "@/pages/halon/lib/workflow/canvas-actions"
 import { type Selection, VIEWS, type WorkflowPageProps } from "@/pages/halon/lib/workflow/types"
 
-// Someone else's change, or a suggestion of Halon's, shows on the canvas within this long.
+// Someone else's change, a suggestion of Halon's or a run moving on shows on the canvas within this long.
 const REFRESH_EVERY_MS = 5000
+const OPEN_RUN: readonly string[] = WORKFLOW_RUN_OPEN_STATUSES
 
 export default function WorkflowCanvasPage() {
   const { workflow, document, versions, suggestions, halonChanges, stepKinds, triggerKinds, tools, publishRequests, otherWorkflows, timeZones, teams,
-    myPublishRequest } = usePage<WorkflowPageProps>().props
+    myPublishRequest, runs, run, lastRun } = usePage<WorkflowPageProps>().props
   const access = useWorkflowAccess()
   const [ selection, setSelection ] = useState<Selection>(null)
-  const { view, show, openVersion, leaveVersion } = useCanvasView(workflow.id)
+  const [ trying, setTrying ] = useState<{ upTo: { id: string; title: string } | null } | null>(null)
+  const { view, show, openVersion, openRun, leave } = useCanvasView(workflow.id)
   const send = useWorkflowEdits(workflow.id, document)
   const actions = useCanvasActionsValue(workflow.id, send, setSelection)
   const editable = access.build && document.editable
   const current = document.editable
-  usePoll(REFRESH_EVERY_MS, { only: CANVAS_VISIT.only })
+  const runGoing = run !== null && OPEN_RUN.includes(run.status)
+  const { start, stop } = usePoll(REFRESH_EVERY_MS, { only: runGoing ? RUN_VISIT.only : CANVAS_VISIT.only }, { autoStart: false })
+
+  useEffect(() => {
+    start()
+    return stop
+  }, [ start, stop, runGoing ])
+
+  function tryWorkflow() {
+    setTrying({ upTo: null })
+  }
+
+  function tryStep(stepId: string) {
+    const step = document.steps.find((each) => each.id === stepId)
+    setTrying({ upTo: step ? { id: step.id, title: step.title } : null })
+  }
+
+  function closeTrying(open: boolean) {
+    if (!open) {
+      setTrying(null)
+    }
+  }
+
+  const headerActions = run ? (
+    <Button type="button" variant="outline" size="sm" onClick={leave}>Back to the editor</Button>
+  ) : (
+    <>
+      <WorkflowControls workflow={workflow} />
+      {access.build && document.saved && document.editable && (
+        <Button type="button" variant="outline" size="sm" onClick={tryWorkflow}>
+          <IconFlask className="size-4" />
+          Test run
+        </Button>
+      )}
+      <VersionActions workflow={workflow} document={document} myPublishRequest={myPublishRequest} onLeaveVersion={leave} />
+    </>
+  )
 
   return (
     <AuthenticatedLayout title="Workflow" sidebarCollapsed>
@@ -42,19 +85,15 @@ export default function WorkflowCanvasPage() {
             workflow={workflow}
             document={document}
             suggestionCount={current ? suggestions.length : 0}
+            run={run}
             view={view}
             onView={show}
-            actions={(
-              <>
-                <WorkflowControls workflow={workflow} />
-                <VersionActions workflow={workflow} document={document} myPublishRequest={myPublishRequest} onLeaveVersion={leaveVersion} />
-              </>
-            )}
+            actions={headerActions}
           />
           <WorkflowAlerts workflow={workflow} />
           {access.manage && current && publishRequests.length > 0 && <PublishRequestsNotice requests={publishRequests} />}
           {view === VIEWS.EDITOR && current && suggestions.length > 0 && <SuggestionsBanner workflowId={workflow.id} suggestions={suggestions} />}
-          {view === VIEWS.EDITOR ? (
+          {view === VIEWS.EDITOR && (
             <WorkflowEditor
               workflowId={workflow.id}
               document={document}
@@ -66,16 +105,22 @@ export default function WorkflowCanvasPage() {
               workflows={otherWorkflows}
               timeZones={timeZones}
               editable={editable}
+              run={run}
+              lastRun={lastRun}
+              hasDraft={workflow.draftNumber != null}
               selection={selection}
               send={send}
               onSelect={setSelection}
+              onTry={tryStep}
             />
-          ) : view === VIEWS.VERSIONS ? (
-            <VersionsView workflowId={workflow.id} versions={versions} onOpen={openVersion} />
-          ) : (
-            <SettingsView workflow={workflow} teams={teams} />
           )}
+          {view === VIEWS.RUNS && <RunsView runs={runs} onOpen={openRun} />}
+          {view === VIEWS.VERSIONS && <VersionsView workflowId={workflow.id} versions={versions} onOpen={openVersion} />}
+          {view === VIEWS.SETTINGS && <SettingsView workflow={workflow} teams={teams} />}
         </div>
+        {trying && (
+          <TestRunDialog open workflowId={workflow.id} document={document} runs={runs} upTo={trying.upTo} onOpenChange={closeTrying} />
+        )}
       </CanvasActionsContext>
     </AuthenticatedLayout>
   )

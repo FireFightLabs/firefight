@@ -35,6 +35,28 @@ class SolidWorkflow::InterpreterTest < ActiveSupport::TestCase
     assert_equal "before", workflow.definition["steps"].first["config"]["said"]
   end
 
+  test "what stands in for a step is its output, its route included, and the step itself never runs" do
+    TestDefinedWorkflow.stand_ins = {
+      "check" => { "verdict" => "pinned" },
+      "decide" => SolidWorkflow::Routed.new(output: { "route" => "no" }, route: "no")
+    }
+    definition = {
+      "steps" => [
+        step("check", "fail", { "message" => "would have failed" }),
+        step("decide", "branch", { "routes" => [ { "route" => "yes", "when" => { "left" => "1", "operator" => "equals", "right" => "1" } } ], "otherwise" => "no" }),
+        step("yes_path", "echo"), step("no_path", "echo", { "saw" => "{{steps.check.verdict}}" })
+      ],
+      "edges" => [ edge("check", "decide"), edge("decide", "yes_path", "yes"), edge("decide", "no_path", "no") ]
+    }
+
+    workflow = run_definition(definition)
+
+    assert workflow.succeeded?
+    assert_equal({ "verdict" => "pinned" }, output_of(workflow, "check"))
+    assert_equal "bypassed", workflow.steps.find_by!(name: "yes_path").status
+    assert_equal({ "saw" => "pinned" }, output_of(workflow, "no_path"))
+  end
+
   test "one start key gives one run" do
     definition = { "steps" => [ step("only", "echo") ], "edges" => [] }
 

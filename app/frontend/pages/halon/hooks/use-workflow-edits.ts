@@ -18,6 +18,13 @@ export const CANVAS_VISIT = {
   ],
 }
 
+// A change to a run, such as trying a step again, reloads the run and the list of runs as well, keeping the address.
+export const RUN_VISIT = {
+  preserveScroll: true,
+  preserveState: true,
+  only: [ ...CANVAS_VISIT.only, WORKFLOW_CANVAS_PROPS.RUN, WORKFLOW_CANVAS_PROPS.RUNS, WORKFLOW_CANVAS_PROPS.LAST_RUN ],
+}
+
 // The draft revision a change was made on. A change to the live version opens a draft from it, so it names none.
 export function revisionOf(document: WorkflowDocument): number | null {
   return document.saved && document.status === WORKFLOW_VERSION_STATUS.DRAFT ? document.revision : null

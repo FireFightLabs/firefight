@@ -102,7 +102,7 @@ Every state transition records a `SolidWorkflow::Event` (workflow-level and step
 - **Failures.** `on_failure` is `stop` (the default, the run fails), `continue` (edges without a route carry on) or `error_route` (only edges with the `error` route carry on). A tolerated failure never fails the run.
 - **Per step retries and timeouts.** `retry` is the class DSL's `retry_config`. `timeout_seconds` caps each attempt of a step that runs (`StepTimeoutJob` at `timeout_at`, then a failed attempt that retries while attempts remain), and is a deadline from first start for a step that waits (`TimeLimitReached`, never retried).
 - **Data.** Before a step runs its config is filled from the run's scope by the host's `resolve`: `inputs`, `trigger`, `steps` (each succeeded step's output by its name) and, inside a for each, `item` and `index`. The filled config is the step's stored `input`. Inputs, outputs and signal payloads pass through the host's `clean` before they are stored. A run's `result` is its `outputs` filled, or every step's output by name.
-- **Host hooks** (class methods on the subclass): `action_kinds`, `perform(kind, config, workflow:, step:)`, `resolve`, `clean`, `start_sub_workflow`, `runnable?`, `observe(workflow, event)` (told of every event the run records), `result_of`.
+- **Host hooks** (class methods on the subclass): `action_kinds`, `perform(kind, config, workflow:, step:)`, `resolve`, `clean`, `start_sub_workflow`, `runnable?`, `observe(workflow, event)` (told of every event the run records), `result_of`, `stand_in(step, workflow:)` (an output, or a `Routed` with its route, used in place of running the step, nil to run it, asked before every step runs).
 
 ### Control steps
 
@@ -158,12 +158,12 @@ Each kind a step can be is one class under `app/workflows/defined_workflow/steps
 
 - **Work handed off.** A step whose work takes long, Halon or reading how things stand, hands it to a job and parks (`Base#await`): the name is marked asked once in the step's checkpoint with the time (`DefinedWorkflow.mark_asked!`), the job delivers its answer with `DefinedWorkflow.deliver!` (once, by name, in one statement) and wakes the step, which reads it on its next attempt. With nothing delivered within the step's time limit (30 minutes when it sets none) of handing it off, it fails, so work handed off late, such as a read after a long approval, gets its full wait. Each retry of a step asks under its own name (`name#try<n>`, counted from the engine's retry events), never reading what the try before it got back. An error in the Halon job that nobody expected is handed to the step in words. `deliver_for_record!` finds the engine's step from the run's row, for a watch.
 - **Refused and failed.** `Base::Refused` is a step's own words for why it cannot go on and is never retried. `Base::Failed` is what it called failing. A step acts once unless its own `retry` says otherwise (`DefinedWorkflow.default_retry_config`). A step's error is stored without the class the engine writes ahead of it (`DefinedWorkflow.error_words`).
-- **Every call through the gateway.** `Workflow::AgentRun#tool_call` runs `Chat::ToolCall.run!` as the run's acting principal with source `workflow`, `workflow_run_id` (a column on `ability_invocations` and `ability_approvals`) and `triggered_by_label` naming the run. The step keeps the ledger rows' ids (`workflow_run_steps.invocation_ids`), and the run page lists `run.invocations`.
+- **Every call through the gateway.** `Workflow::AgentRun#tool_call` runs `Chat::ToolCall.run!` as the run's acting principal with source `workflow`, `triggered_by_label` naming the run, and the run and its step (`Workflow::Run::Step.ledger_context`: `workflow_run_id`, a column on `ability_invocations` and `ability_approvals`, `workflow_step_key`, the step's id, and `workflow_iteration`), as does the read before a change (`WorkflowStateCheckJob`). `Workflow::Run::Step#invocations` reads a step's rows, and `waiting_approval?` is a waiting step whose held call's approval is still pending, which the canvas shows as Waiting approval. `run.invocations` is every call of the run.
 - **Approvals mid run.** A change an approval rule holds parks the step (`ApprovalResumption.park_workflow_step!`, kind `workflow_step` with the engine step and its key). The decision is delivered to it. Approved, it reads how things stand again (below) and runs exactly that call with the approval. Declined, it fails and takes its error route when it has one. Undecided within its time limit (24 hours by default) the approval expires and the step fails saying so.
 
 ### Running safely
 
-- **Test runs.** `WorkflowRunService#start!(test: true, real_step_keys:)` runs the draft, or the live version when there is none, as the person testing (`Workflow::Run#acting_principal`). Reads run for real. A change only shows what it would do (`simulated`), unless its step is among `real_step_keys`. A test run counts against no limit and says nothing when it ends.
+- **Test runs.** `WorkflowRunService#start!(test: true, real_step_keys:)` runs the draft, or the live version when there is none, as the person testing (`Workflow::Run#acting_principal`). Reads run for real. A change only shows what it would do (`simulated`), unless its step is among `real_step_keys`. A test run counts against no limit and says nothing when it ends. It also takes outputs pinned on the draft in place of their steps, and `up_to` for one step. See [Trying a draft](#trying-a-draft).
 - **Freeze windows.** A change inside a window `Workspace::FreezeWindows.covering` finds stops the run with the freeze's sentence, or parks until the window ends when the workflow says `freeze_behaviour` `wait`. `Workflow#freeze_warning` says when the next scheduled time lands in one.
 - **Read before a scheduled change.** In a run a Schedule or Once at trigger started (`Workflow::Run#reads_first?`), a change first hands `WorkflowStateCheckJob` the call, which runs `Chat::StateCheck` as the run's identity on a chat owned by the step's row. Anything but unchanged stops it, with `Chat::CurrentState::WORDS`. The same check runs again after an approval.
 - **Every change carries its undo and ends with a check.** Publishing (`Workflow::Version#problems`, `Version::Steps`) refuses a step that `undoable?` with no `undo`, and one with no step that `checks?` running after it.
@@ -194,7 +194,7 @@ Besides its items ([Firefight's library](#firefights-library)), `Workflow::Libra
 
 ### The pages
 
-Under Halon, Workflows (`WorkflowsController`, `/halon/workflows`): the workflows, every run, and the one-offs that are done with their runs and Repeat it. Each row opens the workflow's page, which is its canvas ([The canvas](#the-canvas)): its steps, Halon's suggestions, its versions, what its identity can do and its settings, Run, Publish or Ask an admin, On or Off, and Delete under its settings. A run's page (`WorkflowRunsController`) shows each step with what it took in and gave back, the calls it made, the notices it raised, Pin (keeps its details past retention) and Stop. Settings, Workspace holds how long runs keep their details (`WorkflowSettingsController`). Every page answers not found without the flag (`RequiresWorkflows`, which every workflow and skill controller includes and which runs before anything checks who is asking), and the sidebar shows Skills, Workflows and Workflow library only with it (`workflowsEnabled`).
+Under Halon, Workflows (`WorkflowsController`, `/halon/workflows`): the workflows, every run, and the one-offs that are done with their runs and Repeat it. Each row opens the workflow's page, which is its canvas ([The canvas](#the-canvas)): its steps, Halon's suggestions, its versions, what its identity can do and its settings, Run, Publish or Ask an admin, On or Off, and Delete under its settings. A run's own address (`WorkflowRunsController#show`, which Slack, the chat card and the Workflows page link to) opens it on the canvas ([A run on the canvas](#a-run-on-the-canvas)). Settings, Workspace holds how long runs keep their details (`WorkflowSettingsController`). Every page answers not found without the flag (`RequiresWorkflows`, which every workflow and skill controller includes and which runs before anything checks who is asking), and the sidebar shows Skills, Workflows and Workflow library only with it (`workflowsEnabled`).
 
 ### Halon, MCP and the chat card
 
@@ -283,6 +283,10 @@ The canvas never decides a kind on its own. `Workflow::StepKinds` (`app/models/w
 | `otherWorkflows`, `timeZones` | | What the Run workflow, Delay and schedule editors pick from |
 | `teams`, `myPublishRequest`, `workflowAccess` | | The owning teams the settings offer, the person's request to publish, and what they may do |
 | `places`, `watchReads` | `RunbookPlaceSerializer`, `RunbookWatchReadSerializer` | Deferred. What is on the map, and what a watch can read of it, which a step's settings pick from (`hooks/use-canvas-choices.ts`) |
+| `otherWorkflows`, `timeZones` | | What the Run workflow and Delay editors pick from |
+| `runs` | `WorkflowRunRowSerializer` | The newest 50 runs, test runs among them |
+| `run` | `WorkflowRunDetailSerializer` | The run `?run=` names, with each step's row (`WorkflowRunStepSerializer`), or null |
+| `lastRun` | `WorkflowRunStatesSerializer` | The newest run of the version shown, for Last run |
 
 A step's facts that need the tools list are worked out only when a step calls a tool, since building it reads every connection's schemas.
 
@@ -311,6 +315,30 @@ The Versions view lists each version with its status, who made it, who published
 ### Settings
 
 The Settings view is what the workflow's own identity can do (`ReachCard`) and its settings (`SettingsCard`, `WorkflowsController#update`): its name and description, owning team, AI ceiling per run, runs an hour, one live run per subject, what a change does in a freeze window, and the all clear, and Delete for one that never ran.
+
+### Trying a draft
+
+**Test run** in the header, or **Test this step** in a step's settings, opens a dialog for sample answers to the trigger's inputs and a sample of what started the run, written as JSON or taken from an earlier run, and a switch per step that changes something to make that change for real. `WorkflowTestRunsController` starts it with `WorkflowRunService#start!(test: true)`, on the draft, or the live version when there is no draft, whether or not the workflow is on, as the person testing ([Running safely](#running-safely)):
+
+- **Shown, not made.** Every change a step would make is shown instead (`DefinedWorkflow::Steps::Base#simulated?`, its output marked `simulated`) unless the tester turned that step on (`real_step_keys`).
+- **Pins.** A step's output pinned on the draft (`Workflow::Version::Pins`, `workflow_versions.pins`, by step id, with the route for a step that takes one) is copied onto the run as a stand in (`workflow_runs.stand_ins`), and `DefinedWorkflow.stand_in` hands it to the engine, so the step does not run. A pin is taken from a run's step (Pin this output) or written by hand, and rides along to the next draft opened from that version. Pinning is one guarded update on the draft, so a pin never lands on a version published meanwhile. A pin holding a secret is refused.
+- **One step.** `up_to` runs the step with only the steps before it (`Version#snapshot_up_to`, a step inside a for each with its for each), each of those standing in with what it gave in the newest run that reached it when it has no pin. Only what runs is checked, so a problem further on does not stop it.
+- **What it ran** is kept on the run (`workflow_runs.snapshot`) when it is less than its version or a draft, so the run's view draws what ran even after the draft changes. A sub workflow inside a test run is tried as a test run too.
+
+### A run on the canvas
+
+`?run=` draws a run on the canvas, read-only: each step's state and time on its node (`lib/workflow/run-states.ts`), the way the run went lit, a step inside a for each counting its items. The panel beside it is the run's (`run-summary.tsx`: inputs, what started it, what it handed back, its error, Stop run, Pin) or the picked step's (`run-step-panel.tsx`: what it was given and gave, the results it kept whole opened in a dialog, its gateway calls, its error, and each item for a step inside a for each). The Runs view lists every run, test runs among them, and Last run lays the newest run of the version shown over the editor.
+
+| Action | Endpoint | Rule |
+|---|---|---|
+| Try again | `POST runs/:run_id/steps/:step_key/retry` | A failed step (`retry_blocked_reason`), the engine's `retry_now!` through `DefinedWorkflow.retry_step!` |
+| Skip | `POST runs/:run_id/steps/:step_key/skip` | A failed or waiting step (`skip_blocked_reason`) |
+| Start again from here | `POST runs/:run_id/rerun` | A top level step that ended (`rerun_blocked_reason`). `WorkflowRunService.rerun_from!` starts a new run on the same inputs and trigger, every step before it that succeeded standing in with what it gave. A test run starts again as a test run of the draft, a real run as a real run of the live version, so a fix published since is what runs |
+| Stop run | `POST runs/:id/cancel` | A run still going (`Workflow::Run#cancel!`), and every run it started |
+| Pin, unpin the run | `PATCH runs/:id/pin`, `unpin` | `Workflow::Run#pin!`, which keeps its details past the retention, refused once they went |
+| Pin, unpin a step's output | `POST pins`, `DELETE pins/:step_id` | A draft's step |
+
+Each says so in a toast and redirects to the run, and a run going reloads its props every five seconds. Trying, pinning outputs, trying a step again, skipping and starting again are building and running, `workflows.create`, which members hold. Stopping and pinning a run are `workflows.update`, as on the Workflows page.
 
 ### Phone width
 
