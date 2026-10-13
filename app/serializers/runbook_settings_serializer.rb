@@ -39,6 +39,11 @@ class RunbookSettingsSerializer < BaseSerializer
     runbook.procedure?
   end
 
+  # The workflow its Run it button starts, where the workspace has workflows.
+  has_one :workflow, serializer: RunbookWorkflowSerializer, optional: true do
+    runbook.runnable_workflow
+  end
+
   type "IncidentConditionSettings[]", optional: true
   def conditions
     runbook.incident_conditions.map do |c|

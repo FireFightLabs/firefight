@@ -30,6 +30,8 @@ const BY_HAND = ""
 
 interface RunbookStepsEditorProps {
   steps: EditableStep[]
+  // With workflows on, what runs is the linked workflow's.
+  withTools?: boolean
   // What is wrong with each step's fields, by the step's key and then the field's.
   stepErrors: Record<string, Record<string, string>>
   // null while the editor's choices load.
@@ -39,7 +41,7 @@ interface RunbookStepsEditorProps {
   onChange: (steps: EditableStep[]) => void
 }
 
-export function RunbookStepsEditor({ steps, stepErrors, tools, placeholders, places, onChange }: RunbookStepsEditorProps) {
+export function RunbookStepsEditor({ steps, stepErrors, withTools = true, tools, placeholders, places, onChange }: RunbookStepsEditorProps) {
   const toolOptions: SearchableSelectOption[] = [
     { value: BY_HAND, label: "None, a person does this step" },
     ...(tools ?? []).map((tool) => ({ value: tool.name, label: tool.name, group: tool.group })),
@@ -88,7 +90,9 @@ export function RunbookStepsEditor({ steps, stepErrors, tools, placeholders, pla
 
       {steps.length === 0 ? (
         <p className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-          No steps yet. Add ordered actions responders should take, or name a tool for Halon to run a step with.
+          {withTools
+            ? "No steps yet. Add ordered actions responders should take, or name a tool for Halon to run a step with."
+            : "No steps yet. Add ordered actions responders should take."}
         </p>
       ) : (
         <div className="space-y-2">
@@ -127,19 +131,21 @@ export function RunbookStepsEditor({ steps, stepErrors, tools, placeholders, pla
                   onChange={(event) => update(index, { instruction: event.target.value })}
                   placeholder="Instruction (optional)"
                 />
-                <div className="space-y-1">
-                  <Label className="text-xs">Tool Halon runs it with</Label>
-                  <SearchableSelect
-                    value={step.tool}
-                    onValueChange={(tool) => chooseTool(index, tool)}
-                    options={withSavedTool(toolOptions, step.tool)}
-                    placeholder={tools ? "None, a person does this step" : "Loading tools"}
-                    searchPlaceholder="Search tools"
-                    emptyText="No tool by that name"
-                    renderSelected={renderTool}
-                  />
-                </div>
-                {step.tool !== BY_HAND && (
+                {withTools && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Tool Halon runs it with</Label>
+                    <SearchableSelect
+                      value={step.tool}
+                      onValueChange={(tool) => chooseTool(index, tool)}
+                      options={withSavedTool(toolOptions, step.tool)}
+                      placeholder={tools ? "None, a person does this step" : "Loading tools"}
+                      searchPlaceholder="Search tools"
+                      emptyText="No tool by that name"
+                      renderSelected={renderTool}
+                    />
+                  </div>
+                )}
+                {withTools && step.tool !== BY_HAND && (
                   <StepToolFields
                     stepKey={step.key}
                     tool={step.tool}

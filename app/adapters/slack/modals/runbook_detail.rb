@@ -8,6 +8,8 @@ module Slack
         runbook = incident_runbook.runbook
         steps = runbook.runbook_steps.to_a
         actions = incident_runbook.actions_by_step
+        blocks = blocks(runbook, steps, actions)
+        blocks.insert(1, { type: "actions", elements: [ Slack::Messages::Runbook.run_button(incident_runbook) ] }) if runbook.runnable_workflow
 
         {
           type: "modal",
@@ -15,7 +17,7 @@ module Slack
           private_metadata: ModalState.encode(incident_id: incident_runbook.incident_id, incident_runbook_id: incident_runbook.id),
           title: { type: "plain_text", text: "Runbook" },
           close: { type: "plain_text", text: "Done" },
-          blocks: blocks(runbook, steps, actions)
+          blocks: blocks
         }
       end
 

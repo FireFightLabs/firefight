@@ -21,7 +21,8 @@ class InteractionDispatcher
     Identifiers::MEMORY_CORRECT_MODAL => Interactions::CorrectMemoryHandler,
     Identifiers::HANDBOOK_PROPOSAL_EDIT_MODAL => Interactions::EditHandbookProposalHandler,
     Identifiers::CODE_QUESTION_MODAL => Interactions::AnswerCodeQuestionHandler,
-    Identifiers::CODE_QUESTION_CHANGE_MODAL => Interactions::ChangeCodeQuestionAnswerHandler
+    Identifiers::CODE_QUESTION_CHANGE_MODAL => Interactions::ChangeCodeQuestionAnswerHandler,
+    Identifiers::RUNBOOK_RUN_MODAL => Interactions::RunbookRunHandler
   }.freeze
 
   BLOCK_ACTION_HANDLERS = {
@@ -55,6 +56,7 @@ class InteractionDispatcher
     Identifiers::REASSIGN_ACTION => Interactions::ReassignActionHandler,
     Identifiers::CLAIM_RUNBOOK_STEP => Interactions::ClaimRunbookStepHandler,
     Identifiers::VIEW_RUNBOOK => Interactions::ViewRunbookHandler,
+    Identifiers::RUN_RUNBOOK => Interactions::RunRunbookHandler,
     Identifiers::ASSIGN_RUNBOOK_STEP => Interactions::AssignRunbookStepHandler,
     Identifiers::ADD_NEW_ACTION => Interactions::OpenActionItemFormHandler,
     Identifiers::ADD_NEW_FOLLOWUP => Interactions::OpenActionItemFormHandler,

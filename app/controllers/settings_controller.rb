@@ -12,7 +12,9 @@ class SettingsController < InertiaController
   RUNBOOK_TOOL_CHOICES = "toolChoices".freeze
   RUNBOOK_WATCH_READS = "watchReads".freeze
   RUNBOOK_PLACES = "places".freeze
-  RUNBOOK_CHOICE_PROPS = { "TOOL_CHOICES" => RUNBOOK_TOOL_CHOICES, "WATCH_READS" => RUNBOOK_WATCH_READS, "PLACES" => RUNBOOK_PLACES }.freeze
+  RUNBOOK_WORKFLOWS = "workflowChoices".freeze
+  RUNBOOK_CHOICE_PROPS = { "TOOL_CHOICES" => RUNBOOK_TOOL_CHOICES, "WATCH_READS" => RUNBOOK_WATCH_READS, "PLACES" => RUNBOOK_PLACES,
+                           "WORKFLOWS" => RUNBOOK_WORKFLOWS }.freeze
 
 
   def index
@@ -50,7 +52,8 @@ class SettingsController < InertiaController
   def runbooks
     render inertia: "settings/runbooks", props: {
       runbooks: RunbookSettingsSerializer.many(
-        current_workspace.runbooks.ordered.with_usage_counts.includes(:runbook_steps, :incident_conditions)
+        current_workspace.runbooks.ordered.with_usage_counts.includes(:runbook_steps, :incident_conditions, workflow: %i[live_version draft_version]),
+        member: current_membership
       ),
       incidentTypes: IncidentTypeSettingsSerializer.many(
         current_workspace.incident_types.active.ordered.with_usage_counts
@@ -65,7 +68,8 @@ class SettingsController < InertiaController
       # What a step or a watch can be built from, read when the editor opens, since every tool's fields take a while.
       RUNBOOK_TOOL_CHOICES => InertiaRails.optional { RunbookToolChoiceSerializer.many(Chat::Tools::Choices.tools(current_workspace)) },
       RUNBOOK_WATCH_READS => InertiaRails.optional { RunbookWatchReadSerializer.many(Chat::Tools::Choices.reads) },
-      RUNBOOK_PLACES => InertiaRails.optional { RunbookPlaceSerializer.many(Chat::Tools::Choices.places(current_workspace, current_membership)) }
+      RUNBOOK_PLACES => InertiaRails.optional { RunbookPlaceSerializer.many(Chat::Tools::Choices.places(current_workspace, current_membership)) },
+      RUNBOOK_WORKFLOWS => InertiaRails.optional { RunbookWorkflowChoiceSerializer.many(runbook_workflow_choices) }
     }
   end
 
@@ -220,6 +224,12 @@ class SettingsController < InertiaController
   end
 
   private
+
+  def runbook_workflow_choices
+    return [] unless FeatureFlags.enabled?(current_workspace, FeatureFlags::WORKFLOWS)
+
+    current_workspace.workflows.ordered.includes(:draft_version)
+  end
 
   # Personal keys are omitted, they resolve to their owner's authority rather than carrying grants.
   def principal_rows

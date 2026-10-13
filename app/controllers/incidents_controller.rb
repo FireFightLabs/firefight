@@ -18,7 +18,7 @@ class IncidentsController < InertiaController
       .find(params[:id])
 
     render inertia: "incidents/index", props: {
-      incident: IncidentDetailSerializer.one(incident),
+      incident: IncidentDetailSerializer.one(incident, member: current_membership),
       timelineEvents: InertiaRails.defer { timeline_events(incident) },
       actions: InertiaRails.defer {
         IncidentActionSerializer.many(

@@ -201,6 +201,8 @@ Rails.application.routes.draw do
         patch :disable
         patch :enable
       end
+      # Run it, which starts the workflow the runbook links and answers not found without the workflows flag.
+      resources :runs, only: :create, controller: "runbook_runs"
     end
     get "/settings/custom-fields", to: "settings#custom_fields", as: :settings_custom_fields
     get "/settings/forms", to: "settings#forms", as: :settings_forms

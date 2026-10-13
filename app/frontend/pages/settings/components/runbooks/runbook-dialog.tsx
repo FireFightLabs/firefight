@@ -10,6 +10,7 @@ import type {
   RunbookSettings,
   RunbookToolChoice,
   RunbookWatchRead,
+  RunbookWorkflowChoice,
 } from "@/types/serializers"
 import type { SearchableSelectOption } from "@/components/searchable-select"
 import { RUNBOOK_CHOICE_PROPS } from "@/lib/generated/constants"
@@ -41,6 +42,7 @@ import {
   type EditableStep,
 } from "@/pages/settings/components/runbooks/runbook-steps-editor"
 import { RunbookProcedureEditor } from "@/pages/settings/components/runbooks/runbook-procedure-editor"
+import { RunbookWorkflowEditor } from "@/pages/settings/components/runbooks/runbook-workflow-editor"
 import { argumentsState, fieldErrors } from "@/lib/tool-fields"
 import {
   inputPlaceholders,
@@ -75,6 +77,7 @@ interface EditModel {
   customFieldStates: CustomFieldConditionState[]
   alwaysAttach: boolean
   procedure: ProcedureState
+  workflowId: string
 }
 
 function sectionState(runbook: RunbookSettings | null | undefined, field: string): ConditionSectionState {
@@ -115,6 +118,7 @@ function initModel(runbook: RunbookSettings | null | undefined): EditModel {
     customFieldStates: customFieldStates(runbook),
     alwaysAttach: runbook?.alwaysAttach ?? false,
     procedure: procedureState(runbook),
+    workflowId: runbook?.workflow?.id ?? "",
   }
 }
 
@@ -123,17 +127,20 @@ interface ChoiceProps extends SharedProps {
   [RUNBOOK_CHOICE_PROPS.TOOL_CHOICES]?: RunbookToolChoice[]
   [RUNBOOK_CHOICE_PROPS.WATCH_READS]?: RunbookWatchRead[]
   [RUNBOOK_CHOICE_PROPS.PLACES]?: RunbookPlace[]
+  [RUNBOOK_CHOICE_PROPS.WORKFLOWS]?: RunbookWorkflowChoice[]
 }
 
-const CHOICES = Object.values(RUNBOOK_CHOICE_PROPS)
+const WORKFLOW_CHOICES = [ RUNBOOK_CHOICE_PROPS.WORKFLOWS ]
+const PROCEDURE_CHOICES = [ RUNBOOK_CHOICE_PROPS.TOOL_CHOICES, RUNBOOK_CHOICE_PROPS.WATCH_READS, RUNBOOK_CHOICE_PROPS.PLACES ]
 
-function loadChoices() {
-  router.reload({ only: CHOICES })
+function loadChoices(linksWorkflow: boolean) {
+  router.reload({ only: linksWorkflow ? WORKFLOW_CHOICES : PROCEDURE_CHOICES })
 }
 
 export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, severities, customFields }: RunbookDialogProps) {
   const isEdit = Boolean(runbook)
-  const { toolChoices, watchReads, places } = usePage<ChoiceProps>().props
+  const { toolChoices, watchReads, places, workflowChoices, workflowsEnabled } = usePage<ChoiceProps>().props
+  const linksWorkflow = Boolean(workflowsEnabled)
   const tools = toolChoices ?? null
   const reads = watchReads ?? null
   const [model, setModel] = useState<EditModel>(() => initModel(runbook))
@@ -152,13 +159,13 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
 
   useEffect(() => {
     if (open) {
-      loadChoices()
+      loadChoices(linksWorkflow)
     }
-  }, [ open ])
+  }, [ open, linksWorkflow ])
 
   const placeholders: SearchableSelectOption[] = inputPlaceholders(model.procedure.inputs)
   const placeOptions: SearchableSelectOption[] = (places ?? []).map((place) => ({ value: place.name, label: place.name, group: place.kind }))
-  const watchProblem = watchError(model.procedure.watch)
+  const watchProblem = linksWorkflow ? null : watchError(model.procedure.watch)
   const [ shownWatchProblem, setShownWatchProblem ] = useState<string | null>(null)
 
   // A server error outlives the value that caused it, so it is cleared once the
@@ -173,7 +180,7 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
   // showing what was picked beside the error.
   function showErrors(formErrors: Errors) {
     setErrors(formErrors)
-    loadChoices()
+    loadChoices(linksWorkflow)
   }
 
   function patch(next: Partial<EditModel>) {
@@ -182,6 +189,14 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
 
   function setAlwaysAttach(alwaysAttach: boolean) {
     patch({ alwaysAttach })
+  }
+
+  function setWorkflowId(workflowId: string) {
+    patch({ workflowId })
+  }
+
+  function setAliasesText(aliasesText: string) {
+    patch({ procedure: { ...model.procedure, aliasesText } })
   }
 
   function handleSubmit(event: FormEvent) {
@@ -221,6 +236,9 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
       return
     }
     const procedure = procedurePayload(model.procedure)
+    const runs = linksWorkflow
+      ? { workflow_id: model.workflowId }
+      : { inputs: procedure.inputs, watch: procedure.watch }
 
     const payload = {
       name: model.name,
@@ -230,9 +248,8 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
       steps: model.steps.map(sentStep),
       conditions,
       always_attach: model.alwaysAttach,
-      inputs: procedure.inputs,
       aliases: procedure.aliases,
-      watch: procedure.watch,
+      ...runs,
     }
 
     const options: VisitOptions = {
@@ -265,6 +282,7 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
 
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-2">
+            {errors.base && <p className="text-sm text-destructive">{errors.base}</p>}
             <div className="space-y-2">
               <Label htmlFor="runbook-name">Name</Label>
               <Input
@@ -309,6 +327,7 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
             <RunbookStepsEditor
               steps={model.steps}
               stepErrors={stepErrors}
+              withTools={!linksWorkflow}
               tools={tools}
               placeholders={placeholders}
               places={placeOptions}
@@ -316,16 +335,28 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
             />
             {(errors.tool || errors.arguments) && <p className="text-xs text-destructive">{errors.tool ?? errors.arguments}</p>}
 
-            <RunbookProcedureEditor
-              state={model.procedure}
-              errors={{ aliases: errors.aliases, inputs: errors.inputs, watch: errors.watch }}
-              watchError={shownWatchProblem}
-              reads={reads}
-              tools={tools}
-              placeholders={placeholders}
-              places={placeOptions}
-              onChange={(procedure) => patch({ procedure })}
-            />
+            {linksWorkflow ? (
+              <RunbookWorkflowEditor
+                workflowId={model.workflowId}
+                savedName={runbook?.workflow?.name}
+                aliasesText={model.procedure.aliasesText}
+                workflows={workflowChoices ?? null}
+                errors={{ workflow: errors.workflow, aliases: errors.aliases }}
+                onWorkflowChange={setWorkflowId}
+                onAliasesChange={setAliasesText}
+              />
+            ) : (
+              <RunbookProcedureEditor
+                state={model.procedure}
+                errors={{ aliases: errors.aliases, inputs: errors.inputs, watch: errors.watch }}
+                watchError={shownWatchProblem}
+                reads={reads}
+                tools={tools}
+                placeholders={placeholders}
+                places={placeOptions}
+                onChange={(procedure) => patch({ procedure })}
+              />
+            )}
 
             <RunbookConditionsEditor
               typeState={model.typeState}

@@ -27,6 +27,7 @@ module Identifiers
   HANDBOOK_PROPOSAL_EDIT_MODAL = "handbook_proposal_edit_modal"
   CODE_QUESTION_MODAL = "code_question_modal"
   CODE_QUESTION_CHANGE_MODAL = "code_question_change_modal"
+  RUNBOOK_RUN_MODAL = "runbook_run_modal"
 
   # Shortcut callback_ids
   CREATE_INCIDENT_SHORTCUT = "create_incident_shortcut"
@@ -135,6 +136,8 @@ module Identifiers
   APPLY_RUNBOOK = "apply_runbook"
   CLAIM_RUNBOOK_STEP = "claim_runbook_step"
   VIEW_RUNBOOK = "view_runbook"
+  # Run it on a runbook that links a workflow, in its channel message and its detail view.
+  RUN_RUNBOOK = "run_runbook"
   ASSIGN_RUNBOOK_STEP = "assign_runbook_step"
   REASSIGN_ACTION = "reassign_action"
   # Slack sends the stop button press as an event, not an interaction.

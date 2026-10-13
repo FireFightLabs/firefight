@@ -5,7 +5,8 @@ module Mcp
       authorize_as Ability::Action::RESOURCE_RUNBOOKS
       description "Search this workspace's incident response runbooks: documented procedures " \
                   "for handling incidents (e.g. how to fail over a database, roll back a deploy). " \
-                  "Matches name, summary and other names. runnable says Halon can run it with run_runbook. " \
+                  "Matches name, summary and other names. runnable says Halon can run it with run_runbook, and workflow names the " \
+                  "workflow it runs where the workspace has workflows. " \
                   "Use get_runbook for the full step-by-step content. " \
                   "Docs: #{Docs::RUNBOOKS}"
       annotations(**READ_ONLY)
@@ -19,7 +20,7 @@ module Mcp
       )
 
       def self.perform(workspace:, args:)
-        scope = workspace.runbooks.active.ordered.includes(:runbook_steps)
+        scope = workspace.runbooks.active.ordered.includes(:runbook_steps, workflow: %i[live_version draft_version])
         if args[:query].present?
           pattern = "%#{ActiveRecord::Base.sanitize_sql_like(args[:query])}%"
           scope = scope.where("runbooks.name ILIKE :q OR runbooks.summary ILIKE :q OR array_to_string(runbooks.aliases, ' ') ILIKE :q", q: pattern)
@@ -37,7 +38,8 @@ module Mcp
           external_url: runbook.external_url,
           steps_count: runbook.runbook_steps.size,
           aliases: runbook.aliases.presence,
-          runnable: runbook.procedure?
+          runnable: runbook.runnable_now?,
+          workflow: runbook.workflow_for_agents&.slice(:name, :state)
         }.compact
       end
     end
