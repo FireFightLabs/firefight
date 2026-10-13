@@ -66,27 +66,16 @@ class Integration::Tool < ApplicationRecord
   # The schema every caller is handed, the agent and an outside MCP client alike: the tool's own, plus
   # which environment to run in. A connection wired per environment lists them, so a model picks one that exists. A
   # connection that reaches several of what its provider names a scope, such as Northflank projects, also takes which
-  # one (Integrations::Scopes).
-  def offered_schema
+  # one (Integrations::Scopes). The connection adds the same arguments to each of its tools (Integration#offered_arguments).
+  def offered_schema(arguments = integration.offered_arguments)
     schema = (params_schema.presence || { "type" => "object" }).deep_dup
-    choices = integration.environment_choices
-    environment = { "type" => "string", "description" => environment_description }
-    environment["enum"] = choices if choices.any?
-    schema["properties"] = (schema["properties"] || {}).merge(ENVIRONMENT_ARG => environment).merge(Integrations::Scopes.argument(integration).to_h)
+    schema["properties"] = (schema["properties"] || {}).merge(arguments)
     schema
   end
 
   # How long the definition a model is handed is: its name, description and offered schema, as fits_up_front? counts them.
-  def definition_length = name.to_s.size + description.to_s.size + offered_schema.to_json.size
-
-  # Names only the environments this connection has, since an example it lacks is what a model then sends.
-  def environment_description
-    slugs = integration.environment_slugs
-    return "Leave this out. This connection has one environment." if slugs.empty?
-
-    named = "Environment slug, one of: #{slugs.join(', ')}."
-    integration.environment_choices.any? ? named : "#{named} Leave it out for the connection's default."
-  end
+  # The connection's arguments are read as Integration#counted_arguments reads them, so counting leaves nothing loaded on it.
+  def definition_length = name.to_s.size + description.to_s.size + offered_schema(integration.counted_arguments).to_json.size
 
   # Whether it is worth offering. Each call is still authorized on its own. A tool that can also read through its guard
   # is worth offering to whoever may read its connection, and each change through it still needs its own grant. With

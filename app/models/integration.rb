@@ -181,9 +181,42 @@ class Integration < ApplicationRecord
   # Each tool's stored length counts the environment and scope arguments the connection adds (Integration::Tool#offered_schema),
   # so when its environments change every tool is counted again. Only a length that moved is written.
   def recount_tool_definitions!
-    tools.reload.each do |tool|
-      length = tool.definition_length
-      tool.update_columns(definition_chars: length) unless tool.definition_chars == length
+    counting_together do
+      tools.reload.each do |tool|
+        length = tool.definition_length
+        tool.update_columns(definition_chars: length) unless tool.definition_chars == length
+      end
+    end
+  end
+
+  # The arguments every tool of this connection is offered with on top of its own schema, which environment to run in
+  # and, for a connection that reaches several scopes, which one (Integrations::Scopes).
+  def offered_arguments
+    choices = environment_choices
+    environment = { "type" => "string", "description" => environment_description(choices) }
+    environment["enum"] = choices if choices.any?
+    { Integration::Tool::ENVIRONMENT_ARG => environment }.merge(Integrations::Scopes.argument(self).to_h)
+  end
+
+  # The arguments a tool's stored length counts (Integration::Tool#definition_chars), read on the connection afresh so
+  # counting leaves no environments loaded on the one that saved the tool. Inside counting_together they are read once,
+  # when the first tool is counted, for every tool saved, since each tool of a connection is offered the same ones.
+  def counted_arguments
+    return Integration.find(id).offered_arguments unless @counting_together
+
+    @counted_arguments ||= Integration.find(id).offered_arguments
+  end
+
+  # Discovery saves a connection's tools in turn, once it has asked the provider for them.
+  def counting_together
+    return yield if @counting_together
+
+    begin
+      @counting_together = true
+      yield
+    ensure
+      @counting_together = false
+      @counted_arguments = nil
     end
   end
 
@@ -318,6 +351,15 @@ class Integration < ApplicationRecord
 
   def keep_packs_in_step
     Ability::Role.keep_in_step!(self)
+  end
+
+  # Names only the environments this connection has, since an example it lacks is what a model then sends.
+  def environment_description(choices)
+    slugs = environment_slugs
+    return "Leave this out. This connection has one environment." if slugs.empty?
+
+    named = "Environment slug, one of: #{slugs.join(', ')}."
+    choices.any? ? named : "#{named} Leave it out for the connection's default."
   end
 
   # Action keys derive from the slug, renaming would orphan grants, policies
