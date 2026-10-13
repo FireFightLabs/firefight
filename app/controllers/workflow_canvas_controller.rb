@@ -71,7 +71,7 @@ class WorkflowCanvasController < InertiaController
                                                                         workflow: workflow),
       PROP_HALON_CHANGES => WorkflowHalonChangeSerializer.many(workflow.halon_changes(shown), workflow: workflow),
       PROP_STEP_KINDS => WorkflowStepKindSerializer.many(Workflow::StepKinds.offered, facts: Workflow::StepKinds::Facts.new(workspace: current_workspace)),
-      PROP_TRIGGER_KINDS => WorkflowTriggerKindSerializer.many(Workflow::TriggerKinds.all),
+      PROP_TRIGGER_KINDS => WorkflowTriggerKindSerializer.many(Workflow::TriggerKinds.all, facts: Workflow::StepKinds::Facts.new(workspace: current_workspace)),
       PROP_TOOLS => InertiaRails.defer { tools_offered },
       PROP_PUBLISH_REQUESTS => publish_requests,
       PROP_MY_PUBLISH_REQUEST => my_publish_request,

@@ -5,7 +5,7 @@ Machine-generated entry into incidents. A monitoring tool POSTs JSON, a routing 
 Two halves that must not be conflated:
 
 - **Ingestion** (`Alert`, `AlertSource`, `AlertGroup`, `AlertIngestService`) is alert-specific.
-- **PolicyRouter** (`Policy`, `PolicyRule`, `Policy::Evaluation`) is a generic rules primitive that alert routing is merely the first consumer of. Auto-investigate and the Ability Gateway's approval policies are meant to reuse it unchanged. Never add alert vocabulary to the engine.
+- **PolicyRouter** (`Policy`, `PolicyRule`, `Policy::Evaluation`) is a generic rules primitive that alert routing is merely the first consumer of. Auto-investigate and the Ability Gateway's approval policies are meant to reuse it unchanged, and a workflow trigger's conditions match through the same `Policy::Conditions`. Never add alert vocabulary to the engine.
 
 ## The pipeline
 
@@ -172,6 +172,8 @@ The settings screen edits the scope's *own* policy, never the inherited fallback
 **The advisory lock is what makes a storm produce one incident.** Two hundred same-signature alerts arriving simultaneously serialize through the lookup-then-create. `AlertGroup.signature_for` hashes the policy's `content_match_fields` (default `service`); the window defaults to `AlertGroup::DEFAULT_WINDOW_MINUTES` and is configurable from five minutes to seven days.
 
 An incident an alert opened can start Halon once its channel exists, when the workspace turned that on, within an hourly spending ceiling shared by every alert run. Grouping is what keeps it to one run per storm of the same signature. See docs/ai.md, On call.
+
+Once routing commits, `#route` tells the workspace's workflows about the alert (`tell_workflows`, the `alert_received` trigger) unless it was dropped or joined a group already open, so a storm starts one run. Telling them never raises (`Workflow::Trigger::Events.fire!` logs its own failures), so it never undoes the routing. See docs/workflows.md, Something happening.
 
 Incident creation goes through **`IncidentLifecycleService#create` with `source: Incident::SOURCE_ALERT` and `declared_by: nil`** — the same path `/ff declare` uses. Alerts are an entry point, not a second way to make an incident.
 

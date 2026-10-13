@@ -35,7 +35,7 @@ class WorkflowCanvasControllerTest < ActionDispatch::IntegrationTest
     kinds = inertia_props["stepKinds"].map { |kind| kind["key"] }
     assert_includes kinds, DefinedWorkflow::KIND_BRANCH
     DefinedWorkflow::Steps.kinds.each { |klass| assert_includes kinds, klass.kind }
-    assert_equal %w[manual schedule once_at], inertia_props["triggerKinds"].map { |kind| kind["key"] }
+    assert_equal Workflow::TriggerKinds.all.map(&:key), inertia_props["triggerKinds"].map { |kind| kind["key"] }
   end
 
   test "the draft shows each step with its kind, routes and who last changed it, and the history says who did what" do

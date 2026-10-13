@@ -18,7 +18,7 @@ import { Switch } from "@/components/ui/switch"
 import { whenClosed } from "@/lib/handlers"
 import { APPROVAL_HELD_RISK_LEVELS, APPROVAL_NOTIFY_OPTIONS, APPROVER_ROLES, PRINCIPAL_KINDS } from "@/lib/generated/constants"
 import { approvalRulePath, approvalRulesPath } from "@/lib/routes"
-import { BadgeMultiSelect } from "@/pages/settings/components/alert-routing/badge-multi-select"
+import { BadgeMultiSelect } from "@/components/badge-multi-select"
 import { FormErrors } from "@/components/form-errors"
 import {
   APPROVER_CHOICE_LABELS,

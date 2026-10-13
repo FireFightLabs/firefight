@@ -736,6 +736,14 @@ export const ALERT_CONDITION_OPERATORS = [
 ] as const
 export type AlertConditionOperator = (typeof ALERT_CONDITION_OPERATORS)[number]
 
+export const ALERT_CONDITION_OPERATOR = {
+  "IS_ONE_OF": "is_one_of",
+  "CONTAINS": "contains",
+  "STARTS_WITH": "starts_with",
+  "MATCHES_REGEX": "matches_regex",
+  "IS_EMPTY": "is_empty"
+} as const
+
 export const ALERT_OUTCOME_ACTIONS = [
   "auto_create_incident",
   "attach_to_incident",
@@ -1747,7 +1755,9 @@ export const WORKFLOW_TRIGGER_ICONS = [
   "webhook",
   "deploy",
   "halon",
-  "workflow"
+  "workflow",
+  "follow_up",
+  "failed"
 ] as const
 export type WorkflowTriggerIcon = (typeof WORKFLOW_TRIGGER_ICONS)[number]
 
@@ -1919,7 +1929,10 @@ export const WORKFLOW_REFERENCE_ROOTS = {
 
 export const WORKFLOW_TRIGGER_KEYS = {
   "KIND": "kind",
-  "INPUTS": "inputs"
+  "INPUTS": "inputs",
+  "CONDITIONS": "conditions"
 } as const
+
+export const WORKFLOW_CONDITION_LIMIT = 20 as const
 
 export const WORKFLOW_INPUT_LIMIT = 10 as const

@@ -6,12 +6,14 @@ import {
   IconBolt,
   IconBook,
   IconCalendarRepeat,
+  IconCircleX,
   IconClock,
   IconEye,
   IconFlame,
   IconHandClick,
   IconHash,
   IconHourglass,
+  IconListCheck,
   IconMessage,
   IconPlayerStop,
   IconRepeat,
@@ -84,6 +86,8 @@ export const TRIGGER_ICONS: Record<WorkflowTriggerIcon, Icon> = {
   deploy: IconRocket,
   halon: IconSparkles,
   workflow: IconSitemap,
+  follow_up: IconListCheck,
+  failed: IconCircleX,
 }
 
 export const OPERATOR_LABELS: Record<WorkflowConditionOperator, string> = {

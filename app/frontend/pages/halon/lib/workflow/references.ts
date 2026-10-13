@@ -1,6 +1,6 @@
 import type { SearchableSelectOption } from "@/components/searchable-select"
 import { WORKFLOW_REFERENCE_ROOTS } from "@/lib/generated/constants"
-import type { WorkflowDocument, WorkflowStepNode } from "@/types/serializers"
+import type { WorkflowDocument, WorkflowStepNode, WorkflowTriggerKind } from "@/types/serializers"
 
 // The steps that run before this one: those its connections come from, and theirs, and for a step inside a for each the
 // steps before the for each too, since the loop starts once they finished.
@@ -28,9 +28,9 @@ function reference(path: string): string {
   return `{{${path}}}`
 }
 
-// What a step can read, written as it reads it: the trigger's inputs, each earlier step's fields, and inside a for each
-// the item and its place.
-export function referencesFor(stepId: string | null, document: WorkflowDocument): SearchableSelectOption[] {
+// What a step can read, written as it reads it: the trigger's inputs and what its data holds, each earlier step's
+// fields, and inside a for each the item and its place.
+export function referencesFor(stepId: string | null, document: WorkflowDocument, triggerOutputs: WorkflowTriggerKind["outputs"] = []): SearchableSelectOption[] {
   const inputs = document.trigger.inputs.map((input) => ({
     value: reference(`${WORKFLOW_REFERENCE_ROOTS.INPUTS}.${input.key}`),
     label: `${input.key}, asked each time: ${input.question}`,
@@ -52,5 +52,11 @@ export function referencesFor(stepId: string | null, document: WorkflowDocument)
     ]
     : []
   const trigger = { value: reference(WORKFLOW_REFERENCE_ROOTS.TRIGGER), label: "What started the run", group: "Trigger" }
-  return [ ...inputs, trigger, ...loop, ...steps ]
+  const triggerData = triggerOutputs.map((output) => ({
+    value: reference(`${WORKFLOW_REFERENCE_ROOTS.TRIGGER}.${output.path}`),
+    label: output.label,
+    group: "Trigger",
+  }))
+  return [ ...inputs, trigger, ...triggerData, ...loop, ...steps ]
+
 }

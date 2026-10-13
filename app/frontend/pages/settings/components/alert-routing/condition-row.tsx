@@ -1,6 +1,6 @@
 import { CONDITION_OPERATORS, type CatalogOptionMap, type ConditionOperator } from "@/pages/settings/lib/alerts"
 import { conditionValues, type ConditionRow } from "@/pages/settings/components/alert-routing/rule-form"
-import { BadgeMultiSelect } from "@/pages/settings/components/alert-routing/badge-multi-select"
+import { BadgeMultiSelect } from "@/components/badge-multi-select"
 import { RemoveRowButton } from "@/pages/settings/components/row-list-buttons"
 import { Input } from "@/components/ui/input"
 import {

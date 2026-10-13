@@ -18,6 +18,7 @@ class WorkflowRunEndService
   def ended!
     stop_watches!
     Conversation::Workflows.moved!(@workflow) unless @run.test?
+    tell_workflows!
     return if @run.test? || @run.parent_run_id.present? || !@run.claim_telling!(@job_id)
 
     tell!
@@ -36,6 +37,14 @@ class WorkflowRunEndService
   rescue StandardError
     @run.release_telling!(@job_id)
     raise
+  end
+
+  # Other workflows hear that a real run failed, once per run. A run another workflow ran is heard through the run that
+  # ran it, which fails with it, and a workflow never hears its own run fail.
+  def tell_workflows!
+    return unless @run.failed? && !@run.test? && @run.parent_run_id.nil?
+
+    Workflow::Trigger::Events.fire!(@workspace, Workflow::Trigger::KIND_RUN_FAILED, key: @run.id, subject: @run, actor: @run.agent)
   end
 
   def stop_watches!
