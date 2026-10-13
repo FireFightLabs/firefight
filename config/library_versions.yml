@@ -825,3 +825,19 @@ skills:
   watching:
     version: 1
     digest: e733afae606f41061583f9053e7b6057a49905ba198f3f355297355e064e8290
+workflows:
+  certificate_check:
+    version: 1
+    digest: bb60fcd64eadac9f71064b864f96f4208559bd2103f449f5acc856d1213b44e8
+  cost_check:
+    version: 1
+    digest: '091148ffacdd7357097d29052f805aaefbfafc9a5a615650ef7974e725231cfb'
+  disk_space_check:
+    version: 1
+    digest: 9366d18480dead6b635715be83e2cc77e89144ec8afbadfa3ce7da0b844e4039
+  error_budget_check:
+    version: 1
+    digest: bb0724cab519c454d93dca2a0fd34dcc71642ab9682ff1a6430eddd44f433c58
+  scheduled_check:
+    version: 1
+    digest: a941008da5086744edff09090dd1a35348c431bf8b995459c40efb18adc04399

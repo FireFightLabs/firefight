@@ -5,6 +5,7 @@
 module FirefightLibrary
   FILE = Rails.root.join("config/library_versions.yml")
   KIND_SKILLS = "skills".freeze
+  KIND_WORKFLOWS = "workflows".freeze
   HEADER = "# Written by bin/rails library:versions. Each item's version goes up by one whenever what it says changes.\n".freeze
 
   Entry = Data.define(:version, :digest)
@@ -12,7 +13,7 @@ module FirefightLibrary
   module_function
 
   # Each kind's items as they are now, by name, as the digest of what each says.
-  def sources = { KIND_SKILLS => -> { Chat::Skill.library_digests } }
+  def sources = { KIND_SKILLS => -> { Chat::Skill.library_digests }, KIND_WORKFLOWS => -> { Workflow::Library.digests } }
 
   def version(kind, name) = recorded(kind)[name.to_s]&.version || 1
 

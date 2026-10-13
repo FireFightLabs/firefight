@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_13_150100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_13_150200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -3270,8 +3270,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150100) do
     t.uuid "created_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "library_key"
+    t.integer "library_version"
+    t.jsonb "library_base"
+    t.boolean "follows_library", default: false, null: false
+    t.integer "library_dismissed_version"
     t.index ["agent_id"], name: "index_workflows_on_agent_id"
     t.index ["created_by_id"], name: "index_workflows_on_created_by_id"
+    t.index ["library_key", "follows_library"], name: "index_workflows_on_library_key_and_follows_library"
     t.index ["live_version_id"], name: "index_workflows_on_live_version_id"
     t.index ["owner_team_id"], name: "index_workflows_on_owner_team_id"
     t.index ["workspace_id", "slug"], name: "index_workflows_on_workspace_id_and_slug", unique: true

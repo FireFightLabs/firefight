@@ -385,6 +385,34 @@ export const SKILL_PAGE_PROPS = {
 
 export const SKILL_FILE_NAME = "SKILL.md" as const
 
+export const WORKFLOW_TRIGGER_KINDS = [
+  "manual",
+  "schedule",
+  "once_at",
+  "incident_declared",
+  "incident_changed",
+  "alert_received",
+  "inbound_webhook",
+  "deploy_finished",
+  "resource_changed",
+  "security_event",
+  "notice_raised",
+  "investigation_finished",
+  "follow_up_changed",
+  "issue_assigned",
+  "run_failed",
+  "called"
+] as const
+export type WorkflowTriggerKind = (typeof WORKFLOW_TRIGGER_KINDS)[number]
+
+export const WORKFLOW_CHANGE_KINDS = {
+  "ADDED": "added",
+  "REMOVED": "removed",
+  "CHANGED": "changed"
+} as const
+
+export const WORKFLOW_FILE_EXTENSION = ".workflow.json" as const
+
 export const MEMORY_PAGE_TABS = {
   "MEMORIES": "memories",
   "INSTRUCTIONS": "instructions"
@@ -745,6 +773,7 @@ export const ABILITY_RESOURCES = [
   "browser",
   "channel_posts",
   "skills",
+  "workflows",
   "integrations",
   "api_keys",
   "permissions",
@@ -776,7 +805,8 @@ export const ABILITY_GRANTABLE_RESOURCES = [
   "handbook",
   "browser",
   "channel_posts",
-  "skills"
+  "skills",
+  "workflows"
 ] as const
 export type AbilityGrantableResource = (typeof ABILITY_GRANTABLE_RESOURCES)[number]
 
@@ -803,6 +833,7 @@ export const ABILITY_RESOURCE_LABELS = {
   "browser": "Halon's Browser",
   "channel_posts": "Channel Posts",
   "skills": "Skills",
+  "workflows": "Workflows",
   "webhooks": "Webhooks",
   "integrations": "Integrations",
   "api_keys": "API Keys",
@@ -944,6 +975,12 @@ export const ABILITY_RESOURCE_ACTIONS = {
     "create"
   ],
   "skills": [
+    "read",
+    "create",
+    "update",
+    "delete"
+  ],
+  "workflows": [
     "read",
     "create",
     "update",

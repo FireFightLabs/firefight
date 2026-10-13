@@ -117,6 +117,10 @@ development:
     class: SkillCheckJob # flags a provider skill that names a tool its provider no longer offers
     queue: background
     schedule: at 4am every day
+  workflow_library_upgrade:
+    class: WorkflowLibraryUpgradeJob # moves the workflows that follow Firefight's library on to each new version of their item
+    queue: background
+    schedule: every hour
   provider_docs_sync:
     class: ProviderDocsSyncJob # reads each provider's documentation into the docs store Halon searches, and embeds what changed
     queue: background
@@ -283,6 +287,10 @@ staging:
     class: SkillCheckJob # flags a provider skill that names a tool its provider no longer offers
     queue: background
     schedule: at 4am every day
+  workflow_library_upgrade:
+    class: WorkflowLibraryUpgradeJob # moves the workflows that follow Firefight's library on to each new version of their item
+    queue: background
+    schedule: every hour
   provider_docs_sync:
     class: ProviderDocsSyncJob # reads each provider's documentation into the docs store Halon searches, and embeds what changed
     queue: background
@@ -449,6 +457,10 @@ production:
     class: SkillCheckJob # flags a provider skill that names a tool its provider no longer offers
     queue: background
     schedule: at 4am every day
+  workflow_library_upgrade:
+    class: WorkflowLibraryUpgradeJob # moves the workflows that follow Firefight's library on to each new version of their item
+    queue: background
+    schedule: every hour
   provider_docs_sync:
     class: ProviderDocsSyncJob # reads each provider's documentation into the docs store Halon searches, and embeds what changed
     queue: background

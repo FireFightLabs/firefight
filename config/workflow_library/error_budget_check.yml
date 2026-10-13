@@ -1,0 +1,40 @@
+name: Error budget check
+description: Halon looks at services spending their error budget faster than it lasts, works out the day it runs out, and tells the owning team once and again only when it gets worse.
+aliases: [ error budget ]
+trigger:
+  kind: schedule
+  schedule: { cadence: daily, hour: 9, time_zone: UTC }
+  inputs:
+    - key: notes
+      question: What should Halon look at closely or leave alone?
+      default: ""
+steps:
+  - id: step_check
+    name: check
+    kind: run_skill
+    config: { skill: error_budget_burn, mode: check, notes: "{{inputs.notes}}" }
+  - id: step_found
+    name: found_problems
+    kind: branch
+    config:
+      routes:
+        - route: found
+          when: { left: "{{steps.check.problems}}", operator: is_not_empty }
+      otherwise: all_clear
+  - id: step_raise
+    name: raise_notices
+    kind: for_each
+    config:
+      items: "{{steps.check.problems}}"
+      concurrency: 1
+      steps:
+        - id: step_notice
+          name: notice
+          kind: raise_notice
+          config: { problem: "{{item}}" }
+      edges: []
+edges:
+  - { from: step_check, to: step_found }
+  - { from: step_found, to: step_raise, route: found }
+outputs:
+  problems: "{{steps.check.problems}}"
