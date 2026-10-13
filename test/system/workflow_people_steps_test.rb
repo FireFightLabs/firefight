@@ -60,7 +60,11 @@ class WorkflowPeopleStepsTest < ApplicationSystemTestCase
     assert_button "Add a value"
     take_screenshot
 
+    # Stop is added below Set data and then connected to it, and the second toast collapses the first behind it with its
+    # words hidden until the stack is hovered, so the test waits for the last one and opens the stack as a person would.
     within("aside[aria-label='Add a step']") { click_button "Stop" }
+    assert_toast "Set data now leads to Stop."
+    find("[data-sonner-toast]", text: "Set data now leads to Stop.").hover
     assert_toast "Stop was added."
     assert_selector "label", text: /\Aoutcome/
     take_screenshot
