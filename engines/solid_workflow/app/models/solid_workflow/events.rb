@@ -8,6 +8,7 @@ module SolidWorkflow
       CANCELLED = "workflow.cancelled"
       PAUSED = "workflow.paused"
       RESUMED = "workflow.resumed"
+      WAITING = "workflow.waiting"
     end
 
     module Step
@@ -22,6 +23,11 @@ module SolidWorkflow
       MANUAL_SKIP = "step.manual_skip"
       RESET = "step.reset"
       RESUMED = "step.resumed"
+      WAITING = "step.waiting"
+      WOKEN = "step.woken"
+      SIGNALLED = "step.signalled"
+      BYPASSED = "step.bypassed"
+      TIMED_OUT = "step.timed_out"
     end
   end
 end

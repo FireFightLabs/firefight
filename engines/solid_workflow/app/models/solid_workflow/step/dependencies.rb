@@ -8,6 +8,7 @@ module SolidWorkflow
         return false if run_at && run_at > Time.current
 
         step_map = all_steps_or_map.is_a?(Hash) ? all_steps_or_map : all_steps_or_map.index_by(&:name)
+        return routes_open?(step_map) if graph?
 
         depends_on.all? do |dep_name|
           dep_step = step_map[dep_name]
@@ -20,6 +21,9 @@ module SolidWorkflow
       MAX_INPUT_BYTES = 64_000
 
       def populate_input_data(all_steps, step_map: nil)
+        # A defined step's input is its filled config, written when it runs.
+        return if graph?
+
         input_data = {}
         step_map ||= all_steps.index_by(&:name)
 

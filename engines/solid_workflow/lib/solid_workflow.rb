@@ -17,9 +17,17 @@ module SolidWorkflow
     ArgumentError
     NoMethodError
     TypeError
+    SolidWorkflow::InvalidDefinition
+    SolidWorkflow::TimeLimitReached
+    SolidWorkflow::SubWorkflowFailed
+    SolidWorkflow::UnknownStepKind
   ]
 
   def configure
     yield self
   end
+
+  # Hands the payload to every step waiting for the key, such as "incident.resolved:<id>", and wakes it. Returns how
+  # many steps it reached.
+  def signal!(key, payload = {}) = SolidWorkflow::Step.signal!(key, payload)
 end

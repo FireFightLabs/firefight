@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_13_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_13_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -2963,9 +2963,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_090000) do
     t.datetime "updated_at", null: false
     t.uuid "workflow_id", null: false
     t.string "claimed_by"
+    t.string "kind"
+    t.string "label"
+    t.jsonb "config"
+    t.jsonb "incoming", default: [], null: false
+    t.string "route"
+    t.string "on_failure"
+    t.integer "timeout_seconds"
+    t.datetime "timeout_at"
+    t.datetime "first_started_at"
+    t.string "signal_key"
+    t.jsonb "signal_payload"
+    t.integer "wake_requests", default: 0, null: false
     t.index ["run_at"], name: "index_solid_workflow_steps_on_run_at"
+    t.index ["signal_key"], name: "index_solid_workflow_steps_on_signal_key", where: "(signal_key IS NOT NULL)"
     t.index ["status", "updated_at"], name: "index_solid_workflow_steps_on_status_and_updated_at"
     t.index ["status"], name: "index_solid_workflow_steps_on_status"
+    t.index ["timeout_at"], name: "index_solid_workflow_steps_on_timeout_at", where: "(timeout_at IS NOT NULL)"
     t.index ["workflow_id", "name"], name: "index_solid_workflow_steps_on_workflow_id_and_name", unique: true
     t.index ["workflow_id", "status"], name: "index_solid_workflow_steps_on_workflow_id_and_status"
     t.index ["workflow_id"], name: "index_solid_workflow_steps_on_workflow_id"
@@ -2991,7 +3005,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_090000) do
     t.datetime "updated_at", null: false
     t.string "workflow_class", null: false
     t.jsonb "workflow_config", default: {}
+    t.jsonb "definition"
+    t.string "start_key"
+    t.uuid "parent_step_id"
+    t.jsonb "result"
     t.index ["created_at"], name: "index_solid_workflow_workflows_on_created_at"
+    t.index ["parent_step_id"], name: "index_solid_workflow_workflows_on_parent_step_id", where: "(parent_step_id IS NOT NULL)"
+    t.index ["start_key"], name: "index_solid_workflow_workflows_on_start_key", unique: true, where: "(start_key IS NOT NULL)"
     t.index ["state", "updated_at"], name: "index_solid_workflow_workflows_on_state_and_updated_at"
     t.index ["state"], name: "index_solid_workflow_workflows_on_state"
     t.index ["subject_type", "subject_id", "state"], name: "index_workflows_on_subject_and_state"

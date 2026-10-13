@@ -10,12 +10,14 @@ module SolidWorkflow
 
       return if @step.succeeded? || @step.cancelled?
       return if @workflow.cancelled?
+      return unless @workflow.runnable?
 
       resuming = @step.running?
       return unless resuming ? resume_step : claim_step
 
       @step.reload
       @workflow.reload
+      SolidWorkflow::StepTimeoutJob.set(wait_until: @step.timeout_at).perform_later(@step.id) if @step.timeout_at
 
       if @workflow.cancelled?
         @step.update!(status: :cancelled, completed_at: Time.current)
@@ -63,7 +65,7 @@ module SolidWorkflow
         will_retry: @step.should_retry?(e)
       })
 
-      @step.mark_failed!(e)
+      @step.mark_failed!(e, claimed_by: job_id)
     ensure
       @workflow.enqueue_next_steps_later if @workflow
     end
@@ -72,8 +74,11 @@ module SolidWorkflow
 
     # The job that runs a step is written on it, so only that job can take it up again.
     def claim_step
+      now = Time.current
       SolidWorkflow::Step.where(id: @step.id, status: :pending, updated_at: @step.updated_at).update_all(
-        status: :running, claimed_by: job_id, attempts: @step.attempts + 1, started_at: Time.current, updated_at: Time.current
+        status: :running, claimed_by: job_id, attempts: @step.attempts + 1, started_at: now, updated_at: now,
+        first_started_at: Arel.sql(SolidWorkflow::Step.sanitize_sql_array([ "COALESCE(first_started_at, ?)", now ])),
+        timeout_at: attempt_deadline(now)
       ) > 0
     end
 
@@ -81,9 +86,18 @@ module SolidWorkflow
     # once its worker is gone. It runs again at once, as another attempt, rather than waiting for the sweeper. Any other
     # job finds the step held and leaves it.
     def resume_step
+      now = Time.current
       SolidWorkflow::Step.where(id: @step.id, status: :running, claimed_by: job_id).update_all(
-        attempts: @step.attempts + 1, updated_at: Time.current
+        attempts: @step.attempts + 1, updated_at: now, timeout_at: attempt_deadline(now)
       ) > 0
+    end
+
+    # A step that waits measures its time limit from when it first started, so only other steps get a deadline per attempt.
+    def attempt_deadline(now)
+      return unless @step.timeout_seconds
+      return if SolidWorkflow::Definition::WAITING_KINDS.include?(@step.kind)
+
+      now + @step.timeout_seconds.seconds
     end
   end
 end

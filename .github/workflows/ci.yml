@@ -276,6 +276,7 @@ jobs:
           files=$(find test -name '*_test.rb' -not -path 'test/system/*' | sort | awk -v shard=${{ matrix.shard }} '(NR - 1) % 4 == shard')
           bin/rails test $files
           if [ "${{ matrix.shard }}" = "0" ]; then bin/rails test engines/firefight_ai/test; fi
+          if [ "${{ matrix.shard }}" = "1" ]; then bin/rails test engines/solid_workflow/test; fi
 
   # Branch protection requires a check named test, which a matrix job never reports under that name.
   test:
