@@ -24,8 +24,10 @@ class AgentChatWorkflowsTest < ActionDispatch::IntegrationTest
 
   teardown { travel_back }
 
+  def thread_headers = inertia_partial_headers("agent/index", AgentChatsController::THREAD_PROPS)
+
   test "the chat shows the card with Run now and Cancel, which whoever made it may press" do
-    get agent_chat_path(@conversation), headers: inertia_headers
+    get agent_chat_path(@conversation), headers: thread_headers
 
     card = inertia_props["workflows"].sole
     assert_equal [ "Check web", true, "2026-10-13T12:30:00Z" ], card.values_at("name", "oneOff", "nextRunAt")
@@ -36,7 +38,7 @@ class AgentChatWorkflowsTest < ActionDispatch::IntegrationTest
     Workflow::Run.any_instance.stubs(:may_move?).returns(false)
     WorkflowRunService.new(@workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_PERSON, started_by: @bob, test: true)
 
-    get agent_chat_path(@conversation), headers: inertia_headers
+    get agent_chat_path(@conversation), headers: thread_headers
 
     assert_nil inertia_props["workflows"].sole["lastRun"]
     assert_not_includes Slack::Messages::ChatWorkflow.standing(@workflow.reload), "Last run"
@@ -65,7 +67,7 @@ class AgentChatWorkflowsTest < ActionDispatch::IntegrationTest
   test "without the flag the chat shows no workflow card" do
     FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
 
-    get agent_chat_path(@conversation), headers: inertia_headers
+    get agent_chat_path(@conversation), headers: thread_headers
 
     assert_empty inertia_props["workflows"]
   end
