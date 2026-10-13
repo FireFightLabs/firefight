@@ -5,6 +5,10 @@ require "test_helper"
 class CodeAgent::RelayPayerTest < ActiveSupport::TestCase
   FakeProxy = Struct.new(:usage, :status, :refusal, :request_id) do
     def forward(**) = usage
+
+    def trim = nil
+
+    def calls = FirefightAi::ModelProxy::Calls.new
   end
 
   setup do

@@ -57,6 +57,7 @@ module FirefightAi
       AiPurpose::CITATION_CHECK => "CITATION_CHECK_AI",
       AiPurpose::LESSONS => "LESSONS_AI",
       AiPurpose::CODE_FIX => "CODE_FIX_AI",
+      AiPurpose::CODE_REVIEW => "CODE_REVIEW_AI",
       AiPurpose::HELPER => "HELPER_AI",
       AiPurpose::EMBEDDING => "EMBEDDING_AI"
     }.fetch(purpose)
@@ -86,6 +87,7 @@ module FirefightAi
       AiPurpose::CITATION_CHECK => 8_000,
       AiPurpose::LESSONS => 8_000,
       AiPurpose::CODE_FIX => 8_000,
+      AiPurpose::CODE_REVIEW => 8_000,
       AiPurpose::HELPER => 8_000,
       AiPurpose::INCIDENT_RESPONSE => 4_000,
       AiPurpose::SUMMARY => 4_000,
@@ -178,6 +180,12 @@ module FirefightAi
   # Every choice in the order they are tried.
   def choices_for(purpose, workspace: nil) = AiFunding.for(workspace, purpose)
 
+  # The model a code fix's change is reviewed on, paid by whoever paid for writing it, since the review is charged to the
+  # change's own budget. The change's own model when that payer has no review model of its own.
+  def review_choice_for(writing, workspace:)
+    choices_for(AiPurpose::CODE_REVIEW, workspace: workspace).find { |choice| choice.payer == writing.payer } || writing
+  end
+
   # The deployment's own model for the purpose, most specific first: workspace override for the purpose, for any
   # purpose, the purpose's env var, the model the providers recommend for it, then the parent purpose's model when it
   # has one. After that it depends on the purpose's tier. Halon's own loop takes FIREFIGHT_AI_MODEL, then the main
@@ -192,7 +200,7 @@ module FirefightAi
       return ModelChoice.new(model: ENV["#{prefix}_MODEL"], provider: ENV["#{prefix}_PROVIDER"].presence)
     end
 
-    recommended = recommended_model_for(purpose)
+    recommended = recommended_model_for(purpose, workspace)
     return recommended if recommended
 
     parent = AiPurpose::PARENTS[purpose]
@@ -220,10 +228,19 @@ module FirefightAi
 
   def fallback_choice(purpose) = ModelChoice.new(model: fallback_model(purpose), provider: nil)
 
-  # Code fixes run on the model the providers recommend for writing code, when nothing names one for them and this
-  # deployment holds a key that reaches it. Every other purpose has none of its own.
-  def recommended_model_for(purpose)
-    AiProviders.deployment_code_fix_choice if purpose == AiPurpose::CODE_FIX
+  # Code fixes are written on the model the providers recommend for writing code and reviewed on the one they recommend
+  # for reviewing it, when nothing names one and this deployment holds a key that reaches it. A model named for code
+  # fixes is left to review them too, as it did before the review had a model of its own. Every other purpose has none.
+  def recommended_model_for(purpose, workspace = nil)
+    case purpose
+    when AiPurpose::CODE_FIX then AiProviders.deployment_code_fix_choice
+    when AiPurpose::CODE_REVIEW then AiProviders.deployment_code_review_choice unless named_for?(AiPurpose::CODE_FIX, workspace)
+    end
+  end
+
+  # Whether an override or the purpose's env var names its model, rather than a recommendation or its parent.
+  def named_for?(purpose, workspace)
+    ENV["#{env_prefix(purpose)}_MODEL"].present? || (workspace.present? && workspace.ai_model_overrides.exists?(purpose: purpose))
   end
 
   # Points a saved chat at the choice, its model and the context holding its account's settings, so a chat resumed after
@@ -417,6 +434,9 @@ module FirefightAi
     end
     true
   end
+
+  # Whether definitions this many characters long in all, each counted as fits_up_front? counts it, fit the same budget.
+  def chars_fit_up_front?(chars) = chars <= configuration.held_tools_budget * TOOL_CHARS_PER_TOKEN
 
   # Sets a saved chat up for an agent's turn on choice. The instructions end in a cache boundary, so the tool definitions
   # in front of them and the instructions themselves are read from the provider's cache on every turn after the first.

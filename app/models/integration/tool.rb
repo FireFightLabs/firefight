@@ -3,17 +3,25 @@
 # vanishes and returns keeps that choice.
 class Integration::Tool < ApplicationRecord
   belongs_to :integration
-  has_one :ability_action, class_name: "Ability::Action", as: :source, dependent: :destroy
+  # The action knows the tool it was read through, so asking whether a member reads it by default reads no tool again.
+  has_one :ability_action, class_name: "Ability::Action", as: :source, dependent: :destroy, inverse_of: :source
 
   validates :name, presence: true, uniqueness: { scope: :integration_id },
                    format: { with: /\A[a-z0-9_.]+\z/ }
 
   scope :enabled, -> { where(enabled: true) }
   scope :available, -> { where(removed_at: nil) }
-  scope :in_workspace, ->(workspace) {
-    enabled.available.joins(:integration)
-      .where(integrations: { workspace_id: workspace.id, disabled_at: nil, deleted_at: nil })
-      .eager_load(:ability_action, integration: :integration_environments)
+  # The tools a workspace's connections offer and have switched on, without loading anything else, for a decision that
+  # reads only a few columns of each (Chat::Specialists.crowded?).
+  scope :switched_on_in, ->(workspace) {
+    enabled.available.joins(:integration).where(integrations: { workspace_id: workspace.id, disabled_at: nil, deleted_at: nil })
+  }
+  scope :in_workspace, ->(workspace) { switched_on_in(workspace).eager_load(:ability_action, integration: :integration_environments) }
+
+  # How long its definition is, as FirefightAi.fits_up_front? counts it, so whether many tools fit is one sum.
+  # Counted as a model is handed it (definition_length), not on the tool's own name, description and schema.
+  before_save :count_definition_chars, if: -> {
+    new_record? || will_save_change_to_name? || will_save_change_to_description? || will_save_change_to_params_schema? || will_save_change_to_spec?
   }
 
   # Synced on every mirrored attribute, a stale risk_level on the action
@@ -61,23 +69,37 @@ class Integration::Tool < ApplicationRecord
   # The schema every caller is handed, the agent and an outside MCP client alike: the tool's own, plus
   # which environment to run in. A connection wired per environment lists them, so a model picks one that exists. A
   # connection that reaches several of what its provider names a scope, such as Northflank projects, also takes which
-  # one (Integrations::Scopes).
-  def offered_schema
+  # one (Integrations::Scopes). rows are the connection's enabled environment rows when the caller read them already
+  # (Integration#offered_environment_rows).
+  def offered_schema(rows = nil)
     schema = (params_schema.presence || { "type" => "object" }).deep_dup
-    choices = integration.environment_choices
-    environment = { "type" => "string", "description" => environment_description }
+    choices = integration.environment_choices(rows)
+    environment = { "type" => "string", "description" => environment_description(rows) }
     environment["enum"] = choices if choices.any?
-    schema["properties"] = (schema["properties"] || {}).merge(ENVIRONMENT_ARG => environment).merge(Integrations::Scopes.argument(integration).to_h)
+    schema["properties"] = (schema["properties"] || {}).merge(ENVIRONMENT_ARG => environment).merge(Integrations::Scopes.argument(integration, rows).to_h)
     schema
   end
 
+  # How long a description an agent is handed may be (Chat::Tools::FULL_DESCRIPTION).
+  AGENT_DESCRIPTION_LIMIT = 2_000
+
+  # How long the definition a model is handed is, as fits_up_front? counts it: the name it calls the tool by, with its
+  # connection's slug, what an agent reads of the tool, cleaned and capped as Chat::Tools.clean does, and the schema it
+  # is offered, with the connection's environment and scope arguments. What a turn adds of its own, such as the intent a
+  # call that waits for the person asks for, is not counted. The connection's environments are read into rows of their
+  # own, never through its integration_environments, which a caller still holding the connection would then read stale.
+  def definition_length(rows = integration.offered_environment_rows)
+    described = described_for_agents(rows).to_s.gsub(/[[:cntrl:]]/, " ").squish.truncate(AGENT_DESCRIPTION_LIMIT)
+    model_facing_name.size + described.size + Integrations::Replicas.offered(self, offered_schema(rows)).to_json.size
+  end
+
   # Names only the environments this connection has, since an example it lacks is what a model then sends.
-  def environment_description
-    slugs = integration.environment_slugs
+  def environment_description(rows = nil)
+    slugs = integration.environment_slugs(rows)
     return "Leave this out. This connection has one environment." if slugs.empty?
 
     named = "Environment slug, one of: #{slugs.join(', ')}."
-    integration.environment_choices.any? ? named : "#{named} Leave it out for the connection's default."
+    integration.environment_choices(rows).any? ? named : "#{named} Leave it out for the connection's default."
   end
 
   # Whether it is worth offering. Each call is still authorized on its own. A tool that can also read through its guard
@@ -148,14 +170,14 @@ class Integration::Tool < ApplicationRecord
   # What the app installation the connection was made through was not granted that this tool needs, as a sentence a
   # person reads beside it ("Needs Actions read in the GitHub App."), or nil. Each environment's installation is asked,
   # since one connection may reach several.
-  def access_missing_reason
-    rows = integration.integration_environments.select(&:enabled?)
+  def access_missing_reason(rows = nil)
+    rows ||= integration.integration_environments.select(&:enabled?)
     lacking = rows.flat_map { |row| Integrations::Installations.missing(row, remote_name) }.uniq
     Integrations::Installations.missing_words(rows.first, lacking) if lacking.any?
   end
 
   # What an agent reads of the tool, led by what it lacks, so a listing cut short still says it.
-  def described_for_agents = [ access_missing_reason, description.presence ].compact.join(" ").presence
+  def described_for_agents(rows = nil) = [ access_missing_reason(rows), description.presence ].compact.join(" ").presence
 
   # Another connection's tool Halon would call by the same name, or nil.
   def namesake = integration.tool_namesakes[name]
@@ -202,6 +224,10 @@ class Integration::Tool < ApplicationRecord
     return unless Integrations::Paging.sync_tools(integration.provider).include?(name)
 
     Ability::Grant.grant!(workspace: integration.workspace, principal: SystemAgent.paging, target: { action: action })
+  end
+
+  def count_definition_chars
+    self.definition_chars = definition_length
   end
 
   def ability_action_stale?

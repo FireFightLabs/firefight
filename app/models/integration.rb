@@ -178,6 +178,32 @@ class Integration < ApplicationRecord
     end
   end
 
+  # Each tool's stored length counts the environment and scope arguments the connection adds (Integration::Tool#offered_schema),
+  # so when its environments change every tool is counted again. Only a length that moved is written. The environments
+  # every tool reads are read once for the whole recount rather than once per tool.
+  def recount_tool_definitions!
+    rows = offered_environment_rows
+    tools.reload.each do |tool|
+      length = tool.definition_length(rows)
+      tool.update_columns(definition_chars: length) unless tool.definition_chars == length
+    end
+  end
+
+  # The enabled rows a tool is offered with, in the order they were added. Read from the database rather than through
+  # integration_environments, so counting a tool never leaves a copy of the rows on a connection a caller reads again.
+  def offered_environment_rows
+    @offered_environment_rows || integration_environments.enabled.includes(:environment).order(:created_at).to_a
+  end
+
+  # Reads the rows once for every tool the block saves, as discovery saves each of a provider's tools in turn and changes
+  # no environment while it does.
+  def counting_tools_together
+    @offered_environment_rows = offered_environment_rows
+    yield
+  ensure
+    @offered_environment_rows = nil
+  end
+
   # The Integrations page reads these from its address, so a link opens one connection's details or one provider's connect dialog.
   DETAILS_QUERY_PARAM = "integration".freeze
   CONNECT_QUERY_PARAM = "connect".freeze
@@ -261,8 +287,8 @@ class Integration < ApplicationRecord
   # The slugs a caller has to choose between, empty when the connection resolves one on its own, as resolve_environment
   # does with a default row (there is at most one) or a single enabled row. Read in one query, since every tool's schema
   # asks. Slugs are catalog data any member can read, so nothing is disclosed.
-  def environment_choices
-    rows = integration_environments.enabled.includes(:environment).order(:created_at).to_a
+  def environment_choices(rows = nil)
+    rows ||= offered_environment_rows
     return [] if rows.one? || rows.any? { |row| row.catalog_entry_id.nil? }
 
     slugs = rows.filter_map { |row| row.environment&.slug }
@@ -270,9 +296,7 @@ class Integration < ApplicationRecord
   end
 
   # The slugs of the environments this connection is wired for, in the order they were added.
-  def environment_slugs
-    integration_environments.enabled.includes(:environment).order(:created_at).filter_map { |row| row.environment&.slug }
-  end
+  def environment_slugs(rows = nil) = (rows || offered_environment_rows).filter_map { |row| row.environment&.slug }
 
   # What a caller can name instead, so a refused environment is put right on the next call.
   def environments_named

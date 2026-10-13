@@ -1227,6 +1227,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_120000) do
     t.string "push_token_digest"
     t.datetime "push_open_until"
     t.integer "questions_asked", default: 0, null: false
+    t.jsonb "tool_result_clearing", default: {}, null: false
     t.index ["integration_environment_id"], name: "index_code_agent_sessions_following", where: "((pull_request_state)::text = 'open'::text)"
     t.index ["push_token_digest"], name: "index_code_agent_sessions_on_push_token_digest", unique: true, where: "(push_token_digest IS NOT NULL)"
     t.index ["token_digest"], name: "index_code_agent_sessions_on_token_digest", unique: true
@@ -1900,6 +1901,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_120000) do
     t.uuid "workspace_ai_account_id"
     t.bigint "billed_micros"
     t.jsonb "cache_write_tokens_by_ttl", default: {}, null: false
+    t.jsonb "agent_call"
     t.index ["api_key_id"], name: "index_inferences_on_api_key_id"
     t.index ["error_kind", "created_at"], name: "index_inferences_on_error_kind_and_created_at", where: "(error_kind IS NOT NULL)"
     t.index ["inferable_type", "inferable_id"], name: "index_inferences_on_inferable"
@@ -1956,6 +1958,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_120000) do
 
   create_table "integration_tools", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.bigint "definition_chars", null: false
     t.string "description"
     t.boolean "enabled", default: false, null: false
     t.uuid "integration_id", null: false
@@ -1967,6 +1970,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_120000) do
     t.jsonb "spec", default: {}, null: false
     t.datetime "updated_at", null: false
     t.index ["integration_id", "name"], name: "index_integration_tools_on_integration_id_and_name", unique: true
+    t.check_constraint "definition_chars > 0", name: "integration_tools_definition_chars_counted"
   end
 
   create_table "integrations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

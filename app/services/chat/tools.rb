@@ -580,8 +580,8 @@ module Chat::Tools
     # A provider tool a capability answers one to one is reached through the capability, so it is not offered twice,
     # and a connection tool that happens to share a capability's name is left out rather than shadowing it.
     packs = nil
-    tools.reject { |tool| Integrations::Capabilities.wrapped?(tool) || Integrations::Capabilities.tool_names.include?(tool.model_facing_name) }.map do |tool|
-      writes = agent_run.reads_only? && !tool.read_only? && Integrations::ReadGuards.for(tool).nil?
+    tools.reject { |tool| through_capability?(tool) }.map do |tool|
+      writes = withheld_from?(agent_run, tool)
       ready = !writes && principal.present? && tool.callable_by?(principal, resolved)
       packs ||= changes_packs(tools) unless ready || writes
       Entry.new(
@@ -592,6 +592,14 @@ module Chat::Tools
       )
     end
   end
+
+  # A provider tool a capability answers one to one, or one sharing a capability's name, which is never offered itself.
+  def self.through_capability?(tool)
+    Integrations::Capabilities.wrapped?(tool) || Integrations::Capabilities.tool_names.include?(tool.model_facing_name)
+  end
+
+  # A tool that can change something on a run that only reads, unless its provider's read guard tells its reads apart.
+  def self.withheld_from?(agent_run, tool) = agent_run.reads_only? && !tool.read_only? && Integrations::ReadGuards.for(tool).nil?
 
   # Leads a tool that changes something and is not granted, so the agent can tell the person which pack to ask for.
   # packs is each connection's changes pack by its id, when the caller read them for many tools at once. The tool is its

@@ -97,8 +97,12 @@ module Chat::Specialists
   # long tail already stays out of the model's context and out of the cached front until it is searched for, which is
   # what specialists are for. Elsewhere, only when some connection's reads would go to a specialist and the connections'
   # tools whoever asks may use, the long tail beyond Firefight's own, do not fit the held tools budget
-  # (FirefightAi.fits_up_front?). Firefight's own tools are counted out, since an admin holds more of them than a member
-  # and a small workspace keeps today's way for both.
+  # (FirefightAi.chars_fit_up_front?). Firefight's own tools are counted out, since an admin holds more of them than a
+  # member and a small workspace keeps today's way for both.
+  # The decision reads a few columns of the connections' switched on tools, with their actions, and sums the length each
+  # tool's row keeps (Integration::Tool#definition_chars), so the catalogue is built only when the turn is handed its
+  # tools. It counts the tools the catalogue hands the turn ready to call: not a capability's, not a change on a turn that
+  # only reads, and only one the asker's grants, read once, let them call.
   def self.ask?(turn, choice)
     case mode
     when FirefightAi::Configuration::SPECIALISTS_ON then true
@@ -108,8 +112,18 @@ module Chat::Specialists
   end
 
   def self.crowded?(turn)
-    tail = Chat::Tools.catalog(turn).select { |entry| entry.tool && entry.source != Chat::Skill::SOURCE_FIREFIGHT }
-    tail.any? { |entry| reserved?(turn.workspace, entry) } && !FirefightAi.fits_up_front?(tail.map(&:tool))
+    principal = turn.acting_principal
+    return false unless principal
+
+    tools = Integration::Tool.switched_on_in(turn.workspace).select(:id, :integration_id, :name, :read_only, :definition_chars)
+                             .preload(:integration, :ability_action).to_a
+    reading = tools.select(&:read_only?).map(&:model_facing_name).to_set
+    resolved = Chat::Tools.granted(turn)
+    tail = tools.select do |tool|
+      !Chat::Tools.through_capability?(tool) && !Chat::Tools.withheld_from?(turn, tool) && tool.callable_by?(principal, resolved)
+    end
+    tail.any? { |tool| of_provider(tool.integration.provider).present? && reading.include?(tool.model_facing_name) } &&
+      !FirefightAi.chars_fit_up_front?(tail.sum(&:definition_chars))
   end
 
   # The kind a connection's provider answers, from the registry, or nil for one that stays Halon's own.

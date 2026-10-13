@@ -11,18 +11,23 @@ module AiPurpose
   LESSONS = "lessons"
   # Writing a fix's code with a coding agent in the sandbox, reached through Firefight's model proxy.
   CODE_FIX = "code_fix"
+  # Reading a code fix's change against what was asked before it is pushed, which can send it back. One call with no
+  # tools, so the stronger model the provider recommends for it costs little against the dozens the writing takes.
+  CODE_REVIEW = "code_review"
   # A helper Halon hands one narrow check to, beside its own work. A few turns of reading, so a side job's model does it.
   HELPER = "helper"
   # Its own purpose, and deliberately not overridable per workspace: every vector in a workspace
   # has to come from the same model, so changing it means writing them all again.
   EMBEDDING = "embedding"
-  ALL = [ POSTMORTEM, INCIDENT_RESPONSE, SUMMARY, MILESTONES, INVESTIGATION, CITATION_CHECK, LESSONS, CODE_FIX, HELPER ].freeze
+  ALL = [ POSTMORTEM, INCIDENT_RESPONSE, SUMMARY, MILESTONES, INVESTIGATION, CITATION_CHECK, LESSONS, CODE_FIX, CODE_REVIEW, HELPER ].freeze
 
   # A purpose with nothing set of its own uses its parent's model, so adding one changes nothing until it is set.
-  # A postmortem with no model of its own is written on Halon's, like the rest of what Halon writes.
+  # A postmortem with no model of its own is written on Halon's, like the rest of what Halon writes. A code fix's review
+  # with no model of its own runs on the model the providers recommend for reviewing code, or else the code fix's, and a
+  # model named for code fixes is the review's too until one is named for it.
   PARENTS = {
     POSTMORTEM => INVESTIGATION, CITATION_CHECK => INVESTIGATION, LESSONS => CITATION_CHECK, CODE_FIX => INVESTIGATION,
-    HELPER => SUMMARY
+    CODE_REVIEW => CODE_FIX, HELPER => SUMMARY
   }.freeze
 
   # What a workspace's own AI account runs on its quick model. Everything else, investigations and what grows from them,

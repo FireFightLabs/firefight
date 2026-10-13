@@ -10,6 +10,8 @@ module Integrations
       # and after, since the run shares it.
       module Fixing
         AGENT = "opencode".freeze
+        # The client OpenCode ships for Anthropic's own format.
+        ANTHROPIC_CLIENT = "@ai-sdk/anthropic".freeze
         # The agent's own working time. Waiting for answers to its questions comes on top.
         FIX_TIMEOUT = 15 * 60
         # A change sent back after its review gets this long, within what is left of its session.
@@ -460,10 +462,14 @@ module Integrations
           kept_out!(environment_row, repo, change, updating: lease.present?)
           push!(session, reading, repo, ref, branch, lease)
           [ change, reviewed ]
+        rescue StandardError => error
+          stopped = error
+          raise
         ensure
           CodeAgentQuestion.withdraw_open!(session) if session
           session&.close!
           CodeAgentQuestion.changes_closed!(session) if session
+          spent(session, stopped) if session
         end
 
         def run_agent(environment_row, reading, repo, ref, session, agent_token, choice, events, words, earlier, timeout, gate, resume = nil)
@@ -676,6 +682,25 @@ module Integrations
 
         def redacted(lines) = lines.map { |line| Chat::SecretFree.redacted(line) }
 
+        # One line per change with what its writing and its reviews spent and how it ended, so what a fix that lands costs,
+        # send-backs and failed runs included, can be read later against the session's pull request.
+        def spent(session, stopped)
+          outcome = if stopped.nil? then SPENT_PUSHED
+          elsif stopped.is_a?(Paused) then SPENT_PAUSED
+          else SPENT_FAILED
+          end
+          Rails.logger.info({ event: "code_fix.spent", session: session.id, continued_from: @pause&.session_id, repository: session.repository,
+                              provider: session.provider, model: session.model, outcome: outcome, stopped_by: stopped&.class&.name,
+                              spend: session.spend }.to_json)
+        rescue StandardError => error
+          # It runs while the change ends, so it never stands in for the change's own error.
+          Rails.logger.warn({ event: "code_fix.spent_failed", session: session.id, error: error.class.name }.to_json)
+        end
+
+        SPENT_PUSHED = "pushed".freeze
+        SPENT_PAUSED = "paused".freeze
+        SPENT_FAILED = "failed".freeze
+
         def logged_failure(event, repo, detail)
           Rails.logger.warn({ event: event, repository: repo, detail: detail.to_s.last(LOGGED_LIMIT) }.to_json)
         end
@@ -727,13 +752,16 @@ module Integrations
         # read as the person who asked, ask them a question, and search the web where the workspace allows it. Outside the
         # copy it may use only its own temporary directory, which OpenCode reads from TMPDIR as the script sets it, since a
         # path it would otherwise ask about is refused in a run nobody watches (cli/cmd/run.ts at 1.18.34).
+        # A model reached in Anthropic's own format is spoken to with OpenCode's Anthropic client, whatever the provider,
+        # so the provider clears the oldest tool results itself (FirefightAi::ModelProxy::History).
         def agent_config(choice, agent_token)
           provider = choice.provider_name
+          client = { "npm" => ANTHROPIC_CLIENT } if FirefightAi::ModelProxy.anthropic_format?(provider, choice.model)
           {
             "$schema" => "https://opencode.ai/config.json",
             "autoupdate" => false,
             "share" => "disabled",
-            "provider" => { provider => { "options" => { "baseURL" => "#{proxy_base}/code_agent/#{provider}", "apiKey" => agent_token },
+            "provider" => { provider => { **client.to_h, "options" => { "baseURL" => "#{proxy_base}/code_agent/#{provider}", "apiKey" => agent_token },
                                           "models" => { choice.model => {} } } },
             "permission" => { "edit" => "allow", "bash" => "allow", "webfetch" => "deny", "websearch" => "deny",
                               "external_directory" => { "{env:TMPDIR}/*" => "allow" } },
