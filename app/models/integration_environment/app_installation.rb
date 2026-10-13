@@ -50,7 +50,10 @@ module IntegrationEnvironment::AppInstallation
     return if from == state
 
     moved = self.class.where(id: id, installation_state: from).update_all(installation_state: state, installation_state_at: state && Time.current, updated_at: Time.current)
-    reload if moved.positive?
+    return unless moved.positive?
+
+    reload
+    recount_tool_definitions
   end
 
   # Disconnecting forgets the installation, so nothing calls the provider as it again.
@@ -64,9 +67,13 @@ module IntegrationEnvironment::AppInstallation
 
   private
 
+  # What the installation was granted leads each tool's description (Integration::Tool#access_missing_reason), so the
+  # connection's tools are counted again when that changes, and only then, since a minted token writes it on every call.
   def merge_installation_details!(details)
+    access = installation_access
     self.class.where(id: id).update_all([ "installation_details = installation_details || ?::jsonb, updated_at = ?", details.to_json, Time.current ])
     self.installation_details = installation_details.to_h.merge(details)
     clear_attribute_change(:installation_details)
+    recount_tool_definitions unless installation_access == access
   end
 end

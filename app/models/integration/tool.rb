@@ -18,7 +18,7 @@ class Integration::Tool < ApplicationRecord
   scope :in_workspace, ->(workspace) { switched_on_in(workspace).eager_load(:ability_action, integration: :integration_environments) }
 
   # How long its definition is, as FirefightAi.fits_up_front? counts it, so whether many tools fit is one sum.
-  # Counted on the offered schema, with the environment and scope arguments a model is handed, not the tool's own.
+  # Counted on what a model is handed (definition_length), not the tool's own name, description and schema.
   before_save :count_definition_chars, if: -> { new_record? || will_save_change_to_name? || will_save_change_to_description? || will_save_change_to_params_schema? }
 
   # Synced on every mirrored attribute, a stale risk_level on the action
@@ -76,8 +76,9 @@ class Integration::Tool < ApplicationRecord
     schema
   end
 
-  # How long the definition a model is handed is: its name, description and offered schema, as fits_up_front? counts them.
-  def definition_length = name.to_s.size + description.to_s.size + offered_schema.to_json.size
+  # How long the definition a model is handed is, as fits_up_front? counts it: the name it calls the tool by, with the
+  # connection's slug, what an agent reads of it, and the offered schema with the environment and scope arguments.
+  def definition_length = model_facing_name.size + described_for_agents.to_s.size + offered_schema.to_json.size
 
   # Names only the environments this connection has, since an example it lacks is what a model then sends.
   def environment_description

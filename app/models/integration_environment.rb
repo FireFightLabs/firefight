@@ -30,6 +30,7 @@ class IntegrationEnvironment < ApplicationRecord
   after_update_commit :index_reported_resources, if: :saved_change_to_catalog_entry_id?
   # The environment and scope arguments its connection's tools are offered with come from these rows, so each tool's
   # stored length is counted again when one is added, removed, switched or rewired, or its fields or what it learned change.
+  # What its app installation holds is counted again where it is written (IntegrationEnvironment::AppInstallation).
   after_commit :recount_tool_definitions, if: -> {
     destroyed? || previously_new_record? || saved_change_to_enabled? || saved_change_to_catalog_entry_id? || saved_change_to_base_config?
   }
