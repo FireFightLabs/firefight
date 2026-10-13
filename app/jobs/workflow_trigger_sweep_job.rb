@@ -1,7 +1,8 @@
 # Starts each workflow whose Schedule or Once at time came, every minute. Taking a workflow moves its next time on in
 # the same statement, so two sweeps never start it twice, and one start key per time it was due means a retried job
 # never starts a second run. A start the workflow's limits refuse is kept on the workflow with why, for its page, and
-# so is one that broke, which never stops the sweep reaching the workflows after it.
+# so is one that broke, whose time is given back so the next sweep tries it again, and which never stops the sweep
+# reaching the workflows after it.
 class WorkflowTriggerSweepJob < ApplicationJob
   queue_as :background
 
@@ -30,6 +31,7 @@ class WorkflowTriggerSweepJob < ApplicationJob
     workflow.trigger_refused!(refused.message)
   rescue StandardError => error
     Rails.logger.error({ event: "workflow_trigger.start_failed", workflow_id: workflow.id, due_at: due_at.iso8601, error: error.class.name, message: error.message }.to_json)
+    workflow.release_due!(due_at)
     workflow.trigger_refused!(BROKE)
   end
 end

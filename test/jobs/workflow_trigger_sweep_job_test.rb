@@ -30,18 +30,31 @@ class WorkflowTriggerSweepJobTest < ActiveJob::TestCase
     end
   end
 
-  test "a start that breaks is kept on that workflow with why, and the sweep carries on with the next" do
+  test "a start that breaks is kept on that workflow with why and tried again next sweep, and the sweep starts the next" do
     travel_to Time.zone.parse("2026-10-13 12:00 UTC") do
       broken = scheduled("Broken", { "kind" => "once_at", "at" => "2026-10-13T12:10", "time_zone" => "UTC", "inputs" => [] })
       fine = scheduled("Fine", { "kind" => "once_at", "at" => "2026-10-13T12:10", "time_zone" => "UTC", "inputs" => [] })
-      WorkflowRunService.any_instance.stubs(:start!).raises(ActiveRecord::StatementInvalid, "PG::QueryCanceled").then.returns(nil)
+      breaking = WorkflowRunService.new(broken)
+      breaking.stubs(:start!).raises(ActiveRecord::StatementInvalid, "PG::QueryCanceled")
+      starting = WorkflowRunService.new(fine)
+      WorkflowRunService.stubs(:new).with { |workflow| workflow.id == broken.id }.returns(breaking)
+      WorkflowRunService.stubs(:new).with { |workflow| workflow.id == fine.id }.returns(starting)
 
       travel 11.minutes
       WorkflowTriggerSweepJob.perform_now
 
-      refused = [ broken.reload, fine.reload ].select(&:trigger_refusal)
-      assert_equal 1, refused.size
-      assert_equal "It could not start because of an error in Firefight.", refused.sole.trigger_refusal
+      assert_equal "It could not start because of an error in Firefight.", broken.reload.trigger_refusal
+      assert_equal Time.zone.parse("2026-10-13 12:10 UTC"), broken.next_run_at
+      assert_empty broken.runs
+      assert_nil fine.reload.trigger_refusal
+      assert_equal 1, fine.runs.count
+
+      WorkflowRunService.unstub(:new)
+      WorkflowTriggerSweepJob.perform_now
+
+      assert_equal "trigger:2026-10-13T12:10:00Z", broken.runs.sole.start_key
+      assert_nil broken.reload.trigger_refusal
+      assert_nil broken.next_run_at
     end
   end
 

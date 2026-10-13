@@ -28,6 +28,12 @@ module Workflow::Scheduling
     due_at
   end
 
+  # Gives back a time claim_due! took when starting it broke, so the next sweep tries that time again, unless something
+  # moved its next time since. Its start key is that time's, so a run that was made before it broke is never made twice.
+  def release_due!(due_at)
+    self.class.where(id: id, next_run_at: next_run_at).update_all(next_run_at: due_at, updated_at: Time.current)
+  end
+
   # Said when its next time lands in a freeze window, since a change it makes then waits or stops as it says.
   def freeze_warning
     window = next_run_at && live_version&.steps_that_change&.any? && Workspace::FreezeWindows.covering(workspace, next_run_at)
