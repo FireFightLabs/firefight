@@ -19,8 +19,8 @@ class AddDefinitionCharsToIntegrationToolsTest < ActiveSupport::TestCase
     described.reload
     bare.reload
     assert_equal %w[production development], described.offered_schema.dig("properties", Integration::Tool::ENVIRONMENT_ARG, "enum")
-    assert_equal "list_runs".size + "Lists the runs.".size + described.offered_schema.to_json.size, described.definition_chars
-    assert_equal "whoami".size + bare.offered_schema.to_json.size, bare.definition_chars
+    assert_equal "github_list_runs".size + "Lists the runs.".size + described.offered_schema.to_json.size, described.definition_chars
+    assert_equal "github_whoami".size + bare.offered_schema.to_json.size, bare.definition_chars
   end
 
   private
