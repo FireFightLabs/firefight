@@ -141,6 +141,19 @@ class HalonSkillsControllerTest < ActionDispatch::IntegrationTest
     assert_match "no front matter", session["inertia_errors"][:file].sole
   end
 
+  test "a SKILL.md named for a skill only Halon has proposed becomes that skill, and the proposal waits to be edited or dismissed" do
+    proposal = Chat::CustomSkill.propose_for!(@workspace, name: "rotate_keys", content: content, reason: "Asked twice.")
+    text = "---\nname: rotate_keys\nwhen: Someone asks to rotate keys\ntools: [declare_incident]\n---\n1. Our way with `declare_incident`.\n"
+
+    post import_halon_skills_path, params: { file: Rack::Test::UploadedFile.new(StringIO.new(text), "text/markdown", original_filename: "SKILL.md") }
+
+    assert_equal "rotate_keys was imported. Halon can load it from its next question.", flash[:notice]
+    skill = proposal.custom_skill.reload
+    assert_equal "1. Our way with `declare_incident`.", skill.live_version.steps
+    assert proposal.reload.proposed?
+    assert_match "changed since Halon proposed this", skill.accept_blocked_reason(proposal)
+  end
+
   test "Halon's proposal is accepted as written, edited first or dismissed" do
     skill = skill!
     proposal = Chat::CustomSkill.propose_for!(@workspace, name: "game_day", content: content(steps: "1. Page first, then `declare_incident`."), reason: "Seen.")

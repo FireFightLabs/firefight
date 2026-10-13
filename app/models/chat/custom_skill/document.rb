@@ -13,12 +13,17 @@ module Chat::CustomSkill::Document
   module_function
 
   # The file's skill for a workspace: the next version of its skill of that name, its copy of Firefight's of that name,
-  # or a new skill. Returns the skill and whether it was there before.
+  # or a new skill. Returns the skill and the version written over one that was live, nil when nothing was. A skill only
+  # Halon has proposed takes the file as its first live version, and the proposal stays waiting, to edit or dismiss.
   def import!(parsed, workspace:, by:)
     name = Chat::CustomSkill.normalize_value_for(:name, parsed.name)
     reason = "Imported from a #{FILE_NAME} file."
-    existing = Chat::CustomSkill.where(workspace: workspace).live.find_by(name: name)
-    return [ existing, existing.write!(parsed.content, by: by, reason: reason) ] if existing
+    existing = Chat::CustomSkill.where(workspace: workspace).find_by(name: name)
+    if existing && !existing.dormant?
+      was_live = existing.live_version_id.present?
+      written = existing.write!(parsed.content, by: by, reason: reason)
+      return [ existing, (written if was_live) ]
+    end
 
     library = Chat::Skill.library_for(workspace).find { |skill| skill.name == name }
     Chat::CustomSkill.transaction do

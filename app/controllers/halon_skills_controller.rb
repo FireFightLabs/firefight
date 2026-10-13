@@ -68,7 +68,7 @@ class HalonSkillsController < InertiaController
   # A SKILL.md of a skill the workspace has becomes its next version, of one of Firefight's its copy, and otherwise a new skill.
   def import
     parsed = Chat::CustomSkill::Document.parse(uploaded_text)
-    skill = own.live.find_by(name: Chat::CustomSkill.normalize_value_for(:name, parsed.name))
+    skill = own.find_by(name: Chat::CustomSkill.normalize_value_for(:name, parsed.name))
     problem = Chat::Tools::SkillTools.problem(current_workspace, parsed.content["tools"], skill: skill, library: library_named(parsed.name))
     return form_refused_with(file: [ problem ]) if problem
 
