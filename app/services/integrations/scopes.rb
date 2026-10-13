@@ -9,9 +9,10 @@ module Integrations
     class Unresolved < NativePack::Error; end
 
     # The parameter a connection's tools take to name the scope, by the field's key, or nil when none of its rows reaches
-    # more than one. It lists the scopes its rows reach as last listed, so a model picks one that exists.
-    def self.argument(integration)
-      every = integration.integration_environments.select(&:enabled).map { |row| ConnectionSettings.of(row) }
+    # more than one. It lists the scopes its rows reach as last listed, so a model picks one that exists. rows are its
+    # enabled rows when the caller read them already.
+    def self.argument(integration, rows = nil)
+      every = (rows || integration.integration_environments.select(&:enabled)).map { |row| ConnectionSettings.of(row) }
       field = every.first&.scope_field
       return unless field && every.any?(&:several_scopes?)
 

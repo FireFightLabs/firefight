@@ -2,6 +2,8 @@ require "test_helper"
 require Rails.root.join("db/migrate/20261013120000_add_definition_chars_to_integration_tools")
 
 class AddDefinitionCharsToIntegrationToolsTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   teardown { Integration::Tool.reset_column_information }
 
   test "every tool from before the column is given how long its name, cleaned description and own schema are, counted in SQL" do
@@ -13,10 +15,12 @@ class AddDefinitionCharsToIntegrationToolsTest < ActiveSupport::TestCase
 
     migrate(:down)
     Integration::Tool.reset_column_information
-    migrate(:up)
+    assert_enqueued_jobs 1, only: Integrations::ToolDefinitionRecountJob do
+      migrate(:up)
+    end
     Integration::Tool.reset_column_information
 
-    stored_schema = Integration::Tool.where(id: described.id).pick(Arel.sql("params_schema::text"))
+    stored_schema = Integration::Tool.where(id: described.id).pick(Arel.sql("params_schema::text AS schema_text"))
     assert_equal "github_list_runs".size + "Lists the runs.".size + stored_schema.size, described.reload.definition_chars
     assert_equal "github_whoami".size + '{"type": "object"}'.size, bare.reload.definition_chars
     assert_equal "github_search".size + Integration::Tool::AGENT_DESCRIPTION_LIMIT + '{"type": "object"}'.size, long.reload.definition_chars
@@ -34,6 +38,14 @@ class AddDefinitionCharsToIntegrationToolsTest < ActiveSupport::TestCase
       Integration::Tool.transaction(requires_new: true) { Integration::Tool.insert_all([ { integration_id: integration.id, name: "whoami" } ]) }
     end
     assert_operator tool.reload.definition_chars, :>, 0
+  end
+
+  test "the exact count is enqueued by the job's name, so a job renamed or gone later leaves the migration running" do
+    assert_equal Integrations::ToolDefinitionRecountJob.name, AddDefinitionCharsToIntegrationTools::RECOUNT_JOB
+
+    assert_no_enqueued_jobs do
+      AddDefinitionCharsToIntegrationTools.new.send(:enqueue_recount, "Integrations::NoSuchJob")
+    end
   end
 
   private

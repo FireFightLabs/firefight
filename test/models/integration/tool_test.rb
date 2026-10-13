@@ -53,6 +53,23 @@ class Integration::ToolTest < ActiveSupport::TestCase
     assert_equal tool.model_facing_name.size + Integration::Tool::AGENT_DESCRIPTION_LIMIT + tool.offered_schema.to_json.size, tool.reload.definition_chars
   end
 
+  test "counting a tool leaves its connection's environments unread, so a row saved elsewhere afterwards reads as saved" do
+    row = @integration.integration_environments.create!
+    @integration.tools.create!(name: "list_runs", description: "Lists the runs.", params_schema: { "type" => "object" })
+
+    assert_not @integration.integration_environments.loaded?
+    IntegrationEnvironment.find(row.id).update!(issue_webhook_secret: "whsec")
+    assert_equal "whsec", @integration.integration_environments.sole.issue_webhook_secret
+  end
+
+  test "a connection's slug, which the counted name carries, is never changed, so the length cannot go stale through it" do
+    tool = @integration.tools.create!(name: "list_runs", description: "Lists the runs.", params_schema: { "type" => "object" })
+
+    assert_raises(ActiveRecord::RecordInvalid) { @integration.update!(slug: "github_production") }
+    assert_equal "github", @integration.reload.slug
+    assert_equal tool.definition_length, tool.reload.definition_chars
+  end
+
   test "switching a tool on or off leaves its length as it was" do
     tool = @integration.tools.create!(name: "list_runs", description: "Lists the runs.", params_schema: { "type" => "object" })
     tool.update_columns(definition_chars: 7)
