@@ -1,0 +1,40 @@
+name: Certificate check
+description: Halon looks at the TLS certificates on the domains you run, finds the ones that expire soon or will not renew, and tells the owning team once and again only when it gets worse.
+aliases: [ certificates check ]
+trigger:
+  kind: schedule
+  schedule: { cadence: weekly, hour: 9, weekday: 1, time_zone: UTC }
+  inputs:
+    - key: notes
+      question: What should Halon look at closely or leave alone?
+      default: ""
+steps:
+  - id: step_check
+    name: check
+    kind: run_skill
+    config: { skill: certificate_expiry, mode: check, notes: "{{inputs.notes}}" }
+  - id: step_found
+    name: found_problems
+    kind: branch
+    config:
+      routes:
+        - route: found
+          when: { left: "{{steps.check.problems}}", operator: is_not_empty }
+      otherwise: all_clear
+  - id: step_raise
+    name: raise_notices
+    kind: for_each
+    config:
+      items: "{{steps.check.problems}}"
+      concurrency: 1
+      steps:
+        - id: step_notice
+          name: notice
+          kind: raise_notice
+          config: { problem: "{{item}}" }
+      edges: []
+edges:
+  - { from: step_check, to: step_found }
+  - { from: step_found, to: step_raise, route: found }
+outputs:
+  problems: "{{steps.check.problems}}"

@@ -9,10 +9,13 @@ class Workflow < ApplicationRecord
   include NormalizedDescription
   include Workflow::Naming
   include Workflow::Editing
+  include Workflow::FromLibrary
 
   AUTHOR_PERSON = "person".freeze
   AUTHOR_HALON = "halon".freeze
-  AUTHOR_KINDS = [ AUTHOR_PERSON, AUTHOR_HALON ].freeze
+  # Firefight's library, for a version made from one of its items or moved on to a newer one.
+  AUTHOR_FIREFIGHT = "firefight".freeze
+  AUTHOR_KINDS = [ AUTHOR_PERSON, AUTHOR_HALON, AUTHOR_FIREFIGHT ].freeze
   NAME_LIMIT = 120
 
   belongs_to :workspace

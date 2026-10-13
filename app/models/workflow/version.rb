@@ -40,7 +40,9 @@ class Workflow::Version < ApplicationRecord
   def snapshot = { "trigger" => trigger, "steps" => steps, "edges" => edges, "outputs" => outputs }.deep_dup
 
   # Every step, inside each for each too, by its id.
-  def steps_by_id = Workflow::Version.all_steps(steps).index_by { |step| step["id"] }
+  def steps_by_id = Workflow::Version.steps_by_id_in(steps)
+
+  def self.steps_by_id_in(steps) = all_steps(steps).index_by { |step| step["id"] }
 
   def self.all_steps(steps)
     Array(steps).flat_map do |step|

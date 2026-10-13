@@ -7,6 +7,7 @@ import {
   IconPhoneCall,
   IconRadar,
   IconSparkles,
+  IconRoute,
   IconBook2,
   IconCategory,
   IconCreditCard,
@@ -57,6 +58,7 @@ import {
   halonPerformancePath,
   halonMonitoringPath,
   halonSkillsPath,
+  halonWorkflowLibraryPath,
   cataloguePath,
   dashboardPath,
   integrationsPath,
@@ -175,7 +177,12 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
       { title: "Handbook", url: settingsHandbookPath(), icon: IconNotebook },
       { title: "Memory", url: memoryPath(), icon: IconBrain },
       { title: "Monitoring", url: halonMonitoringPath(), icon: IconRadar },
-      ...(workflowsEnabled ? [ { title: "Skills", url: halonSkillsPath(), icon: IconSparkles } ] : []),
+      ...(workflowsEnabled
+        ? [
+          { title: "Skills", url: halonSkillsPath(), icon: IconSparkles },
+          { title: "Workflow library", url: halonWorkflowLibraryPath(), icon: IconRoute },
+        ]
+        : []),
       { title: "Performance", url: halonPerformancePath(), icon: IconChartBar },
       { title: "On-call", url: halonOnCallPath(), icon: IconPhoneCall, adminOnly: true },
       { title: "Test logins", url: settingsTestLoginsPath(), icon: IconLogin2 },

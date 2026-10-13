@@ -420,6 +420,12 @@ Rails.application.routes.draw do
     post "/halon/skills/:id/restore", to: "halon_skills#restore", as: :restore_halon_skill
     post "/halon/skills/:id/take-library", to: "halon_skills#take_library", as: :take_library_halon_skill
     post "/halon/skills/:id/keep-own", to: "halon_skills#keep_own", as: :keep_own_halon_skill
+    get "/halon/workflow-library", to: "halon_workflow_library#index", as: :halon_workflow_library
+    post "/halon/workflow-library/import", to: "halon_workflow_library#import", as: :import_halon_workflow
+    post "/halon/workflow-library/items/:key/adopt", to: "halon_workflow_library#adopt", as: :adopt_halon_library_workflow
+    get "/halon/workflow-library/workflows/:id/export", to: "halon_workflow_library#export", as: :export_halon_workflow
+    post "/halon/workflow-library/workflows/:id/take-library", to: "halon_workflow_library#take_library", as: :take_library_halon_workflow
+    post "/halon/workflow-library/workflows/:id/keep-own", to: "halon_workflow_library#keep_own", as: :keep_own_halon_workflow
     get "/agent", to: "agent_chats#index", as: :agent_chats
     post "/agent", to: "agent_chats#create"
     get "/agent/search", to: "agent_chats#search", as: :agent_chats_search

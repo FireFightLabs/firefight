@@ -102,6 +102,11 @@ module TypescriptConstants
         "HISTORY" => HalonSkillsController::PROP_HISTORY
       }, nil),
       Export.new("SKILL_FILE_NAME", Chat::CustomSkill::Document::FILE_NAME, nil),
+      Export.new("WORKFLOW_TRIGGER_KINDS", Workflow::Trigger::KINDS, "WorkflowTriggerKind"),
+      Export.new("WORKFLOW_CHANGE_KINDS", {
+        "ADDED" => Workflow::Changes::KIND_ADDED, "REMOVED" => Workflow::Changes::KIND_REMOVED, "CHANGED" => Workflow::Changes::KIND_CHANGED
+      }, nil),
+      Export.new("WORKFLOW_FILE_EXTENSION", Workflow::Document::EXTENSION, nil),
       Export.new("MEMORY_PAGE_TABS", { "MEMORIES" => MemoryController::TAB_MEMORIES, "INSTRUCTIONS" => MemoryController::TAB_INSTRUCTIONS }, nil),
       Export.new("MEMORY_PAGE_TAB_QUERY", MemoryController::TAB_QUERY, nil),
       Export.new("MEMORY_QUERY_PARAM", Chat::Memory::QUERY_PARAM, nil),
