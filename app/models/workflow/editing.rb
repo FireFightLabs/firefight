@@ -26,6 +26,7 @@ module Workflow::Editing
   # Applies one operation, or proposes it when Halon may not apply it here. Returns the edit. base_revision is the
   # draft revision the editor saw, so a change made since to the same step refuses the edit with who made it.
   def edit!(operation:, payload:, by:, halon: false, reason: nil, base_revision: nil, change_set_id: nil, source_run: nil, source_chat: nil)
+    payload = sealed_payload(operation, payload, keep: !halon || halon_applies_directly?)
     attributes = { author_kind: halon ? Workflow::AUTHOR_HALON : Workflow::AUTHOR_PERSON, author: by, reason: reason,
                    source_run: source_run, source_chat: source_chat, operation: operation,
                    payload: Workflow::Edit::Operations.prepared(operation, payload) }
@@ -47,6 +48,17 @@ module Workflow::Editing
   def proposals = edits.where(status: Workflow::Edit::STATUS_PROPOSED).order(:created_at)
 
   private
+
+  # A new trigger's private values are kept on the workflow before the edit is recorded, so the edit never holds them. A
+  # proposal does not set them, since a value only goes in when a person or Halon building alone puts it there.
+  def sealed_payload(operation, payload, keep:)
+    payload = payload.to_h.deep_stringify_keys
+    return payload unless operation == Workflow::Edit::OPERATION_CHANGE_TRIGGER && payload["trigger"].is_a?(Hash)
+
+    stripped, values = Workflow::Trigger.sealed(payload["trigger"])
+    keep_private_inputs!(values) if keep
+    payload.merge("trigger" => stripped)
+  end
 
   def propose!(attributes, change_set_id)
     problem = Workflow::Version.secret_problem(attributes[:payload])

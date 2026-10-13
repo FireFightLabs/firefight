@@ -125,6 +125,38 @@ class Investigation::Check < ApplicationRecord
 
   def last_run = investigations.seen.order(created_at: :desc).first
 
+  # The skill a check described only by its notes follows, the monitoring playbook.
+  CUSTOM_SKILL = "monitoring".freeze
+  NOTES_INPUT = "notes".freeze
+
+  # The same check as a workflow from Firefight's library that follows it: the library item that runs this kind's skill,
+  # on this check's schedule in its own time zone, with its notes kept as the private notes input. Its first version is a
+  # draft, so it runs once someone publishes it, and the check is left as it is.
+  def to_workflow!(by:)
+    skill = kind_details.skill || CUSTOM_SKILL
+    item = Workflow::Library.all.find do |candidate|
+      Workflow::Version.all_steps(candidate.definition["steps"]).any? { |step| step.dig("config", "skill") == skill }
+    end
+    raise ActiveRecord::RecordNotFound, "No library workflow runs #{skill}." unless item
+
+    transaction do
+      workflow = Workflow.from_library!(item, workspace: workspace, by: by, name: name, following: true)
+      draft = workflow.draft
+      draft.update!(trigger: draft.trigger.merge(schedule_trigger))
+      workflow.keep_private_inputs!(NOTES_INPUT => notes) if notes.present?
+      workflow.reload
+    end
+  end
+
+  # When it runs, as a schedule trigger says it.
+  def schedule_trigger
+    {
+      Workflow::Trigger::KEY_KIND => Workflow::Trigger::KIND_SCHEDULE, Workflow::Trigger::Schedule::KEY_REPEAT => Workflow::Trigger::Schedule::REPEAT_DAYS,
+      Workflow::Trigger::Schedule::KEY_DAYS => weekly? ? [ weekday ] : Workflow::Trigger::Schedule::DAYS.to_a,
+      Workflow::Trigger::Schedule::KEY_AT => format("%02d:00", hour), Workflow::Trigger::Schedule::KEY_TIME_ZONE => time_zone
+    }
+  end
+
   def schedule_words
     at = format("%02d:00", hour)
     weekly? ? "Every #{Date::DAYNAMES[weekday]} at #{at} (#{time_zone})" : "Every day at #{at} (#{time_zone})"

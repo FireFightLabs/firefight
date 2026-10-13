@@ -29,6 +29,7 @@ class Workflow::Run < ApplicationRecord
   STARTED_BY = [ STARTED_BY_PERSON, STARTED_BY_HALON, STARTED_BY_TRIGGER, STARTED_BY_WORKFLOW ].freeze
 
   include Workflow::Run::Data
+  include Workflow::PrivateInputs
   include Workflow::Run::Progress
   include Workflow::Run::Retention
   include Workflow::Run::Acting

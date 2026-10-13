@@ -830,17 +830,17 @@ skills:
     digest: e733afae606f41061583f9053e7b6057a49905ba198f3f355297355e064e8290
 workflows:
   certificate_check:
-    version: 2
-    digest: a18bc3d7f1266811113cdf20f246dd8e135316d1768975cc6ab17977d35e86c7
+    version: 3
+    digest: 717c30326ae2be13c50ea4149a89c451c31fe4dcb8ac957be8ddf5c5d2da9c59
   cost_check:
-    version: 2
-    digest: 95e9db740f5a4dfb3da7ccadd58d5d02691dded570fac1624935642f65d14a08
+    version: 3
+    digest: 4272ef05897fea118e3c61e66a90da43ef387f5fbffcedb310fd510ae06e65dd
   disk_space_check:
-    version: 2
-    digest: 467c08bde2fba4d4c05e9166733f037485e0a449b3430a78aec502cd5560ab2d
+    version: 3
+    digest: 7b5f3998792fe504b4cec39666919af21b80f862b79b25ef244bb40ba436dc73
   error_budget_check:
-    version: 2
-    digest: ab0f7ea7edb710ea3296a7b5a793f719d21504be2e9d330f74ba15e6f62ff41e
+    version: 3
+    digest: 8e4110b1c564f3eb66cbcf997a9995fcd78fba0b471b46bb201ab9cda187e6ac
   scheduled_check:
-    version: 2
-    digest: 40c5f148de07024d62f78f68c16091b84293b0ba0f596aaed3323d450232186d
+    version: 3
+    digest: 7e9bdd1a43a62b4cc82944c4767b61235d73495ac0bf86c16fad8233ecc1f11c

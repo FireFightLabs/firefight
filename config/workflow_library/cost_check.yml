@@ -10,6 +10,7 @@ trigger:
   inputs:
   - key: notes
     question: What should Halon look at closely or leave alone?
+    private: true
     default: Everything you can read for it.
 steps:
 - id: step_check

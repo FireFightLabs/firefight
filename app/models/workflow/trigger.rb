@@ -76,13 +76,44 @@ module Workflow::Trigger
     Workflow::Trigger::Schedule.timed?(trigger) ? Workflow::Trigger::Schedule.words(trigger) : WORDS.fetch(trigger.to_h[KEY_KIND], WORDS[KIND_MANUAL])
   end
 
-  # What a person gave, each input left out taken from its default. missing names those with neither.
+  # What a person gave, each input left out taken from its default, a private one's from the value kept for it. missing
+  # names those with neither.
   Resolved = Data.define(:values, :missing)
 
-  def resolve_inputs(trigger, given)
+  def resolve_inputs(trigger, given, private_values: {})
     given = given.to_h.stringify_keys.transform_values { |value| value.is_a?(String) ? value.strip : value }
     asked = inputs(trigger)
-    values = asked.to_h { |input| [ input["key"], given[input["key"]].presence || input["default"].presence ] }
+    values = asked.to_h { |input| [ input["key"], given[input["key"]].presence || input["default"].presence || private_values.to_h[input["key"]].presence ] }
     Resolved.new(values: values.compact, missing: asked.reject { |input| values[input["key"]].present? })
+  end
+
+  # An input marked private keeps its value apart, encrypted, and reads as its token everywhere else.
+  KEY_PRIVATE = "private".freeze
+
+  def private_keys(trigger) = inputs(trigger).select { |input| input[KEY_PRIVATE] == true }.map { |input| input["key"] }
+
+  def private?(trigger, key) = private_keys(trigger).include?(key.to_s)
+
+  def private_token(key) = "[private input #{key}]"
+
+  # The trigger without its private inputs' values, and those values by key.
+  def sealed(trigger)
+    return [ trigger, {} ] unless trigger.is_a?(Hash)
+
+    values = {}
+    stripped = trigger.deep_dup
+    Array(stripped[KEY_INPUTS]).each do |input|
+      next unless input.is_a?(Hash) && input[KEY_PRIVATE] == true && input.key?("default")
+
+      kept = input.delete("default")
+      values[input["key"]] = kept if kept.present?
+    end
+    [ stripped, values ]
+  end
+
+  # A run's inputs as they are kept in its plain data, with each private one's value as its token, and those values.
+  def split_private(trigger, values)
+    keys = private_keys(trigger)
+    [ values.to_h { |key, value| [ key, keys.include?(key) ? private_token(key) : value ] }, values.slice(*keys) ]
   end
 end

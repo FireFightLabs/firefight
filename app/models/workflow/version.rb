@@ -28,6 +28,7 @@ class Workflow::Version < ApplicationRecord
   validates :number, presence: true, uniqueness: { scope: :workflow_id }
   validates :status, inclusion: { in: STATUSES }
   validates :author_kind, inclusion: { in: Workflow::AUTHOR_KINDS }
+  before_validation :seal_private_inputs
   validate :content_well_formed
   validate :published_content_unchanged, on: :update
 
@@ -83,6 +84,13 @@ class Workflow::Version < ApplicationRecord
   end
 
   private
+
+  # A private input's value never stays in the trigger, whoever wrote it there.
+  def seal_private_inputs
+    return unless workflow && trigger.is_a?(Hash) && Workflow::Trigger.sealed(trigger).last.any?
+
+    self.trigger = workflow.seal_trigger!(trigger)
+  end
 
   def content_well_formed
     problem = self.class.content_problem(snapshot)

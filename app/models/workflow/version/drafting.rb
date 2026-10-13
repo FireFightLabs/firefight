@@ -27,6 +27,7 @@ module Workflow::Version::Drafting
 
       refuse_if_changed_since!(base_revision, targets) if revision > base_revision
       changed = Workflow::Edit::Operations.apply(snapshot, operation, payload)
+      changed["trigger"] = workflow.seal_trigger!(changed["trigger"]) if changed["trigger"].is_a?(Hash)
       problem = self.class.content_problem(changed)
       raise Workflow::Edit::Refused, problem if problem
       current = revision
