@@ -346,6 +346,20 @@ module TypescriptConstants
         "SEND_STEP" => DefinedWorkflow::Steps::Browser::KEY_SEND_STEP, "UNDO" => DefinedWorkflow::Steps::Base::KEY_UNDO,
         "MAX_STEPS" => Chat::BrowserCheck::MAX_STEPS
       }, nil),
+      Export.new("WORKFLOW_SET_DATA", {
+        "VALUES" => DefinedWorkflow::Steps::SetData::KEY_VALUES, "NAME" => DefinedWorkflow::Steps::SetData::VALUE_NAME,
+        "VALUE" => DefinedWorkflow::Steps::SetData::VALUE_VALUE, "LIMIT" => DefinedWorkflow::Steps::SetData::VALUE_LIMIT
+      }, nil),
+      Export.new("WORKFLOW_ASK_PERSON", {
+        "FIELDS" => DefinedWorkflow::Steps::AskPerson::KEY_FIELDS, "FIELD_NAME" => DefinedWorkflow::Steps::AskPerson::FIELD_NAME,
+        "FIELD_LABEL" => DefinedWorkflow::Steps::AskPerson::FIELD_LABEL, "FIELD_LIMIT" => DefinedWorkflow::Steps::AskPerson::FIELD_LIMIT
+      }, nil),
+      Export.new("WORKFLOW_APPROVAL", {
+        "INCIDENT" => DefinedWorkflow::Steps::Approval::KEY_INCIDENT, "CONDITIONS" => DefinedWorkflow::Steps::Approval::KEY_CONDITIONS
+      }, nil),
+      Export.new("WORKFLOW_ASK_KIND", WorkflowRunStepSerializer::ASK_KINDS.to_h { |kind| [ kind.upcase, kind ] }, nil),
+      Export.new("WORKFLOW_QUESTION_STATUS", Workflow::Run::Question::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
+      Export.new("APPROVAL_STATUS", Ability::Approval::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
       Export.new("BROWSER_ACTIONS", Chat::BrowserCheck::ACTIONS, "BrowserAction"),
       Export.new("BROWSER_ACTION", Chat::BrowserCheck::ACTIONS.to_h { |action| [ action.upcase, action ] }, nil),
       Export.new("BROWSER_SENDING_ACTIONS", Chat::BrowserCheck::SENDING_ACTIONS, nil),

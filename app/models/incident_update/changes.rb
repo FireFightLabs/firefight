@@ -35,6 +35,14 @@ module IncidentUpdate::Changes
     "platform_data" => "Platform data"
   }.freeze
 
+  SNAPSHOT_RECORDS = {
+    FIELD_STATUS => :incident_status,
+    FIELD_SEVERITY => :incident_severity,
+    FIELD_TYPE => :incident_type,
+    FIELD_LEAD => :lead,
+    FIELD_DECLARED_BY => :declared_by
+  }.freeze
+
   Change = Data.define(:field, :label, :kind, :before, :after)
 
   class_methods do
@@ -63,6 +71,12 @@ module IncidentUpdate::Changes
                      before: previous&.display_value_for(field).presence, after: display_value_for(field).presence) ]
       end
     end
+  end
+
+  # A changed field is named for what a responder sees, so an association
+  # reads from its record rather than a method of the same name.
+  def value_for(field)
+    public_send(SNAPSHOT_RECORDS.fetch(field.to_s, field))
   end
 
   def display_value_for(field)

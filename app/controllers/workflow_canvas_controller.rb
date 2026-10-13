@@ -63,7 +63,7 @@ class WorkflowCanvasController < InertiaController
                                                              last_changes: run || !shown.persisted? ? {} : shown.last_changes, pins: shown.pins,
                                                              read_only: run.present?),
       PROP_RUNS => WorkflowRunRowSerializer.many(workflow.runs.where(parent_run_id: nil).includes(:version, :started_by).newest_first.limit(RUNS_SHOWN)),
-      PROP_RUN => run && WorkflowRunDetailSerializer.one(run),
+      PROP_RUN => run && WorkflowRunDetailSerializer.one(run, member: current_membership),
       PROP_LAST_RUN => last_run(shown) && WorkflowRunStatesSerializer.one(last_run(shown)),
       PROP_VERSIONS => WorkflowVersionRowSerializer.many(workflow.versions.includes(:author, :published_by).newest_first.limit(VERSIONS_SHOWN)),
       PROP_SUGGESTIONS => WorkflowSuggestionSerializer.many(suggestions, document: (workflow.draft || workflow.live_version || workflow.empty_version).snapshot,

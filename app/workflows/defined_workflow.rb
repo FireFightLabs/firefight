@@ -11,6 +11,12 @@ class DefinedWorkflow < SolidWorkflow::Interpreter
   KIND_FOR_EACH = SolidWorkflow::Definition::KIND_FOR_EACH
   KIND_JOIN = SolidWorkflow::Definition::KIND_JOIN
   KIND_RUN_WORKFLOW = SolidWorkflow::Definition::KIND_RUN_WORKFLOW
+  KIND_STOP = SolidWorkflow::Definition::KIND_STOP
+  STOP_SUCCEEDED = SolidWorkflow::Definition::STOP_SUCCEEDED
+  STOP_FAILED = SolidWorkflow::Definition::STOP_FAILED
+  STOP_OUTCOMES = SolidWorkflow::Definition::STOP_OUTCOMES
+  STOP_OUTCOME = SolidWorkflow::Definition::CONFIG_OUTCOME
+  STOP_REASON = SolidWorkflow::Definition::CONFIG_REASON
   STEP_KINDS = SolidWorkflow::Definition::CONTROL_KINDS
   BODY_KEYS = SolidWorkflow::Definition::BODY_KEYS
   SCOPE_INPUTS = SolidWorkflow::Interpreter::SCOPE_INPUTS

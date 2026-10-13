@@ -7,10 +7,10 @@ module ModalState
   # only by a prompt posted before the message was read when the form opens.
   Result = Data.define(:incident_id, :incident_runbook_id, :temp_message_ts, :channel_id, :source_message_id,
                        :source_message_text, :source_message_link, :prompt_handle, :test, :investigation_id, :action_item_id,
-                       :memory_post_id, :memory_id, :code_question_id, :handbook_proposal_id) do
+                       :memory_post_id, :memory_id, :code_question_id, :handbook_proposal_id, :workflow_question_id) do
     def initialize(incident_id: nil, incident_runbook_id: nil, temp_message_ts: nil, channel_id: nil, source_message_id: nil,
                    source_message_text: nil, source_message_link: nil, prompt_handle: nil, test: false, investigation_id: nil,
-                   action_item_id: nil, memory_post_id: nil, memory_id: nil, code_question_id: nil, handbook_proposal_id: nil)
+                   action_item_id: nil, memory_post_id: nil, memory_id: nil, code_question_id: nil, handbook_proposal_id: nil, workflow_question_id: nil)
       super
     end
   end
@@ -20,7 +20,7 @@ module ModalState
   # test is encoded only when true.
   def self.encode(incident_id: nil, incident_runbook_id: nil, temp_message_ts: nil, channel_id: nil, source_message_id: nil,
                   source_message_text: nil, source_message_link: nil, prompt_handle: nil, test: false, investigation_id: nil,
-                  action_item_id: nil, memory_post_id: nil, memory_id: nil, code_question_id: nil, handbook_proposal_id: nil)
+                  action_item_id: nil, memory_post_id: nil, memory_id: nil, code_question_id: nil, handbook_proposal_id: nil, workflow_question_id: nil)
     {
       incident_id: incident_id,
       incident_runbook_id: incident_runbook_id,
@@ -36,7 +36,8 @@ module ModalState
       memory_post_id: memory_post_id,
       memory_id: memory_id,
       code_question_id: code_question_id,
-      handbook_proposal_id: handbook_proposal_id
+      handbook_proposal_id: handbook_proposal_id,
+      workflow_question_id: workflow_question_id
     }.compact.to_json
   end
 
@@ -61,7 +62,8 @@ module ModalState
       memory_post_id: parsed["memory_post_id"],
       memory_id: parsed["memory_id"],
       code_question_id: parsed["code_question_id"],
-      handbook_proposal_id: parsed["handbook_proposal_id"]
+      handbook_proposal_id: parsed["handbook_proposal_id"],
+      workflow_question_id: parsed["workflow_question_id"]
     )
   rescue JSON::ParserError => e
     raise InvalidError, "modal state is not valid JSON: #{e.message}"

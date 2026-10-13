@@ -1,4 +1,5 @@
-# What happens once a run ends. A watch its steps still keep stops, since nothing waits for it any more. A run that
+# What happens once a run ends. A watch its steps still keep stops, since nothing waits for it any more, and a question
+# or an approval its steps still ask is withdrawn where it was asked. A run that
 # failed on its own is said in the channel of the team that owns the workflow, from the catalog, else to whoever
 # published it by direct message, with Halon's suggested fix waiting on the run's page when it has one. A workflow that
 # asks for an all clear says so in one line when a run found nothing to raise or post. A test run and a run another
@@ -17,6 +18,7 @@ class WorkflowRunEndService
 
   def ended!
     stop_watches!
+    withdraw_asks!
     close_sandbox!
     Conversation::Workflows.moved!(@workflow) unless @run.test?
     tell_workflows!
@@ -46,6 +48,13 @@ class WorkflowRunEndService
     return unless @run.failed? && !@run.test? && @run.parent_run_id.nil?
 
     Workflow::Trigger::Events.fire!(@workspace, Workflow::Trigger::KIND_RUN_FAILED, key: @run.id, subject: @run, actor: @run.agent)
+  end
+
+  def withdraw_asks!
+    Workflow::Run::Question.open.where(run_step_id: @run.steps.select(:id)).find_each { |question| WorkflowQuestionService.withdraw!(question) }
+    @workspace.ability_approvals.pending.where(workflow_run_id: @run.id, action_key: Ability::Action::WORKFLOW_APPROVAL).find_each do |approval|
+      ApprovalNotificationService.mark_resolved!(approval) if approval.expire!.expired?
+    end
   end
 
   # The run's sandbox, which its steps' commands, scripts and browser ran in, stops with it rather than at the next

@@ -775,6 +775,16 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { success: true }
   end
 
+  def post_workflow_question(user_id:, question:)
+    post_message(channel_id: user_id, text: Slack::Messages::WorkflowQuestion.fallback(question), blocks: Slack::Messages::WorkflowQuestion.build(question))
+  end
+
+  def update_workflow_question(channel_id:, message_id:, question:)
+    update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::WorkflowQuestion.fallback(question),
+                   blocks: Slack::Messages::WorkflowQuestion.build(question))
+    { success: true }
+  end
+
   def update_code_question(channel_id:, message_id:, question:)
     update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::CodeQuestion.fallback(question),
                    blocks: Slack::Messages::CodeQuestion.build(question))
