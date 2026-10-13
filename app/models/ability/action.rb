@@ -54,6 +54,8 @@ module Ability
     # A workspace's workflows. Members read them, build drafts from scratch, Firefight's library or a file, test them and
     # run published ones, and publishing one or changing a live one needs update.
     RESOURCE_WORKFLOWS = "workflows"
+    # A workflow's HTTP request step calling an address, reading with GET or HEAD and changing with any other method.
+    RESOURCE_HTTP_REQUESTS = "http_requests"
 
     # Nobody can be granted these, so a member or an agent can never mint keys
     # or rewrite who has what.
@@ -67,7 +69,7 @@ module Ability
       RESOURCE_RUNBOOKS, RESOURCE_APPROVALS, RESOURCE_INCIDENT_ROLES, RESOURCE_WEBHOOKS,
       RESOURCE_INCIDENT_TRANSCRIPTS, RESOURCE_INVESTIGATIONS, RESOURCE_CHATS, RESOURCE_MEMORY, RESOURCE_MAP,
       RESOURCE_MONITORING, RESOURCE_HANDBOOK, RESOURCE_BROWSER, RESOURCE_CHANNEL_POSTS, RESOURCE_SKILLS,
-      RESOURCE_WORKFLOWS
+      RESOURCE_WORKFLOWS, RESOURCE_HTTP_REQUESTS
     ].freeze
 
     RESOURCES = (GRANTABLE_RESOURCES + ADMIN_ONLY_RESOURCES).freeze
@@ -101,6 +103,7 @@ module Ability
       RESOURCE_HANDBOOK => "Handbook",
       RESOURCE_BROWSER => "Halon's Browser",
       RESOURCE_CHANNEL_POSTS => "Channel Posts",
+      RESOURCE_HTTP_REQUESTS => "HTTP Requests",
       RESOURCE_SKILLS => "Skills",
       RESOURCE_WORKFLOWS => "Workflows",
       RESOURCE_WEBHOOKS => "Webhooks",
@@ -120,7 +123,8 @@ module Ability
     # A resource that only offers some of the actions. Everything else offers all four.
     # The browser's read is open (BROWSER_READ), so only sending is offered.
     RESOURCE_ACTIONS = {
-      RESOURCE_MAP => [ ACTION_READ ].freeze, RESOURCE_BROWSER => [ ACTION_UPDATE ].freeze, RESOURCE_CHANNEL_POSTS => [ ACTION_CREATE ].freeze
+      RESOURCE_MAP => [ ACTION_READ ].freeze, RESOURCE_BROWSER => [ ACTION_UPDATE ].freeze, RESOURCE_CHANNEL_POSTS => [ ACTION_CREATE ].freeze,
+      RESOURCE_HTTP_REQUESTS => [ ACTION_READ, ACTION_CREATE ].freeze
     }.freeze
 
     MAP_READ = "#{RESOURCE_MAP}.#{ACTION_READ}".freeze
@@ -134,6 +138,9 @@ module Ability
     # Reading a workflow, and building its draft, which is what Halon's proposals to one are.
     WORKFLOWS_READ = "#{RESOURCE_WORKFLOWS}.#{ACTION_READ}".freeze
     WORKFLOWS_CREATE = "#{RESOURCE_WORKFLOWS}.#{ACTION_CREATE}".freeze
+    # A workflow's HTTP request reading an address, and sending one that changes something.
+    HTTP_READ = "#{RESOURCE_HTTP_REQUESTS}.#{ACTION_READ}".freeze
+    HTTP_SEND = "#{RESOURCE_HTTP_REQUESTS}.#{ACTION_CREATE}".freeze
     # Writes that cannot be taken back once people have read them, like a connected tool's change. A chat asks the person
     # before each one (Conversation::Turn#confirms?) unless they allowed it for the rest of the chat.
     IRREVERSIBLE_KEYS = [ CHANNEL_POST ].freeze
@@ -161,6 +168,16 @@ module Ability
         description: "Post a message as Firefight in any channel it can post in, such as asking Halon to share release notes in " \
                      "#general or a runbook step that announces a release. The post names who asked for it. Members need a grant, " \
                      "approval rules can hold it, and every post is in the activity log."
+      }.freeze,
+      HTTP_READ => {
+        title: "Read an address over HTTP",
+        description: "Let a workflow's HTTP request step read an address with GET or HEAD, through the guard that keeps it off private " \
+                     "networks, with a connection's credentials when the step names one and the address is that connection's own."
+      }.freeze,
+      HTTP_SEND => {
+        title: "Send HTTP requests that change something",
+        description: "Let a workflow's HTTP request step send POST, PUT, PATCH or DELETE to an address, through the same guard. " \
+                     "Approval rules can hold it, and every request is in the activity log."
       }.freeze,
       INVESTIGATIONS_CREATE => {
         title: "Ask Halon and start investigations",
@@ -240,7 +257,7 @@ module Ability
     # Resources whose work is not switched on for the workspace, which nothing offers until it is.
     def self.hidden_resources(workspace)
       hidden = []
-      hidden << RESOURCE_WORKFLOWS unless FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS)
+      hidden.push(RESOURCE_WORKFLOWS, RESOURCE_HTTP_REQUESTS) unless FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS)
       hidden << RESOURCE_SKILLS unless FeatureFlags.enabled?(workspace, FeatureFlags::CUSTOM_SKILLS)
       hidden
     end

@@ -128,6 +128,19 @@ export function RunStepPanel({ workflowId, run, step, canPin }: RunStepPanelProp
                 ))}
               </section>
             )}
+            {row.screenshots.length > 0 && (
+              <section className="space-y-1.5">
+                <h5 className="text-[11px] font-medium text-fg-secondary">What the browser saw</h5>
+                {row.screenshots.map((shot) => (
+                  <figure key={shot.id} className="space-y-1">
+                    <a href={shot.url} target="_blank" rel="noreferrer">
+                      <img src={shot.url} alt={shot.caption} className="w-full rounded-sm border border-border" />
+                    </a>
+                    <figcaption className="text-[11px] text-fg-muted">{shot.caption}</figcaption>
+                  </figure>
+                ))}
+              </section>
+            )}
             <section className="space-y-1">
               <h5 className="text-[11px] font-medium text-fg-secondary">Calls through the gateway</h5>
               <LedgerRows calls={row.invocations} />

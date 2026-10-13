@@ -340,6 +340,16 @@ module TypescriptConstants
       Export.new("WORKFLOW_STEP_EDITOR", Workflow::StepKinds::EDITORS.to_h { |editor| [ editor.upcase, editor ] }, nil),
       Export.new("WORKFLOW_STEP_ICONS", Workflow::StepKinds::ICONS, "WorkflowStepIcon"),
       Export.new("WORKFLOW_TRIGGER_ICONS", Workflow::TriggerKinds::ICONS, "WorkflowTriggerIcon"),
+      Export.new("WORKFLOW_BROWSER", {
+        "URL" => DefinedWorkflow::Steps::Browser::KEY_URL, "STEPS" => DefinedWorkflow::Steps::Browser::KEY_STEPS,
+        "VIEWPORTS" => DefinedWorkflow::Steps::Browser::KEY_VIEWPORTS, "LOG_IN" => DefinedWorkflow::Steps::Browser::KEY_LOG_IN,
+        "SEND_STEP" => DefinedWorkflow::Steps::Browser::KEY_SEND_STEP, "UNDO" => DefinedWorkflow::Steps::Base::KEY_UNDO,
+        "MAX_STEPS" => Chat::BrowserCheck::MAX_STEPS
+      }, nil),
+      Export.new("BROWSER_ACTIONS", Chat::BrowserCheck::ACTIONS, "BrowserAction"),
+      Export.new("BROWSER_ACTION", Chat::BrowserCheck::ACTIONS.to_h { |action| [ action.upcase, action ] }, nil),
+      Export.new("BROWSER_SENDING_ACTIONS", Chat::BrowserCheck::SENDING_ACTIONS, nil),
+      Export.new("BROWSER_VIEWPORTS", Chat::BrowserCheck::VIEWPORTS.transform_values { |viewport| viewport[:label] }, nil),
       Export.new("WORKFLOW_ASK_HALON", {
         "QUESTION" => DefinedWorkflow::Steps::AskHalon::KEY_QUESTION, "DATA" => DefinedWorkflow::Steps::AskHalon::KEY_DATA,
         "FIELDS" => DefinedWorkflow::Steps::AskHalon::KEY_FIELDS, "FIELD_NAME" => DefinedWorkflow::Steps::AskHalon::FIELD_NAME,

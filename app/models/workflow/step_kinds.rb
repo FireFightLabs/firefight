@@ -41,8 +41,10 @@ module Workflow::StepKinds
   EDITOR_WATCH = "watch".freeze
   # The tool editor, offering only the tools of connected status pages that change something.
   EDITOR_STATUS_PAGE = "status_page".freeze
+  # The browser's path: an address, screen sizes, a login, steps and the one that may send.
+  EDITOR_BROWSER = "browser".freeze
   EDITORS = [
-    EDITOR_FIELDS, EDITOR_BRANCH, EDITOR_DELAY, EDITOR_FOR_EACH, EDITOR_RUN_WORKFLOW, EDITOR_TOOL, EDITOR_ASK_HALON, EDITOR_WATCH, EDITOR_STATUS_PAGE
+    EDITOR_FIELDS, EDITOR_BRANCH, EDITOR_DELAY, EDITOR_FOR_EACH, EDITOR_RUN_WORKFLOW, EDITOR_TOOL, EDITOR_ASK_HALON, EDITOR_WATCH, EDITOR_STATUS_PAGE, EDITOR_BROWSER
   ].freeze
 
   ICON_BRANCH = "branch".freeze
@@ -69,10 +71,13 @@ module Workflow::StepKinds
   ICON_PAGE = "page".freeze
   ICON_FOLLOW_UP = "follow_up".freeze
   ICON_STATUS_PAGE = "status_page".freeze
+  ICON_SCRIPT = "script".freeze
+  ICON_BROWSER = "browser".freeze
+  ICON_WEBHOOK = "webhook".freeze
   ICONS = [
     ICON_BRANCH, ICON_DELAY, ICON_EVENT, ICON_LOOP, ICON_JOIN, ICON_WORKFLOW, ICON_TOOL, ICON_HALON, ICON_MESSAGE,
     ICON_CHANNEL, ICON_INCIDENT, ICON_NOTICE, ICON_WATCH, ICON_SKILL, ICON_TERMINAL, ICON_GLOBE, ICON_PERSON,
-    ICON_APPROVAL, ICON_STOP, ICON_INVESTIGATE, ICON_CLASSIFY, ICON_PAGE, ICON_FOLLOW_UP, ICON_STATUS_PAGE
+    ICON_APPROVAL, ICON_STOP, ICON_INVESTIGATE, ICON_CLASSIFY, ICON_PAGE, ICON_FOLLOW_UP, ICON_STATUS_PAGE, ICON_SCRIPT, ICON_BROWSER, ICON_WEBHOOK
   ].freeze
 
   # A step that calls one tool Halon can call: a connection's, a capability that answers for anything on the map, or
@@ -373,4 +378,67 @@ module Workflow::StepKinds
   runtime(DefinedWorkflow::Steps::StatusPageUpdate, icon: ICON_STATUS_PAGE, editor: EDITOR_STATUS_PAGE,
           description: "Posts or updates a status page through a connected status page tool, such as a status report.",
           defaults: { CONFIG_TOOL => "", CONFIG_ARGUMENTS => {} })
+
+  # A change a sandbox step says it makes, which then needs its undo.
+  SANDBOX_CHANGES = { DefinedWorkflow::Steps::Sandbox::KEY_CHANGES => [ "true" ] }.freeze
+
+  def sandbox_fields
+    [ field(DefinedWorkflow::Steps::Sandbox::KEY_DATA, ToolField::KIND_PARAGRAPH, "What it is given, placed as the file $STEP_DATA, usually an earlier value."),
+      field(DefinedWorkflow::Steps::Sandbox::KEY_CHANGES, ToolField::KIND_TOGGLE, "It changes something, so its ff calls may change things and it needs its undo."),
+      field(DefinedWorkflow::Steps::Base::KEY_UNDO, ToolField::KIND_TEXT, "How a person puts it back.", required: true, shown_when: SANDBOX_CHANGES),
+      field(DefinedWorkflow::Steps::Sandbox::KEY_TIMEOUT, ToolField::KIND_NUMBER, "How long it may run, in seconds, 1 to 900. 120 when left empty.") ]
+  end
+
+  runtime(DefinedWorkflow::Steps::RunCommand, icon: ICON_TERMINAL, editor: EDITOR_FIELDS,
+          description: "Runs one shell command in the run's sandbox, with ff for the connected tools. It only reads unless you say it changes something.",
+          fields: [ field(DefinedWorkflow::Steps::RunCommand::KEY_COMMAND, ToolField::KIND_PARAGRAPH, "The command, such as ff search_logs query=error.", required: true),
+                    *sandbox_fields ],
+          defaults: { DefinedWorkflow::Steps::RunCommand::KEY_COMMAND => "" })
+
+  SCRIPT = DefinedWorkflow::Steps::RunScript
+  runtime(SCRIPT, icon: ICON_SCRIPT, editor: EDITOR_FIELDS,
+          description: "Runs a Python, Ruby or JavaScript script in the run's sandbox, with step data in and JSON out.",
+          fields: [ field(SCRIPT::KEY_LANGUAGE, ToolField::KIND_SELECT, "The language it is written in.", options: SCRIPT::LANGUAGES, required: true),
+                    field(SCRIPT::KEY_SCRIPT, ToolField::KIND_PARAGRAPH, "The script. It reads its data as JSON on its input and prints JSON last.", required: true),
+                    *sandbox_fields ],
+          defaults: { SCRIPT::KEY_LANGUAGE => SCRIPT::LANGUAGE_PYTHON,
+                      SCRIPT::KEY_SCRIPT => "import json, sys\n\ndata = json.load(sys.stdin)\nprint(json.dumps({\"seen\": data}))\n" })
+
+  OUTSIDE = DefinedWorkflow::Steps::CheckFromOutside
+  runtime(OUTSIDE, icon: ICON_GLOBE, editor: EDITOR_FIELDS,
+          description: "Checks an address from outside as a user meets it: whether it answers, its status, TLS certificate and DNS.",
+          fields: [ field(OUTSIDE::KEY_URL, ToolField::KIND_TEXT, "The address, such as https://shop.example.com.", required: true),
+                    field(OUTSIDE::KEY_METHOD, ToolField::KIND_SELECT, "How it asks, GET when left empty.", options: OUTSIDE::METHODS) ],
+          defaults: { OUTSIDE::KEY_URL => "" })
+
+  runtime(DefinedWorkflow::Steps::Browser, icon: ICON_BROWSER, editor: EDITOR_BROWSER,
+          description: "Opens a page in Halon's browser on desktop and phone, follows a path and reports what it saw, with screenshots.",
+          defaults: { DefinedWorkflow::Steps::Browser::KEY_URL => "", DefinedWorkflow::Steps::Browser::KEY_STEPS => [] })
+
+  HTTP = DefinedWorkflow::Steps::HttpRequest
+  runtime(HTTP, icon: ICON_GLOBE, editor: EDITOR_FIELDS,
+          description: "Sends one HTTP request, kept off private networks. GET and HEAD read, any other method changes something.",
+          fields: lambda { |facts|
+            connections = facts.workspace ? facts.workspace.integrations.where(deleted_at: nil).order(:name).pluck(:slug) : []
+            changing = { HTTP::KEY_METHOD => HTTP::METHODS - HTTP::READS }
+            [ field(HTTP::KEY_METHOD, ToolField::KIND_SELECT, "How it asks.", options: HTTP::METHODS, required: true),
+              field(HTTP::KEY_URL, ToolField::KIND_TEXT, "The address, such as https://api.example.com/deploys.", required: true),
+              field(HTTP::KEY_HEADERS, ToolField::KIND_LIST, "Headers, each Name: value, never a secret. Name a connection for credentials."),
+              field(HTTP::KEY_CONNECTION, ToolField::KIND_SELECT, "A connection whose credentials go with it, to that connection's own hosts only.",
+                    options: connections),
+              field(HTTP::KEY_BODY, ToolField::KIND_PARAGRAPH, "What it sends, usually an earlier value.", shown_when: changing),
+              field(DefinedWorkflow::Steps::Base::KEY_UNDO, ToolField::KIND_TEXT, "How a person puts it back.", required: true, shown_when: changing) ]
+          },
+          defaults: { HTTP::KEY_METHOD => "GET", HTTP::KEY_URL => "" })
+
+  WEBHOOK = DefinedWorkflow::Steps::SendWebhook
+  runtime(WEBHOOK, icon: ICON_WEBHOOK, editor: EDITOR_FIELDS,
+          description: "Sends a signed POST with the run's data through one of the workspace's outbound webhooks.",
+          fields: lambda { |facts|
+            names = facts.workspace ? facts.workspace.webhooks.active.ordered.pluck(:name) : []
+            [ field(WEBHOOK::KEY_WEBHOOK, ToolField::KIND_SELECT, "The outbound webhook it sends through.", options: names, required: true),
+              field(WEBHOOK::KEY_EVENT, ToolField::KIND_TEXT, "Its event type, such as workflow.release. The workflow's own by default."),
+              field(WEBHOOK::KEY_PAYLOAD, ToolField::KIND_PARAGRAPH, "What it sends, usually an earlier value.") ]
+          },
+          defaults: { WEBHOOK::KEY_WEBHOOK => "", WEBHOOK::KEY_PAYLOAD => "" })
 end

@@ -423,6 +423,7 @@ Rails.application.routes.draw do
     post "/halon/workflows/:id/runs/:run_id/steps/:step_key/retry", to: "workflow_runs#retry_step", as: :workflow_run_step_retry
     post "/halon/workflows/:id/runs/:run_id/steps/:step_key/skip", to: "workflow_runs#skip_step", as: :workflow_run_step_skip
     get "/halon/workflows/:id/runs/:run_id/saved-results/:result_id", to: "workflow_saved_results#show", as: :workflow_run_saved_result
+    get "/halon/workflows/:id/runs/:run_id/screenshots/:screenshot_id", to: "workflow_screenshots#show", as: :workflow_run_screenshot
     get "/halon/monitoring", to: "halon_monitoring#show", as: :halon_monitoring
     patch "/halon/monitoring", to: "halon_monitoring#update"
     resources :investigation_checks, only: [ :create, :update, :destroy ], path: "halon/monitoring/checks" do
