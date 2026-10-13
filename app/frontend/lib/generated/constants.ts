@@ -803,6 +803,7 @@ export const ABILITY_RESOURCES = [
   "channel_posts",
   "skills",
   "workflows",
+  "http_requests",
   "integrations",
   "api_keys",
   "permissions",
@@ -835,7 +836,8 @@ export const ABILITY_GRANTABLE_RESOURCES = [
   "browser",
   "channel_posts",
   "skills",
-  "workflows"
+  "workflows",
+  "http_requests"
 ] as const
 export type AbilityGrantableResource = (typeof ABILITY_GRANTABLE_RESOURCES)[number]
 
@@ -861,6 +863,7 @@ export const ABILITY_RESOURCE_LABELS = {
   "handbook": "Handbook",
   "browser": "Halon's Browser",
   "channel_posts": "Channel Posts",
+  "http_requests": "HTTP Requests",
   "skills": "Skills",
   "workflows": "Workflows",
   "webhooks": "Webhooks",
@@ -1014,6 +1017,10 @@ export const ABILITY_RESOURCE_ACTIONS = {
     "create",
     "update",
     "delete"
+  ],
+  "http_requests": [
+    "read",
+    "create"
   ]
 } as const
 
@@ -1573,9 +1580,12 @@ export type WorkflowFreezeBehaviour = (typeof WORKFLOW_FREEZE_BEHAVIOURS)[number
 export const WORKFLOW_PAGE_TABS = [
   "workflows",
   "runs",
-  "done"
+  "done",
+  "library"
 ] as const
 export type WorkflowPageTab = (typeof WORKFLOW_PAGE_TABS)[number]
+
+export const CHAT_TIME_TOKEN_PATTERN = "\\{\\{at:(\\d+)\\}\\}" as const
 
 export const WORKFLOW_PAGE_TAB_QUERY = "tab" as const
 
@@ -1731,7 +1741,11 @@ export const WORKFLOW_STEP_EDITORS = [
   "tool",
   "ask_halon",
   "watch",
-  "status_page"
+  "status_page",
+  "browser",
+  "set_data",
+  "ask_person",
+  "approval"
 ] as const
 export type WorkflowStepEditor = (typeof WORKFLOW_STEP_EDITORS)[number]
 
@@ -1744,7 +1758,11 @@ export const WORKFLOW_STEP_EDITOR = {
   "TOOL": "tool",
   "ASK_HALON": "ask_halon",
   "WATCH": "watch",
-  "STATUS_PAGE": "status_page"
+  "STATUS_PAGE": "status_page",
+  "BROWSER": "browser",
+  "SET_DATA": "set_data",
+  "ASK_PERSON": "ask_person",
+  "APPROVAL": "approval"
 } as const
 
 export const WORKFLOW_STEP_ICONS = [
@@ -1771,7 +1789,11 @@ export const WORKFLOW_STEP_ICONS = [
   "classify",
   "page",
   "follow_up",
-  "status_page"
+  "status_page",
+  "script",
+  "browser",
+  "webhook",
+  "data"
 ] as const
 export type WorkflowStepIcon = (typeof WORKFLOW_STEP_ICONS)[number]
 
@@ -1792,6 +1814,84 @@ export const WORKFLOW_TRIGGER_ICONS = [
   "issue"
 ] as const
 export type WorkflowTriggerIcon = (typeof WORKFLOW_TRIGGER_ICONS)[number]
+
+export const WORKFLOW_BROWSER = {
+  "URL": "url",
+  "STEPS": "steps",
+  "VIEWPORTS": "viewports",
+  "LOG_IN": "log_in",
+  "SEND_STEP": "send_step",
+  "UNDO": "undo",
+  "MAX_STEPS": 12
+} as const
+
+export const WORKFLOW_SET_DATA = {
+  "VALUES": "values",
+  "NAME": "name",
+  "VALUE": "value",
+  "LIMIT": 20
+} as const
+
+export const WORKFLOW_ASK_PERSON = {
+  "FIELDS": "fields",
+  "FIELD_NAME": "name",
+  "FIELD_LABEL": "label",
+  "FIELD_LIMIT": 5
+} as const
+
+export const WORKFLOW_APPROVAL = {
+  "INCIDENT": "incident",
+  "CONDITIONS": "conditions"
+} as const
+
+export const WORKFLOW_ASK_KIND = {
+  "QUESTION": "question",
+  "APPROVAL": "approval"
+} as const
+
+export const WORKFLOW_QUESTION_STATUS = {
+  "OPEN": "open",
+  "ANSWERED": "answered",
+  "EXPIRED": "expired"
+} as const
+
+export const APPROVAL_STATUS = {
+  "PENDING": "pending",
+  "APPROVED": "approved",
+  "DENIED": "denied",
+  "EXPIRED": "expired",
+  "DISMISSED": "dismissed"
+} as const
+
+export const BROWSER_ACTIONS = [
+  "goto",
+  "click",
+  "fill",
+  "press",
+  "wait_for_text",
+  "expect_text"
+] as const
+export type BrowserAction = (typeof BROWSER_ACTIONS)[number]
+
+export const BROWSER_ACTION = {
+  "GOTO": "goto",
+  "CLICK": "click",
+  "FILL": "fill",
+  "PRESS": "press",
+  "WAIT_FOR_TEXT": "wait_for_text",
+  "EXPECT_TEXT": "expect_text"
+} as const
+
+export const BROWSER_SENDING_ACTIONS = [
+  "click",
+  "fill",
+  "press"
+] as const
+
+export const BROWSER_VIEWPORTS = {
+  "desktop": "Desktop",
+  "phone": "Phone"
+} as const
 
 export const WORKFLOW_ASK_HALON = {
   "QUESTION": "question",

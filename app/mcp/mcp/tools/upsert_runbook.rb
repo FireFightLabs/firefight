@@ -73,7 +73,7 @@ module Mcp
         else
           upsert.call(target, args, by: by)
         end
-        said = publish_or_ask(workspace, principal, upsert.workflow_written)
+        said = publish_or_ask(principal, upsert.workflow_written)
 
         respond({
           slug: runbook.slug, name: runbook.name, summary: runbook.summary,
@@ -84,7 +84,7 @@ module Mcp
         Mcp::ToolDispatcher.error_response(refused.message)
       end
 
-      def self.publish_or_ask(workspace, principal, workflow)
+      def self.publish_or_ask(principal, workflow)
         draft = workflow&.draft
         return unless draft
 
@@ -93,7 +93,7 @@ module Mcp
         return unpublishable if unpublishable
         return service.ask_or_leave!(draft, by: principal).words unless service.may_publish?(draft, by: principal)
 
-        CreateWorkflow.publish(workspace, principal, workflow, draft).words
+        service.publish_through_gateway!(draft, principal: principal, source: AbilityGateway::SOURCE_MCP).words
       end
       private_class_method :publish_or_ask
     end

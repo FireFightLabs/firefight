@@ -30,6 +30,75 @@ class WorkflowTriggerSweepJobTest < ActiveJob::TestCase
     end
   end
 
+  test "a start that keeps breaking is tried for 15 minutes, then that time is given up as a failed run the owning team is told of" do
+    travel_to Time.zone.parse("2026-10-13 06:58 UTC") do
+      workflow = scheduled("Morning", { "kind" => "schedule", "repeat" => "days", "days" => [ 0, 1, 2, 3, 4, 5, 6 ], "at" => "07:00", "time_zone" => "UTC", "inputs" => [] })
+      breaking = WorkflowRunService.new(workflow)
+      breaking.stubs(:start!).raises(ActiveRecord::StatementInvalid, "PG::QueryCanceled")
+      WorkflowRunService.stubs(:new).returns(breaking)
+      told = []
+      WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:post_workflow_failure).with { |**given| told << given[:run] }.returns({})
+      @alice.update!(platform_user_id: "U_ALICE") if @alice.platform_user_id.blank?
+
+      travel 3.minutes
+      WorkflowTriggerSweepJob.perform_now
+      travel 10.minutes
+      WorkflowTriggerSweepJob.perform_now
+      assert_empty workflow.runs
+      assert_equal Time.zone.parse("2026-10-13 07:00 UTC"), workflow.reload.next_run_at
+
+      travel 6.minutes
+      perform_enqueued_jobs { WorkflowTriggerSweepJob.perform_now }
+
+      gave_up = workflow.runs.sole
+      assert_equal [ Workflow::Run::STATUS_FAILED, "trigger:2026-10-13T07:00:00Z", Workflow::Run::STARTED_BY_TRIGGER ], gave_up.values_at(:status, :start_key, :started_by_kind)
+      assert_equal WorkflowTriggerSweepJob::GAVE_UP, gave_up.error
+      assert_equal [ gave_up ], told
+      assert_equal Time.zone.parse("2026-10-14 07:00 UTC"), workflow.reload.next_run_at
+
+      WorkflowRunService.unstub(:new)
+      travel_to Time.zone.parse("2026-10-14 07:01 UTC")
+      WorkflowTriggerSweepJob.perform_now
+      assert_equal "trigger:2026-10-14T07:00:00Z", workflow.runs.where(status: Workflow::Run::OPEN).sole.start_key
+    end
+  end
+
+  test "a time whose giving up broke is recorded and told by the next sweep, and stays given up rather than running late" do
+    travel_to Time.zone.parse("2026-10-13 06:58 UTC") do
+      workflow = scheduled("Morning", { "kind" => "schedule", "repeat" => "days", "days" => [ 0, 1, 2, 3, 4, 5, 6 ], "at" => "07:00", "time_zone" => "UTC", "inputs" => [] })
+      breaking = WorkflowRunService.new(workflow)
+      breaking.stubs(:start!).raises(ActiveRecord::StatementInvalid, "PG::QueryCanceled")
+      WorkflowRunService.stubs(:new).returns(breaking)
+      told = []
+      WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:post_workflow_failure).with { |**given| told << given[:run] }.returns({})
+      @alice.update!(platform_user_id: "U_ALICE") if @alice.platform_user_id.blank?
+
+      travel 3.minutes
+      WorkflowTriggerSweepJob.perform_now
+      travel 16.minutes
+      Workflow::Run.stubs(:open!).raises(ActiveRecord::StatementInvalid, "PG::QueryCanceled")
+      perform_enqueued_jobs { WorkflowTriggerSweepJob.perform_now }
+      assert_empty workflow.runs
+      assert_empty told
+      assert_equal Time.zone.parse("2026-10-14 07:00 UTC"), workflow.reload.next_run_at
+
+      Workflow::Run.unstub(:open!)
+      WorkflowRunService.unstub(:new)
+      travel 1.minute
+      perform_enqueued_jobs { WorkflowTriggerSweepJob.perform_now }
+
+      gave_up = workflow.runs.sole
+      assert_equal [ Workflow::Run::STATUS_FAILED, "trigger:2026-10-13T07:00:00Z", WorkflowTriggerSweepJob::GAVE_UP ], gave_up.values_at(:status, :start_key, :error)
+      assert_equal [ gave_up ], told
+      assert_equal WorkflowTriggerSweepJob::GAVE_UP, workflow.reload.trigger_refusal
+      assert_equal Time.zone.parse("2026-10-14 07:00 UTC"), workflow.next_run_at
+
+      perform_enqueued_jobs { WorkflowTriggerSweepJob.perform_now }
+      assert_equal 1, workflow.runs.count, "recorded once"
+      assert_equal 1, told.size, "told once"
+    end
+  end
+
   test "a start that breaks is kept on that workflow with why and tried again next sweep, and the sweep starts the next" do
     travel_to Time.zone.parse("2026-10-13 12:00 UTC") do
       broken = scheduled("Broken", { "kind" => "once_at", "at" => "2026-10-13T12:10", "time_zone" => "UTC", "inputs" => [] })

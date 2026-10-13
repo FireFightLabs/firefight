@@ -13,9 +13,20 @@ class Chat::Terminal::Relay
   Answered = Data.define(:status, :body)
 
   # session is nil when only the listing is read, for the run that is about to start a command.
-  def initialize(session, agent_run: session&.agent_run)
+  def initialize(session, agent_run: self.class.agent_run_of(session))
     @session = session
     @run = Caller.new(agent_run)
+  end
+
+  # The run a session's calls are made as. A workflow step's command runs as the workflow's own run, as its step's other
+  # calls do.
+  def self.agent_run_of(session)
+    owner = session&.owner
+    case owner
+    when Workflow::Run::Step then Workflow::AgentRun.new(run: owner.run, record: owner)
+    when Workflow::Run then Workflow::AgentRun.new(run: owner)
+    else session&.agent_run
+    end
   end
 
   # The tools a command may call, a line each, those whose name or description holds every word of query.
@@ -114,6 +125,8 @@ class Chat::Terminal::Relay
 
     why = if @session.owner.is_a?(Conversation)
       "The person did not confirm this command as a change. Run it again with changes true, so they are asked first."
+    elsif [ Workflow::Run::Step, Workflow::Run ].any? { |kind| @session.owner.is_a?(kind) }
+      "The workflow's step does not say it changes something, so its commands only read."
     else
       "An investigation only reads, and a change belongs in its fix."
     end
@@ -127,7 +140,7 @@ class Chat::Terminal::Relay
     return "#{called}, since a capability that changes something is confirmed with what it reaches." if capability?(entry)
 
     tool = connection_tool(entry)
-    run = @session.agent_run
+    run = self.class.agent_run_of(@session)
     environment_entry = tool.integration.environment_entry_for(given[Integration::Tool::ENVIRONMENT_ARG])
     arguments = Chat::DataRepairs.provider_arguments(tool, environment_entry, given)
     return "#{called}, since it writes rows, which are counted and copied first and checked after." if Chat::DataRepairs.applies?(run, tool)

@@ -66,6 +66,16 @@ class WorkflowsControllerTest < ActionDispatch::IntegrationTest
     assert_empty inertia_props["publishRequests"]
   end
 
+  test "the page says whether the person may make workflows, which a member holds by default and an admin can take away" do
+    sign_in(users(:bob), @workspace)
+    get halon_workflows_path, headers: inertia_headers
+    assert inertia_props["canCreate"]
+
+    Ability::Grant.withhold!(workspace: @workspace, principal: @bob, action: Ability::Action.system!(Workflow::CREATE_KEY))
+    get halon_workflows_path, headers: inertia_headers
+    assert_not inertia_props["canCreate"]
+  end
+
   test "a member makes a draft from the library, asks an admin to publish it, and the admin publishes it from the request" do
     sign_in(users(:bob), @workspace)
     post halon_workflows_path, params: { template: "probing_scan", time_zone: "Europe/Belgrade" }
@@ -107,6 +117,49 @@ class WorkflowsControllerTest < ActionDispatch::IntegrationTest
     perform_enqueued_jobs { post run_workflow_path(workflow), params: { inputs: { query: { nested: "x" }, unasked: "y" } } }
 
     assert_equal({ "query" => "db" }, workflow.runs.sole.inputs)
+  end
+
+  test "a test run is never a workflow's last run, on the list, its page or for Halon, and stays on the Runs tab marked as a test" do
+    workflow = published
+    run = perform_enqueued_jobs { WorkflowRunService.new(workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_PERSON, started_by: @alice, test: true) }
+    sign_in(users(:alice), @workspace)
+
+    get halon_workflows_path, headers: inertia_headers
+    assert_nil inertia_props["workflows"].find { |row| row["id"] == workflow.id }["lastRun"]
+    tested = inertia_props["runs"].find { |row| row["id"] == run.id }
+    assert tested["test"]
+
+    get workflow_path(workflow), headers: inertia_headers
+    assert_nil inertia_props["workflow"]["lastRun"]
+    assert_nil Workflow::Listing.summary(workflow.reload)[:last_run]
+    assert_nil Workflow::Listing.for(@workspace).find { |each| each[:name] == workflow.name }[:last_run]
+  end
+
+  test "making workflows is a member default an admin can take away from one member, who then cannot draft, test or have Halon make one" do
+    workflow = published
+    Ability::Grant.withhold!(workspace: @workspace, principal: @bob, action: Ability::Action.system!(Workflow::CREATE_KEY))
+    sign_in(users(:bob), @workspace)
+
+    assert_no_difference -> { @workspace.workflows.count } do
+      post halon_workflows_path, params: { template: "probing_scan", time_zone: "Europe/Belgrade" }
+    end
+    assert_no_difference -> { workflow.runs.count } do
+      post workflow_test_runs_path(workflow)
+    end
+    said = Conversation::Tools::CreateWorkflow.new(Conversation::Turn.new(Conversation.start_personal!(workspace: @workspace, member: @bob), asker: @bob))
+                                              .call(template: "check_later", params: { resource: "web", in_minutes: 30, reply_in_chat: true })
+    assert_equal "Bob Jones is not allowed to make workflows.", said
+    assert_equal WorkspaceMembership::DEFAULT_NO_ACCESS, @bob.reload.default_access.find { |access| access.action&.key == Workflow::CREATE_KEY }.state
+
+    Ability::Grant.find_by!(principal: @bob, action: Ability::Action.system!(Workflow::CREATE_KEY)).destroy!
+    post halon_workflows_path, params: { template: "probing_scan", time_zone: "Europe/Belgrade" }
+    assert_equal "Look for probing in the logs was made as a draft.", flash[:notice]
+  end
+
+  test "without workflows the Permissions screen offers no default for making them" do
+    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
+
+    assert_not(@bob.default_access.any? { |access| access.action&.key == Workflow::CREATE_KEY })
   end
 
   test "a run opens on the canvas with each step, and pinning and stopping it each say so" do

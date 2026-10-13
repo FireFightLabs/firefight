@@ -1,12 +1,16 @@
 import type { SearchableSelectOption } from "@/components/searchable-select"
 import { WORKFLOW_STEP_EDITOR } from "@/lib/generated/constants"
 import type { JsonObject } from "@/lib/tool-fields"
+import { ApprovalEditor } from "@/pages/halon/components/workflow/approval-editor"
 import { AskHalonEditor } from "@/pages/halon/components/workflow/ask-halon-editor"
+import { AskPersonEditor } from "@/pages/halon/components/workflow/ask-person-editor"
 import { BranchEditor } from "@/pages/halon/components/workflow/branch-editor"
+import { BrowserEditor } from "@/pages/halon/components/workflow/browser-editor"
 import { DelayEditor } from "@/pages/halon/components/workflow/delay-editor"
 import { FieldsEditor } from "@/pages/halon/components/workflow/fields-editor"
 import { ForEachEditor } from "@/pages/halon/components/workflow/for-each-editor"
 import { RunWorkflowEditor } from "@/pages/halon/components/workflow/run-workflow-editor"
+import { SetDataEditor } from "@/pages/halon/components/workflow/set-data-editor"
 import { ToolStepEditor } from "@/pages/halon/components/workflow/tool-step-editor"
 import { WatchEditor } from "@/pages/halon/components/workflow/watch-editor"
 import type { OtherWorkflow } from "@/pages/halon/lib/workflow/types"
@@ -44,10 +48,18 @@ export function StepConfigEditor({ step, config, kind, tools, workflows, timeZon
     return <RunWorkflowEditor idPrefix={idPrefix} config={config} workflows={workflows} references={references} disabled={disabled} onChange={onChange} />
   case WORKFLOW_STEP_EDITOR.TOOL:
     return <ToolStepEditor idPrefix={idPrefix} config={config} tools={tools} references={references} disabled={disabled} onChange={onChange} />
+  case WORKFLOW_STEP_EDITOR.BROWSER:
+    return <BrowserEditor idPrefix={idPrefix} config={config} references={references} disabled={disabled} onChange={onChange} />
   case WORKFLOW_STEP_EDITOR.STATUS_PAGE:
     return <ToolStepEditor idPrefix={idPrefix} config={config} tools={statusPageTools(tools)} references={references} disabled={disabled} onChange={onChange} />
   case WORKFLOW_STEP_EDITOR.ASK_HALON:
     return <AskHalonEditor idPrefix={idPrefix} config={config} references={references} disabled={disabled} onChange={onChange} />
+  case WORKFLOW_STEP_EDITOR.SET_DATA:
+    return <SetDataEditor config={config} references={references} disabled={disabled} onChange={onChange} />
+  case WORKFLOW_STEP_EDITOR.ASK_PERSON:
+    return <AskPersonEditor idPrefix={idPrefix} kind={kind} config={config} references={references} disabled={disabled} onChange={onChange} />
+  case WORKFLOW_STEP_EDITOR.APPROVAL:
+    return <ApprovalEditor idPrefix={idPrefix} kind={kind} config={config} references={references} disabled={disabled} onChange={onChange} />
   case WORKFLOW_STEP_EDITOR.WATCH:
     return <WatchEditor idPrefix={idPrefix} config={config} tools={tools} references={references} disabled={disabled} onChange={onChange} />
   default:

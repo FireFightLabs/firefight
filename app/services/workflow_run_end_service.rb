@@ -1,4 +1,5 @@
-# What happens once a run ends. A watch its steps still keep stops, since nothing waits for it any more. A run that
+# What happens once a run ends. A watch its steps still keep stops, since nothing waits for it any more, and a question
+# or an approval its steps still ask is withdrawn where it was asked. A run that
 # failed on its own is said in the channel of the team that owns the workflow, from the catalog, else to whoever
 # published it by direct message, with Halon's suggested fix waiting on the run's page when it has one. A workflow that
 # asks for an all clear says so in one line when a run found nothing to raise or post. A test run and a run another
@@ -17,6 +18,8 @@ class WorkflowRunEndService
 
   def ended!
     stop_watches!
+    withdraw_asks!
+    close_sandbox!
     Conversation::Workflows.moved!(@workflow) unless @run.test?
     tell_workflows!
     return if @run.test? || @run.parent_run_id.present? || !@run.claim_telling!(@job_id)
@@ -45,6 +48,21 @@ class WorkflowRunEndService
     return unless @run.failed? && !@run.test? && @run.parent_run_id.nil?
 
     Workflow::Trigger::Events.fire!(@workspace, Workflow::Trigger::KIND_RUN_FAILED, key: @run.id, subject: @run, actor: @run.agent)
+  end
+
+  def withdraw_asks!
+    Workflow::Run::Question.open.where(run_step_id: @run.steps.select(:id)).find_each { |question| WorkflowQuestionService.withdraw!(question) }
+    @workspace.ability_approvals.pending.where(workflow_run_id: @run.id, action_key: Ability::Action::WORKFLOW_APPROVAL).find_each do |approval|
+      ApprovalNotificationService.mark_resolved!(approval) if approval.expire!.expired?
+    end
+  end
+
+  # The run's sandbox, which its steps' commands, scripts and browser ran in, stops with it rather than at the next
+  # sweep for idle boxes.
+  def close_sandbox!
+    Integrations::CodeReading.close(@run.code_box_key)
+  rescue Integrations::Error => error
+    Rails.logger.warn({ event: "workflow_run.sandbox_not_closed", run_id: @run.id, error: error.message }.to_json)
   end
 
   def stop_watches!
@@ -93,13 +111,16 @@ class WorkflowRunEndService
   end
 
   # Halon reads why the step failed and, when its settings caused it, suggests a change as a proposal on the workflow,
-  # which a person accepts or dismisses. True when it made one.
+  # which a person accepts or dismisses. True when it made one. Once per kind of failure for each published version
+  # (Workflow::Version#claim_repair!): a run failing in a way Halon already looked at spends nothing, unless that look
+  # broke before Halon answered.
   def suggest_repair!
     return false if Investigation.unavailable_reason(@workspace)
 
     failed = @run.steps.find_by(status: Workflow::Run::Step::STATUS_FAILED)
     spec = failed && @run.version.steps_by_id[failed.step_key]
     return false unless spec && DefinedWorkflow::Steps.for(spec["kind"]) && !DefinedWorkflow::Steps.for(spec["kind"]).engine?
+    return false unless @run.version.claim_repair!(failed.step_key, failed.error.presence || @run.error)
 
     suggestion = FirefightAi::WorkflowRepair.new(@workspace, inferable: @run).suggest(
       workflow_name: @workflow.name, step: spec.slice("name", "kind", "config"), error: failed.error.presence || @run.error,
@@ -110,7 +131,14 @@ class WorkflowRunEndService
     @workflow.edit!(operation: Workflow::Edit::OPERATION_CHANGE_CONFIG, payload: { step_id: spec["id"], changes: { config: suggestion.config } },
                     by: nil, halon: true, reason: suggestion.reason, source_run: @run)
     true
-  rescue FirefightAi::TransientError, FirefightAi::TerminalError, Workflow::Edit::Refused => error
+  rescue FirefightAi::TransientError, FirefightAi::TerminalError, FirefightAi::Canceled => error
+    @run.version.release_repair!(failed.step_key, failed.error.presence || @run.error)
+    unsuggested(error)
+  rescue Workflow::Edit::Refused => error
+    unsuggested(error)
+  end
+
+  def unsuggested(error)
     Rails.logger.warn({ event: "workflow_run.repair_unsuggested", run_id: @run.id, error: error.class.name }.to_json)
     false
   end

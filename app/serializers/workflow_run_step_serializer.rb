@@ -4,6 +4,13 @@
 class WorkflowRunStepSerializer < BaseSerializer
   object_as :step
 
+  ASK_QUESTION = "question".freeze
+  ASK_APPROVAL = "approval".freeze
+  ASK_KINDS = [ ASK_QUESTION, ASK_APPROVAL ].freeze
+  ASK_TYPE = "{ kind: #{ASK_KINDS.map(&:inspect).join(' | ')}; id: string; question: string; details: string | null; " \
+             "status: string; choices: { value: string; label: string }[]; fields: { name: string; label: string }[]; who: string; " \
+             "blockedReason: string | null; answered: string | null; answeredBy: string | null }".freeze
+
   type :string
   def id
     step.id
@@ -45,6 +52,16 @@ class WorkflowRunStepSerializer < BaseSerializer
     step.saved_results.map { |result| { id: result.id, handle: result.handle, bytes: result.content&.bytesize } }
   end
 
+  # The pages a Browser step saw, one per screen size, each served from the run's view.
+  type "{ id: string; caption: string; url: string }[]"
+  def screenshots
+    shots = step.chat&.screenshots&.in_order.to_a
+    shots.map do |shot|
+      { id: shot.id, caption: shot.caption,
+        url: Rails.application.routes.url_helpers.workflow_run_screenshot_path(step.run.workflow_id, step.run_id, shot) }
+    end
+  end
+
   type :number
   def attempts
     step.attempts
@@ -82,6 +99,15 @@ class WorkflowRunStepSerializer < BaseSerializer
     step.waiting_approval?
   end
 
+  # What an Ask a person or Approval step asked people, with whether the person looking may answer it from here.
+  type ASK_TYPE, optional: true
+  def ask
+    case step.kind
+    when DefinedWorkflow::Steps::AskPerson.kind then question_ask(step.asked_question)
+    when DefinedWorkflow::Steps::Approval.kind then approval_ask(step.asked_approval)
+    end
+  end
+
   type "{ id: string; actionKey: string; decision: #{Ability::Invocation::DECISIONS.map(&:inspect).join(' | ')}; outcome: string | null; errorSummary: string | null; durationMs: number | null; approvalStatus: string | null; createdAt: string }[]"
   def invocations
     step.invocations.map do |call|
@@ -103,5 +129,28 @@ class WorkflowRunStepSerializer < BaseSerializer
   type :string, optional: true
   def rerun_blocked_reason
     step.rerun_blocked_reason
+  end
+
+  private
+
+  def member = options[:member]
+
+  def question_ask(question)
+    return unless question
+
+    { kind: ASK_QUESTION, id: question.id, question: question.question, details: question.details, status: question.status,
+      choices: question.choices.map { |choice| { value: choice, label: question.choice_words(choice) } },
+      fields: question.fields.map { |field| { name: field[Workflow::Run::Question::FIELD_NAME], label: field[Workflow::Run::Question::FIELD_LABEL] } },
+      who: question.asked_members.map(&:actor_display_name).to_sentence, blockedReason: question.answer_blocked_reason(member),
+      answered: question.answer_words, answeredBy: question.answered_by&.actor_display_name }
+  end
+
+  def approval_ask(approval)
+    return unless approval
+
+    who = approval.named_approvers? ? approval.approvers.map(&:actor_display_name).to_sentence : "Any workspace #{approval.required_role}"
+    { kind: ASK_APPROVAL, id: approval.id, question: approval.question.to_s, details: approval.question_details, status: approval.status,
+      choices: [], fields: [], who: who, blockedReason: member ? approval.decide_blocked_reason(member) : "Sign in to decide.",
+      answered: (approval.status unless approval.pending?), answeredBy: approval.approver&.actor_display_name }
   end
 end

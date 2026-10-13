@@ -415,6 +415,7 @@ class Conversation::Runner
   # The turn stops on calls that need the person's decision, and they are asked rather than answered.
   def ask_to_confirm(chat, outcome)
     chat.request_decisions!(chat.to_llm.pending_approvals.map(&:id))
+    Chat::Tools.settle_asked!(@turn, chat.awaiting_decision.to_a)
     Chat::Tools::Target.record!(@turn, chat.awaiting_decision.where(target: nil).to_a)
     Chat::Tools::Provenance.record!(@turn, chat.awaiting_decision.where(provenance: nil).to_a)
     Chat::Safeguards.prepare!(@turn, chat.awaiting_decision.to_a)

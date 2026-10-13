@@ -7,10 +7,13 @@ import {
   IconBolt,
   IconBook,
   IconBroadcast,
+  IconBrowser,
   IconCalendarRepeat,
   IconCategory,
   IconCircleX,
   IconClock,
+  IconCode,
+  IconDatabase,
   IconEye,
   IconFlame,
   IconHandClick,
@@ -86,7 +89,12 @@ export const STEP_ICONS: Record<WorkflowStepIcon, Icon> = {
   page: IconBellRinging,
   follow_up: IconListCheck,
   status_page: IconBroadcast,
+  script: IconCode,
+  browser: IconBrowser,
+  webhook: IconWebhook,
+  data: IconDatabase,
 }
+
 
 export const TRIGGER_ICONS: Record<WorkflowTriggerIcon, Icon> = {
   hand: IconHandClick,

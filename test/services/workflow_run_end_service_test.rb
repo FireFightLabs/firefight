@@ -44,6 +44,69 @@ class WorkflowRunEndServiceTest < ActiveSupport::TestCase
     assert run.told_at
   end
 
+  test "Halon suggests a fix once per problem: on the first failure, and again only when a run fails at another step or in another way" do
+    workflow = failing
+    @adapter.any_instance.stubs(:post_workflow_failure).returns({})
+    FirefightAi::WorkflowRepair.any_instance.expects(:suggest).twice.returns(nil)
+    failing_with = lambda do |words|
+      Workflow::HalonStep.any_instance.stubs(:follow!).returns({ "error" => words })
+      perform_enqueued_jobs { WorkflowRunService.new(workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_TRIGGER, trigger_kind: "schedule") }
+    end
+
+    failing_with.call("The logs could not be read after 3 tries at 09:00.")
+    failing_with.call("The logs could not be read after 5 tries at 10:00.")
+    failing_with.call("The skill probing_scan is not offered any more.")
+
+    assert_equal 3, workflow.runs.where(status: Workflow::Run::STATUS_FAILED).count
+  end
+
+  test "Halon looks at each kind of failure once per published version, even when they take turns, and again after a new version is published" do
+    workflow = failing
+    @adapter.any_instance.stubs(:post_workflow_failure).returns({})
+    looked_at = []
+    FirefightAi::WorkflowRepair.any_instance.stubs(:suggest).with { |**given| looked_at << given[:error] }.returns(nil)
+    failing_with = lambda do |words|
+      Workflow::HalonStep.any_instance.stubs(:follow!).returns({ "error" => words })
+      perform_enqueued_jobs { WorkflowRunService.new(workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_TRIGGER, trigger_kind: "schedule") }
+    end
+    unreadable = "The logs could not be read."
+    gone = "The skill probing_scan is not offered any more."
+
+    [ unreadable, gone, unreadable, gone ].each { |words| failing_with.call(words) }
+    assert_equal [ unreadable, gone ], looked_at
+
+    workflow.open_draft!(by: @alice).update!(steps: [ { "id" => "scan", "name" => "scan", "kind" => "run_skill", "config" => { "skill" => "probing_scan", "focus" => "shop" } } ])
+    assert WorkflowPublishService.new(workflow).publish!(workflow.draft, by: @alice).ok
+    failing_with.call(unreadable)
+    assert_equal [ unreadable, gone, unreadable ], looked_at
+  end
+
+  test "a failure Halon could not look at, since the model call broke, is looked at again when a run fails the same way" do
+    workflow = failing
+    @adapter.any_instance.stubs(:post_workflow_failure).returns({})
+    FirefightAi::WorkflowRepair.any_instance.expects(:suggest).twice.raises(FirefightAi::TransientError, "timed out").then.returns(nil)
+
+    run!(workflow)
+    assert_empty workflow.live_version.reload.repair_problem_keys
+    run!(workflow)
+    assert_equal 1, workflow.live_version.reload.repair_problem_keys.size
+    run!(workflow)
+
+    assert_equal 3, workflow.runs.where(status: Workflow::Run::STATUS_FAILED).count
+  end
+
+  test "a look at a failure that was stopped while the model answered is still told, and the failure is looked at again" do
+    workflow = failing
+    @adapter.any_instance.stubs(:post_workflow_failure).returns({})
+    FirefightAi::WorkflowRepair.any_instance.expects(:suggest).twice.raises(FirefightAi::Canceled, "stopped").then.returns(nil)
+
+    first = run!(workflow)
+    assert first.told_at, "the failure is told without a suggestion"
+    assert_empty workflow.live_version.reload.repair_problem_keys
+    run!(workflow)
+    assert_equal 1, workflow.live_version.reload.repair_problem_keys.size
+  end
+
   test "a failed run is said in the channel of the team that owns the workflow" do
     workflow = failing
     workflow.update!(owner_team: catalog_entries(:platform_team))

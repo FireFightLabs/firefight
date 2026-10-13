@@ -27,15 +27,31 @@ module Slack
       end
 
       # The same word the blocks say. An approval that expired here was withdrawn, since nothing needs it any more.
-      def self.resolved_fallback(approval) = "Approval #{approval.expired? ? 'withdrawn' : approval.status}: #{approval.action_key}"
+      def self.resolved_fallback(approval) = "Approval #{approval.expired? ? 'withdrawn' : approval.status}: #{approval.question || approval.action_key}"
+
+      def self.request_fallback(approval)
+        return "Approval required: #{approval.principal_label} asks #{approval.question}" if approval.workflow_question?
+
+        "Approval required: #{approval.principal_label} wants to run #{approval.action_key}"
+      end
 
       def self.summary_text(approval, params: approval.params)
+        return question_text(approval) if approval.workflow_question?
+
         through = " through *#{Slack::Mrkdwn.escape(approval.connection_name)}*" if approval.connection_name
         lines = [ "*#{approval.principal_label}* wants to run `#{approval.action_key}`#{through}" ]
         lines << "*Scope:* `#{approval.scope.to_json}`" if approval.scope.present?
         lines << "*Params:* `#{params.to_json.truncate(500)}`" if params.present?
         lines << approvers_line(approval)
         lines.join("\n")
+      end
+
+      # A workflow's Approval step: what it asks and what approvers should know, rather than a call and its params.
+      def self.question_text(approval)
+        lines = [ "*#{Mrkdwn.escape(approval.principal_label)}* asks: *#{Mrkdwn.escape(approval.question.to_s)}*" ]
+        lines << CodeQuestion.quoted(approval.question_details) if approval.question_details.present?
+        lines << approvers_line(approval)
+        lines.join("\n").truncate(Formatting::SECTION_TEXT_LIMIT)
       end
 
       def self.approvers_line(approval)

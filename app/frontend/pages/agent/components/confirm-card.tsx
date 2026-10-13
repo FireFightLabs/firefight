@@ -5,6 +5,7 @@ import { Button } from "@/components/agent-ui/button"
 import { DetailList } from "@/components/detail-list"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { withLocalMoments } from "@/lib/formatters"
 import { answerConfirmations, type ConfirmationAnswer } from "@/pages/agent/lib/chat-updates"
 import type { AgentChatConfirmation } from "@/types/serializers"
 
@@ -124,7 +125,7 @@ function ConfirmQuestion({ confirmation, answer, onAnswer, onReopen }: ConfirmQu
   const [ forChat, setForChat ] = useState(false)
   const [ detailsOpen, setDetailsOpen ] = useState(false)
   const safeguards = confirmation.safeguards.map(([ label, meta ]) => ({ label, meta }))
-  const called = [ { label: "tool", meta: confirmation.tool }, ...confirmation.asked.map(([ label, meta ]) => ({ label, meta })) ]
+  const called = [ { label: "tool", meta: confirmation.tool }, ...confirmation.asked.map(([ label, meta ]) => ({ label, meta: withLocalMoments(meta) })) ]
   const reads = confirmation.readRows.map(([ label, meta ]) => ({ label, meta }))
 
   function chooseExpiry(value: string) {

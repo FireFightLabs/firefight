@@ -26,7 +26,7 @@ module Slack
         blocks << { type: "divider" } if body || held_call.asked.any?
         blocks << { type: "section", text: { type: "mrkdwn", text: body.truncate(Formatting::SECTION_TEXT_LIMIT) } } if body
         if held_call.asked.any?
-          fields = held_call.asked.map { |name, value| "#{Mrkdwn.escape(name)}: #{Mrkdwn.escape(value)}" }.join("  ·  ")
+          fields = held_call.asked.map { |name, value| "#{Mrkdwn.escape(name)}: #{Formatting.local_moments(Mrkdwn.escape(value))}" }.join("  ·  ")
           blocks << { type: "context", elements: [ { type: "mrkdwn", text: fields.truncate(Formatting::SECTION_TEXT_LIMIT) } ] }
         end
         footer = footer_text(held_call)

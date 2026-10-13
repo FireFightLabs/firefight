@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_13_235200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -2152,6 +2152,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.uuid "workflow_run_id"
+    t.string "resource_words"
     t.index ["check_id"], name: "index_investigation_notices_on_check_id"
     t.index ["investigation_id"], name: "index_investigation_notices_on_investigation_id"
     t.index ["resource_id"], name: "index_investigation_notices_on_resource_id"
@@ -3137,7 +3138,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
     t.datetime "delivered_at"
     t.text "error_message"
     t.string "event_type", null: false
-    t.uuid "incident_event_id", null: false
+    t.uuid "incident_event_id"
     t.jsonb "request_body", default: {}
     t.jsonb "request_headers", default: {}
     t.integer "response_code"
@@ -3145,11 +3146,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
     t.string "state", default: "pending", null: false
     t.datetime "updated_at", null: false
     t.uuid "webhook_id", null: false
+    t.uuid "workflow_run_id"
     t.index ["created_at"], name: "index_webhook_deliveries_on_created_at"
     t.index ["incident_event_id"], name: "index_webhook_deliveries_on_incident_event_id"
     t.index ["state"], name: "index_webhook_deliveries_on_state"
     t.index ["webhook_id", "created_at"], name: "index_webhook_deliveries_on_webhook_id_and_created_at"
     t.index ["webhook_id"], name: "index_webhook_deliveries_on_webhook_id"
+    t.index ["workflow_run_id"], name: "index_webhook_deliveries_on_workflow_run_id"
   end
 
   create_table "webhooks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -3211,6 +3214,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
     t.index ["version_id"], name: "index_workflow_publish_requests_on_version_id"
     t.index ["workflow_id", "requester_id"], name: "idx_on_workflow_id_requester_id_c34870eb90", unique: true
     t.index ["workspace_id", "requested_at"], name: "idx_on_workspace_id_requested_at_74747be6ce"
+  end
+
+  create_table "workflow_run_questions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "run_step_id", null: false
+    t.uuid "engine_step_id", null: false
+    t.string "delivery_key", null: false
+    t.datetime "due_at", null: false
+    t.text "question", null: false
+    t.text "details"
+    t.string "choices", default: [], null: false, array: true
+    t.jsonb "fields", default: [], null: false
+    t.uuid "asked_member_ids", default: [], null: false, array: true
+    t.string "status", default: "open", null: false
+    t.jsonb "answer"
+    t.uuid "answered_by_id"
+    t.datetime "answered_at"
+    t.jsonb "notifications", default: [], null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["answered_by_id"], name: "index_workflow_run_questions_on_answered_by_id"
+    t.index ["run_step_id"], name: "index_workflow_run_questions_on_run_step_id"
+    t.index ["workspace_id", "status"], name: "index_workflow_run_questions_on_workspace_id_and_status"
   end
 
   create_table "workflow_run_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -3297,6 +3323,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
     t.datetime "updated_at", null: false
     t.jsonb "pins", default: {}, null: false
     t.text "private_inputs"
+    t.string "repair_problem_keys", default: [], null: false, array: true
     t.index ["author_id"], name: "index_workflow_versions_on_author_id"
     t.index ["parent_version_id"], name: "index_workflow_versions_on_parent_version_id"
     t.index ["published_by_id"], name: "index_workflow_versions_on_published_by_id"
@@ -3335,6 +3362,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
     t.boolean "follows_library", default: false, null: false
     t.integer "library_dismissed_version"
     t.string "hook_token", null: false
+    t.datetime "given_up_at"
     t.index ["agent_id"], name: "index_workflows_on_agent_id"
     t.index ["created_by_id"], name: "index_workflows_on_created_by_id"
     t.index ["hook_token"], name: "index_workflows_on_hook_token", unique: true
@@ -3799,6 +3827,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
   add_foreign_key "webhook_delinquency_trackers", "webhooks"
   add_foreign_key "webhook_deliveries", "incident_events"
   add_foreign_key "webhook_deliveries", "webhooks"
+  add_foreign_key "webhook_deliveries", "workflow_runs", on_delete: :cascade
   add_foreign_key "webhooks", "workspaces"
   add_foreign_key "workflow_edits", "chats", column: "source_chat_id", on_delete: :nullify
   add_foreign_key "workflow_edits", "workflow_runs", column: "source_run_id", on_delete: :nullify
@@ -3811,6 +3840,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
   add_foreign_key "workflow_publish_requests", "workspace_memberships", column: "published_by_id", on_delete: :nullify
   add_foreign_key "workflow_publish_requests", "workspace_memberships", column: "requester_id", on_delete: :cascade
   add_foreign_key "workflow_publish_requests", "workspaces"
+  add_foreign_key "workflow_run_questions", "workflow_run_steps", column: "run_step_id", on_delete: :cascade
+  add_foreign_key "workflow_run_questions", "workspace_memberships", column: "answered_by_id", on_delete: :nullify
+  add_foreign_key "workflow_run_questions", "workspaces"
   add_foreign_key "workflow_run_steps", "workflow_runs", column: "run_id", on_delete: :cascade
   add_foreign_key "workflow_runs", "agents", on_delete: :nullify
   add_foreign_key "workflow_runs", "workflow_runs", column: "parent_run_id", on_delete: :nullify

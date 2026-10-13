@@ -19,16 +19,30 @@ class Workflow::HalonStepTest < ActiveSupport::TestCase
     handed = nil
     FirefightAi::SkillFollower.any_instance.expects(:run).with do |chat:, tools:, skill_text:, **|
       handed = tools.map(&:name)
-      tools.find { |tool| tool.name == Workflow::HalonStep::Report::NAME }.execute(verdict: "ok", summary: "Nothing probed shop.", findings: [])
+      tools.find { |tool| tool.name == Workflow::HalonStep::Report::NAME }.call(
+        **{ "verdict" => "problem", "summary" => "Scanners walked shop.", "findings" => [],
+          "problems" => [ { "topic" => "Probing of shop", "summary" => "203.0.113.4 asked for /wp-admin 400 times.", "severity" => "loud" }, { "topic" => "" } ] }
+      )
       chat.owner == @record && skill_text.include?("probing")
     end
 
     report = Workflow::HalonStep.new(@run, @record).follow!(skill_name: "probing_scan", focus: "The last day.")
 
-    assert_equal({ "verdict" => "ok", "summary" => "Nothing probed shop.", "severity" => nil, "findings" => [] }, report)
+    problem = { "topic" => "Probing of shop", "summary" => "203.0.113.4 asked for /wp-admin 400 times.", "severity" => Investigation::Notice::SEVERITY_LOW }
+    assert_equal({ "verdict" => "problem", "summary" => "Scanners walked shop.", "severity" => nil, "findings" => [], "problems" => [ problem ] }, report)
     assert_includes handed, Workflow::HalonStep::Report::NAME
     skill = Chat::Skill.find("probing_scan")
     assert (handed - [ Workflow::HalonStep::Report::NAME, Chat::Tools::ReadResult.tool_name ]).all? { |name| skill.tools.include?(name) }, handed.inspect
+  end
+
+  test "a problem keeps the day it becomes one only when it is a date, so a loose day never loses its notice" do
+    problems = Workflow::HalonStep::Report.problems_of([
+      { "topic" => "Certificate", "summary" => "It expires soon.", "due_on" => "2026-10-28" },
+      { "topic" => "Disk", "summary" => "It fills up.", "due_on" => "next week" }
+    ])
+
+    assert_equal [ "2026-10-28", nil ], problems.map { |problem| problem["due_on"] }
+    assert_equal %w[Certificate Disk], problems.map { |problem| problem["topic"] }
   end
 
   test "a skill this workspace does not have is refused in words" do

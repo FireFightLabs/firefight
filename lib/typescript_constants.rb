@@ -307,6 +307,7 @@ module TypescriptConstants
       Export.new("WORKFLOW_STEP_STATUSES", Workflow::Run::Step::STATUSES, "WorkflowStepStatus"),
       Export.new("WORKFLOW_FREEZE_BEHAVIOURS", Workflow::FREEZE_BEHAVIOURS, "WorkflowFreezeBehaviour"),
       Export.new("WORKFLOW_PAGE_TABS", WorkflowsController::TABS, "WorkflowPageTab"),
+      Export.new("CHAT_TIME_TOKEN_PATTERN", Chat::TimeToken::PATTERN.source, nil),
       Export.new("WORKFLOW_PAGE_TAB_QUERY", WorkflowsController::TAB_QUERY, nil),
       Export.new("WORKFLOW_RUNS_PER_HOUR", { "MIN" => Workflow::Limits::RUNS_PER_HOUR.min, "MAX" => Workflow::Limits::RUNS_PER_HOUR.max }, nil),
       Export.new("WORKFLOW_RUN_RETENTION_DAYS", { "MIN" => Workflow::Run::Retention::DAYS.min, "MAX" => Workflow::Run::Retention::DAYS.max }, nil),
@@ -339,6 +340,30 @@ module TypescriptConstants
       Export.new("WORKFLOW_STEP_EDITOR", Workflow::StepKinds::EDITORS.to_h { |editor| [ editor.upcase, editor ] }, nil),
       Export.new("WORKFLOW_STEP_ICONS", Workflow::StepKinds::ICONS, "WorkflowStepIcon"),
       Export.new("WORKFLOW_TRIGGER_ICONS", Workflow::TriggerKinds::ICONS, "WorkflowTriggerIcon"),
+      Export.new("WORKFLOW_BROWSER", {
+        "URL" => DefinedWorkflow::Steps::Browser::KEY_URL, "STEPS" => DefinedWorkflow::Steps::Browser::KEY_STEPS,
+        "VIEWPORTS" => DefinedWorkflow::Steps::Browser::KEY_VIEWPORTS, "LOG_IN" => DefinedWorkflow::Steps::Browser::KEY_LOG_IN,
+        "SEND_STEP" => DefinedWorkflow::Steps::Browser::KEY_SEND_STEP, "UNDO" => DefinedWorkflow::Steps::Base::KEY_UNDO,
+        "MAX_STEPS" => Chat::BrowserCheck::MAX_STEPS
+      }, nil),
+      Export.new("WORKFLOW_SET_DATA", {
+        "VALUES" => DefinedWorkflow::Steps::SetData::KEY_VALUES, "NAME" => DefinedWorkflow::Steps::SetData::VALUE_NAME,
+        "VALUE" => DefinedWorkflow::Steps::SetData::VALUE_VALUE, "LIMIT" => DefinedWorkflow::Steps::SetData::VALUE_LIMIT
+      }, nil),
+      Export.new("WORKFLOW_ASK_PERSON", {
+        "FIELDS" => DefinedWorkflow::Steps::AskPerson::KEY_FIELDS, "FIELD_NAME" => DefinedWorkflow::Steps::AskPerson::FIELD_NAME,
+        "FIELD_LABEL" => DefinedWorkflow::Steps::AskPerson::FIELD_LABEL, "FIELD_LIMIT" => DefinedWorkflow::Steps::AskPerson::FIELD_LIMIT
+      }, nil),
+      Export.new("WORKFLOW_APPROVAL", {
+        "INCIDENT" => DefinedWorkflow::Steps::Approval::KEY_INCIDENT, "CONDITIONS" => DefinedWorkflow::Steps::Approval::KEY_CONDITIONS
+      }, nil),
+      Export.new("WORKFLOW_ASK_KIND", WorkflowRunStepSerializer::ASK_KINDS.to_h { |kind| [ kind.upcase, kind ] }, nil),
+      Export.new("WORKFLOW_QUESTION_STATUS", Workflow::Run::Question::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
+      Export.new("APPROVAL_STATUS", Ability::Approval::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
+      Export.new("BROWSER_ACTIONS", Chat::BrowserCheck::ACTIONS, "BrowserAction"),
+      Export.new("BROWSER_ACTION", Chat::BrowserCheck::ACTIONS.to_h { |action| [ action.upcase, action ] }, nil),
+      Export.new("BROWSER_SENDING_ACTIONS", Chat::BrowserCheck::SENDING_ACTIONS, nil),
+      Export.new("BROWSER_VIEWPORTS", Chat::BrowserCheck::VIEWPORTS.transform_values { |viewport| viewport[:label] }, nil),
       Export.new("WORKFLOW_ASK_HALON", {
         "QUESTION" => DefinedWorkflow::Steps::AskHalon::KEY_QUESTION, "DATA" => DefinedWorkflow::Steps::AskHalon::KEY_DATA,
         "FIELDS" => DefinedWorkflow::Steps::AskHalon::KEY_FIELDS, "FIELD_NAME" => DefinedWorkflow::Steps::AskHalon::FIELD_NAME,

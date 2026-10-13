@@ -41,8 +41,17 @@ module Workflow::StepKinds
   EDITOR_WATCH = "watch".freeze
   # The tool editor, offering only the tools of connected status pages that change something.
   EDITOR_STATUS_PAGE = "status_page".freeze
+  # The browser's path: an address, screen sizes, a login, steps and the one that may send.
+  EDITOR_BROWSER = "browser".freeze
+  # Names and values for later steps.
+  EDITOR_SET_DATA = "set_data".freeze
+  # Who is asked, the question, its choices and its short form.
+  EDITOR_ASK_PERSON = "ask_person".freeze
+  # Who approves, the question, and the incident whose conditions are read again.
+  EDITOR_APPROVAL = "approval".freeze
   EDITORS = [
-    EDITOR_FIELDS, EDITOR_BRANCH, EDITOR_DELAY, EDITOR_FOR_EACH, EDITOR_RUN_WORKFLOW, EDITOR_TOOL, EDITOR_ASK_HALON, EDITOR_WATCH, EDITOR_STATUS_PAGE
+    EDITOR_FIELDS, EDITOR_BRANCH, EDITOR_DELAY, EDITOR_FOR_EACH, EDITOR_RUN_WORKFLOW, EDITOR_TOOL, EDITOR_ASK_HALON, EDITOR_WATCH, EDITOR_STATUS_PAGE, EDITOR_BROWSER,
+    EDITOR_SET_DATA, EDITOR_ASK_PERSON, EDITOR_APPROVAL
   ].freeze
 
   ICON_BRANCH = "branch".freeze
@@ -69,10 +78,15 @@ module Workflow::StepKinds
   ICON_PAGE = "page".freeze
   ICON_FOLLOW_UP = "follow_up".freeze
   ICON_STATUS_PAGE = "status_page".freeze
+  ICON_SCRIPT = "script".freeze
+  ICON_BROWSER = "browser".freeze
+  ICON_WEBHOOK = "webhook".freeze
+  ICON_DATA = "data".freeze
   ICONS = [
     ICON_BRANCH, ICON_DELAY, ICON_EVENT, ICON_LOOP, ICON_JOIN, ICON_WORKFLOW, ICON_TOOL, ICON_HALON, ICON_MESSAGE,
     ICON_CHANNEL, ICON_INCIDENT, ICON_NOTICE, ICON_WATCH, ICON_SKILL, ICON_TERMINAL, ICON_GLOBE, ICON_PERSON,
-    ICON_APPROVAL, ICON_STOP, ICON_INVESTIGATE, ICON_CLASSIFY, ICON_PAGE, ICON_FOLLOW_UP, ICON_STATUS_PAGE
+    ICON_APPROVAL, ICON_STOP, ICON_INVESTIGATE, ICON_CLASSIFY, ICON_PAGE, ICON_FOLLOW_UP, ICON_STATUS_PAGE, ICON_SCRIPT, ICON_BROWSER, ICON_WEBHOOK,
+    ICON_DATA
   ].freeze
 
   # A step that calls one tool Halon can call: a connection's, a capability that answers for anything on the map, or
@@ -100,14 +114,17 @@ module Workflow::StepKinds
   end
 
   # fields is a list, or a lambda given the Facts for one whose choices are the workspace's own. reach answers what the
-  # workflow's own identity needs granted to run the step (DefinedWorkflow::Reach::Needed).
-  Kind = Data.define(:key, :group, :label, :description, :icon, :editor, :fields, :defaults, :outputs, :routes, :effect, :reach) do
+  # workflow's own identity needs granted to run the step (DefinedWorkflow::Reach::Needed). conditions are the fields an
+  # incident's conditions read, for a step that reads them (Workflow::TriggerKinds::ConditionField).
+  Kind = Data.define(:key, :group, :label, :description, :icon, :editor, :fields, :defaults, :outputs, :routes, :effect, :reach, :conditions) do
     def initialize(fields: [], defaults: {}, outputs: ->(_step, _facts) { [] }, routes: ->(_step) { [] },
-                   effect: ->(_step, _facts) { EFFECT_READS }, reach: ->(_step, _facts) { [] }, **)
+                   effect: ->(_step, _facts) { EFFECT_READS }, reach: ->(_step, _facts) { [] }, conditions: ->(_facts) { [] }, **)
       super
     end
 
     def fields_for(facts) = fields.respond_to?(:call) ? fields.call(facts) : fields
+
+    def conditions_for(facts) = conditions.call(facts)
   end
 
   # Routes every step can carry an edge on besides its own: the error route, taken when it fails and says so.
@@ -149,10 +166,10 @@ module Workflow::StepKinds
   def reach_of(step, facts) = find(step["kind"])&.reach&.call(step, facts) || []
 
   # A kind the app runs, described by its class (DefinedWorkflow::Steps::Base), with how the canvas draws it.
-  def runtime(klass, icon:, editor:, description:, fields: [], defaults: {}, routes: ->(_step) { [] })
+  def runtime(klass, icon:, editor:, description:, fields: [], defaults: {}, routes: ->(_step) { [] }, conditions: ->(_facts) { [] })
     register(Kind.new(
       key: klass.kind, group: klass.group, label: klass.label, description: description, icon: icon, editor: editor, fields: fields,
-      defaults: defaults, routes: routes,
+      defaults: defaults, routes: routes, conditions: conditions,
       outputs: ->(step, _facts) { klass.output_fields(step["config"].to_h) },
       effect: ->(step, facts) { facts.workspace && klass.changes?(step["config"].to_h, facts.workspace) ? EFFECT_CHANGES : EFFECT_READS },
       reach: ->(step, facts) { facts.workspace ? klass.reach(step["config"].to_h, facts.workspace).to_a : [] }
@@ -214,6 +231,16 @@ module Workflow::StepKinds
     key: DefinedWorkflow::KIND_RUN_WORKFLOW, group: GROUP_CONTROL, label: "Run workflow", icon: ICON_WORKFLOW, editor: EDITOR_RUN_WORKFLOW,
     description: "Runs another workflow with inputs and takes what it hands back.",
     defaults: { "workflow" => "", "inputs" => {} }
+  ))
+
+  register(Kind.new(
+    key: DefinedWorkflow::KIND_STOP, group: GROUP_CONTROL, label: "Stop", icon: ICON_STOP, editor: EDITOR_FIELDS,
+    description: "Ends the run here, as succeeded or as failed with a reason. Steps that have not run yet are left.",
+    fields: [
+      field(DefinedWorkflow::STOP_OUTCOME, ToolField::KIND_SELECT, "How the run ends.", options: DefinedWorkflow::STOP_OUTCOMES, required: true),
+      field(DefinedWorkflow::STOP_REASON, ToolField::KIND_TEXT, "Why it ends, shown on the run. A run that fails needs one.")
+    ],
+    defaults: { DefinedWorkflow::STOP_OUTCOME => DefinedWorkflow::STOP_SUCCEEDED, DefinedWorkflow::STOP_REASON => "" }, outputs: fixed_outputs(DefinedWorkflow::KIND_STOP)
   ))
 
   runtime(DefinedWorkflow::Steps::CallTool, icon: ICON_TOOL, editor: EDITOR_TOOL,
@@ -373,4 +400,107 @@ module Workflow::StepKinds
   runtime(DefinedWorkflow::Steps::StatusPageUpdate, icon: ICON_STATUS_PAGE, editor: EDITOR_STATUS_PAGE,
           description: "Posts or updates a status page through a connected status page tool, such as a status report.",
           defaults: { CONFIG_TOOL => "", CONFIG_ARGUMENTS => {} })
+
+  # A change a sandbox step says it makes, which then needs its undo.
+  SANDBOX_CHANGES = { DefinedWorkflow::Steps::Sandbox::KEY_CHANGES => [ "true" ] }.freeze
+
+  def sandbox_fields
+    [ field(DefinedWorkflow::Steps::Sandbox::KEY_DATA, ToolField::KIND_PARAGRAPH, "What it is given, placed as the file $STEP_DATA, usually an earlier value."),
+      field(DefinedWorkflow::Steps::Sandbox::KEY_CHANGES, ToolField::KIND_TOGGLE, "It changes something, so its ff calls may change things and it needs its undo."),
+      field(DefinedWorkflow::Steps::Base::KEY_UNDO, ToolField::KIND_TEXT, "How a person puts it back.", required: true, shown_when: SANDBOX_CHANGES),
+      field(DefinedWorkflow::Steps::Sandbox::KEY_TIMEOUT, ToolField::KIND_NUMBER, "How long it may run, in seconds, 1 to 900. 120 when left empty.") ]
+  end
+
+  runtime(DefinedWorkflow::Steps::RunCommand, icon: ICON_TERMINAL, editor: EDITOR_FIELDS,
+          description: "Runs one shell command in the run's sandbox, with ff for the connected tools. It only reads unless you say it changes something.",
+          fields: [ field(DefinedWorkflow::Steps::RunCommand::KEY_COMMAND, ToolField::KIND_PARAGRAPH, "The command, such as ff search_logs query=error.", required: true),
+                    *sandbox_fields ],
+          defaults: { DefinedWorkflow::Steps::RunCommand::KEY_COMMAND => "" })
+
+  SCRIPT = DefinedWorkflow::Steps::RunScript
+  runtime(SCRIPT, icon: ICON_SCRIPT, editor: EDITOR_FIELDS,
+          description: "Runs a Python, Ruby or JavaScript script in the run's sandbox, with step data in and JSON out.",
+          fields: [ field(SCRIPT::KEY_LANGUAGE, ToolField::KIND_SELECT, "The language it is written in.", options: SCRIPT::LANGUAGES, required: true),
+                    field(SCRIPT::KEY_SCRIPT, ToolField::KIND_PARAGRAPH, "The script. It reads its data as JSON on its input and prints JSON last.", required: true),
+                    *sandbox_fields ],
+          defaults: { SCRIPT::KEY_LANGUAGE => SCRIPT::LANGUAGE_PYTHON,
+                      SCRIPT::KEY_SCRIPT => "import json, sys\n\ndata = json.load(sys.stdin)\nprint(json.dumps({\"seen\": data}))\n" })
+
+  OUTSIDE = DefinedWorkflow::Steps::CheckFromOutside
+  runtime(OUTSIDE, icon: ICON_GLOBE, editor: EDITOR_FIELDS,
+          description: "Checks an address from outside as a user meets it: whether it answers, its status, TLS certificate and DNS.",
+          fields: [ field(OUTSIDE::KEY_URL, ToolField::KIND_TEXT, "The address, such as https://shop.example.com.", required: true),
+                    field(OUTSIDE::KEY_METHOD, ToolField::KIND_SELECT, "How it asks, GET when left empty.", options: OUTSIDE::METHODS) ],
+          defaults: { OUTSIDE::KEY_URL => "" })
+
+  runtime(DefinedWorkflow::Steps::Browser, icon: ICON_BROWSER, editor: EDITOR_BROWSER,
+          description: "Opens a page in Halon's browser on desktop and phone, follows a path and reports what it saw, with screenshots.",
+          defaults: { DefinedWorkflow::Steps::Browser::KEY_URL => "", DefinedWorkflow::Steps::Browser::KEY_STEPS => [] })
+
+  HTTP = DefinedWorkflow::Steps::HttpRequest
+  runtime(HTTP, icon: ICON_GLOBE, editor: EDITOR_FIELDS,
+          description: "Sends one HTTP request, kept off private networks. GET and HEAD read, any other method changes something.",
+          fields: lambda { |facts|
+            connections = facts.workspace ? facts.workspace.integrations.where(deleted_at: nil).order(:name).pluck(:slug) : []
+            changing = { HTTP::KEY_METHOD => HTTP::METHODS - HTTP::READS }
+            [ field(HTTP::KEY_METHOD, ToolField::KIND_SELECT, "How it asks.", options: HTTP::METHODS, required: true),
+              field(HTTP::KEY_URL, ToolField::KIND_TEXT, "The address, such as https://api.example.com/deploys.", required: true),
+              field(HTTP::KEY_HEADERS, ToolField::KIND_LIST, "Headers, each Name: value, never a secret. Name a connection for credentials."),
+              field(HTTP::KEY_CONNECTION, ToolField::KIND_SELECT, "A connection whose credentials go with it, to that connection's own hosts only.",
+                    options: connections),
+              field(HTTP::KEY_BODY, ToolField::KIND_PARAGRAPH, "What it sends, usually an earlier value.", shown_when: changing),
+              field(DefinedWorkflow::Steps::Base::KEY_UNDO, ToolField::KIND_TEXT, "How a person puts it back.", required: true, shown_when: changing) ]
+          },
+          defaults: { HTTP::KEY_METHOD => "GET", HTTP::KEY_URL => "" })
+
+  WEBHOOK = DefinedWorkflow::Steps::SendWebhook
+  runtime(WEBHOOK, icon: ICON_WEBHOOK, editor: EDITOR_FIELDS,
+          description: "Sends a signed POST with the run's data through one of the workspace's outbound webhooks.",
+          fields: lambda { |facts|
+            names = facts.workspace ? facts.workspace.webhooks.active.ordered.pluck(:name) : []
+            [ field(WEBHOOK::KEY_WEBHOOK, ToolField::KIND_SELECT, "The outbound webhook it sends through.", options: names, required: true),
+              field(WEBHOOK::KEY_EVENT, ToolField::KIND_TEXT, "Its event type, such as workflow.release. The workflow's own by default."),
+              field(WEBHOOK::KEY_PAYLOAD, ToolField::KIND_PARAGRAPH, "What it sends, usually an earlier value.") ]
+          },
+          defaults: { WEBHOOK::KEY_WEBHOOK => "", WEBHOOK::KEY_PAYLOAD => "" })
+
+  SET_DATA = DefinedWorkflow::Steps::SetData
+  runtime(SET_DATA, icon: ICON_DATA, editor: EDITOR_SET_DATA,
+          description: "Names values for later steps, or picks what they need out of bigger data.",
+          defaults: { SET_DATA::KEY_VALUES => [ { SET_DATA::VALUE_NAME => "", SET_DATA::VALUE_VALUE => "" } ] })
+
+  ASK = DefinedWorkflow::Steps::AskPerson
+  runtime(ASK, icon: ICON_PERSON, editor: EDITOR_ASK_PERSON,
+          description: "Asks a person a question with choices or a short form, in a direct message and on the run, and waits for the answer.",
+          fields: lambda { |facts|
+            [ field(ASK::KEY_QUESTION, ToolField::KIND_PARAGRAPH, "What they are asked.", required: true),
+              field(ASK::KEY_DETAILS, ToolField::KIND_PARAGRAPH, "What they should know to answer, usually an earlier value."),
+              field(ASK::PEOPLE::KEY_TO, ToolField::KIND_SELECT, "Who it asks.", options: ASK::PEOPLE::TO, required: true),
+              field(ASK::PEOPLE::KEY_PERSON, ToolField::KIND_TEXT, "The person, by email.", required: true, shown_when: { ASK::PEOPLE::KEY_TO => [ ASK::PEOPLE::TO_PERSON ] }),
+              field(ASK::PEOPLE::KEY_INCIDENT, ToolField::KIND_TEXT, "The incident whose people it asks.", required: true,
+                    shown_when: { ASK::PEOPLE::KEY_TO => ASK::PEOPLE::FROM_INCIDENT }),
+              field(ASK::PEOPLE::KEY_ROLE, ToolField::KIND_SELECT, "The role whose holder it asks.", options: slugs(facts) { |workspace| workspace.incident_roles.active.ordered },
+                    required: true, shown_when: { ASK::PEOPLE::KEY_TO => [ ASK::PEOPLE::TO_ROLE ] }),
+              field(ASK::KEY_CHOICES, ToolField::KIND_LIST, "The choices they pick from, such as roll_back, wait. Each is a route out of the step.") ]
+          },
+          defaults: { ASK::KEY_QUESTION => "", ASK::PEOPLE::KEY_TO => ASK::PEOPLE::TO_PERSON, ASK::KEY_CHOICES => [], ASK::KEY_FIELDS => [] },
+          routes: ->(step) { ASK.routes_of(step["config"].to_h) })
+
+  APPROVAL = DefinedWorkflow::Steps::Approval
+  runtime(APPROVAL, icon: ICON_APPROVAL, editor: EDITOR_APPROVAL,
+          description: "Asks named people or a role to approve before the run goes on, in a direct message, on the Approvals page and on the run.",
+          fields: [
+            field(APPROVAL::KEY_QUESTION, ToolField::KIND_PARAGRAPH, "What approvers decide, such as Release checkout to production?", required: true),
+            field(APPROVAL::KEY_DETAILS, ToolField::KIND_PARAGRAPH, "What they should know to decide, usually an earlier value."),
+            field(APPROVAL::KEY_WHO, ToolField::KIND_SELECT, "Who approves.", options: APPROVAL::WHO, required: true),
+            field(APPROVAL::KEY_APPROVERS, ToolField::KIND_LIST, "The people who approve, by email. Any one of them decides.", required: true,
+                  shown_when: { APPROVAL::KEY_WHO => [ APPROVAL::WHO_PEOPLE ] }),
+            field(APPROVAL::KEY_ROLE, ToolField::KIND_SELECT, "The workspace role that approves. Anyone holding it decides.", options: APPROVAL::ROLES,
+                  required: true, shown_when: { APPROVAL::KEY_WHO => [ APPROVAL::WHO_ROLE ] }),
+            field(APPROVAL::KEY_INCIDENT, ToolField::KIND_TEXT, "The incident it is about, such as {{trigger.incident.identifier}}, so its conditions are read again.")
+          ],
+          defaults: { APPROVAL::KEY_QUESTION => "", APPROVAL::KEY_WHO => APPROVAL::WHO_ROLE, APPROVAL::KEY_ROLE => WorkspaceMembership.roles[:admin],
+                      APPROVAL::KEY_CONDITIONS => [] },
+          routes: ->(_step) { APPROVAL::ROUTES },
+          conditions: ->(facts) { Workflow::TriggerKinds.incident_conditions(facts) })
 end

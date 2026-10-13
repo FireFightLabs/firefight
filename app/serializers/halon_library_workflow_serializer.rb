@@ -24,6 +24,10 @@ class HalonLibraryWorkflowSerializer < BaseSerializer
   type "string[]"
   def used_by = options.fetch(:used, {}).fetch(item.key, [])
 
+  # What using it asks first: each question its trigger asks without a default, which every run needs an answer to.
+  type "{ key: string; question: string }[]"
+  def questions = Workflow::Trigger.inputs(item.trigger).select { |input| input["default"].blank? }.map { |input| input.slice("key", "question") }
+
   type :string, optional: true
   def use_blocked_reason = Workflow.from_library_blocked_reason(item, options.fetch(:workspace))
 end

@@ -122,6 +122,13 @@ module Ability
       self
     end
 
+    # A workflow's Approval step asking people to decide, rather than a call waiting to run.
+    def workflow_question? = action_key == Ability::Action::WORKFLOW_APPROVAL
+
+    # What a workflow's Approval step asks, and what it said approvers should know.
+    def question = (self[:params]["question"] if workflow_question?)
+    def question_details = (self[:params]["details"] if workflow_question?)
+
     def pending? = status == STATUS_PENDING
     def approved? = status == STATUS_APPROVED
     def denied? = status == STATUS_DENIED
@@ -129,6 +136,15 @@ module Ability
     def dismissed? = status == STATUS_DISMISSED
     def run_lapsed? = run_expires_at.present? && run_expires_at <= Time.current
     def usable? = approved? && consumed_at.nil? && !run_lapsed?
+
+    # Why this principal cannot decide it now, or nil when they can, by the same rules deciding enforces.
+    def decide_blocked_reason(principal)
+      return "This request was already decided." unless pending?
+      return "#{approver_requirement_message.upcase_first}." unless approver?(principal)
+      return "This policy requires approval by someone other than the requester." if requester?(principal) && !self_approvable?
+
+      nil
+    end
 
     def matches_request?(action_key, params, scope)
       request_digest == self.class.digest(action_key, params, scope)
@@ -255,6 +271,11 @@ module Ability
 
     # A person cannot retry a click the way API callers retry a call, so the parked payload is
     # replayed. Enqueued after commit so editing a row elsewhere never triggers platform traffic.
+    # Why approving would do something nobody asked for, such as publishing a workflow changed since it was asked about.
+    def approve_blocked_reason
+      Workflow.publish_approval_blocked_reason(self) if resume_payload.to_h["kind"] == Workflow::PUBLISH_APPROVAL_KIND
+    end
+
     def resume_parked_request
       return if resume_payload.blank?
 
@@ -268,6 +289,8 @@ module Ability
     def resolve!(new_status, principal)
       raise NotAllowed, "approval is no longer pending" unless pending?
       raise NotAllowed, approver_requirement_message unless approver?(principal)
+      blocked = approve_blocked_reason if new_status == STATUS_APPROVED
+      raise NotAllowed, blocked if blocked
       if requester?(principal) && !self_approvable?
         raise NotAllowed, "this policy requires approval by someone other than the requester"
       end
