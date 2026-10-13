@@ -2,6 +2,8 @@
 # the person who asked, through the same tool a chat offers them, so grants, packs, approval rules and the activity log
 # apply to each step exactly as if Halon had called it. The first step that is refused, waits for an approval or fails
 # stops the run. When every step went through, the runbook's watch starts and reports back like any watch.
+#
+# With workflows on, it starts the workflow the runbook links instead, as that workflow's own identity.
 class Conversation::Tools::RunRunbook < RubyLLM::Tool
   NAME = "run_runbook".freeze
   RUNBOOK_ARG = "runbook".freeze
@@ -19,6 +21,13 @@ class Conversation::Tools::RunRunbook < RubyLLM::Tool
               "runbook, such as a release or a rollback, run it rather than doing its steps one by one. When the person has " \
               "you do the same multi-step task again, offer to save it as a runbook they can ask for by name."
 
+  WORKFLOW_DESCRIPTION = "Run a saved runbook by its name, slug or another name it goes by (search_runbooks says which are runnable), " \
+                         "which starts the workflow it links, such as Release Firefight. First tell the person what it will do and which " \
+                         "inputs it uses, and ask for any input it has no default for. The person confirms the run before it starts. It " \
+                         "runs as the workflow's own identity with only what an admin granted it, and its page shows each step as it goes. " \
+                         "When a request matches a saved runbook, such as a release or a rollback, run it rather than doing its steps one " \
+                         "by one. When the person has you do the same multi-step task again, offer to save it as a workflow."
+
   def self.tool_name = NAME
 
   def initialize(turn)
@@ -27,6 +36,10 @@ class Conversation::Tools::RunRunbook < RubyLLM::Tool
   end
 
   def name = NAME
+
+  def description = self.class.workflows_on?(@turn.workspace) ? WORKFLOW_DESCRIPTION : super
+
+  def self.workflows_on?(workspace) = FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS)
 
   def parameters_schema
     schema = {
@@ -53,6 +66,8 @@ class Conversation::Tools::RunRunbook < RubyLLM::Tool
     return refused(tool_call, refused) if refused
 
     runbook = find(given)
+    return start_workflow(runbook, given, tool_call) if self.class.workflows_on?(@turn.workspace)
+
     values = runbook.resolve_inputs(given[INPUTS_ARG]).values
     Run.new(@turn, runbook, values).call.tap { |run| Chat::Tools.mark_failed(@turn, tool_call&.id) if run.stopped? }.said
   end
@@ -62,6 +77,7 @@ class Conversation::Tools::RunRunbook < RubyLLM::Tool
   def self.plan_rows(workspace, arguments)
     given = arguments.to_h.stringify_keys
     runbook = Runbook.named(workspace.runbooks.active, given[RUNBOOK_ARG])
+    return workflow_rows(workspace, runbook, given) if workflows_on?(workspace)
     return [] unless runbook&.procedure?
 
     values = runbook.resolve_inputs(given[INPUTS_ARG]).values
@@ -71,6 +87,13 @@ class Conversation::Tools::RunRunbook < RubyLLM::Tool
     end
     watch = runbook.filled_watch(values) { |tool| Chat::Tools.title_for(tool, workspace) }
     steps + (watch ? [ [ "Then watch", watched(watch) ] ] : [])
+  end
+
+  def self.workflow_rows(workspace, runbook, given)
+    return [] unless runbook&.workflow
+
+    Conversation::Tools::RunWorkflow.plan_rows(workspace, Conversation::Tools::RunWorkflow::WORKFLOW_ARG => runbook.workflow.slug,
+                                                          Conversation::Tools::RunWorkflow::INPUTS_ARG => given[INPUTS_ARG])
   end
 
   def self.watched(watch)
@@ -89,10 +112,34 @@ class Conversation::Tools::RunRunbook < RubyLLM::Tool
 
     runbook = find(given)
     return "No runbook is called #{given[RUNBOOK_ARG]}. search_runbooks lists them." unless runbook
+    return workflow_refusal(runbook, given) if self.class.workflows_on?(@turn.workspace)
     return "#{runbook.name} has no step for Halon to run, so a person follows it by hand. get_runbook shows its steps." unless runbook.procedure?
 
     missing = runbook.resolve_inputs(given[INPUTS_ARG]).missing
     "Ask the person first: #{missing.map { |input| input['question'] }.join(' ')} Then call it again with #{INPUTS_ARG}." if missing.any?
+  end
+
+  def workflow_refusal(runbook, given)
+    return "#{runbook.name} links no workflow, so a person follows it by hand. get_runbook shows its steps." unless runbook.workflow
+
+    blocked = runbook.run_blocked_reason(@turn.asker)
+    return [ blocked, ("Its page: #{Workflow::Links.page(runbook.workflow)}" unless runbook.workflow.live?) ].compact.join(" ") if blocked
+
+    missing = Workflow::Trigger.resolve_inputs(runbook.workflow.live_version.trigger, given[INPUTS_ARG]).missing
+    "Ask the person first: #{missing.map { |input| input['question'] }.join(' ')} Then call it again with #{INPUTS_ARG}." if missing.any?
+  end
+
+  def start_workflow(runbook, given, tool_call)
+    workflow = runbook.workflow
+    run = @turn.tool_call(action_key: Workflow::CREATE_KEY, params: { Conversation::Tools::RunWorkflow::WORKFLOW_ARG => workflow.slug }) do
+      RunbookRunService.new(runbook).start!(by: @turn.asker, inputs: given[INPUTS_ARG].to_h, incident: @turn.incident,
+                                            started_by_kind: Workflow::Run::STARTED_BY_HALON)
+    end.value
+    "Started #{workflow.name}, the workflow #{runbook.name} runs. Its run: #{Workflow::Links.run(run)}. Tell the person it is running and where they can follow it."
+  rescue Workflow::Run::Refused => error
+    refused(tool_call, error.message)
+  rescue AbilityGateway::Denied, AbilityGateway::PendingApproval
+    refused(tool_call, "#{@turn.asker_name} is not allowed to run workflows.")
   end
 
   def reads_runbooks? = @turn.asker.present? && @turn.asker.may?(Ability::Action::RESOURCE_RUNBOOKS, Ability::Action::ACTION_READ, @turn.workspace)

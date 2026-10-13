@@ -128,6 +128,20 @@ module Slack::WorkspaceAdapter::IncidentModals
 
   def rename_action_error(message) = { response_action: "errors", errors: { Slack::Modals::RenameAction::BLOCK => message } }
 
+  def open_runbook_run_modal(trigger_id:, incident_runbook:, push: false)
+    view = Slack::Modals::RunbookRun.build(incident_runbook)
+    push ? push_modal(trigger_id: trigger_id, view: view) : open_modal(trigger_id: trigger_id, view: view)
+  end
+
+  def runbook_run_inputs(values:) = Slack::Modals::RunbookRun.inputs(values)
+
+  def runbook_run_refused(message) = { response_action: "update", view: Slack::Modals::RunbookRun.refused(message) }
+
+  def post_runbook_run_started(channel_id:, user_id:, run:)
+    post_ephemeral(channel_id: channel_id, user_id: user_id,
+                   text: "#{Slack::Mrkdwn.escape(run.workflow.name)} is running. <#{Workflow::Links.run(run)}|Follow its run>")
+  end
+
   def open_memory_correction_modal(trigger_id:, post_id:, memory:)
     open_modal(trigger_id: trigger_id, view: Slack::Modals::CorrectMemory.build(post_id: post_id, memory: memory))
   end

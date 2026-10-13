@@ -5,7 +5,9 @@ module Mcp
       authorize_as Ability::Action::RESOURCE_RUNBOOKS
       description "Fetch one incident response runbook in full by slug: its summary, full " \
                   "content, external link, and ordered steps with instructions. A runbook Halon can run also " \
-                  "has each step's tool and arguments, its inputs, its other names and what it watches after. " \
+                  "has each step's tool and arguments, its inputs, its other names and what it watches after. Where the workspace " \
+                  "has workflows, the steps are its checklist, and what it runs (each step's tool and arguments, the inputs and " \
+                  "the watch) is the workflow it links, named under workflow with its page. " \
                   "Docs: #{Docs::RUNBOOKS}"
       annotations(**READ_ONLY)
       own_words
@@ -18,6 +20,7 @@ module Mcp
 
       def self.perform(workspace:, args:)
         runbook = workspace.runbooks.active.includes(:runbook_steps).find_by!(slug: args[:slug].to_s)
+        parts = runbook.readable_parts
 
         respond(
           {
@@ -30,9 +33,10 @@ module Mcp
               { position: step.position, title: step.title, instruction: step.instruction, tool: step.tool,
                 arguments: step.arguments.presence }.compact
             end,
-            inputs: runbook.inputs.presence,
+            inputs: parts.inputs.presence,
             aliases: runbook.aliases.presence,
-            watch: runbook.watch
+            watch: parts.watch,
+            workflow: runbook.workflow_for_agents
           }.compact
         )
       end

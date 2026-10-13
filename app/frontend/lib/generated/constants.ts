@@ -205,7 +205,8 @@ export const SECRET_ENTRY_KINDS = {
 export const RUNBOOK_CHOICE_PROPS = {
   "TOOL_CHOICES": "toolChoices",
   "WATCH_READS": "watchReads",
-  "PLACES": "places"
+  "PLACES": "places",
+  "WORKFLOWS": "workflowChoices"
 } as const
 
 export const RUNBOOK_FIELD_KINDS = {

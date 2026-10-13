@@ -18,14 +18,14 @@ class Api::V1::RunbooksController < Api::V1::ApiController
   def create
     authorize!(Ability::Action::RESOURCE_RUNBOOKS, Ability::Action::ACTION_CREATE)
 
-    @runbook = Runbook::Upsert.new(current_workspace).call(nil, runbook_params)
+    @runbook = upsert(nil)
     render :show, status: :created
   end
 
   def update
     authorize!(Ability::Action::RESOURCE_RUNBOOKS, Ability::Action::ACTION_UPDATE)
 
-    @runbook = Runbook::Upsert.new(current_workspace).call(@runbook, runbook_params)
+    @runbook = upsert(@runbook)
     render :show
   end
 
@@ -41,10 +41,42 @@ class Api::V1::RunbooksController < Api::V1::ApiController
 
   private
 
+  # The API publishes no workflow, so a draft waits on its page and a member who may not publish asks the admins.
+  def upsert(target)
+    given = runbook_params
+    upsert = Runbook::Upsert.new(current_workspace)
+    return upsert.call(target, given, by: member_principal) unless FeatureFlags.enabled?(current_workspace, FeatureFlags::WORKFLOWS) && upsert.runnable?(given)
+
+    runbook = AbilityGateway.authorize!(principal: Current.principal, action_key: Workflow::CREATE_KEY, workspace: current_workspace,
+                                        params: request_binding_params, context: { source: AbilityGateway::SOURCE_API }) do
+      upsert.call(target, given, by: member_principal)
+    end
+    @workflow_said = draft_words(upsert.workflow_written)
+    runbook
+  rescue AbilityGateway::Denied
+    raise ApiAuthentication::ForbiddenError, "API key lacks 'create' permission on 'workflows', which writing what a runbook runs needs"
+  rescue Runbook::LinkedWorkflow::Refused => refused
+    raise ActionController::BadRequest, refused.message
+  end
+
+  def draft_words(workflow)
+    draft = workflow&.draft
+    return unless draft
+
+    service = WorkflowPublishService.new(workflow)
+    unpublishable = service.unpublishable_words(draft)
+    return unpublishable if unpublishable
+    return "#{workflow.name} waits as a draft. Publish it from its page." if service.may_publish?(draft, by: Current.principal)
+
+    service.ask_or_leave!(draft, by: Current.principal).words
+  end
+
+  def member_principal = (Current.principal if Current.principal.is_a?(WorkspaceMembership))
+
   def runbook_params
     permitted = params.permit(
       :name, :summary, :content, :external_url,
-      steps: [ :title, :instruction, :tool ],
+      steps: [ :title, :instruction, :tool, :undo ],
       conditions: [ :condition_field, :operator, :custom_field, values: [] ],
       inputs: [ :key, :question, :default ],
       aliases: []

@@ -127,6 +127,6 @@ class IncidentDetailSerializer < BaseSerializer
   has_many :runbooks, serializer: IncidentRunbookSerializer
 
   def runbooks
-    incident.incident_runbooks.includes(runbook: :runbook_steps).order(:created_at)
+    incident.incident_runbooks.includes(runbook: [ :runbook_steps, { workflow: %i[live_version draft_version] } ]).order(:created_at)
   end
 end
