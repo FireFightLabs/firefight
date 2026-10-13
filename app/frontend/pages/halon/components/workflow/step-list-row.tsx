@@ -2,6 +2,7 @@ import { IconChevronRight, IconCornerDownRight } from "@tabler/icons-react"
 
 import { cn } from "@/lib/utils"
 import { WORKFLOW_EDIT_OPERATIONS, WORKFLOW_STEP_GROUP } from "@/lib/generated/constants"
+import { RunState } from "@/pages/halon/components/workflow/run-state"
 import { StepBadges } from "@/pages/halon/components/workflow/step-badges"
 import { StepIcon } from "@/pages/halon/components/workflow/step-icon"
 import { SuggestionDecision } from "@/pages/halon/components/workflow/suggestion-decision"
@@ -37,6 +38,7 @@ export function StepListRow({ item, depth, leads, halonMarked, onPick }: StepLis
             </span>
             <span className="block truncate text-xs text-fg-muted">{item.suggestion ? `Suggested · ${item.step.kindLabel}` : item.step.kindLabel}</span>
             <StepBadges item={item} />
+            {item.state && <RunState state={item.state} />}
           </span>
           {!item.suggestion && <IconChevronRight className="size-4 shrink-0 text-fg-muted" />}
         </button>

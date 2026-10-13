@@ -1,8 +1,8 @@
 import dagre from "@dagrejs/dagre"
 import type { Edge as FlowEdge, Node } from "@xyflow/react"
 
-import { WORKFLOW_EDIT_OPERATIONS, WORKFLOW_KINDS } from "@/lib/generated/constants"
-import type { CanvasStep, Edge, Trigger } from "@/pages/halon/lib/workflow/types"
+import { WORKFLOW_EDIT_OPERATIONS, WORKFLOW_KINDS, WORKFLOW_STEP_STATUS } from "@/lib/generated/constants"
+import type { CanvasStep, Edge, StepRunState, Trigger } from "@/pages/halon/lib/workflow/types"
 import type { WorkflowDocument, WorkflowStepNode, WorkflowSuggestion } from "@/types/serializers"
 
 export const STEP_NODE = "step"
@@ -56,6 +56,8 @@ export interface RouteEdgeData extends Record<string, unknown> {
   // The trigger leading to a first step, drawn but never changed.
   implied: boolean
   readOnly: boolean
+  // A run went this way: the step it leaves finished and the one it leads to was reached.
+  lit: boolean
 }
 
 export type StepFlowNode = Node<StepNodeData, typeof STEP_NODE>
@@ -70,12 +72,16 @@ interface GraphOptions {
   highlightHalon: boolean
   selectedId: string | null
   readOnly: boolean
+  // Each step's state in the run shown, by its id, when there is one.
+  states?: Map<string, StepRunState>
 }
 
+const REACHED: readonly string[] = [ WORKFLOW_STEP_STATUS.SUCCEEDED, WORKFLOW_STEP_STATUS.FAILED, WORKFLOW_STEP_STATUS.RUNNING, WORKFLOW_STEP_STATUS.WAITING ]
+
 // Each step with what Halon suggests: a step it would add, and its suggestions to remove, change, move or rename one.
-export function canvasSteps(steps: WorkflowStepNode[], suggestions: WorkflowSuggestion[]): CanvasStep[] {
+export function canvasSteps(steps: WorkflowStepNode[], suggestions: WorkflowSuggestion[], states?: Map<string, StepRunState>): CanvasStep[] {
   const pendingFor = (id: string) => suggestions.filter((suggestion) => suggestion.stepId === id && suggestion.operation !== WORKFLOW_EDIT_OPERATIONS.ADD_STEP)
-  const existing = steps.map((step) => ({ step, suggestion: null, pending: pendingFor(step.id) }))
+  const existing = steps.map((step) => ({ step, suggestion: null, pending: pendingFor(step.id), state: states?.get(step.id) }))
   const added = suggestions.flatMap((suggestion) => (suggestion.addedStep ? [ { step: suggestion.addedStep, suggestion, pending: [] } ] : []))
   return [ ...existing, ...added ]
 }
@@ -100,8 +106,13 @@ export function edgeId(edge: Pick<Edge, "from" | "to" | "route">): string {
 
 // The picture of a version: the trigger on top, then the steps top to bottom in the direction they run, a for each drawn
 // as a box around the steps inside it. A step someone placed keeps its place, and the rest are laid out around them.
-export function buildGraph({ document, suggestions, highlightHalon, selectedId, readOnly }: GraphOptions): { nodes: CanvasNode[]; edges: RouteFlowEdge[] } {
-  const items = canvasSteps(document.steps, suggestions)
+export function buildGraph({ document, suggestions, highlightHalon, selectedId, readOnly, states }: GraphOptions): { nodes: CanvasNode[]; edges: RouteFlowEdge[] } {
+  const items = canvasSteps(document.steps, suggestions, states)
+  const went = (from: string, to: string) => {
+    const source = states?.get(from)
+    const target = states?.get(to)
+    return source?.status === WORKFLOW_STEP_STATUS.SUCCEEDED && target !== undefined && REACHED.includes(target.status)
+  }
   const links = canvasEdges(document.edges, suggestions)
   const connected = new Map<string, string[]>()
   for (const { edge } of links) {
@@ -138,7 +149,7 @@ export function buildGraph({ document, suggestions, highlightHalon, selectedId, 
     target: edge.to,
     sourceHandle: edge.route ?? OUT_HANDLE,
     targetHandle: IN_HANDLE,
-    data: { route: edge.route, within: edge.within, suggestion, halonMarked: highlightHalon && edge.changedByHalon, implied: false, readOnly },
+    data: { route: edge.route, within: edge.within, suggestion, halonMarked: highlightHalon && edge.changedByHalon, implied: false, readOnly, lit: went(edge.from, edge.to) },
     selectable: !readOnly && !suggestion,
     zIndex: 1,
   }))
@@ -150,7 +161,7 @@ export function buildGraph({ document, suggestions, highlightHalon, selectedId, 
       target: start.item.step.id,
       sourceHandle: OUT_HANDLE,
       targetHandle: IN_HANDLE,
-      data: { route: null, within: null, suggestion: null, halonMarked: false, implied: true, readOnly: true },
+      data: { route: null, within: null, suggestion: null, halonMarked: false, implied: true, readOnly: true, lit: REACHED.includes(states?.get(start.item.step.id)?.status ?? "") },
       selectable: false,
     })
   }

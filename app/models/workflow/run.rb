@@ -32,6 +32,7 @@ class Workflow::Run < ApplicationRecord
   include Workflow::Run::Progress
   include Workflow::Run::Retention
   include Workflow::Run::Acting
+  include Workflow::Run::Testing
 
   belongs_to :workspace
   belongs_to :workflow, inverse_of: :runs
@@ -40,6 +41,8 @@ class Workflow::Run < ApplicationRecord
   # The workflow's own identity it acted as, kept as it was when the run started.
   belongs_to :agent, optional: true
   belongs_to :started_by, class_name: "WorkspaceMembership", optional: true
+  # The run this one started again from a later step, taking its results for the steps before that step.
+  belongs_to :rerun_of, class_name: "Workflow::Run", optional: true
   has_many :steps, -> { order(:created_at, :iteration) }, class_name: "Workflow::Run::Step", foreign_key: :run_id, inverse_of: :run
   has_many :child_runs, class_name: "Workflow::Run", foreign_key: :parent_run_id, inverse_of: :parent_run
   has_many :saved_results, class_name: "Chat::SavedResult", foreign_key: :workflow_run_id, inverse_of: :workflow_run

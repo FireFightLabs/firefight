@@ -26,25 +26,37 @@ class WorkflowCanvasController < InertiaController
   # What a step's settings pick from: things on the map, and what a Watch step can read of them. Both deferred.
   PROP_PLACES = "places"
   PROP_WATCH_READS = "watchReads"
+  PROP_RUNS = "runs"
+  PROP_RUN = "run"
+  PROP_LAST_RUN = "lastRun"
   PROPS = {
     "WORKFLOW" => PROP_WORKFLOW, "DOCUMENT" => PROP_DOCUMENT, "VERSIONS" => PROP_VERSIONS, "SUGGESTIONS" => PROP_SUGGESTIONS,
     "HALON_CHANGES" => PROP_HALON_CHANGES, "STEP_KINDS" => PROP_STEP_KINDS, "TRIGGER_KINDS" => PROP_TRIGGER_KINDS, "TOOLS" => PROP_TOOLS,
     "PUBLISH_REQUESTS" => PROP_PUBLISH_REQUESTS, "OTHER_WORKFLOWS" => PROP_OTHER_WORKFLOWS, "TIME_ZONES" => PROP_TIME_ZONES,
     "TEAMS" => PROP_TEAMS, "MY_PUBLISH_REQUEST" => PROP_MY_PUBLISH_REQUEST, "ACCESS" => PROP_ACCESS,
-    "PLACES" => PROP_PLACES, "WATCH_READS" => PROP_WATCH_READS
+    "PLACES" => PROP_PLACES, "WATCH_READS" => PROP_WATCH_READS,
+    "RUNS" => PROP_RUNS, "RUN" => PROP_RUN, "LAST_RUN" => PROP_LAST_RUN
   }.freeze
   # The address names an older version to look at by its id, and the view the canvas shows.
   VERSION_QUERY_PARAM = "version"
   VIEW_QUERY_PARAM = "view"
+  # The address names a run to show on the canvas by its id.
+  RUN_QUERY_PARAM = Workflow::Links::RUN_PARAM
+  RUNS_SHOWN = 50
   VERSIONS_SHOWN = 50
 
   def show
-    shown = workflow.shown_version(params[VERSION_QUERY_PARAM])
+    run = params[RUN_QUERY_PARAM].presence && workflow.runs.find_by(id: params[RUN_QUERY_PARAM])
+    shown = run ? run_version(run) : workflow.shown_version(params[VERSION_QUERY_PARAM])
     suggestions = workflow.proposals.includes(:workflow, :source_run, source_chat: :owner).to_a
     render inertia: "halon/workflow", props: {
       PROP_WORKFLOW => WorkflowDetailSerializer.one(Workflow.with_run_counts.includes(:latest_run, :owner_team, :agent).find(workflow.id)),
       PROP_DOCUMENT => WorkflowDocumentSerializer.one(shown, facts: facts_for(Workflow::Version.all_steps(shown.steps)), workflow: workflow,
-                                                             last_changes: shown.persisted? ? shown.last_changes : {}),
+                                                             last_changes: run || !shown.persisted? ? {} : shown.last_changes, pins: shown.pins,
+                                                             read_only: run.present?),
+      PROP_RUNS => WorkflowRunRowSerializer.many(workflow.runs.where(parent_run_id: nil).includes(:version, :started_by).newest_first.limit(RUNS_SHOWN)),
+      PROP_RUN => run && WorkflowRunDetailSerializer.one(run),
+      PROP_LAST_RUN => last_run(shown) && WorkflowRunStatesSerializer.one(last_run(shown)),
       PROP_VERSIONS => WorkflowVersionRowSerializer.many(workflow.versions.includes(:author, :published_by).newest_first.limit(VERSIONS_SHOWN)),
       PROP_SUGGESTIONS => WorkflowSuggestionSerializer.many(suggestions, document: (workflow.draft || workflow.live_version || workflow.empty_version).snapshot,
                                                                         facts: facts_for(suggestions.map { |suggestion| suggestion.payload["step"].to_h }),
@@ -87,6 +99,23 @@ class WorkflowCanvasController < InertiaController
   def teams
     type = current_workspace.catalog_types.find_by(system_key: CatalogType::SYSTEM_KEY_TEAM)
     type ? type.catalog_entries.active.order(:name).map { |team| { id: team.id, name: team.name } } : []
+  end
+
+  # What a run ran, drawn as a version of its own: its copy when it ran less than its version or a draft that changed
+  # since, else its version.
+  def run_version(run)
+    version = run.version
+    return version unless run.snapshot.present?
+
+    Workflow::Version.new(workflow: workflow, number: version.number, status: version.status, revision: version.revision,
+                          author_kind: version.author_kind, author: version.author, **run.snapshot.slice(*Workflow::Version::CONTENT).symbolize_keys)
+  end
+
+  # The newest run of the version shown, whose states Last run lays over the steps.
+  def last_run(version)
+    return unless version.persisted?
+
+    @last_run ||= workflow.runs.where(version: version, parent_run_id: nil).includes(:steps).newest_first.first
   end
 
   # Tools are only looked up when a step calls one, since building the list reads every connection's schemas.

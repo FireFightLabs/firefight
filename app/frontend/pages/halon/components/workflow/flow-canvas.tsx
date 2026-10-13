@@ -35,7 +35,7 @@ import {
   TRIGGER_NODE,
 } from "@/pages/halon/lib/workflow/canvas-graph"
 import { DRAG_TYPE, type PaletteChoice } from "@/pages/halon/lib/workflow/new-step"
-import type { Selection } from "@/pages/halon/lib/workflow/types"
+import type { Selection, StepRunState } from "@/pages/halon/lib/workflow/types"
 import type { WorkflowDocument, WorkflowStepKind, WorkflowSuggestion, WorkflowToolChoice } from "@/types/serializers"
 
 const NODE_TYPES = { [STEP_NODE]: StepNode, [TRIGGER_NODE]: TriggerNode, [LOOP_NODE]: LoopNode }
@@ -51,6 +51,7 @@ interface FlowCanvasProps {
   highlightHalon: boolean
   selection: Selection
   readOnly: boolean
+  states?: Map<string, StepRunState>
   send: SendEdit
   onSelect: (selection: Selection) => void
   onAdd: (choice: PaletteChoice, at: AddAt) => void
@@ -60,12 +61,12 @@ interface FlowCanvasProps {
 // and a connection is taken away with its button or the delete key. A step dropped from the palette lands where it was
 // let go, inside a for each when it was let go in one. Each change is sent as one edit and the canvas redraws from what
 // the server kept.
-export function FlowCanvas({ document, suggestions, stepKinds, tools, highlightHalon, selection, readOnly, send, onSelect, onAdd }: FlowCanvasProps) {
+export function FlowCanvas({ document, suggestions, stepKinds, tools, highlightHalon, selection, readOnly, states, send, onSelect, onAdd }: FlowCanvasProps) {
   const { screenToFlowPosition, getIntersectingNodes, getInternalNode } = useReactFlow<CanvasNode, RouteFlowEdge>()
   const selectedId = selection?.kind === "step" ? selection.id : selection?.kind === "trigger" ? TRIGGER_ID : null
   const graph = useMemo(
-    () => buildGraph({ document, suggestions, highlightHalon, selectedId, readOnly }),
-    [ document, suggestions, highlightHalon, selectedId, readOnly ],
+    () => buildGraph({ document, suggestions, highlightHalon, selectedId, readOnly, states }),
+    [ document, suggestions, highlightHalon, selectedId, readOnly, states ],
   )
   const [ nodes, setNodes, onNodesChange ] = useNodesState<CanvasNode>(graph.nodes)
 

@@ -1359,6 +1359,12 @@ export const LEDGER_DECISIONS = [
 ] as const
 export type LedgerDecision = (typeof LEDGER_DECISIONS)[number]
 
+export const LEDGER_DECISION = {
+  "ALLOW": "allow",
+  "DENY": "deny",
+  "PENDING": "pending"
+} as const
+
 export const LEDGER_SOURCES = [
   "api",
   "mcp",
@@ -1608,12 +1614,45 @@ export const WORKFLOW_CANVAS_PROPS = {
   "MY_PUBLISH_REQUEST": "myPublishRequest",
   "ACCESS": "workflowAccess",
   "PLACES": "places",
-  "WATCH_READS": "watchReads"
+  "WATCH_READS": "watchReads",
+  "RUNS": "runs",
+  "RUN": "run",
+  "LAST_RUN": "lastRun"
 } as const
 
 export const WORKFLOW_VERSION_QUERY_PARAM = "version" as const
 
 export const WORKFLOW_VIEW_QUERY_PARAM = "view" as const
+
+export const WORKFLOW_RUN_QUERY_PARAM = "run" as const
+
+export const WORKFLOW_RUN_STATUS = {
+  "QUEUED": "queued",
+  "RUNNING": "running",
+  "WAITING": "waiting",
+  "PAUSED": "paused",
+  "SUCCEEDED": "succeeded",
+  "FAILED": "failed",
+  "CANCELLED": "cancelled"
+} as const
+
+export const WORKFLOW_STEP_STATUS = {
+  "PENDING": "pending",
+  "RUNNING": "running",
+  "WAITING": "waiting",
+  "SUCCEEDED": "succeeded",
+  "FAILED": "failed",
+  "SKIPPED": "skipped",
+  "BYPASSED": "bypassed",
+  "CANCELLED": "cancelled"
+} as const
+
+export const WORKFLOW_RUN_STARTED_BY_KIND = {
+  "PERSON": "person",
+  "HALON": "halon",
+  "TRIGGER": "trigger",
+  "WORKFLOW": "workflow"
+} as const
 
 export const WORKFLOW_STEP_GROUPS = [
   "halon",

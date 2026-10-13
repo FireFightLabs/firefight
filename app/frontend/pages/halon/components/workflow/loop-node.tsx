@@ -3,6 +3,7 @@ import { Handle, type NodeProps, Position } from "@xyflow/react"
 import { cn } from "@/lib/utils"
 import { WORKFLOW_CONFIG_KEYS, WORKFLOW_EDIT_OPERATIONS } from "@/lib/generated/constants"
 import { RouteHandles } from "@/pages/halon/components/workflow/route-handles"
+import { RunState } from "@/pages/halon/components/workflow/run-state"
 import { StepBadges } from "@/pages/halon/components/workflow/step-badges"
 import { StepIcon } from "@/pages/halon/components/workflow/step-icon"
 import { SuggestionDecision } from "@/pages/halon/components/workflow/suggestion-decision"
@@ -35,6 +36,7 @@ export function LoopNode({ data }: NodeProps<LoopFlowNode>) {
           <div className="truncate font-mono text-[11px] text-fg-muted">{items ? `For each of ${items}` : "For each item of a list"}</div>
         </div>
         <StepBadges item={item} />
+        {item.state && <RunState state={item.state} />}
       </div>
       {decided && (
         <div className="absolute top-full mt-2 flex items-center gap-2">

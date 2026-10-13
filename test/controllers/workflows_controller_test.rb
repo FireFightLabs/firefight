@@ -95,7 +95,7 @@ class WorkflowsControllerTest < ActionDispatch::IntegrationTest
 
     perform_enqueued_jobs { post run_workflow_path(workflow), params: { inputs: { query: "api" } } }
     run = workflow.runs.find_by!(test: false)
-    assert_redirected_to workflow_run_path(workflow, run)
+    assert_redirected_to workflow_path(workflow, run: run.id)
     assert_equal "Look around is running.", flash[:notice]
     assert_equal({ "query" => "api" }, run.inputs)
   end
@@ -109,14 +109,14 @@ class WorkflowsControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ "query" => "db" }, workflow.runs.sole.inputs)
   end
 
-  test "the run page shows each step and pinning and stopping a run each say so" do
+  test "a run opens on the canvas with each step, and pinning and stopping it each say so" do
     workflow = published
     sign_in(users(:alice), @workspace)
     perform_enqueued_jobs { post run_workflow_path(workflow) }
     run = workflow.runs.sole
 
-    get workflow_run_path(workflow, run), headers: inertia_headers
-    assert_equal [ "look" ], inertia_props["run"]["steps"].map { |step| step["key"] }
+    get workflow_path(workflow, run: run.id), headers: inertia_headers
+    assert_equal [ "look" ], inertia_props["run"]["steps"].map { |step| step["stepKey"] }
 
     patch pin_workflow_run_path(workflow, run)
     assert_equal "This run is pinned, so it keeps its details.", flash[:notice]

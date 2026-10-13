@@ -101,6 +101,15 @@ class WorkflowStepNodeSerializer < BaseSerializer
     options[:workflow]&.grant_needed_for(Workflow::StepKinds.reach_of(step, facts))
   end
 
+  # The output pinned for it on the draft, which test runs use in its place.
+  type "{ output: Record<string, unknown>; route: string | null; pinnedAt: string | null }", optional: true
+  def pin
+    pin = options[:pins].to_h[step["id"]]
+    return unless pin.is_a?(Hash)
+
+    { output: pin[Workflow::Version::Pins::KEY_OUTPUT].to_h, route: pin[Workflow::Version::Pins::KEY_ROUTE], pinnedAt: pin[Workflow::Version::Pins::KEY_PINNED_AT] }
+  end
+
   type :boolean
   def changed_by_halon
     options[:last_changes].to_h[step["id"]]&.by_halon? || false

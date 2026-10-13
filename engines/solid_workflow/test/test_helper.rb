@@ -5,9 +5,11 @@ class TestDefinedWorkflow < SolidWorkflow::Interpreter
   REFERENCE = /\{\{\s*([a-z0-9_.]+)\s*\}\}/
 
   class << self
-    attr_accessor :held, :sub_definition, :observed
+    attr_accessor :held, :sub_definition, :observed, :stand_ins
 
     def action_kinds = %w[echo fail slow]
+
+    def stand_in(step, workflow:) = stand_ins.to_h[step.name]
 
     def runnable?(_workflow) = !held
 
@@ -51,6 +53,7 @@ module DefinedWorkflowTestHelper
     TestDefinedWorkflow.held = false
     TestDefinedWorkflow.observed = []
     TestDefinedWorkflow.sub_definition = nil
+    TestDefinedWorkflow.stand_ins = nil
     @subject = User.create!(name: "Defined Workflow User", email: "dw-#{SecureRandom.hex(4)}@example.com")
   end
 

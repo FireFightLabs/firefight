@@ -16,8 +16,9 @@ module Slack
       build(:workflow_url, id: workflow.id)
     end
 
+    # A run opens on its workflow's canvas.
     def self.workflow_run(run)
-      build(:workflow_run_url, workflow_id: run.workflow_id, id: run.id)
+      build(:workflow_url, id: run.workflow_id, Workflow::Links::RUN_PARAM => run.id)
     end
 
     def self.agent_chat(conversation_id)

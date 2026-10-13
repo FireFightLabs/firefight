@@ -1,4 +1,5 @@
-# One run as a list shows it: which workflow, what started it, how it went and when.
+# One run as a list shows it, on the Workflows page and in the canvas's Runs view: which workflow and version, what
+# started it, how it went and when, the step it started again from, and what started it, which a test can start from.
 class WorkflowRunRowSerializer < BaseSerializer
   object_as :run
 
@@ -52,4 +53,16 @@ class WorkflowRunRowSerializer < BaseSerializer
 
   type :boolean
   def details_pruned = run.details_pruned?
+
+  type :number
+  def version_number = run.version.number
+
+  type :string, optional: true
+  def started_at = run.started_at&.iso8601
+
+  type :string, optional: true
+  def rerun_from_step_key = run.rerun_from_step_key
+
+  type "Record<string, unknown>"
+  def trigger_payload = run.trigger_payload
 end

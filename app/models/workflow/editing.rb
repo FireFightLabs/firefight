@@ -13,6 +13,7 @@ module Workflow::Editing
         versions.create!(
           number: (versions.maximum(:number) || 0) + 1, status: Workflow::Version::STATUS_DRAFT,
           trigger: from&.trigger || Workflow::Trigger.default, steps: from&.steps || [], edges: from&.edges || [], outputs: from&.outputs || {},
+          pins: from&.pins || {},
           author_kind: halon ? Workflow::AUTHOR_HALON : Workflow::AUTHOR_PERSON, author: by, reason: reason, parent_version: from
         )
       end

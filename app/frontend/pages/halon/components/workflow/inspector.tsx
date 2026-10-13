@@ -11,6 +11,7 @@ import type { OtherWorkflow, Selection } from "@/pages/halon/lib/workflow/types"
 import type { WorkflowDocument, WorkflowStepKind, WorkflowSuggestion, WorkflowToolChoice, WorkflowTriggerKind } from "@/types/serializers"
 
 interface InspectorProps {
+  workflowId: string
   document: WorkflowDocument
   suggestions: WorkflowSuggestion[]
   selection: Selection
@@ -22,11 +23,12 @@ interface InspectorProps {
   editable: boolean
   send: SendEdit
   onSelect: (selection: Selection) => void
+  onTry: (stepId: string) => void
 }
 
 // The settings beside the canvas: the trigger's or the selected step's, or a line saying how to pick one. Removing a
 // step asks first, naming what goes with it.
-export function Inspector({ document, suggestions, selection, stepKinds, triggerKinds, tools, workflows, timeZones, editable, send, onSelect }: InspectorProps) {
+export function Inspector({ workflowId, document, suggestions, selection, stepKinds, triggerKinds, tools, workflows, timeZones, editable, send, onSelect, onTry }: InspectorProps) {
   const [ removing, setRemoving ] = useState(false)
   const revision = revisionOf(document)
   const item = selection?.kind === "step" ? canvasSteps(document.steps, suggestions).find((each) => each.step.id === selection.id) ?? null : null
@@ -80,6 +82,7 @@ export function Inspector({ document, suggestions, selection, stepKinds, trigger
     <>
       <StepSettings
         key={item.step.id}
+        workflowId={workflowId}
         item={item}
         document={document}
         revision={revision}
@@ -90,6 +93,7 @@ export function Inspector({ document, suggestions, selection, stepKinds, trigger
         editable={editable}
         send={send}
         onRemove={askRemove}
+        onTry={onTry}
       />
       <ConfirmDeleteDialog
         open={removing}

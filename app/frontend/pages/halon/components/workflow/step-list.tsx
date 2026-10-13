@@ -5,21 +5,22 @@ import { TriggerIcon } from "@/pages/halon/components/workflow/trigger-icon"
 import { canvasSteps } from "@/pages/halon/lib/workflow/canvas-graph"
 import { routeWords } from "@/pages/halon/lib/workflow/labels"
 import { stepsInOrder } from "@/pages/halon/lib/workflow/step-order"
-import type { Selection } from "@/pages/halon/lib/workflow/types"
+import type { Selection, StepRunState } from "@/pages/halon/lib/workflow/types"
 import type { WorkflowDocument, WorkflowSuggestion } from "@/types/serializers"
 
 interface StepListProps {
   document: WorkflowDocument
   suggestions: WorkflowSuggestion[]
   highlightHalon: boolean
+  states?: Map<string, StepRunState>
   onSelect: (selection: Selection) => void
 }
 
 // The workflow on a phone: the trigger, then each step in the order it runs, the steps inside a for each indented under
 // it, and where each leads. Tapping one opens the same settings the canvas does, since dragging a graph on a phone is not
 // usable. Halon's suggested steps are in the list dashed, with Accept and Dismiss.
-export function StepList({ document, suggestions, highlightHalon, onSelect }: StepListProps) {
-  const ordered = stepsInOrder(canvasSteps(document.steps, suggestions), document.edges)
+export function StepList({ document, suggestions, highlightHalon, states, onSelect }: StepListProps) {
+  const ordered = stepsInOrder(canvasSteps(document.steps, suggestions, states), document.edges)
   const titles = new Map(document.steps.map((step) => [ step.id, step.title ]))
 
   function leadsTo(stepId: string): string {

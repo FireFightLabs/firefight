@@ -28,9 +28,12 @@ class WorkflowDocumentSerializer < BaseSerializer
     version.persisted?
   end
 
-  # A draft is changed in place, and changing the live version opens a draft from it. An older one is only read.
+  # A draft is changed in place, and changing the live version opens a draft from it. An older one, and what a run ran,
+  # are only read.
   type :boolean
   def editable
+    return false if options[:read_only]
+
     !version.persisted? || version.draft? || version.live?
   end
 

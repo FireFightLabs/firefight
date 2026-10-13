@@ -45,7 +45,7 @@ class WorkflowsController < InertiaController
 
   def run
     run = WorkflowRunService.new(@workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_PERSON, started_by: current_membership, inputs: inputs)
-    redirect_to workflow_run_path(@workflow, run), notice: "#{@workflow.name} is running."
+    redirect_to workflow_path(@workflow, WorkflowCanvasController::RUN_QUERY_PARAM => run.id), notice: "#{@workflow.name} is running."
   rescue Workflow::Run::Refused => refused
     redirect_back fallback_location: workflow_path(@workflow), alert: refused.message
   end
