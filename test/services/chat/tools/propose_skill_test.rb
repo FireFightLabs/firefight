@@ -33,7 +33,7 @@ class Chat::Tools::ProposeSkillTest < ActiveSupport::TestCase
     AppUrl.stubs(:options).returns(host: "firefight.test", protocol: "https")
     channel = @workspace.conversations.create!(kind: Conversation::KIND_CHANNEL, channel_id: "C0OPS", thread_id: "1.1", max_turns: 5, max_spend_cents: 5)
 
-    assert_match "It waits on the Skills page in Firefight (https://firefight.test/app/halon/skills)", propose(Conversation::Turn.new(channel, asker: @member))
+    assert_match "A message in this thread asks for it to be accepted or dismissed", propose(Conversation::Turn.new(channel, asker: @member))
   end
 
   test "a change to one of Firefight's skills proposes the workspace's copy of it" do

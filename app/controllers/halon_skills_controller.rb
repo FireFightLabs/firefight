@@ -151,7 +151,7 @@ class HalonSkillsController < InertiaController
     edited = params.key?(:steps)
     return if edited && tools_refused?(skill)
 
-    skill.accept!(proposal, by: current_membership, content: (content_param if edited), name: (edited ? params[:name] : skill.name))
+    SkillProposalService.new(current_workspace).accept!(proposal, by: current_membership, content: (content_param if edited), name: (params[:name] if edited))
     redirect_back_or_to halon_skills_path, notice: "#{skill.name} was #{was_new ? 'added' : 'updated'}#{' with your edit' if edited}. Halon loads it as it now reads."
   rescue Chat::CustomSkill::Writing::Refused => error
     edited ? form_refused_with(base: [ error.message ]) : redirect_back_or_to(halon_skills_path, alert: error.message)
@@ -161,7 +161,7 @@ class HalonSkillsController < InertiaController
 
   def dismiss_proposal
     proposal = proposals.find(params[:id])
-    proposal.custom_skill.dismiss!(proposal, by: current_membership)
+    SkillProposalService.new(current_workspace).dismiss!(proposal, by: current_membership)
     redirect_back_or_to halon_skills_path, notice: "Halon's proposed #{proposal.custom_skill.name} was dismissed. Your skills are unchanged."
   rescue Chat::CustomSkill::Writing::Refused => error
     redirect_back_or_to halon_skills_path, alert: error.message

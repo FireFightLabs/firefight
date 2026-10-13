@@ -617,6 +617,19 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # A skill Halon proposed, with Accept and Dismiss and the Skills page to edit it first, in a thread when given. proposal
+  # is a SkillProposalService::Shown.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_skill_proposal(channel_id:, thread_id:, proposal:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws that message once someone decides on it, here or on the Skills page.
+  # @return [Hash] { success: true }
+  def update_skill_proposal(channel_id:, message_id:, proposal:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Opens the form for editing a proposed handbook edit before accepting it.
   # @return [Hash] { success: true }
   def open_handbook_proposal_modal(trigger_id:, proposal:)

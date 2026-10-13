@@ -87,6 +87,17 @@ class Chat::CustomSkill::Version < ApplicationRecord
     end
   end
 
+  # How Halon's proposal was settled, or nil while it waits.
+  def decided_sentence
+    who = decided_by&.display_name || "someone"
+    case status
+    when STATUS_PROPOSED then nil
+    when STATUS_DISMISSED then "Dismissed by #{who}."
+    when STATUS_EDITED then "Accepted with an edit by #{who}."
+    else "Accepted by #{who}."
+    end
+  end
+
   # Who wrote it, as a sentence names them.
   def author_words
     return "Halon" if by_halon?

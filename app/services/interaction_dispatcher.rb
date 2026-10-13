@@ -105,6 +105,8 @@ class InteractionDispatcher
     Identifiers::MEMORY_CORRECT => Interactions::OpenMemoryCorrectionHandler,
     Identifiers::HANDBOOK_PROPOSAL_ACCEPT => Interactions::HandbookProposalDecisionHandler,
     Identifiers::HANDBOOK_PROPOSAL_DISMISS => Interactions::HandbookProposalDecisionHandler,
+    Identifiers::SKILL_PROPOSAL_ACCEPT => Interactions::SkillProposalDecisionHandler,
+    Identifiers::SKILL_PROPOSAL_DISMISS => Interactions::SkillProposalDecisionHandler,
     Identifiers::HANDBOOK_PROPOSAL_EDIT => Interactions::OpenHandbookProposalEditHandler,
     Identifiers::CODE_QUESTION_ANSWER => Interactions::OpenCodeQuestionHandler,
     Identifiers::CODE_QUESTION_CHANGE => Interactions::OpenCodeQuestionChangeHandler,
