@@ -29,9 +29,11 @@ module Workflow::Version::Drafting
 
       refuse_if_changed_since!(base_revision, targets) if revision > base_revision
       changed = Workflow::Edit::Operations.apply(snapshot, operation, payload)
-      sealed = {}
-      changed["trigger"], sealed = Workflow::Trigger.sealed(changed["trigger"]) if changed["trigger"].is_a?(Hash)
-      kept_column = private_inputs_column_with(private_values.to_h.merge(sealed))
+      kept_column = private_inputs_column_with(private_values)
+      if changed["trigger"].is_a?(Hash)
+        changed["trigger"], sealed = Workflow::Trigger.sealed(changed["trigger"])
+        kept_column = private_inputs_column_for(changed["trigger"], private_values.to_h.merge(sealed))
+      end
       problem = self.class.content_problem(changed)
       raise Workflow::Edit::Refused, problem if problem
       current = revision

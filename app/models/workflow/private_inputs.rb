@@ -24,6 +24,13 @@ module Workflow::PrivateInputs
     { private_inputs: private_inputs_with(values) }
   end
 
+  # The same for a change to trigger, which keeps only the values of inputs it still marks private, or nothing when that
+  # leaves them as they are.
+  def private_inputs_column_for(trigger, values)
+    kept = private_input_values.merge(values.to_h.stringify_keys).slice(*Workflow::Trigger.private_keys(trigger))
+    kept == private_input_values ? {} : { private_inputs: kept.presence&.to_json }
+  end
+
   def keep_private_inputs!(values)
     return if values.blank?
 

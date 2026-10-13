@@ -101,14 +101,15 @@ module Workflow::Trigger
     Workflow::Trigger::Schedule.timed?(trigger) ? Workflow::Trigger::Schedule.words(trigger) : WORDS.fetch(trigger.to_h[KEY_KIND], WORDS[KIND_MANUAL])
   end
 
-  # What a person gave, each input left out taken from its default, a private one's from the value kept for it. missing
-  # names those with neither.
+  # What a person gave, each input left out taken from its default, a private one's from the value kept for it, and only
+  # while it is still marked private. missing names those with neither.
   Resolved = Data.define(:values, :missing)
 
   def resolve_inputs(trigger, given, private_values: {})
     given = given.to_h.stringify_keys.transform_values { |value| value.is_a?(String) ? value.strip : value }
     asked = inputs(trigger)
-    values = asked.to_h { |input| [ input["key"], given[input["key"]].presence || input["default"].presence || private_values.to_h[input["key"]].presence ] }
+    kept = private_values.to_h.slice(*private_keys(trigger))
+    values = asked.to_h { |input| [ input["key"], given[input["key"]].presence || input["default"].presence || kept[input["key"]].presence ] }
     Resolved.new(values: values.compact, missing: asked.reject { |input| values[input["key"]].present? })
   end
 

@@ -129,6 +129,32 @@ class Workflow::PrivateInputsTest < ActiveSupport::TestCase
     assert_equal NOTES, workflow.reload.draft.private_input_values["notes"]
   end
 
+  test "a saved value stands in only for an input still marked private" do
+    plain = { "kind" => "manual", "inputs" => [ { "key" => "notes", "question" => "What should Halon look at?" } ] }
+
+    resolved = Workflow::Trigger.resolve_inputs(plain, {}, private_values: { "notes" => NOTES })
+
+    assert_empty resolved.values
+    assert_equal [ "notes" ], resolved.missing.map { |input| input["key"] }
+    assert_equal NOTES, Workflow::Trigger.resolve_inputs(trigger(default: nil), {}, private_values: { "notes" => NOTES }).values["notes"]
+  end
+
+  test "a trigger edit that takes the private mark off drops the kept value, so a run never reads it as a plain input" do
+    workflow = workflow!
+    plain = { "kind" => "manual", "inputs" => [ { "key" => "notes", "question" => "What should Halon look at?" } ] }
+    workflow.edit!(operation: Workflow::Edit::OPERATION_CHANGE_TRIGGER, by: @alice, payload: { "trigger" => plain })
+
+    assert_empty workflow.reload.draft.private_input_values
+    assert_nil Workflow.connection.select_value("SELECT private_inputs FROM workflow_versions WHERE id = #{Workflow.connection.quote(workflow.draft.id)}")
+  end
+
+  test "a version saved with a trigger that no longer marks an input private keeps no value for it" do
+    workflow = workflow!
+    workflow.draft.update!(trigger: { "kind" => "manual", "inputs" => [ { "key" => "notes", "question" => "What should Halon look at?" } ] })
+
+    assert_empty workflow.reload.draft.private_input_values
+  end
+
   test "only a Halon step may read a private input" do
     post = { "id" => "step_post", "name" => "post", "kind" => "post_to_channel", "config" => { "channel" => "#ops", "message" => "{{inputs.notes}}" } }
     workflow = workflow!(steps: [ post ])
