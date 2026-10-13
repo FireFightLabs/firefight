@@ -8,6 +8,9 @@ class MoveRunbookStepsIntoWorkflows < ActiveRecord::Migration[8.1]
     end
   end
 
+  # The runbooks' tool steps, inputs and watch now live only in the linked workflows, so rolling back past here would
+  # drop the link to them.
   def down
+    raise ActiveRecord::IrreversibleMigration
   end
 end
