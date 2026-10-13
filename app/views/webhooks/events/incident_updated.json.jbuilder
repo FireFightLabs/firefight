@@ -14,12 +14,28 @@ json.data do
     .order(created_at: :desc)
     .first
 
+  # A record renders in the same shape as on the incident above.
+  record_partials = {
+    IncidentUpdate::FIELD_STATUS => [ "shared/incident_status", :status ],
+    IncidentUpdate::FIELD_SEVERITY => [ "shared/incident_severity", :severity ],
+    IncidentUpdate::FIELD_TYPE => [ "shared/incident_type", :type ],
+    IncidentUpdate::FIELD_LEAD => [ "shared/actor", :actor ],
+    IncidentUpdate::FIELD_DECLARED_BY => [ "shared/actor", :actor ]
+  }
+
   if current && @event.changed_fields.any?
     json.changes do
       @event.changed_fields.each do |field|
+        partial, local = record_partials[field]
         json.set! field do
-          json.before previous&.public_send(field)
-          json.after current.public_send(field)
+          { before: previous, after: current }.each do |moment, snapshot|
+            value = snapshot&.value_for(field)
+            if partial && value
+              json.set!(moment) { json.partial! partial, local => value }
+            else
+              json.set! moment, value
+            end
+          end
         end
       end
     end
