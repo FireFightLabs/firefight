@@ -34,10 +34,11 @@ module Workflow::Authoring
         KEY_PARAMS => { "type" => "object", "description" => "The template's answers" },
         KEY_TRIGGER => {
           "type" => "object",
-          "description" => "What starts it. kind manual (by hand only), schedule or once_at. A schedule has repeat minutes or hours with every, " \
+          "description" => "What starts it. kind manual (by hand only), schedule, once_at, called or one of the kinds below. A schedule has repeat minutes or hours with every, " \
                            "days with at (09:00) and days (0 Sunday to 6 Saturday), or monthly with week_of_month (1 to 4 or last), weekday and at. " \
                            "once_at has at (a local date and time such as 2026-10-13T14:30) or in_minutes. time_zone defaults to the person's own. " \
-                           "inputs are questions a run by hand asks, each {key, question, default}. Every workflow can also be run by hand."
+                           "inputs are questions a run by hand asks, each {key, question, default}. Every workflow can also be run by hand. " \
+                           "Kinds that something happening starts, each read by later steps as {{trigger.<path>}}: #{Workflow::TriggerKinds.help}"
         },
         KEY_STEPS => { "type" => "array", "items" => { "type" => "object" },
                        "description" => "Each step {name, kind, config, on_failure (stop, continue or error_route, optional)}. A step reads earlier " \

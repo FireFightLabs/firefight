@@ -15,7 +15,8 @@ import { useStepDraft } from "@/pages/halon/hooks/use-step-draft"
 import type { SendEdit } from "@/pages/halon/hooks/use-workflow-edits"
 import { referencesFor } from "@/pages/halon/lib/workflow/references"
 import type { CanvasStep, OtherWorkflow } from "@/pages/halon/lib/workflow/types"
-import type { WorkflowDocument, WorkflowStepKind, WorkflowToolChoice } from "@/types/serializers"
+import type { WorkflowDocument, WorkflowStepKind, WorkflowToolChoice, WorkflowTriggerKind } from "@/types/serializers"
+
 
 const STEP_NAME = /^[a-z][a-z0-9_]{0,63}$/
 
@@ -25,6 +26,8 @@ interface StepSettingsProps {
   document: WorkflowDocument
   revision: number | null
   stepKinds: WorkflowStepKind[]
+  // What the trigger's data holds, which a step reads as {{trigger.<path>}}.
+  triggerOutputs: WorkflowTriggerKind["outputs"]
   tools: WorkflowToolChoice[] | undefined
   workflows: OtherWorkflow[]
   timeZones: string[]
@@ -38,13 +41,13 @@ interface StepSettingsProps {
 // A step's settings, docked beside the canvas: its name, what it does, what it hands on, what happens when it fails, and
 // Halon's suggestions for it with the old value struck beside the new. Changes are applied together, naming the draft
 // revision they were made on, so a change someone made since to the same step is refused with who made it.
-export function StepSettings({ workflowId, item, document, revision, stepKinds, tools, workflows, timeZones, editable, send, onRemove, onTry }: StepSettingsProps) {
+export function StepSettings({ workflowId, item, document, revision, stepKinds, triggerOutputs, tools, workflows, timeZones, editable, send, onRemove, onTry }: StepSettingsProps) {
   const { step, suggestion, pending } = item
   const kind = stepKinds.find((each) => each.key === step.kind) ?? null
   const draft = useStepDraft(step, revision)
   const [ name, setName ] = useState(step.name)
   const [ nameFor, setNameFor ] = useState(step.name)
-  const references = referencesFor(step.id, document)
+  const references = referencesFor(step.id, document, triggerOutputs)
   const disabled = !editable || suggestion !== null
 
   if (nameFor !== step.name) {

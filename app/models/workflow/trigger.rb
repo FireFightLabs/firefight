@@ -32,12 +32,21 @@ module Workflow::Trigger
     KIND_ISSUE_ASSIGNED => "When an issue is assigned to Firefight", KIND_RUN_FAILED => "When another workflow's run fails",
     KIND_CALLED => "When another workflow runs it"
   }.freeze
+  # Kinds something happening starts, which share the workspace's ceiling of event runs an hour (Workflow::Limits) and
+  # have nobody pressing Run when they start.
+  EVENTS = [
+    KIND_INCIDENT_DECLARED, KIND_INCIDENT_CHANGED, KIND_ALERT_RECEIVED, KIND_NOTICE_RAISED, KIND_INVESTIGATION_FINISHED,
+    KIND_FOLLOW_UP_CHANGED, KIND_RUN_FAILED
+  ].freeze
   # The kinds a published workflow may start on, another workflow running it among them. Every other kind is refused
   # when publishing, since nothing would start it.
-  PUBLISHABLE = [ KIND_MANUAL, KIND_SCHEDULE, KIND_ONCE_AT, KIND_CALLED ].freeze
+  PUBLISHABLE = [ KIND_MANUAL, KIND_SCHEDULE, KIND_ONCE_AT, KIND_CALLED, *EVENTS ].freeze
 
   KEY_KIND = "kind".freeze
   KEY_INPUTS = "inputs".freeze
+  # What must hold of the event for it to start a run, as the rule engine's conditions (Policy::Conditions).
+  KEY_CONDITIONS = "conditions".freeze
+  CONDITION_LIMIT = 20
   INPUT_FIELDS = Runbook::Procedure::INPUT_FIELDS
   INPUT_KEY = Runbook::Procedure::INPUT_KEY
   INPUT_LIMIT = Runbook::Procedure::INPUT_LIMIT
@@ -66,9 +75,25 @@ module Workflow::Trigger
     end
     keys = input_keys(trigger)
     found << "Each input needs a key of its own." unless keys.uniq.size == keys.size
-    found << "A workflow starts by hand, on a schedule, once at a time or when another workflow runs it." if KINDS.include?(trigger[KEY_KIND]) && !PUBLISHABLE.include?(trigger[KEY_KIND])
+    found << "A workflow cannot start #{WORDS[trigger[KEY_KIND]].downcase_first} yet." if KINDS.include?(trigger[KEY_KIND]) && !PUBLISHABLE.include?(trigger[KEY_KIND])
     found.concat(Workflow::Trigger::Schedule.problems(trigger))
+    found.concat(condition_problems(trigger))
+    found.concat(Workflow::TriggerKinds.find(trigger[KEY_KIND])&.problems&.call(trigger).to_a)
     found
+  end
+
+  def conditions(trigger) = Array(trigger.to_h[KEY_CONDITIONS]).select { |condition| condition.is_a?(Hash) }
+
+  def event?(kind) = EVENTS.include?(kind.to_s)
+
+  def condition_problems(trigger)
+    given = trigger[KEY_CONDITIONS]
+    return [] if given.nil?
+    return [ "The trigger's conditions must be a list." ] unless given.is_a?(Array)
+    return [ "The trigger can hold at most #{CONDITION_LIMIT} conditions." ] if given.size > CONDITION_LIMIT
+    return [ "Only a trigger that something happening starts can have conditions." ] if given.any? && !event?(trigger[KEY_KIND])
+
+    Policy::Conditions.errors_for(given).map { |message| "The trigger's #{message.downcase_first}." }
   end
 
   # When it fires as a person reads it. Every workflow can also be run by hand.

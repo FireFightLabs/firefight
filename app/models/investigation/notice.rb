@@ -69,13 +69,27 @@ class Investigation::Notice < ApplicationRecord
     seen = seen_values(reading, now).merge(check_id: check&.id, investigation_id: investigation&.id, workflow_run_id: workflow_run&.id).compact
     inserted = insert_all([ seen.merge(workspace_id: workspace.id, key: reading.key, unsaid: true, created_at: now, updated_at: now) ],
                           unique_by: %i[workspace_id key], returning: %w[id])
-    return find(inserted.rows.first.first) if inserted.rows.any?
+    return find(inserted.rows.first.first).tap { |notice| notice.tell_workflows!(CHANGE_RAISED, workflow_run) } if inserted.rows.any?
 
     row = where(workspace_id: workspace.id, key: reading.key)
     binds = { resurface: now - RESURFACE_AFTER, rank: severity_rank(reading.severity), due: reading.due_on, today: now.to_date }
     news = row.where(sanitize_sql([ NEWS, binds ])).update_all(seen.merge(unsaid: true, updated_at: now)) > 0
     row.update_all(seen.merge(updated_at: now)) unless news
-    news ? row.first : nil
+    news ? row.first.tap { |notice| notice.tell_workflows!(CHANGE_WORSENED, workflow_run) } : nil
+  end
+
+  # What a workflow's trigger reads about a notice it heard of: new, or worse than, or back after, what was last said.
+  CHANGE_RAISED = "raised".freeze
+  CHANGE_WORSENED = "worsened".freeze
+  CHANGES = [ CHANGE_RAISED, CHANGE_WORSENED ].freeze
+
+  # Tells the workspace's workflows a problem is news. One problem said again with nothing new about it is heard once,
+  # however many readings find it before it is said, since the key names what was last said and how bad it is now. A
+  # workflow never hears a notice its own run raised.
+  def tell_workflows!(change, workflow_run = nil)
+    key = [ id, severity, due_on&.iso8601, last_said_at&.to_i ].join(":")
+    Workflow::Trigger::Events.fire!(workspace, Workflow::Trigger::KIND_NOTICE_RAISED, key: key, subject: self, details: { "change" => change },
+                                                                                       actor: workflow_run&.agent)
   end
 
   # What a reading changes on its row, whatever it decides.

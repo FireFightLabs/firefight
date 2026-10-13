@@ -535,7 +535,16 @@ class Investigation < ApplicationRecord
         status: status, error_summary: error_summary, completed_at: Time.current, updated_at: Time.current
       ) > 0
     reload if moved
+    tell_workflows! if moved
     moved
+  end
+
+  # A run that concluded or gave up is heard by the workspace's workflows once. One a person stopped, and a rehearsal,
+  # are not.
+  def tell_workflows!
+    return if rehearsal? || status == STATUS_CANCELED
+
+    Workflow::Trigger::Events.fire!(workspace, Workflow::Trigger::KIND_INVESTIGATION_FINISHED, key: id, subject: self, actor: triggered_by)
   end
 
   private

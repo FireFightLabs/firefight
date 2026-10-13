@@ -13,6 +13,7 @@ class Workflow < ApplicationRecord
   include Workflow::Identity
   include Workflow::Scheduling
   include Workflow::Limits
+  include Workflow::Listening
   include Workflow::Chatting
   include Workflow::Showing
   include Workflow::ForHalon

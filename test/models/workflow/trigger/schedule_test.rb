@@ -67,7 +67,7 @@ class Workflow::Trigger::ScheduleTest < ActiveSupport::TestCase
     assert_equal "By hand", Workflow::Trigger.words({ "kind" => "manual" })
   end
 
-  test "a published workflow starts by hand, on a schedule or once at a time" do
-    assert_includes Workflow::Trigger.problems({ "kind" => "incident_declared", "inputs" => [] }), "A workflow starts by hand, on a schedule, once at a time or when another workflow runs it."
+  test "a published workflow starts only on a kind something starts runs from" do
+    assert_includes Workflow::Trigger.problems({ "kind" => "inbound_webhook", "inputs" => [] }), "A workflow cannot start when its webhook is called yet."
   end
 end

@@ -60,8 +60,8 @@ class Workflow::StepKindsTest < ActiveSupport::TestCase
     end
   end
 
-  test "schedule and once at are offered as triggers beside running by hand" do
-    assert_equal [ Workflow::Trigger::KIND_MANUAL, Workflow::Trigger::KIND_SCHEDULE, Workflow::Trigger::KIND_ONCE_AT ], Workflow::TriggerKinds.all.map(&:key)
+  test "every kind a published workflow can start on is offered as a trigger, and no other" do
+    assert_equal Workflow::Trigger::PUBLISHABLE.sort, Workflow::TriggerKinds.all.map(&:key).sort
     assert_empty Workflow::Trigger.problems(Workflow::TriggerKinds.find(Workflow::Trigger::KIND_SCHEDULE).defaults
                                               .merge("kind" => Workflow::Trigger::KIND_SCHEDULE, "time_zone" => "Europe/Belgrade"))
   end

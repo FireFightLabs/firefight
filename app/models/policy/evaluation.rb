@@ -3,7 +3,7 @@
 module Policy::Evaluation
   extend ActiveSupport::Concern
 
-  REGEX_TIMEOUT_SECONDS = 0.1
+  REGEX_TIMEOUT_SECONDS = Policy::Conditions::REGEX_TIMEOUT_SECONDS
 
   Result = Struct.new(:matched_rule, :outcome, :trace, keyword_init: true) do
     def matched?
@@ -50,36 +50,5 @@ module Policy::Evaluation
 
   private
 
-  def evaluate_condition(condition, context)
-    condition = condition.with_indifferent_access
-    field = condition[:field].to_s
-    operator = condition[:operator]
-    value = condition[:value]
-    actual = context[field]
-
-    matched =
-      case operator
-      when PolicyRule::OPERATOR_IS_ONE_OF
-        Array(value).map(&:to_s).include?(actual)
-      when PolicyRule::OPERATOR_CONTAINS
-        actual.present? && actual.include?(value.to_s)
-      when PolicyRule::OPERATOR_STARTS_WITH
-        actual.present? && actual.start_with?(value.to_s)
-      when PolicyRule::OPERATOR_MATCHES_REGEX
-        actual.present? && regex_match?(value.to_s, actual)
-      when PolicyRule::OPERATOR_IS_EMPTY
-        actual.blank?
-      else
-        false
-      end
-
-    { field: field, operator: operator, value: value, actual: actual, matched: matched }
-  end
-
-  # The timeout guards against ReDoS from user-authored patterns.
-  def regex_match?(pattern, actual)
-    Regexp.new(pattern, timeout: REGEX_TIMEOUT_SECONDS).match?(actual)
-  rescue RegexpError, Regexp::TimeoutError
-    false
-  end
+  def evaluate_condition(condition, context) = Policy::Conditions.evaluate(condition, context)
 end

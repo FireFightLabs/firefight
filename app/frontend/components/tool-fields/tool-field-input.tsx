@@ -1,6 +1,7 @@
 import type { ChangeEvent } from "react"
 
 import { SearchableSelect, type SearchableSelectOption } from "@/components/searchable-select"
+import { ChoiceListInput } from "@/components/tool-fields/choice-list-input"
 import { ReferencePicker } from "@/components/tool-fields/reference-picker"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -24,6 +25,7 @@ interface ToolFieldInputProps {
 
 export function ToolFieldInput({ id, field, state, error, placeholders, places, references = [], disabled = false, onChange }: ToolFieldInputProps) {
   const shown = shownValue(field, state)
+  const choiceList = field.kind === RUNBOOK_FIELD_KINDS.LIST && field.options.length > 0
 
   function typed(event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     onChange(field, event.target.value)
@@ -62,7 +64,8 @@ export function ToolFieldInput({ id, field, state, error, placeholders, places, 
           placeholder={field.required ? "Choose one" : "Choose one (optional)"}
         />
       )}
-      {(field.kind === RUNBOOK_FIELD_KINDS.TEXT || field.kind === RUNBOOK_FIELD_KINDS.NUMBER || field.kind === RUNBOOK_FIELD_KINDS.LIST) && (
+      {choiceList && <ChoiceListInput field={field} selected={chosenList(state, field)} disabled={disabled} onChange={onChange} />}
+      {(field.kind === RUNBOOK_FIELD_KINDS.TEXT || field.kind === RUNBOOK_FIELD_KINDS.NUMBER || (field.kind === RUNBOOK_FIELD_KINDS.LIST && !choiceList)) && (
         <div className="flex gap-1.5">
           <Input
             id={id}
@@ -86,6 +89,12 @@ export function ToolFieldInput({ id, field, state, error, placeholders, places, 
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   )
+}
+
+// The values chosen in a list field with a fixed set of them.
+function chosenList(state: ArgumentsState, field: ToolField): string[] {
+  const value = state.values[field.key]
+  return Array.isArray(value) ? value.map(String) : []
 }
 
 // A choice's own values, or what is on the map, with the inputs that can stand in for one, and a saved value that is
