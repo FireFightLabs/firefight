@@ -1,27 +1,8 @@
-import { IconPlus } from "@tabler/icons-react"
-import type { ChangeEvent } from "react"
-
 import type { SearchableSelectOption } from "@/components/searchable-select"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { WATCH_SPEC_KEYS } from "@/lib/generated/constants"
-import { WatchStepEditor } from "@/pages/settings/components/runbooks/watch-step-editor"
-import {
-  isHistoryRead,
-  newWatchStep,
-  readOf,
-  stepText,
-  waitsName,
-  withNewDeploy,
-  withNewDeployField,
-  withRead,
-  withStepField,
-  type ArgumentsState,
-  type WatchState,
-  type WatchStepState,
-} from "@/pages/settings/lib/runbook-procedure"
+import { WatchSpecEditor } from "@/components/watch/watch-spec-editor"
+import { firstWatchStep, type WatchState } from "@/lib/watch-spec"
 import type { RunbookToolChoice, RunbookWatchRead } from "@/types/serializers"
 
 interface RunbookWatchEditorProps {
@@ -35,68 +16,11 @@ interface RunbookWatchEditorProps {
   onChange: (watch: WatchState) => void
 }
 
-// What Halon watches once every step went through: a title, each thing to follow (a run in a resource's history, a
-// reading of a resource, or any read tool Halon can make in a chat, with what counts as done) and an optional time limit.
-// Anything saved that this does not show is kept.
+// What Halon watches once every step went through, turned on or off, and what it follows when on.
 export function RunbookWatchEditor({ watch, reads, tools, placeholders, places, error, serverErrors, onChange }: RunbookWatchEditorProps) {
-  const capabilityNames = new Set((reads ?? []).map((read) => read.name))
-  const readTools = (tools ?? []).filter((tool) => tool.reads && !capabilityNames.has(tool.name))
-  const readOptions = [
-    ...(reads ?? []).map((read) => ({ value: read.name, label: read.label, group: "Anything on the resource map" })),
-    ...readTools.map((tool) => ({ value: tool.name, label: tool.name, group: tool.group })),
-  ]
-
-  function patch(next: Partial<WatchState>) {
-    onChange({ ...watch, ...next })
-  }
-
   function turn(on: boolean) {
-    const steps = on && watch.steps.length === 0 ? [ newStep(reads) ] : watch.steps
-    patch({ on, steps })
-  }
-
-  function setTitle(event: ChangeEvent<HTMLInputElement>) {
-    patch({ spec: withStepField(watch.spec, WATCH_SPEC_KEYS.TITLE, event.target.value) })
-  }
-
-  function setMinutes(event: ChangeEvent<HTMLInputElement>) {
-    patch({ minutesDraft: event.target.value })
-  }
-
-  function changeStep(key: string, change: (step: WatchStepState) => WatchStepState) {
-    patch({ steps: watch.steps.map((step) => (step.key === key ? change(step) : step)) })
-  }
-
-  function setStep(key: string, field: string, entered: string | boolean) {
-    changeStep(key, (step) => ({ ...step, spec: withStepField(step.spec, field, entered) }))
-  }
-
-  function chooseRead(key: string, name: string) {
-    changeStep(key, (step) => withRead(step, name, capabilityNames.has(name)))
-  }
-
-  function setArgs(key: string, args: ArgumentsState) {
-    changeStep(key, (step) => ({ ...step, args }))
-  }
-
-  function setWaits(key: string, waitsFor: string[], keptWaits: string[]) {
-    changeStep(key, (step) => ({ ...step, waitsFor, keptWaits }))
-  }
-
-  function turnNewDeploy(key: string, on: boolean) {
-    changeStep(key, (step) => ({ ...step, spec: withNewDeploy(step.spec, on) }))
-  }
-
-  function setNewDeploy(key: string, field: string, entered: string) {
-    changeStep(key, (step) => ({ ...step, spec: withNewDeployField(step.spec, field, entered) }))
-  }
-
-  function addStep() {
-    patch({ steps: [ ...watch.steps, newStep(reads) ] })
-  }
-
-  function removeStep(key: string) {
-    patch({ steps: watch.steps.filter((step) => step.key !== key) })
+    const steps = on && watch.steps.length === 0 ? [ firstWatchStep(reads) ] : watch.steps
+    onChange({ ...watch, on, steps })
   }
 
   return (
@@ -111,48 +35,7 @@ export function RunbookWatchEditor({ watch, reads, tools, placeholders, places, 
         <Switch id="runbook-watch-on" checked={watch.on} onCheckedChange={turn} />
       </div>
       {watch.on && (
-        <div className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-[1fr_9rem]">
-            <div className="space-y-1">
-              <Label htmlFor="runbook-watch-title" className="text-xs">What is watched</Label>
-              <Input id="runbook-watch-title" value={stepText(watch.spec, WATCH_SPEC_KEYS.TITLE)} onChange={setTitle} placeholder="release and its deploy" />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="runbook-watch-minutes" className="text-xs">Time limit, minutes</Label>
-              <Input id="runbook-watch-minutes" inputMode="numeric" value={watch.minutesDraft} onChange={setMinutes} placeholder="Learned" />
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Leave the time limit empty and Halon learns it from how long these usually take, up to a day.
-          </p>
-          {watch.steps.map((step, index) => (
-            <WatchStepEditor
-              key={step.key}
-              number={index + 1}
-              step={step}
-              earlier={watch.steps.slice(0, index).map((each, at) => ({ value: each.key, label: waitsName(each, at) }))}
-              history={isHistoryRead(step.spec, reads ?? [])}
-              tool={readTools.find((tool) => tool.name === stepText(step.spec, WATCH_SPEC_KEYS.TOOL)) ?? null}
-              toolsLoaded={tools !== null}
-              readOptions={readOptions}
-              selectedRead={readOf(step.spec)}
-              resourceOptions={[ ...places, ...placeholders ]}
-              placeholders={placeholders}
-              places={places}
-              onChange={(field, entered) => setStep(step.key, field, entered)}
-              onChooseRead={(name) => chooseRead(step.key, name)}
-              onArgsChange={(args) => setArgs(step.key, args)}
-              onWaitsChange={(waitsFor, keptWaits) => setWaits(step.key, waitsFor, keptWaits)}
-              onNewDeployTurn={(on) => turnNewDeploy(step.key, on)}
-              onNewDeployChange={(field, entered) => setNewDeploy(step.key, field, entered)}
-              onRemove={() => removeStep(step.key)}
-            />
-          ))}
-          <Button type="button" variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={addStep}>
-            <IconPlus className="size-3.5" />
-            Add something to watch
-          </Button>
-        </div>
+        <WatchSpecEditor idPrefix="runbook-watch" watch={watch} reads={reads} tools={tools} placeholders={placeholders} places={places} onChange={onChange} />
       )}
       {error && <p className="text-xs text-destructive">{error}</p>}
       {serverErrors.map((sentence, index) => (
@@ -160,9 +43,4 @@ export function RunbookWatchEditor({ watch, reads, tools, placeholders, places, 
       ))}
     </div>
   )
-}
-
-function newStep(reads: RunbookWatchRead[] | null): WatchStepState {
-  const first = reads?.[0]?.name
-  return newWatchStep(first ? { [WATCH_SPEC_KEYS.CAPABILITY]: first } : {})
 }

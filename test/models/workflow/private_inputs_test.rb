@@ -76,6 +76,22 @@ class Workflow::PrivateInputsTest < ActiveSupport::TestCase
     assert_equal "Only shop.", run.reload.private_input_values["notes"]
   end
 
+  test "a run started again from a step keeps the private value its first run was started with" do
+    workflow = workflow!
+    WorkflowPublishService.new(workflow).publish!(workflow.draft, by: @alice)
+    Workflow::HalonStep.any_instance.stubs(:follow!).returns({ "verdict" => "ok", "summary" => "Fine." })
+    first = nil
+    perform_enqueued_jobs do
+      first = WorkflowRunService.new(workflow.reload).start!(started_by_kind: Workflow::Run::STARTED_BY_PERSON, started_by: @alice, inputs: { "notes" => "Only shop." })
+    end
+
+    again = nil
+    perform_enqueued_jobs { again = WorkflowRunService.rerun_from!(first.reload, step_key: "step_check", by: @alice) }
+
+    assert_equal "Only shop.", again.reload.private_input_values["notes"]
+    assert_equal Workflow::Trigger.private_token("notes"), again.inputs["notes"]
+  end
+
   test "a draft's new private value waits for publishing, and runs of the live version keep the published one" do
     workflow = workflow!
     WorkflowPublishService.new(workflow).publish!(workflow.draft, by: @alice)

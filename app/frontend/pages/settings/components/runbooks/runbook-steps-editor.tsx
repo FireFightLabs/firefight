@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { StepToolFields } from "@/pages/settings/components/runbooks/step-tool-fields"
-import { emptyArguments, type ArgumentsState } from "@/pages/settings/lib/runbook-procedure"
+import { emptyArguments, type ArgumentsState } from "@/lib/tool-fields"
 import type { RunbookToolChoice } from "@/types/serializers"
 
 export interface EditableStep {

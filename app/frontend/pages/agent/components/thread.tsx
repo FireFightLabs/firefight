@@ -21,7 +21,7 @@ import { Watches } from "@/pages/agent/components/watches"
 import { WaitingMessage } from "@/pages/agent/components/waiting-message"
 import { ImageDialog } from "@/components/image-dialog"
 import { Message } from "@/pages/agent/components/message"
-import { BEFORE_ALL_TURNS, groupedTurns, liveTurn, placeAfterTurns, settledMessages } from "@/pages/agent/lib/group-turns"
+import { BEFORE_ALL_TURNS, groupedTurns, liveTurn, placeAfterTurns, settledMessages } from "@/lib/agent-chat/group-turns"
 import { type AgentStream, type ChatTurn, TURN_KINDS } from "@/pages/agent/types"
 import type {
   AgentChatAttachment, AgentChatCodePause, AgentChatConfirmation, AgentChatDataRepair, AgentChatHeldCall, AgentChatMemoryQuestion, AgentChatMessage, AgentChatMitigation,

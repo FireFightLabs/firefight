@@ -1,9 +1,9 @@
 # Both entry points ask through here, so saving the question and queueing the reply live in one place.
 class Conversation::Asking
   # The chat is created with its first question, so there is never an empty one.
-  def self.start_personal(workspace:, member:, question:, files: [], model: nil)
+  def self.start_personal(workspace:, member:, question:, files: [], model: nil, subject: nil)
     conversation = Conversation.transaction do
-      Conversation.start_personal!(workspace: workspace, member: member, model: model).tap { |started| started.ask!(question, files: files) }
+      Conversation.start_personal!(workspace: workspace, member: member, model: model, subject: subject).tap { |started| started.ask!(question, files: files) }
     end
     reply(conversation, member)
   end

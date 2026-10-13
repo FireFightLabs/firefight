@@ -5,8 +5,8 @@ import { useState } from "react"
 import { Button } from "@/components/agent-ui/button"
 import { Blocked } from "@/components/blocked-tooltip"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
-import { CHAT_WORKFLOW_ACTIONS, WORKFLOW_RUN_STATUSES, type WorkflowRunStatus } from "@/lib/generated/constants"
-import { agentChatWorkflowPressPath, workflowPath, workflowRunPath } from "@/lib/routes"
+import { CHAT_WORKFLOW_ACTIONS, WORKFLOW_RUN_QUERY_PARAM, WORKFLOW_RUN_STATUSES, type WorkflowRunStatus } from "@/lib/generated/constants"
+import { agentChatWorkflowPressPath, workflowPath } from "@/lib/routes"
 import { formatDateTime } from "@/lib/formatters"
 import { pressWorkflow } from "@/pages/agent/lib/chat-updates"
 import type { AgentChatWorkflow } from "@/types/serializers"
@@ -97,7 +97,7 @@ export function WorkflowCard({ conversationId, workflow }: WorkflowCardProps) {
           {workflow.nextRunAt && !workflow.oneOff && <p className="text-[12.5px] text-ink-3">Runs next {formatDateTime(workflow.nextRunAt)}</p>}
           {workflow.lastRun && (
             <p className="text-[12.5px] text-ink-3 [overflow-wrap:anywhere]">
-              <Link href={workflowRunPath(workflow.id, workflow.lastRun.id)} className="hover:underline">The last run {runWords(workflow.lastRun.status)}</Link>
+              <Link href={workflowPath(workflow.id, { [WORKFLOW_RUN_QUERY_PARAM]: workflow.lastRun.id })} className="hover:underline">The last run {runWords(workflow.lastRun.status)}</Link>
               {workflow.lastRun.error && `. ${workflow.lastRun.error}`}
             </p>
           )}

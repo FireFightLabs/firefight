@@ -326,7 +326,9 @@ class AbilityGateway
       incident_id: context[:incident_id],
       workflow_run_id: context[:workflow_run_id],
       approval_id: approval&.id,
-      completed_at: completed_at
+      completed_at: completed_at,
+      workflow_step_key: context[:workflow_step_key],
+      workflow_iteration: context[:workflow_iteration]
     )
   end
 end

@@ -3,7 +3,8 @@ import { IconPin } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { workflowRunPath } from "@/lib/routes"
+import { WORKFLOW_RUN_QUERY_PARAM } from "@/lib/generated/constants"
+import { workflowPath } from "@/lib/routes"
 import type { WorkflowRunRow } from "@/types/serializers"
 import { formatWhen, runStatusLabel, runTone } from "@/pages/halon/components/workflows/labels"
 import { StatusPill } from "@/pages/halon/components/workflows/status-pill"
@@ -32,7 +33,7 @@ export function RunsTable({ runs, page, showWorkflow }: { runs: WorkflowRunRow[]
             <TableRow key={run.id}>
               {showWorkflow && <TableCell className="font-medium">{run.workflowName}</TableCell>}
               <TableCell>
-                <Link href={workflowRunPath(run.workflowId, run.id)} className="inline-flex items-center gap-2">
+                <Link href={workflowPath(run.workflowId, { [WORKFLOW_RUN_QUERY_PARAM]: run.id })} className="inline-flex items-center gap-2">
                   <StatusPill label={runStatusLabel(run.status)} tone={runTone(run.status)} />
                   {run.test && <span className="text-xs text-muted-foreground">Test</span>}
                   {run.pinned && <IconPin className="size-3.5 text-muted-foreground" aria-label="Pinned" />}
@@ -40,7 +41,7 @@ export function RunsTable({ runs, page, showWorkflow }: { runs: WorkflowRunRow[]
               </TableCell>
               <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{run.startedByWords}</TableCell>
               <TableCell className="text-sm">
-                <Link href={workflowRunPath(run.workflowId, run.id)} className="text-link hover:underline">{formatWhen(run.createdAt)}</Link>
+                <Link href={workflowPath(run.workflowId, { [WORKFLOW_RUN_QUERY_PARAM]: run.id })} className="text-link hover:underline">{formatWhen(run.createdAt)}</Link>
               </TableCell>
               <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">{run.finishedAt ? formatWhen(run.finishedAt) : "-"}</TableCell>
             </TableRow>

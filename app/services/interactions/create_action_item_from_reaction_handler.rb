@@ -1,6 +1,7 @@
 module Interactions
-  # Carries where the source message is, so the form reads it and the description starts from it, and the prompt's
-  # handle so the submit handler can take the prompt down.
+  # Carries where the source message is, so the description starts from it, and the prompt's handle so the submit
+  # handler can take the prompt down. The form opens on the trigger and Slack is answered at once, and the message is
+  # read in the background (ActionItemFormFillInJob).
   class CreateActionItemFromReactionHandler
     extend HandlerAuthorization
     authorize_as Ability::Action::RESOURCE_INCIDENTS
@@ -24,12 +25,16 @@ module Interactions
         prompt_handle: interaction.prompt_handle
       )
 
-      workspace.adapter.open_action_item_modal(
-        kind: KINDS.fetch(interaction.action_id),
+      kind = KINDS.fetch(interaction.action_id)
+      opened = workspace.adapter.open_action_item_modal(
+        kind: kind,
         trigger_id: interaction.trigger_id,
         incident: incident,
         private_metadata: private_metadata
       )
+      if opened[:view_id] && metadata["message_id"] && metadata["channel_id"]
+        ActionItemFormFillInJob.perform_later(workspace.id, incident.id, kind.to_s, opened[:view_id], private_metadata)
+      end
 
       nil
     rescue ActiveRecord::RecordNotFound, JSON::ParserError

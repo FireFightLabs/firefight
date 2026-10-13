@@ -1,5 +1,5 @@
 import type { SharedProps } from "@/types"
-import type { WorkflowDetail, WorkflowPublishRequest, WorkflowRow, WorkflowRun, WorkflowRunRow } from "@/types/serializers"
+import type { WorkflowPublishRequest, WorkflowRow, WorkflowRunRow } from "@/types/serializers"
 
 export interface WorkflowTemplateChoice {
   key: string
@@ -35,17 +35,3 @@ export interface WorkflowsPageProps extends SharedProps {
   timeZones: string[]
 }
 
-export interface WorkflowPageProps extends SharedProps {
-  workflow: WorkflowDetail
-  runs: WorkflowRunRow[]
-  runsPage: RunsPage
-  myPublishRequest: PublishRequestStanding
-  teams: TeamChoice[]
-  timeZones: string[]
-}
-
-export interface WorkflowRunPageProps extends SharedProps {
-  run: WorkflowRun
-}
-
-export type WorkflowRunStep = WorkflowRun["steps"][number]

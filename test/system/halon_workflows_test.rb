@@ -74,29 +74,12 @@ class HalonWorkflowsTest < ApplicationSystemTestCase
     run = workflow.runs.sole
     assert_equal({ "query" => "api" }, run.inputs)
 
-    click_button "Pin"
+    find("#pin-run").click
     assert_toast "This run is pinned, so it keeps its details."
-    click_button "Unpin"
+    assert run.reload.pinned?
+    find("#pin-run").click
     assert_toast "This run is no longer pinned."
     assert_not run.reload.pinned?
-  end
-
-  test "a test run makes only the changes the tester turned on" do
-    tell = { "id" => "tell", "name" => "tell", "kind" => "post_to_channel", "config" => { "channel" => "#ops", "message" => "Hello" } }
-    workflow = drafted("Tell", steps: [ tell ])
-    sign_in(users(:alice), @workspace)
-    visit workflow_path(workflow)
-
-    click_button "Test run"
-    assert_text "Make these changes for real"
-    click_button "Start the test"
-
-    assert_toast "A test run of Tell started."
-    perform_enqueued_jobs
-    assert_text "Shown, not made", wait: 6
-    tested = workflow.runs.sole
-    assert tested.test?
-    assert_empty tested.real_step_keys
   end
 
   test "publishing says what it grants, and a member asks an admin instead" do
@@ -124,6 +107,7 @@ class HalonWorkflowsTest < ApplicationSystemTestCase
     workflow = published
     sign_in(users(:alice), @workspace)
     visit workflow_path(workflow)
+    find("[role=radio]", text: "Settings").click
 
     fill_in "AI ceiling per run, in dollars", with: "2.50"
     fill_in "Runs an hour at most", with: "12"

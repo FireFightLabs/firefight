@@ -8,6 +8,9 @@ class Workflow::Version < ApplicationRecord
   include Workflow::Version::Drafting
   include Workflow::Version::Steps
   include Workflow::PrivateInputs
+  include Workflow::Version::History
+  include Workflow::Version::Pins
+  include Workflow::Version::Trying
 
   self.table_name = "workflow_versions"
 
@@ -46,6 +49,28 @@ class Workflow::Version < ApplicationRecord
   def steps_by_id = Workflow::Version.steps_by_id_in(steps)
 
   def self.steps_by_id_in(steps) = all_steps(steps).index_by { |step| step["id"] }
+
+  # Each step with the for each it sits inside, nil at the top, as the canvas draws them in one picture.
+  Placed = Data.define(:step, :within)
+
+  def placed_steps = Workflow::Version.placed(steps, nil).map { |step, within| Placed.new(step: step, within: within) }
+
+  # Every connection, inside each for each too, with the for each it is inside.
+  def placed_edges = Workflow::Version.placed_edges_of(steps, edges, nil)
+
+  def self.placed(steps, within)
+    Array(steps).flat_map do |step|
+      inside = step["kind"] == DefinedWorkflow::KIND_FOR_EACH ? placed(step.to_h.dig("config", "steps"), step["id"]) : []
+      [ [ step, within ], *inside ]
+    end
+  end
+
+  def self.placed_edges_of(steps, edges, within)
+    own = Array(edges).map { |edge| edge.merge("within" => within) }
+    own + Array(steps).select { |step| step["kind"] == DefinedWorkflow::KIND_FOR_EACH }.flat_map do |step|
+      placed_edges_of(step.dig("config", "steps"), step.dig("config", "edges"), step["id"])
+    end
+  end
 
   def self.all_steps(steps)
     Array(steps).flat_map do |step|

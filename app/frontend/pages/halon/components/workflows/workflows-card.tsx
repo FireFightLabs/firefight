@@ -8,7 +8,8 @@ import { OptionsTable } from "@/components/options-table"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { TableCell, TableHead } from "@/components/ui/table"
-import { disableWorkflowPath, enableWorkflowPath, workflowPath, workflowRunPath } from "@/lib/routes"
+import { disableWorkflowPath, enableWorkflowPath, workflowPath } from "@/lib/routes"
+import { WORKFLOW_RUN_QUERY_PARAM } from "@/lib/generated/constants"
 import { timeAgo } from "@/lib/time"
 import type { WorkflowRow } from "@/types/serializers"
 import { formatWhen, runStatusLabel, stateLabel, stateTone } from "@/pages/halon/components/workflows/labels"
@@ -30,7 +31,7 @@ function LastRun({ workflow }: { workflow: WorkflowRow }) {
   }
 
   return (
-    <Link href={workflowRunPath(workflow.id, run.id)} className="text-link hover:underline">
+    <Link href={workflowPath(workflow.id, { [WORKFLOW_RUN_QUERY_PARAM]: run.id })} className="text-link hover:underline">
       {runStatusLabel(run.status)} {timeAgo(run.at)}
       {run.test && " (test)"}
     </Link>

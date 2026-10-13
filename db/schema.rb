@@ -112,8 +112,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_210000) do
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
     t.uuid "workflow_run_id"
+    t.string "workflow_step_key"
+    t.string "workflow_iteration"
     t.index ["action_key"], name: "index_ability_invocations_on_action_key"
     t.index ["principal_type", "principal_id", "created_at"], name: "index_ability_invocations_on_principal"
+    t.index ["workflow_run_id", "workflow_step_key"], name: "idx_on_workflow_run_id_workflow_step_key_96873e3f4e", where: "(workflow_run_id IS NOT NULL)"
     t.index ["workflow_run_id"], name: "index_ability_invocations_on_workflow_run_id"
     t.index ["workspace_id", "created_at"], name: "index_ability_invocations_on_workspace_id_and_created_at"
   end
@@ -3225,7 +3228,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_210000) do
     t.datetime "finished_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.uuid "invocation_ids", default: [], null: false, array: true
     t.index ["run_id", "step_key", "iteration"], name: "index_workflow_run_steps_on_run_id_and_step_key_and_iteration", unique: true
   end
 
@@ -3255,9 +3257,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_210000) do
     t.string "real_step_keys", default: [], null: false, array: true
     t.string "subject_key"
     t.datetime "told_at"
+    t.jsonb "snapshot"
+    t.jsonb "stand_ins", default: {}, null: false
+    t.uuid "rerun_of_id"
+    t.string "rerun_from_step_key"
     t.text "private_inputs"
     t.index ["agent_id"], name: "index_workflow_runs_on_agent_id"
     t.index ["parent_run_id"], name: "index_workflow_runs_on_parent_run_id"
+    t.index ["rerun_of_id"], name: "index_workflow_runs_on_rerun_of_id"
     t.index ["started_by_id"], name: "index_workflow_runs_on_started_by_id"
     t.index ["status"], name: "index_workflow_runs_on_status"
     t.index ["version_id"], name: "index_workflow_runs_on_version_id"
@@ -3285,6 +3292,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_210000) do
     t.uuid "published_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "pins", default: {}, null: false
     t.text "private_inputs"
     t.index ["author_id"], name: "index_workflow_versions_on_author_id"
     t.index ["parent_version_id"], name: "index_workflow_versions_on_parent_version_id"
@@ -3799,6 +3807,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_210000) do
   add_foreign_key "workflow_run_steps", "workflow_runs", column: "run_id", on_delete: :cascade
   add_foreign_key "workflow_runs", "agents", on_delete: :nullify
   add_foreign_key "workflow_runs", "workflow_runs", column: "parent_run_id", on_delete: :nullify
+  add_foreign_key "workflow_runs", "workflow_runs", column: "rerun_of_id", on_delete: :nullify
   add_foreign_key "workflow_runs", "workflow_versions", column: "version_id"
   add_foreign_key "workflow_runs", "workflows", on_delete: :cascade
   add_foreign_key "workflow_runs", "workspace_memberships", column: "started_by_id", on_delete: :nullify
