@@ -4,7 +4,7 @@
 # Nobody is asked to confirm a call, since publishing the workflow was the decision, and a call an approval rule holds
 # is kept here so the step can wait for it.
 class Workflow::AgentRun
-  attr_reader :workspace, :chat, :held, :failure_kind, :raw, :invocation_ids
+  attr_reader :workspace, :chat, :held, :failure_kind, :raw
 
   # reads_only is for a step that only reads, such as a skill, so a tool that can change things runs only as a read.
   # approval_id is an approval the step already holds for exactly this call.
@@ -15,7 +15,6 @@ class Workflow::AgentRun
     @chat = chat
     @reads_only = reads_only
     @approval_id = approval_id
-    @invocation_ids = []
     reset!
   end
 
@@ -63,10 +62,9 @@ class Workflow::AgentRun
   def tool_call(action_key:, params: {}, scope: {}, approval_id: nil, holdable: true, **, &block)
     value = Chat::ToolCall.run!(
       workspace: @workspace, principal: acting_principal, action_key: action_key, params: params, scope: scope, holdable: holdable,
-      context: { source: AbilityGateway::SOURCE_WORKFLOW, workflow_run_id: @run.id, triggered_by_label: @run.ledger_label,
-                 approval_id: approval_id || @approval_id }.compact
+      context: { source: AbilityGateway::SOURCE_WORKFLOW, triggered_by_label: @run.ledger_label, approval_id: approval_id || @approval_id,
+                 **Workflow::Run::Step.ledger_context(@run, @record) }.compact
     ) do |authorization|
-      @invocation_ids << authorization.invocation_id if authorization.invocation_id
       @raw = block.call(authorization)
     end
     Chat::ToolCall::Outcome.new(value: value)

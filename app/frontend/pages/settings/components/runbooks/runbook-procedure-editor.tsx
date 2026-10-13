@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { SearchableSelectOption } from "@/components/searchable-select"
 import { RunbookWatchEditor } from "@/pages/settings/components/runbooks/runbook-watch-editor"
-import type { EditableInput, ProcedureState, WatchState } from "@/pages/settings/lib/runbook-procedure"
+import type { EditableInput, ProcedureState } from "@/pages/settings/lib/runbook-procedure"
+import type { WatchState } from "@/lib/watch-spec"
 import type { RunbookToolChoice, RunbookWatchRead } from "@/types/serializers"
 
 interface RunbookProcedureEditorProps {

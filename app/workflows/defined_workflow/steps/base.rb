@@ -11,7 +11,6 @@ class DefinedWorkflow::Steps::Base
   GROUP_MESSAGES = "messages".freeze
   GROUP_WAITING = "waiting".freeze
   GROUP_CONTROL = "control".freeze
-  GROUPS = [ GROUP_HALON, GROUP_TOOLS, GROUP_MESSAGES, GROUP_WAITING, GROUP_CONTROL ].freeze
 
   # Why a step cannot go on, in words. Running it again gives the same answer, so it is never retried.
   class Refused < StandardError; end

@@ -21,6 +21,8 @@ module Ability
     belongs_to :principal, polymorphic: true, optional: true
     # The workflow run whose step made the call.
     belongs_to :workflow_run, class_name: "Workflow::Run", optional: true
+    # The approval a held call waits on, or the one that let it through.
+    belongs_to :approval, class_name: "Ability::Approval", optional: true
 
     validates :principal_label, :action_key, :idempotency_key, presence: true
     validates :decision, inclusion: { in: DECISIONS }

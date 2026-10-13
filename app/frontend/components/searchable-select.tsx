@@ -25,6 +25,8 @@ interface SearchableSelectProps {
   onOpen?: () => void
   renderSelected?: (option: SearchableSelectOption) => ReactNode
   renderOption?: (option: SearchableSelectOption) => ReactNode
+  // Shows the choice without letting it change, such as on a version only read.
+  disabled?: boolean
 }
 
 export function SearchableSelect({
@@ -38,6 +40,7 @@ export function SearchableSelect({
   onOpen,
   renderSelected,
   renderOption,
+  disabled = false,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false)
   const selected = options.find((candidate) => candidate.value === value)
@@ -65,7 +68,7 @@ export function SearchableSelect({
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <Button id={id} variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal data-[state=open]:ring-1 data-[state=open]:ring-ring/20">
+        <Button id={id} variant="outline" role="combobox" aria-expanded={open} disabled={disabled} className="w-full justify-between font-normal data-[state=open]:ring-1 data-[state=open]:ring-ring/20">
           {selected ? (
             renderSelected?.(selected) ?? defaultRender(selected)
           ) : (

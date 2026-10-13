@@ -131,6 +131,9 @@ module Ability
     BROWSER_SUBMIT = "#{RESOURCE_BROWSER}.#{ACTION_UPDATE}".freeze
     # Posting a message as Firefight in a channel someone names.
     CHANNEL_POST = "#{RESOURCE_CHANNEL_POSTS}.#{ACTION_CREATE}".freeze
+    # Reading a workflow, and building its draft, which is what Halon's proposals to one are.
+    WORKFLOWS_READ = "#{RESOURCE_WORKFLOWS}.#{ACTION_READ}".freeze
+    WORKFLOWS_CREATE = "#{RESOURCE_WORKFLOWS}.#{ACTION_CREATE}".freeze
     # Writes that cannot be taken back once people have read them, like a connected tool's change. A chat asks the person
     # before each one (Conversation::Turn#confirms?) unless they allowed it for the rest of the chat.
     IRREVERSIBLE_KEYS = [ CHANNEL_POST ].freeze

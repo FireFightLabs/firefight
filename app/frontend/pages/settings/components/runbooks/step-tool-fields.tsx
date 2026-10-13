@@ -1,6 +1,6 @@
 import type { SearchableSelectOption } from "@/components/searchable-select"
-import { RunbookToolFields } from "@/pages/settings/components/runbooks/runbook-tool-fields"
-import type { ArgumentsState } from "@/pages/settings/lib/runbook-procedure"
+import { ToolFields } from "@/components/tool-fields/tool-fields"
+import type { ArgumentsState } from "@/lib/tool-fields"
 import type { RunbookToolChoice } from "@/types/serializers"
 
 interface StepToolFieldsProps {
@@ -25,7 +25,7 @@ export function StepToolFields({ stepKey, tool, tools, args, errors, placeholder
           {tool} is not among the tools you can use here, so its arguments are kept as they were saved.
         </p>
       )}
-      <RunbookToolFields
+      <ToolFields
         idPrefix={`step-${stepKey}`}
         fields={choice?.fields ?? null}
         state={args}

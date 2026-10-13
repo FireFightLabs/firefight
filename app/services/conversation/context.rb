@@ -18,7 +18,7 @@ class Conversation::Context
   # the instructions and memories, which depend on who asks and grow during the chat, and the plans. hand_memories counts
   # the memories given as used by this chat, which a turn does and reading a chat back for the bench does not.
   def current(hand_memories: true)
-    [ asker_line, today_line, incident_line, directing_line, investigations_line, instructions_line, memories_line(hand_memories), plans_line ].compact.join("\n")
+    [ asker_line, today_line, incident_line, workflow_line, directing_line, investigations_line, instructions_line, memories_line(hand_memories), plans_line ].compact.join("\n")
   end
 
   private
@@ -56,6 +56,15 @@ class Conversation::Context
     return nil unless incident
 
     "You are in the channel for #{incident.identifier} #{incident.name}, status #{incident.incident_status.name}."
+  end
+
+  # A chat started beside a workflow's canvas is about that workflow, which the person sees change as Halon proposes.
+  def workflow_line
+    workflow = @conversation.workflow
+    return nil unless workflow && FeatureFlags.enabled?(@conversation.workspace, FeatureFlags::WORKFLOWS)
+
+    "You are beside the canvas of the workflow #{workflow.name} (#{workflow.slug}), which the person has open. Read it with " \
+      "#{Chat::Tools::GetWorkflow::NAME} and change it with #{Chat::Tools::ProposeWorkflowEdit::NAME}, and they see each change on the canvas."
   end
 
   # Anyone in an incident's channel can ask in the same thread, so Halon is told whose direction it follows when they

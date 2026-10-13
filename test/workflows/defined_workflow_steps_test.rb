@@ -68,7 +68,7 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
     assert_equal AbilityGateway::SOURCE_WORKFLOW, invocation.source
     assert_equal workflow.agent, invocation.principal
     assert_equal run.ledger_label, invocation.triggered_by_label
-    assert_equal [ invocation.id ], run.steps.find_by!(step_key: "tell").invocation_ids
+    assert_equal [ invocation ], run.steps.find_by!(step_key: "tell").invocations.to_a
   end
 
   test "publishing grants the identity exactly what its steps read, and nothing reaches a tool it was not granted" do

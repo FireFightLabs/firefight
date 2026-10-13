@@ -1,31 +1,46 @@
-# Halon's suggested changes to a workflow, a change set at a time: accepted into the draft, which is published like any
-# change, or dismissed, the whole set or none of it. Two people deciding at once decide once.
+# Halon's suggestions on the canvas, accepted into the draft or dismissed, one at a time or all of one change at once.
+# Each decision is guarded on the model, so two people deciding at once decide once.
 class WorkflowSuggestionsController < InertiaController
-  authorizes Ability::Action::RESOURCE_WORKFLOWS, update: %i[accept dismiss]
+  include WorkflowCanvas
 
-  include RequiresWorkflows
-
-  before_action :set_edits
+  authorizes Ability::Action::RESOURCE_WORKFLOWS, create: %i[accept dismiss accept_all dismiss_all]
 
   def accept
-    Workflow::Edit.transaction { @edits.each { |edit| edit.accept!(by: current_membership) } }
-    redirect_back fallback_location: workflow_path(@workflow), notice: "Halon's suggestion was added to the draft of #{@workflow.name}. Publish it to use it."
-  rescue Workflow::Edit::Refused => refused
-    redirect_back fallback_location: workflow_path(@workflow), alert: refused.message
+    suggestion = suggestions.find(params[:suggestion_id])
+    suggestion.accept!(by: current_membership)
+    back_to_canvas(notice: "Halon's suggestion to #{suggestion.suggestion_words.downcase_first} was accepted.")
+  rescue Workflow::Edit::Refused => error
+    back_to_canvas(alert: error.message)
   end
 
   def dismiss
-    Workflow::Edit.transaction { @edits.each { |edit| edit.dismiss!(by: current_membership) } }
-    redirect_back fallback_location: workflow_path(@workflow), notice: "Halon's suggestion for #{@workflow.name} was dismissed."
-  rescue Workflow::Edit::Refused => refused
-    redirect_back fallback_location: workflow_path(@workflow), alert: refused.message
+    suggestion = suggestions.find(params[:suggestion_id])
+    suggestion.dismiss!(by: current_membership)
+    back_to_canvas(notice: "Halon's suggestion to #{suggestion.suggestion_words.downcase_first} was dismissed.")
+  rescue Workflow::Edit::Refused => error
+    back_to_canvas(alert: error.message)
+  end
+
+  # Every suggestion waiting, or every one of a change when one is named, in the order Halon made them.
+  def accept_all
+    decided = workflow.accept_suggestions!(chosen, by: current_membership)
+    back_to_canvas(notice: "#{decided_words(decided)} accepted.")
+  rescue Workflow::Edit::Refused => error
+    back_to_canvas(alert: error.message)
+  end
+
+  def dismiss_all
+    decided = workflow.dismiss_suggestions!(chosen, by: current_membership)
+    back_to_canvas(notice: "#{decided_words(decided)} dismissed.")
+  rescue Workflow::Edit::Refused => error
+    back_to_canvas(alert: error.message)
   end
 
   private
 
-  def set_edits
-    @workflow = current_workspace.workflows.find(params[:workflow_id])
-    @edits = @workflow.proposals.where(change_set_id: params[:id]).to_a
-    raise ActiveRecord::RecordNotFound, "No suggestion #{params[:id]}" if @edits.empty?
-  end
+  def suggestions = workflow.proposals
+
+  def chosen = params[:change_set_id].present? ? suggestions.where(change_set_id: params[:change_set_id]) : suggestions
+
+  def decided_words(count) = count == 1 ? "Halon's suggestion was" : "#{count} of Halon's suggestions were"
 end

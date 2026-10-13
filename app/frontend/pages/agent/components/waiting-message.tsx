@@ -1,4 +1,4 @@
-import { PersonBubble } from "@/pages/agent/components/person-bubble"
+import { PersonBubble } from "@/components/agent-chat/person-bubble"
 import type { AgentChatAttachment } from "@/types/serializers"
 
 interface WaitingMessageProps {

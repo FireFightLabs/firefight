@@ -210,6 +210,7 @@ export const RUNBOOK_CHOICE_PROPS = {
 
 export const RUNBOOK_FIELD_KINDS = {
   "TEXT": "text",
+  "PARAGRAPH": "paragraph",
   "NUMBER": "number",
   "SELECT": "select",
   "TOGGLE": "toggle",
@@ -1358,6 +1359,12 @@ export const LEDGER_DECISIONS = [
 ] as const
 export type LedgerDecision = (typeof LEDGER_DECISIONS)[number]
 
+export const LEDGER_DECISION = {
+  "ALLOW": "allow",
+  "DENY": "deny",
+  "PENDING": "pending"
+} as const
+
 export const LEDGER_SOURCES = [
   "api",
   "mcp",
@@ -1526,15 +1533,6 @@ export const WORKFLOW_STEP_STATUSES = [
 ] as const
 export type WorkflowStepStatus = (typeof WORKFLOW_STEP_STATUSES)[number]
 
-export const WORKFLOW_STEP_GROUPS = [
-  "halon",
-  "tools",
-  "messages",
-  "waiting",
-  "control"
-] as const
-export type WorkflowStepGroup = (typeof WORKFLOW_STEP_GROUPS)[number]
-
 export const WORKFLOW_FREEZE_BEHAVIOURS = [
   "wait",
   "stop"
@@ -1599,3 +1597,328 @@ export const WORKFLOW_SCHEDULE_LIMITS = {
   "HOURS_MIN": 1,
   "HOURS_MAX": 24
 } as const
+
+export const WORKFLOW_CANVAS_PROPS = {
+  "WORKFLOW": "workflow",
+  "DOCUMENT": "document",
+  "VERSIONS": "versions",
+  "SUGGESTIONS": "suggestions",
+  "HALON_CHANGES": "halonChanges",
+  "STEP_KINDS": "stepKinds",
+  "TRIGGER_KINDS": "triggerKinds",
+  "TOOLS": "tools",
+  "PUBLISH_REQUESTS": "publishRequests",
+  "OTHER_WORKFLOWS": "otherWorkflows",
+  "TIME_ZONES": "timeZones",
+  "TEAMS": "teams",
+  "MY_PUBLISH_REQUEST": "myPublishRequest",
+  "ACCESS": "workflowAccess",
+  "PLACES": "places",
+  "WATCH_READS": "watchReads",
+  "RUNS": "runs",
+  "RUN": "run",
+  "LAST_RUN": "lastRun",
+  "CHAT": "chat",
+  "CHAT_MESSAGES": "chatMessages",
+  "HELPERS": "helpers",
+  "CHAT_WAITING": "chatWaiting",
+  "CHAT_UNAVAILABLE": "chatUnavailable"
+} as const
+
+export const WORKFLOW_VERSION_QUERY_PARAM = "version" as const
+
+export const WORKFLOW_VIEW_QUERY_PARAM = "view" as const
+
+export const WORKFLOW_RUN_QUERY_PARAM = "run" as const
+
+export const WORKFLOW_RUN_STATUS = {
+  "QUEUED": "queued",
+  "RUNNING": "running",
+  "WAITING": "waiting",
+  "PAUSED": "paused",
+  "SUCCEEDED": "succeeded",
+  "FAILED": "failed",
+  "CANCELLED": "cancelled"
+} as const
+
+export const WORKFLOW_STEP_STATUS = {
+  "PENDING": "pending",
+  "RUNNING": "running",
+  "WAITING": "waiting",
+  "SUCCEEDED": "succeeded",
+  "FAILED": "failed",
+  "SKIPPED": "skipped",
+  "BYPASSED": "bypassed",
+  "CANCELLED": "cancelled"
+} as const
+
+export const WORKFLOW_RUN_STARTED_BY_KIND = {
+  "PERSON": "person",
+  "HALON": "halon",
+  "TRIGGER": "trigger",
+  "WORKFLOW": "workflow"
+} as const
+
+export const WORKFLOW_STEP_GROUPS = [
+  "halon",
+  "tools",
+  "incident",
+  "messages",
+  "sandbox",
+  "http",
+  "waiting",
+  "people",
+  "control",
+  "by_hand"
+] as const
+export type WorkflowStepGroup = (typeof WORKFLOW_STEP_GROUPS)[number]
+
+export const WORKFLOW_STEP_GROUP = {
+  "HALON": "halon",
+  "TOOLS": "tools",
+  "INCIDENT": "incident",
+  "MESSAGES": "messages",
+  "SANDBOX": "sandbox",
+  "HTTP": "http",
+  "WAITING": "waiting",
+  "PEOPLE": "people",
+  "CONTROL": "control",
+  "BY_HAND": "by_hand"
+} as const
+
+export const WORKFLOW_STEP_EFFECT = {
+  "READS": "reads",
+  "CHANGES": "changes"
+} as const
+
+export const WORKFLOW_STEP_EDITORS = [
+  "fields",
+  "branch",
+  "delay",
+  "for_each",
+  "run_workflow",
+  "tool",
+  "ask_halon",
+  "watch"
+] as const
+export type WorkflowStepEditor = (typeof WORKFLOW_STEP_EDITORS)[number]
+
+export const WORKFLOW_STEP_EDITOR = {
+  "FIELDS": "fields",
+  "BRANCH": "branch",
+  "DELAY": "delay",
+  "FOR_EACH": "for_each",
+  "RUN_WORKFLOW": "run_workflow",
+  "TOOL": "tool",
+  "ASK_HALON": "ask_halon",
+  "WATCH": "watch"
+} as const
+
+export const WORKFLOW_STEP_ICONS = [
+  "branch",
+  "delay",
+  "event",
+  "loop",
+  "join",
+  "workflow",
+  "tool",
+  "halon",
+  "message",
+  "channel",
+  "incident",
+  "notice",
+  "watch",
+  "skill",
+  "terminal",
+  "globe",
+  "person",
+  "approval",
+  "stop"
+] as const
+export type WorkflowStepIcon = (typeof WORKFLOW_STEP_ICONS)[number]
+
+export const WORKFLOW_TRIGGER_ICONS = [
+  "hand",
+  "schedule",
+  "clock",
+  "incident",
+  "alert",
+  "webhook",
+  "deploy",
+  "halon",
+  "workflow"
+] as const
+export type WorkflowTriggerIcon = (typeof WORKFLOW_TRIGGER_ICONS)[number]
+
+export const WORKFLOW_ASK_HALON = {
+  "QUESTION": "question",
+  "DATA": "data",
+  "FIELDS": "fields",
+  "FIELD_NAME": "name",
+  "FIELD_DESCRIPTION": "description",
+  "FIELD_LIMIT": 10
+} as const
+
+export const WORKFLOW_TRIGGER_EDITOR = {
+  "NONE": "none",
+  "SCHEDULE": "schedule",
+  "ONCE_AT": "once_at"
+} as const
+
+export const WORKFLOW_CALL_TOOL = {
+  "KIND": "call_tool",
+  "TOOL": "tool",
+  "ARGUMENTS": "arguments"
+} as const
+
+export const WORKFLOW_KINDS = {
+  "BRANCH": "branch",
+  "DELAY": "delay",
+  "WAIT_FOR_EVENT": "wait_for_event",
+  "FOR_EACH": "for_each",
+  "JOIN": "join",
+  "RUN_WORKFLOW": "run_workflow"
+} as const
+
+export const WORKFLOW_EDIT_OPERATIONS = {
+  "ADD_STEP": "add_step",
+  "REMOVE_STEP": "remove_step",
+  "MOVE_STEP": "move_step",
+  "CONNECT": "connect",
+  "DISCONNECT": "disconnect",
+  "CHANGE_CONFIG": "change_config",
+  "CHANGE_TRIGGER": "change_trigger",
+  "RENAME": "rename"
+} as const
+
+export const WORKFLOW_VERSION_STATUS = {
+  "DRAFT": "draft",
+  "LIVE": "live",
+  "RETIRED": "retired",
+  "DISCARDED": "discarded"
+} as const
+
+export const WORKFLOW_ON_FAILURE = [
+  "stop",
+  "continue",
+  "error_route"
+] as const
+export type WorkflowOnFailure = (typeof WORKFLOW_ON_FAILURE)[number]
+
+export const WORKFLOW_ON_FAILURE_CHOICE = {
+  "STOP": "stop",
+  "CONTINUE": "continue",
+  "ERROR_ROUTE": "error_route"
+} as const
+
+export const WORKFLOW_BACKOFFS = [
+  "exponential",
+  "linear",
+  "fixed"
+] as const
+export type WorkflowBackoff = (typeof WORKFLOW_BACKOFFS)[number]
+
+export const WORKFLOW_BACKOFF = {
+  "EXPONENTIAL": "exponential",
+  "LINEAR": "linear",
+  "FIXED": "fixed"
+} as const
+
+export const WORKFLOW_MAX_ATTEMPTS = 10 as const
+
+export const WORKFLOW_MAX_CONCURRENCY = 50 as const
+
+export const WORKFLOW_ROUTE_ERROR = "error" as const
+
+export const WORKFLOW_DELAY_UNITS = [
+  "seconds",
+  "minutes",
+  "hours",
+  "days"
+] as const
+export type WorkflowDelayUnit = (typeof WORKFLOW_DELAY_UNITS)[number]
+
+export const WORKFLOW_JOIN_MODES = [
+  "all",
+  "first"
+] as const
+export type WorkflowJoinMode = (typeof WORKFLOW_JOIN_MODES)[number]
+
+export const WORKFLOW_CONDITION_OPERATORS = [
+  "equals",
+  "not_equals",
+  "is_one_of",
+  "contains",
+  "starts_with",
+  "matches_regex",
+  "is_empty",
+  "is_not_empty",
+  "greater_than",
+  "greater_or_equal",
+  "less_than",
+  "less_or_equal"
+] as const
+export type WorkflowConditionOperator = (typeof WORKFLOW_CONDITION_OPERATORS)[number]
+
+export const WORKFLOW_CONDITION_OPERATOR = {
+  "EQUALS": "equals",
+  "NOT_EQUALS": "not_equals",
+  "IS_ONE_OF": "is_one_of",
+  "CONTAINS": "contains",
+  "STARTS_WITH": "starts_with",
+  "MATCHES_REGEX": "matches_regex",
+  "IS_EMPTY": "is_empty",
+  "IS_NOT_EMPTY": "is_not_empty",
+  "GREATER_THAN": "greater_than",
+  "GREATER_OR_EQUAL": "greater_or_equal",
+  "LESS_THAN": "less_than",
+  "LESS_OR_EQUAL": "less_or_equal"
+} as const
+
+export const WORKFLOW_CONFIG_KEYS = {
+  "ROUTES": "routes",
+  "ROUTE": "route",
+  "WHEN": "when",
+  "OTHERWISE": "otherwise",
+  "LEFT": "left",
+  "OPERATOR": "operator",
+  "RIGHT": "right",
+  "UNTIL": "until",
+  "TIME_ZONE": "time_zone",
+  "AT": "at",
+  "ITEMS": "items",
+  "CONCURRENCY": "concurrency",
+  "WORKFLOW": "workflow",
+  "INPUTS": "inputs"
+} as const
+
+export const WORKFLOW_BODY_KEYS = [
+  "steps",
+  "edges",
+  "outputs"
+] as const
+
+export const WORKFLOW_CONDITION_VALUELESS = [
+  "is_empty",
+  "is_not_empty"
+] as const
+
+export const WORKFLOW_CONDITION_JOINS = {
+  "ALL": "all",
+  "ANY": "any"
+} as const
+
+export const WORKFLOW_REFERENCE_ROOTS = {
+  "INPUTS": "inputs",
+  "TRIGGER": "trigger",
+  "STEPS": "steps",
+  "ITEM": "item",
+  "INDEX": "index"
+} as const
+
+export const WORKFLOW_TRIGGER_KEYS = {
+  "KIND": "kind",
+  "INPUTS": "inputs"
+} as const
+
+export const WORKFLOW_INPUT_LIMIT = 10 as const

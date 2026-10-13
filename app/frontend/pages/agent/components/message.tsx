@@ -1,8 +1,9 @@
+import { CODE_AGENT_RELOADS } from "@/pages/agent/lib/chat-updates"
 import { AgentCard } from "@/pages/agent/components/agent-card"
-import { AgentSteps } from "@/pages/agent/components/agent-steps"
-import { AnswerSources } from "@/pages/agent/components/answer-sources"
-import { AnswerText } from "@/pages/agent/components/answer-text"
-import { PersonBubble } from "@/pages/agent/components/person-bubble"
+import { AgentSteps } from "@/components/agent-chat/agent-steps"
+import { AnswerSources } from "@/components/agent-chat/answer-sources"
+import { AnswerText } from "@/components/agent-chat/answer-text"
+import { PersonBubble } from "@/components/agent-chat/person-bubble"
 import { type ChatTurn, TURN_KINDS } from "@/pages/agent/types"
 
 interface MessageProps {
@@ -26,7 +27,7 @@ export function Message({ turn, live = false, onOpenImage }: MessageProps) {
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      {turn.steps.length > 0 && <AgentSteps steps={turn.steps} thinking={live && turn.bodies.length === 0} />}
+      {turn.steps.length > 0 && <AgentSteps steps={turn.steps} thinking={live && turn.bodies.length === 0} reloads={CODE_AGENT_RELOADS} />}
       {turn.bodies.map((body) => (
         <AnswerText key={body.id} text={body.text} />
       ))}

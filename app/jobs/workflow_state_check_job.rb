@@ -11,7 +11,7 @@ class WorkflowStateCheckJob < ApplicationJob
     report = Chat::StateCheck.run(
       owner: owner, workspace: run.workspace, principal: run.acting_principal, source: AbilityGateway::SOURCE_WORKFLOW,
       call: Chat::StateCheck::Call.new(named: named, asked: asked, approved_by: "#{run.workflow.name}, a workflow,"),
-      ledger: { workflow_run_id: run.id, triggered_by_label: run.ledger_label }
+      ledger: { triggered_by_label: run.ledger_label, **Workflow::Run::Step.ledger_context(run, owner.is_a?(Workflow::Run::Step) ? owner : nil) }.compact
     )
     DefinedWorkflow.deliver!(engine_step_id, key, { "state" => report.state, "change" => report.change })
   end
