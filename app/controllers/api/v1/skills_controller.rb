@@ -5,6 +5,9 @@ class Api::V1::SkillsController < Api::V1::ApiController
   before_action :set_skill, only: %i[show update destroy]
   rescue_from Chat::CustomSkillService::Refused, with: :refused
 
+  # Anything else, such as a typo, is refused rather than read as on.
+  ENABLED_VALUES = { "true" => true, "false" => false }.freeze
+
   def index
     authorize!(Ability::Action::RESOURCE_SKILLS, Ability::Action::ACTION_READ)
     @skills = skills.with_usage_counts.includes(:live_version).ordered
@@ -26,7 +29,11 @@ class Api::V1::SkillsController < Api::V1::ApiController
   def update
     authorize!(Ability::Action::RESOURCE_SKILLS, Ability::Action::ACTION_UPDATE)
 
-    enabled = params.key?(:enabled) ? ActiveModel::Type::Boolean.new.cast(params[:enabled]) : nil
+    enabled = params.key?(:enabled) ? ENABLED_VALUES[params[:enabled].to_s] : nil
+    if params.key?(:enabled) && enabled.nil?
+      return render json: error_response("validation_error", "enabled should be true or false."), status: :unprocessable_entity
+    end
+
     service.update!(@skill, by: author, content: content_param, name: params[:name], reason: params[:reason], seen: params[:version_id], enabled: enabled)
     @skill = skills.with_usage_counts.find(@skill.id)
     render :show

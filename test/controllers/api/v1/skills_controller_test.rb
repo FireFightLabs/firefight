@@ -46,6 +46,18 @@ class Api::V1::SkillsControllerTest < ActionDispatch::IntegrationTest
     assert_response :no_content
   end
 
+  test "an enabled that is not true or false is refused and the skill stays as it was" do
+    patch api_v1_skill_url(@skill), params: { enabled: "flase" }.to_json, headers: api_headers(token: @token)
+
+    assert_response :unprocessable_entity
+    assert_equal "enabled should be true or false.", json_response.dig("error", "message")
+    assert @skill.reload.enabled?
+
+    patch api_v1_skill_url(@skill), params: { enabled: "false" }.to_json, headers: api_headers(token: @token)
+    assert_response :success
+    assert_not @skill.reload.enabled?
+  end
+
   test "a skill a workflow runs is not deleted" do
     Workflow.create!(workspace: @workspace, name: "Drill").open_draft!(by: @admin)
             .update_columns(steps: [ { "id" => "step_1", "name" => "drill", "kind" => "run_skill", "config" => { "skill" => "game_day" } } ])

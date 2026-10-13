@@ -11,13 +11,17 @@ class Chat::CustomSkillService
     @workspace = workspace
   end
 
-  def create!(name:, content:, by:, reason: nil)
+  # enabled, when given as false, adds it switched off.
+  def create!(name:, content:, by:, reason: nil, enabled: nil)
     check_tools!(content["tools"])
-    Chat::CustomSkill.create_with!(workspace: @workspace, name: name, content: content, by: by, reason: reason)
+    Chat::CustomSkill.create_with!(workspace: @workspace, name: name, content: content, by: by, reason: reason, **{ enabled: enabled }.compact)
   end
 
-  # content holds only the parts that change. enabled, when given, turns it on or off without a new version.
+  # content holds only the parts that change. enabled, when given, turns it on or off without a new version. seen, when
+  # given, refuses any change, a switch too, made over a version someone has replaced since.
   def update!(skill, by:, content: {}, name: nil, reason: nil, seen: nil, enabled: nil)
+    raise Refused, Chat::CustomSkill::Writing::CHANGED_FIRST if seen.present? && seen != skill.live_version_id
+
     changed = content.compact
     Chat::CustomSkill.transaction do
       if changed.any? || (name.present? && name != skill.name)

@@ -26,9 +26,9 @@ module Mcp
         required: []
       )
 
-      def self.authorization(workspace, args)
-        target = args[:skill].present? ? ListSkills.find!(workspace, args[:skill]) : nil
-        [ Ability::Action::RESOURCE_SKILLS, target ? Ability::Action::ACTION_UPDATE : Ability::Action::ACTION_CREATE ]
+      # Decided from the arguments alone, so a caller who may not change skills is refused before learning which exist.
+      def self.authorization(_workspace, args)
+        [ Ability::Action::RESOURCE_SKILLS, args[:skill].present? ? Ability::Action::ACTION_UPDATE : Ability::Action::ACTION_CREATE ]
       end
 
       def self.perform_with_principal(workspace:, principal:, args:)
@@ -39,7 +39,7 @@ module Mcp
         written = if skill
           service.update!(skill, by: author, content: content, name: args[:name], reason: args[:reason], seen: args[:version_id], enabled: args[:enabled])
         else
-          service.create!(name: args[:name], content: content, by: author, reason: args[:reason])
+          service.create!(name: args[:name], content: content, by: author, reason: args[:reason], enabled: args[:enabled])
         end
         respond(GetSkill.detail(written.reload))
       rescue Chat::CustomSkillService::Refused => error

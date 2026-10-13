@@ -116,7 +116,7 @@ A synced page is read here and changed only at its source, so a write to one ans
 GET    /api/v1/skills          # every skill, without its steps
 GET    /api/v1/skills/:id      # one skill whole, with its tools, steps and version_id
 POST   /api/v1/skills          # name, when, tools, steps, reason
-PATCH  /api/v1/skills/:id      # name, when, tools, steps, reason and enabled, only what is sent, as a new version. version_id refuses a change over someone else's with 409
+PATCH  /api/v1/skills/:id      # name, when, tools, steps, reason and enabled (true or false, anything else is a 422), only what is sent, as a new version. version_id refuses any change over someone else's, a switch too, with 409
 DELETE /api/v1/skills/:id      # the skill and its versions, 422 skill_refused while a workflow runs it
 ```
 

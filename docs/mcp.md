@@ -81,7 +81,7 @@ Results are workspace-scoped to the token, capped at 50 items with explicit `tru
 | `delete_handbook_page` | Delete a page and its history. A synced page refuses with why |
 | `list_skills` | The workspace's own skills, each with when Halon uses it, whether it is on, its version, the Firefight skill it copies and how many workflows run it. Behind `CUSTOM_SKILLS` |
 | `get_skill` | One skill whole by name or id, with its tools, steps and `version_id` |
-| `upsert_skill` | Add a skill (name required) or change one by name or id, only what is sent, as a new version. `version_id` refuses a change over someone else's, the tools are checked against what Halon has, and `enabled` switches it on or off |
+| `upsert_skill` | Add a skill (name required) or change one by name or id, only what is sent, as a new version. `version_id` refuses any change over someone else's, a switch too, the tools are checked against what Halon has, and `enabled` switches it on or off, or adds it switched off |
 | `delete_skill` | Delete a skill and its versions. Refused while a workflow runs it |
 
 Ids never leave the read tools, so every reference here resolves by slug too. `Mcp::ConditionValues` turns a condition into the row it needs: severity and incident type by slug, the custom field by its key, and values by option label or catalog entry slug. Anything matching no record raises rather than storing a condition that saves cleanly and then never fires. `CatalogEntry::ReferenceManagement` resolves reference attributes the same way, guarding the id lookup so a slug reaching a uuid column cannot raise out of the driver.

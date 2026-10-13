@@ -45,6 +45,30 @@ class Mcp::Tools::SkillsTest < ActiveSupport::TestCase
     assert @skill.reload.enabled?
   end
 
+  test "switching a skill with a version_id someone has replaced since is refused" do
+    seen = @skill.live_version_id
+    call(Mcp::Tools::UpsertSkill, @admin, skill: "game_day", steps: "1. Page first.")
+
+    stale = call(Mcp::Tools::UpsertSkill, @admin, skill: "game_day", enabled: false, version_id: seen)
+
+    assert_match "Someone changed this skill", stale.content.sole[:text]
+    assert @skill.reload.enabled?
+  end
+
+  test "a skill added switched off stays off" do
+    call(Mcp::Tools::UpsertSkill, @admin, name: "rotate_keys", when: "Someone asks to rotate keys", tools: [ "declare_incident" ], steps: "1. Declare.", enabled: false)
+
+    assert_not Chat::CustomSkill.find_by!(workspace: @workspace, name: "rotate_keys").enabled?
+  end
+
+  test "a caller who may not change skills learns nothing about which ones exist" do
+    known = call(Mcp::Tools::UpsertSkill, @member, skill: "game_day", steps: "1. Over it.")
+    unknown = call(Mcp::Tools::UpsertSkill, @member, skill: "no_such_skill", steps: "1. Over it.")
+
+    assert_equal known.content.sole[:text], unknown.content.sole[:text]
+    assert_match "lacks 'skills:update' permission", unknown.content.sole[:text]
+  end
+
   test "deleting needs the permission and is refused while a workflow runs the skill" do
     assert call(Mcp::Tools::DeleteSkill, @member, skill: "game_day").error?
 
