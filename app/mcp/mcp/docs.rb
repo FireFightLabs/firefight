@@ -20,5 +20,6 @@ module Mcp
     ON_CALL = "#{BASE}/ai/on-call.md".freeze
     MONITORING = "#{BASE}/ai/monitoring-and-security.md".freeze
     HANDBOOK = "#{BASE}/ai/handbook.md".freeze
+    SKILLS = "#{BASE}/ai/skills.md".freeze
   end
 end

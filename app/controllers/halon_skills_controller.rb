@@ -34,23 +34,22 @@ class HalonSkillsController < InertiaController
   end
 
   def create
-    return if tools_refused?
-
-    skill = Chat::CustomSkill.create_with!(workspace: current_workspace, name: params[:name], content: content_param, by: current_membership,
-                                           reason: params[:reason])
+    skill = writer.create!(name: params[:name], content: content_param, by: current_membership, reason: params[:reason])
     redirect_to halon_skills_path, notice: "#{skill.name} was added. Halon can load it from its next question."
   rescue ActiveRecord::RecordInvalid => error
     form_refused(error.record)
+  rescue Chat::CustomSkillService::ToolsRefused => error
+    form_refused_with(tools: [ error.message ])
   end
 
   def update
-    skill = own.live.find(params[:id])
-    return if tools_refused?(skill)
-
-    version = skill.write!(content_param, by: current_membership, reason: params[:reason], seen: params[:seen_version_id], name: params[:name])
-    redirect_to halon_skills_path, notice: "#{skill.name} was updated to version #{version.number}."
+    skill = writer.update!(own.live.find(params[:id]), by: current_membership, content: content_param, name: params[:name], reason: params[:reason],
+                                                       seen: params[:seen_version_id])
+    redirect_to halon_skills_path, notice: "#{skill.name} was updated to version #{skill.live_version.number}."
   rescue ActiveRecord::RecordInvalid => error
     form_refused(error.record)
+  rescue Chat::CustomSkillService::ToolsRefused => error
+    form_refused_with(tools: [ error.message ])
   rescue Chat::CustomSkill::Writing::Refused => error
     form_refused_with(base: [ error.message ])
   end
@@ -171,6 +170,8 @@ class HalonSkillsController < InertiaController
   private
 
   def own = Chat::CustomSkill.where(workspace: current_workspace)
+
+  def writer = Chat::CustomSkillService.new(current_workspace)
 
   def proposals = Chat::CustomSkill::Version.proposed.joins(:custom_skill).where(chat_custom_skills: { workspace_id: current_workspace.id })
 

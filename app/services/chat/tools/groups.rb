@@ -22,10 +22,12 @@ module Chat::Tools::Groups
   CHANNELS = "channels".freeze
 
   # Ways in for an outside agent. Halon does not ask itself a question, and a chat has its own start_investigation and
-  # its own watches.
+  # its own watches. Halon loads the workspace's skills with use_skill and proposes them with propose_skill, so a skill
+  # never changes on its word alone.
   NOT_FOR_HALON = [
     Mcp::Tools::ASK_HALON, Mcp::Tools::GET_HALON_ANSWER, Mcp::Tools::START_INVESTIGATION, Mcp::Tools::LIST_WATCHES, Mcp::Tools::STOP_WATCH,
-    Mcp::Tools::LIST_WORKFLOWS, Mcp::Tools::CREATE_WORKFLOW, Mcp::Tools::RUN_WORKFLOW
+    Mcp::Tools::LIST_WORKFLOWS, Mcp::Tools::CREATE_WORKFLOW, Mcp::Tools::RUN_WORKFLOW,
+    Mcp::Tools::LIST_SKILLS, Mcp::Tools::GET_SKILL, Mcp::Tools::UPSERT_SKILL, Mcp::Tools::DELETE_SKILL
   ].freeze
 
   # The registry's catch all, whose connections have nothing in common but their kind.

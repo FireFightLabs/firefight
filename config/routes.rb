@@ -64,6 +64,7 @@ Rails.application.routes.draw do
       post "routing/evaluate", to: "routing#evaluate", as: :evaluate_routing
       resources :runbooks, only: [ :index, :show, :create, :update, :destroy ]
       resources :handbook_pages, path: "handbook/pages", only: [ :index, :show, :create, :update, :destroy ]
+      resources :skills, only: [ :index, :show, :create, :update, :destroy ]
 
       resources :abilities, only: [ :index ]
       resources :principals, only: [ :index ]
