@@ -12,7 +12,7 @@ module Workflow::FromLibrary
   class_methods do
     # A new workflow holding the item as it is, as a draft that publishing makes live, as every new workflow is. answers
     # are what the person said to each question the item's trigger asks without a default, such as what a scheduled
-    # check looks at, kept as that question's default so every scheduled run has it. The trigger is the workspace's, so
+    # check looks at, kept as that question's default so every scheduled run has it, sealed with the version when the input is private. The trigger is the workspace's, so
     # this never stops it following the library.
     def from_library!(item, workspace:, by:, name: item.name, following: true, answers: {})
       blocked = from_library_blocked_reason(item, workspace) || name_taken_reason(workspace, name)

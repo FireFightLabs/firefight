@@ -39,7 +39,8 @@ class HalonWorkflowLibraryControllerTest < ActionDispatch::IntegrationTest
     post adopt_halon_library_workflow_path(item.key), params: { answers: { notes: "The orders queue should never pass 1000." } }
     assert_redirected_to halon_workflows_path(tab: WorkflowsController::TAB_LIBRARY)
     workflow = @workspace.workflows.find_by!(library_key: item.key)
-    assert_equal "The orders queue should never pass 1000.", Workflow::Trigger.inputs(workflow.draft.trigger).sole["default"]
+    assert_nil Workflow::Trigger.inputs(workflow.draft.trigger).sole["default"], "the notes are private, so the answer is never in the trigger"
+    assert_equal({ "notes" => "The orders queue should never pass 1000." }, workflow.draft.private_input_values)
     assert workflow.following_library?
   end
 
