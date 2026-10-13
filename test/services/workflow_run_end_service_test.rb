@@ -87,7 +87,9 @@ class WorkflowRunEndServiceTest < ActiveSupport::TestCase
     FirefightAi::WorkflowRepair.any_instance.expects(:suggest).twice.raises(FirefightAi::TransientError, "timed out").then.returns(nil)
 
     run!(workflow)
+    assert_empty workflow.live_version.reload.repair_problem_keys
     run!(workflow)
+    assert_equal 1, workflow.live_version.reload.repair_problem_keys.size
     run!(workflow)
 
     assert_equal 3, workflow.runs.where(status: Workflow::Run::STATUS_FAILED).count
