@@ -146,7 +146,9 @@ module SolidWorkflow
     # running finish.
     def stop(config, step, workflow)
       reason = config[SolidWorkflow::Definition::CONFIG_REASON].to_s.strip
-      raise SolidWorkflow::Stopped, reason.presence || "Stopped." if config[SolidWorkflow::Definition::CONFIG_OUTCOME] == SolidWorkflow::Definition::STOP_FAILED
+      outcome = config[SolidWorkflow::Definition::CONFIG_OUTCOME].to_s.strip.presence || SolidWorkflow::Definition::STOP_SUCCEEDED
+      raise ArgumentError, "Stop ends the run as succeeded or failed, not #{outcome}." unless SolidWorkflow::Definition::STOP_OUTCOMES.include?(outcome)
+      raise SolidWorkflow::Stopped, reason.presence || "Stopped." if outcome == SolidWorkflow::Definition::STOP_FAILED
 
       workflow.stop_others!(step)
       { SolidWorkflow::Definition::OUTPUT_OUTCOME => SolidWorkflow::Definition::STOP_SUCCEEDED, SolidWorkflow::Definition::OUTPUT_REASON => reason }

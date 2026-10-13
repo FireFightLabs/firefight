@@ -111,9 +111,14 @@ class DefinedWorkflow::Steps::AskPerson < DefinedWorkflow::Steps::Base
     SolidWorkflow::Routed.new(output: output, route: route)
   end
 
+  # An answer that won the race with the time limit still counts.
   def unanswered
     question = QUESTION.find_by(engine_step_id: @step.id)
-    WorkflowQuestionJob.perform_later(question.id) if question&.expire!
+    if question&.expire!
+      WorkflowQuestionJob.perform_later(question.id)
+    elsif question&.answered?
+      return answered(question.answer.merge("by" => question.answered_by&.actor_display_name))
+    end
     SolidWorkflow::Routed.new(output: { OUTPUT_ANSWER => nil, OUTPUT_ANSWERED_BY => nil }, route: ROUTE_UNANSWERED)
   end
 end

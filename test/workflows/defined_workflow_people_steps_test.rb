@@ -121,12 +121,26 @@ class DefinedWorkflowPeopleStepsTest < ActiveSupport::TestCase
     question = row(run, "ask").questions.sole
 
     assert_equal "Answer What went wrong.", WorkflowQuestionService.answer!(question, by: @bob, values: { "reason" => " " }).words
+    assert_equal "This question offers no choices.", WorkflowQuestionService.answer!(question, by: @bob, choice: "skip_ahead", values: { "reason" => "Cold." }).words
     perform_enqueued_jobs(except: QUIET) { WorkflowQuestionService.answer!(question, by: @bob, values: { "reason" => "The cache was cold." }) }
 
     run.reload
     assert_equal Workflow::Run::STATUS_SUCCEEDED, run.status, run.error
     assert_equal "answered", row(run, "ask").route
     assert_equal "The cache was cold.", row(run, "ask").output["reason"]
+  end
+
+  test "an answer that lands as the time runs out still carries the run its way" do
+    run = start(ask_bob)
+    question = row(run, "ask").questions.sole
+    question.answer!(by: @bob, choice: "wait", values: {})
+
+    sweep(25.hours)
+
+    run.reload
+    assert_equal "wait", row(run, "ask").route
+    assert_equal({ "answer" => "wait", "answered_by" => @bob.actor_display_name }, row(run, "ask").output)
+    assert_equal Workflow::Run::Question::STATUS_ANSWERED, question.reload.status
   end
 
   test "a question nobody answers in time is withdrawn and the step takes its unanswered route" do

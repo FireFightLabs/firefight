@@ -33,6 +33,33 @@ class SolidWorkflow::StopTest < ActiveSupport::TestCase
     assert_match "No deploy today", stop.last_error
   end
 
+  test "a stop whose outcome fills to something it does not know fails the run rather than ending it as succeeded" do
+    definition = { "steps" => [ step("stop", "stop", { "outcome" => "{{inputs.outcome}}", "reason" => "Not today" }), step("after", "echo") ],
+                   "edges" => [ edge("stop", "after") ] }
+
+    workflow = run_definition(definition, context: { "inputs" => { "outcome" => "Failed" } })
+
+    assert workflow.failed?
+    assert_match "succeeded or failed", workflow.steps.find_by!(name: "stop").last_error
+  end
+
+  test "a stop cancels what every step it leaves started, a for each between its items too" do
+    definition = {
+      "steps" => [ step("each", "for_each", { "items" => %w[web api], "concurrency" => 2,
+                                              "steps" => [ step("hold", "wait_for_event", { "event" => "go", "key" => "{{item}}" }, timeout_seconds: 600) ],
+                                              "edges" => [] }), step("stop", "echo") ],
+      "edges" => []
+    }
+    workflow = run_definition(definition)
+    each_step = workflow.steps.find_by!(name: "each")
+    each_step.update_columns(status: SolidWorkflow::Step.statuses.fetch("pending"))
+
+    workflow.stop_others!(workflow.steps.find_by!(name: "stop"))
+
+    assert_equal "bypassed", each_step.reload.status
+    assert(each_step.children.reload.all?(&:cancelled?))
+  end
+
   test "a stop that fails says why" do
     problems = SolidWorkflow::Definition.new({ "steps" => [ step("stop", "stop", { "outcome" => "failed" }) ], "edges" => [] }).problems
 

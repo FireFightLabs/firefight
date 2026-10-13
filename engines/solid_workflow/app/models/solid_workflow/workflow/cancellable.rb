@@ -19,16 +19,15 @@ module SolidWorkflow
       end
 
       # A Stop step ending the run as succeeded leaves every other step not yet run as bypassed, in one statement each,
-      # and cancels the runs the waiting ones started.
+      # and cancels the runs any of them started, a for each pending between its items among them.
       def stop_others!(stopping)
         others = steps.where.not(id: stopping.id).where(status: %i[pending waiting]).to_a
-        waiting = others.select(&:waiting?).map(&:id)
         now = Time.current
-        others.each do |other|
-          moved = SolidWorkflow::Step.where(id: other.id, status: other.status).update_all(status: :bypassed, completed_at: now, updated_at: now) == 1
-          record_event(SolidWorkflow::Events::Step::BYPASSED, step: other) if moved
+        bypassed = others.select do |other|
+          SolidWorkflow::Step.where(id: other.id, status: other.status).update_all(status: :bypassed, completed_at: now, updated_at: now) == 1
         end
-        cancel_children!(reason: "stopped", by: nil, step_ids: waiting) if waiting.any?
+        bypassed.each { |other| record_event(SolidWorkflow::Events::Step::BYPASSED, step: other) }
+        cancel_children!(reason: "stopped", by: nil, step_ids: bypassed.map(&:id)) if bypassed.any?
       end
 
       # Sub workflows and for each items this run started end with it.

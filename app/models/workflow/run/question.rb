@@ -56,6 +56,7 @@ class Workflow::Run::Question < ApplicationRecord
   # What is wrong with an answer, or nil. It needs one of the choices when there are any, and every field of the form filled.
   def answer_problem(choice, values)
     return "Pick one of the choices." if choices.any? && !choices.include?(choice.to_s)
+    return "This question offers no choices." if choices.empty? && choice.present?
     return "Answer #{fields.map { |field| field[FIELD_LABEL] }.first}." if form? && fields.any? { |field| values.to_h[field[FIELD_NAME]].to_s.strip.empty? }
     return "Keep each answer to #{ANSWER_LIMIT.to_fs(:delimited)} characters." if values.to_h.values.any? { |value| value.to_s.length > ANSWER_LIMIT }
 
