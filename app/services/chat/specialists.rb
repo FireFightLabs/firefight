@@ -102,7 +102,7 @@ module Chat::Specialists
   # The decision reads a few columns of the connections' switched on tools and sums the length each tool's row keeps
   # (Integration::Tool#definition_chars), so the catalogue is built only when the turn is handed its tools. It leaves out
   # the tools the catalogue does (a capability's, and a change on a turn that only reads), and counts every other switched
-  # on tool, including a change the asker holds no grant for, by its own name, description and schema.
+  # on tool, including a change the asker holds no grant for, by its own name, description and offered schema.
   def self.ask?(turn, choice)
     case mode
     when FirefightAi::Configuration::SPECIALISTS_ON then true

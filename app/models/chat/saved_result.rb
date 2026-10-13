@@ -1,5 +1,6 @@
 # What a tool said, kept whole because it was too large to hand the model in one piece. The agent
-# is shown how it starts and ends, and reads the rest by line or by search.
+# is shown how it starts and ends, and reads the rest by line or by search. A workflow run keeps a step's large answer
+# the same way, so each belongs to a chat or to a run.
 class Chat::SavedResult < ApplicationRecord
   self.table_name = "chat_saved_results"
 
@@ -10,16 +11,18 @@ class Chat::SavedResult < ApplicationRecord
 
   Match = Data.define(:line, :lines)
 
-  belongs_to :chat
+  belongs_to :chat, optional: true
+  belongs_to :workflow_run, class_name: "Workflow::Run", optional: true, inverse_of: :saved_results
 
   # Tool output is the customer's data.
   encrypts :content
 
   validates :handle, :tool_name, presence: true
+  validate :one_owner
 
   scope :in_order, -> { order(:created_at, :handle) }
 
-  # Called on a chat's own results, so the name counts within that chat. One worker holds a chat
+  # Called on a chat's or a run's own results, so the name counts within it. One worker holds a chat
   # at a time, and the unique index settles it if two ever meet.
   def self.keep!(tool_name:, text:, step: nil)
     kept = text.to_s[0, MAX_KEPT]
@@ -49,6 +52,10 @@ class Chat::SavedResult < ApplicationRecord
   end
 
   private
+
+  def one_owner
+    errors.add(:base, "belongs to a chat or a workflow run") unless [ chat_id, workflow_run_id ].compact.size == 1
+  end
 
   def all_lines = @all_lines ||= content.lines.map(&:chomp)
 end

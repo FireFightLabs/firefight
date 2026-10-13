@@ -252,6 +252,10 @@ staging:
     class: TranscriptRetentionJob # drops raw incident conversations once the workspace's retention window has passed
     queue: background
     schedule: at 4am every day
+  workflow_run_retention:
+    class: WorkflowRunRetentionJob # drops workflow run details once the workspace's run retention has passed, keeping each run's summary
+    queue: background
+    schedule: at 4:30am every day
   chat_attachment_sweep:
     class: ChatAttachmentSweepJob # lets go of files uploaded for a message to Halon and never sent
     queue: background
@@ -414,6 +418,10 @@ production:
     class: TranscriptRetentionJob # drops raw incident conversations once the workspace's retention window has passed
     queue: background
     schedule: at 4am every day
+  workflow_run_retention:
+    class: WorkflowRunRetentionJob # drops workflow run details once the workspace's run retention has passed, keeping each run's summary
+    queue: background
+    schedule: at 4:30am every day
   chat_attachment_sweep:
     class: ChatAttachmentSweepJob # lets go of files uploaded for a message to Halon and never sent
     queue: background

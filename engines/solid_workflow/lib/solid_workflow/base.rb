@@ -3,7 +3,10 @@ module SolidWorkflow
     include SolidWorkflow::IdempotentSteps
 
     class << self
+      # One registry for every class, however deep it inherits, such as a host's subclass of the interpreter.
       def registry
+        return SolidWorkflow::Base.registry unless equal?(SolidWorkflow::Base)
+
         @registry ||= {}
       end
 
@@ -35,14 +38,36 @@ module SolidWorkflow
         @steps ||= []
       end
 
-      def start!(subject, context: {})
-        wf = create_workflow!(subject, context)
+      # Whether the host lets a run of this class move now. Asked before any step is claimed or enqueued and by the
+      # sweeper, so a run held back keeps its place and carries on once let.
+      def runnable?(_workflow) = true
+
+      # Told of every event a run of this class records, so a host can keep its own record of the run.
+      def observe(_workflow, _event); end
+
+      # What a finished run hands back to whoever started it.
+      def result_of(_workflow) = nil
+
+      # Step data on its way into a stored row, so a host can redact it.
+      def clean(data, workflow:, step:) = data
+
+      # Step kinds the host runs, beside the engine's own.
+      def action_kinds = []
+
+      # One start key gives one run, however many times it is started.
+      def start!(subject, context: {}, start_key: nil)
+        wf = create_workflow!(subject, context, start_key: start_key)
         wf.enqueue_next_steps
         wf
       end
 
-      def start_inline!(subject, context: {}, max_iterations: 100)
-        wf = create_workflow!(subject, context)
+      def start_inline!(subject, context: {}, max_iterations: 100, start_key: nil)
+        wf = create_workflow!(subject, context, start_key: start_key)
+        drain_inline!(wf, max_iterations: max_iterations)
+      end
+
+      # Runs every step that is ready, then the ones that became ready, in this process, until none is.
+      def drain_inline!(wf, max_iterations: 100)
         iteration = 0
 
         loop do
@@ -75,14 +100,17 @@ module SolidWorkflow
 
       private
 
-      def create_workflow!(subject, context)
-        if steps.empty?
+      def create_workflow!(subject, context, start_key: nil, **options)
+        if start_key && (existing = SolidWorkflow::Workflow.find_by(start_key: start_key))
+          return existing
+        end
+
+        rows = step_rows(**options)
+        if rows.empty?
           raise ArgumentError, "#{name} must define at least one step. Use the 'step' DSL method to define workflow steps."
         end
 
-        validate_steps!
-
-        SolidWorkflow::Workflow.transaction do
+        SolidWorkflow::Workflow.transaction(requires_new: true) do
           wf = SolidWorkflow::Workflow.create!(
             name: workflow_name,
             workflow_class: name,
@@ -90,25 +118,39 @@ module SolidWorkflow
             subject_id: subject.id,
             context: context,
             state: :pending,
-            workflow_config: workflow_config
+            workflow_config: workflow_config,
+            start_key: start_key,
+            **workflow_attributes(**options)
           )
 
-          steps.each_with_index do |step_def, index|
-            merged_retry = (step_def[:retry_config] || default_retry_config).dup
-            merged_retry["queue"] = step_def[:queue] if step_def[:queue]
-
-            wf.steps.create!(
-              name: step_def[:name],
-              depends_on: step_def[:depends_on],
-              status: :pending,
-              position: index,
-              retry_config: merged_retry,
-              max_attempts: step_def.dig(:retry_config, :max_attempts) || SolidWorkflow.max_default_attempts
-            )
+          rows.each_with_index do |row, index|
+            wf.steps.create!(row.merge(status: row[:status] || :pending, position: index))
           end
 
           wf.record_event(SolidWorkflow::Events::Workflow::STARTED)
           wf
+        end
+      rescue ActiveRecord::RecordNotUnique
+        raise unless start_key
+
+        SolidWorkflow::Workflow.find_by!(start_key: start_key)
+      end
+
+      def workflow_attributes(**) = {}
+
+      def step_rows(**)
+        validate_steps!
+
+        steps.map do |step_def|
+          merged_retry = (step_def[:retry_config] || default_retry_config).dup
+          merged_retry["queue"] = step_def[:queue] if step_def[:queue]
+
+          {
+            name: step_def[:name],
+            depends_on: step_def[:depends_on],
+            retry_config: merged_retry,
+            max_attempts: step_def.dig(:retry_config, :max_attempts) || SolidWorkflow.max_default_attempts
+          }
         end
       end
 

@@ -5,7 +5,7 @@ module SolidWorkflow
 
       def pause!(reason: nil, by: nil)
         transaction do
-          return unless transition!(:paused, from: %i[pending running],
+          return unless transition!(:paused, from: %i[pending running waiting],
                                     paused_at: Time.current, paused_by: by, pause_reason: reason,
                                     resumed_at: nil, resumed_by: nil)
 

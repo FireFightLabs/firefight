@@ -42,7 +42,7 @@ module SolidWorkflow
         # Filtered in Postgres so every active workflow is not loaded just to check a timeout.
         # The regex guard keeps one non-numeric value from breaking the whole sweep.
         def timed_out
-          active.where(
+          live.where(
             "workflow_config->>'timeout' ~ '^[0-9]+$' AND " \
             "EXTRACT(EPOCH FROM (now() - COALESCE(started_at, created_at))) > " \
             "(workflow_config->>'timeout')::int"
@@ -60,7 +60,7 @@ module SolidWorkflow
       end
 
       def timed_out?
-        return false unless active?
+        return false unless active? || waiting?
 
         timeout_seconds = Integer(workflow_config["timeout"].to_s, exception: false)
         return false unless timeout_seconds

@@ -18,6 +18,7 @@ class Integration::Tool < ApplicationRecord
   scope :in_workspace, ->(workspace) { switched_on_in(workspace).eager_load(:ability_action, integration: :integration_environments) }
 
   # How long its definition is, as FirefightAi.fits_up_front? counts it, so whether many tools fit is one sum.
+  # Counted on the offered schema, with the environment and scope arguments a model is handed, not the tool's own.
   before_save :count_definition_chars, if: -> { new_record? || will_save_change_to_name? || will_save_change_to_description? || will_save_change_to_params_schema? }
 
   # Synced on every mirrored attribute, a stale risk_level on the action
@@ -74,6 +75,9 @@ class Integration::Tool < ApplicationRecord
     schema["properties"] = (schema["properties"] || {}).merge(ENVIRONMENT_ARG => environment).merge(Integrations::Scopes.argument(integration).to_h)
     schema
   end
+
+  # How long the definition a model is handed is: its name, description and offered schema, as fits_up_front? counts them.
+  def definition_length = name.to_s.size + description.to_s.size + offered_schema.to_json.size
 
   # Names only the environments this connection has, since an example it lacks is what a model then sends.
   def environment_description
@@ -209,7 +213,7 @@ class Integration::Tool < ApplicationRecord
   end
 
   def count_definition_chars
-    self.definition_chars = name.to_s.size + description.to_s.size + params_schema.to_json.size
+    self.definition_chars = definition_length
   end
 
   def ability_action_stale?

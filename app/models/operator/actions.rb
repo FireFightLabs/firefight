@@ -7,7 +7,7 @@ module Operator
     end
 
     def self.pause_blocked_reason(workflow)
-      "Only a waiting or running workflow can be paused." unless workflow.pending? || workflow.running?
+      "Only a waiting or running workflow can be paused." unless workflow.pending? || workflow.running? || workflow.waiting?
     end
 
     def self.resume_blocked_reason(workflow)
@@ -15,7 +15,7 @@ module Operator
     end
 
     def self.cancel_blocked_reason(workflow)
-      "This workflow has already finished." unless workflow.pending? || workflow.running? || workflow.paused?
+      "This workflow has already finished." unless workflow.pending? || workflow.running? || workflow.waiting? || workflow.paused?
     end
 
     def self.regression_blocked_reason

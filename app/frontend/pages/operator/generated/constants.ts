@@ -3,6 +3,7 @@
 export const OPERATOR_WORKFLOW_STATES = {
   "PENDING": "pending",
   "RUNNING": "running",
+  "WAITING": "waiting",
   "PAUSED": "paused",
   "SUCCEEDED": "succeeded",
   "FAILED": "failed",
@@ -12,9 +13,11 @@ export const OPERATOR_WORKFLOW_STATES = {
 export const OPERATOR_STEP_STATUSES = {
   "PENDING": "pending",
   "RUNNING": "running",
+  "WAITING": "waiting",
   "SUCCEEDED": "succeeded",
   "FAILED": "failed",
   "SKIPPED": "skipped",
+  "BYPASSED": "bypassed",
   "CANCELLED": "cancelled"
 } as const
 
