@@ -60,6 +60,12 @@ class SolidWorkflow::StopTest < ActiveSupport::TestCase
     assert(each_step.children.reload.all?(&:cancelled?))
   end
 
+  test "a stop always ends the run, so it takes no failure setting that would carry on past it" do
+    definition = { "steps" => [ step("stop", "stop", { "outcome" => "failed", "reason" => "No" }, on_failure: "continue") ], "edges" => [] }
+
+    assert_includes SolidWorkflow::Definition.new(definition).problems, "stop ends the run when it fails, so it cannot carry on or take an error route."
+  end
+
   test "a stop that fails says why" do
     problems = SolidWorkflow::Definition.new({ "steps" => [ step("stop", "stop", { "outcome" => "failed" }) ], "edges" => [] }).problems
 

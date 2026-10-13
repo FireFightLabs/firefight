@@ -143,6 +143,31 @@ class DefinedWorkflowPeopleStepsTest < ActiveSupport::TestCase
     assert_equal Workflow::Run::Question::STATUS_ANSWERED, question.reload.status
   end
 
+  test "an answer after the time limit is refused even before the run moves on" do
+    run = start(ask_bob)
+    question = row(run, "ask").questions.sole
+
+    travel(25.hours) do
+      refused = WorkflowQuestionService.answer!(question, by: @bob, choice: "wait")
+      assert_equal "This question is no longer asked.", refused.words
+      assert_not question.answer!(by: @bob, choice: "wait", values: {})
+    end
+    assert question.reload.open?
+  end
+
+  test "a message sent as the question is settled is redrawn rather than left asking" do
+    run = start(ask_bob)
+    question = row(run, "ask").questions.sole
+    question.update_columns(notifications: [])
+    @adapter.any_instance.stubs(:post_workflow_question).with { |**| question.answer!(by: @bob, choice: "wait", values: {}) || true }
+            .returns({ channel_id: "D-LATE", message_id: "9.9" })
+    @adapter.any_instance.expects(:update_workflow_question).with { |channel_id:, message_id:, question:| channel_id == "D-LATE" && question.answered? }.returns({ success: true })
+
+    WorkflowQuestionService.ask!(question.reload)
+
+    assert_empty question.reload.notifications
+  end
+
   test "a question nobody answers in time is withdrawn and the step takes its unanswered route" do
     run = start(ask_bob)
     question = row(run, "ask").questions.sole

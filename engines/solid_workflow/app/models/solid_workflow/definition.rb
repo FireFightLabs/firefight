@@ -133,6 +133,9 @@ module SolidWorkflow
       if step["on_failure"] == ON_FAILURE_ERROR_ROUTE && edges.none? { |edge| edge["from"] == step["id"] && edge["route"] == ROUTE_ERROR }
         found << "#{label} takes the error route when it fails, so it needs an error route to take."
       end
+      if step["kind"] == KIND_STOP && TOLERATED_FAILURES.include?(step["on_failure"])
+        found << "#{label} ends the run when it fails, so it cannot carry on or take an error route."
+      end
       found.concat(retry_problems(step["retry"], label))
     end
 

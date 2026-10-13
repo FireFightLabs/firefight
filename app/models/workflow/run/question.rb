@@ -47,7 +47,7 @@ class Workflow::Run::Question < ApplicationRecord
   # Why this member cannot answer it now, or nil when they can.
   def answer_blocked_reason(member)
     return "#{answered_by&.actor_display_name || 'Someone'} already answered this." if answered?
-    return "This question is no longer asked." if expired? || !waiting?
+    return "This question is no longer asked." if expired? || due_at <= Time.current || !waiting?
     return "Only #{asked_members.map(&:actor_display_name).to_sentence(two_words_connector: ' or ', last_word_connector: ', or ')} can answer this." unless answerer?(member)
 
     nil
@@ -63,12 +63,12 @@ class Workflow::Run::Question < ApplicationRecord
     nil
   end
 
-  # Settles it with the answer, only while it is open. Answers whether this answer won.
+  # Settles it with the answer, only while it is open and before its time is up. Answers whether this answer won.
   def answer!(by:, choice:, values:)
     kept = fields.to_h { |field| [ field[FIELD_NAME], values.to_h[field[FIELD_NAME]].to_s.strip ] }
     answer = { ANSWER_CHOICE => choice.presence, ANSWER_FIELDS => kept }
     now = Time.current
-    won = self.class.where(id: id, status: STATUS_OPEN)
+    won = self.class.where(id: id, status: STATUS_OPEN).where("due_at > ?", now)
                     .update_all(status: STATUS_ANSWERED, answer: answer, answered_by_id: by.id, answered_at: now, updated_at: now) == 1
     reload
     won
@@ -82,10 +82,14 @@ class Workflow::Run::Question < ApplicationRecord
     moved
   end
 
+  # Keeps where it was sent, only while it is open, so a settlement's redraw reaches it. False when it was settled
+  # meanwhile, and the caller redraws that message itself.
   def add_notification!(channel_id:, message_id:, member_id:)
     entry = [ { "channel_id" => channel_id, "message_id" => message_id, "member_id" => member_id } ].to_json
-    self.class.where(id: id).update_all([ "notifications = notifications || ?::jsonb, updated_at = ?", entry, Time.current ])
+    kept = self.class.where(id: id, status: STATUS_OPEN)
+                     .update_all([ "notifications = notifications || ?::jsonb, updated_at = ?", entry, Time.current ]) == 1
     reload
+    kept
   end
 
   # The step is still parked for it.

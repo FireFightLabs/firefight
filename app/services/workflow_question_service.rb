@@ -17,7 +17,9 @@ class WorkflowQuestionService
       next if member.platform_user_id.blank?
 
       sent = adapter.post_workflow_question(user_id: member.platform_user_id, question: question)
-      question.add_notification!(channel_id: sent[:channel_id], message_id: sent[:message_id], member_id: member.id)
+      next if question.add_notification!(channel_id: sent[:channel_id], message_id: sent[:message_id], member_id: member.id)
+
+      adapter.update_workflow_question(channel_id: sent[:channel_id], message_id: sent[:message_id], question: question)
     rescue AdapterError => error
       Rails.logger.warn({ event: "workflow_question.ask_failed", question_id: question.id, error: error.class.name }.to_json)
     end
