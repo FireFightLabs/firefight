@@ -54,7 +54,7 @@ class AgentChatPagingTest < ApplicationSystemTestCase
 
     scroll_thread_to_top
     assert_text "Question 0"
-    assert_equal 60, all("#{THREAD} p", text: /\AQuestion \d+\z/).size, "every question once, none dropped or repeated"
+    assert_selector "#{THREAD} p", text: /\AQuestion \d+\z/, count: 60
     assert_no_text "Loading earlier messages"
   end
 
