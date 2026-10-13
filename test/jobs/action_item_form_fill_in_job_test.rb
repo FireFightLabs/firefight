@@ -28,6 +28,13 @@ class ActionItemFormFillInJobTest < ActiveJob::TestCase
     ActionItemFormFillInJob.perform_now(@workspace.id, @incident.id, "action", "V12345678", @state)
   end
 
+  test "an older message read back in place of a deleted one leaves the form empty" do
+    Slack::Client.stubs(:get_message).returns({ "ts" => "1699999999.000900", "text" => "Something said earlier" })
+    Slack::Client.expects(:update_modal).never
+
+    ActionItemFormFillInJob.perform_now(@workspace.id, @incident.id, "action", "V12345678", @state)
+  end
+
   test "a form closed before it is filled in is left alone and the job ends quietly" do
     Slack::Client.stubs(:get_message).returns({ "ts" => "1700000000.000100", "text" => "The database is slow" })
     Slack::WorkspaceAdapter.any_instance.stubs(:update_modal).raises(AdapterError::NotFound.new("not_found"))

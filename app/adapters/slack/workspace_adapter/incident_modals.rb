@@ -107,7 +107,11 @@ module Slack::WorkspaceAdapter::IncidentModals
     state = ModalState.parse(private_metadata)
     return unless state.source_message_id && state.channel_id
 
-    description = readable(fetch_message(channel_id: state.channel_id, message_id: state.source_message_id)[:text])
+    message = fetch_message(channel_id: state.channel_id, message_id: state.source_message_id)
+    # Slack hands back the newest message at or before the one asked for, so a deleted message reads as an older one.
+    return unless message[:message_id] == state.source_message_id
+
+    description = readable(message[:text])
     return if description.blank?
 
     update_modal(view_id: view_id, view: Slack::Modals::ActionItemsForm.build(incident, kind: kind, private_metadata: private_metadata, description: description))
