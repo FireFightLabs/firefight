@@ -58,7 +58,7 @@ class Investigation::Notice < ApplicationRecord
   # The same problem gets the same key every time: the provider's reference when it has one, its resource on the map
   # when it is about one, else its topic in words, with the resource it names when that is not on the map.
   def self.key_for(signal, resource: nil, topic: nil, reference: nil, resource_words: nil)
-    named = [ (resource_words.to_s.parameterize.presence unless resource), topic.to_s.parameterize.presence ].compact.join(":")
+    named = [ (resource_words.to_s.squish.downcase.presence unless resource), topic.to_s.parameterize.presence ].compact.join(":")
     "#{signal}:#{reference.presence || resource&.id || named.presence || 'general'}"
   end
 
