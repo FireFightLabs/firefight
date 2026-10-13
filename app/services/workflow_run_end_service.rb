@@ -4,6 +4,9 @@
 # asks for an all clear says so in one line when a run found nothing to raise or post. A test run and a run another
 # workflow started say nothing, since someone is looking at them. Each run is told once.
 class WorkflowRunEndService
+  # A place that will not take the notice however often it is tried, so the next place is tried instead.
+  UNREACHABLE = [ AdapterError::NotFound, AdapterError::NotInChannel, AdapterError::IsArchived ].freeze
+
   def initialize(run)
     @run = run
     @workflow = run.workflow
@@ -26,14 +29,27 @@ class WorkflowRunEndService
     end
   end
 
+  # Counted as told only once it lands. The team's channel first, and whoever published the workflow, by direct message,
+  # when the workflow has no team or its channel cannot be posted in. A platform error gives the claim back and raises,
+  # so WorkflowRunEndedJob tries again later, with the fix Halon already suggested rather than a new one.
   def tell_failed!
-    suggested = suggest_repair!
-    place = where_to_tell
-    return unless place
+    suggested = @workflow.edits.exists?(source_run_id: @run.id) || suggest_repair!
+    told = [ where_to_tell, publisher ].compact.uniq.any? { |place| told_failure?(place, suggested) }
+    return if told
 
+    Rails.logger.warn({ event: "workflow_run.failure_untold", run_id: @run.id, reason: "nowhere_to_tell" }.to_json)
+    @run.release_telling!
+  rescue AdapterError
+    @run.release_telling!
+    raise
+  end
+
+  def told_failure?(place, suggested)
     adapter.post_workflow_failure(channel_id: place, run: @run, suggestion: suggested)
-  rescue AdapterError => error
-    Rails.logger.warn({ event: "workflow_run.failure_untold", run_id: @run.id, error: error.class.name }.to_json)
+    true
+  rescue *UNREACHABLE => error
+    Rails.logger.warn({ event: "workflow_run.failure_place_unreachable", run_id: @run.id, error: error.class.name }.to_json)
+    false
   end
 
   def tell_all_clear!
@@ -49,7 +65,11 @@ class WorkflowRunEndService
   # The owning team's channel, else whoever published it, by direct message.
   def where_to_tell
     team = @workflow.owner_team&.role_value(CatalogAttributeDefinition::ROLE_NOTIFICATION_CHANNEL).presence
-    team || @run.version.published_by&.platform_user_id.presence || @workflow.live_version&.published_by&.platform_user_id.presence
+    team || publisher
+  end
+
+  def publisher
+    @run.version.published_by&.platform_user_id.presence || @workflow.live_version&.published_by&.platform_user_id.presence
   end
 
   # Halon reads why the step failed and, when its settings caused it, suggests a change as a proposal on the workflow,

@@ -96,6 +96,11 @@ class Workflow::Run < ApplicationRecord
     self.class.where(id: id, told_at: nil, status: FINISHED).update_all(told_at: Time.current, updated_at: Time.current) == 1
   end
 
+  # Gives the claim back when nothing was told, so the next try may take it.
+  def release_telling!
+    self.class.where(id: id).where.not(told_at: nil).update_all(told_at: nil, updated_at: Time.current)
+  end
+
   # The one run a start key names, made the first time it is asked for. Returns the run and whether it is new.
   def self.open!(workflow:, start_key:, **attributes)
     existing = workflow.runs.find_by(start_key: start_key)
