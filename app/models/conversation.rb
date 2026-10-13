@@ -40,6 +40,8 @@ class Conversation < ApplicationRecord
   has_many :handbook_proposals, class_name: "Chat::HandbookProposal", dependent: :nullify
   # Pull request news for this chat. The notice belongs to its session and outlives the chat.
   has_many :pull_request_notices, class_name: "CodeAgentSession::Notice", dependent: :nullify, inverse_of: :conversation
+  # Code changes from this chat that reached their spending limit, each asking Continue or Stop. They belong to their session.
+  has_many :code_pauses, class_name: "CodeAgentSession::Pause", dependent: :nullify, inverse_of: :conversation
   # Every thread a direct message chat was asked in, so a reply in an earlier one still reaches it.
   has_many :thread_links, class_name: "Conversation::ThreadLink", dependent: :delete_all
   # The tracker's session a chat started in an issue answers in.

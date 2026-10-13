@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_13_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_13_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -3348,6 +3348,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_130000) do
     t.boolean "halon_security_events_enabled", default: true, null: false
     t.boolean "halon_applies_workflow_read_fixes", default: false, null: false
     t.integer "workflow_run_retention_days", default: 90, null: false
+    t.integer "code_fix_budget_cents", default: 200, null: false
     t.index ["created_by_id"], name: "index_workspaces_on_created_by_id"
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
     t.index ["issue_webhook_token"], name: "index_workspaces_on_issue_webhook_token", unique: true

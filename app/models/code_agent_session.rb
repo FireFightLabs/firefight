@@ -5,8 +5,6 @@
 class CodeAgentSession < ApplicationRecord
   include CodeAgentSession::PullRequest
 
-  # A coding agent asks the model many times on one change, so the budget covers the change, not a call.
-  DEFAULT_BUDGET_MICROS = 2_000_000
   # The key of a box opened for a session that no run holds.
   CODE_BOX_PREFIX = "code-agent-".freeze
   LIFETIME = 30.minutes
@@ -35,12 +33,13 @@ class CodeAgentSession < ApplicationRecord
 
   # The session and the token the box sends, which is shown once and kept only as a digest.
   # request is the CodeAgent::Request the change was asked with, nil for a change nobody asked for in person.
-  # box_key names the box the run reads code in, which the agent's reads share.
-  def self.open!(workspace:, choice:, repository:, request: nil, box_key: nil, budget_micros: DEFAULT_BUDGET_MICROS)
+  # box_key names the box the run reads code in, which the agent's reads share. A coding agent asks the model many times
+  # on one change, so the budget covers the change, not a call, and is the workspace's unless one is given.
+  def self.open!(workspace:, choice:, repository:, request: nil, box_key: nil, budget_micros: nil)
     token = SecureRandom.urlsafe_base64(TOKEN_BYTES)
     payer = choice.payer || AiPayer.deployment(workspace)
     session = create!(workspace: workspace, provider: choice.provider_name, model: choice.model, repository: repository,
-                      budget_micros: budget_micros, expires_at: LIFETIME.from_now, token_digest: digest(token),
+                      budget_micros: budget_micros || workspace.code_fix_budget_micros, expires_at: LIFETIME.from_now, token_digest: digest(token),
                       paid_by: payer.paid_by, workspace_ai_account: payer.account, principal: request&.principal,
                       place: request&.place, tool_call_id: request&.tool_call_id, box_key: box_key || request&.box_key)
     [ session, token ]
@@ -63,6 +62,12 @@ class CodeAgentSession < ApplicationRecord
   def self.digest(token) = OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base, token.to_s)
 
   def over_budget? = spent_micros >= budget_micros
+
+  # "$2", or "$2.50" when there are cents.
+  def self.dollars(micros)
+    cents = micros / FirefightAi::AgentLoop::MICROS_PER_CENT
+    (cents % 100).zero? ? "$#{cents / 100}" : format("$%.2f", cents / 100.0)
+  end
 
   # A provider refusing the key itself, rather than the request.
   KEY_REFUSED_STATUSES = [ 401, 403 ].freeze

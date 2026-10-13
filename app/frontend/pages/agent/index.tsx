@@ -33,7 +33,7 @@ export default function AgentPage() {
     conversations, archivedCount, conversation, incidents, threadFor, openInvestigation, attachmentRules, setupGuide, chatModels,
     messages = NOTHING_YET, confirmations = NOTHING_YET, waitingMessages = NOTHING_YET, compactions = NOTHING_YET, modelSwitches = NOTHING_YET,
     heldCalls = NOTHING_YET, packRefusals = NOTHING_YET, secretEntries = NOTHING_YET, watches = NOTHING_YET, watchUpdates = NOTHING_YET,
-    pullRequestNotices = NOTHING_YET, memoryQuestions = NOTHING_YET, plans = NOTHING_YET, dataRepairs = NOTHING_YET, mitigations = NOTHING_YET,
+    pullRequestNotices = NOTHING_YET, codePauses = NOTHING_YET, memoryQuestions = NOTHING_YET, plans = NOTHING_YET, dataRepairs = NOTHING_YET, mitigations = NOTHING_YET,
     ownerAsks = NOTHING_YET, handbookProposals = NOTHING_YET,
   } = page.props
   const conversationId = conversation?.id ?? null
@@ -138,6 +138,7 @@ export default function AgentPage() {
                     watches={watches}
                     watchUpdates={watchUpdates}
                     pullRequestNotices={pullRequestNotices}
+                    codePauses={codePauses}
                     memoryQuestions={memoryQuestions}
                     plans={plans}
                     dataRepairs={dataRepairs}

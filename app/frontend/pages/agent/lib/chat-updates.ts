@@ -36,6 +36,8 @@ const SECRET_ENTRIES = [ AGENT_CHAT_PROPS.SECRET_ENTRIES ]
 const WATCHES = [ AGENT_CHAT_PROPS.WATCHES, AGENT_CHAT_PROPS.WATCH_UPDATES ]
 // A pull request Halon opened needs attention long after the answer, or Fix it was pressed, so the chat is told to look.
 const PULL_REQUEST_NOTICES = [ AGENT_CHAT_PROPS.PULL_REQUEST_NOTICES ]
+// Continue starts a turn that carries the fix on under its step, so the chat and its steps are loaded with the card.
+const CODE_PAUSES = [ AGENT_CHAT_PROPS.CODE_PAUSES, AGENT_CHAT_PROPS.MESSAGES, AGENT_CHAT_PROPS.CONVERSATION ]
 // Rows a statement changed are counted and copied, a temporary change starts, is kept or undone, and an owner is asked
 // or answers, often long after the answer, so the chat is told to look. A confirmation waiting on an owner moves too.
 const SAFEGUARDS = [ AGENT_CHAT_PROPS.DATA_REPAIRS, AGENT_CHAT_PROPS.MITIGATIONS, AGENT_CHAT_PROPS.OWNER_ASKS, AGENT_CHAT_PROPS.CONFIRMATIONS ]
@@ -193,6 +195,11 @@ export function fixPullRequest(conversationId: string, noticeId: string, callbac
   router.post(agentChatPullRequestFixPath(conversationId, noticeId), {}, { ...IN_PLACE, only: PULL_REQUEST_NOTICES, ...callbacks })
 }
 
+// Continue and Stop on a paused code fix each post to their own path.
+export function decideCodePause(path: string, callbacks: CardCallbacks) {
+  router.post(path, {}, { ...IN_PLACE, only: CODE_PAUSES, reset: MESSAGES, ...callbacks })
+}
+
 export function fillSecretEntry(conversationId: string, entryId: string, value: string, callbacks: CardCallbacks) {
   router.post(agentChatSecretEntryFillPath(conversationId, entryId), { secret_value: value }, { ...IN_PLACE, only: SECRET_ENTRIES, ...callbacks })
 }
@@ -219,8 +226,9 @@ export function undoMitigation(conversationId: string, mitigationId: string, cal
   router.post(agentChatMitigationUndoPath(conversationId, mitigationId), {}, { ...IN_PLACE, only: SAFEGUARDS, ...callbacks })
 }
 
-// A coding agent's question and pause sit in a step's saved message, so answering one reloads the messages.
-export const CODE_AGENT_RELOADS = [ AGENT_CHAT_PROPS.MESSAGES ]
+// A coding agent's question and pause sit in a step's saved message, so answering one reloads the messages. Continue
+// starts a turn and moves the pause's card in the thread too.
+export const CODE_AGENT_RELOADS = CODE_PAUSES
 
 export function refreshRuns() {
   router.reload({ only: RUNS })

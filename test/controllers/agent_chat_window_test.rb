@@ -107,12 +107,15 @@ class AgentChatWindowTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "what is live arrives whatever its age: a confirmation waiting, a message waiting and a watch still going" do
+  test "what is live arrives whatever its age: a confirmation waiting, a message waiting, a watch still going and a fix waiting to continue" do
     old_at = @messages[3].created_at + 30.seconds
     step_on(@messages[3], "call_waiting").update!(approval: Chat::APPROVAL_REQUESTED)
     @chat.queue_message!("And the worker?", sender: @member)
     going = watch(at: old_at)
     ended = watch(at: old_at, status: Chat::Watch::STATUS_SUCCEEDED)
+    waiting_fix = code_pause("call_waiting_fix")
+    decided_fix = code_pause("call_decided_fix", status: CodeAgentSession::Pause::STATUS_CONTINUING)
+    [ waiting_fix, decided_fix ].each { |pause| pause.update_columns(created_at: old_at) }
 
     get agent_chat_url(@conversation), headers: thread_headers
 
@@ -120,6 +123,7 @@ class AgentChatWindowTest < ActionDispatch::IntegrationTest
     assert_equal [ "And the worker?" ], inertia_props["waitingMessages"].pluck("body")
     assert_equal [ going.id ], shown_ids(AgentChatsController::PROP_WATCHES)
     assert_not_includes shown_ids(AgentChatsController::PROP_WATCHES), ended.id
+    assert_equal [ waiting_fix.id ], shown_ids(AgentChatsController::PROP_CODE_PAUSES)
   end
 
   test "a chat nobody has asked anything in yet has an empty conversation and nothing older" do
@@ -172,6 +176,7 @@ class AgentChatWindowTest < ActionDispatch::IntegrationTest
                                                                                   target: { "repo" => "acme/web", "name" => "DEPLOY_HOOK" }, expires_at: 1.hour.from_now),
       AgentChatsController::PROP_WATCHES => watch(at: at, status: Chat::Watch::STATUS_SUCCEEDED),
       AgentChatsController::PROP_PULL_REQUEST_NOTICES => pull_request_notice,
+      AgentChatsController::PROP_CODE_PAUSES => code_pause(key, status: CodeAgentSession::Pause::STATUS_STOPPED),
       AgentChatsController::PROP_MEMORY_QUESTIONS => Chat::MemoryPost.create!(workspace: @workspace, conversation: @conversation, kind: Chat::MemoryPost::KIND_DISPUTED,
                                                                               memory_ids: [], evidence: "The deploy log says otherwise."),
       AgentChatsController::PROP_PLANS => Chat::Plan.make!(chat: @chat, made_by: @member, goal: "Release main to production",
@@ -247,6 +252,15 @@ class AgentChatWindowTest < ActionDispatch::IntegrationTest
                                        pull_request_state: Integrations::PullRequests::OPEN)
     CodeAgentSession::Notice.create!(session: session, workspace: @workspace, conversation: @conversation, fingerprint: SecureRandom.hex, base: "main",
                                      status: CodeAgentSession::Notice::STATUS_OFFERED, problems: [ { "kind" => Integrations::PullRequests::PROBLEM_CONFLICT } ])
+  end
+
+  def code_pause(key, status: CodeAgentSession::Pause::STATUS_OFFERED)
+    request = CodeAgent::Request.new(principal: @member, source: AbilityGateway::SOURCE_CONVERSATION, place: @conversation, tool_call_id: key)
+    session, = CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"),
+                                      repository: "acme/api", request: request)
+    CodeAgentSession::Pause.create!(session: session, workspace: @workspace, conversation: @conversation, arguments: { "repo" => "acme/api" },
+                                    repository: "acme/api", base: "main", copy_ref: "c" * 40, budget_micros: 2_000_000,
+                                    resumable_until: 15.minutes.from_now, status: status)
   end
 
   def database_tool

@@ -872,6 +872,7 @@ module Integrations
         end
 
         test "a change that reaches its spending limit pauses: its work is saved to its branch, nothing opens, and the person is asked" do
+          @workspace.update!(code_fix_budget_cents: 550)
           request = CodeAgent::Request.new(principal: workspace_memberships(:alice_workspace_one), source: AbilityGateway::SOURCE_CONVERSATION,
                                            place: conversation, tool_call_id: "call_1")
           pack = Github.new(@integration, box_key: "chat-1", request: request)
@@ -889,9 +890,12 @@ module Integrations
 
           pause = CodeAgentSession::Pause.find_by!(workspace: @workspace)
           assert_match "reached its spending limit before finishing, so it is paused. Its work so far is saved on #{pause.saved_branch}", said
+          assert_match "The person was asked on a card in this chat whether to continue, with Continue and Stop.", said
+          assert_match "Continue is also how its limit is raised. It gives the change another $5.50 and carries on from the work saved so far.", said
+          assert_match "A workspace admin sets the budget each new code fix starts with under Settings, Workspace.", said
           assert pause.saved_branch.start_with?(Fixing::BRANCH_PREFIX)
           assert_equal [ pause.saved_branch, "", pause.saved_branch ], pushed.values_at(5, 6, 7), "pushed to a new branch of its own"
-          assert_equal [ CHANGED, NEWEST, "ses_abc", "chat-1", CodeAgentSession::DEFAULT_BUDGET_MICROS, "main" ],
+          assert_equal [ CHANGED, NEWEST, "ses_abc", "chat-1", 5_500_000, "main" ],
                        pause.values_at(:saved_commit, :copy_ref, :agent_session_id, :box_key, :budget_micros, :base)
           assert_equal({ "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" }, pause.arguments)
           assert_in_delta CodeAgentSession::Pause::RESUMABLE_FOR.from_now, pause.resumable_until, 5.seconds
@@ -919,6 +923,7 @@ module Integrations
 
         test "Continue while the box is still there carries on the same agent session in the same copy, with a new budget of the same size" do
           pause = paused_change(box: true)
+          @workspace.update!(code_fix_budget_cents: 900)
           sent = nil
           CodeReading.any_instance.expects(:exec).with { |repo, ref:, argv:, **| argv[2] == Fixing::RUN && ref == NEWEST && (sent = argv) }
                      .returns("stdout" => agent_output, "timed_out" => false)
@@ -1010,7 +1015,7 @@ module Integrations
         end
 
         def spend_all!
-          CodeAgentSession.where(workspace: @workspace, closed_at: nil).update_all(spent_micros: CodeAgentSession::DEFAULT_BUDGET_MICROS)
+          CodeAgentSession.where(workspace: @workspace, closed_at: nil).update_all("spent_micros = budget_micros")
           true
         end
 

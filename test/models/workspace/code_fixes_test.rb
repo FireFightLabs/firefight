@@ -43,4 +43,29 @@ class Workspace::CodeFixesTest < ActiveSupport::TestCase
     assert_equal "The coding agent chosen to write code fixes was removed, so code steps wait for a person. Choose another one.", @workspace.code_fix_agent_blocked_reason
     assert_equal [ nil ], @workspace.code_fix_agent_choices.map(&:value), "a removed connection is no longer offered"
   end
+
+  test "a code fix gets $2 until an admin sets another budget between $0.50 and $50" do
+    assert_equal Workspace::CodeFixes::DEFAULT_CODE_FIX_BUDGET_CENTS, Workspace.new.code_fix_budget_cents
+    assert_equal [ 2_000_000, "$2" ], [ @workspace.code_fix_budget_micros, @workspace.shown_code_fix_budget ]
+
+    @workspace.update!(code_fix_budget_cents: 550)
+    assert_equal [ 5_500_000, "$5.50" ], [ @workspace.code_fix_budget_micros, @workspace.shown_code_fix_budget ]
+
+    [ 49, 5_001, 0, nil ].each do |cents|
+      assert_not @workspace.update(code_fix_budget_cents: cents), "#{cents.inspect} is refused"
+      assert_equal [ "A code fix's budget must be between $0.50 and $50." ], @workspace.errors.full_messages
+    end
+    assert @workspace.update(code_fix_budget_cents: 50)
+    assert @workspace.update(code_fix_budget_cents: 5_000)
+  end
+
+  test "a code fix's session gets the workspace's budget when it is opened, unless a paused change carries its own" do
+    @workspace.update!(code_fix_budget_cents: 750)
+    choice = FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai")
+
+    session, = CodeAgentSession.open!(workspace: @workspace, choice: choice, repository: "acme/api")
+    continued, = CodeAgentSession.open!(workspace: @workspace, choice: choice, repository: "acme/api", budget_micros: 2_000_000)
+
+    assert_equal [ 7_500_000, 2_000_000 ], [ session.budget_micros, continued.budget_micros ]
+  end
 end

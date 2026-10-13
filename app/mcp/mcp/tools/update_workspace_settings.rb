@@ -21,7 +21,7 @@ module Mcp
                   "how many days they are kept, how long after an incident ends its channel is " \
                   "archived, whether Halon may search and read the public web, whether Firefight may test Halon on answers the team rated, " \
                   "how many days an unconfirmed memory is used before it expires, " \
-                  "which connected coding agent writes a fix's code changes, which issue tracker incident items are kept in step " \
+                  "which connected coding agent writes a fix's code changes, what Firefight's own agent may spend on one code fix, which issue tracker incident items are kept in step " \
                   "with and when a new item gets an issue there, whether an alert that opens an incident starts Halon and how much " \
                   "those runs may spend in an hour, and whether Halon pages whoever is on call with what it found. Give only the settings to change. Read the current values with " \
                   "get_workspace_config. Only a workspace admin may call this. Docs: #{Docs::MCP_SERVER}"
@@ -36,6 +36,8 @@ module Mcp
           halon_regression_enabled: { type: "boolean", description: "Whether Firefight may replay Halon's investigations whose answer the team confirmed or marked wrong, to test new versions of Halon. Off by default" },
           memory_expiry_days: { type: [ "integer", "null" ], enum: [ *Chat::Memory::EXPIRY_CHOICES, nil ], description: "Days a memory Halon learned may go unconfirmed before Halon stops using it and it moves to Expired on the Memory page. null keeps using it until a person decides, the default" },
           code_fix_agent: { type: [ "string", "null" ], description: "The connection slug of a connected coding agent (the coding_agents category of list_integrations), which then writes a fix's code changes and opens the pull request. null for Firefight's own agent, the default" },
+          code_fix_budget_cents: { type: "integer", minimum: Workspace::CodeFixes::MIN_CODE_FIX_BUDGET_CENTS, maximum: Workspace::CodeFixes::MAX_CODE_FIX_BUDGET_CENTS,
+                                   description: "How much, in cents, Firefight's own agent may spend on one code fix before it pauses and asks the person to Continue, which gives it the same again. 200 by default. Applies to fixes started after the change" },
           issue_tracker: { type: [ "string", "null" ], description: "The connection slug of a connected issue tracker whose issues incident items are kept in step with: title, status and assignee, both ways. null for none" },
           issue_creation: { type: "string", enum: Workspace::IssueSync::ISSUE_CREATIONS, description: "When a new item gets an issue in that tracker. #{ISSUE_CREATION_CHOICES}" },
           issue_tracker_target: { type: "object", additionalProperties: { type: "string" }, description: "Where new issues go, by the chosen tracker's own fields. Replaces what was saved. #{ISSUE_TARGETS}" },

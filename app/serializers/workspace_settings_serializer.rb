@@ -44,6 +44,12 @@ class WorkspaceSettingsSerializer < BaseSerializer
     workspace.code_fix_agent_blocked_reason
   end
 
+  # What Firefight's own agent may spend on one code fix before it pauses for Continue, in cents.
+  type :number
+  def code_fix_budget_cents
+    workspace.code_fix_budget_cents
+  end
+
   # The slug of the connection to the tracker items are kept in step with, or null while there is none.
   type :string, optional: true
   def issue_tracker
