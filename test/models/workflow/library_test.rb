@@ -87,6 +87,21 @@ class Workflow::LibraryTest < ActiveSupport::TestCase
     assert_nil workflow.library_update
   end
 
+  test "one workflow that fails to move on neither stops the others nor keeps half of its own move" do
+    offer(item)
+    first = Workflow.from_library!(item, workspace: @workspace, by: @alice, name: "First")
+    second = Workflow.from_library!(item, workspace: @workspace, by: @alice, name: "Second")
+    [ first, second ].each { |workflow| workflow.draft.publish!(by: @alice) }
+    # A trigger that holds something shaped like a token, which no new version may carry, so moving it on fails.
+    first.reload.live_version.update_columns(trigger: { "kind" => Workflow::Trigger::KIND_MANUAL, "inputs" => [], "note" => "ghp_#{'a' * 36}" })
+    offer(item(version: 2, minutes: 10))
+
+    Workflow::Library.upgrade_all!
+
+    assert_equal [ 1, 5 ], [ first.reload.library_version, first.live_version.steps.first.dig("config", "minutes") ], "the failed move is rolled back whole"
+    assert_equal [ 2, 10 ], [ second.reload.library_version, second.live_version.steps.first.dig("config", "minutes") ]
+  end
+
   test "a following workflow whose steps someone changed stops following and is told of the new version as a copy" do
     offer(item)
     workflow = Workflow.from_library!(item, workspace: @workspace, by: @alice)

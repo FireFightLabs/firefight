@@ -37,10 +37,16 @@ module Workflow::Library
     )
   end
 
-  # Moves every workflow that follows an item on to the item's current version.
+  # Moves every workflow that follows an item on to the item's current version. Each moves in its own transaction, so
+  # one that cannot is left as it was and logged, and the rest still move.
   def upgrade_all!
     all.each do |item|
-      Workflow.where(library_key: item.key, follows_library: true).where("library_version < ?", item.version).find_each(&:upgrade_from_library!)
+      Workflow.where(library_key: item.key, follows_library: true).where("library_version < ?", item.version).find_each do |workflow|
+        workflow.upgrade_from_library!
+      rescue ActiveRecord::ActiveRecordError => error
+        Rails.logger.error({ event: "workflow_library.upgrade_failed", workflow_id: workflow.id, library_key: item.key, version: item.version,
+                             error: error.class.name, message: error.message })
+      end
     end
   end
 end
