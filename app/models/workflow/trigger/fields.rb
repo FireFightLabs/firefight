@@ -44,6 +44,12 @@ module Workflow::Trigger::Fields
   DETAIL = "detail".freeze
   PUBLIC = "public".freeze
   ASKED_BY = "asked_by_email".freeze
+  # How an issue reached Firefight, assigned or labelled, and the labels added to it.
+  HOW = "how".freeze
+  LABELS = "labels".freeze
+  # A scale's counts, before and after, as numbers.
+  FROM = "from".freeze
+  TO = "to".freeze
   # What a deploy or CI run that ended is, and how it ended (Integrations::RunsEnded speaks these).
   RUN_DEPLOY = "deploy".freeze
   RUN_CI = "ci".freeze

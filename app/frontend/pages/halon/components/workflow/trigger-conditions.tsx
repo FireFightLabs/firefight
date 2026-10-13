@@ -6,8 +6,15 @@ import { SearchableSelect } from "@/components/searchable-select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ALERT_CONDITION_OPERATOR, WORKFLOW_CONDITION_LIMIT } from "@/lib/generated/constants"
-import { CONDITION_OPERATORS, type ConditionOperator } from "@/pages/settings/lib/alerts"
+import {
+  ALERT_CONDITION_OPERATOR,
+  TRIGGER_NUMBER_OPERATOR,
+  TRIGGER_NUMBER_OPERATORS,
+  type TriggerNumberOperator,
+  WORKFLOW_CONDITION_LIMIT,
+} from "@/lib/generated/constants"
+import { OPERATOR_LABELS } from "@/pages/halon/lib/workflow/labels"
+import { CONDITION_OPERATORS, type ConditionOperator as WordOperator } from "@/pages/settings/lib/alerts"
 import type { WorkflowTriggerKind } from "@/types/serializers"
 
 export type ConditionField = WorkflowTriggerKind["conditions"][number]
@@ -21,12 +28,27 @@ export interface ConditionDraft {
   text: string
 }
 
+// A trigger's condition compares words as a routing rule's does, and a number field also as a number.
+export type ConditionOperator = WordOperator | TriggerNumberOperator
+
 const ONE_OF: ConditionOperator = ALERT_CONDITION_OPERATOR.IS_ONE_OF
 const EMPTY: ConditionOperator = ALERT_CONDITION_OPERATOR.IS_EMPTY
-
+const NUMBER_OPERATORS = TRIGGER_NUMBER_OPERATORS.map((value) => ({ value, label: OPERATOR_LABELS[value] }))
+// A number field is compared as a number, picked from a list, or found empty. Comparing its words is never offered.
+const NUMBER_FIELD_OPERATORS = [ ...NUMBER_OPERATORS, ...CONDITION_OPERATORS.filter((operator) => operator.value === ONE_OF || operator.value === EMPTY) ]
+const NUMBER = /^-?\d+(\.\d+)?$/
 
 function isOperator(value: unknown): value is ConditionOperator {
-  return CONDITION_OPERATORS.some((operator) => operator.value === value)
+  return [ ...CONDITION_OPERATORS, ...NUMBER_OPERATORS ].some((operator) => operator.value === value)
+}
+
+function comparesNumbers(operator: ConditionOperator): boolean {
+  return (TRIGGER_NUMBER_OPERATORS as readonly string[]).includes(operator)
+}
+
+// The comparisons a field offers, as a number for a number field and as words otherwise.
+function operatorsFor(field: ConditionField | undefined) {
+  return field?.number ? NUMBER_FIELD_OPERATORS : CONDITION_OPERATORS
 }
 
 // The trigger's stored conditions as drafts, each with a key of its own for React.
@@ -61,6 +83,13 @@ export function storedConditions(drafts: ConditionDraft[]): { field: string; ope
   })
 }
 
+function valuePlaceholder(operator: ConditionOperator): string {
+  if (operator === ALERT_CONDITION_OPERATOR.MATCHES_REGEX) {
+    return "A pattern, such as ^checkout"
+  }
+  return comparesNumbers(operator) ? "A number, such as 20" : "Value"
+}
+
 export function conditionsError(drafts: ConditionDraft[]): string | null {
   if (drafts.some((draft) => draft.field.length === 0)) {
     return "Choose what each condition reads."
@@ -70,6 +99,9 @@ export function conditionsError(drafts: ConditionDraft[]): string | null {
   }
   if (drafts.some((draft) => draft.operator !== ONE_OF && draft.operator !== EMPTY && draft.text.trim().length === 0)) {
     return "Give each condition what it compares with."
+  }
+  if (drafts.some((draft) => comparesNumbers(draft.operator) && !NUMBER.test(draft.text.trim()))) {
+    return "Give each number condition a number, such as 20."
   }
   return null
 }
@@ -132,11 +164,16 @@ interface ConditionRowProps {
 function ConditionRow({ idPrefix, draft, fields, fieldOptions, disabled, onChange, onRemove }: ConditionRowProps) {
   const field = fields.find((each) => each.key === draft.field)
   const choices = field?.options ?? []
+  const operators = operatorsFor(field)
   const known = draft.field.length === 0 || fieldOptions.some((option) => option.value === draft.field)
   const options = known ? fieldOptions : [ { value: draft.field, label: draft.field }, ...fieldOptions ]
 
+  // A number field starts compared as a number, and a field that is not one never keeps a number's comparison.
   function fieldChosen(value: string | null) {
-    onChange(draft.key, { field: value ?? "", values: [], text: "" })
+    const chosen = fields.find((each) => each.key === value)
+    const offered = operatorsFor(chosen).some((operator) => operator.value === draft.operator)
+    const operator = chosen?.number ? TRIGGER_NUMBER_OPERATOR.GREATER_THAN : offered ? draft.operator : ONE_OF
+    onChange(draft.key, { field: value ?? "", operator, values: [], text: "" })
   }
 
   function fieldTyped(event: ChangeEvent<HTMLInputElement>) {
@@ -190,7 +227,7 @@ function ConditionRow({ idPrefix, draft, fields, fieldOptions, disabled, onChang
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {CONDITION_OPERATORS.map((operator) => (
+          {operators.map((operator) => (
             <SelectItem key={operator.value} value={operator.value}>{operator.label}</SelectItem>
           ))}
         </SelectContent>
@@ -202,7 +239,7 @@ function ConditionRow({ idPrefix, draft, fields, fieldOptions, disabled, onChang
         <Input value={draft.text} aria-label="Values" placeholder="Values, separated by commas" disabled={disabled} onChange={typedValues} />
       )}
       {draft.operator !== ONE_OF && draft.operator !== EMPTY && (
-        <Input value={draft.text} aria-label="Value" placeholder={draft.operator === ALERT_CONDITION_OPERATOR.MATCHES_REGEX ? "A pattern, such as ^checkout" : "Value"}
+        <Input value={draft.text} aria-label="Value" placeholder={valuePlaceholder(draft.operator)} inputMode={comparesNumbers(draft.operator) ? "decimal" : undefined}
                disabled={disabled} onChange={typed} />
       )}
     </div>

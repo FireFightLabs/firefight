@@ -34,10 +34,21 @@ module Policy::Conditions
       actual.present? && regex_match?(value.to_s, actual)
     when PolicyRule::OPERATOR_IS_EMPTY
       actual.blank?
+    when PolicyRule::OPERATOR_GREATER_THAN, PolicyRule::OPERATOR_LESS_THAN
+      compared?(operator, number(value), number(actual))
     else
       false
     end
   end
+
+  # A number condition holds only when both sides read as numbers, so an empty or wordy value never matches.
+  def compared?(operator, value, actual)
+    return false if value.nil? || actual.nil?
+
+    operator == PolicyRule::OPERATOR_GREATER_THAN ? actual > value : actual < value
+  end
+
+  def number(value) = Float(value.to_s.strip, exception: false)
 
   # The timeout guards against ReDoS from user-authored patterns.
   def regex_match?(pattern, actual)
@@ -47,8 +58,9 @@ module Policy::Conditions
   end
 
   # Each problem with a list of conditions, as a sentence. Patterns are compiled here so one that cannot be read is
-  # refused when it is saved rather than never matching.
-  def errors_for(conditions)
+  # refused when it is saved rather than never matching. operators are the ones the caller offers, a routing rule's
+  # unless it says otherwise.
+  def errors_for(conditions, operators: PolicyRule::OPERATORS)
     return [ "must be a list of conditions" ] unless conditions.is_a?(Array)
 
     conditions.each_with_index.flat_map do |condition, index|
@@ -58,7 +70,7 @@ module Policy::Conditions
       found = []
       found << "Condition #{index + 1} needs a field" if condition[:field].blank?
       operator = condition[:operator]
-      next found + [ "Condition #{index + 1} has an unknown operator" ] unless PolicyRule::OPERATORS.include?(operator)
+      next found + [ "Condition #{index + 1} has an unknown operator" ] unless operators.include?(operator)
 
       found + value_errors(condition[:value], operator, index)
     end
@@ -71,6 +83,9 @@ module Policy::Conditions
     end
     if PolicyRule::STRING_VALUE_OPERATORS.include?(operator) && !(value.is_a?(String) && value.present?)
       found << "Condition #{index + 1} needs a value"
+    end
+    if PolicyRule::NUMBER_OPERATORS.include?(operator) && number(value).nil?
+      found << "Condition #{index + 1} needs a number"
     end
     if operator == PolicyRule::OPERATOR_MATCHES_REGEX && value.is_a?(String)
       begin

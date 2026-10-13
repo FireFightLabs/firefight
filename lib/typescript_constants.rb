@@ -386,6 +386,8 @@ module TypescriptConstants
       }, nil),
       Export.new("WORKFLOW_TRIGGER_KEYS", { "KIND" => Workflow::Trigger::KEY_KIND, "INPUTS" => Workflow::Trigger::KEY_INPUTS, "CONDITIONS" => Workflow::Trigger::KEY_CONDITIONS }, nil),
       Export.new("WORKFLOW_CONDITION_LIMIT", Workflow::Trigger::CONDITION_LIMIT, nil),
+      Export.new("TRIGGER_NUMBER_OPERATORS", PolicyRule::NUMBER_OPERATORS, "TriggerNumberOperator"),
+      Export.new("TRIGGER_NUMBER_OPERATOR", PolicyRule::NUMBER_OPERATORS.to_h { |operator| [ operator.upcase, operator ] }, nil),
       Export.new("WORKFLOW_INPUT_LIMIT", Workflow::Trigger::INPUT_LIMIT, nil)
     ]
   end

@@ -981,7 +981,7 @@ module Integrations
         status = "degraded" if status == "completed" && service[:running_count].to_i < service[:desired_count].to_i
         cluster = service[:cluster_arn].to_s.split("/").last
         Entry.new(kind: SERVICE, arn: service[:service_arn], name: service[:service_name], region: region, cluster: cluster, status: status,
-                  details: { "region" => region, "type" => service[:launch_type] || "capacity provider", "instances" => service[:desired_count],
+                  details: { "region" => region, "type" => service[:launch_type] || "capacity provider", ResourceMap::INSTANCES => service[:desired_count],
                              "cluster" => cluster, "task_definition" => family_revision(service[:task_definition]),
                              ResourceMap::TAGS => tags_of(service[:tags]) }.compact)
       end

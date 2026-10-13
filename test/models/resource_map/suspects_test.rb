@@ -70,6 +70,14 @@ class ResourceMap::SuspectsTest < ActiveSupport::TestCase
                               origin: ResourceMap::ORIGIN_DECLARED, last_seen_at: Time.current)
   end
 
+  test "a scale just before the trouble is a suspect, said as one" do
+    @worker.changes_seen.create!(workspace: @workspace, kind: ResourceMap::Change::KIND_SCALED, from_value: "4", to_value: "1", happened_at: @began - 5.minutes)
+
+    suspects = ResourceMap::Suspects.new(workspace: @workspace, principal: @admin, roots: [ @api ], anchor: @began, from: @began - 2.hours)
+
+    assert_equal [ "Scaled: worker went from 4 to 1 instance" ], suspects.list.map(&:what)
+  end
+
   def deployed!(resource, at:)
     resource.changes_seen.create!(workspace: @workspace, kind: ResourceMap::Change::KIND_DEPLOYED, from_value: "a1", to_value: "b2", happened_at: at)
   end

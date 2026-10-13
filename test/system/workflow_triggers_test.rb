@@ -61,6 +61,71 @@ class WorkflowTriggersTest < ApplicationSystemTestCase
     assert_not_equal old, @workflow.reload.hook_token
   end
 
+  test "a service scaled trigger is narrowed to a count above a number, and its steps read the counts" do
+    sign_in(users(:alice), @workspace)
+    visit workflow_path(@workflow)
+
+    within("aside[aria-label='Add a step']") { click_button "Service scaled" }
+    assert_toast "The trigger was updated."
+
+    find("[data-trigger]").click
+    click_button "Add a condition"
+    find("button[role=combobox]", text: "What it reads").click
+    find("[role=option]", text: "Instances after").click
+    find("button[aria-label='How it compares']").click
+    find("[role=option]", text: "is more than").click
+    find("input[aria-label='Value']").fill_in(with: "20")
+    take_screenshot
+    using_wait_time(10) { assert_no_selector "[data-sonner-toast]" }
+    click_button "Apply changes"
+
+    assert_toast "The trigger was updated."
+    trigger = @workflow.reload.draft.trigger
+    assert_equal Workflow::Trigger::KIND_SERVICE_SCALED, trigger["kind"]
+    assert_equal [ { "field" => "to", "operator" => PolicyRule::OPERATOR_GREATER_THAN, "value" => "20" } ], trigger["conditions"]
+    assert_text "Only when 1 condition holds"
+  end
+
+  test "a number condition asks for a number, and the comparisons for words are not offered on one" do
+    @workflow.edit!(operation: Workflow::Edit::OPERATION_CHANGE_TRIGGER, by: workspace_memberships(:alice_workspace_one),
+                    payload: { "trigger" => { "kind" => Workflow::Trigger::KIND_SERVICE_SCALED, "inputs" => [] } })
+    sign_in(users(:alice), @workspace)
+    visit workflow_path(@workflow)
+
+    find("[data-trigger]").click
+    click_button "Add a condition"
+    find("button[role=combobox]", text: "What it reads").click
+    find("[role=option]", text: "Instances before").click
+    find("button[aria-label='How it compares']").click
+    assert_selector "[role=option]", text: "is less than"
+    assert_no_selector "[role=option]", text: "starts with"
+    find("[role=option]", text: "is less than").click
+    find("input[aria-label='Value']").fill_in(with: "a few")
+
+    assert_text "Give each number condition a number, such as 20."
+    assert_button "Apply changes", disabled: true
+  end
+
+  test "an issue assigned trigger also starts on a label, set in its settings" do
+    sign_in(users(:alice), @workspace)
+    visit workflow_path(@workflow)
+
+    within("aside[aria-label='Add a step']") { click_button "Issue assigned to Firefight" }
+    assert_toast "The trigger was updated."
+
+    find("[data-trigger]").click
+    within("[data-trigger-settings]") do
+      assert_text "Or when an issue gets this label"
+      fill_in "trigger-label", with: "firefight"
+    end
+    take_screenshot
+    using_wait_time(10) { assert_no_selector "[data-sonner-toast]" }
+    click_button "Apply changes"
+
+    assert_toast "The trigger was updated."
+    assert_equal "firefight", @workflow.reload.draft.trigger[Workflow::Listening::KEY_LABEL]
+  end
+
   test "a step offers what the trigger's data holds as a value to use" do
     @workflow.edit!(operation: Workflow::Edit::OPERATION_CHANGE_TRIGGER, payload: { "trigger" => { "kind" => Workflow::Trigger::KIND_ALERT_RECEIVED, "inputs" => [] } },
                     by: workspace_memberships(:alice_workspace_one))

@@ -10,8 +10,8 @@ class ResourceMap::Suspects
   LEAD = 2.hours
   # The kinds of change that can cause trouble. A status change is a symptom, not a suspect.
   KINDS = [
-    ResourceMap::Timeline::KIND_DEPLOY, ResourceMap::Timeline::KIND_CONFIG, ResourceMap::Timeline::KIND_APPEARED, ResourceMap::Timeline::KIND_REMOVED,
-    ResourceMap::Timeline::KIND_RENAMED, ResourceMap::Timeline::KIND_REPORTED, ResourceMap::Timeline::KIND_FIREFIGHT
+    ResourceMap::Timeline::KIND_DEPLOY, ResourceMap::Timeline::KIND_CONFIG, ResourceMap::Timeline::KIND_SCALED, ResourceMap::Timeline::KIND_APPEARED,
+    ResourceMap::Timeline::KIND_REMOVED, ResourceMap::Timeline::KIND_RENAMED, ResourceMap::Timeline::KIND_REPORTED, ResourceMap::Timeline::KIND_FIREFIGHT
   ].freeze
   LEAD_WORDS = "Suspects Firefight found on the map before you started, nearest to when the trouble began first. Each is a " \
                "candidate to check, never a conclusion:".freeze

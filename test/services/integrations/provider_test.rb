@@ -99,6 +99,21 @@ module Integrations
       end
     end
 
+    # A provider on the map says whether the map counts the copies its services run, so one that cannot is said rather
+    # than silently missing. The list is pinned, so a provider gaining or losing the count is a decision someone made.
+    test "every provider on the map says whether it counts its services' copies, and why not when it does not" do
+      IntegrationProvider.all.each do |entry|
+        if entry.map == IntegrationProvider::MAP_FIREFIGHT
+          assert_includes IntegrationProvider::SCALINGS, entry.scaling, "#{entry.key} is on the map and does not say whether it counts copies"
+          assert entry.scaling_note.present?, "#{entry.key} says scaling none without a scaling_note saying why" if entry.scaling == IntegrationProvider::SCALING_NONE
+        else
+          assert_nil entry.scaling, "#{entry.key} is not on the map, so it counts nothing"
+        end
+      end
+      counted = IntegrationProvider.all.select { |entry| entry.scaling == IntegrationProvider::SCALING_FIREFIGHT }.map(&:key)
+      assert_equal %w[aws azure digitalocean fly google_cloud kubernetes modal northflank railway render], counted.sort
+    end
+
     test "every provider whose pack reads code is a code host, so its connections keep the paths Halon may not change" do
       reads_code = IntegrationProvider.all.select { |entry| Provider.for(entry.key).pack&.include?(Packs::CodeHost::Code) }.map(&:key)
 

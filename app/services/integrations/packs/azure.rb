@@ -619,8 +619,9 @@ module Integrations
           root = "/subscriptions/#{api.segment(subscription_of(environment_row))}/providers"
           items = []
           gaps = []
+          plans = plan_instances(api, root, gaps)
           {
-            "App Service and Function apps" => [ [ TYPE_WEB, TYPE_FUNCTION ], -> { whole(api.list("#{root}/Microsoft.Web/sites", WEB_VERSION)) { |site| site_item(site) } } ],
+            "App Service and Function apps" => [ [ TYPE_WEB, TYPE_FUNCTION ], -> { whole(api.list("#{root}/Microsoft.Web/sites", WEB_VERSION)) { |site| site_item(site, plans) } } ],
             "Container Apps" => [ [ TYPE_CONTAINER ], -> { whole(api.list("#{root}/Microsoft.App/containerApps", APP_VERSION)) { |app| container_item(app) } } ],
             "Azure SQL databases" => [ [ TYPE_SQL ], -> { sql_items(api, root) } ],
             "PostgreSQL flexible servers" => [ [ TYPE_POSTGRES ], -> { whole(api.list("#{root}/Microsoft.DBforPostgreSQL/flexibleServers", POSTGRES_VERSION)) { |server| postgres_item(server) } } ]
@@ -659,7 +660,7 @@ module Integrations
       # One app or database read as the list reads it. An Azure SQL database's address is its server's.
       def refreshed_item(api, target)
         case target.type
-        when TYPE_WEB then site_item(api.get(target.id, WEB_VERSION))
+        when TYPE_WEB then site_item(site = api.get(target.id, WEB_VERSION), plan_of(api, site))
         when TYPE_CONTAINER then container_item(api.get(target.id, APP_VERSION))
         when TYPE_POSTGRES then postgres_item(api.get(target.id, POSTGRES_VERSION))
         when TYPE_SQL then sql_item(api.get(target.id.sub(%r{/databases/[^/]+\z}i, ""), SQL_VERSION), api.get(target.id, SQL_VERSION))
@@ -676,11 +677,12 @@ module Integrations
                                    ResourceMap::TAGS => resource["tags"].presence }.merge(details).compact }
       end
 
-      def site_item(site)
+      def site_item(site, plans = {})
         properties = site["properties"].to_h
         hosts = Array(properties["enabledHostNames"]).reject { |host| host.include?(SCM_HOST) }
         item(site, function?(site) ? TYPE_FUNCTION : TYPE_WEB, properties["state"], hosts: hosts,
-             details: { "plan" => properties["serverFarmId"].to_s.split("/").last.presence, "sku" => properties["sku"] })
+             details: { "plan" => properties["serverFarmId"].to_s.split("/").last.presence, "sku" => properties["sku"],
+                        ResourceMap::INSTANCES => plans[properties["serverFarmId"].to_s.downcase] })
       end
 
       def container_item(app)
@@ -688,8 +690,15 @@ module Integrations
         ingress = properties.dig("configuration", "ingress").to_h
         hosts = [ ingress["fqdn"], *Array(ingress["customDomains"]).filter_map { |domain| domain["name"] } ].compact
         item(app, TYPE_CONTAINER, properties["runningStatus"] || properties["provisioningState"], hosts: hosts,
-             details: { "revision_mode" => properties.dig("configuration", "activeRevisionsMode"), "latest_revision" => properties["latestReadyRevisionName"] })
+             details: { "revision_mode" => properties.dig("configuration", "activeRevisionsMode"), "latest_revision" => properties["latestReadyRevisionName"],
+                        ResourceMap::INSTANCES => held_replicas(properties.dig("template", "scale").to_h) })
           .merge(source: app)
+      end
+
+      # A container app held to one number of replicas, its fewest and most the same. One with a range scales on its own.
+      def held_replicas(scale)
+        minimum, maximum = scale.values_at("minReplicas", "maxReplicas")
+        minimum if minimum && minimum == maximum
       end
 
       # An App Service or Function app's settings and connection strings, read in memory through the two list actions
@@ -751,6 +760,32 @@ module Integrations
 
       # A list's resources as items, and whether the list was read in full.
       def whole(read, &) = [ read.items.map(&), read.complete ]
+
+      # How many instances each App Service plan runs, by its id in lower case, which every app on it runs on. A plan that
+      # adds and removes instances on its own has no one count. Plans that could not be read leave apps uncounted, a gap
+      # that holds back nothing, since the apps themselves were read.
+      def plan_instances(api, root, gaps)
+        api.list("#{root}/Microsoft.Web/serverfarms", WEB_VERSION).items.to_h { |plan| [ plan["id"].to_s.downcase, plan_count(plan) ] }.compact
+      rescue Integrations::RateLimited
+        raise
+      rescue AzureApi::Error => error
+        gaps << ResourceMap::Gap.new(text: Sentence.join("App Service plans could not be read, so apps show no instance count", error), kinds: [])
+        {}
+      end
+
+      def plan_count(plan) = ELASTIC_TIERS.include?(plan.dig("sku", "tier").to_s) ? nil : plan.dig("sku", "capacity")
+
+      # The one app's plan, read on its own when an event names the app.
+      def plan_of(api, site)
+        plan_id = site.dig("properties", "serverFarmId")
+        return {} if plan_id.blank?
+
+        { plan_id.downcase => plan_count(api.get(plan_id, WEB_VERSION)) }.compact
+      rescue Integrations::RateLimited
+        raise
+      rescue AzureApi::Error
+        {}
+      end
 
       def sql_items(api, root)
         servers = api.list("#{root}/Microsoft.Sql/servers", SQL_VERSION)
