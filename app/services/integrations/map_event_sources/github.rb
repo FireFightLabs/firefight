@@ -35,6 +35,16 @@ module Integrations
       DEPLOYMENT_STATUS = "deployment_status".freeze
       RELEASE = "release".freeze
       COMPLETED = "completed".freeze
+      # How a completed workflow run's conclusion and a deployment status's state read as a run that ended. A conclusion
+      # or state not listed (skipped, neutral, action_required, stale, pending, queued, in_progress, inactive) is no end.
+      RUN_CONCLUSIONS = {
+        "success" => RunsEnded::OUTCOME_SUCCEEDED, "failure" => RunsEnded::OUTCOME_FAILED, "timed_out" => RunsEnded::OUTCOME_FAILED,
+        "startup_failure" => RunsEnded::OUTCOME_FAILED, "cancelled" => RunsEnded::OUTCOME_CANCELLED
+      }.freeze
+      DEPLOYMENT_STATES = {
+        "success" => RunsEnded::OUTCOME_SUCCEEDED, "failure" => RunsEnded::OUTCOME_FAILED, "error" => RunsEnded::OUTCOME_FAILED
+      }.freeze
+      PROVIDER_NAME = "GitHub".freeze
       WAKE_ACTIONS = {
         WORKFLOW_RUN => nil, DEPLOYMENT_STATUS => nil, STATUS => nil, WORKFLOW_JOB => [ COMPLETED ],
         CHECK_SUITE => [ COMPLETED ], CHECK_RUN => [ COMPLETED ], RELEASE => %w[published released]
@@ -140,6 +150,16 @@ module Integrations
           ) ]
         end
 
+        # A workflow run that completed, as a CI run, and a deployment whose status says it ended, as a deploy
+        # (Integrations::RunsEnded). A run skipped, neutral or waiting on a person did not run to an end.
+        def runs_ended(payload, headers:)
+          case headers[EVENT_HEADER].to_s
+          when WORKFLOW_RUN then workflow_run_ended(payload)
+          when DEPLOYMENT_STATUS then deployment_ended(payload)
+          else []
+          end
+        end
+
         # The branch a push moved, for the handbook pages synced from it (Integrations::RepositoryDocuments). A deleted
         # branch moved nothing.
         def branch_pushes(payload, headers:)
@@ -151,6 +171,29 @@ module Integrations
         end
 
         private
+
+        def workflow_run_ended(payload)
+          run = payload["workflow_run"].to_h
+          outcome = RUN_CONCLUSIONS[run["conclusion"].to_s]
+          repository = payload.dig("repository", "full_name")
+          return [] unless payload["action"] == COMPLETED && outcome && run["id"].present? && repository.present?
+
+          [ RunsEnded::Run.new(kind: RunsEnded::KIND_CI, outcome: outcome, provider: PROVIDER_NAME, reference: "run:#{run['id']}:#{run['run_attempt'] || 1}",
+                               name: run["name"], place: repository, ref: run["head_branch"], commit: run["head_sha"], url: run["html_url"]) ]
+        end
+
+        def deployment_ended(payload)
+          status = payload["deployment_status"].to_h
+          deployment = payload["deployment"].to_h
+          outcome = DEPLOYMENT_STATES[status["state"].to_s]
+          repository = payload.dig("repository", "full_name")
+          return [] unless outcome && status["id"].present? && repository.present?
+
+          environment = status["environment"].presence || deployment["environment"]
+          [ RunsEnded::Run.new(kind: RunsEnded::KIND_DEPLOY, outcome: outcome, provider: PROVIDER_NAME, reference: "deployment_status:#{status['id']}",
+                               name: environment, place: repository, ref: deployment["ref"], commit: deployment["sha"],
+                               url: status["target_url"].presence || status["log_url"], environment: environment) ]
+        end
 
         # A push to the default branch changes nothing the map shows of the repository itself, so it is read again only
         # when it may have changed an infrastructure file, or when the push does not list every file it changed.

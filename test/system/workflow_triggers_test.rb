@@ -37,6 +37,30 @@ class WorkflowTriggersTest < ApplicationSystemTestCase
     assert_text "Only when 1 condition holds"
   end
 
+  test "an inbound webhook shows the workflow's own address, which is replaced after asking" do
+    @workflow.edit!(operation: Workflow::Edit::OPERATION_CHANGE_TRIGGER, by: workspace_memberships(:alice_workspace_one),
+                    payload: { "trigger" => { "kind" => Workflow::Trigger::KIND_INBOUND_WEBHOOK, "inputs" => [] } })
+    sign_in(users(:alice), @workspace)
+    visit workflow_path(@workflow)
+
+    find("[data-trigger]").click
+    assert_selector "[data-hook-url]", text: @workflow.hook_token
+    click_button "Add a condition"
+    find("input[aria-label='What it reads']").fill_in(with: "body.service")
+    find("input[aria-label='Values']").fill_in(with: "web, api")
+    take_screenshot
+    click_button "Apply changes"
+    assert_toast "The trigger was updated."
+    assert_equal [ { "field" => "body.service", "operator" => PolicyRule::OPERATOR_IS_ONE_OF, "value" => %w[web api] } ],
+                 @workflow.reload.draft.trigger["conditions"]
+
+    old = @workflow.hook_token
+    click_button "Replace address"
+    within("[role=dialog]") { click_button "Replace address" }
+    assert_toast "Big incidents has a new webhook address and secret. The old ones no longer start it."
+    assert_not_equal old, @workflow.reload.hook_token
+  end
+
   test "a step offers what the trigger's data holds as a value to use" do
     @workflow.edit!(operation: Workflow::Edit::OPERATION_CHANGE_TRIGGER, payload: { "trigger" => { "kind" => Workflow::Trigger::KIND_ALERT_RECEIVED, "inputs" => [] } },
                     by: workspace_memberships(:alice_workspace_one))

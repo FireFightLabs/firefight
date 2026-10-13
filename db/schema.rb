@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_13_230000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -3328,8 +3328,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230000) do
     t.jsonb "library_base"
     t.boolean "follows_library", default: false, null: false
     t.integer "library_dismissed_version"
+    t.string "hook_token", null: false
     t.index ["agent_id"], name: "index_workflows_on_agent_id"
     t.index ["created_by_id"], name: "index_workflows_on_created_by_id"
+    t.index ["hook_token"], name: "index_workflows_on_hook_token", unique: true
+
     t.index ["library_key", "follows_library"], name: "index_workflows_on_library_key_and_follows_library"
     t.index ["live_version_id"], name: "index_workflows_on_live_version_id"
     t.index ["next_run_at"], name: "index_workflows_on_next_run_at", where: "(next_run_at IS NOT NULL)"

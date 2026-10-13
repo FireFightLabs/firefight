@@ -36,7 +36,7 @@ module Workflow::Trigger
   # have nobody pressing Run when they start.
   EVENTS = [
     KIND_INCIDENT_DECLARED, KIND_INCIDENT_CHANGED, KIND_ALERT_RECEIVED, KIND_NOTICE_RAISED, KIND_INVESTIGATION_FINISHED,
-    KIND_FOLLOW_UP_CHANGED, KIND_RUN_FAILED
+    KIND_FOLLOW_UP_CHANGED, KIND_RUN_FAILED, KIND_INBOUND_WEBHOOK, KIND_DEPLOY_FINISHED, KIND_RESOURCE_CHANGED, KIND_SECURITY_EVENT, KIND_ISSUE_ASSIGNED
   ].freeze
   # The kinds a published workflow may start on, another workflow running it among them. Every other kind is refused
   # when publishing, since nothing would start it.

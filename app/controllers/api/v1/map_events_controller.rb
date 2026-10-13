@@ -28,6 +28,7 @@ class Api::V1::MapEventsController < ActionController::API
     Integrations::MapEvents.receive_delivery!([ row ], source.events(payload, headers: request.headers), payload, headers: request.headers)
     Integrations::MapEvents.nudge_pull_requests!([ row ], payload, headers: request.headers)
     Integrations::MapEvents.report_security_events!([ row ], payload, headers: request.headers)
+    Integrations::MapEvents.report_runs_ended!([ row ], payload, headers: request.headers)
     Integrations::MapEvents.nudge_handbook!([ row ], payload, headers: request.headers)
     head :ok
   rescue JSON::ParserError

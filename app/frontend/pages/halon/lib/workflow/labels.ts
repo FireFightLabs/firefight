@@ -19,9 +19,12 @@ import {
   IconRepeat,
   IconRocket,
   IconSitemap,
+  IconShieldLock,
   IconSparkles,
   IconTerminal2,
+  IconTicket,
   IconTool,
+  IconTopologyStar3,
   IconUserCheck,
   IconUser,
   IconWebhook,
@@ -88,6 +91,9 @@ export const TRIGGER_ICONS: Record<WorkflowTriggerIcon, Icon> = {
   workflow: IconSitemap,
   follow_up: IconListCheck,
   failed: IconCircleX,
+  map: IconTopologyStar3,
+  security: IconShieldLock,
+  issue: IconTicket,
 }
 
 export const OPERATOR_LABELS: Record<WorkflowConditionOperator, string> = {

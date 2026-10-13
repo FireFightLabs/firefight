@@ -14,6 +14,7 @@ class Workflow < ApplicationRecord
   include Workflow::Scheduling
   include Workflow::Limits
   include Workflow::Listening
+  include Workflow::Hook
   include Workflow::Chatting
   include Workflow::Showing
   include Workflow::ForHalon

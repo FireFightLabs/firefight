@@ -35,6 +35,26 @@ module Workflow::Trigger::Fields
   TRIGGER_SOURCE = "trigger_source".freeze
   INCIDENT = "incident".freeze
 
+  # A deploy or CI run's, a resource's on the map, a security event's and an issue's, some shared.
+  KIND = "kind".freeze
+  PROVIDER = "provider".freeze
+  PLACE = "place".freeze
+  REF = "ref".freeze
+  NAME = "name".freeze
+  DETAIL = "detail".freeze
+  PUBLIC = "public".freeze
+  ASKED_BY = "asked_by_email".freeze
+  # What a deploy or CI run that ended is, and how it ended (Integrations::RunsEnded speaks these).
+  RUN_DEPLOY = "deploy".freeze
+  RUN_CI = "ci".freeze
+  RUN_KINDS = [ RUN_DEPLOY, RUN_CI ].freeze
+  RUN_SUCCEEDED = "succeeded".freeze
+  RUN_FAILED = "failed".freeze
+  RUN_CANCELLED = "cancelled".freeze
+  RUN_OUTCOMES = [ RUN_SUCCEEDED, RUN_FAILED, RUN_CANCELLED ].freeze
+  # An inbound webhook's body, each field by this and its path, such as body.service.
+  BODY_PREFIX = "body.".freeze
+
   # Another workflow's run's.
   WORKFLOW = "workflow".freeze
   TRIGGER_KIND = "trigger_kind".freeze

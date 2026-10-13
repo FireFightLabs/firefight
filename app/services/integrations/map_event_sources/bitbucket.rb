@@ -28,6 +28,9 @@ module Integrations
       COMMIT_STATUS_CREATED = "repo:commit_status_created".freeze
       COMMIT_STATUS_UPDATED = "repo:commit_status_updated".freeze
       RUN_EVENTS = [ COMMIT_STATUS_CREATED, COMMIT_STATUS_UPDATED ].freeze
+      # The states a build's status ends in, as a run that ended reads them. INPROGRESS has not ended.
+      STATUS_ENDS = { "SUCCESSFUL" => RunsEnded::OUTCOME_SUCCEEDED, "FAILED" => RunsEnded::OUTCOME_FAILED, "STOPPED" => RunsEnded::OUTCOME_CANCELLED }.freeze
+      PROVIDER_NAME = "Bitbucket".freeze
       # The workspace events Firefight follows, from those Bitbucket lists for a workspace webhook (GET
       # /hook_events/workspace). repo:created and repo:imported are listed there and in the OpenAPI description, and have
       # no payload of their own on the Event payloads page, so only their repository's full_name is read.
@@ -85,6 +88,21 @@ module Integrations
         end
 
         def wakes?(payload, headers:) = RUN_EVENTS.include?(headers[EVENT_HEADER].to_s)
+
+        # A build's status on a commit that ended, as a CI run (Integrations::RunsEnded). Bitbucket gives the status no
+        # id of its own, so the build's key, the commit and how it ended name it.
+        def runs_ended(payload, headers:)
+          return [] unless RUN_EVENTS.include?(headers[EVENT_HEADER].to_s)
+
+          status = payload["commit_status"].to_h
+          outcome = STATUS_ENDS[status["state"].to_s]
+          repository = payload.dig("repository", "full_name").presence || status.dig("repository", "full_name")
+          commit = status.dig("commit", "hash")
+          return [] unless outcome && repository.present? && status["key"].present?
+
+          [ RunsEnded::Run.new(kind: RunsEnded::KIND_CI, outcome: outcome, provider: PROVIDER_NAME, reference: [ repository, status["key"], commit, status["state"] ].join(":"),
+                               name: status["name"].presence || status["key"], place: repository, ref: status["refname"], commit: commit, url: status["url"]) ]
+        end
 
         # Whether a workspace's webhook misses an event Firefight now follows, such as one registered before runs were
         # followed, or is gone from Bitbucket.
