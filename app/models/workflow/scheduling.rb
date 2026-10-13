@@ -6,6 +6,7 @@ module Workflow::Scheduling
 
   included do
     scope :due, ->(now = Time.current) { enabled.where.not(live_version_id: nil).where(next_run_at: ..now) }
+    scope :given_up_unrecorded, -> { where.not(given_up_at: nil).where.not(live_version_id: nil) }
   end
 
   # Works out its next time from now, or clears it.
@@ -32,6 +33,17 @@ module Workflow::Scheduling
   # moved its next time since. Its start key is that time's, so a run that was made before it broke is never made twice.
   def release_due!(due_at)
     self.class.where(id: id, next_run_at: next_run_at).update_all(next_run_at: due_at, updated_at: Time.current)
+  end
+
+  # Keeps a time whose giving up broke before it was recorded, so the next sweep records it. Its next time is left as
+  # it is, since the time stays given up.
+  def keep_given_up!(due_at)
+    self.class.where(id: id).update_all(given_up_at: due_at, updated_at: Time.current)
+  end
+
+  # Once it is recorded, unless a later time was kept meanwhile.
+  def given_up_recorded!(due_at)
+    self.class.where(id: id, given_up_at: due_at).update_all(given_up_at: nil, updated_at: Time.current)
   end
 
   # Said when its next time lands in a freeze window, since a change it makes then waits or stops as it says.

@@ -20,13 +20,36 @@ class HalonWorkflowLibraryControllerTest < ActionDispatch::IntegrationTest
 
   def offer(*items) = Workflow::Library.stubs(:all).returns(items)
 
-  test "the page lists Firefight's library with what each needs and the workspace's workflows with where they came from" do
-    get halon_workflow_library_path, headers: inertia_headers
+  test "the library is a tab of the Workflows page, and its old address leads there" do
+    get halon_workflow_library_path
 
-    disk = inertia_props["items"].find { |each| each["key"] == "disk_space_check" }
+    assert_redirected_to halon_workflows_path(tab: WorkflowsController::TAB_LIBRARY)
+  end
+
+  test "an item that asks a question is used only with an answer, which its scheduled runs then use" do
+    item = Workflow::Library.find("scheduled_check")
+    get halon_workflows_path(tab: WorkflowsController::TAB_LIBRARY), headers: inertia_headers
+    listed = inertia_props["libraryItems"].find { |each| each["key"] == "scheduled_check" }
+    assert_equal [ { "key" => "notes", "question" => "What should Halon check?" } ], listed["questions"]
+
+    post adopt_halon_library_workflow_path(item.key), params: { answers: { notes: " " } }
+    assert_equal [ "Answer this to use it." ], session["inertia_errors"][:"answers.notes"]
+    assert_not @workspace.workflows.exists?(library_key: item.key)
+
+    post adopt_halon_library_workflow_path(item.key), params: { answers: { notes: "The orders queue should never pass 1000." } }
+    assert_redirected_to halon_workflows_path(tab: WorkflowsController::TAB_LIBRARY)
+    workflow = @workspace.workflows.find_by!(library_key: item.key)
+    assert_equal "The orders queue should never pass 1000.", Workflow::Trigger.inputs(workflow.draft.trigger).sole["default"]
+    assert workflow.following_library?
+  end
+
+  test "the page lists Firefight's library with what each needs and the workspace's workflows with where they came from" do
+    get halon_workflows_path(tab: WorkflowsController::TAB_LIBRARY), headers: inertia_headers
+
+    disk = inertia_props["libraryItems"].find { |each| each["key"] == "disk_space_check" }
     assert_equal [ "Disk space check", Workflow::Trigger::KIND_SCHEDULE ], disk.values_at("name", "triggerKind")
     assert_nil disk["useBlockedReason"]
-    assert_equal [], inertia_props["workflows"]
+    assert_equal [], inertia_props["libraryWorkflows"]
   end
 
   test "an item is used as it is or copied under a name, each saying so" do
@@ -41,9 +64,9 @@ class HalonWorkflowLibraryControllerTest < ActionDispatch::IntegrationTest
     post adopt_halon_library_workflow_path("cool_down")
     assert_equal [ "Cool down already exists here, so give this one another name." ], session["inertia_errors"][:name]
 
-    get halon_workflow_library_path, headers: inertia_headers
-    assert_equal [ [ "Cool down", true ], [ "My cool down", false ] ], inertia_props["workflows"].map { |row| row.values_at("name", "following") }
-    assert_equal [ "Cool down", "My cool down" ], inertia_props["items"].sole["usedBy"]
+    get halon_workflows_path(tab: WorkflowsController::TAB_LIBRARY), headers: inertia_headers
+    assert_equal [ [ "Cool down", true ], [ "My cool down", false ] ], inertia_props["libraryWorkflows"].map { |row| row.values_at("name", "following") }
+    assert_equal [ "Cool down", "My cool down" ], inertia_props["libraryItems"].sole["usedBy"]
   end
 
   test "a copy sees what changed in a newer version, and takes it into a draft or keeps its own" do
@@ -52,8 +75,8 @@ class HalonWorkflowLibraryControllerTest < ActionDispatch::IntegrationTest
     copy.draft.publish!(by: @alice)
     offer(item(version: 2, minutes: 10))
 
-    get halon_workflow_library_path, headers: inertia_headers
-    update = inertia_props["workflows"].sole["libraryUpdate"]
+    get halon_workflows_path(tab: WorkflowsController::TAB_LIBRARY), headers: inertia_headers
+    update = inertia_props["libraryWorkflows"].sole["libraryUpdate"]
     assert_equal [ 2, [ "Changed its settings of the step wait." ] ], [ update["version"], update["changes"].map { |change| change["text"] } ]
 
     post keep_own_halon_workflow_path(copy)
@@ -87,7 +110,8 @@ class HalonWorkflowLibraryControllerTest < ActionDispatch::IntegrationTest
     FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
 
     get halon_workflow_library_path
-
+    assert_response :not_found
+    get halon_workflows_path(tab: WorkflowsController::TAB_LIBRARY)
     assert_response :not_found
   end
 end

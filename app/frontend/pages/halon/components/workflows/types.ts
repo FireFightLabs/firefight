@@ -1,5 +1,5 @@
 import type { SharedProps } from "@/types"
-import type { WorkflowPublishRequest, WorkflowRow, WorkflowRunRow } from "@/types/serializers"
+import type { HalonLibraryWorkflow, HalonLibraryWorkflowUse, WorkflowPublishRequest, WorkflowRow, WorkflowRunRow } from "@/types/serializers"
 
 export interface WorkflowTemplateChoice {
   key: string
@@ -33,5 +33,8 @@ export interface WorkflowsPageProps extends SharedProps {
   templates: WorkflowTemplateChoice[]
   publishRequests: WorkflowPublishRequest[]
   timeZones: string[]
+  libraryItems: HalonLibraryWorkflow[]
+  libraryWorkflows: HalonLibraryWorkflowUse[]
+  canCreate: boolean
 }
 

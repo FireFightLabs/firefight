@@ -57,6 +57,33 @@ class AgentWorkflowCardTest < ApplicationSystemTestCase
     assert_text "Only Alice Smith or a workspace admin can stop Check web."
   end
 
+  test "on a phone, tapping a button that cannot be pressed says why" do
+    bobs = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:bob_workspace_one))
+    bobs.ask!("Run Check web.")
+    bobs.chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "Here it is.")
+    bobs.reply_delivered!
+    @workflow.update!(origin_conversation: bobs)
+    sign_in(users(:bob), @workspace)
+    page.driver.browser.manage.window.resize_to(390, 844)
+
+    visit agent_chat_path(bobs)
+    assert_button "Cancel", disabled: true
+    assert_no_text "can stop Check web"
+    target = 'const target = [ ...document.querySelectorAll("[data-slot=tooltip-trigger]") ].find((each) => each.textContent.trim() === "Cancel");'
+    # A real tap delivers each event as its own task, so React renders between them.
+    page.execute_script("#{target} target.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch', bubbles: true, isPrimary: true }));")
+    assert_selector "[data-slot=tooltip-content]", text: "Only Alice Smith or a workspace admin can stop Check web."
+    page.execute_script("#{target} target.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'touch', bubbles: true, isPrimary: true }));")
+    page.execute_script("#{target} target.dispatchEvent(new MouseEvent('click', { bubbles: true }));")
+
+    # A closing tooltip stays on screen while it fades, so the open state is what proves the tap kept it open.
+    assert_selector "[data-slot=tooltip-content]:not([data-state=closed])", text: "Only Alice Smith or a workspace admin can stop Check web."
+    assert_no_selector "[data-slot=tooltip-content][data-state=closed]"
+    page.save_screenshot(Rails.root.join("tmp/screenshots/blocked-tap-phone.png").to_s)
+  ensure
+    page.driver.browser.manage.window.resize_to(1400, 1400)
+  end
+
   test "a workspace without workflows shows no card" do
     FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
 

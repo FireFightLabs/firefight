@@ -7,6 +7,9 @@ class Workflow::HalonStep
   SUMMARY = "summary".freeze
   SEVERITY = "severity".freeze
   FINDINGS = "findings".freeze
+  # Each problem that needs a person, with what a notice of it holds, so a later step can raise one notice for each.
+  PROBLEMS = "problems".freeze
+  PROBLEM_FIELDS = %w[topic summary severity resource due_on].freeze
   OUT_OF_ROOM = "This run spent its AI ceiling, so Halon did not run this step.".freeze
 
   def initialize(run, record)
@@ -74,21 +77,68 @@ class Workflow::HalonStep
     NAME = "report_step".freeze
     SEVERITIES = Investigation::Notice::SEVERITIES
 
-    description "Report what you found for this step, once, last."
-    parameter :verdict, description: "One of: #{FirefightAi::Schemas::WorkflowAnswer::VERDICTS.join(', ')}"
-    parameter :summary, description: "Two or three plain sentences on what you looked at and found"
-    parameter :severity, description: "For a problem, one of: #{SEVERITIES.join(', ')}", required: false
-    parameter :findings, type: "array", description: "Each thing you found, one plain sentence each, naming what showed it", required: false
-
     attr_reader :report
 
     def name = NAME
 
-    def execute(verdict:, summary:, severity: nil, findings: [])
-      verdict = FirefightAi::Schemas::WorkflowAnswer::VERDICTS.include?(verdict.to_s) ? verdict.to_s : FirefightAi::Schemas::WorkflowAnswer::UNSURE
-      @report = { VERDICT => verdict, SUMMARY => summary.to_s.strip, SEVERITY => (severity.to_s if SEVERITIES.include?(severity.to_s)),
-                  FINDINGS => Array(findings).map { |finding| finding.to_s.strip }.compact_blank }
+    def description = "Report what you found for this step, once, last."
+
+    def parameters_schema
+      {
+        "type" => "object",
+        "properties" => {
+          "verdict" => { "type" => "string", "enum" => FirefightAi::Schemas::WorkflowAnswer::VERDICTS },
+          "summary" => { "type" => "string", "description" => "Two or three plain sentences on what you looked at and found" },
+          "severity" => { "type" => "string", "enum" => SEVERITIES, "description" => "For a problem, how much it matters" },
+          "findings" => { "type" => "array", "items" => { "type" => "string" }, "description" => "Each thing you found, one plain sentence each, naming what showed it" },
+          "problems" => {
+            "type" => "array",
+            "description" => "Each problem that needs a person, one each, so each is told once and again only when it gets worse",
+            "items" => {
+              "type" => "object",
+              "properties" => {
+                "topic" => { "type" => "string", "description" => "What it is about in a few words, the same each time for the same problem, such as the data volume of orders-db" },
+                "summary" => { "type" => "string", "description" => "What is happening and by when, in one or two plain sentences a team reads in a channel" },
+                "severity" => { "type" => "string", "enum" => SEVERITIES },
+                "resource" => { "type" => "string", "description" => "The resource on the map it is about, by its id or name, when it is about one" },
+                "due_on" => { "type" => "string", "description" => "The day it becomes a problem, as YYYY-MM-DD, when there is one" }
+              },
+              "required" => %w[topic summary severity]
+            }
+          }
+        },
+        "required" => %w[verdict summary]
+      }
+    end
+
+    # The arguments match the schema above, not an execute signature, so the base check is skipped. They arrive keyed by
+    # text, as the model sent them.
+    def call(tool_call: nil, **arguments)
+      given = arguments.stringify_keys
+      verdict = FirefightAi::Schemas::WorkflowAnswer::VERDICTS.include?(given["verdict"].to_s) ? given["verdict"].to_s : FirefightAi::Schemas::WorkflowAnswer::UNSURE
+      @report = { VERDICT => verdict, SUMMARY => given["summary"].to_s.strip, SEVERITY => (given["severity"].to_s if SEVERITIES.include?(given["severity"].to_s)),
+                  FINDINGS => Array(given["findings"]).map { |finding| finding.to_s.strip }.compact_blank,
+                  PROBLEMS => Report.problems_of(given["problems"]) }
       "Reported."
+    end
+
+    # Each problem with a topic and a summary, its fields as text, its severity one Firefight knows and its day a date,
+    # dropped when it is not one, since a raise_notice step refuses a day it cannot read and the notice would be lost.
+    def self.problems_of(given)
+      Array(given).filter_map do |problem|
+        next unless problem.is_a?(Hash)
+
+        kept = problem.stringify_keys.slice(*PROBLEM_FIELDS).transform_values { |value| value.to_s.strip }
+        next if kept["topic"].blank? || kept["summary"].blank?
+
+        kept.merge("severity" => kept["severity"].presence_in(SEVERITIES) || Investigation::Notice::SEVERITY_LOW, "due_on" => day_of(kept["due_on"])).compact_blank
+      end
+    end
+
+    def self.day_of(text)
+      Date.iso8601(text).iso8601 if text.present?
+    rescue Date::Error
+      nil
     end
   end
 end

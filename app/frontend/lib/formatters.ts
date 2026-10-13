@@ -1,3 +1,14 @@
+import { CHAT_TIME_TOKEN_PATTERN } from "@/lib/generated/constants"
+
+const MOMENT = new Intl.DateTimeFormat(undefined, {
+  weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short",
+})
+
+// Each moment the server wrote into text, such as when a workflow would run, in the viewer's own time zone, named.
+export function withLocalMoments(text: string): string {
+  return text.replace(new RegExp(CHAT_TIME_TOKEN_PATTERN, "g"), (_whole, seconds: string) => MOMENT.format(new Date(Number(seconds) * 1000)))
+}
+
 export function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-US", {
     month: "short",

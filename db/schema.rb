@@ -3297,6 +3297,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
     t.datetime "updated_at", null: false
     t.jsonb "pins", default: {}, null: false
     t.text "private_inputs"
+    t.string "repair_problem_keys", default: [], null: false, array: true
     t.index ["author_id"], name: "index_workflow_versions_on_author_id"
     t.index ["parent_version_id"], name: "index_workflow_versions_on_parent_version_id"
     t.index ["published_by_id"], name: "index_workflow_versions_on_published_by_id"
@@ -3335,6 +3336,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
     t.boolean "follows_library", default: false, null: false
     t.integer "library_dismissed_version"
     t.string "hook_token", null: false
+    t.datetime "given_up_at"
     t.index ["agent_id"], name: "index_workflows_on_agent_id"
     t.index ["created_by_id"], name: "index_workflows_on_created_by_id"
     t.index ["hook_token"], name: "index_workflows_on_hook_token", unique: true

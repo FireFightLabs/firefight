@@ -7,6 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { WORKFLOW_PAGE_TAB_QUERY, WORKFLOW_PAGE_TABS, type WorkflowPageTab } from "@/lib/generated/constants"
 import { useCan } from "@/lib/permissions"
 import { replaceQuery } from "@/lib/query"
+import { LibraryItemsCard } from "@/pages/halon/components/workflow-library/library-items-card"
+import { WorkflowsCard as LibraryWorkflowsCard } from "@/pages/halon/components/workflow-library/workflows-card"
 import { DoneCard } from "@/pages/halon/components/workflows/done-card"
 import { LibraryMenu } from "@/pages/halon/components/workflows/library-menu"
 import { PublishRequestsCard } from "@/pages/halon/components/workflows/publish-requests-card"
@@ -14,7 +16,7 @@ import { RunsTable } from "@/pages/halon/components/workflows/runs-table"
 import type { WorkflowsPageProps } from "@/pages/halon/components/workflows/types"
 import { WorkflowsCard } from "@/pages/halon/components/workflows/workflows-card"
 
-const [ WORKFLOWS_TAB, RUNS_TAB, DONE_TAB ] = WORKFLOW_PAGE_TABS
+const [ WORKFLOWS_TAB, RUNS_TAB, DONE_TAB, LIBRARY_TAB ] = WORKFLOW_PAGE_TABS
 
 function chosenTab(value: string | null): WorkflowPageTab | undefined {
   return WORKFLOW_PAGE_TABS.find((tab) => tab === value)
@@ -25,7 +27,7 @@ function tabFromUrl(): WorkflowPageTab {
 }
 
 export default function HalonWorkflowsPage() {
-  const { workflows, done, doneRuns, runs, runsPage, templates, publishRequests, timeZones } = usePage<WorkflowsPageProps>().props
+  const { workflows, done, doneRuns, runs, runsPage, templates, publishRequests, timeZones, libraryItems, libraryWorkflows, canCreate } = usePage<WorkflowsPageProps>().props
   const canManage = useCan("workflows")
   const [ tab, setTab ] = useState(tabFromUrl)
 
@@ -46,6 +48,7 @@ export default function HalonWorkflowsPage() {
           <TabsTrigger value={WORKFLOWS_TAB} className="px-3">Workflows</TabsTrigger>
           <TabsTrigger value={RUNS_TAB} className="px-3">Runs</TabsTrigger>
           <TabsTrigger value={DONE_TAB} className="px-3">Done</TabsTrigger>
+          <TabsTrigger value={LIBRARY_TAB} className="px-3">Library</TabsTrigger>
         </TabsList>
         <TabsContent value={WORKFLOWS_TAB} className="flex flex-col gap-6">
           {publishRequests.length > 0 && <PublishRequestsCard requests={publishRequests} />}
@@ -68,6 +71,10 @@ export default function HalonWorkflowsPage() {
         </TabsContent>
         <TabsContent value={DONE_TAB}>
           <DoneCard done={done} runs={doneRuns} canManage={canManage} timeZones={timeZones} />
+        </TabsContent>
+        <TabsContent value={LIBRARY_TAB} className="flex flex-col gap-6">
+          <LibraryWorkflowsCard workflows={libraryWorkflows} canCreate={canCreate} canManage={canManage} />
+          <LibraryItemsCard items={libraryItems} canCreate={canCreate} />
         </TabsContent>
       </Tabs>
     </AuthenticatedLayout>

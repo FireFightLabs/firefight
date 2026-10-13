@@ -10,19 +10,38 @@ module Workflow::FromLibrary
   BODY = %w[steps edges outputs].freeze
 
   class_methods do
-    # A new workflow holding the item as it is, as a draft that publishing makes live, as every new workflow is.
-    def from_library!(item, workspace:, by:, name: item.name, following: true)
+    # A new workflow holding the item as it is, as a draft that publishing makes live, as every new workflow is. answers
+    # are what the person said to each question the item's trigger asks without a default, such as what a scheduled
+    # check looks at, kept as that question's default so every scheduled run has it. The trigger is the workspace's, so
+    # this never stops it following the library.
+    def from_library!(item, workspace:, by:, name: item.name, following: true, answers: {})
       blocked = from_library_blocked_reason(item, workspace) || name_taken_reason(workspace, name)
       raise Workflow::Edit::Refused, blocked if blocked
+      raise Workflow::Edit::Refused, "Answer each question #{item.name} asks to use it." if unanswered_library_inputs(item, answers).any?
 
       transaction do
         workflow = create!(workspace: workspace, name: name, description: item.description, aliases: (name == item.name ? item.aliases : []),
                            created_by: by, library_key: item.key, library_version: item.version, library_base: item.definition,
                            follows_library: following)
         workflow.versions.create!(number: 1, status: Workflow::Version::STATUS_DRAFT, author_kind: Workflow::AUTHOR_FIREFIGHT,
-                                  reason: "From Firefight's library, version #{item.version}.", **item.definition.symbolize_keys)
+                                  reason: "From Firefight's library, version #{item.version}.",
+                                  **item.definition.symbolize_keys, trigger: answered_trigger(item.trigger, answers))
         workflow
       end
+    end
+
+    # The keys of the questions the item asks without a default that answers leaves unanswered.
+    def unanswered_library_inputs(item, answers)
+      given = answers.to_h.stringify_keys
+      Workflow::Trigger.inputs(item.trigger).select { |input| input["default"].blank? && given[input["key"]].to_s.strip.empty? }.map { |input| input["key"] }
+    end
+
+    def answered_trigger(trigger, answers)
+      given = answers.to_h.stringify_keys
+      trigger.deep_dup.merge(Workflow::Trigger::KEY_INPUTS => Workflow::Trigger.inputs(trigger).map do |input|
+        answer = given[input["key"]].to_s.strip
+        input["default"].blank? && answer.present? ? input.merge("default" => answer) : input
+      end)
     end
 
     def body_of(content) = content.to_h.stringify_keys.slice(*BODY)

@@ -53,16 +53,11 @@ class WorkspaceMembership < ApplicationRecord
     Ability::Action::RESOURCE_MEMORY => [ Ability::Action::ACTION_CREATE, Ability::Action::ACTION_UPDATE ].freeze
   }.freeze
 
-  # Held without a grant beside participation, and ledgered like any other change: building a workflow's draft, testing
-  # it and running one that is published. Publishing it is an admin's.
-  MEMBER_BUILDS = {
-    Ability::Action::RESOURCE_WORKFLOWS => [ Ability::Action::ACTION_CREATE ].freeze
-  }.freeze
-
   # Held in every environment without a grant, until an admin grants one to the member, alone or in a set. From then the
   # grants decide where, so a grant narrows the default rather than adding to it, and one that expires narrows to nothing.
-  # A connected tool that only reads is held the same way (default_read?).
-  NARROWABLE_KEYS = [ Ability::Action::MAP_READ, Ability::Action::INVESTIGATIONS_CREATE ].freeze
+  # A connected tool that only reads is held the same way (default_read?). Making workflows (building a draft, testing it
+  # and running one that is published) is ledgered like any other change, and publishing one is an admin's.
+  NARROWABLE_KEYS = [ Ability::Action::MAP_READ, Ability::Action::INVESTIGATIONS_CREATE, Ability::Action::WORKFLOWS_CREATE ].freeze
 
   # Where one of those defaults stands for a member: held, narrowed by a grant, or taken away by an admin.
   DEFAULT_HELD = "held"
@@ -98,7 +93,7 @@ class WorkspaceMembership < ApplicationRecord
     return !(resolved || Ability::Resolver.resolve(self, workspace_id)).granted_ever?(key) if NARROWABLE_KEYS.include?(key)
     return true if crud_action.to_s == Ability::Action::ACTION_READ
 
-    PARTICIPATION.fetch(resource, []).include?(crud_action.to_s) || MEMBER_BUILDS.fetch(resource, []).include?(crud_action.to_s)
+    PARTICIPATION.fetch(resource, []).include?(crud_action.to_s)
   end
 
   # A connected tool that only reads, held until a grant of it, alone or in a set such as its connection's read pack,
@@ -159,7 +154,7 @@ class WorkspaceMembership < ApplicationRecord
     withheld = grants.select { |grant| grant.workspace_id == workspace_id && grant.no_access? }
     by_action = withheld.select(&:action).index_by { |grant| grant.action.key }
     by_role = withheld.select(&:role).index_by(&:role_id)
-    system = NARROWABLE_KEYS.map do |key|
+    system = (NARROWABLE_KEYS - Ability::Action.hidden_keys(workspace)).map do |key|
       DefaultAccess.new(action: Ability::Action.system!(key), role: nil, state: default_state(key, by_action, resolved), grant: by_action[key])
     end
     system + read_packs.map do |pack|

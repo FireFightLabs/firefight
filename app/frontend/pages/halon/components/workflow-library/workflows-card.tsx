@@ -13,12 +13,13 @@ import { WorkflowOrigin } from "@/pages/halon/components/workflow-library/workfl
 
 interface WorkflowsCardProps {
   workflows: HalonLibraryWorkflowUse[]
+  canCreate: boolean
   canManage: boolean
 }
 
 // The workspace's workflows, where each came from and whether it runs yet, each exportable as a file to share, with
 // importing a file beside them.
-export function WorkflowsCard({ workflows, canManage }: WorkflowsCardProps) {
+export function WorkflowsCard({ workflows, canCreate, canManage }: WorkflowsCardProps) {
   const [ importing, setImporting ] = useState(false)
   const [ changesOf, setChangesOf ] = useState<HalonLibraryWorkflowUse | null>(null)
 
@@ -42,7 +43,7 @@ export function WorkflowsCard({ workflows, canManage }: WorkflowsCardProps) {
             <CardTitle>Your workflows</CardTitle>
             <CardDescription className="mt-1">Export one as a file to share it, or import a file from another workspace.</CardDescription>
           </div>
-          {canManage && (
+          {canCreate && (
             <Button size="sm" variant="outline" onClick={openImport}>
               <IconFileImport className="size-4" />
               Import a workflow
@@ -110,7 +111,7 @@ export function WorkflowsCard({ workflows, canManage }: WorkflowsCardProps) {
         </CardContent>
       )}
       <LibraryChangesSheet workflow={changesOf} canManage={canManage} onClose={closeChanges} />
-      {canManage && <ImportWorkflowDialog open={importing} onClose={closeImport} />}
+      {canCreate && <ImportWorkflowDialog open={importing} onClose={closeImport} />}
     </Card>
   )
 }

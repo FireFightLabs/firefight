@@ -330,7 +330,7 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
     run = start(workflow)
 
     assert_equal Workflow::Run::STATUS_SUCCEEDED, run.status, run.error
-    assert_equal report, run.steps.find_by!(step_key: "scan").output
+    assert_equal report.merge("problems" => []), run.steps.find_by!(step_key: "scan").output
   end
 
   test "a workflow cannot be published with a skill step whose skill the workspace switched off" do

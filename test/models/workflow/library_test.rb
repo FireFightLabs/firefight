@@ -50,7 +50,8 @@ class Workflow::LibraryTest < ActiveSupport::TestCase
     FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:post_monitoring_notice).returns({ channel_id: "C1", message_id: "1.1" })
     Workflow::HalonStep.any_instance.stubs(:follow!).returns({ "verdict" => "problem", "summary" => "The db volume fills on Friday.", "severity" => "medium",
-                                                                "findings" => [ "db-data is 91 percent full." ] })
+                                                                "findings" => [ "db-data is 91 percent full." ],
+                                                                "problems" => [ { "topic" => "db-data volume", "summary" => "The db volume fills on Friday.", "severity" => "medium" } ] })
     workflow = Workflow.from_library!(Workflow::Library.find("disk_space_check"), workspace: @workspace, by: @alice)
 
     published = WorkflowPublishService.new(workflow).publish!(workflow.draft, by: @alice)
@@ -84,6 +85,51 @@ class Workflow::LibraryTest < ActiveSupport::TestCase
     error = assert_raises(Workflow::Edit::Refused) { Workflow.from_library!(item, workspace: @workspace, by: @alice) }
     assert_equal "Cool down already exists here, so give this one another name.", error.message
     assert Workflow.from_library!(item, workspace: @workspace, by: @alice, name: "Cool down twice", following: false)
+  end
+
+  test "a check from the library raises one notice per problem it found, each said once and again only when worse" do
+    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
+    @workspace.update!(halon_monitoring_channel: "C_MONITORING")
+    said = []
+    WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:post_monitoring_notice).with { |notice:, **| said << notice.topic }.returns({ channel_id: "C_MONITORING", message_id: "1.1" })
+    problems = [
+      { "topic" => "orders-db data volume", "summary" => "orders-db is 91 percent full and full around Oct 28.", "severity" => "medium", "due_on" => "2026-10-28" },
+      { "topic" => "logs volume on web-1", "summary" => "web-1's log volume is 85 percent full.", "severity" => "low" }
+    ]
+    report = ->(found) { { "verdict" => "problem", "summary" => "Two disks fill up.", "severity" => "medium", "findings" => [], "problems" => found } }
+    Workflow::HalonStep.any_instance.stubs(:follow!).returns(report.call(problems))
+    workflow = Workflow.from_library!(Workflow::Library.find("disk_space_check"), workspace: @workspace, by: @alice)
+    WorkflowPublishService.new(workflow).publish!(workflow.draft, by: @alice)
+    start = -> { perform_enqueued_jobs { WorkflowRunService.new(workflow.reload).start!(started_by_kind: Workflow::Run::STARTED_BY_PERSON, started_by: @alice) } }
+
+    first = start.call
+    assert_equal Workflow::Run::STATUS_SUCCEEDED, first.reload.status, first.error
+    notices = first.notices.order(:topic)
+    assert_equal [ "logs volume on web-1", "orders-db data volume" ], notices.map(&:topic)
+    assert_equal [ Investigation::Notice::SIGNAL_DISK ], notices.map(&:signal).uniq
+    assert_equal Date.new(2026, 10, 28), notices.last.due_on
+    assert_equal [ "logs volume on web-1", "orders-db data volume" ], said.sort
+
+    said.clear
+    worse = problems.map(&:dup)
+    worse.last["severity"] = "high"
+    Workflow::HalonStep.any_instance.stubs(:follow!).returns(report.call(worse))
+    second = start.call
+
+    assert_equal Workflow::Run::STATUS_SUCCEEDED, second.reload.status, second.error
+    assert_equal 2, Investigation::Notice.where(workspace: @workspace, signal: Investigation::Notice::SIGNAL_DISK).count
+    assert_equal [ "logs volume on web-1" ], said, "only the one that got worse is said again"
+  end
+
+  test "an item that asks a question without a default is taken only with an answer" do
+    item = Workflow::Library.find("scheduled_check")
+    assert_equal [ "notes" ], Workflow.unanswered_library_inputs(item, {})
+
+    error = assert_raises(Workflow::Edit::Refused) { Workflow.from_library!(item, workspace: @workspace, by: @alice) }
+    assert_equal "Answer each question Scheduled check asks to use it.", error.message
+    workflow = Workflow.from_library!(item, workspace: @workspace, by: @alice, answers: { "notes" => "The orders queue should never pass 1000." })
+    assert_equal "The orders queue should never pass 1000.", Workflow::Trigger.inputs(workflow.draft.trigger).sole["default"]
+    assert_empty workflow.draft.problems
   end
 
   test "an item this workspace cannot run is not taken" do

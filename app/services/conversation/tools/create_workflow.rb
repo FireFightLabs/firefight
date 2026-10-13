@@ -67,17 +67,11 @@ class Conversation::Tools::CreateWorkflow < RubyLLM::Tool
     service = WorkflowPublishService.new(workflow)
     return "Made #{workflow.name} as a draft. #{service.ask_or_leave!(draft, by: @turn.asker).words}" unless service.may_publish?(draft, by: @turn.asker)
 
-    granting = workflow.missing_reach(draft).any?
-    result = @turn.tool_call(action_key: Workflow::PUBLISH_KEY, params: { "workflow" => workflow.slug }) do
-      next service.publish!(draft, by: @turn.asker) unless granting
-
-      @turn.tool_call(action_key: Workflow::GRANT_KEY, params: { "workflow" => workflow.slug }) { service.publish!(draft, by: @turn.asker) }.value
-    end.value
+    result = service.publish_through_gateway!(draft, principal: @turn.asker, source: AbilityGateway::SOURCE_CONVERSATION)
+    return "Made #{workflow.name} as a draft. #{result.words}" if result.words == WorkflowPublishService::PUBLISH_HELD
     return "Made #{workflow.name} as a draft, but it was not published. #{result.words}" unless result.ok
 
     "Made and published #{workflow.name}. It runs #{workflow.reload.trigger_words.downcase_first}#{next_words(workflow)}. Tell the person in a sentence."
-  rescue AbilityGateway::PendingApproval
-    "Made #{workflow.name} as a draft. #{WorkflowPublishService::PUBLISH_HELD}"
   end
 
   def next_words(workflow) = workflow.next_run_at ? ", next at #{workflow.next_run_at.in_time_zone(workflow.time_zone || 'UTC').strftime('%H:%M on %A %-d %B')}" : ""

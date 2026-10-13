@@ -39,7 +39,7 @@ class Conversation::Tools::WorkflowToolsTest < ActiveSupport::TestCase
       assert tool.requires_approval?
       assert_nil tool.approval_resolver.call(call)
       asked = Chat::Tools.confirmation(conversation.chat.tool_calls.find_by!(tool_call_id: "call_1")).asked
-      assert_includes asked, [ "Runs", "Once on Tuesday 13 October 2026 at 12:30 (UTC)" ]
+      assert_includes asked, [ "Runs", "Once at #{Chat::TimeToken.for(Time.zone.parse('2026-10-13 12:30 UTC'))}" ]
       assert_includes asked, [ "Ask Halon", "judge: Is web healthy now, and are its error rate and latency within its normal?" ]
       assert(asked.any? { |label, words| label == "It will be able to" && words.include?("post to a channel") })
     end
@@ -69,8 +69,46 @@ class Conversation::Tools::WorkflowToolsTest < ActiveSupport::TestCase
 
     workflow = @workspace.workflows.find_by!(name: "Check web")
     assert_not workflow.live?
-    assert_match "Made Check web as a draft. Publishing it is held for an approval", said
+    assert_equal "Made Check web as a draft. Publishing it is held for an approval, so it waits as a draft and is published once an admin approves.", said.split(" Its card").first
     assert_no_match "not allowed", said
+  end
+
+  # Publishing held by a rule an admin decides, whoever asked.
+  def hold_publishing
+    PolicyRule::ApprovalConditions.stubs(:errors_for).returns([])
+    AbilityGateway.stubs(:approval_requirement).returns(nil)
+    AbilityGateway.stubs(:approval_requirement).with { |*given| given[2] == Workflow::PUBLISH_KEY }.returns({ "role" => "admin", "count" => 1 })
+    Ability::Approval.any_instance.stubs(:self_approvable?).returns(true)
+  end
+
+  test "publishing held for an approval happens once an admin approves, exactly the draft that was asked about" do
+    hold_publishing
+    Conversation::Tools::CreateWorkflow.new(turn(@admin)).call(**check_later)
+    workflow = @workspace.workflows.find_by!(name: "Check web")
+    approval = Ability::Approval.find_by!(action_key: Workflow::PUBLISH_KEY, status: Ability::Approval::STATUS_PENDING)
+    asked = workflow.draft.revision
+
+    perform_enqueued_jobs { approval.approve!(by: @admin) }
+
+    workflow.reload
+    assert workflow.live?
+    assert_equal asked, workflow.live_version.revision
+    assert approval.reload.consumed_at
+    assert_includes workflow.agent.ability_grants.map { |grant| grant.action&.key }, Ability::Action::CHANNEL_POST
+  end
+
+  test "an approval for publishing a draft changed since it was asked is refused with why" do
+    hold_publishing
+    Conversation::Tools::CreateWorkflow.new(turn(@admin)).call(**check_later)
+    workflow = @workspace.workflows.find_by!(name: "Check web")
+    approval = Ability::Approval.find_by!(action_key: Workflow::PUBLISH_KEY, status: Ability::Approval::STATUS_PENDING)
+    workflow.edit!(operation: Workflow::Edit::OPERATION_RENAME, payload: { step_id: "step_tell", name: "say_it" }, by: @admin)
+
+    error = assert_raises(Ability::Approval::NotAllowed) { approval.approve!(by: @admin) }
+
+    assert_equal "Check web changed since Alice Smith asked, so open it and look again before publishing.", error.message
+    assert approval.reload.pending?
+    assert_not workflow.reload.live?
   end
 
   test "a member's confirmed workflow is a draft and the admins are asked to publish it" do

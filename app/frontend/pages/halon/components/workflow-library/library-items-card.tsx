@@ -10,7 +10,7 @@ import { WORKFLOW_TRIGGER_LABELS } from "@/pages/halon/lib/workflow-trigger-labe
 
 interface LibraryItemsCardProps {
   items: HalonLibraryWorkflow[]
-  canManage: boolean
+  canCreate: boolean
 }
 
 function stepWords(count: number): string {
@@ -19,7 +19,7 @@ function stepWords(count: number): string {
 
 // Firefight's own workflows, each with its version, what starts it and the workspace's workflows already made from it.
 // One whose steps this Firefight cannot run yet stays listed with why.
-export function LibraryItemsCard({ items, canManage }: LibraryItemsCardProps) {
+export function LibraryItemsCard({ items, canCreate }: LibraryItemsCardProps) {
   const [ using, setUsing ] = useState<HalonLibraryWorkflow | null>(null)
 
   function close() {
@@ -59,7 +59,7 @@ export function LibraryItemsCard({ items, canManage }: LibraryItemsCardProps) {
                 </TableCell>
                 <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">Version {item.version}</TableCell>
                 <TableCell className="text-right">
-                  {canManage && (
+                  {canCreate && (
                     <Blocked reason={item.useBlockedReason}>
                       <Button type="button" size="sm" variant="outline" disabled={Boolean(item.useBlockedReason)} onClick={() => setUsing(item)}>
                         Use
@@ -72,7 +72,7 @@ export function LibraryItemsCard({ items, canManage }: LibraryItemsCardProps) {
           </TableBody>
         </Table>
       </CardContent>
-      {canManage && <UseLibraryWorkflowDialog item={using} onClose={close} />}
+      {canCreate && <UseLibraryWorkflowDialog item={using} onClose={close} />}
     </Card>
   )
 }

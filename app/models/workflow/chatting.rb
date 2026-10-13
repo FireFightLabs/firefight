@@ -18,8 +18,8 @@ module Workflow::Chatting
     offers
   end
 
-  # The last run the card says how it went, never a test run, which ran a draft as the person testing.
-  def last_chat_run = runs.real.newest_first.first
+  # The last run the card says how it went, never a test run (latest_run).
+  def last_chat_run = latest_run
 
   # A one off is cancelled before its time, and one that repeats is turned off.
   def stop_action = one_off? ? ACTION_CANCEL : ACTION_TURN_OFF

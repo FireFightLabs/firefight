@@ -255,6 +255,11 @@ module Ability
 
     # A person cannot retry a click the way API callers retry a call, so the parked payload is
     # replayed. Enqueued after commit so editing a row elsewhere never triggers platform traffic.
+    # Why approving would do something nobody asked for, such as publishing a workflow changed since it was asked about.
+    def approve_blocked_reason
+      Workflow.publish_approval_blocked_reason(self) if resume_payload.to_h["kind"] == Workflow::PUBLISH_APPROVAL_KIND
+    end
+
     def resume_parked_request
       return if resume_payload.blank?
 
@@ -268,6 +273,8 @@ module Ability
     def resolve!(new_status, principal)
       raise NotAllowed, "approval is no longer pending" unless pending?
       raise NotAllowed, approver_requirement_message unless approver?(principal)
+      blocked = approve_blocked_reason if new_status == STATUS_APPROVED
+      raise NotAllowed, blocked if blocked
       if requester?(principal) && !self_approvable?
         raise NotAllowed, "this policy requires approval by someone other than the requester"
       end

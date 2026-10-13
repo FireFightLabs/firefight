@@ -1,15 +1,23 @@
 name: Scheduled check
 description: Halon looks at whatever your notes describe on a schedule, such as a queue that should never grow, and tells the owning team once and again only when it gets worse.
-aliases: [custom check]
+aliases:
+- custom check
 trigger:
   kind: schedule
   repeat: days
-  days: [0, 1, 2, 3, 4, 5, 6]
+  days:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
   at: "09:00"
   time_zone: UTC
   inputs:
   - key: notes
-    question: What should Halon look at, and what counts as a problem?
+    question: What should Halon check?
     private: true
 steps:
 - id: step_check
@@ -18,31 +26,28 @@ steps:
   config:
     skill: monitoring
     focus: '{{inputs.notes}}'
-- id: step_found
-  name: found_problems
-  kind: branch
+- id: step_raise
+  name: raise_notices
+  kind: for_each
   config:
-    routes:
-    - route: found
-      when:
-        left: '{{steps.check.verdict}}'
-        operator: equals
-        right: problem
-    otherwise: all_clear
-- id: step_notice
-  name: notice
-  kind: raise_notice
-  config:
-    signal: other
-    topic: What the scheduled check watches
-    summary: '{{steps.check.summary}}'
-    severity: '{{steps.check.severity}}'
+    items: '{{steps.check.problems}}'
+    concurrency: 1
+    steps:
+    - id: step_notice
+      name: notice
+      kind: raise_notice
+      on_failure: continue
+      config:
+        signal: other
+        topic: '{{item.topic}}'
+        summary: '{{item.summary}}'
+        severity: '{{item.severity}}'
+        resource: '{{item.resource}}'
+        due_on: '{{item.due_on}}'
+    edges: []
 edges:
 - from: step_check
-  to: step_found
-- from: step_found
-  to: step_notice
-  route: found
+  to: step_raise
 outputs:
   verdict: '{{steps.check.verdict}}'
-  summary: '{{steps.check.summary}}'
+  problems: '{{steps.check.problems}}'
