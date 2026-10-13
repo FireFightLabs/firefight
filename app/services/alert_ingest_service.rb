@@ -109,9 +109,8 @@ class AlertIngestService
     return if outcome.nil? || outcome == ACTION_DROP || alert.alert_group_id.present?
 
     Workflow::Trigger::Events.fire!(@workspace, Workflow::Trigger::KIND_ALERT_RECEIVED, key: alert.id, subject: alert, details: { "outcome" => outcome })
-  rescue StandardError => e
-    Rails.logger.error({ event: "alert_routing.workflows_failed", alert_id: alert.id, error: e.message }.to_json)
   end
+
 
   def handle_resolved(fingerprint, now)
     alert = @source.alerts.open_status.find_by(fingerprint: fingerprint)

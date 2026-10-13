@@ -16,14 +16,24 @@ module Workflow::Trigger::Events
 
   module_function
 
-  # Says that something happened. details are plain values the job reads it with, beside the record it is about.
+  # Says that something happened. details are plain values the job reads it with, beside the record it is about. It
+  # never raises: telling workflows is never allowed to stop what happened from finishing, such as an investigation
+  # closing or a failed run being said, so a failure here is logged and the event goes unheard.
   def fire!(workspace, kind, key:, subject:, details: {}, actor: nil)
     return unless listened?(workspace, kind)
 
     actor_ref = actor && { "type" => actor.class.name, "id" => actor.id }
     ActiveRecord.after_all_transactions_commit do
       WorkflowEventJob.perform_later(workspace.id, kind, key.to_s, subject, details.to_h.deep_stringify_keys, actor_ref)
+    rescue StandardError => error
+      unheard(workspace, kind, error)
     end
+  rescue StandardError => error
+    unheard(workspace, kind, error)
+  end
+
+  def unheard(workspace, kind, error)
+    Rails.logger.error({ event: "workflow_trigger.unheard", workspace_id: workspace.id, kind: kind, error: error.class.name, message: error.message }.to_json)
   end
 
   # Whether any workflow of the workspace starts on the kind, which keeps the job from being asked about every event.

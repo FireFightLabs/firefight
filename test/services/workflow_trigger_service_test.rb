@@ -191,6 +191,24 @@ class WorkflowTriggerServiceTest < ActiveSupport::TestCase
     assert_equal "nope", run.trigger_payload.dig("run", "failed_step")
   end
 
+  test "telling workflows that broke never stops what happened from finishing" do
+    failing = published("Breaks", { "kind" => Workflow::Trigger::KIND_MANUAL })
+    Workflow::Trigger::Events.stubs(:listened?).raises(ActiveRecord::ConnectionTimeoutError, "no connection")
+
+    assert_nothing_raised { EventRouter.route(domain_event(created_event)) }
+
+    investigation = Investigation.create!(workspace: @workspace, subject: @incident, trigger_source: Investigation::TRIGGER_DASHBOARD, max_spend_cents: 100, max_turns: 5)
+    assert investigation.finish!(status: Investigation::STATUS_SUCCEEDED)
+
+    reading = Investigation::Notice::Reading.new(signal: Investigation::Notice::SIGNAL_DISK, topic: "db disk", summary: "Filling up", severity: Investigation::Notice::SEVERITY_LOW)
+    assert Investigation::Notice.observe!(@workspace, reading)
+
+    run = failing.runs.create!(workspace: @workspace, version: failing.live_version, status: Workflow::Run::STATUS_FAILED, trigger_kind: Workflow::Trigger::KIND_MANUAL,
+                               start_key: "broke", started_by_kind: Workflow::Run::STARTED_BY_PERSON, error: "It broke.")
+    WorkspaceAdapter.for(@workspace).class.any_instance.expects(:post_workflow_failure).once.returns({})
+    WorkflowRunEndService.new(run).ended!
+  end
+
   test "a trigger's conditions and choices are checked before publishing" do
     workflow = Workflow.create!(workspace: @workspace, name: "Wrong", created_by: @alice)
     draft = workflow.open_draft!(by: @alice)

@@ -173,7 +173,7 @@ The settings screen edits the scope's *own* policy, never the inherited fallback
 
 An incident an alert opened can start Halon once its channel exists, when the workspace turned that on, within an hourly spending ceiling shared by every alert run. Grouping is what keeps it to one run per storm of the same signature. See docs/ai.md, On call.
 
-Once routing commits, `#route` tells the workspace's workflows about the alert (`tell_workflows`, the `alert_received` trigger) unless it was dropped or joined a group already open, so a storm starts one run. A failure there is logged and never undoes the routing. See docs/workflows.md, Something happening.
+Once routing commits, `#route` tells the workspace's workflows about the alert (`tell_workflows`, the `alert_received` trigger) unless it was dropped or joined a group already open, so a storm starts one run. Telling them never raises (`Workflow::Trigger::Events.fire!` logs its own failures), so it never undoes the routing. See docs/workflows.md, Something happening.
 
 Incident creation goes through **`IncidentLifecycleService#create` with `source: Incident::SOURCE_ALERT` and `declared_by: nil`** — the same path `/ff declare` uses. Alerts are an entry point, not a second way to make an incident.
 
