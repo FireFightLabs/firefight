@@ -52,6 +52,20 @@ class Events::ReactionAddedHandlerTest < ActiveSupport::TestCase
     Events::ReactionAddedHandler.execute(@workspace, build_payload(reaction: "arrow_forward"))
   end
 
+  test "the prompt quotes the message reacted to, and never an older one Slack reads back in place of a deleted one" do
+    stub_get_permalink
+    prompts = []
+    Slack::Client.stubs(:post_ephemeral).with { |arguments| prompts << arguments[:blocks].to_json }.returns({ ok: true })
+
+    stub_get_message(text: "The database is slow", ts: "1234567890.111111")
+    Events::ReactionAddedHandler.execute(@workspace, build_payload(reaction: "boom"))
+    stub_get_message(text: "Something said earlier", ts: "1234567890.000001")
+    Events::ReactionAddedHandler.execute(@workspace, build_payload(reaction: "boom"))
+
+    assert_includes prompts.first, "The database is slow"
+    assert_not_includes prompts.second, "Something said earlier"
+  end
+
   test "ignores non-action reactions" do
     Slack::Client.expects(:post_ephemeral).never
 

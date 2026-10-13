@@ -107,8 +107,8 @@ module SlackClientStubHelper
     Slack::Client.stubs(:get_permalink).returns({ ok: true, permalink: permalink })
   end
 
-  def stub_get_message(text: "Test message")
-    Slack::Client.stubs(:get_message).returns({ "text" => text, "user" => "U12345678", "ts" => "1234567890.123456" })
+  def stub_get_message(text: "Test message", ts: "1234567890.123456")
+    Slack::Client.stubs(:get_message).returns({ "text" => text, "user" => "U12345678", "ts" => ts })
   end
 
   def stub_download_file(body: "file-content", content_type: "application/octet-stream")
