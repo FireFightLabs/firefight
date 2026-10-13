@@ -162,8 +162,6 @@ class Chat::Tools::UseSkillTest < ActiveSupport::TestCase
     end
   end
 
-  private
-
   test "a workspace's own skill is listed and loaded like any other, its tools offered through the same rules" do
     FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     grant_system!(Ability::Action::RESOURCE_FORMS, Ability::Action::ACTION_READ)
@@ -186,6 +184,8 @@ class Chat::Tools::UseSkillTest < ActiveSupport::TestCase
     assert_equal 1, use_skill.parameters_schema.dig("properties", "skill", "enum").count("declaring")
     assert_includes use_skill.call("skill" => "declaring"), "1. Our own way, with `get_form`."
   end
+
+  private
 
   def connect_northflank(tools)
     integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Northflank")
