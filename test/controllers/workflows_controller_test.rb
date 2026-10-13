@@ -95,6 +95,15 @@ class WorkflowsControllerTest < ActionDispatch::IntegrationTest
     assert_equal @bob, tested.acting_principal
   end
 
+  test "a run takes only the trigger's questions as plain answers, whatever else is sent" do
+    workflow = published
+    sign_in(users(:bob), @workspace)
+
+    perform_enqueued_jobs { post run_workflow_path(workflow), params: { inputs: { query: { nested: "x" }, unasked: "y" } } }
+
+    assert_equal({ "query" => "db" }, workflow.runs.sole.inputs)
+  end
+
   test "the run page shows each step and pinning and stopping a run each say so" do
     workflow = published
     sign_in(users(:alice), @workspace)

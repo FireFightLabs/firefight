@@ -182,7 +182,11 @@ class WorkflowsController < InertiaController
                   Workflow::Library::PARAM_CHANNEL, Workflow::Library::PARAM_REPLY_IN_CHAT, Workflow::Library::PARAM_DAYS => []).to_h
   end
 
-  def inputs = params.fetch(:inputs, {}).permit!.to_h
+  # Only the questions the live version or the draft asks, each a plain answer.
+  def inputs
+    asked = [ @workflow.live_version, @workflow.draft ].compact.flat_map { |version| Workflow::Trigger.input_keys(version.trigger) }.uniq
+    params.fetch(:inputs, {}).permit(*asked).to_h
+  end
 
   def settings_params
     given = params.permit(*SETTINGS).to_h
