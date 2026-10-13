@@ -185,7 +185,7 @@ class Conversation::Runner
     queries = Conversation::Runner::QueryCount.new
     traced("conversation.reply.#{PHASE_SETUP}.#{name}") { queries.count(&) }
   ensure
-    Rails.logger.info({ event: SETUP_STEP_EVENT, step: name, duration_ms: elapsed_ms(started), queries: queries&.total, cached: queries&.cached,
+    Rails.logger.info({ event: SETUP_STEP_EVENT, step: name, duration_ms: elapsed_ms(started), db_ms: queries&.db_ms, queries: queries&.total, cached: queries&.cached,
                         conversation_id: @conversation.id }.to_json)
   end
 

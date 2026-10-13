@@ -28,6 +28,11 @@ class IntegrationEnvironment < ApplicationRecord
 
   # The resources it reports are found by the environment it is wired to.
   after_update_commit :index_reported_resources, if: :saved_change_to_catalog_entry_id?
+  # The environment and scope arguments its connection's tools are offered with come from these rows, so each tool's
+  # stored length is counted again when one is added, removed, switched or rewired, or its fields or what it learned change.
+  after_commit :recount_tool_definitions, if: -> {
+    destroyed? || previously_new_record? || saved_change_to_enabled? || saved_change_to_catalog_entry_id? || saved_change_to_base_config?
+  }
 
   scope :enabled, -> { where(enabled: true) }
   # Rows that reach something: enabled, of a connection that is switched on and not removed, not made through an app the
@@ -140,6 +145,9 @@ class IntegrationEnvironment < ApplicationRecord
   end
 
   private
+
+  # Found again, since a connection removed with its rows has no tools left to count.
+  def recount_tool_definitions = Integration.find_by(id: integration_id)&.recount_tool_definitions!
 
   def index_reported_resources
     reported = ResourceMap::Resource.where(integration_environment_id: id).or(ResourceMap::Resource.where("sightings ? :row", row: id.to_s))

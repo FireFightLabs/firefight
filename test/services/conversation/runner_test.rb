@@ -908,6 +908,7 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
                    Conversation::Runner::STEP_HELD_OUTCOMES, Conversation::Runner::STEP_CATCH_UP, Conversation::Runner::STEP_SPECIALISTS,
                    Conversation::Runner::STEP_PRESENTED, Conversation::Runner::STEP_SUSPECTS ], steps.map { |step| step["step"] }
     assert steps.all? { |step| [ step["duration_ms"], step["queries"], step["cached"] ].all?(Integer) && step["conversation_id"] == @conversation.id }
+    assert steps.all? { |step| step["db_ms"].is_a?(Numeric) && step["db_ms"] <= step["duration_ms"] + 1 }, "each step says how much of its time was the database's"
     assert_operator steps.sum { |step| step["queries"] }, :>, 0
 
     setup = exporter.finished_spans.find { |span| span.name == "conversation.reply.#{Conversation::Runner::PHASE_SETUP}" }

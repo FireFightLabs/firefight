@@ -5,9 +5,10 @@ module Integrations
   # before keeps whatever an admin chose for it. A tool reads when its server says so or the registry does, unless the
   # registry says it writes, or when an admin marked it as a read on a server Firefight cannot know.
   class DiscoveryService
-    # Each minted action joins its permission packs once every tool is saved.
+    # Each minted action joins its permission packs once every tool is saved, and every tool's length is counted from
+    # the connection's environments read once.
     def self.sync!(integration)
-      Ability::Role.filing_together(integration) { discover!(integration) }
+      Ability::Role.filing_together(integration) { integration.counting_tools_together { discover!(integration) } }
     end
 
     def self.discover!(integration)
