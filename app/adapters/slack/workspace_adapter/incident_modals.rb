@@ -90,16 +90,29 @@ module Slack::WorkspaceAdapter::IncidentModals
     end
   end
 
-  # A trigger lasts three seconds, so the form opens first. The message a reaction was added to is read after, and the open
-  # form is filled in with it.
+  # A prompt posted with the words themselves fills the form as it opens. One carrying where the message is opens it
+  # empty, to be filled in once the message is read (fill_in_action_item_modal).
   def open_action_item_modal(kind:, trigger_id:, incident:, private_metadata: nil, push: false)
     state = private_metadata.present? ? ModalState.parse(private_metadata) : ModalState::EMPTY
     view = Slack::Modals::ActionItemsForm.build(incident, kind: kind, private_metadata: private_metadata, description: readable(state.source_message_text))
     opened = translate_errors do
       push ? Slack::Client.push_modal(workspace: @workspace, trigger_id: trigger_id, view: view) : Slack::Client.open_modal(workspace: @workspace, trigger_id: trigger_id, view: view)
     end
-    fill_in_reacted_to(opened.dig(:view, :id), state) { |description| Slack::Modals::ActionItemsForm.build(incident, kind: kind, private_metadata: private_metadata, description: description) }
-    { success: true }
+    { success: true, view_id: opened.dig(:view, :id) }
+  end
+
+  # Shown as plain text, since the field takes no markup. A message that cannot be read, or a form closed before it is
+  # filled in, leaves the field as it was.
+  def fill_in_action_item_modal(view_id:, kind:, incident:, private_metadata:)
+    state = ModalState.parse(private_metadata)
+    return unless state.source_message_id && state.channel_id
+
+    description = readable(fetch_message(channel_id: state.channel_id, message_id: state.source_message_id)[:text])
+    return if description.blank?
+
+    update_modal(view_id: view_id, view: Slack::Modals::ActionItemsForm.build(incident, kind: kind, private_metadata: private_metadata, description: description))
+  rescue AdapterError => error
+    Rails.logger.info({ event: "slack.action_item_form.fill_in_failed", error: error.class.name, message: error.message }.to_json)
   end
 
   def open_rename_action_modal(trigger_id:, action:, push: false)
@@ -152,18 +165,6 @@ module Slack::WorkspaceAdapter::IncidentModals
   end
 
   private
-
-  # A reaction carries where the message it was added to is, shown as plain text since the field takes no markup. A
-  # prompt posted before carries the words themselves, in the form as it opens. A message that cannot be read, or a form
-  # closed before it is filled in, leaves the field as it was.
-  def fill_in_reacted_to(view_id, state)
-    return unless view_id && state.source_message_id && state.channel_id
-
-    description = readable(fetch_message(channel_id: state.channel_id, message_id: state.source_message_id)[:text])
-    update_modal(view_id: view_id, view: yield(description)) if description.present?
-  rescue AdapterError => error
-    Rails.logger.info({ event: "slack.action_item_modal.fill_in_failed", error: error.class.name }.to_json)
-  end
 
   def readable(text) = (messages_as_text(texts: [ text ])[text] if text.present?)
 end

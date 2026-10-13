@@ -418,9 +418,12 @@ Two things about it are worth knowing before adding a control:
   a person replied to waits beside their words (`Chat::QueuedMessage#context`)
   and joins the chat as a note before them, so it never shows as theirs.
 - **A reaction's prompt carries a reference, not the message.** Its button holds
-  the channel and message id (Slack caps a button's value at 2000 characters),
-  and the form reads the message when it opens, as plain text up to the form's
-  own limit, leaving the field empty when the message cannot be read.
+  the channel and message id (Slack caps a button's value at 2000 characters).
+  The handler opens the form on the trigger and answers Slack at once, and
+  `ActionItemFormFillInJob` then reads the message and fills the open form in
+  (`PlatformAdapter#fill_in_action_item_modal`, views.update), as plain text up
+  to the form's own limit, so a slow read never delays the answer. A message
+  that cannot be read, or a form closed first, leaves the field empty and logs it.
 
 ## Outbound Webhooks
 

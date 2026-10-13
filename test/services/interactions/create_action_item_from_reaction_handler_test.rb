@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Interactions::CreateActionItemFromReactionHandlerTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)
@@ -38,35 +40,31 @@ class Interactions::CreateActionItemFromReactionHandlerTest < ActiveSupport::Tes
     )
   end
 
-  test "the form opens on the trigger before the message is read, then fills in as readable text up to the form's own limit" do
-    bob = workspace_memberships(:bob_workspace_one)
-    order = sequence("open, then read, then fill in")
+  test "the form opens on the trigger and Slack is answered at once, with the message read after, in the background" do
     Slack::Client.expects(:open_modal).with { |args| !args[:view][:blocks].first[:element].key?(:initial_value) }
-                 .returns({ ok: true, view: { id: "V12345678" } }).in_sequence(order)
-    Slack::Client.expects(:get_message).with { |arguments| arguments[:channel] == "C123" && arguments[:ts] == "1700000000.000100" }
-                 .returns({ "ts" => "1700000000.000100", "user" => bob.platform_user_id, "text" => "<@#{bob.platform_user_id}> #{'slow ' * 1000}" })
-                 .in_sequence(order)
-    Slack::Client.expects(:update_modal).with do |args|
-      initial = args[:view][:blocks].first.dig(:element, :initial_value)
-      args[:view_id] == "V12345678" && initial.start_with?("@#{bob.display_name} slow slow") &&
-        initial.length == Slack::Modals::ActionItemsForm::DESCRIPTION_LIMIT
-    end.returns({ ok: true }).in_sequence(order)
-
-    assert_nil Interactions::CreateActionItemFromReactionHandler.execute(
-      build_interaction(action_id: Identifiers::CREATE_ACTION_FROM_REACTION, incident_id: @incident.id, text: nil,
-                        channel_id: "C123", message_id: "1700000000.000100")
-    )
-  end
-
-  test "a message that can no longer be read leaves the open form empty" do
-    Slack::WorkspaceAdapter.any_instance.stubs(:fetch_message).raises(AdapterError::NotFound.new("message_not_found"))
-    Slack::Client.expects(:open_modal).with { |args| !args[:view][:blocks].first[:element].key?(:initial_value) }.returns({ ok: true, view: { id: "V1" } })
+                 .returns({ ok: true, view: { id: "V12345678" } })
+    Slack::Client.expects(:get_message).never
     Slack::Client.expects(:update_modal).never
 
-    assert_nil Interactions::CreateActionItemFromReactionHandler.execute(
-      build_interaction(action_id: Identifiers::CREATE_ACTION_FROM_REACTION, incident_id: @incident.id, text: nil,
-                        channel_id: "C123", message_id: "1700000000.000100")
-    )
+    assert_enqueued_with(job: ActionItemFormFillInJob) do
+      assert_nil Interactions::CreateActionItemFromReactionHandler.execute(
+        build_interaction(action_id: Identifiers::CREATE_ACTION_FROM_REACTION, incident_id: @incident.id, text: nil,
+                          channel_id: "C123", message_id: "1700000000.000100")
+      )
+    end
+    job = enqueued_jobs.find { |enqueued| enqueued["job_class"] == ActionItemFormFillInJob.name }
+    workspace_id, incident_id, kind, view_id, state = job["arguments"]
+    assert_equal [ @workspace.id, @incident.id, "action", "V12345678" ], [ workspace_id, incident_id, kind, view_id ]
+    assert_equal [ "C123", "1700000000.000100" ], ModalState.parse(state).then { |parsed| [ parsed.channel_id, parsed.source_message_id ] }
+  end
+
+  test "a prompt posted with the words themselves fills the form as it opens, and leaves nothing to read after" do
+    Slack::Client.expects(:open_modal).with { |args| args[:view][:blocks].first.dig(:element, :initial_value) == "The database is slow" }
+                 .returns({ ok: true, view: { id: "V1" } })
+
+    assert_no_enqueued_jobs(only: ActionItemFormFillInJob) do
+      Interactions::CreateActionItemFromReactionHandler.execute(build_interaction(action_id: Identifiers::CREATE_ACTION_FROM_REACTION, incident_id: @incident.id))
+    end
   end
 
   test "handles a missing incident silently" do
