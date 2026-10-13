@@ -166,7 +166,7 @@ class Investigation::RemediationStep < ApplicationRecord
     investigation = plan.finding.investigation
     CodeAgent::Request.new(
       principal: applier, source: AbilityGateway::SOURCE_INVESTIGATION, label: description, place: self, box_key: investigation.code_box_key,
-      words: [ investigation.question, *investigation.notes.map(&:content) ], evidence: cited_evidence
+      words: [ investigation.question_for_model, *investigation.notes.map(&:content) ], evidence: cited_evidence
     )
   end
 

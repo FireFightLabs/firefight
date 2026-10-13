@@ -65,6 +65,23 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal later, direct.chat.last_readable_message.content
   end
 
+  test "a direct message chat shows the words as they were written in Slack, never the model's reading with ids" do
+    bob = workspace_memberships(:bob_workspace_one)
+    written = "<@#{bob.platform_user_id}> is :fire:"
+    read = "@#{bob.display_name} (#{bob.platform_user_id}) is 🔥"
+    direct = Conversation.start_direct!(workspace: @workspace, member: @member, channel_id: "D0ALICE", thread_id: "1700000000.000100")
+    direct.ask!(read, asker: @member, as_written: written)
+    direct.ask!("and @here?", asker: @member, as_written: "and <!here>?")
+
+    get agent_chat_url(direct), headers: inertia_headers
+
+    shown = "@#{bob.display_name} is 🔥"
+    assert_equal shown, inertia_props["messages"].sole["body"]
+    assert_equal "and @here?", inertia_props["waitingMessages"].sole["body"]
+    assert_equal shown, inertia_props.dig("conversation", "title")
+    assert_equal read, direct.chat.messages.find_by!(role: Chat::Message::ROLE_USER).content
+  end
+
   test "the chat list shows a direct message chat's question as Slack shows it, and a name the person gave it as they wrote it" do
     asked = Conversation.start_direct!(workspace: @workspace, member: @member, channel_id: "D0ALICE", thread_id: "1")
     asked.ask!("*deploy* status &amp; errors?")
@@ -84,6 +101,26 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     get agent_chats_search_url(q: "deploy"), as: :json
 
     assert_equal "deploy status & errors?", response.parsed_body.sole["title"]
+  end
+
+  test "search finds a direct message chat by the names and emoji people see, as well as by its stored words" do
+    bob = workspace_memberships(:bob_workspace_one)
+    written = "<@#{bob.platform_user_id}> says checkout is :fire:"
+    direct = Conversation.start_direct!(workspace: @workspace, member: @member, channel_id: "D0ALICE", thread_id: "1")
+    direct.ask!("@#{bob.display_name} (#{bob.platform_user_id}) says checkout is 🔥", asker: @member, as_written: written)
+    direct.chat.add_message(role: Chat::Message::ROLE_ASSISTANT, content: "Looking.")
+    legacy = Conversation.start_direct!(workspace: @workspace, member: @member, channel_id: "D0ALICE", thread_id: "2")
+    legacy.ask!("is <!here> :eyes: on payments")
+    start_chat.ask!("nothing about anyone")
+
+    get agent_chats_search_url(q: "@here 👀"), as: :json
+    assert_equal [ legacy.id ], response.parsed_body.map { |chat| chat["id"] }
+
+    [ bob.display_name, "🔥", bob.platform_user_id, "checkout" ].each do |wanted|
+      get agent_chats_search_url(q: wanted), as: :json
+
+      assert_equal [ direct.id ], response.parsed_body.map { |chat| chat["id"] }, "searching #{wanted}"
+    end
   end
 
   test "a chat someone started in a tracker's issue lives only there, like a chat in a channel, so nobody lists, finds or opens it here" do

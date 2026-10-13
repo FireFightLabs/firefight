@@ -158,14 +158,17 @@ class Conversation < ApplicationRecord
     member.may?(Ability::Action::RESOURCE_CHATS, Ability::Action::ACTION_READ, member.workspace)
   end
 
-  # Titles and messages are encrypted, so matching happens in Ruby, not SQL.
-  def self.search_for(member, text, limit: SEARCH_LIMIT)
+  # Titles and messages are encrypted, so matching happens in Ruby, not SQL. shown reads the platform's markup as the page
+  # shows it, given texts and answering each mapped to how it reads, so a chat is found by what people see as well as by
+  # what is stored.
+  def self.search_for(member, text, limit: SEARCH_LIMIT, shown: nil)
     wanted = text.to_s.strip.downcase
     return [] if wanted.empty?
 
-    own_for(member).includes(chat: [ :last_readable_message, :first_question ]).in_reading_order.to_a
-      .select { |conversation| "#{conversation.display_title} #{conversation.preview}".downcase.include?(wanted) }
-      .first(limit)
+    chats = own_for(member).includes(chat: [ :last_readable_message, :first_question ]).in_reading_order.to_a
+    said = chats.flat_map { |conversation| [ conversation.title_question, conversation.preview_question ] }.compact.uniq
+    read = shown && said.any? ? shown.call(said) : {}
+    chats.select { |conversation| conversation.searched_text(read).downcase.include?(wanted) }.first(limit)
   end
 
   def personal? = kind == KIND_PERSONAL
@@ -225,17 +228,17 @@ class Conversation < ApplicationRecord
   # A follow up in an issue waits the same way, whoever wrote it there.
   # Files go with the question, and a question may be files alone.
   # context is what Halon needs to read with the question and the person never wrote, such as the message they replied to.
-  # Between turns it goes before the question as a note the page does not show. A turn already running takes only whole
-  # messages between its steps, so there it heads the question.
-  def ask!(question, asker: nil, files: [], context: nil)
+  # It goes before the question as a note the page does not show, now or when a running turn takes the question.
+  # as_written is the question as the chat platform sent it, when question is the model's reading of it.
+  def ask!(question, asker: nil, files: [], context: nil, as_written: nil)
     if (asker.is_a?(WorkspaceMembership) || issue?) && answer_owed?
-      return chat_record.queue_message!([ context, question.presence ].compact.join("\n\n"), sender: (asker if asker.is_a?(WorkspaceMembership)), files: files)
+      return chat_record.queue_message!(question.to_s, sender: (asker if asker.is_a?(WorkspaceMembership)), files: files, as_written: as_written, context: context)
     end
 
     chat_record.nudge!(context) if context
-    message = chat_record.add_person_message!(question, sender: asker)
+    message = chat_record.add_person_message!(question, sender: asker, as_written: as_written)
     chat_record.attach_files!(message, files)
-    named = question.presence || files.map(&:filename).to_sentence
+    named = (as_written || question).presence || files.map(&:filename).to_sentence
     update!(title: named.truncate(TITLE_LIMIT)) if title.blank?
     expect_reply!
   end
@@ -301,20 +304,30 @@ class Conversation < ApplicationRecord
   end
 
   # A direct message chat is asked only in the platform, so what the person said is in the platform's own markup, which
-  # the page shows as the platform reads it (PlatformAdapter#messages_as_text).
+  # the page shows as the platform reads it (PlatformAdapter#messages_as_text). A message saved since keeps the words as
+  # written beside the model's reading, whatever the chat.
   def said_in_platform_markup? = direct?
+
+  # A person's message as the platform sent it, or nil when it was not written there.
+  def said_in_platform(message)
+    return nil unless message&.role == Chat::Message::ROLE_USER
+
+    message.as_written || (message.content if said_in_platform_markup?)
+  end
 
   # The question the title was taken from, while the chat still goes by it. A name someone gave it is their own words.
   def title_question
-    question = chat&.first_question&.content
-    question if said_in_platform_markup? && title.present? && title == question.to_s.truncate(TITLE_LIMIT)
+    question = said_in_platform(chat&.first_question)
+    question if question && title.present? && title == question.truncate(TITLE_LIMIT)
+  end
+
+  # What a search matches: the title and preview as stored and, for words in the platform's markup, as the page shows them.
+  def searched_text(read)
+    [ display_title, preview, read[title_question], read[preview_question] ].compact.join(" ")
   end
 
   # The person's last message, when the preview shows theirs rather than the agent's.
-  def preview_question
-    last = chat&.last_readable_message
-    last.content if said_in_platform_markup? && last&.role == Chat::Message::ROLE_USER
-  end
+  def preview_question = said_in_platform(chat&.last_readable_message)
 
   def watchable_by?(user)
     belongs_to_one_person? && started_by.is_a?(WorkspaceMembership) && started_by.user_id == user&.id && self.class.readable_by?(started_by)

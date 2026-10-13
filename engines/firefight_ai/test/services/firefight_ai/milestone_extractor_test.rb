@@ -91,6 +91,17 @@ class FirefightAi::MilestoneExtractorTest < ActiveSupport::TestCase
     assert_includes captured, "[1.001]"
   end
 
+  test "the prompt reads each message as models read it, with people named and their ids kept" do
+    messages = [ add_message(message_id: "1.001", content: "<@U2> rolled back", model_content: "@Bob (U2) rolled back") ]
+    captured = nil
+    stub_model([], &->(prompt) { captured = prompt })
+
+    @extractor.extract(@incident, messages: messages, summary: nil, timeline: [])
+
+    assert_includes captured, "@Bob (U2) rolled back"
+    assert_not_includes captured, "<@U2>"
+  end
+
   test "an oversized transcript keeps the newest messages and still runs" do
     filler = "x" * (FirefightAi::MilestoneExtractor::MAX_INPUT_TOKENS * FirefightAi::MilestoneExtractor::CHARS_PER_TOKEN)
     messages = [
@@ -116,13 +127,14 @@ class FirefightAi::MilestoneExtractorTest < ActiveSupport::TestCase
 
   private
 
-  def add_message(message_id:, content:)
+  def add_message(message_id:, content:, model_content: nil)
     @incident.incident_transcript_messages.create!(
       workspace: @workspace,
       workspace_membership: @member,
       message_id: message_id,
       platform_user_id: @member.platform_user_id,
       content: content,
+      model_content: model_content,
       posted_at: Time.at(message_id.to_f)
     )
   end

@@ -27,9 +27,13 @@ module Commands
       Command.ephemeral(Investigation.already_running_message(incident))
     end
 
-    # Whatever follows the subcommand is what the person already knows, such as "checkout 500s since 2pm".
+    # Whatever follows the subcommand is what the person already knows, such as "checkout 500s since 2pm". It is kept as
+    # the platform sent it, and the run reads it with people and channels named and their ids kept.
     def self.brief(command)
-      Investigation::Brief.from({ Investigation::Brief::KEY_SYMPTOM => command.args.drop(1).join(" ") }, source: Investigation::Brief::SOURCE_COMMAND)
+      said = command.args.drop(1).join(" ")
+      read = said.present? ? command.workspace.adapter.messages_for_model(texts: [ said ])[said] : said
+      Investigation::Brief.from({ Investigation::Brief::KEY_SYMPTOM => said, Investigation::Brief::KEY_SYMPTOM_FOR_MODEL => (read if read != said) },
+                                source: Investigation::Brief::SOURCE_COMMAND)
     end
     private_class_method :brief
   end

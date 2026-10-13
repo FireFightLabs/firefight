@@ -7,7 +7,7 @@ class InvestigationNoteSerializer < BaseSerializer
   # Written in the chat platform, it reads as the platform shows it, from the platform_texts handed in.
   type :string
   def content
-    note.from_platform ? options.fetch(:platform_texts, {}).fetch(note.content, note.content) : note.content
+    note.from_platform ? options.fetch(:platform_texts, {}).fetch(note.as_written || note.content, note.content) : note.content
   end
 
   has_one :author, serializer: ActorCompactSerializer, optional: true do

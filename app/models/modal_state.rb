@@ -3,10 +3,12 @@
 module ModalState
   InvalidError = Class.new(StandardError)
 
-  Result = Data.define(:incident_id, :incident_runbook_id, :temp_message_ts, :channel_id,
+  # source_message_id is the message, in channel_id, an action is made from. source_message_text is its words, carried
+  # only by a prompt posted before the message was read when the form opens.
+  Result = Data.define(:incident_id, :incident_runbook_id, :temp_message_ts, :channel_id, :source_message_id,
                        :source_message_text, :source_message_link, :prompt_handle, :test, :investigation_id, :action_item_id,
                        :memory_post_id, :memory_id, :code_question_id, :handbook_proposal_id) do
-    def initialize(incident_id: nil, incident_runbook_id: nil, temp_message_ts: nil, channel_id: nil,
+    def initialize(incident_id: nil, incident_runbook_id: nil, temp_message_ts: nil, channel_id: nil, source_message_id: nil,
                    source_message_text: nil, source_message_link: nil, prompt_handle: nil, test: false, investigation_id: nil,
                    action_item_id: nil, memory_post_id: nil, memory_id: nil, code_question_id: nil, handbook_proposal_id: nil)
       super
@@ -16,7 +18,7 @@ module ModalState
   EMPTY = Result.new.freeze
 
   # test is encoded only when true.
-  def self.encode(incident_id: nil, incident_runbook_id: nil, temp_message_ts: nil, channel_id: nil,
+  def self.encode(incident_id: nil, incident_runbook_id: nil, temp_message_ts: nil, channel_id: nil, source_message_id: nil,
                   source_message_text: nil, source_message_link: nil, prompt_handle: nil, test: false, investigation_id: nil,
                   action_item_id: nil, memory_post_id: nil, memory_id: nil, code_question_id: nil, handbook_proposal_id: nil)
     {
@@ -24,6 +26,7 @@ module ModalState
       incident_runbook_id: incident_runbook_id,
       temp_message_ts: temp_message_ts,
       channel_id: channel_id,
+      source_message_id: source_message_id,
       source_message_text: source_message_text,
       source_message_link: source_message_link,
       prompt_handle: prompt_handle,
@@ -48,6 +51,7 @@ module ModalState
       incident_runbook_id: parsed["incident_runbook_id"],
       temp_message_ts: parsed["temp_message_ts"],
       channel_id: parsed["channel_id"],
+      source_message_id: parsed["source_message_id"],
       source_message_text: parsed["source_message_text"],
       source_message_link: parsed["source_message_link"],
       prompt_handle: parsed["prompt_handle"],

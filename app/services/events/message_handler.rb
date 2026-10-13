@@ -39,6 +39,7 @@ module Events
           platform_user_id: event["user"],
           workspace_membership: member,
           content: event["text"].to_s,
+          model_content: for_model(workspace, event["text"]),
           posted_at: Time.at(message_ts.to_f)
         )
       end
@@ -58,9 +59,15 @@ module Events
       return unless ts
 
       message = incident.incident_transcript_messages.find_by(message_id: ts)
-      message&.update!(content: inner["text"].to_s)
+      message&.update!(content: inner["text"].to_s, model_content: for_model(workspace, inner["text"]))
     end
     private_class_method :handle_edit
+
+    # How a model reads the message, with people and channels named and their ids kept, read once as it is saved.
+    def self.for_model(workspace, text)
+      text.present? ? workspace.adapter.messages_for_model(texts: [ text ])[text] : nil
+    end
+    private_class_method :for_model
 
     def self.handle_delete(workspace, channel_id, event)
       incident = find_incident(workspace, channel_id)

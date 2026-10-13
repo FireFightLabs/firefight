@@ -3,6 +3,8 @@
 # Credential::VERIFIED_FOR.
 module Operator
   class BaseController < ApplicationController
+    include PlatformText
+
     before_action :require_operator!
     before_action :require_second_factor!
 
@@ -14,6 +16,14 @@ module Operator
     inertia_share attention: -> { Attention.new(Filter.new, jobs: JobHealth.read(since: Filter.new.since)).items.size }, if: :operator_verified?
 
     private
+
+    # Words people wrote in the chat platform, read as the platform shows them in each record's own workspace.
+    def readable = @readable ||= Readable.new(method(:platform_texts_in))
+
+    # What the operator asked to see of a span: the content as people read it, or what the model read.
+    def span_body(trace)
+      trace.body_for(params[Trace::SPAN_PARAM].to_s, as_read: params[Trace::MODEL_PARAM].present?)
+    end
 
     def require_operator!
       return if Credential.operator?(current_user)

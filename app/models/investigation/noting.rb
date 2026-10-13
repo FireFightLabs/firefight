@@ -15,8 +15,8 @@ module Investigation::Noting
     NOTE_EMPTY if text && text.strip.empty?
   end
 
-  def add_note!(text, by:, files: [], from_platform: false)
-    chat_record.queue_message!(text, sender: by, files: files, from_platform: from_platform)
+  def add_note!(text, by:, files: [], from_platform: false, as_written: nil)
+    chat_record.queue_message!(text, sender: by, files: files, from_platform: from_platform, as_written: as_written)
   end
 
   # Files handed over as a run starts wait for it like notes, as many to a note as a person may send with one message.
@@ -25,8 +25,9 @@ module Investigation::Noting
   end
 
   # From a platform thread, where no controller has checked the permission. Whoever may start a run may add to one.
-  # Files alone are a note. Returns why the note was not added, or nil once it waits for the run.
-  def add_note_from(text, member:, source:, files: [])
+  # Files alone are a note. text is how the run reads it and as_written how the platform sent it. Returns why the note
+  # was not added, or nil once it waits for the run.
+  def add_note_from(text, member:, source:, files: [], as_written: nil)
     blocked = note_blocked_reason(files.empty? ? text : nil)
     return blocked if blocked
     return not_allowed(member) unless member
@@ -36,7 +37,7 @@ module Investigation::Noting
       principal: member, workspace: workspace, action_key: Ability::Action::INVESTIGATIONS_CREATE,
       context: { source: source, incident_id: incident_id }, holdable: false
     )
-    add_note!(text.to_s.strip, by: member, files: files, from_platform: true)
+    add_note!(text.to_s.strip, by: member, files: files, from_platform: true, as_written: as_written&.strip)
     nil
   rescue AbilityGateway::Denied
     not_allowed(member)

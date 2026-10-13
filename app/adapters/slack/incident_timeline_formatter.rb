@@ -106,7 +106,7 @@ module Slack
       when IncidentEvent::MESSAGE_PINNED, IncidentEvent::MESSAGE_UNPINNED
         details["permalink"].presence
       when IncidentEvent::MESSAGE_FILE_SHARED
-        file_name = details["file_name"]
+        file_name = details["file_name"].presence && Mrkdwn.escape(details["file_name"])
         permalink = details["permalink"].present? ? "<#{details['permalink']}|Open in Slack>" : nil
         [ file_name, permalink ].compact.join(" · ")
       when IncidentEvent::INCIDENT_REOPENED

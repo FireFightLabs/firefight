@@ -110,7 +110,7 @@ class Conversation::Context
 
     lines = runs.reverse.map do |run|
       outcome = run.finding&.summary || run.stopped_because || "still running"
-      "- #{run.question || run.incident&.identifier}: #{outcome}"
+      "- #{run.question_for_model || run.incident&.identifier}: #{outcome}"
     end
     "Investigations started from this chat, and how each went:\n#{lines.join("\n")}"
   end

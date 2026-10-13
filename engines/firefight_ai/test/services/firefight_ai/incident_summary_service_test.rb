@@ -84,6 +84,17 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
     assert_includes captured_prompt, "second reply (new)"
   end
 
+  test "the summary reads each message as models read it, with people named and their ids kept" do
+    add_message(message_id: "1.001", content: "<@U2> rolled back", model_content: "@Bob (U2) rolled back")
+    captured_prompt = nil
+    stub_llm_capturing_prompt { |prompt| captured_prompt = prompt }
+
+    @service.fetch_or_refresh(@incident)
+
+    assert_includes captured_prompt, "@Bob (U2) rolled back"
+    assert_not_includes captured_prompt, "<@U2>"
+  end
+
   test "stale summary with no actual delta does not call LLM" do
     add_message(message_id: "1.001", content: "first")
     seed_summary(content: "prior body", up_to_ts: "1.001", generated_at: 30.minutes.ago)
@@ -128,7 +139,7 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
 
   private
 
-  def add_message(message_id:, content:, thread_id: nil)
+  def add_message(message_id:, content:, thread_id: nil, model_content: nil)
     @incident.incident_transcript_messages.create!(
       workspace: @workspace,
       workspace_membership: @member,
@@ -136,6 +147,7 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
       thread_id: thread_id,
       platform_user_id: @member.platform_user_id,
       content: content,
+      model_content: model_content,
       posted_at: Time.at(message_id.to_f)
     )
   end

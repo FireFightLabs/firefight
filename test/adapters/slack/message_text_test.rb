@@ -48,6 +48,16 @@ class Slack::MessageTextTest < ActiveSupport::TestCase
     assert_equal "🚀 release (https://example.com/:rocket:)", convert("<https://example.com/:rocket:|:rocket: release>")
   end
 
+  test "for a model, a person, a channel and a group keep their ids beside their names" do
+    assert_equal "@Ana Lee (U1) and @bob (U2) and @U9, see #incidents (C1) or #C2, ping @oncall (S1) @here",
+                 Slack::MessageText.convert("<@U1> and <@U2|bob> and <@U9>, see <#C1|incidents> or <#C2>, ping <!subteam^S1|@oncall> <!here>",
+                                            names: { "U1" => "Ana Lee" }, for_model: true)
+  end
+
+  test "for a model, code keeps its backticks and the rest reads as Slack shows it" do
+    assert_equal "rolled back 🔥 & ran `kubectl get pods`\n```\nif a < b\n```", Slack::MessageText.convert("*rolled back* :fire: &amp; ran `kubectl get pods`\n```if a &lt; b```", for_model: true)
+  end
+
   test "an empty message stays empty" do
     assert_equal "", convert(nil)
   end

@@ -182,8 +182,20 @@ class Investigation < ApplicationRecord
   # markup, as it does every note written there. Pages and posts show both as the platform reads them.
   def question_in_platform_markup? = brief&.dig(Investigation::Brief::KEY_SOURCE) == Investigation::Brief::SOURCE_COMMAND
 
+  # The question as the run reads it, with people and channels named and their ids kept when it was asked in the chat
+  # platform.
+  def question_for_model = brief&.dig(Investigation::Brief::KEY_SYMPTOM_FOR_MODEL) || question
+
+  # The brief the run is handed, its symptom as the run reads it.
+  def brief_for_model
+    read = brief&.dig(Investigation::Brief::KEY_SYMPTOM_FOR_MODEL)
+    return brief unless read
+
+    brief.except(Investigation::Brief::KEY_SYMPTOM_FOR_MODEL).merge(Investigation::Brief::KEY_SYMPTOM => read)
+  end
+
   def said_in_platform
-    [ (question if question_in_platform_markup?), *notes.select(&:from_platform).map(&:content) ].compact
+    [ (question if question_in_platform_markup?), *notes.select(&:from_platform).map { |note| note.as_written || note.content } ].compact
   end
 
   # Named by its incident, or by its question when it has no incident.

@@ -40,6 +40,24 @@ class OperatorHalonTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/operator-trace.png"))
   end
 
+  test "a chat from Slack reads as Slack shows it, and the operator can switch to what the model read" do
+    bob = workspace_memberships(:bob_workspace_one)
+    direct = Conversation.start_direct!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one), channel_id: "D0ALICE", thread_id: "1")
+    direct.ask!("@#{bob.display_name} (#{bob.platform_user_id}) says checkout is 🔥", as_written: "<@#{bob.platform_user_id}> says checkout is :fire:")
+
+    visit operator_halon_chat_path(direct)
+    assert_text(/selected span/i)
+    click_button "Asked"
+    assert_selector "pre", exact_text: "@#{bob.display_name} says checkout is 🔥"
+
+    find("#span-as-read").click
+    assert_selector "pre", exact_text: "@#{bob.display_name} (#{bob.platform_user_id}) says checkout is 🔥"
+    page.save_screenshot(Rails.root.join("tmp/screenshots/operator-chat-as-read.png"))
+
+    find("#span-as-read").click
+    assert_selector "pre", exact_text: "@#{bob.display_name} says checkout is 🔥"
+  end
+
   test "an operator pastes an id into Find and lands on its trace, and an incident number lists every workspace's" do
     visit operator_root_path
     fill_in "operator-find", with: @run.id.first(8)

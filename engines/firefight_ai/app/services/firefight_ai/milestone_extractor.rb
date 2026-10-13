@@ -159,7 +159,7 @@ module FirefightAi
 
     def format_message(message)
       author = message.workspace_membership&.user&.name || message.platform_user_id
-      "- [#{message.message_id}] [#{message.posted_at.iso8601}] #{author}: #{message.content}"
+      "- [#{message.message_id}] [#{message.posted_at.iso8601}] #{author}: #{message.for_model}"
     end
   end
 end

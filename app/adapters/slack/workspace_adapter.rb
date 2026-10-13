@@ -71,7 +71,7 @@ module Slack
       post_message(
         channel_id: channel_id,
         text: "Approval required: #{approval.principal_label} wants to run #{approval.action_key}",
-        blocks: Slack::Messages::Approval.build_request(approval)
+        blocks: Slack::Messages::Approval.build_request(approval, params: params_shown(approval))
       )
     end
 
@@ -85,9 +85,16 @@ module Slack
         channel_id: channel_id,
         message_id: message_id,
         text: Slack::Messages::Approval.resolved_fallback(approval),
-        blocks: Slack::Messages::Approval.build_resolved(approval)
+        blocks: Slack::Messages::Approval.build_resolved(approval, params: params_shown(approval))
       )
     end
+
+    # A command typed in Slack is quoted as Slack shows it, so a mention or a broadcast in it never notifies again.
+    def params_shown(approval)
+      text = approval.platform_text
+      approval.params_shown(text ? messages_as_text(texts: [ text ]) : {})
+    end
+    private :params_shown
 
     def post_message(channel_id:, text:, blocks:)
       translate_errors do
@@ -286,6 +293,24 @@ module Slack
     def messages_as_text(texts:)
       names = mentioned_names(texts)
       texts.to_h { |text| [ text, Slack::MessageText.convert(text, names: names) ] }
+    end
+
+    def messages_for_model(texts:)
+      names = mentioned_names(texts)
+      texts.to_h { |text| [ text, Slack::MessageText.convert(text, names: names, for_model: true) ] }
+    end
+
+    # Slack names the app's own user in the event's authorizations. Without them, the mention Slack sent the event for is
+    # the first one, which is where Slack puts it when someone picks the app from the list.
+    def text_for_app(payload:)
+      text = payload.dig("event", "text").to_s
+      app_ids = Array(payload["authorizations"]).filter_map { |authorization| authorization["user_id"] if authorization["is_bot"] }
+      stripped = if app_ids.any?
+        text.gsub(/<@(?:#{app_ids.map { |id| Regexp.escape(id) }.join('|')})(?:\|[^<>]*)?>/, "")
+      else
+        text.sub(Slack::MessageMarkdown::MENTION, "")
+      end
+      stripped.squish
     end
 
     # Names come from Firefight's own members in one query, so a page of messages never calls Slack.

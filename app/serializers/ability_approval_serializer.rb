@@ -25,9 +25,10 @@ class AbilityApprovalSerializer < BaseSerializer
     approval.scope
   end
 
+  # A command typed in the chat platform reads as the platform shows it, from the platform_texts handed in.
   type "Record<string, unknown>"
   def params
-    approval.params
+    approval.params_shown(options.fetch(:platform_texts, {}))
   end
 
   type "{ kind: string; id: string }[]"

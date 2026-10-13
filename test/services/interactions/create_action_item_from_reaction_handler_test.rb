@@ -38,6 +38,31 @@ class Interactions::CreateActionItemFromReactionHandlerTest < ActiveSupport::Tes
     )
   end
 
+  test "the form reads the message it was opened for when it opens, as readable text up to the form's own limit" do
+    bob = workspace_memberships(:bob_workspace_one)
+    Slack::Client.expects(:get_message).with { |arguments| arguments[:channel] == "C123" && arguments[:ts] == "1700000000.000100" }
+                 .returns({ "ts" => "1700000000.000100", "user" => bob.platform_user_id, "text" => "<@#{bob.platform_user_id}> #{'slow ' * 1000}" })
+    Slack::Client.expects(:open_modal).with do |args|
+      initial = args[:view][:blocks].first.dig(:element, :initial_value)
+      initial.start_with?("@#{bob.display_name} slow slow") && initial.length == Slack::Modals::ActionItemsForm::DESCRIPTION_LIMIT
+    end.returns({ ok: true, view: { id: "V12345678" } })
+
+    assert_nil Interactions::CreateActionItemFromReactionHandler.execute(
+      build_interaction(action_id: Identifiers::CREATE_ACTION_FROM_REACTION, incident_id: @incident.id, text: nil,
+                        channel_id: "C123", message_id: "1700000000.000100")
+    )
+  end
+
+  test "a message that can no longer be read opens the form empty" do
+    Slack::WorkspaceAdapter.any_instance.stubs(:fetch_message).raises(AdapterError::NotFound.new("message_not_found"))
+    Slack::Client.expects(:open_modal).with { |args| !args[:view][:blocks].first[:element].key?(:initial_value) }.returns({ ok: true, view: { id: "V1" } })
+
+    assert_nil Interactions::CreateActionItemFromReactionHandler.execute(
+      build_interaction(action_id: Identifiers::CREATE_ACTION_FROM_REACTION, incident_id: @incident.id, text: nil,
+                        channel_id: "C123", message_id: "1700000000.000100")
+    )
+  end
+
   test "handles a missing incident silently" do
     assert_nil Interactions::CreateActionItemFromReactionHandler.execute(
       build_interaction(action_id: Identifiers::CREATE_ACTION_FROM_REACTION, incident_id: SecureRandom.uuid)
@@ -46,13 +71,13 @@ class Interactions::CreateActionItemFromReactionHandlerTest < ActiveSupport::Tes
 
   private
 
-  def build_interaction(action_id:, incident_id:, text: "The database is slow")
+  def build_interaction(action_id:, incident_id:, text: "The database is slow", channel_id: nil, message_id: nil)
     Interaction.new(
       platform: Platforms::SLACK, type: Interaction::BLOCK_ACTIONS, team_id: @workspace.platform_id,
       user_id: @member.platform_user_id, action_id: action_id, trigger_id: "12345.trigger",
       prompt_handle: "https://hooks.slack.com/actions/T123/456/abc",
-      action_value: { incident_id: incident_id, source_message_text: text,
-                      source_message_link: "https://workspace.slack.com/archives/C123/p123" }.to_json
+      action_value: { incident_id: incident_id, source_message_text: text, channel_id: channel_id, message_id: message_id,
+                      source_message_link: "https://workspace.slack.com/archives/C123/p123" }.compact.to_json
     )
   end
 end

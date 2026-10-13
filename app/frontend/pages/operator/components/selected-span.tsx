@@ -2,12 +2,23 @@ import { Link } from "@inertiajs/react"
 import { IconAlertTriangle, IconLoader2 } from "@tabler/icons-react"
 
 import { Card } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { formatDateTime } from "@/lib/formatters"
 import { operatorHalonRunPath } from "@/lib/routes"
 import { KINDS, MONO_KINDS } from "@/pages/operator/lib/trace-kinds"
 import type { OperatorTraceSpan } from "@/types/serializers"
 
-export function SelectedSpan({ span, body, loading }: { span: OperatorTraceSpan; body: string | null | undefined; loading: boolean }) {
+interface SelectedSpanProps {
+  span: OperatorTraceSpan
+  body: string | null | undefined
+  loading: boolean
+  // The content shows what the model read rather than what people read.
+  asRead: boolean
+  onAsReadChange: (asRead: boolean) => void
+}
+
+export function SelectedSpan({ span, body, loading, asRead, onAsReadChange }: SelectedSpanProps) {
   const kind = KINDS[span.kind]
 
   return (
@@ -37,7 +48,15 @@ export function SelectedSpan({ span, body, loading }: { span: OperatorTraceSpan;
       )}
       {span.hasBody && (
         <div className="flex flex-col gap-2">
-          <p className="text-muted-foreground text-[11px] font-medium tracking-[0.14em] uppercase">Content</p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-muted-foreground text-[11px] font-medium tracking-[0.14em] uppercase">Content</p>
+            {span.readByModel && (
+              <div className="flex items-center gap-2">
+                <Switch id="span-as-read" size="sm" checked={asRead} onCheckedChange={onAsReadChange} />
+                <Label htmlFor="span-as-read" className="text-muted-foreground text-xs font-normal">Show what the model read</Label>
+              </div>
+            )}
+          </div>
           {loading ? (
             <p className="text-muted-foreground flex items-center gap-2 text-sm">
               <IconLoader2 className="size-4 animate-spin" />

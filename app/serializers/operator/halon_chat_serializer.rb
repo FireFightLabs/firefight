@@ -8,9 +8,10 @@ module Operator
     type :string
     def id = conversation.id
 
-    # The chat's saved title, or the default title when it has none.
+    # The chat's saved title, or the default title when it has none, as people read it when it was written in the chat
+    # platform.
     type :string
-    def title = conversation.title.presence || Conversation::UNTITLED
+    def title = options.fetch(:readable, Readable.none).chat_title(conversation)
 
     type KIND_UNION
     def kind = conversation.kind

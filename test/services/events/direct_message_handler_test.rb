@@ -145,15 +145,43 @@ class Events::DirectMessageHandlerTest < ActiveSupport::TestCase
     assert_match "web on Production", told
   end
 
-  test "a reply under a message Halon sent while a turn runs heads the question it joins" do
+  test "a reply under a message Halon sent while a turn runs keeps the person's words as written, and carries what it replied to beside them" do
     write("what is going on", ts: "1700000000.000100")
     Slack::Client.stubs(:get_message).returns({ "ts" => "1690000000.000300", "bot_id" => "B0FIREFIGHT", "text" => "Your pack request was answered" })
 
     write("thanks", ts: "1700000000.000500", thread: "1690000000.000300")
 
-    queued = @workspace.conversations.sole.chat.queued_messages.sole.content
-    assert queued.start_with?(Conversation::RepliedTo::INTRO)
-    assert queued.end_with?("thanks")
+    chat = @workspace.conversations.sole.chat
+    queued = chat.queued_messages.sole
+    assert_equal "thanks", queued.content
+    assert queued.context.start_with?(Conversation::RepliedTo::INTRO)
+
+    chat.take_queued!(from: @alice)
+
+    assert_equal [ "what is going on", "thanks" ], chat.readable_messages.map(&:content)
+    assert chat.messages.where(nudge: true).sole.content.start_with?(Conversation::RepliedTo::INTRO)
+  end
+
+  test "Halon reads a message with each person and channel named and their ids kept, and the chat keeps the words as written" do
+    bob = workspace_memberships(:bob_workspace_one)
+    written = "<@#{bob.platform_user_id}> says <#C0123|checkout> is :fire: &amp; slow"
+
+    write(written, ts: "1700000000.000100")
+
+    message = @workspace.conversations.sole.chat.messages.find_by!(role: Chat::Message::ROLE_USER)
+    assert_equal "@#{bob.display_name} (#{bob.platform_user_id}) says #checkout (C0123) is 🔥 & slow", message.content
+    assert_equal written, message.as_written
+  end
+
+  test "a message sent while Halon answers is read the same way when it joins the answer" do
+    bob = workspace_memberships(:bob_workspace_one)
+    write("what is going on", ts: "1700000000.000100")
+    written = "and <@#{bob.platform_user_id}>?"
+
+    write(written, ts: "1700000000.000200")
+
+    queued = @workspace.conversations.sole.chat.queued_messages.sole
+    assert_equal [ "and @#{bob.display_name} (#{bob.platform_user_id})?", written ], [ queued.content, queued.as_written ]
   end
 
   test "a reply in a running investigation's thread is added to the run as a note, and opens no chat" do
@@ -164,6 +192,16 @@ class Events::DirectMessageHandlerTest < ActiveSupport::TestCase
     assert_equal "skip GitHub, look at 5xx on web", run.notes.sole.content
     assert_equal @alice, run.notes.sole.sender
     assert_equal 0, @workspace.conversations.count
+  end
+
+  test "a note written in a run's thread is read by the run with names and ids, and kept as written" do
+    bob = workspace_memberships(:bob_workspace_one)
+    run = investigation(status: Investigation::STATUS_RUNNING)
+    written = "ask <@#{bob.platform_user_id}> :eyes:"
+
+    write(written, ts: "1700000000.000950", thread: run.thread_id)
+
+    assert_equal [ "ask @#{bob.display_name} (#{bob.platform_user_id}) 👀", written ], run.notes.sole.slice(:content, :as_written).values
   end
 
   test "a reply in a finished investigation's thread is a chat of its own about the run's incident" do

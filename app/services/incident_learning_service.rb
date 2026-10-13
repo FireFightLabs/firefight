@@ -90,7 +90,7 @@ class IncidentLearningService
 
   def transcript(incident)
     incident.incident_transcript_messages.kept.includes(workspace_membership: :user).order(:posted_at).last(TRANSCRIPT_MESSAGES).map do |message|
-      "#{message.workspace_membership&.user&.name || message.platform_user_id}: #{message.content}"
+      "#{message.workspace_membership&.user&.name || message.platform_user_id}: #{message.for_model}"
     end.join("\n")
   end
 

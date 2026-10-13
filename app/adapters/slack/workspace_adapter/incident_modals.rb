@@ -146,9 +146,16 @@ module Slack::WorkspaceAdapter::IncidentModals
 
   private
 
-  # A reaction carries the message it was added to, which the field shows as plain text since it takes no markup.
+  # A reaction carries where the message it was added to is, read now and shown as plain text since the field takes no
+  # markup. A prompt posted before carries the words themselves. A message that cannot be read leaves the field empty.
   def reacted_to_text(private_metadata)
-    text = private_metadata && ModalState.parse(private_metadata).source_message_text
+    state = private_metadata && ModalState.parse(private_metadata)
+    return nil unless state
+
+    text = state.source_message_text
+    text = fetch_message(channel_id: state.channel_id, message_id: state.source_message_id)[:text] if state.source_message_id && state.channel_id
     messages_as_text(texts: [ text ])[text] if text.present?
+  rescue AdapterError
+    nil
   end
 end

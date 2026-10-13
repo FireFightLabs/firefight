@@ -29,6 +29,19 @@ class Events::ReactionAddedHandlerTest < ActiveSupport::TestCase
     Events::ReactionAddedHandler.execute(@workspace, build_payload(reaction: "boom"))
   end
 
+  test "the prompt's button carries where the message is, never its words, so a long message still fits Slack's limit" do
+    stub_get_message(text: "The database is slow. " * 300)
+    stub_get_permalink
+    Slack::Client.expects(:post_ephemeral).with do |arguments|
+      value = arguments[:blocks].find { |block| block[:type] == "actions" }[:elements].sole[:value]
+      shown = JSON.parse(value)
+      value.length <= 2000 && shown["channel_id"] == @incident.channel_id && shown["message_id"] == "1234567890.111111" &&
+        shown["incident_id"] == @incident.id && !shown.key?("source_message_text")
+    end.returns({ ok: true, ts: "1234567890.123456" })
+
+    Events::ReactionAddedHandler.execute(@workspace, build_payload(reaction: "boom"))
+  end
+
   test "posts followup prompt for arrow_forward reaction" do
     stub_get_message(text: "We should add monitoring")
     stub_get_permalink

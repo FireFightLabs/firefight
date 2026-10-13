@@ -1,6 +1,6 @@
 module Interactions
-  # Carries the source message so the description starts from it, and the
-  # prompt's handle so the submit handler can take the prompt down.
+  # Carries where the source message is, so the form reads it and the description starts from it, and the prompt's
+  # handle so the submit handler can take the prompt down.
   class CreateActionItemFromReactionHandler
     extend HandlerAuthorization
     authorize_as Ability::Action::RESOURCE_INCIDENTS
@@ -17,6 +17,8 @@ module Interactions
 
       private_metadata = ModalState.encode(
         incident_id: incident.id,
+        channel_id: metadata["channel_id"],
+        source_message_id: metadata["message_id"],
         source_message_text: metadata["source_message_text"],
         source_message_link: metadata["source_message_link"],
         prompt_handle: interaction.prompt_handle

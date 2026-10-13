@@ -28,6 +28,36 @@ class Commands::StartInvestigationTest < ActiveSupport::TestCase
     assert_equal Investigation::Brief::SOURCE_COMMAND, brief[Investigation::Brief::KEY_SOURCE]
   end
 
+  test "the run reads the words with each person named and their id kept, and the page keeps them as written" do
+    bob = workspace_memberships(:bob_workspace_one)
+    written = "<@#{bob.platform_user_id}> says checkout is :fire:"
+
+    Commands::StartInvestigation.execute(build_command(text: "#{Identifiers::SUBCOMMAND_INVESTIGATE} #{written}"))
+
+    run = @incident.investigations.sole
+    read = "@#{bob.display_name} (#{bob.platform_user_id}) says checkout is 🔥"
+    assert_equal written, run.question
+    assert_equal read, run.question_for_model
+    assert_equal({ Investigation::Brief::KEY_SYMPTOM => read, Investigation::Brief::KEY_SOURCE => Investigation::Brief::SOURCE_COMMAND }, run.brief_for_model)
+    assert_equal read, Investigation::QuestionSeed.new(run).gather["question"]
+  end
+
+  test "a code change written for a run's fix is told what was asked and noted as the run read it" do
+    bob = workspace_memberships(:bob_workspace_one)
+    Commands::StartInvestigation.execute(build_command(text: "#{Identifiers::SUBCOMMAND_INVESTIGATE} ask <@#{bob.platform_user_id}>"))
+    run = @incident.investigations.sole
+    run.update!(status: Investigation::STATUS_RUNNING)
+    run.add_note_from("and @#{bob.display_name} (#{bob.platform_user_id})", member: @member, source: AbilityGateway::SOURCE_SLACK,
+                                                                              as_written: "and <@#{bob.platform_user_id}>")
+    finding = run.create_finding!(summary: "A bad deploy")
+    plan = finding.create_remediation_plan!(summary: "Roll back")
+    step = plan.steps.create!(position: 1, kind: Investigation::RemediationStep::KIND_PULL_REQUEST, description: "Revert it", repository: "acme/web")
+
+    words = step.code_agent_request(@member).words
+
+    assert_equal [ "ask @#{bob.display_name} (#{bob.platform_user_id})", "and @#{bob.display_name} (#{bob.platform_user_id})" ], words
+  end
+
   test "a blocked entitlement stops the run with its own sentence" do
     message = deny_entitlements!
 

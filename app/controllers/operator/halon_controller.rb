@@ -18,7 +18,7 @@ module Operator
         model: camelized(health.model),
         prompts: health.prompts.map { |prompt| camelized(prompt) },
         limits: { tools: HalonHealth::TOOL_LIMIT, prompts: HalonHealth::PROMPT_LIMIT },
-        runs: HalonRunSerializer.many(runs.first(PER_PAGE)),
+        runs: HalonRunSerializer.many(runs.first(PER_PAGE), readable: readable),
         page: page, more: runs.size > PER_PAGE, ending: ending,
         **filter_props
       }

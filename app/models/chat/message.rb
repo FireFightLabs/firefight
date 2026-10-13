@@ -7,6 +7,9 @@ class Chat::Message < ApplicationRecord
   # Tool results and the model's reasoning are customer data, and the raw columns repeat the thinking.
   encrypts :content, :thinking_text, :thinking_signature,
            :citations, :server_tool_calls, :raw_content, :raw_reasoning
+  # A person's words as the chat platform sent them, beside the content the model reads, which names people with their
+  # ids kept. Pages show these as the platform does.
+  encrypts :as_written
 
   # Halon's reply ends with a line saying its next step (FirefightAi::NextStep), which the loop reads from the reply as
   # the model wrote it and nobody else ever sees.

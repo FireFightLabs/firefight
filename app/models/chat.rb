@@ -77,11 +77,13 @@ class Chat < ApplicationRecord
     messages.where(role: Chat::Message::READABLE_ROLES, nudge: false).order(:created_at)
   end
 
-  # from_platform marks words written in the chat platform, in its own markup.
-  def queue_message!(content, sender:, files: [], from_platform: false)
+  # from_platform marks words written in the chat platform. as_written is how the platform sent them when content is the
+  # model's reading, and context what the model reads before them that the person never wrote.
+  def queue_message!(content, sender:, files: [], from_platform: false, as_written: nil, context: nil)
     transaction do
       files.each_with_index { |file, index| file.update!(chat: self, position: index) }
-      queued_messages.create!(content: content, sender: sender, attached_files: files, from_platform: from_platform)
+      queued_messages.create!(content: content, sender: sender, attached_files: files, from_platform: from_platform || as_written.present?,
+                              as_written: as_written.presence, context: context)
     end
   end
 
@@ -92,7 +94,8 @@ class Chat < ApplicationRecord
     waiting = waiting.where(sender: from) if from
     taken = waiting.to_a.select(&:take!)
     taken.each do |queued|
-      message = add_person_message!(block_given? ? yield(queued) : queued.content, sender: queued.sender)
+      nudge!(queued.context) if queued.context.present?
+      message = block_given? ? add_person_message!(yield(queued), sender: queued.sender) : add_person_message!(queued.content, sender: queued.sender, as_written: queued.as_written)
       attach_files!(message, queued.attached_files.to_a)
     end
     taken
@@ -100,8 +103,9 @@ class Chat < ApplicationRecord
 
   # A person's message, kept with who sent it. Where several people speak, the model reads each message headed with its
   # sender's name, so the chat the library already holds in memory is read again to carry the name.
-  def add_person_message!(content, sender:)
+  def add_person_message!(content, sender:, as_written: nil)
     message = add_message(role: Chat::Message::ROLE_USER, content: content)
+    message.update!(as_written: as_written) if as_written.present?
     return message unless sender.is_a?(WorkspaceMembership)
 
     message.update_columns(sender_id: sender.id)

@@ -121,6 +121,8 @@ export const OPERATOR_SPAN_PARAM = "span" as const
 
 export const OPERATOR_SPAN_BODY_PROP = "spanBody" as const
 
+export const OPERATOR_SPAN_MODEL_PARAM = "as_read" as const
+
 export const OPERATOR_REGRESSION_MODELS_PROP = "models" as const
 
 export const OPERATOR_SANDBOX_FLAGS = {

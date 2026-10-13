@@ -27,7 +27,8 @@ module Operator
       Arel::Nodes::NamedFunction.new("CAST", [ table[:id].as("text") ]).matches("#{ActiveRecord::Base.sanitize_sql_like(query)}%", nil, true)
     end
 
-    def initialize(query)
+    def initialize(query, readable: Readable.none)
+      @readable = readable
       @query = query.to_s.strip.downcase
       span_key = @query.match(SPAN_KEY)
       @query = span_key[2] if span_key && !@query.match?(INCIDENT_NUMBER)
@@ -132,11 +133,11 @@ module Operator
     end
 
     def run_match(run, via: nil, span: nil)
-      Match.new(kind: KIND_RUN, id: run.id, label: run.label, place: run.workspace.name, via: via, span: span)
+      Match.new(kind: KIND_RUN, id: run.id, label: @readable.run_label(run), place: run.workspace.name, via: via, span: span)
     end
 
     def chat_match(conversation, via: nil, span: nil)
-      Match.new(kind: KIND_CHAT, id: conversation.id, label: conversation.title.presence || Conversation::UNTITLED,
+      Match.new(kind: KIND_CHAT, id: conversation.id, label: @readable.chat_title(conversation),
                 place: conversation.workspace.name, via: via, span: span)
     end
 

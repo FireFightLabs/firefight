@@ -24,21 +24,31 @@ module Operator
     # The query parameter that names the open span, and the prop its content comes back in.
     SPAN_PARAM = "span".freeze
     BODY_PROP = "spanBody".freeze
+    # Asks for what the model read rather than the content as people read it.
+    MODEL_PARAM = "as_read".freeze
 
     # Content longer than this is cut, with a note saying so.
     BODY_LIMIT = 100_000
 
     # facts are label and value pairs shown for the selected span. body is a lambda that loads the content when the span
-    # is opened. run_id links to a run.
-    Span = Data.define(:key, :kind, :tone, :title, :detail, :started_at, :ended_at, :facts, :body, :run_id) do
+    # is opened, as people read it. model_body loads what the model read instead, for content people wrote in the chat
+    # platform, which the model reads with names and ids. run_id links to a run.
+    Span = Data.define(:key, :kind, :tone, :title, :detail, :started_at, :ended_at, :facts, :body, :model_body, :run_id) do
       def body? = !body.nil?
 
-      def read_body = body && Trace.body_text(body.call)
+      def model_body? = !model_body.nil?
+
+      def read_body(as_read: false)
+        loader = as_read && model_body ? model_body : body
+        loader && Trace.body_text(loader.call)
+      end
     end
     Group = Data.define(:key, :title, :started_at, :ended_at, :spans)
 
-    def self.span(key:, kind:, title:, started_at:, tone: IncidentProcess::TONE_OK, detail: nil, ended_at: nil, facts: [], body: nil, run_id: nil)
-      Span.new(key:, kind:, tone:, title:, detail:, started_at:, ended_at:, facts: facts.reject { |_label, value| value.blank? }, body:, run_id:)
+    def self.span(key:, kind:, title:, started_at:, tone: IncidentProcess::TONE_OK, detail: nil, ended_at: nil, facts: [], body: nil, model_body: nil,
+                  run_id: nil)
+      Span.new(key:, kind:, tone:, title:, detail:, started_at:, ended_at:, facts: facts.reject { |_label, value| value.blank? }, body:, model_body:,
+               run_id:)
     end
 
     # Votes can come days later, so they are listed last and left off the time axis.

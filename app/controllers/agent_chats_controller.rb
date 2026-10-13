@@ -158,7 +158,7 @@ class AgentChatsController < InertiaController
   end
 
   def search
-    found = Conversation.search_for(current_membership, params[:q])
+    found = Conversation.search_for(current_membership, params[:q], shown: method(:platform_texts))
     render json: AgentChatSerializer.many(found, platform_texts: listed_in_platform(found))
   end
 
@@ -539,9 +539,9 @@ class AgentChatsController < InertiaController
 
   # What the person said in a chat asked in the platform, in the platform's own markup, as the platform shows it.
   def said_in_platform(chat, messages, waiting)
-    return {} unless chat.said_in_platform_markup?
-
-    questions = messages.select { |message| message.role == Chat::Message::ROLE_USER }.map(&:content) + waiting.map(&:content)
+    questions = (messages.select { |message| message.role == Chat::Message::ROLE_USER } + waiting).filter_map do |message|
+      message.as_written || (message.content if chat.said_in_platform_markup?)
+    end
     platform_texts([ chat.title_question, chat.preview_question, *questions ])
   end
 
