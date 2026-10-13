@@ -2152,6 +2152,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.uuid "workflow_run_id"
+    t.string "resource_words"
     t.index ["check_id"], name: "index_investigation_notices_on_check_id"
     t.index ["investigation_id"], name: "index_investigation_notices_on_investigation_id"
     t.index ["resource_id"], name: "index_investigation_notices_on_resource_id"

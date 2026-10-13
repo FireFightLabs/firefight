@@ -31,7 +31,7 @@ module Slack
         [
           "*Urgency:* #{Investigation::Notice::SEVERITY_LABELS.fetch(notice.severity)}",
           ("*Becomes a problem:* #{notice.due_words}" if notice.due_on),
-          ("*Resource:* #{Mrkdwn.escape(notice.resource.name)}" if notice.resource)
+          ("*Resource:* #{Mrkdwn.escape(notice.resource_label)}" if notice.resource_label)
         ].compact
       end
 

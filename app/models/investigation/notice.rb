@@ -48,8 +48,9 @@ class Investigation::Notice < ApplicationRecord
 
   # What one reading says about a problem, before it is compared with what was said.
   # reference is the provider's own name for one report, such as an alert, when one resource can hold several.
-  Reading = Data.define(:signal, :topic, :summary, :severity, :due_on, :resource, :reference) do
-    def initialize(due_on: nil, resource: nil, reference: nil, **) = super
+  # resource_words names what it is about in words when that is not on the map.
+  Reading = Data.define(:signal, :topic, :summary, :severity, :due_on, :resource, :reference, :resource_words) do
+    def initialize(due_on: nil, resource: nil, reference: nil, resource_words: nil, **) = super
 
     def key = Investigation::Notice.key_for(signal, resource: resource, topic: topic, reference: reference)
   end
@@ -96,7 +97,8 @@ class Investigation::Notice < ApplicationRecord
   def self.seen_values(reading, now)
     {
       signal: reading.signal, topic: reading.topic.to_s.squish.truncate(TOPIC_LIMIT), summary: reading.summary.to_s.strip.truncate(SUMMARY_LIMIT),
-      severity: reading.severity, due_on: reading.due_on, resource_id: reading.resource&.id, last_seen_at: now
+      severity: reading.severity, due_on: reading.due_on, resource_id: reading.resource&.id, resource_words: (reading.resource_words unless reading.resource),
+      last_seen_at: now
     }
   end
   private_class_method :seen_values
@@ -111,6 +113,9 @@ class Investigation::Notice < ApplicationRecord
       OR (CAST(:due AS date) IS NOT NULL AND (investigation_notices.due_on IS NULL
         OR investigation_notices.due_on - CAST(:due AS date) >= GREATEST(CEIL((investigation_notices.due_on - CAST(:today AS date)) * #{EARLIER_SHARE}), 1))))
   SQL
+
+  # What it is about: its resource on the map, else the resource as it was named when it is not on the map.
+  def resource_label = resource&.name || resource_words.presence
 
   # Takes a notice to say it, in one statement, so two deliveries never both post it. false when another took it.
   def claim!
