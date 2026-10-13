@@ -1334,7 +1334,8 @@ export const INVESTIGATION_TRIGGERS = [
   "rehearsal",
   "alert",
   "schedule",
-  "security_event"
+  "security_event",
+  "workflow"
 ] as const
 export type InvestigationTrigger = (typeof INVESTIGATION_TRIGGERS)[number]
 
@@ -1727,7 +1728,8 @@ export const WORKFLOW_STEP_EDITORS = [
   "run_workflow",
   "tool",
   "ask_halon",
-  "watch"
+  "watch",
+  "status_page"
 ] as const
 export type WorkflowStepEditor = (typeof WORKFLOW_STEP_EDITORS)[number]
 
@@ -1739,7 +1741,8 @@ export const WORKFLOW_STEP_EDITOR = {
   "RUN_WORKFLOW": "run_workflow",
   "TOOL": "tool",
   "ASK_HALON": "ask_halon",
-  "WATCH": "watch"
+  "WATCH": "watch",
+  "STATUS_PAGE": "status_page"
 } as const
 
 export const WORKFLOW_STEP_ICONS = [
@@ -1761,7 +1764,12 @@ export const WORKFLOW_STEP_ICONS = [
   "globe",
   "person",
   "approval",
-  "stop"
+  "stop",
+  "investigate",
+  "classify",
+  "page",
+  "follow_up",
+  "status_page"
 ] as const
 export type WorkflowStepIcon = (typeof WORKFLOW_STEP_ICONS)[number]
 

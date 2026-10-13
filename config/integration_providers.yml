@@ -50,6 +50,8 @@
 # it, such as Kubernetes, has neither.
 # holds_flags marks a provider that keeps a team's feature flags, so what changed around a resource says that flag changes
 # are kept there and read with its own tools.
+# holds_status_pages marks a provider that hosts its customers' own status pages, so a workflow's Status page update step
+# offers its connection's tools that change something.
 # holds_code marks a code host, whose repositories a code change can be written to. Each of its connections keeps the
 # paths Halon may not change (Integration::CodeChanges), which its page shows under Code changes.
 # test_logins marks the provider whose connections keep the test logins Halon's browser signs in with
@@ -691,6 +693,7 @@ providers:
     mark: PD
     color: "#06ac38"
     status_page: { url: https://status.pagerduty.com, feed: page }
+    holds_status_pages: true
     hosts: [ api.pagerduty.com, events.pagerduty.com, pagerduty.com ]
     description: See who is on call and what is paging them, page them for an incident and keep the page in step with it, and acknowledge, escalate or add responders when you allow it.
     # PagerDuty runs a US and an EU service region, each with its own hosted MCP server (support.pagerduty.com,
@@ -871,6 +874,7 @@ providers:
     mark: BS
     color: "#4f46e5"
     status_page: { url: https://status.betterstack.com, feed: page }
+    holds_status_pages: true
     hosts: [ betterstack.com, logs.betterstack.com, uptime.betterstack.com ]
     description: Read uptime monitors, incidents, logs and errors in Better Stack.
     server_url: https://mcp.betterstack.com
@@ -910,6 +914,7 @@ providers:
     mark: OS
     color: "#18181b"
     status_page: { url: https://status.openstatus.dev, feed: page }
+    holds_status_pages: true
     hosts: [ api.openstatus.dev ]
     description: Check how the addresses OpenStatus monitors stand, region by region, and read its status reports.
     # One MCP server (openstatusHQ/openstatus, apps/server/src/routes/mcp) and one dashboard, which its own notifications
