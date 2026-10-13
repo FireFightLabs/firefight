@@ -1,6 +1,6 @@
 # How a skill gets a new version. A person's save, a restore and taking a newer library version each make a new live
 # version and retire the one that was, in one update guarded on the version the writer saw, so two people saving at once
-# never overwrite each other. Halon only proposes: its version waits until a person accepts it, as written or edited
+# never overwrite each other. Halon only proposes. Its version waits until a person accepts it, as written or edited
 # first, or dismisses it.
 module Chat::CustomSkill::Writing
   extend ActiveSupport::Concern
