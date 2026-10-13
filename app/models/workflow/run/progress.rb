@@ -8,7 +8,10 @@ module Workflow::Run::Progress
   REVIVABLE = Workflow::Run::OPEN + [ Workflow::Run::STATUS_FAILED ]
   ERROR_LIMIT = 2_000
 
+  # A run whose details were dropped is left as its one line.
   def record_step!(step_key:, iteration:, **attributes)
+    return if details_pruned?
+
     row = attributes.merge(run_id: id, step_key: step_key, iteration: iteration)
     row[:error] = self.class.redacted(row[:error].to_s.lines.first.to_s.strip).truncate(ERROR_LIMIT).presence
     Workflow::Run::Step.upsert_all([ row ], unique_by: %i[run_id step_key iteration], update_only: (attributes.keys + [ :error ]).uniq)
@@ -16,6 +19,8 @@ module Workflow::Run::Progress
 
   # Moves the run to what the engine says, with a started step making a queued run running.
   def record_status!(status, step_started: false, outputs: nil, error: nil)
+    return if details_pruned?
+
     status = Workflow::Run::STATUS_RUNNING if status == Workflow::Run::STATUS_QUEUED && step_started
     return if status == self.status
 

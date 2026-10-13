@@ -75,4 +75,73 @@ class Workflow::RunTest < ActiveSupport::TestCase
     assert_equal "failed", failed.status
     assert_equal "RuntimeError: broke", failed.error
   end
+
+  test "a paused run reads as paused, apart from waiting, and carries on when resumed" do
+    @run.record_status!(Workflow::Run::STATUS_RUNNING)
+    @run.record_status!(DefinedWorkflow::RUN_STATUSES.fetch("paused"))
+    assert_equal Workflow::Run::STATUS_PAUSED, @run.status
+    assert_not @run.finished?
+
+    @run.record_status!(DefinedWorkflow::RUN_STATUSES.fetch("waiting"))
+    assert_equal Workflow::Run::STATUS_WAITING, @run.status
+  end
+
+  test "drops a run's details past the workspace's retention and keeps its one line" do
+    @workspace.update!(workflow_run_retention_days: 30)
+    @run.update!(status: Workflow::Run::STATUS_SUCCEEDED, finished_at: 31.days.ago, inputs: { "region" => "eu" }, outputs: { "ok" => true },
+                 trigger_payload: { "by" => "hand" }, agent: nil)
+    @run.record_step!(step_key: "pause", iteration: "", name: "pause", kind: "delay", status: "succeeded", attempts: 1, input: { "seconds" => 1 })
+    @run.saved_results.keep!(tool_name: "pause", text: "kept whole")
+
+    recent, = open_run("recent", status: Workflow::Run::STATUS_SUCCEEDED, finished_at: 2.days.ago)
+    pinned, = open_run("pinned", status: Workflow::Run::STATUS_FAILED, finished_at: 60.days.ago, pinned: true)
+    going, = open_run("going", status: Workflow::Run::STATUS_PAUSED)
+
+    assert_equal 1, Workflow::Run.prune_details!(@workspace)
+
+    @run.reload
+    assert @run.details_pruned?
+    assert_empty @run.steps
+    assert_empty @run.saved_results
+    assert_equal({}, @run.inputs)
+    assert_nil @run.outputs
+    assert_equal Workflow::Run::STATUS_SUCCEEDED, @run.status
+    assert_equal @workflow.live_version, @run.version
+    assert_equal Workflow::Trigger::KIND_MANUAL, @run.trigger_kind
+    [ recent, pinned, going ].each { |kept| assert_not kept.reload.details_pruned? }
+  end
+
+  test "a run pinned or taken up again before it is pruned keeps its details" do
+    @run.update!(status: Workflow::Run::STATUS_FAILED, finished_at: 200.days.ago)
+    stale = Workflow::Run.find(@run.id)
+    Workflow::Run.where(id: @run.id).update_all(pinned: true)
+
+    assert_not stale.prune_details!
+    assert_not @run.reload.details_pruned?
+  end
+
+  test "a pruned run is left as its one line when the engine moves again" do
+    @run.update!(status: Workflow::Run::STATUS_FAILED, finished_at: 200.days.ago)
+    @run.prune_details!
+
+    @run.record_status!(Workflow::Run::STATUS_RUNNING)
+    @run.record_step!(step_key: "pause", iteration: "", name: "pause", kind: "delay", status: "running", attempts: 2)
+
+    assert_equal Workflow::Run::STATUS_FAILED, @run.reload.status
+    assert_empty @run.steps
+  end
+
+  test "a workspace keeps run details 90 days unless it chose between 1 and 400" do
+    assert_equal 90, Workspace.new.workflow_run_retention_days
+    assert_not @workspace.update(workflow_run_retention_days: 0)
+    assert_not @workspace.update(workflow_run_retention_days: 401)
+    assert @workspace.update(workflow_run_retention_days: 400)
+  end
+
+  private
+
+  def open_run(key, **attributes)
+    Workflow::Run.open!(workflow: @workflow, start_key: key, version: @workflow.live_version, trigger_kind: Workflow::Trigger::KIND_MANUAL,
+                        started_by_kind: Workflow::Run::STARTED_BY_PERSON, **attributes)
+  end
 end

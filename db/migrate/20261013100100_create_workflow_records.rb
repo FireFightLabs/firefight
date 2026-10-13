@@ -55,10 +55,13 @@ class CreateWorkflowRecords < ActiveRecord::Migration[8.1]
       t.string :started_by_kind, null: false
       t.references :started_by, type: :uuid, foreign_key: { to_table: :workspace_memberships, on_delete: :nullify }
       t.text :error
+      t.boolean :pinned, null: false, default: false
+      t.datetime :details_pruned_at
       t.datetime :started_at
       t.datetime :finished_at
       t.timestamps
       t.index [ :workflow_id, :start_key ], unique: true
+      t.index [ :workspace_id, :finished_at ], where: "details_pruned_at IS NULL AND pinned = false", name: "index_workflow_runs_awaiting_pruning"
       t.index [ :workflow_id, :created_at ]
       t.index [ :workspace_id, :created_at ]
       t.index :status
@@ -112,5 +115,6 @@ class CreateWorkflowRecords < ActiveRecord::Migration[8.1]
     add_check_constraint :chat_saved_results, "num_nonnulls(chat_id, workflow_run_id) = 1", name: "chat_saved_results_one_owner"
 
     add_column :workspaces, :halon_applies_workflow_read_fixes, :boolean, null: false, default: false
+    add_column :workspaces, :workflow_run_retention_days, :integer, null: false, default: 90
   end
 end

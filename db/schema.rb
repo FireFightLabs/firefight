@@ -3160,6 +3160,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_100100) do
     t.string "started_by_kind", null: false
     t.uuid "started_by_id"
     t.text "error"
+    t.boolean "pinned", default: false, null: false
+    t.datetime "details_pruned_at"
     t.datetime "started_at"
     t.datetime "finished_at"
     t.datetime "created_at", null: false
@@ -3172,6 +3174,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_100100) do
     t.index ["workflow_id", "created_at"], name: "index_workflow_runs_on_workflow_id_and_created_at"
     t.index ["workflow_id", "start_key"], name: "index_workflow_runs_on_workflow_id_and_start_key", unique: true
     t.index ["workspace_id", "created_at"], name: "index_workflow_runs_on_workspace_id_and_created_at"
+    t.index ["workspace_id", "finished_at"], name: "index_workflow_runs_awaiting_pruning", where: "((details_pruned_at IS NULL) AND (pinned = false))"
   end
 
   create_table "workflow_versions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -3336,6 +3339,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_100100) do
     t.string "halon_monitoring_channel"
     t.boolean "halon_security_events_enabled", default: true, null: false
     t.boolean "halon_applies_workflow_read_fixes", default: false, null: false
+    t.integer "workflow_run_retention_days", default: 90, null: false
     t.index ["created_by_id"], name: "index_workspaces_on_created_by_id"
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
     t.index ["issue_webhook_token"], name: "index_workspaces_on_issue_webhook_token", unique: true

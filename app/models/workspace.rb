@@ -141,6 +141,7 @@ class Workspace < ApplicationRecord
 
   validates :transcript_retention_days,
             numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
+  validates :workflow_run_retention_days, numericality: { only_integer: true, in: Workflow::Run::Retention::DAYS }
   # Off unless chosen, so an unconfirmed memory is used until a person decides on it.
   validates :memory_expiry_days, inclusion: { in: Chat::Memory::EXPIRY_CHOICES, message: "must be one of the offered choices" }, allow_nil: true
 

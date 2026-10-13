@@ -70,7 +70,7 @@ class Workflow::VersionTest < ActiveSupport::TestCase
     first.publish!(by: @alice)
     second = draft_with(steps: [ step("pause", "delay", { "seconds" => 9 }) ])
 
-    assert_equal "A draft is already open, so publish or throw it away before restoring another version.", first.restore_blocked_reason
+    assert_equal "Publish or discard the open draft first.", first.restore_blocked_reason
     second.publish!(by: @alice)
 
     restored = first.restore!(by: @bob)

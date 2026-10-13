@@ -12,11 +12,13 @@ class Workflow::Run < ApplicationRecord
   STATUS_RUNNING = "running".freeze
   # Parked on a step that waits for a time, an event or a workflow it ran.
   STATUS_WAITING = "waiting".freeze
+  # An operator paused it, and it carries on when they resume it.
+  STATUS_PAUSED = "paused".freeze
   STATUS_SUCCEEDED = "succeeded".freeze
   STATUS_FAILED = "failed".freeze
   STATUS_CANCELLED = "cancelled".freeze
-  STATUSES = [ STATUS_QUEUED, STATUS_RUNNING, STATUS_WAITING, STATUS_SUCCEEDED, STATUS_FAILED, STATUS_CANCELLED ].freeze
-  OPEN = [ STATUS_QUEUED, STATUS_RUNNING, STATUS_WAITING ].freeze
+  STATUSES = [ STATUS_QUEUED, STATUS_RUNNING, STATUS_WAITING, STATUS_PAUSED, STATUS_SUCCEEDED, STATUS_FAILED, STATUS_CANCELLED ].freeze
+  OPEN = [ STATUS_QUEUED, STATUS_RUNNING, STATUS_WAITING, STATUS_PAUSED ].freeze
   FINISHED = [ STATUS_SUCCEEDED, STATUS_FAILED, STATUS_CANCELLED ].freeze
 
   STARTED_BY_PERSON = "person".freeze
@@ -28,6 +30,7 @@ class Workflow::Run < ApplicationRecord
 
   include Workflow::Run::Data
   include Workflow::Run::Progress
+  include Workflow::Run::Retention
 
   belongs_to :workspace
   belongs_to :workflow, inverse_of: :runs

@@ -20,12 +20,12 @@ class DefinedWorkflow < SolidWorkflow::Interpreter
   SCOPE_INDEX = SolidWorkflow::Interpreter::SCOPE_INDEX
   CONTEXT_ITERATION = SolidWorkflow::Interpreter::CONTEXT_ITERATION
   STEP_STATUSES = SolidWorkflow::Step.statuses.keys.freeze
-  # The engine's run states, as a run's record reads them. A run an operator paused waits for them.
+  # The engine's run states, as a run's record reads them.
   RUN_STATUSES = {
     SolidWorkflow::Workflow.states.fetch("pending") => Workflow::Run::STATUS_QUEUED,
     SolidWorkflow::Workflow.states.fetch("running") => Workflow::Run::STATUS_RUNNING,
     SolidWorkflow::Workflow.states.fetch("waiting") => Workflow::Run::STATUS_WAITING,
-    SolidWorkflow::Workflow.states.fetch("paused") => Workflow::Run::STATUS_WAITING,
+    SolidWorkflow::Workflow.states.fetch("paused") => Workflow::Run::STATUS_PAUSED,
     SolidWorkflow::Workflow.states.fetch("succeeded") => Workflow::Run::STATUS_SUCCEEDED,
     SolidWorkflow::Workflow.states.fetch("failed") => Workflow::Run::STATUS_FAILED,
     SolidWorkflow::Workflow.states.fetch("cancelled") => Workflow::Run::STATUS_CANCELLED

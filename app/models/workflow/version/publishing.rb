@@ -43,7 +43,7 @@ module Workflow::Version::Publishing
 
   def restore_blocked_reason
     return "This is already the draft." if draft?
-    return "A draft is already open, so publish or throw it away before restoring another version." if workflow.draft
+    return "Publish or discard the open draft first." if workflow.draft
 
     nil
   end
