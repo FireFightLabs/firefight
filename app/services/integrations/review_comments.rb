@@ -66,14 +66,11 @@ module Integrations
     module_function
 
     # The section of the agent's brief that quotes the comments and asks for an answer to each, or nil when there are
-    # none. It comes early in the brief, so a long brief cut to fit never loses it. more says the code host had more
-    # than were read.
-    def brief(comments, more: false)
+    # none. It comes early in the brief, so a long brief cut to fit never loses it.
+    def brief(comments)
       return if comments.empty?
 
-      said = [ INTRO, ("The pull request has more open comments than Firefight reads at once, so only these are quoted." if more),
-               FirefightAi::Evidence.frame("review_comments", listed(comments)), ANSWER ]
-      said.compact.join("\n\n")
+      [ INTRO, FirefightAi::Evidence.frame("review_comments", listed(comments)), ANSWER ].join("\n\n")
     end
 
     # Every comment quoted, as the agent and the review read them.

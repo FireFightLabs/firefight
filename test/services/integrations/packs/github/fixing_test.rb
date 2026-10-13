@@ -510,7 +510,7 @@ module Integrations
         test "an update to an open pull request hands the agent the reviewers' open comments word for word, marking a person's from a bot's" do
           stub_pull(7)
           stub_branch("fix-pool")
-          GithubApp.stubs(:graphql).with { |query, variables, token:| query == OpenReviewComments::QUERY && variables == { owner: "acme", name: "api", number: 7 } && token == "ghs_token" }
+          GithubApp.stubs(:graphql).with { |query, variables, token:| variables.slice(:owner, :name, :number) == { owner: "acme", name: "api", number: 7 } && token == "ghs_token" }
                    .returns(reviewers_comments)
           told = nil
           CodeReading.any_instance.stubs(:exec).with { |*, argv:, **| argv[2] == Fixing::RUN && (told = argv[4]) }
@@ -575,6 +575,49 @@ module Integrations
           assert_equal "No answer to review comment 202 by uros (a person) on the pull request as a whole", last.lines.last.text
           assert_equal "Halon sent the change back once and it still has what is listed below, so nothing is pushed.\n" \
                        "Review comments with no answer:\n- 202 by uros (a person) on the pull request as a whole\n\n#{Fixing::HELD_ASK}", error.message
+        end
+
+        test "review threads and a thread's comments on later pages are read too, so a comment there still needs its answer" do
+          stub_pull(7)
+          stub_branch("fix-pool")
+          later = { "isResolved" => false, "path" => "app/models/integration.rb", "line" => 185,
+                    "comments" => { "nodes" => [ graph_comment(105, "coderabbitai", "Bot", "Preload the environments.") ] } }
+          GithubApp.stubs(:graphql).with { |query, variables, **| query == OpenReviewComments::THREADS_QUERY && variables[:after].nil? }
+                   .returns(open_comments(threads: [ reviewers_comments.dig("repository", "pullRequest", "reviewThreads", "nodes").last.merge(
+                     "id" => "T103", "comments" => { "pageInfo" => { "hasNextPage" => true, "endCursor" => "k1" },
+                                                     "nodes" => [ graph_comment(103, "uros", "User", "Why?") ] }
+                   ) ], more: "t1"))
+          GithubApp.stubs(:graphql).with { |query, variables, **| query == OpenReviewComments::THREADS_QUERY && variables[:after] == "t1" }.returns(open_comments(threads: [ later ]))
+          GithubApp.stubs(:graphql).with { |query, variables, **| query == OpenReviewComments::THREAD_COMMENTS_QUERY && variables == { id: "T103", after: "k1" } }
+                   .returns("node" => { "comments" => { "nodes" => [ graph_comment(106, "firefight", "Bot", "Answered by Halon.", mine: true) ] } })
+          GithubApp.stubs(:graphql).with { |query, *| [ OpenReviewComments::REVIEWS_QUERY, OpenReviewComments::COMMENTS_QUERY ].include?(query) }.returns(open_comments)
+          told = nil
+          CodeReading.any_instance.expects(:exec).twice.with { |*, argv:, **| argv[2] == Fixing::RUN && (told ||= argv[4]) }
+                     .returns("stdout" => agent_output(said: answered(101 => "fixed: tool.rb")), "timed_out" => false)
+          CodeReading.any_instance.expects(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH }.never
+
+          error = assert_raises(Integrations::Error) do
+            @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix what the reviewers said", "pull_request" => 7 })
+          end
+
+          assert_includes told, "Comment 105, by coderabbitai (a bot), on app/models/integration.rb line 185\n> Preload the environments."
+          assert_not_includes told, "Why?", "Halon answered that thread last, on its second page of comments"
+          assert_includes error.message, "- 105 by coderabbitai (a bot) on app/models/integration.rb line 185"
+        end
+
+        test "a pull request with more review threads than Firefight pages through, or a page that fails, stops the fix before anything is written" do
+          stub_pull(7)
+          stub_branch("fix-pool")
+          GithubApp.stubs(:graphql).with { |query, *| query == OpenReviewComments::THREADS_QUERY }.returns(open_comments(more: "again"))
+          CodeReading.any_instance.expects(:exec).never
+          arguments = { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it", "pull_request" => 7 }
+
+          error = assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: arguments) }
+          assert_equal "The pull request's review comments could not be read from GitHub, so nothing was written: it has more than " \
+                       "#{OpenReviewComments::MAX_PAGES * OpenReviewComments::PAGE} review threads, more than Firefight reads.", error.message
+
+          GithubApp.stubs(:graphql).with { |query, *| query == OpenReviewComments::THREADS_QUERY }.returns(open_comments(more: "t1")).then.raises(GithubApp::Error, "GitHub: timeout")
+          assert_match "could not be read from GitHub, so nothing was written", assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: arguments) }.message
         end
 
         test "a finding the review labels blocking sends the change back, and one still there after holds it with nothing pushed" do
@@ -1023,8 +1066,9 @@ module Integrations
         end
 
         # What GitHub's GraphQL API answers for a pull request's review threads, reviews and comments.
-        def open_comments(threads: [], reviews: [], comments: [])
-          { "repository" => { "pullRequest" => { "reviewThreads" => { "pageInfo" => { "hasNextPage" => false }, "nodes" => threads },
+        # more is the cursor of a next page of threads, when there is one.
+        def open_comments(threads: [], reviews: [], comments: [], more: nil)
+          { "repository" => { "pullRequest" => { "reviewThreads" => { "pageInfo" => { "hasNextPage" => more.present?, "endCursor" => more }, "nodes" => threads },
                                                  "reviews" => { "nodes" => reviews }, "comments" => { "nodes" => comments } } } }
         end
 

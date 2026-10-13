@@ -212,7 +212,6 @@ module Integrations
         def fix_code(environment_row:, arguments:)
           @work = nil
           @review_comments = []
-          @more_comments = false
           @answers = {}
           repo = repo_argument(arguments)
           brief = required_text(arguments, "brief")
@@ -411,9 +410,7 @@ module Integrations
         # The comments reviewers left open on the pull request, handed to the agent word for word. A pull request whose
         # comments cannot be read is not changed, since a fix written without them is the one that loses them.
         def read_review_comments(repo, pull, token)
-          read = OpenReviewComments.read(repo, pull["number"], token: token)
-          @review_comments = read.comments
-          @more_comments = read.more
+          @review_comments = OpenReviewComments.read(repo, pull["number"], token: token)
           @work.add("Read #{@review_comments.size} open review #{'comment'.pluralize(@review_comments.size)} on the pull request") if @review_comments.any?
         rescue GithubApp::Error => error
           fail! Sentence.join("The pull request's review comments could not be read from GitHub, so nothing was written", error)
@@ -866,7 +863,7 @@ module Integrations
         def agent_brief(environment_row, brief, context)
           kept = ConnectionSettings.of(environment_row).protected_paths
           [
-            "Fix this in the repository you are in.", brief, context.presence, ReviewComments.brief(@review_comments, more: @more_comments),
+            "Fix this in the repository you are in.", brief, context.presence, ReviewComments.brief(@review_comments),
             request&.asked_section, request&.evidence_section,
             ("Leave #{kept.to_sentence} unchanged, since this workspace keeps those paths out of code changes. If the fix needs " \
              "one of them changed, change nothing and say so." if kept.any?),
