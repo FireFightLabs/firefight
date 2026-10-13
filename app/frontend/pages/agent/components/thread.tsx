@@ -93,8 +93,13 @@ export function Thread({
   const said = useMemo(() => placeAfterTurns(turns, messages, watchUpdates), [ turns, messages, watchUpdates ])
   // A pull request Halon opened sits where Halon said it needs attention.
   const noticed = useMemo(() => placeAfterTurns(turns, messages, pullRequestNotices), [ turns, messages, pullRequestNotices ])
-  // A fix paused at its spending limit sits after the turn it paused in, so Continue is where the person reads.
-  const paused = useMemo(() => placeAfterTurns(turns, messages, codePauses), [ turns, messages, codePauses ])
+  // A fix paused at its spending limit sits after the turn it paused in, so Continue is where the person reads. While an
+  // answer is drawn live, the last settled turn is the question it answers, so a fix that paused since goes after the
+  // live answer instead.
+  const placedPauses = useMemo(() => placeAfterTurns(turns, messages, codePauses), [ turns, messages, codePauses ])
+  const answering = live ? turns[turns.length - 1]?.id : undefined
+  const pausedLive = answering ? placedPauses.get(answering) : undefined
+  const paused = useMemo(() => withoutTurn(placedPauses, answering), [ placedPauses, answering ])
   // A pause still waiting for Continue or Stop shows even while its place further up has not loaded, since the fix waits on it.
   const pausedBeforeShown = hasOlder ? paused.get(BEFORE_ALL_TURNS)?.filter((pause) => pause.status === CODE_FIX_PAUSE_STATUSES.OFFERED) : undefined
   // A memory something contradicted sits after the turn that found it, while the person still has the context.
@@ -195,6 +200,7 @@ export function Thread({
         </Fragment>
       ))}
       {live && <Message turn={live} live onOpenImage={setOpenImageId} />}
+      <CodePauses pauses={pausedLive} />
       {stream.busy && stream.text.length === 0 && <LoadingState label="Working" />}
       {waiting.map((message) => (
         <WaitingMessage key={message.id} body={message.body} attachments={message.attachments} onOpenImage={setOpenImageId} />
@@ -246,6 +252,16 @@ function EarlierLoading() {
       Loading earlier messages
     </p>
   )
+}
+
+function withoutTurn<T>(placed: Map<string, T[]>, turnId: string | undefined): Map<string, T[]> {
+  if (!turnId) {
+    return placed
+  }
+
+  const kept = new Map(placed)
+  kept.delete(turnId)
+  return kept
 }
 
 function sentAttachments(turns: ChatTurn[], waiting: AgentChatWaitingMessage[]): AgentChatAttachment[] {

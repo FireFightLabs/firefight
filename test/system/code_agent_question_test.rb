@@ -246,6 +246,17 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
     shot("code-fix-continued")
   end
 
+  test "a fix that paused while Halon is still answering shows its card after the answer being written, not above it" do
+    conversation, = paused_chat(answered: false)
+
+    visit agent_chat_path(conversation)
+
+    card = find("section[aria-label='Paused code fix']")
+    trace = find("section.agent-thread button[aria-expanded]", match: :first)
+    assert evaluate_script("arguments[0].compareDocumentPosition(arguments[1]) & Node.DOCUMENT_POSITION_FOLLOWING", trace, card).positive?,
+           "the card follows the live answer's steps"
+  end
+
   test "someone the change does not run as sees the card with who can decide, and nothing to press" do
     conversation, pause = paused_chat
     pause.session.update_columns(principal_id: workspace_memberships(:bob_workspace_one).id)
@@ -359,7 +370,8 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
   end
 
   # A chat whose fix paused at its spending limit after spending $2.04, with its work saved, for the person to decide.
-  def paused_chat
+  # Unanswered, Halon is still writing the answer the fix paused in.
+  def paused_chat(answered: true)
     conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
     conversation.ask!("Make the release job send the tag")
     chat = conversation.chat
@@ -377,6 +389,8 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
     work = running_work
     work.paused!(pause.to_h)
     Chat::StepProgress.keep!(chat, "call_1", work)
+    return [ conversation, pause ] unless answered
+
     conversation.note!("It reached its spending limit, so I paused it. Press Continue on the card to carry on.")
     conversation.reply_delivered!
     [ conversation, pause ]
