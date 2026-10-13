@@ -171,9 +171,7 @@ class AgentChatsController < InertiaController
       PROP_HANDBOOK_PROPOSALS => in_thread do
         HandbookProposalSerializer.many(window.placed(conversation.handbook_proposals.includes(:instruction, :result, :decided_by).order(:created_at)))
       end,
-      PROP_SKILL_PROPOSALS => in_thread do
-        HalonSkillProposalSerializer.many(window.placed(conversation.skill_proposals.includes(:decided_by, :parent_version, custom_skill: :live_version).order(:created_at)))
-      end,
+      PROP_SKILL_PROPOSALS => in_thread { HalonSkillProposalSerializer.many(skill_proposals_shown) },
       PROP_THEORIES => in_thread { ChatTheorySerializer.many(on_chat { |chat| window.stepped(chat.theories) }) }
     )
   end
@@ -444,6 +442,13 @@ class AgentChatsController < InertiaController
     return Workflow.none unless FeatureFlags.enabled?(current_workspace, FeatureFlags::WORKFLOWS)
 
     conversation.workflows.with_run_counts
+  end
+
+  # The skills Halon proposed in the stretch of the chat on screen, none where the workspace keeps no skills of its own.
+  def skill_proposals_shown
+    return [] unless Chat::CustomSkill.enabled_for?(current_workspace)
+
+    window.placed(conversation.skill_proposals.includes(:decided_by, :parent_version, custom_skill: :live_version).order(:created_at))
   end
 
   # Those made in the stretch of the chat on screen, each placed after the turn that made it.

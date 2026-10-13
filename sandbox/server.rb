@@ -167,6 +167,8 @@ module Sandbox
   # repository's setup names them with the settings its CI started them with, and the app's tools by name.
   module Services
     STARTED = {}
+    # Whether the Postgres on each port has pgvector, once it has been asked.
+    VECTOR = {}
     KNOWN = %w[postgres redis].freeze
     DEFAULT_PORTS = { "postgres" => 5432, "redis" => 6379 }.freeze
     # A role or database a setup asks for, which goes into SQL inside double quotes.
@@ -294,10 +296,14 @@ module Sandbox
       { "DATABASE_URL" => "postgres://#{user}@127.0.0.1:#{port}#{"/#{database}" if database}", "PGHOST" => "127.0.0.1", "PGPORT" => port.to_s, "PGUSER" => user }
     end
 
-    # Checked each time the box's own Postgres is asked for, which is one quick query.
+    # Asked once the box's own Postgres answers, and the answer kept, so a later ask for the running Postgres never waits
+    # on a query under its lock. A Postgres that could not be asked is asked again next time.
     def self.vector!(port)
-      available = available(port)
-      raise Broken, NO_VECTOR if available && !available.include?("vector")
+      if VECTOR[port].nil?
+        available = available(port)
+        VECTOR[port] = available.include?("vector") if available
+      end
+      raise Broken, NO_VECTOR if VECTOR[port] == false
     end
 
     def self.redis(port)
