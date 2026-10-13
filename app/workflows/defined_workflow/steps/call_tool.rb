@@ -7,6 +7,8 @@ class DefinedWorkflow::Steps::CallTool < DefinedWorkflow::Steps::Base
   kind "call_tool"
   label "Call a tool"
   group GROUP_TOOLS
+  config_help "tool (any tool you can call, by its name), arguments (its arguments, values may be references), undo (for a change, how a person " \
+              "puts it back, one sentence). Outputs answer and data (the answer read as JSON when it is)."
 
   KEY_TOOL = "tool".freeze
   KEY_ARGUMENTS = "arguments".freeze

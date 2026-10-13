@@ -95,6 +95,8 @@ class InteractionDispatcher
     Identifiers::PACK_REQUEST_ASK => Interactions::PackRequestAskHandler,
     Identifiers::PACK_REQUEST_GIVE => Interactions::PackRequestGiveHandler,
     Identifiers::WORKFLOW_PUBLISH_REQUEST_PUBLISH => Interactions::WorkflowPublishRequestHandler,
+    Identifiers::CHAT_WORKFLOW_RUN_NOW => Interactions::ChatWorkflowHandler,
+    Identifiers::CHAT_WORKFLOW_STOP => Interactions::ChatWorkflowHandler,
     Identifiers::FIX_STEP_RUN => Interactions::FixStepDecisionHandler,
     Identifiers::FIX_STEP_DISMISS => Interactions::FixStepDecisionHandler,
     Identifiers::FIX_STEP_ASK_AGAIN => Interactions::FixStepDecisionHandler,

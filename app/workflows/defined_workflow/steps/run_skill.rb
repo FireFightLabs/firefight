@@ -5,6 +5,7 @@ class DefinedWorkflow::Steps::RunSkill < DefinedWorkflow::Steps::Base
   kind "run_skill"
   label "Run a skill"
   group GROUP_HALON
+  config_help "skill (a skill's name), focus (what to look at). It only reads. Outputs verdict, summary, severity and findings."
 
   KEY_SKILL = "skill".freeze
   KEY_FOCUS = "focus".freeze

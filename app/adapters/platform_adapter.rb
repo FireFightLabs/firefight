@@ -910,6 +910,18 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # A workflow Halon made from a chat, in that chat's thread, with Run now and Cancel.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_chat_workflow(channel_id:, thread_id:, workflow:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws it as the workflow moves.
+  # @return [Hash] { success: true }
+  def update_chat_workflow(channel_id:, message_id:, workflow:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # One line saying a workflow ran and found nothing, for a workflow that asked for it.
   # @return [Hash] { message_id:, channel_id: }
   def post_workflow_all_clear(channel_id:, run:)

@@ -35,7 +35,7 @@ module Chat::Tools::Choices
 
   def firefight(workspace)
     titles = Chat::Tools::Groups::FIREFIGHT.to_h { |group| [ group.key, group.title ] }
-    Mcp::Tools.all.reject { |tool_class| Chat::Tools::Groups::NOT_FOR_HALON.include?(tool_class.name_value.to_s) }.map do |tool_class|
+    Mcp::Tools.available_in(workspace).reject { |tool_class| Chat::Tools::Groups::NOT_FOR_HALON.include?(tool_class.name_value.to_s) }.map do |tool_class|
       name = tool_class.name_value.to_s
       Choice.new(name: name, group: titles.fetch(Chat::Tools::Groups.of_firefight_tool(name), "Firefight"),
                  description: Chat::Tools.clean(tool_class.description_value, Chat::Tools::ONE_LINE),

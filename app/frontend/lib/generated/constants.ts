@@ -1047,7 +1047,8 @@ export const AGENT_STREAM_EVENTS = {
   "SAFEGUARD": "safeguard",
   "HELPERS": "helpers",
   "HANDBOOK": "handbook",
-  "SKILL": "skill"
+  "SKILL": "skill",
+  "WORKFLOW": "workflow"
 } as const
 
 export const AGENT_STEP_STATUSES = {
@@ -1158,6 +1159,7 @@ export const AGENT_CHAT_PROPS = {
   "CODE_PAUSES": "codePauses",
   "MEMORY_QUESTIONS": "memoryQuestions",
   "PLANS": "plans",
+  "WORKFLOWS": "workflows",
   "DATA_REPAIRS": "dataRepairs",
   "MITIGATIONS": "mitigations",
   "OWNER_ASKS": "ownerAsks",
@@ -1196,6 +1198,7 @@ export const AGENT_CHAT_THREAD_PROPS = [
   "codePauses",
   "memoryQuestions",
   "plans",
+  "workflows",
   "dataRepairs",
   "mitigations",
   "ownerAsks",
@@ -1220,6 +1223,7 @@ export const AGENT_CHAT_WINDOWED_PROPS = [
   "codePauses",
   "memoryQuestions",
   "plans",
+  "workflows",
   "dataRepairs",
   "mitigations",
   "ownerAsks",
@@ -1477,6 +1481,12 @@ export const WORKFLOW_STATES = [
   "done"
 ] as const
 export type WorkflowState = (typeof WORKFLOW_STATES)[number]
+
+export const CHAT_WORKFLOW_ACTIONS = {
+  "RUN_NOW": "run_now",
+  "CANCEL": "cancel",
+  "TURN_OFF": "turn_off"
+} as const
 
 export const WORKFLOW_RUN_STATUSES = [
   "queued",

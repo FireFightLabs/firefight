@@ -20,6 +20,7 @@ class DefinedWorkflow < SolidWorkflow::Interpreter
   SCOPE_INDEX = SolidWorkflow::Interpreter::SCOPE_INDEX
   CONTEXT_ITERATION = SolidWorkflow::Interpreter::CONTEXT_ITERATION
   STEP_STATUSES = SolidWorkflow::Step.statuses.keys.freeze
+  STEP_NAME = SolidWorkflow::Definition::STEP_NAME
   ON_FAILURE_CONTINUE = SolidWorkflow::Definition::ON_FAILURE_CONTINUE
   ON_FAILURE_ERROR_ROUTE = SolidWorkflow::Definition::ON_FAILURE_ERROR_ROUTE
   CONDITION_EQUALS = SolidWorkflow::Condition::OPERATOR_EQUALS

@@ -45,6 +45,8 @@ const SAFEGUARDS = [ AGENT_CHAT_PROPS.DATA_REPAIRS, AGENT_CHAT_PROPS.MITIGATIONS
 const MEMORY_QUESTIONS = [ AGENT_CHAT_PROPS.MEMORY_QUESTIONS ]
 // A plan moves with every step Halon takes, and Retry or Undo start a turn, so the chat looks again.
 const PLANS = [ AGENT_CHAT_PROPS.PLANS, AGENT_CHAT_PROPS.CONVERSATION ]
+// A workflow made here is published, runs, ends or is cancelled long after the answer, so the chat looks again.
+const WORKFLOWS = [ AGENT_CHAT_PROPS.WORKFLOWS ]
 // Helpers start, take steps and report while the turn that handed them checks still works, and the charts they read
 // arrive with them.
 const HELPERS = [ AGENT_CHAT_PROPS.HELPERS, AGENT_CHAT_PROPS.CHARTS ]
@@ -211,6 +213,11 @@ export function sendPlanAction(path: string, callbacks: CardCallbacks) {
   router.post(path, {}, { ...IN_PLACE, only: PLANS, ...callbacks })
 }
 
+// Run now and Cancel on a workflow Halon made here post to one path, named by what was pressed.
+export function pressWorkflow(path: string, callbacks: CardCallbacks) {
+  router.post(path, {}, { ...IN_PLACE, only: WORKFLOWS, ...callbacks })
+}
+
 export function stopWatch(conversationId: string, watchId: string, callbacks: CardCallbacks) {
   router.post(agentChatWatchStopPath(conversationId, watchId), {}, { ...IN_PLACE, only: WATCHES, ...callbacks })
 }
@@ -263,6 +270,10 @@ export function refreshWatches() {
 
 export function refreshPlans() {
   router.reload({ only: PLANS })
+}
+
+export function refreshWorkflows() {
+  router.reload({ only: WORKFLOWS })
 }
 
 export function refreshPullRequestNotices() {

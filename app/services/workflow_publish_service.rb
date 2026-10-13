@@ -25,6 +25,20 @@ class WorkflowPublishService
     Result.new(ok: false, words: refused.message)
   end
 
+  # Whether by may publish this draft: change a live workflow and, when it needs anything granted, grant it.
+  def may_publish?(draft, by:)
+    return false unless by.respond_to?(:may?) && by.may?(Ability::Action::RESOURCE_WORKFLOWS, Ability::Action::ACTION_UPDATE, @workspace)
+
+    @workflow.missing_reach(draft).empty? || by.may?(Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_CREATE, @workspace)
+  end
+
+  # A member who may not publish asks the admins instead. Anyone else, such as an agent, leaves it a draft.
+  def ask_or_leave!(draft, by:)
+    return Result.new(ok: false, words: "#{@workflow.name} waits as a draft until a workspace admin publishes it.") unless by.is_a?(WorkspaceMembership)
+
+    ask!(Workflow::PublishRequest.for!(by, @workflow, draft), by: by)
+  end
+
   # Publish pressed on a member's request, from the platform or the Workflows page. The draft is published as it was
   # when the admins were asked, never one changed since that nobody looked at.
   def publish_requested!(request, by:)

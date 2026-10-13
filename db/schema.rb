@@ -3310,6 +3310,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150200) do
     t.uuid "origin_conversation_id"
     t.text "trigger_refusal"
     t.datetime "trigger_refused_at"
+    t.string "chat_message_channel_id"
+    t.string "chat_message_id"
     t.string "library_key"
     t.integer "library_version"
     t.jsonb "library_base"

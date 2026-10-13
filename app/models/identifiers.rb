@@ -184,6 +184,9 @@ module Identifiers
   FIX_STEP_ASK_AGAIN = "fix_step_ask_again"
   # An admin publishing a workflow a member asked them to, from the direct message.
   WORKFLOW_PUBLISH_REQUEST_PUBLISH = "workflow_publish_request_publish"
+  # On a workflow Halon made from a chat in a thread: run it now, or cancel it (turn it off when it repeats).
+  CHAT_WORKFLOW_RUN_NOW = "chat_workflow_run_now"
+  CHAT_WORKFLOW_STOP = "chat_workflow_stop"
   # Approves the call and stops the same tool asking again for the rest of the chat.
   AGENT_ALLOW_FOR_CHAT = "agent_allow_for_chat"
   MEMORY_CONFIRM = "memory_confirm"

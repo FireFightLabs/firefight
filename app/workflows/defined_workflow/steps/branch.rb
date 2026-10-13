@@ -4,6 +4,8 @@ class DefinedWorkflow::Steps::Branch < DefinedWorkflow::Steps::Base
   kind DefinedWorkflow::KIND_BRANCH
   label "Branch"
   group GROUP_CONTROL
+  config_help "routes (each {route, when: {left, operator, right}}, operators such as equals, contains, greater_than, combined with all, any and not), " \
+              "otherwise (the route when none holds). Connect each route's next step with that route."
 
   def self.engine? = true
 

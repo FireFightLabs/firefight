@@ -49,6 +49,8 @@ class AgentChatsController < InertiaController
   PROP_SKILL_PROPOSALS = "skillProposals"
   # Setup's Meet Halon step, while an admin is on it: the question to start with, and whether Halon has answered.
   PROP_SETUP_GUIDE = "setupGuide"
+  # Workflows Halon made in the open chat, each a card with Run now and Cancel, only where the workspace has workflows.
+  PROP_WORKFLOWS = "workflows"
   # The plans Halon keeps in the open chat, each a checklist that moves as it works.
   PROP_PLANS = "plans"
   # Statements Halon ran that changed rows, with their counts, check and the copy kept of the rows.
@@ -71,7 +73,7 @@ class AgentChatsController < InertiaController
     "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS, "SCREENSHOTS" => PROP_SCREENSHOTS, "WAITING_MESSAGES" => PROP_WAITING_MESSAGES,
     "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES, "COMPACTIONS" => PROP_COMPACTIONS, "MODEL_SWITCHES" => PROP_MODEL_SWITCHES, "HELD_CALLS" => PROP_HELD_CALLS,
     "PACK_REFUSALS" => PROP_PACK_REFUSALS, "SECRET_ENTRIES" => PROP_SECRET_ENTRIES, "SETUP_GUIDE" => PROP_SETUP_GUIDE, "WATCHES" => PROP_WATCHES, "WATCH_UPDATES" => PROP_WATCH_UPDATES,
-    "PULL_REQUEST_NOTICES" => PROP_PULL_REQUEST_NOTICES, "CODE_PAUSES" => PROP_CODE_PAUSES, "MEMORY_QUESTIONS" => PROP_MEMORY_QUESTIONS, "PLANS" => PROP_PLANS,
+    "PULL_REQUEST_NOTICES" => PROP_PULL_REQUEST_NOTICES, "CODE_PAUSES" => PROP_CODE_PAUSES, "MEMORY_QUESTIONS" => PROP_MEMORY_QUESTIONS, "PLANS" => PROP_PLANS, "WORKFLOWS" => PROP_WORKFLOWS,
     "DATA_REPAIRS" => PROP_DATA_REPAIRS, "MITIGATIONS" => PROP_MITIGATIONS, "OWNER_ASKS" => PROP_OWNER_ASKS, "HELPERS" => PROP_HELPERS,
     "HANDBOOK_PROPOSALS" => PROP_HANDBOOK_PROPOSALS, "SKILL_PROPOSALS" => PROP_SKILL_PROPOSALS, "CHAT_MODELS" => PROP_CHAT_MODELS, "THEORIES" => PROP_THEORIES, "THREAD_FOR" => PROP_THREAD_FOR
   }.freeze
@@ -80,8 +82,8 @@ class AgentChatsController < InertiaController
   # Read for the same stretch of the chat as its messages, so scrolling up to older messages reads these again with them.
   WINDOWED_PROPS = [
     PROP_INVESTIGATIONS, PROP_CHARTS, PROP_SCREENSHOTS, PROP_COMPACTIONS, PROP_MODEL_SWITCHES, PROP_HELD_CALLS, PROP_PACK_REFUSALS,
-    PROP_SECRET_ENTRIES, PROP_WATCHES, PROP_WATCH_UPDATES, PROP_PULL_REQUEST_NOTICES, PROP_CODE_PAUSES, PROP_MEMORY_QUESTIONS, PROP_PLANS, PROP_DATA_REPAIRS,
-    PROP_MITIGATIONS, PROP_OWNER_ASKS, PROP_HELPERS, PROP_HANDBOOK_PROPOSALS, PROP_SKILL_PROPOSALS, PROP_THEORIES
+    PROP_SECRET_ENTRIES, PROP_WATCHES, PROP_WATCH_UPDATES, PROP_PULL_REQUEST_NOTICES, PROP_CODE_PAUSES, PROP_MEMORY_QUESTIONS, PROP_PLANS, PROP_WORKFLOWS,
+    PROP_DATA_REPAIRS, PROP_MITIGATIONS, PROP_OWNER_ASKS, PROP_HELPERS, PROP_HANDBOOK_PROPOSALS, PROP_SKILL_PROPOSALS, PROP_THEORIES
   ].freeze
   # The conversation itself, loaded in one request right after the page shows. Confirmations and waiting messages are
   # live whenever they were made, so they are always read whole.
@@ -108,6 +110,7 @@ class AgentChatsController < InertiaController
                                                                 schedule_plan cancel_plan retry_plan undo_plan keep_mitigation extend_mitigation
                                                                 undo_mitigation]
   authorizes Ability::Action::RESOURCE_INCIDENTS, read: %i[incidents]
+  authorizes Ability::Action::RESOURCE_WORKFLOWS, create: %i[press_workflow]
 
   include RequiresAgent
   before_action :require_agent!
@@ -120,7 +123,8 @@ class AgentChatsController < InertiaController
       PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [], PROP_INVESTIGATIONS => [], PROP_OPEN_INVESTIGATION => nil,
       PROP_CHARTS => [], PROP_SCREENSHOTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => [],
       PROP_MODEL_SWITCHES => [], PROP_HELD_CALLS => [], PROP_PACK_REFUSALS => [], PROP_SECRET_ENTRIES => [], PROP_WATCHES => [], PROP_WATCH_UPDATES => [],
-      PROP_PULL_REQUEST_NOTICES => [], PROP_CODE_PAUSES => [], PROP_MEMORY_QUESTIONS => [], PROP_PLANS => [], PROP_DATA_REPAIRS => [], PROP_MITIGATIONS => [],
+      PROP_PULL_REQUEST_NOTICES => [], PROP_CODE_PAUSES => [], PROP_MEMORY_QUESTIONS => [], PROP_PLANS => [], PROP_WORKFLOWS => [], PROP_DATA_REPAIRS => [],
+      PROP_MITIGATIONS => [],
       PROP_OWNER_ASKS => [], PROP_HELPERS => [], PROP_HANDBOOK_PROPOSALS => [], PROP_SKILL_PROPOSALS => [], PROP_CHAT_MODELS => chat_models(nil), PROP_THEORIES => [],
       PROP_THREAD_FOR => nil
     )
@@ -155,6 +159,7 @@ class AgentChatsController < InertiaController
         AgentChatMemoryQuestionSerializer.many(window.placed(conversation.memory_posts.order(:created_at)), member: current_membership)
       end,
       PROP_PLANS => in_thread { AgentChatPlanSerializer.many(plans_shown, member: current_membership) },
+      PROP_WORKFLOWS => in_thread { AgentChatWorkflowSerializer.many(workflows_shown, member: current_membership) },
       PROP_DATA_REPAIRS => in_thread do
         AgentChatDataRepairSerializer.many(on_chat { |chat| window.placed(chat.data_repairs.where(status: Chat::DataRepair::STATUS_RAN), Chat::DataRepair.placed_at) })
       end,
@@ -274,6 +279,15 @@ class AgentChatsController < InertiaController
   end
 
   # Schedule on a plan waiting for its time. It runs then, as whoever approved it, once a fresh reading says nothing moved.
+  # Run now or Cancel on a workflow Halon made in this chat.
+  def press_workflow
+    workflow = chat_workflows.find_by(id: params[:workflow_id])
+    return redirect_to(agent_chat_path(conversation), alert: "That workflow is no longer in this chat.") unless workflow
+
+    result = Conversation::Workflows.press!(workflow, params[:press].to_s, by: current_membership)
+    redirect_to agent_chat_path(conversation), (result.ok ? :notice : :alert) => result.words
+  end
+
   def schedule_plan
     decide_plan { |plan| [ Conversation::Plans.approve!(plan, by: current_membership), "Plan scheduled for #{plan.reload.run_at_words}." ] }
   end
@@ -424,6 +438,16 @@ class AgentChatsController < InertiaController
   def watches_shown
     on_chat { |chat| window.placed(chat.watches).or(chat.watches.active).includes(:steps, :asker, :updates) }
   end
+
+  # The workflows made in this chat, none where the workspace has no workflows.
+  def chat_workflows
+    return Workflow.none unless FeatureFlags.enabled?(current_workspace, FeatureFlags::WORKFLOWS)
+
+    conversation.workflows.with_run_counts
+  end
+
+  # Those made in the stretch of the chat on screen, each placed after the turn that made it.
+  def workflows_shown = window.placed(chat_workflows, Workflow.arel_table[:created_at]).includes(:live_version, :draft_version, :created_by).order(:created_at).to_a
 
   def plans_shown
     on_chat { |chat| window.placed(chat.plans, Chat::Plan.placed_at).includes(:steps, :approved_by, :undoes, :undo_plan, chat: :owner) }

@@ -48,6 +48,12 @@ class DefinedWorkflow::Steps::Base
       @group
     end
 
+    # What its config holds, as an agent writing a workflow reads it.
+    def config_help(value = nil)
+      @config_help = value if value
+      @config_help
+    end
+
     # Run by the engine itself, so DefinedWorkflow never performs it.
     def engine? = false
 

@@ -12,6 +12,7 @@ class WorkflowRunEndService
 
   def ended!
     stop_watches!
+    Conversation::Workflows.moved!(@workflow) unless @run.test?
     return if @run.test? || @run.parent_run_id.present? || !@run.claim_telling!
 
     @run.failed? ? tell_failed! : tell_all_clear!

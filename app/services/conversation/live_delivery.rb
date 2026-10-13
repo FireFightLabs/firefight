@@ -27,6 +27,8 @@ class Conversation::LiveDelivery
   EVENT_MEMORY = "memory"
   # A plan Halon keeps in this chat was made, moved a step, or someone pressed something on it, so its card looks again.
   EVENT_PLAN = "plan"
+  # A workflow made from the chat moved: made, published, run, ended, cancelled.
+  EVENT_WORKFLOW = "workflow"
   # A statement's rows were counted or copied, a temporary change started, was kept or undone, or an owner was asked or
   # answered, so those cards look again.
   EVENT_SAFEGUARD = "safeguard"
@@ -59,6 +61,10 @@ class Conversation::LiveDelivery
   # Said from outside a turn, so it carries no place among the turn's events.
   def self.held_call_moved(conversation)
     ConversationChannel.broadcast_to(conversation, type: EVENT_HELD_CALL)
+  end
+
+  def self.workflow_moved(conversation)
+    ConversationChannel.broadcast_to(conversation, type: EVENT_WORKFLOW)
   end
 
   def self.watch_moved(conversation)

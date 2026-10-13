@@ -29,6 +29,7 @@ class WorkflowRunService
       )
     end
     DefinedWorkflow.launch!(run, not_before: not_before, parent_step: parent_step)
+    Conversation::Workflows.moved!(@workflow) unless test
     run
   end
 

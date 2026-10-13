@@ -492,6 +492,7 @@ Rails.application.routes.draw do
     post "/agent/:id/plans/:plan_id/cancel", to: "agent_chats#cancel_plan", as: :agent_chat_plan_cancel
     post "/agent/:id/plans/:plan_id/retry", to: "agent_chats#retry_plan", as: :agent_chat_plan_retry
     post "/agent/:id/plans/:plan_id/undo", to: "agent_chats#undo_plan", as: :agent_chat_plan_undo
+    post "/agent/:id/workflows/:workflow_id/:press", to: "agent_chats#press_workflow", as: :agent_chat_workflow_press
     get "/catalogue", to: "catalogue#index", as: :catalogue
     get "/catalogue/:type_slug", to: "catalogue#show", as: :catalogue_type
     post "/catalogue/types", to: "catalogue#create_type"

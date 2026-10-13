@@ -22,6 +22,17 @@ module Slack::WorkspaceAdapter::WorkflowMessaging
                  blocks: Slack::Messages::WorkflowRunNotice.failed(run, suggestion: suggestion))
   end
 
+  def post_chat_workflow(channel_id:, thread_id:, workflow:)
+    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id, text: Slack::Messages::ChatWorkflow.fallback(workflow),
+                          blocks: Slack::Messages::ChatWorkflow.build(workflow))
+  end
+
+  def update_chat_workflow(channel_id:, message_id:, workflow:)
+    update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::ChatWorkflow.fallback(workflow),
+                   blocks: Slack::Messages::ChatWorkflow.build(workflow))
+    { success: true }
+  end
+
   def post_workflow_all_clear(channel_id:, run:)
     post_message(channel_id: channel_id, text: Slack::Messages::WorkflowRunNotice.all_clear_fallback(run),
                  blocks: Slack::Messages::WorkflowRunNotice.all_clear(run))
