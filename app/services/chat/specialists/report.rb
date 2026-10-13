@@ -11,6 +11,9 @@ class Chat::Specialists::Report < RubyLLM::Tool
   # share whole for read_result (Chat::Tools.hand_over).
   LIMIT = Chat::Helper::SPECIALIST_REPORT_LIMIT
   LINK = %r{\Ahttps?://\S+\z}
+  # What a call that reports nothing is answered, so the specialist reports again rather than ending with nothing.
+  EMPTY = "Not reported, since it says nothing. Give summary, your answer to the objective, and findings, each a claim with " \
+          "the lines that show it, in one call.".freeze
 
   Finding = Data.define(:claim, :lines, :links)
 
@@ -54,26 +57,32 @@ class Chat::Specialists::Report < RubyLLM::Tool
   def taken? = !@report.nil?
 
   # The arguments match the schema above, not an execute signature, so skip the base check.
+  # A finding sent on its own, as a claim and its lines beside the summary rather than in findings, is taken as one. A
+  # later call adds to what was reported, since a model may send its findings one call each.
   def call(tool_call: nil, **arguments)
     given = arguments.deep_stringify_keys
-    findings = Array(given["findings"]).first(MAX_FINDINGS).map do |finding|
+    listed = given["findings"].is_a?(Array) ? given["findings"] : [ given.slice("claim", "lines", "links") ].reject(&:empty?)
+    findings = listed.select { |finding| finding.is_a?(Hash) }.first(MAX_FINDINGS).map do |finding|
       Finding.new(claim: finding["claim"].to_s.squish, lines: Array(finding["lines"]).map(&:to_s).map(&:strip).compact_blank.first(MAX_LINES),
                   links: Array(finding["links"]).map(&:to_s).map(&:strip).compact_blank)
     end
     proposals = Array(given["proposed_changes"]).first(MAX_CHANGES).map { |change| Chat::Specialists::Proposal.from(change) }
+    summary = given["summary"].to_s.squish
+    return EMPTY if summary.empty? && findings.empty? && proposals.empty? && @report.nil?
+
     refused = refusal(findings, proposals)
     return refused if refused
 
-    @report = { summary: given["summary"].to_s.squish, findings: findings, proposals: proposals,
-                not_checked: Array(given["not_checked"]).map(&:to_s).compact_blank }
+    add(summary, findings, proposals, Array(given["not_checked"]).map(&:to_s).compact_blank)
     "Reported."
   end
+
 
   # What Halon reads, in plain lines.
   def text
     return unless @report
 
-    lines = [ @report[:summary] ]
+    lines = [ @report[:summary].presence ].compact
     @report[:findings].each_with_index do |finding, index|
       lines << "#{index + 1}. #{finding.claim}"
       finding.lines.each { |line| lines << "   Shows: #{line}" }
@@ -91,6 +100,14 @@ class Chat::Specialists::Report < RubyLLM::Tool
   def proposals = @report ? @report[:proposals] : []
 
   private
+
+  def add(summary, findings, proposals, not_checked)
+    @report ||= { summary: "", findings: [], proposals: [], not_checked: [] }
+    @report[:summary] = summary if @report[:summary].empty?
+    @report[:findings] = (@report[:findings] + findings).first(MAX_FINDINGS)
+    @report[:proposals] = (@report[:proposals] + proposals).first(MAX_CHANGES)
+    @report[:not_checked] += not_checked
+  end
 
   def proposed_changes
     {
@@ -115,6 +132,7 @@ class Chat::Specialists::Report < RubyLLM::Tool
     called = @chat.tool_calls.where.not(name: NAME).pluck(:name).map(&:downcase).to_set
     problems = []
     findings.each do |finding|
+      problems << "A finding has no claim: #{finding.lines.first}" if finding.claim.empty?
       problems << "A finding has no lines: #{finding.claim}" if finding.lines.empty?
       finding.lines.reject { |line| flat.include?(squished(line)) }.each { |line| problems << "This line is not in anything you read, so copy it exactly: #{line}" }
       finding.links.reject { |link| link.match?(LINK) && corpus.include?(link) }.each { |link| problems << "This link is not in anything you read: #{link}" }
