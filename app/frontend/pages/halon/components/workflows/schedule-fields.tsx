@@ -51,7 +51,7 @@ export function ScheduleFields({ idPrefix, schedule, timeZones, disabled = false
       {schedule.repeat === "days" && (
         <div className="flex flex-col gap-2">
           <Label>Days</Label>
-          <WeekdayPicker days={schedule.days} onChange={(days) => change("days", days)} />
+          <WeekdayPicker days={schedule.days} disabled={disabled} onChange={(days) => change("days", days)} />
         </div>
       )}
       {schedule.repeat === "monthly" && (
@@ -84,7 +84,7 @@ export function ScheduleFields({ idPrefix, schedule, timeZones, disabled = false
       )}
       <div className="flex flex-col gap-2">
         <Label htmlFor={`${idPrefix}-zone`}>Time zone</Label>
-        <TimeZoneSelect id={`${idPrefix}-zone`} value={schedule.zone} onChange={(zone) => change("zone", zone)} timeZones={timeZones} />
+        <TimeZoneSelect id={`${idPrefix}-zone`} value={schedule.zone} onChange={(zone) => change("zone", zone)} timeZones={timeZones} disabled={disabled} />
       </div>
     </div>
   )

@@ -21,7 +21,7 @@ export function OnceAtFields({ idPrefix, onceAt, timeZones, disabled = false, on
       </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor={`${idPrefix}-zone`}>Time zone</Label>
-        <TimeZoneSelect id={`${idPrefix}-zone`} value={onceAt.zone} onChange={(zone) => onChange({ ...onceAt, zone })} timeZones={timeZones} />
+        <TimeZoneSelect id={`${idPrefix}-zone`} value={onceAt.zone} onChange={(zone) => onChange({ ...onceAt, zone })} timeZones={timeZones} disabled={disabled} />
       </div>
     </div>
   )

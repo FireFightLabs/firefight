@@ -123,6 +123,7 @@ export function WatchSpecEditor({ idPrefix, watch, reads, tools, placeholders, p
           resourceOptions={[ ...places, ...placeholders ]}
           placeholders={placeholders}
           places={places}
+          disabled={disabled}
           onChange={(field, entered) => setStep(step.key, field, entered)}
           onChooseRead={(name) => chooseRead(step.key, name)}
           onArgsChange={(args) => setArgs(step.key, args)}

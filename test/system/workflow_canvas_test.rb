@@ -134,6 +134,30 @@ class WorkflowCanvasTest < ApplicationSystemTestCase
     within("li", text: "Version 1") { assert_button "Restore", disabled: true }
   end
 
+  test "an old version's schedule and watch show read only" do
+    watch = { "id" => "follow", "name" => "follow_web", "kind" => DefinedWorkflow::Steps::Watch.kind,
+              "config" => { "title" => "Deploy of web", "steps" => [ { "label" => "web", "capability" => "status", "resource" => "web", "done_when" => "running" } ] } }
+    add(watch)
+    schedule = Workflow::TriggerKinds.find(Workflow::Trigger::KIND_SCHEDULE).defaults.merge("kind" => Workflow::Trigger::KIND_SCHEDULE, "time_zone" => "UTC")
+    @workflow.reload.draft.update!(trigger: schedule)
+    @workflow.reload.draft.publish!(by: @alice)
+    add(delay("later"))
+    @workflow.reload.draft.publish!(by: @alice)
+    sign_in(users(:alice), @workspace)
+    visit workflow_path(@workflow)
+    find("[role=radio]", text: "Versions").click
+    within("li", text: "Version 1") { click_button "Open" }
+    assert_no_selector "[data-step='later']"
+
+    find("[data-step='follow_web']").click
+    assert_selector "input[aria-label='Watch 1 label'][disabled]"
+    assert_no_button "Remove watch 1"
+
+    find("div", text: "On a schedule", match: :first).click
+    assert_button "Mon", disabled: true
+    assert_selector "#trigger-schedule-zone[disabled]"
+  end
+
   test "on a phone the steps are a list, each opening its settings" do
     add(delay("wait", "wait_a_bit"))
     page.current_window.resize_to(390, 844)

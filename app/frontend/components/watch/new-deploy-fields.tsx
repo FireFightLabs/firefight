@@ -16,12 +16,13 @@ interface NewDeployFieldsProps {
   // A step reading with a tool names the resource deployed here, since it names none of its own.
   askResource: boolean
   resourceOptions: SearchableSelectOption[]
+  disabled?: boolean
   onTurn: (on: boolean) => void
   onChange: (key: string, entered: string) => void
 }
 
 // A step that waits for a deploy counts only one newer than the deploy live when the watch starts, or the version named.
-export function NewDeployFields({ id, number, newDeploy, askResource, resourceOptions, onTurn, onChange }: NewDeployFieldsProps) {
+export function NewDeployFields({ id, number, newDeploy, askResource, resourceOptions, disabled = false, onTurn, onChange }: NewDeployFieldsProps) {
   const on = newDeploy !== null
   const asked = newDeploy ?? {}
   const resource = stepText(asked, WATCH_NEW_DEPLOY_KEYS.RESOURCE)
@@ -40,7 +41,7 @@ export function NewDeployFields({ id, number, newDeploy, askResource, resourceOp
   return (
     <div className="space-y-2">
       <div className="flex items-start gap-2">
-        <Switch id={`${id}-new-deploy`} checked={on} onCheckedChange={onTurn} />
+        <Switch id={`${id}-new-deploy`} checked={on} disabled={disabled} onCheckedChange={onTurn} />
         <div className="space-y-0.5">
           <Label htmlFor={`${id}-new-deploy`} className="text-xs font-normal">Wait for a new deploy</Label>
           <p className="text-xs text-muted-foreground">
@@ -59,13 +60,14 @@ export function NewDeployFields({ id, number, newDeploy, askResource, resourceOp
                 placeholder="The resource deployed"
                 searchPlaceholder="Search the map"
                 emptyText="Nothing on the map by that name"
+                disabled={disabled}
               />
             </div>
           )}
-          <Input aria-label={`Watch ${number} commit`} value={stepText(asked, WATCH_NEW_DEPLOY_KEYS.COMMIT)} onChange={typed(WATCH_NEW_DEPLOY_KEYS.COMMIT)} placeholder="Commit, such as f23b4dc" />
-          <Input aria-label={`Watch ${number} tag`} value={stepText(asked, WATCH_NEW_DEPLOY_KEYS.TAG)} onChange={typed(WATCH_NEW_DEPLOY_KEYS.TAG)} placeholder="Tag, such as v1.4.0" />
-          <Input aria-label={`Watch ${number} branch`} value={stepText(asked, WATCH_NEW_DEPLOY_KEYS.BRANCH)} onChange={typed(WATCH_NEW_DEPLOY_KEYS.BRANCH)} placeholder="Branch, such as main" />
-          <Input aria-label={`Watch ${number} environment`} value={stepText(asked, WATCH_NEW_DEPLOY_KEYS.ENVIRONMENT)} onChange={typed(WATCH_NEW_DEPLOY_KEYS.ENVIRONMENT)} placeholder="Environment, production if empty" />
+          <Input aria-label={`Watch ${number} commit`} value={stepText(asked, WATCH_NEW_DEPLOY_KEYS.COMMIT)} onChange={typed(WATCH_NEW_DEPLOY_KEYS.COMMIT)} placeholder="Commit, such as f23b4dc" disabled={disabled} />
+          <Input aria-label={`Watch ${number} tag`} value={stepText(asked, WATCH_NEW_DEPLOY_KEYS.TAG)} onChange={typed(WATCH_NEW_DEPLOY_KEYS.TAG)} placeholder="Tag, such as v1.4.0" disabled={disabled} />
+          <Input aria-label={`Watch ${number} branch`} value={stepText(asked, WATCH_NEW_DEPLOY_KEYS.BRANCH)} onChange={typed(WATCH_NEW_DEPLOY_KEYS.BRANCH)} placeholder="Branch, such as main" disabled={disabled} />
+          <Input aria-label={`Watch ${number} environment`} value={stepText(asked, WATCH_NEW_DEPLOY_KEYS.ENVIRONMENT)} onChange={typed(WATCH_NEW_DEPLOY_KEYS.ENVIRONMENT)} placeholder="Environment, production if empty" disabled={disabled} />
         </div>
       )}
     </div>
