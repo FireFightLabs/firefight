@@ -8,7 +8,7 @@ class Workflow::PublishRequest < ApplicationRecord
 
   belongs_to :workspace
   belongs_to :workflow, inverse_of: :publish_requests
-  # The draft as it was when they asked.
+  # The draft they asked about, and its revision when the admins were asked (revision), which is what Publish publishes.
   belongs_to :version, class_name: "Workflow::Version"
   belongs_to :requester, class_name: "WorkspaceMembership"
   belongs_to :published_by, class_name: "WorkspaceMembership", optional: true
@@ -31,7 +31,8 @@ class Workflow::PublishRequest < ApplicationRecord
   def claim_ask!
     won = self.class.where(id: id)
               .where("requested_at IS NULL OR requested_at < :since OR published_at IS NOT NULL OR dismissed_at IS NOT NULL", since: WINDOW.ago)
-              .update_all(requested_at: Time.current, published_at: nil, published_by_id: nil, dismissed_at: nil, notifications: [], updated_at: Time.current)
+              .update_all(requested_at: Time.current, revision: version.reload.revision, published_at: nil, published_by_id: nil, dismissed_at: nil,
+                          notifications: [], updated_at: Time.current)
     reload
     won == 1
   end
@@ -59,6 +60,13 @@ class Workflow::PublishRequest < ApplicationRecord
   end
 
   def waiting? = requested_at.present? && published_at.nil? && dismissed_at.nil?
+
+  # Why Publish on this request cannot publish the draft as it is now: it changed since the admins were asked.
+  def stale_reason(draft)
+    return if draft.id == version_id && draft.revision == revision
+
+    "#{workflow.name} changed since #{requester.display_name} asked, so open it and look again before publishing."
+  end
 
   def answered_by_name = published_by&.display_name || "An admin"
 

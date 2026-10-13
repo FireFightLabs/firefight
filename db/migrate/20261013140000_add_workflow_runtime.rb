@@ -33,6 +33,7 @@ class AddWorkflowRuntime < ActiveRecord::Migration[8.1]
       t.references :workspace, type: :uuid, null: false, foreign_key: true, index: false
       t.references :workflow, type: :uuid, null: false, foreign_key: { on_delete: :cascade }, index: false
       t.references :version, type: :uuid, null: false, foreign_key: { to_table: :workflow_versions, on_delete: :cascade }
+      t.integer :revision
       t.references :requester, type: :uuid, null: false, foreign_key: { to_table: :workspace_memberships, on_delete: :cascade }
       t.datetime :requested_at
       t.datetime :published_at

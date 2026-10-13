@@ -3190,6 +3190,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150200) do
     t.uuid "version_id", null: false
     t.uuid "requester_id", null: false
     t.datetime "requested_at"
+    t.integer "revision"
     t.datetime "published_at"
     t.uuid "published_by_id"
     t.datetime "dismissed_at"

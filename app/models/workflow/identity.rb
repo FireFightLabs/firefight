@@ -15,11 +15,12 @@ module Workflow::Identity
 
   def agent_name = "#{name} workflow"
 
-  # Made once, the first time it is asked for, in one statement a second caller cannot also win.
+  # Made once, the first time it is asked for, in one statement a second caller cannot also win. Its own savepoint, so
+  # losing takes the agent it made back out even inside a caller's transaction.
   def ensure_agent!
     return agent if agent
 
-    transaction do
+    transaction(requires_new: true) do
       made = workspace.agents.create!(name: agent_name, slug: free_agent_slug, description: "Runs the #{name} workflow. It holds only what an admin granted it.")
       claimed = self.class.where(id: id, agent_id: nil).update_all(agent_id: made.id, updated_at: Time.current) == 1
       raise ActiveRecord::Rollback unless claimed

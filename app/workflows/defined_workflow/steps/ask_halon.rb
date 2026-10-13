@@ -40,7 +40,7 @@ class DefinedWorkflow::Steps::AskHalon < DefinedWorkflow::Steps::Base
   end
 
   def perform
-    answer = await(HANDED_OFF) { WorkflowHalonStepJob.perform_later(@run.id, record&.id, @step.id, self.class.kind, @config) }
+    answer = await(HANDED_OFF) { |name| WorkflowHalonStepJob.perform_later(@run.id, record&.id, @step.id, self.class.kind, @config, name) }
     return answer if answer.is_a?(SolidWorkflow::Park)
     raise Failed, answer[Workflow::HalonStep::KEY_ERROR] if answer[Workflow::HalonStep::KEY_ERROR]
 

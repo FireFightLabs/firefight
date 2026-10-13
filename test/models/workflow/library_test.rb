@@ -10,6 +10,17 @@ class Workflow::LibraryTest < ActiveSupport::TestCase
     @alice = workspace_memberships(:alice_workspace_one)
   end
 
+  test "making its own agent inside someone else's transaction leaves no agent behind when another caller made one first" do
+    workflow = Workflow.create!(workspace: workspaces(:slack_workspace_one), name: "Raced", created_by: workspace_memberships(:alice_workspace_one))
+    other = Workflow.find(workflow.id).ensure_agent!
+
+    ActiveRecord::Base.transaction do
+      assert_no_difference -> { Agent.count } do
+        assert_equal other, workflow.ensure_agent!
+      end
+    end
+  end
+
   def definition(minutes: 5, extra: [])
     {
       "trigger" => { "kind" => Workflow::Trigger::KIND_MANUAL, "inputs" => [] },

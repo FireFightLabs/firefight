@@ -14,18 +14,20 @@ class WorkflowRunService
     version = test ? tested_version : live_version
     resolved = Workflow::Trigger.resolve_inputs(version.trigger, inputs)
     refuse!("#{@workflow.name} needs a value for #{resolved.missing.map { |input| input['key'] }.to_sentence}.") if resolved.missing.any?
-    refuse_limits!(trigger_kind) unless test
-
     payload = Workflow::Run.redacted(trigger_payload.to_h)
     subject = @workflow.subject_for(inputs: resolved.values, trigger_payload: payload)
-    refuse!(already_running(subject)) if subject && @workflow.runs.unfinished.exists?(subject_key: subject)
 
-    run = open_run(
-      start_key, version: version, status: Workflow::Run::STATUS_QUEUED, trigger_kind: trigger_kind, trigger_payload: payload,
-                 inputs: Workflow::Run.redacted(resolved.values), agent: @workflow.agent, started_by_kind: started_by_kind, started_by: started_by,
-                 parent_run: parent_run, parent_step_key: parent_step&.name, test: test, real_step_keys: test ? real_keys(version, real_step_keys) : [],
-                 subject_key: subject
-    )
+    run = Workflow.transaction do
+      refuse_limits!(trigger_kind) unless test
+      refuse!(already_running(subject)) if subject && @workflow.runs.unfinished.exists?(subject_key: subject)
+
+      open_run(
+        start_key, version: version, status: Workflow::Run::STATUS_QUEUED, trigger_kind: trigger_kind, trigger_payload: payload,
+                   inputs: Workflow::Run.redacted(resolved.values), agent: @workflow.agent, started_by_kind: started_by_kind, started_by: started_by,
+                   parent_run: parent_run, parent_step_key: parent_step&.name, test: test, real_step_keys: test ? real_keys(version, real_step_keys) : [],
+                   subject_key: subject
+      )
+    end
     DefinedWorkflow.launch!(run, not_before: not_before, parent_step: parent_step)
     run
   end
@@ -64,9 +66,14 @@ class WorkflowRunService
     version
   end
 
+  # Counted with the workflow locked, and the workspace too for an event, until the run is made, so starts at once
+  # cannot each see room for one more.
   def refuse_limits!(trigger_kind)
+    event = !Workflow::Limits::NOT_EVENTS.include?(trigger_kind)
+    Workflow.find(@workflow.id).lock!
+    Workspace.find(@workflow.workspace_id).lock! if event
     refuse!(@workflow.rate_blocked_reason)
-    refuse!(Workflow.event_blocked_reason(@workflow.workspace)) unless Workflow::Limits::NOT_EVENTS.include?(trigger_kind)
+    refuse!(Workflow.event_blocked_reason(@workflow.workspace)) if event
   end
 
   # Only steps of the version that change something can be made for real, by their stable id.

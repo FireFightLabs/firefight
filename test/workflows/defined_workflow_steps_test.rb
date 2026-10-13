@@ -83,6 +83,15 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
     assert_match "An admin grants it on the workflow's page", run.error
   end
 
+  test "following one of Firefight's skills needs only what its tools read, never what they change" do
+    skill = Struct.new(:source, :tools).new(Chat::Skill::SOURCE_FIREFIGHT, [ Mcp::Tools::SEARCH_INCIDENTS, Mcp::Tools::DECLARE_INCIDENT ])
+
+    keys = DefinedWorkflow::Reach.for_skill(@workspace, skill).map(&:key)
+
+    assert_includes keys, Ability::Action.system_key(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
+    assert_not_includes keys, Ability::Action.system_key(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_CREATE)
+  end
+
   test "a change in a test run is shown and not made, unless the tester turned it on" do
     post = step("tell", "post_to_channel", { "channel" => "#ops", "message" => "Hello" })
     workflow = published("Tell", steps: [ post ])
@@ -162,6 +171,41 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
     assert_match "This looks done already. web was restarted 2 minutes ago. Nothing ran.", run.error
   end
 
+  # A step of a run parked on Halon, with the engine's own step, for handing off more work by hand.
+  def parked_on_halon
+    workflow = published("Judge", steps: [ step("judge", "ask_halon", { "question" => "Is web fine?", "data" => "ok" }) ])
+    run = WorkflowRunService.new(workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_PERSON, started_by: @alice)
+    perform_enqueued_jobs(except: WorkflowHalonStepJob)
+    engine = SolidWorkflow::Workflow.find_by!(start_key: DefinedWorkflow.start_key_for(run))
+    [ run.reload, engine.steps.find_by!(name: "judge") ]
+  end
+
+  test "work handed off late in a step's life gets its own full wait, counted from when it was handed off" do
+    run, engine_step = parked_on_halon
+    handed = []
+
+    travel 2.hours do
+      parked = DefinedWorkflow::Steps::Base.new(run: run, step: engine_step, config: {}).send(:await, "state_check:later") { |name| handed << name }
+
+      assert_kind_of SolidWorkflow::Park, parked
+      assert_in_delta 30.minutes.from_now, parked.wake_at, 5
+    end
+    assert_equal [ "state_check:later" ], handed
+  end
+
+  test "a retried step hands its work off again rather than reading what the try before it got back" do
+    run, engine_step = parked_on_halon
+    DefinedWorkflow.deliver!(engine_step.id, DefinedWorkflow::Steps::AskHalon::HANDED_OFF, { Workflow::HalonStep::KEY_ERROR => "The model was busy." })
+    engine_step.workflow.record_event(SolidWorkflow::Events::Step::RETRY_SCHEDULED, step: engine_step.reload, delay: 0, attempt: 1)
+    handed = []
+
+    answer = DefinedWorkflow::Steps::Base.new(run: run, step: engine_step, config: {}).send(:await, DefinedWorkflow::Steps::AskHalon::HANDED_OFF) { |name| handed << name }
+
+    assert_kind_of SolidWorkflow::Park, answer
+    assert_equal 1, handed.size
+    assert_not_equal DefinedWorkflow::Steps::AskHalon::HANDED_OFF, handed.sole
+  end
+
   test "ask halon answers as fields a branch can read" do
     answer = FirefightAi::WorkflowAnswer::Answer.new(verdict: "problem", summary: "Errors doubled.", fields: { "worst" => "checkout" })
     FirefightAi::WorkflowAnswer.any_instance.expects(:answer).with(has_entries(question: "Is it fine?", fields: [ [ "worst", "The worst service" ] ])).returns(answer)
@@ -215,6 +259,18 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
 
     start(workflow, inputs: { "service" => "api" })
     assert_match "already started 2 runs in the last hour", refusal(workflow, inputs: { "service" => "db" })
+  end
+
+  test "the limits are counted with the workflow, and for an event the workspace, locked until the run is made" do
+    workflow = published("Busy", steps: [ step("pause", "delay", { "minutes" => 5 }) ])
+    order = sequence("limits")
+    Workflow.any_instance.expects(:lock!).in_sequence(order)
+    Workspace.any_instance.expects(:lock!).in_sequence(order)
+    Workflow.any_instance.expects(:rate_blocked_reason).in_sequence(order).returns(nil)
+    Workflow::Run.expects(:open!).in_sequence(order).returns([ nil, true ])
+    DefinedWorkflow.stubs(:launch!)
+
+    WorkflowRunService.new(workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_TRIGGER, trigger_kind: Workflow::Trigger::KIND_ALERT_RECEIVED)
   end
 
   test "publishing refuses a change with no undo or no check after it" do

@@ -32,7 +32,7 @@ export function PublishDialog({ workflow, open, onClose }: { workflow: WorkflowD
       return
     }
     setProcessing(true)
-    router.post(publishWorkflowPath(workflow.id), {}, { preserveScroll: true, onFinish: finish })
+    router.post(publishWorkflowPath(workflow.id), { revision: workflow.draftRevision }, { preserveScroll: true, onFinish: finish })
   }
 
   return (

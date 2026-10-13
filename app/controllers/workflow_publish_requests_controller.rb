@@ -14,7 +14,7 @@ class WorkflowPublishRequestsController < InertiaController
     return redirect_to(halon_workflows_path, alert: "#{workflow.name} has no draft to publish any more.") unless draft
     return unless workflow.missing_reach(draft).empty? || authorize_web!(Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_CREATE)
 
-    result = WorkflowPublishService.new(workflow).publish!(draft, by: current_membership)
+    result = WorkflowPublishService.new(workflow).publish_requested!(@request, by: current_membership)
     redirect_to halon_workflows_path, (result.ok ? :notice : :alert) => result.words
   end
 

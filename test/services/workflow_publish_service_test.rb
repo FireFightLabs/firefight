@@ -68,6 +68,23 @@ class WorkflowPublishServiceTest < ActiveSupport::TestCase
     assert_empty workflow.publish_requests.waiting
   end
 
+  test "publishing on a request publishes the draft the admins were asked about, and refuses one changed since" do
+    workflow = drafted
+    request = Workflow::PublishRequest.for!(@bob, workflow, workflow.draft)
+    @adapter.any_instance.stubs(:post_workflow_publish_request_to_user).returns({ channel_id: "D1", message_id: "1.1" })
+    @adapter.any_instance.stubs(:update_workflow_publish_request).returns({ success: true })
+    @adapter.any_instance.stubs(:post_workflow_publish_answer_to_user).returns({})
+    WorkflowPublishService.new(workflow).ask!(request, by: @bob)
+    workflow.edit!(operation: Workflow::Edit::OPERATION_CHANGE_CONFIG, payload: { step_id: "look", changes: { config: { arguments: { query: "db" } } } }, by: @bob)
+
+    result = WorkflowPublishService.new(workflow.reload).publish_requested!(request.reload, by: @alice)
+
+    refute result.ok
+    assert_equal "Look around changed since Bob Jones asked, so open it and look again before publishing.", result.words
+    refute workflow.reload.live?
+    assert request.reload.waiting?
+  end
+
   test "only the member who asked may ask again, and a request is dismissed once" do
     workflow = drafted
     request = Workflow::PublishRequest.for!(@bob, workflow, workflow.draft)

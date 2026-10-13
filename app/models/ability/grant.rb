@@ -73,13 +73,11 @@ module Ability
       desired = Array(matrix).flat_map do |resource, actions|
         Array(actions).map { |action| Ability::Action.system_key(resource, action) }
       end
-      unknown = desired - Ability::Action.grantable_keys
+      offered = Ability::Action.grantable_keys - Ability::Action.hidden_keys(workspace)
+      unknown = desired - offered
       raise ArgumentError, "unknown permission #{unknown.first}" if unknown.any?
 
-      sync_direct!(
-        principal: principal, workspace: workspace,
-        desired_keys: desired, managed_keys: Ability::Action.grantable_keys
-      )
+      sync_direct!(principal: principal, workspace: workspace, desired_keys: desired, managed_keys: offered)
     end
 
     # Grants outside managed_keys, such as tool actions, are never touched.

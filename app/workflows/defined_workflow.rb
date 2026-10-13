@@ -54,13 +54,13 @@ class DefinedWorkflow < SolidWorkflow::Interpreter
     def iteration_of(workflow) = Array(workflow.context.to_h[CONTEXT_ITERATION]).join(".")
 
     # Notes that a step handed off work under this name, once, in one statement. False when it already had.
-    def mark_asked!(step, name)
+    def mark_asked!(step, name, at: Time.current)
       sql = <<~SQL.squish
         checkpoint = jsonb_set(COALESCE(checkpoint, '{}'::jsonb), '{#{DefinedWorkflow::Steps::Base::CHECKPOINT_ASKED}}',
-          COALESCE(checkpoint -> '#{DefinedWorkflow::Steps::Base::CHECKPOINT_ASKED}', '{}'::jsonb) || jsonb_build_object(?::text, true))
+          COALESCE(checkpoint -> '#{DefinedWorkflow::Steps::Base::CHECKPOINT_ASKED}', '{}'::jsonb) || jsonb_build_object(?::text, ?::text))
       SQL
       SolidWorkflow::Step.where(id: step.id).where("COALESCE(checkpoint, '{}'::jsonb) -> ? -> ? IS NULL", DefinedWorkflow::Steps::Base::CHECKPOINT_ASKED, name)
-                         .update_all([ "#{sql}, updated_at = ?", name, Time.current ]) == 1
+                         .update_all([ "#{sql}, updated_at = ?", name, at.iso8601(6), Time.current ]) == 1
     end
 
     # Hands a step what the work it waited for came back with, once, and wakes it. A step still running when it lands

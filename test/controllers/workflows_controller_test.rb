@@ -43,6 +43,16 @@ class WorkflowsControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "without the workflows flag a member who could not publish is told not found too, never that they may not" do
+    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
+    workflow = drafted
+    sign_in(users(:bob), @workspace)
+
+    post publish_workflow_path(workflow)
+
+    assert_response :not_found
+  end
+
   test "any member sees the workflows, their runs, the library and nothing waiting to publish" do
     workflow = published
     sign_in(users(:bob), @workspace)
@@ -177,6 +187,36 @@ class WorkflowsControllerTest < ActionDispatch::IntegrationTest
     post accept_workflow_suggestion_path(workflow, edit.change_set_id)
     assert_equal "Halon's suggestion was added to the draft of Look around. Publish it to use it.", flash[:notice]
     assert_equal({ "query" => "web" }, workflow.draft.steps.sole.dig("config", "arguments"))
+  end
+
+  test "the page says which revision of the draft it shows, and publishing an older one is refused" do
+    workflow = drafted
+    sign_in(users(:alice), @workspace)
+
+    get workflow_path(workflow), headers: inertia_headers
+    shown = inertia_props["workflow"]["draftRevision"]
+    assert_equal workflow.draft.revision, shown
+    workflow.edit!(operation: Workflow::Edit::OPERATION_CHANGE_CONFIG, payload: { step_id: "look", changes: { config: { arguments: { query: "db" } } } }, by: @bob)
+
+    post publish_workflow_path(workflow), params: { revision: shown }
+
+    assert_equal "Someone changed the draft since you looked, so look again before publishing.", flash[:alert]
+    refute workflow.reload.live?
+  end
+
+  test "a suggestion of several changes is added whole or not at all" do
+    workflow = published
+    first = workflow.edit!(operation: Workflow::Edit::OPERATION_CHANGE_CONFIG, payload: { step_id: "look", changes: { config: { arguments: { query: "web" } } } },
+                           by: nil, halon: true, reason: "The search named no service.")
+    workflow.edit!(operation: Workflow::Edit::OPERATION_CHANGE_CONFIG, payload: { step_id: "gone", changes: { config: { arguments: {} } } },
+                   by: nil, halon: true, reason: "And the other step.", change_set_id: first.change_set_id)
+    sign_in(users(:alice), @workspace)
+
+    post accept_workflow_suggestion_path(workflow, first.change_set_id)
+
+    assert flash[:alert].present?
+    assert_nil workflow.reload.draft
+    assert_equal Workflow::Edit::STATUS_PROPOSED, first.reload.status
   end
 
   test "an admin sets how long runs keep their details" do

@@ -8,6 +8,10 @@ class WorkflowDetailSerializer < WorkflowRowSerializer
   type :number, optional: true
   def draft_number = shown_version&.draft? ? shown_version.number : nil
 
+  # The draft's revision as shown, which Publish sends back so a draft changed since is not published unseen.
+  type :number, optional: true
+  def draft_revision = shown_version&.draft? ? shown_version.revision : nil
+
   type :boolean
   def shows_draft = shown_version&.draft? || false
 

@@ -30,6 +30,32 @@ class WorkflowTriggerSweepJobTest < ActiveJob::TestCase
     end
   end
 
+  test "a start that breaks is kept on that workflow with why, and the sweep carries on with the next" do
+    travel_to Time.zone.parse("2026-10-13 12:00 UTC") do
+      broken = scheduled("Broken", { "kind" => "once_at", "at" => "2026-10-13T12:10", "time_zone" => "UTC", "inputs" => [] })
+      fine = scheduled("Fine", { "kind" => "once_at", "at" => "2026-10-13T12:10", "time_zone" => "UTC", "inputs" => [] })
+      WorkflowRunService.any_instance.stubs(:start!).raises(ActiveRecord::StatementInvalid, "PG::QueryCanceled").then.returns(nil)
+
+      travel 11.minutes
+      WorkflowTriggerSweepJob.perform_now
+
+      refused = [ broken.reload, fine.reload ].select(&:trigger_refusal)
+      assert_equal 1, refused.size
+      assert_equal "It could not start because of an error in Firefight.", refused.sole.trigger_refusal
+    end
+  end
+
+  test "a one off that was only tested and then turned off is not done" do
+    travel_to Time.zone.parse("2026-10-13 12:00 UTC") do
+      workflow = scheduled("Later", { "kind" => "once_at", "at" => "2026-10-13T14:30", "time_zone" => "UTC", "inputs" => [] })
+      WorkflowRunService.new(workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_PERSON, started_by: @alice, test: true)
+      WorkflowPublishService.new(workflow).switch!(on: false)
+
+      assert_not workflow.reload.done?
+      assert_not Workflow.with_run_counts.find(workflow.id).done?
+    end
+  end
+
   test "a one off runs once and then has no next time" do
     travel_to Time.zone.parse("2026-10-13 12:00 UTC") do
       workflow = scheduled("Later", { "kind" => "once_at", "at" => "2026-10-13T14:30", "time_zone" => "Europe/Belgrade", "inputs" => [] })

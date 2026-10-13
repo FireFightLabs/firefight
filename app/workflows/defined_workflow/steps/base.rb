@@ -27,6 +27,9 @@ class DefinedWorkflow::Steps::Base
   HANDED_OFF_LIMIT = 30.minutes
   # What a step that reads how things stand before a change hands off under.
   STATE_CHECK = "state_check".freeze
+  # The engine's events for a step tried again, after a failure or by hand.
+  RETRIED = [ SolidWorkflow::Events::Step::RETRY_SCHEDULED, SolidWorkflow::Events::Step::MANUAL_RETRY ].freeze
+  TRY_SEPARATOR = "#try".freeze
   UNDO_LIMIT = 500
 
   class << self
@@ -122,7 +125,7 @@ class DefinedWorkflow::Steps::Base
     return unless @run.reads_first?
 
     key = [ STATE_CHECK, after ].compact.join(":")
-    report = await(key) { WorkflowStateCheckJob.perform_later(@run.id, record&.id, @step.id, key, named, asked) }
+    report = await(key) { |name| WorkflowStateCheckJob.perform_later(@run.id, record&.id, @step.id, name, named, asked) }
     return report if report.is_a?(SolidWorkflow::Park)
     return if report["change"] == Chat::CurrentState::UNCHANGED
 
@@ -131,23 +134,39 @@ class DefinedWorkflow::Steps::Base
   end
 
   # Work handed to a job, such as Halon reading, delivered back to the step by name (DefinedWorkflow.deliver!). The first
-  # time it is asked for the block hands it off and the step parks. Woken with it delivered, the step has it. Past the
-  # step's time limit with nothing delivered, the step fails.
+  # time it is asked for the block hands it off, given the name to deliver under, and the step parks. Woken with it
+  # delivered, the step has it. With nothing delivered within the step's time limit of handing it off, the step fails.
+  # Each try of a retried step asks again under its own name, never reading what the try before it got back.
   def await(name)
-    delivered = @step.reload.checkpoint.to_h.dig(CHECKPOINT_DELIVERED, name)
+    name = try_scoped(name)
+    checkpoint = @step.reload.checkpoint.to_h
+    delivered = checkpoint.dig(CHECKPOINT_DELIVERED, name)
     return delivered if delivered
 
-    deadline = handed_off_deadline
-    raise SolidWorkflow::TimeLimitReached, "Nothing came back within #{ActiveSupport::Duration.build((deadline - @step.first_started_at).round).inspect}." if deadline <= Time.current
-
-    if DefinedWorkflow.mark_asked!(@step, name)
-      ActiveRecord.after_all_transactions_commit { yield }
+    asked_at = asked_time(checkpoint.dig(CHECKPOINT_ASKED, name))
+    unless asked_at
+      asked_at = Time.current
+      ActiveRecord.after_all_transactions_commit { yield name } if DefinedWorkflow.mark_asked!(@step, name, at: asked_at)
     end
+
+    deadline = asked_at + handed_off_limit
+    raise SolidWorkflow::TimeLimitReached, "Nothing came back within #{handed_off_limit.inspect}." if deadline <= Time.current
+
     SolidWorkflow::Park.new(wake_at: deadline)
   end
 
-  def handed_off_deadline
-    started = @step.first_started_at || Time.current
-    started + (@step.timeout_seconds || HANDED_OFF_LIMIT.to_i).seconds
+  def handed_off_limit = ActiveSupport::Duration.build(@step.timeout_seconds || HANDED_OFF_LIMIT.to_i)
+
+  # A step asked before handing-off times were kept counts from when it first started.
+  def asked_time(value)
+    return if value.nil?
+
+    (value.is_a?(String) && Time.zone.parse(value)) || @step.first_started_at || Time.current
+  end
+
+  # The first try asks under the name itself, and each retry after it under the name and its try.
+  def try_scoped(name)
+    retries = SolidWorkflow::Event.where(step_id: @step.id, event_type: RETRIED).count
+    retries.zero? ? name : "#{name}#{TRY_SEPARATOR}#{retries + 1}"
   end
 end

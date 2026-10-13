@@ -56,7 +56,10 @@ class Workflow < ApplicationRecord
   scope :enabled, -> { where(enabled: true) }
   scope :ordered, -> { order(:name) }
   # How many times each ran, counted in one subquery for a whole list.
-  scope :with_run_counts, -> { select("workflows.*", "(SELECT COUNT(*) FROM workflow_runs WHERE workflow_runs.workflow_id = workflows.id) AS run_count") }
+  scope :with_run_counts, lambda {
+    select("workflows.*", "(SELECT COUNT(*) FROM workflow_runs WHERE workflow_runs.workflow_id = workflows.id) AS run_count",
+           "(SELECT COUNT(*) FROM workflow_runs WHERE workflow_runs.workflow_id = workflows.id AND NOT workflow_runs.test) AS real_run_count")
+  }
 
   def draft = versions.find_by(status: Workflow::Version::STATUS_DRAFT)
 
@@ -102,9 +105,12 @@ class Workflow < ApplicationRecord
   def current_trigger = (live_version || draft_version)&.trigger.to_h
 
   # A one off whose time came, which is listed with what is done and keeps its runs readable.
-  def done? = one_off? && live? && next_run_at.nil? && run_count.positive?
+  # A test run is not its run, so a one off only tested and then turned off is not done.
+  def done? = one_off? && live? && next_run_at.nil? && real_run_count.positive?
 
   def run_count = has_attribute?(:run_count) ? self[:run_count].to_i : runs.count
+
+  def real_run_count = has_attribute?(:real_run_count) ? self[:real_run_count].to_i : runs.real.count
 
   # A workflow that ran keeps its runs readable, so it is turned off rather than deleted.
   def deletion_blocked_reason

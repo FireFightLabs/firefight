@@ -4,6 +4,7 @@
 module RequiresWorkflows
   extend ActiveSupport::Concern
 
+  # Ahead of authorization, so a person who may not use one is told it is not there rather than that they may not.
   included do
     prepend_before_action :require_workflows!
   end

@@ -1,5 +1,5 @@
 # Halon's suggested changes to a workflow, a change set at a time: accepted into the draft, which is published like any
-# change, or dismissed. Two people deciding at once decide once.
+# change, or dismissed, the whole set or none of it. Two people deciding at once decide once.
 class WorkflowSuggestionsController < InertiaController
   authorizes Ability::Action::RESOURCE_WORKFLOWS, update: %i[accept dismiss]
 
@@ -8,14 +8,14 @@ class WorkflowSuggestionsController < InertiaController
   before_action :set_edits
 
   def accept
-    @edits.each { |edit| edit.accept!(by: current_membership) }
+    Workflow::Edit.transaction { @edits.each { |edit| edit.accept!(by: current_membership) } }
     redirect_back fallback_location: workflow_path(@workflow), notice: "Halon's suggestion was added to the draft of #{@workflow.name}. Publish it to use it."
   rescue Workflow::Edit::Refused => refused
     redirect_back fallback_location: workflow_path(@workflow), alert: refused.message
   end
 
   def dismiss
-    @edits.each { |edit| edit.dismiss!(by: current_membership) }
+    Workflow::Edit.transaction { @edits.each { |edit| edit.dismiss!(by: current_membership) } }
     redirect_back fallback_location: workflow_path(@workflow), notice: "Halon's suggestion for #{@workflow.name} was dismissed."
   rescue Workflow::Edit::Refused => refused
     redirect_back fallback_location: workflow_path(@workflow), alert: refused.message

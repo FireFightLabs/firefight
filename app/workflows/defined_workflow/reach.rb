@@ -132,12 +132,14 @@ module DefinedWorkflow::Reach
     nil
   end
 
+  def reads?(action) = action.key.split(".").last == Ability::Action::ACTION_READ
+
   def read_pack(integration_id) = Ability::Role.find_by(integration_id: integration_id, pack: Ability::Role::PACK_READ)
 
-  # What following a skill reaches: every tool it names, as a read.
+  # What following a skill reaches: every tool it names, as a read, since a skill step only ever reads.
   def for_skill(workspace, skill)
     skill.tools.flat_map do |handle|
-      next for_tool(workspace, handle) if skill.source == Chat::Skill::SOURCE_FIREFIGHT
+      next for_tool(workspace, handle).select { |needed| needed.role || reads?(needed.action) } if skill.source == Chat::Skill::SOURCE_FIREFIGHT
 
       Integration::Tool.in_workspace(workspace).select { |tool| tool.integration.provider == skill.source && tool.name == handle }
                        .filter_map { |tool| read_pack(tool.integration_id) }.map { |role| Needed.of_role(role) }

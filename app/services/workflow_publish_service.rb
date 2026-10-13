@@ -25,7 +25,8 @@ class WorkflowPublishService
     Result.new(ok: false, words: refused.message)
   end
 
-  # Publish pressed on a member's request, from the platform. The draft as it is now is published.
+  # Publish pressed on a member's request, from the platform or the Workflows page. The draft is published as it was
+  # when the admins were asked, never one changed since that nobody looked at.
   def publish_requested!(request, by:)
     return Result.new(ok: false, words: "Workflows are not switched on for this workspace.") unless FeatureFlags.enabled?(@workspace, FeatureFlags::WORKFLOWS)
     return Result.new(ok: false, words: "This request was already answered.") unless request.waiting?
@@ -33,7 +34,10 @@ class WorkflowPublishService
     draft = @workflow.draft
     return Result.new(ok: false, words: "#{@workflow.name} has no draft to publish any more.") unless draft
 
-    publish!(draft, by: by)
+    stale = request.stale_reason(draft)
+    return Result.new(ok: false, words: stale) if stale
+
+    publish!(draft, by: by, revision: request.revision)
   end
 
   # Turned on or off. On, it runs next at its time, not at once for every time it missed.
