@@ -23,9 +23,11 @@ class ActionItemFormFillInJobTest < ActiveJob::TestCase
   test "a message that can no longer be read leaves the form empty and says so in the log" do
     Slack::WorkspaceAdapter.any_instance.stubs(:fetch_message).raises(AdapterError::NotFound.new("message_not_found"))
     Slack::Client.expects(:update_modal).never
-    Rails.logger.expects(:info).with { |line| line.include?("action_item_form.fill_in_failed") }
+    logged = info_lines
 
     ActionItemFormFillInJob.perform_now(@workspace.id, @incident.id, "action", "V12345678", @state)
+
+    assert_equal [ AdapterError::NotFound.name ], fill_in_failures(logged).map { |failure| failure["error"] }
   end
 
   test "an older message read back in place of a deleted one leaves the form empty" do
@@ -38,14 +40,27 @@ class ActionItemFormFillInJobTest < ActiveJob::TestCase
   test "a form closed before it is filled in is left alone and the job ends quietly" do
     Slack::Client.stubs(:get_message).returns({ "ts" => "1700000000.000100", "text" => "The database is slow" })
     Slack::WorkspaceAdapter.any_instance.stubs(:update_modal).raises(AdapterError::NotFound.new("not_found"))
-    Rails.logger.expects(:info).with { |line| line.include?("action_item_form.fill_in_failed") }
+    logged = info_lines
 
     assert_nothing_raised { ActionItemFormFillInJob.perform_now(@workspace.id, @incident.id, "action", "V12345678", @state) }
+    assert_equal [ AdapterError::NotFound.name ], fill_in_failures(logged).map { |failure| failure["error"] }
   end
 
   test "an incident that is gone leaves nothing to fill in" do
     Slack::Client.expects(:get_message).never
 
     ActionItemFormFillInJob.perform_now(@workspace.id, SecureRandom.uuid, "action", "V12345678", @state)
+  end
+
+  private
+
+  # Every info line the logger is handed. Active Job writes its own lines for the job starting and finishing to the same
+  # logger whenever its log subscriber is loaded, as it is on CI, where the app is eager loaded.
+  def info_lines
+    [].tap { |lines| Rails.logger.stubs(:info).with { |line = nil, **_payload| lines << line } }
+  end
+
+  def fill_in_failures(lines)
+    lines.grep(/fill_in_failed/).map { |line| JSON.parse(line) }.select { |entry| entry["event"] == "slack.action_item_form.fill_in_failed" }
   end
 end
