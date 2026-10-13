@@ -73,7 +73,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     direct.ask!(read, asker: @member, as_written: written)
     direct.ask!("and @here?", asker: @member, as_written: "and <!here>?")
 
-    get agent_chat_url(direct), headers: inertia_headers
+    get agent_chat_url(direct), headers: chat_page_headers
 
     shown = "@#{bob.display_name} is 🔥"
     assert_equal shown, inertia_props["messages"].sole["body"]
