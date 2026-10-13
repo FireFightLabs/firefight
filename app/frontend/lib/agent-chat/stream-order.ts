@@ -1,8 +1,8 @@
 import { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
 import type { CodeFixWork } from "@/lib/code-fix-work"
 import type { StepOutcome } from "@/lib/step-outcome"
-import { roomStep } from "@/pages/agent/lib/group-turns"
-import type { AgentCard, AgentStep, StepKind, StepStatus, StreamEventType, ToolActivity } from "@/pages/agent/types"
+import { roomStep } from "@/lib/agent-chat/group-turns"
+import type { AgentCard, AgentStep, StepKind, StepStatus, StreamEventType, ToolActivity } from "@/lib/agent-chat/types"
 
 export interface StreamEvent {
   type: StreamEventType

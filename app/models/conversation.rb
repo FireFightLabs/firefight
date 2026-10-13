@@ -150,10 +150,11 @@ class Conversation < ApplicationRecord
   end
 
   # model is one the person picked before the first question, which the caller has checked is offered.
-  def self.start_personal!(workspace:, member:, model: nil)
+  # subject is what the chat was started beside, such as a workflow on its canvas, which the agent is told about.
+  def self.start_personal!(workspace:, member:, model: nil, subject: nil)
     limits = workspace.conversation_limits
     workspace.conversations.create!(
-      kind: KIND_PERSONAL, started_by: member,
+      kind: KIND_PERSONAL, started_by: member, subject: subject,
       max_turns: limits.max_turns, max_spend_cents: limits.max_spend_cents
     ).tap { |started| started.choose_model!(model) if model.present? }
   end
@@ -376,6 +377,28 @@ class Conversation < ApplicationRecord
 
   def incident_id
     subject_id if subject_type == Incident.name
+  end
+
+  # Why the member cannot ask Halon in a new or open chat, as a sentence, or nil when they can.
+  def self.asking_blocked_reason(member)
+    workspace = member.workspace
+    return Investigation.unavailable_reason(workspace) unless Investigation.available_for?(workspace)
+
+    key = Ability::Action::INVESTIGATIONS_CREATE
+    action = Ability::Action.lookup(key, workspace)
+    return if action && AbilityGateway.permitted?(member, action, key, workspace, {})
+
+    "Asking Halon needs the permission to ask Halon and start investigations, which a workspace admin can grant."
+  end
+
+  # The person's newest chat started beside something, such as a workflow's canvas, that they have not archived.
+  def self.beside(subject, member)
+    own_for(member).where(subject: subject, archived_at: nil).order(updated_at: :desc).first
+  end
+
+  # The workflow a chat was started beside on its canvas.
+  def workflow
+    subject if subject_type == Workflow.name
   end
 
   # Added in SQL, so a caller holding a stale copy cannot write an old total back.

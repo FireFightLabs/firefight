@@ -3,9 +3,9 @@ import { usePage } from "@inertiajs/react"
 import ThinkingState, { type ThinkingRow } from "@/components/agent-ui/thinking-state"
 import { stepsWord } from "@/lib/code-fix-work"
 import { HELPER_STATUSES } from "@/lib/generated/constants"
-import { StepOutcomeDetails } from "@/pages/agent/components/step-outcome"
-import { rowStatus } from "@/pages/agent/lib/step-rows"
-import type { AgentPageProps } from "@/pages/agent/types"
+import { StepOutcomeDetails } from "@/components/agent-chat/step-outcome"
+import { rowStatus } from "@/lib/agent-chat/step-rows"
+import type { SharedProps } from "@/types"
 import type { AgentChatHelper } from "@/types/serializers"
 
 interface HelperRunsProps {
@@ -28,7 +28,8 @@ const STARTING: ThinkingRow = { id: "starting", primary: "Reading the brief", qu
 // The checks Halon handed to helpers, under the step that started them. Each is its own trace, collapsed unless opened,
 // with what it reported, or why it has no report, always in view.
 export function HelperRuns({ toolCallKey }: HelperRunsProps) {
-  const { helpers } = usePage<AgentPageProps>().props
+  // Any page showing a chat may send its helpers, and one that sends none shows none.
+  const { helpers } = usePage<SharedProps & { helpers?: AgentChatHelper[] }>().props
   const shown = (helpers ?? []).filter((helper) => helper.toolCallId === toolCallKey)
   if (shown.length === 0) {
     return null

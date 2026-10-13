@@ -1,8 +1,8 @@
 import { IconCheck, IconCopy } from "@tabler/icons-react"
 import { useEffect, useRef, useState } from "react"
 
-import { fenced, useHighlighted } from "@/pages/agent/hooks/use-highlighted"
-import type { RenderedTag } from "@/pages/agent/types"
+import { fenced, useHighlighted } from "@/hooks/use-highlighted"
+import type { RenderedTag } from "@/lib/agent-chat/types"
 
 const COPIED_MS = 1600
 

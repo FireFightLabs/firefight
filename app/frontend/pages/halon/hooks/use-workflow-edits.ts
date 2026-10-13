@@ -25,6 +25,14 @@ export const RUN_VISIT = {
   only: [ ...CANVAS_VISIT.only, WORKFLOW_CANVAS_PROPS.RUN, WORKFLOW_CANVAS_PROPS.RUNS, WORKFLOW_CANVAS_PROPS.LAST_RUN ],
 }
 
+// Asking Halon reloads the chat beside the canvas, keeping the address.
+export const CHAT_VISIT = {
+  preserveScroll: true,
+  preserveState: true,
+  preserveUrl: true,
+  only: [ WORKFLOW_CANVAS_PROPS.CHAT, WORKFLOW_CANVAS_PROPS.CHAT_MESSAGES, WORKFLOW_CANVAS_PROPS.HELPERS, WORKFLOW_CANVAS_PROPS.CHAT_WAITING ],
+}
+
 // The draft revision a change was made on. A change to the live version opens a draft from it, so it names none.
 export function revisionOf(document: WorkflowDocument): number | null {
   return document.saved && document.status === WORKFLOW_VERSION_STATUS.DRAFT ? document.revision : null

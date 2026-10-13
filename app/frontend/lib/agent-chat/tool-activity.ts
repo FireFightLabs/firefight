@@ -1,4 +1,4 @@
-import type { ToolActivity } from "@/pages/agent/types"
+import type { ToolActivity } from "@/lib/agent-chat/types"
 
 // The words under a running step: what the tool said, or how far it got when it said only a count.
 export function activityWords(activity: ToolActivity): string {

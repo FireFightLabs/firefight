@@ -554,7 +554,7 @@ Workflows have their own sweeper in the engine (docs/workflows.md, Recovery), si
 
 ### Live updates
 
-Nothing broadcast while a socket is away is sent again. The chat page (`use-agent-stream.ts`) reads the open chat again (`refreshOpenChat`) whenever its socket reconnects after a drop, so an answer that finished during a deploy shows without a reload, and it still reads it once after four seconds if the socket stays away mid answer. The investigation page polls while a run is live, so it needs nothing.
+Nothing broadcast while a socket is away is sent again. A page showing a chat (`hooks/use-chat-stream.ts`) reads the chat again (the agent page's `refreshOpenChat`, the canvas's chat props) whenever its socket reconnects after a drop, so an answer that finished during a deploy shows without a reload, and it still reads it once after four seconds if the socket stays away mid answer. The investigation page polls while a run is live, so it needs nothing.
 
 ### Inventory
 

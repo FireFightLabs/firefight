@@ -1,5 +1,5 @@
 import { CHAT_ATTACHMENT_KINDS } from "@/lib/generated/constants"
-import { FileChip } from "@/pages/agent/components/file-chip"
+import { FileChip } from "@/components/agent-chat/file-chip"
 import type { AgentChatAttachment } from "@/types/serializers"
 
 interface MessageAttachmentsProps {

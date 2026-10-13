@@ -1,7 +1,7 @@
 import { withNewerQuestion } from "@/lib/code-fix-work"
 import { formatTime } from "@/lib/formatters"
 import { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, CHAT_MESSAGE_ROLES } from "@/lib/generated/constants"
-import { type AgentStep, type AgentStream, type ChatTurn, TURN_KINDS } from "@/pages/agent/types"
+import { type AgentStep, type AgentStream, type ChatTurn, TURN_KINDS } from "@/lib/agent-chat/types"
 import type { AgentChatMessage, ChatCompaction } from "@/types/serializers"
 
 const LIVE_TURN_ID = "live"

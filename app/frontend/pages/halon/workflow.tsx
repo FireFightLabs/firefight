@@ -1,11 +1,14 @@
 import { Head, usePage, usePoll } from "@inertiajs/react"
-import { IconFlask } from "@tabler/icons-react"
+import { IconFlask, IconSparkles } from "@tabler/icons-react"
 import { useEffect, useState } from "react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { Button } from "@/components/ui/button"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { WORKFLOW_RUN_OPEN_STATUSES } from "@/lib/generated/constants"
 import { CanvasHeader } from "@/pages/halon/components/workflow/canvas-header"
+import { HalonChatPanel } from "@/pages/halon/components/workflow/halon-chat-panel"
 import { PublishRequestsNotice } from "@/pages/halon/components/workflow/publish-requests-notice"
 import { RunsView } from "@/pages/halon/components/workflow/runs-view"
 import { SettingsView } from "@/pages/halon/components/workflow/settings-view"
@@ -29,8 +32,10 @@ const OPEN_RUN: readonly string[] = WORKFLOW_RUN_OPEN_STATUSES
 
 export default function WorkflowCanvasPage() {
   const { workflow, document, versions, suggestions, halonChanges, stepKinds, triggerKinds, tools, publishRequests, otherWorkflows, timeZones, teams,
-    myPublishRequest, runs, run, lastRun } = usePage<WorkflowPageProps>().props
+    myPublishRequest, runs, run, lastRun, chat, chatMessages, chatWaiting, chatUnavailable } = usePage<WorkflowPageProps>().props
   const access = useWorkflowAccess()
+  const isMobile = useIsMobile()
+  const [ chatOpen, setChatOpen ] = useState(false)
   const [ selection, setSelection ] = useState<Selection>(null)
   const [ trying, setTrying ] = useState<{ upTo: { id: string; title: string } | null } | null>(null)
   const { view, show, openVersion, openRun, leave } = useCanvasView(workflow.id)
@@ -55,16 +60,46 @@ export default function WorkflowCanvasPage() {
     setTrying({ upTo: step ? { id: step.id, title: step.title } : null })
   }
 
+  function toggleChat() {
+    setChatOpen((open) => !open)
+  }
+
+  function closeChat() {
+    setChatOpen(false)
+  }
+
   function closeTrying(open: boolean) {
     if (!open) {
       setTrying(null)
     }
   }
 
+  const askHalon = (
+    <Button type="button" variant="outline" size="sm" aria-pressed={chatOpen} onClick={toggleChat}>
+      <IconSparkles className="size-4 text-halon" />
+      Ask Halon
+    </Button>
+  )
+
+  const chatPanel = (
+    <HalonChatPanel
+      workflowId={workflow.id}
+      chat={chat}
+      messages={chatMessages}
+      waiting={chatWaiting}
+      unavailable={chatUnavailable}
+      onClose={closeChat}
+    />
+  )
+
   const headerActions = run ? (
-    <Button type="button" variant="outline" size="sm" onClick={leave}>Back to the editor</Button>
+    <>
+      {askHalon}
+      <Button type="button" variant="outline" size="sm" onClick={leave}>Back to the editor</Button>
+    </>
   ) : (
     <>
+      {askHalon}
       <WorkflowControls workflow={workflow} />
       {access.build && document.saved && document.editable && (
         <Button type="button" variant="outline" size="sm" onClick={tryWorkflow}>
@@ -93,31 +128,47 @@ export default function WorkflowCanvasPage() {
           <WorkflowAlerts workflow={workflow} />
           {access.manage && current && publishRequests.length > 0 && <PublishRequestsNotice requests={publishRequests} />}
           {view === VIEWS.EDITOR && current && suggestions.length > 0 && <SuggestionsBanner workflowId={workflow.id} suggestions={suggestions} />}
-          {view === VIEWS.EDITOR && (
-            <WorkflowEditor
-              workflowId={workflow.id}
-              document={document}
-              suggestions={current ? suggestions : []}
-              halonChanges={halonChanges}
-              stepKinds={stepKinds}
-              triggerKinds={triggerKinds}
-              tools={tools}
-              workflows={otherWorkflows}
-              timeZones={timeZones}
-              editable={editable}
-              run={run}
-              lastRun={lastRun}
-              hasDraft={workflow.draftNumber != null}
-              selection={selection}
-              send={send}
-              onSelect={setSelection}
-              onTry={tryStep}
-            />
-          )}
-          {view === VIEWS.RUNS && <RunsView runs={runs} onOpen={openRun} />}
-          {view === VIEWS.VERSIONS && <VersionsView workflowId={workflow.id} versions={versions} onOpen={openVersion} />}
-          {view === VIEWS.SETTINGS && <SettingsView workflow={workflow} teams={teams} />}
+          <div className="flex min-h-0 flex-1">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              {view === VIEWS.EDITOR && (
+                <WorkflowEditor
+                  workflowId={workflow.id}
+                  document={document}
+                  suggestions={current ? suggestions : []}
+                  halonChanges={halonChanges}
+                  stepKinds={stepKinds}
+                  triggerKinds={triggerKinds}
+                  tools={tools}
+                  workflows={otherWorkflows}
+                  timeZones={timeZones}
+                  editable={editable}
+                  run={run}
+                  lastRun={lastRun}
+                  hasDraft={workflow.draftNumber != null}
+                  selection={selection}
+                  send={send}
+                  onSelect={setSelection}
+                  onTry={tryStep}
+                />
+              )}
+              {view === VIEWS.RUNS && <RunsView runs={runs} onOpen={openRun} />}
+              {view === VIEWS.VERSIONS && <VersionsView workflowId={workflow.id} versions={versions} onOpen={openVersion} />}
+              {view === VIEWS.SETTINGS && <SettingsView workflow={workflow} teams={teams} />}
+            </div>
+            {chatOpen && !isMobile && <aside aria-label="Halon" className="w-[22rem] shrink-0 border-l border-border">{chatPanel}</aside>}
+          </div>
         </div>
+        {isMobile && (
+          <Sheet open={chatOpen} onOpenChange={setChatOpen}>
+            <SheetContent side="bottom" className="h-[85dvh] gap-0 p-0 [&>button]:hidden">
+              <SheetHeader className="sr-only">
+                <SheetTitle>Halon</SheetTitle>
+                <SheetDescription>Ask Halon about this workflow.</SheetDescription>
+              </SheetHeader>
+              {chatPanel}
+            </SheetContent>
+          </Sheet>
+        )}
         {trying && (
           <TestRunDialog open workflowId={workflow.id} document={document} runs={runs} upTo={trying.upTo} onOpenChange={closeTrying} />
         )}

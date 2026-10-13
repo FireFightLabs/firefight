@@ -1617,7 +1617,12 @@ export const WORKFLOW_CANVAS_PROPS = {
   "WATCH_READS": "watchReads",
   "RUNS": "runs",
   "RUN": "run",
-  "LAST_RUN": "lastRun"
+  "LAST_RUN": "lastRun",
+  "CHAT": "chat",
+  "CHAT_MESSAGES": "chatMessages",
+  "HELPERS": "helpers",
+  "CHAT_WAITING": "chatWaiting",
+  "CHAT_UNAVAILABLE": "chatUnavailable"
 } as const
 
 export const WORKFLOW_VERSION_QUERY_PARAM = "version" as const

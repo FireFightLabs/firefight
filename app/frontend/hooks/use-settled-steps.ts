@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { AGENT_STEP_KINDS, AGENT_STEP_STATUSES } from "@/lib/generated/constants"
-import type { AgentStep } from "@/pages/agent/types"
+import type { AgentStep } from "@/lib/agent-chat/types"
 
 // A tool usually answers within a few dozen milliseconds, so a step's running and done events land in
 // the same frame and the spinner never paints. Each step is shown running for at least this long, and

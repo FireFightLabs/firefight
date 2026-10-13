@@ -1,6 +1,6 @@
 import type { ThinkingRowStatus } from "@/components/agent-ui/thinking-state"
 import { AGENT_STEP_STATUSES } from "@/lib/generated/constants"
-import type { StepStatus } from "@/pages/agent/types"
+import type { StepStatus } from "@/lib/agent-chat/types"
 
 // How a step's status is drawn as a row of the trace, the chat's own steps and a helper's alike.
 export const ROW_STATUSES: Record<StepStatus, ThinkingRowStatus> = {
