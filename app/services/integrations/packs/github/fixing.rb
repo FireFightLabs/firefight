@@ -134,6 +134,9 @@ module Integrations
         SAID_LIMIT = 2_000
         # What the box printed when a run failed, kept in the log for whoever looks into it and never shown to a person.
         LOGGED_LIMIT = 3_000
+        # Said to Halon after a change it held back, below what is unresolved, never shown on the change's steps.
+        HELD_ASK = "Tell the person what is unresolved, in plain words, and ask how they want to go on, such as changing it another " \
+                   "way, or leaving a comment as it is for a reason they give, which the next fix is told.".freeze
         GIT_BRIEF = "This repository is a normal git repository on the branch %<branch>s, which is what Firefight pushes once " \
                     "your work is reviewed. The newest %<base>s, fetched through Firefight just now, is refs/remotes/firefight/%<base>s. " \
                     "Use git as the work needs: commit, merge, rebase, cherry-pick, resolve conflicts. Commit what you mean to keep. " \
@@ -159,9 +162,14 @@ module Integrations
 
         # What the review made of a change. ran is false when it could not run, and then nothing was verified beyond the
         # checks. verified is what it checked against the evidence and how, unverified the questions still open, and
-        # unreviewed the files a change too large to review whole left out.
-        Reviewed = Data.define(:ran, :right, :findings, :verified, :unverified, :unreviewed, :summary, :sent_back) do
+        # unreviewed the files a change too large to review whole left out. blocking is the findings that make it wrong.
+        Reviewed = Data.define(:ran, :right, :findings, :blocking, :verified, :unverified, :unreviewed, :summary, :sent_back) do
+          def initialize(blocking: [], **) = super
+
           def self.not_run(why) = new(ran: false, right: true, findings: [], verified: [], unverified: [ why ], unreviewed: [], summary: nil, sent_back: false)
+
+          # The findings that stop the change, which are those labelled blocking, or all of them when the review called it wrong.
+          def stopping = ran && !right ? blocking.presence || findings : []
 
           def to_h
             { "ran" => ran, "right" => right, "findings" => findings, "verified" => verified, "unverified" => unverified, "unreviewed" => unreviewed,
@@ -184,6 +192,8 @@ module Integrations
                     params_schema: Code.object_schema({
                       "repo" => Code::REPO,
                       "brief" => { "type" => "string", "description" => "What to change and why, with the evidence, as the agent's brief. " \
+                                                                         "When adding to an open pull request, Firefight hands the agent the pull request's open review " \
+                                                                         "comments word for word itself, so say what the person wants done about them rather than restating them. " \
                                                                          "When the change touches another system's interface, such as a webhook, an API, a config format or a CI trigger, " \
                                                                          "cite that system's documented contract and its live setup as you read them, and say what you could not verify" },
                       "title" => { "type" => "string", "description" => "What the change does, in plain words, such as \"Allow only letters, digits and hyphens in the release run name\". " \
@@ -201,6 +211,8 @@ module Integrations
 
         def fix_code(environment_row:, arguments:)
           @work = nil
+          @review_comments = []
+          @answers = {}
           repo = repo_argument(arguments)
           brief = required_text(arguments, "brief")
           title = required_text(arguments, "title").truncate(TITLE_LIMIT)
@@ -257,6 +269,7 @@ module Integrations
           target = branch_target(repo, arguments, token)
           base = target.pull&.dig("base", "ref") || default_branch(repo, token)
           @work = Chat::CodeFixProgress.start
+          read_review_comments(repo, target.pull, token) if target.pull
           ref = (continued_ref(@pause) if @pause) || target.sha
           change, reviewed = write_change(environment_row, repo, ref, choice, brief, arguments["context"], title,
                                           named: target.branch, base: base, branch: target.branch, lease: target.sha)
@@ -266,11 +279,13 @@ module Integrations
           warning = CodeChange.ci_warning(files)
           @work.pushed!(files: change.counts.slice(*change.touched), pull_request: target.pull&.dig("html_url"))
           report(@work)
-          said = target.pull && comment_on_change(repo, target.pull, base, arguments["summary"].presence || title, change, warning, reviewed, token)
+          answered = ReviewComments.outcome_lines(@review_comments, @answers, change.commit)
+          replied = target.pull && reply_on_threads(repo, target.pull, change, token)
+          said = target.pull && comment_on_change(repo, target.pull, base, arguments["summary"].presence || title, change, warning, reviewed, answered, token)
           described = target.pull && describe_again(repo, target.pull, change, reviewed, token)
-          pushed_words = "Pushed #{change.commit[0, 12]} to #{target.branch} in #{repo}#{", updating #{target.pull['html_url']}" if target.pull}.#{said}#{described}"
+          pushed_words = "Pushed #{change.commit[0, 12]} to #{target.branch} in #{repo}#{", updating #{target.pull['html_url']}" if target.pull}.#{said}#{replied}#{described}"
           CodeAgentSession.opened_pull_request(integration.workspace, repo, target.pull["number"])&.check_soon! if target.pull
-          [ CodeWriteUp.answer(done: pushed_words, warning: warning, reviewed: reviewed, change: change, base: base, updating: true, no_ci: @no_ci),
+          [ CodeWriteUp.answer(done: pushed_words, warning: warning, reviewed: reviewed, change: change, base: base, updating: true, no_ci: @no_ci, answered: answered),
             (standing(environment_row, repo, target.pull["number"]) if target.pull) ].compact.join("\n\n")
         end
 
@@ -383,12 +398,40 @@ module Integrations
           " #{Sentence.join('The description could not be written again for this change', error)}"
         end
 
-        def comment_on_change(repo, pull, base, summary, change, warning, reviewed, token)
-          body = CodeWriteUp.comment(lead: summary, warning: warning, reviewed: reviewed, change: change, base: base, no_ci: @no_ci)
+        def comment_on_change(repo, pull, base, summary, change, warning, reviewed, answered, token)
+          body = CodeWriteUp.comment(lead: summary, warning: warning, reviewed: reviewed, change: change, base: base, no_ci: @no_ci, answered: answered,
+                                     mark: OpenReviewComments.answered_mark(@review_comments))
           GithubApp.write(:post, "/repos/#{repo}/issues/#{pull['number']}/comments", { body: body }, token: token)
           " Said so on the pull request."
         rescue GithubApp::Error => error
           " #{Sentence.join('The commit is there, but a comment saying so could not be added', error)}"
+        end
+
+        # The comments reviewers left open on the pull request, handed to the agent word for word. A pull request whose
+        # comments cannot be read is not changed, since a fix written without them is the one that loses them.
+        def read_review_comments(repo, pull, token)
+          @review_comments = OpenReviewComments.read(repo, pull["number"], token: token)
+          @work.add("Read #{@review_comments.size} open review #{'comment'.pluralize(@review_comments.size)} on the pull request") if @review_comments.any?
+        rescue GithubApp::Error => error
+          fail! Sentence.join("The pull request's review comments could not be read from GitHub, so nothing was written", error)
+        end
+
+        # Each thread answered on GitHub with what became of it, after the push. A review's own words have no thread, so
+        # the update's comment answers them. A reply GitHub refuses leaves the rest, and is said.
+        def reply_on_threads(repo, pull, change, token)
+          threads = @review_comments.select(&:thread?)
+          return "" if threads.empty?
+
+          refused = threads.reject do |comment|
+            OpenReviewComments.reply(repo, pull["number"], comment.id, @answers.fetch(comment.id).line(change.commit), token: token)
+            true
+          rescue GithubApp::Error => error
+            Rails.logger.warn({ event: "code_fix.reply_failed", repository: repo, comment_id: comment.id, error: error.message.truncate(200) }.to_json)
+            false
+          end
+          answered = threads.size - refused.size
+          said = answered.positive? ? " Answered #{answered} review #{'thread'.pluralize(answered)} there." : ""
+          refused.empty? ? said : "#{said} GitHub refused the answer on #{refused.size} #{'thread'.pluralize(refused.size)}, so #{refused.size == 1 ? 'it has' : 'they have'} none."
         end
 
         # The first payer in the workspace's order whose model a coding agent can reach through the proxy.
@@ -444,18 +487,21 @@ module Integrations
           end
 
           change = corrected(session, change, &resend)
+          heard!(events, change)
           reviewed = review(session, choice, brief, change, events, updating: lease.present?)
-          if reviewed.ran && !reviewed.right
+          if held?(reviewed)
             change = corrected(session, send_back(session, change, reviewed, &resend), &resend)
+            heard!(events, change)
             again = review(session, choice, brief, change, events, updating: lease.present?)
-            fail! "Halon's review still found the change wrong after sending it back once, so nothing is opened.\n#{bullets(again.findings)}" if again.ran && !again.right
+            hold!("Halon sent the change back once and it still has what is listed below, so nothing is #{lease.present? ? 'pushed' : 'opened'}.", again) if held?(again)
 
             reviewed = again.with(sent_back: true)
           end
           if CodeAgentQuestion.correction_waiting.exists?(code_agent_session_id: session.id)
             change = corrected(session, change, &resend)
+            heard!(events, change)
             after = review(session, choice, brief, change, events, updating: lease.present?)
-            fail! "Halon's review found the change wrong once it followed the changed answer, so nothing is opened.\n#{bullets(after.findings)}" if after.ran && !after.right
+            hold!("Halon's review found what is listed below once the change followed the changed answer, so nothing is #{lease.present? ? 'pushed' : 'opened'}.", after) if held?(after)
 
             reviewed = after.with(sent_back: reviewed.sent_back)
           end
@@ -645,13 +691,38 @@ module Integrations
 
         def send_back(session, change, reviewed)
           left = session.reload.time_left.to_i - REVIEW_MARGIN
-          fail! "Halon's review found the change wrong, and there was no time left to send it back, so nothing is opened.\n#{bullets(reviewed.findings)}" if left < MIN_SEND_BACK
+          hold!("Halon's review found what is listed below, and there was no time left to send the change back, so nothing is pushed or opened.", reviewed) if left < MIN_SEND_BACK
 
-          @work.add("Sent the change back to the coding agent: #{reviewed.findings.first}", result: Chat::CodeFixProgress::RESULT_FAILED)
+          unanswered = ReviewComments.unanswered(@review_comments, @answers)
+          first = reviewed.stopping.first || "review comment #{unanswered.first&.id} has no answer"
+          @work.add("Sent the change back to the coding agent: #{first}", result: Chat::CodeFixProgress::RESULT_FAILED)
           report(@work)
-          words = "A review of your change found it does not yet do what was asked. Your change is already on the branch. Correct it:\n" \
-                  "#{bullets(reviewed.findings)}#{"\nNot verified yet:\n#{bullets(reviewed.unverified)}" if reviewed.unverified.any?}"
-          yield words, change.commit, [ SEND_BACK_TIMEOUT, left ].min
+          found = ("A review of your change found it does not yet do what was asked. Your change is already on the branch. Correct it:\n" \
+                   "#{bullets(reviewed.findings)}#{"\nNot verified yet:\n#{bullets(reviewed.unverified)}" if reviewed.unverified.any?}" if reviewed.stopping.any?)
+          unasked = ("These review comments have no answer yet. Answer each under #{ReviewComments::HEADING}: as asked, and fix it first when it is right:\n" \
+                     "#{bullets(ReviewComments.unanswered_lines(unanswered))}" if unanswered.any?)
+          yield [ found, unasked ].compact.join("\n\n"), change.commit, [ SEND_BACK_TIMEOUT, left ].min
+        end
+
+        # What the agent's summary answered for each review comment, a later pass's answer to a comment replacing the
+        # earlier one, since a change sent back is answered again.
+        def heard!(events, change)
+          @answers = @answers.merge(ReviewComments.answers(events.last_words(change.log)))
+        end
+
+        # A change is held while its review finds what stops it or a review comment has no answer.
+        def held?(reviewed) = reviewed.stopping.any? || ReviewComments.unanswered(@review_comments, @answers).any?
+
+        # Nothing is pushed. The step lists what is unresolved and ends with why, and Halon is asked to put it to the person.
+        def hold!(lead, reviewed)
+          unanswered = ReviewComments.unanswered_lines(ReviewComments.unanswered(@review_comments, @answers))
+          reviewed.stopping.each { |finding| @work.add("Found in review: #{finding}", result: Chat::CodeFixProgress::RESULT_FAILED) }
+          unanswered.each { |comment| @work.add("No answer to review comment #{comment}", result: Chat::CodeFixProgress::RESULT_FAILED) }
+          @work.failed!(lead)
+          report(@work)
+          held = [ lead, ("Found in review:\n#{bullets(reviewed.stopping)}" if reviewed.stopping.any?),
+                   ("Review comments with no answer:\n#{bullets(unanswered)}" if unanswered.any?) ].compact.join("\n")
+          fail! "#{held}\n\n#{HELD_ASK}"
         end
 
         # The review reads the change against the person's own words, the brief and what was read, and its cost is the
@@ -664,14 +735,14 @@ module Integrations
           started = Time.current
           found = FirefightAi::ChangeReviewer.new(integration.workspace, choice: choice, inferable: session).review(
             asked: request&.numbered_words, brief: brief, evidence: request&.framed_evidence, diff: change.diff, checks: CodeChecks.summary(change.checks),
-            said: events.last_said, updated: (change.updated_paths if updating)
+            said: events.last_said, updated: (change.updated_paths if updating), comments: (ReviewComments.listed(@review_comments) if @review_comments.any?)
           )
           session.charge!(Inference.where(inferable: session, feature: FirefightAi::ChangeReviewer::FEATURE, created_at: started..).sum(:cost_micros))
-          reviewed = Reviewed.new(ran: true, right: found.right, findings: redacted(found.findings), verified: redacted(found.verified),
+          reviewed = Reviewed.new(ran: true, right: found.right, findings: redacted(found.findings), blocking: redacted(found.blocking), verified: redacted(found.verified),
                                   unverified: redacted(found.unverified), unreviewed: found.unreviewed, summary: Chat::SecretFree.redacted(found.summary).presence,
                                   sent_back: false)
           @work.reviewed!(reviewed.to_h)
-          @work.add(reviewed.right ? "Halon's review: it does what was asked" : "Halon's review: #{reviewed.findings.first || 'it does not do what was asked'}",
+          @work.add(reviewed.right ? "Halon's review: it does what was asked" : "Halon's review: #{reviewed.stopping.first || 'it does not do what was asked'}",
                     result: reviewed.right ? Chat::CodeFixProgress::RESULT_PASSED : Chat::CodeFixProgress::RESULT_FAILED)
           report(@work)
           reviewed
@@ -792,7 +863,8 @@ module Integrations
         def agent_brief(environment_row, brief, context)
           kept = ConnectionSettings.of(environment_row).protected_paths
           [
-            "Fix this in the repository you are in.", brief, context.presence, request&.asked_section, request&.evidence_section,
+            "Fix this in the repository you are in.", brief, context.presence, ReviewComments.brief(@review_comments),
+            request&.asked_section, request&.evidence_section,
             ("Leave #{kept.to_sentence} unchanged, since this workspace keeps those paths out of code changes. If the fix needs " \
              "one of them changed, change nothing and say so." if kept.any?),
             "The repository's dependencies are installed at the versions it uses, under vendor/bundle, node_modules, .venv " \

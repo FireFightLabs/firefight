@@ -55,6 +55,15 @@ module Integrations
       @workspace = workspaces(:slack_workspace_one)
     end
 
+    test "a Postgres image built around an extension is the postgres service, so a sandbox that cannot run images starts its own Postgres for it" do
+      assert_equal "postgres", CiSetup.service_name("pgvector/pgvector:pg18", "postgres")
+      assert_equal "postgres", CiSetup.service_name("postgis/postgis:16-3.4")
+      assert_equal "postgres", CiSetup.service_name("timescale/timescaledb-ha:pg16")
+      assert_equal "postgres", CiSetup.service_name("bitnami/postgresql:16")
+      assert_equal "redis", CiSetup.service_name("redis:7")
+      assert_equal "minio", CiSetup.service_name("minio/minio:latest")
+    end
+
     test "GitHub's setup is the job with services: their images, ports and variables, the variables, and the run steps before the tests" do
       row = github_row
       stub_workflows("ci.yml" => WORKFLOW, "release.yaml" => "on: push\njobs:\n  ship:\n    steps:\n      - run: bin/ship\n", "README.md" => "x")

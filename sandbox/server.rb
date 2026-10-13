@@ -45,6 +45,9 @@ module Sandbox
   INHERITED = %w[PATH GEM_HOME BUNDLE_APP_CONFIG BUNDLE_SILENCE_ROOT_WARNING MISE_DATA_DIR MISE_CONFIG_DIR MISE_CACHE_DIR].freeze
 
   class Refused < StandardError; end
+  # The image itself is broken, such as a Postgres built without what every image carries. It stops what was asked
+  # with why, never read as something a repository's setup lacks.
+  class Broken < StandardError; end
 
   def self.base_env(home) = ENV.to_h.slice(*INHERITED).merge("HOME" => home, "LANG" => "C.UTF-8", "GIT_TERMINAL_PROMPT" => "0")
 
@@ -172,6 +175,10 @@ module Sandbox
     IMAGE_EXTENSIONS = { "pgvector" => "vector", "postgis" => "postgis", "timescaledb" => "timescaledb", "timescaledb-ha" => "timescaledb",
                          "citus" => "citus", "paradedb" => "pg_search", "pgrouting" => "pgrouting" }.freeze
     CREATE_EXTENSION = /\bCREATE\s+EXTENSION\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([A-Za-z_][\w-]*)"?/i
+    AVAILABLE = "SELECT name FROM pg_available_extensions".freeze
+    # Every image builds pgvector into its Postgres (sandbox/Dockerfile), so one without it was built wrong.
+    NO_VECTOR = "The sandbox's Postgres has no pgvector, which every sandbox image is built with, so this image was built " \
+                "wrong. Whoever runs Firefight has the sandbox image rebuilt.".freeze
 
     # names is a list of service names, or of { "name", "image", "port", "env" } as a setup gives them. A service
     # with an image runs from that image when the box can run containers (Docker), and the built-in ones otherwise.
@@ -214,11 +221,16 @@ module Sandbox
         { "extension" => extension, "image" => image } if extension
       end
       Array(setup["commands"]).each { |command| command.to_s.scan(CREATE_EXTENSION) { |(extension)| named << { "extension" => extension.downcase } } }
-      listed = Sandbox.run([ "psql", "-h", "127.0.0.1", "-p", port.to_s, "-U", "runner", "-d", "postgres", "-qAt", "-c", "SELECT name FROM pg_available_extensions" ], user: "runner")
-      return [] unless listed["exit_code"] == 0
+      available = available(port)
+      return [] unless available
 
-      available = listed["stdout"].split("\n").map(&:strip)
       named.uniq { |entry| entry["extension"] }.reject { |entry| available.include?(entry["extension"]) }
+    end
+
+    # The extensions the box's Postgres on port can create, or nil when it could not be asked.
+    def self.available(port)
+      listed = Sandbox.run([ "psql", "-h", "127.0.0.1", "-p", port.to_s, "-U", "runner", "-d", "postgres", "-qAt", "-c", AVAILABLE ], user: "runner")
+      listed["stdout"].split("\n").map(&:strip) if listed["exit_code"] == 0
     end
 
     def self.parts(service)
@@ -256,21 +268,36 @@ module Sandbox
           Sandbox.run!([ "#{bin}/pg_ctl", "-D", data, "-l", "/tmp/postgres.log", "-o", "-k /tmp -p #{port} -c listen_addresses=127.0.0.1", "-w", "start" ], user: "postgres")
           STARTED["postgres"] = port
         end
+        vector!(port)
         return { "DATABASE_URL" => "postgres://runner@127.0.0.1:#{port}/postgres", "PGHOST" => "127.0.0.1", "PGPORT" => port.to_s, "PGUSER" => "runner" } unless settings
 
         # As the official image does, the role and database a CI job named, postgres when it named none. Any password
         # signs in, since the box's Postgres trusts every local connection.
         user = Sandbox.given(settings["POSTGRES_USER"]) || "postgres"
-        database = Sandbox.given(settings["POSTGRES_DB"]) || user
+        named = Sandbox.given(settings["POSTGRES_DB"])
+        database = named || user
         [ user, database ].each { |identifier| raise Refused, "#{identifier} is not a name Postgres takes here." unless identifier.match?(IDENTIFIER) }
         sql = "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '#{user}') THEN CREATE ROLE \"#{user}\" LOGIN SUPERUSER; END IF; END $$;"
         psql = [ "psql", "-h", "127.0.0.1", "-p", port.to_s, "-U", "runner", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-qAt", "-c" ]
         Sandbox.run!([ *psql, sql ], user: "runner")
         exists = Sandbox.run!([ *psql, "SELECT 1 FROM pg_database WHERE datname = '#{database}'" ], user: "runner").strip == "1"
         Sandbox.run!([ *psql, "CREATE DATABASE \"#{database}\" OWNER \"#{user}\"" ], user: "runner") unless exists
-        { "DATABASE_URL" => "postgres://#{user}@127.0.0.1:#{port}/#{database}", "PGHOST" => "127.0.0.1", "PGPORT" => port.to_s, "PGUSER" => user,
-          "PGDATABASE" => database }
+        url(user, port, named).merge("PGDATABASE" => database)
       end
+    end
+
+    # A CI job's own database URL names the database its tests use, and that is lost when the URL holds a GitHub
+    # expression. The box's URL names one only when the CI named it, since a framework that takes its database's name
+    # from its own config, such as Rails's database.yml, would otherwise use postgres itself as its test database, which
+    # preparing it then cannot drop. A client that needs a name gets the user's, as libpq and the official image do.
+    def self.url(user, port, database)
+      { "DATABASE_URL" => "postgres://#{user}@127.0.0.1:#{port}#{"/#{database}" if database}", "PGHOST" => "127.0.0.1", "PGPORT" => port.to_s, "PGUSER" => user }
+    end
+
+    # Checked each time the box's own Postgres is asked for, which is one quick query.
+    def self.vector!(port)
+      available = available(port)
+      raise Broken, NO_VECTOR if available && !available.include?("vector")
     end
 
     def self.redis(port)
@@ -414,9 +441,8 @@ module Sandbox
     def self.answer(name, image, port, settings)
       if postgres?(name, image)
         user = Sandbox.given(settings["POSTGRES_USER"]) || "postgres"
-        database = Sandbox.given(settings["POSTGRES_DB"]) || user
-        { "DATABASE_URL" => "postgres://#{user}@127.0.0.1:#{port}/#{database}", "PGHOST" => "127.0.0.1", "PGPORT" => port.to_s, "PGUSER" => user,
-          "PGDATABASE" => database }
+        named = Sandbox.given(settings["POSTGRES_DB"])
+        Services.url(user, port, named).merge("PGDATABASE" => named || user)
       elsif redis?(name, image)
         { "REDIS_URL" => "redis://127.0.0.1:#{port}/0" }
       else
@@ -767,7 +793,7 @@ module Sandbox
       Thread.new do
         result = begin
           request["action"] == "prepare" ? Handler.prepare(request) : Handler.exec(request, progress: path)
-        rescue Refused, KeyError => error
+        rescue Refused, Broken, KeyError => error
           { "error" => error.message }
         rescue StandardError => error
           { "error" => "#{error.class}: #{error.message}" }
@@ -1003,7 +1029,7 @@ module Sandbox
       end
       answer = Handler.call(method, path, body, URI.decode_www_form(query.to_s).to_h)
       answer.is_a?(Download) ? send_file(socket, answer.path) : respond(socket, 200, answer)
-    rescue Refused, KeyError, JSON::ParserError => error
+    rescue Refused, Broken, KeyError, JSON::ParserError => error
       respond(socket, 422, { "error" => error.message })
     rescue StandardError => error
       respond(socket, 500, { "error" => "#{error.class}: #{error.message}" })

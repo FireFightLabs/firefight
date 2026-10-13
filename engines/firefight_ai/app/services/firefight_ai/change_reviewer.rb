@@ -14,7 +14,10 @@ module FirefightAi
     FILE_LIMIT = 200_000
     PART_LIMIT = 12_000
 
-    Review = Data.define(:right, :findings, :verified, :unverified, :unreviewed, :summary) do
+    # findings is every problem found, blocking those of them that make the change wrong whatever else it gets right.
+    Review = Data.define(:right, :findings, :blocking, :verified, :unverified, :unreviewed, :summary) do
+      def initialize(blocking: [], **) = super
+
       def wrong? = !right
     end
 
@@ -30,13 +33,15 @@ module FirefightAi
 
     # asked is the person's own words, brief what Halon handed the agent with the contracts it read, checks what ran in
     # the sandbox and how each went, said the agent's own summary. updated is the files this update changed when the
-    # change adds to an open pull request, nil for a new one.
-    def review(asked:, brief:, evidence:, diff:, checks:, said:, updated: nil)
+    # change adds to an open pull request, nil for a new one. comments is the reviewers' comments on that pull request as
+    # the coding agent was handed them, nil when there are none.
+    def review(asked:, brief:, evidence:, diff:, checks:, said:, updated: nil, comments: nil)
       shown, left_out = self.class.shown(diff, named: [ asked, brief ].join("\n"))
       response, = FirefightAi.generate(@choice, purpose: AiPurpose::CODE_REVIEW, inference: inference_context) do |chat|
         chat.with_instructions(PROMPT)
         chat.with_schema(Schemas::ChangeReview)
-        chat.ask(material(asked: asked, brief: brief, evidence: evidence, diff: shown, checks: checks, said: said, updated: updated, left_out: left_out))
+        chat.ask(material(asked: asked, brief: brief, evidence: evidence, diff: shown, checks: checks, said: said, updated: updated, left_out: left_out,
+                          comments: comments))
       end
       read(response.parsed, left_out)
     end
@@ -80,6 +85,8 @@ module FirefightAi
 
       - The diff is what the pull request changes against its base branch. What a merge brought in from the base branch is not in it and is not part of this change. When the change adds to an open pull request, the files this update changed are listed too.
       - Judge whether the change does what the person asked, as their later messages correct the earlier ones. A change that does something else, does part of it, or breaks something it touches does not.
+      - Label each finding. A finding is blocking when the change brings in or leaves a bug in what it touches, when it changes existing behaviour the person did not ask for, or when a reviewer's comment it says it fixed is not fixed in the diff. Anything else a reviewer should know, such as a missing test or a style point, is a note. A change with a blocking finding does not do what was asked.
+      - When reviewers' comments on the pull request are given, the coding agent's summary answers each one. Check every comment it says it fixed against the diff. A comment it left unchanged with a reason is not a finding unless the reason is wrong about the code.
       - Where the change talks to another system, such as a webhook, an API, a config format or a CI trigger, check it against that system's contract as the material shows it. A value sent where the contract never reads it, a field the other side does not have, or a trigger that does not fire for this event is a finding.
       - Before you call anything open, look for the answer in the material: the evidence, documentation it quotes, an error message the other system returned that states a rule (such as which characters a name may hold), the checks and the agent's summary. When the material answers it, check the change against it and put it under verified, saying what you checked it against.
       - A check that fails because of what the change did is a finding. A failure on lines the change did not touch is not. A check or test that could not run here, among the checks or in the coding agent's summary under whatever heading it used, such as Blocked, was missing something the change does not provide, such as a database, and is reported on its own, so it is never a finding, an open question or a reason the change is wrong. The repository's own CI runs it on the pull request.
@@ -93,13 +100,14 @@ module FirefightAi
 
     private
 
-    def material(asked:, brief:, evidence:, diff:, checks:, said:, updated:, left_out:)
+    def material(asked:, brief:, evidence:, diff:, checks:, said:, updated:, left_out:, comments:)
       [
         "## What the person asked, oldest first\n#{part(asked)}",
         "## The instructions the coding agent was given\n#{part(brief)}",
         "## Evidence read before the change\n#{part(evidence)}",
         "## Checks that ran on the change\n#{part(checks)}",
         "## The coding agent's summary\n#{Evidence.frame('coding_agent', part(said))}",
+        ("## Reviewers' comments on the pull request\n#{Evidence.frame('review_comments', comments)}" if comments.present?),
         ("## Files this update changed\n#{updated.any? ? updated.map { |path| "- #{path}" }.join("\n") : '(none of the pull request\'s files, only a merge)'}" unless updated.nil?),
         ("## Files not shown, since the change is too large to review whole\n#{left_out.map { |path| "- #{path}" }.join("\n")}" if left_out.any?),
         "## The diff of the pull request against its base branch\n#{Evidence.frame('diff', diff)}"
@@ -108,16 +116,26 @@ module FirefightAi
 
     def part(text) = text.to_s.strip.presence&.truncate(PART_LIMIT) || "(none)"
 
-    # A finding can stand beside a change that does what was asked, such as a missing test. One that does not do it
-    # always says why, so the agent it goes back to has something to correct.
+    # A note can stand beside a change that does what was asked, such as a missing test. A blocking finding makes it
+    # wrong whatever the verdict says, so a model that calls a change right while listing a bug in it never lets it
+    # through. One that does not do what was asked always says why, so the agent it goes back to has something to
+    # correct. A finding given as plain text carries no label, so it is a note.
     def read(parsed, left_out)
       content = parsed.is_a?(Hash) ? parsed.with_indifferent_access : {}
-      right = content[:does_what_was_asked] == true
       summary = content[:summary].to_s.strip
-      findings = lines(content[:findings])
+      labelled = Array(content[:findings]).filter_map { |finding| labelled(finding) }
+      blocking = labelled.select(&:last).map(&:first)
+      right = content[:does_what_was_asked] == true && blocking.empty?
+      findings = labelled.map(&:first)
       findings = [ "It does not do what was asked. #{summary}".strip ] if !right && findings.empty?
-      Review.new(right: right, findings: findings, verified: lines(content[:verified]), unverified: lines(content[:unverified]), unreviewed: left_out,
-                 summary: summary)
+      Review.new(right: right, findings: findings, blocking: blocking, verified: lines(content[:verified]), unverified: lines(content[:unverified]),
+                 unreviewed: left_out, summary: summary)
+    end
+
+    def labelled(finding)
+      given = finding.is_a?(Hash) ? finding.with_indifferent_access : { finding: finding, blocking: false }
+      text = given[:finding].to_s.strip
+      [ text, given[:blocking] == true ] if text.present?
     end
 
     def lines(value) = Array(value).map { |each| each.to_s.strip }.compact_blank

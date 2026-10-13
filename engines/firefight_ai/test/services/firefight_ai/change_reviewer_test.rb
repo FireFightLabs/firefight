@@ -30,6 +30,34 @@ class FirefightAi::ChangeReviewerTest < ActiveSupport::TestCase
     assert_equal [ "It does not do what was asked. Sends the commit." ], @reviewer.review(asked: "", brief: "", evidence: "", diff: "", checks: "", said: "").findings
   end
 
+  test "a finding the review labels blocking makes the change wrong even when it says the change does what was asked, and a note does not" do
+    stub_model(content: { does_what_was_asked: true, summary: "Counts every tool.", unverified: [],
+                          findings: [ { finding: "specialists.rb now counts tools the asker cannot call, a change nobody asked for.", blocking: true },
+                                      { finding: "No test covers the backfill.", blocking: false } ] })
+
+    review = @reviewer.review(asked: "", brief: "", evidence: "", diff: "", checks: "", said: "")
+
+    assert review.wrong?
+    assert_equal [ "specialists.rb now counts tools the asker cannot call, a change nobody asked for." ], review.blocking
+    assert_equal [ "specialists.rb now counts tools the asker cannot call, a change nobody asked for.", "No test covers the backfill." ], review.findings
+
+    stub_model(content: { does_what_was_asked: true, summary: "Counts every tool.", findings: [ { finding: "No test covers the backfill.", blocking: false } ] })
+    noted = @reviewer.review(asked: "", brief: "", evidence: "", diff: "", checks: "", said: "")
+    assert_not noted.wrong?
+    assert_empty noted.blocking
+  end
+
+  test "the reviewers' comments on the pull request reach the review as quoted evidence, to check what the change says it fixed" do
+    asked = nil
+    stub_model(content: { does_what_was_asked: true, findings: [], unverified: [], summary: "Counts the offered schema." }) { |text| asked = text }
+
+    @reviewer.review(asked: "", brief: "", evidence: "", diff: "", checks: "", said: "Review comments:\n- 101 fixed: tool.rb", comments: "Comment 101\n> Count the offered schema.")
+
+    assert_includes asked, "## Reviewers' comments on the pull request\n<tool_result tool=\"review_comments\" trust=\"untrusted\">\nComment 101\n> Count the offered schema."
+    assert_match "it says it fixed", FirefightAi::ChangeReviewer::PROMPT
+    assert_match "changes existing behaviour the person did not ask for", FirefightAi::ChangeReviewer::PROMPT
+  end
+
   test "a long diff shows the file the person named whole, fills the rest with whole files, and names every file left out" do
     named = file_diff(".github/workflows/release.yml", 30_000)
     others = (1..8).map { |index| file_diff("app/services/part_#{index}.rb", 9_000) }

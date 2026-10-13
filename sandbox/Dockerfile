@@ -33,6 +33,17 @@ RUN pg="$(ls /usr/lib/postgresql)" \
     && apt-get purge -y $(comm -13 /tmp/before /tmp/after) \
     && rm -rf /tmp/pgvector /tmp/before /tmp/after /var/lib/apt/lists/*
 
+# The image's Postgres creates pgvector in a throwaway cluster before the image is kept, so a build that lost it fails
+# here rather than in a repository's tests. The box checks again each time it starts its Postgres (server.rb, NO_VECTOR).
+RUN pg="$(ls /usr/lib/postgresql)" && bin="/usr/lib/postgresql/${pg}/bin" && data="$(mktemp -d)" \
+    && as_postgres() { setpriv --reuid=postgres --regid=postgres --init-groups "$@"; } \
+    && chown postgres:postgres "$data" \
+    && as_postgres "$bin/initdb" -D "$data" -A trust -U postgres > /dev/null \
+    && as_postgres "$bin/pg_ctl" -D "$data" -o "-k /tmp -p 5499 -c listen_addresses=" -w start > /dev/null \
+    && psql -h /tmp -p 5499 -U postgres -d postgres -v ON_ERROR_STOP=1 -qAt -c "CREATE EXTENSION vector" \
+    && as_postgres "$bin/pg_ctl" -D "$data" -m fast -w stop > /dev/null \
+    && rm -rf "$data"
+
 ARG GO_VERSION=1.26.8
 RUN arch="$(dpkg --print-architecture)" \
     && curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${arch}.tar.gz" | tar -C /usr/local -xz
