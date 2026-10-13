@@ -1164,6 +1164,7 @@ export const AGENT_CHAT_THREAD_PROPS = [
   "ownerAsks",
   "helpers",
   "handbookProposals",
+  "skillProposals",
   "theories"
 ] as const
 
@@ -1187,6 +1188,7 @@ export const AGENT_CHAT_WINDOWED_PROPS = [
   "ownerAsks",
   "helpers",
   "handbookProposals",
+  "skillProposals",
   "theories"
 ] as const
 
