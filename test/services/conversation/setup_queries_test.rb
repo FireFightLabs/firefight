@@ -33,12 +33,64 @@ class Conversation::SetupQueriesTest < ActiveSupport::TestCase
     conversation = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one))
     answer_with_fake(conversation)
     Chat::Tools.expects(:build_catalog).twice.returns([])
-    Chat::Specialists.expects(:crowded?).twice.with { |turn| Chat::Tools.catalog(turn) }.returns(false)
+    Chat::Specialists.expects(:crowded?).twice.returns(false)
 
     2.times do |each|
       conversation.ask!("question #{each}")
       Conversation::Runner.new(conversation, asker: conversation.started_by).run
     end
+  end
+
+  test "deciding whether to ask specialists sums the tools' stored lengths and never builds the catalogue" do
+    connect_big_workspace!
+    turn = Conversation::Turn.new(Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:bob_workspace_one)),
+                                  asker: workspace_memberships(:bob_workspace_one))
+    Chat::Tools.expects(:build_catalog).never
+
+    sent = sql_of { Chat::Specialists.crowded?(turn) }
+
+    assert_operator sent.size, :<=, 2
+    assert(sent.any? { |sql| sql.include?('SUM("integration_tools"."definition_chars")') })
+    assert(sent.none? { |sql| sql.match?(/ability_actions|integration_environments|params_schema|"integration_tools"\.\*/) },
+           "no schema, action or environment is read for the decision")
+  end
+
+  test "deciding whether to ask specialists answers as the tools' definitions measured whole would" do
+    connect_big_workspace!
+    turn = Conversation::Turn.new(Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one)),
+                                  asker: workspace_memberships(:alice_workspace_one))
+    tools = Integration::Tool.switched_on_in(@workspace).to_a
+    length = tools.sum { |tool| tool.name.size + tool.description.to_s.size + tool.params_schema.to_json.size }
+    assert_equal length, Integration::Tool.switched_on_in(@workspace).sum(:definition_chars)
+
+    FirefightAi.configuration.stubs(:held_tools_budget).returns((length / FirefightAi::TOOL_CHARS_PER_TOKEN).ceil)
+    assert_not Chat::Specialists.crowded?(turn), "tools that fit the budget exactly keep today's way"
+
+    FirefightAi.configuration.stubs(:held_tools_budget).returns((length / FirefightAi::TOOL_CHARS_PER_TOKEN).floor - 1)
+    assert Chat::Specialists.crowded?(turn), "past the budget, with reads a specialist takes, it asks specialists"
+
+    Integration::Tool.switched_on_in(@workspace).update_all(read_only: false)
+    assert_not Chat::Specialists.crowded?(turn), "with no read a specialist would take, it keeps today's way however many tools"
+  end
+
+  test "comparing connections reads only the tool columns it compares" do
+    connect_big_workspace!(sources: 2)
+
+    tool_queries = sql_of { Chat::Tools::Changes.snapshot(@workspace) }.grep(/FROM "integration_tools"/)
+
+    assert_equal 1, tool_queries.size
+    selected = tool_queries.sole[/\ASELECT (.+?) FROM/, 1]
+    assert_equal %w[id integration_id name enabled removed_at], selected.scan(/"integration_tools"\."(\w+)"/).flatten
+    assert_no_match(/\*/, selected)
+  end
+
+  test "comparing connections still sees each connection's switched on tools by the name the agent calls them" do
+    connect_big_workspace!(sources: 1)
+    integration = @workspace.integrations.connections.where(deleted_at: nil).sole
+    integration.tools.order(:name).first.update!(enabled: false)
+    expected = integration.tools.reload.select { |tool| tool.enabled? && tool.available? }.map(&:model_facing_name).sort
+
+    assert_equal expected, Chat::Tools::Changes.snapshot(@workspace).dig(integration.id.to_s, "tools")
   end
 
   test "comparing connections reads the same few queries however many there are" do
@@ -98,6 +150,13 @@ class Conversation::SetupQueriesTest < ActiveSupport::TestCase
     steps = logged.grep(String).filter_map { |line| JSON.parse(line) if line.include?(Conversation::Runner::SETUP_STEP_EVENT) }
     assert_includes steps.map { |step| step["step"] }, Conversation::Runner::STEP_PRESENTED
     steps.sum { |step| step["queries"] }
+  end
+
+  def sql_of(&)
+    sent = []
+    collect = ->(_name, _started, _finished, _id, payload) { sent << payload[:sql] unless payload[:name] == "SCHEMA" || payload[:cached] }
+    ActiveSupport::Notifications.subscribed(collect, "sql.active_record", &)
+    sent
   end
 
   def queries_of(&)

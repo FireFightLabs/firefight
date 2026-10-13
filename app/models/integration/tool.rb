@@ -10,11 +10,15 @@ class Integration::Tool < ApplicationRecord
 
   scope :enabled, -> { where(enabled: true) }
   scope :available, -> { where(removed_at: nil) }
-  scope :in_workspace, ->(workspace) {
-    enabled.available.joins(:integration)
-      .where(integrations: { workspace_id: workspace.id, disabled_at: nil, deleted_at: nil })
-      .eager_load(:ability_action, integration: :integration_environments)
+  # The tools a workspace's connections offer and have switched on, without loading anything else, for a decision that
+  # reads only a few columns of each (Chat::Specialists.crowded?).
+  scope :switched_on_in, ->(workspace) {
+    enabled.available.joins(:integration).where(integrations: { workspace_id: workspace.id, disabled_at: nil, deleted_at: nil })
   }
+  scope :in_workspace, ->(workspace) { switched_on_in(workspace).eager_load(:ability_action, integration: :integration_environments) }
+
+  # How long its definition is, as FirefightAi.fits_up_front? counts it, so whether many tools fit is one sum.
+  before_save :count_definition_chars, if: -> { new_record? || will_save_change_to_name? || will_save_change_to_description? || will_save_change_to_params_schema? }
 
   # Synced on every mirrored attribute, a stale risk_level on the action
   # would silently stop risk-based approval policies from matching.
@@ -53,8 +57,11 @@ class Integration::Tool < ApplicationRecord
 
   # A tool name cannot carry the dot an action key separates on.
   def model_facing_name
-    action_key.tr(".", "_")
+    self.class.model_facing_name(integration.slug, name)
   end
+
+  # The name the agent calls a connection's tool by, from its connection's slug and its own name.
+  def self.model_facing_name(slug, name) = "#{slug}.#{name}".tr(".", "_")
 
   ENVIRONMENT_ARG = "environment".freeze
 
@@ -202,6 +209,10 @@ class Integration::Tool < ApplicationRecord
     return unless Integrations::Paging.sync_tools(integration.provider).include?(name)
 
     Ability::Grant.grant!(workspace: integration.workspace, principal: SystemAgent.paging, target: { action: action })
+  end
+
+  def count_definition_chars
+    self.definition_chars = name.to_s.size + description.to_s.size + params_schema.to_json.size
   end
 
   def ability_action_stale?
