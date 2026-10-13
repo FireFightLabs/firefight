@@ -6,8 +6,11 @@ module Mcp
                   "existing runbook (steps/conditions replace the current set when given); an unknown slug is an error, not a create; " \
                   "omit it to create one (name required). Attach conditions auto-attach the " \
                   "runbook to matching incidents. A step may name a tool Halon runs it with (tool and arguments), " \
-                  "which makes it a runbook Halon can run by its name or an alias (run_runbook). If the call requires approval, retry the " \
-                  "identical call with approval_id once approved. Docs: #{Docs::RUNBOOKS}"
+                  "which makes it a runbook Halon can run by its name or an alias (run_runbook). Where the workspace has workflows, " \
+                  "every step stays on the runbook as its checklist, and the steps that name a tool, the inputs and the watch are " \
+                  "written into the workflow it links, made for it when it links none: published when you may publish it, otherwise " \
+                  "a draft the admins are asked to publish. A change step there also needs its undo. If the call requires approval, " \
+                  "retry the identical call with approval_id once approved. Docs: #{Docs::RUNBOOKS}"
       annotations(**WRITE)
       input_schema(
         properties: {
@@ -19,7 +22,8 @@ module Mcp
           steps: {
             type: "array",
             description: "Ordered steps, e.g. [{\"title\": \"...\", \"instruction\": \"...\"}]; replaces existing steps. A step Halon " \
-                         "runs also names its tool, as Halon calls it, and the arguments, whose values may hold an input as {{key}}, e.g. " \
+                         "runs also names its tool, as Halon calls it, and the arguments, whose values may hold an input as {{key}}, and " \
+                         "where the workspace has workflows a step that changes something says how a person puts it back as undo, e.g. " \
                          "{\"title\": \"Start the release\", \"tool\": \"run_workflow\", \"arguments\": {\"workflow\": \"release.yml\", \"inputs\": {\"bump\": \"{{bump}}\"}}}",
             items: { type: "object" }
           },
@@ -57,14 +61,41 @@ module Mcp
 
       upserts Ability::Action::RESOURCE_RUNBOOKS, scope: ->(workspace) { workspace.runbooks.active }
 
-      def self.perform(workspace:, args:)
-        runbook = Runbook::Upsert.new(workspace).call(upsert_target(workspace, args), args)
+      def self.perform_with_principal(workspace:, principal:, args:)
+        upsert = Runbook::Upsert.new(workspace)
+        target = upsert_target(workspace, args)
+        by = (principal if principal.is_a?(WorkspaceMembership))
+        runbook = if FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS) && upsert.runnable?(args)
+          AbilityGateway.authorize!(principal: principal, action_key: Workflow::CREATE_KEY, workspace: workspace,
+                                    params: { "runbook" => args[:name].presence || target&.name }, context: { source: AbilityGateway::SOURCE_MCP }) do
+            upsert.call(target, args, by: by)
+          end
+        else
+          upsert.call(target, args, by: by)
+        end
+        said = publish_or_ask(workspace, principal, upsert.workflow_written)
 
-        respond(
+        respond({
           slug: runbook.slug, name: runbook.name, summary: runbook.summary,
-          steps_count: runbook.runbook_steps.count, conditions_count: runbook.incident_conditions.count, runnable: runbook.procedure?
-        )
+          steps_count: runbook.runbook_steps.count, conditions_count: runbook.incident_conditions.count, runnable: runbook.runnable_now?,
+          workflow: runbook.workflow_for_agents&.slice(:name, :slug, :state, :page)&.merge(said: said)&.compact
+        }.compact)
+      rescue Runbook::LinkedWorkflow::Refused => refused
+        Mcp::ToolDispatcher.error_response(refused.message)
       end
+
+      def self.publish_or_ask(workspace, principal, workflow)
+        draft = workflow&.draft
+        return unless draft
+
+        service = WorkflowPublishService.new(workflow)
+        unpublishable = service.unpublishable_words(draft)
+        return unpublishable if unpublishable
+        return service.ask_or_leave!(draft, by: principal).words unless service.may_publish?(draft, by: principal)
+
+        CreateWorkflow.publish(workspace, principal, workflow, draft).words
+      end
+      private_class_method :publish_or_ask
     end
   end
 end

@@ -17,8 +17,11 @@ module FeatureFlags
     Flipper.enabled?(known!(flag, WORKSPACE), workspace)
   end
 
+  # Turning workflows on moves what each runbook runs into a workflow, so nothing runs two ways at once.
   def self.enable!(workspace, flag)
-    Flipper.enable_actor(known!(flag, WORKSPACE), workspace)
+    name = known!(flag, WORKSPACE)
+    Flipper.enable_actor(name, workspace)
+    Runbook.move_runnable_parts!(workspace) if name == WORKFLOWS
   end
 
   def self.disable!(workspace, flag)

@@ -2,6 +2,7 @@ class Runbook < ApplicationRecord
   include Positioned
   include OptionGuards
   include Runbook::Procedure
+  include Runbook::LinkedWorkflow
 
   NOUN = "runbook".freeze
 

@@ -42,7 +42,6 @@ module Mcp
         # A retry would make a second workflow, so the draft made is the answer.
         WorkflowPublishService::Result.new(ok: false, words: WorkflowPublishService::PUBLISH_HELD)
       end
-      private_class_method :publish
     end
   end
 end

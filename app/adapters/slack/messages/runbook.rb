@@ -77,6 +77,10 @@ module Slack
       def self.footer(incident_runbook, steps)
         elements = []
 
+        if incident_runbook.runbook.runnable_workflow
+          elements << run_button(incident_runbook)
+        end
+
         if steps.any?
           elements << {
             type: "button",
@@ -97,6 +101,15 @@ module Slack
         return nil if elements.empty?
 
         { type: "actions", elements: elements }
+      end
+
+      def self.run_button(incident_runbook)
+        {
+          type: "button",
+          text: { type: "plain_text", text: ":arrow_forward: Run it", emoji: true },
+          action_id: Identifiers::RUN_RUNBOOK,
+          value: incident_runbook.id
+        }
       end
     end
   end

@@ -27,6 +27,7 @@ import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { OptionsTable } from "@/components/options-table"
 import { RunbookDetailSheet } from "@/pages/settings/components/runbooks/runbook-detail-sheet"
 import { RunbookDialog } from "@/pages/settings/components/runbooks/runbook-dialog"
+import { RunRunbookDialog, type RunbookRunTarget } from "@/components/runbooks/run-runbook-dialog"
 import { attachSummary } from "@/pages/settings/lib/runbook-conditions"
 import { RUNBOOK_QUERY_PARAM } from "@/lib/generated/constants"
 
@@ -53,6 +54,17 @@ export function RunbooksTab({ runbooks, incidentTypes, severities, customFields,
   const [editingRunbook, setEditingRunbook] = useState<RunbookSettings | null>(null)
   const [deleting, setDeleting] = useState<RunbookSettings | null>(null)
   const [viewing, setViewing] = useState<RunbookSettings | null>(() => runbookFromUrl(runbooks))
+  const [running, setRunning] = useState<RunbookRunTarget | null>(null)
+
+  function openRun(runbook: RunbookSettings) {
+    if (runbook.workflow) {
+      setRunning({ runbookId: runbook.id, runbookName: runbook.name, workflow: runbook.workflow })
+    }
+  }
+
+  function closeRun() {
+    setRunning(null)
+  }
 
   function openCreate() {
     setEditingRunbook(null)
@@ -182,7 +194,10 @@ export function RunbooksTab({ runbooks, incidentTypes, severities, customFields,
         customFields={customFields}
         open={Boolean(viewing)}
         onOpenChange={(next) => !next && setViewing(null)}
+        onRun={openRun}
       />
+
+      <RunRunbookDialog target={running} onClose={closeRun} />
 
       {canManage && (
         <ConfirmDeleteDialog

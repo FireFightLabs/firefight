@@ -2937,7 +2937,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230000) do
     t.string "summary"
     t.datetime "updated_at", null: false
     t.jsonb "watch"
+    t.uuid "workflow_id"
     t.uuid "workspace_id", null: false
+    t.index ["workflow_id"], name: "index_runbooks_on_workflow_id"
     t.index ["workspace_id", "slug"], name: "index_runbooks_on_workspace_id_and_slug_active", unique: true, where: "(deleted_at IS NULL)"
     t.index ["workspace_id"], name: "index_runbooks_on_workspace_id"
   end
@@ -3776,6 +3778,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230000) do
   add_foreign_key "resource_map_uses", "resource_map_resources", column: "resource_id", on_delete: :cascade
   add_foreign_key "resource_map_uses", "workspaces"
   add_foreign_key "runbook_steps", "runbooks"
+  add_foreign_key "runbooks", "workflows", on_delete: :nullify
   add_foreign_key "runbooks", "workspaces"
   add_foreign_key "search_documents", "workspaces"
   add_foreign_key "search_embeddings", "workspaces"
