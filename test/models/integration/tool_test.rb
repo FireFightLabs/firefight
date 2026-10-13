@@ -5,22 +5,22 @@ class Integration::ToolTest < ActiveSupport::TestCase
     @integration = workspaces(:slack_workspace_one).integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub", slug: "github")
   end
 
-  test "a tool keeps how long its definition is, as the held tools budget counts it, and counts again when it changes" do
+  test "a tool keeps how long its definition is as a model is handed it, and counts again when it changes" do
     schema = { "type" => "object", "properties" => { "repo" => { "type" => "string" } } }
     tool = @integration.tools.create!(name: "list_runs", description: "Lists the runs.", params_schema: schema)
-    assert_equal "list_runs".size + "Lists the runs.".size + tool.offered_schema.to_json.size, tool.reload.definition_chars
+    assert_equal "github_list_runs".size + "Lists the runs.".size + tool.offered_schema.to_json.size, tool.reload.definition_chars
 
     tool.update!(description: "Lists the workflow runs of a repository.")
-    assert_equal "list_runs".size + "Lists the workflow runs of a repository.".size + tool.offered_schema.to_json.size, tool.reload.definition_chars
+    assert_equal "github_list_runs".size + "Lists the workflow runs of a repository.".size + tool.offered_schema.to_json.size, tool.reload.definition_chars
 
     tool.update!(params_schema: { "type" => "object" })
-    assert_equal "list_runs".size + "Lists the workflow runs of a repository.".size + tool.offered_schema.to_json.size, tool.reload.definition_chars
+    assert_equal "github_list_runs".size + "Lists the workflow runs of a repository.".size + tool.offered_schema.to_json.size, tool.reload.definition_chars
 
     tool.update!(name: "list_workflow_runs", description: nil)
-    assert_equal "list_workflow_runs".size + tool.offered_schema.to_json.size, tool.reload.definition_chars
+    assert_equal "github_list_workflow_runs".size + tool.offered_schema.to_json.size, tool.reload.definition_chars
   end
 
-  test "the length counts the schema the model is handed, with the connection's environment argument, not the tool's own" do
+  test "the length counts the name with the connection's slug and the schema with the connection's environment argument" do
     @integration.integration_environments.create!(catalog_entry_id: catalog_entries(:production_env).id)
     @integration.integration_environments.create!(catalog_entry_id: catalog_entries(:development_env).id)
     schema = { "type" => "object", "properties" => { "repo" => { "type" => "string" } } }
@@ -29,8 +29,28 @@ class Integration::ToolTest < ActiveSupport::TestCase
 
     offered = tool.offered_schema
     assert_equal %w[production development], offered.dig("properties", Integration::Tool::ENVIRONMENT_ARG, "enum")
-    assert_equal "list_runs".size + "Lists the runs.".size + offered.to_json.size, tool.reload.definition_chars
+    assert_equal tool.model_facing_name.size + "Lists the runs.".size + offered.to_json.size, tool.reload.definition_chars
     assert_operator tool.definition_chars, :>, "list_runs".size + "Lists the runs.".size + schema.to_json.size
+  end
+
+  test "the length counts what an agent reads beside the tool, such as what its connection's installation lacks" do
+    row = @integration.integration_environments.create!
+    row.store_installation!("42")
+    row.installation_checked!(Integrations::Installations::Installation.new(account: "acme", page: "https://github.com/settings/installations/42",
+                                                                             access: { "contents" => "read", "metadata" => "read" }))
+
+    tool = @integration.tools.create!(name: "workflow_runs", read_only: true, description: "Lists runs.")
+
+    assert_equal "Needs Actions read in the GitHub App. Lists runs.", tool.described_for_agents
+    assert_equal tool.model_facing_name.size + tool.described_for_agents.size + tool.offered_schema.to_json.size, tool.reload.definition_chars
+  end
+
+  test "an agent description longer than an agent is handed counts only as much as it is handed" do
+    assert_equal Chat::Tools::FULL_DESCRIPTION, Integration::Tool::AGENT_DESCRIPTION_LIMIT
+
+    tool = @integration.tools.create!(name: "list_runs", description: "word " * 1_000, params_schema: { "type" => "object" })
+
+    assert_equal tool.model_facing_name.size + Integration::Tool::AGENT_DESCRIPTION_LIMIT + tool.offered_schema.to_json.size, tool.reload.definition_chars
   end
 
   test "switching a tool on or off leaves its length as it was" do

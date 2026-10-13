@@ -48,10 +48,42 @@ class Conversation::SetupQueriesTest < ActiveSupport::TestCase
 
     sent = sql_of { Chat::Specialists.crowded?(turn) }
 
-    assert_operator sent.size, :<=, 3
-    assert(sent.any? { |sql| sql.include?('SUM("integration_tools"."definition_chars")') })
-    assert(sent.none? { |sql| sql.match?(/ability_actions|integration_environments|params_schema|"integration_tools"\.\*/) },
-           "no schema, action or environment is read for the decision")
+    tool_reads = sent.grep(/FROM "integration_tools"/)
+    assert_equal 1, tool_reads.size
+    assert_includes tool_reads.sole, '"integration_tools"."definition_chars"'
+    assert(sent.none? { |sql| sql.match?(/integration_environments|params_schema|"integration_tools"\.\*/) },
+           "no schema or environment is read for the decision")
+  end
+
+  test "a member and an owner in the same workspace each count the tools the catalogue hands them ready to call" do
+    connect_big_workspace!
+    member = turn_for(workspace_memberships(:bob_workspace_one))
+    owner = turn_for(workspace_memberships(:alice_workspace_one))
+    member_length = tail_length(member)
+    owner_length = tail_length(owner)
+    assert_operator member_length, :<, owner_length, "a member holds no grant for the changes an owner may make"
+
+    FirefightAi.configuration.stubs(:held_tools_budget).returns((member_length / FirefightAi::TOOL_CHARS_PER_TOKEN).ceil)
+    assert_not Chat::Specialists.crowded?(member), "the changes a member cannot call are not counted against them"
+    assert Chat::Specialists.crowded?(owner)
+  end
+
+  test "a tool's stored length is what fits_up_front? measures of the tool a turn is handed" do
+    connect_big_workspace!
+    alice = workspace_memberships(:alice_workspace_one)
+    turn = Conversation::Turn.new(turn_for(alice).conversation, asker: alice, reads_only: true)
+    handed = Chat::Tools.build_catalog(turn).select { |entry| entry.tool.is_a?(Chat::Tools::Connection) }.map(&:tool)
+    stored = Integration::Tool.in_workspace(@workspace).index_by(&:model_facing_name)
+    reads = handed.select { |tool| stored[tool.name].read_only? && Integrations::ReadGuards.for(stored[tool.name]).nil? }
+    assert_operator reads.size, :>, 10
+
+    measured = reads.sum { |tool| tool.name.size + tool.description.size + tool.parameters_schema.to_json.size }
+    assert_equal measured, reads.sum { |tool| stored[tool.name].definition_chars }
+
+    FirefightAi.configuration.stubs(:held_tools_budget).returns((measured / FirefightAi::TOOL_CHARS_PER_TOKEN).floor)
+    assert_equal FirefightAi.fits_up_front?(reads), FirefightAi.chars_fit_up_front?(measured)
+    FirefightAi.configuration.stubs(:held_tools_budget).returns((measured / FirefightAi::TOOL_CHARS_PER_TOKEN).ceil)
+    assert_equal FirefightAi.fits_up_front?(reads), FirefightAi.chars_fit_up_front?(measured)
   end
 
   test "deciding whether to ask specialists answers as the tools' definitions measured whole would" do
@@ -170,12 +202,10 @@ class Conversation::SetupQueriesTest < ActiveSupport::TestCase
     Conversation::Turn.new(Conversation.start_personal!(workspace: @workspace, member: member), asker: member)
   end
 
-  # How long the connection tools the catalogue hands the turn as its own are, measured whole from each tool's row with the
-  # environment and scope arguments its connection offers it with.
+  # How long the connection tools the catalogue hands the turn ready to call are, by the length each tool's row keeps.
   def tail_length(turn)
     names = Chat::Tools.build_catalog(turn).select { |entry| entry.tool && entry.source != Chat::Skill::SOURCE_FIREFIGHT }.map(&:name).to_set
-    Integration::Tool.in_workspace(@workspace).select { |tool| names.include?(tool.model_facing_name) }
-                     .sum { |tool| tool.name.size + tool.description.to_s.size + tool.offered_schema.to_json.size }
+    Integration::Tool.in_workspace(@workspace).select { |tool| names.include?(tool.model_facing_name) }.sum(&:definition_chars)
   end
 
   def sql_of(&)

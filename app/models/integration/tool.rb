@@ -3,7 +3,8 @@
 # vanishes and returns keeps that choice.
 class Integration::Tool < ApplicationRecord
   belongs_to :integration
-  has_one :ability_action, class_name: "Ability::Action", as: :source, dependent: :destroy
+  # The action knows the tool it was read through, so asking whether a member reads it by default reads no tool again.
+  has_one :ability_action, class_name: "Ability::Action", as: :source, dependent: :destroy, inverse_of: :source
 
   validates :name, presence: true, uniqueness: { scope: :integration_id },
                    format: { with: /\A[a-z0-9_.]+\z/ }
@@ -18,8 +19,10 @@ class Integration::Tool < ApplicationRecord
   scope :in_workspace, ->(workspace) { switched_on_in(workspace).eager_load(:ability_action, integration: :integration_environments) }
 
   # How long its definition is, as FirefightAi.fits_up_front? counts it, so whether many tools fit is one sum.
-  # Counted on the offered schema, with the environment and scope arguments a model is handed, not the tool's own.
-  before_save :count_definition_chars, if: -> { new_record? || will_save_change_to_name? || will_save_change_to_description? || will_save_change_to_params_schema? }
+  # Counted as a model is handed it (definition_length), not on the tool's own name, description and schema.
+  before_save :count_definition_chars, if: -> {
+    new_record? || will_save_change_to_name? || will_save_change_to_description? || will_save_change_to_params_schema? || will_save_change_to_spec?
+  }
 
   # Synced on every mirrored attribute, a stale risk_level on the action
   # would silently stop risk-based approval policies from matching.
@@ -76,8 +79,17 @@ class Integration::Tool < ApplicationRecord
     schema
   end
 
-  # How long the definition a model is handed is: its name, description and offered schema, as fits_up_front? counts them.
-  def definition_length = name.to_s.size + description.to_s.size + offered_schema.to_json.size
+  # How long a description an agent is handed may be (Chat::Tools::FULL_DESCRIPTION).
+  AGENT_DESCRIPTION_LIMIT = 2_000
+
+  # How long the definition a model is handed is, as fits_up_front? counts it: the name it calls the tool by, with its
+  # connection's slug, what an agent reads of the tool, cleaned and capped as Chat::Tools.clean does, and the schema it
+  # is offered, with the connection's environment and scope arguments. What a turn adds of its own, such as the intent a
+  # call that waits for the person asks for, is not counted.
+  def definition_length
+    described = described_for_agents.to_s.gsub(/[[:cntrl:]]/, " ").squish.truncate(AGENT_DESCRIPTION_LIMIT)
+    model_facing_name.size + described.size + Integrations::Replicas.offered(self, offered_schema).to_json.size
+  end
 
   # Names only the environments this connection has, since an example it lacks is what a model then sends.
   def environment_description
