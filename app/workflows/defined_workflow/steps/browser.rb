@@ -92,7 +92,7 @@ class DefinedWorkflow::Steps::Browser < DefinedWorkflow::Steps::CallTool
     return output_of_answer(browse(look_only, Ability::Action::BROWSER_READ), sent: false) unless check.sends?
     raise Refused, UNATTENDED if @run.reads_first?
 
-    looked = browse(look_only(sending: true), Ability::Action::BROWSER_READ)
+    looked = browse(look_only(sending: true), Ability::Action::BROWSER_READ, keep: false)
     stopped = looked.viewports.find { |viewport| viewport.dig("stopped", "step").to_i == check.send_step && viewport.dig("stopped", "would_send").present? }
     raise Refused, format(NOT_STOPPED, step: check.send_step) unless stopped
 
@@ -116,7 +116,8 @@ class DefinedWorkflow::Steps::Browser < DefinedWorkflow::Steps::CallTool
     Chat::BrowserCheck.from(given, sends_allowed: false)
   end
 
-  def browse(chosen, action_key, approval_id: nil, expected_send: nil)
+  # keep is false for the look before a send, so the run keeps only the send's screenshots, as many as it reports.
+  def browse(chosen, action_key, approval_id: nil, expected_send: nil, keep: true)
     blocked = workspace.browser_pages_blocked_reason(chosen.planned_pages)
     raise Refused, blocked if blocked
 
@@ -127,7 +128,7 @@ class DefinedWorkflow::Steps::Browser < DefinedWorkflow::Steps::CallTool
       authorization.answer_failed!(answer.error) if answer.error
       answer.words
     end
-    keep_screenshots(answer)
+    keep_screenshots(answer) if keep
     answer
   end
 

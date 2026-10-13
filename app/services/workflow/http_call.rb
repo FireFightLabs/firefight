@@ -30,6 +30,8 @@ class Workflow::HttpCall
     secrets = []
     sent = headers.to_h.transform_keys(&:to_s).merge("User-Agent" => USER_AGENT)
     if connection.present?
+      raise Refused, "A connection's credentials go only over https, and #{uri} is not." unless uri.scheme == "https"
+
       credentials = credentials_for(connection, uri)
       secrets = credentials.values.flat_map { |value| [ value.to_s, value.to_s.split.last ] }
       sent = sent.merge(credentials)

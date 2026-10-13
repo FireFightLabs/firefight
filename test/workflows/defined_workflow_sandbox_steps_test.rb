@@ -151,6 +151,33 @@ class DefinedWorkflowSandboxStepsTest < ActiveSupport::TestCase
     assert_equal Workflow::Run::STATUS_FAILED, refused.status
     assert_match "go only to its own hosts", refused.error
     assert_equal 1, sent.size
+
+    plain = published("Plain", steps: [ step("plain", "http_request", { "url" => "http://api.linear.app/graphql", "connection" => "linear" }) ])
+    refused = start(plain)
+    assert_equal Workflow::Run::STATUS_FAILED, refused.status
+    assert_match "A connection's credentials go only over https, and http://api.linear.app/graphql is not.", refused.error
+    assert_equal 1, sent.size
+  end
+
+  test "a browser step that sends keeps only the screenshots of the send, as many as it says it kept" do
+    jpeg = Base64.strict_encode64("\xFF\xD8\xFF\xE0fake".b)
+    page = { "name" => "desktop", "status" => 200, "title" => "Shop", "final_url" => "https://shop.example.com/", "page_text" => "Welcome", "screenshot" => jpeg }
+    looked = page.merge("stopped" => { "step" => 1, "would_send" => { "method" => "POST", "url" => "https://shop.example.com/orders" } })
+    checked = Chat::BrowserCheck.from({ "url" => "https://shop.example.com" })
+    Integrations::Terminal.stubs(:available?).returns(true)
+    Chat::Browsing.stubs(:run).returns(Chat::BrowserCheck::Answer.new({ "viewports" => [ looked ] }, check: checked))
+                  .then.returns(Chat::BrowserCheck::Answer.new({ "viewports" => [ page ] }, check: checked))
+    Integrations::Terminal.any_instance.stubs(:check).returns(Integrations::Terminal::Checked.new(answer: outside_answer, region: "fra"))
+    sending = { "url" => "https://shop.example.com", "viewports" => [ "desktop" ], "steps" => [ { "action" => "click", "text" => "Buy" } ], "send_step" => 1,
+                "undo" => "Cancel the order." }
+    workflow = published("Buy", steps: [ step("buy", "browser", sending), check("buy") ], edges: [ { "from" => "buy", "to" => "check_buy" } ])
+
+    run = start(workflow)
+
+    assert_equal Workflow::Run::STATUS_SUCCEEDED, run.status, run.error
+    assert_equal true, output(run, "buy")["sent"]
+    assert_equal 1, output(run, "buy")["screenshots"]
+    assert_equal 1, run.steps.find_by!(step_key: "buy").chat.screenshots.count
   end
 
   test "a request that changes something needs its own grant and fails on an error answer" do
