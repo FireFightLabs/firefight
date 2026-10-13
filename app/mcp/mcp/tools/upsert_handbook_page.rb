@@ -40,9 +40,10 @@ module Mcp
         required: []
       )
 
-      def self.authorization(workspace, args)
-        target = args[:page].present? ? GetHandbookPage.find!(workspace, args[:page]) : nil
-        [ Ability::Action::RESOURCE_HANDBOOK, target ? Ability::Action::ACTION_UPDATE : Ability::Action::ACTION_CREATE ]
+      # Decided from the arguments alone, so a caller who may not change the handbook is refused before learning which
+      # pages exist.
+      def self.authorization(_workspace, args)
+        [ Ability::Action::RESOURCE_HANDBOOK, args[:page].present? ? Ability::Action::ACTION_UPDATE : Ability::Action::ACTION_CREATE ]
       end
 
       def self.perform_with_principal(workspace:, principal:, args:)

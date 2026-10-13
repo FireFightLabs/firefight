@@ -31,6 +31,18 @@ class Slack::Messages::HandbookProposalTest < ActiveSupport::TestCase
     assert_includes text_of(blocks), "Ping &lt;!channel&gt; &amp; &lt;@U1&gt;"
   end
 
+  test "text that escaping makes longer is cut after escaping, so every block stays within Slack's limit and no entity is cut in half" do
+    long = "R&D <ops> " * 400
+    proposal = Shown.new(id: "proposal-1", page_title: "How we release", new_page: false, current_wording: long, text: long, evidence: long, decided: nil)
+
+    texts = JSON.parse(Slack::Messages::HandbookProposal.build(proposal).to_json).flat_map { |block| [ block.dig("text", "text"), *Array(block["elements"]).map { |element| element["text"] } ] }
+                .grep(String)
+
+    assert(texts.all? { |text| text.length <= 3_000 }, texts.map(&:length).inspect)
+    assert_equal 2, texts.count { |text| text.include?(Slack::Messages::HandbookProposal::CUT) }
+    assert(texts.none? { |text| text.match?(/&[a-z]*(\n|\z|\.\.\.)/) }, "no entity is cut in half")
+  end
+
   private
 
   def shown(decided:, text: "Run the deploy workflow\nthen check checkout")

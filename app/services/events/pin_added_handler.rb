@@ -33,9 +33,11 @@ module Events
       )
     end
 
-    # The text is decoration on the pin, so failing to fetch it never fails the event.
+    # The text is decoration on the pin, so failing to fetch it never fails the event. The platform may hand back an
+    # older message in place of a deleted one, whose words are never the pinned message's.
     def self.message_text(workspace, channel_id, message_ts)
-      workspace.adapter.fetch_message(channel_id: channel_id, message_id: message_ts)[:text].presence
+      message = workspace.adapter.fetch_message(channel_id: channel_id, message_id: message_ts)
+      message[:text].presence if message[:message_id] == message_ts
     rescue AdapterError
       nil
     end

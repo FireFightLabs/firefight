@@ -46,6 +46,16 @@ class Mcp::Tools::HandbookPagesTest < ActiveSupport::TestCase
     assert_equal "Run the deploy workflow.", @releases.reload.text
   end
 
+  test "a caller who may not change the handbook is refused before learning which pages exist" do
+    known = call(Mcp::Tools::UpsertHandbookPage, @member, page: "How we release", text: "Over it.")
+    unknown = call(Mcp::Tools::UpsertHandbookPage, @member, page: "No such page", text: "Over it.")
+
+    assert_equal known.content.sole[:text], unknown.content.sole[:text]
+    assert_match "lacks 'handbook:update' permission", unknown.content.sole[:text]
+    assert_equal "Tag main.", @releases.reload.text
+    assert call(Mcp::Tools::UpsertHandbookPage, @admin, page: "No such page", text: "Over it.").error?, "an unknown page is still an error, not an add"
+  end
+
   test "deleting needs the permission, and a synced page is refused with why" do
     assert call(Mcp::Tools::DeleteHandbookPage, @member, page: "How we release").error?
     assert Chat::HandbookPage.exists?(@releases.id)
