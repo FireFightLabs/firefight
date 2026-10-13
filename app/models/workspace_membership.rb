@@ -53,6 +53,12 @@ class WorkspaceMembership < ApplicationRecord
     Ability::Action::RESOURCE_MEMORY => [ Ability::Action::ACTION_CREATE, Ability::Action::ACTION_UPDATE ].freeze
   }.freeze
 
+  # Held without a grant beside participation, and ledgered like any other change: building a workflow's draft, testing
+  # it and running one that is published. Publishing it is an admin's.
+  MEMBER_BUILDS = {
+    Ability::Action::RESOURCE_WORKFLOWS => [ Ability::Action::ACTION_CREATE ].freeze
+  }.freeze
+
   # Held in every environment without a grant, until an admin grants one to the member, alone or in a set. From then the
   # grants decide where, so a grant narrows the default rather than adding to it, and one that expires narrows to nothing.
   # A connected tool that only reads is held the same way (default_read?).
@@ -92,7 +98,7 @@ class WorkspaceMembership < ApplicationRecord
     return !(resolved || Ability::Resolver.resolve(self, workspace_id)).granted_ever?(key) if NARROWABLE_KEYS.include?(key)
     return true if crud_action.to_s == Ability::Action::ACTION_READ
 
-    PARTICIPATION.fetch(resource, []).include?(crud_action.to_s)
+    PARTICIPATION.fetch(resource, []).include?(crud_action.to_s) || MEMBER_BUILDS.fetch(resource, []).include?(crud_action.to_s)
   end
 
   # A connected tool that only reads, held until a grant of it, alone or in a set such as its connection's read pack,
@@ -134,7 +140,14 @@ class WorkspaceMembership < ApplicationRecord
       "changes something needs one of the grants below, such as a connection's changes pack."
   }.freeze
 
-  def implicit_authority_note = IMPLICIT_AUTHORITY_NOTES.fetch(implicit_authority)
+  # Said only where workflows are switched on, since a member holds them without a grant there.
+  WORKFLOWS_NOTE = "Members also build workflows, test them and run published ones. Publishing one is an admin's.".freeze
+
+  def implicit_authority_note
+    note = IMPLICIT_AUTHORITY_NOTES.fetch(implicit_authority)
+    workflows = implicit_authority == Principal::IMPLICIT_MEMBER && FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS)
+    workflows ? "#{note} #{WORKFLOWS_NOTE}" : note
+  end
 
   # Where each default stands for this member, which the Permissions screen shows and lets an admin take away. A
   # connection's reads are one row, its read pack, rather than a row for each tool.

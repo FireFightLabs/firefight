@@ -426,6 +426,39 @@ Rails.application.routes.draw do
     get "/halon/workflow-library/workflows/:id/export", to: "halon_workflow_library#export", as: :export_halon_workflow
     post "/halon/workflow-library/workflows/:id/take-library", to: "halon_workflow_library#take_library", as: :take_library_halon_workflow
     post "/halon/workflow-library/workflows/:id/keep-own", to: "halon_workflow_library#keep_own", as: :keep_own_halon_workflow
+    # A workspace's workflows, which answer not found without the workflows flag.
+    get "/halon/workflows", to: "workflows#index", as: :halon_workflows
+    post "/halon/workflows", to: "workflows#create"
+    resources :workflow_publish_requests, only: [], path: "halon/workflows/requests" do
+      member do
+        post :publish
+        post :dismiss
+      end
+    end
+    resources :workflows, only: %i[show update destroy], path: "halon/workflows" do
+      member do
+        post :run
+        post :test_run
+        post :publish
+        post :ask_publish
+        patch :enable
+        patch :disable
+        post :repeat
+      end
+      resources :runs, only: :show, controller: "workflow_runs" do
+        member do
+          patch :pin
+          patch :unpin
+          post :cancel
+        end
+      end
+      resources :suggestions, only: [], controller: "workflow_suggestions" do
+        member do
+          post :accept
+          post :dismiss
+        end
+      end
+    end
     get "/agent", to: "agent_chats#index", as: :agent_chats
     post "/agent", to: "agent_chats#create"
     get "/agent/search", to: "agent_chats#search", as: :agent_chats_search
@@ -531,6 +564,7 @@ Rails.application.routes.draw do
     get "/settings/workspace", to: "workspace_settings#show", as: :settings_workspace
     patch "/settings/workspace", to: "workspace_settings#update"
     post "/settings/workspace/slack/reinstall", to: "workspace_settings#reinstall_slack", as: :reinstall_slack
+    patch "/settings/workspace/workflows", to: "workflow_settings#update", as: :settings_workspace_workflows
     resources :ai_accounts, only: [ :create, :update, :destroy ], path: "settings/workspace/ai-accounts" do
       collection do
         patch :reorder

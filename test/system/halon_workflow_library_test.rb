@@ -33,11 +33,15 @@ class HalonWorkflowLibraryTest < ApplicationSystemTestCase
     assert_text "Draft only, not published yet"
   end
 
-  test "an item this Firefight cannot run yet stays listed with why" do
+  test "an item this workspace cannot run stays listed with why, and one it can is used" do
+    unrunnable = item.with(key: "scan_it", name: "Scan it",
+                           definition: item.definition.merge("steps" => [ { "id" => "step_x", "name" => "scan", "kind" => "run_skill", "config" => { "skill" => "no_such_skill" } } ]))
+    Workflow::Library.stubs(:all).returns([ unrunnable, item ])
+
     visit halon_workflow_library_path
 
-    assert_text "Disk space check"
-    assert_selector "button[disabled]", text: "Use"
+    assert_text "Scan it"
+    assert_selector "button[disabled]", text: "Use", count: 1
   end
 
   test "a copy sees what Firefight changed and takes it into a draft" do

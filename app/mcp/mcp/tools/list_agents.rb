@@ -13,7 +13,7 @@ module Mcp
       authorize_as Ability::Action::RESOURCE_PERMISSIONS
 
       def self.perform(workspace:, args:)
-        agents = workspace.agents.where(deleted_at: nil).ordered.includes(:api_keys, ability_grants: :action)
+        agents = workspace.agents.standalone.where(deleted_at: nil).ordered.includes(:api_keys, ability_grants: :action)
 
         respond(agents: agents.map { |agent| AgentPayloads.summary(agent).merge(tokens: tokens(agent)) })
       end

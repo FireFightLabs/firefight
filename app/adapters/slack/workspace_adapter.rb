@@ -4,6 +4,7 @@ module Slack
     include Slack::WorkspaceAdapter::UserOperations
     include Slack::WorkspaceAdapter::IncidentModals
     include Slack::WorkspaceAdapter::IncidentMessaging
+    include Slack::WorkspaceAdapter::WorkflowMessaging
     include Slack::WorkspaceAdapter::FileOperations
 
     CHANNEL_DESCRIPTION = "FireFight announcements channel. Every time someone declares an incident, we'll announce it here, and make sure the post is always up to date."
@@ -131,12 +132,12 @@ module Slack
       { channel_id: found[:id], channel_name: found[:name] }
     end
 
-    def post_channel_message(channel_id:, message:, posted_by:, by_halon:)
-      post_message(
-        channel_id: channel_id,
-        text: Slack::Messages::ChannelPost.fallback(message, by_halon: by_halon),
-        blocks: Slack::Messages::ChannelPost.build(message, posted_by: posted_by, by_halon: by_halon)
-      )
+    def post_channel_message(channel_id:, message:, posted_by:, by_halon:, thread_id: nil)
+      text = Slack::Messages::ChannelPost.fallback(message, by_halon: by_halon)
+      blocks = Slack::Messages::ChannelPost.build(message, posted_by: posted_by, by_halon: by_halon)
+      return post_threaded_message(channel_id: channel_id, parent_message_id: thread_id, text: text, blocks: blocks) if thread_id.present?
+
+      post_message(channel_id: channel_id, text: text, blocks: blocks)
     end
 
     def add_reaction(channel_id:, message_id:, name:)

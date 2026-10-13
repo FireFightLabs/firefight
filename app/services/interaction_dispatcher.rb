@@ -94,6 +94,7 @@ class InteractionDispatcher
     Identifiers::PULL_REQUEST_FIX => Interactions::PullRequestFixHandler,
     Identifiers::PACK_REQUEST_ASK => Interactions::PackRequestAskHandler,
     Identifiers::PACK_REQUEST_GIVE => Interactions::PackRequestGiveHandler,
+    Identifiers::WORKFLOW_PUBLISH_REQUEST_PUBLISH => Interactions::WorkflowPublishRequestHandler,
     Identifiers::FIX_STEP_RUN => Interactions::FixStepDecisionHandler,
     Identifiers::FIX_STEP_DISMISS => Interactions::FixStepDecisionHandler,
     Identifiers::FIX_STEP_ASK_AGAIN => Interactions::FixStepDecisionHandler,

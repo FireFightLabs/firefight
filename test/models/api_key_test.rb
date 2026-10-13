@@ -44,6 +44,19 @@ class ApiKeyTest < ActiveSupport::TestCase
     end
   end
 
+  test "the matrix refuses the workflows ability where workflows are off, and keeps it where they are on" do
+    key = api_keys(:read_only_key)
+    FeatureFlags.disable!(key.workspace, FeatureFlags::WORKFLOWS)
+
+    assert_raises(ArgumentError) { key.replace_permissions!(Ability::Action::RESOURCE_WORKFLOWS => [ Ability::Action::ACTION_READ ]) }
+
+    FeatureFlags.enable!(key.workspace, FeatureFlags::WORKFLOWS)
+    key.replace_permissions!(Ability::Action::RESOURCE_WORKFLOWS => [ Ability::Action::ACTION_READ ])
+    assert_equal({ Ability::Action::RESOURCE_WORKFLOWS => [ Ability::Action::ACTION_READ ] }, key.granted_permissions)
+    FeatureFlags.disable!(key.workspace, FeatureFlags::WORKFLOWS)
+    assert_empty key.granted_permissions
+  end
+
   test "the matrix grants a service key the map's read and refuses what the map does not offer" do
     key = api_keys(:read_only_key)
 
@@ -77,7 +90,10 @@ class ApiKeyTest < ActiveSupport::TestCase
     assert key.has_permission?(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE)
     assert_not key.has_permission?(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_UPDATE)
 
-    (Ability::Action::RESOURCES - WorkspaceMembership::PARTICIPATION.keys - [ Ability::Action::RESOURCE_INVESTIGATIONS ]).each do |resource|
+    assert key.has_permission?(Ability::Action::RESOURCE_WORKFLOWS, Ability::Action::ACTION_CREATE)
+    assert_not key.has_permission?(Ability::Action::RESOURCE_WORKFLOWS, Ability::Action::ACTION_UPDATE)
+
+    (Ability::Action::RESOURCES - WorkspaceMembership::PARTICIPATION.keys - WorkspaceMembership::MEMBER_BUILDS.keys - [ Ability::Action::RESOURCE_INVESTIGATIONS ]).each do |resource|
       assert_not key.has_permission?(resource, Ability::Action::ACTION_CREATE)
       assert_not key.has_permission?(resource, Ability::Action::ACTION_UPDATE)
     end

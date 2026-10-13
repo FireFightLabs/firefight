@@ -290,7 +290,34 @@ module TypescriptConstants
       }, nil),
       Export.new("APPROVAL_NOTIFY_OPTIONS", PolicyRule::ApprovalOutcome::NOTIFY_OPTIONS, "ApprovalNotifyOption"),
       Export.new("APPROVER_ROLES", [ WorkspaceMembership.roles[:owner], WorkspaceMembership.roles[:admin] ], "ApproverRole"),
-      Export.new("SANDBOX_SERVICES", CodeBox::SERVICES, "SandboxService")
+      Export.new("SANDBOX_SERVICES", CodeBox::SERVICES, "SandboxService"),
+      Export.new("WORKFLOWS_RESOURCE", Ability::Action::RESOURCE_WORKFLOWS, nil),
+      Export.new("WORKFLOW_STATES", Workflow::STATES, "WorkflowState"),
+      Export.new("WORKFLOW_RUN_STATUSES", Workflow::Run::STATUSES, "WorkflowRunStatus"),
+      Export.new("WORKFLOW_RUN_OPEN_STATUSES", Workflow::Run::OPEN, nil),
+      Export.new("WORKFLOW_RUN_STARTED_BY", Workflow::Run::STARTED_BY, "WorkflowRunStartedBy"),
+      Export.new("WORKFLOW_STEP_STATUSES", Workflow::Run::Step::STATUSES, "WorkflowStepStatus"),
+      Export.new("WORKFLOW_STEP_GROUPS", DefinedWorkflow::Steps::Base::GROUPS, "WorkflowStepGroup"),
+      Export.new("WORKFLOW_FREEZE_BEHAVIOURS", Workflow::FREEZE_BEHAVIOURS, "WorkflowFreezeBehaviour"),
+      Export.new("WORKFLOW_PAGE_TABS", WorkflowsController::TABS, "WorkflowPageTab"),
+      Export.new("WORKFLOW_PAGE_TAB_QUERY", WorkflowsController::TAB_QUERY, nil),
+      Export.new("WORKFLOW_RUNS_PER_HOUR", { "MIN" => Workflow::Limits::RUNS_PER_HOUR.min, "MAX" => Workflow::Limits::RUNS_PER_HOUR.max }, nil),
+      Export.new("WORKFLOW_RUN_RETENTION_DAYS", { "MIN" => Workflow::Run::Retention::DAYS.min, "MAX" => Workflow::Run::Retention::DAYS.max }, nil),
+      Export.new("WORKFLOW_TEMPLATES", Workflow::Library::KEYS, "WorkflowTemplate"),
+      Export.new("WORKFLOW_TEMPLATE_PARAMS", {
+        "RESOURCE" => Workflow::Library::PARAM_RESOURCE, "AT" => Workflow::Library::PARAM_AT, "TIME_ZONE" => Workflow::Library::PARAM_TIME_ZONE,
+        "CHANNEL" => Workflow::Library::PARAM_CHANNEL, "REPLY_IN_CHAT" => Workflow::Library::PARAM_REPLY_IN_CHAT, "DAYS" => Workflow::Library::PARAM_DAYS
+      }, nil),
+      Export.new("WORKFLOW_SCHEDULE_REPEATS", Workflow::Trigger::Schedule::REPEATS, "WorkflowScheduleRepeat"),
+      Export.new("WORKFLOW_SCHEDULE_KEYS", {
+        "REPEAT" => Workflow::Trigger::Schedule::KEY_REPEAT, "EVERY" => Workflow::Trigger::Schedule::KEY_EVERY, "AT" => Workflow::Trigger::Schedule::KEY_AT,
+        "DAYS" => Workflow::Trigger::Schedule::KEY_DAYS, "WEEK_OF_MONTH" => Workflow::Trigger::Schedule::KEY_WEEK, "WEEKDAY" => Workflow::Trigger::Schedule::KEY_WEEKDAY,
+        "TIME_ZONE" => Workflow::Trigger::Schedule::KEY_TIME_ZONE
+      }, nil),
+      Export.new("WORKFLOW_SCHEDULE_LIMITS", {
+        "MINUTES_MIN" => Workflow::Trigger::Schedule::MINUTES.min, "MINUTES_MAX" => Workflow::Trigger::Schedule::MINUTES.max,
+        "HOURS_MIN" => Workflow::Trigger::Schedule::HOURS.min, "HOURS_MAX" => Workflow::Trigger::Schedule::HOURS.max
+      }, nil)
     ]
   end
 

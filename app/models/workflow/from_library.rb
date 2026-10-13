@@ -12,7 +12,7 @@ module Workflow::FromLibrary
   class_methods do
     # A new workflow holding the item as it is, as a draft that publishing makes live, as every new workflow is.
     def from_library!(item, workspace:, by:, name: item.name, following: true)
-      blocked = from_library_blocked_reason(item) || name_taken_reason(workspace, name)
+      blocked = from_library_blocked_reason(item, workspace) || name_taken_reason(workspace, name)
       raise Workflow::Edit::Refused, blocked if blocked
 
       transaction do
@@ -34,9 +34,9 @@ module Workflow::FromLibrary
     end
 
     # Why an item cannot be taken into the workspace, or nil.
-    def from_library_blocked_reason(item)
-      problem = item.problems.first
-      "#{item.name} needs steps this version of Firefight cannot run yet. #{problem}" if problem
+    def from_library_blocked_reason(item, workspace)
+      problem = item.problems(workspace).first
+      "#{item.name} cannot run in this workspace yet. #{problem}" if problem
     end
   end
 
@@ -63,13 +63,14 @@ module Workflow::FromLibrary
   end
 
   # Moves a workflow that follows the library on to the item's current version. It gets a new live version with Firefight's
-  # steps and the workspace's own trigger, and a draft whose steps are still Firefight's moves along too. One that someone
-  # changed since stops following and is told of the new version as a copy. Claimed on the version it held, so two
-  # workers move it once.
+  # steps and the workspace's own trigger, scheduled from it, and a draft whose steps are still Firefight's moves along
+  # too. One that someone changed since stops following and is told of the new version as a copy, and so does one whose
+  # new version needs more than its own identity was granted: nothing grants without a person, so an admin takes it into
+  # a draft and publishing grants it. Claimed on the version it held, so two workers move it once.
   def upgrade_from_library!
     item = library_item
     return unless follows_library? && item && item.version > library_version.to_i
-    return update_columns(follows_library: false, updated_at: Time.current) if changed_from_library?
+    return update_columns(follows_library: false, updated_at: Time.current) if changed_from_library? || needs_more_for?(item)
 
     transaction do
       claimed = self.class.where(id: id, library_version: library_version)
@@ -79,7 +80,8 @@ module Workflow::FromLibrary
       publish_library_body!(item) if live_version
       move_draft_body!(item)
     end
-    reload
+    reload.schedule!
+    self
   end
 
   # Opens a draft holding the library's newer version, with the workflow's own trigger, for a person to look at and
@@ -110,9 +112,22 @@ module Workflow::FromLibrary
 
   private
 
+  # Whether the live version the item would become needs anything its identity does not hold.
+  def needs_more_for?(item)
+    return false unless live_version
+
+    missing_reach(Workflow::Version.new(workflow: self, trigger: library_trigger(item), **self.class.body_of(item.definition).symbolize_keys)).any?
+  end
+
+  # The workspace's own trigger while it is the same kind as the item's, else the item's.
+  def library_trigger(item)
+    before = live_version
+    before.trigger.to_h["kind"] == item.trigger.to_h["kind"] ? before.trigger : item.trigger
+  end
+
   def publish_library_body!(item)
     before = live_version
-    trigger = before.trigger.to_h["kind"] == item.trigger.to_h["kind"] ? before.trigger : item.trigger
+    trigger = library_trigger(item)
     Workflow::Version.where(workflow_id: id, status: Workflow::Version::STATUS_LIVE).update_all(status: Workflow::Version::STATUS_RETIRED, updated_at: Time.current)
     upgraded = versions.create!(
       number: (versions.maximum(:number) || 0) + 1, status: Workflow::Version::STATUS_LIVE, trigger: trigger, **self.class.body_of(item.definition).symbolize_keys,

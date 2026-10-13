@@ -24,6 +24,8 @@ module Ability
     # The unattended rule that approved the call ahead, in place of an approver.
     belongs_to :approved_under_rule, class_name: "Ability::UnattendedRule", optional: true
     belongs_to :incident, optional: true
+    # The workflow run whose step asked for it.
+    belongs_to :workflow_run, class_name: "Workflow::Run", optional: true
 
     validates :principal_label, :action_key, :request_digest, presence: true
     validates :status, inclusion: { in: STATUSES }

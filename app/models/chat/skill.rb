@@ -20,7 +20,10 @@ class Chat::Skill
   # signals are what a provider's skill reads for the monitoring module, such as cost, so a scheduled check knows which
   # connected provider can answer it and which cannot.
   SIGNAL_COST = "cost".freeze
-  SIGNALS = [ SIGNAL_COST ].freeze
+  # A provider's skill that reads the security events its edge network reports, such as blocked and challenged requests,
+  # which a look for probing reads beside the logs.
+  SIGNAL_SECURITY_EVENTS = "security_events".freeze
+  SIGNALS = [ SIGNAL_COST, SIGNAL_SECURITY_EVENTS ].freeze
 
   # version is the library's for Firefight's own skills and the version number of a workspace's own, which also carries
   # its record's id (custom_skill_id).

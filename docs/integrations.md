@@ -84,7 +84,7 @@ A credential never reaches the model, a chat, an MCP response or the ledger.
 | Member membership | system reads outside `ADMIN_ONLY_RESOURCES`, plus `incidents.create`, `incidents.update`, `chats.update`, `chats.delete`, `memory.create` and `memory.update`. `map.read` is every environment, and `investigations.create` (asking Halon, starting a run) and every connected tool that only reads are held until a grant narrows them. A tool that changes something needs a grant, and so do `browser.update` and `channel_posts.create` |
 | Personal token / OAuth connection | exactly what that human holds |
 | Service key | nothing, explicit grants only |
-| `Agent` | nothing, explicit grants only |
+| `Agent` | nothing, explicit grants only. A workflow's own agent too, which publishing grants exactly what its steps need and which never holds a token (docs/workflows.md) |
 
 An `Agent` row is created under **Gateway → Agents**, which mints its first token in the same step, since an agent without a credential can do nothing and making that a second step is a step everyone forgets. It arrives with zero grants: it can authenticate and nothing else until someone grants it something on the Permissions screen, where it appears alongside members and service keys (`Ability::Principal.all`). Its tokens are managed on the Agents screen rather than on **Developer → API Keys**, which filters agent keys out (`agent_id: nil`) so an agent's lifecycle lives in one place. Disabling an agent leaves the row listed with a way back on, because a vanished row still holds its slug and its grants.
 
@@ -589,6 +589,7 @@ A test account an admin saves per site, which Halon's browser signs in with when
 - Identity is stored as values (labels), never join-dependent, so rows outlive their principals
 - The activity log names the connection a tool's action ran through beside its key, read from the key's slug (`Ability::ConnectionNamed`), a removed connection included
 - **No result bodies.** Outcome, error summary, and duration only
+- **A workflow's calls name the run.** A step of a workflow run calls as the workflow's own identity with source `workflow`, and its row and any approval it waits for carry `workflow_run_id`, so a run's page lists every call it made (docs/workflows.md, Step kinds)
 
 ## Approvals
 

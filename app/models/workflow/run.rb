@@ -31,6 +31,7 @@ class Workflow::Run < ApplicationRecord
   include Workflow::Run::Data
   include Workflow::Run::Progress
   include Workflow::Run::Retention
+  include Workflow::Run::Acting
 
   belongs_to :workspace
   belongs_to :workflow, inverse_of: :runs
@@ -42,6 +43,9 @@ class Workflow::Run < ApplicationRecord
   has_many :steps, -> { order(:created_at, :iteration) }, class_name: "Workflow::Run::Step", foreign_key: :run_id, inverse_of: :run
   has_many :child_runs, class_name: "Workflow::Run", foreign_key: :parent_run_id, inverse_of: :parent_run
   has_many :saved_results, class_name: "Chat::SavedResult", foreign_key: :workflow_run_id, inverse_of: :workflow_run
+  # Every call its steps made, as the activity log keeps them.
+  has_many :invocations, class_name: "Ability::Invocation", foreign_key: :workflow_run_id, inverse_of: :workflow_run
+  has_many :notices, class_name: "Investigation::Notice", foreign_key: :workflow_run_id, inverse_of: :workflow_run
 
   validates :status, inclusion: { in: STATUSES }
   validates :trigger_kind, inclusion: { in: Workflow::Trigger::KINDS }
@@ -50,8 +54,44 @@ class Workflow::Run < ApplicationRecord
 
   scope :newest_first, -> { order(created_at: :desc) }
   scope :unfinished, -> { where(status: OPEN) }
+  scope :real, -> { where(test: false) }
 
   def finished? = FINISHED.include?(status)
+  def failed? = status == STATUS_FAILED
+  def succeeded? = status == STATUS_SUCCEEDED
+
+  def cancel_blocked_reason
+    return "This run has already ended." if finished?
+
+    nil
+  end
+
+  # Ends it with every step still going. A run that ended meanwhile stays as it ended.
+  def cancel!(by:)
+    blocked = cancel_blocked_reason
+    raise Refused, blocked if blocked
+    raise Refused, cancel_blocked_reason || "This run could not be stopped." unless DefinedWorkflow.cancel!(self, by: by)
+
+    reload
+  end
+
+  def pin_blocked_reason
+    "Its details were already dropped, so there is nothing left to keep." if details_pruned?
+  end
+
+  # A pinned run keeps its details past the workspace's retention.
+  def pin!(pinned)
+    blocked = pinned && pin_blocked_reason
+    raise Refused, blocked if blocked
+
+    self.class.where(id: id, details_pruned_at: nil).update_all(pinned: pinned, updated_at: Time.current)
+    reload
+  end
+
+  # Takes telling people how it ended, once, so a run told already is never told again.
+  def claim_telling!
+    self.class.where(id: id, told_at: nil, status: FINISHED).update_all(told_at: Time.current, updated_at: Time.current) == 1
+  end
 
   # The one run a start key names, made the first time it is asked for. Returns the run and whether it is new.
   def self.open!(workflow:, start_key:, **attributes)

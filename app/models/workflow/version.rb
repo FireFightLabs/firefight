@@ -6,6 +6,7 @@ class Workflow::Version < ApplicationRecord
   include Workflow::Version::References
   include Workflow::Version::Publishing
   include Workflow::Version::Drafting
+  include Workflow::Version::Steps
 
   self.table_name = "workflow_versions"
 
@@ -55,6 +56,8 @@ class Workflow::Version < ApplicationRecord
   def problems
     found = Workflow::Trigger.problems(trigger)
     found.concat(DefinedWorkflow.problems(snapshot))
+    found.concat(step_problems)
+    found.concat(check_problems)
     found.concat(reference_problems)
     ids = Workflow::Version.all_steps(steps).map { |step| step["id"] }
     found << "Step ids must be unique across the whole workflow." unless ids.uniq.size == ids.size

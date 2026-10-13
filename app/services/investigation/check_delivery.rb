@@ -22,18 +22,5 @@ class Investigation::CheckDelivery
     end
   end
 
-  def say(notice)
-    return unless notice.claim!
-
-    channel_id = notice.channel
-    return notice.unsaid_because!(Investigation::Notice::NO_CHANNEL) unless channel_id
-
-    posted = adapter.post_monitoring_notice(channel_id: channel_id, notice: notice)
-    notice.said!(channel_id: posted[:channel_id].presence || channel_id, message_id: posted[:message_id])
-  rescue AdapterError => error
-    Rails.logger.warn({ event: "monitoring.notice_undelivered", notice_id: notice.id, error: error.class.name }.to_json)
-    notice.unsaid_because!(Investigation::Notice::NOT_DELIVERED)
-  end
-
-  def adapter = @adapter ||= WorkspaceAdapter.for(@investigation.workspace)
+  def say(notice) = Investigation::NoticeDelivery.new(@investigation.workspace).say!(notice)
 end

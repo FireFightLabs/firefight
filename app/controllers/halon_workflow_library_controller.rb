@@ -5,7 +5,6 @@ class HalonWorkflowLibraryController < InertiaController
   include RequiresAgent
   include RequiresWorkflows
 
-  before_action :require_workflows!
   before_action :require_agent!
 
   authorizes Ability::Action::RESOURCE_WORKFLOWS,
@@ -15,7 +14,7 @@ class HalonWorkflowLibraryController < InertiaController
 
   def index
     render inertia: "halon/workflow-library", props: {
-      items: HalonLibraryWorkflowSerializer.many(Workflow::Library.all, used: used_by_item),
+      items: HalonLibraryWorkflowSerializer.many(Workflow::Library.all, used: used_by_item, workspace: current_workspace),
       workflows: HalonLibraryWorkflowUseSerializer.many(workflows.includes(:live_version).ordered.to_a)
     }
   end

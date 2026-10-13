@@ -20,7 +20,7 @@ module Mcp
         },
         required: []
       )
-      upserts Ability::Action::RESOURCE_PERMISSIONS, scope: ->(workspace) { workspace.agents }
+      upserts Ability::Action::RESOURCE_PERMISSIONS, scope: ->(workspace) { workspace.agents.standalone }
 
       def self.perform_with_principal(workspace:, principal:, args:)
         agent = upsert_target(workspace, args)

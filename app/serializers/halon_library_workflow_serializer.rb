@@ -25,5 +25,5 @@ class HalonLibraryWorkflowSerializer < BaseSerializer
   def used_by = options.fetch(:used, {}).fetch(item.key, [])
 
   type :string, optional: true
-  def use_blocked_reason = Workflow.from_library_blocked_reason(item)
+  def use_blocked_reason = Workflow.from_library_blocked_reason(item, options.fetch(:workspace))
 end

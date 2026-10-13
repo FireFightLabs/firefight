@@ -130,8 +130,8 @@ skills:
     version: 1
     digest: 9eb8d18b0ec1d3f0a7a39ac7a125398bf7167eef0e9c939e24be0ed29dfb83f2
   cloudflare_attack:
-    version: 1
-    digest: f224ed27ffa35be1644ed40b61873f642e08fc3ba9d22f2cf221d0bbc08779b1
+    version: 2
+    digest: a2b782291b9e56ed613f33cc14a8c6c6f48e89d793bdc6a24a341d7cdd249be3
   cloudflare_block:
     version: 1
     digest: e524de95acca9f2be7d99342958ea8dcfa1f7a327063ddd194fe349a1585103d
@@ -645,6 +645,9 @@ skills:
   proactive_hygiene:
     version: 1
     digest: 2191af8d2c570a59a1fae4732a40edbf202873c17b492a77e0f8030d6c0c6521
+  probing_scan:
+    version: 1
+    digest: 2130ff48ec50439c30b92a9671726d4b04a1cb41bc15e8d6de34bd07bcd95df1
   protected_paths:
     version: 1
     digest: eccf3f4091bb101ac93f4b0bcba2599edcb08629c71419668446059779105342
@@ -827,17 +830,17 @@ skills:
     digest: e733afae606f41061583f9053e7b6057a49905ba198f3f355297355e064e8290
 workflows:
   certificate_check:
-    version: 1
-    digest: bb60fcd64eadac9f71064b864f96f4208559bd2103f449f5acc856d1213b44e8
+    version: 2
+    digest: a18bc3d7f1266811113cdf20f246dd8e135316d1768975cc6ab17977d35e86c7
   cost_check:
-    version: 1
-    digest: '091148ffacdd7357097d29052f805aaefbfafc9a5a615650ef7974e725231cfb'
+    version: 2
+    digest: 95e9db740f5a4dfb3da7ccadd58d5d02691dded570fac1624935642f65d14a08
   disk_space_check:
-    version: 1
-    digest: 9366d18480dead6b635715be83e2cc77e89144ec8afbadfa3ce7da0b844e4039
+    version: 2
+    digest: 467c08bde2fba4d4c05e9166733f037485e0a449b3430a78aec502cd5560ab2d
   error_budget_check:
-    version: 1
-    digest: bb0724cab519c454d93dca2a0fd34dcc71642ab9682ff1a6430eddd44f433c58
+    version: 2
+    digest: ab0f7ea7edb710ea3296a7b5a793f719d21504be2e9d330f74ba15e6f62ff41e
   scheduled_check:
-    version: 1
-    digest: a941008da5086744edff09090dd1a35348c431bf8b995459c40efb18adc04399
+    version: 2
+    digest: 40c5f148de07024d62f78f68c16091b84293b0ba0f596aaed3323d450232186d

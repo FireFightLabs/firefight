@@ -6,6 +6,9 @@ class Agent < ApplicationRecord
   belongs_to :workspace
   # Plural because rotation mints the new one before revoking the old.
   has_many :api_keys, dependent: :destroy, inverse_of: :agent
+  # The workflow whose runs act as it. Such an agent is the workflow's own, so it never holds a token and is managed
+  # from the workflow, not from the Agents screen.
+  has_one :workflow, inverse_of: :agent, dependent: :nullify
 
   validates :name, presence: true
   validates :slug, presence: true, uniqueness: { scope: :workspace_id },
@@ -13,6 +16,8 @@ class Agent < ApplicationRecord
 
   scope :active, -> { where(enabled: true, deleted_at: nil) }
   scope :ordered, -> { order(:name) }
+  # Agents someone made to hold a token, every one but a workflow's own.
+  scope :standalone, -> { where.missing(:workflow) }
 
   def live_api_keys
     api_keys.select(&:live?).sort_by(&:created_at).reverse

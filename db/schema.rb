@@ -63,8 +63,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150200) do
     t.uuid "approved_under_rule_id"
     t.boolean "on_call_may_approve", default: false, null: false
     t.jsonb "asked_member_ids", default: [], null: false
+    t.uuid "workflow_run_id"
     t.index ["approved_under_rule_id"], name: "index_ability_approvals_on_approved_under_rule_id"
     t.index ["principal_type", "principal_id"], name: "index_ability_approvals_on_principal_type_and_principal_id"
+    t.index ["workflow_run_id"], name: "index_ability_approvals_on_workflow_run_id"
     t.index ["workspace_id", "status", "created_at"], name: "idx_on_workspace_id_status_created_at_15ac906fa7"
   end
 
@@ -109,8 +111,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150200) do
     t.string "triggered_by_label"
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
+    t.uuid "workflow_run_id"
     t.index ["action_key"], name: "index_ability_invocations_on_action_key"
     t.index ["principal_type", "principal_id", "created_at"], name: "index_ability_invocations_on_principal"
+    t.index ["workflow_run_id"], name: "index_ability_invocations_on_workflow_run_id"
     t.index ["workspace_id", "created_at"], name: "index_ability_invocations_on_workspace_id_and_created_at"
   end
 
@@ -2140,9 +2144,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150200) do
     t.datetime "last_seen_at", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.uuid "workflow_run_id"
     t.index ["check_id"], name: "index_investigation_notices_on_check_id"
     t.index ["investigation_id"], name: "index_investigation_notices_on_investigation_id"
     t.index ["resource_id"], name: "index_investigation_notices_on_resource_id"
+    t.index ["workflow_run_id"], name: "index_investigation_notices_on_workflow_run_id"
     t.index ["workspace_id", "key"], name: "index_investigation_notices_on_workspace_id_and_key", unique: true
     t.index ["workspace_id", "last_seen_at"], name: "index_investigation_notices_on_workspace_id_and_last_seen_at"
     t.index ["workspace_id"], name: "index_investigation_notices_on_workspace_id"
@@ -3178,6 +3184,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150200) do
     t.index ["workflow_id", "status"], name: "index_workflow_edits_on_workflow_id_and_status"
   end
 
+  create_table "workflow_publish_requests", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "workflow_id", null: false
+    t.uuid "version_id", null: false
+    t.uuid "requester_id", null: false
+    t.datetime "requested_at"
+    t.integer "revision"
+    t.datetime "published_at"
+    t.uuid "published_by_id"
+    t.datetime "dismissed_at"
+    t.jsonb "notifications", default: [], null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["published_by_id"], name: "index_workflow_publish_requests_on_published_by_id"
+    t.index ["requester_id"], name: "index_workflow_publish_requests_on_requester_id"
+    t.index ["version_id"], name: "index_workflow_publish_requests_on_version_id"
+    t.index ["workflow_id", "requester_id"], name: "idx_on_workflow_id_requester_id_c34870eb90", unique: true
+    t.index ["workspace_id", "requested_at"], name: "idx_on_workspace_id_requested_at_74747be6ce"
+  end
+
   create_table "workflow_run_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "run_id", null: false
     t.string "step_key", null: false
@@ -3195,6 +3221,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150200) do
     t.datetime "finished_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.uuid "invocation_ids", default: [], null: false, array: true
     t.index ["run_id", "step_key", "iteration"], name: "index_workflow_run_steps_on_run_id_and_step_key_and_iteration", unique: true
   end
 
@@ -3220,6 +3247,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150200) do
     t.datetime "finished_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "test", default: false, null: false
+    t.string "real_step_keys", default: [], null: false, array: true
+    t.string "subject_key"
+    t.datetime "told_at"
     t.index ["agent_id"], name: "index_workflow_runs_on_agent_id"
     t.index ["parent_run_id"], name: "index_workflow_runs_on_parent_run_id"
     t.index ["started_by_id"], name: "index_workflow_runs_on_started_by_id"
@@ -3227,6 +3258,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150200) do
     t.index ["version_id"], name: "index_workflow_runs_on_version_id"
     t.index ["workflow_id", "created_at"], name: "index_workflow_runs_on_workflow_id_and_created_at"
     t.index ["workflow_id", "start_key"], name: "index_workflow_runs_on_workflow_id_and_start_key", unique: true
+    t.index ["workflow_id", "subject_key"], name: "index_workflow_runs_one_live_per_subject", unique: true, where: "((subject_key IS NOT NULL) AND ((status)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying, 'waiting'::character varying, 'paused'::character varying])::text[])))"
     t.index ["workspace_id", "created_at"], name: "index_workflow_runs_on_workspace_id_and_created_at"
     t.index ["workspace_id", "finished_at"], name: "index_workflow_runs_awaiting_pruning", where: "((details_pruned_at IS NULL) AND (pinned = false))"
   end
@@ -3270,6 +3302,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150200) do
     t.uuid "created_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "next_run_at"
+    t.string "freeze_behaviour", default: "stop", null: false
+    t.integer "runs_per_hour", default: 60, null: false
+    t.string "subject_key"
+    t.boolean "all_clear", default: false, null: false
+    t.uuid "origin_conversation_id"
+    t.text "trigger_refusal"
+    t.datetime "trigger_refused_at"
     t.string "library_key"
     t.integer "library_version"
     t.jsonb "library_base"
@@ -3279,6 +3319,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150200) do
     t.index ["created_by_id"], name: "index_workflows_on_created_by_id"
     t.index ["library_key", "follows_library"], name: "index_workflows_on_library_key_and_follows_library"
     t.index ["live_version_id"], name: "index_workflows_on_live_version_id"
+    t.index ["next_run_at"], name: "index_workflows_on_next_run_at", where: "(next_run_at IS NOT NULL)"
+    t.index ["origin_conversation_id"], name: "index_workflows_on_origin_conversation_id"
     t.index ["owner_team_id"], name: "index_workflows_on_owner_team_id"
     t.index ["workspace_id", "slug"], name: "index_workflows_on_workspace_id_and_slug", unique: true
   end
@@ -3400,6 +3442,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150200) do
     t.boolean "halon_security_events_enabled", default: true, null: false
     t.boolean "halon_applies_workflow_read_fixes", default: false, null: false
     t.integer "workflow_run_retention_days", default: 90, null: false
+    t.integer "workflow_event_runs_per_hour", default: 100, null: false
     t.integer "code_fix_budget_cents", default: 200, null: false
     t.index ["created_by_id"], name: "index_workspaces_on_created_by_id"
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
@@ -3410,10 +3453,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150200) do
 
   add_foreign_key "ability_actions", "workspaces"
   add_foreign_key "ability_approvals", "ability_unattended_rules", column: "approved_under_rule_id", on_delete: :nullify
+  add_foreign_key "ability_approvals", "workflow_runs", on_delete: :nullify
   add_foreign_key "ability_approvals", "workspaces"
   add_foreign_key "ability_grants", "ability_actions", column: "action_id"
   add_foreign_key "ability_grants", "ability_roles", column: "role_id"
   add_foreign_key "ability_grants", "workspaces"
+  add_foreign_key "ability_invocations", "workflow_runs", on_delete: :nullify
   add_foreign_key "ability_invocations", "workspaces"
   add_foreign_key "ability_pack_requests", "ability_roles", column: "role_id", on_delete: :cascade
   add_foreign_key "ability_pack_requests", "workspace_memberships", column: "given_by_id", on_delete: :nullify
@@ -3648,6 +3693,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150200) do
   add_foreign_key "investigation_notices", "investigation_checks", column: "check_id", on_delete: :nullify
   add_foreign_key "investigation_notices", "investigations", on_delete: :nullify
   add_foreign_key "investigation_notices", "resource_map_resources", column: "resource_id", on_delete: :nullify
+  add_foreign_key "investigation_notices", "workflow_runs", on_delete: :nullify
   add_foreign_key "investigation_notices", "workspaces"
   add_foreign_key "investigation_regression_results", "investigation_findings", column: "finding_id", on_delete: :cascade
   add_foreign_key "investigation_regression_results", "investigation_regression_runs", column: "regression_run_id", on_delete: :cascade
@@ -3737,6 +3783,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150200) do
   add_foreign_key "workflow_edits", "workflows", on_delete: :cascade
   add_foreign_key "workflow_edits", "workspace_memberships", column: "author_id", on_delete: :nullify
   add_foreign_key "workflow_edits", "workspace_memberships", column: "decided_by_id", on_delete: :nullify
+  add_foreign_key "workflow_publish_requests", "workflow_versions", column: "version_id", on_delete: :cascade
+  add_foreign_key "workflow_publish_requests", "workflows", on_delete: :cascade
+  add_foreign_key "workflow_publish_requests", "workspace_memberships", column: "published_by_id", on_delete: :nullify
+  add_foreign_key "workflow_publish_requests", "workspace_memberships", column: "requester_id", on_delete: :cascade
+  add_foreign_key "workflow_publish_requests", "workspaces"
   add_foreign_key "workflow_run_steps", "workflow_runs", column: "run_id", on_delete: :cascade
   add_foreign_key "workflow_runs", "agents", on_delete: :nullify
   add_foreign_key "workflow_runs", "workflow_runs", column: "parent_run_id", on_delete: :nullify
@@ -3750,6 +3801,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150200) do
   add_foreign_key "workflow_versions", "workspace_memberships", column: "published_by_id", on_delete: :nullify
   add_foreign_key "workflows", "agents", on_delete: :nullify
   add_foreign_key "workflows", "catalog_entries", column: "owner_team_id", on_delete: :nullify
+  add_foreign_key "workflows", "conversations", column: "origin_conversation_id", on_delete: :nullify
   add_foreign_key "workflows", "workflow_versions", column: "live_version_id", on_delete: :nullify
   add_foreign_key "workflows", "workspace_memberships", column: "created_by_id", on_delete: :nullify
   add_foreign_key "workflows", "workspaces"

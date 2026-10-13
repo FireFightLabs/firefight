@@ -25,7 +25,28 @@ class ChannelPostService
     raise Refused, refusal(error, named)
   end
 
+  # Posts back where a chat was had: in its thread when it has one, else in the direct messages of the person whose chat
+  # it is.
+  def reply!(conversation:, message:, by:)
+    raise Refused, "Say what to post." if message.to_s.strip.empty?
+    raise Refused, "The message is longer than #{MESSAGE_LIMIT.to_fs(:delimited)} characters. Shorten it, or post it in parts." if message.length > MESSAGE_LIMIT
+
+    channel_id, thread_id = reply_place(conversation)
+    raise Refused, "The chat this came from has no thread and no person to post back to." if channel_id.blank?
+
+    posted = adapter.post_channel_message(channel_id: channel_id, message: message.strip, posted_by: by, by_halon: false, thread_id: thread_id)
+    Posted.new(channel_id: posted[:channel_id] || channel_id, channel_name: nil, link: link_to(posted[:channel_id] || channel_id, posted[:message_id]))
+  rescue AdapterError => error
+    raise Refused, refusal(error, "the chat's thread")
+  end
+
   private
+
+  def reply_place(conversation)
+    return [ conversation.channel_id, conversation.thread_id ] if conversation.thread_id.present?
+
+    [ conversation.started_by.try(:platform_user_id), nil ]
+  end
 
   def adapter = @adapter ||= WorkspaceAdapter.for(@workspace)
 

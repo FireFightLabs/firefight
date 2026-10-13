@@ -41,6 +41,7 @@ use_skill:
     disk_trends: A scheduled check of disk space, or anyone asking whether a disk, volume or database is filling up and when it will be full
     error_budget_burn: A scheduled check of error budgets, or anyone asking whether a service is failing more than its objective allows and when its budget runs out
     leaked_secret: A key, token, password or other secret was leaked, such as a secret scanning alert, a key posted in a public place, or someone asking what a leaked key could do
+    probing_scan: A daily look through the logs for someone probing the team's services, such as scanners, path probing, bursts of not found answers from one address, requests for admin paths or known exploit strings
     suspicious_access: A login, key or token used from somewhere unusual, access nobody recognises, a new admin or permission nobody granted, or an alert about suspicious access to an account or system
     firefight playbooks:
     capacity: Something is slow or busy, someone asks to scale, a performance regression, a limit or quota close to its ceiling, or spend that moved
@@ -80,6 +81,7 @@ use_skill:
         - disk_trends
         - error_budget_burn
         - leaked_secret
+        - probing_scan
         - suspicious_access
         - capacity
         - code

@@ -18,6 +18,7 @@ class InertiaController < ApplicationController
       # Only an admin can give a pack, so only an admin is shown how many wait.
       waitingPackRequestsCount: current_membership&.admin_access? ? current_workspace.ability_pack_requests.waiting.count : 0,
       agentAvailable: agent_available?,
+      # Whether the workspace has workflows, so the Workflows page and everything about it shows only where it does.
       workflowsEnabled: current_workspace.present? && FeatureFlags.enabled?(current_workspace, FeatureFlags::WORKFLOWS)
     }
   end

@@ -8,6 +8,7 @@ import {
   IconRadar,
   IconSparkles,
   IconRoute,
+  IconBooks,
   IconBook2,
   IconCategory,
   IconCreditCard,
@@ -59,6 +60,7 @@ import {
   halonMonitoringPath,
   halonSkillsPath,
   halonWorkflowLibraryPath,
+  halonWorkflowsPath,
   cataloguePath,
   dashboardPath,
   integrationsPath,
@@ -180,7 +182,8 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
       ...(workflowsEnabled
         ? [
           { title: "Skills", url: halonSkillsPath(), icon: IconSparkles },
-          { title: "Workflow library", url: halonWorkflowLibraryPath(), icon: IconRoute },
+          { title: "Workflows", url: halonWorkflowsPath(), icon: IconRoute },
+          { title: "Workflow library", url: halonWorkflowLibraryPath(), icon: IconBooks },
         ]
         : []),
       { title: "Performance", url: halonPerformancePath(), icon: IconChartBar },
