@@ -45,6 +45,33 @@ module Integrations
           assert_equal [ 1, 9_000 ], spend[FirefightAi::ChangeReviewer::FEATURE].values_at("calls", "cost_micros")
           assert_equal [ session.id, "claude-sonnet-5-5" ], logged.first.values_at("session", "model")
         end
+
+        test "a spend log that cannot be written never replaces the change's own error or stops the session closing" do
+          integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub 2")
+          row = integration.integration_environments.create!(base_config: { "installation_id" => "12345" })
+          pack = Github.new(integration, box_key: "investigation-1")
+          GithubApp.stubs(:installation_token).returns("ghs_token")
+          GithubApp.stubs(:get).with("/repos/acme/api", token: "ghs_token").returns("default_branch" => "main")
+          GithubApp.stubs(:get).with("/repos/acme/api/branches/main", token: "ghs_token").returns("commit" => { "sha" => "n" * 40 })
+          FirefightAi.stubs(:choices_for).returns([ FirefightAi::ModelChoice.new(model: "claude-sonnet-4-5", provider: "anthropic") ])
+          FirefightAi.stubs(:priced_for?).returns(true)
+          CodeReading.any_instance.stubs(:prepare).returns({})
+          CiSetup.stubs(:for).returns(nil)
+          CiSetup.stubs(:absent).returns(nil)
+          CodeReading.any_instance.stubs(:exec).with { |*, argv:, **| argv[2] == Fixing::RUN }
+                     .returns("stdout" => "AGENT_EXIT 0\nBASE start-sha\nNOTHING\nLOG\n", "timed_out" => false)
+          CodeAgentSession.any_instance.stubs(:spend).raises(ActiveRecord::StatementInvalid, "the ledger is gone")
+          warned = []
+          Rails.logger.stubs(:warn).with { |line| warned << line }
+
+          error = assert_raises(Integrations::Error) do
+            pack.fix_code(environment_row: row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" })
+          end
+
+          assert_match "The coding agent changed nothing in acme/api.", error.message
+          assert_not_nil CodeAgentSession.find_by!(workspace: @workspace, repository: "acme/api").closed_at, "the session still closes"
+          assert(warned.any? { |line| line.include?("code_fix.spent_failed") && line.include?("ActiveRecord::StatementInvalid") })
+        end
       end
     end
   end

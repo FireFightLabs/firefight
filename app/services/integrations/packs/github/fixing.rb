@@ -466,10 +466,10 @@ module Integrations
           stopped = error
           raise
         ensure
-          spent(session, stopped) if session
           CodeAgentQuestion.withdraw_open!(session) if session
           session&.close!
           CodeAgentQuestion.changes_closed!(session) if session
+          spent(session, stopped) if session
         end
 
         def run_agent(environment_row, reading, repo, ref, session, agent_token, choice, events, words, earlier, timeout, gate, resume = nil)
@@ -692,6 +692,9 @@ module Integrations
           Rails.logger.info({ event: "code_fix.spent", session: session.id, continued_from: @pause&.session_id, repository: session.repository,
                               provider: session.provider, model: session.model, outcome: outcome, stopped_by: stopped&.class&.name,
                               spend: session.spend }.to_json)
+        rescue StandardError => error
+          # It runs while the change ends, so it never stands in for the change's own error.
+          Rails.logger.warn({ event: "code_fix.spent_failed", session: session.id, error: error.class.name }.to_json)
         end
 
         SPENT_PUSHED = "pushed".freeze
