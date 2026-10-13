@@ -1,4 +1,4 @@
-import type { RenderedTag } from "@/pages/agent/types"
+import type { RenderedTag } from "@/lib/agent-chat/types"
 
 // Outside the plugin, so its margins and padding stay out of the frame. Inline code keeps the chip it has in prose.
 const TABLE = [

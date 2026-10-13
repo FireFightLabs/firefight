@@ -409,6 +409,8 @@ Rails.application.routes.draw do
     post "/halon/workflows/:id/versions/:version_id/discard", to: "workflow_versions#discard", as: :workflow_version_discard
     post "/halon/workflows/:id/versions/:version_id/restore", to: "workflow_versions#restore", as: :workflow_version_restore
     post "/halon/workflows/:id/test-runs", to: "workflow_test_runs#create", as: :workflow_test_runs
+    post "/halon/workflows/:id/chat", to: "workflow_chats#create", as: :workflow_chat
+    post "/halon/workflows/:id/chat/stop", to: "workflow_chats#stop", as: :workflow_chat_stop
     post "/halon/workflows/:id/pins", to: "workflow_pins#create", as: :workflow_pins
     delete "/halon/workflows/:id/pins/:step_id", to: "workflow_pins#destroy", as: :workflow_pin
     post "/halon/workflows/:id/runs/:run_id/rerun", to: "workflow_runs#rerun", as: :workflow_run_rerun

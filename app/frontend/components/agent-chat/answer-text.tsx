@@ -1,9 +1,9 @@
 import Markdown, { type Components } from "react-markdown"
 import remarkGfm from "remark-gfm"
 
-import { AnswerLink } from "@/pages/agent/components/answer-link"
-import { AnswerTable } from "@/pages/agent/components/answer-table"
-import { CodeBlock } from "@/pages/agent/components/code-block"
+import { AnswerLink } from "@/components/agent-chat/answer-link"
+import { AnswerTable } from "@/components/agent-chat/answer-table"
+import { CodeBlock } from "@/components/agent-chat/code-block"
 
 interface AnswerTextProps {
   text: string

@@ -60,6 +60,22 @@ module Workflow::Editing
 
   UNDO_REASON = "Undid Halon's change.".freeze
 
+  # One change Halon proposes from a chat, its edits checked together against what is there first, so a change set that
+  # could never be accepted is refused before anyone sees it. Returns the edits.
+  def propose_from_chat!(asked, reason:, chat:)
+    list = asked.map { |each| [ each["operation"].to_s, Workflow::Edit::Operations.prepared(each["operation"].to_s, each["payload"].to_h) ] }
+    unknown = list.find { |operation, _payload| Workflow::Edit::OPERATIONS.exclude?(operation) }
+    raise Workflow::Edit::Refused, "#{unknown.first.presence || 'An empty operation'} is not a change to a workflow." if unknown
+
+    check_change_set!(list)
+    change_set_id = SecureRandom.uuid
+    transaction do
+      list.map do |operation, payload|
+        edit!(operation: operation, payload: payload, by: nil, halon: true, reason: reason, change_set_id: change_set_id, source_chat: chat)
+      end
+    end
+  end
+
   # Why Halon's edits cannot be undone as one, as a sentence, or nil. Only edits that landed on the open draft or the
   # live version can be.
   def undo_blocked_reason(halon_edits)
@@ -115,6 +131,15 @@ module Workflow::Editing
     here, under = halon_edits.partition { |edit| edit.version_id == version.id }
     start = under.empty? ? version.starting_content : version.parent_version.content_without(under)
     version.content_without(here, from: start)
+  end
+
+  def check_change_set!(list)
+    changed = list.reject { |operation, payload| Workflow::Edit.workflow_rename?(operation, payload) }
+                  .reduce((draft || live_version || empty_version).snapshot) do |content, (operation, payload)|
+      Workflow::Edit::Operations.apply(content, operation, payload)
+    end
+    problem = Workflow::Version.content_problem(changed)
+    raise Workflow::Edit::Refused, problem if problem
   end
 
   def propose!(attributes, change_set_id)

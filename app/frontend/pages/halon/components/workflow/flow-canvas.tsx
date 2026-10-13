@@ -19,6 +19,7 @@ import { LoopNode } from "@/pages/halon/components/workflow/loop-node"
 import { RouteEdge } from "@/pages/halon/components/workflow/route-edge"
 import { StepNode } from "@/pages/halon/components/workflow/step-node"
 import { TriggerNode } from "@/pages/halon/components/workflow/trigger-node"
+import { useFitOnResize } from "@/pages/halon/hooks/use-fit-on-resize"
 import type { AddAt } from "@/pages/halon/hooks/use-add-step"
 import type { SendEdit } from "@/pages/halon/hooks/use-workflow-edits"
 import {
@@ -69,6 +70,9 @@ export function FlowCanvas({ document, suggestions, stepKinds, tools, highlightH
     [ document, suggestions, highlightHalon, selectedId, readOnly, states ],
   )
   const [ nodes, setNodes, onNodesChange ] = useNodesState<CanvasNode>(graph.nodes)
+
+  const pane = useRef<HTMLDivElement>(null)
+  useFitOnResize(pane, FIT_VIEW)
 
   // A reload landing mid drag would put the step back where it was saved, so it waits until the step is let go.
   const dragging = useRef(false)
@@ -155,6 +159,7 @@ export function FlowCanvas({ document, suggestions, stepKinds, tools, highlightH
 
   return (
     <ReactFlow<CanvasNode, RouteFlowEdge>
+      ref={pane}
       nodes={nodes}
       edges={graph.edges}
       nodeTypes={NODE_TYPES}

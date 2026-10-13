@@ -1,6 +1,9 @@
 import type { SharedProps } from "@/types"
 import type { PublishRequestStanding, TeamChoice } from "@/pages/halon/components/workflows/types"
 import type {
+  AgentChat,
+  AgentChatHelper,
+  AgentChatMessage,
   RunbookPlace,
   RunbookWatchRead,
   WorkflowDetail,
@@ -54,6 +57,14 @@ export interface WorkflowPageProps extends SharedProps {
   run: WorkflowRunDetail | null
   // The newest run of the version shown, which Last run lays over the steps.
   lastRun: WorkflowRunStates | null
+  // The person's chat with Halon beside this canvas, or null before they ask, with what was said in it.
+  chat: AgentChat | null
+  chatMessages: AgentChatMessage[]
+  helpers: AgentChatHelper[]
+  // Something in the chat waits on the person, which only the full chat lets them answer.
+  chatWaiting: boolean
+  // Why Halon cannot be asked in this workspace, or null when it can.
+  chatUnavailable: string | null
 }
 
 export type Edge = WorkflowDocument["edges"][number]

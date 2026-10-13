@@ -1,6 +1,6 @@
 import { WaitingLine } from "@/components/code-fix/waiting-line"
-import { activityShare, activityWords } from "@/pages/agent/lib/tool-activity"
-import type { ToolActivity } from "@/pages/agent/types"
+import { activityShare, activityWords } from "@/lib/agent-chat/tool-activity"
+import type { ToolActivity } from "@/lib/agent-chat/types"
 
 // What a long tool says about how far it got, under its step while it runs, such as helpers reporting one by one or a
 // browser taking the steps of a path. A count it gives is drawn as a thin bar under the words.

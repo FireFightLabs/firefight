@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 
-import { MessageAttachments } from "@/pages/agent/components/message-attachments"
+import { MessageAttachments } from "@/components/agent-chat/message-attachments"
 import type { AgentChatAttachment } from "@/types/serializers"
 
 interface PersonBubbleProps {

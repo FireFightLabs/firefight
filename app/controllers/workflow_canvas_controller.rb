@@ -29,13 +29,21 @@ class WorkflowCanvasController < InertiaController
   PROP_RUNS = "runs"
   PROP_RUN = "run"
   PROP_LAST_RUN = "lastRun"
+  # The person's chat with Halon beside this canvas, what was said in it, the checks Halon handed to helpers there, whether
+  # something in it waits on them, and why they cannot ask Halon here, if they cannot.
+  PROP_CHAT = "chat"
+  PROP_CHAT_MESSAGES = "chatMessages"
+  PROP_HELPERS = "helpers"
+  PROP_CHAT_WAITING = "chatWaiting"
+  PROP_CHAT_UNAVAILABLE = "chatUnavailable"
   PROPS = {
     "WORKFLOW" => PROP_WORKFLOW, "DOCUMENT" => PROP_DOCUMENT, "VERSIONS" => PROP_VERSIONS, "SUGGESTIONS" => PROP_SUGGESTIONS,
     "HALON_CHANGES" => PROP_HALON_CHANGES, "STEP_KINDS" => PROP_STEP_KINDS, "TRIGGER_KINDS" => PROP_TRIGGER_KINDS, "TOOLS" => PROP_TOOLS,
     "PUBLISH_REQUESTS" => PROP_PUBLISH_REQUESTS, "OTHER_WORKFLOWS" => PROP_OTHER_WORKFLOWS, "TIME_ZONES" => PROP_TIME_ZONES,
     "TEAMS" => PROP_TEAMS, "MY_PUBLISH_REQUEST" => PROP_MY_PUBLISH_REQUEST, "ACCESS" => PROP_ACCESS,
     "PLACES" => PROP_PLACES, "WATCH_READS" => PROP_WATCH_READS,
-    "RUNS" => PROP_RUNS, "RUN" => PROP_RUN, "LAST_RUN" => PROP_LAST_RUN
+    "RUNS" => PROP_RUNS, "RUN" => PROP_RUN, "LAST_RUN" => PROP_LAST_RUN, "CHAT" => PROP_CHAT, "CHAT_MESSAGES" => PROP_CHAT_MESSAGES,
+    "HELPERS" => PROP_HELPERS, "CHAT_WAITING" => PROP_CHAT_WAITING, "CHAT_UNAVAILABLE" => PROP_CHAT_UNAVAILABLE
   }.freeze
   # The address names an older version to look at by its id, and the view the canvas shows.
   VERSION_QUERY_PARAM = "version"
@@ -73,10 +81,23 @@ class WorkflowCanvasController < InertiaController
       PROP_WATCH_READS => InertiaRails.defer { RunbookWatchReadSerializer.many(Chat::Tools::Choices.reads) },
       PROP_OTHER_WORKFLOWS => Workflow.where(workspace: current_workspace).where.not(id: workflow.id).ordered.map { |other| { name: other.name, slug: other.slug } },
       PROP_TIME_ZONES => Workspace::FreezeWindows.time_zones
-    }
+    }.merge(chat_props)
   end
 
   private
+
+  def chat_props
+    chat = Conversation.beside(workflow, current_membership)
+    record = chat&.chat
+    messages = record ? record.readable_messages.includes(:attached_files, :ruby_llm_usages, ruby_llm_tool_calls: :result).to_a : []
+    {
+      PROP_CHAT => chat && AgentChatSerializer.one(chat),
+      PROP_CHAT_MESSAGES => AgentChatMessageSerializer.many(messages, member: current_membership, platform_texts: {}),
+      PROP_HELPERS => AgentChatHelperSerializer.many(record&.helpers&.includes(:workspace, :own_chat) || []),
+      PROP_CHAT_WAITING => record.present? && record.awaiting_decision.any?,
+      PROP_CHAT_UNAVAILABLE => Conversation.asking_blocked_reason(current_membership)
+    }
+  end
 
   # Whoever may publish is shown the members waiting on it.
   def publish_requests

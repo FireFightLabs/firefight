@@ -340,6 +340,14 @@ The Settings view is what the workflow's own identity can do (`ReachCard`) and i
 
 Each says so in a toast and redirects to the run, and a run going reloads its props every five seconds. Trying, pinning outputs, trying a step again, skipping and starting again are building and running, `workflows.create`, which members hold. Stopping and pinning a run are `workflows.update`, as on the Workflows page.
 
+### Asking Halon beside the canvas
+
+**Ask Halon** in the canvas header opens a chat beside the canvas. It is the person's own chat (`Conversation` of kind personal) with the workflow as its `subject`, started by `WorkflowChatsController` (`POST /halon/workflows/:id/chat`, `investigations.create`, needs Halon on for the workspace) and carried on until they start a new one. `Conversation.beside(workflow, member)` is the newest one they have not archived, and it is listed with their other chats, where it opens in full. `Conversation.asking_blocked_reason` says why someone cannot ask, which the panel shows in place of the composer.
+
+- **Halon is told which workflow is open.** `Conversation::Context#workflow_line` names it in the per turn context, never the prompt template.
+- **Two tools, offered wherever workflows are on.** `get_workflow` (`workflows.read`) hands Halon `Workflow#for_halon`: the version the canvas shows, its trigger, steps, edges and outputs, the suggestions still waiting, and every offered step kind with its settings, defaults and outputs (and the tools a Call a tool step may call, once that kind runs). `propose_workflow_edit` (`workflows.create`, building the draft) takes a list of edits, each an operation and its payload as the canvas sends them, and a reason. `Workflow#propose_from_chat!` checks the whole change set against what is there first (`Workflow::Edit::Operations.apply` then `Version.content_problem`), so a change that could never be accepted is refused with the sentence, then proposes the edits as one change set with the chat as `source_chat`. While Halon builds a workflow alone they land in the draft, as any edit of Halon's does. Both take the workflow by id, slug or name, the chat's own by default, so Halon can change a workflow from any chat.
+- **The canvas follows the chat.** The panel subscribes to the chat's `ConversationChannel` and reloads the canvas's props when one of Halon's steps finishes, so a suggestion shows as it is made, with the banner naming the chat it came from.
+
 ### Phone width
 
 Below 48rem the canvas is a list of the steps in the order they run (`stepsInOrder`), inner steps indented under their for each and where each leads under it, the trigger first and Halon's suggested steps last with Accept and Dismiss. Tapping one opens the same settings in a sheet, and Add a step opens the palette in one. Between 48rem and 64rem the canvas shows with the settings beside it and the palette opens from Add a step.

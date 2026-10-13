@@ -1,7 +1,7 @@
 import { useState } from "react"
 
 import { newTabAttributes } from "@/lib/links"
-import type { AnswerSource } from "@/pages/agent/types"
+import type { AnswerSource } from "@/lib/agent-chat/types"
 
 // Past this many the list is folded behind a count, so a long investigation's answer stays readable.
 const SHOWN = 12
