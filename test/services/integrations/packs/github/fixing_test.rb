@@ -30,6 +30,7 @@ module Integrations
           )
           AppUrl.stubs(:root).returns("https://ff.example.com")
           FirefightAi::ChangeReviewer.any_instance.stubs(:review).returns(review)
+          GithubApp.stubs(:graphql).returns(open_comments)
         end
 
         test "the agent runs in the writable copy with a config that reaches only Firefight, and its change opens as a pull request described from its review, never from the brief or context" do
@@ -506,6 +507,95 @@ module Integrations
           assert_match "Added to the pull request", last.headline
         end
 
+        test "an update to an open pull request hands the agent the reviewers' open comments word for word, marking a person's from a bot's" do
+          stub_pull(7)
+          stub_branch("fix-pool")
+          GithubApp.stubs(:graphql).with { |query, variables, token:| query == OpenReviewComments::QUERY && variables == { owner: "acme", name: "api", number: 7 } && token == "ghs_token" }
+                   .returns(reviewers_comments)
+          told = nil
+          CodeReading.any_instance.stubs(:exec).with { |*, argv:, **| argv[2] == Fixing::RUN && (told = argv[4]) }
+                     .returns("stdout" => agent_output(said: answered(101 => "fixed: app/models/tool.rb counts the offered schema", 202 => "not fixed: the filter is needed")),
+                              "timed_out" => false)
+          GithubApp.stubs(:write).returns({})
+          reviewed = nil
+          FirefightAi::ChangeReviewer.any_instance.expects(:review).with { |comments:, **| reviewed = comments }.returns(review)
+
+          @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Count the schema", "brief" => "Fix what the reviewers said", "pull_request" => 7 })
+
+          assert_includes told, Integrations::ReviewComments::INTRO
+          assert_includes told, "Comment 101, by coderabbitai (a bot), on app/models/tool.rb line 212\n> Count the schema the model receives.\n> `params_schema` leaves out the environment."
+          assert_includes told, "Review 202, by uros (a person), on the pull request as a whole\n> Drop the filter in specialists.rb, it filters nothing."
+          assert_includes told, Integrations::ReviewComments::ANSWER
+          [ "Already resolved.", "Answered by Halon.", "Halon's own review.", "Answered before." ].each { |gone| assert_not_includes told, gone }
+          assert_includes reviewed, "> Count the schema the model receives."
+        end
+
+        test "after the push each thread gets its outcome as a reply, and the update's comment and the answer list what became of every comment" do
+          stub_pull(7)
+          stub_branch("fix-pool")
+          GithubApp.stubs(:graphql).returns(reviewers_comments)
+          said = answered(101 => "fixed: app/models/tool.rb counts the offered schema", 202 => "question: Should a reads-only turn count tools it cannot call?")
+          stub_run("stdout" => agent_output(said: said).sub("BASE start-sha", "BASE #{'h' * 40}"), "timed_out" => false)
+          GithubApp.expects(:write).with { |verb, path, body, **| verb == :post && path == "/repos/acme/api/pulls/7/comments/101/replies" && body == { body: "Fixed in #{'c' * 12}. app/models/tool.rb counts the offered schema." } }
+                   .returns({})
+          comment = nil
+          GithubApp.expects(:write).with { |verb, path, body, **| verb == :post && path == "/repos/acme/api/issues/7/comments" && (comment = body[:body]) }.returns({})
+
+          text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Count the schema", "brief" => "Fix what the reviewers said", "pull_request" => 7 })
+
+          assert_includes comment, "**Review comments**\n- coderabbitai (a bot) on app/models/tool.rb line 212 (https://github.com/acme/api/pull/7#discussion_r101): " \
+                                   "Fixed in #{'c' * 12}. app/models/tool.rb counts the offered schema.\n" \
+                                   "- uros (a person) on the pull request as a whole (https://github.com/acme/api/pull/7#pullrequestreview-202): " \
+                                   "A question before changing this. Should a reads-only turn count tools it cannot call?"
+          assert comment.end_with?("<!-- halon-answered-reviews: 202 -->"), comment
+          assert_includes text, "Answered 1 review thread there."
+          assert_includes text, "Review comments:\n- coderabbitai (a bot) on app/models/tool.rb line 212"
+        end
+
+        test "a review comment left unanswered sends the change back once naming it, and one still unanswered holds the change with nothing pushed" do
+          stub_pull(7)
+          stub_branch("fix-pool")
+          GithubApp.stubs(:graphql).returns(reviewers_comments)
+          runs = []
+          CodeReading.any_instance.expects(:exec).twice.with { |*, argv:, **| argv[2] == Fixing::RUN && (runs << argv[4]) }
+                     .returns("stdout" => agent_output(said: answered(101 => "fixed: app/models/tool.rb counts the offered schema", 202 => "not fixed:")), "timed_out" => false)
+          CodeReading.any_instance.expects(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH }.never
+          GithubApp.expects(:write).never
+          heard = []
+          pack = Github.new(@integration, box_key: "investigation-1", progress: ->(update) { heard << update.to_h.deep_dup })
+
+          error = assert_raises(Integrations::Error) do
+            pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Count the schema", "brief" => "Fix what the reviewers said", "pull_request" => 7 })
+          end
+
+          assert_includes runs.last, "These review comments have no answer yet. Answer each under Review comments: as asked, and fix it first when it is right:\n" \
+                                     "- 202 by uros (a person) on the pull request as a whole"
+          last = Chat::CodeFixProgress.from_h(heard.last)
+          assert_equal "Halon sent the change back once and it still has what is listed below, so nothing is pushed.", last.reason
+          assert_equal "No answer to review comment 202 by uros (a person) on the pull request as a whole", last.lines.last.text
+          assert_equal "Halon sent the change back once and it still has what is listed below, so nothing is pushed.\n" \
+                       "Review comments with no answer:\n- 202 by uros (a person) on the pull request as a whole\n\n#{Fixing::HELD_ASK}", error.message
+        end
+
+        test "a finding the review labels blocking sends the change back, and one still there after holds it with nothing pushed" do
+          FirefightAi::ChangeReviewer.any_instance.stubs(:review)
+                                     .returns(review(right: false, findings: [ "specialists.rb counts tools the asker cannot call, which nobody asked for.", "No test." ],
+                                                     blocking: [ "specialists.rb counts tools the asker cannot call, which nobody asked for." ]))
+          runs = []
+          CodeReading.any_instance.expects(:exec).twice.with { |*, argv:, **| argv[2] == Fixing::RUN && (runs << argv[4]) }.returns("stdout" => agent_output, "timed_out" => false)
+          CodeReading.any_instance.expects(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH }.never
+          GithubApp.expects(:open_pull_request).never
+
+          error = assert_raises(Integrations::Error) do
+            @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Count tools", "brief" => "Count tools" })
+          end
+
+          assert_includes runs.last, "- specialists.rb counts tools the asker cannot call, which nobody asked for."
+          assert error.message.start_with?("Halon sent the change back once and it still has what is listed below, so nothing is opened.\n" \
+                                           "Found in review:\n- specialists.rb counts tools the asker cannot call, which nobody asked for.\n\n"), error.message
+          assert_not_includes error.message, "No test."
+        end
+
         test "a branch name finds its open pull request to tell" do
           stub_branch("fix-pool")
           GithubApp.stubs(:get).with("/repos/acme/api/pulls?#{{ 'state' => 'open', 'head' => 'acme:fix-pool', 'per_page' => 1 }.to_query}", token: "ghs_token")
@@ -617,7 +707,8 @@ module Integrations
             @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Send the tag", "brief" => "Send the tag" })
           end
 
-          assert_equal "Halon's review still found the change wrong after sending it back once, so nothing is opened.\n- It still sends the commit.", error.message
+          assert_equal "Halon sent the change back once and it still has what is listed below, so nothing is opened.\nFound in review:\n- It still sends the commit.\n\n" \
+                       "#{Fixing::HELD_ASK}", error.message
         end
 
         test "what the review found and could not verify leads the pull request body, the checks follow it, and the review reads the person's words" do
@@ -919,9 +1010,48 @@ module Integrations
           GithubApp.stubs(:get).with("/repos/acme/api/rules/branches/#{name}?per_page=100", token: "ghs_token").returns(rules)
         end
 
-        def agent_output(path: "config/database.yml", exit: 0, checks: "", patch: "diff --git a/#{path} b/#{path}\n-pool: 2\n+pool: 10\n", session: "")
+        # said is the agent's summary, as its last text event in the log.
+        def agent_output(path: "config/database.yml", exit: 0, checks: "", patch: "diff --git a/#{path} b/#{path}\n-pool: 2\n+pool: 10\n", session: "", said: nil)
+          log = said ? { "type" => "text", "part" => { "text" => said } }.to_json : "done"
           "AGENT_EXIT #{exit}\nBASE start-sha\nSESSION #{session}\nFROM start-sha\n#{checks}CHANGE #{CHANGED}\nCOUNT\t1\t1\t#{Base64.strict_encode64(path)}\n" \
-            "TOUCHED\t#{Base64.strict_encode64(path)}\nBYTES\t40\nPATCH\t#{Base64.strict_encode64(patch)}\nLOG\ndone"
+            "TOUCHED\t#{Base64.strict_encode64(path)}\nBYTES\t40\nPATCH\t#{Base64.strict_encode64(patch)}\nLOG\n#{log}"
+        end
+
+        # The agent's summary answering review comments by id.
+        def answered(answers)
+          "Counts the offered schema.\n\nReview comments:\n#{answers.map { |id, answer| "- #{id} #{answer}" }.join("\n")}"
+        end
+
+        # What GitHub's GraphQL API answers for a pull request's review threads, reviews and comments.
+        def open_comments(threads: [], reviews: [], comments: [])
+          { "repository" => { "pullRequest" => { "reviewThreads" => { "pageInfo" => { "hasNextPage" => false }, "nodes" => threads },
+                                                 "reviews" => { "nodes" => reviews }, "comments" => { "nodes" => comments } } } }
+        end
+
+        def graph_comment(id, login, type, body, mine: false)
+          { "fullDatabaseId" => id.to_s, "body" => body, "url" => "https://github.com/acme/api/pull/7#discussion_r#{id}", "viewerDidAuthor" => mine,
+            "author" => { "__typename" => type, "login" => login } }
+        end
+
+        # One open thread from a bot, one resolved, one Halon answered last, a person's review, Halon's own review and a
+        # review Halon answered in an earlier update.
+        def reviewers_comments
+          open_comments(
+            threads: [
+              { "isResolved" => false, "path" => "app/models/tool.rb", "line" => 212,
+                "comments" => { "nodes" => [ graph_comment(101, "coderabbitai", "Bot", "Count the schema the model receives.\n`params_schema` leaves out the environment.") ] } },
+              { "isResolved" => true, "path" => "app/models/tool.rb", "line" => 3, "comments" => { "nodes" => [ graph_comment(102, "uros", "User", "Already resolved.") ] } },
+              { "isResolved" => false, "path" => "db/schema.rb", "line" => nil, "originalLine" => 9,
+                "comments" => { "nodes" => [ graph_comment(103, "uros", "User", "Why?"), graph_comment(104, "firefight", "Bot", "Answered by Halon.", mine: true) ] } }
+            ],
+            reviews: [
+              { "fullDatabaseId" => "202", "body" => "Drop the filter in specialists.rb, it filters nothing.", "state" => "CHANGES_REQUESTED",
+                "url" => "https://github.com/acme/api/pull/7#pullrequestreview-202", "viewerDidAuthor" => false, "author" => { "__typename" => "User", "login" => "uros" } },
+              { "fullDatabaseId" => "203", "body" => "Halon's own review.", "state" => "COMMENTED", "viewerDidAuthor" => true, "author" => { "__typename" => "Bot", "login" => "firefight" } },
+              { "fullDatabaseId" => "204", "body" => "Answered before.", "state" => "COMMENTED", "viewerDidAuthor" => false, "author" => { "__typename" => "User", "login" => "uros" } }
+            ],
+            comments: [ { "body" => "Added by Halon.\n\n<!-- halon-answered-reviews: 204 -->", "viewerDidAuthor" => true } ]
+          )
         end
 
         # What the sandbox answers for the agent's run, the push answering as it pushed.
@@ -939,8 +1069,8 @@ module Integrations
           "CHECK\t#{Base64.strict_encode64(name)}\t#{code}\t#{Base64.strict_encode64(output)}\n"
         end
 
-        def review(right: true, findings: [], verified: [], unverified: [], unreviewed: [])
-          FirefightAi::ChangeReviewer::Review.new(right: right, findings: findings, verified: verified, unverified: unverified, unreviewed: unreviewed,
+        def review(right: true, findings: [], blocking: [], verified: [], unverified: [], unreviewed: [])
+          FirefightAi::ChangeReviewer::Review.new(right: right, findings: findings, blocking: blocking, verified: verified, unverified: unverified, unreviewed: unreviewed,
                                                   summary: "Sets the pool to 10.")
         end
       end

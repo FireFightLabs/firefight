@@ -14,8 +14,11 @@ module Integrations
 
     # A command that runs a repository's tests, which is what run_tests or the coding agent runs, so it is not setup.
     TEST_COMMAND = /\b(test|tests|spec|specs|rspec|pytest|jest|vitest|mocha|phpunit|ctest|tox|nox)\b/i
-    # Images named differently from the service the sandbox starts.
-    IMAGE_NAMES = { "postgresql" => "postgres" }.freeze
+    # Images named differently from the service the sandbox starts. A Postgres image built around an extension is
+    # Postgres, so a sandbox that cannot run images starts its own for it and says which extension it lacks, rather than
+    # leaving the database out under the image's name.
+    POSTGRES_IMAGES = %w[postgresql pgvector postgis timescaledb timescaledb-ha citus paradedb pgrouting].freeze
+    IMAGE_NAMES = POSTGRES_IMAGES.index_with { "postgres" }.freeze
     LOCALHOST = "127.0.0.1".freeze
     # A variable such as DB_HOST, REDIS_HOSTNAME or ELASTIC_ADDR.
     HOST_VARIABLE = /(HOST|HOSTNAME|ADDR|ADDRESS|SERVER)\z/i

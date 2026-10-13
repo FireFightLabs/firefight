@@ -6,6 +6,8 @@ module Integrations
     # copy installed, against the service itself over a real socket. Who a command runs as is left out, since that needs
     # the box's users, and the folders the box keeps are temporary ones here.
     class SetupTest < ActiveSupport::TestCase
+      EXTENSIONS = "SELECT name FROM pg_available_extensions".freeze
+
       setup do
         load_server
         FileUtils.stubs(:chown)
@@ -19,7 +21,8 @@ module Integrations
         original = ::Sandbox.method(:run)
         replace(::Sandbox, :run) do |argv, **options|
           ran << { argv: argv, env: options[:env] || {} }
-          next { "stdout" => "", "stderr" => "", "exit_code" => 0 } if %w[mise redis-server psql].include?(argv.first) || argv.first.to_s.end_with?("pg_ctl")
+          next { "stdout" => "", "stderr" => "", "exit_code" => 0 } if %w[mise redis-server].include?(argv.first) || argv.first.to_s.end_with?("pg_ctl")
+          next { "stdout" => argv.last == EXTENSIONS ? "plpgsql\nvector\n" : "", "stderr" => "", "exit_code" => 0 } if argv.first == "psql"
 
           original.call(argv, **options, user: nil)
         end
@@ -92,6 +95,33 @@ module Integrations
         end
         assert_match "is not a name Postgres takes", error.message
         assert_raises(::Sandbox::Refused) { ::Sandbox::Services.start([ { "name" => "postgres", "port" => 5434 } ]) }
+      end
+
+      test "a database URL names a database only when the CI named one, so a framework that names its own, such as Rails, keeps it" do
+        File.stubs(:directory?).returns(true)
+
+        env = ::Sandbox::Services.start([ { "name" => "postgres", "port" => 5432, "env" => { "POSTGRES_USER" => "postgres", "POSTGRES_PASSWORD" => "postgres" } } ])
+
+        assert_equal "postgres://postgres@127.0.0.1:5432", env["DATABASE_URL"]
+        assert_equal "postgres", env["PGDATABASE"], "a client that takes the database from the variables gets the one the CI's image makes"
+      end
+
+      test "the box's own Postgres without pgvector stops the setup with why, rather than listing it as something that could not run" do
+        copy_of("acme__api", "aaa")
+        ran = @ran
+        replace(::Sandbox, :run) do |argv, **options|
+          ran << { argv: argv, env: options[:env] || {} }
+          { "stdout" => argv.last == EXTENSIONS ? "plpgsql\npg_trgm\n" : "", "stderr" => "", "exit_code" => 0 }
+        end
+        File.stubs(:directory?).returns(true)
+        ::Sandbox::Docker.stubs(:available?).returns(false)
+
+        error = assert_raises(Error) do
+          @client.prepare(repository: "acme__api", ref: "aaa", setup: { "services" => [ { "name" => "postgres", "image" => "pgvector/pgvector:pg18" } ] })
+        end
+
+        assert_equal ::Sandbox::Services::NO_VECTOR, error.message
+        assert_match "rebuilt", ::Sandbox::Services::NO_VECTOR
       end
 
       test "a Postgres extension the setup's CI image or a setup command names, that the box's Postgres lacks, is answered, also for a copy prepared before" do

@@ -12,6 +12,8 @@ module Integrations
     # Said last in Halon's answer, since what a person checks before merging is in it.
     TELLING = "Tell the person what this change does, the CI warning when there is one, and what review found and could " \
               "not verify, since those are what they check before merging. #{FirefightAi::Copy::NOT_RUN}".freeze
+    # Said after the review comments the change answered.
+    ANSWERED_TELLING = "Tell them too what became of each review comment, and ask them any question in it.".freeze
     # Said when the repository has no CI, after the host's own words for where it looked.
     NO_CI = "With no CI, nothing beyond the checks that ran in Firefight's sandbox tested this change, and the owner's review decides whether it is ready.".freeze
 
@@ -25,17 +27,20 @@ module Integrations
       Chat::SecretFree.redacted(text.compact.join("\n\n"))
     end
 
-    # Said on an open pull request the change was added to: what this update did, then the same sections.
-    def self.comment(lead:, warning:, reviewed:, change:, base:, no_ci: nil)
+    # Said on an open pull request the change was added to: what this update did, then the same sections, and what
+    # became of each review comment it answered. mark is a hidden line the code host reads back to know which reviews
+    # were answered here.
+    def self.comment(lead:, warning:, reviewed:, change:, base:, no_ci: nil, answered: [], mark: nil)
       text = [ lead, warning, update_words(change, base), *sections(reviewed, change, bold: true), without_ci(no_ci, bold: true),
-               "Added by Halon in #{change.commit[0, 12]}. Review it like any other change before merging." ]
+               section(ReviewComments::HEADING, answered, true), "Added by Halon in #{change.commit[0, 12]}. Review it like any other change before merging.", mark ]
       Chat::SecretFree.redacted(text.compact.join("\n\n"))
     end
 
     # What Halon reads back once the change opened or was added, to tell the person in the same terms.
-    def self.answer(done:, warning:, reviewed:, change:, base:, updating:, no_ci: nil)
+    def self.answer(done:, warning:, reviewed:, change:, base:, updating:, no_ci: nil, answered: [])
       changed = updating ? update_words(change, base) : files("Changes:", change.counts)
-      [ done, warning, changed, *sections(reviewed, change, bold: false), without_ci(no_ci, bold: false), TELLING ].compact.join("\n\n")
+      [ done, warning, changed, *sections(reviewed, change, bold: false), without_ci(no_ci, bold: false), section(ReviewComments::HEADING, answered, false),
+        TELLING, (ANSWERED_TELLING if answered.any?) ].compact.join("\n\n")
     end
 
     def self.without_ci(said, bold:)
