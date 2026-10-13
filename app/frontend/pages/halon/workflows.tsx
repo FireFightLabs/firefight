@@ -30,6 +30,7 @@ export default function HalonWorkflowsPage() {
   const { workflows, done, doneRuns, runs, runsPage, templates, publishRequests, timeZones, libraryItems, libraryWorkflows, canCreate } = usePage<WorkflowsPageProps>().props
   const canManage = useCan("workflows")
   const [ tab, setTab ] = useState(tabFromUrl)
+  const newWorkflow = canCreate ? <LibraryMenu templates={templates} timeZones={timeZones} /> : null
 
   function switchTab(value: string) {
     const chosen = chosenTab(value)
@@ -52,7 +53,7 @@ export default function HalonWorkflowsPage() {
         </TabsList>
         <TabsContent value={WORKFLOWS_TAB} className="flex flex-col gap-6">
           {publishRequests.length > 0 && <PublishRequestsCard requests={publishRequests} />}
-          <WorkflowsCard workflows={workflows} canManage={canManage} action={<LibraryMenu templates={templates} timeZones={timeZones} />} />
+          <WorkflowsCard workflows={workflows} canManage={canManage} action={newWorkflow} />
         </TabsContent>
         <TabsContent value={RUNS_TAB}>
           <Card>
