@@ -5,7 +5,7 @@ import type { AGENT_CHAT_THREAD_PROPS, AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AG
 import type {
   AgentChat, AgentChatAttachment, AgentChatAttachmentRules, AgentChatConfirmation, AgentChatDataRepair, AgentChatHeldCall, AgentChatHelper, AgentChatIncident,
   AgentChatCodePause, AgentChatMemoryQuestion, AgentChatMessage, AgentChatMitigation, AgentChatOwnerAsk, AgentChatPackRefusal, AgentChatPlan, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage, AgentChatWatch, AgentChatWatchUpdate, ChatChart, ChatCompaction, ChatModelMenu, ChatModelSwitch, ChatScreenshot, ChatTheory, EnvironmentOption,
-  HandbookProposal, IntegrationCard, InvestigationCard, InvestigationDetail,
+  HalonSkillProposal, HandbookProposal, IntegrationCard, InvestigationCard, InvestigationDetail,
 } from "@/types/serializers"
 
 // Setup's Meet Halon step, sent only while an admin is on it.
@@ -57,6 +57,7 @@ export interface ThreadProps extends Record<(typeof AGENT_CHAT_THREAD_PROPS)[num
   ownerAsks: AgentChatOwnerAsk[]
   helpers: AgentChatHelper[]
   handbookProposals: HandbookProposal[]
+  skillProposals: HalonSkillProposal[]
   theories: ChatTheory[]
 }
 

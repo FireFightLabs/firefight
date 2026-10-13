@@ -164,6 +164,29 @@ class Chat::Tools::UseSkillTest < ActiveSupport::TestCase
 
   private
 
+  test "a workspace's own skill is listed and loaded like any other, its tools offered through the same rules" do
+    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
+    grant_system!(Ability::Action::RESOURCE_FORMS, Ability::Action::ACTION_READ)
+    Chat::CustomSkill.create_with!(workspace: @workspace, name: "game_day", by: workspace_memberships(:alice_workspace_one),
+                                   content: { "when" => "Someone asks for a game day", "tools" => %w[get_form declare_incident], "steps" => "1. Read the form with `get_form`." })
+
+    assert_includes use_skill.description, "This workspace's own:\ngame_day: Someone asks for a game day"
+    answer = use_skill.call("skill" => "game_day")
+
+    assert_includes answer, "1. Read the form with `get_form`."
+    assert_equal [ "get_form" ], @offered.flatten.map(&:name)
+    assert_includes answer, "declare_incident is not used while investigating"
+  end
+
+  test "a workspace's copy is loaded in place of Firefight's skill of the same name" do
+    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
+    copy = Chat::CustomSkill.copy!(Chat::Skill.find("declaring"), workspace: @workspace, by: workspace_memberships(:alice_workspace_one))
+    copy.write!(copy.live_version.content.merge("steps" => "1. Our own way, with `get_form`."), by: workspace_memberships(:alice_workspace_one))
+
+    assert_equal 1, use_skill.parameters_schema.dig("properties", "skill", "enum").count("declaring")
+    assert_includes use_skill.call("skill" => "declaring"), "1. Our own way, with `get_form`."
+  end
+
   def connect_northflank(tools)
     integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Northflank")
     integration.integration_environments.create!(catalog_entry_id: catalog_entries(:production_env).id, credentials: { token: "x" }.to_json)

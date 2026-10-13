@@ -34,7 +34,7 @@ export default function AgentPage() {
     messages = NOTHING_YET, confirmations = NOTHING_YET, waitingMessages = NOTHING_YET, compactions = NOTHING_YET, modelSwitches = NOTHING_YET,
     heldCalls = NOTHING_YET, packRefusals = NOTHING_YET, secretEntries = NOTHING_YET, watches = NOTHING_YET, watchUpdates = NOTHING_YET,
     pullRequestNotices = NOTHING_YET, codePauses = NOTHING_YET, memoryQuestions = NOTHING_YET, plans = NOTHING_YET, dataRepairs = NOTHING_YET, mitigations = NOTHING_YET,
-    ownerAsks = NOTHING_YET, handbookProposals = NOTHING_YET,
+    ownerAsks = NOTHING_YET, handbookProposals = NOTHING_YET, skillProposals = NOTHING_YET,
   } = page.props
   const conversationId = conversation?.id ?? null
   // A chat shows a skeleton until its conversation arrives, and never the one the page showed before. A question asked
@@ -145,6 +145,7 @@ export default function AgentPage() {
                     mitigations={mitigations}
                     ownerAsks={ownerAsks}
                     handbookProposals={handbookProposals}
+                    skillProposals={skillProposals}
                     waiting={waitingMessages}
                     stream={stream}
                   />

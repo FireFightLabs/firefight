@@ -363,6 +363,28 @@ export const HANDBOOK_FREEZE_NAME_LIMIT = 80 as const
 
 export const HANDBOOK_FREEZE_LIFTED_BY_LIMIT = 120 as const
 
+export const SKILL_LIMITS = {
+  "NAME": 64,
+  "WHEN": 500,
+  "STEPS": 20000,
+  "TOOLS": 40,
+  "REASON": 1000
+} as const
+
+export const SKILL_PAGE_QUERIES = {
+  "LIBRARY": "library",
+  "HISTORY": "history",
+  "PROPOSAL": "proposal"
+} as const
+
+export const SKILL_PAGE_PROPS = {
+  "TOOL_CHOICES": "toolChoices",
+  "LIBRARY_SKILL": "librarySkill",
+  "HISTORY": "history"
+} as const
+
+export const SKILL_FILE_NAME = "SKILL.md" as const
+
 export const MEMORY_PAGE_TABS = {
   "MEMORIES": "memories",
   "INSTRUCTIONS": "instructions"
@@ -722,6 +744,7 @@ export const ABILITY_RESOURCES = [
   "handbook",
   "browser",
   "channel_posts",
+  "skills",
   "integrations",
   "api_keys",
   "permissions",
@@ -752,7 +775,8 @@ export const ABILITY_GRANTABLE_RESOURCES = [
   "monitoring",
   "handbook",
   "browser",
-  "channel_posts"
+  "channel_posts",
+  "skills"
 ] as const
 export type AbilityGrantableResource = (typeof ABILITY_GRANTABLE_RESOURCES)[number]
 
@@ -778,6 +802,7 @@ export const ABILITY_RESOURCE_LABELS = {
   "handbook": "Handbook",
   "browser": "Halon's Browser",
   "channel_posts": "Channel Posts",
+  "skills": "Skills",
   "webhooks": "Webhooks",
   "integrations": "Integrations",
   "api_keys": "API Keys",
@@ -917,6 +942,12 @@ export const ABILITY_RESOURCE_ACTIONS = {
   ],
   "channel_posts": [
     "create"
+  ],
+  "skills": [
+    "read",
+    "create",
+    "update",
+    "delete"
   ]
 } as const
 
@@ -978,7 +1009,8 @@ export const AGENT_STREAM_EVENTS = {
   "PLAN": "plan",
   "SAFEGUARD": "safeguard",
   "HELPERS": "helpers",
-  "HANDBOOK": "handbook"
+  "HANDBOOK": "handbook",
+  "SKILL": "skill"
 } as const
 
 export const AGENT_STEP_STATUSES = {
@@ -1094,6 +1126,7 @@ export const AGENT_CHAT_PROPS = {
   "OWNER_ASKS": "ownerAsks",
   "HELPERS": "helpers",
   "HANDBOOK_PROPOSALS": "handbookProposals",
+  "SKILL_PROPOSALS": "skillProposals",
   "CHAT_MODELS": "chatModels",
   "THEORIES": "theories",
   "THREAD_FOR": "threadFor"
@@ -1131,6 +1164,7 @@ export const AGENT_CHAT_THREAD_PROPS = [
   "ownerAsks",
   "helpers",
   "handbookProposals",
+  "skillProposals",
   "theories"
 ] as const
 
@@ -1154,6 +1188,7 @@ export const AGENT_CHAT_WINDOWED_PROPS = [
   "ownerAsks",
   "helpers",
   "handbookProposals",
+  "skillProposals",
   "theories"
 ] as const
 

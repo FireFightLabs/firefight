@@ -34,6 +34,8 @@ class Conversation::LiveDelivery
   EVENT_HELPERS = "helpers"
   # Halon proposed a handbook edit, or someone decided on one, so its card looks again.
   EVENT_HANDBOOK = "handbook"
+  # Halon proposed a skill, so its card looks again.
+  EVENT_SKILL = "skill"
 
   STATUS_RUNNING = "running"
   STATUS_DONE = "done"
@@ -85,6 +87,10 @@ class Conversation::LiveDelivery
 
   def self.handbook_proposed(conversation)
     ConversationChannel.broadcast_to(conversation, type: EVENT_HANDBOOK)
+  end
+
+  def self.skill_proposed(conversation)
+    ConversationChannel.broadcast_to(conversation, type: EVENT_SKILL)
   end
 
   def self.secret_entry_moved(conversation)

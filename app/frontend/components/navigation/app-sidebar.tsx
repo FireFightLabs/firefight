@@ -6,6 +6,7 @@ import {
   IconChartBar,
   IconPhoneCall,
   IconRadar,
+  IconSparkles,
   IconBook2,
   IconCategory,
   IconCreditCard,
@@ -55,6 +56,7 @@ import {
   settingsHandbookPath,
   halonPerformancePath,
   halonMonitoringPath,
+  halonSkillsPath,
   cataloguePath,
   dashboardPath,
   integrationsPath,
@@ -163,6 +165,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
     pendingApprovalsCount,
     waitingPackRequestsCount,
     agentAvailable,
+    workflowsEnabled,
   } = usePage<SharedProps>().props
 
   const chatSection: SidebarNavSection = {
@@ -172,6 +175,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
       { title: "Handbook", url: settingsHandbookPath(), icon: IconNotebook },
       { title: "Memory", url: memoryPath(), icon: IconBrain },
       { title: "Monitoring", url: halonMonitoringPath(), icon: IconRadar },
+      ...(workflowsEnabled ? [ { title: "Skills", url: halonSkillsPath(), icon: IconSparkles } ] : []),
       { title: "Performance", url: halonPerformancePath(), icon: IconChartBar },
       { title: "On-call", url: halonOnCallPath(), icon: IconPhoneCall, adminOnly: true },
       { title: "Test logins", url: settingsTestLoginsPath(), icon: IconLogin2 },

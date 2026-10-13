@@ -38,6 +38,9 @@ class Conversation < ApplicationRecord
   has_many :memory_posts, class_name: "Chat::MemoryPost", dependent: :delete_all
   # Handbook edits Halon proposed in this chat. They outlive it on the Handbook page.
   has_many :handbook_proposals, class_name: "Chat::HandbookProposal", dependent: :nullify
+  # Skills Halon proposed in this chat. They outlive it on the Skills page.
+  has_many :skill_proposals, -> { where(author_kind: Chat::CustomSkill::Version::AUTHOR_HALON) }, class_name: "Chat::CustomSkill::Version",
+                                                                                                  dependent: :nullify
   # Pull request news for this chat. The notice belongs to its session and outlives the chat.
   has_many :pull_request_notices, class_name: "CodeAgentSession::Notice", dependent: :nullify, inverse_of: :conversation
   # Code changes from this chat that reached their spending limit, each asking Continue or Stop. They belong to their session.

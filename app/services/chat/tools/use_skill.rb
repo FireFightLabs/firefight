@@ -58,22 +58,26 @@ class Chat::Tools::UseSkill < RubyLLM::Tool
 
   def skills = @skills ||= Chat::Skill.available_to(@agent_run.workspace)
 
-  # A provider's skill drives that provider's own tools, the capabilities that answer for its resources, and the map.
+  # A provider's skill drives that provider's own tools, the capabilities that answer for its resources, and the map. A
+  # workspace's own skill names each tool as Halon calls it.
   def skill_tool?(skill, entry)
+    return skill.tools.include?(entry.name) if skill.workspace?
+
     skill.tools.include?(entry.handle) &&
       (entry.source == skill.source || entry.group == Chat::Tools::Groups::RESOURCES || entry.handle == MAP)
   end
 
   def listing
     skills.group_by { |skill| [ skill.source, skill.domain ] }.map do |(source, domain), grouped|
-      "#{source} #{domain.humanize(capitalize: false)}:\n#{grouped.map { |skill| "#{skill.name}: #{skill.used_when}" }.join("\n")}"
+      heading = source == Chat::Skill::SOURCE_WORKSPACE ? "This workspace's own" : "#{source} #{domain.humanize(capitalize: false)}"
+      "#{heading}:\n#{grouped.map { |skill| "#{skill.name}: #{skill.used_when}" }.join("\n")}"
     end.join("\n")
   end
 
   # A provider's skill names a tool as the provider does. The agent calls it by the name its connection gives it, and
   # a workspace with two connections to one provider has both.
   def steps_for(skill, entries)
-    return skill.steps if skill.firefight?
+    return skill.steps if skill.names_tools_as_called?
 
     names = entries.group_by(&:handle).transform_values { |found| found.map(&:name).uniq }
     skill.steps.gsub(CODE) do |code|
@@ -125,7 +129,7 @@ class Chat::Tools::UseSkill < RubyLLM::Tool
   # connection with every tool off has nothing to offer at all. Each is named, so the agent never reaches that connection's
   # account through another connection's tool.
   def off_elsewhere(skill, entries)
-    return if skill.firefight?
+    return if skill.names_tools_as_called?
 
     wanted = skill.tools.map { |name| Integrations::Capabilities.provider_tool(skill.source, name) || name }.uniq
     reached = entries.map(&:handle) + entries.filter_map { |entry| Integrations::Capabilities.provider_tool(skill.source, entry.handle) }
@@ -149,11 +153,23 @@ class Chat::Tools::UseSkill < RubyLLM::Tool
 
   # A capability the skill names is missing when the provider tool it runs as is switched off, so that tool is named.
   def switched_off(skill, entries)
+    return missing_here(skill, entries) if skill.workspace?
+
     missing = (skill.tools - entries.map(&:handle)).map { |name| Integrations::Capabilities.provider_tool(skill.source, name) || name }.uniq
     return if skill.firefight? || missing.empty?
 
     provider = Chat::Tools::Docs.provider_name(skill.source)
     "#{missing.to_sentence} #{missing.one? ? 'is' : 'are'} not switched on for #{provider} in this workspace, so a step that needs " \
       "#{missing.one? ? 'it' : 'them'} cannot run. An admin can switch #{missing.one? ? 'it' : 'them'} on under Integrations. Say so."
+  end
+
+  # A tool the workspace's own skill names that Halon is not offered here now, such as one switched off or a connection
+  # that was removed.
+  def missing_here(skill, entries)
+    missing = skill.tools - entries.map(&:name)
+    return if missing.empty?
+
+    "#{missing.to_sentence} #{missing.one? ? 'is' : 'are'} not offered to you in this workspace now, so a step that needs " \
+      "#{missing.one? ? 'it' : 'them'} cannot run. Say so, and that whoever keeps this skill can change it on the Skills page."
   end
 end

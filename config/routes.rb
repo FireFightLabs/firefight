@@ -407,6 +407,19 @@ Rails.application.routes.draw do
         post :run
       end
     end
+    get "/halon/skills", to: "halon_skills#index", as: :halon_skills
+    post "/halon/skills", to: "halon_skills#create"
+    post "/halon/skills/import", to: "halon_skills#import", as: :import_halon_skills
+    get "/halon/skills/library/:name/export", to: "halon_skills#export_library", as: :export_halon_library_skill
+    post "/halon/skills/library/:name/copy", to: "halon_skills#copy", as: :copy_halon_library_skill
+    post "/halon/skills/proposals/:id/accept", to: "halon_skills#accept_proposal", as: :accept_halon_skill_proposal
+    post "/halon/skills/proposals/:id/dismiss", to: "halon_skills#dismiss_proposal", as: :dismiss_halon_skill_proposal
+    patch "/halon/skills/:id", to: "halon_skills#update", as: :halon_skill
+    delete "/halon/skills/:id", to: "halon_skills#destroy"
+    get "/halon/skills/:id/export", to: "halon_skills#export", as: :export_halon_skill
+    post "/halon/skills/:id/restore", to: "halon_skills#restore", as: :restore_halon_skill
+    post "/halon/skills/:id/take-library", to: "halon_skills#take_library", as: :take_library_halon_skill
+    post "/halon/skills/:id/keep-own", to: "halon_skills#keep_own", as: :keep_own_halon_skill
     get "/agent", to: "agent_chats#index", as: :agent_chats
     post "/agent", to: "agent_chats#create"
     get "/agent/search", to: "agent_chats#search", as: :agent_chats_search

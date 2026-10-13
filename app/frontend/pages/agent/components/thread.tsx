@@ -8,6 +8,7 @@ import { whenClosed } from "@/lib/handlers"
 import { CodePauses } from "@/pages/agent/components/code-pause-card"
 import { ConfirmCard } from "@/pages/agent/components/confirm-card"
 import { HandbookProposals } from "@/pages/agent/components/handbook-proposal-card"
+import { SkillProposals } from "@/pages/agent/components/skill-proposal-card"
 import { HeldCalls } from "@/pages/agent/components/held-calls"
 import { MemoryQuestions } from "@/pages/agent/components/memory-questions"
 import { PackRefusals } from "@/pages/agent/components/pack-refusals"
@@ -24,7 +25,7 @@ import { type AgentStream, type ChatTurn, TURN_KINDS } from "@/pages/agent/types
 import type {
   AgentChatAttachment, AgentChatCodePause, AgentChatConfirmation, AgentChatDataRepair, AgentChatHeldCall, AgentChatMemoryQuestion, AgentChatMessage, AgentChatMitigation,
   AgentChatOwnerAsk, AgentChatPackRefusal, AgentChatPlan, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage, AgentChatWatch,
-  AgentChatWatchUpdate, ChatCompaction, ChatModelSwitch, HandbookProposal,
+  AgentChatWatchUpdate, ChatCompaction, ChatModelSwitch, HalonSkillProposal, HandbookProposal,
 } from "@/types/serializers"
 
 // Older messages start loading this far before the person reaches the top.
@@ -61,13 +62,14 @@ interface ThreadProps {
   mitigations: AgentChatMitigation[]
   ownerAsks: AgentChatOwnerAsk[]
   handbookProposals: HandbookProposal[]
+  skillProposals: HalonSkillProposal[]
   waiting: AgentChatWaitingMessage[]
   stream: AgentStream
 }
 
 export function Thread({
   conversationId, confirmations, messages: newestFirst, paged, hasOlder, compactions, modelSwitches, heldCalls, packRefusals, secretEntries, watches,
-  watchUpdates, pullRequestNotices, codePauses, memoryQuestions, plans, dataRepairs, mitigations, ownerAsks, handbookProposals, waiting, stream,
+  watchUpdates, pullRequestNotices, codePauses, memoryQuestions, plans, dataRepairs, mitigations, ownerAsks, handbookProposals, skillProposals, waiting, stream,
 }: ThreadProps) {
   const foot = useRef<HTMLDivElement>(null)
   const scroller = useRef<HTMLDivElement>(null)
@@ -112,6 +114,8 @@ export function Thread({
   const owned = useMemo(() => placeAfterTurns(turns, messages, ownerAsks), [ turns, messages, ownerAsks ])
   // A handbook edit sits after the turn whose reading contradicted the handbook.
   const proposed = useMemo(() => placeAfterTurns(turns, messages, handbookProposals), [ turns, messages, handbookProposals ])
+  // A skill sits after the turn in which Halon proposed it.
+  const skilled = useMemo(() => placeAfterTurns(turns, messages, skillProposals), [ turns, messages, skillProposals ])
   // Held by id rather than by the message, which the server's copy replaces once it answers.
   const [ openImageId, setOpenImageId ] = useState<string | null>(null)
   const openImage = sentAttachments(turns, waiting).find((attachment) => attachment.id === openImageId) ?? null
@@ -153,6 +157,7 @@ export function Thread({
   }, [
     conversationId, oldestShown, messages.length, waiting.length, stream.text, stream.steps.length, heldCalls.length, packRefusals.length, secretEntries.length, watchUpdates.length, pullRequestNotices.length,
     codePauses.length, memoryQuestions.length, plans.length, dataRepairs.length, mitigations.length, ownerAsks.length, handbookProposals.length,
+    skillProposals.length,
   ])
 
   // Whatever sits before the first message loaded is drawn once the start of the chat is loaded, where it belongs.
@@ -175,6 +180,7 @@ export function Thread({
         />
       )}
       <HandbookProposals proposals={proposed.get(BEFORE_ALL_TURNS)} />
+      <SkillProposals proposals={skilled.get(BEFORE_ALL_TURNS)} />
     </>
   )
 
@@ -197,6 +203,7 @@ export function Thread({
             <Safeguards conversationId={conversationId} repairs={repaired.get(turn.id)} mitigations={mitigated.get(turn.id)} ownerAsks={owned.get(turn.id)} />
           )}
           <HandbookProposals proposals={proposed.get(turn.id)} />
+          <SkillProposals proposals={skilled.get(turn.id)} />
         </Fragment>
       ))}
       {live && <Message turn={live} live onOpenImage={setOpenImageId} />}

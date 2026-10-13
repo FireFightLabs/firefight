@@ -49,6 +49,8 @@ module Ability
     # Posting a message as Firefight in any channel it can post in, such as release notes in #general. It reaches people
     # beyond an incident, so it needs a grant and approval rules hold it. Only posting is offered.
     RESOURCE_CHANNEL_POSTS = "channel_posts"
+    # The workspace's own skills, which Halon loads like Firefight's. Members read them, and writing one needs a grant.
+    RESOURCE_SKILLS = "skills"
 
     # Nobody can be granted these, so a member or an agent can never mint keys
     # or rewrite who has what.
@@ -61,7 +63,7 @@ module Ability
       RESOURCE_CUSTOM_FIELDS, RESOURCE_FORMS, RESOURCE_CATALOG, RESOURCE_ALERTS, RESOURCE_POLICIES,
       RESOURCE_RUNBOOKS, RESOURCE_APPROVALS, RESOURCE_INCIDENT_ROLES, RESOURCE_WEBHOOKS,
       RESOURCE_INCIDENT_TRANSCRIPTS, RESOURCE_INVESTIGATIONS, RESOURCE_CHATS, RESOURCE_MEMORY, RESOURCE_MAP,
-      RESOURCE_MONITORING, RESOURCE_HANDBOOK, RESOURCE_BROWSER, RESOURCE_CHANNEL_POSTS
+      RESOURCE_MONITORING, RESOURCE_HANDBOOK, RESOURCE_BROWSER, RESOURCE_CHANNEL_POSTS, RESOURCE_SKILLS
     ].freeze
 
     RESOURCES = (GRANTABLE_RESOURCES + ADMIN_ONLY_RESOURCES).freeze
@@ -95,6 +97,7 @@ module Ability
       RESOURCE_HANDBOOK => "Handbook",
       RESOURCE_BROWSER => "Halon's Browser",
       RESOURCE_CHANNEL_POSTS => "Channel Posts",
+      RESOURCE_SKILLS => "Skills",
       RESOURCE_WEBHOOKS => "Webhooks",
       RESOURCE_INTEGRATIONS => "Integrations",
       RESOURCE_API_KEYS => "API Keys",

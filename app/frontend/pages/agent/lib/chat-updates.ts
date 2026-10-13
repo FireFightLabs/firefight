@@ -50,6 +50,8 @@ const PLANS = [ AGENT_CHAT_PROPS.PLANS, AGENT_CHAT_PROPS.CONVERSATION ]
 const HELPERS = [ AGENT_CHAT_PROPS.HELPERS, AGENT_CHAT_PROPS.CHARTS ]
 // Something contradicted the handbook while Halon worked, or someone decided on its proposed edit.
 const HANDBOOK_PROPOSALS = [ AGENT_CHAT_PROPS.HANDBOOK_PROPOSALS ]
+// Halon proposed a skill while it worked.
+const SKILL_PROPOSALS = [ AGENT_CHAT_PROPS.SKILL_PROPOSALS ]
 // Which model the chat runs on, and whether that model reads images.
 const CHAT_MODELS = [ AGENT_CHAT_PROPS.CHAT_MODELS, AGENT_CHAT_PROPS.ATTACHMENT_RULES ]
 const RUNS = [ AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION ]
@@ -281,6 +283,10 @@ export function refreshHelpers() {
 
 export function refreshHandbookProposals() {
   router.reload({ only: HANDBOOK_PROPOSALS })
+}
+
+export function refreshSkillProposals() {
+  router.reload({ only: SKILL_PROPOSALS })
 }
 
 export function refreshOpenChat() {
