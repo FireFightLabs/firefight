@@ -25,12 +25,12 @@ class RunbookToolChoiceSerializer < BaseSerializer
   end
 
   # What a watch reads with instead of fields, when a guard keeps the tool to reads through arguments of its own.
-  type "{ key: string; kind: #{Chat::Tools::Choices::KINDS.map(&:inspect).join(' | ')}; options: string[]; required: boolean; description: string | null }[] | null"
+  type "{ key: string; kind: #{Chat::Tools::Choices::KINDS.map(&:inspect).join(' | ')}; options: string[]; required: boolean; description: string | null; shown_when: Record<string, string[]> | null }[] | null"
   def watch_fields
     choice.watch_fields&.map { |field| { key: field.key, kind: field.kind, options: field.options, required: field.required, description: field.description } }
   end
 
-  type "{ key: string; kind: #{Chat::Tools::Choices::KINDS.map(&:inspect).join(' | ')}; options: string[]; required: boolean; description: string | null }[]"
+  type "{ key: string; kind: #{Chat::Tools::Choices::KINDS.map(&:inspect).join(' | ')}; options: string[]; required: boolean; description: string | null; shown_when: Record<string, string[]> | null }[]"
   def fields
     choice.fields.map { |field| { key: field.key, kind: field.kind, options: field.options, required: field.required, description: field.description } }
   end

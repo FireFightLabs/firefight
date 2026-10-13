@@ -12,12 +12,12 @@ module Workflow::StepKinds
   # The groups of the Steps table, in its order. A kind the app runs names its group on its class (DefinedWorkflow::Steps).
   GROUP_HALON = DefinedWorkflow::Steps::Base::GROUP_HALON
   GROUP_TOOLS = DefinedWorkflow::Steps::Base::GROUP_TOOLS
-  GROUP_INCIDENT = "incident".freeze
+  GROUP_INCIDENT = DefinedWorkflow::Steps::Base::GROUP_INCIDENT
   GROUP_MESSAGES = DefinedWorkflow::Steps::Base::GROUP_MESSAGES
-  GROUP_SANDBOX = "sandbox".freeze
-  GROUP_HTTP = "http".freeze
+  GROUP_SANDBOX = DefinedWorkflow::Steps::Base::GROUP_SANDBOX
+  GROUP_HTTP = DefinedWorkflow::Steps::Base::GROUP_HTTP
   GROUP_WAITING = DefinedWorkflow::Steps::Base::GROUP_WAITING
-  GROUP_PEOPLE = "people".freeze
+  GROUP_PEOPLE = DefinedWorkflow::Steps::Base::GROUP_PEOPLE
   GROUP_CONTROL = DefinedWorkflow::Steps::Base::GROUP_CONTROL
   GROUP_BY_HAND = "by_hand".freeze
   GROUPS = [
@@ -39,7 +39,11 @@ module Workflow::StepKinds
   EDITOR_TOOL = "tool".freeze
   EDITOR_ASK_HALON = "ask_halon".freeze
   EDITOR_WATCH = "watch".freeze
-  EDITORS = [ EDITOR_FIELDS, EDITOR_BRANCH, EDITOR_DELAY, EDITOR_FOR_EACH, EDITOR_RUN_WORKFLOW, EDITOR_TOOL, EDITOR_ASK_HALON, EDITOR_WATCH ].freeze
+  # The tool editor, offering only the tools of connected status pages that change something.
+  EDITOR_STATUS_PAGE = "status_page".freeze
+  EDITORS = [
+    EDITOR_FIELDS, EDITOR_BRANCH, EDITOR_DELAY, EDITOR_FOR_EACH, EDITOR_RUN_WORKFLOW, EDITOR_TOOL, EDITOR_ASK_HALON, EDITOR_WATCH, EDITOR_STATUS_PAGE
+  ].freeze
 
   ICON_BRANCH = "branch".freeze
   ICON_DELAY = "delay".freeze
@@ -60,10 +64,15 @@ module Workflow::StepKinds
   ICON_PERSON = "person".freeze
   ICON_APPROVAL = "approval".freeze
   ICON_STOP = "stop".freeze
+  ICON_INVESTIGATE = "investigate".freeze
+  ICON_CLASSIFY = "classify".freeze
+  ICON_PAGE = "page".freeze
+  ICON_FOLLOW_UP = "follow_up".freeze
+  ICON_STATUS_PAGE = "status_page".freeze
   ICONS = [
     ICON_BRANCH, ICON_DELAY, ICON_EVENT, ICON_LOOP, ICON_JOIN, ICON_WORKFLOW, ICON_TOOL, ICON_HALON, ICON_MESSAGE,
     ICON_CHANNEL, ICON_INCIDENT, ICON_NOTICE, ICON_WATCH, ICON_SKILL, ICON_TERMINAL, ICON_GLOBE, ICON_PERSON,
-    ICON_APPROVAL, ICON_STOP
+    ICON_APPROVAL, ICON_STOP, ICON_INVESTIGATE, ICON_CLASSIFY, ICON_PAGE, ICON_FOLLOW_UP, ICON_STATUS_PAGE
   ].freeze
 
   # A step that calls one tool Halon can call: a connection's, a capability that answers for anything on the map, or
@@ -150,9 +159,12 @@ module Workflow::StepKinds
     ))
   end
 
-  def field(key, kind, description, options: [], required: false)
-    ToolField::Field.new(key: key, kind: kind, options: options, required: required, description: description)
+  def field(key, kind, description, options: [], required: false, shown_when: nil)
+    ToolField::Field.new(key: key, kind: kind, options: options, required: required, description: description, shown_when: shown_when)
   end
+
+  # The workspace's own values for a choice, by slug, or none where nothing is known of a workspace.
+  def slugs(facts) = facts.workspace ? yield(facts.workspace).pluck(:slug) : []
 
   def fixed_outputs(kind) = ->(_step, _facts) { DefinedWorkflow::OUTPUT_FIELDS.fetch(kind, []) }
 
@@ -247,4 +259,118 @@ module Workflow::StepKinds
           ],
           defaults: { DefinedWorkflow::Steps::RaiseNotice::KEY_SIGNAL => Investigation::Notice::SIGNAL_OTHER,
                       DefinedWorkflow::Steps::RaiseNotice::KEY_SEVERITY => Investigation::Notice::SEVERITY_MEDIUM })
+
+  INVESTIGATE = DefinedWorkflow::Steps::Investigate
+  runtime(INVESTIGATE, icon: ICON_INVESTIGATE, editor: EDITOR_FIELDS,
+          description: "Starts a Halon investigation of an incident or a problem and waits for what it finds and how sure it is.",
+          fields: [
+            field(INVESTIGATE::KEY_INCIDENT, ToolField::KIND_TEXT, "The incident it investigates, such as {{trigger.incident.identifier}}."),
+            field(INVESTIGATE::KEY_SYMPTOM, ToolField::KIND_PARAGRAPH, "What is wrong, needed when there is no incident."),
+            field(INVESTIGATE::KEY_NAMES, ToolField::KIND_LIST, "Services, apps or repositories it is about.")
+          ],
+          defaults: { INVESTIGATE::KEY_INCIDENT => "{{trigger.incident.identifier}}" })
+
+  CLASSIFY = DefinedWorkflow::Steps::Classify
+  runtime(CLASSIFY, icon: ICON_CLASSIFY, editor: EDITOR_FIELDS,
+          description: "Has Halon sort what it is given into one of the routes you name, each a path out of the step.",
+          fields: [
+            field(CLASSIFY::KEY_DATA, ToolField::KIND_PARAGRAPH, "What Halon sorts, usually an earlier value.", required: true),
+            field(CLASSIFY::KEY_ROUTES, ToolField::KIND_LIST, "The routes it sorts into, such as noise, outage, watch.", required: true),
+            field(CLASSIFY::KEY_GUIDANCE, ToolField::KIND_PARAGRAPH, "How to tell them apart."),
+            field(CLASSIFY::KEY_OTHERWISE, ToolField::KIND_TEXT, "The route taken when none fits.")
+          ],
+          defaults: { CLASSIFY::KEY_DATA => "", CLASSIFY::KEY_ROUTES => [], CLASSIFY::KEY_OTHERWISE => CLASSIFY::DEFAULT_OTHERWISE },
+          routes: ->(step) { CLASSIFY.all_routes(step["config"].to_h) })
+
+  OPEN = DefinedWorkflow::Steps::OpenIncident
+  runtime(OPEN, icon: ICON_INCIDENT, editor: EDITOR_FIELDS,
+          description: "Declares an incident through the workspace's declare form, as /ff declare does.",
+          fields: lambda { |facts|
+            [ field(OPEN::KEY_NAME, ToolField::KIND_TEXT, "What the incident is called.", required: true),
+              field(OPEN::KEY_SUMMARY, ToolField::KIND_PARAGRAPH, "What is happening."),
+              field(OPEN::KEY_SEVERITY, ToolField::KIND_SELECT, "How bad it is.", options: slugs(facts) { |workspace| workspace.incident_severities.active.by_rank }),
+              field(OPEN::KEY_TYPE, ToolField::KIND_SELECT, "What kind of incident it is.", options: slugs(facts) { |workspace| workspace.incident_types.active.ordered }),
+              field(DefinedWorkflow::Steps::Base::KEY_UNDO, ToolField::KIND_TEXT, "How a person puts it back, such as cancelling the incident.", required: true) ]
+          },
+          defaults: { OPEN::KEY_NAME => "", DefinedWorkflow::Steps::Base::KEY_UNDO => "Cancel the incident." })
+
+  UPDATE = DefinedWorkflow::Steps::UpdateIncident
+  runtime(UPDATE, icon: ICON_INCIDENT, editor: EDITOR_FIELDS,
+          description: "Changes one thing about an incident: its status, severity, type, fields, lead or a role, who is invited, or a runbook.",
+          fields: lambda { |facts|
+            only = ->(*changes) { { UPDATE::KEY_CHANGE => changes } }
+            [ field(UPDATE::KEY_INCIDENT, ToolField::KIND_TEXT, "The incident it changes, such as {{trigger.incident.identifier}}.", required: true),
+              field(UPDATE::KEY_CHANGE, ToolField::KIND_SELECT, "What it changes.", options: UPDATE::CHANGES, required: true),
+              field(UPDATE::KEY_STATUS, ToolField::KIND_SELECT, "The status it sets.", options: slugs(facts) { |workspace| workspace.incident_statuses.active.ordered },
+                    required: true, shown_when: only.call(UPDATE::CHANGE_STATUS)),
+              field(UPDATE::KEY_SEVERITY, ToolField::KIND_SELECT, "The severity it sets.", options: slugs(facts) { |workspace| workspace.incident_severities.active.by_rank },
+                    required: true, shown_when: only.call(UPDATE::CHANGE_SEVERITY)),
+              field(UPDATE::KEY_TYPE, ToolField::KIND_SELECT, "The type it sets.", options: slugs(facts) { |workspace| workspace.incident_types.active.ordered },
+                    required: true, shown_when: only.call(UPDATE::CHANGE_TYPE)),
+              field(UPDATE::KEY_ROLE, ToolField::KIND_SELECT, "The role it fills.", options: slugs(facts) { |workspace| workspace.incident_roles.active.ordered },
+                    required: true, shown_when: only.call(UPDATE::CHANGE_ROLE)),
+              field(UPDATE::KEY_MEMBER, ToolField::KIND_TEXT, "Who, by email.", required: true, shown_when: only.call(UPDATE::CHANGE_LEAD, UPDATE::CHANGE_ROLE)),
+              field(UPDATE::KEY_MEMBERS, ToolField::KIND_LIST, "Who it invites, by email.", required: true, shown_when: only.call(UPDATE::CHANGE_INVITE)),
+              field(UPDATE::KEY_RUNBOOK, ToolField::KIND_SELECT, "The runbook it attaches.", options: slugs(facts) { |workspace| workspace.runbooks },
+                    required: true, shown_when: only.call(UPDATE::CHANGE_RUNBOOK)),
+              field(UPDATE::KEY_MESSAGE, ToolField::KIND_PARAGRAPH, "Words posted with the change, in Markdown.", shown_when: only.call(*UPDATE::FORM_CHANGES)),
+              field(DefinedWorkflow::Steps::Base::KEY_UNDO, ToolField::KIND_TEXT, "How a person puts it back, such as setting it as it was.", required: true) ]
+          },
+          defaults: { UPDATE::KEY_INCIDENT => "{{trigger.incident.identifier}}", UPDATE::KEY_CHANGE => UPDATE::CHANGE_SEVERITY })
+
+  POST_UPDATE = DefinedWorkflow::Steps::PostIncidentUpdate
+  runtime(POST_UPDATE, icon: ICON_INCIDENT, editor: EDITOR_FIELDS,
+          description: "Posts an update on an incident, once or again every few minutes while it is live.",
+          fields: [
+            field(POST_UPDATE::KEY_INCIDENT, ToolField::KIND_TEXT, "The incident it posts on.", required: true),
+            field(POST_UPDATE::KEY_MESSAGE, ToolField::KIND_PARAGRAPH, "What it posts, in Markdown.", required: true),
+            field(POST_UPDATE::KEY_EVERY, ToolField::KIND_NUMBER, "Post again every this many minutes while the incident is live. Leave it empty to post once.")
+          ],
+          defaults: { POST_UPDATE::KEY_INCIDENT => "{{trigger.incident.identifier}}", POST_UPDATE::KEY_MESSAGE => "" })
+
+  PAGE = DefinedWorkflow::Steps::PageOnCall
+  runtime(PAGE, icon: ICON_PAGE, editor: EDITOR_FIELDS,
+          description: "Pages whoever is on call through the on-call tool, reading who that is first, or escalates to a member without one.",
+          fields: lambda { |facts|
+            tools = facts.workspace ? Integrations::Paging.connections(facts.workspace).map(&:slug) : []
+            paging = [ field(PAGE::KEY_TARGET, ToolField::KIND_TEXT, "What to page in the on-call tool, such as a service there.", required: true),
+                       field(PAGE::KEY_TOOL, ToolField::KIND_SELECT, "The on-call tool, when there are several.", options: tools, required: tools.size > 1),
+                       field(PAGE::KEY_PERSON, ToolField::KIND_TEXT, "Who to page, by email, when you know.") ]
+            escalate = [ field(PAGE::KEY_ESCALATE_TO, ToolField::KIND_TEXT, "Who to escalate to, by email, since no on-call tool is connected.", required: true) ]
+            [ field(PAGE::KEY_INCIDENT, ToolField::KIND_TEXT, "The incident it pages for.", required: true),
+              field(PAGE::KEY_REASON, ToolField::KIND_PARAGRAPH, "What the person paged needs to know.", required: true), *(tools.any? ? paging : escalate) ]
+          },
+          defaults: { PAGE::KEY_INCIDENT => "{{trigger.incident.identifier}}", PAGE::KEY_REASON => "" })
+
+  FOLLOW_UP = DefinedWorkflow::Steps::CreateFollowUp
+  runtime(FOLLOW_UP, icon: ICON_FOLLOW_UP, editor: EDITOR_FIELDS,
+          description: "Adds a follow up to an incident, assigned or not, and opens its issue in the workspace's tracker when you ask.",
+          fields: [
+            field(FOLLOW_UP::KEY_INCIDENT, ToolField::KIND_TEXT, "The incident it follows up.", required: true),
+            field(FOLLOW_UP::KEY_DESCRIPTION, ToolField::KIND_TEXT, "What needs doing, in one line.", required: true),
+            field(FOLLOW_UP::KEY_MEMBER, ToolField::KIND_TEXT, "Who it is assigned to, by email."),
+            field(FOLLOW_UP::KEY_KIND, ToolField::KIND_SELECT, "After the incident (followup) or during it (action).", options: IncidentAction::ACTION_TYPES),
+            field(FOLLOW_UP::KEY_OPEN_ISSUE, ToolField::KIND_TOGGLE, "Open its issue in the workspace's tracker too."),
+            field(DefinedWorkflow::Steps::Base::KEY_UNDO, ToolField::KIND_TEXT, "How a person puts it back, such as deleting the follow up.", required: true)
+          ],
+          defaults: { FOLLOW_UP::KEY_INCIDENT => "{{trigger.incident.identifier}}", FOLLOW_UP::KEY_DESCRIPTION => "",
+                      FOLLOW_UP::KEY_KIND => IncidentAction::ACTION_TYPE_FOLLOWUP, DefinedWorkflow::Steps::Base::KEY_UNDO => "Delete the follow up." })
+
+  MESSAGE = DefinedWorkflow::Steps::MessagePerson
+  runtime(MESSAGE, icon: ICON_PERSON, editor: EDITOR_FIELDS,
+          description: "Sends a direct message as Firefight to a member, an incident's lead, a role's holder or whoever is on call for it.",
+          fields: lambda { |facts|
+            [ field(MESSAGE::KEY_TO, ToolField::KIND_SELECT, "Who it messages.", options: MESSAGE::TO, required: true),
+              field(MESSAGE::KEY_PERSON, ToolField::KIND_TEXT, "The person, by email.", required: true, shown_when: { MESSAGE::KEY_TO => [ MESSAGE::TO_PERSON ] }),
+              field(MESSAGE::KEY_INCIDENT, ToolField::KIND_TEXT, "The incident whose people it messages.", required: true,
+                    shown_when: { MESSAGE::KEY_TO => MESSAGE::FROM_INCIDENT }),
+              field(MESSAGE::KEY_ROLE, ToolField::KIND_SELECT, "The role whose holder it messages.", options: slugs(facts) { |workspace| workspace.incident_roles.active.ordered },
+                    required: true, shown_when: { MESSAGE::KEY_TO => [ MESSAGE::TO_ROLE ] }),
+              field(MESSAGE::KEY_MESSAGE, ToolField::KIND_PARAGRAPH, "What it says, in Markdown.", required: true) ]
+          },
+          defaults: { MESSAGE::KEY_TO => MESSAGE::TO_LEAD, MESSAGE::KEY_INCIDENT => "{{trigger.incident.identifier}}", MESSAGE::KEY_MESSAGE => "" })
+
+  runtime(DefinedWorkflow::Steps::StatusPageUpdate, icon: ICON_STATUS_PAGE, editor: EDITOR_STATUS_PAGE,
+          description: "Posts or updates a status page through a connected status page tool, such as a status report.",
+          defaults: { CONFIG_TOOL => "", CONFIG_ARGUMENTS => {} })
 end

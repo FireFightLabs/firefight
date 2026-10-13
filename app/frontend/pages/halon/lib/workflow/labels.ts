@@ -3,9 +3,12 @@ import {
   IconArrowsJoin,
   IconArrowsSplit,
   IconBell,
+  IconBellRinging,
   IconBolt,
   IconBook,
+  IconBroadcast,
   IconCalendarRepeat,
+  IconCategory,
   IconCircleX,
   IconClock,
   IconEye,
@@ -29,6 +32,7 @@ import {
   IconUser,
   IconWebhook,
   IconWorld,
+  IconZoomQuestion,
   type Icon,
 } from "@tabler/icons-react"
 
@@ -77,6 +81,11 @@ export const STEP_ICONS: Record<WorkflowStepIcon, Icon> = {
   person: IconUser,
   approval: IconUserCheck,
   stop: IconPlayerStop,
+  investigate: IconZoomQuestion,
+  classify: IconCategory,
+  page: IconBellRinging,
+  follow_up: IconListCheck,
+  status_page: IconBroadcast,
 }
 
 export const TRIGGER_ICONS: Record<WorkflowTriggerIcon, Icon> = {

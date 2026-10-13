@@ -15,7 +15,9 @@ module ToolField
   KIND_RESOURCE = "resource".freeze
   KINDS = [ KIND_TEXT, KIND_PARAGRAPH, KIND_NUMBER, KIND_SELECT, KIND_TOGGLE, KIND_LIST, KIND_KEPT, KIND_RESOURCE ].freeze
 
-  Field = Data.define(:key, :kind, :options, :required, :description) do
-    def initialize(options: [], required: false, description: nil, **) = super
+  # shown_when names another field and the values it must hold for this one to be asked, such as a member only for a
+  # change that names one. A field not shown is neither required nor sent.
+  Field = Data.define(:key, :kind, :options, :required, :description, :shown_when) do
+    def initialize(options: [], required: false, description: nil, shown_when: nil, **) = super
   end
 end

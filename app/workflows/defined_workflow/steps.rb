@@ -8,6 +8,9 @@ module DefinedWorkflow::Steps
     @kinds ||= [
       DefinedWorkflow::Steps::CallTool, DefinedWorkflow::Steps::AskHalon, DefinedWorkflow::Steps::RunSkill,
       DefinedWorkflow::Steps::Watch, DefinedWorkflow::Steps::PostToChannel, DefinedWorkflow::Steps::RaiseNotice,
+      DefinedWorkflow::Steps::Investigate, DefinedWorkflow::Steps::Classify, DefinedWorkflow::Steps::OpenIncident,
+      DefinedWorkflow::Steps::UpdateIncident, DefinedWorkflow::Steps::PostIncidentUpdate, DefinedWorkflow::Steps::PageOnCall,
+      DefinedWorkflow::Steps::CreateFollowUp, DefinedWorkflow::Steps::MessagePerson, DefinedWorkflow::Steps::StatusPageUpdate,
       DefinedWorkflow::Steps::Branch, DefinedWorkflow::Steps::Delay
     ].freeze
   end

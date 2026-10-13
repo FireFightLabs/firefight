@@ -40,6 +40,19 @@ class ChannelPostService
     raise Refused, refusal(error, "the chat's thread")
   end
 
+  # Posts in a member's direct messages with Firefight, naming who asked, as a post in a channel does.
+  def tell!(member:, message:, by:)
+    raise Refused, "Say what to say." if message.to_s.strip.empty?
+    raise Refused, "The message is longer than #{MESSAGE_LIMIT.to_fs(:delimited)} characters. Shorten it, or post it in parts." if message.length > MESSAGE_LIMIT
+    raise Refused, "#{member.actor_display_name} has not used Firefight in chat yet, so there is nowhere to message them." if member.platform_user_id.blank?
+
+    posted = adapter.post_channel_message(channel_id: member.platform_user_id, message: message.strip, posted_by: by, by_halon: false)
+    Posted.new(channel_id: posted[:channel_id] || member.platform_user_id, channel_name: nil,
+               link: link_to(posted[:channel_id] || member.platform_user_id, posted[:message_id]))
+  rescue AdapterError => error
+    raise Refused, refusal(error, "#{member.actor_display_name}'s direct messages")
+  end
+
   private
 
   def reply_place(conversation)

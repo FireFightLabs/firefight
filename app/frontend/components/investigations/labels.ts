@@ -61,6 +61,7 @@ export const TRIGGER_LABELS: Record<InvestigationTrigger, string> = {
   alert: "Alert",
   schedule: "Scheduled check",
   security_event: "Security event",
+  workflow: "Workflow",
 }
 
 export const HYPOTHESIS_LABELS: Record<HypothesisStatus, string> = {

@@ -14,6 +14,8 @@ export interface ToolField {
   options: string[]
   required: boolean
   description: string | null
+  // Another field and the values it must hold for this one to be asked.
+  shown_when?: Record<string, string[]> | null
 }
 
 // A value as it stands in the form: what is kept, and the words typed into a number or list field while they are typed.
@@ -61,6 +63,14 @@ export function emptyArguments(): ArgumentsState {
 
 export function argumentsState(saved: Record<string, unknown> | null | undefined): ArgumentsState {
   return { values: isObject(saved) ? { ...saved } : {}, drafts: {} }
+}
+
+// Whether a field is asked, given what the fields it depends on hold.
+export function isShown(field: ToolField, state: ArgumentsState): boolean {
+  if (!field.shown_when) {
+    return true
+  }
+  return Object.entries(field.shown_when).every(([ key, values ]) => values.includes(String(state.values[key] ?? "")))
 }
 
 // How a saved value reads in its field.
@@ -114,7 +124,7 @@ export function withoutArgument(state: ArgumentsState, key: string): ArgumentsSt
 // What is wrong with each field, by its key: a required one left empty, or a number that is not one.
 export function fieldErrors(fields: ToolField[], state: ArgumentsState, placeholder: RegExp = PLACEHOLDER): Record<string, string> {
   const errors: Record<string, string> = {}
-  fields.forEach((field) => {
+  fields.filter((field) => isShown(field, state)).forEach((field) => {
     const value = state.values[field.key]
     if (field.required && field.kind !== RUNBOOK_FIELD_KINDS.KEPT && (value === undefined || value === "")) {
       errors[field.key] = REQUIRED

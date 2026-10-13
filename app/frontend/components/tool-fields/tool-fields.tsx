@@ -4,6 +4,7 @@ import type { SearchableSelectOption } from "@/components/searchable-select"
 import { RUNBOOK_FIELD_KINDS } from "@/lib/generated/constants"
 import { ToolFieldInput } from "@/components/tool-fields/tool-field-input"
 import {
+  isShown,
   otherArguments,
   withField,
   withoutArgument,
@@ -43,7 +44,7 @@ export function ToolFields({ idPrefix, fields, state, errors, placeholders, plac
 
   return (
     <div className="space-y-3">
-      {(fields ?? []).filter((field) => field.kind !== RUNBOOK_FIELD_KINDS.KEPT).map((field) => (
+      {(fields ?? []).filter((field) => field.kind !== RUNBOOK_FIELD_KINDS.KEPT && isShown(field, state)).map((field) => (
         <ToolFieldInput
           key={field.key}
           id={`${idPrefix}-${field.key}`}

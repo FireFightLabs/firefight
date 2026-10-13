@@ -24,6 +24,11 @@ interface StepConfigEditorProps {
   onChange: (config: JsonObject, error?: string | null) => void
 }
 
+// The tools a Status page update step may call: those of connected status pages that change something.
+function statusPageTools(tools: WorkflowToolChoice[] | undefined): WorkflowToolChoice[] | undefined {
+  return tools?.filter((tool) => tool.statusPage && !tool.readOnly)
+}
+
 // A step's settings, drawn the way its kind says: the tool field form over its fields, or an editor of its own for a
 // branch's routes, a delay, a for each, the workflow it runs, the tool it calls, what Halon is asked or what is watched.
 export function StepConfigEditor({ step, config, kind, tools, workflows, timeZones, references, disabled, onChange }: StepConfigEditorProps) {
@@ -39,6 +44,8 @@ export function StepConfigEditor({ step, config, kind, tools, workflows, timeZon
     return <RunWorkflowEditor idPrefix={idPrefix} config={config} workflows={workflows} references={references} disabled={disabled} onChange={onChange} />
   case WORKFLOW_STEP_EDITOR.TOOL:
     return <ToolStepEditor idPrefix={idPrefix} config={config} tools={tools} references={references} disabled={disabled} onChange={onChange} />
+  case WORKFLOW_STEP_EDITOR.STATUS_PAGE:
+    return <ToolStepEditor idPrefix={idPrefix} config={config} tools={statusPageTools(tools)} references={references} disabled={disabled} onChange={onChange} />
   case WORKFLOW_STEP_EDITOR.ASK_HALON:
     return <AskHalonEditor idPrefix={idPrefix} config={config} references={references} disabled={disabled} onChange={onChange} />
   case WORKFLOW_STEP_EDITOR.WATCH:

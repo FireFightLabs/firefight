@@ -20,6 +20,7 @@ class Investigation::Brief
   SOURCE_MCP = "an outside agent over MCP".freeze
   SOURCE_REHEARSAL = "a bench case".freeze
   SOURCE_SECURITY_EVENT = "a security event a connected provider reported".freeze
+  SOURCE_WORKFLOW = "a workflow's Investigate step".freeze
 
   # The same fields for the chat's tool and the MCP tool, so an outside agent and Halon hand over the same thing.
   SCHEMA = {
