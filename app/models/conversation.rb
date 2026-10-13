@@ -38,6 +38,8 @@ class Conversation < ApplicationRecord
   has_many :memory_posts, class_name: "Chat::MemoryPost", dependent: :delete_all
   # Handbook edits Halon proposed in this chat. They outlive it on the Handbook page.
   has_many :handbook_proposals, class_name: "Chat::HandbookProposal", dependent: :nullify
+  # Workflows Halon made from this chat, shown here as cards.
+  has_many :workflows, foreign_key: :origin_conversation_id, inverse_of: :origin_conversation, dependent: :nullify
   # Skills Halon proposed in this chat. They outlive it on the Skills page.
   has_many :skill_proposals, -> { where(author_kind: Chat::CustomSkill::Version::AUTHOR_HALON) }, class_name: "Chat::CustomSkill::Version",
                                                                                                   dependent: :nullify

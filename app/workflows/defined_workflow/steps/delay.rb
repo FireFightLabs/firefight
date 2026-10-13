@@ -3,6 +3,7 @@ class DefinedWorkflow::Steps::Delay < DefinedWorkflow::Steps::Base
   kind DefinedWorkflow::KIND_DELAY
   label "Delay"
   group GROUP_WAITING
+  config_help "minutes, hours or days to wait, or until (a time of day such as 09:00) with time_zone."
 
   def self.engine? = true
 

@@ -24,7 +24,8 @@ module Chat::Tools::Groups
   # Ways in for an outside agent. Halon does not ask itself a question, and a chat has its own start_investigation and
   # its own watches.
   NOT_FOR_HALON = [
-    Mcp::Tools::ASK_HALON, Mcp::Tools::GET_HALON_ANSWER, Mcp::Tools::START_INVESTIGATION, Mcp::Tools::LIST_WATCHES, Mcp::Tools::STOP_WATCH
+    Mcp::Tools::ASK_HALON, Mcp::Tools::GET_HALON_ANSWER, Mcp::Tools::START_INVESTIGATION, Mcp::Tools::LIST_WATCHES, Mcp::Tools::STOP_WATCH,
+    Mcp::Tools::LIST_WORKFLOWS, Mcp::Tools::CREATE_WORKFLOW, Mcp::Tools::RUN_WORKFLOW
   ].freeze
 
   # The registry's catch all, whose connections have nothing in common but their kind.
@@ -129,7 +130,8 @@ module Chat::Tools::Groups
         Mcp::Tools::UPSERT_STATUS, Mcp::Tools::DELETE_STATUS, Mcp::Tools::UPSERT_INCIDENT_TYPE,
         Mcp::Tools::DELETE_INCIDENT_TYPE, Mcp::Tools::UPSERT_INCIDENT_ROLE, Mcp::Tools::DELETE_INCIDENT_ROLE,
         Mcp::Tools::GET_FORM, Mcp::Tools::UPSERT_FORM_FIELD, Mcp::Tools::UPSERT_CUSTOM_FIELD,
-        Mcp::Tools::LIST_HANDBOOK_PAGES, Mcp::Tools::GET_HANDBOOK_PAGE, Mcp::Tools::UPSERT_HANDBOOK_PAGE, Mcp::Tools::DELETE_HANDBOOK_PAGE
+        Mcp::Tools::LIST_HANDBOOK_PAGES, Mcp::Tools::GET_HANDBOOK_PAGE, Mcp::Tools::UPSERT_HANDBOOK_PAGE, Mcp::Tools::DELETE_HANDBOOK_PAGE,
+        Mcp::Tools::UPDATE_WORKFLOW_SETTINGS
       ]
     ),
     Firefight.new(

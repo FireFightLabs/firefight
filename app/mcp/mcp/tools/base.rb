@@ -116,6 +116,14 @@ module Mcp
 
         def holdable? = !@never_held
 
+        # A tool for work a workspace has only behind a feature flag. Nothing lists it, offers it to Halon or runs it for
+        # a workspace without the flag.
+        def behind_flag(flag)
+          @flag = flag
+        end
+
+        def offered_in?(workspace) = @flag.nil? || (workspace.present? && FeatureFlags.enabled?(workspace, @flag))
+
         # A tool whose answer holds only words the workspace wrote in Firefight, such as its settings, and never what an
         # alert, a channel or another system said. Halon reading only such answers has read nothing from outside
         # (Chat::Tools::Provenance). Every other tool counts as outside content.

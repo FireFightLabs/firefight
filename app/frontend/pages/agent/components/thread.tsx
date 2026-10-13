@@ -13,6 +13,7 @@ import { HeldCalls } from "@/pages/agent/components/held-calls"
 import { MemoryQuestions } from "@/pages/agent/components/memory-questions"
 import { PackRefusals } from "@/pages/agent/components/pack-refusals"
 import { Plans } from "@/pages/agent/components/plans"
+import { WorkflowCards } from "@/pages/agent/components/workflow-cards"
 import { PullRequestNotices } from "@/pages/agent/components/pull-request-notices"
 import { Safeguards } from "@/pages/agent/components/safeguards"
 import { SecretEntries } from "@/pages/agent/components/secret-entries"
@@ -24,7 +25,7 @@ import { BEFORE_ALL_TURNS, groupedTurns, liveTurn, placeAfterTurns, settledMessa
 import { type AgentStream, type ChatTurn, TURN_KINDS } from "@/pages/agent/types"
 import type {
   AgentChatAttachment, AgentChatCodePause, AgentChatConfirmation, AgentChatDataRepair, AgentChatHeldCall, AgentChatMemoryQuestion, AgentChatMessage, AgentChatMitigation,
-  AgentChatOwnerAsk, AgentChatPackRefusal, AgentChatPlan, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage, AgentChatWatch,
+  AgentChatOwnerAsk, AgentChatPackRefusal, AgentChatPlan, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage, AgentChatWatch, AgentChatWorkflow,
   AgentChatWatchUpdate, ChatCompaction, ChatModelSwitch, HalonSkillProposal, HandbookProposal,
 } from "@/types/serializers"
 
@@ -58,6 +59,7 @@ interface ThreadProps {
   codePauses: AgentChatCodePause[]
   memoryQuestions: AgentChatMemoryQuestion[]
   plans: AgentChatPlan[]
+  workflows: AgentChatWorkflow[]
   dataRepairs: AgentChatDataRepair[]
   mitigations: AgentChatMitigation[]
   ownerAsks: AgentChatOwnerAsk[]
@@ -69,7 +71,7 @@ interface ThreadProps {
 
 export function Thread({
   conversationId, confirmations, messages: newestFirst, paged, hasOlder, compactions, modelSwitches, heldCalls, packRefusals, secretEntries, watches,
-  watchUpdates, pullRequestNotices, codePauses, memoryQuestions, plans, dataRepairs, mitigations, ownerAsks, handbookProposals, skillProposals, waiting, stream,
+  watchUpdates, pullRequestNotices, codePauses, memoryQuestions, plans, workflows, dataRepairs, mitigations, ownerAsks, handbookProposals, skillProposals, waiting, stream,
 }: ThreadProps) {
   const foot = useRef<HTMLDivElement>(null)
   const scroller = useRef<HTMLDivElement>(null)
@@ -108,6 +110,8 @@ export function Thread({
   const asked = useMemo(() => placeAfterTurns(turns, messages, memoryQuestions), [ turns, messages, memoryQuestions ])
   // A plan sits where it last moved, so a checklist that moves on stays where the person is reading.
   const planned = useMemo(() => placeAfterTurns(turns, messages, plans), [ turns, messages, plans ])
+  // A workflow Halon made sits after the turn that made it.
+  const made = useMemo(() => placeAfterTurns(turns, messages, workflows), [ turns, messages, workflows ])
   // What Firefight did around a change sits after the turn that made it, and an owner's answer where it was asked.
   const repaired = useMemo(() => placeAfterTurns(turns, messages, dataRepairs), [ turns, messages, dataRepairs ])
   const mitigated = useMemo(() => placeAfterTurns(turns, messages, mitigations), [ turns, messages, mitigations ])
@@ -156,7 +160,7 @@ export function Thread({
     foot.current?.scrollIntoView({ block: "end" })
   }, [
     conversationId, oldestShown, messages.length, waiting.length, stream.text, stream.steps.length, heldCalls.length, packRefusals.length, secretEntries.length, watchUpdates.length, pullRequestNotices.length,
-    codePauses.length, memoryQuestions.length, plans.length, dataRepairs.length, mitigations.length, ownerAsks.length, handbookProposals.length,
+    codePauses.length, memoryQuestions.length, plans.length, workflows.length, dataRepairs.length, mitigations.length, ownerAsks.length, handbookProposals.length,
     skillProposals.length,
   ])
 
@@ -171,6 +175,7 @@ export function Thread({
       <CodePauses pauses={paused.get(BEFORE_ALL_TURNS)} />
       <MemoryQuestions questions={asked.get(BEFORE_ALL_TURNS)} />
       {conversationId && <Plans conversationId={conversationId} plans={planned.get(BEFORE_ALL_TURNS)} />}
+      {conversationId && <WorkflowCards conversationId={conversationId} workflows={made.get(BEFORE_ALL_TURNS)} />}
       {conversationId && (
         <Safeguards
           conversationId={conversationId}
@@ -199,6 +204,7 @@ export function Thread({
           <CodePauses pauses={paused.get(turn.id)} />
           <MemoryQuestions questions={asked.get(turn.id)} />
           {conversationId && <Plans conversationId={conversationId} plans={planned.get(turn.id)} />}
+          {conversationId && <WorkflowCards conversationId={conversationId} workflows={made.get(turn.id)} />}
           {conversationId && (
             <Safeguards conversationId={conversationId} repairs={repaired.get(turn.id)} mitigations={mitigated.get(turn.id)} ownerAsks={owned.get(turn.id)} />
           )}

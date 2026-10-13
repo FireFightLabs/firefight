@@ -257,6 +257,10 @@ Paging walks backwards from the end, since the last thing said is usually the
 part worth reading, and `more_before` carries the cursor. The limit is capped at
 500 rather than trusted.
 
+## Workflows
+
+Behind the workflows flag (`behind_flag FeatureFlags::WORKFLOWS`), so they are never listed in a workspace without it, and a call to one there is refused. `list_workflows` (`workflows: read`) is what Halon reads too (`Workflow::Listing`). `create_workflow` (`workflows: create`) takes the shape Halon writes (`Workflow::Authoring.schema`): a library template with its params, or a trigger, steps and edges by step name. It is published when the principal may publish it and grant what it needs, each its own gateway call (`workflows: update`, `permissions: create`), otherwise it waits as a draft and a member's request asks the admins. `run_workflow` (`workflows: create`) runs a published one by name as its own identity and answers its run's page. `update_workflow_settings` (`workspace: update`) sets how long runs keep their details. See [workflows.md](workflows.md).
+
 ## Architecture
 
 `McpController` (entry point: Bearer auth → `Current.principal`, API rate limit, stateless `handle_json` dispatch — no sessions/SSE, multi-worker safe) → `Mcp::ToolDispatcher` (telemetry; routes every call through `AbilityGateway.authorize!`, which resolves the principal's grants and ledgers denials) → tool classes in `app/mcp/` (workspace-scoped reads + formatting only; no business logic, no writes, no adapter calls; tool names from `Mcp::Tools` constants).

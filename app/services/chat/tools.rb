@@ -397,10 +397,17 @@ module Chat::Tools
     "#{tool.name.tr('_.', '  ').humanize} · #{scope.is_a?(String) ? tool.integration.target_label(scope: scope) : tool.integration.display_name}"
   end
 
-  # A runbook's run is confirmed as the steps it will take, read from the runbook rather than from Halon's words.
+  # A runbook's run, and a workflow made or run, are confirmed as the steps they will take, read from what they are
+  # rather than from Halon's words.
+  PLANNED = {
+    Conversation::Tools::RunRunbook::NAME => Conversation::Tools::RunRunbook, Conversation::Tools::CreateWorkflow::NAME => Conversation::Tools::CreateWorkflow,
+    Conversation::Tools::RunWorkflow::NAME => Conversation::Tools::RunWorkflow
+  }.freeze
+
   def self.planned(tool_call)
-    workspace = tool_call.name == Conversation::Tools::RunRunbook::NAME && tool_call.message&.chat&.workspace
-    workspace ? Conversation::Tools::RunRunbook.plan_rows(workspace, tool_call.arguments) : []
+    tool = PLANNED[tool_call.name.to_s]
+    workspace = tool && tool_call.message&.chat&.workspace
+    workspace ? tool.plan_rows(workspace, tool_call.arguments) : []
   end
 
   def self.call_title(tool_call)
@@ -554,7 +561,7 @@ module Chat::Tools
   def self.firefight_entries(agent_run, resolved: nil)
     principal = agent_run.acting_principal
     workspace = agent_run.workspace
-    offered = Mcp::Tools.all.reject { |tool_class| Groups::NOT_FOR_HALON.include?(tool_class.name_value.to_s) }
+    offered = Mcp::Tools.available_in(workspace).reject { |tool_class| Groups::NOT_FOR_HALON.include?(tool_class.name_value.to_s) }
     keys = offered.to_h { |tool_class| [ tool_class, Ability::Action.system_key(*tool_class.authorization(workspace, {})) ] }
     actions = Ability::Action.system_actions.where(key: keys.values).index_by(&:key)
     # An open action, such as reading a public web page, is made the first time it is asked for.

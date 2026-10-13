@@ -36,6 +36,8 @@ class Conversation::Tools::MakePlan < Conversation::Tools::PlanTool
     given = arguments.deep_stringify_keys
     refuse!("Plans are kept in a chat, and this one has none.") unless chat
 
+    refuse!(LATER_IS_A_WORKFLOW) if given["run_at"].present? && FeatureFlags.enabled?(@turn.workspace, FeatureFlags::WORKFLOWS)
+
     run_at, zone = (scheduled_time(given["run_at"], given["time_zone"]) if given["run_at"].present?)
     callable!(given["steps"]) if run_at
     plan = Chat::Plan.make!(chat: chat, made_by: @turn.asker, goal: given["goal"], steps: given["steps"], run_at: run_at, time_zone: zone)
@@ -43,6 +45,11 @@ class Conversation::Tools::MakePlan < Conversation::Tools::PlanTool
   rescue Chat::Plan::Refused => refused
     refused(tool_call, "Not made. #{refused.message}")
   end
+
+  # Where a workspace has workflows, something to do at a later time is one, made with create_workflow, so there is one
+  # scheduler.
+  LATER_IS_A_WORKFLOW = "Something to do at a later time is a workflow here. Make it with create_workflow and a once_at trigger instead, and " \
+                        "keep plans for what you do now.".freeze
 
   MADE = "Plan made. Say it to the person in two short lines, then carry it out, marking each step running and then done, " \
          "failed or skipped with update_plan. A change still asks the person as usual.".freeze

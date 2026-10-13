@@ -177,7 +177,8 @@ module TypescriptConstants
         "PULL_REQUEST" => Conversation::LiveDelivery::EVENT_PULL_REQUEST, "CODE_FIX" => Conversation::LiveDelivery::EVENT_CODE_FIX,
         "MEMORY" => Conversation::LiveDelivery::EVENT_MEMORY, "PLAN" => Conversation::LiveDelivery::EVENT_PLAN,
         "SAFEGUARD" => Conversation::LiveDelivery::EVENT_SAFEGUARD, "HELPERS" => Conversation::LiveDelivery::EVENT_HELPERS,
-        "HANDBOOK" => Conversation::LiveDelivery::EVENT_HANDBOOK, "SKILL" => Conversation::LiveDelivery::EVENT_SKILL
+        "HANDBOOK" => Conversation::LiveDelivery::EVENT_HANDBOOK, "SKILL" => Conversation::LiveDelivery::EVENT_SKILL,
+        "WORKFLOW" => Conversation::LiveDelivery::EVENT_WORKFLOW
       }, nil),
       Export.new("AGENT_STEP_STATUSES", {
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,
@@ -293,6 +294,9 @@ module TypescriptConstants
       Export.new("SANDBOX_SERVICES", CodeBox::SERVICES, "SandboxService"),
       Export.new("WORKFLOWS_RESOURCE", Ability::Action::RESOURCE_WORKFLOWS, nil),
       Export.new("WORKFLOW_STATES", Workflow::STATES, "WorkflowState"),
+      Export.new("CHAT_WORKFLOW_ACTIONS", {
+        "RUN_NOW" => Workflow::ACTION_RUN_NOW, "CANCEL" => Workflow::ACTION_CANCEL, "TURN_OFF" => Workflow::ACTION_TURN_OFF
+      }, nil),
       Export.new("WORKFLOW_RUN_STATUSES", Workflow::Run::STATUSES, "WorkflowRunStatus"),
       Export.new("WORKFLOW_RUN_OPEN_STATUSES", Workflow::Run::OPEN, nil),
       Export.new("WORKFLOW_RUN_STARTED_BY", Workflow::Run::STARTED_BY, "WorkflowRunStartedBy"),

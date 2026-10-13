@@ -113,11 +113,18 @@ module Mcp
     GET_HANDBOOK_PAGE = "get_handbook_page".freeze
     UPSERT_HANDBOOK_PAGE = "upsert_handbook_page".freeze
     DELETE_HANDBOOK_PAGE = "delete_handbook_page".freeze
+    LIST_WORKFLOWS = "list_workflows".freeze
+    CREATE_WORKFLOW = "create_workflow".freeze
+    RUN_WORKFLOW = "run_workflow".freeze
+    UPDATE_WORKFLOW_SETTINGS = "update_workflow_settings".freeze
 
     # Each tool listed with this workspace's own choices in its parameters. Calls still go to the class.
     def self.for_workspace(workspace)
-      all.map { |tool_class| WorkspaceTool.new(tool_class, workspace) }
+      available_in(workspace).map { |tool_class| WorkspaceTool.new(tool_class, workspace) }
     end
+
+    # Every tool the workspace has, leaving out one behind a flag it does not have.
+    def self.available_in(workspace) = all.select { |tool_class| tool_class.offered_in?(workspace) }
 
     def self.all
       [ SearchIncidents, SearchSimilar, GetIncident, SearchAlerts, SearchCatalog, EvaluateRouting,
@@ -144,7 +151,8 @@ module Mcp
         GetPostmortem, StartPostmortem, UpdatePostmortem, SetPostmortemStatus,
         GetIncidentTranscript, UpsertCatalogType, DeleteCatalogType,
         StartInvestigation, GetInvestigation, GetHalonPerformance, AskHalon, GetHalonAnswer, ListWatches, StopWatch, ListNotices,
-        ListHandbookPages, GetHandbookPage, UpsertHandbookPage, DeleteHandbookPage ]
+        ListHandbookPages, GetHandbookPage, UpsertHandbookPage, DeleteHandbookPage,
+        ListWorkflows, CreateWorkflow, RunWorkflow, UpdateWorkflowSettings ]
     end
   end
 end

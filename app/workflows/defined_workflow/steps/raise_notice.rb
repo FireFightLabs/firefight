@@ -6,6 +6,8 @@ class DefinedWorkflow::Steps::RaiseNotice < DefinedWorkflow::Steps::Base
   kind "raise_notice"
   label "Raise a notice"
   group GROUP_MESSAGES
+  config_help "signal (one of #{Investigation::Notice::SIGNALS.join(', ')}), topic (the same each time for the same problem), summary, severity " \
+              "(low, medium or high, may be a reference), due_on (YYYY-MM-DD, optional), resource (on the map, optional). Said once, and again only when worse."
 
   KEY_SIGNAL = "signal".freeze
   KEY_TOPIC = "topic".freeze

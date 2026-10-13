@@ -8,10 +8,17 @@ module Conversation::Tools
       Chat::Tools::Open.new(turn, offer: offer, presented: presented), Chat::Tools::UseSkill.new(turn, offer: offer), *Chat::Tools::Docs.all(turn), Chat::Tools::ReadResult.new(turn),
       *(Chat::Tools::Helpers.new(turn, share: helpers) if helpers), *(Chat::Tools::AskSpecialist.new(turn, share: helpers) if helpers&.specialists),
       Chat::Tools::Theories.new(turn), StartInvestigation.new(turn), RunRunbook.new(turn), StartWatch.new(turn), RepairWatch.new(turn), ExtendWatch.new(turn), StopWatch.new(turn),
-      ListWatches.new(turn), *plans(turn),
+      ListWatches.new(turn), *plans(turn), *workflows(turn),
       *Chat::Tools.memory(turn), *Chat::Tools::ProposeSkill.all(turn), Chat::Tools::CorrectMemory.new(turn), *Chat::Tools::Web.all(turn), *Chat::Tools::Terminal.all(turn),
       *Chat::Tools::OutsideCheck.all(turn), *Chat::Tools::Browser.all(turn)
     ]
+  end
+
+  # Only where the workspace has workflows.
+  def self.workflows(turn)
+    return [] unless FeatureFlags.enabled?(turn.workspace, FeatureFlags::WORKFLOWS)
+
+    [ CreateWorkflow.new(turn), RunWorkflow.new(turn), ListWorkflows.new(turn) ]
   end
 
   def self.plans(turn) = [ MakePlan.new(turn), UpdatePlan.new(turn), FinishPlan.new(turn), CancelPlan.new(turn) ]

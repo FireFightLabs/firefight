@@ -7,6 +7,8 @@ class DefinedWorkflow::Steps::PostToChannel < DefinedWorkflow::Steps::CallTool
   kind "post_to_channel"
   label "Post to channel"
   group GROUP_MESSAGES
+  config_help "channel (such as #ops) or reply_in_chat true to post back where it was asked for, message (markdown, may use references). " \
+              "Outputs channel and link."
 
   KEY_CHANNEL = "channel".freeze
   KEY_MESSAGE = "message".freeze

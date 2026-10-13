@@ -13,6 +13,7 @@ class Workflow < ApplicationRecord
   include Workflow::Identity
   include Workflow::Scheduling
   include Workflow::Limits
+  include Workflow::Chatting
 
   AUTHOR_PERSON = "person".freeze
   AUTHOR_HALON = "halon".freeze
@@ -27,6 +28,12 @@ class Workflow < ApplicationRecord
   FREEZE_BEHAVIOURS = [ FREEZE_WAIT, FREEZE_STOP ].freeze
 
   USAGE_NOUN = "time".freeze
+
+  # Building, testing and running one, publishing one or changing it live, and granting its identity what it needs.
+  CREATE_KEY = Ability::Action.system_key(Ability::Action::RESOURCE_WORKFLOWS, Ability::Action::ACTION_CREATE)
+  PUBLISH_KEY = Ability::Action.system_key(Ability::Action::RESOURCE_WORKFLOWS, Ability::Action::ACTION_UPDATE)
+  GRANT_KEY = Ability::Action.system_key(Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_CREATE)
+  READ_KEY = Ability::Action.system_key(Ability::Action::RESOURCE_WORKFLOWS, Ability::Action::ACTION_READ)
 
   belongs_to :workspace
   # The team on the catalog that owns it.

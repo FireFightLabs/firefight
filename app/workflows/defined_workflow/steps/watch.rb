@@ -6,6 +6,8 @@ class DefinedWorkflow::Steps::Watch < DefinedWorkflow::Steps::Base
   kind "watch"
   label "Watch"
   group GROUP_WAITING
+  config_help "the same as start_watch: title, minutes, steps (each a capability or a read tool with done_when, failed_when or goal). " \
+              "Outputs status and outcome, and takes the route succeeded, failed, timed_out or stopped."
 
   KEY_STEPS = Chat::Watch::SPEC_KEYS[:steps]
   KEY_TOOL = Chat::Watch::SPEC_KEYS[:tool]

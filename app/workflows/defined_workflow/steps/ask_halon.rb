@@ -4,6 +4,8 @@ class DefinedWorkflow::Steps::AskHalon < DefinedWorkflow::Steps::Base
   kind "ask_halon"
   label "Ask Halon"
   group GROUP_HALON
+  config_help "question, data (what to judge, usually a reference such as {{steps.check.answer}}), fields (optional, up to 10 of {name, description}). " \
+              "Outputs verdict (ok, problem or unsure), summary and each field."
 
   KEY_QUESTION = "question".freeze
   KEY_DATA = "data".freeze

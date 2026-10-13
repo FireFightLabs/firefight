@@ -13,6 +13,8 @@ module Mcp
     def self.call(tool:, server_context:, args:)
       tool_name = tool.name_value
       workspace = server_context[:workspace]
+      return error_response("There is no tool called #{tool_name} in this workspace.") unless tool.offered_in?(workspace)
+
       resource, crud_action = tool.authorization(workspace, args)
 
       OpenTelemetry::Trace.current_span.add_attributes({ "firefight.mcp.tool" => tool_name })
