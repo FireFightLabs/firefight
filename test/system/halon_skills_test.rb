@@ -70,6 +70,24 @@ class HalonSkillsTest < ApplicationSystemTestCase
     assert Chat::CustomSkill.exists?(used.id)
   end
 
+  test "a skill a workflow runs is turned off after reading what that stops, and on again, each saying so" do
+    skill = skill!
+    Workflow.create!(workspace: @workspace, name: "Drill").open_draft!(by: @alice)
+            .update_columns(steps: [ { "id" => "step_1", "name" => "drill", "kind" => "run_skill", "config" => { "skill" => skill.name } } ])
+
+    visit halon_skills_path
+    find("[role=switch][aria-label='game_day is on']").click
+    assert_text "1 workflow runs game_day. While it is off, their step that runs it fails"
+    within("[role=dialog]") { click_button "Turn off" }
+
+    assert_toast "game_day is off. Halon no longer loads it"
+    assert_not skill.reload.enabled?
+
+    find("[role=switch][aria-label='game_day is off']").click
+    assert_toast "game_day is on. Halon loads it again."
+    assert skill.reload.enabled?
+  end
+
   test "an earlier version is brought back from the history" do
     skill = skill!
     skill.write!(skill.live_version.content.merge("steps" => "1. Something else with `declare_incident`."), by: @alice, reason: "Tried another way.")
