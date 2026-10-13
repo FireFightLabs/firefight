@@ -1952,7 +1952,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_120000) do
 
   create_table "integration_tools", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.bigint "definition_chars", default: 0, null: false
+    t.bigint "definition_chars", null: false
     t.string "description"
     t.boolean "enabled", default: false, null: false
     t.uuid "integration_id", null: false
@@ -1964,6 +1964,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_120000) do
     t.jsonb "spec", default: {}, null: false
     t.datetime "updated_at", null: false
     t.index ["integration_id", "name"], name: "index_integration_tools_on_integration_id_and_name", unique: true
+    t.check_constraint "definition_chars > 0", name: "integration_tools_definition_chars_counted"
   end
 
   create_table "integrations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

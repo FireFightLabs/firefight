@@ -179,12 +179,17 @@ class Integration < ApplicationRecord
   end
 
   # Each tool's stored length counts the environment and scope arguments the connection adds (Integration::Tool#offered_schema),
-  # so when its environments change every tool is counted again. Only a length that moved is written.
+  # so when its environments change every tool is counted again. Only a length that moved is written. The environments
+  # every tool reads are read once for the whole recount rather than once per tool.
   def recount_tool_definitions!
+    integration_environments.reset
+    @recount_environments = { choices: environment_choices, slugs: environment_slugs }
     tools.reload.each do |tool|
       length = tool.definition_length
       tool.update_columns(definition_chars: length) unless tool.definition_chars == length
     end
+  ensure
+    @recount_environments = nil
   end
 
   # The Integrations page reads these from its address, so a link opens one connection's details or one provider's connect dialog.
@@ -271,6 +276,8 @@ class Integration < ApplicationRecord
   # does with a default row (there is at most one) or a single enabled row. Read in one query, since every tool's schema
   # asks. Slugs are catalog data any member can read, so nothing is disclosed.
   def environment_choices
+    return @recount_environments[:choices] if @recount_environments
+
     rows = integration_environments.enabled.includes(:environment).order(:created_at).to_a
     return [] if rows.one? || rows.any? { |row| row.catalog_entry_id.nil? }
 
@@ -280,6 +287,8 @@ class Integration < ApplicationRecord
 
   # The slugs of the environments this connection is wired for, in the order they were added.
   def environment_slugs
+    return @recount_environments[:slugs] if @recount_environments
+
     integration_environments.enabled.includes(:environment).order(:created_at).filter_map { |row| row.environment&.slug }
   end
 
