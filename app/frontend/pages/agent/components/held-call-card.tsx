@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/agent-ui/button"
 import { DetailList } from "@/components/detail-list"
 import { useExpiresIn } from "@/hooks/use-expires-in"
-import { formatTime } from "@/lib/formatters"
+import { formatTime, withLocalMoments } from "@/lib/formatters"
 import { APPROVED_CALL_ACTIONS, HELD_CALL_STATUSES } from "@/lib/generated/constants"
 import { agentChatHeldCallAskAgainPath, agentChatHeldCallDismissPath, agentChatHeldCallRunPath } from "@/lib/routes"
 import { sendHeldCallAction } from "@/pages/agent/lib/chat-updates"
@@ -25,7 +25,7 @@ export function HeldCallCard({ conversationId, heldCall }: HeldCallCardProps) {
   const open = OPEN_STATUSES.includes(heldCall.status)
   const expiry = useExpiresIn(open ? heldCall.expiresAt : null)
   const checking = heldCall.status === HELD_CALL_STATUSES.CHECKING
-  const details = heldCall.asked.map(([ label, meta ]) => ({ label, meta }))
+  const details = heldCall.asked.map(([ label, meta ]) => ({ label, meta: withLocalMoments(meta) }))
   const offers = expiry.expired ? [] : heldCall.offers
   const blocked = offers.includes(APPROVED_CALL_ACTIONS.RUN) ? heldCall.runBlockedReason : heldCall.askAgainBlockedReason
 

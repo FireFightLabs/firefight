@@ -1,6 +1,7 @@
 # Firefight's library of workflows, each with its version: use one as it is, which moves with each new version, or copy
-# it to make it the workspace's own. The workspace's workflows show whether each follows the library, and a copy shows
-# what changed in a newer version to take or leave. Any workflow exports as a file, and a file imports as a new one.
+# it to make it the workspace's own. It is the Library tab of the Workflows page (WorkflowsController), where the
+# workspace's workflows show whether each follows the library, and a copy shows what changed in a newer version to take
+# or leave. Any workflow exports as a file, and a file imports as a new one. Each action here answers back to that tab.
 class HalonWorkflowLibraryController < InertiaController
   include RequiresAgent
   include RequiresWorkflows
@@ -12,19 +13,23 @@ class HalonWorkflowLibraryController < InertiaController
     create: %i[adopt import],
     update: %i[take_library keep_own]
 
-  def index
-    render inertia: "halon/workflow-library", props: {
-      items: HalonLibraryWorkflowSerializer.many(Workflow::Library.all, used: used_by_item, workspace: current_workspace),
-      workflows: HalonLibraryWorkflowUseSerializer.many(workflows.includes(:live_version).ordered.to_a)
-    }
-  end
+  UNANSWERED = "Answer this to use it.".freeze
 
-  # following is whether it moves with each new version, the default, or is the workspace's own copy.
+  # The library's own address, from before it was a tab.
+  def index = redirect_to(library_tab)
+
+  # following is whether it moves with each new version, the default, or is the workspace's own copy. answers are what
+  # the person said to each question the item asks, such as what a scheduled check looks at.
   def adopt
     item = Workflow::Library.find(params[:key]) || raise(ActiveRecord::RecordNotFound)
+    answers = params.fetch(:answers, {}).permit(*Workflow::Trigger.input_keys(item.trigger)).to_h
+    unanswered = Workflow.unanswered_library_inputs(item, answers)
+    return form_refused_with(unanswered.to_h { |key| [ :"answers.#{key}", [ UNANSWERED ] ] }) if unanswered.any?
+
     following = ActiveModel::Type::Boolean.new.cast(params.fetch(:following, true))
-    workflow = Workflow.from_library!(item, workspace: current_workspace, by: current_membership, name: params[:name].presence || item.name, following: following)
-    redirect_to halon_workflow_library_path, notice: used_notice(workflow)
+    workflow = Workflow.from_library!(item, workspace: current_workspace, by: current_membership, name: params[:name].presence || item.name,
+                                      following: following, answers: answers)
+    redirect_to library_tab, notice: used_notice(workflow)
   rescue Workflow::Edit::Refused => error
     form_refused_with(name: [ error.message ])
   rescue ActiveRecord::RecordInvalid => error
@@ -34,18 +39,18 @@ class HalonWorkflowLibraryController < InertiaController
   def take_library
     workflow = workflows.find(params[:id])
     draft = workflow.take_library!(by: current_membership)
-    redirect_to halon_workflow_library_path,
+    redirect_to library_tab,
                 notice: "#{workflow.name} has a new draft, version #{draft.number}, holding Firefight's version #{workflow.library_version}. Publish it to run it."
   rescue Workflow::Edit::Refused => error
-    redirect_to halon_workflow_library_path, alert: error.message
+    redirect_to library_tab, alert: error.message
   end
 
   def keep_own
     workflow = workflows.find(params[:id])
     workflow.keep_own!
-    redirect_to halon_workflow_library_path, notice: "#{workflow.name} keeps your steps. You are told again when Firefight ships a newer version."
+    redirect_to library_tab, notice: "#{workflow.name} keeps your steps. You are told again when Firefight ships a newer version."
   rescue Workflow::Edit::Refused => error
-    redirect_to halon_workflow_library_path, alert: error.message
+    redirect_to library_tab, alert: error.message
   end
 
   def export
@@ -56,7 +61,7 @@ class HalonWorkflowLibraryController < InertiaController
   def import
     parsed = Workflow::Document.parse(uploaded_text)
     workflow = Workflow::Document.import!(parsed, workspace: current_workspace, by: current_membership, name: params[:name])
-    redirect_to halon_workflow_library_path, notice: "#{workflow.name} was imported as a draft. Publish it to run it."
+    redirect_to library_tab, notice: "#{workflow.name} was imported as a draft. Publish it to run it."
   rescue Workflow::Document::Unreadable => error
     form_refused_with(file: [ error.message ])
   rescue ActiveRecord::RecordInvalid => error
@@ -67,8 +72,7 @@ class HalonWorkflowLibraryController < InertiaController
 
   def workflows = Workflow.where(workspace: current_workspace)
 
-  # The workspace's workflows made from each item, by key, so a list never asks per row.
-  def used_by_item = workflows.where.not(library_key: nil).pluck(:library_key, :name).group_by(&:first).transform_values { |pairs| pairs.map(&:last) }
+  def library_tab = halon_workflows_path(WorkflowsController::TAB_QUERY => WorkflowsController::TAB_LIBRARY)
 
   def used_notice(workflow)
     return "#{workflow.name} was copied from Firefight's library as your own. Change its draft and publish it to run it." unless workflow.follows_library?
@@ -83,5 +87,5 @@ class HalonWorkflowLibraryController < InertiaController
     file.read(Workflow::Document::SIZE_LIMIT + 1)
   end
 
-  def form_refused_with(errors) = redirect_back_or_to(halon_workflow_library_path, inertia: { errors: errors })
+  def form_refused_with(errors) = redirect_back_or_to(library_tab, inertia: { errors: errors })
 end

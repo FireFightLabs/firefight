@@ -193,6 +193,28 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
 
   private
 
+  test "a time a workflow would run at reads in the viewer's own time zone, with the zone named" do
+    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
+    page.driver.browser.execute_cdp("Emulation.setTimezoneOverride", timezoneId: "Europe/Belgrade")
+    at = Time.zone.parse("2026-10-14 07:00 UTC")
+    message = @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    arguments = { "name" => "Morning look", "trigger" => { "kind" => "once_at", "at" => "2026-10-14T07:00", "time_zone" => "UTC" },
+                  "steps" => [ { "name" => "look", "kind" => "call_tool", "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => {} } } ],
+                  "short_title" => "Make Morning look", "intent" => "Look around in the morning" }
+    @chat.request_decisions!([ message.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Conversation::Tools::CreateWorkflow::NAME, arguments: arguments).tool_call_id ])
+    @conversation.reply_delivered!
+
+    travel_to(at - 1.day) { visit agent_chat_path(@conversation) }
+    within(CARD) do
+      click_button "Details"
+      assert_text(/Once at .*Oct.*09:00 GMT\+2/)
+      assert_no_text(/Once at .*07:00/)
+      assert_no_text "{{at:"
+    end
+  ensure
+    page.driver.browser.execute_cdp("Emulation.clearTimezoneOverride") rescue nil
+  end
+
   def pause_on(*tool_names)
     message = @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
     @ids = tool_names.each_with_index.map do |name, index|

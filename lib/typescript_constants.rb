@@ -307,6 +307,7 @@ module TypescriptConstants
       Export.new("WORKFLOW_STEP_STATUSES", Workflow::Run::Step::STATUSES, "WorkflowStepStatus"),
       Export.new("WORKFLOW_FREEZE_BEHAVIOURS", Workflow::FREEZE_BEHAVIOURS, "WorkflowFreezeBehaviour"),
       Export.new("WORKFLOW_PAGE_TABS", WorkflowsController::TABS, "WorkflowPageTab"),
+      Export.new("CHAT_TIME_TOKEN_PATTERN", Chat::TimeToken::PATTERN.source, nil),
       Export.new("WORKFLOW_PAGE_TAB_QUERY", WorkflowsController::TAB_QUERY, nil),
       Export.new("WORKFLOW_RUNS_PER_HOUR", { "MIN" => Workflow::Limits::RUNS_PER_HOUR.min, "MAX" => Workflow::Limits::RUNS_PER_HOUR.max }, nil),
       Export.new("WORKFLOW_RUN_RETENTION_DAYS", { "MIN" => Workflow::Run::Retention::DAYS.min, "MAX" => Workflow::Run::Retention::DAYS.max }, nil),

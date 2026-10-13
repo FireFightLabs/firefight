@@ -23,7 +23,7 @@ class InvestigationNoticeSerializer < BaseSerializer
   def due_on = notice.due_on&.iso8601
 
   type :string, optional: true
-  def resource_name = notice.resource&.name
+  def resource_name = notice.resource_label
 
   type :string, optional: true
   def check_name = notice.check&.name
