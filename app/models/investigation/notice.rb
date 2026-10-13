@@ -52,13 +52,14 @@ class Investigation::Notice < ApplicationRecord
   Reading = Data.define(:signal, :topic, :summary, :severity, :due_on, :resource, :reference, :resource_words) do
     def initialize(due_on: nil, resource: nil, reference: nil, resource_words: nil, **) = super
 
-    def key = Investigation::Notice.key_for(signal, resource: resource, topic: topic, reference: reference)
+    def key = Investigation::Notice.key_for(signal, resource: resource, topic: topic, reference: reference, resource_words: resource_words)
   end
 
   # The same problem gets the same key every time: the provider's reference when it has one, its resource on the map
-  # when it is about one, else its topic in words.
-  def self.key_for(signal, resource: nil, topic: nil, reference: nil)
-    "#{signal}:#{reference.presence || resource&.id || topic.to_s.parameterize.presence || 'general'}"
+  # when it is about one, else its topic in words, with the resource it names when that is not on the map.
+  def self.key_for(signal, resource: nil, topic: nil, reference: nil, resource_words: nil)
+    named = [ (resource_words.to_s.parameterize.presence unless resource), topic.to_s.parameterize.presence ].compact.join(":")
+    "#{signal}:#{reference.presence || resource&.id || named.presence || 'general'}"
   end
 
   def self.severity_rank(severity) = SEVERITIES.index(severity.to_s) || 0
