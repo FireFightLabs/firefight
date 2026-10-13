@@ -10,6 +10,7 @@ CI.run do
 
   step "Tests: Rails", "bin/rails test"
   step "Tests: AI engine", "bin/rails test engines/firefight_ai/test"
+  step "Tests: Workflow engine", "bin/rails test engines/solid_workflow/test"
   step "Tests: System", "bin/rails test:system"
   step "Tests: Seeds", "env RAILS_ENV=test bin/rails db:seed:replant"
 end

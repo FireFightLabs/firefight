@@ -3,12 +3,15 @@ module SolidWorkflow
     module Eventable
       extend ActiveSupport::Concern
 
+      # Every move is told to the workflow's class as well, so a host can keep its own record of the run.
       def record_event(event_type, step: nil, **metadata)
-        events.create!(
+        event = events.create!(
           event_type: event_type,
           step: step,
           metadata: metadata
         )
+        workflow_klass&.observe(self, event)
+        event
       end
 
       def timeline

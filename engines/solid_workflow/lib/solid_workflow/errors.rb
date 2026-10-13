@@ -1,0 +1,27 @@
+module SolidWorkflow
+  class Error < StandardError; end
+
+  # A definition the interpreter cannot run, named by its problems.
+  class InvalidDefinition < Error; end
+
+  # A step ran past its own timeout. Retried like any other failure while attempts remain.
+  class StepTimedOut < Error; end
+
+  # A step that waits ran out of its time limit. Never retried, since waiting again cannot end differently.
+  class TimeLimitReached < Error; end
+
+  # A sub workflow, or an item of a for each, ended without succeeding.
+  class SubWorkflowFailed < Error; end
+
+  # A step kind nothing runs.
+  class UnknownStepKind < Error; end
+
+  # What a step that waits hands back instead of an output: wake it at a time, on a signal, or when a child it
+  # started ends.
+  Park = Data.define(:wake_at, :signal_key) do
+    def initialize(wake_at: nil, signal_key: nil) = super
+  end
+
+  # An output together with the route the step took, which decides which of its edges carry on.
+  Routed = Data.define(:output, :route)
+end
