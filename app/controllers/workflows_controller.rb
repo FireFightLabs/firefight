@@ -1,5 +1,5 @@
-# The workspace's workflows, under Halon: what each does and when it runs, its runs, the one offs that are done, and the
-# library to start one from. Members build drafts, test them and run what is published. Publishing, or changing a live
+# The workspace's workflows, under Halon: what each does and when it runs, its runs, the one offs that are done, and
+# Firefight's library to start one from, with import and export (HalonWorkflowLibraryController answers its actions). Members build drafts, test them and run what is published. Publishing, or changing a live
 # workflow, needs workflows.update, and granting the workflow's own identity what it needs needs permissions.create,
 # so a member asks an admin instead.
 class WorkflowsController < InertiaController
@@ -14,7 +14,8 @@ class WorkflowsController < InertiaController
   TAB_WORKFLOWS = "workflows".freeze
   TAB_RUNS = "runs".freeze
   TAB_DONE = "done".freeze
-  TABS = [ TAB_WORKFLOWS, TAB_RUNS, TAB_DONE ].freeze
+  TAB_LIBRARY = "library".freeze
+  TABS = [ TAB_WORKFLOWS, TAB_RUNS, TAB_DONE, TAB_LIBRARY ].freeze
   RUNS_SHOWN = 100
   SETTINGS = %i[name description owner_team_id cost_cap_cents runs_per_hour subject_key freeze_behaviour all_clear].freeze
 
@@ -31,7 +32,10 @@ class WorkflowsController < InertiaController
       runsPage: runs.page,
       templates: templates,
       publishRequests: WorkflowPublishRequestSerializer.many(current_workspace_requests),
-      timeZones: Workspace::FreezeWindows.time_zones
+      timeZones: Workspace::FreezeWindows.time_zones,
+      libraryItems: HalonLibraryWorkflowSerializer.many(Workflow::Library.all, used: used_by_item, workspace: current_workspace),
+      libraryWorkflows: HalonLibraryWorkflowUseSerializer.many(current_workspace.workflows.includes(:live_version).ordered.to_a),
+      canCreate: current_membership.may?(Ability::Action::RESOURCE_WORKFLOWS, Ability::Action::ACTION_CREATE, current_workspace)
     }
   end
 
@@ -125,6 +129,11 @@ class WorkflowsController < InertiaController
     number = [ params[:page].to_i, 1 ].max
     records = scope.includes(:workflow, :started_by).newest_first.offset((number - 1) * RUNS_SHOWN).limit(RUNS_SHOWN + 1).to_a
     Paged.new(records: records.first(RUNS_SHOWN), page: { number: number, more: records.size > RUNS_SHOWN })
+  end
+
+  # The workspace's workflows made from each library item, by key, so the Library tab never asks per row.
+  def used_by_item
+    current_workspace.workflows.where.not(library_key: nil).order(:name).pluck(:library_key, :name).group_by(&:first).transform_values { |pairs| pairs.map(&:last) }
   end
 
   def runs_of(workflows)

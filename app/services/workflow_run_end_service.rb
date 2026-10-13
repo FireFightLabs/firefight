@@ -93,13 +93,16 @@ class WorkflowRunEndService
   end
 
   # Halon reads why the step failed and, when its settings caused it, suggests a change as a proposal on the workflow,
-  # which a person accepts or dismisses. True when it made one.
+  # which a person accepts or dismisses. True when it made one. Once per kind of failure for each published version
+  # (Workflow::Version#claim_repair!): a run failing in a way Halon already looked at spends nothing, unless that look
+  # broke before Halon answered.
   def suggest_repair!
     return false if Investigation.unavailable_reason(@workspace)
 
     failed = @run.steps.find_by(status: Workflow::Run::Step::STATUS_FAILED)
     spec = failed && @run.version.steps_by_id[failed.step_key]
     return false unless spec && DefinedWorkflow::Steps.for(spec["kind"]) && !DefinedWorkflow::Steps.for(spec["kind"]).engine?
+    return false unless @run.version.claim_repair!(failed.step_key, failed.error.presence || @run.error)
 
     suggestion = FirefightAi::WorkflowRepair.new(@workspace, inferable: @run).suggest(
       workflow_name: @workflow.name, step: spec.slice("name", "kind", "config"), error: failed.error.presence || @run.error,
@@ -110,7 +113,14 @@ class WorkflowRunEndService
     @workflow.edit!(operation: Workflow::Edit::OPERATION_CHANGE_CONFIG, payload: { step_id: spec["id"], changes: { config: suggestion.config } },
                     by: nil, halon: true, reason: suggestion.reason, source_run: @run)
     true
-  rescue FirefightAi::TransientError, FirefightAi::TerminalError, Workflow::Edit::Refused => error
+  rescue FirefightAi::TransientError, FirefightAi::TerminalError, FirefightAi::Canceled => error
+    @run.version.release_repair!(failed.step_key, failed.error.presence || @run.error)
+    unsuggested(error)
+  rescue Workflow::Edit::Refused => error
+    unsuggested(error)
+  end
+
+  def unsuggested(error)
     Rails.logger.warn({ event: "workflow_run.repair_unsuggested", run_id: @run.id, error: error.class.name }.to_json)
     false
   end

@@ -6,8 +6,12 @@
 class WorkflowPublishService
   Result = Data.define(:ok, :words)
   NO_ADMIN_REACHED = "No admin could be reached by direct message, so the request waits on the Workflows page.".freeze
-  # Said when an approval rule holds publishing a workflow an agent just made, which stays the draft it was made as.
-  PUBLISH_HELD = "Publishing it is held for an approval, so it waits as a draft until someone publishes it from its page.".freeze
+  # Said when an approval rule holds publishing a workflow an agent just made, which stays the draft it was made as until
+  # an admin approves, and is then published as it was asked about.
+  PUBLISH_HELD = "Publishing it is held for an approval, so it waits as a draft and is published once an admin approves.".freeze
+  # Which call an approval held: publishing, or granting the identity what it needs once publishing was allowed.
+  STAGE_PUBLISH = "publish".freeze
+  STAGE_GRANT = "grant".freeze
 
   def initialize(workflow)
     @workflow = workflow
@@ -44,6 +48,31 @@ class WorkflowPublishService
     return Result.new(ok: false, words: "#{@workflow.name} waits as a draft until a workspace admin publishes it.") unless by.is_a?(WorkspaceMembership)
 
     ask!(Workflow::PublishRequest.for!(by, @workflow, draft), by: by)
+  end
+
+  # Publishing as an agent asks for it, from a chat or over MCP: changing a live workflow and, when it needs anything
+  # granted, granting it, each its own call through the gateway as principal. An approval rule holding either keeps the
+  # draft, and the approval carries exactly this revision, so approving it publishes that and nothing changed since.
+  def publish_through_gateway!(draft, principal:, source:, revision: draft.revision, approval_id: nil, stage: STAGE_PUBLISH)
+    granting = @workflow.missing_reach(draft).any?
+    publish = -> { publish!(draft, by: principal, revision: revision) }
+    grant = ->(approved) { call_as(principal, Workflow::GRANT_KEY, revision, source, approved) { publish.call } }
+    return grant.call(approval_id) if stage == STAGE_GRANT
+
+    call_as(principal, Workflow::PUBLISH_KEY, revision, source, approval_id) { granting ? grant.call(nil) : publish.call }
+  rescue AbilityGateway::PendingApproval => held
+    ApprovalResumption.park_workflow_publish!(held.approval, @workflow, revision: revision, source: source,
+                                              stage: held.approval.action_key == Workflow::GRANT_KEY ? STAGE_GRANT : STAGE_PUBLISH)
+    Result.new(ok: false, words: PUBLISH_HELD)
+  end
+
+  # Approved publishing: the draft at the revision it was asked about, as whoever asked.
+  def publish_approved!(approval, payload)
+    draft = @workflow.draft
+    return Result.new(ok: false, words: Workflow.publish_approval_blocked_reason(approval)) unless draft && draft.revision == payload["revision"]
+
+    publish_through_gateway!(draft, principal: approval.principal, source: payload["source"], revision: payload["revision"], approval_id: approval.id,
+                                    stage: payload["stage"])
   end
 
   # Publish pressed on a member's request, from the platform or the Workflows page. The draft is published as it was
@@ -85,6 +114,11 @@ class WorkflowPublishService
   end
 
   private
+
+  def call_as(principal, action_key, revision, source, approval_id, &block)
+    Chat::ToolCall.run!(workspace: @workspace, principal: principal, action_key: action_key, params: { "workflow" => @workflow.slug, "revision" => revision },
+                        context: { source: source, approval_id: approval_id }.compact, &block)
+  end
 
   def settle!(by:)
     @workflow.publish_requests.waiting.find_each do |request|

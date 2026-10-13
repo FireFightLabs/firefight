@@ -102,7 +102,7 @@ module Slack
       # The call as the tool is given it, then every read from outside before it was asked, quiet at the foot.
       def self.detail_blocks(confirmation)
         called = [ ([ TOOL, confirmation.tool_name ] if confirmation.tool_name), *confirmation.asked ].compact
-        lines = [ called.map { |name, value| "#{Slack::Mrkdwn.escape(name)}: #{Slack::Mrkdwn.escape(value)}" }.join("  ·  ").presence ].compact
+        lines = [ called.map { |name, value| "#{Slack::Mrkdwn.escape(name)}: #{Formatting.local_moments(Slack::Mrkdwn.escape(value))}" }.join("  ·  ").presence ].compact
         if confirmation.read_heading
           lines << confirmation.read_heading
           lines.concat(confirmation.read_rows.map { |label, said| "• #{Slack::Mrkdwn.escape(label)}: #{Slack::Mrkdwn.escape(said)}" })

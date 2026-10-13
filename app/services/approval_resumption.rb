@@ -12,6 +12,8 @@ class ApprovalResumption
   KIND_PAGING = "paging"
   # A step of a workflow run, which waits parked and carries on from the decision, whichever way it goes.
   KIND_WORKFLOW_STEP = "workflow_step"
+  # Publishing a workflow an agent made, which approving publishes at the revision it was asked about.
+  KIND_WORKFLOW_PUBLISH = Workflow::PUBLISH_APPROVAL_KIND
 
   def self.park!(approval, subject, kind)
     approval.update!(resume_payload: {
@@ -37,6 +39,11 @@ class ApprovalResumption
     approval.update!(resume_payload: { kind: KIND_WORKFLOW_STEP, step_id: engine_step_id, step_key: step_key })
   end
 
+  # stage says which call was held, publishing or granting what it needs. revision is the draft as it was asked about.
+  def self.park_workflow_publish!(approval, workflow, revision:, source:, stage:)
+    approval.update!(resume_payload: { kind: KIND_WORKFLOW_PUBLISH, workflow_id: workflow.id, revision: revision, source: source, stage: stage })
+  end
+
   # An approval admits one execution. Re-entering the gateway on a consumed
   # approval would park a fresh one, so a job that runs twice must not replay.
   def self.resume!(approval)
@@ -44,6 +51,7 @@ class ApprovalResumption
     return if payload.blank? || approval.consumed_at.present?
     return Investigation::FixRunner.resume!(approval, payload["step_id"]) if payload["kind"] == KIND_FIX_STEP
     return decided_workflow_step!(approval, payload) if payload["kind"] == KIND_WORKFLOW_STEP
+    return workflow_publish_approved!(approval, payload) if payload["kind"] == KIND_WORKFLOW_PUBLISH
     return Conversation::HeldCalls.approved!(approval) if payload["kind"] == Chat::HeldCall::RESUME_KIND
     return IssueSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_ISSUE_SYNC
     return OnCallSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_PAGING
@@ -61,6 +69,17 @@ class ApprovalResumption
 
   # The replayed controller's own flash is the outcome, its notice on success,
   # its alert when a guard refused.
+  # The workflow is published, or stays the draft it was when the draft changed since, and its card in the chat that
+  # made it is redrawn either way.
+  def self.workflow_publish_approved!(approval, payload)
+    workflow = Workflow.find_by(id: payload["workflow_id"], workspace_id: approval.workspace_id)
+    return unless workflow
+
+    result = WorkflowPublishService.new(workflow).publish_approved!(approval, payload)
+    Rails.logger.info({ event: "workflow.publish_approved", approval_id: approval.id, workflow_id: workflow.id, published: result.ok }.to_json)
+    Conversation::Workflows.moved!(workflow.reload)
+  end
+
   def self.resume_web!(approval, payload)
     result = WebRequestReplay.call(approval, payload)
     if result.success?
@@ -79,6 +98,7 @@ class ApprovalResumption
     return if payload.blank?
     return Investigation::FixRunner.resume!(approval, payload["step_id"]) if payload["kind"] == KIND_FIX_STEP
     return decided_workflow_step!(approval, payload) if payload["kind"] == KIND_WORKFLOW_STEP
+    return if payload["kind"] == KIND_WORKFLOW_PUBLISH
     return IssueSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_ISSUE_SYNC
     return OnCallSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_PAGING
     return Conversation::HeldCalls.denied!(approval) if payload["kind"] == Chat::HeldCall::RESUME_KIND

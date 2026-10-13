@@ -1,10 +1,12 @@
 name: Cost check
 description: Halon reads the spend your providers report against the months before, finds what grew, and tells the owning team once and again only when it gets worse.
-aliases: [spend check]
+aliases:
+- spend check
 trigger:
   kind: schedule
   repeat: days
-  days: [1]
+  days:
+  - 1
   at: "09:00"
   time_zone: UTC
   inputs:
@@ -19,31 +21,28 @@ steps:
   config:
     skill: cost_trends
     focus: '{{inputs.notes}}'
-- id: step_found
-  name: found_problems
-  kind: branch
+- id: step_raise
+  name: raise_notices
+  kind: for_each
   config:
-    routes:
-    - route: found
-      when:
-        left: '{{steps.check.verdict}}'
-        operator: equals
-        right: problem
-    otherwise: all_clear
-- id: step_notice
-  name: notice
-  kind: raise_notice
-  config:
-    signal: cost
-    topic: Spend growing
-    summary: '{{steps.check.summary}}'
-    severity: '{{steps.check.severity}}'
+    items: '{{steps.check.problems}}'
+    concurrency: 1
+    steps:
+    - id: step_notice
+      name: notice
+      kind: raise_notice
+      on_failure: continue
+      config:
+        signal: cost
+        topic: '{{item.topic}}'
+        summary: '{{item.summary}}'
+        severity: '{{item.severity}}'
+        resource: '{{item.resource}}'
+        due_on: '{{item.due_on}}'
+    edges: []
 edges:
 - from: step_check
-  to: step_found
-- from: step_found
-  to: step_notice
-  route: found
+  to: step_raise
 outputs:
   verdict: '{{steps.check.verdict}}'
-  summary: '{{steps.check.summary}}'
+  problems: '{{steps.check.problems}}'

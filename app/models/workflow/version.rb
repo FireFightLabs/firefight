@@ -38,6 +38,28 @@ class Workflow::Version < ApplicationRecord
 
   scope :newest_first, -> { order(number: :desc) }
 
+  # The same failure, whatever its numbers, times, addresses or ids: the step that failed and the words of its error with
+  # those taken out, such as "scan:the logs could not be read after # tries at #:#.".
+  def self.repair_problem_key(step_key, error)
+    kind = error.to_s.downcase.gsub(/\h{8}-\h{4}-\h{4}-\h{4}-\h{12}/, "#").gsub(/\d+/, "#").squish.first(200)
+    "#{step_key}:#{kind}"
+  end
+
+  # Takes Halon's one look at a kind of failure for this version, in one statement, so that failure again, however
+  # failures take turns, or two runs failing at once, never spends twice. True when this version never had it. A newly
+  # published version starts with none.
+  def claim_repair!(step_key, error)
+    key = self.class.repair_problem_key(step_key, error)
+    self.class.where(id: id).where.not("? = ANY(repair_problem_keys)", key)
+        .update_all([ "repair_problem_keys = array_append(repair_problem_keys, ?), updated_at = ?", key, Time.current ]) == 1
+  end
+
+  # Gives back a look that never happened, such as a model call that broke, so the same failure is looked at next time.
+  def release_repair!(step_key, error)
+    key = self.class.repair_problem_key(step_key, error)
+    self.class.where(id: id).update_all([ "repair_problem_keys = array_remove(repair_problem_keys, ?), updated_at = ?", key, Time.current ])
+  end
+
   def draft? = status == STATUS_DRAFT
   def live? = status == STATUS_LIVE
   def by_halon? = author_kind == Workflow::AUTHOR_HALON

@@ -404,6 +404,18 @@ module Chat::Tools
     Conversation::Tools::RunWorkflow::NAME => Conversation::Tools::RunWorkflow
   }.freeze
 
+  # Settles what each planned call left to the asker, such as the time zone of a time given without one, into the call
+  # when it is asked, so every card shows and the call makes the same thing whoever reads it and whenever it runs.
+  def self.settle_asked!(agent_run, tool_calls)
+    tool_calls.each do |tool_call|
+      tool = PLANNED[tool_call.name.to_s]
+      next unless tool.respond_to?(:settled_arguments)
+
+      settled = tool.settled_arguments(agent_run, tool_call.arguments.to_h.deep_stringify_keys)
+      tool_call.update_columns(arguments: settled) if settled != tool_call.arguments
+    end
+  end
+
   def self.planned(tool_call)
     tool = PLANNED[tool_call.name.to_s]
     workspace = tool && tool_call.message&.chat&.workspace

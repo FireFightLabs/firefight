@@ -19,28 +19,14 @@ module Mcp
                                                reason: "Made over MCP by #{principal.actor_display_name}.")
         draft = workflow.draft
         service = WorkflowPublishService.new(workflow)
-        result = service.may_publish?(draft, by: principal) ? publish(workspace, principal, workflow, draft) : service.ask_or_leave!(draft, by: principal)
+        result = if service.may_publish?(draft, by: principal)
+          service.publish_through_gateway!(draft, principal: principal, source: AbilityGateway::SOURCE_MCP)
+        else
+          service.ask_or_leave!(draft, by: principal)
+        end
         respond(workflow: Workflow::Listing.summary(workflow.reload), published: workflow.live?, said: result.words)
       rescue Workflow::Authoring::Refused => refused
         Mcp::ToolDispatcher.error_response(refused.message)
-      end
-
-      # Publishing changes a live workflow and grants its identity what it needs, each its own call through the gateway.
-      def self.publish(workspace, principal, workflow, draft)
-        granting = workflow.missing_reach(draft).any?
-        context = { source: AbilityGateway::SOURCE_MCP }
-        AbilityGateway.authorize!(principal: principal, action_key: Workflow::PUBLISH_KEY, workspace: workspace,
-                                  params: { "workflow" => workflow.slug }, context: context) do
-          next WorkflowPublishService.new(workflow).publish!(draft, by: principal) unless granting
-
-          AbilityGateway.authorize!(principal: principal, action_key: Workflow::GRANT_KEY, workspace: workspace,
-                                    params: { "workflow" => workflow.slug }, context: context) do
-            WorkflowPublishService.new(workflow).publish!(draft, by: principal)
-          end
-        end
-      rescue AbilityGateway::PendingApproval
-        # A retry would make a second workflow, so the draft made is the answer.
-        WorkflowPublishService::Result.new(ok: false, words: WorkflowPublishService::PUBLISH_HELD)
       end
     end
   end
