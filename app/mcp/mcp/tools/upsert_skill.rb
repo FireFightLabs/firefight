@@ -35,13 +35,13 @@ module Mcp
         service = Chat::CustomSkillService.new(workspace)
         author = principal.is_a?(WorkspaceMembership) ? principal : nil
         content = { "when" => args[:when], "tools" => args[:tools], "steps" => args[:steps] }
-        skill = if args[:skill].present?
-                  service.update!(ListSkills.find!(workspace, args[:skill]), by: author, content: content, name: args[:name], reason: args[:reason],
-                                                                             seen: args[:version_id], enabled: args[:enabled])
-                else
-                  service.create!(name: args[:name], content: content, by: author, reason: args[:reason])
-                end
-        respond(GetSkill.detail(skill.reload))
+        skill = args[:skill].present? ? ListSkills.find!(workspace, args[:skill]) : nil
+        written = if skill
+          service.update!(skill, by: author, content: content, name: args[:name], reason: args[:reason], seen: args[:version_id], enabled: args[:enabled])
+        else
+          service.create!(name: args[:name], content: content, by: author, reason: args[:reason])
+        end
+        respond(GetSkill.detail(written.reload))
       rescue Chat::CustomSkillService::Refused => error
         refuse(error: error.message)
       rescue ActiveRecord::RecordInvalid => error

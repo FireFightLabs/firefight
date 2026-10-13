@@ -10,15 +10,17 @@ module Interactions
     def self.execute(interaction)
       workspace = interaction.workspace
       adapter = workspace.adapter
-      refusal = if Chat::CustomSkill.enabled_for?(workspace)
-                  member = WorkspaceMemberProvisioner.find_or_provision!(workspace: workspace, platform_user_id: interaction.user_id, adapter: adapter)
-                  SkillProposalService.new(workspace).decide!(proposal_id: interaction.action_value, member: member,
-                                                              accept: interaction.action_id == Identifiers::SKILL_PROPOSAL_ACCEPT)
-                else
-                  NOT_ON
-                end
+      refusal = decide(interaction, workspace, adapter)
       adapter.post_ephemeral(channel_id: interaction.channel_id, user_id: interaction.user_id, text: refusal) if refusal
       nil
+    end
+
+    def self.decide(interaction, workspace, adapter)
+      return NOT_ON unless Chat::CustomSkill.enabled_for?(workspace)
+
+      member = WorkspaceMemberProvisioner.find_or_provision!(workspace: workspace, platform_user_id: interaction.user_id, adapter: adapter)
+      SkillProposalService.new(workspace).decide!(proposal_id: interaction.action_value, member: member,
+                                                  accept: interaction.action_id == Identifiers::SKILL_PROPOSAL_ACCEPT)
     end
   end
 end
