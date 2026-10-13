@@ -21,6 +21,56 @@ class AgentChatMessageSerializer < BaseSerializer
 
   attributes(id: { type: :string }, role: { type: :string })
 
+  # What a page of messages shows beside each one, read once for the whole page rather than once a message: which steps
+  # drew a chart, what a coding agent did in each step, and what each reply read (Chat::Sources).
+  class Page
+    def initialize(messages)
+      @messages = messages.to_a
+    end
+
+    def charted?(message, key) = charted.include?([ message.chat_id, key ])
+
+    def work(message, key) = works[[ message.chat_id, key ]]
+
+    def sources(message) = sources_by_reply.fetch(message.id, [])
+
+    def self.reply?(message) = message.role == Chat::Message::ROLE_ASSISTANT && message.content.present? && message.ruby_llm_tool_calls.empty?
+
+    private
+
+    def keys = @keys ||= @messages.flat_map { |message| message.ruby_llm_tool_calls.map(&:tool_call_id) }
+
+    def chat_ids = @messages.map(&:chat_id).uniq
+
+    def charted
+      @charted ||= keys.empty? ? Set.new : Chat::Chart.where(chat_id: chat_ids, tool_call_id: keys).distinct.pluck(:chat_id, :tool_call_id).to_set
+    end
+
+    def works
+      @works ||= if keys.empty?
+        {}
+      else
+        workspace_of = @messages.to_h { |message| [ message.chat_id, message.chat.workspace_id ] }
+        Chat::StepProgress.where(chat_id: chat_ids, tool_call_id: keys).to_h do |kept|
+          [ [ kept.chat_id, kept.tool_call_id ], kept.work&.with_current_question(workspace_of[kept.chat_id]) ]
+        end
+      end
+    end
+
+    def sources_by_reply
+      @sources_by_reply ||= @messages.select { |message| self.class.reply?(message) }.group_by(&:chat_id).values
+                                     .reduce({}) { |found, replies| found.merge(Chat::Sources.for_replies(replies)) }
+    end
+  end
+
+  # Every message of the page reads its steps and sources from one Page.
+  def self.many(messages, options = nil)
+    options = (options || {}).merge(page: Page.new(messages))
+    super(messages, options)
+  end
+
+  def page = options[:page] || memo.fetch(:page) { Page.new([ message ]) }
+
   # A person's message in a chat asked in the platform reads as the platform shows it, from the platform_texts handed in.
   type :string
   def body
@@ -46,9 +96,9 @@ class AgentChatMessageSerializer < BaseSerializer
   # with words and no call after them, carries it.
   type "{ title: string; url: string | null }[]"
   def sources
-    return [] unless message.role == Chat::Message::ROLE_ASSISTANT && message.content.present? && message.ruby_llm_tool_calls.empty?
+    return [] unless Page.reply?(message)
 
-    Chat::Sources.for_reply(message).map(&:to_h)
+    page.sources(message).map(&:to_h)
   end
 
   # Only a person's message carries files.
@@ -62,8 +112,7 @@ class AgentChatMessageSerializer < BaseSerializer
     chat = message.chat
     workspace = chat.workspace
     calls = message.ruby_llm_tool_calls.sort_by(&:created_at)
-    charted = chat.charts.unscope(:order).where(tool_call_id: calls.map(&:tool_call_id)).distinct.pluck(:tool_call_id).to_set
-    works = chat.step_progresses.where(tool_call_id: calls.map(&:tool_call_id)).to_h { |kept| [ kept.tool_call_id, kept.work&.with_current_question(chat.workspace_id) ] }
+    works = calls.to_h { |call| [ call.tool_call_id, page.work(message, call.tool_call_id) ] }
     calls.filter_map do |call|
       step = Chat::Tools.step(call.name, call.arguments, workspace: workspace)
       next unless step
@@ -72,7 +121,7 @@ class AgentChatMessageSerializer < BaseSerializer
       { key: call.tool_call_id, title: step.title, headline: step.headline, asked: step.asked,
         status: status, kind: Chat::Tools.kind(call.name, workspace, call.arguments),
         seconds: self.class.step_seconds(call, message, last: call == calls.last),
-        card: (card_for(step, call, charted)&.to_h if status == Conversation::LiveDelivery::STATUS_DONE || step.card&.shown_while_running?),
+        card: (card_for(step, call)&.to_h if status == Conversation::LiveDelivery::STATUS_DONE || step.card&.shown_while_running?),
         outcome: (Chat::StepOutcome.for_call(call, chat)&.to_h if FINISHED.include?(status)),
         progress: works[call.tool_call_id]&.to_h,
         questionBlockedReason: works[call.tool_call_id]&.question_blocked_reason(chat.workspace_id, options[:member]),
@@ -81,8 +130,8 @@ class AgentChatMessageSerializer < BaseSerializer
     end
   end
 
-  def card_for(step, call, charted)
-    step.card || (Chat::Tools.chart_card if charted.include?(call.tool_call_id))
+  def card_for(step, call)
+    step.card || (Chat::Tools.chart_card if page.charted?(message, call.tool_call_id))
   end
 
   # What the page adds up for "thought for n seconds", counted from when the model started this reply, so the time it
