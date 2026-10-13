@@ -54,6 +54,20 @@ class Conversation::Tools::CreateWorkflow < RubyLLM::Tool
       (preview.reach.any? ? [ "It will be able to", preview.reach.to_sentence ] : nil) ].compact
   end
 
+  # A timed trigger or a template given without a time zone takes the asker's, kept with the call when it is asked, so
+  # the card and what is made read its time the same way.
+  def self.settled_arguments(agent_run, arguments)
+    templated = arguments[Workflow::Authoring::KEY_TEMPLATE].present?
+    key = templated ? Workflow::Authoring::KEY_PARAMS : Workflow::Authoring::KEY_TRIGGER
+    given = arguments[key].to_h
+    zoned = templated || Workflow::Trigger::Schedule.timed?(given)
+    zone_key = templated ? Workflow::Library::PARAM_TIME_ZONE : Workflow::Trigger::Schedule::KEY_TIME_ZONE
+    return arguments unless zoned && given[zone_key].blank? && agent_run.asker.is_a?(WorkspaceMembership)
+
+    zone = Conversation::Plans.time_zone_of(agent_run.asker, agent_run.workspace)
+    zone ? arguments.merge(key => given.merge(zone_key => zone)) : arguments
+  end
+
   private
 
   def made(given)

@@ -45,6 +45,27 @@ class Conversation::Tools::WorkflowToolsTest < ActiveSupport::TestCase
     end
   end
 
+  test "a one off time given without a zone is taken in the asker's zone when it is asked, so the card shows the moment that runs" do
+    travel_to Time.zone.parse("2026-10-13 12:00 UTC") do
+      conversation = Conversation.start_personal!(workspace: @workspace, member: @admin)
+      asking = turn(@admin, conversation)
+      spec = { "name" => "Look at web", "trigger" => { "kind" => "once_at", "at" => "2026-10-14T09:00" },
+               "steps" => [ { "name" => "pause", "kind" => "delay", "config" => { "minutes" => 5 } } ] }
+      call = RubyLLM::ToolCall.new(id: "call_1", name: Conversation::Tools::CreateWorkflow::NAME, arguments: spec)
+      conversation.chat_record.add_message(RubyLLM::Message.new(role: :assistant, content: "", tool_calls: { "call_1" => call }))
+      asked_call = conversation.chat.tool_calls.find_by!(tool_call_id: "call_1")
+
+      Chat::Tools.settle_asked!(asking, [ asked_call ])
+
+      moment = Time.zone.parse("2026-10-14 07:00 UTC")
+      assert_equal "Europe/Belgrade", asked_call.reload.arguments.dig("trigger", "time_zone")
+      assert_includes Chat::Tools.confirmation(asked_call).asked, [ "Runs", "Once at #{Chat::TimeToken.for(moment)}" ]
+      Conversation::Plans.stubs(:time_zone_of).returns("America/New_York")
+      Conversation::Tools::CreateWorkflow.new(asking).call(**asked_call.arguments.symbolize_keys)
+      assert_equal moment, @workspace.workflows.find_by!(name: "Look at web").next_run_at
+    end
+  end
+
   test "an admin's confirmed one off is made from the chat, published with its grants and runs as its own identity" do
     travel_to Time.zone.parse("2026-10-13 12:00 UTC") do
       conversation = Conversation.start_personal!(workspace: @workspace, member: @admin)
