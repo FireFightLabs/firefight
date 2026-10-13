@@ -109,6 +109,9 @@ class DefinedWorkflow < SolidWorkflow::Interpreter
       step ? deliver!(step.id, name, payload) : false
     end
 
+    # Wakes every step parked on the signal key with what happened. Answers how many it woke.
+    def signal!(key, payload = {}) = SolidWorkflow.signal!(key, payload)
+
     # A step's error as a person reads it: its first line, without the class the engine writes ahead of it.
     def error_words(error) = error.to_s.lines.first.to_s.strip.sub(ERROR_CLASS, "")
     # Starts the engine's run for a run record, once however often it is asked.

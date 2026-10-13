@@ -407,6 +407,25 @@ export const WORKFLOW_TRIGGER_KINDS = [
 ] as const
 export type WorkflowTriggerKind = (typeof WORKFLOW_TRIGGER_KINDS)[number]
 
+export const WORKFLOW_TRIGGER_KINDS_BY_KEY = {
+  "MANUAL": "manual",
+  "SCHEDULE": "schedule",
+  "ONCE_AT": "once_at",
+  "INCIDENT_DECLARED": "incident_declared",
+  "INCIDENT_CHANGED": "incident_changed",
+  "ALERT_RECEIVED": "alert_received",
+  "INBOUND_WEBHOOK": "inbound_webhook",
+  "DEPLOY_FINISHED": "deploy_finished",
+  "RESOURCE_CHANGED": "resource_changed",
+  "SECURITY_EVENT": "security_event",
+  "NOTICE_RAISED": "notice_raised",
+  "INVESTIGATION_FINISHED": "investigation_finished",
+  "FOLLOW_UP_CHANGED": "follow_up_changed",
+  "ISSUE_ASSIGNED": "issue_assigned",
+  "RUN_FAILED": "run_failed",
+  "CALLED": "called"
+} as const
+
 export const WORKFLOW_CHANGE_KINDS = {
   "ADDED": "added",
   "REMOVED": "removed",
@@ -735,6 +754,14 @@ export const ALERT_CONDITION_OPERATORS = [
   "is_empty"
 ] as const
 export type AlertConditionOperator = (typeof ALERT_CONDITION_OPERATORS)[number]
+
+export const ALERT_CONDITION_OPERATOR = {
+  "IS_ONE_OF": "is_one_of",
+  "CONTAINS": "contains",
+  "STARTS_WITH": "starts_with",
+  "MATCHES_REGEX": "matches_regex",
+  "IS_EMPTY": "is_empty"
+} as const
 
 export const ALERT_OUTCOME_ACTIONS = [
   "auto_create_incident",
@@ -1307,7 +1334,8 @@ export const INVESTIGATION_TRIGGERS = [
   "rehearsal",
   "alert",
   "schedule",
-  "security_event"
+  "security_event",
+  "workflow"
 ] as const
 export type InvestigationTrigger = (typeof INVESTIGATION_TRIGGERS)[number]
 
@@ -1702,7 +1730,8 @@ export const WORKFLOW_STEP_EDITORS = [
   "run_workflow",
   "tool",
   "ask_halon",
-  "watch"
+  "watch",
+  "status_page"
 ] as const
 export type WorkflowStepEditor = (typeof WORKFLOW_STEP_EDITORS)[number]
 
@@ -1714,7 +1743,8 @@ export const WORKFLOW_STEP_EDITOR = {
   "RUN_WORKFLOW": "run_workflow",
   "TOOL": "tool",
   "ASK_HALON": "ask_halon",
-  "WATCH": "watch"
+  "WATCH": "watch",
+  "STATUS_PAGE": "status_page"
 } as const
 
 export const WORKFLOW_STEP_ICONS = [
@@ -1736,7 +1766,12 @@ export const WORKFLOW_STEP_ICONS = [
   "globe",
   "person",
   "approval",
-  "stop"
+  "stop",
+  "investigate",
+  "classify",
+  "page",
+  "follow_up",
+  "status_page"
 ] as const
 export type WorkflowStepIcon = (typeof WORKFLOW_STEP_ICONS)[number]
 
@@ -1749,7 +1784,12 @@ export const WORKFLOW_TRIGGER_ICONS = [
   "webhook",
   "deploy",
   "halon",
-  "workflow"
+  "workflow",
+  "follow_up",
+  "failed",
+  "map",
+  "security",
+  "issue"
 ] as const
 export type WorkflowTriggerIcon = (typeof WORKFLOW_TRIGGER_ICONS)[number]
 
@@ -1921,7 +1961,10 @@ export const WORKFLOW_REFERENCE_ROOTS = {
 
 export const WORKFLOW_TRIGGER_KEYS = {
   "KIND": "kind",
-  "INPUTS": "inputs"
+  "INPUTS": "inputs",
+  "CONDITIONS": "conditions"
 } as const
+
+export const WORKFLOW_CONDITION_LIMIT = 20 as const
 
 export const WORKFLOW_INPUT_LIMIT = 10 as const

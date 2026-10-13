@@ -9,6 +9,8 @@ class AlertIngestService
   ACTION_ATTACH = PolicyRule::AlertRoutingOutcome::ACTION_ATTACH
   ACTION_NOTIFY_ONLY = PolicyRule::AlertRoutingOutcome::ACTION_NOTIFY_ONLY
   ACTION_DROP = PolicyRule::AlertRoutingOutcome::ACTION_DROP
+  # What a workflow's trigger reads as the outcome of an alert no rule matched.
+  OUTCOME_UNMATCHED = Workflow::Trigger::Fields::UNMATCHED
 
   def initialize(alert_source)
     @source = alert_source
@@ -52,6 +54,7 @@ class AlertIngestService
   # MAX_ROUTING_ATTEMPTS), so ingestion never returns a 500 for a routing problem.
   def route(alert)
     deferred_notification = nil
+    heard = nil
 
     begin
       alert.with_lock do
@@ -72,8 +75,10 @@ class AlertIngestService
         if result&.matched?
           deferred_notification = apply_outcome(alert, result.outcome)
           alert.mark_routed!(result.matched_rule)
+          heard = result.outcome["action"]
         else
           alert.mark_unmatched!
+          heard = OUTCOME_UNMATCHED
         end
       end
     rescue Incident::CreationBlocked => error
@@ -90,12 +95,22 @@ class AlertIngestService
 
     # Committed by now. A failure here is a notification problem, so the alert
     # stays routed instead of going back to pending and being applied twice by the sweep.
+    tell_workflows(alert, heard)
     deferred_notification&.call
   rescue StandardError => e
     Rails.logger.error({ event: "alert_notification.failed", alert_id: alert.id, error: e.message }.to_json)
   end
 
   private
+
+  # Workflows hear an alert once per group: the alert that opened a group, or one routed on its own, but never one that
+  # joined a group already open, so a storm starts one run. A dropped alert starts nothing.
+  def tell_workflows(alert, outcome)
+    return if outcome.nil? || outcome == ACTION_DROP || alert.alert_group_id.present?
+
+    Workflow::Trigger::Events.fire!(@workspace, Workflow::Trigger::KIND_ALERT_RECEIVED, key: alert.id, subject: alert, details: { "outcome" => outcome })
+  end
+
 
   def handle_resolved(fingerprint, now)
     alert = @source.alerts.open_status.find_by(fingerprint: fingerprint)

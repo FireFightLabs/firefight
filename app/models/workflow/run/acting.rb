@@ -6,7 +6,7 @@ module Workflow::Run::Acting
   extend ActiveSupport::Concern
 
   # Triggers nobody pressed at the moment the run starts, so a change reads how things stand first.
-  UNATTENDED = [ Workflow::Trigger::KIND_SCHEDULE, Workflow::Trigger::KIND_ONCE_AT ].freeze
+  UNATTENDED = [ Workflow::Trigger::KIND_SCHEDULE, Workflow::Trigger::KIND_ONCE_AT, *Workflow::Trigger::EVENTS ].freeze
 
   def acting_principal = test? ? started_by : agent
 

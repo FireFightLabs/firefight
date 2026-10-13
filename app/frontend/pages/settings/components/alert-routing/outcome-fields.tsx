@@ -9,7 +9,7 @@ import {
   type NotifyKind,
   type RuleFormData,
 } from "@/pages/settings/components/alert-routing/rule-form"
-import { BadgeMultiSelect } from "@/pages/settings/components/alert-routing/badge-multi-select"
+import { BadgeMultiSelect } from "@/components/badge-multi-select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {

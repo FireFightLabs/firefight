@@ -52,9 +52,11 @@ class Investigation < ApplicationRecord
   TRIGGER_SCHEDULE = "schedule"
   # Something a connected provider reported that the security module looks into, such as a leaked secret.
   TRIGGER_SECURITY_EVENT = "security_event"
+  # A workflow's Investigate step, which waits for what it finds.
+  TRIGGER_WORKFLOW = "workflow"
   TRIGGER_SOURCES = [
     TRIGGER_COMMAND, TRIGGER_BUTTON, TRIGGER_CONVERSATION, TRIGGER_MCP, TRIGGER_DASHBOARD, TRIGGER_REHEARSAL, TRIGGER_ALERT, TRIGGER_SCHEDULE,
-    TRIGGER_SECURITY_EVENT
+    TRIGGER_SECURITY_EVENT, TRIGGER_WORKFLOW
   ].freeze
 
   belongs_to :workspace
@@ -535,7 +537,22 @@ class Investigation < ApplicationRecord
         status: status, error_summary: error_summary, completed_at: Time.current, updated_at: Time.current
       ) > 0
     reload if moved
+    if moved
+      tell_workflows!
+      ActiveRecord.after_all_transactions_commit { WorkflowSignalJob.perform_later(finished_signal) } if trigger_source == TRIGGER_WORKFLOW
+    end
     moved
+  end
+
+  # What a workflow step waiting for this run to finish waits on.
+  def finished_signal = "investigation.finished:#{id}"
+
+  # A run that concluded or gave up is heard by the workspace's workflows once. One a person stopped, and a rehearsal,
+  # are not.
+  def tell_workflows!
+    return if rehearsal? || status == STATUS_CANCELED
+
+    Workflow::Trigger::Events.fire!(workspace, Workflow::Trigger::KIND_INVESTIGATION_FINISHED, key: id, subject: self, actor: triggered_by)
   end
 
   private

@@ -2,7 +2,7 @@ import { useState } from "react"
 
 import type { SearchableSelectOption } from "@/components/searchable-select"
 import { ToolFields } from "@/components/tool-fields/tool-fields"
-import { argumentsState, fieldErrors, REFERENCE, type ArgumentsState, type JsonObject, type ToolField } from "@/lib/tool-fields"
+import { argumentsState, fieldErrors, isShown, REFERENCE, type ArgumentsState, type JsonObject, type ToolField } from "@/lib/tool-fields"
 import { useCanvasChoices } from "@/pages/halon/hooks/use-canvas-choices"
 
 interface FieldsEditorProps {
@@ -20,9 +20,11 @@ export function FieldsEditor({ idPrefix, fields, values, references, disabled, o
   const [ state, setState ] = useState<ArgumentsState>(() => argumentsState(values))
   const { places } = useCanvasChoices()
 
+  // A field not asked for what the others hold now, such as a member once the change no longer names one, is not sent.
   function changed(next: ArgumentsState) {
     setState(next)
-    onChange(next.values)
+    const hidden = new Set(fields.filter((field) => !isShown(field, next)).map((field) => field.key))
+    onChange(Object.fromEntries(Object.entries(next.values).filter(([ key ]) => !hidden.has(key))))
   }
 
   return (

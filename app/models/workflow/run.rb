@@ -92,9 +92,20 @@ class Workflow::Run < ApplicationRecord
     reload
   end
 
-  # Takes telling people how it ended, once, so a run told already is never told again.
-  def claim_telling!
-    self.class.where(id: id, told_at: nil, status: FINISHED).update_all(told_at: Time.current, updated_at: Time.current) == 1
+  # Takes telling people how it ended for one job, so a run told already, or being told by another job, is never told
+  # twice. The job a stopped worker left runs again with the same id and takes its own claim back.
+  def claim_telling!(job_id)
+    self.class.where(id: id, told_at: nil, status: FINISHED).where("telling_job_id IS NULL OR telling_job_id = ?", job_id)
+      .update_all(telling_job_id: job_id, updated_at: Time.current) == 1
+  end
+
+  def told!
+    self.class.where(id: id).update_all(told_at: Time.current, telling_job_id: nil, updated_at: Time.current)
+  end
+
+  # Gives the job's own claim back when nothing was told, so the next try may take it. Another job's claim stays.
+  def release_telling!(job_id)
+    self.class.where(id: id, told_at: nil, telling_job_id: job_id).update_all(telling_job_id: nil, updated_at: Time.current)
   end
 
   # The one run a start key names, made the first time it is asked for. Returns the run and whether it is new.

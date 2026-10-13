@@ -136,6 +136,8 @@ A tool the skill names that Halon does not have here answers 422 `skill_refused`
 
 `alerts_controller.rb` is a third auth mechanism in the same namespace: the alert ingest endpoint (`POST /api/v1/alerts/:endpoint_path`). It inherits `ActionController::API` directly and authenticates per alert source (secret token verified by the source's provider adapter under `app/adapters/alert_providers/`) — neither Slack signatures nor public-API Bearer keys.
 
+`workflow_hooks_controller.rb` is a fourth, a workflow's own address (`POST /api/v1/workflow_hooks/:token`), which a body signed with that workflow's secret, as outbound webhooks are signed, starts (docs/workflows.md, The workflow's own address).
+
 ## Test incidents
 
 Every incident payload carries `test`. A test incident (the onboarding walkthrough, `Incident#is_test`) behaves like a real one on every read and write path and is left out of dashboard figures. Outbound webhooks are never sent for one.

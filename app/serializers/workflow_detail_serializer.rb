@@ -28,6 +28,10 @@ class WorkflowDetailSerializer < WorkflowRowSerializer
   type :string, optional: true
   def freeze_warning = workflow.freeze_warning
 
+  # The address its inbound webhook trigger starts it at. The secret it is signed with is fetched on its own.
+  type :string
+  def hook_url = workflow.hook_url
+
   type :string, optional: true
   def trigger_refused_at = workflow.trigger_refused_at&.iso8601
 

@@ -21,7 +21,7 @@ class Events::PinHandlersTest < ActiveSupport::TestCase
 
   test "creates message pinned event with the message text" do
     stub_get_permalink
-    stub_get_message(text: "Rolled back the deploy, error rate dropping")
+    stub_get_message(text: "Rolled back the deploy, error rate dropping", ts: "1234567890.111111")
 
     assert_difference "IncidentEvent.count", 1 do
       Events::PinAddedHandler.execute(@workspace, pin_payload("pin_added"))
@@ -31,6 +31,15 @@ class Events::PinHandlersTest < ActiveSupport::TestCase
     assert_equal @member, event.actor
     assert_equal "1234567890.111111", event.metadata["message_ts"]
     assert_equal "Rolled back the deploy, error rate dropping", event.metadata["message_text"]
+  end
+
+  test "a pin keeps no text when Slack reads back an older message in place of a deleted one" do
+    stub_get_permalink
+    stub_get_message(text: "Something said earlier", ts: "1234567890.000001")
+
+    Events::PinAddedHandler.execute(@workspace, pin_payload("pin_added"))
+
+    assert_nil @incident.incident_events.find_by!(event_type: IncidentEvent::MESSAGE_PINNED).metadata["message_text"]
   end
 
   test "records the pin even when the message text cannot be fetched" do

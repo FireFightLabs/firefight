@@ -11,6 +11,10 @@ class DefinedWorkflow::Steps::Base
   GROUP_MESSAGES = "messages".freeze
   GROUP_WAITING = "waiting".freeze
   GROUP_CONTROL = "control".freeze
+  GROUP_INCIDENT = "incident".freeze
+  GROUP_SANDBOX = "sandbox".freeze
+  GROUP_HTTP = "http".freeze
+  GROUP_PEOPLE = "people".freeze
 
   # Why a step cannot go on, in words. Running it again gives the same answer, so it is never retried.
   class Refused < StandardError; end
@@ -70,7 +74,9 @@ class DefinedWorkflow::Steps::Base
     def output_fields(_config) = []
 
     # Each problem with the step's config, as a sentence. A step that changes something needs its undo.
-    def problems(step, workspace)
+    def problems(step, workspace) = undo_problems(step, workspace)
+
+    def undo_problems(step, workspace)
       config = step["config"].to_h
       named = step["name"].presence || "A step"
       return [ "#{named} changes something, so it needs its undo: how a person puts it back." ] if undoable?(config, workspace) && config[KEY_UNDO].to_s.strip.empty?

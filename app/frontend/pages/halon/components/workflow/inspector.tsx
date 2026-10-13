@@ -31,6 +31,7 @@ interface InspectorProps {
 export function Inspector({ workflowId, document, suggestions, selection, stepKinds, triggerKinds, tools, workflows, timeZones, editable, send, onSelect, onTry }: InspectorProps) {
   const [ removing, setRemoving ] = useState(false)
   const revision = revisionOf(document)
+  const triggerKind = triggerKinds.find((kind) => kind.key === document.trigger.kind) ?? null
   const item = selection?.kind === "step" ? canvasSteps(document.steps, suggestions).find((each) => each.step.id === selection.id) ?? null : null
   const connections = item ? document.edges.filter((edge) => edge.from === item.step.id || edge.to === item.step.id).length : 0
   const inside = item ? document.steps.filter((step) => step.within === item.step.id).length : 0
@@ -54,7 +55,7 @@ export function Inspector({ workflowId, document, suggestions, selection, stepKi
     return (
       <TriggerSettings
         trigger={document.trigger}
-        kind={triggerKinds.find((kind) => kind.key === document.trigger.kind) ?? null}
+        kind={triggerKind}
         pending={suggestions.filter((suggestion) => suggestion.operation === WORKFLOW_EDIT_OPERATIONS.CHANGE_TRIGGER)}
         revision={revision}
         timeZones={timeZones}
@@ -87,6 +88,7 @@ export function Inspector({ workflowId, document, suggestions, selection, stepKi
         document={document}
         revision={revision}
         stepKinds={stepKinds}
+        triggerOutputs={triggerKind?.outputs ?? []}
         tools={tools}
         workflows={workflows}
         timeZones={timeZones}

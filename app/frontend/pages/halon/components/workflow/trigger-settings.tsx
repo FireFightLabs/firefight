@@ -5,10 +5,12 @@ import { ToolFields } from "@/components/tool-fields/tool-fields"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { WORKFLOW_EDIT_OPERATIONS, WORKFLOW_INPUT_LIMIT, WORKFLOW_TRIGGER_EDITOR, WORKFLOW_TRIGGER_KEYS } from "@/lib/generated/constants"
+import { WORKFLOW_EDIT_OPERATIONS, WORKFLOW_INPUT_LIMIT, WORKFLOW_TRIGGER_KINDS_BY_KEY, WORKFLOW_TRIGGER_EDITOR, WORKFLOW_TRIGGER_KEYS } from "@/lib/generated/constants"
 import { argumentsState, fieldErrors, jsonObject, type ArgumentsState, type JsonObject } from "@/lib/tool-fields"
 import { SuggestionCard } from "@/pages/halon/components/workflow/suggestion-card"
+import { conditionDrafts, conditionsError, type ConditionDraft, storedConditions, TriggerConditions } from "@/pages/halon/components/workflow/trigger-conditions"
 import { TriggerIcon } from "@/pages/halon/components/workflow/trigger-icon"
+import { WebhookAddress } from "@/pages/halon/components/workflow/webhook-address"
 import { OnceAtFields } from "@/pages/halon/components/workflows/once-at-fields"
 import { ScheduleFields } from "@/pages/halon/components/workflows/schedule-fields"
 import type { SendEdit } from "@/pages/halon/hooks/use-workflow-edits"
@@ -39,6 +41,13 @@ function inputDrafts(trigger: Trigger): InputDraft[] {
   return trigger.inputs.map((input) => ({ key: crypto.randomUUID(), name: input.key, question: input.question, defaultValue: input.default ?? "" }))
 }
 
+// The trigger's own settings without its conditions, which have an editor of their own.
+function settingsOf(config: JsonObject): JsonObject {
+  const rest = { ...config }
+  delete rest[WORKFLOW_TRIGGER_KEYS.CONDITIONS]
+  return rest
+}
+
 function inputsError(inputs: InputDraft[]): string | null {
   if (inputs.some((input) => !INPUT_KEY.test(input.name.trim()))) {
     return "Give each input a key of lowercase letters, numbers and underscores, such as region."
@@ -55,7 +64,8 @@ function inputsError(inputs: InputDraft[]): string | null {
 export function TriggerSettings({ trigger, kind, pending, revision, timeZones, editable, send }: TriggerSettingsProps) {
   const savedKey = JSON.stringify(trigger)
   const [ inputs, setInputs ] = useState<InputDraft[]>(() => inputDrafts(trigger))
-  const [ settings, setSettings ] = useState<ArgumentsState>(() => argumentsState(trigger.config))
+  const [ settings, setSettings ] = useState<ArgumentsState>(() => argumentsState(settingsOf(jsonObject(trigger.config))))
+  const [ conditions, setConditions ] = useState<ConditionDraft[]>(() => conditionDrafts(trigger.config[WORKFLOW_TRIGGER_KEYS.CONDITIONS]))
   const [ schedule, setSchedule ] = useState<Schedule>(() => scheduleFrom(trigger.config))
   const [ onceAt, setOnceAt ] = useState<OnceAt>(() => onceAtFrom(trigger.config))
   const editor = kind?.editor ?? WORKFLOW_TRIGGER_EDITOR.NONE
@@ -68,7 +78,8 @@ export function TriggerSettings({ trigger, kind, pending, revision, timeZones, e
     }
     const saved: Trigger = JSON.parse(savedKey)
     setInputs(inputDrafts(saved))
-    setSettings(argumentsState(saved.config))
+    setSettings(argumentsState(settingsOf(jsonObject(saved.config))))
+    setConditions(conditionDrafts(saved.config[WORKFLOW_TRIGGER_KEYS.CONDITIONS]))
     setSchedule(scheduleFrom(saved.config))
     setOnceAt(onceAtFrom(saved.config))
     setBaseRevision(revision)
@@ -76,8 +87,8 @@ export function TriggerSettings({ trigger, kind, pending, revision, timeZones, e
 
   const error = useMemo(() => {
     const fieldsWrong = kind && Object.keys(fieldErrors(kind.fields, settings)).length > 0
-    return inputsError(inputs) ?? (fieldsWrong ? "Fill in what the trigger needs." : null)
-  }, [ inputs, settings, kind ])
+    return inputsError(inputs) ?? (fieldsWrong ? "Fill in what the trigger needs." : null) ?? conditionsError(conditions)
+  }, [ inputs, settings, kind, conditions ])
 
   function updateInput(key: string, patch: Partial<InputDraft>) {
     setInputs(inputs.map((input) => (input.key === key ? { ...input, ...patch } : input)))
@@ -105,6 +116,11 @@ export function TriggerSettings({ trigger, kind, pending, revision, timeZones, e
     setDirty(true)
   }
 
+  function conditionsChanged(next: ConditionDraft[]) {
+    setConditions(next)
+    setDirty(true)
+  }
+
   function scheduleChanged(next: Schedule) {
     setSchedule(next)
     setDirty(true)
@@ -123,6 +139,9 @@ export function TriggerSettings({ trigger, kind, pending, revision, timeZones, e
     if (editor === WORKFLOW_TRIGGER_EDITOR.ONCE_AT) {
       return onceAtParams(onceAt)
     }
+    if (kind?.event) {
+      return { ...jsonObject(settings.values), [WORKFLOW_TRIGGER_KEYS.CONDITIONS]: storedConditions(conditions) }
+    }
     return jsonObject(settings.values)
   }
 
@@ -140,7 +159,7 @@ export function TriggerSettings({ trigger, kind, pending, revision, timeZones, e
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div data-trigger-settings className="flex h-full min-h-0 flex-col">
       <header className="flex items-start gap-2.5 border-b border-border p-3">
         <TriggerIcon icon={trigger.icon} />
         <div className="min-w-0 flex-1">
@@ -160,8 +179,13 @@ export function TriggerSettings({ trigger, kind, pending, revision, timeZones, e
           <ToolFields idPrefix="trigger" fields={kind.fields} state={settings} errors={fieldErrors(kind.fields, settings)} placeholders={[]} places={[]}
                       disabled={!editable} onChange={settingsChanged} />
         )}
+        {trigger.kind === WORKFLOW_TRIGGER_KINDS_BY_KEY.INBOUND_WEBHOOK && <WebhookAddress />}
+        {kind?.event && (
+          <TriggerConditions idPrefix="trigger-condition" fields={kind.conditions} drafts={conditions} disabled={!editable} onChange={conditionsChanged} />
+        )}
         <section className="space-y-2">
           <h4 className="font-mono text-[10.5px] tracking-[0.1em] text-brand uppercase">Inputs</h4>
+
           <p className="text-xs text-fg-muted">What a person is asked when they run it by hand. Steps read each as {"{{inputs.key}}"}.</p>
           {inputs.map((input) => (
             <div key={input.key} className="space-y-1.5 rounded-md border border-border p-2">

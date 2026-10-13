@@ -103,6 +103,7 @@ module TypescriptConstants
       }, nil),
       Export.new("SKILL_FILE_NAME", Chat::CustomSkill::Document::FILE_NAME, nil),
       Export.new("WORKFLOW_TRIGGER_KINDS", Workflow::Trigger::KINDS, "WorkflowTriggerKind"),
+      Export.new("WORKFLOW_TRIGGER_KINDS_BY_KEY", Workflow::Trigger::KINDS.to_h { |kind| [ kind.upcase, kind ] }, nil),
       Export.new("WORKFLOW_CHANGE_KINDS", {
         "ADDED" => Workflow::Changes::KIND_ADDED, "REMOVED" => Workflow::Changes::KIND_REMOVED, "CHANGED" => Workflow::Changes::KIND_CHANGED
       }, nil),
@@ -151,6 +152,7 @@ module TypescriptConstants
       Export.new("CONDITION_OPERATOR_LABELS", IncidentCondition::OPERATOR_LABELS, nil),
       Export.new("ALERT_NORMALIZED_FIELDS", AlertProviders::Base::NORMALIZED_FIELDS, "AlertNormalizedField"),
       Export.new("ALERT_CONDITION_OPERATORS", PolicyRule::OPERATORS, "AlertConditionOperator"),
+      Export.new("ALERT_CONDITION_OPERATOR", PolicyRule::OPERATORS.to_h { |operator| [ operator.upcase, operator ] }, nil),
       Export.new("ALERT_OUTCOME_ACTIONS", PolicyRule::AlertRoutingOutcome::ACTIONS, "AlertOutcomeAction"),
       Export.new("ALERT_NOTIFY_TARGETS", {
         "MEMBER" => PolicyRule::AlertRoutingOutcome::TARGET_MEMBER,
@@ -371,7 +373,8 @@ module TypescriptConstants
         "INPUTS" => DefinedWorkflow::SCOPE_INPUTS, "TRIGGER" => DefinedWorkflow::SCOPE_TRIGGER, "STEPS" => DefinedWorkflow::SCOPE_STEPS,
         "ITEM" => DefinedWorkflow::SCOPE_ITEM, "INDEX" => DefinedWorkflow::SCOPE_INDEX
       }, nil),
-      Export.new("WORKFLOW_TRIGGER_KEYS", { "KIND" => Workflow::Trigger::KEY_KIND, "INPUTS" => Workflow::Trigger::KEY_INPUTS }, nil),
+      Export.new("WORKFLOW_TRIGGER_KEYS", { "KIND" => Workflow::Trigger::KEY_KIND, "INPUTS" => Workflow::Trigger::KEY_INPUTS, "CONDITIONS" => Workflow::Trigger::KEY_CONDITIONS }, nil),
+      Export.new("WORKFLOW_CONDITION_LIMIT", Workflow::Trigger::CONDITION_LIMIT, nil),
       Export.new("WORKFLOW_INPUT_LIMIT", Workflow::Trigger::INPUT_LIMIT, nil)
     ]
   end

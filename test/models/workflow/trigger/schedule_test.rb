@@ -67,7 +67,7 @@ class Workflow::Trigger::ScheduleTest < ActiveSupport::TestCase
     assert_equal "By hand", Workflow::Trigger.words({ "kind" => "manual" })
   end
 
-  test "a published workflow starts by hand, on a schedule or once at a time" do
-    assert_includes Workflow::Trigger.problems({ "kind" => "incident_declared", "inputs" => [] }), "A workflow starts by hand, on a schedule, once at a time or when another workflow runs it."
+  test "a trigger of no known kind is refused" do
+    assert_includes Workflow::Trigger.problems({ "kind" => "carrier_pigeon", "inputs" => [] }), "The trigger is a carrier_pigeon trigger, which is not a kind of trigger."
   end
 end

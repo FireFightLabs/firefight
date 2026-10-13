@@ -1,4 +1,5 @@
-# A kind of trigger the canvas offers, from the registry (Workflow::TriggerKinds).
+# A kind of trigger the canvas offers, from the registry (Workflow::TriggerKinds): its words and icon, how its settings
+# are drawn, what its conditions may read with the workspace's values for each, and what its run's trigger data holds.
 class WorkflowTriggerKindSerializer < BaseSerializer
   object_as :kind
 
@@ -22,9 +23,9 @@ class WorkflowTriggerKindSerializer < BaseSerializer
     kind.icon
   end
 
-  type "{ key: string; kind: #{ToolField::KINDS.map(&:inspect).join(' | ')}; options: string[]; required: boolean; description: string | null }[]"
+  type "{ key: string; kind: #{ToolField::KINDS.map(&:inspect).join(' | ')}; options: string[]; required: boolean; description: string | null; shown_when: Record<string, string[]> | null }[]"
   def fields
-    kind.fields.map(&:to_h)
+    kind.fields_for(facts).map(&:to_h)
   end
 
   type "#{Workflow::TriggerKinds::EDITORS.map(&:inspect).join(' | ')}"
@@ -36,4 +37,23 @@ class WorkflowTriggerKindSerializer < BaseSerializer
   def defaults
     kind.defaults
   end
+
+  type :boolean
+  def event
+    kind.event?
+  end
+
+  type "{ key: string; label: string; options: { value: string; label: string }[] }[]"
+  def conditions
+    kind.conditions_for(facts).map { |field| { key: field.key, label: field.label, options: field.options.map(&:to_h) } }
+  end
+
+  type "{ path: string; label: string }[]"
+  def outputs
+    kind.outputs.map(&:to_h)
+  end
+
+  private
+
+  def facts = options[:facts] || Workflow::StepKinds::Facts.new
 end

@@ -54,6 +54,95 @@ class WorkflowRunEndServiceTest < ActiveSupport::TestCase
     run!(workflow)
   end
 
+  test "a failure notice that could not be sent is not counted as told, and is sent again later with the fix Halon already suggested" do
+    workflow = failing
+    FirefightAi::WorkflowRepair.any_instance.expects(:suggest).once.returns(
+      FirefightAi::WorkflowRepair::Suggestion.new(reason: "The skill needs a focus on the shop service.", config: { "focus" => "shop" })
+    )
+    @adapter.any_instance.expects(:post_workflow_failure).with(has_entries(channel_id: @alice.platform_user_id, suggestion: true))
+            .twice.raises(AdapterError::ServerError, "internal_error").then.returns({})
+
+    run = run!(workflow)
+
+    assert run.told_at, "the job tried again and the notice landed"
+    assert_equal 1, workflow.proposals.count
+  end
+
+  test "a failure notice waits for the next try while the platform is down, and the job is enqueued again" do
+    FirefightAi::WorkflowRepair.any_instance.stubs(:suggest).returns(nil)
+    @adapter.any_instance.stubs(:post_workflow_failure).returns({})
+    run = run!(failing)
+    run.update_columns(told_at: nil)
+    @adapter.any_instance.stubs(:post_workflow_failure).raises(AdapterError::Unavailable, "service_unavailable")
+
+    assert_enqueued_with(job: WorkflowRunEndedJob, args: [ run.id ]) { WorkflowRunEndedJob.perform_now(run.id) }
+    assert_nil run.reload.told_at
+  end
+
+  test "a run whose telling broke is left to be told again, and a job a stopped worker left is run again and takes back its own claim" do
+    FirefightAi::WorkflowRepair.any_instance.stubs(:suggest).returns(nil)
+    @adapter.any_instance.stubs(:post_workflow_failure).returns({})
+    run = run!(failing)
+    run.update_columns(told_at: nil)
+
+    @adapter.any_instance.stubs(:post_workflow_failure).raises(RuntimeError, "something else broke")
+    assert_raises(RuntimeError) { WorkflowRunEndService.new(run, job_id: "job-1").ended! }
+    assert_nil run.reload.telling_job_id, "a claim is given back whatever broke"
+
+    run.update_columns(telling_job_id: "job-1")
+    @adapter.any_instance.stubs(:post_workflow_failure).returns({})
+    WorkflowRunEndService.new(run, job_id: "job-2").ended!
+    assert_nil run.reload.told_at, "another job leaves a claim that may still be telling"
+
+    WorkflowRunEndService.new(run, job_id: "job-1").ended!
+    assert run.reload.told_at, "the job its stopped worker left takes its claim back and tells"
+    assert_nil run.telling_job_id
+  end
+
+  test "a job that breaks never gives back a claim another job holds" do
+    FirefightAi::WorkflowRepair.any_instance.stubs(:suggest).returns(nil)
+    @adapter.any_instance.stubs(:post_workflow_failure).returns({})
+    run = run!(failing)
+    run.update_columns(told_at: nil, telling_job_id: "job-1")
+
+    Conversation::Workflows.stubs(:moved!).raises(RuntimeError, "broke before claiming")
+    assert_raises(RuntimeError) { WorkflowRunEndService.new(run, job_id: "job-2").ended! }
+    assert_equal "job-1", run.reload.telling_job_id
+
+    Conversation::Workflows.unstub(:moved!)
+    @adapter.any_instance.stubs(:post_workflow_failure).raises(AdapterError::ServerError, "internal_error")
+    run.update_columns(telling_job_id: nil)
+    assert_raises(AdapterError::ServerError) { WorkflowRunEndService.new(run, job_id: "job-3").ended! }
+    run.update_columns(telling_job_id: "job-1")
+    Workflow::Run.find(run.id).release_telling!("job-3")
+    assert_equal "job-1", run.reload.telling_job_id
+  end
+
+  test "the job that tells a run's end is run again when its worker is stopped" do
+    assert WorkflowRunEndedJob.runs_again_when_interrupted
+  end
+
+  test "a failure notice whose team channel is gone is sent to whoever published the workflow" do
+    workflow = failing
+    workflow.update!(owner_team: catalog_entries(:platform_team))
+    CatalogEntry.any_instance.stubs(:role_value).with(CatalogAttributeDefinition::ROLE_NOTIFICATION_CHANNEL).returns("C0GONE")
+    FirefightAi::WorkflowRepair.any_instance.stubs(:suggest).returns(nil)
+    sent = sequence("sent")
+    @adapter.any_instance.expects(:post_workflow_failure).with(has_entries(channel_id: "C0GONE")).in_sequence(sent).raises(AdapterError::NotFound, "channel_not_found")
+    @adapter.any_instance.expects(:post_workflow_failure).with(has_entries(channel_id: @alice.platform_user_id)).in_sequence(sent).returns({})
+
+    assert run!(workflow).told_at
+  end
+
+  test "a failure notice with nowhere at all to go is left untold" do
+    workflow = failing
+    @alice.update_columns(platform_user_id: nil)
+    FirefightAi::WorkflowRepair.any_instance.stubs(:suggest).returns(nil)
+    @adapter.any_instance.expects(:post_workflow_failure).never
+
+    assert_nil run!(workflow).told_at
+  end
+
   test "a test run and a run another workflow started say nothing" do
     workflow = failing
     FirefightAi::WorkflowRepair.any_instance.expects(:suggest).never

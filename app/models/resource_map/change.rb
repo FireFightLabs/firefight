@@ -16,11 +16,18 @@ class ResourceMap::Change < ApplicationRecord
 
   validates :kind, inclusion: { in: KINDS }
 
+  after_create_commit :tell_workflows
+
   scope :newest_first, -> { order(happened_at: :desc) }
   scope :since, ->(time) { where(happened_at: time..) }
 
   # What changed and when, in the words the map page uses.
   def line = "#{words} at #{happened_at.utc.iso8601}"
+
+  # Each change the map records is heard once by the workspace's workflows that wait for one.
+  def tell_workflows
+    Workflow::Trigger::Events.fire!(workspace, Workflow::Trigger::KIND_RESOURCE_CHANGED, key: id, subject: self)
+  end
 
   # What changed, without when.
   def words

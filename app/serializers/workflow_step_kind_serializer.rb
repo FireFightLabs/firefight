@@ -33,7 +33,7 @@ class WorkflowStepKindSerializer < BaseSerializer
     kind.editor
   end
 
-  type "{ key: string; kind: #{ToolField::KINDS.map(&:inspect).join(' | ')}; options: string[]; required: boolean; description: string | null }[]"
+  type "{ key: string; kind: #{ToolField::KINDS.map(&:inspect).join(' | ')}; options: string[]; required: boolean; description: string | null; shown_when: Record<string, string[]> | null }[]"
   def fields
     kind.fields_for(facts).map(&:to_h)
   end
