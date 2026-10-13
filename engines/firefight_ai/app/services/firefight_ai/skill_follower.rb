@@ -49,7 +49,7 @@ module FirefightAi
       - #{Evidence::RULE}
 
       How to finish:
-      - Call report_step once, last. verdict is ok when you found nothing wrong, problem when you found something that needs a person, and unsure when what you could read does not settle it. summary is two or three plain sentences on what you looked at and found. severity is low, medium or high for a problem. findings lists each thing you found, one plain sentence each, naming what showed it.
+      - Call report_step once, last. verdict is ok when you found nothing wrong, problem when you found something that needs a person, and unsure when what you could read does not settle it. summary is two or three plain sentences on what you looked at and found. severity is low, medium or high for a problem. findings lists each thing you found, one plain sentence each, naming what showed it. problems lists each problem that needs a person, one each, with a topic that stays the same each time for the same problem, a summary, a severity, and the resource and the day it becomes a problem when you know them.
       - #{Copy::RULE}
     PROMPT
   end

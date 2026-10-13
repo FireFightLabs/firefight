@@ -1580,9 +1580,12 @@ export type WorkflowFreezeBehaviour = (typeof WORKFLOW_FREEZE_BEHAVIOURS)[number
 export const WORKFLOW_PAGE_TABS = [
   "workflows",
   "runs",
-  "done"
+  "done",
+  "library"
 ] as const
 export type WorkflowPageTab = (typeof WORKFLOW_PAGE_TABS)[number]
+
+export const CHAT_TIME_TOKEN_PATTERN = "\\{\\{at:(\\d+)\\}\\}" as const
 
 export const WORKFLOW_PAGE_TAB_QUERY = "tab" as const
 

@@ -34,7 +34,7 @@ class Workflow < ApplicationRecord
   USAGE_NOUN = "time".freeze
 
   # Building, testing and running one, publishing one or changing it live, and granting its identity what it needs.
-  CREATE_KEY = Ability::Action.system_key(Ability::Action::RESOURCE_WORKFLOWS, Ability::Action::ACTION_CREATE)
+  CREATE_KEY = Ability::Action::WORKFLOWS_CREATE
   PUBLISH_KEY = Ability::Action.system_key(Ability::Action::RESOURCE_WORKFLOWS, Ability::Action::ACTION_UPDATE)
   GRANT_KEY = Ability::Action.system_key(Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_CREATE)
   READ_KEY = Ability::Action.system_key(Ability::Action::RESOURCE_WORKFLOWS, Ability::Action::ACTION_READ)
@@ -54,7 +54,11 @@ class Workflow < ApplicationRecord
   # The open draft, for a list to load with the rest. Editing reads draft, which asks the database each time.
   has_one :draft_version, -> { where(status: Workflow::Version::STATUS_DRAFT) }, class_name: "Workflow::Version", inverse_of: false
   # Its newest run, loaded for a whole list in one query.
-  has_one :latest_run, -> { select("DISTINCT ON (workflow_runs.workflow_id) workflow_runs.*").order("workflow_runs.workflow_id, workflow_runs.created_at DESC") },
+  # The last real run, which every place that says how a workflow last went reads. A test run ran a draft as the person
+  # testing, so it stays on the Runs tab, marked as a test, and is never how the workflow last went.
+  has_one :latest_run, lambda {
+    where(test: false).select("DISTINCT ON (workflow_runs.workflow_id) workflow_runs.*").order("workflow_runs.workflow_id, workflow_runs.created_at DESC")
+  },
           class_name: "Workflow::Run", inverse_of: false
   has_many :publish_requests, class_name: "Workflow::PublishRequest", dependent: :delete_all, inverse_of: :workflow
 
@@ -124,6 +128,20 @@ class Workflow < ApplicationRecord
   def real_run_count = has_attribute?(:real_run_count) ? self[:real_run_count].to_i : runs.real.count
 
   # A workflow that ran keeps its runs readable, so it is turned off rather than deleted.
+  # What an approval held to publish a workflow an agent made is parked as (ApprovalResumption).
+  PUBLISH_APPROVAL_KIND = "workflow_publish".freeze
+
+  # Why an approval to publish a workflow cannot be given: the draft it asked about changed since, so whoever approves
+  # would publish what nobody looked at. nil when it can.
+  def self.publish_approval_blocked_reason(approval)
+    payload = approval.resume_payload.to_h
+    workflow = find_by(id: payload["workflow_id"], workspace_id: approval.workspace_id)
+    return "That workflow is gone, so there is nothing to publish." unless workflow
+    return if workflow.draft&.revision == payload["revision"]
+
+    "#{workflow.name} changed since #{approval.principal&.actor_display_name || 'whoever asked'} asked, so open it and look again before publishing."
+  end
+
   def deletion_blocked_reason
     count = run_count
     return if count.zero?

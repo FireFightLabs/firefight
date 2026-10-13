@@ -249,6 +249,26 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
     assert_equal second, @workspace.investigation_notices.find_by!(topic: "Probing of shop").workflow_run
   end
 
+  test "a notice about a resource not on the map is still raised and said, naming the resource in words" do
+    @workspace.update!(halon_monitoring_channel: "C0MONITOR")
+    notice = step("raise", "raise_notice", { "signal" => "disk", "topic" => "Disk of reports-db", "summary" => "Fills in a week.", "severity" => "medium",
+                                              "resource" => "reports-db" })
+    workflow = published("Disk", steps: [ notice ])
+    said = []
+    WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:post_monitoring_notice).with { |**given| said << given[:notice] }
+                    .returns({ channel_id: "C0MONITOR", message_id: "1.2" })
+
+    run = start(workflow)
+
+    assert_equal true, run.steps.find_by!(step_key: "raise").output["said"]
+    raised = @workspace.investigation_notices.find_by!(topic: "Disk of reports-db")
+    assert_nil raised.resource
+    assert_equal "reports-db", raised.resource_words
+    assert_equal [ raised ], said
+    assert_includes Slack::Messages::MonitoringNotice.fields(raised), "*Resource:* reports-db"
+    assert_equal "reports-db", InvestigationNoticeSerializer.one(raised)[:resourceName]
+  end
+
   test "a workflow refuses runs past its runs per hour, and one live run per subject" do
     workflow = published("Busy", steps: [ step("pause", "delay", { "minutes" => 5 }) ],
                                  trigger: { "kind" => "manual", "inputs" => [ { "key" => "service", "question" => "Which service?" } ] })
@@ -330,7 +350,7 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
     run = start(workflow)
 
     assert_equal Workflow::Run::STATUS_SUCCEEDED, run.status, run.error
-    assert_equal report, run.steps.find_by!(step_key: "scan").output
+    assert_equal report.merge("problems" => []), run.steps.find_by!(step_key: "scan").output
   end
 
   test "a workflow cannot be published with a skill step whose skill the workspace switched off" do

@@ -7,7 +7,7 @@ class DefinedWorkflow::Steps::RaiseNotice < DefinedWorkflow::Steps::Base
   label "Raise a notice"
   group GROUP_MESSAGES
   config_help "signal (one of #{Investigation::Notice::SIGNALS.join(', ')}), topic (the same each time for the same problem), summary, severity " \
-              "(low, medium or high, may be a reference), due_on (YYYY-MM-DD, optional), resource (on the map, optional). Said once, and again only when worse."
+              "(low, medium or high, may be a reference), due_on (YYYY-MM-DD, optional), resource (optional, by its id or name on the map, and said in words when it is not on it). Said once, and again only when worse."
 
   KEY_SIGNAL = "signal".freeze
   KEY_TOPIC = "topic".freeze
@@ -75,9 +75,11 @@ class DefinedWorkflow::Steps::RaiseNotice < DefinedWorkflow::Steps::Base
       signal: @config[KEY_SIGNAL].to_s.presence_in(Investigation::Notice::SIGNALS) || Investigation::Notice::SIGNAL_OTHER,
       topic: @config[KEY_TOPIC].to_s, summary: @config[KEY_SUMMARY].to_s,
       severity: @config[KEY_SEVERITY].to_s.presence_in(Investigation::Notice::SEVERITIES) || Investigation::Notice::SEVERITY_LOW,
-      due_on: due_on, resource: resource
+      due_on: due_on, resource: resource, resource_words: (resource_reference.presence unless resource)
     )
   end
+
+  def resource_reference = @config[KEY_RESOURCE].to_s.strip
 
   def notice_channel = Investigation::Notice.channel_for(workspace, reading.resource, team: @run.workflow.owner_team)
 
@@ -88,14 +90,16 @@ class DefinedWorkflow::Steps::RaiseNotice < DefinedWorkflow::Steps::Base
     raise Refused, "#{@step.label} gives the day it becomes a problem as #{value}, which is not a date such as 2026-10-28."
   end
 
+  # The resource on the map it is about. One not on the map is nil, and the notice names it in words instead.
   def resource
-    reference = @config[KEY_RESOURCE].to_s
-    return nil if reference.blank?
+    return @resource if defined?(@resource)
+
+    reference = resource_reference
+    return @resource = nil if reference.blank?
 
     found = ResourceMap::Resource.visible_to(principal, workspace).referenced(workspace, reference).present.to_a
-    raise Refused, ResourceMap::Resource.not_found_words(reference) if found.empty?
     raise Refused, "More than one resource is called #{reference}. Name it by its id on the map." if found.size > 1
 
-    found.first
+    @resource = found.first
   end
 end

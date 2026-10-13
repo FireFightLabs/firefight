@@ -52,6 +52,20 @@ class HalonWorkflowsTest < ApplicationSystemTestCase
     assert_text "Every weekday at 09:00"
   end
 
+  test "a member whose making of workflows an admin took away is not offered a new one from the library" do
+    published
+    sign_in(users(:bob), @workspace)
+    visit halon_workflows_path
+    assert_text "Look around"
+    assert_button "New from the library"
+
+    Ability::Grant.withhold!(workspace: @workspace, principal: @bob, action: Ability::Action.system!(Workflow::CREATE_KEY))
+    visit halon_workflows_path
+
+    assert_text "Look around"
+    assert_no_button "New from the library"
+  end
+
   test "without the workflows flag the nav item is not there" do
     FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
     sign_in(users(:alice), @workspace)

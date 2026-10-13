@@ -184,6 +184,12 @@ module Ability
         description: "Ask Halon in a chat, in Slack or over MCP, start an investigation, add to a running one and apply its fix. " \
                      "Members hold it without a grant. Granting it to a member, alone or in a set, means the grant decides, " \
                      "so an expired grant leaves them none. No access takes it away at once."
+      }.freeze,
+      WORKFLOWS_CREATE => {
+        title: "Make workflows",
+        description: "Make a workflow's draft, from scratch, Firefight's library, a file or by asking Halon, test it and run one that is " \
+                     "published. Members hold it without a grant. Granting it to a member, alone or in a set, means the grant decides, " \
+                     "so an expired grant leaves them none. No access takes it away at once. Publishing a workflow is an admin's."
       }.freeze
     }.freeze
 

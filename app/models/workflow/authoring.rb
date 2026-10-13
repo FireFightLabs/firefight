@@ -86,10 +86,20 @@ module Workflow::Authoring
       kind = kinds[step["id"]]
       [ kind&.label || step["kind"].to_s.humanize, [ step["name"], kind&.describe(step["config"].to_h, workspace).presence ].compact.join(": ") ]
     end
-    Preview.new(problem: problem && "It cannot be published as written. #{problem}", when: Workflow::Trigger.words(content[:trigger]), steps: steps,
+    Preview.new(problem: problem && "It cannot be published as written. #{problem}", when: when_words(content[:trigger]), steps: steps,
                 reach: version.reach.map { |needed| needed.label.downcase_first })
   rescue Refused, Workflow::Library::Refused => refused
     Preview.new(problem: refused.message, when: nil, steps: [], reach: [])
+  end
+
+  # When it would run, its moments written so each reader sees them in their own time zone (Chat::TimeToken): a one off
+  # at its moment, a schedule in its own words and its next moment.
+  def when_words(trigger)
+    next_at = Workflow::Trigger::Schedule.timed?(trigger) && Workflow::Trigger::Schedule.next_after(trigger, Time.current)
+    return Workflow::Trigger.words(trigger) unless next_at
+    return "Once at #{Chat::TimeToken.for(next_at)}" if trigger[Workflow::Trigger::KEY_KIND] == Workflow::Trigger::KIND_ONCE_AT
+
+    "#{Workflow::Trigger.words(trigger)}, next at #{Chat::TimeToken.for(next_at)}"
   end
 
   # The name, trigger, steps and connections a spec writes, from a template or as written.

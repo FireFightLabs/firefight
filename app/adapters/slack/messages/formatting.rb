@@ -9,6 +9,12 @@ module Slack
       # A time of day each reader sees in their own time zone, with UTC for a client that cannot show it.
       def self.slack_time(time) = "<!date^#{time.to_i}^{time}|#{time.utc.strftime('%H:%M UTC')}>"
 
+      # Text with each moment (Chat::TimeToken) as a date and time each reader sees in their own time zone. Escape the
+      # text first, since the date is Slack's own markup.
+      def self.local_moments(text)
+        Chat::TimeToken.replace(text) { |time| "<!date^#{time.to_i}^{date_long_pretty} at {time}|#{time.utc.strftime('%a %-d %b %Y, %H:%M UTC')}>" }
+      end
+
       def self.format_duration(minutes)
         return "N/A" if minutes.nil?
 

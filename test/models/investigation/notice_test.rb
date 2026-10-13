@@ -112,4 +112,16 @@ class Investigation::NoticeTest < ActiveSupport::TestCase
 
     assert_not_equal one.key, two.key
   end
+
+  test "two resources not on the map are two problems under one topic, and the same one read again is the same problem" do
+    reports = reading(resource: nil).with(resource_words: "reports-db")
+    billing = reading(resource: nil).with(resource_words: "billing-db")
+
+    assert_not_equal reports.key, billing.key
+    assert_equal reports.key, reading(resource: nil).with(resource_words: " Reports-DB ").key
+    assert_not_equal reading(resource: nil).with(resource_words: "api.prod").key, reading(resource: nil).with(resource_words: "api-prod").key
+    assert Investigation::Notice.observe!(@workspace, reports)
+    assert Investigation::Notice.observe!(@workspace, billing)
+    assert_equal %w[billing-db reports-db], @workspace.investigation_notices.pluck(:resource_words).sort
+  end
 end

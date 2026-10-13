@@ -1,11 +1,12 @@
 # Halon follows one skill, Firefight's own or a connected provider's, with only the tools that skill names, and reports
-# a verdict, a summary, a severity for a problem and what it found. It only reads, whatever the skill's tools could do,
+# a verdict, a summary, a severity for a problem, what it found and each problem that needs a person. It only reads, whatever the skill's tools could do,
 # since a change made by a model has no undo written ahead and no check after it.
 class DefinedWorkflow::Steps::RunSkill < DefinedWorkflow::Steps::Base
   kind "run_skill"
   label "Run a skill"
   group GROUP_HALON
-  config_help "skill (a skill's name), focus (what to look at). It only reads. Outputs verdict, summary, severity and findings."
+  config_help "skill (a skill's name), focus (what to look at). It only reads. Outputs verdict, summary, severity, findings and problems " \
+              "(each with topic, summary, severity, resource and due_on, for a for_each that raises a notice for each)."
 
   KEY_SKILL = "skill".freeze
   KEY_FOCUS = "focus".freeze
@@ -16,7 +17,7 @@ class DefinedWorkflow::Steps::RunSkill < DefinedWorkflow::Steps::Base
     def checks?(_config, _workspace) = true
 
     def output_fields(_config)
-      [ Workflow::HalonStep::VERDICT, Workflow::HalonStep::SUMMARY, Workflow::HalonStep::SEVERITY, Workflow::HalonStep::FINDINGS ]
+      [ Workflow::HalonStep::VERDICT, Workflow::HalonStep::SUMMARY, Workflow::HalonStep::SEVERITY, Workflow::HalonStep::FINDINGS, Workflow::HalonStep::PROBLEMS ]
     end
 
     def problems(step, workspace)
@@ -46,6 +47,7 @@ class DefinedWorkflow::Steps::RunSkill < DefinedWorkflow::Steps::Base
     return answer if answer.is_a?(SolidWorkflow::Park)
     raise Failed, answer[Workflow::HalonStep::KEY_ERROR] if answer[Workflow::HalonStep::KEY_ERROR]
 
-    answer
+    # Always a list, so a for each over the problems finds none rather than failing when Halon reported none.
+    answer.merge(Workflow::HalonStep::PROBLEMS => Array(answer[Workflow::HalonStep::PROBLEMS]))
   end
 end
