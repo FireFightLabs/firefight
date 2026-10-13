@@ -27,6 +27,7 @@ app/controllers/api/v1/statuses_controller.rb    # Read-only
 app/controllers/api/v1/incident_types_controller.rb # Read-only
 app/controllers/api/v1/runbooks_controller.rb    # CRUD by slug or id, steps with tool and arguments, inputs, aliases, watch
 app/controllers/api/v1/handbook_pages_controller.rb # The handbook's pages: list, read, create, update, delete
+app/controllers/api/v1/skills_controller.rb         # The workspace's own skills: list, read, create, update, switch, delete
 app/controllers/api/v1/abilities_controller.rb   # Gateway: grantable abilities (permissions:read)
 app/controllers/api/v1/principals_controller.rb  # Gateway: people, agents, service keys and their grants
 app/controllers/api/v1/permission_sets_controller.rb # Gateway: sets by slug, abilities by key, built-in packs read only
@@ -108,6 +109,18 @@ DELETE /api/v1/handbook/pages/:id     # the page and its history
 ```
 
 A synced page is read here and changed only at its source, so a write to one answers 422 `page_synced` with why. A personal token writes as its member, which the page's history names, and a service key as nobody.
+
+**Skill endpoints**: the workspace's own skills, authorized as `skills` (members read them, writing needs a grant), through the same `Chat::CustomSkillService` the Skills page and MCP write through. Without the `CUSTOM_SKILLS` flag they answer 404.
+
+```
+GET    /api/v1/skills          # every skill, without its steps
+GET    /api/v1/skills/:id      # one skill whole, with its tools, steps and version_id
+POST   /api/v1/skills          # name, when, tools, steps, reason
+PATCH  /api/v1/skills/:id      # name, when, tools, steps, reason and enabled, only what is sent, as a new version. version_id refuses a change over someone else's with 409
+DELETE /api/v1/skills/:id      # the skill and its versions, 422 skill_refused while a workflow runs it
+```
+
+A tool the skill names that Halon does not have here answers 422 `skill_refused` with which.
 
 **Postmortem endpoints**: `GET`, `POST` and `PATCH` on `/api/v1/incidents/:id/postmortem`. `POST` with `generate: true` drafts it from the incident and comes back with a `generation_state` to poll on, otherwise it opens an empty one. `PATCH` takes `html` to replace the body, `status` to move it along, or both.
 
