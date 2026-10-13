@@ -139,6 +139,10 @@ function ConditionRow({ idPrefix, draft, fields, fieldOptions, disabled, onChang
     onChange(draft.key, { field: value ?? "", values: [], text: "" })
   }
 
+  function fieldTyped(event: ChangeEvent<HTMLInputElement>) {
+    onChange(draft.key, { field: event.target.value.trim() })
+  }
+
   // Values typed separated by commas, kept as typed so a comma can be written, and as the list they make.
   function typedValues(event: ChangeEvent<HTMLInputElement>) {
     const text = event.target.value
@@ -167,8 +171,13 @@ function ConditionRow({ idPrefix, draft, fields, fieldOptions, disabled, onChang
     <div className="space-y-1.5 rounded-md border border-border p-2">
       <div className="flex gap-1.5">
         <div className="min-w-0 flex-1">
-          <SearchableSelect id={`${idPrefix}-field`} value={draft.field || null} onValueChange={fieldChosen} options={options}
-                            placeholder="What it reads" disabled={disabled} />
+          {fields.length > 0 ? (
+            <SearchableSelect id={`${idPrefix}-field`} value={draft.field || null} onValueChange={fieldChosen} options={options}
+                              placeholder="What it reads" disabled={disabled} />
+          ) : (
+            <Input id={`${idPrefix}-field`} value={draft.field} aria-label="What it reads" placeholder="What it reads, such as body.service"
+                   disabled={disabled} onChange={fieldTyped} />
+          )}
         </div>
         {!disabled && (
           <button type="button" aria-label="Remove this condition" className="px-1 text-fg-muted hover:text-destructive" onClick={onRemove}>

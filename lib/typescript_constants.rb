@@ -103,6 +103,7 @@ module TypescriptConstants
       }, nil),
       Export.new("SKILL_FILE_NAME", Chat::CustomSkill::Document::FILE_NAME, nil),
       Export.new("WORKFLOW_TRIGGER_KINDS", Workflow::Trigger::KINDS, "WorkflowTriggerKind"),
+      Export.new("WORKFLOW_TRIGGER_KINDS_BY_KEY", Workflow::Trigger::KINDS.to_h { |kind| [ kind.upcase, kind ] }, nil),
       Export.new("WORKFLOW_CHANGE_KINDS", {
         "ADDED" => Workflow::Changes::KIND_ADDED, "REMOVED" => Workflow::Changes::KIND_REMOVED, "CHANGED" => Workflow::Changes::KIND_CHANGED
       }, nil),

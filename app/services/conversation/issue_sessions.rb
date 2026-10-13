@@ -27,6 +27,7 @@ class Conversation::IssueSessions
   end
 
   def receive!
+    tell_workflows if @event.kind == Integrations::AgentSessions::STARTED
     case @event.kind
     when Integrations::AgentSessions::STARTED then asked(@event.text || issue_named, context: opening_context)
     when Integrations::AgentSessions::PROMPTED then confirmation_answered? || asked(@event.text)
@@ -35,6 +36,15 @@ class Conversation::IssueSessions
   end
 
   private
+
+  # An issue handed to Firefight in a tracker starts the workspace's workflows that wait for one, once per session,
+  # beside Halon taking it up.
+  def tell_workflows
+    issue = { "provider" => @integration.display_name, "key" => @event.issue_key, "title" => @event.issue_title, "url" => @event.issue_url,
+              "text" => @event.text, "asked_by" => @event.asker_name, "asked_by_email" => @event.asker_email }
+    Workflow::Trigger::Events.fire!(@workspace, Workflow::Trigger::KIND_ISSUE_ASSIGNED, key: "#{@integration.id}:#{@event.session_id}", subject: @row,
+                                                                                       details: issue)
+  end
 
   def asked(text, context: nil)
     say(Integrations::AgentSessions::THOUGHT, ON_IT)

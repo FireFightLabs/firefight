@@ -90,6 +90,22 @@ module Integrations
       end
     end
 
+    # A deploy or CI run that ended reaches the workflows of each workspace these connections belong to, once each, as
+    # the connection that told Firefight.
+    def report_runs_ended!(rows, payload, headers:)
+      return if rows.empty?
+
+      runs = RunsEnded.of(rows.first.integration.provider, payload, headers: headers)
+      return if runs.empty?
+
+      rows.uniq { |row| row.integration.workspace_id }.each do |row|
+        runs.each do |run|
+          Workflow::Trigger::Events.fire!(row.integration.workspace, Workflow::Trigger::KIND_DEPLOY_FINISHED, key: "#{run.provider}:#{run.reference}",
+                                                                                                         subject: row, details: run.to_h)
+        end
+      end
+    end
+
     # A push to a branch handbook pages are synced from reads them again at once, through each of these connections.
     def nudge_handbook!(rows, payload, headers:)
       return if rows.empty?

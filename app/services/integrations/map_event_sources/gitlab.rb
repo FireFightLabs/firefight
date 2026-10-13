@@ -25,6 +25,9 @@ module Integrations
       DEPLOYMENT_HOOK = "Deployment Hook".freeze
       JOB_ENDS = %w[success failed canceled skipped manual].freeze
       RUN_EVENTS = %w[pipeline_events job_events deployment_events].freeze
+      # The statuses a pipeline or a deployment ends on, as a run that ended reads them.
+      RUN_ENDS = { "success" => RunsEnded::OUTCOME_SUCCEEDED, "failed" => RunsEnded::OUTCOME_FAILED, "canceled" => RunsEnded::OUTCOME_CANCELLED }.freeze
+      PROVIDER_NAME = "GitLab".freeze
       # A push of more than 20 commits lists only the newest 20, and total_commits_count says how many there were
       # (webhook_events.md, Push events).
       MOST_COMMITS = 20
@@ -92,6 +95,20 @@ module Integrations
           end
         end
 
+        # A pipeline that ended, as a CI run, and a deployment that ended, as a deploy (Integrations::RunsEnded). GitLab
+        # sends a pipeline and a deployment at every change, so only the statuses it ends on are kept (webhook_events.md,
+        # Pipeline events and Deployment events).
+        def runs_ended(payload, headers:)
+          project = payload.dig("project", "path_with_namespace")
+          return [] if project.blank?
+
+          case headers[EVENT_HEADER].to_s
+          when PIPELINE_HOOK then pipeline_ended(payload, project)
+          when DEPLOYMENT_HOOK then deployment_ended(payload, project)
+          else []
+          end
+        end
+
         # A webhook already gone from GitLab is taken back all the same.
         def remove(row, webhook_id)
           raise Integrations::Error, "Firefight's GitLab webhook is not one it registered." unless webhook_id.to_s.match?(HOOK_PATH)
@@ -111,6 +128,26 @@ module Integrations
         end
 
         private
+
+        def pipeline_ended(payload, project)
+          pipeline = payload["object_attributes"].to_h
+          outcome = RUN_ENDS[pipeline["status"].to_s]
+          return [] unless outcome && pipeline["id"].present?
+
+          [ RunsEnded::Run.new(kind: RunsEnded::KIND_CI, outcome: outcome, provider: PROVIDER_NAME, reference: "pipeline:#{pipeline['id']}:#{pipeline['status']}",
+                               name: pipeline["name"].presence || "Pipeline #{pipeline['id']}", place: project, ref: pipeline["ref"], commit: pipeline["sha"],
+                               url: pipeline["url"]) ]
+        end
+
+        def deployment_ended(payload, project)
+          outcome = RUN_ENDS[payload["status"].to_s]
+          return [] unless outcome && payload["deployment_id"].present?
+
+          [ RunsEnded::Run.new(kind: RunsEnded::KIND_DEPLOY, outcome: outcome, provider: PROVIDER_NAME,
+                               reference: "deployment:#{payload['deployment_id']}:#{payload['status']}", name: payload["environment"], place: project,
+                               ref: payload["ref"], commit: payload["commit_sha"].presence || payload["short_sha"], url: payload["deployable_url"],
+                               environment: payload["environment"]) ]
+        end
 
         def push_events(payload, id)
           project = payload["project"].to_h

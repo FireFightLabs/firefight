@@ -26,6 +26,8 @@ module Integrations
       BUILDING = "deploy_building".freeze
       FAILED = "deploy_failed".freeze
       EVENTS = [ *MAP_EVENTS, BUILDING, FAILED ].freeze
+      DEPLOY_ENDS = { PUBLISHED => RunsEnded::OUTCOME_SUCCEEDED, FAILED => RunsEnded::OUTCOME_FAILED }.freeze
+      PROVIDER_NAME = "Netlify".freeze
       # A deploy preview or branch deploy is not what the site serves.
       PRODUCTION = "production".freeze
       # Stands for every hook Firefight added, which are one per site and event.
@@ -57,6 +59,18 @@ module Integrations
         end
 
         def wakes?(payload, headers:) = payload["site_id"].present? && EVENTS.include?(headers[EVENT_HEADER].to_s)
+
+        # A deploy that published or failed, as a deploy that ended (Integrations::RunsEnded), a deploy preview's and a
+        # branch deploy's too, each with its context. A deploy published again is no new deploy.
+        def runs_ended(payload, headers:)
+          outcome = DEPLOY_ENDS[headers[EVENT_HEADER].to_s]
+          return [] unless outcome && payload["id"].present? && payload["site_id"].present?
+
+          context = payload["context"].presence || PRODUCTION
+          [ RunsEnded::Run.new(kind: RunsEnded::KIND_DEPLOY, outcome: outcome, provider: PROVIDER_NAME, reference: "deploy:#{payload['id']}:#{outcome}",
+                               name: payload["name"], place: payload["name"].presence || payload["site_id"], ref: payload["branch"],
+                               commit: payload["commit_ref"], url: payload["deploy_ssl_url"].presence || payload["admin_url"], environment: context) ]
+        end
 
         # Adds a hook for each event to every site, or takes back one Firefight added before at this connection's own
         # address, turning it on again if Netlify disabled it. Every site's hooks share the connection's secret, which is

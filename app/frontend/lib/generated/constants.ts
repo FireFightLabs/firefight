@@ -407,6 +407,25 @@ export const WORKFLOW_TRIGGER_KINDS = [
 ] as const
 export type WorkflowTriggerKind = (typeof WORKFLOW_TRIGGER_KINDS)[number]
 
+export const WORKFLOW_TRIGGER_KINDS_BY_KEY = {
+  "MANUAL": "manual",
+  "SCHEDULE": "schedule",
+  "ONCE_AT": "once_at",
+  "INCIDENT_DECLARED": "incident_declared",
+  "INCIDENT_CHANGED": "incident_changed",
+  "ALERT_RECEIVED": "alert_received",
+  "INBOUND_WEBHOOK": "inbound_webhook",
+  "DEPLOY_FINISHED": "deploy_finished",
+  "RESOURCE_CHANGED": "resource_changed",
+  "SECURITY_EVENT": "security_event",
+  "NOTICE_RAISED": "notice_raised",
+  "INVESTIGATION_FINISHED": "investigation_finished",
+  "FOLLOW_UP_CHANGED": "follow_up_changed",
+  "ISSUE_ASSIGNED": "issue_assigned",
+  "RUN_FAILED": "run_failed",
+  "CALLED": "called"
+} as const
+
 export const WORKFLOW_CHANGE_KINDS = {
   "ADDED": "added",
   "REMOVED": "removed",
@@ -1757,7 +1776,10 @@ export const WORKFLOW_TRIGGER_ICONS = [
   "halon",
   "workflow",
   "follow_up",
-  "failed"
+  "failed",
+  "map",
+  "security",
+  "issue"
 ] as const
 export type WorkflowTriggerIcon = (typeof WORKFLOW_TRIGGER_ICONS)[number]
 

@@ -21,10 +21,14 @@ module Workflow::TriggerKinds
   ICON_WORKFLOW = "workflow".freeze
   ICON_FOLLOW_UP = "follow_up".freeze
   ICON_FAILED = "failed".freeze
+  ICON_MAP = "map".freeze
+  ICON_SECURITY = "security".freeze
+  ICON_ISSUE = "issue".freeze
   ICONS = [
     ICON_HAND, ICON_SCHEDULE, ICON_CLOCK, ICON_INCIDENT, ICON_ALERT, ICON_WEBHOOK, ICON_DEPLOY, ICON_HALON, ICON_WORKFLOW,
-    ICON_FOLLOW_UP, ICON_FAILED
+    ICON_FOLLOW_UP, ICON_FAILED, ICON_MAP, ICON_SECURITY, ICON_ISSUE
   ].freeze
+
 
   # How the settings draw a kind beyond its inputs: nothing more, a repeating schedule, or one date and time. A timed
   # kind's time zone is the person's own when they first choose it.
@@ -266,6 +270,90 @@ module Workflow::TriggerKinds
     ],
     help: "runs when a real run of another workflow fails (never its own, a test run or one another workflow ran). conditions read workflow (its slug), " \
           "failed_step and trigger_kind. trigger holds run (workflow, error, failed_step, url)."
+  ))
+
+  register(Kind.new(
+    key: Workflow::Trigger::KIND_INBOUND_WEBHOOK, label: "Inbound webhook", icon: ICON_WEBHOOK,
+    description: "Runs when a signed POST reaches the workflow's own address, with what it was sent.",
+    outputs: [
+      Output.new(path: "body", label: "Everything it was sent"), Output.new(path: "received_at", label: "When it arrived"),
+      Output.new(path: "delivery", label: "The sender's id for the delivery, when it gave one")
+    ],
+    help: "runs when a JSON object is POSTed to the workflow's own address, signed as Firefight's outbound webhooks are (X-Firefight-Timestamp, " \
+          "X-Firefight-Signature v1=HMAC-SHA256 of v1:<timestamp>:<body> with the workflow's secret). conditions read body.<path>, such as body.service. " \
+          "trigger holds body, received_at and delivery."
+  ))
+
+  register(Kind.new(
+    key: Workflow::Trigger::KIND_DEPLOY_FINISHED, label: "Deploy or CI finished", icon: ICON_DEPLOY,
+    description: "Runs when a connected code host or deploy platform says a deploy or a CI run ended, with how it ended.",
+    conditions: lambda { |_facts|
+      [
+        ConditionField.new(key: F::KIND, label: "Deploy or CI", options: choices([ [ F::RUN_DEPLOY, "Deploy" ], [ F::RUN_CI, "CI run" ] ])),
+        ConditionField.new(key: F::OUTCOME, label: "How it ended", options: choices(F::RUN_OUTCOMES.map { |outcome| [ outcome, outcome.humanize ] })),
+        ConditionField.new(key: F::PLACE, label: "Repository, site or project"), ConditionField.new(key: F::REF, label: "Branch"),
+        ConditionField.new(key: F::ENVIRONMENT, label: "Environment"), ConditionField.new(key: F::NAME, label: "Its name"),
+        ConditionField.new(key: F::PROVIDER, label: "Where it ran")
+      ]
+    },
+    outputs: [
+      Output.new(path: "run.outcome", label: "How it ended"), Output.new(path: "run.kind", label: "Deploy or CI"),
+      Output.new(path: "run.name", label: "Its name"), Output.new(path: "run.place", label: "The repository, site or project"),
+      Output.new(path: "run.ref", label: "The branch"), Output.new(path: "run.commit", label: "The commit"),
+      Output.new(path: "run.environment", label: "The environment"), Output.new(path: "run.url", label: "Its page")
+    ],
+    help: "runs when a connection reports a deploy or CI run ended. conditions read kind (deploy or ci), outcome (succeeded, failed, cancelled), " \
+          "place, ref, environment, name and provider. trigger holds run (kind, outcome, name, place, ref, commit, environment, url)."
+  ))
+
+  register(Kind.new(
+    key: Workflow::Trigger::KIND_RESOURCE_CHANGED, label: "Resource changed", icon: ICON_MAP,
+    description: "Runs when the map records a change on a resource: it appeared, went away, deployed, changed status, was renamed or a setting moved.",
+    conditions: lambda { |_facts|
+      [
+        ConditionField.new(key: F::CHANGE, label: "What changed", options: choices(ResourceMap::Change::KINDS.map { |kind| [ kind, kind.humanize ] })),
+        ConditionField.new(key: F::KIND, label: "Kind of resource", options: choices(ResourceMap::KINDS.map { |kind| [ kind, kind.humanize ] })),
+        ConditionField.new(key: F::NAME, label: "Resource name"), ConditionField.new(key: F::PROVIDER, label: "Where it runs"),
+        ConditionField.new(key: F::DETAIL, label: "The setting that moved")
+      ]
+    },
+    outputs: [
+      Output.new(path: "change.words", label: "What changed, in words"), Output.new(path: "change.kind", label: "What kind of change"),
+      Output.new(path: "change.from", label: "What it was"), Output.new(path: "change.to", label: "What it is now"),
+      Output.new(path: "resource.name", label: "The resource"), Output.new(path: "resource.kind", label: "Its kind"), Output.new(path: "resource.url", label: "Its page")
+    ],
+    help: "runs when the map records a change on a resource. conditions read change (#{ResourceMap::Change::KINDS.join(', ')}), kind, name, provider and detail. " \
+          "trigger holds change (kind, from, to, detail, words) and resource (name, kind, provider, url)."
+  ))
+
+  register(Kind.new(
+    key: Workflow::Trigger::KIND_SECURITY_EVENT, label: "Security event", icon: ICON_SECURITY,
+    description: "Runs when a connected provider reports a security event, such as a secret that leaked into a repository.",
+    conditions: lambda { |_facts|
+      [ ConditionField.new(key: F::KIND, label: "What happened"), ConditionField.new(key: F::PLACE, label: "Repository or account"),
+        ConditionField.new(key: F::PUBLIC, label: "Known to be public", options: flags), ConditionField.new(key: F::PROVIDER, label: "Who reported it") ]
+    },
+    outputs: [
+      Output.new(path: "event.what", label: "What it is about"), Output.new(path: "event.place", label: "The repository or account"),
+      Output.new(path: "event.url", label: "Its page"), Output.new(path: "event.public", label: "Whether it is public"), Output.new(path: "event.kind", label: "What happened")
+    ],
+    help: "runs when a provider reports a security event, such as a leaked secret. conditions read kind (leaked_secret), place, public and provider. " \
+          "trigger holds event (kind, what, place, url, public, reference)."
+  ))
+
+  register(Kind.new(
+    key: Workflow::Trigger::KIND_ISSUE_ASSIGNED, label: "Issue assigned to Firefight", icon: ICON_ISSUE,
+    description: "Runs when someone assigns or hands an issue to Firefight in a connected tracker, beside Halon taking it up.",
+    conditions: lambda { |_facts|
+      [ ConditionField.new(key: F::TITLE, label: "Issue title"), ConditionField.new(key: F::ASKED_BY, label: "Who assigned it, by email"),
+        ConditionField.new(key: F::PROVIDER, label: "Tracker") ]
+    },
+    outputs: [
+      Output.new(path: "issue.key", label: "The issue's key"), Output.new(path: "issue.title", label: "Its title"), Output.new(path: "issue.url", label: "Its page"),
+      Output.new(path: "issue.text", label: "What was asked"), Output.new(path: "issue.asked_by", label: "Who assigned it")
+    ],
+    help: "runs when an issue is assigned or handed to Firefight in a tracker. conditions read title, asked_by_email and provider. " \
+          "trigger holds issue (key, title, url, text, asked_by, asked_by_email)."
   ))
 
   register(Kind.new(

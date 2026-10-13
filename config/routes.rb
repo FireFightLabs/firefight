@@ -23,6 +23,7 @@ Rails.application.routes.draw do
       # in both addresses before routing, and the controllers read it from there.
       post "issue_events/:token", to: "issue_events#create", as: :issue_events
       post "map_events/:token", to: "map_events#create", as: :map_events
+      post "workflow_hooks/:token", to: "workflow_hooks#create", as: :workflow_hook
       post "app_events/:provider", to: "app_events#create", as: :app_events
 
       resources :incidents, only: [ :index, :show, :create, :update ] do
@@ -413,6 +414,8 @@ Rails.application.routes.draw do
     post "/halon/workflows/:id/test-runs", to: "workflow_test_runs#create", as: :workflow_test_runs
     post "/halon/workflows/:id/chat", to: "workflow_chats#create", as: :workflow_chat
     post "/halon/workflows/:id/chat/stop", to: "workflow_chats#stop", as: :workflow_chat_stop
+    post "/halon/workflows/:id/hook/secret", to: "workflow_hooks#secret", as: :workflow_hook_secret
+    post "/halon/workflows/:id/hook/replace", to: "workflow_hooks#replace", as: :workflow_hook_replace
     post "/halon/workflows/:id/pins", to: "workflow_pins#create", as: :workflow_pins
     delete "/halon/workflows/:id/pins/:step_id", to: "workflow_pins#destroy", as: :workflow_pin
     post "/halon/workflows/:id/runs/:run_id/rerun", to: "workflow_runs#rerun", as: :workflow_run_rerun

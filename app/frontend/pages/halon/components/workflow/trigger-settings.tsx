@@ -5,11 +5,12 @@ import { ToolFields } from "@/components/tool-fields/tool-fields"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { WORKFLOW_EDIT_OPERATIONS, WORKFLOW_INPUT_LIMIT, WORKFLOW_TRIGGER_EDITOR, WORKFLOW_TRIGGER_KEYS } from "@/lib/generated/constants"
+import { WORKFLOW_EDIT_OPERATIONS, WORKFLOW_INPUT_LIMIT, WORKFLOW_TRIGGER_KINDS_BY_KEY, WORKFLOW_TRIGGER_EDITOR, WORKFLOW_TRIGGER_KEYS } from "@/lib/generated/constants"
 import { argumentsState, fieldErrors, jsonObject, type ArgumentsState, type JsonObject } from "@/lib/tool-fields"
 import { SuggestionCard } from "@/pages/halon/components/workflow/suggestion-card"
 import { conditionDrafts, conditionsError, type ConditionDraft, storedConditions, TriggerConditions } from "@/pages/halon/components/workflow/trigger-conditions"
 import { TriggerIcon } from "@/pages/halon/components/workflow/trigger-icon"
+import { WebhookAddress } from "@/pages/halon/components/workflow/webhook-address"
 import { OnceAtFields } from "@/pages/halon/components/workflows/once-at-fields"
 import { ScheduleFields } from "@/pages/halon/components/workflows/schedule-fields"
 import type { SendEdit } from "@/pages/halon/hooks/use-workflow-edits"
@@ -178,6 +179,7 @@ export function TriggerSettings({ trigger, kind, pending, revision, timeZones, e
           <ToolFields idPrefix="trigger" fields={kind.fields} state={settings} errors={fieldErrors(kind.fields, settings)} placeholders={[]} places={[]}
                       disabled={!editable} onChange={settingsChanged} />
         )}
+        {trigger.kind === WORKFLOW_TRIGGER_KINDS_BY_KEY.INBOUND_WEBHOOK && <WebhookAddress />}
         {kind?.event && (
           <TriggerConditions idPrefix="trigger-condition" fields={kind.conditions} drafts={conditions} disabled={!editable} onChange={conditionsChanged} />
         )}

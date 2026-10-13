@@ -23,6 +23,11 @@ class Workflow::TriggerPayloads
     when Workflow::Trigger::KIND_NOTICE_RAISED then notice(subject, details)
     when Workflow::Trigger::KIND_INVESTIGATION_FINISHED then investigation(subject)
     when Workflow::Trigger::KIND_RUN_FAILED then run_failed(subject)
+    when Workflow::Trigger::KIND_DEPLOY_FINISHED then run_ended(subject, details)
+    when Workflow::Trigger::KIND_RESOURCE_CHANGED then resource_changed(subject)
+    when Workflow::Trigger::KIND_SECURITY_EVENT then security_event(details)
+    when Workflow::Trigger::KIND_ISSUE_ASSIGNED then issue_assigned(subject, details)
+    when Workflow::Trigger::KIND_INBOUND_WEBHOOK then webhook(details)
     else raise ArgumentError, "#{kind} is not a kind of trigger something happening starts"
     end
   end
@@ -136,7 +141,67 @@ class Workflow::TriggerPayloads
                  "error" => run.error, "failed_step" => failed&.name, "url" => Workflow::Links.run(run) }
     }
     context = { F::WORKFLOW => run.workflow.slug, F::TRIGGER_KIND => run.trigger_kind, F::FAILED_STEP => failed&.name }
-
     Built.new(payload: payload, context: Policy.normalize_context(context), tags: [])
+  end
+
+  # A deploy or CI run a connection reported ended, with the connection that told Firefight.
+  def run_ended(row, details)
+    run = details.to_h.stringify_keys.slice(*RUN_KEYS)
+    payload = { "run" => run.merge("connection" => row.integration.name) }
+    context = { F::KIND => run["kind"], F::OUTCOME => run["outcome"], F::PROVIDER => run["provider"], F::PLACE => run["place"], F::REF => run["ref"],
+                F::ENVIRONMENT => run["environment"], F::NAME => run["name"] }
+    Built.new(payload: payload, context: Policy.normalize_context(context), tags: [])
+  end
+
+  RUN_KEYS = %w[kind outcome provider reference name place ref commit url environment].freeze
+
+  def resource_changed(change)
+    resource = change.resource
+    payload = {
+      "change" => { "kind" => change.kind, "from" => change.from_value, "to" => change.to_value, "detail" => change.detail, "words" => change.words,
+                    "happened_at" => change.happened_at&.utc&.iso8601 },
+      "resource" => { "id" => resource.id, "name" => resource.name, "kind" => resource.kind, "provider" => resource.provider, "account" => resource.account,
+                      "status" => resource.status, "url" => resource.url }
+    }
+    context = { F::CHANGE => change.kind, F::KIND => resource.kind, F::PROVIDER => resource.provider, F::NAME => resource.name, F::DETAIL => change.detail }
+    Built.new(payload: payload, context: Policy.normalize_context(context), tags: [])
+  end
+
+  SECURITY_KEYS = %w[kind provider reference place what url public].freeze
+
+  def security_event(details)
+    event = details.to_h.stringify_keys.slice(*SECURITY_KEYS)
+    context = { F::KIND => event["kind"], F::PROVIDER => event["provider"], F::PLACE => event["place"], F::PUBLIC => event["public"].to_s }
+    Built.new(payload: { "event" => event }, context: Policy.normalize_context(context), tags: [])
+  end
+
+  ISSUE_KEYS = %w[provider key title url text asked_by asked_by_email].freeze
+
+  def issue_assigned(row, details)
+    issue = details.to_h.stringify_keys.slice(*ISSUE_KEYS).merge("connection" => row.integration.name)
+    context = { F::PROVIDER => issue["provider"], F::TITLE => issue["title"], F::ASKED_BY => issue["asked_by_email"] }
+    Built.new(payload: { "issue" => issue }, context: Policy.normalize_context(context), tags: [])
+  end
+
+  # A body's fields as conditions read them, body.<path>, as deep as BODY_DEPTH, a list's items by their place.
+  BODY_DEPTH = 4
+
+  def webhook(details)
+    body = details["body"]
+    context = {}
+    flatten(body, F::BODY_PREFIX.delete_suffix("."), context, 0)
+    payload = { "body" => body, "received_at" => details["received_at"], "delivery" => details["delivery"] }
+    Built.new(payload: payload, context: Policy.normalize_context(context), tags: [])
+  end
+
+  def flatten(value, path, into, depth)
+    case value
+    when Hash
+      value.each { |key, inner| flatten(inner, "#{path}.#{key}", into, depth + 1) } if depth < BODY_DEPTH
+    when Array
+      value.each_with_index { |inner, index| flatten(inner, "#{path}.#{index}", into, depth + 1) } if depth < BODY_DEPTH
+    else
+      into[path] = value
+    end
   end
 end
