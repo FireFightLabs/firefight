@@ -121,6 +121,73 @@ module FirefightAi
       assert_equal [ 12, 4 ], [ usage.input, usage.output ]
     end
 
+    test "OpenRouter takes Anthropic's own format for Anthropic's models, with Anthropic's headers, OpenRouter's key and cached tokens counted apart" do
+      sent = nil
+      usage = { input_tokens: 10, cache_read_input_tokens: 90, cache_creation_input_tokens: 5 }
+      answer(FakeResponse.new("200", "text/event-stream", [ "event: message_start\ndata: #{({ type: 'message_start', message: { usage: usage } }).to_json}\n\n" ])) { |request| sent = request }
+
+      body = { stream: true, tools: [ { name: "read", input_schema: {} } ], plugins: [ { id: "web" } ], mcp_servers: [ { url: "https://mcp.example.com" } ] }.to_json
+      read = ModelProxy.new("openrouter").forward(path: "messages", body: body, model: "anthropic/claude-sonnet-5.5",
+                                                  headers: { "anthropic-version" => "2023-06-01" }) { |*| nil }
+
+      assert_equal "https://openrouter.ai/api/v1/messages", sent.uri.to_s
+      assert_equal [ "Bearer sk-openrouter", "2023-06-01", nil ], [ sent["Authorization"], sent["anthropic-version"], sent["x-api-key"] ]
+      assert_equal %w[max_tokens model stream tools], JSON.parse(sent.body).keys.sort
+      assert_equal [ 105, 90, 5 ], [ read.input, read.cache_read, read.cache_write ]
+      assert ModelProxy.anthropic_format?("openrouter", "anthropic/claude-sonnet-5.5")
+      assert_not ModelProxy.anthropic_format?("openrouter", "z-ai/glm-5.3")
+      assert ModelProxy.anthropic_format?("anthropic", "claude-sonnet-5-5")
+      assert_not ModelProxy.anthropic_format?("openai", "gpt-5.6")
+    end
+
+    test "a long session's oldest tool results are cleared by the provider in Anthropic's format, with its beta beside the agent's own" do
+      sent = nil
+      answer(FakeResponse.new("200", "text/event-stream", [ "data: #{({ type: 'content_block_start', index: 0, content_block: { type: 'tool_use', name: 'read', input: { filePath: 'a.rb' } } }).to_json}\n\n" ])) { |request| sent = request }
+
+      proxy = ModelProxy.new("anthropic")
+      proxy.forward(path: "messages", body: anthropic_session(9).to_json, model: "claude-sonnet-5-5", headers: { "anthropic-beta" => "interleaved-thinking-2025-05-14" },
+                    clearing: ModelProxy::Clearing.new(through: {}, server: true, kept_tools: [])) { |*| nil }
+
+      assert_equal "interleaved-thinking-2025-05-14,#{ModelProxy::History::SERVER_BETA}", sent["anthropic-beta"]
+      assert_equal 5, JSON.parse(sent.body).dig("context_management", "edits", 0, "keep", "value")
+      assert_equal [ 4, true, false ], [ proxy.trim.count, proxy.trim.by_provider, proxy.trim.provider_refused ]
+      assert_equal [ ModelProxy::Calls::Call.new(name: "read", input: { "filePath" => "a.rb" }) ], proxy.calls.to_a
+    end
+
+    test "a provider that refuses a request for being asked to clear is asked once more without it, and nothing of the refusal reaches the agent" do
+      refused = FakeResponse.new("400", "application/json", [ { error: { message: "context_management: Extra inputs are not permitted" } }.to_json ])
+      answered = FakeResponse.new("200", "text/event-stream", [ "data: {}\n\n" ])
+      bodies = []
+      http = Object.new
+      http.define_singleton_method(:request) do |request, &block|
+        bodies << JSON.parse(request.body)
+        block.call(bodies.size == 1 ? refused : answered)
+      end
+      Net::HTTP.stubs(:start).yields(http)
+
+      seen = []
+      proxy = ModelProxy.new("openrouter")
+      proxy.forward(path: "messages", body: anthropic_session(9).to_json, model: "anthropic/claude-sonnet-5.5",
+                    clearing: ModelProxy::Clearing.new(through: {}, server: true, kept_tools: [])) { |*event| seen << event }
+
+      assert_equal [ true, false ], bodies.map { |body| body.key?("context_management") }
+      assert_equal [ [ :start, 200, "text/event-stream" ], [ :chunk, "data: {}\n\n" ] ], seen
+      assert_equal [ 4, false, true ], [ proxy.trim.count, proxy.trim.by_provider, proxy.trim.provider_refused ]
+    end
+
+    test "a provider that refuses a request for another reason has its refusal passed on as it is" do
+      body = { error: { message: "prompt is too long" } }.to_json
+      answer(FakeResponse.new("400", "application/json", [ body ])) { |_| nil }
+
+      seen = []
+      proxy = ModelProxy.new("anthropic")
+      proxy.forward(path: "messages", body: anthropic_session(9).to_json, model: "claude-sonnet-5-5",
+                    clearing: ModelProxy::Clearing.new(through: {}, server: true, kept_tools: [])) { |*event| seen << event }
+
+      assert_equal [ [ :start, 400, "application/json" ], [ :chunk, body ] ], seen
+      assert_not proxy.trim.provider_refused
+    end
+
     test "only the paths a coding agent calls, and only providers Firefight can reach, are forwarded" do
       Net::HTTP.expects(:start).never
 
@@ -144,6 +211,15 @@ module FirefightAi
     end
 
     private
+
+    def anthropic_session(reads)
+      messages = [ { role: "user", content: "Fix it" } ]
+      reads.times do |index|
+        messages << { role: "assistant", content: [ { type: "tool_use", id: "toolu_#{index}", name: "read", input: { filePath: "f#{index}" } } ] }
+        messages << { role: "user", content: [ { type: "tool_result", tool_use_id: "toolu_#{index}", content: "x" * 30_000 } ] }
+      end
+      { stream: true, messages: messages }
+    end
 
     def answer(response, &seen)
       Net::HTTP.stubs(:start).yields(fake_http(response, &seen))

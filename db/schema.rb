@@ -1224,6 +1224,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_120000) do
     t.string "push_token_digest"
     t.datetime "push_open_until"
     t.integer "questions_asked", default: 0, null: false
+    t.jsonb "tool_result_clearing", default: {}, null: false
     t.index ["integration_environment_id"], name: "index_code_agent_sessions_following", where: "((pull_request_state)::text = 'open'::text)"
     t.index ["push_token_digest"], name: "index_code_agent_sessions_on_push_token_digest", unique: true, where: "(push_token_digest IS NOT NULL)"
     t.index ["token_digest"], name: "index_code_agent_sessions_on_token_digest", unique: true
@@ -1896,6 +1897,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_120000) do
     t.uuid "workspace_ai_account_id"
     t.bigint "billed_micros"
     t.jsonb "cache_write_tokens_by_ttl", default: {}, null: false
+    t.jsonb "agent_call"
     t.index ["api_key_id"], name: "index_inferences_on_api_key_id"
     t.index ["error_kind", "created_at"], name: "index_inferences_on_error_kind_and_created_at", where: "(error_kind IS NOT NULL)"
     t.index ["inferable_type", "inferable_id"], name: "index_inferences_on_inferable"

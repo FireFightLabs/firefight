@@ -8,7 +8,7 @@ class CodeAgentControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "a call with the session's token reaches the model, streams back, and is counted against the budget" do
-    FirefightAi::ModelProxy.any_instance.expects(:forward).with { |path:, body:, model:, headers:| path == "messages" && body == "{\"x\":1}" && model == "claude-sonnet-4-5" && headers["anthropic-version"] == "2023-06-01" }
+    FirefightAi::ModelProxy.any_instance.expects(:forward).with { |path:, body:, model:, headers:, clearing:| path == "messages" && body == "{\"x\":1}" && model == "claude-sonnet-4-5" && headers["anthropic-version"] == "2023-06-01" && clearing.server }
                            .multiple_yields([ :start, 200, "text/event-stream" ], [ :chunk, "data: {}\n\n" ])
     FirefightAi::ModelProxy.any_instance.stubs(:usage).returns(FirefightAi::ModelProxy::Usage.new(input: 1000, output: 100, cache_read: 0, cache_write: 0))
     FirefightAi::ModelProxy.any_instance.stubs(:status).returns(200)

@@ -20,16 +20,20 @@
 #
 # The deployment's own keys follow the same picks when no env var names a model (FirefightAi.deployment_model_for).
 #
-# code_fix is the model a code fix's coding agent writes with, where the provider recommends one of its own for code.
-# It is used only while the registry holds it for the provider with a price, since a code fix's budget is counted in
-# what its model costs, and otherwise the account's main model writes code fixes. It can be newer than the catalog
-# RubyLLM ships, since the nightly refresh is what brings it into the registry.
+# code_fix is the model a code fix's coding agent writes with, and code_review the model that reads the change before
+# it is pushed and can send it back, where the provider recommends its own for code. A code fix makes dozens of calls
+# on a growing session, so the writer is the everyday Sonnet and the stronger Opus spends one call reading the result.
+# Each may list several, preferred first, and the first the registry holds for the provider with a price is used, since
+# a code fix's budget is counted in what its model costs. Without one the account's main model writes code fixes, and
+# the review runs on the model that wrote the change. Either can be newer than the catalog RubyLLM ships, since the
+# nightly refresh is what brings it into the registry.
 anthropic:
   name: Anthropic
   main: [ claude-sonnet-5-5, claude-sonnet-5 ]
   fast: [ [ claude-haiku-5-5, claude-haiku-4-5 ] ]
   backup: [ [ claude-haiku-5-5, claude-haiku-4-5 ] ]
-  code_fix: claude-opus-5-5
+  code_fix: [ claude-sonnet-5-5, claude-sonnet-5 ]
+  code_review: claude-opus-5-5
 openai:
   name: OpenAI
   main: gpt-5.6
@@ -67,7 +71,8 @@ openrouter:
   main: [ anthropic/claude-sonnet-5.5, anthropic/claude-sonnet-5 ]
   fast: [ [ anthropic/claude-haiku-5.5, anthropic/claude-haiku-4.5 ] ]
   backup: [ [ anthropic/claude-haiku-5.5, anthropic/claude-haiku-4.5 ] ]
-  code_fix: anthropic/claude-opus-5.5
+  code_fix: [ anthropic/claude-sonnet-5.5, anthropic/claude-sonnet-5 ]
+  code_review: anthropic/claude-opus-5.5
 deepseek:
   name: DeepSeek
   main: deepseek-v4-pro

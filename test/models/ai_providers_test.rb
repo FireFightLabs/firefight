@@ -54,13 +54,35 @@ class AiProvidersTest < ActiveSupport::TestCase
     assert_equal %w[anthropic openai openrouter], AiProviders.all.select(&:code_fixes).map(&:slug).sort
   end
 
-  test "an env var replaces a provider's code fix model, and the registry's pick stands without one" do
+  test "an env var replaces a provider's code fix or review model, and the registry's pick stands without one" do
     entry = YAML.load_file(AiProviders::REGISTRY_PATH).fetch("anthropic")
-    assert_equal "claude-opus-5-5", AiProviders.send(:build, "anthropic", entry).code_fix_model
+    built = AiProviders.send(:build, "anthropic", entry)
+    assert_equal %w[claude-sonnet-5-5 claude-sonnet-5], built.code_fix_models
+    assert_equal %w[claude-opus-5-5], built.code_review_models
 
     ENV.stubs(:[]).returns(nil)
-    ENV.stubs(:[]).with("ANTHROPIC_CODE_FIX_MODEL").returns("claude-sonnet-5-5")
-    assert_equal "claude-sonnet-5-5", AiProviders.send(:build, "anthropic", entry).code_fix_model
+    ENV.stubs(:[]).with("ANTHROPIC_CODE_FIX_MODEL").returns("claude-opus-5-5")
+    ENV.stubs(:[]).with("ANTHROPIC_CODE_REVIEW_MODEL").returns("claude-fable-5-1")
+    built = AiProviders.send(:build, "anthropic", entry)
+    assert_equal %w[claude-opus-5-5], built.code_fix_models
+    assert_equal %w[claude-fable-5-1], built.code_review_models
+  end
+
+  test "every provider that writes code fixes with a model of its own names one to review them" do
+    registry = YAML.load_file(AiProviders::REGISTRY_PATH)
+    writers = registry.select { |_slug, entry| entry.is_a?(Hash) && entry.key?("code_fix") }
+
+    assert_not_empty writers
+    writers.each { |slug, entry| assert entry["code_review"].present?, "#{slug} names a code_fix model but no code_review model" }
+  end
+
+  test "a code fix is written on the first recommended model the registry prices" do
+    provider = AiProviders.find("anthropic")
+    FirefightAi.stubs(:priced_for?).returns(false)
+    FirefightAi.stubs(:priced_for?).with("claude-sonnet-5", "anthropic").returns(true)
+
+    assert_equal "claude-sonnet-5", provider.code_fix_model_ready
+    assert_nil provider.code_review_model_ready
   end
 
   test "Sign in with ChatGPT is offered only behind its flag, and only once every address it needs is set" do

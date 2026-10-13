@@ -110,12 +110,23 @@ class WorkspaceAiAccount < ApplicationRecord
   end
 
   # The model and payer for a call with the purpose, on this account.
-  # A code fix runs on the model the provider recommends for code when the registry can price it, and on the main
-  # model otherwise.
+  # A code fix is written on the model the provider recommends for writing code and reviewed on the one it recommends
+  # for reviewing it, each while the registry can price it, and on the main model otherwise.
   def choice_for(purpose)
-    model = (provider_definition&.code_fix_model_ready if purpose == AiPurpose::CODE_FIX) || model_for(AiPurpose.quick?(purpose) ? FAST : MAIN)
+    model = recommended_for(purpose) || model_for(AiPurpose.quick?(purpose) ? FAST : MAIN)
     FirefightAi::ModelChoice.new(model: model, provider: provider, context: llm_context, payer: AiPayer.account(self))
   end
+
+  def recommended_for(purpose)
+    definition = provider_definition
+    return unless definition
+
+    case purpose
+    when AiPurpose::CODE_FIX then definition.code_fix_model_ready
+    when AiPurpose::CODE_REVIEW then definition.code_review_model_ready || definition.code_fix_model_ready
+    end
+  end
+  private :recommended_for
 
   # "Key ending in 4f2a. Enter a new one to replace it.", or nil before any key is stored.
   def credential_summary

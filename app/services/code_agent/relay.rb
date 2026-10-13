@@ -1,7 +1,11 @@
 # Relays one model call from a coding agent in the sandbox to the model's provider, as its session allows, and keeps
 # what it cost: an Inference row like any other model call, and the session's spend. A call that breaks halfway is still
-# counted, and a session makes only a few calls at once, so its budget is never far overshot.
+# counted, and a session makes only a few calls at once, so its budget is never far overshot. The row also says what the
+# call was for, from the tools its answer called (CodeAgent::CallKind), and what was cleared from the session it sent.
 class CodeAgent::Relay
+  # The person's answers to the agent's questions are never cleared from its session, however old.
+  KEPT_TOOLS = [ CodeAgent::QuestionTools::ASK, CodeAgent::QuestionTools::WAIT ].freeze
+
   def initialize(session)
     @session = session
   end
@@ -15,14 +19,19 @@ class CodeAgent::Relay
 
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     begin
-      proxy.forward(path: path, body: body, model: @session.model, headers: headers, &)
+      proxy.forward(path: path, body: body, model: @session.model, headers: headers, clearing: clearing, &)
     ensure
       record(proxy, started)
+      @session.cleared!(proxy.trim)
       @session.end_call!
     end
   end
 
   private
+
+  def clearing
+    FirefightAi::ModelProxy::Clearing.new(through: @session.cleared_through, server: @session.provider_clears?, kept_tools: KEPT_TOOLS)
+  end
 
   # An address the paying account named is resolved and checked before every call where private networks are refused.
   def address_check
@@ -47,11 +56,24 @@ class CodeAgent::Relay
       status: proxy.status.to_i.between?(200, 299) ? Inference::STATUS_SUCCESS : Inference::STATUS_ERROR,
       error_kind: (Inference::ERROR_OUT_OF_CREDIT if proxy.refusal&.out_of_credit?),
       latency_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round,
-      provider_request_id: proxy.request_id, **payer.ledger
+      provider_request_id: proxy.request_id, agent_call: agent_call(proxy), **payer.ledger
     )
     AiSpend.record!(inference)
     note_account(proxy, payer)
     @session.charge!(cost)
+  end
+
+  # What the call was for and what its session had cleared. Only tool names and kinds, never what a tool was given.
+  def agent_call(proxy)
+    calls = proxy.calls.to_a
+    trim = proxy.trim
+    provider = proxy.calls.cleared
+    {
+      "kinds" => CodeAgent::CallKind.of(calls), "tools" => calls.map(&:name),
+      "conversation" => trim&.conversation, "cleared" => trim&.count.to_i, "clearedByProvider" => trim&.by_provider == true,
+      "providerRefusedClearing" => trim&.provider_refused == true,
+      "providerCleared" => (provider && { "toolUses" => provider.tool_uses, "inputTokens" => provider.input_tokens })
+    }.compact
   end
 
   # A coding agent's call is never retried shorter, so a refusal for credit is the account running out.

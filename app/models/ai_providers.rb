@@ -32,7 +32,7 @@ module AiProviders
 
   # main_models are the models Halon's loop runs on and fast_models its quick work, preferred first, and backup_models what
   # the loop carries on with when the main one stops answering. The last main and fast model is always in RubyLLM's catalog.
-  Provider = Data.define(:slug, :name, :main_models, :fast_models, :backup_models, :code_fix_model, :fields, :local, :code_fixes, :sign_in, :assumes_models) do
+  Provider = Data.define(:slug, :name, :main_models, :fast_models, :backup_models, :code_fix_models, :code_review_models, :fields, :local, :code_fixes, :sign_in, :assumes_models) do
     def field(key) = fields.find { |field| field.key == key.to_s }
 
     def secret_fields = fields.select(&:secret)
@@ -74,9 +74,12 @@ module AiProviders
       model if FirefightAi.context_window(model, provider: slug)
     end
 
-    # The model this provider recommends for code fixes, while the registry holds it for this provider with a price, so
-    # a code fix's budget can be counted. Nil otherwise, and a code fix runs on the next best model.
-    def code_fix_model_ready = (code_fix_model if code_fix_model && FirefightAi.priced_for?(code_fix_model, slug))
+    # The first model this provider recommends for writing code fixes that the registry holds for it with a price, so a
+    # code fix's budget can be counted. Nil otherwise, and a code fix runs on the next best model.
+    def code_fix_model_ready = code_fix_models.find { |model| FirefightAi.priced_for?(model, slug) }
+
+    # The same for the model that reviews a code fix's change, which is charged to the same budget.
+    def code_review_model_ready = code_review_models.find { |model| FirefightAi.priced_for?(model, slug) }
 
     # RubyLLM's own check on a configuration built from this provider's settings, for what the requirements alone do not
     # say, such as Azure taking a key or a token.
@@ -163,13 +166,19 @@ module AiProviders
   # The model the deployment's own keys write code fixes with when nothing names one. It is the first provider in the
   # registry's order that recommends one for code, holds a key here and can price it. Nil leaves code fixes on the
   # investigation's model.
-  def self.deployment_code_fix_choice(config = RubyLLM.config)
+  def self.deployment_code_fix_choice(config = RubyLLM.config) = deployment_code_choice(:code_fix_model_ready, config)
+
+  # The model the deployment's own keys review a code fix's change with when nothing names one, read the same way.
+  def self.deployment_code_review_choice(config = RubyLLM.config) = deployment_code_choice(:code_review_model_ready, config)
+
+  def self.deployment_code_choice(pick, config)
     all.each do |provider|
-      model = provider.code_fix_model_ready
+      model = provider.public_send(pick)
       return FirefightAi::ModelChoice.new(model: model, provider: provider.slug) if model && provider.configured?(config)
     end
     nil
   end
+  private_class_method :deployment_code_choice
 
   # The model the deployment's own keys run a role on when no env var names one. It is the recommended main or quick
   # model of the first provider in the registry's order that holds a key here and whose model the registry prices. prefer is tried
@@ -238,17 +247,18 @@ module AiProviders
       Field.new(key: key, option: option, label: labels.fetch(key), secret: SECRET_SETTINGS.include?(key), required: required.include?(option.to_s))
     end
     Provider.new(
-      slug: slug, name: entry.fetch("name"), main_models: Array(entry["main"]).freeze, fast_models: Array(entry["fast"]).freeze, backup_models: Array(entry["backup"]).freeze, code_fix_model: code_fix_model(slug, entry), fields: fields.freeze,
+      slug: slug, name: entry.fetch("name"), main_models: Array(entry["main"]).freeze, fast_models: Array(entry["fast"]).freeze, backup_models: Array(entry["backup"]).freeze, code_fix_models: code_models(slug, entry, "code_fix"),
+      code_review_models: code_models(slug, entry, "code_review"), fields: fields.freeze,
       local: klass.local?, code_fixes: FirefightAi::ModelProxy.supported?(slug), sign_in: sign_in(entry["sign_in"]),
       assumes_models: klass.assume_models_exist?
     )
   end
   private_class_method :build
 
-  # ANTHROPIC_CODE_FIX_MODEL and the like replace the registry's pick for that provider's accounts, since each
-  # provider names the same model its own way.
-  def self.code_fix_model(slug, entry) = ENV["#{slug.upcase}_CODE_FIX_MODEL"].presence || entry["code_fix"]
-  private_class_method :code_fix_model
+  # ANTHROPIC_CODE_FIX_MODEL, ANTHROPIC_CODE_REVIEW_MODEL and the like replace the registry's picks for that provider's
+  # accounts, since each provider names the same model its own way.
+  def self.code_models(slug, entry, key) = Array(ENV["#{slug.upcase}_#{key.upcase}_MODEL"].presence || entry[key]).freeze
+  private_class_method :code_models
 
   def self.sign_in(entry)
     return nil unless entry

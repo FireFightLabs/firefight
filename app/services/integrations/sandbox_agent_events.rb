@@ -25,6 +25,11 @@ module Integrations
     NOT_RUN_LIMIT = 10
     NOT_RUN_LINE_LIMIT = 300
 
+    # Whether a command runs a repository's tests, in any of the steps it chains.
+    def self.runs_tests?(command)
+      command.to_s.split(/&&|\|\||;|\|/).map(&:strip).any? { |part| part.match?(TEST_RUNNER) }
+    end
+
     # hidden is what must never show, such as the agent's own token, should the agent ever print it.
     def initialize(progress, hidden: [])
       @progress = progress
@@ -148,9 +153,7 @@ module Integrations
       end
     end
 
-    def test_command?(command)
-      command.to_s.split(/&&|\|\||;|\|/).map(&:strip).any? { |part| part.match?(TEST_RUNNER) }
-    end
+    def test_command?(command) = self.class.runs_tests?(command)
 
     def command_line(command) = command.to_s.lines.first.to_s.gsub(SECRET_ASSIGNMENT, '\1=[REDACTED]').strip
 
