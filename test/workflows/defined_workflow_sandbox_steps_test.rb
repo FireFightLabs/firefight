@@ -208,5 +208,20 @@ class DefinedWorkflowSandboxStepsTest < ActiveSupport::TestCase
     assert_equal [ "succeeded", "workflow.release", run.id ], [ delivery.state, delivery.event_type, delivery.workflow_run_id ]
     assert_equal({ "version" => "1.2" }, delivery.request_body.dig("data", "payload"))
     assert delivery.request_headers["X-Webhook-Signature"].start_with?("v1=")
+
+    run.destroy!
+    assert_nil WebhookDelivery.find_by(id: delivery.id)
+  end
+
+  test "an answer that cannot be read fails the request in words, and HEAD is described as a read" do
+    Webhooks::SsrfProtector.stubs(:resolve_public_ip).returns("93.184.216.34")
+    Net::HTTP.any_instance.stubs(:request).raises(Net::HTTPBadResponse, "wrong status line")
+    workflow = published("Garbled", steps: [ step("read", "http_request", { "method" => "GET", "url" => "https://api.example.com/x" }) ])
+
+    run = start(workflow)
+
+    assert_equal Workflow::Run::STATUS_FAILED, run.status
+    assert_match "api.example.com could not be reached", run.error
+    assert_match "GET and HEAD read", Workflow::StepKinds.find("http_request").description
   end
 end

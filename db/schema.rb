@@ -3804,7 +3804,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_235100) do
   add_foreign_key "webhook_delinquency_trackers", "webhooks"
   add_foreign_key "webhook_deliveries", "incident_events"
   add_foreign_key "webhook_deliveries", "webhooks"
-  add_foreign_key "webhook_deliveries", "workflow_runs", on_delete: :nullify
+  add_foreign_key "webhook_deliveries", "workflow_runs", on_delete: :cascade
   add_foreign_key "webhooks", "workspaces"
   add_foreign_key "workflow_edits", "chats", column: "source_chat_id", on_delete: :nullify
   add_foreign_key "workflow_edits", "workflow_runs", column: "source_run_id", on_delete: :nullify

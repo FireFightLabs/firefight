@@ -45,7 +45,7 @@ class Workflow::HttpCall
     raise Refused, "#{uri&.host} could not be found."
   rescue Net::OpenTimeout, Net::ReadTimeout, Errno::ETIMEDOUT
     raise Refused, "#{uri&.host} did not answer within #{TIMEOUT.inspect}."
-  rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, Errno::ECONNRESET, OpenSSL::SSL::SSLError => error
+  rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, Errno::ECONNRESET, OpenSSL::SSL::SSLError, Net::HTTPBadResponse, EOFError => error
     raise Refused, "#{uri&.host} could not be reached: #{error.message.truncate(200)}"
   end
 

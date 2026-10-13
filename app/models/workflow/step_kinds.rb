@@ -417,7 +417,7 @@ module Workflow::StepKinds
 
   HTTP = DefinedWorkflow::Steps::HttpRequest
   runtime(HTTP, icon: ICON_GLOBE, editor: EDITOR_FIELDS,
-          description: "Sends one HTTP request, kept off private networks. GET reads, any other method changes something.",
+          description: "Sends one HTTP request, kept off private networks. GET and HEAD read, any other method changes something.",
           fields: lambda { |facts|
             connections = facts.workspace ? facts.workspace.integrations.where(deleted_at: nil).order(:name).pluck(:slug) : []
             changing = { HTTP::KEY_METHOD => HTTP::METHODS - HTTP::READS }
