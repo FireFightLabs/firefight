@@ -11,11 +11,13 @@ export function TimeZoneSelect({
   value,
   onChange,
   timeZones,
+  disabled = false,
 }: {
   id: string
   value: string
   onChange: (zone: string) => void
   timeZones: string[]
+  disabled?: boolean
 }) {
   const options = useMemo(() => timeZones.map((zone) => ({ value: zone, label: zone.split("_").join(" ") })), [ timeZones ])
 
@@ -34,6 +36,7 @@ export function TimeZoneSelect({
       placeholder="Pick a time zone"
       searchPlaceholder="Search time zones"
       emptyText="No time zones match"
+      disabled={disabled}
     />
   )
 }

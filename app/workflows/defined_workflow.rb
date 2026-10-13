@@ -24,6 +24,22 @@ class DefinedWorkflow < SolidWorkflow::Interpreter
   ON_FAILURE_CONTINUE = SolidWorkflow::Definition::ON_FAILURE_CONTINUE
   ON_FAILURE_ERROR_ROUTE = SolidWorkflow::Definition::ON_FAILURE_ERROR_ROUTE
   CONDITION_EQUALS = SolidWorkflow::Condition::OPERATOR_EQUALS
+  # What a step does when it fails, and the routes and fields the engine's own steps hand on, which the canvas offers.
+  ON_FAILURE = SolidWorkflow::Definition::ON_FAILURE
+  ON_FAILURE_STOP = SolidWorkflow::Definition::ON_FAILURE_STOP
+  ROUTE_ERROR = SolidWorkflow::Definition::ROUTE_ERROR
+  ROUTE_RECEIVED = SolidWorkflow::Definition::ROUTE_RECEIVED
+  ROUTE_TIMED_OUT = SolidWorkflow::Definition::ROUTE_TIMED_OUT
+  OUTPUT_FIELDS = SolidWorkflow::Definition::OUTPUT_FIELDS
+  JOIN_ALL = SolidWorkflow::Definition::JOIN_ALL
+  JOIN_MODES = SolidWorkflow::Definition::JOIN_MODES
+  BACKOFFS = SolidWorkflow::Definition::BACKOFFS
+  MAX_ATTEMPTS = SolidWorkflow::Definition::MAX_ATTEMPTS
+  MAX_CONCURRENCY = SolidWorkflow::Definition::MAX_CONCURRENCY
+  DELAY_UNITS = SolidWorkflow::Definition::DELAY_UNITS.keys.freeze
+  CONDITION_OPERATORS = SolidWorkflow::Condition::OPERATORS
+  CONDITION_VALUELESS = SolidWorkflow::Condition::VALUELESS
+  CONDITION_ALL = SolidWorkflow::Condition::ALL
   CONDITION_ANY = SolidWorkflow::Condition::ANY
   # The engine's run states, as a run's record reads them.
   RUN_STATUSES = {

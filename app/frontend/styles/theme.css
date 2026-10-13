@@ -73,6 +73,11 @@
   --stage-canceled-tint: #1e201e;
   --stage-canceled-border: #323332;
 
+  /* Halon's own work, such as its suggestions and changes on a workflow's canvas, in the same violet as triage */
+  --halon: var(--stage-triage);
+  --halon-tint: var(--stage-triage-tint);
+  --halon-border: var(--stage-triage-border);
+
   /* Feedback, toasts and banners */
   --success: #9ee464;
   --success-tint: #1a290e;
@@ -195,6 +200,10 @@
   --color-stage-canceled: var(--stage-canceled);
   --color-stage-canceled-tint: var(--stage-canceled-tint);
   --color-stage-canceled-border: var(--stage-canceled-border);
+
+  --color-halon: var(--halon);
+  --color-halon-tint: var(--halon-tint);
+  --color-halon-border: var(--halon-border);
 
   --color-success: var(--success);
   --color-success-tint: var(--success-tint);

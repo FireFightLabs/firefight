@@ -14,6 +14,7 @@ class Workflow < ApplicationRecord
   include Workflow::Scheduling
   include Workflow::Limits
   include Workflow::Chatting
+  include Workflow::Showing
 
   AUTHOR_PERSON = "person".freeze
   AUTHOR_HALON = "halon".freeze

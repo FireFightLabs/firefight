@@ -41,15 +41,14 @@ import {
   type EditableStep,
 } from "@/pages/settings/components/runbooks/runbook-steps-editor"
 import { RunbookProcedureEditor } from "@/pages/settings/components/runbooks/runbook-procedure-editor"
+import { argumentsState, fieldErrors } from "@/lib/tool-fields"
 import {
-  argumentsState,
-  fieldErrors,
   inputPlaceholders,
   procedurePayload,
   procedureState,
-  watchError,
   type ProcedureState,
 } from "@/pages/settings/lib/runbook-procedure"
+import { watchError } from "@/lib/watch-spec"
 import {
   RunbookConditionsEditor,
   type ConditionSectionState,

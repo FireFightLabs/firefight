@@ -2,27 +2,26 @@
 # it and grouped as a person finds it, each with the fields its parameters make, the reads a watch can make, and what
 # is on the map to watch. Built from the same schemas a chat hands the model, so a step saved here runs as written.
 module Chat::Tools::Choices
-  KIND_TEXT = "text".freeze
-  KIND_NUMBER = "number".freeze
-  KIND_SELECT = "select".freeze
-  KIND_TOGGLE = "toggle".freeze
-  # A list of words, written separated by commas.
-  KIND_LIST = "list".freeze
-  # A shape a form cannot hold, such as an object, which the editor keeps as it was and does not write.
-  KIND_KEPT = "kept".freeze
-  # Something on the map, picked from what is there.
-  KIND_RESOURCE = "resource".freeze
-  KINDS = [ KIND_TEXT, KIND_NUMBER, KIND_SELECT, KIND_TOGGLE, KIND_LIST, KIND_KEPT, KIND_RESOURCE ].freeze
+  KIND_TEXT = ToolField::KIND_TEXT
+  KIND_NUMBER = ToolField::KIND_NUMBER
+  KIND_SELECT = ToolField::KIND_SELECT
+  KIND_TOGGLE = ToolField::KIND_TOGGLE
+  KIND_LIST = ToolField::KIND_LIST
+  KIND_KEPT = ToolField::KIND_KEPT
+  KIND_RESOURCE = ToolField::KIND_RESOURCE
+  KINDS = ToolField::KINDS
 
   # Who a group belongs to: Firefight's own tools, the capabilities that answer for anything on the map, or a connection.
   GROUP_RESOURCES = "Anything on the resource map".freeze
   RESOURCE_LIMIT = 500
 
-  Field = Data.define(:key, :kind, :options, :required, :description)
+  Field = ToolField::Field
   # reads is whether a watch can read with it: it only reads, or a guard keeps it to reads in a watch.
   # watch_fields are what a watch reads with instead, when a guard keeps the tool to reads through arguments of its own.
-  Choice = Data.define(:name, :group, :description, :fields, :reads, :watch_fields) do
-    def initialize(watch_fields: nil, **) = super
+  # read_only is whether every call only reads, which a workflow step's Reads or Changes says, and action_key is the
+  # gateway action a call makes, nil when the arguments decide it, such as a capability picking a connection.
+  Choice = Data.define(:name, :group, :description, :fields, :reads, :watch_fields, :read_only, :action_key) do
+    def initialize(watch_fields: nil, read_only: nil, action_key: nil, **) = super
   end
   Read = Data.define(:name, :label, :history)
   Place = Data.define(:name, :kind)
@@ -39,8 +38,17 @@ module Chat::Tools::Choices
       name = tool_class.name_value.to_s
       Choice.new(name: name, group: titles.fetch(Chat::Tools::Groups.of_firefight_tool(name), "Firefight"),
                  description: Chat::Tools.clean(tool_class.description_value, Chat::Tools::ONE_LINE),
-                 fields: fields(tool_class.schema_for(workspace).deep_stringify_keys), reads: tool_class.annotations_value&.read_only_hint == true)
+                 fields: fields(tool_class.schema_for(workspace).deep_stringify_keys), reads: tool_class.annotations_value&.read_only_hint == true,
+                 read_only: tool_class.annotations_value&.read_only_hint == true, action_key: firefight_action_key(tool_class, workspace))
     end
+  end
+
+  # What a call of one of Firefight's own tools is authorized as, when that does not depend on its arguments.
+  def firefight_action_key(tool_class, workspace)
+    resource, action = tool_class.authorization(workspace, {})
+    Ability::Action.system_key(resource, action)
+  rescue StandardError, NotImplementedError
+    nil
   end
 
   def capabilities(workspace)
@@ -48,7 +56,7 @@ module Chat::Tools::Choices
       schema = Integrations::Capabilities.schema(spec, Integrations::Capabilities.connection_choices(workspace, spec, tools))
       Choice.new(name: spec.tool_name, group: GROUP_RESOURCES, description: Chat::Tools.clean(spec.description, Chat::Tools::ONE_LINE),
                  fields: fields(schema).map { |field| field.key == Integrations::Capabilities::RESOURCE_ARG ? field.with(kind: KIND_RESOURCE) : field },
-                 reads: !spec.writes)
+                 reads: !spec.writes, read_only: !spec.writes)
     end
   end
 
@@ -58,7 +66,8 @@ module Chat::Tools::Choices
                      .map do |tool|
       Choice.new(name: tool.model_facing_name, group: tool.integration.display_name,
                  description: Chat::Tools.clean(tool.description, Chat::Tools::ONE_LINE), fields: fields(tool.offered_schema),
-                 reads: tool.read_only? || Integrations::ReadGuards.for(tool).present?, watch_fields: watched_fields(tool))
+                 reads: tool.read_only? || Integrations::ReadGuards.for(tool).present?, watch_fields: watched_fields(tool),
+                 read_only: tool.read_only?, action_key: tool.action_key)
     end
   end
 

@@ -24,7 +24,7 @@ class DefinedWorkflow::Steps::PostToChannel < DefinedWorkflow::Steps::CallTool
 
     def undoable?(_config, _workspace) = false
 
-    def output_fields(_config) = [ OUTPUT_CHANNEL, OUTPUT_LINK, OUTPUT_ANSWER ]
+    def output_fields(_config) = [ OUTPUT_CHANNEL, OUTPUT_LINK, DefinedWorkflow::Steps::CallTool::OUTPUT_ANSWER ]
 
     def reply?(config) = ActiveModel::Type::Boolean.new.cast(config[KEY_REPLY]) == true
 
