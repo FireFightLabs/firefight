@@ -11,6 +11,10 @@ class HalonSkillSerializer < BaseSerializer
   type :string
   def name = skill.name
 
+  # Switched on, so Halon loads it.
+  type :boolean
+  def enabled = skill.enabled?
+
   type :string
   def used_when = skill.live_version.used_when
 

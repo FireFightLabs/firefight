@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_13_150200) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_13_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -485,6 +485,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150200) do
     t.uuid "created_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "enabled", default: true, null: false
     t.index ["created_by_id"], name: "index_chat_custom_skills_on_created_by_id"
     t.index ["live_version_id"], name: "index_chat_custom_skills_on_live_version_id"
     t.index ["workspace_id", "name"], name: "index_chat_custom_skills_on_workspace_id_and_name", unique: true

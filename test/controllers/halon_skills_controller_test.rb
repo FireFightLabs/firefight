@@ -5,7 +5,7 @@ class HalonSkillsControllerTest < ActionDispatch::IntegrationTest
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
     Entitlements.stubs(:allows?).returns(true)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
+    FeatureFlags.enable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
     sign_in(users(:alice), @workspace)
   end
 
@@ -181,8 +181,34 @@ class HalonSkillsControllerTest < ActionDispatch::IntegrationTest
     assert_not Chat::CustomSkill.exists?(name: "game_day")
   end
 
-  test "without the workflows flag the page does not exist" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
+  test "a skill is switched off and on, each saying so, and the page says which workflows run it" do
+    skill = skill!
+    Workflow.create!(workspace: @workspace, name: "Drill").open_draft!(by: @alice)
+            .update_columns(steps: [ { "id" => "step_1", "name" => "drill", "kind" => "run_skill", "config" => { "skill" => "game_day" } } ])
+
+    patch disable_halon_skill_path(skill)
+    assert_equal "game_day is off. Halon no longer loads it, and a workflow step that runs it is refused until you turn it back on.", flash[:notice]
+    assert_not skill.reload.enabled?
+
+    get halon_skills_path, headers: inertia_headers
+    assert_equal [ false, 1 ], inertia_props["skills"].sole.values_at("enabled", "usageCount")
+
+    patch enable_halon_skill_path(skill)
+    assert_equal "game_day is on. Halon loads it again.", flash[:notice]
+    assert skill.reload.enabled?
+  end
+
+  test "the page follows the custom skills flag whatever the workflows flag says" do
+    FeatureFlags.disable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
+    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
+
+    get halon_skills_path
+
+    assert_response :not_found
+  end
+
+  test "without the custom skills flag the page does not exist" do
+    FeatureFlags.disable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
 
     get halon_skills_path
 

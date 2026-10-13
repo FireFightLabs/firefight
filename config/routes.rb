@@ -420,6 +420,8 @@ Rails.application.routes.draw do
     post "/halon/skills/:id/restore", to: "halon_skills#restore", as: :restore_halon_skill
     post "/halon/skills/:id/take-library", to: "halon_skills#take_library", as: :take_library_halon_skill
     post "/halon/skills/:id/keep-own", to: "halon_skills#keep_own", as: :keep_own_halon_skill
+    patch "/halon/skills/:id/enable", to: "halon_skills#enable", as: :enable_halon_skill
+    patch "/halon/skills/:id/disable", to: "halon_skills#disable", as: :disable_halon_skill
     get "/halon/workflow-library", to: "halon_workflow_library#index", as: :halon_workflow_library
     post "/halon/workflow-library/import", to: "halon_workflow_library#import", as: :import_halon_workflow
     post "/halon/workflow-library/items/:key/adopt", to: "halon_workflow_library#adopt", as: :adopt_halon_library_workflow

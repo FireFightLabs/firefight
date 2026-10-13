@@ -3,14 +3,14 @@
 # version of a copy.
 class HalonSkillsController < InertiaController
   include RequiresAgent
-  include RequiresWorkflows
+  include RequiresCustomSkills
 
   before_action :require_agent!
 
   authorizes Ability::Action::RESOURCE_SKILLS,
     read: %i[index export export_library],
     create: %i[create import copy],
-    update: %i[update restore take_library keep_own accept_proposal dismiss_proposal],
+    update: %i[update restore take_library keep_own accept_proposal dismiss_proposal enable disable],
     delete: %i[destroy]
 
   # The query strings that open one of Firefight's skills, a skill's history and Halon's proposal.
@@ -53,6 +53,20 @@ class HalonSkillsController < InertiaController
     form_refused(error.record)
   rescue Chat::CustomSkill::Writing::Refused => error
     form_refused_with(base: [ error.message ])
+  end
+
+  def enable
+    skill = own.live.find(params[:id])
+    skill.switch!(on: true)
+    redirect_to halon_skills_path, notice: "#{skill.name} is on. Halon loads it again."
+  end
+
+  # Off, Halon no longer loads it, and a workflow step that runs it is refused at publish and fails at run time. A copy
+  # switched off leaves Firefight's skill of its name in its place.
+  def disable
+    skill = own.live.find(params[:id])
+    skill.switch!(on: false)
+    redirect_to halon_skills_path, notice: disabled_notice(skill)
   end
 
   def destroy
@@ -198,6 +212,12 @@ class HalonSkillsController < InertiaController
   def send_skill(definition)
     send_data Chat::CustomSkill::Document.render(definition), filename: Chat::CustomSkill::Document::FILE_NAME, type: "text/markdown; charset=utf-8",
                                                                disposition: "attachment"
+  end
+
+  def disabled_notice(skill)
+    return "#{skill.name} is off. Halon uses Firefight's #{skill.library_name} until you turn your copy back on." if skill.copy?
+
+    "#{skill.name} is off. Halon no longer loads it, and a workflow step that runs it is refused until you turn it back on."
   end
 
   def deleted_notice(skill)

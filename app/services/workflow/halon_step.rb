@@ -29,6 +29,9 @@ class Workflow::HalonStep
     refused = refusal
     return { KEY_ERROR => refused } if refused
 
+    off = Chat::CustomSkill.off_reason(@workspace, skill_name)
+    return { KEY_ERROR => off } if off
+
     skill = Chat::Skill.available_to(@workspace).find { |each| each.name == skill_name.to_s }
     return { KEY_ERROR => "There is no skill called #{skill_name} for this workspace's connections." } unless skill
 

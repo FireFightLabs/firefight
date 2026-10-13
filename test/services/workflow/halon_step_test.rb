@@ -44,4 +44,14 @@ class Workflow::HalonStepTest < ActiveSupport::TestCase
     assert_equal({ "error" => Workflow::HalonStep::OUT_OF_ROOM }, Workflow::HalonStep.new(@run, @record).ask!(question: "Fine?", data: "x", fields: []))
     assert_equal 10, @run.ai_spent_cents
   end
+
+  test "a skill the workspace switched off is not followed, and the step says so" do
+    FeatureFlags.enable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
+    skill = Chat::CustomSkill.create_with!(workspace: @workspace, name: "game_day", by: @alice,
+                                           content: { "when" => "A drill", "tools" => [ "get_form" ], "steps" => "1. Read `get_form`." })
+    skill.switch!(on: false)
+    FirefightAi::SkillFollower.any_instance.expects(:run).never
+
+    assert_equal({ "error" => "game_day is switched off on the Skills page." }, Workflow::HalonStep.new(@run, @record).follow!(skill_name: "game_day", focus: nil))
+  end
 end

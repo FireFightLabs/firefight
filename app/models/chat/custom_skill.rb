@@ -30,15 +30,36 @@ class Chat::CustomSkill < ApplicationRecord
   validate :name_not_firefights
 
   scope :live, -> { where.not(live_version_id: nil) }
+  scope :switched_on, -> { where(enabled: true) }
   scope :ordered, -> { order(:name) }
 
-  # Custom skills come with workflows, so they follow the same flag.
-  def self.enabled_for?(workspace) = FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS)
+  def self.enabled_for?(workspace) = FeatureFlags.enabled?(workspace, FeatureFlags::CUSTOM_SKILLS)
 
+  # The skills Halon loads: live and switched on. A copy switched off leaves Firefight's skill of its name to be loaded.
   def self.definitions_for(workspace)
     return [] unless enabled_for?(workspace)
 
-    where(workspace: workspace).live.includes(:live_version).ordered.map(&:definition)
+    where(workspace: workspace).live.switched_on.includes(:live_version).ordered.map(&:definition)
+  end
+
+  SWITCHED_OFF = "is switched off on the Skills page".freeze
+
+  # The workspace's own skill of this name when it is switched off, which nothing may follow, or nil. A copy that is off
+  # is not in the way, since Firefight's own skill of its name is followed instead.
+  def self.switched_off(workspace, name)
+    return unless enabled_for?(workspace)
+
+    where(workspace: workspace, enabled: false, library_name: nil).live.find_by(name: normalize_value_for(:name, name))
+  end
+
+  def self.off_reason(workspace, name)
+    off = switched_off(workspace, name)
+    "#{off.name} #{SWITCHED_OFF}." if off
+  end
+
+  # Turns it on or off. Off, Halon no longer loads it and a workflow step that runs it is refused, until it is on again.
+  def switch!(on:)
+    update!(enabled: on)
   end
 
   def definition(version = live_version)

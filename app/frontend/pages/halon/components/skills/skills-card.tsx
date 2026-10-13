@@ -4,9 +4,10 @@ import { IconFileImport, IconPlus, IconSparkles } from "@tabler/icons-react"
 
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { halonSkillPath } from "@/lib/routes"
+import { disableHalonSkillPath, enableHalonSkillPath, halonSkillPath } from "@/lib/routes"
 import { timeAgo } from "@/lib/time"
 import type { HalonSkill, HalonSkillVersion } from "@/types/serializers"
 import { SkillHistorySheet } from "@/pages/halon/components/skills/skill-history-sheet"
@@ -42,12 +43,46 @@ function deleteDescription(skill: HalonSkill | null): string {
   return `${skill.name} and ${versions} are deleted, and Halon no longer loads it. This cannot be undone.`
 }
 
+// What turning a skill off does to the workflows that run it, named, so nobody turns one off without knowing.
+function switchOffDescription(skill: HalonSkill | null): string {
+  if (!skill) {
+    return ""
+  }
+  return `${plural(skill.usageCount, "workflow")} ${skill.usageCount === 1 ? "runs" : "run"} ${skill.name}. While it is off, their step that runs it fails, and they cannot be published, until you turn it back on.`
+}
+
+function switchSkill(skill: HalonSkill, on: boolean) {
+  router.patch(on ? enableHalonSkillPath(skill.id) : disableHalonSkillPath(skill.id), {}, { preserveScroll: true })
+}
+
 // The workspace's own skills, each with its version and who wrote it, and the copies of Firefight's with whether a newer
 // version came out.
 export function SkillsCard({ skills, history, canManage, onCreate, onImport, onEdit }: SkillsCardProps) {
   const [ deleting, setDeleting ] = useState<HalonSkill | null>(null)
   const [ historyOf, setHistoryOf ] = useState<HalonSkill | null>(null)
   const [ updateOf, setUpdateOf ] = useState<HalonSkill | null>(null)
+  const [ switchingOff, setSwitchingOff ] = useState<HalonSkill | null>(null)
+
+  // A skill a workflow runs is turned off only once the person has read what that stops. A copy is not in the way, since
+  // Firefight's own skill of its name takes over.
+  function toggle(skill: HalonSkill) {
+    if (skill.enabled && skill.usageCount > 0 && !skill.copyOf) {
+      setSwitchingOff(skill)
+      return
+    }
+    switchSkill(skill, !skill.enabled)
+  }
+
+  function cancelSwitchOff() {
+    setSwitchingOff(null)
+  }
+
+  function confirmSwitchOff() {
+    if (switchingOff) {
+      switchSkill(switchingOff, false)
+    }
+    setSwitchingOff(null)
+  }
 
   function cancelDelete() {
     setDeleting(null)
@@ -134,6 +169,7 @@ export function SkillsCard({ skills, history, canManage, onCreate, onImport, onE
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-16">On</TableHead>
               <TableHead className="w-2/5">Skill</TableHead>
               <TableHead className="hidden lg:table-cell">Tools</TableHead>
               <TableHead className="hidden md:table-cell">Version</TableHead>
@@ -144,6 +180,14 @@ export function SkillsCard({ skills, history, canManage, onCreate, onImport, onE
           <TableBody>
             {skills.map((skill) => (
               <TableRow key={skill.id}>
+                <TableCell>
+                  <Switch
+                    checked={skill.enabled}
+                    disabled={!canManage}
+                    onCheckedChange={() => toggle(skill)}
+                    aria-label={`${skill.name} is ${skill.enabled ? "on" : "off"}`}
+                  />
+                </TableCell>
                 <TableCell className="max-w-0 whitespace-normal">
                   <div className="font-mono text-sm text-fg-primary">{skill.name}</div>
                   <div className="line-clamp-2 text-xs text-muted-foreground">{skill.usedWhen}</div>
@@ -172,6 +216,16 @@ export function SkillsCard({ skills, history, canManage, onCreate, onImport, onE
         </Table>
       </CardContent>
       {sheets}
+      {canManage && (
+        <ConfirmDeleteDialog
+          open={Boolean(switchingOff)}
+          title={`Turn ${switchingOff?.name ?? "this skill"} off?`}
+          description={switchOffDescription(switchingOff)}
+          confirmLabel="Turn off"
+          onConfirm={confirmSwitchOff}
+          onCancel={cancelSwitchOff}
+        />
+      )}
       {canManage && (
         <ConfirmDeleteDialog
           open={Boolean(deleting)}

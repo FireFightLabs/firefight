@@ -6,10 +6,13 @@ module FeatureFlags
   # Workflows a workspace builds and runs, until the whole feature ships. No run of one starts, waits out its time or
   # carries on without it, and every page, Halon tool and MCP tool for them asks it too.
   WORKFLOWS = :workflows
+  # A workspace's own skills, which Halon loads beside Firefight's, with their page, Halon's proposals and their tools.
+  # A workflow that runs one still needs WORKFLOWS for the workflow side.
+  CUSTOM_SKILLS = :custom_skills
   # Google and email on the sign-in page. Global, since nobody signing in has a workspace yet.
   SELF_SERVE_SIGNUP = :self_serve_signup
 
-  WORKSPACE = [ CHATGPT_SIGN_IN, WORKFLOWS ].freeze
+  WORKSPACE = [ CHATGPT_SIGN_IN, WORKFLOWS, CUSTOM_SKILLS ].freeze
   GLOBAL = [ SELF_SERVE_SIGNUP ].freeze
   ALL = (WORKSPACE + GLOBAL).freeze
 
