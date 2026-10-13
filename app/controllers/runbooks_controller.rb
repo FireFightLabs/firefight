@@ -4,14 +4,19 @@ class RunbooksController < InertiaController
   authorizes Ability::Action::RESOURCE_RUNBOOKS, create: :create, update: %i[update disable enable reorder], delete: :destroy
   before_action :set_runbook, only: [ :update, :destroy, :disable, :enable ]
 
+  RUNS_IN_ITS_WORKFLOW = "Steps that call a tool, inputs and a watch now belong to the runbook's workflow. Link one under Workflow and change what it runs on its page.".freeze
+
   def create
+    return refuse_runnable_parts if runnable_parts_sent?
+
     runbook = current_workspace.runbooks.new(
       name: params[:name],
       summary: params[:summary],
       content: params[:content],
       external_url: params[:external_url],
       always_attach: params[:always_attach] || false,
-      **procedure_params
+      **procedure_params,
+      **workflow_params
     )
 
     Runbook.transaction do
@@ -26,13 +31,15 @@ class RunbooksController < InertiaController
   end
 
   def update
+    return refuse_runnable_parts if runnable_parts_sent?
+
     attrs = {
       name: params[:name],
       summary: params[:summary],
       content: params[:content],
       external_url: params[:external_url],
       always_attach: params[:always_attach]
-    }.compact.merge(procedure_params)
+    }.compact.merge(procedure_params).merge(workflow_params)
 
     Runbook.transaction do
       @runbook.update!(attrs)
@@ -72,6 +79,20 @@ class RunbooksController < InertiaController
   end
 
   private
+
+  def workflows_on? = FeatureFlags.enabled?(current_workspace, FeatureFlags::WORKFLOWS)
+
+  def workflow_params
+    return {} unless workflows_on? && params.key?(:workflow_id)
+
+    { workflow: params[:workflow_id].presence && current_workspace.workflows.find(params[:workflow_id]) }
+  end
+
+  def runnable_parts_sent? = workflows_on? && Runbook.names_a_run?(steps: step_params, **procedure_params.slice(:inputs, :watch))
+
+  def refuse_runnable_parts
+    redirect_back fallback_location: settings_runbooks_path, inertia: { errors: { base: RUNS_IN_ITS_WORKFLOW } }
+  end
 
   def set_runbook
     @runbook = current_workspace.runbooks.find(params[:id])

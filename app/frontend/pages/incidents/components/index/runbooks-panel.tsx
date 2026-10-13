@@ -5,6 +5,7 @@ import {
   IconChevronRight,
   IconCircleCheck,
   IconExternalLink,
+  IconPlayerPlay,
 } from "@tabler/icons-react"
 
 import type { Incident } from "@/pages/incidents/types"
@@ -16,8 +17,13 @@ import { RUNBOOK_QUERY_PARAM } from "@/lib/generated/constants"
 import { claimRunbookStepPath, settingsRunbooksPath } from "@/lib/routes"
 import { afterMutation } from "@/pages/incidents/lib/after-mutation"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Blocked } from "@/components/blocked-tooltip"
+import { RunRunbookDialog, type RunbookRunTarget } from "@/components/runbooks/run-runbook-dialog"
 
 type Runbook = Incident["runbooks"][number]
+
+// Starting a run changes nothing on the incident, so a partial reload keeps the deferred props on screen.
+const RUN_VISIT = afterMutation("incident")
 
 function progressLabel(runbook: Runbook): string {
   if (runbook.stepsCount === 0) {
@@ -91,6 +97,28 @@ function StepRow({
   )
 }
 
+function RunControl({ runbook, onRun }: { runbook: Runbook; onRun: (runbook: Runbook) => void }) {
+  const reason = runbook.workflow?.runBlockedReason ?? undefined
+
+  function run() {
+    onRun(runbook)
+  }
+
+  return (
+    <Blocked reason={reason}>
+      <button
+        type="button"
+        onClick={run}
+        disabled={Boolean(reason)}
+        className="inline-flex shrink-0 items-center gap-1 rounded text-[11px] text-muted-foreground underline-offset-2 hover:text-fg-primary hover:underline disabled:cursor-not-allowed disabled:text-fg-disabled disabled:no-underline"
+      >
+        <IconPlayerPlay className="size-3" />
+        Run it
+      </button>
+    </Blocked>
+  )
+}
+
 // Collapsed by default. Two runbooks of seven steps would push everything
 // below them off the page.
 function RunbookEntry({
@@ -98,11 +126,13 @@ function RunbookEntry({
   incidentId,
   canEdit,
   claimBlockedReason,
+  onRun,
 }: {
   runbook: Runbook
   incidentId: string
   canEdit: boolean
   claimBlockedReason?: string
+  onRun: (runbook: Runbook) => void
 }) {
   const [open, setOpen] = useState(false)
   const Chevron = open ? IconChevronDown : IconChevronRight
@@ -147,6 +177,7 @@ function RunbookEntry({
           </p>
           <p className="text-xs text-fg-muted">{progressLabel(runbook)}</p>
         </div>
+        {runbook.workflow && <RunControl runbook={runbook} onRun={onRun} />}
       </div>
 
       {open && (
@@ -180,6 +211,18 @@ export function RunbooksPanel({
   canEdit: boolean
   claimBlockedReason?: string
 }) {
+  const [running, setRunning] = useState<RunbookRunTarget | null>(null)
+
+  function openRun(runbook: Runbook) {
+    if (runbook.workflow) {
+      setRunning({ runbookId: runbook.runbookId, runbookName: runbook.name, workflow: runbook.workflow, incidentId })
+    }
+  }
+
+  function closeRun() {
+    setRunning(null)
+  }
+
   return (
     <div className="rounded-xl border border-border bg-card px-5 py-4">
       <div className="mb-3 flex items-center justify-between">
@@ -200,10 +243,13 @@ export function RunbooksPanel({
               incidentId={incidentId}
               canEdit={canEdit}
               claimBlockedReason={claimBlockedReason}
+              onRun={openRun}
             />
           ))}
         </ul>
       )}
+
+      <RunRunbookDialog target={running} onClose={closeRun} visitOptions={RUN_VISIT} />
     </div>
   )
 }

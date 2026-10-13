@@ -159,9 +159,74 @@ class Conversation::Tools::RunRunbookTest < ActiveSupport::TestCase
     assert_match "has no step for Halon to run", Conversation::Tools::RunRunbook.new(turn(@member)).call(runbook: "Database failover")
   end
 
+  test "with workflows on, running a runbook starts the workflow it links as the workflow's own identity, with the inputs given" do
+    runbook = release_runbook
+    workflow = published_workflow_of(runbook)
+
+    said = Conversation::Tools::RunRunbook.new(turn(@member)).call(runbook: "ship it", inputs: { "bump" => "minor" })
+
+    run = workflow.runs.sole
+    assert_match "Started Release Firefight, the workflow Release Firefight runs. Its run: ", said
+    assert_includes said, Workflow::Links.run(run)
+    assert_equal [ workflow.agent, Workflow::Run::STARTED_BY_HALON, @member ], [ run.agent, run.started_by_kind, run.started_by ]
+    assert_equal({ "bump" => "minor" }, run.inputs)
+    assert_equal({ "name" => "Release Firefight", "slug" => runbook.slug }, run.trigger_payload["runbook"])
+    assert Ability::Invocation.exists?(principal: @member, action_key: Workflow::CREATE_KEY), "starting it is ledgered as running a workflow"
+    assert_not Chat::Watch.exists?(asker: @member), "the workflow's watch step watches as the workflow, not the chat as the person"
+  end
+
+  test "with workflows on, the confirmation shows the workflow's steps and the inputs it runs with" do
+    runbook = release_runbook
+    published_workflow_of(runbook)
+
+    rows = Conversation::Tools::RunRunbook.plan_rows(@workspace, "runbook" => "ship it", "inputs" => { "bump" => "minor" })
+
+    assert_includes rows, [ "Input bump", "minor" ]
+    assert_includes rows.map(&:first), "Call a tool"
+    assert_includes rows.map(&:first), "Watch"
+  end
+
+  test "with workflows on, a runbook whose workflow is a draft says so with its page, and one with none is followed by hand" do
+    runbook = release_runbook
+    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
+    tool = Conversation::Tools::RunRunbook.new(turn(@member))
+
+    said = tool.call(runbook: "ship it", inputs: { "bump" => "minor" })
+    assert_match "Release Firefight has no published version to run. Its page: ", said
+    assert_includes said, Workflow::Links.page(runbook.reload.workflow)
+    assert_empty runbook.workflow.runs
+
+    guide = @workspace.runbooks.create!(name: "Database failover")
+    assert_match "Database failover links no workflow, so a person follows it by hand.", tool.call(runbook: "Database failover")
+  end
+
+  test "with workflows on, an input with no value and no default is asked for first" do
+    published_workflow_of(release_runbook(default: nil))
+
+    said = Conversation::Tools::RunRunbook.new(turn(@member)).call(runbook: "Release Firefight")
+
+    assert_match "Ask the person first: Which version bump?", said
+  end
+
+  test "Halon is told runbooks start their workflow only where the workspace has workflows" do
+    assert_equal Conversation::Tools::RunRunbook.description, Conversation::Tools::RunRunbook.new(turn(@member)).description
+
+    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
+
+    assert_equal Conversation::Tools::RunRunbook::WORKFLOW_DESCRIPTION, Conversation::Tools::RunRunbook.new(turn(@member)).description
+  end
+
   private
 
   def turn(asker) = Conversation::Turn.new(@conversation, asker: asker)
+
+  def published_workflow_of(runbook)
+    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
+    workflow = runbook.reload.workflow
+    result = WorkflowPublishService.new(workflow).publish!(workflow.draft, by: @admin)
+    assert result.ok, result.words
+    workflow.reload
+  end
 
   def release_runbook(default: "patch")
     runbook = @workspace.runbooks.create!(

@@ -599,6 +599,31 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Opens the form for Run it on a runbook attached to an incident, asking the questions its workflow's run asks. push
+  # stacks it on a view already open, such as the runbook's detail.
+  # @return [Hash] { success: true }
+  def open_runbook_run_modal(trigger_id:, incident_runbook:, push: false)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # The answers a Run it form was submitted with, by each question's key.
+  # @return [Hash] { key => value }
+  def runbook_run_inputs(values:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Turns a Run it form into why the run did not start.
+  # @return [Hash] the platform's answer to the form
+  def runbook_run_refused(message)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Tells only the person who pressed Run it that the run started, with where to follow it.
+  # @return [Hash]
+  def post_runbook_run_started(channel_id:, user_id:, run:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Opens the form asking what is right instead of a memory. memory is a MemoryPostService::ShownMemory.
   # @return [Hash] { success: true }
   def open_memory_correction_modal(trigger_id:, post_id:, memory:)

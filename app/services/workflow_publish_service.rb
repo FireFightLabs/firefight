@@ -34,6 +34,11 @@ class WorkflowPublishService
     @workflow.missing_reach(draft).empty? || by.may?(Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_CREATE, @workspace)
   end
 
+  def unpublishable_words(draft)
+    problem = draft.problems.first
+    "#{@workflow.name} waits as a draft, since it cannot be published yet. #{problem}" if problem
+  end
+
   # A member who may not publish asks the admins instead. Anyone else, such as an agent, leaves it a draft.
   def ask_or_leave!(draft, by:)
     return Result.new(ok: false, words: "#{@workflow.name} waits as a draft until a workspace admin publishes it.") unless by.is_a?(WorkspaceMembership)

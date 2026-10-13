@@ -54,6 +54,11 @@ class IncidentRunbookSerializer < BaseSerializer
     end
   end
 
+  # The workflow its Run it button starts, where the workspace has workflows.
+  has_one :workflow, serializer: RunbookWorkflowSerializer, optional: true do
+    incident_runbook.runbook.runnable_workflow
+  end
+
   type :number
   def done_count
     incident_runbook.actions_by_step.count { |_step_id, action| action.done? }
