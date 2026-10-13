@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react"
 
 import type { SharedProps } from "@/types"
-import type { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
+import type { AGENT_CHAT_THREAD_PROPS, AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
 import type {
   AgentChat, AgentChatAttachment, AgentChatAttachmentRules, AgentChatConfirmation, AgentChatDataRepair, AgentChatHeldCall, AgentChatHelper, AgentChatIncident,
   AgentChatMemoryQuestion, AgentChatMessage, AgentChatMitigation, AgentChatOwnerAsk, AgentChatPackRefusal, AgentChatPlan, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage, AgentChatWatch, AgentChatWatchUpdate, ChatChart, ChatCompaction, ChatModelMenu, ChatModelSwitch, ChatScreenshot, ChatTheory, EnvironmentOption,
@@ -15,22 +15,32 @@ export interface SetupGuide {
   setupPath: string
 }
 
-// Every prop is always sent, so a partial visit can rely on the rest staying.
-export interface AgentPageProps extends SharedProps {
+// Every prop is always sent, so a partial visit can rely on the rest staying. An open chat's conversation (the
+// AGENT_CHAT_THREAD_PROPS) is a deferred group, absent until it arrives just after the page shows.
+export interface AgentPageProps extends SharedProps, Partial<ThreadProps> {
   conversations: AgentChat[]
   archivedCount: number
   conversation: AgentChat | null
   incidents: AgentChatIncident[]
-  messages: AgentChatMessage[]
-  confirmations: AgentChatConfirmation[]
   integrationCards: IntegrationCard[]
   environments: EnvironmentOption[]
-  investigations: InvestigationCard[]
   openInvestigation: InvestigationDetail | null
+  attachmentRules: AgentChatAttachmentRules
+  setupGuide: SetupGuide | null
+  chatModels: ChatModelMenu | null
+}
+
+// The open chat's conversation. Messages come newest first, a page at a time, and the rest is read for the stretch of
+// the chat its messages cover.
+export interface ThreadProps extends Record<(typeof AGENT_CHAT_THREAD_PROPS)[number], unknown> {
+  // The chat these were read for, so a page switching chats never shows the last one's.
+  threadFor: string | null
+  messages: AgentChatMessage[]
+  confirmations: AgentChatConfirmation[]
+  waitingMessages: AgentChatWaitingMessage[]
+  investigations: InvestigationCard[]
   charts: ChatChart[]
   screenshots: ChatScreenshot[]
-  waitingMessages: AgentChatWaitingMessage[]
-  attachmentRules: AgentChatAttachmentRules
   compactions: ChatCompaction[]
   modelSwitches: ChatModelSwitch[]
   heldCalls: AgentChatHeldCall[]
@@ -46,8 +56,6 @@ export interface AgentPageProps extends SharedProps {
   ownerAsks: AgentChatOwnerAsk[]
   helpers: AgentChatHelper[]
   handbookProposals: HandbookProposal[]
-  setupGuide: SetupGuide | null
-  chatModels: ChatModelMenu | null
   theories: ChatTheory[]
 }
 

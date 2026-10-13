@@ -207,6 +207,10 @@ module TypescriptConstants
       }, nil),
       Export.new("AGENT_CHANNEL", ConversationChannel.name, nil),
       Export.new("AGENT_CHAT_PROPS", AgentChatsController::PROPS, nil),
+      Export.new("AGENT_CHAT_HEAD_PROPS", AgentChatsController::HEAD_PROPS, nil),
+      Export.new("AGENT_CHAT_THREAD_PROPS", AgentChatsController::THREAD_PROPS, nil),
+      Export.new("AGENT_CHAT_WINDOWED_PROPS", AgentChatsController::WINDOWED_PROPS, nil),
+      Export.new("AGENT_CHAT_LOADED_FROM_HEADER", AgentChatsController::LOADED_FROM_HEADER, nil),
       Export.new("SETUP_STEPS", {
         "ACCOUNT" => WorkspaceOnboarding::STEP_ACCOUNT, "PLAN" => WorkspaceOnboarding::STEP_PLAN, "AI" => WorkspaceOnboarding::STEP_AI,
         "STACK" => WorkspaceOnboarding::STEP_STACK,

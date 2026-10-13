@@ -30,7 +30,7 @@ class AgentChatPlansTest < ActionDispatch::IntegrationTest
     travel_to Time.zone.parse("2026-10-10 12:00 UTC")
     plan = make(run_at: Time.zone.parse("2026-10-17 06:00 +02:00"), time_zone: "Europe/Berlin")
 
-    get agent_chat_url(@conversation), headers: inertia_headers
+    get agent_chat_url(@conversation), headers: chat_page_headers
 
     shown = inertia_props[AgentChatsController::PROP_PLANS].sole
     assert_equal [ plan.id, "Plan waiting for approval", "Release main to production" ], shown.values_at("id", "heading", "goal")

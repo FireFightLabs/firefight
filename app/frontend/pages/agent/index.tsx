@@ -10,25 +10,42 @@ import { Composer, type ComposerFill } from "@/pages/agent/components/composer"
 import { ListButton } from "@/pages/agent/components/list-button"
 import { SetupGuide } from "@/pages/agent/components/setup-guide"
 import { Thread } from "@/pages/agent/components/thread"
+import { ThreadSkeleton } from "@/pages/agent/components/thread-skeleton"
 import { WatchingStrip } from "@/pages/agent/components/watching-strip"
 import { useAgentStream } from "@/pages/agent/hooks/use-agent-stream"
 import { useChatListCollapsed } from "@/pages/agent/hooks/use-chat-list-collapsed"
-import { OPEN_CHAT_VISIT, closeRun, startNewChat } from "@/pages/agent/lib/chat-updates"
+import { useLoadedStretch } from "@/pages/agent/hooks/use-loaded-stretch"
+import { ALL_CHATS_VISIT, closeRun, startNewChat } from "@/pages/agent/lib/chat-updates"
 import { InvestigationSheet } from "@/components/investigations/investigation-sheet"
 import { AGENT_CHAT_PROPS } from "@/lib/generated/constants"
 import { LifecycleFormDialog } from "@/components/incidents/lifecycle-form-dialog"
 import type { AgentPageProps } from "@/pages/agent/types"
 import { agentChatsPath } from "@/lib/routes"
 
+// Until the conversation arrives, every list it holds is empty.
+const NOTHING_YET: never[] = []
+
 const BACK_LINK_CLASS = "mx-2 mt-2 flex w-fit items-center gap-1 rounded-control py-1.5 pr-2.5 pl-1.5 text-[13px] font-medium text-ink-2 transition-colors duration-100 hover:bg-hover hover:text-ink md:hidden"
 
 export default function AgentPage() {
+  const page = usePage<AgentPageProps>()
   const {
-    conversations, archivedCount, conversation, incidents, messages, confirmations, openInvestigation, waitingMessages, attachmentRules,
-    compactions, modelSwitches, heldCalls, packRefusals, secretEntries, watches, watchUpdates, pullRequestNotices, memoryQuestions, plans, dataRepairs,
-    mitigations, ownerAsks, handbookProposals, setupGuide, chatModels,
-  } = usePage<AgentPageProps>().props
+    conversations, archivedCount, conversation, incidents, threadFor, openInvestigation, attachmentRules, setupGuide, chatModels,
+    messages = NOTHING_YET, confirmations = NOTHING_YET, waitingMessages = NOTHING_YET, compactions = NOTHING_YET, modelSwitches = NOTHING_YET,
+    heldCalls = NOTHING_YET, packRefusals = NOTHING_YET, secretEntries = NOTHING_YET, watches = NOTHING_YET, watchUpdates = NOTHING_YET,
+    pullRequestNotices = NOTHING_YET, memoryQuestions = NOTHING_YET, plans = NOTHING_YET, dataRepairs = NOTHING_YET, mitigations = NOTHING_YET,
+    ownerAsks = NOTHING_YET, handbookProposals = NOTHING_YET,
+  } = page.props
   const conversationId = conversation?.id ?? null
+  // A chat shows a skeleton until its conversation arrives, and never the one the page showed before. A question asked
+  // meanwhile shows at once, as the first chat's does (chat-updates.ts, askedNow).
+  const threadReady = conversationId !== null && threadFor === conversationId
+  // Older pages load only once the page holds the stretch Inertia's paging describes, whose oldest message comes last.
+  const paging = page.scrollProps?.[AGENT_CHAT_PROPS.MESSAGES]
+  const oldestShown = messages[messages.length - 1]?.id ?? null
+  const paged = threadReady && oldestShown !== null && oldestShown === paging?.currentPage
+  const hasOlder = paged && Boolean(paging?.nextPage)
+  useLoadedStretch(threadReady ? conversationId : null, oldestShown)
   // A chat asked elsewhere streams its answer there, so the page shows what was saved and never waits on a stream.
   const askedIn = conversation?.askedIn ?? null
   const stream = useAgentStream(conversationId, askedIn === null && (conversation?.busy ?? false))
@@ -102,31 +119,37 @@ export default function AgentPage() {
             {setupGuide && <SetupGuide guide={setupGuide} />}
             {conversation ? (
               <>
-                <Link href={agentChatsPath()} {...OPEN_CHAT_VISIT} onClick={backToList} className={BACK_LINK_CLASS}>
+                <Link href={agentChatsPath()} {...ALL_CHATS_VISIT} onClick={backToList} className={BACK_LINK_CLASS}>
                   <IconChevronLeft className="size-4" />
                   All chats
                 </Link>
-                <Thread
-                  conversationId={conversationId}
-                  confirmations={confirmations}
-                  messages={messages}
-                  compactions={compactions}
-                  modelSwitches={modelSwitches}
-                  heldCalls={heldCalls}
-                  packRefusals={packRefusals}
-                  secretEntries={secretEntries}
-                  watches={watches}
-                  watchUpdates={watchUpdates}
-                  pullRequestNotices={pullRequestNotices}
-                  memoryQuestions={memoryQuestions}
-                  plans={plans}
-                  dataRepairs={dataRepairs}
-                  mitigations={mitigations}
-                  ownerAsks={ownerAsks}
-                  handbookProposals={handbookProposals}
-                  waiting={waitingMessages}
-                  stream={stream}
-                />
+                {threadReady ? (
+                  <Thread
+                    conversationId={conversationId}
+                    confirmations={confirmations}
+                    messages={messages}
+                    paged={paged}
+                    hasOlder={hasOlder}
+                    compactions={compactions}
+                    modelSwitches={modelSwitches}
+                    heldCalls={heldCalls}
+                    packRefusals={packRefusals}
+                    secretEntries={secretEntries}
+                    watches={watches}
+                    watchUpdates={watchUpdates}
+                    pullRequestNotices={pullRequestNotices}
+                    memoryQuestions={memoryQuestions}
+                    plans={plans}
+                    dataRepairs={dataRepairs}
+                    mitigations={mitigations}
+                    ownerAsks={ownerAsks}
+                    handbookProposals={handbookProposals}
+                    waiting={waitingMessages}
+                    stream={stream}
+                  />
+                ) : (
+                  <ThreadSkeleton />
+                )}
               </>
             ) : (
               <>

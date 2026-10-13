@@ -17,7 +17,7 @@ class AgentChatPackRefusalsTest < ActionDispatch::IntegrationTest
   end
 
   test "the chat shows the refusal with Ask an admin, which asks once and then says when" do
-    get agent_chat_url(@conversation), headers: inertia_headers
+    get agent_chat_url(@conversation), headers: chat_page_headers
     card = inertia_props["packRefusals"].sole
     assert_equal [ "It needs the Faylee (Northflank): changes pack. The workspace admin is Alice Smith.", nil, nil ],
                  card.values_at("body", "askedLine", "askBlockedReason")
@@ -31,7 +31,7 @@ class AgentChatPackRefusalsTest < ActionDispatch::IntegrationTest
     post agent_chat_pack_refusal_ask_url(@conversation, @refusal)
     assert_match "not asked again until a day has passed", flash[:alert]
 
-    get agent_chat_url(@conversation), headers: inertia_headers
+    get agent_chat_url(@conversation), headers: chat_page_headers
     assert_match "Asked the admins at", inertia_props["packRefusals"].sole["askedLine"]
   end
 end

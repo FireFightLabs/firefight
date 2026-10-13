@@ -35,7 +35,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     direct = Conversation.start_direct!(workspace: @workspace, member: @member, channel_id: "D0ALICE", thread_id: "1700000000.000100")
     direct.ask!("What changed today?")
 
-    get agent_chat_url(direct), headers: inertia_headers
+    get agent_chat_url(direct), headers: chat_page_headers
 
     assert_equal "What changed today?", inertia_props["messages"].sole["body"]
     assert_equal "slack://channel?team=#{@workspace.platform_id}&id=D0ALICE", inertia_props.dig("conversation", "askedInUrl")
@@ -54,10 +54,10 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     direct.chat.add_person_message!(later, sender: @member)
     direct.chat.queue_message!("<!here> :eyes:", sender: @member)
 
-    get agent_chat_url(direct), headers: inertia_headers
+    get agent_chat_url(direct), headers: chat_page_headers
 
     assert_equal [ "@#{bob.display_name} why is #checkout slow 🔥", "Checking *now*.", "see the graph (https://grafana.example.com/d/1) & p99" ],
-                 inertia_props["messages"].map { |message| message["body"] }
+                 inertia_props["messages"].reverse.map { |message| message["body"] }
     assert_equal "@here 👀", inertia_props["waitingMessages"].sole["body"]
     assert_equal "@#{bob.display_name} why is #checkout slow 🔥", inertia_props.dig("conversation", "title")
     assert_equal "see the graph (https://grafana.example.com/d/1) & p99", inertia_props.dig("conversation", "preview")
@@ -141,21 +141,21 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [], response.parsed_body
 
     [ issue_chat, unmatched, in_channel ].each do |hidden|
-      get agent_chat_url(hidden), headers: inertia_headers
+      get agent_chat_url(hidden), headers: chat_page_headers
       assert_response :not_found
     end
     assert_no_enqueued_jobs(only: ConversationReplyJob) { post agent_chat_ask_url(issue_chat), params: { question: "And now?" } }
     assert_response :not_found
 
     sign_in(users(:bob), @workspace)
-    get agent_chat_url(issue_chat), headers: inertia_headers
+    get agent_chat_url(issue_chat), headers: chat_page_headers
     assert_response :not_found
   end
 
   test "someone else's direct message chat is not theirs to open" do
     direct = Conversation.start_direct!(workspace: @workspace, member: workspace_memberships(:bob_workspace_one), channel_id: "D0BOB", thread_id: "1")
 
-    get agent_chat_url(direct), headers: inertia_headers
+    get agent_chat_url(direct), headers: chat_page_headers
 
     assert_response :not_found
   end
@@ -164,7 +164,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     conversation = start_chat
     conversation.ask!("What changed today?")
 
-    get agent_chat_url(conversation), headers: inertia_headers
+    get agent_chat_url(conversation), headers: chat_page_headers
 
     assert_equal "What changed today?", inertia_props["messages"].sole["body"]
     assert_equal "What changed today?", inertia_props.dig("conversation", "title")
@@ -175,7 +175,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     conversation.ask!("What changed today?")
     compaction = conversation.chat.compactions.create!(stage: Chat::Compaction::STAGE_REBUILT, tokens_before: 150_000, note: "The pool config looks guilty")
 
-    get agent_chat_url(conversation), headers: inertia_headers
+    get agent_chat_url(conversation), headers: chat_page_headers
 
     assert_equal [ { "key" => compaction.step_key, "title" => Chat::Compaction::SHOWN_AS, "at" => compaction.created_at.utc.iso8601(3) } ],
                  inertia_props[AgentChatsController::PROP_COMPACTIONS]
@@ -188,11 +188,11 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     conversation = start_chat
     conversation.ask!("What changed today?")
 
-    get agent_chat_url(conversation), headers: inertia_headers
+    get agent_chat_url(conversation), headers: chat_page_headers
     assert inertia_props.dig("conversation", "busy")
 
     conversation.reply_delivered!
-    get agent_chat_url(conversation), headers: inertia_headers
+    get agent_chat_url(conversation), headers: chat_page_headers
     assert_not inertia_props.dig("conversation", "busy")
   end
 
@@ -202,7 +202,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     conversation.chat.messages.create!(role: "system", content: "You are Firefight, answering an engineer")
     conversation.chat.messages.create!(role: "tool", content: '{"incidents":[{"identifier":"INC-1"}]}')
 
-    get agent_chat_url(conversation), headers: inertia_headers
+    get agent_chat_url(conversation), headers: chat_page_headers
 
     assert_equal [ "What changed today?" ], inertia_props["messages"].map { |message| message["body"] }
   end
@@ -215,7 +215,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     conversation.chat.add_message(role: :tool, content: "Not found in this workspace.", tool_call_id: "call_1")
     conversation.chat.mark_failed!("call_1")
 
-    get agent_chat_url(conversation), headers: inertia_headers
+    get agent_chat_url(conversation), headers: chat_page_headers
 
     step = inertia_props["messages"].flat_map { |message| message["tools"] }.sole
     assert_equal Conversation::LiveDelivery::STATUS_FAILED, step["status"]
@@ -237,7 +237,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     own.add_message(role: :tool, content: "INC-7 checkout slow", tool_call_id: "h_1")
     logs.finish!(Chat::Helper::STATUS_REPORTED, report: "web logs show 40 timeouts to the orders database since 14:02.")
 
-    get agent_chat_url(conversation), headers: inertia_headers
+    get agent_chat_url(conversation), headers: chat_page_headers
 
     step = inertia_props["messages"].flat_map { |message| message["tools"] }.sole
     assert_equal [ Conversation::LiveDelivery::STATUS_RUNNING, { "kind" => Chat::Tools::CARD_HELPERS, "category" => nil } ], [ step["status"], step["card"] ]
@@ -257,7 +257,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Mcp::Tools::LIST_INTEGRATIONS, arguments: { "category" => "Observability" })
     conversation.chat.add_message(role: :tool, content: "{}", tool_call_id: "call_1")
 
-    get agent_chat_url(conversation), headers: inertia_headers
+    get agent_chat_url(conversation), headers: chat_page_headers
 
     step = inertia_props["messages"].flat_map { |message| message["tools"] }.sole
     assert_equal({ "kind" => Chat::Tools::CARD_INTEGRATIONS, "category" => "observability" }, step["card"])
@@ -270,7 +270,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     conversation.ask!("What changed today?")
     conversation.chat.nudge!(FirefightAi::AgentLoop::LAST_TURN)
 
-    get agent_chat_url(conversation), headers: inertia_headers
+    get agent_chat_url(conversation), headers: chat_page_headers
 
     assert_equal [ "What changed today?" ], inertia_props["messages"].map { |message| message["body"] }
   end
@@ -329,7 +329,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
   test "someone else's chat is not readable" do
     theirs = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:bob_workspace_one))
 
-    get agent_chat_url(theirs), headers: inertia_headers
+    get agent_chat_url(theirs), headers: chat_page_headers
 
     assert_response :not_found
   end
@@ -339,7 +339,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
       workspace: workspaces(:slack_workspace_two), member: workspace_memberships(:alice_workspace_two)
     )
 
-    get agent_chat_url(elsewhere), headers: inertia_headers
+    get agent_chat_url(elsewhere), headers: chat_page_headers
 
     assert_response :not_found
   end
@@ -572,7 +572,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     message.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: "delete_permission_set", arguments: { "slug" => "test" })
     conversation.chat.request_decisions!([ "call_1" ])
 
-    get agent_chat_url(conversation), headers: inertia_headers
+    get agent_chat_url(conversation), headers: chat_page_headers
     assert_equal [ "call_1" ], inertia_props["confirmations"].map { |confirmation| confirmation["toolCallId"] }
 
     assert_enqueued_with(job: ConversationReplyJob, args: [ conversation.id, @member.id ]) do
@@ -588,7 +588,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     %w[call_1 call_2].each { |id| message.ruby_llm_tool_calls.create!(tool_call_id: id, name: "delete_permission_set", arguments: { "slug" => id }) }
     conversation.chat.request_decisions!(%w[call_1 call_2])
 
-    get agent_chat_url(conversation), headers: inertia_headers
+    get agent_chat_url(conversation), headers: chat_page_headers
     assert_equal [ "delete_permission_set" ] * 2, inertia_props["confirmations"].map { |confirmation| confirmation["tool"] }
 
     assert_enqueued_with(job: ConversationReplyJob) do
@@ -606,7 +606,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
       tool_call_id: "call_1", name: "search_incidents", arguments: { "limit" => 5, "query" => "checkout" }
     )
 
-    get agent_chat_url(conversation), headers: inertia_headers
+    get agent_chat_url(conversation), headers: chat_page_headers
 
     step = inertia_props["messages"].flat_map { |message| message["tools"] }.sole
     assert_equal "Search incidents", step["title"]
@@ -622,7 +622,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     run.steps.create!(position: 1, tool_name: "commit_lookup", label: "Commit lookup abc123", status: Investigation::Step::STATUS_SUCCEEDED, started_at: Time.current)
     run.steps.create!(position: nil, tool_name: "search_logs", status: Investigation::Step::STATUS_RUNNING, started_at: Time.current)
 
-    get agent_chat_url(chat, Investigation::QUERY_PARAM => run.id), headers: inertia_headers
+    get agent_chat_url(chat, Investigation::QUERY_PARAM => run.id), headers: chat_page_headers
 
     card = inertia_props[AgentChatsController::PROP_INVESTIGATIONS].sole
     assert_equal [ "call_1", "checkout is slow" ], [ card["toolCallId"], card["question"] ]
@@ -640,7 +640,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     WorkspaceMembership.any_instance.stubs(:implicitly_permits?).returns(true)
     WorkspaceMembership.any_instance.stubs(:implicitly_permits?).with(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_READ, nil).returns(false)
 
-    get agent_chat_url(chat, Investigation::QUERY_PARAM => run.id), headers: inertia_headers
+    get agent_chat_url(chat, Investigation::QUERY_PARAM => run.id), headers: chat_page_headers
     url = inertia_props.dig(AgentChatsController::PROP_OPEN_INVESTIGATION, "notes").flat_map { |note| note["files"] }.sole["url"]
     assert_equal agent_chat_investigation_file_path(chat, run, file), url
 
@@ -654,7 +654,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     shot = Chat::Screenshot.record!(mine.chat_record, [ { "name" => "desktop", "final_url" => "https://shop.example.com", "title" => "Shop",
                                                           "screenshot" => Base64.strict_encode64("\xFF\xD8\xFFjpeg".b) } ], tool_call_id: "call_1").sole
 
-    get agent_chat_url(mine), headers: inertia_headers
+    get agent_chat_url(mine), headers: chat_page_headers
     shown = inertia_props.fetch(AgentChatsController::PROP_SCREENSHOTS).sole
     assert_equal [ "call_1", agent_chat_screenshot_path(mine, shot), "Desktop: Shop at https://shop.example.com" ], shown.values_at("toolCallId", "path", "caption")
 
@@ -707,7 +707,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     conversation = start_chat
     held = held_call_in(conversation, status: Chat::HeldCall::STATUS_READY)
 
-    get agent_chat_url(conversation), headers: inertia_headers
+    get agent_chat_url(conversation), headers: chat_page_headers
 
     shown = inertia_props[AgentChatsController::PROP_HELD_CALLS].sole
     assert_equal [ held.id, "Bob Jones approved: Resolve incident. Run it now?", "This looks done already.", "INC-1 is already resolved." ],
@@ -755,7 +755,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     conversation = start_chat
     temporary_change!(conversation)
 
-    get agent_chat_url(conversation), headers: inertia_headers
+    get agent_chat_url(conversation), headers: chat_page_headers
 
     shown = inertia_props["mitigations"].sole
     assert_equal "active", shown["status"]

@@ -77,7 +77,7 @@ class AgentChatAttachmentsControllerTest < ActionDispatch::IntegrationTest
     file = upload("deploy.log", "boom")
     post agent_chat_ask_url(conversation), params: { question: "why", attachment_ids: [ file.id ] }
 
-    get agent_chat_url(conversation), headers: inertia_headers
+    get agent_chat_url(conversation), headers: chat_page_headers
 
     assert_equal [ "deploy.log" ], inertia_props["messages"].sole["attachments"].pluck("name")
     assert_equal Chat::Attachment::MAX_PER_MESSAGE, inertia_props.dig("attachmentRules", "maxFiles")
@@ -89,7 +89,7 @@ class AgentChatAttachmentsControllerTest < ActionDispatch::IntegrationTest
     conversation.ask!("hello")
     conversation.chat.update!(model: "gpt-3.5-turbo")
 
-    get agent_chat_url(conversation), headers: inertia_headers
+    get agent_chat_url(conversation), headers: chat_page_headers
 
     assert_equal Chat::Attachment::IMAGES_UNREAD, inertia_props.dig("attachmentRules", "imagesUnread")
   end

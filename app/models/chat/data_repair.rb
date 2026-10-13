@@ -25,6 +25,9 @@ class Chat::DataRepair < ApplicationRecord
 
   scope :copy_expired, -> { where.not(rows_copy: nil).where(copy_expires_at: ..Time.current) }
 
+  # Where its card sits in a chat, once it was checked (AgentChatDataRepairSerializer#at).
+  def self.placed_at = Arel::Nodes::NamedFunction.new("COALESCE", [ arel_table[:checked_at], arel_table[:updated_at] ])
+
   def self.for_call(chat, tool_call_id) = chat && tool_call_id.present? ? find_by(chat: chat, tool_call_id: tool_call_id.to_s) : nil
 
   def refused? = status == STATUS_REFUSED

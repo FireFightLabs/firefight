@@ -36,7 +36,7 @@ class AgentChatModelsTest < ActionDispatch::IntegrationTest
 
     assert_equal "This chat now uses Claude Opus 5.5.", flash[:notice]
     assert_equal "anthropic/claude-opus-5.5", conversation.reload.chosen_model
-    get agent_chat_url(conversation), headers: inertia_headers
+    get agent_chat_url(conversation), headers: chat_page_headers
     assert_equal "anthropic/claude-opus-5.5", inertia_props.dig(AgentChatsController::PROP_CHAT_MODELS, "selected")
   end
 
@@ -95,9 +95,9 @@ class AgentChatModelsTest < ActionDispatch::IntegrationTest
     RubyLLM::ActiveRecord::Usage.create!(chat: conversation.chat, message: reply, operation: "chat", provider: "openrouter",
                                          model: "z-ai/glm-5.2", status: "succeeded")
 
-    get agent_chat_url(conversation), headers: inertia_headers
+    get agent_chat_url(conversation), headers: chat_page_headers
 
-    assert_equal [ nil, "GLM-5.2" ], inertia_props["messages"].pluck("model")
+    assert_equal [ nil, "GLM-5.2" ], inertia_props["messages"].reverse.pluck("model")
   end
 
   private

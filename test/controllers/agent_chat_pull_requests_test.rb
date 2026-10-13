@@ -19,7 +19,7 @@ class AgentChatPullRequestsTest < ActionDispatch::IntegrationTest
   end
 
   test "the chat shows a pull request Halon opened that needs attention, with why and Fix it for whoever asked" do
-    get agent_chat_url(@conversation), headers: inertia_headers
+    get agent_chat_url(@conversation), headers: chat_page_headers
 
     shown = inertia_props[AgentChatsController::PROP_PULL_REQUEST_NOTICES].sole
     assert_equal [ "PR #689 in acme/api needs attention", "offered", "https://github.com/acme/api/pull/689" ], shown.values_at("headline", "status", "url")
