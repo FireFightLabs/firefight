@@ -73,6 +73,55 @@ module Integrations
         assert_empty heard
       end
 
+      # Seen live: a check from outside held a chat's turn for minutes after the person pressed Stop.
+      test "a stop while a command runs ends the command in the box and the wait at once" do
+        run_as_caller("echo started >> \"$SANDBOX_PROGRESS\"; sleep 30; echo never")
+        signal = Concurrent::Event.new
+        before = ::Sandbox::Runs::STORE.keys
+        started = clock
+
+        assert_raises(StopSignal::Stopped) do
+          StopSignal.watching(signal) do
+            @client.exec(repository: "acme__api", argv: [ "x" ], where: Client::IN_COPY, timeout: 60, on_output: ->(text) { signal.set if text.include?("started") })
+          end
+        end
+
+        assert_operator clock - started, :<, 10
+        run = ::Sandbox::Runs::STORE.except(*before).values.find { |entry| entry["stopped"] }
+        assert run, "the box was told to stop the command"
+        Timeout.timeout(10) { Thread.pass until run["finished_at"] }
+        assert_equal ::Sandbox::Runs::STOPPED, run["result"]["error"]
+        assert_operator clock - started, :<, 10, "the command was ended, not left to sleep out its 30 seconds"
+      end
+
+      test "a command in the terminal is followed in the background on a box that can, so a stop reaches it" do
+        run_as_caller("sleep 30")
+        signal = Concurrent::Event.new
+        Concurrent::ScheduledTask.execute(0.5) { signal.set }
+        started = clock
+
+        assert_raises(StopSignal::Stopped) { StopSignal.watching(signal) { @client.terminal(argv: [ "x" ], timeout: 60) } }
+
+        assert_operator clock - started, :<, 10
+      end
+
+      test "a box from an image that cannot stop a command is no longer waited for" do
+        run_as_caller("sleep 2")
+        served = ::Sandbox::Handler.method(:call)
+        replace(::Sandbox::Handler, :call) do |method, path, body, query = {}|
+          raise ::Sandbox::Refused, "No route #{method} #{path}" if method == "DELETE"
+
+          answer = served.call(method, path, body, query)
+          path == "/health" ? answer.except("stops") : answer
+        end
+        signal = Concurrent::Event.new
+        signal.set
+        before = ::Sandbox::Runs::STORE.keys
+
+        assert_raises(StopSignal::Stopped) { StopSignal.watching(signal) { @client.terminal(argv: [ "x" ], timeout: 60) } }
+        assert_not(::Sandbox::Runs::STORE.except(*before).values.any? { |entry| entry["stopped"] })
+      end
+
       test "an answer is kept for a reader that asks again, and a finished one is swept after a while" do
         run_as_caller("echo '{}' >> \"$SANDBOX_PROGRESS\"; echo hi")
         started = ::Sandbox::Runs.start({ "repo" => "acme__api", "argv" => [ "x" ] })
@@ -90,6 +139,8 @@ module Integrations
       end
 
       private
+
+      def clock = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
       # The service reads its key and where it keeps progress when it loads, once per test process.
       def load_server

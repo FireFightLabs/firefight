@@ -60,6 +60,8 @@ module Sandbox
 
   # Runs argv with no shell, as the given user when one is named, and gives up after timeout seconds.
   def self.run(argv, dir: "/", user: nil, timeout: DEFAULT_TIMEOUT, env: {}, stdin: nil)
+    raise Refused, Runs::STOPPED if Runs.stopped?
+
     command = user ? [ "setpriv", "--reuid=#{user}", "--regid=#{user}", "--init-groups", "--", *argv ] : argv
     base = base_env(user ? "/home/#{user}" : "/root")
     out = +""
@@ -68,6 +70,7 @@ module Sandbox
     timed_out = false
     status = nil
     Open3.popen3(base.merge(env), *command, chdir: dir, pgroup: true, unsetenv_others: true) do |input, stdout, stderr, waiter|
+      Runs.running(waiter.pid)
       input.write(stdin) if stdin
       input.close
       readers = [ [ stdout, out ], [ stderr, err ] ].map do |stream, buffer|
@@ -785,6 +788,10 @@ module Sandbox
     KEPT_FOR = 15 * 60
     # The most one read hands back. A read that is full is followed at once by the next.
     CHUNK = 256 * 1024
+    # What a run the app stopped answers.
+    STOPPED = "Stopped before it finished."
+    # The run the current thread works for, so the commands it starts can be stopped with it.
+    CURRENT = :sandbox_run
 
     def self.start(request)
       sweep
@@ -794,9 +801,10 @@ module Sandbox
       File.open(path, File::WRONLY | File::CREAT | File::EXCL, 0o600) { }
       user = request["action"] == "prepare" ? "runner" : { "run" => "runner", "terminal" => TERMINAL_USER, "browser" => BROWSER_USER }.fetch(request["where"], "reader")
       FileUtils.chown(user, user, path)
-      entry = { "path" => path, "result" => nil, "finished_at" => nil }
+      entry = { "path" => path, "result" => nil, "finished_at" => nil, "pids" => [], "stopped" => false }
       GUARD.synchronize { STORE[id] = entry }
       Thread.new do
+        Thread.current[CURRENT] = entry
         result = begin
           request["action"] == "prepare" ? Handler.prepare(request) : Handler.exec(request, progress: path)
         rescue Refused, Broken, KeyError => error
@@ -804,9 +812,42 @@ module Sandbox
         rescue StandardError => error
           { "error" => "#{error.class}: #{error.message}" }
         end
-        GUARD.synchronize { entry.merge!("result" => result, "finished_at" => Time.now) }
+        GUARD.synchronize { entry.merge!("result" => entry["stopped"] ? { "error" => STOPPED } : result, "finished_at" => Time.now) }
       end
       { "id" => id }
+    end
+
+    # Ends the command the run has going, by its whole process group, and refuses any it would start after, such as the
+    # next step of preparing a copy. The run then answers that it was stopped.
+    def self.stop(id)
+      entry = GUARD.synchronize { STORE[id] } if id.match?(ID)
+      raise Refused, "No run #{id}" unless entry
+
+      pids = GUARD.synchronize do
+        entry["stopped"] = true
+        entry["pids"].dup
+      end
+      pids.each { |pid| Process.kill("KILL", -pid) rescue nil }
+      { "stopped" => true }
+    end
+
+    # A command the current run started, ended at once when the run was stopped as it started.
+    def self.running(pid)
+      entry = Thread.current[CURRENT]
+      return unless entry
+
+      stopped = GUARD.synchronize do
+        entry["pids"] << pid
+        entry["stopped"]
+      end
+      return unless stopped
+
+      Process.kill("KILL", -pid) rescue nil
+    end
+
+    def self.stopped?
+      entry = Thread.current[CURRENT]
+      entry ? GUARD.synchronize { entry["stopped"] } : false
     end
 
     # Whole lines from after on, and the command's answer once every line before it was read. A line longer than a
@@ -844,13 +885,14 @@ module Sandbox
   module Handler
     def self.call(method, path, body, query = {})
       case [ method, path ]
-      in [ "GET", "/health" ] then { "ok" => true, "runs" => true, "setups" => true, "prepare_runs" => true, "seeds" => true, "images" => Docker.available?, "terminal" => true,
+      in [ "GET", "/health" ] then { "ok" => true, "runs" => true, "setups" => true, "prepare_runs" => true, "seeds" => true, "stops" => true, "images" => Docker.available?, "terminal" => true,
                                        "browser" => File.exist?(BROWSER_ARGV.last) }
       in [ "PUT", %r{\A/terminal/files/([^/]+)\z} ] then Terminal.place(Regexp.last_match(1), body)
       in [ "PUT", %r{\A/repos/([^/]+)\z} ] then Repos.push(Regexp.last_match(1), body)
       in [ "POST", "/exec" ] then exec(JSON.parse(body))
       in [ "POST", "/runs" ] then Runs.start(JSON.parse(body))
       in [ "GET", %r{\A/runs/([^/]+)\z} ] then Runs.read(Regexp.last_match(1), query["after"])
+      in [ "DELETE", %r{\A/runs/([^/]+)\z} ] then Runs.stop(Regexp.last_match(1))
       in [ "POST", "/prepare" ] then prepare(JSON.parse(body))
       in [ "POST", "/prepare/state" ] then state(JSON.parse(body))
       in [ "POST", "/prepare/seed" ] then seed(JSON.parse(body))

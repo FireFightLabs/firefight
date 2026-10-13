@@ -97,7 +97,7 @@ class AgentChatMessageSerializer < BaseSerializer
 
   FINISHED = [
     Conversation::LiveDelivery::STATUS_DONE, Conversation::LiveDelivery::STATUS_FAILED, Conversation::LiveDelivery::STATUS_NOT_FOUND,
-    Conversation::LiveDelivery::STATUS_REFUSED
+    Conversation::LiveDelivery::STATUS_REFUSED, Conversation::LiveDelivery::STATUS_STOPPED
   ].freeze
 
   STEP_STATUS_BY_APPROVAL = {

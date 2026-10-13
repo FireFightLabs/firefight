@@ -186,11 +186,12 @@ module TypescriptConstants
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,
         "WAITING" => Conversation::LiveDelivery::STATUS_WAITING, "CANCELLED" => Conversation::LiveDelivery::STATUS_CANCELLED,
         "FAILED" => Conversation::LiveDelivery::STATUS_FAILED, "NOT_FOUND" => Conversation::LiveDelivery::STATUS_NOT_FOUND,
-        "REFUSED" => Conversation::LiveDelivery::STATUS_REFUSED
+        "REFUSED" => Conversation::LiveDelivery::STATUS_REFUSED, "STOPPED" => Conversation::LiveDelivery::STATUS_STOPPED
       }, nil),
       Export.new("STEP_OUTCOME_KINDS", {
         "ANSWERED" => Chat::StepOutcome::KIND_ANSWERED, "FAILED" => Chat::StepOutcome::KIND_FAILED,
-        "NOT_FOUND" => Chat::StepOutcome::KIND_NOT_FOUND, "REFUSED" => Chat::StepOutcome::KIND_REFUSED
+        "NOT_FOUND" => Chat::StepOutcome::KIND_NOT_FOUND, "REFUSED" => Chat::StepOutcome::KIND_REFUSED,
+        "STOPPED" => Chat::StepOutcome::KIND_STOPPED
       }, nil),
       Export.new("CODE_FIX_LINE_RESULTS", {
         "PASSED" => Chat::CodeFixProgress::RESULT_PASSED, "FAILED" => Chat::CodeFixProgress::RESULT_FAILED

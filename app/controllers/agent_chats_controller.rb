@@ -135,7 +135,7 @@ class AgentChatsController < InertiaController
   # them is read for the same stretch (Chat::Window).
   def show
     render inertia: "agent/index", props: base_props.merge(
-      PROP_CONVERSATION => -> { AgentChatSerializer.one(conversation, asked_in_url: asked_in_url, platform_texts: listed_in_platform([ conversation ])) },
+      PROP_CONVERSATION => -> { AgentChatSerializer.one(conversation, opened: true, asked_in_url: asked_in_url, platform_texts: listed_in_platform([ conversation ])) },
       PROP_OPEN_INVESTIGATION => -> { open_investigation },
       PROP_ATTACHMENT_RULES => -> { attachment_rules(conversation.chat, picked: conversation.picked_model_choice) },
       PROP_CHAT_MODELS => -> { chat_models(conversation) },
@@ -239,7 +239,7 @@ class AgentChatsController < InertiaController
     return redirect_to(agent_chat_path(conversation), alert: blocked) if blocked
 
     conversation.request_stop!
-    redirect_to agent_chat_path(conversation)
+    redirect_to agent_chat_path(conversation), notice: Conversation::STOPPING
   end
 
   # The turn carries on as whoever answered, not whoever asked. expires is when a change customers feel is undone.
