@@ -29,16 +29,22 @@ module IncidentTranscriptMessage::Scrubbing
   }.freeze
 
   included do
-    before_save :scrub_content, if: :content_changed?
+    before_save :scrub_content, if: -> { content_changed? || model_content_changed? }
   end
 
   private
 
   def scrub_content
-    SECRET_PATTERNS.each do |name, pattern|
-      next unless content.match?(pattern)
-      self.content = content.gsub(pattern, "[REDACTED:#{name}]")
+    self.content = scrubbed_text(content)
+    self.model_content = scrubbed_text(model_content) if model_content
+  end
+
+  def scrubbed_text(text)
+    SECRET_PATTERNS.reduce(text) do |scrubbed, (name, pattern)|
+      next scrubbed unless scrubbed.match?(pattern)
+
       self.scrubbed = true
+      scrubbed.gsub(pattern, "[REDACTED:#{name}]")
     end
   end
 end

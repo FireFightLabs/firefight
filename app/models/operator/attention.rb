@@ -47,9 +47,10 @@ module Operator
 
     Item = Data.define(:key, :kind, :tone, :title, :subject, :place, :detail, :at, :target, :target_id)
 
-    def initialize(filter, jobs:)
+    def initialize(filter, jobs:, readable: Readable.none)
       @filter = filter
       @jobs = jobs
+      @readable = readable
     end
 
     # Kinds that reached PER_KIND, so the page can say the list is cut.
@@ -259,7 +260,7 @@ module Operator
            at: Time.current, target: nil)
     end
 
-    def run_label(run) = run.label
+    def run_label(run) = @readable.run_label(run)
 
     def subject_place(subject)
       subject.respond_to?(:workspace) ? subject.workspace.name : all_workspaces

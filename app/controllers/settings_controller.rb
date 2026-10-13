@@ -3,6 +3,8 @@ class SettingsController < InertiaController
   authorizes Ability::Action::RESOURCE_PERMISSIONS, read: %i[permissions activity]
   authorizes Ability::Action::RESOURCE_APPROVALS, read: :approvals
 
+  include PlatformText
+
   RECENT_ALERTS_LIMIT = 50
   ACTIVITY_LIMIT = 200
   RESOLVED_APPROVALS_LIMIT = 50
@@ -139,12 +141,13 @@ class SettingsController < InertiaController
 
   def approvals
     scope = current_workspace.ability_approvals.order(created_at: :desc)
+    pending = Ability::Approval.with_connection_names(scope.pending).to_a
+    resolved = Ability::Approval.with_connection_names(scope.where.not(status: Ability::Approval::STATUS_PENDING).limit(RESOLVED_APPROVALS_LIMIT)).to_a
+    read = platform_texts((pending + resolved).map(&:platform_text))
 
     render inertia: "settings/approvals", props: {
-      pendingApprovals: AbilityApprovalSerializer.many(Ability::Approval.with_connection_names(scope.pending)),
-      resolvedApprovals: AbilityApprovalSerializer.many(
-        Ability::Approval.with_connection_names(scope.where.not(status: Ability::Approval::STATUS_PENDING).limit(RESOLVED_APPROVALS_LIMIT))
-      )
+      pendingApprovals: AbilityApprovalSerializer.many(pending, platform_texts: read),
+      resolvedApprovals: AbilityApprovalSerializer.many(resolved, platform_texts: read)
     }
   end
 

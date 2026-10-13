@@ -5,9 +5,11 @@ module PlatformText
 
   private
 
-  def platform_texts(texts)
+  def platform_texts(texts) = platform_texts_in(current_workspace, texts)
+
+  def platform_texts_in(workspace, texts)
     wanted = texts.compact.uniq
-    wanted.empty? ? {} : WorkspaceAdapter.for(current_workspace).messages_as_text(texts: wanted)
+    wanted.empty? ? {} : WorkspaceAdapter.for(workspace).messages_as_text(texts: wanted)
   end
 
   def investigation_platform_texts(investigation) = platform_texts(investigation ? investigation.said_in_platform : [])

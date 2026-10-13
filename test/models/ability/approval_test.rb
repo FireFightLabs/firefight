@@ -16,6 +16,22 @@ module Ability
       )
     end
 
+    test "a command typed in Slack is posted for approval as Slack shows it, so a mention in it never notifies anyone" do
+      bob = workspace_memberships(:bob_workspace_one)
+      params = { "command" => "/ff", "subcommand" => "investigate", "text" => "investigate <!here> <@#{bob.platform_user_id}> &amp; :fire:" }
+      approval = Ability::Approval.create!(
+        workspace: @workspace, principal: @admin, principal_label: "Alice", action_key: "investigations.create", params: params,
+        source: AbilityGateway::SOURCE_SLACK, request_digest: Ability::Approval.digest("investigations.create", params, {}),
+        required_role: WorkspaceMembership.roles[:admin]
+      )
+      Slack::Client.expects(:post_message).with do |arguments|
+        text = arguments[:blocks][1][:text][:text]
+        text.include?("investigate @here @#{bob.display_name} \\u0026 🔥") && !text.include?("<!here>")
+      end.returns({ "ok" => true, "ts" => "1.2", "channel" => "C1" })
+
+      WorkspaceAdapter.for(@workspace).post_approval_request(approval: approval, channel_id: "C1")
+    end
+
     test "digest is deterministic across key ordering and symbol/string keys" do
       a = Ability::Approval.digest("x.y", { "b" => 1, "a" => [ { "d" => 2, "c" => 3 } ] }, { "environment" => "e" })
       b = Ability::Approval.digest("x.y", { a: [ { c: 3, d: 2 } ], b: 1 }, { environment: "e" })

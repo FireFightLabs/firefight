@@ -31,6 +31,7 @@ module Events
           channel_id: channel_id,
           user_id: user_id,
           action_type: action_type,
+          message_id: message_ts,
           message_text: message_text,
           incident_id: incident.id,
           source_message_link: source_message_link

@@ -41,8 +41,9 @@ module Operator
       ids.index_with { |id| steps.fetch(id, 0) + hooks.fetch(id, 0) + calls.fetch(id, 0) }
     end
 
-    def initialize(incident)
+    def initialize(incident, readable: Readable.none)
       @incident = incident
+      @readable = readable
     end
 
     # The first ENTRY_LIMIT records by time. all_entries has all of them.
@@ -134,7 +135,7 @@ module Operator
     def halon_entries
       @incident.investigations.seen.includes(:finding).flat_map do |run|
         started = entry(key: "halon-#{run.id}", at: run.created_at, kind: KIND_HALON, tone: TONE_INFO, title: "Halon asked",
-                        detail: run.question || run.trigger_source, run_id: run.id)
+                        detail: @readable.question(run) || run.trigger_source, run_id: run.id)
         ended = run.completed_at && entry(
           key: "halon-end-#{run.id}", at: run.completed_at, kind: KIND_HALON, tone: halon_tone(run),
           title: run.finding ? "Halon answered" : "Halon stopped",

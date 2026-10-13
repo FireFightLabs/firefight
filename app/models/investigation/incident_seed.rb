@@ -26,7 +26,7 @@ class Investigation::IncidentSeed
       "resources" => resources.presence,
       "resources_held_back" => (map.held_back if resources.any?),
       "suspects" => suspects.presence,
-      "brief" => @investigation.brief.presence,
+      "brief" => @investigation.brief_for_model.presence,
       Investigation::Seeding::KEY_ON_CALL => (on_call_facts if @investigation.started_by_alert?)
     }.compact
   end

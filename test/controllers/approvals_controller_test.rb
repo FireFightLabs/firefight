@@ -28,6 +28,24 @@ class ApprovalsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ resolved.id ], inertia_props["resolvedApprovals"].map { |a| a["id"] }
   end
 
+  test "a command typed in Slack is shown on the approvals page as Slack shows it, and the record keeps it as sent" do
+    bob = workspace_memberships(:bob_workspace_one)
+    written = "<@#{bob.platform_user_id}> checkout is :fire: &amp; slow"
+    params = { "command" => "/ff", "subcommand" => "investigate", "text" => "investigate #{written}" }
+    command = Ability::Approval.create!(
+      workspace: @workspace, principal: workspace_memberships(:alice_workspace_one), principal_label: "Alice",
+      action_key: "investigations.create", params: params, source: AbilityGateway::SOURCE_SLACK,
+      request_digest: Ability::Approval.digest("investigations.create", params, {}), required_role: WorkspaceMembership.roles[:admin]
+    )
+
+    get gateway_approvals_url, headers: inertia_headers
+
+    shown = inertia_props["pendingApprovals"].find { |approval| approval["id"] == command.id }
+    assert_equal "investigate @#{bob.display_name} checkout is 🔥 & slow", shown.dig("params", "text")
+    assert_equal "/ff", shown.dig("params", "command")
+    assert_equal "investigate #{written}", command.reload.params["text"]
+  end
+
   test "the activity page renders the ledger" do
     AbilityGateway.authorize!(principal: api_keys(:full_access_key), action_key: "catalog.create",
                               workspace: @workspace) { :ok }

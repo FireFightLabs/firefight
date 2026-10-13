@@ -226,6 +226,19 @@ module Ability
       update!(notifications: notifications + [ { "channel_id" => channel_id, "message_id" => message_id } ])
     end
 
+    # What followed a command typed in the chat platform, in the platform's own markup. People read it as the platform
+    # shows it, and the record keeps it as sent, since the digest and a resumed command are bound to it.
+    def platform_text
+      asked = self[:params]
+      asked["text"].presence if source == AbilityGateway::SOURCE_SLACK && asked.key?("command")
+    end
+
+    # The params as people read them, given each platform text mapped to how it reads.
+    def params_shown(read)
+      text = platform_text
+      text ? self[:params].merge("text" => read.fetch(text, text)) : self[:params]
+    end
+
     private
 
     def approver_requirement_message

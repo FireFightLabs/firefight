@@ -10,6 +10,9 @@ class Investigation::Brief
   KEY_NAMES = "names".freeze
   KEY_ERROR_TEXT = "error_text".freeze
   KEY_SOURCE = "source".freeze
+  # The symptom as the run reads it, when it was written in the chat platform's own markup, which the symptom keeps for
+  # the pages. The run is handed the brief with this in the symptom's place (Investigation#brief_for_model).
+  KEY_SYMPTOM_FOR_MODEL = "symptom_for_model".freeze
 
   # Where the words came from, which the clues repeat so a finding can say how it knew.
   SOURCE_COMMAND = "the investigate command".freeze
@@ -31,6 +34,7 @@ class Investigation::Brief
     arguments = arguments.to_h.stringify_keys
     brief = {
       KEY_SYMPTOM => arguments[KEY_SYMPTOM].to_s.squish.truncate(SYMPTOM_LIMIT).presence,
+      KEY_SYMPTOM_FOR_MODEL => arguments[KEY_SYMPTOM_FOR_MODEL].to_s.squish.truncate(SYMPTOM_LIMIT).presence,
       KEY_STARTED_AROUND => started_around(arguments[KEY_STARTED_AROUND]),
       KEY_NAMES => Array(arguments[KEY_NAMES]).map { |name| name.to_s.squish }.compact_blank.uniq.first(NAME_LIMIT).presence,
       KEY_ERROR_TEXT => arguments[KEY_ERROR_TEXT].to_s.strip.truncate(TEXT_LIMIT).presence

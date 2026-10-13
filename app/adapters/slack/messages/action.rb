@@ -184,15 +184,17 @@ module Slack
         ]
       end
 
-      def self.from_reaction(action_type, message_text, incident_id, source_message_link)
+      # The button carries where the message is rather than its words, which can be longer than a button's value holds.
+      def self.from_reaction(action_type, message_text, incident_id, source_message_link, channel_id:, message_id:)
         cfg = KIND_DISPLAY.fetch(action_type) { KIND_DISPLAY[IncidentAction::ACTION_TYPE_ACTION] }
         button_action_id = action_type == IncidentAction::ACTION_TYPE_FOLLOWUP ? Identifiers::CREATE_FOLLOWUP_FROM_REACTION : Identifiers::CREATE_ACTION_FROM_REACTION
 
         button_value = {
           incident_id: incident_id,
-          source_message_text: message_text.truncate(3000),
+          channel_id: channel_id,
+          message_id: message_id,
           source_message_link: source_message_link
-        }.to_json
+        }.compact.to_json
 
         [
           {

@@ -4,7 +4,7 @@ module Operator
   class FindController < BaseController
     def show
       query = params[:q].to_s
-      matches = Finder.new(query).matches
+      matches = Finder.new(query, readable: readable).matches
       return redirect_to(FindMatchSerializer.path_for(matches.sole)) if matches.one?
 
       render inertia: "operator/find", props: { query: query, matches: FindMatchSerializer.many(matches) }

@@ -16,8 +16,9 @@ module Operator
       filter.scope(Conversation.joins(:chat).where(updated_at: filter.range)).includes(:workspace, :subject).order(updated_at: :desc, id: :desc)
     end
 
-    def initialize(conversation)
+    def initialize(conversation, readable: Readable.none)
       @conversation = conversation
+      @readable = readable
     end
 
     def groups
@@ -31,7 +32,7 @@ module Operator
 
     def spans = groups.flat_map(&:spans)
 
-    def body_for(key) = spans.find { |span| span.key == key }&.read_body
+    def body_for(key, as_read: false) = spans.find { |span| span.key == key }&.read_body(as_read: as_read)
 
     private
 
@@ -50,9 +51,11 @@ module Operator
     def turn_spans(turn)
       ask = turn.first
       finished = turn.last.created_at
+      said = @readable.said(conversation, ask)
       [
         Trace.span(key: "ask-#{ask.id}", kind: KIND_ASK, title: "Asked", started_at: ask.created_at, tone: IncidentProcess::TONE_INFO,
-                   detail: ask.content.to_s.squish.truncate(140), body: -> { ask.content.to_s }),
+                   detail: said.squish.truncate(140), body: -> { said },
+                   model_body: (-> { ask.content.to_s } if said != ask.content.to_s)),
         *model_spans(turn), *tool_spans(turn), reply_span(turn), *run_spans(ask.created_at, finished)
       ].compact
     end
@@ -112,7 +115,7 @@ module Operator
     def run_spans(from, to)
       conversation.investigations.select { |run| run.created_at.between?(from, to + 1.minute) }.map do |run|
         Trace.span(key: "run-#{run.id}", kind: KIND_RUN, title: "Started a run", started_at: run.created_at, tone: IncidentProcess::TONE_INFO,
-                   detail: "#{run.question || run.incident&.identifier} · #{HalonRuns.ending(run.status, run.error_summary)}", run_id: run.id)
+                   detail: "#{@readable.question(run) || run.incident&.identifier} · #{HalonRuns.ending(run.status, run.error_summary)}", run_id: run.id)
       end
     end
 

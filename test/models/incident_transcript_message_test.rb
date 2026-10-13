@@ -7,6 +7,24 @@ class IncidentTranscriptMessageTest < ActiveSupport::TestCase
     @member = workspace_memberships(:alice_workspace_one)
   end
 
+  test "a secret is redacted from the model's reading as it is from the words kept" do
+    message = incidents(:active_critical_ws1).incident_transcript_messages.create!(
+      workspace: workspaces(:slack_workspace_one), message_id: "1.1", platform_user_id: "U1", posted_at: Time.current,
+      content: "key AKIAABCDEFGHIJKLMNOP", model_content: "key AKIAABCDEFGHIJKLMNOP"
+    )
+
+    assert_equal "key [REDACTED:aws_key]", message.content
+    assert_equal "key [REDACTED:aws_key]", message.for_model
+  end
+
+  test "a message from before the model's reading was kept is read as written" do
+    message = incidents(:active_critical_ws1).incident_transcript_messages.create!(
+      workspace: workspaces(:slack_workspace_one), message_id: "1.2", platform_user_id: "U1", posted_at: Time.current, content: "rolled back"
+    )
+
+    assert_equal "rolled back", message.for_model
+  end
+
   test "belongs to workspace, incident, and optional membership" do
     message = build_message
     assert_equal @workspace, message.workspace

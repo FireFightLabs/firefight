@@ -367,9 +367,9 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
-  def post_action_from_reaction_prompt(channel_id:, user_id:, action_type:, message_text:, incident_id:, source_message_link:)
+  def post_action_from_reaction_prompt(channel_id:, user_id:, action_type:, message_id:, message_text:, incident_id:, source_message_link:)
     blocks = Slack::Messages::Action.from_reaction(
-      action_type, message_text, incident_id, source_message_link
+      action_type, message_text, incident_id, source_message_link, channel_id: channel_id, message_id: message_id
     )
     type_label = action_type == IncidentAction::ACTION_TYPE_FOLLOWUP ? "follow-up" : "action"
     post_ephemeral(

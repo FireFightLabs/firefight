@@ -4,7 +4,7 @@ module Operator
     def show
       jobs = JobHealth.read(since: filter.since)
       overview = Overview.new(filter, jobs: jobs)
-      attention = Attention.new(filter, jobs: jobs)
+      attention = Attention.new(filter, jobs: jobs, readable: readable)
 
       render inertia: "operator/overview", props: {
         attentionItems: AttentionItemSerializer.many(attention.items),

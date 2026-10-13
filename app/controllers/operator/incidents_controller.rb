@@ -19,7 +19,7 @@ module Operator
 
     def show
       incident = Incident.includes(:workspace, :incident_status, :incident_severity).find(params[:id])
-      process = IncidentProcess.new(incident)
+      process = IncidentProcess.new(incident, readable: readable)
 
       render inertia: "operator/incidents/show", props: {
         incident: IncidentRowSerializer.one(IncidentProcess::Row.new(incident, process.counts[:problems])),

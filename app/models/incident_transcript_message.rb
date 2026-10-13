@@ -12,7 +12,9 @@ class IncidentTranscriptMessage < ApplicationRecord
 
   validates :message_id, :platform_user_id, :posted_at, presence: true
 
-  encrypts :content
+  # content is the message as the platform sent it, which the API and MCP hand on. model_content is how a model reads it,
+  # with people and channels named and their ids kept, missing for a message saved before it was kept.
+  encrypts :content, :model_content
 
   scope :kept, -> { where(deleted_at: nil) }
 
@@ -39,6 +41,8 @@ class IncidentTranscriptMessage < ApplicationRecord
     messages = found.first(size).reverse
     Page.new(messages: messages, more_before: found.size > size ? messages.first.message_id : nil)
   end
+
+  def for_model = model_content.presence || content
 
   def soft_delete!
     update!(deleted_at: Time.current)

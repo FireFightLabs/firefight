@@ -33,6 +33,15 @@ class Slack::WorkspaceAdapter::MessagesAsTextTest < ActiveSupport::TestCase
     WorkspaceAdapter.for(@workspace).post_investigation_carried_over(channel_id: "C1", finding: finding)
   end
 
+  test "the model's reading names each person from the workspace's members with their id kept" do
+    Slack::Client.expects(:get_user_info).never
+    message = "<@#{@alice.platform_user_id}> see <#C0123|incidents> :fire:"
+
+    read = WorkspaceAdapter.for(@workspace).messages_for_model(texts: [ message ])
+
+    assert_equal "@#{@alice.display_name} (#{@alice.platform_user_id}) see #incidents (C0123) 🔥", read[message]
+  end
+
   test "a member of another workspace is not named" do
     other = workspace_memberships(:alice_workspace_two)
     message = "<@#{other.platform_user_id}> joined"

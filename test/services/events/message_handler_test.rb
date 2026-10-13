@@ -58,6 +58,23 @@ class Events::MessageHandlerTest < ActiveSupport::TestCase
     assert_equal "new context", message.content
   end
 
+  test "a message is kept as written, and as models read it, with each person and channel named and their ids kept" do
+    bob = workspace_memberships(:bob_workspace_one)
+    written = "<@#{bob.platform_user_id}> rolled back in <#C0123|deploys> :fire:"
+    payload = text_message_payload
+    payload["event"]["text"] = written
+
+    Events::MessageHandler.execute(@workspace, payload)
+
+    message = @incident.incident_transcript_messages.find_by!(message_id: "1234567890.000100")
+    assert_equal written, message.content
+    assert_equal "@#{bob.display_name} (#{bob.platform_user_id}) rolled back in #deploys (C0123) 🔥", message.for_model
+
+    Events::MessageHandler.execute(@workspace, edit_payload(ts: "1234567890.000100", text: "<@#{bob.platform_user_id}> did not"))
+
+    assert_equal "@#{bob.display_name} (#{bob.platform_user_id}) did not", message.reload.for_model
+  end
+
   test "edit on unknown ts is a no-op" do
     assert_no_difference "IncidentTranscriptMessage.count" do
       Events::MessageHandler.execute(@workspace, edit_payload(ts: "9999.999", text: "ghost"))

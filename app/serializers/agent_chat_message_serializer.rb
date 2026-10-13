@@ -25,7 +25,7 @@ class AgentChatMessageSerializer < BaseSerializer
   type :string
   def body
     content = message.content.to_s
-    message.role == Chat::Message::ROLE_USER ? options.fetch(:platform_texts, {}).fetch(content, content) : content
+    message.role == Chat::Message::ROLE_USER ? options.fetch(:platform_texts, {}).fetch(message.as_written || content, content) : content
   end
 
   # Where the times Halon made room fall among the turns.

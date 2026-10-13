@@ -398,6 +398,29 @@ Two things about it are worth knowing before adding a control:
   typed on the dashboard, over the API or MCP is shown exactly as typed.
   Controllers convert through the `PlatformText` concern and hand the result to
   serializers as `platform_texts:`, since serializers never call an adapter.
+  The Halon chat's search matches the shown text as well as the stored one, and
+  an approval's slash command text (`Ability::Approval#platform_text`) is shown
+  converted on the approvals page and in the Slack request, while the record,
+  the API and MCP keep it as sent, since the digest is bound to it.
+- **Models read the platform's markup through the adapter too.**
+  `PlatformAdapter#messages_for_model` names each person and channel with its id
+  kept (`@Ana (U07ABC)`, `#incidents (C0123)`), so a model can hand the id to a
+  tool, reads emoji as the emoji and keeps code fenced. It runs once, when the
+  words are saved, never when a prompt is built: a person's chat message and a
+  queued one keep `content` as the model reads it and `as_written` as Slack sent
+  it, which the pages show; a transcript message keeps `content` as sent, which
+  the API and MCP hand on, and `model_content` for the summaries, milestones and
+  lessons (`IncidentTranscriptMessage#for_model`); a run asked for by the command
+  keeps its symptom as sent and `symptom_for_model` beside it
+  (`Investigation#question_for_model`, `#brief_for_model`), which the seed and a
+  code change's request read. A mention of the app is taken out by
+  `PlatformAdapter#text_for_app`, which removes only the app's own mention. What
+  a person replied to waits beside their words (`Chat::QueuedMessage#context`)
+  and joins the chat as a note before them, so it never shows as theirs.
+- **A reaction's prompt carries a reference, not the message.** Its button holds
+  the channel and message id (Slack caps a button's value at 2000 characters),
+  and the form reads the message when it opens, as plain text up to the form's
+  own limit, leaving the field empty when the message cannot be read.
 
 ## Outbound Webhooks
 

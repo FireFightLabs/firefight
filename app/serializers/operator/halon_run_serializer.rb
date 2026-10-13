@@ -8,9 +8,9 @@ module Operator
     type :string
     def id = run.id
 
-    # Named by its incident, or by its question when it has no incident.
+    # Named by its incident, or by its question as people read it when it has no incident.
     type :string
-    def label = run.label
+    def label = options.fetch(:readable, Readable.none).run_label(run)
 
     type :string, optional: true
     def incident_id = run.incident_id

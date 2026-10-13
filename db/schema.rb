@@ -715,6 +715,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_120000) do
     t.datetime "updated_at", null: false
     t.uuid "sender_id"
     t.string "cache_ttl"
+    t.text "as_written"
     t.index ["chat_id", "created_at"], name: "index_chat_messages_on_chat_id_and_created_at"
     t.index ["sender_id"], name: "index_chat_messages_on_sender_id"
   end
@@ -873,6 +874,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_120000) do
     t.datetime "taken_at"
     t.datetime "updated_at", null: false
     t.boolean "from_platform", default: false, null: false
+    t.text "as_written"
+    t.text "context"
     t.index ["chat_id"], name: "index_chat_queued_messages_waiting", where: "(taken_at IS NULL)"
     t.index ["sender_id"], name: "index_chat_queued_messages_on_sender_id"
   end
@@ -1753,6 +1756,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_120000) do
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
     t.uuid "workspace_membership_id"
+    t.text "model_content"
     t.index ["incident_id", "posted_at"], name: "idx_on_incident_id_posted_at_8123ad8ebd"
     t.index ["incident_id"], name: "index_incident_transcript_messages_on_incident_id"
     t.index ["workspace_id", "created_at"], name: "idx_on_workspace_id_created_at_8c0e76892b"

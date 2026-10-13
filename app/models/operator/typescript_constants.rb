@@ -23,6 +23,7 @@ module Operator
         "OPERATOR_WINDOWS" => { "DAY" => Filter::WINDOW_DAY, "WEEK" => Filter::WINDOW_WEEK, "MONTH" => Filter::WINDOW_MONTH },
         "OPERATOR_SPAN_PARAM" => Trace::SPAN_PARAM,
         "OPERATOR_SPAN_BODY_PROP" => Trace::BODY_PROP,
+        "OPERATOR_SPAN_MODEL_PARAM" => Trace::MODEL_PARAM,
         "OPERATOR_REGRESSION_MODELS_PROP" => HalonRegression::MODELS_PROP,
         "OPERATOR_SANDBOX_FLAGS" => Sandboxes::FLAGS.index_by(&:upcase),
         "OPERATOR_SANDBOX_PHASES" => ProviderSandbox::PHASES.index_by(&:upcase),

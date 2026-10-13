@@ -10,8 +10,9 @@ class Conversation::Asking
 
   # The asker is who the turn acts as, which in a Slack thread can be someone other than whoever started it.
   # A question sent while a turn runs joins that turn. The job queued behind it answers only what is left.
-  def self.ask(conversation, question, asker:, files: [], context: nil)
-    conversation.ask!(question, asker: asker, files: files, context: context)
+  # A question written in the chat platform is asked as the model reads it, and kept as written for the pages.
+  def self.ask(conversation, question, asker:, files: [], context: nil, as_written: nil)
+    conversation.ask!(question, asker: asker, files: files, context: context, as_written: as_written)
     reply(conversation, asker)
   end
 

@@ -8,8 +8,10 @@ class Chat::QueuedMessage < ApplicationRecord
   has_many :attached_files, -> { in_order }, class_name: "Chat::Attachment", foreign_key: :queued_message_id,
                                             dependent: :nullify, inverse_of: :queued_message
 
-  # The person's own words, like every message.
-  encrypts :content
+  # The person's own words, like every message. Written in the chat platform, content is how the model reads them and
+  # as_written how the platform sent them. context is what Halon reads before them that the person never wrote, such as
+  # the message they replied to, kept apart so it never shows as theirs.
+  encrypts :content, :as_written, :context
 
   validates :content, presence: true, unless: -> { attached_files.any? }
 

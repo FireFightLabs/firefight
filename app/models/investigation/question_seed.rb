@@ -13,8 +13,8 @@ class Investigation::QuestionSeed
   def gather
     {
       Investigation::Seeding::KEY_GATHERED_AT => Time.current.iso8601,
-      "question" => @investigation.question,
-      "brief" => @investigation.brief.presence,
+      "question" => @investigation.question_for_model,
+      "brief" => @investigation.brief_for_model.presence,
       KEY_SECURITY_EVENT => (security_facts if @investigation.trigger_source == Investigation::TRIGGER_SECURITY_EVENT)
     }.compact
   end

@@ -11,8 +11,9 @@ module Operator
 
     attr_reader :run
 
-    def initialize(run)
+    def initialize(run, readable: Readable.none)
       @run = run
+      @readable = readable
     end
 
     def groups
@@ -24,7 +25,7 @@ module Operator
 
     def spans = groups.flat_map(&:spans)
 
-    def body_for(key) = spans.find { |span| span.key == key }&.read_body
+    def body_for(key, as_read: false) = spans.find { |span| span.key == key }&.read_body(as_read: as_read)
 
     # The prompt version the run started with. The health page compares versions.
     def prompt_version = inferences.find { |inference| inference.feature == FirefightAi::Investigator::FEATURE }&.prompt_version
@@ -61,9 +62,20 @@ module Operator
         key: "facts", kind: KIND_FACTS, title: "Facts gathered",
         started_at: parse_time(pack[Investigation::Seeding::KEY_GATHERED_AT]) || run.started_at || run.created_at,
         detail: [ *counted, ("the brief" if run.brief.present?) ].compact.join(" · "),
-        facts: [ [ "Question", run.question ], [ "Sections", pack.keys.join(", ") ] ],
-        body: -> { pack }
+        facts: [ [ "Question", @readable.question(run) ], [ "Sections", pack.keys.join(", ") ] ],
+        body: -> { readable_facts(pack) },
+        model_body: (-> { pack } if run.question_for_model != @readable.question(run))
       )
+    end
+
+    # The facts with the question as people read it, in the places the model read it.
+    def readable_facts(pack)
+      question = @readable.question(run)
+      return pack if question == run.question_for_model
+
+      shown = pack.key?("question") ? pack.merge("question" => question) : pack
+      brief = shown["brief"]
+      brief.is_a?(Hash) && brief.key?(Investigation::Brief::KEY_SYMPTOM) ? shown.merge("brief" => brief.merge(Investigation::Brief::KEY_SYMPTOM => question)) : shown
     end
 
     def model_spans

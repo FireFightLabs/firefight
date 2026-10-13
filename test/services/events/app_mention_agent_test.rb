@@ -301,6 +301,7 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
   def mention(text, thread_ts: "1700000000.000100", by: workspace_memberships(:alice_workspace_one), channel: @incident.channel_id, parent: nil, files: nil)
     Events::AppMentionHandler.execute(@workspace, {
       "team_id" => @workspace.platform_id,
+      "authorizations" => [ { "user_id" => "U123", "is_bot" => true } ],
       "event" => {
         "type" => Identifiers::EVENT_APP_MENTION, "channel" => channel,
         "user" => by.platform_user_id,

@@ -232,6 +232,26 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # The same messages as a model is given them. A person or a channel is named with its platform id kept beside the
+  # name, as "@Ana (U07ABC)", so the model can pass it to a tool, an emoji reads as the emoji and code keeps its marks.
+  # @return [Hash{String => String}] each text given, mapped to the model's reading of it.
+  def messages_for_model(texts:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Asks the person who reacted to a message whether to make an action or a follow-up of it. The prompt quotes the
+  # message, and its button carries where the message is, so the form reads the message when it opens.
+  def post_action_from_reaction_prompt(channel_id:, user_id:, action_type:, message_id:, message_text:, incident_id:, source_message_link:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # What a message mentioning the app says to it: its text in the platform's own markup with the app's own mention
+  # taken out, and anyone else it mentions left where they are.
+  # @return [String]
+  def text_for_app(payload:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # What started a thread in a person's direct messages with the app.
   THREAD_STARTED_BY_PERSON = :person
   # One of the app's own messages, such as a watch update, an approval or a question for its owner.

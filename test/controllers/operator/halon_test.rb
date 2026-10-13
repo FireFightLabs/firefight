@@ -77,6 +77,67 @@ class Operator::HalonTest < ActionDispatch::IntegrationTest
     assert_equal 1, inertia_props["turns"]
   end
 
+  test "a chat from Slack reads as Slack shows it in the list and the trace, and the trace shows what the model read on asking" do
+    as_operator
+    bob = workspace_memberships(:bob_workspace_one)
+    written = "<@#{bob.platform_user_id}> says checkout is :fire:"
+    read = "@#{bob.display_name} (#{bob.platform_user_id}) says checkout is 🔥"
+    shown = "@#{bob.display_name} says checkout is 🔥"
+    direct = Conversation.start_direct!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one), channel_id: "D0ALICE", thread_id: "1")
+    direct.ask!(read, as_written: written)
+
+    get operator_halon_chats_path, headers: inertia_headers
+    assert_equal shown, inertia_props["chats"].find { |row| row["id"] == direct.id }["title"]
+
+    get operator_halon_chat_path(direct), headers: inertia_headers
+    asked = inertia_props["groups"].sole["spans"].find { |span| span["kind"] == Operator::Trace::KIND_ASK }
+    assert_equal shown, asked["detail"]
+    assert asked["readByModel"]
+
+    partial = inertia_headers.merge("X-Inertia-Partial-Component" => "operator/halon/chat", "X-Inertia-Partial-Data" => Operator::Trace::BODY_PROP)
+    get operator_halon_chat_path(direct, Operator::Trace::SPAN_PARAM => asked["key"]), headers: partial
+    assert_equal shown, inertia_props[Operator::Trace::BODY_PROP]
+
+    get operator_halon_chat_path(direct, Operator::Trace::SPAN_PARAM => asked["key"], Operator::Trace::MODEL_PARAM => "1"), headers: partial
+    assert_equal read, inertia_props[Operator::Trace::BODY_PROP]
+  end
+
+  test "a run asked for in Slack is named as Slack shows it in the list, the trace and the finder, and its facts show what the model read" do
+    as_operator
+    bob = workspace_memberships(:bob_workspace_one)
+    written = "<@#{bob.platform_user_id}> says checkout is :fire:"
+    read = "@#{bob.display_name} (#{bob.platform_user_id}) says checkout is 🔥"
+    shown = "@#{bob.display_name} says checkout is 🔥"
+    run = @workspace.investigations.create!(
+      trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 20, max_spend_cents: 400, status: Investigation::STATUS_FAILED,
+      error_summary: "Faraday::TimeoutError", started_at: 2.minutes.ago, completed_at: 1.minute.ago,
+      brief: Investigation::Brief.from({ Investigation::Brief::KEY_SYMPTOM => written, Investigation::Brief::KEY_SYMPTOM_FOR_MODEL => read },
+                                       source: Investigation::Brief::SOURCE_COMMAND)
+    )
+    run.update!(seed_pack: Investigation::QuestionSeed.new(run).gather)
+
+    get operator_halon_path, headers: inertia_headers
+    assert_equal shown, inertia_props["runs"].find { |row| row["id"] == run.id }["label"]
+
+    get operator_halon_run_path(run), headers: inertia_headers
+    facts = inertia_props["groups"].sole["spans"].find { |span| span["key"] == "facts" }
+    assert_equal shown, facts["facts"].find { |fact| fact["label"] == "Question" }["value"]
+    assert facts["readByModel"]
+
+    partial = inertia_headers.merge("X-Inertia-Partial-Component" => "operator/halon/run", "X-Inertia-Partial-Data" => Operator::Trace::BODY_PROP)
+    get operator_halon_run_path(run, Operator::Trace::SPAN_PARAM => "facts"), headers: partial
+    assert_includes inertia_props[Operator::Trace::BODY_PROP], shown
+    assert_not_includes inertia_props[Operator::Trace::BODY_PROP], read
+
+    get operator_halon_run_path(run, Operator::Trace::SPAN_PARAM => "facts", Operator::Trace::MODEL_PARAM => "1"), headers: partial
+    assert_includes inertia_props[Operator::Trace::BODY_PROP], read
+
+    get operator_root_path, headers: inertia_headers
+    assert_equal shown, inertia_props["attentionItems"].find { |item| item["key"] == "#{Operator::Attention::KIND_HALON_FAILED}-#{run.id}" }["subject"]
+
+    assert_equal shown, Operator::Finder.new(run.id, readable: Operator::Readable.new(->(_workspace, texts) { texts.index_with { shown } })).matches.sole.label
+  end
+
   test "find opens the one record that matches, and lists several" do
     as_operator
 

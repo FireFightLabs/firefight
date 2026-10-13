@@ -1,8 +1,9 @@
+import type { CancelToken } from "@inertiajs/core"
 import { router, usePage } from "@inertiajs/react"
 import { useEffect, useState } from "react"
 
 import { Card } from "@/components/ui/card"
-import { OPERATOR_SPAN_BODY_PROP, OPERATOR_SPAN_PARAM } from "@/pages/operator/generated/constants"
+import { OPERATOR_SPAN_BODY_PROP, OPERATOR_SPAN_MODEL_PARAM, OPERATOR_SPAN_PARAM } from "@/pages/operator/generated/constants"
 import { SelectedSpan } from "@/pages/operator/components/selected-span"
 import { TraceGroup } from "@/pages/operator/components/trace-group"
 import { TraceLegend } from "@/pages/operator/components/trace-legend"
@@ -17,26 +18,41 @@ function urlSpan(url: string): string | null {
   return new URLSearchParams(url.split("?")[1]).get(OPERATOR_SPAN_PARAM)
 }
 
+// Names one loaded content: a span, as people read it or as the model read it.
+function bodyKey(spanKey: string, asRead: boolean): string {
+  return `${spanKey}:${asRead ? "model" : "shown"}`
+}
+
 // Draws each group's spans on its own time axis, with the selected span's details beside them. A span's content loads
-// only when it is opened. The URL keeps the open span, so a link opens the trace at that span.
+// only when it is opened, as people read it, or as the model read it when the operator asks. The URL keeps the open
+// span, so a link opens the trace at that span.
 export function Trace({ groups }: { groups: OperatorTraceGroup[] }) {
   const page = usePage<TraceProps>()
   const spans = groups.flatMap((group) => group.spans)
   const [selected, setSelected] = useState<string | null>(() => urlSpan(page.url) ?? spans[0]?.key ?? null)
+  const [asRead, setAsRead] = useState(false)
   const [loadedFor, setLoadedFor] = useState<string | null>(null)
   const span = spans.find((candidate) => candidate.key === selected) ?? null
   const needsBody = Boolean(span?.hasBody)
+  const showsModelReading = asRead && Boolean(span?.readByModel)
 
   useEffect(() => {
     if (!selected) {
       return
     }
+    const wanted = bodyKey(selected, showsModelReading)
+    let pending: CancelToken | null = null
     router.reload({
       only: [OPERATOR_SPAN_BODY_PROP],
-      data: { [OPERATOR_SPAN_PARAM]: selected },
-      onSuccess: () => setLoadedFor(selected),
+      data: { [OPERATOR_SPAN_PARAM]: selected, [OPERATOR_SPAN_MODEL_PARAM]: showsModelReading ? "1" : undefined },
+      onCancelToken: (token) => {
+        pending = token
+      },
+      onSuccess: () => setLoadedFor(wanted),
     })
-  }, [selected])
+    // A request for a span the operator has left is cancelled, so its content never lands over the one they opened.
+    return () => pending?.cancel()
+  }, [selected, showsModelReading])
 
   if (spans.length === 0) {
     return (
@@ -55,7 +71,15 @@ export function Trace({ groups }: { groups: OperatorTraceGroup[] }) {
         ))}
       </Card>
       <div className="sticky top-6">
-        {span && <SelectedSpan span={span} body={page.props[OPERATOR_SPAN_BODY_PROP]} loading={needsBody && loadedFor !== selected} />}
+        {span && (
+          <SelectedSpan
+            span={span}
+            body={page.props[OPERATOR_SPAN_BODY_PROP]}
+            loading={needsBody && loadedFor !== bodyKey(span.key, showsModelReading)}
+            asRead={showsModelReading}
+            onAsReadChange={setAsRead}
+          />
+        )}
       </div>
     </div>
   )

@@ -7,7 +7,7 @@ module Events
       return unless channel_id
 
       incident = workspace.incidents.active.in_channel(channel_id).first
-      user_text = strip_mention(event["text"])
+      user_text = workspace.adapter.text_for_app(payload: payload)
       # Files alone are a question, since Halon reads them.
       return if user_text.blank? && event["files"].blank?
       return unless defined?(FirefightAi)
@@ -51,7 +51,7 @@ module Events
     def self.add_note(workspace, run, channel_id, event, user_text)
       member = Conversation::Opener.member(workspace, event["user"])
       files = shared_files(workspace, event, member)
-      refusal = run.add_note_from(user_text, member: member, source: AbilityGateway::SOURCE_SLACK, files: files)
+      refusal = run.add_note_from(read_by_model(workspace, user_text), member: member, source: AbilityGateway::SOURCE_SLACK, files: files, as_written: user_text)
       notify_blocked(workspace, channel_id, event["user"], refusal) if refusal
     end
     private_class_method :add_note
@@ -63,7 +63,7 @@ module Events
           workspace: workspace, incident: incident, channel_id: channel_id,
           thread_id: thread_id, platform_user_id: event["user"]
         )
-        Conversation::Asking.ask(conversation, user_text, asker: asker, files: shared_files(workspace, event, asker))
+        Conversation::Asking.ask(conversation, read_by_model(workspace, user_text), asker: asker, files: shared_files(workspace, event, asker), as_written: user_text)
       end
     rescue AbilityGateway::Denied => e
       notify_blocked(workspace, channel_id, event["user"], AuthorizedDispatch.denied_message(e))
@@ -76,10 +76,11 @@ module Events
     end
     private_class_method :shared_files
 
-    def self.strip_mention(text)
-      text.to_s.gsub(/<@[^>]+>/, "").squish
+    # People and channels named with their ids kept, so Halon reads who was meant and can act on them.
+    def self.read_by_model(workspace, text)
+      text.present? ? workspace.adapter.messages_for_model(texts: [ text ])[text] : text
     end
-    private_class_method :strip_mention
+    private_class_method :read_by_model
 
     def self.acknowledge(workspace, channel_id, timestamp)
       workspace.adapter.add_reaction(channel_id: channel_id, message_id: timestamp, name: "eyes")

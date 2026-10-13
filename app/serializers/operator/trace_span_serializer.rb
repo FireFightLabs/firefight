@@ -33,6 +33,10 @@ module Operator
     type :boolean
     def has_body = span.body?
 
+    # The content as people read it differs from what the model read, which the page offers to show.
+    type :boolean
+    def read_by_model = span.model_body?
+
     type :string, optional: true
     def run_id = span.run_id
   end
