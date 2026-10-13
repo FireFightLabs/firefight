@@ -12,7 +12,7 @@ class WorkflowRunService
   def start!(started_by_kind:, started_by: nil, inputs: {}, trigger_kind: Workflow::Trigger::KIND_MANUAL, trigger_payload: {},
              start_key: SecureRandom.uuid, not_before: nil, parent_run: nil, parent_step: nil, test: false, real_step_keys: [])
     version = test ? tested_version : live_version
-    resolved = Workflow::Trigger.resolve_inputs(version.trigger, inputs, private_values: @workflow.private_input_values)
+    resolved = Workflow::Trigger.resolve_inputs(version.trigger, inputs, private_values: version.private_input_values)
     plain, kept = Workflow::Trigger.split_private(version.trigger, resolved.values)
     refuse!("#{@workflow.name} needs a value for #{resolved.missing.map { |input| input['key'] }.to_sentence}.") if resolved.missing.any?
     payload = Workflow::Run.redacted(trigger_payload.to_h)

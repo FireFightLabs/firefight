@@ -10,7 +10,6 @@ class Workflow < ApplicationRecord
   include Workflow::Naming
   include Workflow::Editing
   include Workflow::FromLibrary
-  include Workflow::PrivateInputs
   include Workflow::Identity
   include Workflow::Scheduling
   include Workflow::Limits

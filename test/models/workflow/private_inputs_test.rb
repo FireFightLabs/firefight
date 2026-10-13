@@ -28,12 +28,12 @@ class Workflow::PrivateInputsTest < ActiveSupport::TestCase
 
   def stored_trigger(version) = Workflow::Version.connection.select_value("SELECT trigger::text FROM workflow_versions WHERE id = #{Workflow::Version.connection.quote(version.id)}")
 
-  test "a private input's value is kept apart from the trigger, encrypted on the workflow" do
+  test "a private input's value is kept apart from the trigger, encrypted on its version" do
     workflow = workflow!
 
-    assert_equal NOTES, workflow.private_input_values["notes"]
+    assert_equal NOTES, workflow.draft.private_input_values["notes"]
     assert_not_includes stored_trigger(workflow.draft), "billing replica"
-    raw = Workflow.connection.select_value("SELECT private_inputs FROM workflows WHERE id = #{Workflow.connection.quote(workflow.id)}")
+    raw = Workflow.connection.select_value("SELECT private_inputs FROM workflow_versions WHERE id = #{Workflow.connection.quote(workflow.draft.id)}")
     assert_not_includes raw, "billing replica"
     assert Workflow::Trigger.private?(workflow.draft.trigger, "notes")
   end
@@ -42,7 +42,8 @@ class Workflow::PrivateInputsTest < ActiveSupport::TestCase
     workflow = workflow!
     edit = workflow.edit!(operation: Workflow::Edit::OPERATION_CHANGE_TRIGGER, by: @alice, payload: { "trigger" => trigger(default: "Look only at shop.") })
 
-    assert_equal "Look only at shop.", workflow.reload.private_input_values["notes"]
+    assert_equal "Look only at shop.", workflow.reload.draft.private_input_values["notes"]
+    assert_not_includes Workflow.connection.select_value("SELECT private_inputs FROM workflow_versions WHERE id = #{Workflow.connection.quote(workflow.draft.id)}"), "Look only at shop"
     assert_not_includes edit.reload.payload.to_json, "Look only at shop"
     assert_not_includes stored_trigger(workflow.draft), "Look only at shop"
   end
@@ -75,6 +76,43 @@ class Workflow::PrivateInputsTest < ActiveSupport::TestCase
     assert_equal "Only shop.", run.reload.private_input_values["notes"]
   end
 
+  test "a draft's new private value waits for publishing, and runs of the live version keep the published one" do
+    workflow = workflow!
+    WorkflowPublishService.new(workflow).publish!(workflow.draft, by: @alice)
+    workflow.reload.edit!(operation: Workflow::Edit::OPERATION_CHANGE_TRIGGER, by: @alice, payload: { "trigger" => trigger(default: "Only shop.") })
+    Workflow::HalonStep.any_instance.expects(:follow!).with(skill_name: "probing_scan", focus: NOTES).returns({ "verdict" => "ok", "summary" => "Fine." })
+
+    run = nil
+    perform_enqueued_jobs { run = WorkflowRunService.new(workflow.reload).start!(started_by_kind: Workflow::Run::STARTED_BY_PERSON, started_by: @alice) }
+
+    assert_equal NOTES, run.reload.private_input_values["notes"]
+    assert_equal "Only shop.", workflow.draft.private_input_values["notes"]
+    WorkflowPublishService.new(workflow).publish!(workflow.draft, by: @alice)
+    assert_equal "Only shop.", workflow.reload.live_version.private_input_values["notes"]
+  end
+
+  test "an edit refused for a change made since keeps no private value" do
+    workflow = workflow!
+    seen = workflow.draft.revision
+    workflow.edit!(operation: Workflow::Edit::OPERATION_CHANGE_TRIGGER, by: @alice, payload: { "trigger" => trigger(default: "Only shop.") }, base_revision: seen)
+
+    assert_raises(Workflow::Edit::Refused) do
+      workflow.edit!(operation: Workflow::Edit::OPERATION_CHANGE_TRIGGER, by: workspace_memberships(:bob_workspace_one),
+                     payload: { "trigger" => trigger(default: "Only billing.") }, base_revision: seen)
+    end
+
+    assert_equal "Only shop.", workflow.reload.draft.private_input_values["notes"]
+  end
+
+  test "a version that is not saved keeps no private value anywhere" do
+    workflow = workflow!
+    refused = workflow.versions.new(number: workflow.draft.number, status: Workflow::Version::STATUS_DRAFT, author_kind: Workflow::AUTHOR_PERSON,
+                                    trigger: trigger(default: "Only billing."), steps: [ skill_step ])
+
+    assert_not refused.save
+    assert_equal NOTES, workflow.reload.draft.private_input_values["notes"]
+  end
+
   test "only a Halon step may read a private input" do
     post = { "id" => "step_post", "name" => "post", "kind" => "post_to_channel", "config" => { "channel" => "#ops", "message" => "{{inputs.notes}}" } }
     workflow = workflow!(steps: [ post ])
@@ -90,7 +128,7 @@ class Workflow::PrivateInputsTest < ActiveSupport::TestCase
     workflow = check.to_workflow!(by: @alice)
 
     assert_equal [ "Disks every Monday", "disk_space_check", true ], workflow.values_at(:name, :library_key, :follows_library)
-    assert_equal NOTES, workflow.private_input_values["notes"]
+    assert_equal NOTES, workflow.draft.private_input_values["notes"]
     trigger = workflow.draft.trigger
     assert_equal [ "days", [ 1 ], "07:00", "Europe/Berlin" ], trigger.values_at("repeat", "days", "at", "time_zone")
     assert_not_includes stored_trigger(workflow.draft), "billing replica"

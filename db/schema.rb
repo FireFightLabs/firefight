@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_13_190200) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_13_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -3285,6 +3285,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_190200) do
     t.uuid "published_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "private_inputs"
     t.index ["author_id"], name: "index_workflow_versions_on_author_id"
     t.index ["parent_version_id"], name: "index_workflow_versions_on_parent_version_id"
     t.index ["published_by_id"], name: "index_workflow_versions_on_published_by_id"
@@ -3322,7 +3323,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_190200) do
     t.jsonb "library_base"
     t.boolean "follows_library", default: false, null: false
     t.integer "library_dismissed_version"
-    t.text "private_inputs"
     t.index ["agent_id"], name: "index_workflows_on_agent_id"
     t.index ["created_by_id"], name: "index_workflows_on_created_by_id"
     t.index ["library_key", "follows_library"], name: "index_workflows_on_library_key_and_follows_library"

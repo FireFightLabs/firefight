@@ -1,8 +1,8 @@
 # A trigger input marked private, such as a check's notes, whose value names systems and thresholds and so is kept like
 # instructions are: encrypted, and never in the trigger, an edit, a run's inputs, a step's data or the engine's context.
-# The workflow keeps the value it runs with, and a run keeps the value it was started with. Everywhere else a private
-# input reads as its token, and only a Halon step, whose words are kept encrypted too, is handed the value, in memory,
-# just before it asks the model.
+# Each version keeps the values its trigger asks with, so a draft's change waits for publishing like the rest of it, and a
+# run keeps the value it was started with. Everywhere else a private input reads as its token, and only a Halon step,
+# whose words are kept encrypted too, is handed the value, in memory, just before it asks the model.
 module Workflow::PrivateInputs
   extend ActiveSupport::Concern
 
@@ -13,10 +13,21 @@ module Workflow::PrivateInputs
   # The values kept for its private inputs, by key.
   def private_input_values = private_inputs.present? ? JSON.parse(private_inputs) : {}
 
+  # The values kept with values laid over them, as they are stored.
+  def private_inputs_with(values) = private_input_values.merge(values.to_h.stringify_keys).to_json
+
+  # The same for a guarded update_all that saves it with the change it belongs to, or nothing when there are no values.
+  # update_all encrypts it as save does.
+  def private_inputs_column_with(values)
+    return {} if values.blank?
+
+    { private_inputs: private_inputs_with(values) }
+  end
+
   def keep_private_inputs!(values)
     return if values.blank?
 
-    update!(private_inputs: private_input_values.merge(values.to_h.stringify_keys).to_json)
+    update!(private_inputs: private_inputs_with(values))
   end
 
   # value with every private input's token put back as its value, for a Halon step about to ask the model.
@@ -34,12 +45,5 @@ module Workflow::PrivateInputs
       end
     end
     replace.call(value)
-  end
-
-  # A trigger with its private inputs' values taken out and kept here. Returns the trigger as it is stored.
-  def seal_trigger!(trigger)
-    stripped, values = Workflow::Trigger.sealed(trigger)
-    keep_private_inputs!(values)
-    stripped
   end
 end

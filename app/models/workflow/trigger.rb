@@ -96,6 +96,17 @@ module Workflow::Trigger
 
   def private_token(key) = "[private input #{key}]"
 
+  # trigger with each input that another trigger (from) marks private marked private too, its own question and default
+  # kept, so a workflow keeping its own trigger keeps up with a newer library version's privacy.
+  def with_private_marks(trigger, from:)
+    keys = private_keys(from)
+    return trigger if keys.empty? || !trigger.is_a?(Hash)
+
+    marked = trigger.deep_dup
+    Array(marked[KEY_INPUTS]).each { |input| input[KEY_PRIVATE] = true if input.is_a?(Hash) && keys.include?(input["key"]) }
+    marked
+  end
+
   # The trigger without its private inputs' values, and those values by key.
   def sealed(trigger)
     return [ trigger, {} ] unless trigger.is_a?(Hash)

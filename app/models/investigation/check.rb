@@ -143,7 +143,7 @@ class Investigation::Check < ApplicationRecord
       workflow = Workflow.from_library!(item, workspace: workspace, by: by, name: name, following: true)
       draft = workflow.draft
       draft.update!(trigger: draft.trigger.merge(schedule_trigger))
-      workflow.keep_private_inputs!(NOTES_INPUT => notes) if notes.present?
+      draft.keep_private_inputs!(NOTES_INPUT => notes) if notes.present?
       workflow.reload
     end
   end

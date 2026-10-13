@@ -182,6 +182,51 @@ class Workflow::LibraryTest < ActiveSupport::TestCase
     assert_equal "Publish or discard the open draft first.", error.message
   end
 
+  def notes_item(version:, private:)
+    notes = { "key" => "notes", "question" => "What should Halon look at?", "default" => "Everything." }
+    notes["private"] = true if private
+    built = definition
+    built["trigger"] = { "kind" => Workflow::Trigger::KIND_MANUAL, "inputs" => [ notes ] }
+    Workflow::Library::Item.new(key: "cool_down", name: "Cool down", description: "Waits a while.", aliases: [], definition: built, version: version)
+  end
+
+  def notes_trigger(default) = { "kind" => Workflow::Trigger::KIND_MANUAL, "inputs" => [ { "key" => "notes", "question" => "What should Halon look at?", "default" => default } ] }
+
+  def stored_trigger(version) = Workflow::Version.connection.select_value("SELECT trigger::text FROM workflow_versions WHERE id = #{Workflow::Version.connection.quote(version.id)}")
+
+  test "an input a newer library version marks private is kept private on the workflow's own trigger, its live version and its draft" do
+    offer(notes_item(version: 1, private: false))
+    workflow = Workflow.from_library!(notes_item(version: 1, private: false), workspace: @workspace, by: @alice)
+    workflow.edit!(operation: Workflow::Edit::OPERATION_CHANGE_TRIGGER, by: @alice, payload: { "trigger" => notes_trigger("Leave billing alone.") })
+    workflow.draft.publish!(by: @alice)
+    workflow.reload.edit!(operation: Workflow::Edit::OPERATION_CHANGE_TRIGGER, by: @alice, payload: { "trigger" => notes_trigger("Leave shop alone.") })
+    offer(notes_item(version: 2, private: true))
+
+    Workflow::Library.upgrade_all!
+
+    workflow.reload
+    assert_equal 2, workflow.library_version
+    { workflow.live_version => "Leave billing alone.", workflow.draft => "Leave shop alone." }.each do |version, kept|
+      assert Workflow::Trigger.private?(version.trigger, "notes")
+      assert_equal kept, version.private_input_values["notes"]
+      assert_not_includes stored_trigger(version), kept
+    end
+  end
+
+  test "a copy taking a version that marks an input private keeps its own value private in the draft" do
+    offer(notes_item(version: 1, private: false))
+    copy = Workflow.from_library!(notes_item(version: 1, private: false), workspace: @workspace, by: @alice, following: false)
+    copy.edit!(operation: Workflow::Edit::OPERATION_CHANGE_TRIGGER, by: @alice, payload: { "trigger" => notes_trigger("Leave billing alone.") })
+    copy.draft.publish!(by: @alice)
+    offer(notes_item(version: 2, private: true))
+
+    draft = copy.reload.take_library!(by: @alice)
+
+    assert Workflow::Trigger.private?(draft.trigger, "notes")
+    assert_equal "Leave billing alone.", draft.private_input_values["notes"]
+    assert_not_includes stored_trigger(draft), "Leave billing alone."
+  end
+
   test "what changed between two versions reads as sentences" do
     before = definition
     after = definition(minutes: 9, extra: [ { "id" => "step_branch", "name" => "decide", "kind" => DefinedWorkflow::KIND_BRANCH, "config" => {} } ])
