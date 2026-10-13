@@ -89,6 +89,19 @@ module TypescriptConstants
       Export.new("HANDBOOK_FREEZE_WINDOWS_PER_PAGE", Workspace::FreezeWindows::PER_PAGE, nil),
       Export.new("HANDBOOK_FREEZE_NAME_LIMIT", Workspace::FreezeWindows::NAME_LIMIT, nil),
       Export.new("HANDBOOK_FREEZE_LIFTED_BY_LIMIT", Workspace::FreezeWindows::LIFTED_BY_LIMIT, nil),
+      Export.new("SKILL_LIMITS", {
+        "NAME" => Chat::CustomSkill::NAME_LIMIT, "WHEN" => Chat::CustomSkill::Version::WHEN_LIMIT, "STEPS" => Chat::CustomSkill::Version::STEPS_LIMIT,
+        "TOOLS" => Chat::CustomSkill::Version::TOOLS_LIMIT, "REASON" => Chat::CustomSkill::Version::REASON_LIMIT
+      }, nil),
+      Export.new("SKILL_PAGE_QUERIES", {
+        "LIBRARY" => HalonSkillsController::LIBRARY_QUERY, "HISTORY" => HalonSkillsController::HISTORY_QUERY,
+        "PROPOSAL" => HalonSkillsController::PROPOSAL_QUERY
+      }, nil),
+      Export.new("SKILL_PAGE_PROPS", {
+        "TOOL_CHOICES" => HalonSkillsController::PROP_TOOL_CHOICES, "LIBRARY_SKILL" => HalonSkillsController::PROP_LIBRARY_SKILL,
+        "HISTORY" => HalonSkillsController::PROP_HISTORY
+      }, nil),
+      Export.new("SKILL_FILE_NAME", Chat::CustomSkill::Document::FILE_NAME, nil),
       Export.new("MEMORY_PAGE_TABS", { "MEMORIES" => MemoryController::TAB_MEMORIES, "INSTRUCTIONS" => MemoryController::TAB_INSTRUCTIONS }, nil),
       Export.new("MEMORY_PAGE_TAB_QUERY", MemoryController::TAB_QUERY, nil),
       Export.new("MEMORY_QUERY_PARAM", Chat::Memory::QUERY_PARAM, nil),
@@ -159,7 +172,7 @@ module TypescriptConstants
         "PULL_REQUEST" => Conversation::LiveDelivery::EVENT_PULL_REQUEST, "CODE_FIX" => Conversation::LiveDelivery::EVENT_CODE_FIX,
         "MEMORY" => Conversation::LiveDelivery::EVENT_MEMORY, "PLAN" => Conversation::LiveDelivery::EVENT_PLAN,
         "SAFEGUARD" => Conversation::LiveDelivery::EVENT_SAFEGUARD, "HELPERS" => Conversation::LiveDelivery::EVENT_HELPERS,
-        "HANDBOOK" => Conversation::LiveDelivery::EVENT_HANDBOOK
+        "HANDBOOK" => Conversation::LiveDelivery::EVENT_HANDBOOK, "SKILL" => Conversation::LiveDelivery::EVENT_SKILL
       }, nil),
       Export.new("AGENT_STEP_STATUSES", {
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,

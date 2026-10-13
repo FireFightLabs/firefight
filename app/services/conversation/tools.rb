@@ -9,7 +9,7 @@ module Conversation::Tools
       *(Chat::Tools::Helpers.new(turn, share: helpers) if helpers), *(Chat::Tools::AskSpecialist.new(turn, share: helpers) if helpers&.specialists),
       Chat::Tools::Theories.new(turn), StartInvestigation.new(turn), RunRunbook.new(turn), StartWatch.new(turn), RepairWatch.new(turn), ExtendWatch.new(turn), StopWatch.new(turn),
       ListWatches.new(turn), *plans(turn),
-      *Chat::Tools.memory(turn), Chat::Tools::CorrectMemory.new(turn), *Chat::Tools::Web.all(turn), *Chat::Tools::Terminal.all(turn),
+      *Chat::Tools.memory(turn), *Chat::Tools::ProposeSkill.all(turn), Chat::Tools::CorrectMemory.new(turn), *Chat::Tools::Web.all(turn), *Chat::Tools::Terminal.all(turn),
       *Chat::Tools::OutsideCheck.all(turn), *Chat::Tools::Browser.all(turn)
     ]
   end

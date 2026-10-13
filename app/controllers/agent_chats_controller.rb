@@ -45,6 +45,8 @@ class AgentChatsController < InertiaController
   PROP_HELPERS = "helpers"
   # Handbook edits Halon proposed in this chat, each asking the person to accept, edit or dismiss it.
   PROP_HANDBOOK_PROPOSALS = "handbookProposals"
+  # Skills Halon proposed in this chat, each asking the person to accept, edit or dismiss it.
+  PROP_SKILL_PROPOSALS = "skillProposals"
   # Setup's Meet Halon step, while an admin is on it: the question to start with, and whether Halon has answered.
   PROP_SETUP_GUIDE = "setupGuide"
   # The plans Halon keeps in the open chat, each a checklist that moves as it works.
@@ -71,7 +73,7 @@ class AgentChatsController < InertiaController
     "PACK_REFUSALS" => PROP_PACK_REFUSALS, "SECRET_ENTRIES" => PROP_SECRET_ENTRIES, "SETUP_GUIDE" => PROP_SETUP_GUIDE, "WATCHES" => PROP_WATCHES, "WATCH_UPDATES" => PROP_WATCH_UPDATES,
     "PULL_REQUEST_NOTICES" => PROP_PULL_REQUEST_NOTICES, "CODE_PAUSES" => PROP_CODE_PAUSES, "MEMORY_QUESTIONS" => PROP_MEMORY_QUESTIONS, "PLANS" => PROP_PLANS,
     "DATA_REPAIRS" => PROP_DATA_REPAIRS, "MITIGATIONS" => PROP_MITIGATIONS, "OWNER_ASKS" => PROP_OWNER_ASKS, "HELPERS" => PROP_HELPERS,
-    "HANDBOOK_PROPOSALS" => PROP_HANDBOOK_PROPOSALS, "CHAT_MODELS" => PROP_CHAT_MODELS, "THEORIES" => PROP_THEORIES, "THREAD_FOR" => PROP_THREAD_FOR
+    "HANDBOOK_PROPOSALS" => PROP_HANDBOOK_PROPOSALS, "SKILL_PROPOSALS" => PROP_SKILL_PROPOSALS, "CHAT_MODELS" => PROP_CHAT_MODELS, "THEORIES" => PROP_THEORIES, "THREAD_FOR" => PROP_THREAD_FOR
   }.freeze
   # What the open chat's composer and model picker need, sent with the page so it shows at once.
   HEAD_PROPS = [ PROP_CONVERSATION, PROP_OPEN_INVESTIGATION, PROP_ATTACHMENT_RULES, PROP_SETUP_GUIDE, PROP_CHAT_MODELS ].freeze
@@ -79,7 +81,7 @@ class AgentChatsController < InertiaController
   WINDOWED_PROPS = [
     PROP_INVESTIGATIONS, PROP_CHARTS, PROP_SCREENSHOTS, PROP_COMPACTIONS, PROP_MODEL_SWITCHES, PROP_HELD_CALLS, PROP_PACK_REFUSALS,
     PROP_SECRET_ENTRIES, PROP_WATCHES, PROP_WATCH_UPDATES, PROP_PULL_REQUEST_NOTICES, PROP_CODE_PAUSES, PROP_MEMORY_QUESTIONS, PROP_PLANS, PROP_DATA_REPAIRS,
-    PROP_MITIGATIONS, PROP_OWNER_ASKS, PROP_HELPERS, PROP_HANDBOOK_PROPOSALS, PROP_THEORIES
+    PROP_MITIGATIONS, PROP_OWNER_ASKS, PROP_HELPERS, PROP_HANDBOOK_PROPOSALS, PROP_SKILL_PROPOSALS, PROP_THEORIES
   ].freeze
   # The conversation itself, loaded in one request right after the page shows. Confirmations and waiting messages are
   # live whenever they were made, so they are always read whole.
@@ -119,7 +121,7 @@ class AgentChatsController < InertiaController
       PROP_CHARTS => [], PROP_SCREENSHOTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => [],
       PROP_MODEL_SWITCHES => [], PROP_HELD_CALLS => [], PROP_PACK_REFUSALS => [], PROP_SECRET_ENTRIES => [], PROP_WATCHES => [], PROP_WATCH_UPDATES => [],
       PROP_PULL_REQUEST_NOTICES => [], PROP_CODE_PAUSES => [], PROP_MEMORY_QUESTIONS => [], PROP_PLANS => [], PROP_DATA_REPAIRS => [], PROP_MITIGATIONS => [],
-      PROP_OWNER_ASKS => [], PROP_HELPERS => [], PROP_HANDBOOK_PROPOSALS => [], PROP_CHAT_MODELS => chat_models(nil), PROP_THEORIES => [],
+      PROP_OWNER_ASKS => [], PROP_HELPERS => [], PROP_HANDBOOK_PROPOSALS => [], PROP_SKILL_PROPOSALS => [], PROP_CHAT_MODELS => chat_models(nil), PROP_THEORIES => [],
       PROP_THREAD_FOR => nil
     )
   end
@@ -163,6 +165,9 @@ class AgentChatsController < InertiaController
       PROP_HELPERS => in_thread { AgentChatHelperSerializer.many(on_chat { |chat| window.stepped(chat.helpers.includes(:workspace, :own_chat)) }) },
       PROP_HANDBOOK_PROPOSALS => in_thread do
         HandbookProposalSerializer.many(window.placed(conversation.handbook_proposals.includes(:instruction, :result, :decided_by).order(:created_at)))
+      end,
+      PROP_SKILL_PROPOSALS => in_thread do
+        HalonSkillProposalSerializer.many(window.placed(conversation.skill_proposals.includes(:decided_by, :parent_version, custom_skill: :live_version).order(:created_at)))
       end,
       PROP_THEORIES => in_thread { ChatTheorySerializer.many(on_chat { |chat| window.stepped(chat.theories) }) }
     )

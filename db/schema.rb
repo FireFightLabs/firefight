@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_13_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_13_150100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -438,6 +438,52 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150000) do
     t.integer "tokens_freed", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["chat_id"], name: "index_chat_compactions_on_chat_id"
+  end
+
+  create_table "chat_custom_skill_versions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "custom_skill_id", null: false
+    t.integer "number", null: false
+    t.string "status", null: false
+    t.text "used_when", null: false
+    t.string "tools", default: [], null: false, array: true
+    t.text "steps", null: false
+    t.string "references", default: [], null: false, array: true
+    t.string "signals", default: [], null: false, array: true
+    t.string "author_kind", null: false
+    t.uuid "author_id"
+    t.text "reason"
+    t.uuid "parent_version_id"
+    t.uuid "conversation_id"
+    t.uuid "decided_by_id"
+    t.datetime "decided_at"
+    t.datetime "told_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["author_id"], name: "index_chat_custom_skill_versions_on_author_id"
+    t.index ["conversation_id"], name: "index_chat_custom_skill_versions_on_conversation_id"
+    t.index ["custom_skill_id", "number"], name: "index_chat_custom_skill_versions_on_custom_skill_id_and_number", unique: true
+    t.index ["custom_skill_id", "status"], name: "index_chat_custom_skill_versions_on_custom_skill_id_and_status"
+    t.index ["custom_skill_id"], name: "index_chat_custom_skill_versions_one_live", unique: true, where: "((status)::text = 'live'::text)"
+    t.index ["decided_by_id"], name: "index_chat_custom_skill_versions_on_decided_by_id"
+    t.index ["parent_version_id"], name: "index_chat_custom_skill_versions_on_parent_version_id"
+  end
+
+  create_table "chat_custom_skills", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.string "name", null: false
+    t.string "source", default: "workspace", null: false
+    t.string "domain", default: "custom", null: false
+    t.uuid "live_version_id"
+    t.string "library_name"
+    t.integer "library_version"
+    t.jsonb "library_base"
+    t.integer "library_dismissed_version"
+    t.uuid "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_chat_custom_skills_on_created_by_id"
+    t.index ["live_version_id"], name: "index_chat_custom_skills_on_live_version_id"
+    t.index ["workspace_id", "name"], name: "index_chat_custom_skills_on_workspace_id_and_name", unique: true
   end
 
   create_table "chat_data_repairs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -3406,6 +3452,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_150000) do
   add_foreign_key "chat_attachments", "workspaces"
   add_foreign_key "chat_charts", "chats", on_delete: :cascade
   add_foreign_key "chat_compactions", "chats"
+  add_foreign_key "chat_custom_skill_versions", "chat_custom_skill_versions", column: "parent_version_id", on_delete: :nullify
+  add_foreign_key "chat_custom_skill_versions", "chat_custom_skills", column: "custom_skill_id", on_delete: :cascade
+  add_foreign_key "chat_custom_skill_versions", "conversations", on_delete: :nullify
+  add_foreign_key "chat_custom_skill_versions", "workspace_memberships", column: "author_id", on_delete: :nullify
+  add_foreign_key "chat_custom_skill_versions", "workspace_memberships", column: "decided_by_id", on_delete: :nullify
+  add_foreign_key "chat_custom_skills", "chat_custom_skill_versions", column: "live_version_id", on_delete: :nullify
+  add_foreign_key "chat_custom_skills", "workspace_memberships", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "chat_custom_skills", "workspaces"
   add_foreign_key "chat_data_repairs", "chats", on_delete: :cascade
   add_foreign_key "chat_data_repairs", "workspaces", on_delete: :cascade
   add_foreign_key "chat_handbook_chunks", "chat_handbook_pages", column: "handbook_page_id", on_delete: :cascade

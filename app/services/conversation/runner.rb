@@ -304,7 +304,7 @@ class Conversation::Runner
     chat.nudge!(noticed) if noticed
     stale = Chat::StaleRefusals.note(chat)
     chat.nudge!(stale) if stale
-    decided = Chat::HandbookProposal.untold_for!(@conversation).map(&:outcome_note)
+    decided = Chat::HandbookProposal.untold_for!(@conversation).map(&:outcome_note) + Chat::CustomSkill::Version.untold_for!(@conversation).map(&:outcome_note)
     chat.nudge!(decided.join("\n")) if decided.any?
     Chat::Watch::Step.hand_back_untold(chat).each do |step|
       chat.nudge!(Conversation::Watches.hand_back_note(step)) if step.hand_back_noted!
