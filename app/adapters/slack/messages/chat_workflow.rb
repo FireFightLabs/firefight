@@ -23,7 +23,7 @@ module Slack
 
       # When it runs and how it last went, in a line.
       def self.standing(workflow)
-        run = workflow.runs.newest_first.first
+        run = workflow.last_chat_run
         last = run && " Last run #{run.status.humanize(capitalize: false)}#{" (#{run.error.truncate(120)})" if run.error.present?}."
         return "It waits for a workspace admin to publish it." unless workflow.live?
         return "Done.#{last}" if workflow.done?

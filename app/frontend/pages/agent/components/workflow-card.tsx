@@ -3,6 +3,7 @@ import { IconLoader2, IconRepeat } from "@tabler/icons-react"
 import { useState } from "react"
 
 import { Button } from "@/components/agent-ui/button"
+import { Blocked } from "@/components/blocked-tooltip"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { CHAT_WORKFLOW_ACTIONS, WORKFLOW_RUN_STATUSES, type WorkflowRunStatus } from "@/lib/generated/constants"
 import { agentChatWorkflowPressPath, workflowPath, workflowRunPath } from "@/lib/routes"
@@ -49,11 +50,11 @@ function runWords(status: string) {
 }
 
 // A workflow Halon made in this chat, such as "in 30 minutes check web": when it runs, how its last run went, and Run
-// now and Cancel. The server ships what is offered and why each is blocked, so the card decides nothing.
+// now and Cancel. The server ships what is offered and why each is blocked, said on that button, so the card decides
+// nothing.
 export function WorkflowCard({ conversationId, workflow }: WorkflowCardProps) {
   const [ sending, setSending ] = useState<ChatWorkflowAction | null>(null)
   const [ confirming, setConfirming ] = useState<ChatWorkflowAction | null>(null)
-  const blocked = workflow.offers.map((offer) => offer.blockedReason).find((reason) => reason != null)
 
   function send(action: ChatWorkflowAction) {
     setSending(action)
@@ -105,20 +106,20 @@ export function WorkflowCard({ conversationId, workflow }: WorkflowCardProps) {
       {workflow.offers.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           {workflow.offers.map((offer) => (
-            <Button
-              key={offer.action}
-              size="sm"
-              variant={offer.action === CHAT_WORKFLOW_ACTIONS.RUN_NOW ? "primary" : "secondary"}
-              disabled={offer.blockedReason != null || sending != null}
-              onClick={() => press(offer.action)}
-            >
-              {sending === offer.action && <IconLoader2 className="size-3.5 motion-safe:animate-spin" />}
-              {LABELS[offer.action]}
-            </Button>
+            <Blocked key={offer.action} reason={offer.blockedReason ?? undefined} side="top">
+              <Button
+                size="sm"
+                variant={offer.action === CHAT_WORKFLOW_ACTIONS.RUN_NOW ? "primary" : "secondary"}
+                disabled={offer.blockedReason != null || sending != null}
+                onClick={() => press(offer.action)}
+              >
+                {sending === offer.action && <IconLoader2 className="size-3.5 motion-safe:animate-spin" />}
+                {LABELS[offer.action]}
+              </Button>
+            </Blocked>
           ))}
         </div>
       )}
-      {blocked && <p className="text-[12.5px] text-ink-3">{blocked}</p>}
       <ConfirmDeleteDialog
         open={confirming != null}
         title={`${confirming ? LABELS[confirming] : ""} ${workflow.name}?`}

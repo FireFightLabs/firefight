@@ -26,7 +26,7 @@ class AgentChatWorkflowSerializer < BaseSerializer
 
   type "{ id: string; status: string; at: string; error?: string } | null"
   def last_run
-    run = workflow.latest_run
+    run = workflow.last_chat_run
     run && { id: run.id, status: run.status, at: (run.finished_at || run.created_at).iso8601, error: run.error }.compact
   end
 

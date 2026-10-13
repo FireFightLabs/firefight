@@ -40,6 +40,23 @@ class AgentWorkflowCardTest < ApplicationSystemTestCase
     assert_no_button "Cancel"
   end
 
+  test "why a button cannot be pressed is said on that button, not under the others" do
+    bobs = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:bob_workspace_one))
+    bobs.ask!("Run Check web.")
+    bobs.chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "Here it is.")
+    bobs.reply_delivered!
+    @workflow.update!(origin_conversation: bobs)
+    sign_in(users(:bob), @workspace)
+
+    visit agent_chat_path(bobs)
+
+    assert_button "Run now", disabled: false
+    assert_button "Cancel", disabled: true
+    assert_no_text "can stop Check web"
+    find("span", text: "Cancel", match: :first).hover
+    assert_text "Only Alice Smith or a workspace admin can stop Check web."
+  end
+
   test "a workspace without workflows shows no card" do
     FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
 

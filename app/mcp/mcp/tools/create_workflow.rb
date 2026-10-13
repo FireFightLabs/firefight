@@ -38,6 +38,9 @@ module Mcp
             WorkflowPublishService.new(workflow).publish!(draft, by: principal)
           end
         end
+      rescue AbilityGateway::PendingApproval
+        # A retry would make a second workflow, so the draft made is the answer.
+        WorkflowPublishService::Result.new(ok: false, words: WorkflowPublishService::PUBLISH_HELD)
       end
       private_class_method :publish
     end

@@ -6,6 +6,8 @@
 class WorkflowPublishService
   Result = Data.define(:ok, :words)
   NO_ADMIN_REACHED = "No admin could be reached by direct message, so the request waits on the Workflows page.".freeze
+  # Said when an approval rule holds publishing a workflow an agent just made, which stays the draft it was made as.
+  PUBLISH_HELD = "Publishing it is held for an approval, so it waits as a draft until someone publishes it from its page.".freeze
 
   def initialize(workflow)
     @workflow = workflow

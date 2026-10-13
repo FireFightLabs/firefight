@@ -60,6 +60,19 @@ class Conversation::Tools::WorkflowToolsTest < ActiveSupport::TestCase
     end
   end
 
+  test "publishing held for an approval leaves the draft made, and Halon says so rather than that it could not be made" do
+    PolicyRule::ApprovalConditions.stubs(:errors_for).returns([])
+    AbilityGateway.stubs(:approval_requirement).returns(nil)
+    AbilityGateway.stubs(:approval_requirement).with { |*given| given[2] == Workflow::PUBLISH_KEY }.returns({ "role" => "admin", "count" => 1 })
+
+    said = Conversation::Tools::CreateWorkflow.new(turn(@admin)).call(**check_later)
+
+    workflow = @workspace.workflows.find_by!(name: "Check web")
+    assert_not workflow.live?
+    assert_match "Made Check web as a draft. Publishing it is held for an approval", said
+    assert_no_match "not allowed", said
+  end
+
   test "a member's confirmed workflow is a draft and the admins are asked to publish it" do
     said = Conversation::Tools::CreateWorkflow.new(turn(@member)).call(**check_later)
 

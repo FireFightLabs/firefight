@@ -32,6 +32,16 @@ class AgentChatWorkflowsTest < ActionDispatch::IntegrationTest
     assert_equal [ [ "run_now", nil ], [ "cancel", nil ] ], card["offers"].map { |offer| offer.values_at("action", "blockedReason") }
   end
 
+  test "a test run is never the card's last run, in the chat or in the thread" do
+    Workflow::Run.any_instance.stubs(:may_move?).returns(false)
+    WorkflowRunService.new(@workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_PERSON, started_by: @bob, test: true)
+
+    get agent_chat_path(@conversation), headers: inertia_headers
+
+    assert_nil inertia_props["workflows"].sole["lastRun"]
+    assert_not_includes Slack::Messages::ChatWorkflow.standing(@workflow.reload), "Last run"
+  end
+
   test "Run now starts a run and Cancel stops it running on its own, each saying so" do
     Workflow::Run.any_instance.stubs(:may_move?).returns(false)
     post agent_chat_workflow_press_path(@conversation, @workflow, Workflow::ACTION_RUN_NOW)

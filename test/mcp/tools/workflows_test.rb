@@ -41,6 +41,19 @@ module Mcp
         assert @workspace.workflows.find_by!(name: "Member's").publish_requests.waiting.exists?
       end
 
+      test "publishing held for an approval answers with the draft made, never as a call to retry" do
+        PolicyRule::ApprovalConditions.stubs(:errors_for).returns([])
+        AbilityGateway.stubs(:approval_requirement).returns(nil)
+        AbilityGateway.stubs(:approval_requirement).with { |*given| given[2] == Workflow::PUBLISH_KEY }.returns({ "role" => "admin", "count" => 1 })
+
+        made = call(CreateWorkflow, @admin, spec)
+
+        assert_not made.error?, made.content.first[:text]
+        assert_equal false, made.structured_content[:published]
+        assert_match "Publishing it is held for an approval", made.structured_content[:said]
+        assert_equal 1, @workspace.workflows.where(name: "Look around").count
+      end
+
       test "a run starts by name, and the list says how it stands" do
         call(CreateWorkflow, @admin, spec)
 
