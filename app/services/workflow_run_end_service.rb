@@ -113,7 +113,7 @@ class WorkflowRunEndService
     @workflow.edit!(operation: Workflow::Edit::OPERATION_CHANGE_CONFIG, payload: { step_id: spec["id"], changes: { config: suggestion.config } },
                     by: nil, halon: true, reason: suggestion.reason, source_run: @run)
     true
-  rescue FirefightAi::TransientError, FirefightAi::TerminalError => error
+  rescue FirefightAi::TransientError, FirefightAi::TerminalError, FirefightAi::Canceled => error
     @run.version.release_repair!(failed.step_key, failed.error.presence || @run.error)
     unsuggested(error)
   rescue Workflow::Edit::Refused => error

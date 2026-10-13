@@ -95,6 +95,18 @@ class WorkflowRunEndServiceTest < ActiveSupport::TestCase
     assert_equal 3, workflow.runs.where(status: Workflow::Run::STATUS_FAILED).count
   end
 
+  test "a look at a failure that was stopped while the model answered is still told, and the failure is looked at again" do
+    workflow = failing
+    @adapter.any_instance.stubs(:post_workflow_failure).returns({})
+    FirefightAi::WorkflowRepair.any_instance.expects(:suggest).twice.raises(FirefightAi::Canceled, "stopped").then.returns(nil)
+
+    first = run!(workflow)
+    assert first.told_at, "the failure is told without a suggestion"
+    assert_empty workflow.live_version.reload.repair_problem_keys
+    run!(workflow)
+    assert_equal 1, workflow.live_version.reload.repair_problem_keys.size
+  end
+
   test "a failed run is said in the channel of the team that owns the workflow" do
     workflow = failing
     workflow.update!(owner_team: catalog_entries(:platform_team))
