@@ -74,14 +74,24 @@ class Events::AppMentionHandlerTest < ActiveSupport::TestCase
     assert_equal written, asked.as_written
   end
 
-  test "when Slack does not say which mention is Halon's, the first one is, and the rest stay" do
+  test "a person mentioned before Halon stays, since only Halon's own id is taken out" do
     stub_add_reaction
     bob = workspace_memberships(:bob_workspace_one)
 
-    Events::AppMentionHandler.execute(@workspace, payload(text: "<@U99999999> is <@#{bob.platform_user_id}> around?"))
+    Events::AppMentionHandler.execute(@workspace, payload(text: "<@#{bob.platform_user_id}> can <@U99999999> check this?", app_user_id: "U99999999"))
 
     asked = @workspace.conversations.sole.chat.messages.find_by!(role: Chat::Message::ROLE_USER)
-    assert_equal "is <@#{bob.platform_user_id}> around?", asked.as_written
+    assert_equal "<@#{bob.platform_user_id}> can check this?", asked.as_written
+  end
+
+  test "when Slack does not say which mention is Halon's, no mention is taken out, so nobody else is ever dropped" do
+    stub_add_reaction
+    bob = workspace_memberships(:bob_workspace_one)
+
+    Events::AppMentionHandler.execute(@workspace, payload(text: "<@#{bob.platform_user_id}> can <@U99999999> check this?", app_user_id: nil))
+
+    asked = @workspace.conversations.sole.chat.messages.find_by!(role: Chat::Message::ROLE_USER)
+    assert_equal "<@#{bob.platform_user_id}> can <@U99999999> check this?", asked.as_written
   end
 
   test "a note added by mentioning Halon in a run's thread is read with names and ids, and kept as written" do
@@ -98,7 +108,8 @@ class Events::AppMentionHandlerTest < ActiveSupport::TestCase
 
   private
 
-  def payload(team_id: nil, channel: nil, text: nil, app_user_id: nil, thread: nil)
+  # Slack names the app's own user in every event's authorizations.
+  def payload(team_id: nil, channel: nil, text: nil, app_user_id: "U99999999", thread: nil)
     {
       "team_id" => team_id || @workspace.platform_id,
       "authorizations" => ([ { "user_id" => app_user_id, "is_bot" => true } ] if app_user_id),

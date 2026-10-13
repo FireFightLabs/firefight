@@ -300,17 +300,14 @@ module Slack
       texts.to_h { |text| [ text, Slack::MessageText.convert(text, names: names, for_model: true) ] }
     end
 
-    # Slack names the app's own user in the event's authorizations. Without them, the mention Slack sent the event for is
-    # the first one, which is where Slack puts it when someone picks the app from the list.
+    # The app is known only by the user id Slack names in the event's authorizations, since the install keeps none. An
+    # event without them keeps every mention, as guessing which one is the app could drop someone else.
     def text_for_app(payload:)
       text = payload.dig("event", "text").to_s
       app_ids = Array(payload["authorizations"]).filter_map { |authorization| authorization["user_id"] if authorization["is_bot"] }
-      stripped = if app_ids.any?
-        text.gsub(/<@(?:#{app_ids.map { |id| Regexp.escape(id) }.join('|')})(?:\|[^<>]*)?>/, "")
-      else
-        text.sub(Slack::MessageMarkdown::MENTION, "")
-      end
-      stripped.squish
+      return text.squish if app_ids.empty?
+
+      text.gsub(/<@(?:#{app_ids.map { |id| Regexp.escape(id) }.join('|')})(?:\|[^<>]*)?>/, "").squish
     end
 
     # Names come from Firefight's own members in one query, so a page of messages never calls Slack.
