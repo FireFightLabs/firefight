@@ -84,6 +84,7 @@ module SolidWorkflow
           reload
           workflow.record_event(SolidWorkflow::Events::Step::ATTEMPT_FAILED, step: self, error: message)
           workflow.record_event(SolidWorkflow::Events::Step::RETRY_SCHEDULED, step: self, delay: delay, attempt: attempts)
+          book_retry
         else
           return false unless held.update_all(status: :failed, completed_at: Time.current, last_error: format_error(error),
                                               timeout_at: nil, updated_at: Time.current) == 1

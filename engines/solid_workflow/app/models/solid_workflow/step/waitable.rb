@@ -39,7 +39,11 @@ module SolidWorkflow
 
       def wake!(reason:)
         SolidWorkflow::Step.where(id: id).update_all("wake_requests = wake_requests + 1")
-        moved = SolidWorkflow::Step.where(id: id, status: :waiting).update_all(status: :pending, run_at: nil, updated_at: Time.current)
+        # The claim that follows counts an attempt, so the wake gives back the one the parked claim took and a step woken
+        # many times keeps its retries for real failures.
+        moved = SolidWorkflow::Step.where(id: id, status: :waiting).update_all(
+          status: :pending, run_at: nil, attempts: Arel.sql("GREATEST(attempts - 1, 0)"), updated_at: Time.current
+        )
         reload
         return false unless moved == 1
 

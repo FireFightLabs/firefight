@@ -29,6 +29,13 @@ module SolidWorkflow
         )
 
         workflow.record_event(SolidWorkflow::Events::Step::RETRY_SCHEDULED, step: self, delay: delay, attempt: attempts)
+        book_retry
+      end
+
+      # The orchestrator leaves a step whose run_at is still ahead, so the retry is booked for that moment rather than
+      # left to the sweeper. The claim's guard keeps an early or doubled booking harmless.
+      def book_retry
+        SolidWorkflow::OrchestrateJob.set(wait_until: run_at).perform_later(workflow_id)
       end
 
       def retry_now!

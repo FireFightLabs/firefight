@@ -55,6 +55,8 @@ After each step completes, the engine finds newly ready steps (all dependencies 
 - Default: 5 attempts, exponential backoff (`2^attempt` seconds, capped at 300s)
 - Strategies: `exponential` (default), `linear` (`attempt * 30s`), `fixed` (configurable or 60s)
 - Per-step override via `retry_config: { max_attempts:, backoff:, backoff_seconds: }`
+- A retry is booked for the moment its backoff ends (`Step#book_retry`, an `OrchestrateJob` at `run_at`), so it runs then rather than when the sweeper next finds the run. The claim's guard makes an early or doubled booking harmless.
+- Being woken never uses up attempts. A parked step's wake gives back the attempt its claim counted, so a for each, sub workflow or event wait woken many times keeps its retries for real failures.
 
 ## Pause / Resume / Cancel
 
