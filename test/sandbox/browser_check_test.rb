@@ -3,15 +3,22 @@ require "open3"
 require "webrick"
 
 # sandbox/browser_check.mjs in a real browser against pages served here. It needs Node and the Playwright the image pins
-# (sandbox/browser/package.json) with its Chromium, installed outside the repository and named by BROWSER_CHECK_MODULES,
-# so it is skipped where they are not installed.
+# (sandbox/browser/package.json) with its Chromium, installed outside the repository and named by BROWSER_CHECK_MODULES.
+# It is skipped on a machine without them, and fails in CI, whose image installs them, so a broken install is never
+# passed over in silence.
 class BrowserCheckTest < ActiveSupport::TestCase
   SCRIPT = Rails.root.join("sandbox/browser_check.mjs").to_s
   MODULES = ENV.fetch("BROWSER_CHECK_MODULES", Rails.root.join("sandbox/browser/node_modules").to_s)
   PASSWORD = "correct-horse-7781".freeze
+  PINNED = JSON.parse(Rails.root.join("sandbox/browser/package.json").read).dig("dependencies", "playwright")
 
   setup do
-    skip "Playwright is not installed. Set BROWSER_CHECK_MODULES to a node_modules holding sandbox/browser's playwright." unless File.directory?(File.join(MODULES, "playwright"))
+    unless File.directory?(File.join(MODULES, "playwright"))
+      missing = "Playwright is not installed. Set BROWSER_CHECK_MODULES to a node_modules holding sandbox/browser's playwright."
+      ENV["CI"].present? ? flunk(missing) : skip(missing)
+    end
+    installed = JSON.parse(File.read(File.join(MODULES, "playwright/package.json")))["version"]
+    assert_equal PINNED, installed, "The Playwright in #{MODULES} is not the one sandbox/browser pins."
 
     @received = Queue.new
     @server = WEBrick::HTTPServer.new(BindAddress: "127.0.0.1", Port: 0, Logger: WEBrick::Log.new(File::NULL), AccessLog: [])
