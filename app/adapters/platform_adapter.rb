@@ -239,6 +239,19 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Opens the form for an action or a follow-up. A reaction's form opens empty when its state carries where the message
+  # is, to be filled in by fill_in_action_item_modal.
+  # @return [Hash] { success: true, view_id: } the open form, for filling it in.
+  def open_action_item_modal(kind:, trigger_id:, incident:, private_metadata: nil, push: false)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Reads the message a reaction's form was opened for and fills the open form in with it. Logs and returns nil when the
+  # message cannot be read or the form has closed.
+  def fill_in_action_item_modal(view_id:, kind:, incident:, private_metadata:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Asks the person who reacted to a message whether to make an action or a follow-up of it. The prompt quotes the
   # message, and its button carries where the message is, so the form reads the message when it opens.
   def post_action_from_reaction_prompt(channel_id:, user_id:, action_type:, message_id:, message_text:, incident_id:, source_message_link:)
