@@ -1,3 +1,4 @@
+import type { CancelToken } from "@inertiajs/core"
 import { router, usePage } from "@inertiajs/react"
 import { useEffect, useState } from "react"
 
@@ -40,11 +41,17 @@ export function Trace({ groups }: { groups: OperatorTraceGroup[] }) {
       return
     }
     const wanted = bodyKey(selected, showsModelReading)
+    let pending: CancelToken | null = null
     router.reload({
       only: [OPERATOR_SPAN_BODY_PROP],
       data: { [OPERATOR_SPAN_PARAM]: selected, [OPERATOR_SPAN_MODEL_PARAM]: showsModelReading ? "1" : undefined },
+      onCancelToken: (token) => {
+        pending = token
+      },
       onSuccess: () => setLoadedFor(wanted),
     })
+    // A request for a span the operator has left is cancelled, so its content never lands over the one they opened.
+    return () => pending?.cancel()
   }, [selected, showsModelReading])
 
   if (spans.length === 0) {

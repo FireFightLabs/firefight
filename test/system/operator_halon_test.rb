@@ -58,6 +58,30 @@ class OperatorHalonTest < ApplicationSystemTestCase
     assert_selector "pre", exact_text: "@#{bob.display_name} says checkout is 🔥"
   end
 
+  test "a span's content that arrives after the operator moved on never replaces the span they are reading" do
+    slow = @run.steps.find_by!(position: 1)
+    fast = @run.steps.find_by!(position: 2)
+    answered = Queue.new
+    Operator::RunTrace.any_instance.stubs(:body_for).with { |key, **_options| key == "tool-#{fast.id}" }.returns("the fast span's content")
+    Operator::RunTrace.any_instance.stubs(:body_for).with do |key, **_options|
+      next false unless key == "tool-#{slow.id}"
+
+      sleep 1.5
+      answered << true
+      true
+    end.returns("the slow span's content")
+
+    visit operator_halon_run_path(@run, Operator::Trace::SPAN_PARAM => "tool-#{fast.id}")
+    assert_selector "pre", exact_text: "the fast span's content"
+    click_button "github_changes_before"
+    click_button "postgresql_current_activity"
+    assert_selector "pre", exact_text: "the fast span's content"
+
+    Timeout.timeout(5) { answered.pop }
+    assert_no_selector "pre", exact_text: "the slow span's content", wait: 2
+    assert_selector "pre", exact_text: "the fast span's content"
+  end
+
   test "an operator pastes an id into Find and lands on its trace, and an incident number lists every workspace's" do
     visit operator_root_path
     fill_in "operator-find", with: @run.id.first(8)
