@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_13_235100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -3137,7 +3137,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
     t.datetime "delivered_at"
     t.text "error_message"
     t.string "event_type", null: false
-    t.uuid "incident_event_id", null: false
+    t.uuid "incident_event_id"
     t.jsonb "request_body", default: {}
     t.jsonb "request_headers", default: {}
     t.integer "response_code"
@@ -3145,11 +3145,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
     t.string "state", default: "pending", null: false
     t.datetime "updated_at", null: false
     t.uuid "webhook_id", null: false
+    t.uuid "workflow_run_id"
     t.index ["created_at"], name: "index_webhook_deliveries_on_created_at"
     t.index ["incident_event_id"], name: "index_webhook_deliveries_on_incident_event_id"
     t.index ["state"], name: "index_webhook_deliveries_on_state"
     t.index ["webhook_id", "created_at"], name: "index_webhook_deliveries_on_webhook_id_and_created_at"
     t.index ["webhook_id"], name: "index_webhook_deliveries_on_webhook_id"
+    t.index ["workflow_run_id"], name: "index_webhook_deliveries_on_workflow_run_id"
   end
 
   create_table "webhooks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -3799,6 +3801,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_230100) do
   add_foreign_key "webhook_delinquency_trackers", "webhooks"
   add_foreign_key "webhook_deliveries", "incident_events"
   add_foreign_key "webhook_deliveries", "webhooks"
+  add_foreign_key "webhook_deliveries", "workflow_runs", on_delete: :nullify
   add_foreign_key "webhooks", "workspaces"
   add_foreign_key "workflow_edits", "chats", column: "source_chat_id", on_delete: :nullify
   add_foreign_key "workflow_edits", "workflow_runs", column: "source_run_id", on_delete: :nullify

@@ -17,6 +17,7 @@ class WorkflowRunEndService
 
   def ended!
     stop_watches!
+    close_sandbox!
     Conversation::Workflows.moved!(@workflow) unless @run.test?
     tell_workflows!
     return if @run.test? || @run.parent_run_id.present? || !@run.claim_telling!(@job_id)
@@ -45,6 +46,14 @@ class WorkflowRunEndService
     return unless @run.failed? && !@run.test? && @run.parent_run_id.nil?
 
     Workflow::Trigger::Events.fire!(@workspace, Workflow::Trigger::KIND_RUN_FAILED, key: @run.id, subject: @run, actor: @run.agent)
+  end
+
+  # The run's sandbox, which its steps' commands, scripts and browser ran in, stops with it rather than at the next
+  # sweep for idle boxes.
+  def close_sandbox!
+    Integrations::CodeReading.close(@run.code_box_key)
+  rescue Integrations::Error => error
+    Rails.logger.warn({ event: "workflow_run.sandbox_not_closed", run_id: @run.id, error: error.message }.to_json)
   end
 
   def stop_watches!

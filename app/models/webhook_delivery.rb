@@ -2,7 +2,14 @@ class WebhookDelivery < ApplicationRecord
   STALE_THRESHOLD = 7.days
 
   belongs_to :webhook
-  belongs_to :incident_event
+  # What it is about: an incident's event, or the workflow run whose Send webhook step sent it.
+  belongs_to :incident_event, optional: true
+  belongs_to :workflow_run, class_name: "Workflow::Run", optional: true
+
+  validate :about_something
+
+  # Set by a step that sends the delivery itself and waits for its answer, so no job sends it too.
+  attribute :sent_by_caller, :boolean, default: false
 
   # Decided once where the response is known, so no reader recomputes the
   # outcome from other columns.
@@ -38,6 +45,7 @@ class WebhookDelivery < ApplicationRecord
     self.class.create!(
       webhook: webhook,
       incident_event: incident_event,
+      workflow_run: workflow_run,
       event_type: event_type,
       signed_payload: signed_payload
     )
@@ -46,6 +54,10 @@ class WebhookDelivery < ApplicationRecord
   private
 
   def deliver_later
-    Webhooks::DeliveryJob.perform_later(self)
+    Webhooks::DeliveryJob.perform_later(self) unless sent_by_caller
+  end
+
+  def about_something
+    errors.add(:base, "A delivery is about an incident's event or a workflow run.") if incident_event_id.nil? && workflow_run_id.nil?
   end
 end

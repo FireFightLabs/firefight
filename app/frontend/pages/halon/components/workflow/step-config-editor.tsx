@@ -3,6 +3,7 @@ import { WORKFLOW_STEP_EDITOR } from "@/lib/generated/constants"
 import type { JsonObject } from "@/lib/tool-fields"
 import { AskHalonEditor } from "@/pages/halon/components/workflow/ask-halon-editor"
 import { BranchEditor } from "@/pages/halon/components/workflow/branch-editor"
+import { BrowserEditor } from "@/pages/halon/components/workflow/browser-editor"
 import { DelayEditor } from "@/pages/halon/components/workflow/delay-editor"
 import { FieldsEditor } from "@/pages/halon/components/workflow/fields-editor"
 import { ForEachEditor } from "@/pages/halon/components/workflow/for-each-editor"
@@ -44,6 +45,8 @@ export function StepConfigEditor({ step, config, kind, tools, workflows, timeZon
     return <RunWorkflowEditor idPrefix={idPrefix} config={config} workflows={workflows} references={references} disabled={disabled} onChange={onChange} />
   case WORKFLOW_STEP_EDITOR.TOOL:
     return <ToolStepEditor idPrefix={idPrefix} config={config} tools={tools} references={references} disabled={disabled} onChange={onChange} />
+  case WORKFLOW_STEP_EDITOR.BROWSER:
+    return <BrowserEditor idPrefix={idPrefix} config={config} references={references} disabled={disabled} onChange={onChange} />
   case WORKFLOW_STEP_EDITOR.STATUS_PAGE:
     return <ToolStepEditor idPrefix={idPrefix} config={config} tools={statusPageTools(tools)} references={references} disabled={disabled} onChange={onChange} />
   case WORKFLOW_STEP_EDITOR.ASK_HALON:

@@ -45,6 +45,16 @@ class WorkflowRunStepSerializer < BaseSerializer
     step.saved_results.map { |result| { id: result.id, handle: result.handle, bytes: result.content&.bytesize } }
   end
 
+  # The pages a Browser step saw, one per screen size, each served from the run's view.
+  type "{ id: string; caption: string; url: string }[]"
+  def screenshots
+    shots = step.chat&.screenshots&.in_order.to_a
+    shots.map do |shot|
+      { id: shot.id, caption: shot.caption,
+        url: Rails.application.routes.url_helpers.workflow_run_screenshot_path(step.run.workflow_id, step.run_id, shot) }
+    end
+  end
+
   type :number
   def attempts
     step.attempts
