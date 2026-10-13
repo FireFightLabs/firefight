@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# Everything not set here keeps CodeRabbit's defaults.
+reviews:
+  auto_review:
+    # Every base branch, so a pull request stacked on another one is reviewed too.
+    base_branches:
+      - ".*"
+  pre_merge_checks:
+    docstrings:
+      mode: "off"

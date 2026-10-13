@@ -29,6 +29,7 @@ module Integrations
         replace(::Sandbox::Repos, :commit) { |_name, ref| ref }
         replace(::Sandbox::Repos, :run_copy) { |name, sha| File.join(::Sandbox::RUNS, "#{name}-#{sha}").tap { |dir| FileUtils.mkdir_p(File.join(dir, ".git", "info")) } }
         ::Sandbox::Services::STARTED.clear
+        ::Sandbox::Services::VECTOR.clear
         ::Sandbox::Images::FROM_IMAGE.clear
         @server = TCPServer.new("127.0.0.1", 0)
         @accepting = Thread.new { loop { Thread.new(@server.accept) { |socket| ::Sandbox::Http.handle(socket) } } }
@@ -41,6 +42,7 @@ module Integrations
         @replaced.each { |(owner, name), original| owner.define_singleton_method(name, original) }
         @constants.each { |(owner, name), value| set_constant(owner, name, value, keep: false) }
         ::Sandbox::Services::STARTED.clear
+        ::Sandbox::Services::VECTOR.clear
         ::Sandbox::Images::FROM_IMAGE.clear
         FileUtils.rm_rf(@root)
       end
@@ -122,6 +124,23 @@ module Integrations
 
         assert_equal ::Sandbox::Services::NO_VECTOR, error.message
         assert_match "rebuilt", ::Sandbox::Services::NO_VECTOR
+      end
+
+      test "the box's own Postgres is asked for pgvector once, when it starts, and a later ask keeps that answer" do
+        File.stubs(:directory?).returns(true)
+
+        2.times { ::Sandbox::Services.start([ "postgres" ]) }
+
+        assert_equal 1, @ran.count { |run| run[:argv].last == EXTENSIONS }
+        ::Sandbox::Services::STARTED.clear
+        ::Sandbox::Services::VECTOR.clear
+        ran = @ran
+        replace(::Sandbox, :run) do |argv, **options|
+          ran << { argv: argv, env: options[:env] || {} }
+          { "stdout" => argv.last == EXTENSIONS ? "plpgsql\n" : "", "stderr" => "", "exit_code" => 0 }
+        end
+        2.times { assert_raises(::Sandbox::Broken) { ::Sandbox::Services.start([ "postgres" ]) } }
+        assert_equal 2, @ran.count { |run| run[:argv].last == EXTENSIONS }, "one more ask, for the Postgres started again"
       end
 
       test "a Postgres extension the setup's CI image or a setup command names, that the box's Postgres lacks, is answered, also for a copy prepared before" do
