@@ -3,7 +3,7 @@
 # Items, kept as data in config/workflow_library/<key>.yml: a name, what it does, other names, and the trigger, steps,
 # edges and outputs of a workflow version. Each carries a version (FirefightLibrary). A workspace uses one as it is, and
 # moves with each new version while its steps stay Firefight's, or copies it, and is told when a newer one exists with
-# what changed. An item whose steps the runtime cannot run yet is listed but cannot be taken.
+# what changed. An item whose steps the workspace cannot run is listed but cannot be taken.
 #
 # Templates, which a person starts from the Workflows page in one click and Halon proposes from a chat. Each builds a
 # workflow's content from a few answers, such as which resource and when, into a draft attributed to whoever made it.
@@ -37,10 +37,11 @@ module Workflow::Library
   Item = Data.define(:key, :name, :description, :aliases, :definition, :version) do
     def trigger = definition["trigger"]
 
-    # Why it cannot be used here yet, as each sentence publishing it would be refused with.
-    def problems = Workflow::Version.new(**definition.symbolize_keys).problems
+    # Why it cannot be used in this workspace yet, as each sentence publishing it would be refused with, such as a skill
+    # its steps follow that this workspace's connections do not offer.
+    def problems(workspace) = Workflow::Version.new(workflow: Workflow.new(workspace: workspace), **definition.symbolize_keys).problems
 
-    def available? = problems.empty?
+    def available?(workspace) = problems(workspace).empty?
 
     def digest = Digest::SHA256.hexdigest(definition.merge("name" => name, "description" => description, "aliases" => aliases).to_json)
   end

@@ -1,40 +1,48 @@
 name: Cost check
 description: Halon reads the spend your providers report against the months before, finds what grew, and tells the owning team once and again only when it gets worse.
-aliases: [ spend check ]
+aliases: [spend check]
 trigger:
   kind: schedule
-  schedule: { cadence: weekly, hour: 9, weekday: 1, time_zone: UTC }
+  repeat: days
+  days: [1]
+  at: "09:00"
+  time_zone: UTC
   inputs:
-    - key: notes
-      question: What should Halon look at closely or leave alone?
-      default: ""
+  - key: notes
+    question: What should Halon look at closely or leave alone?
+    default: Everything you can read for it.
 steps:
-  - id: step_check
-    name: check
-    kind: run_skill
-    config: { skill: cost_trends, mode: check, notes: "{{inputs.notes}}" }
-  - id: step_found
-    name: found_problems
-    kind: branch
-    config:
-      routes:
-        - route: found
-          when: { left: "{{steps.check.problems}}", operator: is_not_empty }
-      otherwise: all_clear
-  - id: step_raise
-    name: raise_notices
-    kind: for_each
-    config:
-      items: "{{steps.check.problems}}"
-      concurrency: 1
-      steps:
-        - id: step_notice
-          name: notice
-          kind: raise_notice
-          config: { problem: "{{item}}" }
-      edges: []
+- id: step_check
+  name: check
+  kind: run_skill
+  config:
+    skill: cost_trends
+    focus: '{{inputs.notes}}'
+- id: step_found
+  name: found_problems
+  kind: branch
+  config:
+    routes:
+    - route: found
+      when:
+        left: '{{steps.check.verdict}}'
+        operator: equals
+        right: problem
+    otherwise: all_clear
+- id: step_notice
+  name: notice
+  kind: raise_notice
+  config:
+    signal: cost
+    topic: Spend growing
+    summary: '{{steps.check.summary}}'
+    severity: '{{steps.check.severity}}'
 edges:
-  - { from: step_check, to: step_found }
-  - { from: step_found, to: step_raise, route: found }
+- from: step_check
+  to: step_found
+- from: step_found
+  to: step_notice
+  route: found
 outputs:
-  problems: "{{steps.check.problems}}"
+  verdict: '{{steps.check.verdict}}'
+  summary: '{{steps.check.summary}}'

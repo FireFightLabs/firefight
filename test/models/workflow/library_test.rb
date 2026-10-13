@@ -1,9 +1,7 @@
 require "test_helper"
 
 class Workflow::LibraryTest < ActiveSupport::TestCase
-  # Step kinds the shipped library items name that the runtime does not run yet. An item using one is listed but cannot
-  # be taken, and this list shrinks as the runtime learns them.
-  NOT_YET_RUN = %w[run_skill raise_notice].freeze
+  include ActiveJob::TestHelper
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -38,16 +36,34 @@ class Workflow::LibraryTest < ActiveSupport::TestCase
     Workflow::Library.stubs(:all).returns(items)
   end
 
-  test "every shipped item reads, says what it does, and holds a well formed workflow whose only gap is steps the runtime does not run yet" do
+  test "every shipped item reads, says what it does, and holds a workflow the runtime runs" do
     assert Workflow::Library.all.any?
     Workflow::Library.all.each do |shipped|
       assert shipped.name.present? && shipped.description.present?, "#{shipped.key} has a name and says what it does"
       assert_nil Workflow::Version.content_problem(shipped.definition), "#{shipped.key} holds a well formed workflow"
-      kinds = Workflow::Version.all_steps(shipped.definition["steps"]).map { |step| step["kind"] }
-      gaps = shipped.problems.reject { |problem| NOT_YET_RUN.any? { |kind| problem.include?("is a #{kind} step") } }
-      assert_empty gaps, "#{shipped.key} has no problem beyond steps the runtime does not run yet"
-      assert_equal shipped.available?, (kinds & NOT_YET_RUN).empty?
+      assert_empty shipped.problems(@workspace), "#{shipped.key} can be used"
+      assert shipped.available?(@workspace)
     end
+  end
+
+  test "a check from the library is published with what it needs granted and runs on the runtime, raising a notice when it finds a problem" do
+    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
+    WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:post_monitoring_notice).returns({ channel_id: "C1", message_id: "1.1" })
+    Workflow::HalonStep.any_instance.stubs(:follow!).returns({ "verdict" => "problem", "summary" => "The db volume fills on Friday.", "severity" => "medium",
+                                                                "findings" => [ "db-data is 91 percent full." ] })
+    workflow = Workflow.from_library!(Workflow::Library.find("disk_space_check"), workspace: @workspace, by: @alice)
+
+    published = WorkflowPublishService.new(workflow).publish!(workflow.draft, by: @alice)
+    assert published.ok, published.words
+    assert_empty workflow.reload.missing_reach
+    assert workflow.next_run_at
+
+    run = nil
+    perform_enqueued_jobs { run = WorkflowRunService.new(workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_PERSON, started_by: @alice) }
+
+    assert_equal Workflow::Run::STATUS_SUCCEEDED, run.reload.status, run.error
+    notice = run.notices.sole
+    assert_equal [ Investigation::Notice::SIGNAL_DISK, "The db volume fills on Friday." ], notice.values_at(:signal, :summary)
   end
 
   test "each check Halon runs on a schedule has a library workflow that runs its skill" do
@@ -70,11 +86,27 @@ class Workflow::LibraryTest < ActiveSupport::TestCase
     assert Workflow.from_library!(item, workspace: @workspace, by: @alice, name: "Cool down twice", following: false)
   end
 
-  test "an item the runtime cannot run yet is not taken" do
-    unrunnable = item(extra: [ { "id" => "step_x", "name" => "notice", "kind" => "raise_notice", "config" => {} } ])
+  test "an item this workspace cannot run is not taken" do
+    unrunnable = item(extra: [ { "id" => "step_x", "name" => "scan", "kind" => "run_skill", "config" => { "skill" => "no_such_skill" } } ])
 
     error = assert_raises(Workflow::Edit::Refused) { Workflow.from_library!(unrunnable, workspace: @workspace, by: @alice) }
-    assert_match "needs steps this version of Firefight cannot run yet", error.message
+    assert_equal "Cool down cannot run in this workspace yet. scan follows no_such_skill, which is not a skill for this workspace's connections.", error.message
+  end
+
+  test "a new version that needs more than the workflow's identity holds is offered as a copy, never granted without a person" do
+    offer(item)
+    workflow = Workflow.from_library!(item, workspace: @workspace, by: @alice)
+    WorkflowPublishService.new(workflow).publish!(workflow.draft, by: @alice)
+    look = { "id" => "step_look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => {} } }
+    offer(item(version: 2, extra: [ look ]))
+
+    Workflow::Library.upgrade_all!
+
+    workflow.reload
+    assert_equal 1, workflow.library_version
+    assert_not workflow.follows_library?
+    assert_equal [ "wait" ], workflow.live_version.steps.map { |step| step["name"] }
+    assert_equal 2, workflow.library_update.version
   end
 
   test "a workflow following the library moves to a new version with its own trigger, and its draft moves along" do

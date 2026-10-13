@@ -69,7 +69,7 @@ class WorkflowsControllerTest < ActionDispatch::IntegrationTest
   test "a member makes a draft from the library, asks an admin to publish it, and the admin publishes it from the request" do
     sign_in(users(:bob), @workspace)
     post halon_workflows_path, params: { template: "probing_scan", time_zone: "Europe/Belgrade" }
-    workflow = @workspace.workflows.find_by!(library_key: "probing_scan")
+    workflow = @workspace.workflows.find_by!(name: "Look for probing in the logs")
     assert_equal "Look for probing in the logs was made as a draft.", flash[:notice]
 
     post publish_workflow_path(workflow)

@@ -25,7 +25,7 @@ class HalonWorkflowLibraryControllerTest < ActionDispatch::IntegrationTest
 
     disk = inertia_props["items"].find { |each| each["key"] == "disk_space_check" }
     assert_equal [ "Disk space check", Workflow::Trigger::KIND_SCHEDULE ], disk.values_at("name", "triggerKind")
-    assert_match "needs steps this version of Firefight cannot run yet", disk["useBlockedReason"]
+    assert_nil disk["useBlockedReason"]
     assert_equal [], inertia_props["workflows"]
   end
 
