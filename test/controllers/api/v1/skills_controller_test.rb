@@ -58,6 +58,21 @@ class Api::V1::SkillsControllerTest < ActionDispatch::IntegrationTest
     assert_not @skill.reload.enabled?
   end
 
+  test "a skill created with enabled false starts switched off, and an enabled that is not true or false makes nothing" do
+    post api_v1_skills_url, params: { name: "rotate_keys", when: "Rotating keys", tools: [ "declare_incident" ], steps: "1. Declare.", enabled: false }.to_json,
+                            headers: api_headers(token: @token)
+    assert_response :created
+    assert_equal false, json_response.dig("skill", "enabled")
+    assert_not Chat::CustomSkill.find(json_response.dig("skill", "id")).enabled?
+
+    assert_no_difference -> { Chat::CustomSkill.where(workspace: @workspace).count } do
+      post api_v1_skills_url, params: { name: "drain", when: "Draining", tools: [], steps: "1. Drain.", enabled: "flase" }.to_json,
+                              headers: api_headers(token: @token)
+    end
+    assert_response :unprocessable_entity
+    assert_equal "enabled should be true or false.", json_response.dig("error", "message")
+  end
+
   test "a skill a workflow runs is not deleted" do
     Workflow.create!(workspace: @workspace, name: "Drill").open_draft!(by: @admin)
             .update_columns(steps: [ { "id" => "step_1", "name" => "drill", "kind" => "run_skill", "config" => { "skill" => "game_day" } } ])

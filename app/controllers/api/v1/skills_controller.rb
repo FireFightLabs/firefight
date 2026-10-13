@@ -19,8 +19,9 @@ class Api::V1::SkillsController < Api::V1::ApiController
 
   def create
     authorize!(Ability::Action::RESOURCE_SKILLS, Ability::Action::ACTION_CREATE)
+    return refuse_enabled if enabled_refused?
 
-    @skill = service.create!(name: params.require(:name), content: content_param, by: author, reason: params[:reason])
+    @skill = service.create!(name: params.require(:name), content: content_param, by: author, reason: params[:reason], enabled: enabled_param)
     @skill = skills.with_usage_counts.find(@skill.id)
     render :show, status: :created
   end
@@ -29,12 +30,9 @@ class Api::V1::SkillsController < Api::V1::ApiController
   def update
     authorize!(Ability::Action::RESOURCE_SKILLS, Ability::Action::ACTION_UPDATE)
 
-    enabled = params.key?(:enabled) ? ENABLED_VALUES[params[:enabled].to_s] : nil
-    if params.key?(:enabled) && enabled.nil?
-      return render json: error_response("validation_error", "enabled should be true or false."), status: :unprocessable_entity
-    end
+    return refuse_enabled if enabled_refused?
 
-    service.update!(@skill, by: author, content: content_param, name: params[:name], reason: params[:reason], seen: params[:version_id], enabled: enabled)
+    service.update!(@skill, by: author, content: content_param, name: params[:name], reason: params[:reason], seen: params[:version_id], enabled: enabled_param)
     @skill = skills.with_usage_counts.find(@skill.id)
     render :show
   end
@@ -57,6 +55,15 @@ class Api::V1::SkillsController < Api::V1::ApiController
 
   def content_param
     { "when" => params[:when], "tools" => (Array(params[:tools]) if params.key?(:tools)), "steps" => params[:steps] }
+  end
+
+  # nil when not sent, which leaves a new skill on and an existing one as it is.
+  def enabled_param = params.key?(:enabled) ? ENABLED_VALUES[params[:enabled].to_s] : nil
+
+  def enabled_refused? = params.key?(:enabled) && enabled_param.nil?
+
+  def refuse_enabled
+    render json: error_response("validation_error", "enabled should be true or false."), status: :unprocessable_entity
   end
 
   def set_skill
