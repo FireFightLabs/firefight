@@ -30,6 +30,9 @@ class Chat::OwnerAsk < ApplicationRecord
 
   scope :shown, -> { where(status: SHOWN) }
 
+  # Where its card sits in a chat, once the owner was asked (AgentChatOwnerAskSerializer#at).
+  def self.placed_at = Arel::Nodes::NamedFunction.new("COALESCE", [ arel_table[:asked_at], arel_table[:created_at] ])
+
   def self.for_call(chat, tool_call_id) = chat && tool_call_id.present? ? find_by(chat: chat, tool_call_id: tool_call_id.to_s) : nil
 
   def conversation = chat.owner

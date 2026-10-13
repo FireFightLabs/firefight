@@ -68,6 +68,9 @@ class Chat::Plan < ApplicationRecord
 
   scope :open, -> { where(status: OPEN) }
 
+  # Where its card sits in a chat, where it last moved (AgentChatPlanSerializer#at).
+  def self.placed_at = arel_table[:moved_at]
+
   def self.make!(chat:, made_by:, goal:, steps:, run_at: nil, time_zone: nil, undoes: nil)
     goal = goal.to_s.squish.truncate(GOAL_LIMIT)
     raise Refused, "A plan needs its goal, in the person's words." if goal.blank?

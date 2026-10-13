@@ -28,7 +28,7 @@ export function InvestigationRunCard({ toolCallKey }: InvestigationRunCardProps)
   const { investigations, conversation } = usePage<AgentPageProps>().props
   const [ declaring, setDeclaring ] = useState(false)
   const declareBlockedReason = useIncidentsBlockedReason()
-  const run = investigations.find((candidate) => candidate.toolCallId === toolCallKey)
+  const run = (investigations ?? []).find((candidate) => candidate.toolCallId === toolCallKey)
   if (!run || !conversation) {
     return null
   }

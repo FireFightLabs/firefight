@@ -18,7 +18,7 @@ class AgentChatWatchesTest < ActionDispatch::IntegrationTest
   test "the chat shows the watch going, named for what it waits on, how long and why, its ceiling on reads, the run's page, and that its asker may stop it" do
     @watch.update!(title: "Release run #46 passed", reads_total: 14)
     @watch.steps.sole.update!(run_url: "https://github.com/acme/firefight/actions/runs/46")
-    get agent_chat_url(@conversation), headers: inertia_headers
+    get agent_chat_url(@conversation), headers: chat_page_headers
 
     shown = inertia_props[AgentChatsController::PROP_WATCHES].sole
     assert_equal 'Watch "Release run #46 passed"', shown["headline"]
@@ -35,7 +35,7 @@ class AgentChatWatchesTest < ActionDispatch::IntegrationTest
     assert_equal 'Stopped watching "release run #46".', flash[:notice]
     assert_equal Chat::Watch::STATUS_STOPPED, @watch.reload.status
 
-    get agent_chat_url(@conversation), headers: inertia_headers
+    get agent_chat_url(@conversation), headers: chat_page_headers
     assert_equal 'Watch "release run #46": stopped', inertia_props[AgentChatsController::PROP_WATCHES].sole["headline"]
     assert_equal [ "#{@member.display_name} stopped the watch \"release run #46\"." ],
                  inertia_props[AgentChatsController::PROP_WATCH_UPDATES].map { |update| update["text"] }

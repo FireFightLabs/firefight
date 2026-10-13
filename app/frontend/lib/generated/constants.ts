@@ -1088,8 +1088,67 @@ export const AGENT_CHAT_PROPS = {
   "HELPERS": "helpers",
   "HANDBOOK_PROPOSALS": "handbookProposals",
   "CHAT_MODELS": "chatModels",
-  "THEORIES": "theories"
+  "THEORIES": "theories",
+  "THREAD_FOR": "threadFor"
 } as const
+
+export const AGENT_CHAT_HEAD_PROPS = [
+  "conversation",
+  "openInvestigation",
+  "attachmentRules",
+  "setupGuide",
+  "chatModels"
+] as const
+
+export const AGENT_CHAT_THREAD_PROPS = [
+  "threadFor",
+  "messages",
+  "confirmations",
+  "waitingMessages",
+  "investigations",
+  "charts",
+  "screenshots",
+  "compactions",
+  "modelSwitches",
+  "heldCalls",
+  "packRefusals",
+  "secretEntries",
+  "watches",
+  "watchUpdates",
+  "pullRequestNotices",
+  "memoryQuestions",
+  "plans",
+  "dataRepairs",
+  "mitigations",
+  "ownerAsks",
+  "helpers",
+  "handbookProposals",
+  "theories"
+] as const
+
+export const AGENT_CHAT_WINDOWED_PROPS = [
+  "investigations",
+  "charts",
+  "screenshots",
+  "compactions",
+  "modelSwitches",
+  "heldCalls",
+  "packRefusals",
+  "secretEntries",
+  "watches",
+  "watchUpdates",
+  "pullRequestNotices",
+  "memoryQuestions",
+  "plans",
+  "dataRepairs",
+  "mitigations",
+  "ownerAsks",
+  "helpers",
+  "handbookProposals",
+  "theories"
+] as const
+
+export const AGENT_CHAT_LOADED_FROM_HEADER = "X-Chat-Loaded-From" as const
 
 export const SETUP_STEPS = {
   "ACCOUNT": "account",

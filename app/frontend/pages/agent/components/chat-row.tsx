@@ -2,7 +2,7 @@ import { Link } from "@inertiajs/react"
 
 import { agentChatPath } from "@/lib/routes"
 import { ChatRowActions } from "@/pages/agent/components/chat-row-actions"
-import { OPEN_CHAT_VISIT } from "@/pages/agent/lib/chat-updates"
+import { CHAT_CACHE_FOR, openChatVisit, prefetchConversation } from "@/pages/agent/lib/chat-updates"
 import type { AgentChat } from "@/types/serializers"
 
 interface ChatRowProps {
@@ -10,9 +10,14 @@ interface ChatRowProps {
   current: boolean
 }
 
-// The menu sits beside the link, not inside it, so opening the menu never opens the chat.
+// The menu sits beside the link, not inside it, so opening the menu never opens the chat. Resting on a row reads its
+// chat ahead, so opening it shows it at once.
 export function ChatRow({ chat, current }: ChatRowProps) {
   const reveal = current ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+
+  function readConversationAhead() {
+    prefetchConversation(chat.id)
+  }
 
   return (
     <div
@@ -22,7 +27,10 @@ export function ChatRow({ chat, current }: ChatRowProps) {
     >
       <Link
         href={agentChatPath(chat.id)}
-        {...OPEN_CHAT_VISIT}
+        {...openChatVisit(chat.id)}
+        prefetch
+        cacheFor={CHAT_CACHE_FOR}
+        onPrefetching={readConversationAhead}
         className={`flex min-w-0 flex-1 items-center gap-1.5 rounded-control py-1.5 pr-8 pl-2.5 text-[13px] transition-colors duration-150 ${current ? "text-ink" : "text-ink-2 group-hover:text-ink"}`}
       >
         <span className="min-w-0 truncate">{chat.title}</span>

@@ -54,6 +54,9 @@ class Chat::Mitigation < ApplicationRecord
 
   scope :shown, -> { where(status: SHOWN) }
   scope :untold, -> { where(status: TOLD, told_at: nil) }
+
+  # Where its card sits in a chat, once the change started (AgentChatMitigationSerializer#at).
+  def self.placed_at = Arel::Nodes::NamedFunction.new("COALESCE", [ arel_table[:started_at], arel_table[:created_at] ])
   scope :remind_due, ->(now = Time.current) { where(status: STATUS_ACTIVE, reminded_at: nil).where(expires_at: ..(now + REMIND_BEFORE)) }
   scope :expiry_due, ->(now = Time.current) { where(status: STATUS_ACTIVE).where(expires_at: ..now) }
 

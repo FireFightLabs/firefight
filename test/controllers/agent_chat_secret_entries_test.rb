@@ -26,7 +26,7 @@ class AgentChatSecretEntriesTest < ActionDispatch::IntegrationTest
   end
 
   test "the chat shows the field, and the value typed goes straight to the provider once, then the card says who set it" do
-    get agent_chat_url(@conversation), headers: inertia_headers
+    get agent_chat_url(@conversation), headers: chat_page_headers
     card = inertia_props["secretEntries"].find { |each| each["id"] == @entry.id }
     assert_equal [ "Enter the value for DEPLOY_HOOK in acme/web", "enter", nil ], card.values_at("headline", "kind", "blockedReason")
     assert_match(/\AOpen until \d\d:\d\d UTC\.\z/, card["statusLine"])

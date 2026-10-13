@@ -1,6 +1,6 @@
 import { router } from "@inertiajs/react"
 
-import { AGENT_CHAT_PROPS, CHAT_MESSAGE_ROLES, INVESTIGATION_QUERY_PARAM } from "@/lib/generated/constants"
+import { AGENT_CHAT_HEAD_PROPS, AGENT_CHAT_PROPS, AGENT_CHAT_THREAD_PROPS, CHAT_MESSAGE_ROLES, INVESTIGATION_QUERY_PARAM } from "@/lib/generated/constants"
 import {
   agentChatAskPath, agentChatConfirmPath, agentChatMitigationExtendPath, agentChatMitigationKeepPath, agentChatMitigationUndoPath,
   agentChatPackRefusalAskPath, agentChatPath, agentChatPullRequestFixPath, agentChatSecretEntryFillPath, agentChatStopPath, agentChatsPath,
@@ -13,15 +13,16 @@ import type { AgentChat, AgentChatAttachment } from "@/types/serializers"
 
 type ChatChange = { title: string } | { pinned: boolean } | { archived: boolean }
 
-const OPEN_CHAT = [
-  AGENT_CHAT_PROPS.CONVERSATION, AGENT_CHAT_PROPS.MESSAGES, AGENT_CHAT_PROPS.CONFIRMATIONS,
-  AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION, AGENT_CHAT_PROPS.CHARTS, AGENT_CHAT_PROPS.SCREENSHOTS,
-  AGENT_CHAT_PROPS.WAITING_MESSAGES, AGENT_CHAT_PROPS.ATTACHMENT_RULES, AGENT_CHAT_PROPS.COMPACTIONS, AGENT_CHAT_PROPS.MODEL_SWITCHES,
-  AGENT_CHAT_PROPS.HELD_CALLS, AGENT_CHAT_PROPS.PACK_REFUSALS, AGENT_CHAT_PROPS.SECRET_ENTRIES, AGENT_CHAT_PROPS.SETUP_GUIDE, AGENT_CHAT_PROPS.WATCHES, AGENT_CHAT_PROPS.WATCH_UPDATES,
-  AGENT_CHAT_PROPS.PULL_REQUEST_NOTICES, AGENT_CHAT_PROPS.MEMORY_QUESTIONS, AGENT_CHAT_PROPS.PLANS, AGENT_CHAT_PROPS.DATA_REPAIRS,
-  AGENT_CHAT_PROPS.MITIGATIONS, AGENT_CHAT_PROPS.OWNER_ASKS, AGENT_CHAT_PROPS.HELPERS, AGENT_CHAT_PROPS.HANDBOOK_PROPOSALS,
-  AGENT_CHAT_PROPS.CHAT_MODELS,
-]
+// What the composer needs, which shows at once, and the conversation, which follows it in one request.
+const CHAT_HEAD = [ ...AGENT_CHAT_HEAD_PROPS ]
+const THREAD = [ ...AGENT_CHAT_THREAD_PROPS ]
+const OPEN_CHAT = [ ...CHAT_HEAD, ...THREAD ]
+// Messages load a page at a time and Inertia adds each page to what the page holds, so a visit that reads them again
+// replaces them. It reads the whole stretch on screen, since each visit to the chat names its oldest message.
+const MESSAGES = [ AGENT_CHAT_PROPS.MESSAGES ]
+const READ_OPEN_CHAT = { only: OPEN_CHAT, reset: MESSAGES }
+// A hovered chat is read ahead and kept this long, so opening it shows it at once.
+export const CHAT_CACHE_FOR = "30s"
 const CHARTS = [ AGENT_CHAT_PROPS.CHARTS ]
 // A check's screenshots exist once it ran, and a send asked about after it shows the page it sends from.
 const SCREENSHOTS = [ AGENT_CHAT_PROPS.SCREENSHOTS, AGENT_CHAT_PROPS.CONFIRMATIONS ]
@@ -54,15 +55,40 @@ const ARCHIVED_COUNT = [ AGENT_CHAT_PROPS.ARCHIVED_COUNT ]
 // Without preserveState Inertia remounts the page and the list loses its scroll.
 const IN_PLACE = { preserveScroll: true, preserveState: true }
 
+// Opening a chat shows its composer at once and a skeleton where the conversation goes, which loads next. The
+// conversation is an ordinary visit, not a background one: Inertia drops a background response read ahead from another
+// chat, and opening a third chat meanwhile should stop it.
+const CHAT_HEAD_VISIT = { ...IN_PLACE, only: CHAT_HEAD }
+const THREAD_VISIT = { ...IN_PLACE, only: THREAD, reset: MESSAGES }
+
 // Spread onto a Link, so a chat stays a real link that opens in a new tab.
-export const OPEN_CHAT_VISIT = { ...IN_PLACE, only: OPEN_CHAT, onSuccess: placeOpenChat }
+export function openChatVisit(chatId: string) {
+  return { ...CHAT_HEAD_VISIT, onSuccess: () => openedChat(chatId) }
+}
+
+// Spread onto the link back to the list, which clears the open chat.
+export const ALL_CHATS_VISIT = { ...IN_PLACE, ...READ_OPEN_CHAT }
 
 export function openChat(chatId: string) {
-  router.visit(agentChatPath(chatId), OPEN_CHAT_VISIT)
+  router.visit(agentChatPath(chatId), openChatVisit(chatId))
+}
+
+// The link reads the composer's part ahead, and this the conversation, kept as long.
+export function prefetchConversation(chatId: string) {
+  router.prefetch(agentChatPath(chatId), THREAD_VISIT, { cacheFor: CHAT_CACHE_FOR })
+}
+
+// A chat read ahead may have moved on since, and nothing the live connection says before it connects is said again,
+// so a chat opened from what was read ahead is read once more in the background.
+function openedChat(chatId: string) {
+  placeOpenChat()
+  const path = agentChatPath(chatId)
+  const readAhead = router.getCached(path, CHAT_HEAD_VISIT) !== null || router.getCached(path, THREAD_VISIT) !== null
+  router.visit(path, { ...THREAD_VISIT, onSuccess: readAhead ? refreshOpenChat : undefined })
 }
 
 export function startNewChat() {
-  router.visit(agentChatsPath(), { ...IN_PLACE, only: OPEN_CHAT })
+  router.visit(agentChatsPath(), ALL_CHATS_VISIT)
 }
 
 // The question and the working state show the moment it is sent, so the chat never sits still while the request is out.
@@ -78,19 +104,24 @@ export function ask(conversationId: string | null, question: string, attachments
   router
     .optimistic<AgentPageProps>((props) => askedNow(props, question, shown))
     .post(path, { question, attachment_ids: attachments.map((attachment) => attachment.id), ...picked }, {
-      ...IN_PLACE, only: OPEN_CHAT, onSuccess: placeOpenChat,
+      ...IN_PLACE, ...READ_OPEN_CHAT, onSuccess: placeOpenChat,
     })
 }
 
-// A new chat has no id until the server makes it, and an empty one opens no live connection.
+// A new chat has no id until the server makes it, and an empty one opens no live connection. Messages are newest first.
+// Asked before the chat's conversation arrived, the page shows the question alone until the server's answer brings the
+// rest, and never what another chat left in the props.
 function askedNow(props: AgentPageProps, question: string, attachments: AgentChatAttachment[]): Partial<AgentPageProps> {
+  const loaded = props.conversation !== null && props.threadFor === props.conversation.id
+  const waitingMessages = loaded ? props.waitingMessages ?? [] : []
+  const messages = loaded ? props.messages ?? [] : []
   if (props.conversation?.busy) {
-    const waiting = { id: `waiting-${props.waitingMessages.length}`, body: question, attachments }
-    return { waitingMessages: [ ...props.waitingMessages, waiting ] }
+    const waiting = { id: `waiting-${waitingMessages.length}`, body: question, attachments }
+    return { waitingMessages: [ ...waitingMessages, waiting ], ...(loaded ? {} : { messages, threadFor: props.conversation?.id }) }
   }
 
   const asked = {
-    id: `asking-${props.messages.length}`, body: question, role: CHAT_MESSAGE_ROLES.USER, tools: [], sources: [], attachments,
+    id: `asking-${messages.length}`, body: question, role: CHAT_MESSAGE_ROLES.USER, tools: [], sources: [], attachments,
     createdAt: new Date().toISOString(), model: null,
   }
   const title = question || attachments.map((attachment) => attachment.name).join(", ")
@@ -99,7 +130,7 @@ function askedNow(props: AgentPageProps, question: string, attachments: AgentCha
     lastActiveAt: new Date().toISOString(), busy: true, askedIn: null, askedInUrl: null,
   }
 
-  return { conversation: { ...conversation, busy: true }, messages: [ ...props.messages, asked ] }
+  return { conversation: { ...conversation, busy: true }, messages: [ asked, ...messages ], threadFor: conversation.id }
 }
 
 // The picker moves the moment a model is picked and the server's toast confirms it. A refusal puts it back.
@@ -111,7 +142,7 @@ export function chooseChatModel(conversationId: string, model: string) {
 
 // The answer ends with Stopped once the worker stops, and the live connection brings that in.
 export function stopChat(conversationId: string) {
-  router.post(agentChatStopPath(conversationId), {}, { ...IN_PLACE, only: OPEN_CHAT })
+  router.post(agentChatStopPath(conversationId), {}, { ...IN_PLACE, ...READ_OPEN_CHAT })
 }
 
 export function stopRun(investigationId: string) {
@@ -130,7 +161,7 @@ export function answerConfirmations(conversationId: string, answers: Confirmatio
   const decisions = answers.map((answer) => ({
     tool_call_id: answer.toolCallId, approved: answer.approved, for_chat: answer.forChat, expires: answer.expires,
   }))
-  router.post(agentChatConfirmPath(conversationId), { decisions }, { ...IN_PLACE, only: OPEN_CHAT })
+  router.post(agentChatConfirmPath(conversationId), { decisions }, { ...IN_PLACE, ...READ_OPEN_CHAT })
 }
 
 // A run opens over the chat that started it, and only the run is loaded.
@@ -245,7 +276,7 @@ export function refreshHandbookProposals() {
 }
 
 export function refreshOpenChat() {
-  router.reload({ only: OPEN_CHAT, onSuccess: placeOpenChat })
+  router.reload({ ...READ_OPEN_CHAT, onSuccess: placeOpenChat })
 }
 
 export function renameChat(chat: AgentChat, title: string) {
@@ -263,12 +294,13 @@ export function setChatArchived(chat: AgentChat, archived: boolean) {
 
 // Deleting the open chat clears the page too.
 export function deleteChat(chat: AgentChat, open: boolean) {
+  const reads = open ? { ...READ_OPEN_CHAT, only: [ ...OPEN_CHAT, ...ARCHIVED_COUNT ] } : { only: ARCHIVED_COUNT }
   router
     .optimistic<AgentPageProps>((props) => ({
       conversations: props.conversations.filter((candidate) => candidate.id !== chat.id),
       archivedCount: props.archivedCount - (chat.archived ? 1 : 0),
     }))
-    .delete(agentChatPath(chat.id), { ...IN_PLACE, only: open ? [ ...OPEN_CHAT, ...ARCHIVED_COUNT ] : ARCHIVED_COUNT })
+    .delete(agentChatPath(chat.id), { ...IN_PLACE, ...reads })
 }
 
 function changeChat(chat: AgentChat, change: ChatChange, alsoOnRow: Partial<AgentChat> = {}) {

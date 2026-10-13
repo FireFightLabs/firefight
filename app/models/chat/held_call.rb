@@ -37,6 +37,9 @@ class Chat::HeldCall < ApplicationRecord
 
   scope :untold, -> { where(status: TOLD, told_at: nil) }
 
+  # Where its card sits in a chat, when it last had news (AgentChatHeldCallSerializer#at), for a query joined to its approval.
+  def self.placed_at = Arel::Nodes::NamedFunction.new("COALESCE", [ Ability::Approval.arel_table[:resolved_at], arel_table[:created_at] ])
+
   # Keeps the call with its chat and points the approval at it, so approving or denying it reaches this chat.
   def self.hold!(chat:, approval:, tool_name:, tool_call_id:, target:)
     transaction do

@@ -166,7 +166,7 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     Chat::MemoryPost.create!(workspace: @workspace, conversation: conversation, kind: Chat::MemoryPost::KIND_DISPUTED, memory_ids: [ old.id ],
                              evidence: "The deploy log of web shows \"web deploys from release\".")
 
-    get agent_chat_path(conversation), headers: inertia_headers
+    get agent_chat_path(conversation), headers: chat_page_headers
     card = inertia_props[AgentChatsController::PROP_MEMORY_QUESTIONS].sole
     assert_equal [ "web deploys from main", nil ], card.values_at("remembered", "decided")
 

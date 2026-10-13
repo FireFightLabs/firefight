@@ -1,6 +1,9 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react"
+import { InfiniteScroll } from "@inertiajs/react"
+import { IconLoader2 } from "@tabler/icons-react"
+import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import LoadingState from "@/components/agent-ui/loading-state"
+import { AGENT_CHAT_PROPS, AGENT_CHAT_WINDOWED_PROPS } from "@/lib/generated/constants"
 import { whenClosed } from "@/lib/handlers"
 import { ConfirmCard } from "@/pages/agent/components/confirm-card"
 import { HandbookProposals } from "@/pages/agent/components/handbook-proposal-card"
@@ -23,10 +26,25 @@ import type {
   AgentChatWatchUpdate, ChatCompaction, ChatModelSwitch, HandbookProposal,
 } from "@/types/serializers"
 
+// Older messages start loading this far before the person reaches the top.
+const OLDER_BUFFER_PX = 400
+// An older page reads everything placed among its messages again, for the longer stretch now on screen.
+const OLDER_PROPS = [ ...AGENT_CHAT_WINDOWED_PROPS ]
+
+// Where the person was reading when an older page arrived, held until the page is drawn with it.
+interface ReadingAt {
+  top: number
+  height: number
+}
+
 interface ThreadProps {
   conversationId: string | null
   confirmations: AgentChatConfirmation[]
+  // Newest first, as they are paged. A chat not made yet holds only what was just asked, and has no pages.
   messages: AgentChatMessage[]
+  paged: boolean
+  // Older messages are still to load, so whatever sits before the first one loaded belongs further up.
+  hasOlder: boolean
   compactions: ChatCompaction[]
   modelSwitches: ChatModelSwitch[]
   heldCalls: AgentChatHeldCall[]
@@ -46,10 +64,18 @@ interface ThreadProps {
 }
 
 export function Thread({
-  conversationId, confirmations, messages, compactions, modelSwitches, heldCalls, packRefusals, secretEntries, watches, watchUpdates, pullRequestNotices,
-  memoryQuestions, plans, dataRepairs, mitigations, ownerAsks, handbookProposals, waiting, stream,
+  conversationId, confirmations, messages: newestFirst, paged, hasOlder, compactions, modelSwitches, heldCalls, packRefusals, secretEntries, watches,
+  watchUpdates, pullRequestNotices, memoryQuestions, plans, dataRepairs, mitigations, ownerAsks, handbookProposals, waiting, stream,
 }: ThreadProps) {
   const foot = useRef<HTMLDivElement>(null)
+  const scroller = useRef<HTMLDivElement>(null)
+  const readingAt = useRef<ReadingAt | null>(null)
+  // Scrolling near the top of the thread reads the page before the oldest message shown.
+  const olderTrigger = useRef<HTMLDivElement>(null)
+  const [ loadingOlder, setLoadingOlder ] = useState(false)
+  const messages = useMemo(() => [ ...newestFirst ].reverse(), [ newestFirst ])
+  const oldestShown = messages[0]?.id
+  const shownFrom = useRef({ conversationId, oldestShown })
   // Making room and carrying on with a backup model are both quiet lines among the steps, placed by when they happened.
   const quietLines = useMemo(() => [ ...compactions, ...modelSwitches ], [ compactions, modelSwitches ])
   const turns = useMemo(() => groupedTurns(settledMessages(messages, stream.owed), quietLines), [ messages, quietLines, stream.owed ])
@@ -83,60 +109,133 @@ export function Thread({
     setOpenImageId(null)
   }
 
-  useEffect(() => {
+  function startedOlder() {
+    setLoadingOlder(true)
+  }
+
+  function finishedOlder() {
+    setLoadingOlder(false)
+  }
+
+  function noteReading() {
+    const element = scroller.current
+    readingAt.current = element && { top: element.scrollTop, height: element.scrollHeight }
+  }
+
+  // Opening a chat and anything new land at the foot. An older page lands above what the person reads, so the scroll
+  // moves down by what it added, before the page is painted, and the words they were reading stay put.
+  useLayoutEffect(() => {
+    const shown = shownFrom.current
+    const olderArrived = shown.conversationId === conversationId && shown.oldestShown !== undefined && shown.oldestShown !== oldestShown
+    const element = scroller.current
+    const before = readingAt.current
+    shownFrom.current = { conversationId, oldestShown }
+    readingAt.current = null
+    if (olderArrived) {
+      if (element && before) {
+        element.scrollTop = before.top + element.scrollHeight - before.height
+      }
+      return
+    }
+
     foot.current?.scrollIntoView({ block: "end" })
   }, [
-    messages.length, waiting.length, stream.text, stream.steps.length, heldCalls.length, packRefusals.length, secretEntries.length, watchUpdates.length, pullRequestNotices.length,
+    conversationId, oldestShown, messages.length, waiting.length, stream.text, stream.steps.length, heldCalls.length, packRefusals.length, secretEntries.length, watchUpdates.length, pullRequestNotices.length,
     memoryQuestions.length, plans.length, dataRepairs.length, mitigations.length, ownerAsks.length, handbookProposals.length,
   ])
 
+  // Whatever sits before the first message loaded is drawn once the start of the chat is loaded, where it belongs.
+  const opening = !hasOlder && (
+    <>
+      {conversationId && <HeldCalls conversationId={conversationId} heldCalls={held.get(BEFORE_ALL_TURNS)} />}
+      {conversationId && <PackRefusals conversationId={conversationId} refusals={refused.get(BEFORE_ALL_TURNS)} />}
+      {conversationId && <SecretEntries conversationId={conversationId} entries={handed.get(BEFORE_ALL_TURNS)} />}
+      {conversationId && <Watches conversationId={conversationId} watches={watched.get(BEFORE_ALL_TURNS)} updates={said.get(BEFORE_ALL_TURNS)} />}
+      {conversationId && <PullRequestNotices conversationId={conversationId} notices={noticed.get(BEFORE_ALL_TURNS)} />}
+      <MemoryQuestions questions={asked.get(BEFORE_ALL_TURNS)} />
+      {conversationId && <Plans conversationId={conversationId} plans={planned.get(BEFORE_ALL_TURNS)} />}
+      {conversationId && (
+        <Safeguards
+          conversationId={conversationId}
+          repairs={repaired.get(BEFORE_ALL_TURNS)}
+          mitigations={mitigated.get(BEFORE_ALL_TURNS)}
+          ownerAsks={owned.get(BEFORE_ALL_TURNS)}
+        />
+      )}
+      <HandbookProposals proposals={proposed.get(BEFORE_ALL_TURNS)} />
+    </>
+  )
+
+  const shown = (
+    <>
+      {opening}
+      {turns.map((turn) => (
+        <Fragment key={turn.id}>
+          <Message turn={turn} onOpenImage={setOpenImageId} />
+          {conversationId && <HeldCalls conversationId={conversationId} heldCalls={held.get(turn.id)} />}
+          {conversationId && <PackRefusals conversationId={conversationId} refusals={refused.get(turn.id)} />}
+          {conversationId && <SecretEntries conversationId={conversationId} entries={handed.get(turn.id)} />}
+          {conversationId && <Watches conversationId={conversationId} watches={watched.get(turn.id)} updates={said.get(turn.id)} />}
+          {conversationId && <PullRequestNotices conversationId={conversationId} notices={noticed.get(turn.id)} />}
+          <MemoryQuestions questions={asked.get(turn.id)} />
+          {conversationId && <Plans conversationId={conversationId} plans={planned.get(turn.id)} />}
+          {conversationId && (
+            <Safeguards conversationId={conversationId} repairs={repaired.get(turn.id)} mitigations={mitigated.get(turn.id)} ownerAsks={owned.get(turn.id)} />
+          )}
+          <HandbookProposals proposals={proposed.get(turn.id)} />
+        </Fragment>
+      ))}
+      {live && <Message turn={live} live onOpenImage={setOpenImageId} />}
+      {stream.busy && stream.text.length === 0 && <LoadingState label="Working" />}
+      {waiting.map((message) => (
+        <WaitingMessage key={message.id} body={message.body} attachments={message.attachments} onOpenImage={setOpenImageId} />
+      ))}
+      {conversationId && confirmations.length > 0 && !stream.busy && (
+        <ConfirmCard conversationId={conversationId} confirmations={confirmations} />
+      )}
+      <div ref={foot} />
+    </>
+  )
+
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8 [mask-image:linear-gradient(to_bottom,transparent,black_16px,black_calc(100%-32px),transparent)] [scrollbar-color:var(--line-strong)_transparent] [scrollbar-width:thin]">
-      <div className="mx-auto flex max-w-3xl flex-col gap-8">
-        {conversationId && <HeldCalls conversationId={conversationId} heldCalls={held.get(BEFORE_ALL_TURNS)} />}
-        {conversationId && <PackRefusals conversationId={conversationId} refusals={refused.get(BEFORE_ALL_TURNS)} />}
-        {conversationId && <SecretEntries conversationId={conversationId} entries={handed.get(BEFORE_ALL_TURNS)} />}
-        {conversationId && <Watches conversationId={conversationId} watches={watched.get(BEFORE_ALL_TURNS)} updates={said.get(BEFORE_ALL_TURNS)} />}
-        {conversationId && <PullRequestNotices conversationId={conversationId} notices={noticed.get(BEFORE_ALL_TURNS)} />}
-        <MemoryQuestions questions={asked.get(BEFORE_ALL_TURNS)} />
-        {conversationId && <Plans conversationId={conversationId} plans={planned.get(BEFORE_ALL_TURNS)} />}
-        {conversationId && (
-          <Safeguards
-            conversationId={conversationId}
-            repairs={repaired.get(BEFORE_ALL_TURNS)}
-            mitigations={mitigated.get(BEFORE_ALL_TURNS)}
-            ownerAsks={owned.get(BEFORE_ALL_TURNS)}
-          />
-        )}
-        <HandbookProposals proposals={proposed.get(BEFORE_ALL_TURNS)} />
-        {turns.map((turn) => (
-          <Fragment key={turn.id}>
-            <Message turn={turn} onOpenImage={setOpenImageId} />
-            {conversationId && <HeldCalls conversationId={conversationId} heldCalls={held.get(turn.id)} />}
-            {conversationId && <PackRefusals conversationId={conversationId} refusals={refused.get(turn.id)} />}
-            {conversationId && <SecretEntries conversationId={conversationId} entries={handed.get(turn.id)} />}
-            {conversationId && <Watches conversationId={conversationId} watches={watched.get(turn.id)} updates={said.get(turn.id)} />}
-            {conversationId && <PullRequestNotices conversationId={conversationId} notices={noticed.get(turn.id)} />}
-            <MemoryQuestions questions={asked.get(turn.id)} />
-            {conversationId && <Plans conversationId={conversationId} plans={planned.get(turn.id)} />}
-            {conversationId && (
-              <Safeguards conversationId={conversationId} repairs={repaired.get(turn.id)} mitigations={mitigated.get(turn.id)} ownerAsks={owned.get(turn.id)} />
-            )}
-            <HandbookProposals proposals={proposed.get(turn.id)} />
-          </Fragment>
-        ))}
-        {live && <Message turn={live} live onOpenImage={setOpenImageId} />}
-        {stream.busy && stream.text.length === 0 && <LoadingState label="Working" />}
-        {waiting.map((message) => (
-          <WaitingMessage key={message.id} body={message.body} attachments={message.attachments} onOpenImage={setOpenImageId} />
-        ))}
-        {conversationId && confirmations.length > 0 && !stream.busy && (
-          <ConfirmCard conversationId={conversationId} confirmations={confirmations} />
-        )}
-        <div ref={foot} />
-      </div>
+    <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto px-4 py-8 [mask-image:linear-gradient(to_bottom,transparent,black_16px,black_calc(100%-32px),transparent)] [scrollbar-color:var(--line-strong)_transparent] [scrollbar-width:thin]">
+      {paged ? (
+        <>
+          <div ref={olderTrigger} className={hasOlder ? OLDER_SLOT_CLASS : undefined}>
+            {loadingOlder && <EarlierLoading />}
+          </div>
+          <InfiniteScroll
+            data={AGENT_CHAT_PROPS.MESSAGES}
+            onlyNext
+            preserveUrl
+            buffer={OLDER_BUFFER_PX}
+            endElement={olderTrigger}
+            params={{ only: OLDER_PROPS, onStart: startedOlder, onBeforeUpdate: noteReading, onFinish: finishedOlder }}
+            className={COLUMN_CLASS}
+          >
+            {shown}
+          </InfiniteScroll>
+        </>
+      ) : (
+        <div className={COLUMN_CLASS}>{shown}</div>
+      )}
       <ImageDialog image={openImage} onOpenChange={whenClosed(closeImage)} />
     </div>
+  )
+}
+
+const COLUMN_CLASS = "mx-auto flex max-w-3xl flex-col gap-8"
+
+// Above the oldest message while older ones are left, the same height loading or not, so the words being read never
+// move when it shows.
+const OLDER_SLOT_CLASS = "flex h-10 justify-center"
+
+function EarlierLoading() {
+  return (
+    <p className="flex items-center gap-1.5 text-[12px] text-ink-3">
+      <IconLoader2 className="size-3.5 motion-safe:animate-spin" />
+      Loading earlier messages
+    </p>
   )
 }
 

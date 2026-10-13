@@ -57,6 +57,8 @@ class AgentChatsController < InertiaController
   PROP_CHAT_MODELS = "chatModels"
   # Halon's theory board while it troubleshoots in this chat, drawn under the step that last updated it.
   PROP_THEORIES = "theories"
+  # Which chat the conversation props were read for, so a page switching chats shows a skeleton, never the last chat's.
+  PROP_THREAD_FOR = "threadFor"
   PROPS = {
     "CONVERSATIONS" => PROP_CONVERSATIONS, "ARCHIVED_COUNT" => PROP_ARCHIVED_COUNT,
     "CONVERSATION" => PROP_CONVERSATION, "MESSAGES" => PROP_MESSAGES, "INCIDENTS" => PROP_INCIDENTS,
@@ -67,8 +69,25 @@ class AgentChatsController < InertiaController
     "PACK_REFUSALS" => PROP_PACK_REFUSALS, "SECRET_ENTRIES" => PROP_SECRET_ENTRIES, "SETUP_GUIDE" => PROP_SETUP_GUIDE, "WATCHES" => PROP_WATCHES, "WATCH_UPDATES" => PROP_WATCH_UPDATES,
     "PULL_REQUEST_NOTICES" => PROP_PULL_REQUEST_NOTICES, "MEMORY_QUESTIONS" => PROP_MEMORY_QUESTIONS, "PLANS" => PROP_PLANS,
     "DATA_REPAIRS" => PROP_DATA_REPAIRS, "MITIGATIONS" => PROP_MITIGATIONS, "OWNER_ASKS" => PROP_OWNER_ASKS, "HELPERS" => PROP_HELPERS,
-    "HANDBOOK_PROPOSALS" => PROP_HANDBOOK_PROPOSALS, "CHAT_MODELS" => PROP_CHAT_MODELS, "THEORIES" => PROP_THEORIES
+    "HANDBOOK_PROPOSALS" => PROP_HANDBOOK_PROPOSALS, "CHAT_MODELS" => PROP_CHAT_MODELS, "THEORIES" => PROP_THEORIES, "THREAD_FOR" => PROP_THREAD_FOR
   }.freeze
+  # What the open chat's composer and model picker need, sent with the page so it shows at once.
+  HEAD_PROPS = [ PROP_CONVERSATION, PROP_OPEN_INVESTIGATION, PROP_ATTACHMENT_RULES, PROP_SETUP_GUIDE, PROP_CHAT_MODELS ].freeze
+  # Read for the same stretch of the chat as its messages, so scrolling up to older messages reads these again with them.
+  WINDOWED_PROPS = [
+    PROP_INVESTIGATIONS, PROP_CHARTS, PROP_SCREENSHOTS, PROP_COMPACTIONS, PROP_MODEL_SWITCHES, PROP_HELD_CALLS, PROP_PACK_REFUSALS,
+    PROP_SECRET_ENTRIES, PROP_WATCHES, PROP_WATCH_UPDATES, PROP_PULL_REQUEST_NOTICES, PROP_MEMORY_QUESTIONS, PROP_PLANS, PROP_DATA_REPAIRS,
+    PROP_MITIGATIONS, PROP_OWNER_ASKS, PROP_HELPERS, PROP_HANDBOOK_PROPOSALS, PROP_THEORIES
+  ].freeze
+  # The conversation itself, loaded in one request right after the page shows. Confirmations and waiting messages are
+  # live whenever they were made, so they are always read whole.
+  THREAD_PROPS = [ PROP_THREAD_FOR, PROP_MESSAGES, PROP_CONFIRMATIONS, PROP_WAITING_MESSAGES, *WINDOWED_PROPS ].freeze
+  THREAD_GROUP = "thread"
+  # Older messages load a page at a time as the person scrolls up, each page asked for by the oldest message shown.
+  MESSAGES_BEFORE_PARAM = "before"
+  # The oldest message the open chat shows, sent with each visit to it, so what a visit reloads keeps that stretch of the
+  # chat rather than going back to the newest page.
+  LOADED_FROM_HEADER = "X-Chat-Loaded-From"
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
   NOTHING_ASKED = "Say something first."
@@ -98,42 +117,51 @@ class AgentChatsController < InertiaController
       PROP_CHARTS => [], PROP_SCREENSHOTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => [],
       PROP_MODEL_SWITCHES => [], PROP_HELD_CALLS => [], PROP_PACK_REFUSALS => [], PROP_SECRET_ENTRIES => [], PROP_WATCHES => [], PROP_WATCH_UPDATES => [],
       PROP_PULL_REQUEST_NOTICES => [], PROP_MEMORY_QUESTIONS => [], PROP_PLANS => [], PROP_DATA_REPAIRS => [], PROP_MITIGATIONS => [],
-      PROP_OWNER_ASKS => [], PROP_HELPERS => [], PROP_HANDBOOK_PROPOSALS => [], PROP_CHAT_MODELS => chat_models(nil), PROP_THEORIES => []
+      PROP_OWNER_ASKS => [], PROP_HELPERS => [], PROP_HANDBOOK_PROPOSALS => [], PROP_CHAT_MODELS => chat_models(nil), PROP_THEORIES => [],
+      PROP_THREAD_FOR => nil
     )
   end
 
+  # The page shows at once with what its composer needs, and the conversation follows as one deferred group. Its
+  # messages are the newest page, older ones arrive a page at a time as the person scrolls up, and everything placed among
+  # them is read for the same stretch (Chat::Window).
   def show
-    messages = conversation.chat&.readable_messages&.includes(:attached_files, :ruby_llm_usages, ruby_llm_tool_calls: :result).to_a
-    waiting = conversation.chat&.queued_messages&.waiting&.includes(:attached_files).to_a
-    said = said_in_platform(conversation, messages, waiting)
     render inertia: "agent/index", props: base_props.merge(
-      PROP_CONVERSATION => AgentChatSerializer.one(conversation, asked_in_url: asked_in_url, platform_texts: said),
-      PROP_MESSAGES => AgentChatMessageSerializer.many(messages, member: current_membership, platform_texts: said),
-      PROP_CONFIRMATIONS => AgentChatConfirmationSerializer.many(conversation.chat&.awaiting_decision || [], screenshot_path: screenshot_path),
-      PROP_INVESTIGATIONS => InvestigationCardSerializer.many(started_investigations),
-      PROP_OPEN_INVESTIGATION => open_investigation,
-      PROP_CHARTS => ChatChartSerializer.many(conversation.chat&.charts || []),
-      PROP_SCREENSHOTS => ChatScreenshotSerializer.many(conversation.chat&.screenshots || [], screenshot_path: screenshot_path),
-      PROP_WAITING_MESSAGES => AgentChatWaitingMessageSerializer.many(waiting, platform_texts: said),
-      PROP_ATTACHMENT_RULES => attachment_rules(conversation.chat, picked: conversation.picked_model_choice),
-      PROP_COMPACTIONS => ChatCompactionSerializer.many(conversation.chat&.compactions || []),
-      PROP_MODEL_SWITCHES => ChatModelSwitchSerializer.many(conversation.chat&.model_switches || []),
-      PROP_HELD_CALLS => AgentChatHeldCallSerializer.many(held_calls_shown, member: current_membership),
-      PROP_PACK_REFUSALS => AgentChatPackRefusalSerializer.many(pack_refusals_shown, member: current_membership),
-      PROP_SECRET_ENTRIES => AgentChatSecretEntrySerializer.many(conversation.chat&.secret_entries&.includes(:requester, :done_by, tool: :integration) || [],
-                                                                 member: current_membership),
-      PROP_WATCHES => AgentChatWatchSerializer.many(watches_shown, member: current_membership),
-      PROP_WATCH_UPDATES => AgentChatWatchUpdateSerializer.many(watch_updates_shown),
-      PROP_PULL_REQUEST_NOTICES => AgentChatPullRequestNoticeSerializer.many(pull_request_notices_shown, member: current_membership),
-      PROP_MEMORY_QUESTIONS => AgentChatMemoryQuestionSerializer.many(conversation.memory_posts.order(:created_at), member: current_membership),
-      PROP_PLANS => AgentChatPlanSerializer.many(plans_shown, member: current_membership),
-      PROP_DATA_REPAIRS => AgentChatDataRepairSerializer.many(conversation.chat&.data_repairs&.where(status: Chat::DataRepair::STATUS_RAN) || []),
-      PROP_MITIGATIONS => AgentChatMitigationSerializer.many(conversation.chat&.mitigations&.shown || [], member: current_membership),
-      PROP_OWNER_ASKS => AgentChatOwnerAskSerializer.many(conversation.chat&.owner_asks&.shown || []),
-      PROP_HELPERS => AgentChatHelperSerializer.many(conversation.chat&.helpers&.includes(:workspace, :own_chat) || []),
-      PROP_HANDBOOK_PROPOSALS => HandbookProposalSerializer.many(conversation.handbook_proposals.includes(:instruction, :result, :decided_by).order(:created_at)),
-      PROP_CHAT_MODELS => chat_models(conversation),
-      PROP_THEORIES => ChatTheorySerializer.many(conversation.chat&.theories || [])
+      PROP_CONVERSATION => -> { AgentChatSerializer.one(conversation, asked_in_url: asked_in_url, platform_texts: listed_in_platform([ conversation ])) },
+      PROP_OPEN_INVESTIGATION => -> { open_investigation },
+      PROP_ATTACHMENT_RULES => -> { attachment_rules(conversation.chat, picked: conversation.picked_model_choice) },
+      PROP_CHAT_MODELS => -> { chat_models(conversation) },
+      PROP_THREAD_FOR => in_thread { conversation.id },
+      PROP_MESSAGES => InertiaRails.scroll(window.scroll_metadata(MESSAGES_BEFORE_PARAM), defer: opening?, group: THREAD_GROUP, match_on: "id") { messages_shown },
+      PROP_CONFIRMATIONS => in_thread { AgentChatConfirmationSerializer.many(on_chat(&:awaiting_decision), screenshot_path: screenshot_path) },
+      PROP_WAITING_MESSAGES => in_thread { waiting_shown },
+      PROP_INVESTIGATIONS => in_thread { InvestigationCardSerializer.many(window.stepped(started_investigations)) },
+      PROP_CHARTS => in_thread { ChatChartSerializer.many(on_chat { |chat| window.stepped(chat.charts) }) },
+      PROP_SCREENSHOTS => in_thread { ChatScreenshotSerializer.many(on_chat { |chat| window.stepped(chat.screenshots) }, screenshot_path: screenshot_path) },
+      PROP_COMPACTIONS => in_thread { ChatCompactionSerializer.many(on_chat { |chat| window.placed(chat.compactions) }) },
+      PROP_MODEL_SWITCHES => in_thread { ChatModelSwitchSerializer.many(on_chat { |chat| window.placed(chat.model_switches) }) },
+      PROP_HELD_CALLS => in_thread { AgentChatHeldCallSerializer.many(held_calls_shown, member: current_membership) },
+      PROP_PACK_REFUSALS => in_thread { AgentChatPackRefusalSerializer.many(pack_refusals_shown, member: current_membership) },
+      PROP_SECRET_ENTRIES => in_thread { AgentChatSecretEntrySerializer.many(secret_entries_shown, member: current_membership) },
+      PROP_WATCHES => in_thread { AgentChatWatchSerializer.many(watches_shown, member: current_membership) },
+      PROP_WATCH_UPDATES => in_thread { AgentChatWatchUpdateSerializer.many(watch_updates_shown) },
+      PROP_PULL_REQUEST_NOTICES => in_thread { AgentChatPullRequestNoticeSerializer.many(pull_request_notices_shown, member: current_membership) },
+      PROP_MEMORY_QUESTIONS => in_thread do
+        AgentChatMemoryQuestionSerializer.many(window.placed(conversation.memory_posts.order(:created_at)), member: current_membership)
+      end,
+      PROP_PLANS => in_thread { AgentChatPlanSerializer.many(plans_shown, member: current_membership) },
+      PROP_DATA_REPAIRS => in_thread do
+        AgentChatDataRepairSerializer.many(on_chat { |chat| window.placed(chat.data_repairs.where(status: Chat::DataRepair::STATUS_RAN), Chat::DataRepair.placed_at) })
+      end,
+      PROP_MITIGATIONS => in_thread do
+        AgentChatMitigationSerializer.many(on_chat { |chat| window.placed(chat.mitigations.shown, Chat::Mitigation.placed_at) }, member: current_membership)
+      end,
+      PROP_OWNER_ASKS => in_thread { AgentChatOwnerAskSerializer.many(on_chat { |chat| window.placed(chat.owner_asks.shown, Chat::OwnerAsk.placed_at) }) },
+      PROP_HELPERS => in_thread { AgentChatHelperSerializer.many(on_chat { |chat| window.stepped(chat.helpers.includes(:workspace, :own_chat)) }) },
+      PROP_HANDBOOK_PROPOSALS => in_thread do
+        HandbookProposalSerializer.many(window.placed(conversation.handbook_proposals.includes(:instruction, :result, :decided_by).order(:created_at)))
+      end,
+      PROP_THEORIES => in_thread { ChatTheorySerializer.many(on_chat { |chat| window.stepped(chat.theories) }) }
     )
   end
 
@@ -346,20 +374,51 @@ class AgentChatsController < InertiaController
 
   private
 
-  # One that was asked for again is shown as the new request, never twice.
-  def held_calls_shown
+  def in_thread(&block) = opening? ? InertiaRails.defer(group: THREAD_GROUP, &block) : block
+
+  # A page that already shows this chat names its oldest message, and a change made from it redirects back as a whole
+  # visit, which would blank the conversation on screen if it were deferred. Only a chat being opened defers it.
+  def opening? = request.headers[LOADED_FROM_HEADER].blank?
+
+  # What the chat's record holds, or nothing for a conversation nobody has asked anything in yet.
+  def on_chat
     chat = conversation.chat
-    chat ? chat.held_calls.where.not(status: Chat::HeldCall::STATUS_ASKED_AGAIN).includes(:decided_by, approval: :approver) : []
+    chat ? yield(chat) : []
   end
 
+  def window
+    @window ||= Chat::Window.new(conversation.chat, before: params[MESSAGES_BEFORE_PARAM], from: request.headers[LOADED_FROM_HEADER])
+  end
+
+  # Newest first, so Inertia's next page is the older one and is added after what the page holds.
+  def messages_shown
+    messages = window.messages.includes(:attached_files, :ruby_llm_usages, ruby_llm_tool_calls: :result).to_a.reverse
+    asked = messages.select { |message| message.role == Chat::Message::ROLE_USER }
+    AgentChatMessageSerializer.many(messages, member: current_membership, platform_texts: said_in_platform(asked))
+  end
+
+  def waiting_shown
+    waiting = on_chat { |chat| chat.queued_messages.waiting.includes(:attached_files).to_a }
+    AgentChatWaitingMessageSerializer.many(waiting, platform_texts: said_in_platform(waiting))
+  end
+
+  # One that was asked for again is shown as the new request, never twice.
+  def held_calls_shown
+    on_chat do |chat|
+      shown = chat.held_calls.where.not(status: Chat::HeldCall::STATUS_ASKED_AGAIN).joins(:approval).includes(:decided_by, approval: :approver)
+      window.placed(shown, Chat::HeldCall.placed_at)
+    end
+  end
+
+  def secret_entries_shown = on_chat { |chat| window.placed(chat.secret_entries.includes(:requester, :done_by, tool: :integration)) }
+
+  # One still going is always read, since the strip above the composer shows it however far back it started.
   def watches_shown
-    chat = conversation.chat
-    chat ? chat.watches.includes(:steps, :asker, :updates) : []
+    on_chat { |chat| window.placed(chat.watches).or(chat.watches.active).includes(:steps, :asker, :updates) }
   end
 
   def plans_shown
-    chat = conversation.chat
-    chat ? chat.plans.includes(:steps, :approved_by, :undoes, :undo_plan, chat: :owner) : []
+    on_chat { |chat| window.placed(chat.plans, Chat::Plan.placed_at).includes(:steps, :approved_by, :undoes, :undo_plan, chat: :owner) }
   end
 
   # The block answers with why it was refused, or nil, and the notice for when it went through.
@@ -374,17 +433,15 @@ class AgentChatsController < InertiaController
   end
 
   def watch_updates_shown
-    chat = conversation.chat
-    chat ? chat.watch_updates.on_their_own.includes(:watch).reorder(:created_at) : []
+    on_chat { |chat| window.placed(chat.watch_updates.on_their_own.includes(:watch).reorder(:created_at)) }
   end
 
   def pull_request_notices_shown
-    conversation.pull_request_notices.includes(:fix_by, session: :principal).order(:created_at)
+    window.placed(conversation.pull_request_notices.includes(:fix_by, session: :principal).order(:created_at))
   end
 
   def pack_refusals_shown
-    chat = conversation.chat
-    chat ? chat.pack_refusals.includes(pack_request: [ { requester: :user }, :role ]).order(:created_at) : []
+    on_chat { |chat| window.placed(chat.pack_refusals.includes(pack_request: [ { requester: :user }, :role ]).order(:created_at)) }
   end
 
   def decide_mitigation
@@ -492,12 +549,12 @@ class AgentChatsController < InertiaController
   def base_props
     {
       PROP_CONVERSATIONS => InertiaRails.scroll(chat_page_metadata) { AgentChatSerializer.many(chat_page, platform_texts: listed_in_platform(chat_page)) },
-      PROP_ARCHIVED_COUNT => own_chats.archived.count,
-      PROP_INCIDENTS => AgentChatIncidentSerializer.many(mentionable_incidents),
+      PROP_ARCHIVED_COUNT => -> { own_chats.archived.count },
+      PROP_INCIDENTS => -> { AgentChatIncidentSerializer.many(mentionable_incidents) },
       # What an integrations card draws, read fresh on every visit, so returning from connecting shows it connected.
-      PROP_INTEGRATION_CARDS => reads_integrations? ? IntegrationCardSerializer.many(IntegrationProvider.cards_for(current_workspace)) : [],
-      PROP_ENVIRONMENTS => reads_integrations? ? EnvironmentOptionSerializer.many(current_workspace.environment_entries) : [],
-      PROP_SETUP_GUIDE => setup_guide
+      PROP_INTEGRATION_CARDS => -> { reads_integrations? ? IntegrationCardSerializer.many(IntegrationProvider.cards_for(current_workspace)) : [] },
+      PROP_ENVIRONMENTS => -> { reads_integrations? ? EnvironmentOptionSerializer.many(current_workspace.environment_entries) : [] },
+      PROP_SETUP_GUIDE => -> { setup_guide }
     }
   end
 
@@ -538,11 +595,8 @@ class AgentChatsController < InertiaController
   def own_chats = current_workspace.conversations.own_for(current_membership)
 
   # What the person said in a chat asked in the platform, in the platform's own markup, as the platform shows it.
-  def said_in_platform(chat, messages, waiting)
-    questions = (messages.select { |message| message.role == Chat::Message::ROLE_USER } + waiting).filter_map do |message|
-      message.as_written || (message.content if chat.said_in_platform_markup?)
-    end
-    platform_texts([ chat.title_question, chat.preview_question, *questions ])
+  def said_in_platform(said)
+    platform_texts(said.filter_map { |message| message.as_written || (message.content if conversation.said_in_platform_markup?) })
   end
 
   def listed_in_platform(chats) = platform_texts(chats.flat_map { |chat| [ chat.title_question, chat.preview_question ] })
