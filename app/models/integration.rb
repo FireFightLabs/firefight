@@ -178,6 +178,15 @@ class Integration < ApplicationRecord
     end
   end
 
+  # Each tool's stored length counts the environment and scope arguments the connection adds (Integration::Tool#offered_schema),
+  # so when its environments change every tool is counted again. Only a length that moved is written.
+  def recount_tool_definitions!
+    tools.reload.each do |tool|
+      length = tool.definition_length
+      tool.update_columns(definition_chars: length) unless tool.definition_chars == length
+    end
+  end
+
   # The Integrations page reads these from its address, so a link opens one connection's details or one provider's connect dialog.
   DETAILS_QUERY_PARAM = "integration".freeze
   CONNECT_QUERY_PARAM = "connect".freeze

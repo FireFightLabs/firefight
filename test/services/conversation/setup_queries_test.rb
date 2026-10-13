@@ -170,11 +170,12 @@ class Conversation::SetupQueriesTest < ActiveSupport::TestCase
     Conversation::Turn.new(Conversation.start_personal!(workspace: @workspace, member: member), asker: member)
   end
 
-  # How long the connection tools the catalogue hands the turn as its own are, measured whole from each tool's row.
+  # How long the connection tools the catalogue hands the turn as its own are, measured whole from each tool's row with the
+  # environment and scope arguments its connection offers it with.
   def tail_length(turn)
     names = Chat::Tools.build_catalog(turn).select { |entry| entry.tool && entry.source != Chat::Skill::SOURCE_FIREFIGHT }.map(&:name).to_set
     Integration::Tool.in_workspace(@workspace).select { |tool| names.include?(tool.model_facing_name) }
-                     .sum { |tool| tool.name.size + tool.description.to_s.size + tool.params_schema.to_json.size }
+                     .sum { |tool| tool.name.size + tool.description.to_s.size + tool.offered_schema.to_json.size }
   end
 
   def sql_of(&)

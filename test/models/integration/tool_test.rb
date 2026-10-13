@@ -40,4 +40,33 @@ class Integration::ToolTest < ActiveSupport::TestCase
     tool.update!(enabled: true)
     assert_equal 7, tool.reload.definition_chars
   end
+
+  test "the length is counted again when the connection's environments change what the tool is offered with" do
+    tool = @integration.tools.create!(name: "list_runs", description: "Lists the runs.", params_schema: { "type" => "object" })
+    offered_length = -> { tool.reload.definition_length }
+    alone = offered_length.call
+
+    production = @integration.integration_environments.create!(catalog_entry_id: catalog_entries(:production_env).id)
+    @integration.integration_environments.create!(catalog_entry_id: catalog_entries(:development_env).id)
+    assert_operator offered_length.call, :>, alone
+    assert_equal offered_length.call, tool.reload.definition_chars
+
+    production.update!(enabled: false)
+    assert_equal offered_length.call, tool.reload.definition_chars
+
+    production.destroy!
+    assert_equal offered_length.call, tool.reload.definition_chars
+  end
+
+  test "the length is counted again when the connection reaches several scopes and so offers a scope argument" do
+    integration = workspaces(:slack_workspace_one).integrations.create!(kind: Integration::KIND_NATIVE, provider: "vercel", name: "Sites", slug: "sites")
+    row = integration.integration_environments.create!
+    tool = integration.tools.create!(name: "list_deployments", description: "Lists deployments.", params_schema: { "type" => "object" })
+    one_scope = tool.reload.definition_chars
+
+    row.store_fields!(Integrations::Packs::Vercel::TEAM => %w[team_a team_b])
+    assert_includes tool.reload.offered_schema["properties"].keys, Integrations::Packs::Vercel::TEAM
+    assert_operator tool.definition_chars, :>, one_scope
+    assert_equal tool.definition_length, tool.definition_chars
+  end
 end
