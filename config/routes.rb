@@ -398,6 +398,16 @@ Rails.application.routes.draw do
     patch "/halon/on-call", to: "halon_on_call#update"
     post "/halon/on-call/paging/:integration_id/grant", to: "paging_grants#create", as: :halon_paging_grant
     resources :unattended_rules, only: [ :create, :update, :destroy ], path: "halon/on-call/rules"
+    # A workflow's page is its canvas, and every change made on it, behind the workflows flag (WorkflowCanvas).
+    get "/halon/workflows/:id", to: "workflow_canvas#show", constraints: { id: /[0-9a-f-]{36}/ }
+    post "/halon/workflows/:id/edits", to: "workflow_edits#create", as: :workflow_edits
+    post "/halon/workflows/:id/suggestions/accept", to: "workflow_suggestions#accept_all", as: :workflow_suggestions_accept
+    post "/halon/workflows/:id/suggestions/dismiss", to: "workflow_suggestions#dismiss_all", as: :workflow_suggestions_dismiss
+    post "/halon/workflows/:id/suggestions/:suggestion_id/accept", to: "workflow_suggestions#accept", as: :workflow_suggestion_accept
+    post "/halon/workflows/:id/suggestions/:suggestion_id/dismiss", to: "workflow_suggestions#dismiss", as: :workflow_suggestion_dismiss
+    post "/halon/workflows/:id/undo", to: "workflow_undos#create", as: :workflow_undo
+    post "/halon/workflows/:id/versions/:version_id/discard", to: "workflow_versions#discard", as: :workflow_version_discard
+    post "/halon/workflows/:id/versions/:version_id/restore", to: "workflow_versions#restore", as: :workflow_version_restore
     get "/halon/monitoring", to: "halon_monitoring#show", as: :halon_monitoring
     patch "/halon/monitoring", to: "halon_monitoring#update"
     resources :investigation_checks, only: [ :create, :update, :destroy ], path: "halon/monitoring/checks" do
@@ -435,10 +445,9 @@ Rails.application.routes.draw do
         post :dismiss
       end
     end
-    resources :workflows, only: %i[show update destroy], path: "halon/workflows" do
+    resources :workflows, only: %i[update destroy], path: "halon/workflows" do
       member do
         post :run
-        post :test_run
         post :publish
         post :ask_publish
         patch :enable
@@ -450,12 +459,6 @@ Rails.application.routes.draw do
           patch :pin
           patch :unpin
           post :cancel
-        end
-      end
-      resources :suggestions, only: [], controller: "workflow_suggestions" do
-        member do
-          post :accept
-          post :dismiss
         end
       end
     end

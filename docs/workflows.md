@@ -194,7 +194,7 @@ Besides its items ([Firefight's library](#firefights-library)), `Workflow::Libra
 
 ### The pages
 
-Under Halon, Workflows (`WorkflowsController`, `/halon/workflows`): the workflows, every run, and the one offs that are done with their runs and Repeat it. A workflow's page shows its steps, what its identity can do, Halon's suggestions, its settings, Run, Test run, Publish or Ask an admin, and its runs. A run's page (`WorkflowRunsController`) shows each step with what it took in and gave back, the calls it made, the notices it raised, Pin (keeps its details past retention) and Stop. Settings, Workspace holds how long runs keep their details (`WorkflowSettingsController`). Every page answers not found without the flag (`RequiresWorkflows`, which every workflow and skill controller includes and which runs before anything checks who is asking), and the sidebar shows Skills, Workflows and Workflow library only with it (`workflowsEnabled`).
+Under Halon, Workflows (`WorkflowsController`, `/halon/workflows`): the workflows, every run, and the one offs that are done with their runs and Repeat it. Each row opens the workflow's page, which is its canvas ([The canvas](#the-canvas)): its steps, Halon's suggestions, its versions, what its identity can do and its settings, Run, Publish or Ask an admin, On or Off, and Delete under its settings. A run's page (`WorkflowRunsController`) shows each step with what it took in and gave back, the calls it made, the notices it raised, Pin (keeps its details past retention) and Stop. Settings, Workspace holds how long runs keep their details (`WorkflowSettingsController`). Every page answers not found without the flag (`RequiresWorkflows`, which every workflow and skill controller includes and which runs before anything checks who is asking), and the sidebar shows Skills, Workflows and Workflow library only with it (`workflowsEnabled`).
 
 ### Halon, MCP and the chat card
 
@@ -205,7 +205,7 @@ Under Halon, Workflows (`WorkflowsController`, `/halon/workflows`): the workflow
 
 ### The workflows flag
 
-Everything for workspace workflows sits behind `FeatureFlags::WORKFLOWS`, off by default. Without it `Workflow#start_blocked_reason` refuses every start, and `WorkflowRunService` raises `Workflow::Run::Refused` before anything is made, so a trigger, Halon, the dashboard and a sub workflow all stop there. `DefinedWorkflow.runnable?` holds every run already going, so nothing waits out its time, wakes on a signal or carries on until the flag is back ([Held runs](#held-runs)). Pages, Halon tools and MCP tools for workflows check the same flag. Class workflows never look at it. The workflow library page follows it too. The workspace's own skills follow the same flag, their page, `propose_skill` and loading them alike (docs/ai.md, A workspace's own skills), and a skill a workflow's step names in its config (`skill`) is held back from being deleted or renamed.
+Everything for workspace workflows sits behind `FeatureFlags::WORKFLOWS`, off by default. Without it `Workflow#start_blocked_reason` refuses every start, and `WorkflowRunService` raises `Workflow::Run::Refused` before anything is made, so a trigger, Halon, the dashboard and a sub workflow all stop there. `DefinedWorkflow.runnable?` holds every run already going, so nothing waits out its time, wakes on a signal or carries on until the flag is back ([Held runs](#held-runs)). Pages, Halon tools and MCP tools for workflows check the same flag. Class workflows never look at it. The workflow library page follows it too. The workspace's own skills follow the same flag, their page, `propose_skill` and loading them alike (docs/ai.md, A workspace's own skills), and a skill a workflow's step names in its config (`skill`) is held back from being deleted or renamed. The canvas's controllers include `WorkflowCanvas`, which includes `RequiresWorkflows` like every workflow page.
 
 ## Firefight's library
 
@@ -217,6 +217,104 @@ Firefight ships workflows of its own as data, one file each in `config/workflow_
 - **Files.** `Workflow::Document` exports a workflow's live version, or its draft when nothing is live, as `<slug>.workflow.json` (`format`, `format_version`, name, description, other names, and the version's content), and imports one as a new workflow whose first version is a draft written by the person, refused when it is not a workflow, was written by a newer format, holds anything shaped like a credential, or takes a name already taken.
 - **The page.** Halon, Workflow library (`HalonWorkflowLibraryController`, `/halon/workflow-library`, `pages/halon/workflow-library.tsx`) lists the workspace's workflows with where each came from, whether it is published, Export, and a copy's newer version with what changed, beside the library's items. `workflows` is a grantable resource: members read, and making a draft from the library or a file is `workflows.create`, taking or keeping a newer version `workflows.update`.
 - **The checks Halon runs on a schedule.** Each kind of `Investigation::Check` with a skill has a library item that runs it (`disk_space_check`, `certificate_check`, `error_budget_check`, `cost_check`, and `scheduled_check` for one described only by its notes): a schedule trigger in the runtime's own shape with the check's notes as an input (a default for the four with a skill, none for `scheduled_check`, whose notes are the whole check and which follows the `monitoring` playbook), a `run_skill` step with the notes as its focus, a branch on its verdict, and a `raise_notice` of the check's signal, said once and again only when worse. A test holds every item runnable in a workspace, and another publishes one and runs it.
+
+## The canvas
+
+A workflow's page is `/halon/workflows/:id` (`WorkflowCanvasController#show`, `pages/halon/workflow.tsx`). The list of workflows is the Workflows page under Halon, which links each row here. The canvas only reads and changes a workflow that exists, and makes no new ones.
+
+### Who may do what
+
+| Action | Ability | Members |
+|---|---|---|
+| Open the canvas | `workflows.read` | Hold it, as every read of Firefight's own data |
+| Change the draft, accept or dismiss Halon's suggestions, undo Halon's change, discard a draft, restore a version, run it by hand, ask an admin to publish | `workflows.create` | Hold it without a grant (`WorkspaceMembership::MEMBER_BUILDS`) |
+| Publish, change the workflow's settings, switch it on or off, delete it, answer a request to publish | `workflows.update`, and `permissions.create` when publishing grants anything | Need a grant. Admins and owners hold it |
+
+Every change to the draft lands there and never on the live version, so building is `create` and only what changes a live workflow is `update`. A member's edits are in the workflow's own history as `Workflow::Edit`s. The server reads both from the gateway (`workflowAccess`, `build` and `manage`), since the shared `useCan` answers only for `update`, and the page decides its controls from them, never from a role.
+
+### Asking an admin to publish
+
+The canvas uses the same publish flow as the Workflows page (`WorkflowPublishService`, [The workflow's own identity](#the-workflows-own-identity)). Publish (`WorkflowsController#publish`) sends the draft revision the publisher saw, so a draft changed since is refused, and its dialog lists what the identity is granted. A member's Ask an admin to publish is `ask_publish`, and `myPublishRequest` says whether they asked and why they cannot ask again yet. Someone who may publish sees the waiting requests above the canvas, each with what publishing would grant and Dismiss (`WorkflowPublishRequestsController`, which goes back to the page it was pressed on).
+
+### Step kinds and trigger kinds
+
+The canvas never decides a kind on its own. `Workflow::StepKinds` (`app/models/workflow/step_kinds.rb`) holds one `Kind` per step kind:
+
+| Field | Holds |
+|---|---|
+| `key` | The step's `kind` |
+| `group` | One of `GROUPS`, the Steps table's groups, which the palette lists it under. A kind the app runs names its own (`DefinedWorkflow::Steps::Base::GROUP_*`, which `GROUPS` shares) |
+| `label`, `description` | Its name and one line, in the palette and the settings sheet |
+| `icon` | One of `ICONS`, drawn by `STEP_ICONS` in `pages/halon/lib/workflow/labels.ts` (a new icon is a type error until it is drawn) |
+| `editor` | How its settings are drawn: `fields` (the tool field form over `fields`), or `branch`, `delay`, `for_each`, `run_workflow`, `tool`, `ask_halon` and `watch` for a config a plain form cannot hold |
+| `fields` | `ToolField::Field`s for the `fields` editor, or a lambda given the `Facts` for choices that are the workspace's own (Run a skill's skills) |
+| `defaults` | The config a new step starts with |
+| `outputs` | `->(step, facts)`, the fields it hands on, which the reference picker offers to later steps |
+| `routes` | `->(step)`, the routes an edge out of it can carry. `routes_of` adds `error` when the step takes the error route on failure |
+| `effect` | `->(step, facts)`, `reads` or `changes`, decided by what it calls and never by its author |
+| `reach` | `->(step, facts)`, what the workflow's own identity needs granted to run it (`DefinedWorkflow::Reach::Needed`). The node shows Needs grant for what it does not hold yet (`Workflow#grant_needed_for`), which publishing grants |
+
+`Facts` carries the workspace and answers `tool(name)` with what it has (`Chat::Tools::Choices`). The engine's control steps are registered with `register`. Each kind the app runs (`DefinedWorkflow::Steps.kinds`) is registered with `runtime(klass, icon:, editor:, description:, fields:, defaults:, routes:)`, which takes its key, label, group, outputs, effect (`changes?`) and reach from its class, so the canvas and the runtime never disagree on what a step does. A kind is offered only once something runs it (`runnable?`: the engine's `STEP_KINDS` or `DefinedWorkflow.action_kinds`). A new kind the app runs is its class, a line in `DefinedWorkflow::Steps.kinds` and a `runtime` line here, and needs no canvas code unless it needs an editor of its own.
+
+| Kind | Editor |
+|---|---|
+| `call_tool` | `tool`: the tool from the palette's Tools group or a search, its arguments with the shared tool field form, and How to undo it when the tool changes something |
+| `ask_halon` | `ask_halon`: the question, what it judges (usually an earlier value), and up to ten named fields it answers |
+| `run_skill` | `fields`: the skill from the workspace's own (`Chat::Skill.available_to`) and the focus |
+| `watch` | `watch`: the same editor a runbook's watch afterwards uses (`components/watch/watch-spec-editor.tsx`, `lib/watch-spec.ts`), reading from `watchReads`, the read tools and what is on the map |
+| `post_to_channel`, `raise_notice` | `fields`, a message and a summary as paragraph fields (`ToolField::KIND_PARAGRAPH`), the notice's resource picked from the map (`places`) |
+
+`Workflow::TriggerKinds` does the same for triggers (`label`, `description`, `icon`, `editor`, `fields`, `defaults`), with every kind a published workflow starts from: Run by hand, On a schedule and Once at a time. A timed kind's editor is the schedule form the Workflows page's Repeat it uses (`schedule-fields.tsx`, `once-at-fields.tsx`, `lib/schedule.ts`), and a new one starts in the person's own time zone (`startingTrigger`). The keys the editors write into the engine's own steps' config are `Workflow::StepKinds::CONFIG_KEYS`.
+
+### What the page receives
+
+`WorkflowCanvasController::PROPS` names every prop, shared with the page through the generated `WORKFLOW_CANVAS_PROPS`, since each change asks for the ones it can change.
+
+| Prop | Serializer | Holds |
+|---|---|---|
+| `workflow` | `WorkflowDetailSerializer` | The workflow as its header shows it: name, on or off, state, when it runs and next, the live and draft numbers, what its identity needs and holds, why it cannot run, be published or be deleted, a freeze it would meet, a start that did not happen, and its settings |
+| `document` | `WorkflowDocumentSerializer` | The version shown (`Workflow#shown_version`): the one named by `?version=`, else the draft, else the live one, else an empty one not saved yet. Its trigger, every step flattened with the for each it sits in (`Version#placed_steps`, `WorkflowStepNodeSerializer`), every connection (`placed_edges`), its problems, and why it cannot be published or restored |
+| `versions` | `WorkflowVersionRowSerializer` | The newest 50 versions, each with its landed edits as sentences (`Workflow::Edit#sentence`) |
+| `suggestions` | `WorkflowSuggestionSerializer` | Halon's proposals, each with a step it adds, a connection it adds or takes away, and each changed field's old and new value (`Workflow::Edit#changes_against`) |
+| `halonChanges` | `WorkflowHalonChangeSerializer` | Halon's changes that landed on the version shown and on the live version a draft was opened from (`Workflow#halon_changes`), grouped by change set, each with why it cannot be undone |
+| `stepKinds`, `triggerKinds` | `WorkflowStepKindSerializer`, `WorkflowTriggerKindSerializer` | The kinds offered |
+| `tools` | `WorkflowToolChoiceSerializer` | Deferred. Every tool a Call a tool step can call, with Needs grant |
+| `publishRequests` | `WorkflowPublishRequestSerializer` | Requests waiting for an admin |
+| `otherWorkflows`, `timeZones` | | What the Run workflow, Delay and schedule editors pick from |
+| `teams`, `myPublishRequest`, `workflowAccess` | | The owning teams the settings offer, the person's request to publish, and what they may do |
+| `places`, `watchReads` | `RunbookPlaceSerializer`, `RunbookWatchReadSerializer` | Deferred. What is on the map, and what a watch can read of it, which a step's settings pick from (`hooks/use-canvas-choices.ts`) |
+
+A step's facts that need the tools list are worked out only when a step calls a tool, since building it reads every connection's schemas.
+
+### Every change is an edit
+
+Each change on the canvas is one `POST /halon/workflows/:id/edits` (`WorkflowEditsController`) with an `operation`, a `payload` and the `base_revision` the person saw, which `Workflow#edit!` applies, and the toast is `Workflow::Edit#notice` ("Check logs was added."). A refusal is the model's sentence as an alert. A change to the live version opens a draft from it, so it names no revision. The settings sheet keeps the revision it was opened on while something is changed in it, so applying names that revision, and a change someone made since to the same step is refused with who made it ("Alice Smith changed this since you looked, so look again before changing it."). While nothing is changed the sheet follows the step as saved. The page reloads its props every five seconds (`usePoll`), so another person's change or a suggestion of Halon's shows without a reload.
+
+- **Moving** is `move_step` with the position React Flow gives on drop, relative to the for each a step sits in.
+- **Connecting** drags from a step's way out to another step. A step with routes has one way out per route (`RouteHandles`), named until something is connected to it, after which the connection carries the name. A connection to a step in another for each is refused by the model.
+- **A connection is taken away** with its button when selected, or the delete key. A step is removed from its settings, which asks first and names the connections and inner steps that go with it.
+- **Adding** a step from the palette drops it where it was let go, inside the innermost for each under the pointer, or, clicked, below the selected step and connected to it unless that step has routes, since which route leads on is the person's to say. The id is made on the page (`newStepId`), which `Workflow::Edit::Operations.prepared` keeps, so the connection can follow at once. The name is the kind's or the tool's, made unique (`newStepName`).
+- **Settings** go as one `change_config` with only what changed, a config key that went sent as null so the server drops it. A for each's inner steps and connections are never sent from its settings, since they change by their own edits.
+- **Renaming** a step is `rename` on blur or Enter, which rewrites every reference to it. Renaming the workflow is `rename` with no step.
+- **The trigger** is `change_trigger` with the whole trigger, from its settings or by picking another kind in the palette.
+
+### Halon's suggestions
+
+A suggestion added to a step is drawn dashed in violet where Halon placed it, one removing a step strikes the step, a connection added is dashed and one taken away struck, and a changed field shows the old value struck beside the new in the settings sheet. Each has Accept and Dismiss, and a banner says how many wait and from which chat or run, with Accept all and Dismiss all (`WorkflowSuggestionsController`, `Workflow#accept_suggestions!` and `dismiss_suggestions!`, which land all of the chosen ones or none). A suggestion already decided is not found.
+
+**Changes by Halon** rings each step, connection and trigger whose last change was Halon's, read across the version and the ones it came from (`Version#last_changes`, over `Version#lineage`), and lists Halon's changes with **Undo**. `Workflow#undo_halon!` makes the version again from where it started without those edits (`Version#content_without`, every other landed edit applied again in order, one that only made sense on top of a left out edit dropped with it), works out the operations from the version to that (`Workflow::Edit::Diff.operations`) and applies them as the person's edits in one change set with the reason "Undid Halon's change.", all or none. Only Halon's edits that landed on the open draft or the live version can be undone (`undo_blocked_reason`, `undoable_version_ids`). Undoing the live version's change opens a draft, and with a draft open it is undone in the draft: the live version made again without it is where the draft starts, and the draft's own edits are made again on top. The draft is locked from working out the operations until they land, so an edit made meanwhile waits and is checked against the undo. Undo all takes every change the panel lists.
+
+### Versions
+
+The Versions view lists each version with its status, who made it, who published it, and every change on it. Open shows a version on the canvas read only (`?version=`), and Restore makes a new draft from it, refused while a draft is open ("Publish or discard the open draft first."). The header publishes the draft (asking first, listing what it grants and what stops it), discards it (asking first), or for a member asks an admin, and beside it runs the live version by hand (the Workflows page's run dialog) and switches it on or off.
+
+### Settings
+
+The Settings view is what the workflow's own identity can do (`ReachCard`) and its settings (`SettingsCard`, `WorkflowsController#update`): its name and description, owning team, AI ceiling per run, runs an hour, one live run per subject, what a change does in a freeze window, and the all clear, and Delete for one that never ran.
+
+### Phone width
+
+Below 48rem the canvas is a list of the steps in the order they run (`stepsInOrder`), inner steps indented under their for each and where each leads under it, the trigger first and Halon's suggested steps last with Accept and Dismiss. Tapping one opens the same settings in a sheet, and Add a step opens the palette in one. Between 48rem and 64rem the canvas shows with the settings beside it and the palette opens from Add a step.
 
 ## Reading runs from the app
 
@@ -243,3 +341,4 @@ engines/solid_workflow/
 ```
 
 App side: `app/models/workflow.rb` and `app/models/workflow/`, `app/workflows/defined_workflow.rb`, `app/services/workflow_run_service.rb`, `config/workflow_library/`.
+App side: `app/models/workflow.rb` and `app/models/workflow/`, `app/workflows/defined_workflow.rb`, `app/services/workflow_run_service.rb` and `app/services/workflow_publish_service.rb`. The canvas: `app/controllers/workflow_*_controller.rb` with the `WorkflowCanvas` concern, `app/serializers/workflow_*_serializer.rb`, and `app/frontend/pages/halon/workflow.tsx` with `pages/halon/components/workflow/`, `pages/halon/hooks/` and `pages/halon/lib/workflow/`.

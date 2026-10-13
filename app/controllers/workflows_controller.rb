@@ -3,7 +3,7 @@
 # workflow, needs workflows.update, and granting the workflow's own identity what it needs needs permissions.create,
 # so a member asks an admin instead.
 class WorkflowsController < InertiaController
-  authorizes Ability::Action::RESOURCE_WORKFLOWS, read: %i[index show], create: %i[create run test_run ask_publish],
+  authorizes Ability::Action::RESOURCE_WORKFLOWS, read: %i[index], create: %i[create run ask_publish],
                                                   update: %i[update publish enable disable repeat], delete: %i[destroy]
 
   include RequiresWorkflows
@@ -35,17 +35,6 @@ class WorkflowsController < InertiaController
     }
   end
 
-  def show
-    render inertia: "halon/workflow", props: {
-      workflow: WorkflowDetailSerializer.one(@workflow),
-      runs: WorkflowRunRowSerializer.many((runs = paged(@workflow.runs)).records),
-      runsPage: runs.page,
-      myPublishRequest: my_publish_request,
-      teams: teams,
-      timeZones: Workspace::FreezeWindows.time_zones
-    }
-  end
-
   # A new draft from the library.
   def create
     workflow = Workflow::Library.create!(workspace: current_workspace, key: params[:template].to_s, params: template_params, by: current_membership)
@@ -57,16 +46,6 @@ class WorkflowsController < InertiaController
   def run
     run = WorkflowRunService.new(@workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_PERSON, started_by: current_membership, inputs: inputs)
     redirect_to workflow_run_path(@workflow, run), notice: "#{@workflow.name} is running."
-  rescue Workflow::Run::Refused => refused
-    redirect_back fallback_location: workflow_path(@workflow), alert: refused.message
-  end
-
-  # A test run of the draft as the person testing: reads run for real and every change only shows what it would do,
-  # unless they turned that step on.
-  def test_run
-    run = WorkflowRunService.new(@workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_PERSON, started_by: current_membership, inputs: inputs,
-                                                   test: true, real_step_keys: Array(params[:real_step_ids]))
-    redirect_to workflow_run_path(@workflow, run), notice: "A test run of #{@workflow.name} started."
   rescue Workflow::Run::Refused => refused
     redirect_back fallback_location: workflow_path(@workflow), alert: refused.message
   end
@@ -161,20 +140,8 @@ class WorkflowsController < InertiaController
     Workflow::PublishRequest.waiting.where(workspace: current_workspace).includes(:workflow, :requester, :version).order(:requested_at)
   end
 
-  def my_publish_request
-    request = @workflow.publish_requests.find_by(requester: current_membership)
-    draft = @workflow.draft
-    blocked = request ? request.ask_blocked_reason(current_membership) : (draft ? nil : "#{@workflow.name} has no draft to publish.")
-    { waiting: request&.waiting? || false, askBlockedReason: blocked }
-  end
-
   def templates
     Workflow::Library::TEMPLATES.values.map { |template| { key: template.key, name: template.name, description: template.description } }
-  end
-
-  def teams
-    type = current_workspace.catalog_types.find_by(system_key: CatalogType::SYSTEM_KEY_TEAM)
-    type ? type.catalog_entries.active.order(:name).map { |team| { id: team.id, name: team.name } } : []
   end
 
   def template_params

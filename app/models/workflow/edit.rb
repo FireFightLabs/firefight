@@ -33,6 +33,9 @@ class Workflow::Edit < ApplicationRecord
   TARGET_OUTPUTS = "outputs".freeze
   TARGET_WORKFLOW = "workflow".freeze
 
+  include Workflow::Edit::Wording
+  include Workflow::Edit::Changes
+
   belongs_to :workflow, inverse_of: :edits
   belongs_to :version, class_name: "Workflow::Version", optional: true, inverse_of: :edits
   belongs_to :author, class_name: "WorkspaceMembership", optional: true

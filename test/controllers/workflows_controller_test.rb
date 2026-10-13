@@ -89,7 +89,7 @@ class WorkflowsControllerTest < ActionDispatch::IntegrationTest
     assert_equal Time.zone.parse("09:00").hour, workflow.next_run_at.in_time_zone("Europe/Belgrade").hour
   end
 
-  test "running by hand starts a run as the workflow and opens it, and a test run of the draft acts as the tester" do
+  test "running by hand starts a run as the workflow and opens it" do
     workflow = published
     sign_in(users(:bob), @workspace)
 
@@ -98,11 +98,6 @@ class WorkflowsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to workflow_run_path(workflow, run)
     assert_equal "Look around is running.", flash[:notice]
     assert_equal({ "query" => "api" }, run.inputs)
-
-    post test_run_workflow_path(workflow), params: { inputs: { query: "db" } }
-    tested = workflow.runs.find_by!(test: true)
-    assert_equal "A test run of Look around started.", flash[:notice]
-    assert_equal @bob, tested.acting_principal
   end
 
   test "a run takes only the trigger's questions as plain answers, whatever else is sent" do
@@ -181,11 +176,11 @@ class WorkflowsControllerTest < ActionDispatch::IntegrationTest
     sign_in(users(:alice), @workspace)
 
     get workflow_path(workflow), headers: inertia_headers
-    suggestion = inertia_props["workflow"]["suggestions"].sole
-    assert_equal [ "Set arguments to {\"query\":\"web\"} on look." ], suggestion["changes"]
+    suggestion = inertia_props["suggestions"].sole
+    assert_equal "The search named no service.", suggestion["reason"]
 
-    post accept_workflow_suggestion_path(workflow, edit.change_set_id)
-    assert_equal "Halon's suggestion was added to the draft of Look around. Publish it to use it.", flash[:notice]
+    post workflow_suggestion_accept_path(workflow, edit.id)
+    assert_match "was accepted.", flash[:notice]
     assert_equal({ "query" => "web" }, workflow.draft.steps.sole.dig("config", "arguments"))
   end
 
@@ -212,7 +207,7 @@ class WorkflowsControllerTest < ActionDispatch::IntegrationTest
                    by: nil, halon: true, reason: "And the other step.", change_set_id: first.change_set_id)
     sign_in(users(:alice), @workspace)
 
-    post accept_workflow_suggestion_path(workflow, first.change_set_id)
+    post workflow_suggestions_accept_path(workflow), params: { change_set_id: first.change_set_id }
 
     assert flash[:alert].present?
     assert_nil workflow.reload.draft

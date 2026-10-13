@@ -301,7 +301,6 @@ module TypescriptConstants
       Export.new("WORKFLOW_RUN_OPEN_STATUSES", Workflow::Run::OPEN, nil),
       Export.new("WORKFLOW_RUN_STARTED_BY", Workflow::Run::STARTED_BY, "WorkflowRunStartedBy"),
       Export.new("WORKFLOW_STEP_STATUSES", Workflow::Run::Step::STATUSES, "WorkflowStepStatus"),
-      Export.new("WORKFLOW_STEP_GROUPS", DefinedWorkflow::Steps::Base::GROUPS, "WorkflowStepGroup"),
       Export.new("WORKFLOW_FREEZE_BEHAVIOURS", Workflow::FREEZE_BEHAVIOURS, "WorkflowFreezeBehaviour"),
       Export.new("WORKFLOW_PAGE_TABS", WorkflowsController::TABS, "WorkflowPageTab"),
       Export.new("WORKFLOW_PAGE_TAB_QUERY", WorkflowsController::TAB_QUERY, nil),
@@ -321,7 +320,53 @@ module TypescriptConstants
       Export.new("WORKFLOW_SCHEDULE_LIMITS", {
         "MINUTES_MIN" => Workflow::Trigger::Schedule::MINUTES.min, "MINUTES_MAX" => Workflow::Trigger::Schedule::MINUTES.max,
         "HOURS_MIN" => Workflow::Trigger::Schedule::HOURS.min, "HOURS_MAX" => Workflow::Trigger::Schedule::HOURS.max
-      }, nil)
+      }, nil),
+      Export.new("WORKFLOW_CANVAS_PROPS", WorkflowCanvasController::PROPS, nil),
+      Export.new("WORKFLOW_VERSION_QUERY_PARAM", WorkflowCanvasController::VERSION_QUERY_PARAM, nil),
+      Export.new("WORKFLOW_VIEW_QUERY_PARAM", WorkflowCanvasController::VIEW_QUERY_PARAM, nil),
+      Export.new("WORKFLOW_STEP_GROUPS", Workflow::StepKinds::GROUPS, "WorkflowStepGroup"),
+      Export.new("WORKFLOW_STEP_GROUP", Workflow::StepKinds::GROUPS.to_h { |group| [ group.upcase, group ] }, nil),
+      Export.new("WORKFLOW_STEP_EFFECT", Workflow::StepKinds::EFFECTS.to_h { |effect| [ effect.upcase, effect ] }, nil),
+      Export.new("WORKFLOW_STEP_EDITORS", Workflow::StepKinds::EDITORS, "WorkflowStepEditor"),
+      Export.new("WORKFLOW_STEP_EDITOR", Workflow::StepKinds::EDITORS.to_h { |editor| [ editor.upcase, editor ] }, nil),
+      Export.new("WORKFLOW_STEP_ICONS", Workflow::StepKinds::ICONS, "WorkflowStepIcon"),
+      Export.new("WORKFLOW_TRIGGER_ICONS", Workflow::TriggerKinds::ICONS, "WorkflowTriggerIcon"),
+      Export.new("WORKFLOW_ASK_HALON", {
+        "QUESTION" => DefinedWorkflow::Steps::AskHalon::KEY_QUESTION, "DATA" => DefinedWorkflow::Steps::AskHalon::KEY_DATA,
+        "FIELDS" => DefinedWorkflow::Steps::AskHalon::KEY_FIELDS, "FIELD_NAME" => DefinedWorkflow::Steps::AskHalon::FIELD_NAME,
+        "FIELD_DESCRIPTION" => DefinedWorkflow::Steps::AskHalon::FIELD_DESCRIPTION, "FIELD_LIMIT" => DefinedWorkflow::Steps::AskHalon::FIELD_LIMIT
+      }, nil),
+      Export.new("WORKFLOW_TRIGGER_EDITOR", Workflow::TriggerKinds::EDITORS.to_h { |editor| [ editor.upcase, editor ] }, nil),
+      Export.new("WORKFLOW_CALL_TOOL", {
+        "KIND" => Workflow::StepKinds::KIND_CALL_TOOL, "TOOL" => Workflow::StepKinds::CONFIG_TOOL, "ARGUMENTS" => Workflow::StepKinds::CONFIG_ARGUMENTS
+      }, nil),
+      Export.new("WORKFLOW_KINDS", {
+        "BRANCH" => DefinedWorkflow::KIND_BRANCH, "DELAY" => DefinedWorkflow::KIND_DELAY, "WAIT_FOR_EVENT" => DefinedWorkflow::KIND_WAIT_FOR_EVENT,
+        "FOR_EACH" => DefinedWorkflow::KIND_FOR_EACH, "JOIN" => DefinedWorkflow::KIND_JOIN, "RUN_WORKFLOW" => DefinedWorkflow::KIND_RUN_WORKFLOW
+      }, nil),
+      Export.new("WORKFLOW_EDIT_OPERATIONS", Workflow::Edit::OPERATIONS.to_h { |operation| [ operation.upcase, operation ] }, nil),
+      Export.new("WORKFLOW_VERSION_STATUS", Workflow::Version::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
+      Export.new("WORKFLOW_ON_FAILURE", DefinedWorkflow::ON_FAILURE, "WorkflowOnFailure"),
+      Export.new("WORKFLOW_ON_FAILURE_CHOICE", DefinedWorkflow::ON_FAILURE.to_h { |choice| [ choice.upcase, choice ] }, nil),
+      Export.new("WORKFLOW_BACKOFFS", DefinedWorkflow::BACKOFFS, "WorkflowBackoff"),
+      Export.new("WORKFLOW_BACKOFF", DefinedWorkflow::BACKOFFS.to_h { |backoff| [ backoff.upcase, backoff ] }, nil),
+      Export.new("WORKFLOW_MAX_ATTEMPTS", DefinedWorkflow::MAX_ATTEMPTS, nil),
+      Export.new("WORKFLOW_MAX_CONCURRENCY", DefinedWorkflow::MAX_CONCURRENCY, nil),
+      Export.new("WORKFLOW_ROUTE_ERROR", DefinedWorkflow::ROUTE_ERROR, nil),
+      Export.new("WORKFLOW_DELAY_UNITS", DefinedWorkflow::DELAY_UNITS, "WorkflowDelayUnit"),
+      Export.new("WORKFLOW_JOIN_MODES", DefinedWorkflow::JOIN_MODES, "WorkflowJoinMode"),
+      Export.new("WORKFLOW_CONDITION_OPERATORS", DefinedWorkflow::CONDITION_OPERATORS, "WorkflowConditionOperator"),
+      Export.new("WORKFLOW_CONDITION_OPERATOR", DefinedWorkflow::CONDITION_OPERATORS.to_h { |operator| [ operator.upcase, operator ] }, nil),
+      Export.new("WORKFLOW_CONFIG_KEYS", Workflow::StepKinds::CONFIG_KEYS, nil),
+      Export.new("WORKFLOW_BODY_KEYS", DefinedWorkflow::BODY_KEYS, nil),
+      Export.new("WORKFLOW_CONDITION_VALUELESS", DefinedWorkflow::CONDITION_VALUELESS, nil),
+      Export.new("WORKFLOW_CONDITION_JOINS", { "ALL" => DefinedWorkflow::CONDITION_ALL, "ANY" => DefinedWorkflow::CONDITION_ANY }, nil),
+      Export.new("WORKFLOW_REFERENCE_ROOTS", {
+        "INPUTS" => DefinedWorkflow::SCOPE_INPUTS, "TRIGGER" => DefinedWorkflow::SCOPE_TRIGGER, "STEPS" => DefinedWorkflow::SCOPE_STEPS,
+        "ITEM" => DefinedWorkflow::SCOPE_ITEM, "INDEX" => DefinedWorkflow::SCOPE_INDEX
+      }, nil),
+      Export.new("WORKFLOW_TRIGGER_KEYS", { "KIND" => Workflow::Trigger::KEY_KIND, "INPUTS" => Workflow::Trigger::KEY_INPUTS }, nil),
+      Export.new("WORKFLOW_INPUT_LIMIT", Workflow::Trigger::INPUT_LIMIT, nil)
     ]
   end
 

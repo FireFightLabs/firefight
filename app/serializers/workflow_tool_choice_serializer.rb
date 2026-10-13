@@ -1,0 +1,41 @@
+# A tool the palette offers as a Call a tool step, under its connection's name or Firefight's own groups: its name,
+# line and fields, whether every call only reads, and whether the workflow's own identity needs a grant to call it.
+class WorkflowToolChoiceSerializer < BaseSerializer
+  object_as :choice
+
+  type :string
+  def name
+    choice.name
+  end
+
+  type :string
+  def group
+    choice.group
+  end
+
+  type :string
+  def description
+    choice.description
+  end
+
+  # What a watch asks of the tool when it differs from a call's, or nil.
+  type "{ key: string; kind: #{ToolField::KINDS.map(&:inspect).join(' | ')}; options: string[]; required: boolean; description: string | null }[] | null"
+  def watch_fields
+    choice.watch_fields&.map(&:to_h)
+  end
+
+  type :boolean
+  def read_only
+    choice.read_only == true
+  end
+
+  type "{ key: string; kind: #{ToolField::KINDS.map(&:inspect).join(' | ')}; options: string[]; required: boolean; description: string | null }[]"
+  def fields
+    choice.fields.map(&:to_h)
+  end
+
+  type :string, optional: true
+  def grant_needed
+    options[:workflow].grant_needed_for(DefinedWorkflow::Reach.for_tool(options[:workflow].workspace, choice.name, {}))
+  end
+end
