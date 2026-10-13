@@ -8,11 +8,13 @@ class Investigation::Notice < ApplicationRecord
   SIGNAL_ERROR_BUDGET = "error_budget".freeze
   SIGNAL_COST = "cost".freeze
   SIGNAL_LEAKED_SECRET = "leaked_secret".freeze
+  # Someone probing the team's services, raised by a workflow that looks through the logs for it.
+  SIGNAL_PROBING = "probing".freeze
   SIGNAL_OTHER = "other".freeze
-  SIGNALS = [ SIGNAL_DISK, SIGNAL_CERTIFICATE, SIGNAL_ERROR_BUDGET, SIGNAL_COST, SIGNAL_LEAKED_SECRET, SIGNAL_OTHER ].freeze
+  SIGNALS = [ SIGNAL_DISK, SIGNAL_CERTIFICATE, SIGNAL_ERROR_BUDGET, SIGNAL_COST, SIGNAL_LEAKED_SECRET, SIGNAL_PROBING, SIGNAL_OTHER ].freeze
   SIGNAL_LABELS = {
     SIGNAL_DISK => "Disk space", SIGNAL_CERTIFICATE => "Certificate", SIGNAL_ERROR_BUDGET => "Error budget",
-    SIGNAL_COST => "Cost", SIGNAL_LEAKED_SECRET => "Leaked secret", SIGNAL_OTHER => "Other"
+    SIGNAL_COST => "Cost", SIGNAL_LEAKED_SECRET => "Leaked secret", SIGNAL_PROBING => "Probing", SIGNAL_OTHER => "Other"
   }.freeze
 
   # How soon a person needs to act. low is worth knowing, medium needs doing within weeks, high needs doing now.
@@ -34,6 +36,8 @@ class Investigation::Notice < ApplicationRecord
   belongs_to :check, class_name: "Investigation::Check", optional: true, inverse_of: :notices
   belongs_to :investigation, optional: true
   belongs_to :resource, class_name: "ResourceMap::Resource", optional: true
+  # The workflow run whose Raise a notice step raised it.
+  belongs_to :workflow_run, class_name: "Workflow::Run", optional: true
 
   validates :key, :topic, :summary, presence: true
   validates :signal, inclusion: { in: SIGNALS }
@@ -61,8 +65,8 @@ class Investigation::Notice < ApplicationRecord
   # Records what a run read, and answers the notice when it has to be said, nil when saying it again would be noise.
   # Whether it is news is decided in the statement that writes it (NEWS), never read first, so two runs reading the same
   # problem at once agree. Saying it is claimed with claim! the same way, so only one of them posts it.
-  def self.observe!(workspace, reading, check: nil, investigation: nil, now: Time.current)
-    seen = seen_values(reading, now).merge(check_id: check&.id, investigation_id: investigation&.id).compact
+  def self.observe!(workspace, reading, check: nil, investigation: nil, workflow_run: nil, now: Time.current)
+    seen = seen_values(reading, now).merge(check_id: check&.id, investigation_id: investigation&.id, workflow_run_id: workflow_run&.id).compact
     inserted = insert_all([ seen.merge(workspace_id: workspace.id, key: reading.key, unsaid: true, created_at: now, updated_at: now) ],
                           unique_by: %i[workspace_id key], returning: %w[id])
     return find(inserted.rows.first.first) if inserted.rows.any?
@@ -108,10 +112,11 @@ class Investigation::Notice < ApplicationRecord
   end
 
   # The channel of the team that owns the resource, from the catalog: a service's own channel first, then its owning
-  # team's. Without one, the workspace's monitoring channel, and nil when that is not set either.
-  def self.channel_for(workspace, resource)
+  # team's, then the team given, such as the team that owns the workflow that raised it. Without one, the workspace's
+  # monitoring channel, and nil when that is not set either.
+  def self.channel_for(workspace, resource, team: nil)
     owned = resource && owning_channel(resource)
-    owned || workspace.halon_monitoring_channel.presence
+    owned || (team && channel_of(team)) || workspace.halon_monitoring_channel.presence
   end
 
   def self.owning_channel(resource)
@@ -122,7 +127,7 @@ class Investigation::Notice < ApplicationRecord
   end
 
   def self.channel_of(entry) = entry.role_value(CatalogAttributeDefinition::ROLE_NOTIFICATION_CHANNEL).presence
-  private_class_method :owning_channel, :channel_of
+  private_class_method :owning_channel
 
   def channel = self.class.channel_for(workspace, resource)
 

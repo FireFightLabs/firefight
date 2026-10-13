@@ -29,6 +29,7 @@ module Workflow::Run::Retention
                           .update_all(details_pruned_at: Time.current, inputs: {}, outputs: nil, trigger_payload: {}, updated_at: Time.current) == 1
       raise ActiveRecord::Rollback unless claimed
 
+      Chat.where(owner_type: Workflow::Run::Step.name, owner_id: Workflow::Run::Step.where(run_id: id).select(:id)).destroy_all
       Workflow::Run::Step.where(run_id: id).delete_all
       Chat::SavedResult.where(workflow_run_id: id).delete_all
       true

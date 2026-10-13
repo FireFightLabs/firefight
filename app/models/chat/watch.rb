@@ -78,6 +78,11 @@ class Chat::Watch < ApplicationRecord
 
   def conversation = chat.owner
 
+  # The workflow step that started it, which it reports its end to rather than to a chat.
+  def workflow_step = (chat.owner if chat.owner.is_a?(Workflow::Run::Step))
+
+  def workflow_step? = chat.owner_type == Workflow::Run::Step.name
+
   def active? = status == STATUS_ACTIVE
 
   def asker_name = asker.try(:display_name) || asker.try(:name) || "the person who asked"

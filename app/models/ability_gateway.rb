@@ -22,8 +22,11 @@ class AbilityGateway
   SOURCE_HANDBOOK_SYNC = "handbook_sync"
   # Raising a page in an on-call tool and keeping it in step with its incident, either way.
   SOURCE_PAGING = "paging"
+  # A step of a workspace's workflow, acting as the workflow's own identity.
+  SOURCE_WORKFLOW = "workflow"
   SOURCES = [ SOURCE_API, SOURCE_MCP, SOURCE_SLACK, SOURCE_WEB, SOURCE_INVESTIGATION, SOURCE_CONVERSATION, SOURCE_MAP_SWEEP,
-              SOURCE_HEALTH_CHECK, SOURCE_CODE_AGENT, SOURCE_ISSUE_SYNC, SOURCE_WATCH, SOURCE_HANDBOOK_SYNC, SOURCE_PAGING ].freeze
+              SOURCE_HEALTH_CHECK, SOURCE_CODE_AGENT, SOURCE_ISSUE_SYNC, SOURCE_WATCH, SOURCE_HANDBOOK_SYNC, SOURCE_PAGING,
+              SOURCE_WORKFLOW ].freeze
   # Where a human acts directly rather than through a key or an agent.
   HUMAN_SOURCES = [ SOURCE_SLACK, SOURCE_WEB ].freeze
 
@@ -225,6 +228,7 @@ class AbilityGateway
       params: params,
       **Ability::Approval.requirement_attributes(requirement),
       incident_id: context[:incident_id],
+      workflow_run_id: context[:workflow_run_id],
       source: context[:source]
     )
     record!(decision: Ability::Invocation::DECISION_PENDING, completed_at: Time.current,
@@ -320,6 +324,7 @@ class AbilityGateway
       decision: decision,
       idempotency_key: SecureRandom.uuid,
       incident_id: context[:incident_id],
+      workflow_run_id: context[:workflow_run_id],
       approval_id: approval&.id,
       completed_at: completed_at
     )

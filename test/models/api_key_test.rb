@@ -77,7 +77,10 @@ class ApiKeyTest < ActiveSupport::TestCase
     assert key.has_permission?(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE)
     assert_not key.has_permission?(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_UPDATE)
 
-    (Ability::Action::RESOURCES - WorkspaceMembership::PARTICIPATION.keys - [ Ability::Action::RESOURCE_INVESTIGATIONS ]).each do |resource|
+    assert key.has_permission?(Ability::Action::RESOURCE_WORKFLOWS, Ability::Action::ACTION_CREATE)
+    assert_not key.has_permission?(Ability::Action::RESOURCE_WORKFLOWS, Ability::Action::ACTION_UPDATE)
+
+    (Ability::Action::RESOURCES - WorkspaceMembership::PARTICIPATION.keys - WorkspaceMembership::MEMBER_BUILDS.keys - [ Ability::Action::RESOURCE_INVESTIGATIONS ]).each do |resource|
       assert_not key.has_permission?(resource, Ability::Action::ACTION_CREATE)
       assert_not key.has_permission?(resource, Ability::Action::ACTION_UPDATE)
     end

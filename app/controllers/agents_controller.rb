@@ -59,12 +59,12 @@ class AgentsController < InertiaController
 
   # Disabled agents stay listed. A hidden one still holds its slug and grants with no way back.
   def agent_roster
-    current_workspace.agents.where(deleted_at: nil).ordered
+    current_workspace.agents.standalone.where(deleted_at: nil).ordered
       .includes(:api_keys, ability_grants: :action)
   end
 
   def set_agent
-    @agent = current_workspace.agents.find(params[:id])
+    @agent = current_workspace.agents.standalone.find(params[:id])
   end
 
   def mint_token(agent)

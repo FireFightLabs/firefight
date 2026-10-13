@@ -2,6 +2,7 @@
 name: cloudflare_attack
 when: Handling a traffic spike, a DDoS attack or abusive traffic hitting a site behind Cloudflare
 tools: [get_resource_map, resource_status, search, execute, docs]
+signals: [security_events]
 references: [security/under-ddos-attack.md, security/under-attack-mode.md, security/security-level.md, security/security-events.md, security/querying-firewall-events.md, security/rate-limiting-rules.md, security/rate-limiting-rules-create-api.md, security/custom-rules-create-api.md, origin/protect-your-origin-server.md]
 ---
 Start from the zone on the resource map. `get_resource_map` with the domain names the Cloudflare account that holds it and its id, which is the zone id every endpoint takes, and `resource_status` with the domain reads the zone from Cloudflare. Both only read, so the person is not asked. Find a zone with `execute` only when the map does not have it.

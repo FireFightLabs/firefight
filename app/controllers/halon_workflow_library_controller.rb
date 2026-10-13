@@ -5,7 +5,6 @@ class HalonWorkflowLibraryController < InertiaController
   include RequiresAgent
   include RequiresWorkflows
 
-  before_action :require_workflows!
   before_action :require_agent!
 
   authorizes Ability::Action::RESOURCE_WORKFLOWS,

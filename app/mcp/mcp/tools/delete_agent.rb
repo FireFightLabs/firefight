@@ -18,7 +18,7 @@ module Mcp
       authorize_as Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_DELETE
 
       def self.perform(workspace:, args:)
-        workspace.agents.find_by!(slug: args[:slug].to_s).destroy!
+        workspace.agents.standalone.find_by!(slug: args[:slug].to_s).destroy!
 
         respond(slug: args[:slug].to_s, deleted: true)
       end

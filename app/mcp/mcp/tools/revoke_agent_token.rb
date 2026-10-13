@@ -20,7 +20,7 @@ module Mcp
       authorize_as Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_DELETE
 
       def self.perform(workspace:, args:)
-        agent = workspace.agents.find_by!(slug: args[:slug].to_s)
+        agent = workspace.agents.standalone.find_by!(slug: args[:slug].to_s)
         token = agent.live_api_keys.find { |key| key.token_prefix == args[:token_prefix].to_s }
         raise ActiveRecord::RecordNotFound unless token
 

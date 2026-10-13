@@ -182,6 +182,8 @@ module Identifiers
   FIX_STEP_RUN = "fix_step_run"
   FIX_STEP_DISMISS = "fix_step_dismiss"
   FIX_STEP_ASK_AGAIN = "fix_step_ask_again"
+  # An admin publishing a workflow a member asked them to, from the direct message.
+  WORKFLOW_PUBLISH_REQUEST_PUBLISH = "workflow_publish_request_publish"
   # Approves the call and stops the same tool asking again for the rest of the chat.
   AGENT_ALLOW_FOR_CHAT = "agent_allow_for_chat"
   MEMORY_CONFIRM = "memory_confirm"

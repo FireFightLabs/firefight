@@ -51,7 +51,8 @@ module Ability
     RESOURCE_CHANNEL_POSTS = "channel_posts"
     # The workspace's own skills, which Halon loads like Firefight's. Members read them, and writing one needs a grant.
     RESOURCE_SKILLS = "skills"
-    # The workspace's workflows. Members read them and make drafts from Firefight's library or a file.
+    # A workspace's workflows. Members read them, build drafts from scratch, Firefight's library or a file, test them and
+    # run published ones, and publishing one or changing a live one needs update.
     RESOURCE_WORKFLOWS = "workflows"
 
     # Nobody can be granted these, so a member or an agent can never mint keys
@@ -225,7 +226,14 @@ module Ability
     end
     # Nobody needs a grant for an open action, so none is offered.
     scope :grantable, -> { where.not(key: admin_only_keys + OPEN_KEYS) }
-    scope :grantable_for, ->(workspace) { where(workspace_id: [ nil, workspace.id ]).grantable }
+    scope :grantable_for, ->(workspace) { where(workspace_id: [ nil, workspace.id ]).grantable.where.not(key: hidden_keys(workspace)) }
+
+    # Resources whose work is not switched on for the workspace, which nothing offers until it is.
+    def self.hidden_resources(workspace)
+      FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS) ? [] : [ RESOURCE_WORKFLOWS ]
+    end
+
+    def self.hidden_keys(workspace) = keys_for(hidden_resources(workspace))
 
     def self.system_key(resource, action)
       "#{resource}.#{action}"

@@ -5,8 +5,19 @@ class Workflow::Run::Step < ApplicationRecord
 
   # The engine's step statuses, bypassed among them for a step on a route the run did not take.
   STATUSES = DefinedWorkflow::STEP_STATUSES
+  STATUS_SUCCEEDED = STATUSES.fetch(STATUSES.index("succeeded"))
+  STATUS_FAILED = STATUSES.fetch(STATUSES.index("failed"))
+  STATUS_WAITING = STATUSES.fetch(STATUSES.index("waiting"))
 
   belongs_to :run, class_name: "Workflow::Run", inverse_of: :steps
+  # Halon's chat for a step that asks it something, reads before a change or keeps a watch.
+  has_one :chat, as: :owner, dependent: :destroy
+
+  delegate :workspace_id, :workspace, :code_box_key, to: :run
+
+  # What a watch the step keeps reads with. A run is never about an incident.
+  def incident = nil
+  def incident_id = nil
 
   validates :step_key, presence: true
   validates :status, inclusion: { in: STATUSES }

@@ -7,7 +7,7 @@ class Investigation::Tools::NoteProblem < RubyLLM::Tool
   # A resource or a date the agent named that cannot be read, said back so it can fix it.
   class Unknown < StandardError; end
 
-  SIGNALS = (Investigation::Notice::SIGNALS - [ Investigation::Notice::SIGNAL_LEAKED_SECRET ]).freeze
+  SIGNALS = (Investigation::Notice::SIGNALS - [ Investigation::Notice::SIGNAL_LEAKED_SECRET, Investigation::Notice::SIGNAL_PROBING ]).freeze
 
   def initialize(investigation)
     super()

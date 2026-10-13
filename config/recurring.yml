@@ -65,6 +65,10 @@ development:
     class: ChatPlanSweepJob # starts each plan Halon scheduled once its approved time comes
     queue: background
     schedule: every minute
+  workflow_trigger_sweep:
+    class: WorkflowTriggerSweepJob # starts each workflow whose schedule or once at time came
+    queue: background
+    schedule: every minute
   mitigation_sweep:
     class: MitigationSweepJob # reminds before a temporary change Halon made runs out, and undoes it when it does unless someone kept it
     queue: background
@@ -203,6 +207,10 @@ staging:
     schedule: every minute
   chat_plan_sweep:
     class: ChatPlanSweepJob # starts each plan Halon scheduled once its approved time comes
+    queue: background
+    schedule: every minute
+  workflow_trigger_sweep:
+    class: WorkflowTriggerSweepJob # starts each workflow whose schedule or once at time came
     queue: background
     schedule: every minute
   mitigation_sweep:
@@ -373,6 +381,10 @@ production:
     schedule: every minute
   chat_plan_sweep:
     class: ChatPlanSweepJob # starts each plan Halon scheduled once its approved time comes
+    queue: background
+    schedule: every minute
+  workflow_trigger_sweep:
+    class: WorkflowTriggerSweepJob # starts each workflow whose schedule or once at time came
     queue: background
     schedule: every minute
   mitigation_sweep:

@@ -1367,7 +1367,8 @@ export const LEDGER_SOURCES = [
   "issue_sync",
   "watch",
   "handbook_sync",
-  "paging"
+  "paging",
+  "workflow"
 ] as const
 export type LedgerSource = (typeof LEDGER_SOURCES)[number]
 
@@ -1465,3 +1466,126 @@ export const SANDBOX_SERVICES = [
   "redis"
 ] as const
 export type SandboxService = (typeof SANDBOX_SERVICES)[number]
+
+export const WORKFLOWS_RESOURCE = "workflows" as const
+
+export const WORKFLOW_STATES = [
+  "draft",
+  "live",
+  "changed",
+  "off",
+  "done"
+] as const
+export type WorkflowState = (typeof WORKFLOW_STATES)[number]
+
+export const WORKFLOW_RUN_STATUSES = [
+  "queued",
+  "running",
+  "waiting",
+  "paused",
+  "succeeded",
+  "failed",
+  "cancelled"
+] as const
+export type WorkflowRunStatus = (typeof WORKFLOW_RUN_STATUSES)[number]
+
+export const WORKFLOW_RUN_OPEN_STATUSES = [
+  "queued",
+  "running",
+  "waiting",
+  "paused"
+] as const
+
+export const WORKFLOW_RUN_STARTED_BY = [
+  "person",
+  "halon",
+  "trigger",
+  "workflow"
+] as const
+export type WorkflowRunStartedBy = (typeof WORKFLOW_RUN_STARTED_BY)[number]
+
+export const WORKFLOW_STEP_STATUSES = [
+  "pending",
+  "running",
+  "waiting",
+  "succeeded",
+  "failed",
+  "skipped",
+  "bypassed",
+  "cancelled"
+] as const
+export type WorkflowStepStatus = (typeof WORKFLOW_STEP_STATUSES)[number]
+
+export const WORKFLOW_STEP_GROUPS = [
+  "halon",
+  "tools",
+  "messages",
+  "waiting",
+  "control"
+] as const
+export type WorkflowStepGroup = (typeof WORKFLOW_STEP_GROUPS)[number]
+
+export const WORKFLOW_FREEZE_BEHAVIOURS = [
+  "wait",
+  "stop"
+] as const
+export type WorkflowFreezeBehaviour = (typeof WORKFLOW_FREEZE_BEHAVIOURS)[number]
+
+export const WORKFLOW_PAGE_TABS = [
+  "workflows",
+  "runs",
+  "done"
+] as const
+export type WorkflowPageTab = (typeof WORKFLOW_PAGE_TABS)[number]
+
+export const WORKFLOW_PAGE_TAB_QUERY = "tab" as const
+
+export const WORKFLOW_RUNS_PER_HOUR = {
+  "MIN": 1,
+  "MAX": 1000
+} as const
+
+export const WORKFLOW_RUN_RETENTION_DAYS = {
+  "MIN": 1,
+  "MAX": 400
+} as const
+
+export const WORKFLOW_TEMPLATES = [
+  "check_later",
+  "probing_scan"
+] as const
+export type WorkflowTemplate = (typeof WORKFLOW_TEMPLATES)[number]
+
+export const WORKFLOW_TEMPLATE_PARAMS = {
+  "RESOURCE": "resource",
+  "AT": "at",
+  "TIME_ZONE": "time_zone",
+  "CHANNEL": "channel",
+  "REPLY_IN_CHAT": "reply_in_chat",
+  "DAYS": "days"
+} as const
+
+export const WORKFLOW_SCHEDULE_REPEATS = [
+  "minutes",
+  "hours",
+  "days",
+  "monthly"
+] as const
+export type WorkflowScheduleRepeat = (typeof WORKFLOW_SCHEDULE_REPEATS)[number]
+
+export const WORKFLOW_SCHEDULE_KEYS = {
+  "REPEAT": "repeat",
+  "EVERY": "every",
+  "AT": "at",
+  "DAYS": "days",
+  "WEEK_OF_MONTH": "week_of_month",
+  "WEEKDAY": "weekday",
+  "TIME_ZONE": "time_zone"
+} as const
+
+export const WORKFLOW_SCHEDULE_LIMITS = {
+  "MINUTES_MIN": 5,
+  "MINUTES_MAX": 720,
+  "HOURS_MIN": 1,
+  "HOURS_MAX": 24
+} as const

@@ -7,7 +7,7 @@ module Slack
       TITLES = {
         Investigation::Notice::SIGNAL_DISK => ":floppy_disk:", Investigation::Notice::SIGNAL_CERTIFICATE => ":lock:",
         Investigation::Notice::SIGNAL_ERROR_BUDGET => ":chart_with_downwards_trend:", Investigation::Notice::SIGNAL_COST => ":money_with_wings:",
-        Investigation::Notice::SIGNAL_LEAKED_SECRET => ":key:", Investigation::Notice::SIGNAL_OTHER => ":mag:"
+        Investigation::Notice::SIGNAL_LEAKED_SECRET => ":key:", Investigation::Notice::SIGNAL_PROBING => ":shield:", Investigation::Notice::SIGNAL_OTHER => ":mag:"
       }.freeze
 
       def self.build(notice)
@@ -18,7 +18,7 @@ module Slack
           { type: "section", text: { type: "mrkdwn", text: fields(notice).join("  ·  ") } },
           { type: "context", elements: [ { type: "mrkdwn", text: footer(notice) } ] }
         ]
-        url = notice.investigation && DashboardUrl.investigation(notice.investigation)
+        url = (notice.investigation && DashboardUrl.investigation(notice.investigation)) || (notice.workflow_run && DashboardUrl.workflow_run(notice.workflow_run))
         blocks << { type: "actions", elements: [ { type: "button", text: { type: "plain_text", text: "Open the run" }, url: url } ] } if url
         blocks
       end
@@ -36,8 +36,12 @@ module Slack
       end
 
       def self.footer(notice)
-        from = notice.check ? "Halon's #{Mrkdwn.escape(notice.check.name)} check" : "Halon"
-        again = notice.times_said.positive? ? "Halon said this before, and it got worse or came back." : "Halon says it again only if it gets worse."
+        from = if notice.check then "Halon's #{Mrkdwn.escape(notice.check.name)} check"
+        elsif notice.workflow_run then "The #{Mrkdwn.escape(notice.workflow_run.workflow.name)} workflow"
+        else "Halon"
+        end
+        who = notice.workflow_run && !notice.check ? "It" : "Halon"
+        again = notice.times_said.positive? ? "#{who} said this before, and it got worse or came back." : "#{who} says it again only if it gets worse."
         "#{from}  ·  #{again}"
       end
     end

@@ -10,6 +10,8 @@ class ApprovalResumption
   KIND_ISSUE_SYNC = "issue_sync"
   # A call to an on-call tool for a page, run again as Firefight paging once approved (OnCallSyncService).
   KIND_PAGING = "paging"
+  # A step of a workflow run, which waits parked and carries on from the decision, whichever way it goes.
+  KIND_WORKFLOW_STEP = "workflow_step"
 
   def self.park!(approval, subject, kind)
     approval.update!(resume_payload: {
@@ -29,12 +31,19 @@ class ApprovalResumption
     approval.update!(resume_payload: { kind: KIND_FIX_STEP, step_id: step.id }, held_for_run: true)
   end
 
+  # A workflow step waits for the decision itself, so its approval is never replayed from here.
+  # step_key names the step on the run's record, so the run's page says what it waits for.
+  def self.park_workflow_step!(approval, engine_step_id, step_key)
+    approval.update!(resume_payload: { kind: KIND_WORKFLOW_STEP, step_id: engine_step_id, step_key: step_key })
+  end
+
   # An approval admits one execution. Re-entering the gateway on a consumed
   # approval would park a fresh one, so a job that runs twice must not replay.
   def self.resume!(approval)
     payload = approval.resume_payload
     return if payload.blank? || approval.consumed_at.present?
     return Investigation::FixRunner.resume!(approval, payload["step_id"]) if payload["kind"] == KIND_FIX_STEP
+    return decided_workflow_step!(approval, payload) if payload["kind"] == KIND_WORKFLOW_STEP
     return Conversation::HeldCalls.approved!(approval) if payload["kind"] == Chat::HeldCall::RESUME_KIND
     return IssueSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_ISSUE_SYNC
     return OnCallSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_PAGING
@@ -69,6 +78,7 @@ class ApprovalResumption
     payload = approval.resume_payload
     return if payload.blank?
     return Investigation::FixRunner.resume!(approval, payload["step_id"]) if payload["kind"] == KIND_FIX_STEP
+    return decided_workflow_step!(approval, payload) if payload["kind"] == KIND_WORKFLOW_STEP
     return IssueSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_ISSUE_SYNC
     return OnCallSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_PAGING
     return Conversation::HeldCalls.denied!(approval) if payload["kind"] == Chat::HeldCall::RESUME_KIND
@@ -83,6 +93,11 @@ class ApprovalResumption
     return Investigation::FixRunner.lapsed!(approval, payload["step_id"]) if payload["kind"] == KIND_FIX_STEP
 
     Conversation::HeldCalls.expired!(approval) if payload["kind"] == Chat::HeldCall::RESUME_KIND
+  end
+
+  # The step that waited wakes with the decision and goes on from there.
+  def self.decided_workflow_step!(approval, payload)
+    DefinedWorkflow.deliver!(payload["step_id"], "#{DefinedWorkflow::Steps::CallTool::APPROVAL}:#{approval.id}", { status: approval.status })
   end
 
   def self.rebuild(approval, payload)

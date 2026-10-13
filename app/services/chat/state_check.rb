@@ -9,17 +9,19 @@ class Chat::StateCheck
 
   COULD_NOT = "Halon could not read how this stands now.".freeze
 
-  def self.run(owner:, workspace:, principal:, source:, call:)
-    new(owner: owner, workspace: workspace, principal: principal, source: source).run(call)
+  # ledger is more of what the activity log keeps on each read, such as the workflow run it was made for.
+  def self.run(owner:, workspace:, principal:, source:, call:, ledger: {})
+    new(owner: owner, workspace: workspace, principal: principal, source: source, ledger: ledger).run(call)
   end
 
   attr_reader :workspace
 
-  def initialize(owner:, workspace:, principal:, source:)
+  def initialize(owner:, workspace:, principal:, source:, ledger: {})
     @owner = owner
     @workspace = workspace
     @principal = principal
     @source = source
+    @ledger = ledger
   end
 
   def run(call)
@@ -67,7 +69,7 @@ class Chat::StateCheck
   def tool_call(action_key:, params: {}, scope: {}, approval_id: nil, holdable: true, **, &block)
     value = Chat::ToolCall.run!(
       workspace: @workspace, principal: @principal, action_key: action_key, params: params, scope: scope,
-      context: { source: @source, approval_id: approval_id }.compact, holdable: holdable, &block
+      context: @ledger.merge(source: @source, approval_id: approval_id).compact, holdable: holdable, &block
     )
     Chat::ToolCall::Outcome.new(value: value)
   end

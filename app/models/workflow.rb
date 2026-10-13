@@ -10,6 +10,9 @@ class Workflow < ApplicationRecord
   include Workflow::Naming
   include Workflow::Editing
   include Workflow::FromLibrary
+  include Workflow::Identity
+  include Workflow::Scheduling
+  include Workflow::Limits
 
   AUTHOR_PERSON = "person".freeze
   AUTHOR_HALON = "halon".freeze
@@ -18,6 +21,13 @@ class Workflow < ApplicationRecord
   AUTHOR_KINDS = [ AUTHOR_PERSON, AUTHOR_HALON, AUTHOR_FIREFIGHT ].freeze
   NAME_LIMIT = 120
 
+  # What a change step does when it lands in a freeze window: waits for the window to end, or stops the run.
+  FREEZE_WAIT = "wait".freeze
+  FREEZE_STOP = "stop".freeze
+  FREEZE_BEHAVIOURS = [ FREEZE_WAIT, FREEZE_STOP ].freeze
+
+  USAGE_NOUN = "time".freeze
+
   belongs_to :workspace
   # The team on the catalog that owns it.
   belongs_to :owner_team, class_name: "CatalogEntry", optional: true
@@ -25,19 +35,32 @@ class Workflow < ApplicationRecord
   belongs_to :agent, optional: true
   belongs_to :live_version, class_name: "Workflow::Version", optional: true
   belongs_to :created_by, class_name: "WorkspaceMembership", optional: true
+  # The chat Halon made it from, where a step may post back to.
+  belongs_to :origin_conversation, class_name: "Conversation", optional: true
   has_many :versions, class_name: "Workflow::Version", inverse_of: :workflow
   has_many :edits, class_name: "Workflow::Edit", inverse_of: :workflow
   has_many :runs, class_name: "Workflow::Run", inverse_of: :workflow
+  # The open draft, for a list to load with the rest. Editing reads draft, which asks the database each time.
+  has_one :draft_version, -> { where(status: Workflow::Version::STATUS_DRAFT) }, class_name: "Workflow::Version", inverse_of: false
+  # Its newest run, loaded for a whole list in one query.
+  has_one :latest_run, -> { select("DISTINCT ON (workflow_runs.workflow_id) workflow_runs.*").order("workflow_runs.workflow_id, workflow_runs.created_at DESC") },
+          class_name: "Workflow::Run", inverse_of: false
+  has_many :publish_requests, class_name: "Workflow::PublishRequest", dependent: :delete_all, inverse_of: :workflow
 
   validates :name, presence: true, length: { maximum: NAME_LIMIT }
   validates :slug, presence: true, uniqueness: { scope: :workspace_id }, format: { with: /\A[a-z0-9_]+\z/ }
   validates :cost_cap_cents, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
+  validates :freeze_behaviour, inclusion: { in: FREEZE_BEHAVIOURS }
   validate :owner_is_a_team
 
   scope :enabled, -> { where(enabled: true) }
   scope :ordered, -> { order(:name) }
+  # How many times each ran, counted in one subquery for a whole list.
+  scope :with_run_counts, -> { select("workflows.*", "(SELECT COUNT(*) FROM workflow_runs WHERE workflow_runs.workflow_id = workflows.id) AS run_count") }
 
   def draft = versions.find_by(status: Workflow::Version::STATUS_DRAFT)
+
+  def live? = live_version_id.present?
 
   # Why a run cannot start now, as a sentence, or nil when it can.
   def start_blocked_reason
@@ -46,6 +69,49 @@ class Workflow < ApplicationRecord
     return "#{name} has no published version to run." unless live_version
 
     nil
+  end
+
+  # How it stands as the Workflows page lists it.
+  STATE_DRAFT = "draft".freeze
+  STATE_LIVE = "live".freeze
+  # Live, with a draft of changes waiting to be published.
+  STATE_CHANGED = "changed".freeze
+  STATE_OFF = "off".freeze
+  STATE_DONE = "done".freeze
+  STATES = [ STATE_DRAFT, STATE_LIVE, STATE_CHANGED, STATE_OFF, STATE_DONE ].freeze
+
+  def state
+    return STATE_DRAFT unless live?
+    return STATE_DONE if done?
+    return STATE_OFF unless enabled?
+
+    draft_version ? STATE_CHANGED : STATE_LIVE
+  end
+
+  def waits_out_freezes? = freeze_behaviour == FREEZE_WAIT
+
+  # The time zone its trigger keeps, which its times are said in.
+  def time_zone = current_trigger[Workflow::Trigger::Schedule::KEY_TIME_ZONE].presence
+
+  def trigger_words = Workflow::Trigger.words(current_trigger)
+
+  # A workflow that runs once at a time, such as "in 30 minutes check X".
+  def one_off? = current_trigger[Workflow::Trigger::KEY_KIND] == Workflow::Trigger::KIND_ONCE_AT
+
+  # The live version's trigger, or the draft's before anything was published.
+  def current_trigger = (live_version || draft_version)&.trigger.to_h
+
+  # A one off whose time came, which is listed with what is done and keeps its runs readable.
+  def done? = one_off? && live? && next_run_at.nil? && run_count.positive?
+
+  def run_count = has_attribute?(:run_count) ? self[:run_count].to_i : runs.count
+
+  # A workflow that ran keeps its runs readable, so it is turned off rather than deleted.
+  def deletion_blocked_reason
+    count = run_count
+    return if count.zero?
+
+    "#{name} ran #{count} #{USAGE_NOUN.pluralize(count)}, and those runs stay readable. Turn it off instead."
   end
 
   private

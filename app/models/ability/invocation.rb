@@ -19,6 +19,8 @@ module Ability
 
     belongs_to :workspace
     belongs_to :principal, polymorphic: true, optional: true
+    # The workflow run whose step made the call.
+    belongs_to :workflow_run, class_name: "Workflow::Run", optional: true
 
     validates :principal_label, :action_key, :idempotency_key, presence: true
     validates :decision, inclusion: { in: DECISIONS }

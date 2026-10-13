@@ -22,6 +22,7 @@ import {
   type IssueTrackingState,
 } from "@/pages/settings/components/workspace/issue-tracking-card"
 import { SlackCard } from "@/pages/settings/components/workspace/slack-card"
+import { WorkflowRunsCard } from "@/pages/settings/components/workspace/workflow-runs-card"
 import type { AiProviderOption, WorkspaceAiAccount, WorkspaceSettings } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 
@@ -33,6 +34,8 @@ interface WorkspacePageProps extends SharedProps {
   aiSignIn: AiSignIn | null
   aiFallback: string
   aiCredits: AiCredits | null
+  // Only where workflows are switched on.
+  workflowRunRetentionDays: number | null
 }
 
 function retentionText(days?: number): string {
@@ -62,7 +65,7 @@ function agentSlug(choice: string): string {
 }
 
 export default function Workspace() {
-  const { settings, issueWebhookUrl, aiAccounts, aiProviders, aiSignIn, aiFallback, aiCredits } = usePage<WorkspacePageProps>().props
+  const { settings, issueWebhookUrl, aiAccounts, aiProviders, aiSignIn, aiFallback, aiCredits, workflowRunRetentionDays } = usePage<WorkspacePageProps>().props
   const canManageAiAccounts = useCan("ai_accounts")
   const [transcriptAccess, setTranscriptAccess] = useState(settings.transcriptAccessEnabled)
   const [retention, setRetention] = useState(retentionText(settings.transcriptRetentionDays))
@@ -366,6 +369,8 @@ export default function Workspace() {
             </div>
           </CardContent>
         </Card>
+
+        {workflowRunRetentionDays !== null && <WorkflowRunsCard days={workflowRunRetentionDays} />}
 
         <AiAccountsCard
           accounts={aiAccounts}

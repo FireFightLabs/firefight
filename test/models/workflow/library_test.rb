@@ -150,4 +150,59 @@ class Workflow::LibraryTest < ActiveSupport::TestCase
     assert_equal [ "It starts on a schedule trigger now.", "Added the step decide (branch).", "Changed its settings of the step wait.",
                    "Connected wait to decide." ], texts
   end
+
+  test "check something later makes a one off draft that reads, judges and posts, ready to publish" do
+    travel_to Time.zone.parse("2026-10-13 12:00 UTC") do
+      workflow = Workflow::Library.create!(workspace: @workspace, key: Workflow::Library::KEY_CHECK_LATER, by: @alice,
+                                           params: { resource: "web", at: "2026-10-13T14:30", time_zone: "Europe/Belgrade", channel: "#ops" })
+
+      assert_equal "Check web", workflow.name
+      assert_nil workflow.library_key
+      assert workflow.one_off?
+      draft = workflow.draft
+      assert_equal %w[status against_normal judge tell], draft.steps.map { |step| step["name"] }
+      assert_equal 8, workflow.edits.count
+      assert_empty draft.problems
+      assert workflow.agent
+    end
+  end
+
+  test "posting back to the chat it came from needs no channel" do
+    travel_to Time.zone.parse("2026-10-13 12:00 UTC") do
+      workflow = Workflow::Library.create!(workspace: @workspace, key: Workflow::Library::KEY_CHECK_LATER, by: @alice,
+                                           params: { resource: "web", at: "2026-10-13T14:30", time_zone: "UTC", reply_in_chat: true })
+
+      assert_equal true, workflow.draft.steps.last.dig("config", "reply_in_chat")
+    end
+  end
+
+  test "looking for probing runs every weekday at nine, branches on what the skill found and raises a notice" do
+    workflow = Workflow::Library.create!(workspace: @workspace, key: Workflow::Library::KEY_PROBING_SCAN, by: @alice, params: { time_zone: "Europe/Belgrade" })
+
+    draft = workflow.draft
+    assert_equal "Every weekday at 09:00 (Europe/Belgrade)", Workflow::Trigger.words(draft.trigger)
+    assert_equal %w[scan decide notice], draft.steps.map { |step| step["name"] }
+    assert_equal({ "from" => "step_decide", "to" => "step_notice", "route" => "found" }, draft.edges.last)
+    assert_empty draft.problems
+    refute workflow.all_clear?
+  end
+
+  test "reads each connected edge network's security events first when one has a skill for them" do
+    edge = Chat::Skill.all.find { |skill| skill.signals.include?(Chat::Skill::SIGNAL_SECURITY_EVENTS) }
+    Chat::Skill.stubs(:coverage).returns(stub(skills: [ edge ]))
+
+    draft = Workflow::Library.create!(workspace: @workspace, key: Workflow::Library::KEY_PROBING_SCAN, by: @alice, params: { time_zone: "UTC" }).draft
+
+    assert_equal %w[edge_1 scan decide notice], draft.steps.map { |step| step["name"] }
+    assert_equal edge.name, draft.steps.first.dig("config", "skill")
+    assert_match "{{steps.edge_1.summary}}", draft.steps.second.dig("config", "focus")
+  end
+
+  test "a template refuses what it cannot be made from" do
+    assert_raises(Workflow::Library::Refused) { Workflow::Library.create!(workspace: @workspace, key: "nope", by: @alice, params: {}) }
+    refused = assert_raises(Workflow::Library::Refused) do
+      Workflow::Library.create!(workspace: @workspace, key: Workflow::Library::KEY_CHECK_LATER, by: @alice, params: { resource: "web" })
+    end
+    assert_equal "Say which channel to post the verdict in.", refused.message
+  end
 end

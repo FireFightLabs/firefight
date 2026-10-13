@@ -59,9 +59,9 @@ class PlatformAdapter
   end
 
   # A message posted as Firefight in any channel at someone's request, naming who asked. by_halon says Halon wrote it
-  # for them rather than an outside agent or a script.
+  # for them rather than an outside agent or a script. thread_id posts it as a reply in that thread.
   # @return [Hash] { message_id: ..., channel_id: ... }
-  def post_channel_message(channel_id:, message:, posted_by:, by_halon:)
+  def post_channel_message(channel_id:, message:, posted_by:, by_halon:, thread_id: nil)
     raise NotImplemented.new(__method__, self.class)
   end
 
@@ -882,6 +882,37 @@ class PlatformAdapter
   # Redraws it once the pack was given or the request dismissed.
   # @return [Hash] { success: true }
   def update_pack_request(channel_id:, message_id:, pack_request:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # A member's request to publish a workflow, to one admin, with Publish. request is a Workflow::PublishRequest.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_workflow_publish_request_to_user(user_id:, request:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws it once the workflow was published or the request dismissed.
+  # @return [Hash] { success: true }
+  def update_workflow_publish_request(channel_id:, message_id:, request:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # How an admin answered a member's request to publish a workflow, to that member.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_workflow_publish_answer_to_user(user_id:, request:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # A workflow run that failed, with why, in the channel of the team that owns the workflow or to whoever published it.
+  # suggestion says Halon suggested a fix on the run's page. channel_id may be a person's id for their direct messages.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_workflow_failure(channel_id:, run:, suggestion:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # One line saying a workflow ran and found nothing, for a workflow that asked for it.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_workflow_all_clear(channel_id:, run:)
     raise NotImplemented.new(__method__, self.class)
   end
 

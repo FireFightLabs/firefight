@@ -3,7 +3,7 @@ class AgentTokensController < InertiaController
   authorizes Ability::Action::RESOURCE_PERMISSIONS, delete: :destroy
 
   def destroy
-    agent = current_workspace.agents.find(params[:agent_id])
+    agent = current_workspace.agents.standalone.find(params[:agent_id])
     token = agent.api_keys.where(deleted_at: nil).find(params[:id])
     token.soft_delete!
 

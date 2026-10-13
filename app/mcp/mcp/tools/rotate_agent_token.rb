@@ -18,7 +18,7 @@ module Mcp
       authorize_as Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_UPDATE
 
       def self.perform_with_principal(workspace:, principal:, args:)
-        agent = workspace.agents.find_by!(slug: args[:slug].to_s)
+        agent = workspace.agents.standalone.find_by!(slug: args[:slug].to_s)
         token = AgentPayloads.mint(workspace, principal, agent)
 
         respond(AgentPayloads.summary(agent.reload).merge(token: token))

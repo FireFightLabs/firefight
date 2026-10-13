@@ -83,7 +83,7 @@ class Chat::Tools::Firefight < RubyLLM::Tool
       label: Chat::Tools.label(name, arguments), holdable: @tool_class.holdable?, **{ approval_id: approval_id }.compact
     ) do |authorization|
       response = Mcp::ToolDispatcher.run(
-        tool: @tool_class, workspace: @agent_run.workspace, principal: @agent_run.acting_principal, args: arguments, by_halon: true
+        tool: @tool_class, workspace: @agent_run.workspace, principal: @agent_run.acting_principal, args: arguments, by_halon: by_halon?
       )
       if response.error?
         Chat::Tools.mark_failed(@agent_run, tool_call_id)
@@ -105,6 +105,9 @@ class Chat::Tools::Firefight < RubyLLM::Tool
   rescue *Mcp::ToolDispatcher::TOOL_ERRORS => error
     failed(tool_call_id, text_of(Mcp::ToolDispatcher.tool_error_response(error)))
   end
+
+  # A workflow's step posts as the workflow, which is not Halon writing for someone.
+  def by_halon? = !@agent_run.respond_to?(:posts_as_halon?) || @agent_run.posts_as_halon?
 
   def approved_by_asker?(approval) = requires_approval? && Chat::Tools.approve_for_asker(@agent_run, approval)
 

@@ -12,6 +12,14 @@ module Slack
       build(:investigation_url, id: investigation.id)
     end
 
+    def self.workflow(workflow)
+      build(:workflow_url, id: workflow.id)
+    end
+
+    def self.workflow_run(run)
+      build(:workflow_run_url, workflow_id: run.workflow_id, id: run.id)
+    end
+
     def self.agent_chat(conversation_id)
       build(:agent_chat_url, id: conversation_id)
     end

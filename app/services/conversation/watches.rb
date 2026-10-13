@@ -96,7 +96,7 @@ module Conversation::Watches
                     reads_per_hour_asked: arguments["reads_per_hour"].to_i.positive?)
     watch.count_reads!(meter.count)
     deploys = deploy_words(watch.steps)
-    Conversation::LiveDelivery.watch_moved(turn.conversation)
+    Conversation::LiveDelivery.watch_moved(turn.conversation) if turn.conversation.is_a?(Conversation)
     # Something that fails the moment it starts is told within seconds rather than at the next sweep.
     WatchCheckJob.perform_later(watch.id)
 
@@ -656,7 +656,7 @@ module Conversation::Watches
   # repair it with a better read, in the chat the watch was started from, in a turn that only reads. One Halon already
   # repaired MAX_REPAIRS times is no longer followed instead.
   def self.ask_repair!(watch, step, reason)
-    unless step.repairable?
+    unless step.repairable? && !watch.workflow_step?
       gave_up = "#{reason} No read Halon tried could show it."
       tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "I stopped following #{step.label}. #{gave_up}") if step.unfollowable!(gave_up)
       return
@@ -1331,6 +1331,8 @@ module Conversation::Watches
   # it has one, and in the asker's direct messages, unless the thread already is one with them.
   def self.tell!(watch, kind, text, ended_as: nil)
     update = watch.updates.create!(kind: kind, text: Chat::SecretFree.redacted(text), ended_as: ended_as)
+    return workflow_told!(watch, update) if watch.workflow_step?
+
     conversation = watch.conversation
     Conversation::LiveDelivery.watch_moved(conversation)
     said = said(watch, update)
@@ -1343,6 +1345,17 @@ module Conversation::Watches
     posted = post(watch, update) { adapter.post_watch_update_to_user(user_id: user_id, update: said, conversation_id: (conversation.id if conversation.personal?)) }
     # Kept so a reply to it in their direct messages is answered knowing which watch it came from.
     update.update_columns(message_channel_id: posted[:channel_id], message_id: posted[:message_id]) if posted.is_a?(Hash) && posted[:message_id]
+    update
+  end
+
+  # A watch a workflow's step started reports to nobody as it goes. The run's page shows its lines, and its end goes back
+  # to the step, which carries the run on.
+  def self.workflow_told!(watch, update)
+    return update unless update.kind == Chat::Watch::Update::KIND_ENDED
+
+    record = watch.workflow_step
+    DefinedWorkflow.deliver_for_record!(record, DefinedWorkflow::Steps::Watch::HANDED_OFF,
+                                        { "status" => update.ended_as || watch.status, "outcome" => update.text })
     update
   end
 

@@ -72,7 +72,7 @@ class Api::V1::AgentsController < Api::V1::ApiController
   end
 
   def agent_scope
-    current_workspace.agents.where(deleted_at: nil)
+    current_workspace.agents.standalone.where(deleted_at: nil)
   end
 
   def set_agent

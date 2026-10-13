@@ -20,6 +20,7 @@ class ApiKey < ApplicationRecord
   validates :token_prefix, presence: true
   validate :on_behalf_of_same_workspace
   validate :one_identity_only
+  validate :not_a_workflows_own
 
   after_update :invalidate_cache!
   after_destroy :invalidate_cache!
@@ -157,5 +158,9 @@ class ApiKey < ApplicationRecord
     return if on_behalf_of.nil? || on_behalf_of.workspace_id == workspace_id
 
     errors.add(:on_behalf_of, "must belong to the same workspace")
+  end
+
+  def not_a_workflows_own
+    errors.add(:agent, "is a workflow's own identity, which never holds a token") if agent&.workflow
   end
 end
