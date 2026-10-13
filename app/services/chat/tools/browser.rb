@@ -97,7 +97,7 @@ class Chat::Tools::Browser < RubyLLM::Tool
 
   def run(check, tool_call_id:, approval_id: nil)
     # An approved send waited on its approver, and the browser still refuses one the page now sends differently.
-    stopped = check.sends? ? Chat::Screenshot.stopped_before(@agent_run.chat, check.digest, check.send_step, fresh: approval_id.nil?) : nil
+    stopped = check.sends? ? Chat::Screenshot.stopped_before(@agent_run.chat, check.digest, check.send_step, fresh: approval_id.nil?, viewport: check.viewports.first) : nil
     return failed_id(tool_call_id, not_shown(check), kind: Chat::StepOutcome::FAILURE_REFUSED) if check.sends? && stopped.nil?
 
     blocked = @agent_run.workspace.browser_pages_blocked_reason(check.planned_pages)
@@ -109,7 +109,7 @@ class Chat::Tools::Browser < RubyLLM::Tool
                                 label: "Check #{check.url.truncate(80)} in the browser", **{ approval_id: approval_id }.compact) do |authorization|
       progress(STARTING)
       answer = Chat::Browsing.run(workspace: @agent_run.workspace, box_key: @agent_run.code_box_key, check: check,
-                                  expected_send: stopped&.would_send.to_h.slice("method", "url").presence,
+                                  expected_send: stopped&.would_send.to_h.slice(*Chat::BrowserCheck::SEND_KEYS).presence,
                                   on_progress: ->(found) { progress(found.message, value: found.value, total: found.total) })
       authorization.answer_failed!(answer.error) if answer.error
       answer.words(can_send: !@agent_run.reads_only? && @agent_run.try(:approved_plan).nil?)

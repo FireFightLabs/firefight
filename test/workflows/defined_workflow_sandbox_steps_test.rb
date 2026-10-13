@@ -180,6 +180,30 @@ class DefinedWorkflowSandboxStepsTest < ActiveSupport::TestCase
     assert_equal 1, run.steps.find_by!(step_key: "buy").chat.screenshots.count
   end
 
+  test "a browser step sends only the whole request it looked at, and fails in words when the page now sends another" do
+    jpeg = Base64.strict_encode64("\xFF\xD8\xFF\xE0fake".b)
+    page = { "name" => "desktop", "status" => 200, "title" => "Shop", "final_url" => "https://shop.example.com/", "page_text" => "Welcome", "screenshot" => jpeg }
+    shown = { "method" => "POST", "url" => "https://shop.example.com/orders", "fields" => [ { "name" => "amount", "value" => "10" } ], "digest" => "a" * 64 }
+    now = { "method" => "POST", "url" => "https://shop.example.com/orders", "fields" => [ { "name" => "amount", "value" => "99" } ], "digest" => "b" * 64 }
+    looked = page.merge("stopped" => { "step" => 1, "reason" => "sends_data", "would_send" => shown })
+    changed = page.merge("steps" => [ { "n" => 1, "action" => "click", "ok" => true } ], "stopped" => { "step" => 1, "reason" => "changed_request", "would_send" => now })
+    checked = Chat::BrowserCheck.from({ "url" => "https://shop.example.com" })
+    handed = []
+    Integrations::Terminal.stubs(:available?).returns(true)
+    Chat::Browsing.stubs(:run).with { |**given| handed << given[:expected_send] }
+                  .returns(Chat::BrowserCheck::Answer.new({ "viewports" => [ looked ] }, check: checked))
+                  .then.returns(Chat::BrowserCheck::Answer.new({ "viewports" => [ changed ] }, check: checked))
+    sending = { "url" => "https://shop.example.com", "viewports" => [ "desktop" ], "steps" => [ { "action" => "click", "text" => "Buy" } ], "send_step" => 1,
+                "undo" => "Cancel the order." }
+    workflow = published("Buy", steps: [ step("buy", "browser", sending), check("buy") ], edges: [ { "from" => "buy", "to" => "check_buy" } ])
+
+    run = start(workflow)
+
+    assert_equal [ nil, shown.slice("method", "url", "digest") ], handed
+    assert_equal Workflow::Run::STATUS_FAILED, run.status
+    assert_equal "buy failed. The page now sends POST https://shop.example.com/orders with amount=99 at step 1, not what it showed just before, so nothing was sent.", run.error
+  end
+
   test "a request that changes something needs its own grant and fails on an error answer" do
     Webhooks::SsrfProtector.stubs(:resolve_public_ip).returns("93.184.216.34")
     answer = FakeResponse.new("500", "boom", {})
