@@ -64,6 +64,12 @@ class Workflow::Run < ApplicationRecord
   def failed? = status == STATUS_FAILED
   def succeeded? = status == STATUS_SUCCEEDED
 
+  # Where a step asks people in a channel: the incident's channel, else the channel of the team that owns the workflow,
+  # else the workspace's incidents channel.
+  def asking_channel_id(incident)
+    incident&.channel_id.presence || workflow.team_channel_id || workspace.incidents_channel_id.presence
+  end
+
   def cancel_blocked_reason
     return "This run has already ended." if finished?
 

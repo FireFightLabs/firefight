@@ -129,8 +129,9 @@ class DefinedWorkflow::Steps::CallTool < DefinedWorkflow::Steps::Base
   def undecided(approval)
     return SolidWorkflow::Park.new(wake_at: approval_deadline) if approval_deadline > Time.current
 
-    approval.expire! if approval.pending?
-    raise Refused, "Nobody decided on #{named} within #{ActiveSupport::Duration.build(approval_window).inspect}, so it did not run."
+    waited = ActiveSupport::Duration.build(approval_window).inspect
+    approval.expire!(reason: "Nobody decided within #{waited}, so it did not run.") if approval.pending?
+    raise Refused, "Nobody decided on #{named} within #{waited}, so it did not run."
   end
 
   def approval_window = (@step.timeout_seconds || APPROVAL_LIMIT.to_i).seconds.to_i

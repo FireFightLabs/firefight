@@ -1,7 +1,7 @@
 module Slack
   module Modals
-    # Answers a workflow's question that has a short form: one of its choices when it has any, and each field. The run
-    # carries on with what is sent here.
+    # Answers a workflow's question that has a short form: one of its choices when it has any, and each field. A Manual
+    # step's task that collects a note is marked done here with it. The run carries on with what is sent here.
     module WorkflowQuestionAnswer
       CHOICE_BLOCK = "choice_block".freeze
       CHOICE_INPUT = "choice_input".freeze
@@ -13,11 +13,11 @@ module Slack
           type: "modal",
           callback_id: Identifiers::WORKFLOW_QUESTION_MODAL,
           private_metadata: ModalState.encode(workflow_question_id: question.id),
-          title: { type: "plain_text", text: "Answer" },
-          submit: { type: "plain_text", text: "Send answer" },
+          title: { type: "plain_text", text: question.task? ? "Done" : "Answer" },
+          submit: { type: "plain_text", text: question.task? ? "Mark done" : "Send answer" },
           close: { type: "plain_text", text: "Cancel" },
           blocks: [
-            { type: "section", text: { type: "mrkdwn", text: "*#{Mrkdwn.escape(question.run.workflow.name)} asks*\n#{Messages::CodeQuestion.quoted(question.question)}" } },
+            { type: "section", text: { type: "mrkdwn", text: "*#{Mrkdwn.escape(Messages::WorkflowQuestion.title(question))}*\n#{Messages::CodeQuestion.quoted(question.question)}" } },
             *choice_block(question),
             *question.fields.map { |field| field_block(field) }
           ]
@@ -27,7 +27,7 @@ module Slack
       def self.choice_block(question)
         return [] if question.choices.empty?
 
-        options = question.choices.map { |choice| { text: { type: "plain_text", text: question.choice_words(choice).truncate(75) }, value: choice } }
+        options = question.choice_keys.map { |key| { text: { type: "plain_text", text: question.choice_words(key).truncate(75) }, value: key } }
         [ { type: "input", block_id: CHOICE_BLOCK, label: { type: "plain_text", text: "Your choice" },
             element: { type: "radio_buttons", action_id: CHOICE_INPUT, options: options } } ]
       end

@@ -63,17 +63,11 @@ class Investigation::FixRunner
                          to: Investigation::RemediationStep::STATUS_SKIPPED, result: "Cancelled by #{who} before it ran.")
     return unless stopped
 
-    withdraw(step.approval) if was == Investigation::RemediationStep::STATUS_WAITING_APPROVAL
+    if was == Investigation::RemediationStep::STATUS_WAITING_APPROVAL && step.approval&.pending?
+      step.approval.expire!(reason: "#{who.upcase_first} cancelled the #{step.plan.undo? ? 'undo' : 'fix'} before anyone decided.")
+    end
     step.approval&.dismiss! if was == Investigation::RemediationStep::STATUS_APPROVED
   end
-
-  def self.withdraw(approval)
-    return unless approval&.pending?
-
-    approval.expire!
-    ApprovalNotificationService.mark_resolved!(approval)
-  end
-  private_class_method :withdraw
 
   # From ApprovalResumption, once the approver of a step held by a rule decided. A denial ends the step. An approval
   # leaves it for someone to run, once Halon has read how things stand now, and tells whoever applied the fix.

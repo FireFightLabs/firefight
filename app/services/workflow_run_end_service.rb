@@ -53,8 +53,15 @@ class WorkflowRunEndService
   def withdraw_asks!
     Workflow::Run::Question.open.where(run_step_id: @run.steps.select(:id)).find_each { |question| WorkflowQuestionService.withdraw!(question) }
     @workspace.ability_approvals.pending.where(workflow_run_id: @run.id, action_key: Ability::Action::WORKFLOW_APPROVAL).find_each do |approval|
-      ApprovalNotificationService.mark_resolved!(approval) if approval.expire!.expired?
+      approval.expire!(reason: "The run #{ended_words} before anyone decided.")
     end
+  end
+
+  def ended_words
+    return "was stopped" if @run.status == Workflow::Run::STATUS_CANCELLED
+    return "failed" if @run.failed?
+
+    "ended"
   end
 
   # The run's sandbox, which its steps' commands, scripts and browser ran in, stops with it rather than at the next
@@ -101,10 +108,7 @@ class WorkflowRunEndService
   end
 
   # The owning team's channel, else whoever published it, by direct message.
-  def where_to_tell
-    team = @workflow.owner_team&.role_value(CatalogAttributeDefinition::ROLE_NOTIFICATION_CHANNEL).presence
-    team || publisher
-  end
+  def where_to_tell = @workflow.team_channel_id || publisher
 
   def publisher
     @run.version.published_by&.platform_user_id.presence || @workflow.live_version&.published_by&.platform_user_id.presence

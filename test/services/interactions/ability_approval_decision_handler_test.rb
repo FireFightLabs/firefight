@@ -40,6 +40,19 @@ class Interactions::AbilityApprovalDecisionHandlerTest < ActiveSupport::TestCase
     assert @approval.reload.pending?
   end
 
+  test "a member a workflow's Approval step names decides it from Slack without approvals access, and nothing else" do
+    stub_update_message
+    named = workflow_approval(approver_ids: Ability::Principal.references([ @member.id ]))
+    Slack::WorkspaceAdapter.any_instance.expects(:post_ephemeral).with { |text:, **| text.include?("approvals.update") }.returns({ success: true })
+
+    InteractionDispatcher.dispatch(build_interaction(@member.platform_user_id, value: named.id))
+    InteractionDispatcher.dispatch(build_interaction(@member.platform_user_id, value: workflow_approval.id))
+
+    assert named.reload.approved?
+    assert_equal @member, named.approver
+    assert @workspace.ability_approvals.find_by!(principal_label: "By role").pending?
+  end
+
   test "unknown approval ids are ignored" do
     interaction = build_interaction(@admin.platform_user_id, value: SecureRandom.uuid)
 
@@ -47,6 +60,16 @@ class Interactions::AbilityApprovalDecisionHandlerTest < ActiveSupport::TestCase
   end
 
   private
+
+  def workflow_approval(approver_ids: [])
+    asked = { "question" => "Release checkout?" }
+    Ability::Approval.create!(
+      workspace: @workspace, principal: @admin, principal_label: approver_ids.any? ? "Named" : "By role",
+      action_key: Ability::Action::WORKFLOW_APPROVAL, request_digest: Ability::Approval.digest(Ability::Action::WORKFLOW_APPROVAL, asked, {}),
+      params: asked, required_role: WorkspaceMembership.roles[:admin], approver_ids: approver_ids,
+      notifications: [ { "channel_id" => "C12345678", "message_id" => "1234.5678" } ]
+    )
+  end
 
   def build_interaction(platform_user_id, value: @approval.id)
     Interaction.new(

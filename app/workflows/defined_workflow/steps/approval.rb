@@ -1,10 +1,13 @@
 # Asks named people, or anyone holding a workspace role, to approve before the run goes on. It is an approval like any
-# the gateway asks for (Ability::Approval), so it reaches approvers the same way, in chat and on the Approvals page, and
-# also on the run's page. Approved takes the approved route and denied the denied route. When it names an incident, its
-# conditions are read again about once every few minutes while it waits and once more when it is approved, and a
-# request whose incident no longer meets them, or that nobody decided within the step's time limit, is withdrawn and
-# takes the withdrawn route. It changes nothing itself.
+# the gateway asks for (Ability::Approval), so it is decided on the Approvals page and the run's page as any is. It is
+# asked in the incident's channel, else the channel of the team that owns the workflow, and by direct message only of
+# the people it names, who may decide it without approvals access. Approved takes the approved route and denied the
+# denied route. When it names an incident, its conditions are read again about once every few minutes while it waits
+# and once more when it is approved, and a request whose incident no longer meets them, or that nobody decided within
+# the step's wait, is withdrawn, saying why where it was asked, and takes the withdrawn route. It changes nothing itself.
 class DefinedWorkflow::Steps::Approval < DefinedWorkflow::Steps::Base
+  include DefinedWorkflow::Steps::Waiting
+
   kind "approval"
   label "Approval"
   group GROUP_PEOPLE
@@ -30,8 +33,6 @@ class DefinedWorkflow::Steps::Approval < DefinedWorkflow::Steps::Base
   APPROVER_LIMIT = 10
   QUESTION_LIMIT = 1_000
   CONDITION_LIMIT = Workflow::Trigger::CONDITION_LIMIT
-  # How long it waits for a decision when the step sets no time limit of its own.
-  DECISION_LIMIT = DefinedWorkflow::Steps::CallTool::APPROVAL_LIMIT
   # How often the incident's conditions are read again while it waits.
   RECHECK = 5.minutes
   CHECKPOINT_HELD = DefinedWorkflow::Steps::CallTool::CHECKPOINT_HELD
@@ -40,8 +41,9 @@ class DefinedWorkflow::Steps::Approval < DefinedWorkflow::Steps::Base
   config_help "question (what approvers decide, may use references), details (optional, may use references), who (#{WHO.join(' or ')}), " \
               "approvers (up to #{APPROVER_LIMIT} emails, for people), role (#{ROLES.join(' or ')}, for role), incident (optional, its " \
               "identifier), conditions (optional, [{field, operator, value}] on that incident as incident_declared's are, read again while " \
-              "it waits and when approved). Takes approved, denied, or withdrawn when nobody decided within its time limit " \
-              "(#{DECISION_LIMIT.inspect} by default) or the incident no longer meets the conditions. Outputs decision, decided_by and reason."
+              "it waits and when approved), #{wait_help}. It is asked in the incident's channel, else the owning team's, and by direct " \
+              "message of the people it names. Takes approved, denied, or withdrawn when nobody decided within its wait or the " \
+              "incident no longer meets the conditions. Outputs decision, decided_by and reason."
 
   class << self
     def output_fields(_config) = [ OUTPUT_DECISION, OUTPUT_DECIDED_BY, OUTPUT_REASON ]
@@ -55,6 +57,7 @@ class DefinedWorkflow::Steps::Approval < DefinedWorkflow::Steps::Base
       found << "#{named} needs the question approvers decide." if config[KEY_QUESTION].to_s.strip.empty?
       found << "#{named} asks in at most #{QUESTION_LIMIT.to_fs(:delimited)} characters." if config[KEY_QUESTION].to_s.length > QUESTION_LIMIT
       found.concat(who_problems(config, named))
+      found.concat(wait_problems(config, named))
       found.concat(condition_problems(config, named))
     end
 
@@ -93,8 +96,6 @@ class DefinedWorkflow::Steps::Approval < DefinedWorkflow::Steps::Base
     held ? waited(held) : ask
   end
 
-  def handed_off_limit = ActiveSupport::Duration.build(@step.timeout_seconds || DECISION_LIMIT.to_i)
-
   private
 
   def ask
@@ -105,7 +106,7 @@ class DefinedWorkflow::Steps::Approval < DefinedWorkflow::Steps::Base
       workspace: workspace, principal_type: principal.class.polymorphic_name, principal_id: principal.id, principal_label: principal.principal_label,
       action_key: Ability::Action::WORKFLOW_APPROVAL, request_digest: Ability::Approval.digest(Ability::Action::WORKFLOW_APPROVAL, asked, {}),
       params: asked, scope: {}, required_role: required_role, approver_ids: Ability::Principal.references(approvers.map(&:id)), incident_id: incident&.id,
-      workflow_run: @run, source: AbilityGateway::SOURCE_WORKFLOW, notify: PolicyRule::ApprovalOutcome::NOTIFY_BOTH
+      workflow_run: @run, source: AbilityGateway::SOURCE_WORKFLOW, notify: notify
     )
     ApprovalResumption.park_workflow_step!(approval, @step.id, @step.name)
     SolidWorkflow::Step.where(id: @step.id).update_all([ "checkpoint = COALESCE(checkpoint, '{}'::jsonb) || jsonb_build_object(?::text, ?::text)", CHECKPOINT_HELD, approval.id ])
@@ -120,7 +121,7 @@ class DefinedWorkflow::Steps::Approval < DefinedWorkflow::Steps::Base
     decided = @step.checkpoint.to_h.dig(CHECKPOINT_DELIVERED, "#{DECIDED}:#{approval.id}")
     return decision(approval) if decided || !approval.pending?
 
-    stale = deadline <= Time.current ? "Nobody decided within #{handed_off_limit.inspect}." : stale_reason
+    stale = deadline <= Time.current ? "Nobody decided within #{wait_words}." : stale_reason
     return withdraw(approval, stale) if stale
 
     park
@@ -128,7 +129,7 @@ class DefinedWorkflow::Steps::Approval < DefinedWorkflow::Steps::Base
 
   def decision(approval)
     by = approval.approver&.actor_display_name
-    return withdrawn("It was withdrawn before anyone decided.") unless approval.approved? || approval.denied?
+    return withdrawn(approval.withdrawn_reason || "It was withdrawn before anyone decided.") unless approval.approved? || approval.denied?
     return routed(ROUTE_DENIED, by, nil) if approval.denied?
 
     stale = stale_reason
@@ -138,7 +139,7 @@ class DefinedWorkflow::Steps::Approval < DefinedWorkflow::Steps::Base
   end
 
   def withdraw(approval, reason)
-    ActiveRecord.after_all_transactions_commit { AbilityApprovalResolvedJob.perform_later(approval.id) } if approval.expire!.expired?
+    approval.expire!(reason: reason)
     withdrawn(reason)
   end
 
@@ -179,6 +180,9 @@ class DefinedWorkflow::Steps::Approval < DefinedWorkflow::Steps::Base
   end
 
   def required_role = @config[KEY_WHO] == WHO_ROLE ? @config[KEY_ROLE].to_s : WorkspaceMembership.roles[:admin]
+
+  # Asked in a channel always, and by direct message only of the people it names, never everyone holding a role.
+  def notify = @config[KEY_WHO] == WHO_PEOPLE ? PolicyRule::ApprovalOutcome::NOTIFY_BOTH : PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL
 
   def approvers
     return [] unless @config[KEY_WHO] == WHO_PEOPLE

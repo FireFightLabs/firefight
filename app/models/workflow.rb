@@ -78,6 +78,10 @@ class Workflow < ApplicationRecord
 
   def draft = versions.find_by(status: Workflow::Version::STATUS_DRAFT)
 
+  # The notification channel of the team that owns it, from the catalog, where it says what happened when nothing
+  # nearer is named.
+  def team_channel_id = owner_team&.role_value(CatalogAttributeDefinition::ROLE_NOTIFICATION_CHANNEL).presence
+
   def live? = live_version_id.present?
 
   # Why a run cannot start now, as a sentence, or nil when it can.

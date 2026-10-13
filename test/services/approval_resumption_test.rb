@@ -82,7 +82,7 @@ class ApprovalResumptionTest < ActiveSupport::TestCase
     approval = @workspace.ability_approvals.order(:created_at).last
 
     assert_no_enqueued_jobs(only: AbilityApprovalResumptionJob) do
-      approval.expire!
+      approval.expire!(reason: "The run was stopped before anyone decided.")
     end
   end
 

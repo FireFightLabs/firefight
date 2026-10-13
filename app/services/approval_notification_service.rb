@@ -2,11 +2,10 @@
 # reflected in place. Workspaces without a channel still resolve approvals from the dashboard.
 class ApprovalNotificationService
   def self.post!(approval)
-    workspace = approval.workspace
-    adapter = WorkspaceAdapter.for(workspace)
-
-    if approval.notify_channel? && workspace.incidents_channel_id.present?
-      deliver(approval) { adapter.post_approval_request(approval: approval, channel_id: workspace.incidents_channel_id) }
+    adapter = WorkspaceAdapter.for(approval.workspace)
+    channel_id = approval.request_channel_id
+    if approval.notify_channel? && channel_id
+      deliver(approval) { adapter.post_approval_request(approval: approval, channel_id: channel_id) }
     end
 
     asked = approval.notify_dm? ? approval.human_approvers : []
