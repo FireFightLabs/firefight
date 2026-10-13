@@ -719,6 +719,37 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # A workflow's question, in a direct message to someone it asked, with a button per choice and Answer for its form.
+  # question is a Workflow::Run::Question.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_workflow_question(user_id:, question:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws it once it is answered or withdrawn.
+  # @return [Hash] { success: true }
+  def update_workflow_question(channel_id:, message_id:, question:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Opens the form that answers a workflow's question.
+  # @return [Hash] { success: true }
+  def open_workflow_question_modal(trigger_id:, question:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # What the form was submitted with.
+  # @return [Hash] { choice: String or nil, values: Hash of field name to text }
+  def workflow_question_answer(values:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Keeps the form open with why the answer was refused.
+  # @return [Hash] the platform's answer to the form
+  def workflow_question_error(message, question:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Opens the form that answers a coding agent's question.
   # @return [Hash] { success: true }
   def open_code_question_modal(trigger_id:, question:)

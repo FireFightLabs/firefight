@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_13_235100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_13_235200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -3216,6 +3216,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_235100) do
     t.index ["workspace_id", "requested_at"], name: "idx_on_workspace_id_requested_at_74747be6ce"
   end
 
+  create_table "workflow_run_questions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "run_step_id", null: false
+    t.uuid "engine_step_id", null: false
+    t.string "delivery_key", null: false
+    t.datetime "due_at", null: false
+    t.text "question", null: false
+    t.text "details"
+    t.string "choices", default: [], null: false, array: true
+    t.jsonb "fields", default: [], null: false
+    t.uuid "asked_member_ids", default: [], null: false, array: true
+    t.string "status", default: "open", null: false
+    t.jsonb "answer"
+    t.uuid "answered_by_id"
+    t.datetime "answered_at"
+    t.jsonb "notifications", default: [], null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["answered_by_id"], name: "index_workflow_run_questions_on_answered_by_id"
+    t.index ["run_step_id"], name: "index_workflow_run_questions_on_run_step_id"
+    t.index ["workspace_id", "status"], name: "index_workflow_run_questions_on_workspace_id_and_status"
+  end
+
   create_table "workflow_run_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "run_id", null: false
     t.string "step_key", null: false
@@ -3817,6 +3840,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_235100) do
   add_foreign_key "workflow_publish_requests", "workspace_memberships", column: "published_by_id", on_delete: :nullify
   add_foreign_key "workflow_publish_requests", "workspace_memberships", column: "requester_id", on_delete: :cascade
   add_foreign_key "workflow_publish_requests", "workspaces"
+  add_foreign_key "workflow_run_questions", "workflow_run_steps", column: "run_step_id", on_delete: :cascade
+  add_foreign_key "workflow_run_questions", "workspace_memberships", column: "answered_by_id", on_delete: :nullify
+  add_foreign_key "workflow_run_questions", "workspaces"
   add_foreign_key "workflow_run_steps", "workflow_runs", column: "run_id", on_delete: :cascade
   add_foreign_key "workflow_runs", "agents", on_delete: :nullify
   add_foreign_key "workflow_runs", "workflow_runs", column: "parent_run_id", on_delete: :nullify
