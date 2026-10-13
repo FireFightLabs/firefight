@@ -15,12 +15,18 @@ class WorkflowRunEndService
     @job_id = job_id
   end
 
-  # Whatever breaks while telling gives the claim back, so the run is never left marked as being told by nobody.
   def ended!
     stop_watches!
     Conversation::Workflows.moved!(@workflow) unless @run.test?
     return if @run.test? || @run.parent_run_id.present? || !@run.claim_telling!(@job_id)
 
+    tell!
+  end
+
+  private
+
+  # Whatever breaks once this job holds the claim gives it back, so the run is never left held by a job that stopped.
+  def tell!
     if @run.failed?
       tell_failed!
     else
@@ -28,11 +34,9 @@ class WorkflowRunEndService
       @run.told!
     end
   rescue StandardError
-    @run.release_telling!
+    @run.release_telling!(@job_id)
     raise
   end
-
-  private
 
   def stop_watches!
     Chat::Watch.active.joins(:chat).where(chats: { owner_type: Workflow::Run::Step.name, owner_id: @run.steps.select(:id) }).find_each do |watch|
@@ -48,7 +52,7 @@ class WorkflowRunEndService
     return @run.told! if [ where_to_tell, publisher ].compact.uniq.any? { |place| told_failure?(place, suggested) }
 
     Rails.logger.warn({ event: "workflow_run.failure_untold", run_id: @run.id, reason: "nowhere_to_tell" }.to_json)
-    @run.release_telling!
+    @run.release_telling!(@job_id)
   end
 
   def told_failure?(place, suggested)

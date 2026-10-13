@@ -99,6 +99,25 @@ class WorkflowRunEndServiceTest < ActiveSupport::TestCase
     assert_nil run.telling_job_id
   end
 
+  test "a job that breaks never gives back a claim another job holds" do
+    FirefightAi::WorkflowRepair.any_instance.stubs(:suggest).returns(nil)
+    @adapter.any_instance.stubs(:post_workflow_failure).returns({})
+    run = run!(failing)
+    run.update_columns(told_at: nil, telling_job_id: "job-1")
+
+    Conversation::Workflows.stubs(:moved!).raises(RuntimeError, "broke before claiming")
+    assert_raises(RuntimeError) { WorkflowRunEndService.new(run, job_id: "job-2").ended! }
+    assert_equal "job-1", run.reload.telling_job_id
+
+    Conversation::Workflows.unstub(:moved!)
+    @adapter.any_instance.stubs(:post_workflow_failure).raises(AdapterError::ServerError, "internal_error")
+    run.update_columns(telling_job_id: nil)
+    assert_raises(AdapterError::ServerError) { WorkflowRunEndService.new(run, job_id: "job-3").ended! }
+    run.update_columns(telling_job_id: "job-1")
+    Workflow::Run.find(run.id).release_telling!("job-3")
+    assert_equal "job-1", run.reload.telling_job_id
+  end
+
   test "the job that tells a run's end is run again when its worker is stopped" do
     assert WorkflowRunEndedJob.runs_again_when_interrupted
   end

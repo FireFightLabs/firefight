@@ -102,9 +102,9 @@ class Workflow::Run < ApplicationRecord
     self.class.where(id: id).update_all(told_at: Time.current, telling_job_id: nil, updated_at: Time.current)
   end
 
-  # Gives the claim back when nothing was told, so the next try may take it.
-  def release_telling!
-    self.class.where(id: id, told_at: nil).update_all(telling_job_id: nil, updated_at: Time.current)
+  # Gives the job's own claim back when nothing was told, so the next try may take it. Another job's claim stays.
+  def release_telling!(job_id)
+    self.class.where(id: id, told_at: nil, telling_job_id: job_id).update_all(telling_job_id: nil, updated_at: Time.current)
   end
 
   # The one run a start key names, made the first time it is asked for. Returns the run and whether it is new.
