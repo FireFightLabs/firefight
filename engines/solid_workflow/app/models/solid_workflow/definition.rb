@@ -10,7 +10,15 @@ module SolidWorkflow
     KIND_FOR_EACH = "for_each".freeze
     KIND_JOIN = "join".freeze
     KIND_RUN_WORKFLOW = "run_workflow".freeze
-    CONTROL_KINDS = [ KIND_BRANCH, KIND_DELAY, KIND_WAIT_FOR_EVENT, KIND_FOR_EACH, KIND_JOIN, KIND_RUN_WORKFLOW ].freeze
+    # Ends the run, as succeeded leaving every step that has not run yet, or as failed with a reason.
+    KIND_STOP = "stop".freeze
+    CONTROL_KINDS = [ KIND_BRANCH, KIND_DELAY, KIND_WAIT_FOR_EVENT, KIND_FOR_EACH, KIND_JOIN, KIND_RUN_WORKFLOW, KIND_STOP ].freeze
+    STOP_SUCCEEDED = "succeeded".freeze
+    STOP_FAILED = "failed".freeze
+    STOP_OUTCOMES = [ STOP_SUCCEEDED, STOP_FAILED ].freeze
+    # A stop's config: how the run ends and why.
+    CONFIG_OUTCOME = "outcome".freeze
+    CONFIG_REASON = "reason".freeze
     # Kinds that park the step and wake it later, so their time limit is a deadline rather than a cap on one attempt.
     WAITING_KINDS = [ KIND_DELAY, KIND_WAIT_FOR_EVENT, KIND_FOR_EACH, KIND_RUN_WORKFLOW ].freeze
 
@@ -35,8 +43,10 @@ module SolidWorkflow
     OUTPUT_FIRST = "first".freeze
     OUTPUT_OUTPUT = "output".freeze
     OUTPUT_STEPS = "steps".freeze
+    OUTPUT_REASON = "reason".freeze
     OUTPUT_FIELDS = {
       KIND_BRANCH => [ OUTPUT_ROUTE ],
+      KIND_STOP => [ OUTPUT_OUTCOME, OUTPUT_REASON ],
       KIND_DELAY => [ OUTPUT_WAITED_UNTIL ],
       KIND_WAIT_FOR_EVENT => [ OUTPUT_OUTCOME, OUTPUT_EVENT ],
       KIND_FOR_EACH => [ OUTPUT_COUNT, OUTPUT_RESULTS ],
@@ -146,8 +156,17 @@ module SolidWorkflow
       when KIND_FOR_EACH then for_each_problems(config, label)
       when KIND_JOIN then join_problems(step, config, label)
       when KIND_RUN_WORKFLOW then config["workflow"].present? ? [] : [ "#{label} needs the workflow it runs." ]
+      when KIND_STOP then stop_problems(config, label)
       else []
       end
+    end
+
+    def stop_problems(config, label)
+      outcome = config[CONFIG_OUTCOME].presence || STOP_SUCCEEDED
+      return [ "#{label} ends the run as succeeded or failed." ] unless STOP_OUTCOMES.include?(outcome) || placeholder?(outcome)
+      return [ "#{label} says why it fails the run." ] if outcome == STOP_FAILED && config[CONFIG_REASON].to_s.strip.empty?
+
+      []
     end
 
     def branch_problems(step, config, label)

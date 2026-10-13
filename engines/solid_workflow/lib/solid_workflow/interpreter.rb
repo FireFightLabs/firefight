@@ -136,8 +136,20 @@ module SolidWorkflow
       when SolidWorkflow::Definition::KIND_FOR_EACH then for_each(config, step, workflow)
       when SolidWorkflow::Definition::KIND_JOIN then join(config, step, workflow)
       when SolidWorkflow::Definition::KIND_RUN_WORKFLOW then run_workflow(config, step, workflow)
+      when SolidWorkflow::Definition::KIND_STOP then stop(config, step, workflow)
       else self.class.perform(step.kind, config, workflow: workflow, step: step)
       end
+    end
+
+    # Ends the run. Failed, the step fails with its reason and the run with it. Succeeded, every other step that has not
+    # run yet is left as bypassed and anything they started is cancelled, so the run succeeds once the steps already
+    # running finish.
+    def stop(config, step, workflow)
+      reason = config[SolidWorkflow::Definition::CONFIG_REASON].to_s.strip
+      raise SolidWorkflow::Stopped, reason.presence || "Stopped." if config[SolidWorkflow::Definition::CONFIG_OUTCOME] == SolidWorkflow::Definition::STOP_FAILED
+
+      workflow.stop_others!(step)
+      { SolidWorkflow::Definition::OUTPUT_OUTCOME => SolidWorkflow::Definition::STOP_SUCCEEDED, SolidWorkflow::Definition::OUTPUT_REASON => reason }
     end
 
     # The first route whose condition holds, or the otherwise route. With neither, only edges without a route carry on.
