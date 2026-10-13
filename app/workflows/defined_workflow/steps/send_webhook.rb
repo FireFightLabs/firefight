@@ -29,6 +29,9 @@ class DefinedWorkflow::Steps::SendWebhook < DefinedWorkflow::Steps::CallTool
 
     def undoable?(_config, _workspace) = false
 
+    # Said once and never taken back, so there is nothing to check first.
+    def checks_first?(_config, _workspace) = false
+
     def output_fields(_config) = [ OUTPUT_DELIVERED, OUTPUT_STATUS, OUTPUT_DELIVERY ]
 
     def problems(step, workspace)
@@ -58,8 +61,6 @@ class DefinedWorkflow::Steps::SendWebhook < DefinedWorkflow::Steps::CallTool
   def arguments = { KEY_WEBHOOK => @config[KEY_WEBHOOK].to_s, KEY_EVENT => event }
 
   def frozen = nil
-
-  def read_first(*, **) = nil
 
   private
 

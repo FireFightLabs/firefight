@@ -12,6 +12,7 @@ module Workflow::Authoring
   KEY_TEMPLATE = "template".freeze
   KEY_PARAMS = "params".freeze
   KEY_ALL_CLEAR = "all_clear".freeze
+  KEY_RUNS_PER_HOUR = "runs_per_hour".freeze
   # A once at trigger's time as minutes from now, worked out when it is written.
   KEY_IN_MINUTES = "in_minutes".freeze
   STEP_SETTINGS = %w[on_failure timeout_seconds retry].freeze
@@ -42,11 +43,16 @@ module Workflow::Authoring
         },
         KEY_STEPS => { "type" => "array", "items" => { "type" => "object" },
                        "description" => "Each step {name, kind, config, on_failure (stop, continue or error_route, optional)}. A step reads earlier " \
-                                        "steps' outputs with {{steps.<name>.<field>}} and inputs with {{inputs.<key>}}. Kinds and their config: #{kinds}" },
+                                        "steps' outputs with {{steps.<name>.<field>}} and inputs with {{inputs.<key>}}. In a run a schedule or an event " \
+                                        "started, a step that changes something first has Halon check the problem is still there, and is skipped " \
+                                        "when it cleared. Its config check_first false makes the change without checking. Kinds and their config: #{kinds}" },
         KEY_EDGES => { "type" => "array", "items" => { "type" => "object" },
                        "description" => "Which step runs after which, each {from, to, route (optional, a branch's route or error)} by step name. " \
                                         "A step with no edge into it runs first." },
-        KEY_ALL_CLEAR => { "type" => "boolean", "description" => "Post a one line all clear when a run finds nothing to raise or post (optional)" }
+        KEY_ALL_CLEAR => { "type" => "boolean", "description" => "Post a one line all clear when a run finds nothing to raise or post (optional)" },
+        KEY_RUNS_PER_HOUR => { "type" => "integer", "minimum" => Workflow::Limits::RUNS_PER_HOUR.min, "maximum" => Workflow::Limits::RUNS_PER_HOUR.max,
+                               "description" => "Most runs it starts in an hour, #{Workflow::Limits::DEFAULT_RUNS_PER_HOUR} unless given. A run its trigger " \
+                                                "would start past it is skipped and counted on its page (optional)" }
       },
       "required" => []
     }
@@ -128,13 +134,15 @@ module Workflow::Authoring
     made = Workflow::Library.create!(workspace: workspace, key: spec[KEY_TEMPLATE], params: params, by: by, name: spec[KEY_NAME], halon: halon,
                                      reason: reason, origin_conversation: origin_conversation)
     made.update!(all_clear: true) if ActiveModel::Type::Boolean.new.cast(spec[KEY_ALL_CLEAR])
+    made.update!(runs_per_hour: spec[KEY_RUNS_PER_HOUR]) if spec.key?(KEY_RUNS_PER_HOUR)
     made
   end
 
   def written(workspace, spec, by, halon, reason, zone, origin_conversation)
     content = content_of(workspace, spec, zone)
     made = Workflow.create!(workspace: workspace, name: content[:name], description: spec[KEY_DESCRIPTION].presence, created_by: by,
-                            all_clear: ActiveModel::Type::Boolean.new.cast(spec[KEY_ALL_CLEAR]) || false, origin_conversation: origin_conversation)
+                            all_clear: ActiveModel::Type::Boolean.new.cast(spec[KEY_ALL_CLEAR]) || false, origin_conversation: origin_conversation,
+                            **spec.slice(KEY_RUNS_PER_HOUR).symbolize_keys)
     edit = ->(operation, payload) { made.edit!(operation: operation, payload: payload, by: by, halon: halon, reason: reason || "Written as asked.") }
     edit.call(Workflow::Edit::OPERATION_CHANGE_TRIGGER, { trigger: content[:trigger] })
     content[:steps].each { |step| edit.call(Workflow::Edit::OPERATION_ADD_STEP, { step: step }) }

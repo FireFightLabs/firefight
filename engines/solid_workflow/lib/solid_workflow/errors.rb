@@ -27,4 +27,10 @@ module SolidWorkflow
 
   # An output together with the route the step took, which decides which of its edges carry on.
   Routed = Data.define(:output, :route)
+
+  # What a step hands back when it decided not to act, with why in words. It ends skipped, and the steps after it carry
+  # on as after a step that succeeded.
+  Skipped = Data.define(:reason, :output) do
+    def initialize(reason:, output: {}) = super
+  end
 end

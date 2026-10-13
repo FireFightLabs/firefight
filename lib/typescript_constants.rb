@@ -310,7 +310,8 @@ module TypescriptConstants
       Export.new("WORKFLOW_PAGE_TABS", WorkflowsController::TABS, "WorkflowPageTab"),
       Export.new("CHAT_TIME_TOKEN_PATTERN", Chat::TimeToken::PATTERN.source, nil),
       Export.new("WORKFLOW_PAGE_TAB_QUERY", WorkflowsController::TAB_QUERY, nil),
-      Export.new("WORKFLOW_RUNS_PER_HOUR", { "MIN" => Workflow::Limits::RUNS_PER_HOUR.min, "MAX" => Workflow::Limits::RUNS_PER_HOUR.max }, nil),
+      Export.new("WORKFLOW_RUNS_PER_HOUR", { "MIN" => Workflow::Limits::RUNS_PER_HOUR.min, "MAX" => Workflow::Limits::RUNS_PER_HOUR.max,
+                                                "DEFAULT" => Workflow::Limits::DEFAULT_RUNS_PER_HOUR }, nil),
       Export.new("WORKFLOW_RUN_RETENTION_DAYS", { "MIN" => Workflow::Run::Retention::DAYS.min, "MAX" => Workflow::Run::Retention::DAYS.max }, nil),
       Export.new("WORKFLOW_TEMPLATES", Workflow::Library::KEYS, "WorkflowTemplate"),
       Export.new("WORKFLOW_TEMPLATE_PARAMS", {
@@ -337,6 +338,8 @@ module TypescriptConstants
       Export.new("WORKFLOW_STEP_GROUPS", Workflow::StepKinds::GROUPS, "WorkflowStepGroup"),
       Export.new("WORKFLOW_STEP_GROUP", Workflow::StepKinds::GROUPS.to_h { |group| [ group.upcase, group ] }, nil),
       Export.new("WORKFLOW_STEP_EFFECT", Workflow::StepKinds::EFFECTS.to_h { |effect| [ effect.upcase, effect ] }, nil),
+      Export.new("WORKFLOW_CHECK_FIRST_KEY", DefinedWorkflow::Steps::Base::KEY_CHECK_FIRST, nil),
+      Export.new("MICROS_PER_CENT", FirefightAi::AgentLoop::MICROS_PER_CENT, nil),
       Export.new("WORKFLOW_STEP_EDITORS", Workflow::StepKinds::EDITORS, "WorkflowStepEditor"),
       Export.new("WORKFLOW_STEP_EDITOR", Workflow::StepKinds::EDITORS.to_h { |editor| [ editor.upcase, editor ] }, nil),
       Export.new("WORKFLOW_STEP_ICONS", Workflow::StepKinds::ICONS, "WorkflowStepIcon"),

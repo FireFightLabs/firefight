@@ -75,15 +75,9 @@ module Operator
 
     def failed_over = CodeBox.where(workspace: @workspace, created_at: @filter.range).where.not(failed_over_from: nil)
 
-    # How long a box has run, a box still up counted until now.
-    def seconds_run(box)
-      return box.running_seconds if box.stopped_at
+    def seconds_run(box) = box.seconds_run
 
-      box.running_seconds + (Time.current - (box.box_started_at || box.created_at)).to_i.clamp(0..)
-    end
-
-    # Its provider's price for its size by the hour, for the time it ran.
-    def cost_micros(box) = (box.hourly_micros * seconds_run(box) / 3600.0).round
+    def cost_micros(box) = box.cost_micros
 
     def up_during?(box, session)
       ended = session.closed_at || session.expires_at

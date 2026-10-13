@@ -161,14 +161,83 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
     assert_equal Workflow::Run::STATUS_WAITING, waiting.status
   end
 
-  test "a scheduled change reads how things stand first and stops when they moved" do
+  # A run something happening started, as an alert starts one.
+  def heard(workflow)
+    start(workflow, trigger_kind: Workflow::Trigger::KIND_ALERT_RECEIVED, started_by_kind: Workflow::Run::STARTED_BY_TRIGGER, started_by: nil,
+                    trigger_payload: { "alert" => { "title" => "web answers 503" } })
+  end
+
+  def verdict(said, state) = Workflow::NeedCheck::Verdict.new(state: state, verdict: said)
+
+  test "a change an event started checks first that the problem is still there, and makes it when it is" do
+    workflow = restart_then_check("Restart web")
+    Workflow::NeedCheck.expects(:run).with { |run:, call:, **| run.trigger_kind == Workflow::Trigger::KIND_ALERT_RECEIVED && call.named.present? }
+                       .returns(verdict(Workflow::NeedCheck::STILL_NEEDED, "web still answers 503."))
+    DefinedWorkflow::Steps::CallTool.any_instance.expects(:call).with(nil).twice.returns({ "answer" => "Restarted." })
+
+    run = heard(workflow)
+
+    assert_equal Workflow::Run::STATUS_SUCCEEDED, run.status, run.error
+    assert_equal({ "answer" => "Restarted." }, run.steps.find_by!(step_key: "restart").output)
+  end
+
+  test "a change whose problem cleared is skipped, the run says why and carries on" do
+    workflow = restart_then_check("Restart web")
+    Workflow::NeedCheck.expects(:run).returns(verdict(Workflow::NeedCheck::CLEARED, "web answers 200 again since 14:02."))
+    DefinedWorkflow::Steps::CallTool.any_instance.expects(:call).with(nil).once.returns({ "answer" => "No incidents." })
+
+    run = heard(workflow)
+
+    assert_equal Workflow::Run::STATUS_SUCCEEDED, run.status, run.error
+    restart = run.steps.find_by!(step_key: "restart")
+    assert_equal DefinedWorkflow::STEP_SKIPPED, restart.status
+    assert_equal "Halon checked first and the problem has cleared, so this step did not run. web answers 200 again since 14:02.", restart.note
+    assert_equal DefinedWorkflow::STEP_SUCCEEDED, run.steps.find_by!(step_key: "look").status
+  end
+
+  test "a scheduled change checks first too" do
     workflow = restart_then_check("Nightly restart")
-    Chat::StateCheck.expects(:run).returns(Chat::CurrentState::Report.new(state: "web was restarted 2 minutes ago.", change: Chat::CurrentState::DONE_ALREADY))
+    Workflow::NeedCheck.expects(:run).returns(verdict(Workflow::NeedCheck::CLEARED, "web was restarted 2 minutes ago."))
+    DefinedWorkflow::Steps::CallTool.any_instance.expects(:call).with(nil).once.returns({ "answer" => "No incidents." })
 
     run = start(workflow, trigger_kind: Workflow::Trigger::KIND_SCHEDULE, started_by_kind: Workflow::Run::STARTED_BY_TRIGGER)
 
+    assert_equal DefinedWorkflow::STEP_SKIPPED, run.steps.find_by!(step_key: "restart").status
+  end
+
+  test "a check Halon could not make stops the run before the change" do
+    workflow = restart_then_check("Restart web")
+    Workflow::NeedCheck.expects(:run).returns(verdict(Workflow::NeedCheck::UNKNOWN, "This run reached its spending ceiling, so Halon did not check."))
+    DefinedWorkflow::Steps::CallTool.any_instance.expects(:call).never
+
+    run = heard(workflow)
+
     assert_equal Workflow::Run::STATUS_FAILED, run.status
-    assert_match "This looks done already. web was restarted 2 minutes ago. Nothing ran.", run.error
+    assert_equal "restart failed. Halon could not check whether this is still needed, so nothing ran. This run reached its spending ceiling, so Halon did not check.",
+                 run.error
+  end
+
+  test "a step switched to make its change without checking first never asks Halon, and neither does a run someone pressed" do
+    restart = step("restart", "call_tool", { "tool" => "restart", "arguments" => { "resource" => "web" }, "undo" => "Roll web back.", "check_first" => false })
+    workflow = published("Restart web", steps: [ restart, search ], edges: [ edge("restart", "look") ])
+    Workflow::NeedCheck.expects(:run).never
+    DefinedWorkflow::Steps::CallTool.any_instance.expects(:call).with(nil).times(4).returns({ "answer" => "Done." })
+
+    assert_equal Workflow::Run::STATUS_SUCCEEDED, heard(workflow).status
+
+    workflow.live_version.update_columns(steps: [ restart.merge("config" => restart["config"].except("check_first")), search ])
+    assert_equal Workflow::Run::STATUS_SUCCEEDED, start(workflow).status
+  end
+
+  test "only a change that can check first offers the switch, never a message, a notice, a webhook or a browser's send" do
+    restart = { "tool" => "restart", "arguments" => { "resource" => "web" } }
+    assert DefinedWorkflow::Steps::CallTool.checks_first?(restart, @workspace)
+    assert_not DefinedWorkflow::Steps::CallTool.checks_first?({ "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => {} }, @workspace)
+    assert DefinedWorkflow::Steps::RunCommand.checks_first?({ "command" => "ls", "changes" => true }, @workspace)
+    [ DefinedWorkflow::Steps::PostToChannel, DefinedWorkflow::Steps::MessagePerson, DefinedWorkflow::Steps::RaiseNotice, DefinedWorkflow::Steps::SendWebhook,
+      DefinedWorkflow::Steps::PostIncidentUpdate, DefinedWorkflow::Steps::Browser ].each do |kind|
+      assert_not kind.checks_first?({ "send_step" => 2 }, @workspace), kind.name
+    end
   end
 
   # A step of a run parked on Halon, with the engine's own step, for handing off more work by hand.
@@ -222,17 +291,17 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
     assert_equal "bad", run.steps.find_by!(step_key: "decide").route
   end
 
-  test "a halon step past the run's AI ceiling fails without calling the model" do
+  test "a halon step past the run's spending ceiling fails without calling the model" do
     Investigation.stubs(:unavailable_reason).returns(nil)
     FirefightAi::WorkflowAnswer.any_instance.expects(:answer).never
     workflow = published("Judge", steps: [ step("judge", "ask_halon", { "question" => "Is it fine?", "data" => "x" }) ])
     workflow.update!(cost_cap_cents: 5)
-    Workflow::Run.any_instance.stubs(:ai_spent_cents).returns(5)
+    Workflow::Run.any_instance.stubs(:spent_cents).returns(5)
 
     run = start(workflow)
 
     assert_equal Workflow::Run::STATUS_FAILED, run.status
-    assert_match "spent its AI ceiling", run.error
+    assert_match "reached its spending ceiling", run.error
   end
 
   test "a raised notice is said once in the monitoring channel, and again only when it got worse" do
@@ -281,11 +350,11 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
     assert_match "already started 2 runs in the last hour", refusal(workflow, inputs: { "service" => "db" })
   end
 
-  test "the limits are counted with the workflow, and for an event the workspace, locked until the run is made" do
+  test "the limits are counted with the workflow locked until the run is made, and an event locks nothing more" do
     workflow = published("Busy", steps: [ step("pause", "delay", { "minutes" => 5 }) ])
     order = sequence("limits")
     Workflow.any_instance.expects(:lock!).in_sequence(order)
-    Workspace.any_instance.expects(:lock!).in_sequence(order)
+    Workspace.any_instance.expects(:lock!).never
     Workflow.any_instance.expects(:rate_blocked_reason).in_sequence(order).returns(nil)
     Workflow::Run.expects(:open!).in_sequence(order).returns([ nil, true ])
     DefinedWorkflow.stubs(:launch!)

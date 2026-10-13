@@ -33,6 +33,9 @@ class Workflow::Run::Step < ApplicationRecord
 
   def top_level? = iteration.blank?
 
+  # Why a step skipped itself, such as a change whose problem cleared before it ran, or nil.
+  def note = (output.to_h[DefinedWorkflow::Steps::Base::OUTPUT_SKIPPED] if status == DefinedWorkflow::STEP_SKIPPED)
+
   # What a gateway call made for a run's step carries, so the ledger row names the run, the step and its for each item.
   def self.ledger_context(run, record)
     { workflow_run_id: run.id, workflow_step_key: record&.step_key, workflow_iteration: record&.iteration.presence }.compact

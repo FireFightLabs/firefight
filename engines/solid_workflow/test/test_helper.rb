@@ -1,13 +1,14 @@
 require_relative "../../../test/test_helper"
 
-# A host for the interpreter's tests: echo hands back its config, fail raises, and references are filled from the scope.
+# A host for the interpreter's tests: echo hands back its config, fail raises, pass skips itself with its config as the
+# output, and references are filled from the scope.
 class TestDefinedWorkflow < SolidWorkflow::Interpreter
   REFERENCE = /\{\{\s*([a-z0-9_.]+)\s*\}\}/
 
   class << self
     attr_accessor :held, :sub_definition, :observed, :stand_ins
 
-    def action_kinds = %w[echo fail slow]
+    def action_kinds = %w[echo fail slow pass]
 
     def stand_in(step, workflow:) = stand_ins.to_h[step.name]
 
@@ -33,6 +34,7 @@ class TestDefinedWorkflow < SolidWorkflow::Interpreter
       when "echo" then config
       when "fail" then raise(config["terminal"] ? ArgumentError : RuntimeError, config["message"] || "it failed")
       when "slow" then config
+      when "pass" then SolidWorkflow::Skipped.new(reason: config["reason"], output: config)
       end
     end
 

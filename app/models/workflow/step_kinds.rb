@@ -115,10 +115,12 @@ module Workflow::StepKinds
 
   # fields is a list, or a lambda given the Facts for one whose choices are the workspace's own. reach answers what the
   # workflow's own identity needs granted to run the step (DefinedWorkflow::Reach::Needed). conditions are the fields an
-  # incident's conditions read, for a step that reads them (Workflow::TriggerKinds::ConditionField).
-  Kind = Data.define(:key, :group, :label, :description, :icon, :editor, :fields, :defaults, :outputs, :routes, :effect, :reach, :conditions) do
+  # incident's conditions read, for a step that reads them (Workflow::TriggerKinds::ConditionField). checks_first answers
+  # whether a change it makes checks first that it is still needed in a run nobody pressed, which its settings can switch off.
+  Kind = Data.define(:key, :group, :label, :description, :icon, :editor, :fields, :defaults, :outputs, :routes, :effect, :reach, :conditions, :checks_first) do
     def initialize(fields: [], defaults: {}, outputs: ->(_step, _facts) { [] }, routes: ->(_step) { [] },
-                   effect: ->(_step, _facts) { EFFECT_READS }, reach: ->(_step, _facts) { [] }, conditions: ->(_facts) { [] }, **)
+                   effect: ->(_step, _facts) { EFFECT_READS }, reach: ->(_step, _facts) { [] }, conditions: ->(_facts) { [] },
+                   checks_first: ->(_step, _facts) { false }, **)
       super
     end
 
@@ -165,6 +167,8 @@ module Workflow::StepKinds
 
   def reach_of(step, facts) = find(step["kind"])&.reach&.call(step, facts) || []
 
+  def checks_first_of(step, facts) = find(step["kind"])&.checks_first&.call(step, facts) || false
+
   # A kind the app runs, described by its class (DefinedWorkflow::Steps::Base), with how the canvas draws it.
   def runtime(klass, icon:, editor:, description:, fields: [], defaults: {}, routes: ->(_step) { [] }, conditions: ->(_facts) { [] })
     register(Kind.new(
@@ -172,7 +176,8 @@ module Workflow::StepKinds
       defaults: defaults, routes: routes, conditions: conditions,
       outputs: ->(step, _facts) { klass.output_fields(step["config"].to_h) },
       effect: ->(step, facts) { facts.workspace && klass.changes?(step["config"].to_h, facts.workspace) ? EFFECT_CHANGES : EFFECT_READS },
-      reach: ->(step, facts) { facts.workspace ? klass.reach(step["config"].to_h, facts.workspace).to_a : [] }
+      reach: ->(step, facts) { facts.workspace ? klass.reach(step["config"].to_h, facts.workspace).to_a : [] },
+      checks_first: ->(step, facts) { facts.workspace.present? && klass.checks_first?(step["config"].to_h, facts.workspace) }
     ))
   end
 

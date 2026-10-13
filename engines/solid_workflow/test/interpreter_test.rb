@@ -57,6 +57,23 @@ class SolidWorkflow::InterpreterTest < ActiveSupport::TestCase
     assert_equal({ "saw" => "pinned" }, output_of(workflow, "no_path"))
   end
 
+  test "a step may skip itself, saying why, and the steps after it run as after one that succeeded" do
+    definition = {
+      "steps" => [ step("change", "pass", { "reason" => "It was not needed any more." }), step("after", "echo", { "ran" => true }) ],
+      "edges" => [ edge("change", "after") ]
+    }
+
+    workflow = run_definition(definition)
+
+    assert workflow.succeeded?
+    skipped = workflow.steps.find_by!(name: "change")
+    assert skipped.skipped?
+    assert_equal "It was not needed any more.", skipped.skip_reason
+    assert_equal({ "reason" => "It was not needed any more." }, skipped.output)
+    assert workflow.events.exists?(event_type: SolidWorkflow::Events::Step::SKIPPED, step_id: skipped.id)
+    assert_equal({ "ran" => true }, output_of(workflow, "after"))
+  end
+
   test "one start key gives one run" do
     definition = { "steps" => [ step("only", "echo") ], "edges" => [] }
 

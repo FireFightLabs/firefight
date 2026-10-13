@@ -3,8 +3,8 @@
 # filled from the run's data, and answers the step's output, or parks the step while something it asked for happens.
 #
 # A step that changes something goes through the same rules wherever it runs: a test run only pretends unless the
-# person testing turned that step on, a freeze window stops it or makes it wait, and a run nobody pressed reads how
-# things stand first and stops if they moved.
+# person testing turned that step on, a freeze window stops it or makes it wait, and a run nobody pressed checks first
+# that the problem it answers is still there, skipping the change when it cleared, unless the step is switched not to.
 class DefinedWorkflow::Steps::Base
   GROUP_HALON = "halon".freeze
   GROUP_TOOLS = "tools".freeze
@@ -22,13 +22,19 @@ class DefinedWorkflow::Steps::Base
   class Failed < StandardError; end
 
   KEY_UNDO = "undo".freeze
+  # Whether a change checks first that it is still needed in a run nobody pressed. On unless the step says false.
+  KEY_CHECK_FIRST = "check_first".freeze
+  # What a change skipped because its problem cleared hands on, saying why.
+  OUTPUT_SKIPPED = "skipped".freeze
+  CLEARED = "Halon checked first and the problem has cleared, so this step did not run.".freeze
+  NOT_CHECKED = "Halon could not check whether this is still needed, so nothing ran.".freeze
   OUTPUT_SIMULATED = "simulated".freeze
   OUTPUT_WOULD = "would".freeze
   CHECKPOINT_ASKED = "asked".freeze
   CHECKPOINT_DELIVERED = "delivered".freeze
   # How long a step waits for work it handed off, such as Halon reading, when the step sets no time limit of its own.
   HANDED_OFF_LIMIT = 30.minutes
-  # What a step that reads how things stand before a change hands off under.
+  # What a step that checks a change is still needed hands off under.
   STATE_CHECK = "state_check".freeze
   # The engine's events for a step tried again, after a failure or by hand.
   RETRIED = [ SolidWorkflow::Events::Step::RETRY_SCHEDULED, SolidWorkflow::Events::Step::MANUAL_RETRY ].freeze
@@ -69,6 +75,10 @@ class DefinedWorkflow::Steps::Base
 
     # Whether the step reads how something stands outside Firefight, which is what checks a change after it.
     def checks?(_config, _workspace) = false
+
+    # Whether a change it makes checks first that it is still needed, in a run nobody pressed. Every change does but a
+    # message, a notice, a webhook and a browser's send, which say so themselves.
+    def checks_first?(config, workspace) = changes?(config, workspace)
 
     # The fields the step hands later steps, which {{steps.<name>.<field>}} may read.
     def output_fields(_config) = []
@@ -130,18 +140,48 @@ class DefinedWorkflow::Steps::Base
     SolidWorkflow::Park.new(wake_at: window.ends_at)
   end
 
-  # Before a change in a run nobody pressed, Halon reads how what it changes stands now, as the workflow's own identity,
-  # and the step stops unless nothing moved. Asked again after an approval, since time passed while it waited.
+  # Before a change in a run nobody pressed, Halon reads whether the problem it answers is still there, as the workflow's
+  # own identity, unless the step is switched not to. Still there, the change goes ahead (nil). Cleared, the step is
+  # skipped saying why. Unread, it stops. Asked again after an approval, since time passed while it waited.
   def read_first(named, asked, after: nil)
-    return unless @run.reads_first?
+    return unless @run.reads_first? && checks_first?
 
     key = [ STATE_CHECK, after ].compact.join(":")
     report = await(key) { |name| WorkflowStateCheckJob.perform_later(@run.id, record&.id, @step.id, name, named, asked) }
     return report if report.is_a?(SolidWorkflow::Park)
-    return if report["change"] == Chat::CurrentState::UNCHANGED
 
-    said = Chat::CurrentState::WORDS[report["change"]] || Chat::CurrentState::WORDS[Chat::CurrentState::UNKNOWN]
-    raise Refused, [ said, report["state"].presence, "Nothing ran." ].compact.join(" ")
+    case report["verdict"]
+    when Workflow::NeedCheck::STILL_NEEDED then nil
+    when Workflow::NeedCheck::CLEARED
+      said = [ CLEARED, report["state"].presence ].compact.join(" ")
+      SolidWorkflow::Skipped.new(reason: said, output: { OUTPUT_SKIPPED => said })
+    else raise Refused, [ NOT_CHECKED, report["state"].presence ].compact.join(" ")
+    end
+  end
+
+  def checks_first? = self.class.checks_first?(@config, workspace) && ActiveModel::Type::Boolean.new.cast(@config[KEY_CHECK_FIRST]) != false
+
+  # Time in the run's sandbox, refused once the run spent its ceiling, and kept on the step's row with what it cost at
+  # its box's price, each use added to the last, so a step that uses the box twice keeps both.
+  def in_sandbox
+    blocked = @run.spending_blocked_reason
+    raise Refused, blocked if blocked
+
+    started = Time.current
+    begin
+      yield
+    ensure
+      record_sandbox_time!(Time.current - started)
+    end
+  end
+
+  def record_sandbox_time!(elapsed)
+    return unless record
+
+    seconds = elapsed.ceil.clamp(0..)
+    hourly = CodeBox.where(workspace_id: @run.workspace_id, key: @run.code_box_key).order(created_at: :desc).pick(:hourly_micros)
+    micros = hourly ? (hourly * seconds / 3600.0).round : 0
+    Workflow::Run::Step.where(id: record.id).update_all([ "sandbox_seconds = sandbox_seconds + ?, sandbox_micros = sandbox_micros + ?", seconds, micros ])
   end
 
   # Work handed to a job, such as Halon reading, delivered back to the step by name (DefinedWorkflow.deliver!). The first

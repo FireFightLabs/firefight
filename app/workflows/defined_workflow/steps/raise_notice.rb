@@ -25,6 +25,9 @@ class DefinedWorkflow::Steps::RaiseNotice < DefinedWorkflow::Steps::Base
 
     def undoable?(_config, _workspace) = false
 
+    # Said once and never taken back, so there is nothing to check first.
+    def checks_first?(_config, _workspace) = false
+
     def output_fields(_config) = [ OUTPUT_RAISED, OUTPUT_SAID, OUTPUT_NOTICE ]
 
     def problems(step, _workspace)

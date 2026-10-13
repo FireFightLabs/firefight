@@ -1,8 +1,8 @@
 # Calls any tool Halon can call, through the same tool a chat offers: a connected provider's, a capability such as
 # resource_status or restart, a general read, or one of Firefight's own. It runs as whoever the run acts as, so grants,
 # approval rules and the activity log decide it as they decide Halon's calls. A call an approval rule holds parks the
-# step until someone decides, then reads how things stand again and runs exactly the call that was approved. A denial
-# fails the step, which takes its error route when it has one.
+# step until someone decides, then checks again that it is still needed and runs exactly the call that was approved. A
+# denial fails the step, which takes its error route when it has one.
 class DefinedWorkflow::Steps::CallTool < DefinedWorkflow::Steps::Base
   kind "call_tool"
   label "Call a tool"
@@ -60,7 +60,7 @@ class DefinedWorkflow::Steps::CallTool < DefinedWorkflow::Steps::Base
     return after_decision(held) if held
 
     first = read_first(named, asked)
-    return first if first.is_a?(SolidWorkflow::Park)
+    return first if first
 
     call(nil)
   end
@@ -121,7 +121,7 @@ class DefinedWorkflow::Steps::CallTool < DefinedWorkflow::Steps::Base
     end
 
     again = read_first(named, asked, after: approval.id)
-    return again if again.is_a?(SolidWorkflow::Park)
+    return again if again
 
     call(approval.id)
   end

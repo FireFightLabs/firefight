@@ -67,6 +67,26 @@ module Mcp
         assert_equal Workflow::Run::STATUS_SUCCEEDED, listed.first[:last_run][:status]
       end
 
+      test "a workflow is made with its most runs an hour, and the list says it and how many were skipped" do
+        made = call(CreateWorkflow, @admin, spec.merge(runs_per_hour: 20))
+        assert_not made.error?, made.content.first[:text]
+        workflow = @workspace.workflows.find_by!(name: "Look around")
+        assert_equal 20, workflow.runs_per_hour
+        workflow.run_skipped!
+
+        listed = call(ListWorkflows, @member, {}).structured_content[:workflows].sole
+        assert_equal 20, listed[:runs_per_hour]
+        assert_equal 1, listed[:skipped_runs_last_week]
+      end
+
+      test "a most runs an hour out of bounds is refused with why" do
+        made = call(CreateWorkflow, @admin, spec.merge(runs_per_hour: 0))
+
+        assert made.error?
+        assert_match "Runs per hour", made.content.first[:text]
+        assert_not @workspace.workflows.exists?(name: "Look around")
+      end
+
       test "only an admin sets how long runs keep their details" do
         assert call(UpdateWorkflowSettings, @member, { workflow_run_retention_days: 30 }).error?
         assert_not call(UpdateWorkflowSettings, @admin, { workflow_run_retention_days: 30 }).error?
