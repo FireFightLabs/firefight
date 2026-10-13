@@ -99,6 +99,9 @@ module Chat::Specialists
   # tools whoever asks may use, the long tail beyond Firefight's own, do not fit the held tools budget
   # (FirefightAi.fits_up_front?). Firefight's own tools are counted out, since an admin holds more of them than a member
   # and a small workspace keeps today's way for both.
+  # The decision reads a few columns of the connections' switched on tools and sums the length each tool's row keeps
+  # (Integration::Tool#definition_chars), so the catalogue is built only when the turn is handed its tools. It counts
+  # every switched on tool, including a change the asker holds no grant for, by its own name, description and schema.
   def self.ask?(turn, choice)
     case mode
     when FirefightAi::Configuration::SPECIALISTS_ON then true
@@ -108,8 +111,13 @@ module Chat::Specialists
   end
 
   def self.crowded?(turn)
-    tail = Chat::Tools.catalog(turn).select { |entry| entry.tool && entry.source != Chat::Skill::SOURCE_FIREFIGHT }
-    tail.any? { |entry| reserved?(turn.workspace, entry) } && !FirefightAi.fits_up_front?(tail.map(&:tool))
+    tail = Integration::Tool.switched_on_in(turn.workspace).where.not(integrations: { provider: Chat::Skill::SOURCE_FIREFIGHT })
+    rows = tail.pluck("integrations.provider", "integrations.slug", "integration_tools.name", "integration_tools.read_only").map do |provider, slug, name, read_only|
+      [ provider, Integration::Tool.model_facing_name(slug, name), read_only ]
+    end
+    reading = rows.filter_map { |_provider, name, read_only| name if read_only }.to_set
+    rows.any? { |provider, name, _read_only| of_provider(provider).present? && reading.include?(name) } &&
+      !FirefightAi.chars_fit_up_front?(tail.sum(:definition_chars))
   end
 
   # The kind a connection's provider answers, from the registry, or nil for one that stays Halon's own.

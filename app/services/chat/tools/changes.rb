@@ -8,12 +8,16 @@ module Chat::Tools::Changes
   # note is what the agent is told, nil when nothing changed, and offered the tools to add to the live chat.
   Caught = Data.define(:note, :offered)
   NOTHING = Caught.new(note: nil, offered: [])
+  # What a snapshot reads of each tool: its connection, its name and whether it is switched on and still offered.
+  SNAPSHOT_TOOL_COLUMNS = %i[id integration_id name enabled removed_at].freeze
 
   # How each connection stood, by id, with the name a person tells it by, what it reaches, whether it is on, and the tools it
   # has switched on, as the agent calls them. Read in a few queries whatever the number of connections, since it runs before
-  # every model call of a turn.
+  # every model call of a turn. Only the tool columns compared are read, since a workspace's tools and their schemas are
+  # many and large.
   def self.snapshot(workspace)
-    integrations = workspace.integrations.connections.where(deleted_at: nil).includes(:tools, :integration_environments).order(:created_at).to_a
+    integrations = workspace.integrations.connections.where(deleted_at: nil).includes(:integration_environments).order(:created_at).to_a
+    ActiveRecord::Associations::Preloader.new(records: integrations, associations: :tools, scope: Integration::Tool.select(*SNAPSHOT_TOOL_COLUMNS)).call
     Integration.with_mapped_accounts(integrations).to_h do |integration|
       tools = integration.tools.select { |tool| tool.enabled? && tool.available? }.map(&:model_facing_name).sort
       [ integration.id.to_s, { "name" => integration.display_name, "reach" => integration.reach, "on" => integration.operational?,

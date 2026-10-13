@@ -49,6 +49,19 @@ class FirefightAi::CacheCostTest < ActiveSupport::TestCase
     assert FirefightAi.fits_up_front?([])
   end
 
+  test "a length in characters fits the budget exactly where tools that long in all do" do
+    tool = RubyLLM::Tool.new.tap { |each| each.define_singleton_method(:name) { "read_run" } }
+    tool.define_singleton_method(:description) { "x" * 3_400 }
+    FirefightAi.configuration.stubs(:held_tools_budget).returns(1_000)
+    length = tool.name.size + tool.description.size + tool.parameters_schema.to_json.size
+
+    assert FirefightAi.chars_fit_up_front?(length)
+    assert_not FirefightAi.chars_fit_up_front?(length * 2)
+    assert FirefightAi.chars_fit_up_front?(3_500)
+    assert_not FirefightAi.chars_fit_up_front?(3_501)
+    assert FirefightAi.chars_fit_up_front?(0)
+  end
+
   test "the budget defaults to 25,000 tokens, a blank keeps it, zero holds nothing, and anything but a whole number is refused at boot" do
     configuration = FirefightAi::Configuration.new
     assert_equal 25_000, configuration.held_tools_budget

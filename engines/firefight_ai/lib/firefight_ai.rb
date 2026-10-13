@@ -418,6 +418,9 @@ module FirefightAi
     true
   end
 
+  # Whether definitions this many characters long in all, each counted as fits_up_front? counts it, fit the same budget.
+  def chars_fit_up_front?(chars) = chars <= configuration.held_tools_budget * TOOL_CHARS_PER_TOKEN
+
   # Sets a saved chat up for an agent's turn on choice. The instructions end in a cache boundary, so the tool definitions
   # in front of them and the instructions themselves are read from the provider's cache on every turn after the first.
   # Every boundary keeps the provider's default lifetime, five minutes, since turns follow each other within seconds and a
