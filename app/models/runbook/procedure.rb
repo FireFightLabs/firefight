@@ -28,26 +28,10 @@ module Runbook::Procedure
     end
 
     # Every input a value names, in the order they first appear.
-    def placeholders_in(value)
-      case value
-      when String then value.scan(PLACEHOLDER).flatten
-      when Hash then value.values.flat_map { |inner| placeholders_in(inner) }
-      when Array then value.flat_map { |inner| placeholders_in(inner) }
-      else []
-      end.uniq
-    end
+    def placeholders_in(value) = Placeholders.references_in(value, PLACEHOLDER)
 
     # The value with each input put in its place. A value that is only one input keeps the input's own type.
-    def filled(value, inputs)
-      case value
-      when String
-        whole = value.match(/\A#{PLACEHOLDER}\z/)
-        whole ? inputs.fetch(whole[1], value) : value.gsub(PLACEHOLDER) { inputs.fetch(Regexp.last_match(1), Regexp.last_match(0)).to_s }
-      when Hash then value.transform_values { |inner| filled(inner, inputs) }
-      when Array then value.map { |inner| filled(inner, inputs) }
-      else value
-      end
-    end
+    def filled(value, inputs) = Placeholders.fill(value, PLACEHOLDER) { |key| inputs.fetch(key) { Placeholders::MISSING } }
   end
 
   # Whether Halon can run it, because a step names a tool or there is something to watch.

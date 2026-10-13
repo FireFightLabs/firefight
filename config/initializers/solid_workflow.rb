@@ -4,5 +4,7 @@ SolidWorkflow.configure do |config|
     AdapterError::AuthRevoked
     AdapterError::UnsafeDownloadHost
     AdapterError::RestrictedAction
+    Workflow::Run::Refused
+    Workflow::Edit::Refused
   ]
 end

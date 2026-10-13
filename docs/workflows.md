@@ -3,7 +3,7 @@
 Built on the SolidWorkflow engine (`engines/solid_workflow/`). The engine runs two kinds of workflow:
 
 - **Class workflows**: Firefight's own flows (incident creation, close, update and the rest), a Ruby class per workflow whose steps are methods. They are thin orchestrators that delegate all logic to services.
-- **Defined workflows**: kept as data and run by one interpreter class from a snapshot. See [Defined workflows](#defined-workflows).
+- **Defined workflows**: a workspace's own, kept as data in versions and run by one interpreter class from a snapshot. See [Defined workflows](#defined-workflows) and [Workspace workflows](#workspace-workflows-app-records).
 
 Read this before creating or modifying a workflow or touching the engine.
 
@@ -74,7 +74,7 @@ A step's job that finds its step moved on while it ran (cancelled, timed out, re
 
 ## Held runs
 
-A workflow class may hold its runs back: `runnable?(workflow)` on the class, true for every class workflow. A held run keeps its place. No step is claimed (`RunStepJob`), nothing is enqueued (`enqueue_next_steps`), no parked step is woken at its time (`WakeJob`), and the sweeper skips it. A signal sent to a held run is kept on the step, and once the run may move the sweeper picks it up and carries on.
+A workflow class may hold its runs back: `runnable?(workflow)` on the class, true for every class workflow. A held run keeps its place. No step is claimed (`RunStepJob`), nothing is enqueued (`enqueue_next_steps`), no parked step is woken at its time (`WakeJob`), and the sweeper skips it. A signal sent to a held run is kept on the step, and once the run may move the sweeper picks it up and carries on. `DefinedWorkflow` holds every run of a workspace without the `WORKFLOWS` feature flag, see [The workflows flag](#the-workflows-flag).
 
 ## Event Timeline
 
@@ -121,6 +121,30 @@ Every state transition records a `SolidWorkflow::Event` (workflow-level and step
 
 A step that waits is parked, not held by a worker: status `waiting`, `run_at` for a time, `signal_key` for an event. `WakeJob` wakes it at `run_at`, and only once it is due. `SolidWorkflow.signal!` hands the payload to every step waiting on the key. A child run that ends wakes the step that started it (`Workflow#transition!` into a terminal state). Waking moves `waiting → pending` in one guarded update, so two wakes move it once. A wake that lands while the step is still running is counted (`wake_requests`), and the step wakes itself as soon as it parks, so it is never lost. A signal reaches only a step already waiting for it.
 
+## Workspace workflows (app records)
+
+The app keeps its own records, which outlive the engine's 30 day cleanup. Model logic lives on the models, starting a run is `WorkflowRunService`, and `DefinedWorkflow` (`app/workflows/defined_workflow.rb`) is the interpreter subclass the engine runs them with.
+
+| Record | Holds |
+|---|---|
+| `Workflow` | workspace, name, slug, other names (`aliases`, found like a runbook's with `Workflow.named`), description, owner team (a catalog team entry), on or off (`enabled`), `agent` (the machine principal its runs act as, nil until one is made for it), `cost_cap_cents` (nil means no cap), `live_version` |
+| `Workflow::Version` | trigger, steps, edges, outputs, `number`, `status` (`draft`, `live`, `retired`, `discarded`), `revision`, author (`author_kind` person or halon, `author`), `reason`, `parent_version`, `published_at`, `published_by` |
+| `Workflow::Edit` | one operation (`add_step`, `remove_step`, `move_step`, `connect`, `disconnect`, `change_config`, `change_trigger`, `rename`) with its `payload` and `targets`, author, Halon's `reason` (required for Halon), `base_revision` and `applied_revision`, `status` (`applied`, `proposed`, `accepted`, `dismissed`), `change_set_id`, `source_run`, `source_chat`, `decided_by` |
+| `Workflow::Run` | workflow, version, `trigger_kind`, `trigger_payload`, `inputs`, `outputs`, `start_key`, the `agent` it acted as, who started it (`started_by_kind`, `started_by`), `parent_run` and `parent_step_key` for a sub workflow, `status` (`queued`, `running`, `waiting`, `paused`, `succeeded`, `failed`, `cancelled`), `error`, `pinned`, `details_pruned_at`, timing |
+| `Workflow::Run::Step` | per step and per for each item (`iteration`): status, route, input, output, `saved_result_ids`, attempts, error, timing |
+
+- **Versions.** One live, at most one draft (partial unique indexes). `Workflow#open_draft!` opens the draft from the live version. `Version#publish!(by:, revision:)` retires the live version and promotes the draft in one transaction, guarded on the revision the publisher saw. A published version never changes. `restore!` makes a new draft from an old version. While a draft is open it is refused with `restore_blocked_reason`, "Publish or discard the open draft first." `problems` is what publishing checks: the trigger, the engine's definition problems, and every reference pointing at an input that exists or a step that runs before it.
+- **Edits.** `Workflow#edit!(operation:, payload:, by:, halon:, reason:, base_revision:)`. Each lands with one `update_all` guarded on the draft's revision (`Version::Drafting`). An edit made on an older revision lands on top when nothing it touches changed since, and is refused naming who changed it otherwise. A new step gets its stable id before the edit is recorded. Renaming a step rewrites every `{{steps.old...}}` reference. Renaming the workflow (a rename with no step) changes its name at once.
+- **Halon's edits.** Applied directly only while Halon builds a workflow alone (nothing live, no draft a person touched). Otherwise each is a proposal, grouped by `change_set_id`, which `Edit#accept!` applies to the draft and `dismiss!` drops, both guarded so two people deciding at once decide once. `workspaces.halon_applies_workflow_read_fixes` (default off) says whether Halon may apply its own repairs to steps that only read, and nothing reads it yet.
+- **Data passing.** `Workflow::Version.filled(value, scope)` fills `{{inputs.x}}`, `{{trigger.x}}`, `{{steps.name.field}}`, `{{item}}` and `{{index}}` through `Placeholders`, the logic `Runbook.filled` uses: a lone reference keeps its type, one naming nothing reads as empty. `Workflow::Run#kept` redacts anything shaped like a credential (`Chat::SecretFree.redacted`) on the way in and out, and keeps an answer over 16 KB whole as a `Chat::SavedResult` owned by the run, leaving its short plain fields and a `saved_result` reference in the step's data.
+- **Run records.** `DefinedWorkflow.observe` writes a step's row whenever the engine records an event for it, every step's row on run level events, and the run's status from its engine state (`DefinedWorkflow::RUN_STATUSES`, where a run an operator paused is `paused`, apart from `waiting`). A run's status moves with one guarded update and never leaves a finished state, except a failed run an operator took up again.
+- **Who a run acts as.** The workflow's own `agent`, copied onto the run when it starts, whoever started it. No step kind calls the gateway yet.
+- **Retention.** `workspaces.workflow_run_retention_days` (90 by default, 1 to 400) is how long a finished run keeps its details. After it `WorkflowRunRetentionJob` (daily) drops them through `Workflow::Run#prune_details!`: the step rows with their inputs and outputs, the run's saved results, and its inputs, outputs and trigger payload. The run row stays for good as the run's one line, when it ran, its trigger kind, version, status and the agent it acted as, with `details_pruned_at` set. A run that is queued, running, waiting or paused is never pruned, and a pinned run (`pinned`) keeps everything. The claim is one update guarded on the run being finished, unpinned and whole, so a run an operator takes up again or a person pins in between keeps its details, and the engine's later moves never write onto a pruned run. The engine's own rows for a run go after 30 days, as every run's do.
+
+### The workflows flag
+
+Everything for workspace workflows sits behind `FeatureFlags::WORKFLOWS`, off by default. Without it `Workflow#start_blocked_reason` refuses every start, and `WorkflowRunService` raises `Workflow::Run::Refused` before anything is made, so a trigger, Halon, the dashboard and a sub workflow all stop there. `DefinedWorkflow.runnable?` holds every run already going, so nothing waits out its time, wakes on a signal or carries on until the flag is back ([Held runs](#held-runs)). Pages, Halon tools and MCP tools for workflows check the same flag. Class workflows never look at it.
+
 ## Reading runs from the app
 
 Only workflow classes, the engine and the operator console name `SolidWorkflow`. The console lists every run and pauses, resumes, cancels, retries or skips them through `Operator::WorkflowRuns` (`app/models/operator/workflow_runs.rb`). See [operator.md](operator.md).
@@ -144,3 +168,5 @@ engines/solid_workflow/
   app/jobs/solid_workflow/sweeper_job.rb  # Recovers stuck, orphaned and due steps
   test/                                   # The engine's own tests (bin/rails test engines/solid_workflow/test)
 ```
+
+App side: `app/models/workflow.rb` and `app/models/workflow/`, `app/workflows/defined_workflow.rb`, `app/services/workflow_run_service.rb`.
