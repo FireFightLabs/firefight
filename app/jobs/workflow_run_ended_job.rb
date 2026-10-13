@@ -7,6 +7,6 @@ class WorkflowRunEndedJob < ApplicationJob
 
   def perform(run_id)
     run = Workflow::Run.find_by(id: run_id)
-    WorkflowRunEndService.new(run).ended! if run&.finished?
+    WorkflowRunEndService.new(run, job_id: job_id).ended! if run&.finished?
   end
 end

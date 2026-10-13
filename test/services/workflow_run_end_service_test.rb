@@ -79,6 +79,30 @@ class WorkflowRunEndServiceTest < ActiveSupport::TestCase
     assert_nil run.reload.told_at
   end
 
+  test "a run whose telling broke is left to be told again, and a job a stopped worker left is run again and takes back its own claim" do
+    FirefightAi::WorkflowRepair.any_instance.stubs(:suggest).returns(nil)
+    @adapter.any_instance.stubs(:post_workflow_failure).returns({})
+    run = run!(failing)
+    run.update_columns(told_at: nil)
+
+    @adapter.any_instance.stubs(:post_workflow_failure).raises(RuntimeError, "something else broke")
+    assert_raises(RuntimeError) { WorkflowRunEndService.new(run, job_id: "job-1").ended! }
+    assert_nil run.reload.telling_job_id, "a claim is given back whatever broke"
+
+    run.update_columns(telling_job_id: "job-1")
+    @adapter.any_instance.stubs(:post_workflow_failure).returns({})
+    WorkflowRunEndService.new(run, job_id: "job-2").ended!
+    assert_nil run.reload.told_at, "another job leaves a claim that may still be telling"
+
+    WorkflowRunEndService.new(run, job_id: "job-1").ended!
+    assert run.reload.told_at, "the job its stopped worker left takes its claim back and tells"
+    assert_nil run.telling_job_id
+  end
+
+  test "the job that tells a run's end is run again when its worker is stopped" do
+    assert WorkflowRunEndedJob.runs_again_when_interrupted
+  end
+
   test "a failure notice whose team channel is gone is sent to whoever published the workflow" do
     workflow = failing
     workflow.update!(owner_team: catalog_entries(:platform_team))

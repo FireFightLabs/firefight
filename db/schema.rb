@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_13_160000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_13_230000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -3257,6 +3257,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_160000) do
     t.jsonb "stand_ins", default: {}, null: false
     t.uuid "rerun_of_id"
     t.string "rerun_from_step_key"
+    t.string "telling_job_id"
     t.index ["agent_id"], name: "index_workflow_runs_on_agent_id"
     t.index ["parent_run_id"], name: "index_workflow_runs_on_parent_run_id"
     t.index ["rerun_of_id"], name: "index_workflow_runs_on_rerun_of_id"

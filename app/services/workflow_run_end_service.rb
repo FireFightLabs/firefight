@@ -7,18 +7,29 @@ class WorkflowRunEndService
   # A place that will not take the notice however often it is tried, so the next place is tried instead.
   UNREACHABLE = [ AdapterError::NotFound, AdapterError::NotInChannel, AdapterError::IsArchived ].freeze
 
-  def initialize(run)
+  # job_id names the job telling it, so a job its stopped worker left takes its own claim back when it runs again.
+  def initialize(run, job_id: SecureRandom.uuid)
     @run = run
     @workflow = run.workflow
     @workspace = run.workspace
+    @job_id = job_id
   end
 
+  # Whatever breaks while telling gives the claim back, so the run is never left marked as being told by nobody.
   def ended!
     stop_watches!
     Conversation::Workflows.moved!(@workflow) unless @run.test?
-    return if @run.test? || @run.parent_run_id.present? || !@run.claim_telling!
+    return if @run.test? || @run.parent_run_id.present? || !@run.claim_telling!(@job_id)
 
-    @run.failed? ? tell_failed! : tell_all_clear!
+    if @run.failed?
+      tell_failed!
+    else
+      tell_all_clear!
+      @run.told!
+    end
+  rescue StandardError
+    @run.release_telling!
+    raise
   end
 
   private
@@ -34,14 +45,10 @@ class WorkflowRunEndService
   # so WorkflowRunEndedJob tries again later, with the fix Halon already suggested rather than a new one.
   def tell_failed!
     suggested = @workflow.edits.exists?(source_run_id: @run.id) || suggest_repair!
-    told = [ where_to_tell, publisher ].compact.uniq.any? { |place| told_failure?(place, suggested) }
-    return if told
+    return @run.told! if [ where_to_tell, publisher ].compact.uniq.any? { |place| told_failure?(place, suggested) }
 
     Rails.logger.warn({ event: "workflow_run.failure_untold", run_id: @run.id, reason: "nowhere_to_tell" }.to_json)
     @run.release_telling!
-  rescue AdapterError
-    @run.release_telling!
-    raise
   end
 
   def told_failure?(place, suggested)
