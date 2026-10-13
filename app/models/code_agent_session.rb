@@ -178,4 +178,45 @@ class CodeAgentSession < ApplicationRecord
   def close!
     self.class.where(id: id, closed_at: nil).update_all(closed_at: Time.current, push_token_digest: nil, push_open_until: nil, updated_at: Time.current)
   end
+
+  # What the change's model calls spent, by feature (the writing, its reviews, the questions Halon answered for it):
+  # how many calls, the tokens read and written, and the cost, as the ledger holds them.
+  def spend
+    Inference.where(inferable: self).group(:feature)
+             .pluck(:feature, Arel.sql("COUNT(*)"), Arel.sql("SUM(input_tokens)"), Arel.sql("SUM(cache_read_tokens)"), Arel.sql("SUM(cache_write_tokens)"),
+                    Arel.sql("SUM(output_tokens)"), Arel.sql("SUM(cost_micros)"))
+             .to_h do |feature, calls, input, cache_read, cache_write, output, cost|
+               [ feature, { calls: calls, input_tokens: input.to_i, cache_read_tokens: cache_read.to_i, cache_write_tokens: cache_write.to_i,
+                            output_tokens: output.to_i, cost_micros: cost.to_i } ]
+             end
+  end
+
+  # How many of the oldest tool results each of the agent's conversations has cleared, by the conversation's key, so
+  # every call of a conversation clears the same ones until its next batch (FirefightAi::ModelProxy::History).
+  def cleared_through = tool_result_clearing.fetch(CLEARED_THROUGH, {})
+
+  # Whether the provider may still be asked to clear old tool results itself. One that refused a request for asking is
+  # not asked again in this session.
+  def provider_clears? = !tool_result_clearing[PROVIDER_REFUSED]
+
+  # Keeps what a call cleared, in SQL. A count only ever grows, so of two calls at once the larger stands.
+  def cleared!(trim)
+    return unless trim
+
+    if trim.provider_refused
+      self.class.where(id: id).update_all([ "tool_result_clearing = jsonb_set(tool_result_clearing, ?, 'true'::jsonb), updated_at = ?", "{#{PROVIDER_REFUSED}}",
+                                            Time.current ])
+    end
+    return unless trim.count.positive?
+
+    self.class.where(id: id).update_all([ <<~SQL.squish, CLEARED_THROUGH, CLEARED_THROUGH, trim.conversation, CLEARED_THROUGH, trim.conversation, trim.count, Time.current ])
+      tool_result_clearing = jsonb_set(tool_result_clearing, ARRAY[?],
+        COALESCE(tool_result_clearing -> ?, '{}'::jsonb) || jsonb_build_object(?::text,
+          GREATEST(COALESCE((tool_result_clearing -> ? ->> ?)::integer, 0), ?))), updated_at = ?
+    SQL
+  end
+
+  CLEARED_THROUGH = "through".freeze
+  PROVIDER_REFUSED = "providerRefused".freeze
+  private_constant :CLEARED_THROUGH, :PROVIDER_REFUSED
 end

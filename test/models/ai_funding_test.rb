@@ -29,35 +29,72 @@ class AiFundingTest < ActiveSupport::TestCase
     assert_equal "claude-haiku-4-5", FirefightAi.model_for(AiPurpose::SUMMARY, workspace: @workspace).model
     assert_equal "claude-haiku-4-5", FirefightAi.model_for(AiPurpose::INCIDENT_RESPONSE, workspace: @workspace).model
     assert_equal "claude-sonnet-4-5", FirefightAi.model_for(AiPurpose::POSTMORTEM, workspace: @workspace).model
-    assert_equal "claude-opus-5-5", FirefightAi.model_for(AiPurpose::CODE_FIX, workspace: @workspace).model, "code fixes run on the model recommended for code"
+    assert_equal "claude-sonnet-5-5", FirefightAi.model_for(AiPurpose::CODE_FIX, workspace: @workspace).model, "code fixes are written on the model recommended for writing code"
+    assert_equal "claude-opus-5-5", FirefightAi.model_for(AiPurpose::CODE_REVIEW, workspace: @workspace).model, "and reviewed on the one recommended for reviewing it"
   end
 
-  test "code fixes run on Claude Opus 5.5 where an Anthropic or OpenRouter account reaches it, and on the next best model otherwise" do
+  test "code fixes are written on Claude Sonnet 5.5 and reviewed on Claude Opus 5.5 where an Anthropic or OpenRouter account reaches them, and on the next best model otherwise" do
     openai = add_ai_account!(@workspace, provider: "openai", key: "sk-own-openai", label: "OpenAI")
     assert_equal "gpt-4o", FirefightAi.model_for(AiPurpose::CODE_FIX, workspace: @workspace).model, "an OpenAI account writes code with its main model"
+    assert_equal "gpt-4o", FirefightAi.model_for(AiPurpose::CODE_REVIEW, workspace: @workspace).model, "and reviews it with the same"
 
     openai.destroy!
     router = add_ai_account!(@workspace, provider: "openrouter", key: "sk-or-own", label: "OpenRouter")
     main = router.model_for(WorkspaceAiAccount::MAIN)
-    assert_equal [ "anthropic/claude-opus-5.5", "openrouter" ], FirefightAi.model_for(AiPurpose::CODE_FIX, workspace: @workspace).to_h.values_at(:model, :provider)
+    assert_equal [ "anthropic/claude-sonnet-5.5", "openrouter" ], FirefightAi.model_for(AiPurpose::CODE_FIX, workspace: @workspace).to_h.values_at(:model, :provider)
+    assert_equal [ "anthropic/claude-opus-5.5", "openrouter" ], FirefightAi.model_for(AiPurpose::CODE_REVIEW, workspace: @workspace).to_h.values_at(:model, :provider)
     assert_equal main, FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace).model, "no other purpose changes"
 
     FirefightAi.stubs(:priced_for?).returns(false)
     assert_equal main, FirefightAi.model_for(AiPurpose::CODE_FIX, workspace: @workspace).model, "a model the registry cannot price is never a fix's"
+    assert_equal main, FirefightAi.model_for(AiPurpose::CODE_REVIEW, workspace: @workspace).model
   end
 
-  test "the deployment's own keys write code fixes with Opus 5.5 when they reach it, unless a model is named for code fixes" do
+  test "a change is reviewed on the review model of whoever paid for writing it" do
+    own = add_ai_account!(@workspace)
+    writing = FirefightAi.model_for(AiPurpose::CODE_FIX, workspace: @workspace)
+
+    reviewing = FirefightAi.review_choice_for(writing, workspace: @workspace)
+    assert_equal [ "claude-opus-5-5", own ], [ reviewing.model, reviewing.payer.account ]
+
+    house = FirefightAi.choices_for(AiPurpose::CODE_FIX, workspace: @workspace).last
+    assert_nil FirefightAi.review_choice_for(house, workspace: @workspace).payer.account, "the house's writing is reviewed on the house's keys"
+
+    nobody = writing.with(payer: AiPayer::NOBODY)
+    assert_equal nobody, FirefightAi.review_choice_for(nobody, workspace: @workspace), "with no review model for that payer, the change's own"
+  end
+
+  test "the deployment's own keys write code fixes with Sonnet 5.5 and review them with Opus 5.5 when they reach them, unless a model is named for code fixes" do
     without = FirefightAi.deployment_model_for(AiPurpose::CODE_FIX, workspace: @workspace)
     assert_equal FirefightAi.deployment_model_for(AiPurpose::INVESTIGATION, workspace: @workspace).model, without.model, "no key reaches it, so the investigation's model"
+    assert_equal without.model, FirefightAi.deployment_model_for(AiPurpose::CODE_REVIEW, workspace: @workspace).model
 
     keyed = RubyLLM.config.dup
     keyed.anthropic_api_key = "sk-ant-deployment"
     RubyLLM.stubs(:config).returns(keyed)
-    assert_equal [ "claude-opus-5-5", "anthropic" ], FirefightAi.deployment_model_for(AiPurpose::CODE_FIX, workspace: @workspace).to_h.values_at(:model, :provider)
+    assert_equal [ "claude-sonnet-5-5", "anthropic" ], FirefightAi.deployment_model_for(AiPurpose::CODE_FIX, workspace: @workspace).to_h.values_at(:model, :provider)
+    assert_equal [ "claude-opus-5-5", "anthropic" ], FirefightAi.deployment_model_for(AiPurpose::CODE_REVIEW, workspace: @workspace).to_h.values_at(:model, :provider)
 
     ENV.stubs(:[]).returns(nil)
     ENV.stubs(:[]).with("CODE_FIX_AI_MODEL").returns("gpt-4o")
     assert_equal "gpt-4o", FirefightAi.deployment_model_for(AiPurpose::CODE_FIX, workspace: @workspace).model
+    assert_equal "gpt-4o", FirefightAi.deployment_model_for(AiPurpose::CODE_REVIEW, workspace: @workspace).model, "a model named for code fixes still reviews them"
+
+    ENV.stubs(:[]).with("CODE_REVIEW_AI_MODEL").returns("gpt-4.1")
+    assert_equal "gpt-4.1", FirefightAi.deployment_model_for(AiPurpose::CODE_REVIEW, workspace: @workspace).model
+  end
+
+  test "a workspace override for code fixes is its review's too until the review has one of its own" do
+    keyed = RubyLLM.config.dup
+    keyed.anthropic_api_key = "sk-ant-deployment"
+    RubyLLM.stubs(:config).returns(keyed)
+    @workspace.ai_model_overrides.create!(purpose: AiPurpose::CODE_FIX, model: "claude-sonnet-4-5", provider: "anthropic")
+
+    assert_equal "claude-sonnet-4-5", FirefightAi.deployment_model_for(AiPurpose::CODE_FIX, workspace: @workspace).model
+    assert_equal "claude-sonnet-4-5", FirefightAi.deployment_model_for(AiPurpose::CODE_REVIEW, workspace: @workspace).model
+
+    @workspace.ai_model_overrides.create!(purpose: AiPurpose::CODE_REVIEW, model: "claude-opus-4-1", provider: "anthropic")
+    assert_equal "claude-opus-4-1", FirefightAi.deployment_model_for(AiPurpose::CODE_REVIEW, workspace: @workspace).model
   end
 
   test "Firefight's own workspaces keep Firefight's key after their own accounts" do

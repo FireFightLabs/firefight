@@ -1,9 +1,10 @@
 module FirefightAi
   # Reads a coding agent's change before its pull request opens or is updated: whether it does what the person asked
   # with their corrections, what is wrong with it, what was checked against the evidence, and what is still open. One call
-  # with no tools, on the model the change was written with. Everything it reads is evidence, the diff included, since a
-  # repository can hold text written to steer it. The diff is what the pull request changes against its base branch. The
-  # app runs the checks and opens the pull request.
+  # with no tools, on the review model of whoever paid for writing the change (FirefightAi.review_choice_for), the
+  # stronger model where the provider recommends one, since one call reading is cheap beside the dozens the writing
+  # took. Everything it reads is evidence, the diff included, since a repository can hold text written to steer it. The
+  # diff is what the pull request changes against its base branch. The app runs the checks and opens the pull request.
   class ChangeReviewer
     FEATURE = "code_review".freeze
     # What the review reads of the diff. A file is shown whole or not at all, so a larger change leaves files out and
@@ -20,9 +21,10 @@ module FirefightAi
     # One file's part of a diff.
     Part = Data.define(:path, :text)
 
+    # choice is what the change was written with.
     def initialize(workspace, choice:, inferable: nil)
       @workspace = workspace
-      @choice = choice
+      @choice = FirefightAi.review_choice_for(choice, workspace: workspace)
       @inferable = inferable
     end
 
@@ -31,7 +33,7 @@ module FirefightAi
     # change adds to an open pull request, nil for a new one.
     def review(asked:, brief:, evidence:, diff:, checks:, said:, updated: nil)
       shown, left_out = self.class.shown(diff, named: [ asked, brief ].join("\n"))
-      response, = FirefightAi.generate(@choice, purpose: AiPurpose::CODE_FIX, inference: inference_context) do |chat|
+      response, = FirefightAi.generate(@choice, purpose: AiPurpose::CODE_REVIEW, inference: inference_context) do |chat|
         chat.with_instructions(PROMPT)
         chat.with_schema(Schemas::ChangeReview)
         chat.ask(material(asked: asked, brief: brief, evidence: evidence, diff: shown, checks: checks, said: said, updated: updated, left_out: left_out))
