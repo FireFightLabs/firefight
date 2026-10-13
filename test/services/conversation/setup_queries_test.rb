@@ -43,13 +43,12 @@ class Conversation::SetupQueriesTest < ActiveSupport::TestCase
 
   test "deciding whether to ask specialists sums the tools' stored lengths and never builds the catalogue" do
     connect_big_workspace!
-    turn = Conversation::Turn.new(Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:bob_workspace_one)),
-                                  asker: workspace_memberships(:bob_workspace_one))
+    turn = turn_for(workspace_memberships(:bob_workspace_one))
     Chat::Tools.expects(:build_catalog).never
 
     sent = sql_of { Chat::Specialists.crowded?(turn) }
 
-    assert_operator sent.size, :<=, 2
+    assert_operator sent.size, :<=, 3
     assert(sent.any? { |sql| sql.include?('SUM("integration_tools"."definition_chars")') })
     assert(sent.none? { |sql| sql.match?(/ability_actions|integration_environments|params_schema|"integration_tools"\.\*/) },
            "no schema, action or environment is read for the decision")
@@ -57,11 +56,8 @@ class Conversation::SetupQueriesTest < ActiveSupport::TestCase
 
   test "deciding whether to ask specialists answers as the tools' definitions measured whole would" do
     connect_big_workspace!
-    turn = Conversation::Turn.new(Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one)),
-                                  asker: workspace_memberships(:alice_workspace_one))
-    tools = Integration::Tool.switched_on_in(@workspace).to_a
-    length = tools.sum { |tool| tool.name.size + tool.description.to_s.size + tool.params_schema.to_json.size }
-    assert_equal length, Integration::Tool.switched_on_in(@workspace).sum(:definition_chars)
+    turn = turn_for(workspace_memberships(:alice_workspace_one))
+    length = tail_length(turn)
 
     FirefightAi.configuration.stubs(:held_tools_budget).returns((length / FirefightAi::TOOL_CHARS_PER_TOKEN).ceil)
     assert_not Chat::Specialists.crowded?(turn), "tools that fit the budget exactly keep today's way"
@@ -71,6 +67,24 @@ class Conversation::SetupQueriesTest < ActiveSupport::TestCase
 
     Integration::Tool.switched_on_in(@workspace).update_all(read_only: false)
     assert_not Chat::Specialists.crowded?(turn), "with no read a specialist would take, it keeps today's way however many tools"
+  end
+
+  test "deciding whether to ask specialists counts only the connection tools the catalogue hands the turn as its own" do
+    connect_big_workspace!
+    turn = turn_for(workspace_memberships(:alice_workspace_one))
+    everything = Integration::Tool.switched_on_in(@workspace).sum(:definition_chars)
+    length = tail_length(turn)
+    assert_operator length, :<, everything, "a capability's tools are reached through it and not counted"
+
+    FirefightAi.configuration.stubs(:held_tools_budget).returns((length / FirefightAi::TOOL_CHARS_PER_TOKEN).ceil)
+    assert_not Chat::Specialists.crowded?(turn)
+
+    reading = Conversation::Turn.new(turn.conversation, asker: turn.asker, reads_only: true)
+    reads_length = tail_length(reading)
+    assert_operator reads_length, :<, length, "a turn that only reads is never handed a change"
+    FirefightAi.configuration.stubs(:held_tools_budget).returns((reads_length / FirefightAi::TOOL_CHARS_PER_TOKEN).ceil)
+    assert_not Chat::Specialists.crowded?(reading)
+    assert Chat::Specialists.crowded?(turn)
   end
 
   test "comparing connections reads only the tool columns it compares" do
@@ -150,6 +164,17 @@ class Conversation::SetupQueriesTest < ActiveSupport::TestCase
     steps = logged.grep(String).filter_map { |line| JSON.parse(line) if line.include?(Conversation::Runner::SETUP_STEP_EVENT) }
     assert_includes steps.map { |step| step["step"] }, Conversation::Runner::STEP_PRESENTED
     steps.sum { |step| step["queries"] }
+  end
+
+  def turn_for(member)
+    Conversation::Turn.new(Conversation.start_personal!(workspace: @workspace, member: member), asker: member)
+  end
+
+  # How long the connection tools the catalogue hands the turn as its own are, measured whole from each tool's row.
+  def tail_length(turn)
+    names = Chat::Tools.build_catalog(turn).select { |entry| entry.tool && entry.source != Chat::Skill::SOURCE_FIREFIGHT }.map(&:name).to_set
+    Integration::Tool.in_workspace(@workspace).select { |tool| names.include?(tool.model_facing_name) }
+                     .sum { |tool| tool.name.size + tool.description.to_s.size + tool.params_schema.to_json.size }
   end
 
   def sql_of(&)

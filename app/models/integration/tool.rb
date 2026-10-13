@@ -57,11 +57,8 @@ class Integration::Tool < ApplicationRecord
 
   # A tool name cannot carry the dot an action key separates on.
   def model_facing_name
-    self.class.model_facing_name(integration.slug, name)
+    action_key.tr(".", "_")
   end
-
-  # The name the agent calls a connection's tool by, from its connection's slug and its own name.
-  def self.model_facing_name(slug, name) = "#{slug}.#{name}".tr(".", "_")
 
   ENVIRONMENT_ARG = "environment".freeze
 

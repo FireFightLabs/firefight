@@ -96,12 +96,13 @@ module Chat::Specialists
   # Whether this turn asks specialists. In auto, only where the provider does not search tools itself, since there the
   # long tail already stays out of the model's context and out of the cached front until it is searched for, which is
   # what specialists are for. Elsewhere, only when some connection's reads would go to a specialist and the connections'
-  # tools whoever asks may use, the long tail beyond Firefight's own, do not fit the held tools budget
-  # (FirefightAi.fits_up_front?). Firefight's own tools are counted out, since an admin holds more of them than a member
-  # and a small workspace keeps today's way for both.
+  # switched on tools, the long tail beyond Firefight's own, do not fit the held tools budget
+  # (FirefightAi.chars_fit_up_front?). Firefight's own tools are counted out, since an admin holds more of them than a
+  # member and a small workspace keeps today's way for both.
   # The decision reads a few columns of the connections' switched on tools and sums the length each tool's row keeps
-  # (Integration::Tool#definition_chars), so the catalogue is built only when the turn is handed its tools. It counts
-  # every switched on tool, including a change the asker holds no grant for, by its own name, description and schema.
+  # (Integration::Tool#definition_chars), so the catalogue is built only when the turn is handed its tools. It leaves out
+  # the tools the catalogue does (a capability's, and a change on a turn that only reads), and counts every other switched
+  # on tool, including a change the asker holds no grant for, by its own name, description and schema.
   def self.ask?(turn, choice)
     case mode
     when FirefightAi::Configuration::SPECIALISTS_ON then true
@@ -111,13 +112,12 @@ module Chat::Specialists
   end
 
   def self.crowded?(turn)
-    tail = Integration::Tool.switched_on_in(turn.workspace).where.not(integrations: { provider: Chat::Skill::SOURCE_FIREFIGHT })
-    rows = tail.pluck("integrations.provider", "integrations.slug", "integration_tools.name", "integration_tools.read_only").map do |provider, slug, name, read_only|
-      [ provider, Integration::Tool.model_facing_name(slug, name), read_only ]
-    end
-    reading = rows.filter_map { |_provider, name, read_only| name if read_only }.to_set
-    rows.any? { |provider, name, _read_only| of_provider(provider).present? && reading.include?(name) } &&
-      !FirefightAi.chars_fit_up_front?(tail.sum(:definition_chars))
+    switched_on = Integration::Tool.switched_on_in(turn.workspace).where.not(integrations: { provider: Chat::Skill::SOURCE_FIREFIGHT })
+    tools = switched_on.select(:id, :integration_id, :name, :read_only).preload(:integration).to_a
+    reading = tools.select(&:read_only?).map(&:model_facing_name).to_set
+    tail, left_out = tools.partition { |tool| !Chat::Tools.through_capability?(tool) && !Chat::Tools.withheld_from?(turn, tool) }
+    tail.any? { |tool| of_provider(tool.integration.provider).present? && reading.include?(tool.model_facing_name) } &&
+      !FirefightAi.chars_fit_up_front?(switched_on.where.not(id: left_out.map(&:id)).sum(:definition_chars))
   end
 
   # The kind a connection's provider answers, from the registry, or nil for one that stays Halon's own.

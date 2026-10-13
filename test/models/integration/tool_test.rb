@@ -27,11 +27,4 @@ class Integration::ToolTest < ActiveSupport::TestCase
     tool.update!(enabled: true)
     assert_equal 7, tool.reload.definition_chars
   end
-
-  test "the name the agent calls a tool by is its connection's slug and its own name, with no dot" do
-    tool = @integration.tools.create!(name: "actions.list_runs")
-
-    assert_equal "github_actions_list_runs", tool.model_facing_name
-    assert_equal tool.model_facing_name, Integration::Tool.model_facing_name("github", "actions.list_runs")
-  end
 end
