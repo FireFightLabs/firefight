@@ -765,7 +765,11 @@ module Integrations
       # adds and removes instances on its own has no one count. Plans that could not be read leave apps uncounted, a gap
       # that holds back nothing, since the apps themselves were read.
       def plan_instances(api, root, gaps)
-        api.list("#{root}/Microsoft.Web/serverfarms", WEB_VERSION).items.to_h { |plan| [ plan["id"].to_s.downcase, plan_count(plan) ] }.compact
+        plans = api.list("#{root}/Microsoft.Web/serverfarms", WEB_VERSION)
+        unless plans.complete
+          gaps << ResourceMap::Gap.new(text: "Only the first #{plans.items.size} App Service plans were read, so apps on the others show no instance count.", kinds: [])
+        end
+        plans.items.to_h { |plan| [ plan["id"].to_s.downcase, plan_count(plan) ] }.compact
       rescue Integrations::RateLimited
         raise
       rescue AzureApi::Error => error

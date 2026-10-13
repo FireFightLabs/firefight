@@ -106,6 +106,24 @@ class WorkflowTriggersTest < ApplicationSystemTestCase
     assert_button "Apply changes", disabled: true
   end
 
+  test "a number condition stored as a number opens with its number, and the trigger can still be changed" do
+    @workflow.edit!(operation: Workflow::Edit::OPERATION_CHANGE_TRIGGER, by: workspace_memberships(:alice_workspace_one),
+                    payload: { "trigger" => { "kind" => Workflow::Trigger::KIND_SERVICE_SCALED, "inputs" => [],
+                                              "conditions" => [ { "field" => "to", "operator" => PolicyRule::OPERATOR_GREATER_THAN, "value" => 20 } ] } })
+    sign_in(users(:alice), @workspace)
+    visit workflow_path(@workflow)
+
+    find("[data-trigger]").click
+    assert_equal "20", find("input[aria-label='Value']").value
+    click_button "Add an input"
+    find("input[placeholder='region']").fill_in(with: "region")
+    find("input[aria-label='Question']").fill_in(with: "Which region?")
+    click_button "Apply changes"
+
+    assert_toast "The trigger was updated."
+    assert_equal [ { "field" => "to", "operator" => PolicyRule::OPERATOR_GREATER_THAN, "value" => "20" } ], @workflow.reload.draft.trigger["conditions"]
+  end
+
   test "an issue assigned trigger also starts on a label, set in its settings" do
     sign_in(users(:alice), @workspace)
     visit workflow_path(@workflow)

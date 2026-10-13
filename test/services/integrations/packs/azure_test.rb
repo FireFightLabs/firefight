@@ -393,6 +393,17 @@ module Integrations
         assert snapshot.complete?
       end
 
+      test "plans read only in part count the apps on them and say the rest went uncounted" do
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.Web/serverfarms") }.returns(pages([ PLAN ], complete: false))
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal 2, snapshot.resources.find { |resource| resource.external_id == WEB_ID }.details[ResourceMap::INSTANCES]
+        gap = snapshot.gaps.find { |each| each.text.start_with?("Only the first 1 App Service plans were read") }
+        assert_empty gap.kinds
+        assert snapshot.complete?
+      end
+
       test "an app read again on its own counts its plan's instances" do
         AzureApi.any_instance.stubs(:get).with(PLAN_ID, Azure::WEB_VERSION).returns(PLAN.deep_merge("sku" => { "capacity" => 4 }))
 

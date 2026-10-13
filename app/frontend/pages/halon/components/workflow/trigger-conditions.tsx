@@ -68,7 +68,7 @@ export function conditionDrafts(stored: unknown): ConditionDraft[] {
       field: typeof entry.field === "string" ? entry.field : "",
       operator,
       values: Array.isArray(value) ? value.map(String) : [],
-      text: Array.isArray(value) ? value.map(String).join(", ") : typeof value === "string" ? value : "",
+      text: Array.isArray(value) ? value.map(String).join(", ") : typeof value === "string" || typeof value === "number" ? String(value) : "",
     } ]
   })
 }
