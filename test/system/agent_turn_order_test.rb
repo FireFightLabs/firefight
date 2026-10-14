@@ -52,6 +52,7 @@ class AgentTurnOrderTest < ApplicationSystemTestCase
 
     assert_text RESULT
     assert_folded
+    assert_text(/Worked for 5m 36s · 4 steps.*#{Regexp.escape(RESULT)}/m)
     page.save_screenshot(Rails.root.join("tmp/screenshots/agent-turn-order-folded.png"))
 
     find("button", text: /Worked for/).click
@@ -90,7 +91,7 @@ class AgentTurnOrderTest < ApplicationSystemTestCase
   private
 
   def assert_folded
-    assert_selector "button", text: /Worked for .* · 4 steps/
+    assert_selector "button", text: "Worked for 5m 36s · 4 steps"
     assert_no_text PLAN
     assert_no_text UPDATE
   end
@@ -101,11 +102,14 @@ class AgentTurnOrderTest < ApplicationSystemTestCase
     planned = { "call_1" => "a", "call_2" => "b", "call_3" => "c" }.to_h do |key, query|
       [ key, RubyLLM::ToolCall.new(id: key, name: "search_incidents", arguments: { "query" => "review #{query}" }) ]
     end
-    chat.add_message(RubyLLM::Message.new(role: :assistant, content: PLAN, tool_calls: planned))
-    planned.each_key { |key| chat.add_message(role: :tool, content: "found", tool_call_id: key) }
+    read = chat.add_message(RubyLLM::Message.new(role: :assistant, content: PLAN, tool_calls: planned))
+    found = planned.keys.map { |key| chat.add_message(role: :tool, content: "found", tool_call_id: key) }
     fix = { "call_4" => RubyLLM::ToolCall.new(id: "call_4", name: "declare_incident", arguments: { "name" => "Update PR 14" }) }
-    chat.add_message(RubyLLM::Message.new(role: :assistant, content: UPDATE, tool_calls: fix))
-    chat.add_message(role: :tool, content: "done", tool_call_id: "call_4")
+    updated = chat.add_message(RubyLLM::Message.new(role: :assistant, content: UPDATE, tool_calls: fix))
+    done = chat.add_message(role: :tool, content: "done", tool_call_id: "call_4")
+    # The reads took five minutes and the update 36 seconds, which the folded line says in minutes and seconds.
+    found.last.update_columns(created_at: read.created_at + 5.minutes)
+    done.update_columns(created_at: updated.created_at + 36.seconds)
     chat.add_message(role: :assistant, content: RESULT)
   end
 
