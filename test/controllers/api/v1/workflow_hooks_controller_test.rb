@@ -80,14 +80,15 @@ class Api::V1::WorkflowHooksControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-  test "a start its limits refuse says why and is kept on the workflow" do
+  test "a start past its most runs an hour says why and is counted as skipped on the workflow" do
     @workflow.update!(runs_per_hour: 1)
     deliver({ service: "web" }.to_json)
     deliver({ service: "api" }.to_json)
 
     assert_response :conflict
     assert_match "as many as it allows", response.parsed_body["error"]
-    assert_match "as many as it allows", @workflow.reload.trigger_refusal
+    assert_equal 1, @workflow.recent_skips.sole.count
+    assert_nil @workflow.reload.trigger_refusal
   end
 
   test "a new address retires the old one and its secret" do

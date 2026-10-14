@@ -29,6 +29,9 @@ class DefinedWorkflow::Steps::PostIncidentUpdate < DefinedWorkflow::Steps::Firef
 
     def undoable?(_config, _workspace) = false
 
+    # Said once and never taken back, so there is nothing to check first.
+    def checks_first?(_config, _workspace) = false
+
     def output_fields(_config) = [ OUTPUT_POSTED, OUTPUT_ANSWER ]
 
     def every(config) = config[KEY_EVERY].presence&.to_i
@@ -50,8 +53,6 @@ class DefinedWorkflow::Steps::PostIncidentUpdate < DefinedWorkflow::Steps::Firef
   end
 
   def frozen = nil
-
-  def read_first(*, **) = nil
 
   def perform
     return simulated_output(self.class.describe(@config, workspace)) if simulated?

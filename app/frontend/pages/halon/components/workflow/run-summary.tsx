@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
-import { formatDateTime } from "@/lib/formatters"
+import { dollars, dollarsFromMicros, formatDateTime } from "@/lib/formatters"
 import { cancelWorkflowRunPath, pinWorkflowRunPath, unpinWorkflowRunPath } from "@/lib/routes"
 import { JsonBlock } from "@/pages/halon/components/workflow/json-block"
 import { useWorkflowAccess } from "@/pages/halon/hooks/use-workflow-access"
@@ -55,6 +55,25 @@ export function RunSummary({ workflowId, run }: { workflowId: string; run: Workf
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
         {run.detailsPruned && <p className="text-xs text-fg-muted">This run&apos;s details went with the workspace&apos;s run history. Its one line stays.</p>}
         {run.error && <p className="rounded-sm border border-error-border bg-error-tint px-2.5 py-2 text-xs text-error [overflow-wrap:anywhere]">{run.error}</p>}
+        {run.notes.length > 0 && (
+          <section className="space-y-1">
+            <h5 className="text-[11px] font-medium text-fg-secondary">Skipped</h5>
+            {run.notes.map((note) => (
+              <p key={note} className="rounded-sm border border-brand-border bg-brand-tint px-2.5 py-2 text-xs text-brand [overflow-wrap:anywhere]">{note}</p>
+            ))}
+          </section>
+        )}
+        <section className="space-y-1" aria-label="What it spent">
+          <h5 className="text-[11px] font-medium text-fg-secondary">What it spent</h5>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
+            <dt className="text-fg-muted">AI</dt>
+            <dd className="text-fg-secondary">{dollarsFromMicros(run.aiSpentMicros)}</dd>
+            <dt className="text-fg-muted">Sandbox</dt>
+            <dd className="text-fg-secondary">{dollarsFromMicros(run.sandboxSpentMicros)}</dd>
+            <dt className="text-fg-muted">Ceiling</dt>
+            <dd className="text-fg-secondary">{run.costCapCents ? dollars(run.costCapCents) : "None"}</dd>
+          </dl>
+        </section>
         <JsonBlock label="Inputs" value={run.inputs} />
         <JsonBlock label="What started it" value={run.triggerPayload} />
         <JsonBlock label="What it handed back" value={run.outputs} />

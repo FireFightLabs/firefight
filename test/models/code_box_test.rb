@@ -7,6 +7,21 @@ class CodeBoxTest < ActiveSupport::TestCase
                            last_used_at: Time.current, box_started_at: 10.minutes.ago, hourly_micros: 36_000)
   end
 
+  test "a box costs its provider's hourly price for the time it ran, counted until now while it is up, and nothing without a price" do
+    assert_in_delta 600, @box.seconds_run, 2
+    assert_in_delta 6_000, @box.cost_micros, 40
+
+    travel 5.minutes do
+      @box.stop!
+    end
+    travel 1.hour do
+      assert_in_delta 9_000, @box.reload.cost_micros, 40
+    end
+
+    @box.update!(hourly_micros: nil)
+    assert_equal 0, @box.cost_micros
+  end
+
   test "a token in a box's address is kept encrypted apart from it" do
     assert_equal "https://swift-otter-8080.on.boat.dev", @box.address
     assert_equal "https://swift-otter-8080.on.boat.dev?_token=gate", @box.reload.reach_address

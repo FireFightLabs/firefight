@@ -123,8 +123,8 @@ class HalonWorkflowsTest < ApplicationSystemTestCase
     visit workflow_path(workflow)
     find("[role=radio]", text: "Settings").click
 
-    fill_in "AI ceiling per run, in dollars", with: "2.50"
-    fill_in "Runs an hour at most", with: "12"
+    fill_in "Spending ceiling per run, in dollars", with: "2.50"
+    fill_in "Most runs per hour", with: "12"
     click_button "Save settings"
     assert_toast "Look around was updated."
     assert_equal [ 250, 12 ], workflow.reload.values_at(:cost_cap_cents, :runs_per_hour)

@@ -1,8 +1,9 @@
 # Starts a run of every workflow something that happened matches (Workflow::Listening), each as its own identity with
 # what happened as its trigger data. Every start goes through WorkflowRunService, so the workflows flag, a workflow's
-# runs an hour, one live run per subject and the workspace's ceiling of event runs an hour all apply. One event starts a
-# workflow once however often it is heard, since its key is the run's start key. A start the limits refuse is kept on
-# the workflow for its page, as a scheduled start's is, and never stops the workflows after it.
+# most runs an hour and one live run per subject all apply. One event starts a workflow once however often it is heard,
+# since its key is the run's start key. A start past the hour's limit is counted as skipped on the workflow, any other
+# start the limits refuse is kept on it for its page, as a scheduled start's is, and neither stops the workflows after
+# it.
 class WorkflowTriggerService
   def initialize(workspace)
     @workspace = workspace
@@ -38,7 +39,7 @@ class WorkflowTriggerService
     workflow.trigger_started!
     run
   rescue Workflow::Run::Refused => refused
-    workflow.trigger_refused!(refused.message)
+    workflow.trigger_start_refused!(refused)
     raise
   end
 
@@ -51,7 +52,7 @@ class WorkflowTriggerService
     workflow.trigger_started!
     run
   rescue Workflow::Run::Refused => refused
-    workflow.trigger_refused!(refused.message)
+    workflow.trigger_start_refused!(refused)
     nil
   rescue StandardError => error
     Rails.logger.error({ event: "workflow_trigger.start_failed", workflow_id: workflow.id, kind: event.kind, error: error.class.name, message: error.message }.to_json)

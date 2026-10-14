@@ -4,7 +4,8 @@ import { type ChangeEvent, type FocusEvent, type KeyboardEvent, useState } from 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { WORKFLOW_EDIT_OPERATIONS, WORKFLOW_STEP_GROUP, WORKFLOW_VERSION_STATUS } from "@/lib/generated/constants"
+import { Switch } from "@/components/ui/switch"
+import { WORKFLOW_CHECK_FIRST_KEY, WORKFLOW_EDIT_OPERATIONS, WORKFLOW_STEP_GROUP, WORKFLOW_VERSION_STATUS } from "@/lib/generated/constants"
 import { FailureSettings } from "@/pages/halon/components/workflow/failure-settings"
 import { PinnedOutput } from "@/pages/halon/components/workflow/pinned-output"
 import { StepBadges } from "@/pages/halon/components/workflow/step-badges"
@@ -83,6 +84,12 @@ export function StepSettings({ workflowId, item, document, revision, stepKinds, 
     onTry(step.id)
   }
 
+  // On unless the step says false, so turning it back on drops the setting rather than storing true.
+  function switchCheckFirst(checked: boolean) {
+    const kept = Object.fromEntries(Object.entries(draft.draft.config).filter(([key]) => key !== WORKFLOW_CHECK_FIRST_KEY))
+    draft.changeConfig(checked ? kept : { ...kept, [WORKFLOW_CHECK_FIRST_KEY]: false })
+  }
+
   function apply() {
     send(WORKFLOW_EDIT_OPERATIONS.CHANGE_CONFIG, { step_id: step.id, changes: draft.changes }, { baseRevision: draft.baseRevision, onSuccess: draft.reset })
   }
@@ -137,6 +144,22 @@ export function StepSettings({ workflowId, item, document, revision, stepKinds, 
               {step.outputs.map((field) => (
                 <code key={field} className="rounded-sm border border-border bg-surface-code px-1.5 py-0.5 font-mono text-[11px] text-brand">{`steps.${step.name}.${field}`}</code>
               ))}
+            </div>
+          </section>
+        )}
+        {step.checksFirst && (
+          <section className="space-y-1.5">
+            <h4 className="font-mono text-[10.5px] tracking-[0.1em] text-brand uppercase">Before it changes something</h4>
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-0.5">
+                <Label htmlFor={`step-${step.id}-check-first`} className="text-xs">Check it is still needed first</Label>
+                <p className="text-[11.5px] leading-relaxed text-fg-muted">
+                  In a run a schedule or an event started, Halon first reads whether the problem is still there. That uses AI credit and counts against
+                  the run&apos;s spending ceiling. If the problem has cleared, this step is skipped and the run says why.
+                </p>
+              </div>
+              <Switch id={`step-${step.id}-check-first`} checked={draft.draft.config[WORKFLOW_CHECK_FIRST_KEY] !== false} onCheckedChange={switchCheckFirst}
+                      disabled={disabled} />
             </div>
           </section>
         )}

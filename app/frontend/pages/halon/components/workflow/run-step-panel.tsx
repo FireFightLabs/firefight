@@ -4,6 +4,7 @@ import { useState } from "react"
 
 import { Blocked } from "@/components/blocked-tooltip"
 import { Button } from "@/components/ui/button"
+import { dollarsFromMicros, secondsInWords } from "@/lib/formatters"
 import { cn } from "@/lib/utils"
 import { WORKFLOW_STEP_EFFECT, WORKFLOW_STEP_GROUP } from "@/lib/generated/constants"
 import { workflowPinsPath, workflowRunRerunPath, workflowRunStepRetryPath, workflowRunStepSkipPath } from "@/lib/routes"
@@ -117,6 +118,10 @@ export function RunStepPanel({ workflowId, run, step, canPin }: RunStepPanelProp
             )}
             {row.ask && <AskPanel workflowId={workflowId} runId={run.id} ask={row.ask} />}
             {row.error && <p className="rounded-sm border border-error-border bg-error-tint px-2.5 py-2 text-xs text-error [overflow-wrap:anywhere]">{row.error}</p>}
+            {row.note && <p className="rounded-sm border border-brand-border bg-brand-tint px-2.5 py-2 text-xs text-brand [overflow-wrap:anywhere]">{row.note}</p>}
+            {row.sandboxSeconds > 0 && (
+              <p className="text-xs text-fg-muted">Used the sandbox for {secondsInWords(row.sandboxSeconds)}, which cost {dollarsFromMicros(row.sandboxMicros)}.</p>
+            )}
             <JsonBlock label="What it was given" value={row.input} />
             <JsonBlock label="What it gave" value={row.output} />
             {row.savedResults.length > 0 && (

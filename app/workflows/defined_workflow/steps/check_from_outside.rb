@@ -48,9 +48,11 @@ class DefinedWorkflow::Steps::CheckFromOutside < DefinedWorkflow::Steps::Sandbox
     url = @config[KEY_URL].to_s.strip
     method = (@config[KEY_METHOD].presence || METHODS.first).to_s.upcase
     agent_run = Workflow::AgentRun.new(run: @run, record: record)
-    checked = agent_run.tool_call(action_key: Ability::Action::SANDBOX_COMMAND, params: { KEY_URL => url, KEY_METHOD => method }) do
-      terminal.check(url, method: method)
-    end.value
+    checked = in_sandbox do
+      agent_run.tool_call(action_key: Ability::Action::SANDBOX_COMMAND, params: { KEY_URL => url, KEY_METHOD => method }) do
+        terminal.check(url, method: method)
+      end.value
+    end
     read(checked.answer, checked.region)
   rescue Integrations::Error => error
     raise Failed, "The check did not run: #{error.message}"

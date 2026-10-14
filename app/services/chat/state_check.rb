@@ -25,23 +25,22 @@ class Chat::StateCheck
   end
 
   def run(call)
-    unavailable = Investigation.unavailable_reason(@workspace)
-    return Chat::CurrentState.unknown(unavailable) if unavailable
-    return Chat::CurrentState.unknown(COULD_NOT) unless @principal
+    stopped = Investigation.unavailable_reason(@workspace) || (COULD_NOT unless @principal) || refusal_before_reading
+    return unread(stopped) if stopped
 
-    report = Report.new
+    report = report_tool
     @chat = Chat.find_by(owner: @owner) || Chat.open!(owner: @owner, workspace: @workspace, model_choice: checker.ai_model)
     @chat.add_message(role: Chat::Message::ROLE_USER, content: question(call))
     presented = Chat::Tools.presented(self, checker.ai_model)
     checker.run(
       chat: @chat, tools: [ Chat::Tools::Open.new(self, offer: Chat::Tools.offer_to(@chat), presented: presented), Chat::Tools::ReadResult.new(self), report ] +
                          presented.loaded,
-      deferred_tools: presented.deferred, max_spend_cents: @workspace.conversation_limits.max_spend_cents, answered: -> { report.report.present? }
+      deferred_tools: presented.deferred, max_spend_cents: max_spend_cents, answered: -> { report.report.present? }
     )
-    report.report || Chat::CurrentState.unknown(COULD_NOT)
+    report.report || unread(COULD_NOT)
   rescue StandardError => error
     Rails.logger.warn({ event: "state_check.failed", owner_type: @owner.class.name, owner_id: @owner.id, error: error.class.name }.to_json)
-    Chat::CurrentState.unknown(COULD_NOT)
+    unread(COULD_NOT)
   end
 
   # What the shared tools ask of whoever they run for. It reads as the person, never changes anything and keeps nothing.
@@ -77,6 +76,16 @@ class Chat::StateCheck
   private
 
   def checker = @checker ||= FirefightAi::StateChecker.new(@workspace, inferable: @owner, member: (@principal if @principal.is_a?(WorkspaceMembership)))
+
+  # What a check that read nothing reports, with why.
+  def unread(reason) = Chat::CurrentState.unknown(reason)
+
+  # Why it should not read at all, beyond Halon being unavailable, or nil.
+  def refusal_before_reading = nil
+
+  def max_spend_cents = @workspace.conversation_limits.max_spend_cents
+
+  def report_tool = Report.new
 
   def question(call)
     given = call.asked.map { |label, value| "- #{label}: #{value}" }.join("\n")

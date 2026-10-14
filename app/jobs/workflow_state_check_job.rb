@@ -1,5 +1,5 @@
-# Halon reads how things stand before a change a workflow makes when nobody pressed Run, or after an approval it waited
-# for, as whoever the run acts as, and hands the step what it read. The step stops unless nothing moved.
+# Before a change a workflow makes when nobody pressed Run, or after an approval it waited for, Halon reads whether the
+# problem it answers is still there, as whoever the run acts as, and hands the step its verdict and what it read.
 class WorkflowStateCheckJob < ApplicationJob
   queue_as :investigations
 
@@ -8,11 +8,7 @@ class WorkflowStateCheckJob < ApplicationJob
     return unless run
 
     owner = Workflow::Run::Step.find_by(id: record_id) || run
-    report = Chat::StateCheck.run(
-      owner: owner, workspace: run.workspace, principal: run.acting_principal, source: AbilityGateway::SOURCE_WORKFLOW,
-      call: Chat::StateCheck::Call.new(named: named, asked: asked, approved_by: "#{run.workflow.name}, a workflow,"),
-      ledger: { triggered_by_label: run.ledger_label, **Workflow::Run::Step.ledger_context(run, owner.is_a?(Workflow::Run::Step) ? owner : nil) }.compact
-    )
-    DefinedWorkflow.deliver!(engine_step_id, key, { "state" => report.state, "change" => report.change })
+    found = Workflow::NeedCheck.run(run: run, owner: owner, call: Workflow::NeedCheck::Call.new(named: named, asked: asked))
+    DefinedWorkflow.deliver!(engine_step_id, key, { "verdict" => found.verdict, "state" => found.state })
   end
 end

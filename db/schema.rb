@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_14_090100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_14_100100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -3260,6 +3260,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_090100) do
     t.datetime "finished_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "sandbox_seconds", default: 0, null: false
+    t.bigint "sandbox_micros", default: 0, null: false
     t.index ["run_id", "step_key", "iteration"], name: "index_workflow_run_steps_on_run_id_and_step_key_and_iteration", unique: true
   end
 
@@ -3308,6 +3310,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_090100) do
     t.index ["workspace_id", "finished_at"], name: "index_workflow_runs_awaiting_pruning", where: "((details_pruned_at IS NULL) AND (pinned = false))"
   end
 
+  create_table "workflow_skipped_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workflow_id", null: false
+    t.datetime "hour", null: false
+    t.integer "count", default: 0, null: false
+    t.datetime "last_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["workflow_id", "hour"], name: "index_workflow_skipped_runs_on_workflow_id_and_hour", unique: true
+  end
+
   create_table "workflow_versions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "workflow_id", null: false
     t.integer "number", null: false
@@ -3352,7 +3364,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_090100) do
     t.datetime "updated_at", null: false
     t.datetime "next_run_at"
     t.string "freeze_behaviour", default: "stop", null: false
-    t.integer "runs_per_hour", default: 60, null: false
+    t.integer "runs_per_hour", default: 100, null: false
     t.string "subject_key"
     t.boolean "all_clear", default: false, null: false
     t.uuid "origin_conversation_id"
@@ -3496,7 +3508,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_090100) do
     t.boolean "halon_security_events_enabled", default: true, null: false
     t.boolean "halon_applies_workflow_read_fixes", default: false, null: false
     t.integer "workflow_run_retention_days", default: 90, null: false
-    t.integer "workflow_event_runs_per_hour", default: 100, null: false
     t.integer "code_fix_budget_cents", default: 200, null: false
     t.index ["created_by_id"], name: "index_workspaces_on_created_by_id"
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
@@ -3855,6 +3866,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_090100) do
   add_foreign_key "workflow_runs", "workflows", on_delete: :cascade
   add_foreign_key "workflow_runs", "workspace_memberships", column: "started_by_id", on_delete: :nullify
   add_foreign_key "workflow_runs", "workspaces"
+  add_foreign_key "workflow_skipped_runs", "workflows", on_delete: :cascade
   add_foreign_key "workflow_versions", "workflow_versions", column: "parent_version_id", on_delete: :nullify
   add_foreign_key "workflow_versions", "workflows", on_delete: :cascade
   add_foreign_key "workflow_versions", "workspace_memberships", column: "author_id", on_delete: :nullify
