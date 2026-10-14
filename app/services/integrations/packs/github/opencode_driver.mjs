@@ -56,8 +56,10 @@ const port = await freePort()
 const base = `http://127.0.0.1:${port}`
 const server = spawn("opencode", ["serve", "--hostname", "127.0.0.1", "--port", String(port)], {
   env: { ...process.env, OPENCODE_SERVER_PASSWORD: password },
-  stdio: ["ignore", "ignore", "inherit"],
+  stdio: ["ignore", "pipe", "inherit"],
 })
+// What the server says goes to the error output, since the standard output carries only the session's events.
+server.stdout.pipe(process.stderr)
 server.on("exit", (code) => {
   if (!finished) {
     process.stderr.write(`opencode serve exited with ${code}\n`)
@@ -80,15 +82,17 @@ async function api(method, path, body) {
 
 async function ready() {
   const deadline = Date.now() + STARTUP_MS
+  let last = "no answer"
   while (Date.now() < deadline) {
     try {
       await api("GET", "/session/status")
       return
-    } catch {
+    } catch (error) {
+      last = error.cause?.code ?? error.message
       await sleep(250)
     }
   }
-  throw new Error("opencode serve did not start")
+  throw new Error(`opencode serve did not start: ${last}`)
 }
 
 // Firefight decides, and says to wait until it has. A Firefight that cannot be reached, or fails to answer again and
