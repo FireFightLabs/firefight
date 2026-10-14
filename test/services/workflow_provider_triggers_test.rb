@@ -146,6 +146,55 @@ class WorkflowProviderTriggersTest < ActiveSupport::TestCase
     assert_equal [ "ENG-12", "Checkout slow", "alice@example.com" ], issue.values_at("key", "title", "asked_by_email")
   end
 
+  def github_issue(action, label: nil, labels: [])
+    { "action" => action, "repository" => { "full_name" => "acme/web" }, "sender" => { "login" => "bob" }, "label" => label,
+      "issue" => { "id" => 900, "number" => 12, "title" => "Checkout returns 500", "html_url" => "https://github.com/acme/web/issues/12",
+                   "updated_at" => "2026-10-14T09:00:00Z", "labels" => labels } }.compact
+  end
+
+  test "a label added to a GitHub issue starts the workflows waiting for it whatever its case, once, though GitHub says it opened and labeled" do
+    labelled = published("Labelled", { "kind" => Workflow::Trigger::KIND_ISSUE_ASSIGNED, Workflow::Listening::KEY_LABEL => "FIREFIGHT" })
+    other = published("Other", { "kind" => Workflow::Trigger::KIND_ISSUE_ASSIGNED, Workflow::Listening::KEY_LABEL => "triage" })
+    unlabelled = published("Assigned only", { "kind" => Workflow::Trigger::KIND_ISSUE_ASSIGNED })
+    firefight = { "id" => 2, "name" => "Firefight" }
+    headers = { "x-github-event" => "issues" }
+
+    perform_enqueued_jobs(only: WorkflowEventJob) do
+      Integrations::MapEvents.report_issue_labels!([ @row ], github_issue("opened", labels: [ { "id" => 1, "name" => "Bug" }, firefight ]), headers: headers)
+      2.times { Integrations::MapEvents.report_issue_labels!([ @row ], github_issue("labeled", label: firefight, labels: [ firefight ]), headers: headers) }
+    end
+
+    issue = labelled.runs.sole.trigger_payload["issue"]
+    assert_equal [ "GitHub", "acme/web#12", "Checkout returns 500", "bob", Workflow::TriggerPayloads::ISSUE_LABELLED, [ "Firefight" ] ],
+                 issue.values_at("provider", "key", "title", "asked_by", "how", "labels")
+    assert_empty other.runs
+    assert_empty unlabelled.runs
+  end
+
+  test "a label added to a GitLab issue starts the workflows waiting for it, with each label added" do
+    gitlab = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "gitlab", name: "GitLab").integration_environments.create!
+    workflow = published("Labelled", { "kind" => Workflow::Trigger::KIND_ISSUE_ASSIGNED, Workflow::Listening::KEY_LABEL => "firefight" })
+    current = [ { "id" => 205, "title" => "Bug" }, { "id" => 206, "title" => "Firefight" }, { "id" => 207, "title" => "Urgent" } ]
+    update = { "object_kind" => "issue", "user" => { "name" => "Bob", "email" => "bob@example.com" }, "project" => { "path_with_namespace" => "acme/api" },
+               "labels" => current, "changes" => { "labels" => { "previous" => current.first(1), "current" => current } },
+               "object_attributes" => { "id" => 301, "iid" => 23, "title" => "Checkout returns 500", "action" => "update", "updated_at" => "2026-10-14T09:00:00Z",
+                                        "url" => "https://gitlab.com/acme/api/-/issues/23" } }
+
+    perform_enqueued_jobs(only: WorkflowEventJob) do
+      2.times { Integrations::MapEvents.report_issue_labels!([ gitlab ], update, headers: { "x-gitlab-event" => "Issue Hook" }) }
+    end
+
+    issue = workflow.runs.sole.trigger_payload["issue"]
+    assert_equal [ "GitLab", "acme/api#23", "bob@example.com", %w[Firefight Urgent] ], issue.values_at("provider", "key", "asked_by_email", "labels")
+  end
+
+  test "the label a trigger names says every tracker that reports one" do
+    label = Workflow::TriggerKinds.find(Workflow::Trigger::KIND_ISSUE_ASSIGNED).fields_for({}).find { |field| field.key == Workflow::Listening::KEY_LABEL }
+    assert_equal [ "GitHub", "GitLab", "Linear" ], Integrations::IssueLabels.providers.map(&:name).sort
+    assert_match(/\AOr when an issue gets this label in [A-Za-z, ]+ or [A-Za-z]+, whatever its case\./, label.description)
+    Integrations::IssueLabels.providers.each { |provider| assert_includes label.description, provider.name }
+  end
+
   test "every kind of trigger can now be published" do
     assert_equal Workflow::Trigger::KINDS.sort, Workflow::Trigger::PUBLISHABLE.sort
   end

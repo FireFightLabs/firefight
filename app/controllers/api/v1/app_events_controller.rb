@@ -47,6 +47,7 @@ class Api::V1::AppEventsController < ActionController::API
     Integrations::MapEvents.nudge_pull_requests!(rows, payload, headers: request.headers)
     Integrations::MapEvents.report_security_events!(rows, payload, headers: request.headers)
     Integrations::MapEvents.report_runs_ended!(rows, payload, headers: request.headers)
+    Integrations::MapEvents.report_issue_labels!(rows, payload, headers: request.headers)
     Integrations::MapEvents.nudge_handbook!(rows, payload, headers: request.headers)
   end
 end

@@ -25,6 +25,14 @@ module Integrations
       DEPLOYMENT_HOOK = "Deployment Hook".freeze
       JOB_ENDS = %w[success failed canceled skipped manual].freeze
       RUN_EVENTS = %w[pipeline_events job_events deployment_events].freeze
+      # An issue at every change, so a label added to one starts a workflow (webhook_events.md, Work item events). A
+      # confidential issue is sent only to a webhook that also asks for confidential issue events, which this one never
+      # does, so none reaches Firefight.
+      ISSUE_HOOK = "Issue Hook".freeze
+      ISSUE_OPEN = "open".freeze
+      ISSUE_EVENTS = %w[issues_events].freeze
+      # What a webhook from before misses when it lacks any of these, so it is registered again.
+      FOLLOWED_EVENTS = [ *RUN_EVENTS, *ISSUE_EVENTS ].freeze
       # The statuses a pipeline or a deployment ends on, as a run that ended reads them.
       RUN_ENDS = { "success" => RunsEnded::OUTCOME_SUCCEEDED, "failed" => RunsEnded::OUTCOME_FAILED, "canceled" => RunsEnded::OUTCOME_CANCELLED }.freeze
       PROVIDER_NAME = "GitLab".freeze
@@ -66,7 +74,7 @@ module Integrations
           target, group = hook_target(api)
           secret = SecureRandom.hex(32)
           body = { "url" => url, "token" => secret, "name" => WEBHOOK_NAME, "push_events" => true, "enable_ssl_verification" => true,
-                   **RUN_EVENTS.index_with(true) }
+                   **FOLLOWED_EVENTS.index_with(true) }
           body["project_events"] = true if group
           own = api.list("#{target}/hooks").first.find { |hook| hook["url"] == url }
           hook = own ? api.put("#{target}/hooks/#{own['id']}", body) : api.post("#{target}/hooks", body)
@@ -75,14 +83,14 @@ module Integrations
           raise MapEventSource::Refused, Sentence.all(error, ROLE_NOTE)
         end
 
-        # Whether the webhook Firefight registered misses an event about runs, such as one registered before they were
-        # followed. One gone from GitLab is registered again too.
+        # Whether the webhook Firefight registered misses an event about runs or issues, such as one registered before they
+        # were followed. One gone from GitLab is registered again too.
         def register_again?(row, **)
           webhook_id = row.map_events_webhook_id.to_s
           return false unless webhook_id.match?(HOOK_PATH)
 
           hook = api(row).get(webhook_id)
-          RUN_EVENTS.any? { |event| hook[event] != true }
+          FOLLOWED_EVENTS.any? { |event| hook[event] != true }
         rescue GitlabApi::NotFound
           true
         end
@@ -109,6 +117,26 @@ module Integrations
           end
         end
 
+        # Labels added to an issue (Integrations::IssueLabels), which are those it was opened with, or those an update's
+        # changes.labels holds now and did not before. user is who did it, and GitLab may send its email hidden.
+        def labelled(payload, headers:)
+          return [] unless headers[EVENT_HEADER].to_s == ISSUE_HOOK
+
+          issue = payload["object_attributes"].to_h
+          project = payload.dig("project", "path_with_namespace")
+          return [] if issue["id"].blank? || project.blank?
+
+          added = labels_added(payload, issue["action"].to_s == ISSUE_OPEN)
+          return [] if added.empty?
+
+          email = payload.dig("user", "email").to_s
+          [ IssueLabels::Labelled.new(
+            reference: "#{issue['id']}:#{added.map { |label| label['id'] }.sort.join(',')}:#{issue['updated_at']}", labels: added.map { |label| label["title"] },
+            issue_key: "#{project}##{issue['iid']}", issue_title: issue["title"].presence, issue_url: issue["url"].presence, text: issue["description"].presence,
+            asker_name: payload.dig("user", "name").presence, asker_email: (email if email.match?(URI::MailTo::EMAIL_REGEXP))
+          ) ]
+        end
+
         # A webhook already gone from GitLab is taken back all the same.
         def remove(row, webhook_id)
           raise Integrations::Error, "Firefight's GitLab webhook is not one it registered." unless webhook_id.to_s.match?(HOOK_PATH)
@@ -128,6 +156,15 @@ module Integrations
         end
 
         private
+
+        def labels_added(payload, opened)
+          named = ->(labels) { Array(labels).select { |label| label.is_a?(Hash) && label["title"].present? } }
+          return named.(payload["labels"]) if opened
+
+          change = payload.dig("changes", "labels").to_h
+          before = named.(change["previous"]).map { |label| label["id"] }
+          named.(change["current"]).reject { |label| before.include?(label["id"]) }
+        end
 
         def pipeline_ended(payload, project)
           pipeline = payload["object_attributes"].to_h

@@ -18,8 +18,8 @@ class Api::V1::AppEventsControllerTest < ActionDispatch::IntegrationTest
     ENV["INTEGRATION_LIVEAPP_WEBHOOK_SECRET"] = @previous
   end
 
-  def delivery(installation, secret: "app-secret", changes: [ change("e1", at: 1.minute.ago) ], run: nil)
-    body = { "installation" => { "id" => installation }, "changes" => changes, "run" => run }.compact.to_json
+  def delivery(installation, secret: "app-secret", changes: [ change("e1", at: 1.minute.ago) ], run: nil, labelled: nil)
+    body = { "installation" => { "id" => installation }, "changes" => changes, "run" => run, "labelled" => labelled }.compact.to_json
     [ body, { LiveTestEvents::SIGNATURE => OpenSSL::HMAC.hexdigest("SHA256", secret, body), "Content-Type" => "application/json" } ]
   end
 
@@ -41,6 +41,15 @@ class Api::V1::AppEventsControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     assert_enqueued_with(job: WatchCheckJob, args: [ watch.id ])
     assert_enqueued_jobs 1, only: WatchCheckJob
+  end
+
+  test "a delivery naming labels added to an issue reaches the workflows of each connection made through its installation" do
+    Integrations::IssueLabels.expects(:report!).with { |rows, labelled| rows == [ @row ] && labelled.map(&:labels) == [ [ "Firefight" ] ] }
+    body, headers = delivery(42, changes: [], labelled: [ "Firefight" ])
+
+    post api_v1_app_events_path("liveapp"), params: body, headers: headers
+
+    assert_response :ok
   end
 
   test "a delivery about an installation no connection has is taken and ignored" do

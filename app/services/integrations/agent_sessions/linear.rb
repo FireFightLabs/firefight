@@ -62,7 +62,7 @@ module Integrations
           names = added.filter_map { |label| label["name"].presence }
           return if names.empty?
 
-          AgentSessions::Labelled.new(
+          IssueLabels::Labelled.new(
             reference: "#{issue['id']}:#{added.map { |label| label['id'] }.sort.join(',')}:#{issue['updatedAt']}", labels: names,
             issue_key: issue["identifier"].presence, issue_title: issue["title"].presence, issue_url: (issue["url"] || payload["url"]).presence,
             text: issue["description"].presence, **asker_of(payload["actor"])

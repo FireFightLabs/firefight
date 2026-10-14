@@ -110,7 +110,31 @@ module Integrations
         assert_not Github.wakes?(push([]), headers: headers_for("push"))
       end
 
+      test "a label added to an issue, or an issue opened with labels, is read with the issue and who did it, one label at a time" do
+        labelled = Github.labelled(issue_event("labeled"), headers: headers_for("issues")).sole
+        assert_equal [ [ "Firefight" ], "acme/web#12", "Checkout returns 500", "https://github.com/acme/web/issues/12", "Since 14:00", "bob", nil ],
+                     [ labelled.labels, labelled.issue_key, labelled.issue_title, labelled.issue_url, labelled.text, labelled.asker_name, labelled.asker_email ]
+
+        opened = Github.labelled(issue_event("opened"), headers: headers_for("issues"))
+        assert_equal [ [ "Bug" ], [ "Firefight" ] ], opened.map(&:labels)
+        assert_equal labelled.reference, opened.last.reference, "GitHub also says labeled for each label an issue is opened with, which starts nothing twice"
+
+        assert_empty Github.labelled(issue_event("opened", labels: []), headers: headers_for("issues"))
+        assert_empty Github.labelled(issue_event("unlabeled"), headers: headers_for("issues"))
+        assert_empty Github.labelled(issue_event("labeled"), headers: headers_for("pull_request"))
+        assert_empty Github.events(issue_event("labeled"), headers: headers_for("issues"))
+      end
+
       private
+
+      # An issues event as GitHub documents it (Webhook events and payloads, issues): labeled names the one label added in
+      # label, and opened the issue with the labels it was made with. sender is who did it, and carries no email.
+      def issue_event(action, labels: [ [ 1, "Bug" ], [ 2, "Firefight" ] ])
+        { "action" => action, "repository" => { "full_name" => "acme/web" }, "installation" => { "id" => 42 }, "sender" => { "login" => "bob" },
+          "label" => ({ "id" => 2, "name" => "Firefight" } if action == "labeled"),
+          "issue" => { "id" => 900, "number" => 12, "title" => "Checkout returns 500", "body" => "Since 14:00", "html_url" => "https://github.com/acme/web/issues/12",
+                       "updated_at" => "2026-10-14T09:00:00Z", "labels" => labels.map { |id, name| { "id" => id, "name" => name } } } }.compact
+      end
 
       def signed(body) = { "x-hub-signature-256" => "sha256=#{OpenSSL::HMAC.hexdigest('SHA256', SECRET, body)}" }
 

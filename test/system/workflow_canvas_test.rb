@@ -147,6 +147,9 @@ class WorkflowCanvasTest < ApplicationSystemTestCase
 
     find("[role=radio]", text: "Versions").click
     within("li", text: "Version 1") { click_button "Open" }
+    # Open is a visit the server draws, which on a loaded runner takes longer than Capybara's default two seconds. The
+    # address carries the version only once the server answered, so wait for that before reading the page.
+    assert_current_path(/version=/, wait: 15)
     assert_text "Live · v1"
     assert_no_selector "[data-step='later']"
 
