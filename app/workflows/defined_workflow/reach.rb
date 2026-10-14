@@ -93,7 +93,7 @@ module DefinedWorkflow::Reach
 
   def connection_reach(workspace, tool, arguments)
     reads = tool.read_only? || (tool.ability_action && !changes?(workspace, tool.model_facing_name, arguments))
-    return [ read_pack(tool.integration_id) ].compact.map { |role| Needed.of_role(role) } if reads
+    return [ workspace.read_packs_by_integration[tool.integration_id] ].compact.map { |role| Needed.of_role(role) } if reads
 
     tool.ability_action ? [ Needed.of_action(tool.ability_action) ] : []
   end

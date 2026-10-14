@@ -196,5 +196,22 @@ module Integrations
       assert_not HealthCheckService.check!(row)
       assert_equal IntegrationEnvironment::HEALTH_FAILING, row.reload.health_status
     end
+
+    test "each new tool is saved and switched on in the same few queries, however many a server lists" do
+      extend ManyToolsHelper
+      per_tool = [ 10, 40 ].map do |count|
+        integration = Integration.create!(workspace: workspaces(:slack_workspace_one), kind: Integration::KIND_MCP, provider: Integration::PROVIDER_CUSTOM_MCP,
+                                          name: "Server #{count}", settings: { "server_url" => "https://mcp#{count}.example/mcp" })
+        integration.integration_environments.create!(credentials: { authorization: "Bearer x" }.to_json)
+        McpClient.any_instance.stubs(:tools_list).returns(Array.new(count) { |index| { "name" => "tool_#{index}", "annotations" => { "readOnlyHint" => index.even? } } })
+        queries = queries_made { DiscoveryService.sync!(integration) }
+        assert_equal count, integration.tools.enabled.count
+        assert_equal count, Ability::Action.where(source: integration.tools).count
+        queries
+      end
+
+      slope = (per_tool.last - per_tool.first) / 30.0
+      assert_operator slope, :<=, 5, "each new tool took #{slope.round(1)} queries"
+    end
   end
 end

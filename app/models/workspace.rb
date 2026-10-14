@@ -180,7 +180,12 @@ class Workspace < ApplicationRecord
   # reason, since each step of a chat names its tool's connection.
   def connection_tools_by_name
     @connection_tools_by_name ||= Integration::Tool.joins(:integration).where(integrations: { workspace_id: id, deleted_at: nil })
-                                                   .includes(:integration).index_by(&:model_facing_name)
+                                                   .includes(:integration, :ability_action).index_by(&:model_facing_name)
+  end
+
+  # Each connection's read pack by its id, read once, as a list of tools names each tool's connection.
+  def read_packs_by_integration
+    @read_packs_by_integration ||= Ability::Role.where(workspace_id: id, pack: Ability::Role::PACK_READ).where.not(integration_id: nil).index_by(&:integration_id)
   end
 
   # Returns the row an admin customized, otherwise creates one from the

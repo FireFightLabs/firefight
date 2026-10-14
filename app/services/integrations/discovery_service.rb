@@ -11,11 +11,15 @@ module Integrations
       Ability::Role.filing_together(integration) { integration.counting_tools_together { discover!(integration) } }
     end
 
+    # The connection's tools are read once, and a new tool is saved switched on in the same write unless another
+    # connection's tool shares its name as Halon calls it, read once for every new tool.
     def self.discover!(integration)
       entry = IntegrationProvider.find(integration.provider)
-      arrived = []
-      seen = integration.executor.tool_definitions(integration).map do |definition|
-        tool = integration.tools.find_or_initialize_by(name: definition.name)
+      definitions = integration.executor.tool_definitions(integration)
+      known = integration.tools.reload.index_by(&:name)
+      namesakes = integration.namesakes_for(definitions.map(&:name) - known.keys)
+      seen = definitions.map do |definition|
+        tool = known[definition.name] || integration.tools.build(name: definition.name, enabled: !namesakes.key?(definition.name))
         declared = entry ? entry.reads?(definition.name, declared: definition.read_only) : definition.read_only
         tool.assign_attributes(
           description: definition.description,
@@ -24,23 +28,13 @@ module Integrations
           spec: definition.spec.to_h.merge(Integration::Tool::DECLARED_READ => declared),
           removed_at: nil
         )
-        arrived << tool if tool.new_record?
         tool.save!
         definition.name
       end
 
       integration.tools.available.where.not(name: seen).find_each { |tool| tool.update!(removed_at: Time.current) }
-      switch_on(integration, arrived)
       seen
     end
-
-    # Read once every new tool is saved, so tools arriving together are checked against each other's connections too.
-    def self.switch_on(integration, arrived)
-      return if arrived.empty?
-
-      namesakes = Integration.find(integration.id).tool_namesakes
-      arrived.each { |tool| tool.update!(enabled: true) unless namesakes.key?(tool.name) }
-    end
-    private_class_method :discover!, :switch_on
+    private_class_method :discover!
   end
 end
