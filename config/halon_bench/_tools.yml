@@ -274,8 +274,9 @@ new_log_patterns:
 recent_deploys:
   live: true
   description: >-
-    What went out to one resource on the map, newest first: when, which commit or version, by whom and why, with the id rollback takes. Use it
-    to see what changed before something broke
+    What went out to one resource on the map, newest first: when, which commit or version, by whom and why, with the id rollback takes. A deploy
+    carries every commit since the one before it, so the answer says what the live one carried when a code host holds its repository. Use it to
+    see what changed before something broke
   reads: true
   source: connected
   parameters:
@@ -1421,7 +1422,9 @@ escalate_incident:
   default: Paged them with the reason.
 rollback:
   live: true
-  description: Put one resource on the map back on an earlier build or version, through whichever connection runs it
+  description: >-
+    Put one resource on the map back on an earlier build or version, through whichever connection runs it. It undoes every change since that version,
+    which you are told before the person is asked
   confirms: true
   source: connected
   parameters:

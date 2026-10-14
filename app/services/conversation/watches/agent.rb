@@ -34,6 +34,8 @@ class Conversation::Watches::Agent
   def chat_owner = @conversation
   def incident = @conversation.try(:incident)
   def reads_only? = true
+  # A watch reads the same thing again on every check to follow it, so a read says nothing it would not need.
+  def follows_state? = true
   def changes_memory? = false
   def uses_skills? = false
   def code_box_key = @conversation.code_box_key
