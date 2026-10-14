@@ -21,6 +21,7 @@ module SolidWorkflow
     SolidWorkflow::TimeLimitReached
     SolidWorkflow::SubWorkflowFailed
     SolidWorkflow::UnknownStepKind
+    SolidWorkflow::Stopped
   ]
 
   def configure

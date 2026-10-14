@@ -13,6 +13,7 @@ import {
   IconCircleX,
   IconClock,
   IconCode,
+  IconDatabase,
   IconEye,
   IconFlame,
   IconHandClick,
@@ -91,7 +92,9 @@ export const STEP_ICONS: Record<WorkflowStepIcon, Icon> = {
   script: IconCode,
   browser: IconBrowser,
   webhook: IconWebhook,
+  data: IconDatabase,
 }
+
 
 export const TRIGGER_ICONS: Record<WorkflowTriggerIcon, Icon> = {
   hand: IconHandClick,

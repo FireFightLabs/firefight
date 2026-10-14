@@ -38,6 +38,12 @@ class WorkflowStepKindSerializer < BaseSerializer
     kind.fields_for(facts).map(&:to_h)
   end
 
+  # The fields an incident's conditions read, for a step that reads them again, such as an approval.
+  type "{ key: string; label: string; options: { value: string; label: string }[] }[]"
+  def conditions
+    kind.conditions_for(facts).map { |field| { key: field.key, label: field.label, options: field.options.map(&:to_h) } }
+  end
+
   type "Record<string, unknown>"
   def defaults
     kind.defaults

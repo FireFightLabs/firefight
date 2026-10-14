@@ -352,7 +352,7 @@ module Chat::Tools
     return unless tool_call.name.to_s == Browser::NAME && Browser.sends?(tool_call.arguments)
 
     check = Chat::BrowserCheck.from(tool_call.arguments.to_h.except(*FOR_PERSON, LookFirst::BECAUSE))
-    Chat::Screenshot.stopped_before(chat, check.digest, check.send_step, fresh: false)
+    Chat::Screenshot.stopped_before(chat, check.digest, check.send_step, fresh: false, viewport: check.viewports.first)
   rescue Chat::BrowserCheck::Refused
     nil
   end

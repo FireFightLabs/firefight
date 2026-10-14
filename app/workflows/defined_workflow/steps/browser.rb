@@ -3,7 +3,8 @@
 # its text and the trouble found, with a screenshot of each screen size kept on the run. It only reads. A step that
 # names a send step sends what the page sends at that step, which is a change: never in a run nobody pressed, only
 # after the same path stopped just before it and showed what it would send, sent exactly that, through the gateway as
-# browser.update so a grant and approval rules decide it, and pretended in a test run.
+# browser.update so a grant and approval rules decide it, and pretended in a test run. A page that sends anything else
+# by then, another query or body included, is not sent and fails the step saying what it sends now.
 class DefinedWorkflow::Steps::Browser < DefinedWorkflow::Steps::CallTool
   kind "browser"
   label "Browser"
@@ -31,6 +32,7 @@ class DefinedWorkflow::Steps::Browser < DefinedWorkflow::Steps::CallTool
   UNAVAILABLE_WORDS = DefinedWorkflow::Steps::Sandbox::UNAVAILABLE
   UNATTENDED = "Nobody pressed Run, so nothing a page would send is sent from this run. It sends only in a run a person starts.".freeze
   NOT_STOPPED = "The page did not stop before step %<step>s to send something, so nothing was sent. Check the path.".freeze
+  CHANGED = "The page now sends %<sends>s at step %<step>s, not what it showed just before, so nothing was sent.".freeze
 
   config_help "url, steps (each {action: goto, click, fill, press, wait_for_text or expect_text, with url, text, label, role and name, " \
               "placeholder, value or key}), viewports (desktop, phone, both by default), log_in (true to log in with the site's saved test login " \
@@ -96,8 +98,12 @@ class DefinedWorkflow::Steps::Browser < DefinedWorkflow::Steps::CallTool
     stopped = looked.viewports.find { |viewport| viewport.dig("stopped", "step").to_i == check.send_step && viewport.dig("stopped", "would_send").present? }
     raise Refused, format(NOT_STOPPED, step: check.send_step) unless stopped
 
-    sent = browse(check, Ability::Action::BROWSER_SUBMIT, approval_id: approval_id, expected_send: stopped.dig("stopped", "would_send").to_h.slice("method", "url"))
-    output_of_answer(sent, sent: true, would_send: stopped.dig("stopped", "would_send"))
+    shown = stopped.dig("stopped", "would_send").to_h
+    sent = browse(check, Ability::Action::BROWSER_SUBMIT, approval_id: approval_id, expected_send: shown.slice(*Chat::BrowserCheck::SEND_KEYS))
+    changed = sent.changed_request
+    raise Refused, format(CHANGED, sends: sent.sends(changed["would_send"]), step: changed["step"]) if changed
+
+    output_of_answer(sent, sent: true, would_send: shown.except(Chat::BrowserCheck::SEND_DIGEST))
   rescue Chat::BrowserCheck::Refused => refused
     raise Refused, refused.message
   rescue AbilityGateway::PendingApproval => pending

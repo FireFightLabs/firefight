@@ -56,15 +56,16 @@ class Chat::Screenshot < ApplicationRecord
       content_type: "application/octet-stream", identify: false }
   end
 
-  # The page a check stopped on before step, in this chat, while it is fresh enough to send from. digest names the
-  # address, steps and login, so a send is only ever confirmed against the very check the person was shown.
+  # The latest page a check stopped on before step, in this chat, while it is fresh enough to send from. digest names the
+  # address, steps and login, so a send is only ever confirmed against the very check the person was shown. viewport is
+  # the screen size the send runs on, whose stop is preferred when the check stopped on more than one.
   # fresh: false finds it however old, for a confirmation drawn again later.
-  def self.stopped_before(chat, digest, step, fresh: true)
+  def self.stopped_before(chat, digest, step, fresh: true, viewport: nil)
     return if chat.nil?
 
-    found = chat.screenshots.where(check_digest: digest, stopped_step: step)
+    found = chat.screenshots.where(check_digest: digest, stopped_step: step).reorder(created_at: :desc, position: :asc)
     found = found.where(created_at: SEND_FRESH_FOR.ago..) if fresh
-    found.order(created_at: :desc).first
+    (found.find_by(viewport: viewport) if viewport) || found.first
   end
 
   # The screenshots to post under an answer, at most POSTED_LIMIT, and how many were left out.

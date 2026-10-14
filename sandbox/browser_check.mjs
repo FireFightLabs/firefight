@@ -6,6 +6,7 @@
 // The spec arrives on stdin, never in argv or on disk, since it may hold a saved login's password for this one run.
 // Prints one JSON object on its last line.
 import { createRequire } from "node:module"
+import { createHash } from "node:crypto"
 import { appendFileSync, existsSync } from "node:fs"
 import dns from "node:dns/promises"
 import http from "node:http"
@@ -47,6 +48,9 @@ const FIELD_LIMIT = 30
 const FIELD_VALUE_LIMIT = 200
 const HIDDEN = "[hidden]"
 const SECRET_FIELD = /pass|token|secret|card|cvc|cvv|iban|ssn|otp|code|pin\b/i
+// A site's anti-forgery token, by a name the common frameworks give it, is new on every page load by design, so the look
+// and the send never share one. Its value is left out of a request's fingerprint, its name is not.
+const FORGERY_TOKEN = /^(authenticity_token|csrf|csrf_token|_csrf|_csrf_token|csrfmiddlewaretoken|__requestverificationtoken|_token|xsrf_token|_xsrf)$/i
 const TWO_PART_SUFFIXES = new Set([
   "co.uk", "org.uk", "ac.uk", "gov.uk", "me.uk", "com.au", "net.au", "org.au", "co.nz", "org.nz", "co.jp", "ne.jp",
   "com.br", "com.cn", "com.hk", "co.in", "co.za", "com.mx", "com.tr", "co.kr", "com.sg", "com.ar", "co.il", "com.tw"
@@ -250,6 +254,62 @@ function bodyFields(postData) {
   }
 }
 
+// The whole request in one fingerprint: the method, the address with its query and the body. Form fields and query
+// parameters count in any order and JSON by its structure, so the same request reads the same however the page builds
+// it. A submit's fields come from the form (fields), anything else from what the browser sends (postData).
+function requestDigest({ method, url, fields = null, postData = null, contentType = "" }) {
+  const target = new URL(url)
+  const body = fields ? { pairs: pairs(fields.map(({ name, value }) => [name, value])) } : bodyShape(postData, contentType)
+  const shape = [String(method).toUpperCase(), `${target.origin}${target.pathname}`, pairs([...target.searchParams]), body]
+  return createHash("sha256").update(JSON.stringify(shape)).digest("hex")
+}
+
+// What a stopped step would send as the person is shown it, with the fingerprint a send of it is held to.
+function wouldSend(request, fields) {
+  return { method: request.method, url: redact(request.url), fields: fieldsOf(fields), digest: requestDigest(request) }
+}
+
+// Name and value pairs in one order whatever order they came in. A form sends a line break as CRLF where the field held LF.
+function pairs(entries) {
+  const order = (left, right) => (left < right ? -1 : left > right ? 1 : 0)
+  return entries.map(([name, value]) => [name, FORGERY_TOKEN.test(name) ? "" : String(value).replace(/\r\n/g, "\n")])
+    .sort(([leftName, leftValue], [rightName, rightValue]) => order(leftName, rightName) || order(leftValue, rightValue))
+}
+
+function bodyShape(postData, contentType) {
+  if (postData === null || postData === undefined || postData === "") return null
+  const type = String(contentType).toLowerCase()
+  if (type.includes("multipart/form-data")) return { pairs: pairs(multipartFields(postData, type)) }
+  if (type.includes("application/x-www-form-urlencoded")) return { pairs: pairs([...new URLSearchParams(postData)]) }
+  try {
+    return { json: structure(JSON.parse(postData)) }
+  } catch {
+    return { text: postData }
+  }
+}
+
+function structure(value, key = "") {
+  if (FORGERY_TOKEN.test(key)) return ""
+  if (Array.isArray(value)) return value.map((inner) => structure(inner))
+  if (value && typeof value === "object") {
+    return Object.keys(value).sort().map((name) => [name, structure(value[name], name)])
+  }
+  return value
+}
+
+// A file part reads as [file], as the form's own fields do, since the browser never uploads one.
+function multipartFields(postData, type) {
+  const boundary = type.match(/boundary="?([^";]+)"?/)?.[1]
+  if (!boundary) return [["", postData]]
+  return postData.split(`--${boundary}`).slice(1, -1).flatMap((part) => {
+    const split = part.indexOf("\r\n\r\n")
+    if (split < 0) return []
+    const head = part.slice(0, split)
+    const name = head.match(/name="([^"]*)"/i)?.[1] ?? ""
+    return [[name, /filename=/i.test(head) ? "[file]" : part.slice(split + 4).replace(/\r\n$/, "")]]
+  })
+}
+
 function validate(spec) {
   if (!spec || typeof spec !== "object") throw new Refused("The check needs a JSON object.")
   const start = new URL(String(spec.url ?? ""))
@@ -432,17 +492,16 @@ async function runViewport(browser, name, run, proxyRefused, tell = () => {}) {
       }
       if (state.step !== null && state.step === run.sendStep && sameSite) {
         if (run.expectedSend && !state.matched) {
-          const expected = new URL(run.expectedSend.url, run.url)
-          const same = method === String(run.expectedSend.method).toUpperCase() && parsed.origin === expected.origin && parsed.pathname === expected.pathname
-          if (!same) {
-            state.changed ||= { method, url, postData: request.postData() }
+          const sent = { method, url, postData: request.postData(), contentType: request.headers()["content-type"] }
+          if (requestDigest(sent) !== run.expectedSend.digest) {
+            state.changed ||= sent
             return block(route, request, "it is not what the person confirmed")
           }
           state.matched = true
         }
         return route.continue().catch(() => {})
       }
-      if (sameSite && state.step !== null) state.sameSiteBlocked ||= { method, url, postData: request.postData() }
+      if (sameSite && state.step !== null) state.sameSiteBlocked ||= { method, url, postData: request.postData(), contentType: request.headers()["content-type"] }
       return block(route, request, sameSite ? "it would send data, which needs the person's yes" : "a third party request that sends data")
     }
 
@@ -554,7 +613,7 @@ async function runViewport(browser, name, run, proxyRefused, tell = () => {}) {
             result.error = "Not done. It would send the form."
             result.url_after = redact(page.url())
             report.steps.push(result)
-            report.stopped = { step: n, reason: "sends_data", would_send: { method: submits.method, url: redact(submits.url), fields: fieldsOf(submits.fields) } }
+            report.stopped = { step: n, reason: "sends_data", would_send: wouldSend(submits, submits.fields) }
             report.screenshot = before
             break
           }
@@ -573,7 +632,7 @@ async function runViewport(browser, name, run, proxyRefused, tell = () => {}) {
       report.steps.push(result)
       if (state.changed) {
         const fields = bodyFields(state.changed.postData).map((field) => ({ ...field, secret: false }))
-        report.stopped = { step: n, reason: "changed_request", would_send: { method: state.changed.method, url: redact(state.changed.url), fields: fieldsOf(fields) } }
+        report.stopped = { step: n, reason: "changed_request", would_send: wouldSend(state.changed, fields) }
         report.screenshot = before
         break
       }
@@ -581,7 +640,7 @@ async function runViewport(browser, name, run, proxyRefused, tell = () => {}) {
         const fields = bodyFields(state.sameSiteBlocked.postData).map((field) => ({ ...field, secret: false }))
         result.ok = false
         result.error ||= "Not done. It would send data."
-        report.stopped = { step: n, reason: "sends_data", would_send: { method: state.sameSiteBlocked.method, url: redact(state.sameSiteBlocked.url), fields: fieldsOf(fields) } }
+        report.stopped = { step: n, reason: "sends_data", would_send: wouldSend(state.sameSiteBlocked, fields) }
         report.screenshot = before
         break
       }
