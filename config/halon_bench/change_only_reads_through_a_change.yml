@@ -101,7 +101,7 @@ answers:
     result: |-
       github.fix_code failed: GitHub: Upgrade to GitHub Pro or make this repository public to enable this feature.
   - tool: github_fix_code
-    match: { repository: larkspur/shop }
+    match: { repository: larkspur/shop, pull_request: 14 }
     result: |-
       Pushed 9c1e4b2 "Address review on agent discovery" to agent-docs, so it is on PR #14. It sets the workflow's permissions to contents: read, links Support, Terms and Privacy to their .md pages in llms.txt and drops the trailing slash from the JSON-LD url in Layout.astro. https://github.com/larkspur/shop/pull/14
 expect:
@@ -115,5 +115,5 @@ expect:
     a guard refuses it without saying what would let it go ahead.
   evidence: [ "pull/14" ]
   calls: [ github_pr_lookup, github_fix_code ]
-  never_calls: [ github_reopen_pull_request ]
+  never_calls: [ github_reopen_pull_request, github_comment_on_pull_request ]
   reference_cents: 3.0

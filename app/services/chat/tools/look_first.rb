@@ -105,7 +105,7 @@ module Chat::Tools::LookFirst
     chat = agent_run.chat
     loadable = Chat::Specialists.loadable(chat, workspace, held: chat.known_tool_names + [ change ].compact) if Chat::Specialists.for?(agent_run)
     entries = Chat::Tools.catalog(agent_run).select do |entry|
-      names.include?(entry.name.to_s) && entry.tool && read?(workspace, entry.name, {}) &&
+      names.include?(entry.name.to_s) && entry.tool && can_read?(workspace, entry.name) &&
         !(loadable && Chat::Specialists.held_back?(workspace, entry, loadable))
     end
     Chat::Tools.offer_to(chat).call(entries.map(&:tool)) if entries.any?
@@ -166,6 +166,15 @@ module Chat::Tools::LookFirst
 
     spec = Integrations::Capabilities::SPECS.values.find { |each| each.tool_name == name.to_s }
     spec.present? && !spec.writes
+  end
+
+  # Whether some call of the tool reads: one that only reads, or a general tool whose guard shows a call reads, such as
+  # one a specialist read through.
+  def self.can_read?(workspace, name)
+    return true if read?(workspace, name, {})
+
+    tool = Chat::Tools::Target.connection_tool(workspace, name)
+    tool.present? && Integrations::ReadGuards.for(tool).present?
   end
 
   def self.tool_name(entry) = entry[NAMED].to_s

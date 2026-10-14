@@ -353,7 +353,11 @@ class Conversation::Rehearsal
 
   # Opens the reads a refusal points at, as live (Chat::Tools::LookFirst.load_reads), and answers their names.
   def load(chat, names, change)
-    open(chat, names.select { |name| @case.tool(name)&.reads }, [ change ]).map(&:name)
+    reading = names.select do |name|
+      definition = @case.tool(name)
+      definition && (definition.reads || definition.reads_when.present? || Conversation::Rehearsal::Specialists.guard_of(definition))
+    end
+    open(chat, reading, [ change ]).map(&:name)
   end
 
   def groups

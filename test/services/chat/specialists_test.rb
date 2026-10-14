@@ -362,6 +362,16 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     assert_not_includes known, "linear_list_issues", "a read of a connection Halon changes nothing on stays the specialist's"
   end
 
+  test "a refusal hands Halon a general tool a specialist read through with its guard, since a call through it can read" do
+    connect!("cloudflare", "Cloudflare", "execute" => false)
+    asked!("purge the cache for the shop")
+    specialist_read!("cloudflare_execute", "zone shop.example has 3 page rules")
+
+    said = Chat::Tools::LookFirst.refusal(@turn, { "because" => [ "ask_specialist cloud: three page rules" ] }, change: "planetscale_create_branch")
+
+    assert_includes said, format(Chat::Tools::LookFirst::LOADED, reads: "cloudflare_execute")
+  end
+
   private
 
   def specialist_read!(name, answer)
