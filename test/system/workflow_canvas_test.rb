@@ -45,7 +45,8 @@ class WorkflowCanvasTest < ApplicationSystemTestCase
     assert_toast "Status page update was added."
     added.set
 
-    find("button[role=combobox]", text: "Choose a tool").click
+    # The tool picker draws once the tools arrive, an answer that on a loaded runner takes longer than two seconds.
+    find("button[role=combobox]", text: "Choose a tool", wait: 15).click
     assert_selector "[role=option]", text: "pagerduty_manage_incidents"
     within("aside[aria-label='Add a step']") { assert_text "pagerduty_browse_incidents" }
   end
@@ -170,6 +171,7 @@ class WorkflowCanvasTest < ApplicationSystemTestCase
     visit workflow_path(@workflow)
     find("[role=radio]", text: "Versions").click
     within("li", text: "Version 1") { click_button "Open" }
+    assert_current_path(/version=/, wait: 15)
     assert_no_selector "[data-step='later']"
 
     find("[data-step='follow_web']").click
@@ -194,5 +196,8 @@ class WorkflowCanvasTest < ApplicationSystemTestCase
     click_button "Add a step"
     within("[role=dialog]") { click_button "Wait for event" }
     assert_toast "Wait for event was added."
+    # The new step is then connected below the last one. Left in flight, that save's toast surfaced in whichever test
+    # this worker ran next.
+    assert_toast "Wait a bit now leads to Wait for event."
   end
 end

@@ -21,6 +21,7 @@ import { WorkflowControls } from "@/pages/halon/components/workflow/workflow-con
 import { WorkflowEditor } from "@/pages/halon/components/workflow/workflow-editor"
 import { useCanvasActionsValue } from "@/pages/halon/hooks/use-canvas-actions-value"
 import { useCanvasView } from "@/pages/halon/hooks/use-canvas-view"
+import { useVisitInFlight } from "@/pages/halon/hooks/use-visit-in-flight"
 import { useWorkflowAccess } from "@/pages/halon/hooks/use-workflow-access"
 import { CANVAS_VISIT, RUN_VISIT, useWorkflowEdits } from "@/pages/halon/hooks/use-workflow-edits"
 import { CanvasActionsContext } from "@/pages/halon/lib/workflow/canvas-actions"
@@ -44,7 +45,9 @@ export default function WorkflowCanvasPage() {
   const editable = access.build && document.editable
   const current = document.editable
   const runGoing = run !== null && OPEN_RUN.includes(run.status)
-  const { start, stop } = usePoll(REFRESH_EVERY_MS, { only: runGoing ? RUN_VISIT.only : CANVAS_VISIT.only }, { autoStart: false })
+  const visitInFlight = useVisitInFlight()
+  const { start, stop } = usePoll(REFRESH_EVERY_MS, { only: runGoing ? RUN_VISIT.only : CANVAS_VISIT.only, onBefore: () => !visitInFlight.current },
+    { autoStart: false })
 
   useEffect(() => {
     start()

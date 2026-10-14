@@ -68,6 +68,9 @@ class WorkflowRunsCanvasTest < ApplicationSystemTestCase
     assert_toast "Pause's output is pinned."
 
     click_button "Back to the editor"
+    # The editor view shows at once, but the draft and its Test run arrive only with the server's answer, which drops
+    # the run from the address.
+    assert_current_path workflow_path(@workflow), wait: 15
     assert_button "Test run"
     find("[data-step='pause']").click
     within("aside[aria-label='Step settings']") { assert_text "Test runs use it in the step's place." }
