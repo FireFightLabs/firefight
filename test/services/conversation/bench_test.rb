@@ -105,9 +105,10 @@ class Conversation::BenchTest < ActiveSupport::TestCase
   end
 
   test "a turn that ended on a confirmation stopped to ask, and is scored rather than called unfinished" do
-    result = one_scenario_run(tools: [ { "name" => "rollback", "description" => "Rolls back", "confirms" => true } ],
-                              answers: [ { "tool" => "rollback", "result" => "Rolled back." } ])
-    script(call("rollback", "intent" => "Roll checkout back"))
+    result = one_scenario_run(tools: [ { "name" => "read_run", "description" => "Reads a run", "reads" => true },
+                                       { "name" => "rollback", "description" => "Rolls back", "confirms" => true } ],
+                              answers: [ { "tool" => "read_run", "result" => "Run 412 failed at migrate." }, { "tool" => "rollback", "result" => "Rolled back." } ])
+    script(call("read_run", {}), call("rollback", "intent" => "Roll checkout back", "because" => [ "read_run: run 412 failed at migrate" ]))
     judged(outcome: FirefightAi::Schemas::ReplayVerdict::PARTLY, moved_forward: FirefightAi::Schemas::ReplayVerdict::YES)
 
     Conversation::Bench.run_case!(result)

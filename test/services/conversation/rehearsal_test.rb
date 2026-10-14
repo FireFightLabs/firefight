@@ -69,6 +69,23 @@ class Conversation::RehearsalTest < ActiveSupport::TestCase
     assert_empty replay.chat.tool_calls.where(failed: true)
   end
 
+  # A script that only reads is a read to a scenario that says so on its answer, so Look before you change never sends
+  # it back for want of an earlier read.
+  test "a call the scenario's answer marks a read is never sent back for want of an earlier read" do
+    script(call("cloudflare_execute", "code" => "list zones", "intent" => "List the zones"), reply("shop.example is the one zone."))
+    bench = Conversation::BenchCase.from_hash({
+      "title" => "Zones", "context" => "You are acting for Sam.", "turns" => [ { "said" => "which zones do we have?", "decisions" => [ "approve" ] } ],
+      "tools" => [ { "name" => "cloudflare_execute", "description" => "Runs a script against the Cloudflare API", "source" => "cloudflare", "confirms" => true,
+                     "request" => "code", "parameters" => { "type" => "object", "properties" => { "code" => { "type" => "string" } } } } ],
+      "answers" => [ { "tool" => "cloudflare_execute", "match" => { "code" => "/zones/" }, "reads" => true, "result" => "shop.example" } ],
+      "expect" => { "outcome" => "One zone" }
+    }, key: "zones")
+
+    replay = Conversation::Rehearsal.replay!(bench, result: @result, model: @model)
+
+    assert_equal "shop.example", replay.transcript.calls.sole.result
+  end
+
   test "an answer after reading a connected system goes out as written, as it does live" do
     script(
       call("northflank_api_request", "method" => "GET", "path" => "/v1/projects/web/workflows/release/runs"),

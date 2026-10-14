@@ -4,6 +4,8 @@ require "test_helper"
 # previous answer while they are fresh, Firefight checks them against the reads Halon made, and a change with none goes
 # back to Halon before anyone is asked.
 class Chat::Tools::LookFirstTest < ActiveSupport::TestCase
+  BOUNCED = "#{Chat::Tools::LookFirst::BOUNCE} #{Chat::Tools::LookFirst::STUCK}".freeze
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)
@@ -34,7 +36,7 @@ class Chat::Tools::LookFirstTest < ActiveSupport::TestCase
     assert restart.approval_resolver.call(call), "the call is sent back rather than put to the person"
     answer = restart.call(tool_call: call, "resource" => "web", "intent" => "Restart web")
 
-    assert_equal Chat::Tools::LookFirst::BOUNCE, answer
+    assert_equal BOUNCED, answer
     assert_equal [ true, Chat::StepOutcome::FAILURE_REFUSED ], @chat.tool_calls.where(tool_call_id: "call_restart").pick(:failed, :failure_kind)
     assert_not Ability::Invocation.exists?(workspace: @workspace, action_key: "northflank.api_request")
   end
@@ -49,7 +51,7 @@ class Chat::Tools::LookFirstTest < ActiveSupport::TestCase
     call = change!("call_stale", "restart", "resource" => "web", "because" => because)
     Integrations::NativeExecutor.expects(:call).never
     answer = tool("restart").call(tool_call: call, "resource" => "web", "because" => because)
-    assert_equal "#{Chat::Tools::LookFirst::BOUNCE} You named search_logs, which you did not read in this turn or recently enough.", answer
+    assert_equal "#{Chat::Tools::LookFirst::BOUNCE} You named search_logs, which you did not read in this turn or recently enough. #{Chat::Tools::LookFirst::STUCK}", answer
   end
 
   test "approving what Halon proposed in its previous answer goes ahead on its reads while they are fresh" do
@@ -103,7 +105,7 @@ class Chat::Tools::LookFirstTest < ActiveSupport::TestCase
     Integrations::NativeExecutor.expects(:call).never
 
     assert write.approval_resolver.call(bare)
-    assert_equal Chat::Tools::LookFirst::BOUNCE, write.call(tool_call: bare)
+    assert_equal BOUNCED, write.call(tool_call: bare)
 
     read!("call_logs", "search_logs", { "resource" => "web" }, "the thing is missing")
     backed = change!("call_backed", "fake_write_thing", "because" => [ "search_logs" ])
@@ -128,7 +130,7 @@ class Chat::Tools::LookFirstTest < ActiveSupport::TestCase
     call = change!("call_resolve", Mcp::Tools::RESOLVE_INCIDENT, "incident" => "INC-1")
 
     assert_includes resolve.parameters_schema.deep_stringify_keys["required"], Chat::Tools::LookFirst::BECAUSE
-    assert_equal Chat::Tools::LookFirst::BOUNCE, resolve.call(tool_call: call, "incident" => "INC-1")
+    assert_equal BOUNCED, resolve.call(tool_call: call, "incident" => "INC-1")
     assert_includes tool(Mcp::Tools::DELETE_CATALOG_ENTRY).parameters_schema.deep_stringify_keys["required"], Chat::Tools::LookFirst::BECAUSE
     [ Mcp::Tools::COMPLETE_ACTION_ITEM, Mcp::Tools::POST_INCIDENT_UPDATE ].each do |name|
       assert_not tool(name).parameters_schema.to_h.deep_stringify_keys.fetch("properties", {}).key?(Chat::Tools::LookFirst::BECAUSE), name

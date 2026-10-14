@@ -130,10 +130,30 @@ module Chat::Specialists
   def self.of_provider(provider_key) = IntegrationProvider.specialist_for(provider_key)
 
   # A connection tool that only reads and whose provider a specialist reads is the specialist's, so Halon is never handed
-  # it. A tool that can change something stays Halon's to load, and a connection no specialist reads stays Halon's own.
+  # it, and loads it by name only once a specialist made it in the chat (held_back?). A tool that can change something
+  # stays Halon's to load, and a connection no specialist reads stays Halon's own.
   def self.reserved?(workspace, entry)
     entry.source != Chat::Skill::SOURCE_FIREFIGHT && of_provider(entry.source).present? && workspace.reading_tool_names.include?(entry.name.to_s)
   end
+
+  # What a specialist calls for itself rather than to read a system: its report and its own saved results.
+  OWN_CALLS = [ Chat::Helper::REPORT_FINDINGS, Chat::SavedResult::READ_WITH ].freeze
+
+  # The tools the specialists of this chat read with and got an answer from, since a moment when given. Halon may load
+  # one of these by name though it is reserved, to make the same read itself, since a change rests only on Halon's own
+  # reads (Chat::Tools::LookFirst). It is never held from the start, so Halon's tool list stays the same.
+  def self.made_names(chat, since: nil)
+    return Set.new if chat&.id.nil?
+
+    own = Chat.where(owner_type: Chat::Helper.polymorphic_name, owner_id: Chat::Helper.where(chat_id: chat.id).where.not(domain: nil).select(:id))
+    calls = RubyLLM::ActiveRecord::ToolCall.where(message_type: Chat::Message.polymorphic_name, message_id: Chat::Message.where(chat_id: own.select(:id)).select(:id))
+                                           .where(failed: false).where.not(result_id: nil).where.not(name: OWN_CALLS)
+    calls = calls.where(created_at: since..) if since
+    calls.order(:created_at).pluck(:name).uniq.to_set
+  end
+
+  # Whether a read is the specialist's and not Halon's to load in this chat: reserved, and no specialist made it here.
+  def self.held_back?(workspace, entry, made) = reserved?(workspace, entry) && !made.include?(entry.name.to_s)
 
   # The kinds a Firefight tool or capability helps, by its name, whether it reads or is a change one may propose.
   def self.helping(name)
@@ -164,8 +184,9 @@ module Chat::Specialists
   # What Halon is told of a change a specialist proposed. Its report is outside text, like any tool result, so it never
   # backs a change on its own, and Look before you change counts only Halon's own reads.
   CONFIRM_FIRST = "A specialist's report is not enough to back a change. Before you propose it, confirm what it rests on " \
-                  "with a read of your own in this turn, then load the tool by naming it in open_tools' tools, or by " \
-                  "searching for it, and name your own reads in because.".freeze
+                  "with a read of your own in this turn, such as the read the specialist made, which you load by naming " \
+                  "it in open_tools' tools. Then load the change the same way, or by searching for it, and name your own " \
+                  "reads in because.".freeze
 
   # A domain as Halon's ask_specialist lists it. connections names what it reads, state whether it can be asked.
   View = Data.define(:domain, :state, :connections) do

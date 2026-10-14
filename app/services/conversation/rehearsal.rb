@@ -146,7 +146,7 @@ class Conversation::Rehearsal
 
   # What each reply that ended a turn lists as read, as live (Chat::Sources), a call judged a read by the scenario.
   def sources_of(chat)
-    reads = ->(name, arguments) { @case.tool(name)&.reads?(arguments) || @case.answers.any? { |answer| answer.reads && answer.matches?(name, arguments) } }
+    reads = @case.method(:reads_call?)
     chat.messages.where(role: Chat::Message::ROLE_ASSISTANT).includes(:ruby_llm_tool_calls).to_a
         .select { |message| message.ruby_llm_tool_calls.empty? && message.content.present? }
         .to_h { |message| [ message.id, Chat::Sources.for_reply(message, reads: reads) ] }
@@ -289,7 +289,7 @@ class Conversation::Rehearsal
     in_hand = halons.select { |definition| in_hand?(definition, chat) }
     in_hand.reject { |definition| definition.name == Chat::Tools::Open.tool_name }.map { |definition| recorded(definition, chat) } +
       [ Conversation::Rehearsal::OpenTools.new(groups: groups, open: ->(names) { open(chat, names) }, searched: searched?, held: held?(chat),
-                                               specialists: @specialists, reserved: method(:specialist_title)) ]
+                                               specialists: @specialists, reserved: ->(name) { specialist_title(name, chat) }) ]
   end
 
   def deferred(chat)
@@ -308,10 +308,14 @@ class Conversation::Rehearsal
   # What Halon may hold: every scenario tool, less the reads a specialist holds when the deployment asks specialists.
   def halons = @specialists ? @case.tools.reject { |definition| Conversation::Rehearsal::Specialists.reserved?(definition) } : @case.tools
 
-  # The specialist that holds a scenario tool, by its title, or nil.
-  def specialist_title(name)
+  # The specialist that holds a scenario tool, by its title, or nil. Given the chat, a read a specialist made in it is
+  # Halon's to open, as live (Chat::Specialists.made_names).
+  def specialist_title(name, chat = nil)
     definition = @specialists && @case.tool(name)
-    definition && Conversation::Rehearsal::Specialists.reserved?(definition) ? Chat::Specialists.domain(Conversation::Rehearsal::Specialists.domain_of(definition)).title : nil
+    return unless definition && Conversation::Rehearsal::Specialists.reserved?(definition)
+    return if chat && Chat::Specialists.made_names(chat).include?(name)
+
+    Chat::Specialists.domain(Conversation::Rehearsal::Specialists.domain_of(definition)).title
   end
 
   # Measured once, since a scenario's tools stay the same for the whole chat.
@@ -343,9 +347,13 @@ class Conversation::Rehearsal
   end
 
   # Makes the named tools callable for the rest of the chat, from the next model call on, and returns them. A read a
-  # specialist holds is never made Halon's.
+  # specialist holds is made Halon's only once a specialist made it in this chat, as live.
   def open(chat, names)
-    definitions = halons.select { |definition| names.include?(definition.name) }
+    made = @specialists ? Chat::Specialists.made_names(chat) : Set.new
+    definitions = @case.tools.select do |definition|
+      names.include?(definition.name) && !definition.base && definition.name != Chat::Tools::Open.tool_name &&
+        (halons.include?(definition) || made.include?(definition.name))
+    end
     @opened.merge(definitions.map(&:name))
     chat.with_tools(*definitions.map { |definition| recorded(definition, chat) })
     definitions
