@@ -28,6 +28,7 @@ app/controllers/api/v1/incident_types_controller.rb # Read-only
 app/controllers/api/v1/runbooks_controller.rb    # CRUD by slug or id, steps with tool and arguments, inputs, aliases, watch
 app/controllers/api/v1/handbook_pages_controller.rb # The handbook's pages: list, read, create, update, delete
 app/controllers/api/v1/skills_controller.rb         # The workspace's own skills: list, read, create, update, switch, delete
+app/controllers/api/v1/workflows_controller.rb      # A workflow's settings, as its Settings page changes them
 app/controllers/api/v1/abilities_controller.rb   # Gateway: grantable abilities (permissions:read)
 app/controllers/api/v1/principals_controller.rb  # Gateway: people, agents, service keys and their grants
 app/controllers/api/v1/permission_sets_controller.rb # Gateway: sets by slug, abilities by key, built-in packs read only
@@ -118,6 +119,12 @@ GET    /api/v1/skills/:id      # one skill whole, with its tools, steps and vers
 POST   /api/v1/skills          # name, when, tools, steps, reason and enabled (true or false, anything else is a 422, on when not sent)
 PATCH  /api/v1/skills/:id      # name, when, tools, steps, reason and enabled (true or false, anything else is a 422), only what is sent, as a new version. version_id refuses any change over someone else's, a switch too, with 409
 DELETE /api/v1/skills/:id      # the skill and its versions, 422 skill_refused while a workflow runs it
+```
+
+**Workflow settings endpoint**: one workflow's settings by its id or slug, authorized as `workflows.update` (a grant, as on the page), changed through `Workflow#update_settings!` (`Workflow::Settings`), the one path the Settings page and MCP's `update_workflow` take, so the same validation applies. Without the `WORKFLOWS` flag it answers 404.
+
+```
+PATCH  /api/v1/workflows/:id   # name, description, owner_team_id, cost_cap_cents, runs_per_hour, subject_key, freeze_behaviour, all_clear. Only what is sent changes, null clears cost_cap_cents, owner_team_id or subject_key. Answers { workflow: every setting and its page }, 422 validation_error naming the field
 ```
 
 A tool the skill names that Halon does not have here answers 422 `skill_refused` with which.

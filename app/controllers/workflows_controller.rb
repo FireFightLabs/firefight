@@ -17,7 +17,6 @@ class WorkflowsController < InertiaController
   TAB_LIBRARY = "library".freeze
   TABS = [ TAB_WORKFLOWS, TAB_RUNS, TAB_DONE, TAB_LIBRARY ].freeze
   RUNS_SHOWN = 100
-  SETTINGS = %i[name description owner_team_id cost_cap_cents runs_per_hour subject_key freeze_behaviour all_clear].freeze
 
   def index
     workflows = listed
@@ -73,7 +72,7 @@ class WorkflowsController < InertiaController
   end
 
   def update
-    @workflow.update!(settings_params)
+    @workflow.update_settings!(params.permit(*Workflow::Settings::KEYS).to_h)
     redirect_to workflow_path(@workflow), notice: "#{@workflow.name} was updated."
   rescue ActiveRecord::RecordInvalid => error
     redirect_back fallback_location: workflow_path(@workflow), inertia: { errors: error.record.errors.to_hash }
@@ -162,14 +161,6 @@ class WorkflowsController < InertiaController
   def inputs
     asked = [ @workflow.live_version, @workflow.draft ].compact.flat_map { |version| Workflow::Trigger.input_keys(version.trigger) }.uniq
     params.fetch(:inputs, {}).permit(*asked).to_h
-  end
-
-  def settings_params
-    given = params.permit(*SETTINGS).to_h
-    given["cost_cap_cents"] = given["cost_cap_cents"].presence
-    given["subject_key"] = given["subject_key"].to_s.strip.presence if given.key?("subject_key")
-    given["owner_team_id"] = given["owner_team_id"].presence if given.key?("owner_team_id")
-    given
   end
 
   def refusal_words(error) = error.is_a?(ActiveRecord::RecordInvalid) ? error.record.errors.full_messages.to_sentence : error.message
