@@ -111,27 +111,19 @@ module Integrations
       refute_match "cf-ray", work.lines.last.text
     end
 
-    test "a run that ended on a permission opencode run refused says what was refused, heard as it ran or read from the log" do
-      log = file_fixture("opencode/permission_refused.jsonl").read
-      work = Chat::CodeFixProgress.start
-      events = SandboxAgentEvents.new(work)
-      events.read(log)
+    test "a repeated step Firefight refused stops the agent with only the reason it was given" do
+      refused = { type: "error", error: { name: "UnknownError", data: { message: "#{SandboxAgentEvents::REFUSED_WITH}Halon refused this step. It ran ls three times." } } }
+      events = SandboxAgentEvents.new(Chat::CodeFixProgress.start)
 
-      refused = "It asked for permission to reach / outside its copy of the repository, which nobody can grant while it runs"
-      assert_equal refused, events.stop_reason("")
-      assert_equal refused, SandboxAgentEvents.new(Chat::CodeFixProgress.start).stop_reason(log)
-      assert_equal [ "Ran cd /runs/*; ls" ], work.lines.map(&:text)
-      assert_equal "It asked for permission to use doom_loop on bash, which nobody can grant while it runs",
-                   SandboxAgentEvents.new(Chat::CodeFixProgress.start).stop_reason("! permission requested: doom_loop (bash); auto-rejecting\n")
+      assert_equal "Halon refused this step. It ran ls three times", events.stop_reason("#{refused.to_json}\n")
     end
 
-    test "a refusal the run carried on after is not why it stopped" do
-      carried_on = "#{file_fixture('opencode/permission_refused.jsonl').read}#{{ type: 'step_start', part: {} }.to_json}\n"
-      events = SandboxAgentEvents.new(Chat::CodeFixProgress.start)
-      events.read(carried_on)
+    test "a line the driver prints while Firefight decides keeps the step live and adds nothing" do
+      work = Chat::CodeFixProgress.start
+      SandboxAgentEvents.new(work).read("#{{ type: 'permission_wait', permission: 'doom_loop' }.to_json}\n")
 
-      assert_nil events.stop_reason("")
-      assert_nil SandboxAgentEvents.new(Chat::CodeFixProgress.start).stop_reason(carried_on)
+      assert work.live?
+      assert_empty work.lines
     end
 
     test "a call a permission rule refuses fails alone, and the agent carries on and finishes" do

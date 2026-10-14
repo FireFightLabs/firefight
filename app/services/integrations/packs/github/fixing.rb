@@ -14,20 +14,26 @@ module Integrations
         ANTHROPIC_CLIENT = "@ai-sdk/anthropic".freeze
         # The MCP server Firefight's own tools come from, whose name OpenCode puts in front of each tool's.
         TOOLS_SERVER = "firefight".freeze
-        # Every permission the agent could be asked for is decided here, since opencode run rejects whatever it would ask
-        # and a rejected call ends the whole run (cli/cmd/run.ts and session/processor.ts at 1.18.34). A refused call
-        # fails alone with an error the model reads, and the agent carries on. The last rule that matches wins, so the
-        # catch-all comes first and refuses whatever is not named, a permission a later OpenCode adds included. Named are
-        # the permissions 1.18.34's own tools ask for (tool/*.ts), Firefight's tools, and doom_loop, which ends the run
-        # on any answer but yes, while the run's time and budget still bound it. Reading a .env file and every path outside
-        # the copy but the run's TMPDIR stay out of reach, as OpenCode's defaults (agent/agent.ts) left them.
+        ALLOW = "allow".freeze
+        DENY = "deny".freeze
+        ASK = "ask".freeze
+        # Every permission the agent could be asked for is decided here. A hard limit is deny, which fails that call
+        # alone with an error the model reads, and the agent carries on (permission/index.ts at 1.18.34). A judgment call
+        # is ask, which OpenCode puts to the box's driver and the driver to Firefight, where Halon or the person decides
+        # it (CodeAgentPermissionService). The last rule that matches wins, so the catch-all comes first and refuses
+        # whatever is not named, a permission a later OpenCode adds included. Named are the permissions 1.18.34's own
+        # tools ask for (tool/*.ts), Firefight's tools, and doom_loop, the same tool call a third time in a row
+        # (session/processor.ts), which is asked. Reading a .env file and every path outside the copy but the run's TMPDIR
+        # stay out of reach, as OpenCode's defaults (agent/agent.ts) left them.
         PERMISSIONS = {
-          "*" => "deny",
-          "read" => { "*" => "allow", "*.env" => "deny", "*.env.*" => "deny", "*.env.example" => "allow" },
-          "edit" => "allow", "glob" => "allow", "grep" => "allow", "bash" => "allow", "task" => "allow", "todowrite" => "allow",
-          "skill" => "allow", "lsp" => "allow", "invalid" => "allow", "doom_loop" => "allow", "#{TOOLS_SERVER}_*" => "allow",
-          "external_directory" => { "{env:TMPDIR}/*" => "allow" }
+          "*" => DENY,
+          "read" => { "*" => ALLOW, "*.env" => DENY, "*.env.*" => DENY, "*.env.example" => ALLOW },
+          "edit" => ALLOW, "glob" => ALLOW, "grep" => ALLOW, "bash" => ALLOW, "task" => ALLOW, "todowrite" => ALLOW,
+          "skill" => ALLOW, "lsp" => ALLOW, "invalid" => ALLOW, CodeAgentPermission::REPEATED => ASK, "#{TOOLS_SERVER}_*" => ALLOW,
+          "external_directory" => { "{env:TMPDIR}/*" => ALLOW }
         }.freeze
+        # Runs the agent in the box and puts its permission questions to Firefight (RUN).
+        DRIVER = Rails.root.join("app/services/integrations/packs/github/opencode_driver.mjs").read.freeze
         # OpenCode's helper agent keeps no plan of its own, as its defaults have it, since todowrite above would allow one.
         AGENTS = { "general" => { "permission" => { "todowrite" => "deny" } } }.freeze
         # The agent's own working time. Waiting for answers to its questions comes on top.
@@ -50,15 +56,18 @@ module Integrations
         # result leaves the base (FROM), as the code host shows it, so a merge of the base adds nothing to check or review.
         # The checks, the counts and the patch are that, and TOUCHED names what this run changed since the copy's commit.
         # A change sent back after its review starts from the earlier result ($3), and one continued after its spending
-        # limit also carries on the agent's own session ($8), which OpenCode keeps in the box (run --session,
-        # cli/cmd/run.ts at 1.18.34). SESSION names it from the events, which each carry it. The agent's temporary files go
-        # in a directory of the run's own, its TMPDIR, which its config lets it use and which goes with the run. The copy
-        # goes back to its commit and its own git settings after. What preparing installed is ignored, so cleaning keeps it.
+        # limit also carries on the agent's own session ($8), which OpenCode keeps in the box. SESSION names it from the
+        # events, which each carry it. The agent is run by DRIVER, which comes in on stdin after the config and asks
+        # Firefight ($9) about each permission OpenCode would ask a person about. The repository's own OpenCode settings
+        # are never read, so a repository cannot widen what the agent may do, and its instructions are handed over as
+        # OpenCode would find them, AGENTS.md before CLAUDE.md (session/instruction.ts at 1.18.34). The agent's temporary
+        # files go in a directory of the run's own, its TMPDIR, which its config lets it use and which goes with the run.
+        # The copy goes back to its commit and its own git settings after. What preparing installed is ignored, so
+        # cleaning keeps it.
         RUN = (CodeChecks::SCRIPT + <<~'SH').freeze
           set -u
-          IFS= read -r credential; IFS= read -r config
-          earlier=${3:-}; gate_url=${4:-}; base=${5:-}; branch=${6:-}; message=${7:-}; resume=${8:-}
-          resumed=(); [ -n "$resume" ] && resumed=(--session "$resume")
+          IFS= read -r credential; IFS= read -r config; driver=$(cat)
+          earlier=${3:-}; gate_url=${4:-}; base=${5:-}; branch=${6:-}; message=${7:-}; resume=${8:-}; permissions_url=${9:-}
           start=$(git rev-parse HEAD)
           dir=$(mktemp -d)
           cp .git/config "$dir/git-config"
@@ -78,8 +87,11 @@ module Integrations
           git config user.name Halon
           git config user.email halon@firefight.invalid
           printf '%s' "$config" > "$dir/opencode.json"
+          printf '%s\n' "$driver" > "$dir/agent.mjs" && chmod +x "$dir/agent.mjs"
           mkdir "$dir/tmp"
-          TMPDIR="$dir/tmp" OPENCODE_CONFIG="$dir/opencode.json" opencode run "${resumed[@]}" --model "$2" --format json "$1" < /dev/null 2>&1 | tee "${SANDBOX_PROGRESS:-/dev/null}" > "$dir/agent.log"
+          instructions="$(pwd -P)/AGENTS.md"; [ -f AGENTS.md ] || instructions="$(pwd -P)/CLAUDE.md"
+          TMPDIR="$dir/tmp" OPENCODE_CONFIG="$dir/opencode.json" OPENCODE_DISABLE_PROJECT_CONFIG=1 FIREFIGHT_INSTRUCTIONS="$instructions" \
+            "$dir/agent.mjs" "$1" "$2" "$resume" "$permissions_url" < /dev/null 2>&1 | tee "${SANDBOX_PROGRESS:-/dev/null}" > "$dir/agent.log"
           echo "AGENT_EXIT ${PIPESTATUS[0]}"
           echo "BASE $start"
           echo "SESSION $(grep -o '"sessionID":"[^"]*"' "$dir/agent.log" | head -1 | cut -d'"' -f4)"
@@ -144,6 +156,10 @@ module Integrations
         # The gate's address the box reaches, and the name git signs in with, beside the session's token or the push's.
         GATE_PATH = "/code_agent/git/change.git".freeze
         GATE_USER = "halon".freeze
+        # Where the box's driver puts a permission question (CodeAgentPermissionsController).
+        PERMISSIONS_PATH = "/code_agent/permissions".freeze
+        # The repository's instructions as RUN finds them, since OpenCode reads no project settings in the box.
+        INSTRUCTIONS = "{env:FIREFIGHT_INSTRUCTIONS}".freeze
         # A change this large is not a fix, and would cut the box's answer short.
         MAX_FILES = 100
         MAX_BYTES = 4_000_000
@@ -538,8 +554,9 @@ module Integrations
         end
 
         def run_agent(environment_row, reading, repo, ref, session, agent_token, choice, events, words, earlier, timeout, gate, resume = nil)
-          argv = [ "bash", "-c", RUN, AGENT, words.truncate(BRIEF_LIMIT), "#{choice.provider_name}/#{choice.model}", earlier.to_s, *gate, resume.to_s ]
-          stdin = "#{gate_credential(agent_token)}\n#{agent_config(choice, agent_token).to_json}\n"
+          argv = [ "bash", "-c", RUN, AGENT, words.truncate(BRIEF_LIMIT), "#{choice.provider_name}/#{choice.model}", earlier.to_s, *gate, resume.to_s,
+                   permissions_url ]
+          stdin = "#{gate_credential(agent_token)}\n#{agent_config(choice, agent_token).to_json}\n#{DRIVER}"
           result = reading.exec(repo, ref: ref, where: Sandboxes::Client::IN_COPY, timeout: timeout, argv: argv, stdin: stdin, setup: @setup,
                                       on_output: ->(text) { report(events.read(text)) })
           fail! "The coding agent did not finish in #{timeout / 60} minutes." if result["timed_out"]
@@ -659,7 +676,7 @@ module Integrations
         def continued_ref(pause) = pause.resumable_in_place? ? pause.copy_ref : pause.saved_commit
 
         def handover(pause)
-          answers = pause.session.questions.select { |question| question.answered? || question.defaulted? }.map { |question| "- #{question.question} #{question.agent_words}" }
+          answers = pause.session.questions.from_agent.select { |question| question.answered? || question.defaulted? }.map { |question| "- #{question.question} #{question.agent_words}" }
           [ "You are continuing a change an earlier session started and could not finish, since it reached its spending limit.",
             ("What it already changed is committed on #{pause.saved_branch}, which you are on. Read the diff against " \
              "refs/remotes/firefight/#{pause.base} first, so you build on it rather than start again." if pause.saved_branch),
@@ -680,8 +697,20 @@ module Integrations
 
         # A question can be answered, or its answer changed, at any moment, so every report shows it as it stands.
         def report(update)
-          watch_questions(@session) if @session && update.equal?(@work)
+          if @session && update.equal?(@work)
+            watch_questions(@session)
+            watch_permissions(@session)
+          end
           super
+        end
+
+        # Each step the agent asked permission for shows once decided, with who decided it and why.
+        def watch_permissions(session)
+          @permissions_shown ||= Set.new
+          CodeAgentPermission.decided.where(session: session).where.not(id: @permissions_shown.to_a).order(:decided_at, :id).each do |permission|
+            @permissions_shown << permission.id
+            @work.add(permission.step_words, result: (Chat::CodeFixProgress::RESULT_FAILED unless permission.allowed?))
+          end
         end
 
         # The person changed an answer the agent had not read when it finished, so the change goes back to it with the new
@@ -856,6 +885,7 @@ module Integrations
                                           "models" => { choice.model => {} } } },
             "permission" => PERMISSIONS,
             "agent" => AGENTS,
+            "instructions" => [ INSTRUCTIONS ],
             "mcp" => { TOOLS_SERVER => { "type" => "remote", "url" => "#{proxy_base}/code_agent/tools", "enabled" => true,
                                         "headers" => { "Authorization" => "Bearer #{agent_token}" } } }
           }
@@ -865,6 +895,8 @@ module Integrations
         def gate_credential(token) = Base64.strict_encode64("#{GATE_USER}:#{token}")
 
         def gate_url = "#{proxy_base}#{GATE_PATH}"
+
+        def permissions_url = "#{proxy_base}#{PERMISSIONS_PATH}"
 
         # A path the connection keeps out of code changes is refused before anything reaches the code host, from what the
         # box says the change touches. That is all of a new branch, and of a branch that already had work only what this

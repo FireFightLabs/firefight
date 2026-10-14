@@ -24,11 +24,7 @@ module Integrations
     NOTHING = /\A(?:none|nothing)\.?\z/i
     NOT_RUN_LIMIT = 10
     NOT_RUN_LINE_LIMIT = 300
-    # The line opencode run prints to its error output when it refuses what it would have asked a person, which ends the
-    # run (cli/cmd/run.ts and session/processor.ts). Colours are taken off before it is read.
-    REFUSED = /permission requested: (\S+) \((.*)\); auto-rejecting/
-    COLOUR = /\e\[[0-9;]*m/
-    EXTERNAL_DIRECTORY = "external_directory".freeze
+    REFUSED_WITH = "The user rejected permission to use this specific tool call with the following feedback: ".freeze
 
     # Whether a command runs a repository's tests, in any of the steps it chains.
     def self.runs_tests?(command)
@@ -51,7 +47,7 @@ module Integrations
         @progress.live!
         take(event) if event.is_a?(Hash)
       rescue JSON::ParserError
-        @refusal = refusal_of(line) || @refusal
+        next
       end
       @progress
     end
@@ -66,10 +62,9 @@ module Integrations
       @last_said || hide(last_event(log, "text")&.dig("part", "text").to_s.strip).presence
     end
 
-    # Why the agent stopped before it finished, as one plain line, or nil when it finished. That is its error, or what it
-    # was refused when the run ended there. An error can carry the provider's whole answer, headers and body, which is
-    # never shown.
-    def stop_reason(log) = @stop_reason || reason_of(last_event(log, "error")&.dig("error")) || @refusal || ended_on_refusal(log)
+    # Why the agent stopped, as one plain line. An error can carry the provider's whole answer, headers and body, which
+    # is never shown.
+    def stop_reason(log) = @stop_reason || reason_of(last_event(log, "error")&.dig("error"))
 
     # What the agent's summary lists under the heading NOT_RUN_HEADING reads, one line each, redacted.
     def could_not_run(log)
@@ -89,7 +84,6 @@ module Integrations
       when "tool_use" then tool(event["part"].to_h)
       when "text" then thought(event.dig("part", "text"))
       when "error" then stopped(event["error"])
-      when "step_start" then @refusal = nil
       end
     end
 
@@ -186,30 +180,6 @@ module Integrations
       Chat::SecretFree.redacted(hide(said.truncate(REASON_LIMIT))) if said
     end
 
-    # A refusal the run carried on after, as a helper's can be, is not why it stopped.
-    def ended_on_refusal(log)
-      log.to_s.lines.reverse_each do |line|
-        refused = refusal_of(line)
-        return refused if refused
-        return nil if line.include?('"type":"step_start"')
-      end
-      nil
-    end
-
-    def refusal_of(line)
-      found = line.to_s.gsub(COLOUR, "").match(REFUSED)
-      return unless found
-
-      permission = found[1]
-      patterns = found[2].split(", ")
-      what = if permission == EXTERNAL_DIRECTORY
-        "reach #{patterns.map { |pattern| pattern.delete_suffix('/*').presence || '/' }.uniq.to_sentence} outside its copy of the repository"
-      else
-        [ "use #{permission}", ("on #{patterns.to_sentence}" unless patterns == [ "*" ]) ].compact.join(" ")
-      end
-      Chat::SecretFree.redacted(hide("It asked for permission to #{what}, which nobody can grant while it runs").truncate(REASON_LIMIT))
-    end
-
     def last_event(log, type)
       log.to_s.lines.reverse_each do |line|
         event = begin
@@ -222,12 +192,13 @@ module Integrations
       nil
     end
 
-    # A provider's refusal arrives as its own JSON body.
+    # A provider's refusal arrives as its own JSON body, and a step Firefight refused as OpenCode's words around the
+    # reason it was given (PermissionV1.CorrectedError at 1.18.34), so only the reason is said.
     def unwrapped(message)
       parsed = JSON.parse(message)
       parsed.is_a?(Hash) && parsed["message"].is_a?(String) ? parsed["message"] : message
     rescue JSON::ParserError
-      message
+      message.delete_prefix(REFUSED_WITH)
     end
 
     def path(value) = value.to_s.sub(COPY, "")

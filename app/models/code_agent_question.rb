@@ -37,6 +37,12 @@ class CodeAgentQuestion < ApplicationRecord
   belongs_to :workspace
   belongs_to :answered_by, polymorphic: true, optional: true
   belongs_to :changed_by, polymorphic: true, optional: true
+  # Set when Halon asks the person about a step the agent asked permission for, rather than the agent asking. Such a
+  # question is not one of the agent's own, so it counts against nothing, and its answer is acted on at once, so it
+  # cannot change.
+  belongs_to :permission, class_name: "CodeAgentPermission", foreign_key: :code_agent_permission_id, optional: true, inverse_of: :question
+
+  scope :from_agent, -> { where(code_agent_permission_id: nil) }
 
   # The agent's words and the answer can quote the repository or a log, so both are kept like a chat's messages.
   encrypts :question, :answer, :recommended_reason, :changed_answer
@@ -145,6 +151,7 @@ class CodeAgentQuestion < ApplicationRecord
   # written, so the agent can still follow it. Never one still waiting, which is answered instead.
   def change_answer_blocked_reason(member)
     return "This question is still waiting for an answer, so answer it rather than change it." if open?
+    return "The coding agent already acted on this answer, so it can no longer change." if permission?
     return "The change this question was for has ended." unless CHANGEABLE.include?(status)
     return "The change this question was for has finished, so its answer can no longer change." unless session.running?
     return "Only #{session.principal&.actor_display_name || 'the person who asked for the change'} can answer, since the change runs as them." unless member && session.principal == member
@@ -154,7 +161,10 @@ class CodeAgentQuestion < ApplicationRecord
 
   # Settled while the change is still written, so Change answer is offered, to the person it runs as and disabled for
   # everyone else.
-  def changeable? = CHANGEABLE.include?(status) && session.running?
+  def changeable? = !permission? && CHANGEABLE.include?(status) && session.running?
+
+  # Asked about a step the agent asked permission for, rather than by the agent.
+  def permission? = code_agent_permission_id.present?
 
   def changed? = changed_at.present?
 

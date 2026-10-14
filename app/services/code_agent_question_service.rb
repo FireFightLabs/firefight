@@ -80,7 +80,7 @@ class CodeAgentQuestionService
 
   # Halon answers only what the person's words and the evidence settle, and anything else waits for the person.
   def self.try_halon!(question)
-    return unless question.open?
+    return unless question.open? && !question.permission?
 
     choices = question.choices
     recommended = question.recommended_option && "#{question.recommended_option.label}, #{question.recommended_reason}"
@@ -133,5 +133,4 @@ class CodeAgentQuestionService
     else ""
     end
   end
-  private_class_method :known
 end

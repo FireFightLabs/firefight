@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_14_800000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_14_900000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1168,6 +1168,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_800000) do
     t.index ["workspace_id"], name: "index_chats_on_workspace_id"
   end
 
+  create_table "code_agent_permissions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "code_agent_session_id", null: false
+    t.uuid "workspace_id", null: false
+    t.string "request_id", null: false
+    t.string "permission", null: false
+    t.text "asked", null: false
+    t.text "steps"
+    t.string "status", default: "open", null: false
+    t.text "reason"
+    t.string "decided_by_type"
+    t.uuid "decided_by_id"
+    t.datetime "decided_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["code_agent_session_id", "request_id"], name: "index_code_agent_permissions_on_session_and_request", unique: true
+    t.index ["workspace_id"], name: "index_code_agent_permissions_on_workspace_id"
+  end
+
   create_table "code_agent_questions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "code_agent_session_id", null: false
     t.uuid "workspace_id", null: false
@@ -1192,8 +1210,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_800000) do
     t.uuid "changed_by_id"
     t.datetime "changed_at"
     t.datetime "correction_sent_for"
+    t.uuid "code_agent_permission_id"
+    t.index ["code_agent_permission_id"], name: "index_code_agent_questions_on_code_agent_permission_id", unique: true
     t.index ["code_agent_session_id"], name: "index_code_agent_questions_on_code_agent_session_id"
-    t.index ["code_agent_session_id"], name: "index_code_agent_questions_one_open", unique: true, where: "((status)::text = 'open'::text)"
+    t.index ["code_agent_session_id"], name: "index_code_agent_questions_one_open", unique: true, where: "(((status)::text = 'open'::text) AND (code_agent_permission_id IS NULL))"
     t.index ["workspace_id"], name: "index_code_agent_questions_on_workspace_id"
   end
 
@@ -3656,6 +3676,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_800000) do
   add_foreign_key "chat_watches", "workspaces", on_delete: :cascade
   add_foreign_key "chats", "ruby_llm_models"
   add_foreign_key "chats", "workspaces"
+  add_foreign_key "code_agent_permissions", "code_agent_sessions", on_delete: :cascade
+  add_foreign_key "code_agent_permissions", "workspaces", on_delete: :cascade
+  add_foreign_key "code_agent_questions", "code_agent_permissions", on_delete: :cascade
   add_foreign_key "code_agent_questions", "code_agent_sessions", on_delete: :cascade
   add_foreign_key "code_agent_questions", "workspaces", on_delete: :cascade
   add_foreign_key "code_agent_session_notices", "code_agent_sessions", column: "session_id", on_delete: :cascade

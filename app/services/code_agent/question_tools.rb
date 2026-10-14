@@ -59,7 +59,7 @@ module CodeAgent::QuestionTools
         description: "Keep waiting for the answer to the question you asked.",
         input_schema: { type: "object", properties: {} }
       ) do |**|
-        asked = session.questions.last
+        asked = session.questions.from_agent.last
         asked ? CodeAgent::QuestionTools.answer(asked) : CodeAgent::QuestionTools.refusal("You have not asked a question.")
       end
     ]

@@ -56,12 +56,15 @@ module Integrations
 
           assert_equal "Opened https://github.com/acme/api/pull/7 on acme/api against main.\n\nChanges:\n- `config/database.yml` (+1 -1)\n\n" \
                        "#{Integrations::CodeWriteUp::TELLING}\n\nThe code host says PR #7 can merge into main. Say only this about whether it can merge, never more than the code host said.", text
-          credential, config_line = told.lines.map(&:chomp)
+          credential, config_line, *driver = told.lines.map(&:chomp)
+          assert_equal Fixing::DRIVER.lines.map(&:chomp), driver, "the driver that runs the agent comes after the config"
           config = JSON.parse(config_line)
           assert_equal "https://ff.example.com/code_agent/anthropic", config.dig("provider", "anthropic", "options", "baseURL")
           assert_equal Fixing::PERMISSIONS, config["permission"]
           assert_equal "*", config["permission"].keys.first, "the catch-all comes first, since the last rule that matches wins"
           assert_equal Fixing::AGENTS, config["agent"]
+          assert_equal [ Fixing::INSTRUCTIONS ], config["instructions"], "the repository's own instructions, as RUN finds them"
+          assert_equal "https://ff.example.com/code_agent/permissions", sent[12], "the driver asks Firefight about permissions"
           assert_equal "https://ff.example.com/code_agent/tools", config.dig("mcp", "firefight", "url")
           assert_equal "Bearer #{config.dig('provider', 'anthropic', 'options', 'apiKey')}", config.dig("mcp", "firefight", "headers", "Authorization")
           assert_equal "anthropic/claude-sonnet-4-5", sent[5]
@@ -137,21 +140,20 @@ module Integrations
         end
 
         test "an agent whose run ended early and changed nothing says why, whatever stopped it" do
-          refused = file_fixture("opencode/permission_refused.jsonl").read
-          stub_run("stdout" => "AGENT_EXIT 0\nBASE start-sha\nNOTHING\nLOG\n#{refused}", "timed_out" => false)
+          stopped = { type: "error", error: { name: "UnknownError", data: { message: "Halon refused this step. It ran ls three times." } } }.to_json
+          stub_run("stdout" => "AGENT_EXIT 0\nBASE start-sha\nNOTHING\nLOG\n#{stopped}", "timed_out" => false)
           GithubApp.expects(:open_pull_request).never
 
           error = assert_raises(Integrations::Error) do
             @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" })
           end
 
-          assert_equal "The coding agent stopped early (It asked for permission to reach / outside its copy of the repository, which nobody " \
-                       "can grant while it runs) and changed nothing in acme/api.", error.message
+          assert_equal "The coding agent stopped early (Halon refused this step. It ran ls three times) and changed nothing in acme/api.", error.message
         end
 
         # OpenCode 1.18.34's own rules for its default agent (agent/agent.ts), which come before the config's, and those
-        # opencode run adds for the session (cli/cmd/run.ts). The last rule that matches wins, and none is ask.
-        test "no permission the agent could be asked for is left to ask, since opencode run rejects whatever it asks and that ends the run" do
+        # the driver adds for the session, as opencode run does (cli/cmd/run.ts). The last rule that matches wins.
+        test "only a judgment call the config marks ask is ever asked, and every other permission, a later one included, is decided up front" do
           defaults = [ [ "*", "*", "allow" ], [ "doom_loop", "*", "ask" ], [ "external_directory", "*", "ask" ],
                        [ "external_directory", "/tmp/opencode/*", "allow" ], [ "question", "*", "deny" ], [ "plan_enter", "*", "deny" ],
                        [ "plan_exit", "*", "deny" ], [ "read", "*", "allow" ], [ "read", "*.env", "ask" ], [ "read", "*.env.*", "ask" ],
@@ -166,8 +168,8 @@ module Integrations
           asked = %w[read edit glob grep bash task todowrite skill lsp webfetch websearch external_directory doom_loop question plan_enter plan_exit
                      invalid firefight_call_tool a_permission_opencode_adds_later].product([ "*", "/runs/7f3a/*", "/*", "/home/runner/*", "/tmp/run/tmp/*",
                                                                                             "config/.env", "app/models/user.rb", "rm -rf /" ])
-          assert_empty asked.select { |permission, pattern| resolve.(permission, pattern) == "ask" }
-          assert_not(Fixing::PERMISSIONS.to_json.include?("\"ask\""))
+          assert_equal [ CodeAgentPermission::REPEATED ], asked.select { |permission, pattern| resolve.(permission, pattern) == Fixing::ASK }.map(&:first).uniq
+          assert_equal [ CodeAgentPermission::REPEATED ], Fixing::PERMISSIONS.select { |_, rule| rule == Fixing::ASK }.keys
           assert_equal "deny", resolve.("external_directory", "/runs/*")
           assert_equal "deny", resolve.("external_directory", "/home/runner/*")
           assert_equal "allow", resolve.("external_directory", "/tmp/run/tmp/notes/*")
@@ -416,6 +418,27 @@ module Integrations
           assert_equal [ [ "config/database.yml", 1, 1 ] ], last.files.map { |file| [ file.path, file.added, file.removed ] }
           assert_equal [ [ "ruby test/pool_test.rb", true ] ], last.tests.map { |test| [ test.command, test.passed ] }
           assert_equal 18, last.total, "the agent's steps, the review, then the push"
+        end
+
+        test "a step the agent asked permission for shows once on the step when decided, with who decided it and why" do
+          heard = []
+          pack = Github.new(@integration, box_key: "investigation-1", progress: ->(update) { heard << update.to_h.deep_dup })
+          CodeReading.any_instance.expects(:exec).with do |*, argv:, on_output: nil, **|
+            next false unless argv[2] == Fixing::RUN
+
+            session = CodeAgentSession.find_by!(workspace: @workspace, repository: "acme/api")
+            permission, = CodeAgentPermission.ask!(session, request_id: "per_1", permission: CodeAgentPermission::REPEATED, patterns: [ "bash" ],
+                                                            metadata: { "tool" => "bash", "input" => { "command" => "ls" } }, steps: [])
+            permission.decide!(allow: true, reason: "It is waiting for a server it started.", by: SystemAgent.investigator)
+            2.times { on_output.call("#{{ type: 'permission_wait' }.to_json}\n") }
+            true
+          end.returns("stdout" => agent_output, "timed_out" => false)
+          GithubApp.stubs(:open_pull_request).returns("html_url" => "https://github.com/acme/api/pull/7")
+
+          pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" })
+
+          said = "OpenCode repeated bash 3 times in a row with the same input: ls, and Halon let it continue because it is waiting for a server it started"
+          assert_equal 1, Chat::CodeFixProgress.from_h(heard.last).lines.count { |line| line.text == said }
         end
 
         test "a change that fails once the agent started ends its steps with why" do

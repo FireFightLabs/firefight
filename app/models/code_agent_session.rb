@@ -24,6 +24,8 @@ class CodeAgentSession < ApplicationRecord
   # Where the change was asked for, a chat or a fix's step, where its questions are shown.
   belongs_to :place, polymorphic: true, optional: true
   has_many :questions, -> { order(:created_at, :id) }, class_name: "CodeAgentQuestion", dependent: :delete_all, inverse_of: :session
+  # The steps the agent asked permission for, each decided by Halon or the person.
+  has_many :permissions, -> { order(:created_at, :id) }, class_name: "CodeAgentPermission", dependent: :delete_all, inverse_of: :session
   has_many :pauses, -> { order(:created_at, :id) }, class_name: "CodeAgentSession::Pause", foreign_key: :session_id, dependent: :delete_all,
                     inverse_of: :session
 
@@ -174,11 +176,11 @@ class CodeAgentSession < ApplicationRecord
 
   def time_left = [ expires_at - Time.current, 0 ].max
 
-  def open_question = questions.find_by(status: CodeAgentQuestion::STATUS_OPEN)
+  def open_question = questions.from_agent.find_by(status: CodeAgentQuestion::STATUS_OPEN)
 
   # A question nobody answered in time with nothing to fall back on ends the change, whatever the agent did after. One
   # with a recommendation went with it.
-  def unanswered_question = questions.find_by(status: CodeAgentQuestion::STATUS_EXPIRED)
+  def unanswered_question = questions.from_agent.find_by(status: CodeAgentQuestion::STATUS_EXPIRED)
 
   def close!
     self.class.where(id: id, closed_at: nil).update_all(closed_at: Time.current, push_token_digest: nil, push_open_until: nil, updated_at: Time.current)
