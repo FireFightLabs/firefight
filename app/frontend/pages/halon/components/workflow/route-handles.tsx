@@ -3,14 +3,22 @@ import { Handle, Position } from "@xyflow/react"
 import { cn } from "@/lib/utils"
 import { WORKFLOW_ROUTE_ERROR } from "@/lib/generated/constants"
 import { OUT_HANDLE } from "@/pages/halon/lib/workflow/canvas-graph"
-import { routeWords } from "@/pages/halon/lib/workflow/labels"
+import { routeLabel, routeWords } from "@/pages/halon/lib/workflow/labels"
 
 const HANDLE = "!size-2 !min-h-0 !min-w-0 !rounded-full !border !border-border-control !bg-surface-card"
+
+interface RouteHandlesProps {
+  routes: string[]
+  // The step's own words for a route, such as an Ask a person choice's label for its key.
+  labels: Record<string, string>
+  connected: string[]
+  connectable: boolean
+}
 
 // Where a connection leaves a step: one way out, or one way out for each route the step can take, so a connection drawn
 // from yes carries on only when it took yes. A route nothing leaves on yet carries its name, and one already connected
 // is named on its connection. The error route leaves in the danger colour.
-export function RouteHandles({ routes, connected, connectable }: { routes: string[]; connected: string[]; connectable: boolean }) {
+export function RouteHandles({ routes, labels, connected, connectable }: RouteHandlesProps) {
   const own = routes.filter((route) => route !== WORKFLOW_ROUTE_ERROR)
   const error = routes.includes(WORKFLOW_ROUTE_ERROR)
 
@@ -41,9 +49,9 @@ export function RouteHandles({ routes, connected, connectable }: { routes: strin
             "relative rounded-full border border-border-strong bg-background font-mono text-[10px] text-fg-muted",
             connected.includes(route) ? "size-2.5 p-0" : "px-1.5 py-px",
           )}
-          title={routeWords(route)}
+          title={routeLabel(route, labels)}
         >
-          {connected.includes(route) ? null : routeWords(route)}
+          {connected.includes(route) ? null : <span className="block max-w-28 truncate">{routeLabel(route, labels)}</span>}
           <Handle id={route} type="source" position={Position.Bottom} className={cn(HANDLE, "!-bottom-1")} isConnectable={connectable} />
         </span>
       ))}

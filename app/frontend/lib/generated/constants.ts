@@ -1751,7 +1751,8 @@ export const WORKFLOW_STEP_EDITORS = [
   "browser",
   "set_data",
   "ask_person",
-  "approval"
+  "approval",
+  "manual"
 ] as const
 export type WorkflowStepEditor = (typeof WORKFLOW_STEP_EDITORS)[number]
 
@@ -1768,7 +1769,8 @@ export const WORKFLOW_STEP_EDITOR = {
   "BROWSER": "browser",
   "SET_DATA": "set_data",
   "ASK_PERSON": "ask_person",
-  "APPROVAL": "approval"
+  "APPROVAL": "approval",
+  "MANUAL": "manual"
 } as const
 
 export const WORKFLOW_STEP_ICONS = [
@@ -1799,7 +1801,8 @@ export const WORKFLOW_STEP_ICONS = [
   "script",
   "browser",
   "webhook",
-  "data"
+  "data",
+  "task"
 ] as const
 export type WorkflowStepIcon = (typeof WORKFLOW_STEP_ICONS)[number]
 
@@ -1842,7 +1845,19 @@ export const WORKFLOW_ASK_PERSON = {
   "FIELDS": "fields",
   "FIELD_NAME": "name",
   "FIELD_LABEL": "label",
-  "FIELD_LIMIT": 5
+  "FIELD_LIMIT": 5,
+  "CHOICES": "choices",
+  "CHOICE_KEY": "key",
+  "CHOICE_LABEL": "label",
+  "CHOICE_LIMIT": 5,
+  "CHOICE_LABEL_LIMIT": 75
+} as const
+
+export const WORKFLOW_WAIT = {
+  "KEY": "wait_minutes",
+  "DEFAULT_MINUTES": 1440,
+  "FEWEST_MINUTES": 5,
+  "MOST_MINUTES": 10080
 } as const
 
 export const WORKFLOW_APPROVAL = {
@@ -1852,7 +1867,8 @@ export const WORKFLOW_APPROVAL = {
 
 export const WORKFLOW_ASK_KIND = {
   "QUESTION": "question",
-  "APPROVAL": "approval"
+  "APPROVAL": "approval",
+  "TASK": "task"
 } as const
 
 export const WORKFLOW_QUESTION_STATUS = {

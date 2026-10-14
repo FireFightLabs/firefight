@@ -3,7 +3,7 @@ import { IconChevronRight } from "@tabler/icons-react"
 import { StepListRow } from "@/pages/halon/components/workflow/step-list-row"
 import { TriggerIcon } from "@/pages/halon/components/workflow/trigger-icon"
 import { canvasSteps } from "@/pages/halon/lib/workflow/canvas-graph"
-import { routeWords } from "@/pages/halon/lib/workflow/labels"
+import { routeLabel } from "@/pages/halon/lib/workflow/labels"
 import { stepsInOrder } from "@/pages/halon/lib/workflow/step-order"
 import type { Selection, StepRunState } from "@/pages/halon/lib/workflow/types"
 import type { WorkflowDocument, WorkflowSuggestion } from "@/types/serializers"
@@ -22,10 +22,11 @@ interface StepListProps {
 export function StepList({ document, suggestions, highlightHalon, states, onSelect }: StepListProps) {
   const ordered = stepsInOrder(canvasSteps(document.steps, suggestions, states), document.edges)
   const titles = new Map(document.steps.map((step) => [ step.id, step.title ]))
+  const labels = new Map(document.steps.map((step) => [ step.id, step.routeLabels ]))
 
   function leadsTo(stepId: string): string {
     return document.edges.filter((edge) => edge.from === stepId)
-      .map((edge) => (edge.route ? `${routeWords(edge.route)}: ${titles.get(edge.to) ?? "a step"}` : titles.get(edge.to) ?? "a step")).join(", ")
+      .map((edge) => (edge.route ? `${routeLabel(edge.route, labels.get(stepId))}: ${titles.get(edge.to) ?? "a step"}` : titles.get(edge.to) ?? "a step")).join(", ")
   }
 
   function pickTrigger() {

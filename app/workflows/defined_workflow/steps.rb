@@ -13,7 +13,7 @@ module DefinedWorkflow::Steps
       DefinedWorkflow::Steps::CreateFollowUp, DefinedWorkflow::Steps::MessagePerson, DefinedWorkflow::Steps::StatusPageUpdate,
       DefinedWorkflow::Steps::RunCommand, DefinedWorkflow::Steps::RunScript, DefinedWorkflow::Steps::CheckFromOutside, DefinedWorkflow::Steps::Browser,
       DefinedWorkflow::Steps::HttpRequest, DefinedWorkflow::Steps::SendWebhook, DefinedWorkflow::Steps::SetData,
-      DefinedWorkflow::Steps::AskPerson, DefinedWorkflow::Steps::Approval,
+      DefinedWorkflow::Steps::AskPerson, DefinedWorkflow::Steps::Approval, DefinedWorkflow::Steps::Manual,
       DefinedWorkflow::Steps::Branch, DefinedWorkflow::Steps::Delay
     ].freeze
   end

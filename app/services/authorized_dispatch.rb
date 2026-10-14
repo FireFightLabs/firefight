@@ -18,6 +18,7 @@ module AuthorizedDispatch
       principal: principal,
       action_key: Ability::Action.system_key(resource, crud_action),
       workspace: subject.workspace,
+      scope: handler.authorization_scope(subject),
       params: subject.authorization_params,
       context: { source: AbilityGateway::SOURCE_SLACK, approval_id: subject.approval_id }.merge(context)
     ) { yield }

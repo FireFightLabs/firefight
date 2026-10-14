@@ -130,6 +130,24 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
     assert_equal Workflow::Run::STATUS_SUCCEEDED, run.reload.status, run.error
   end
 
+  test "a held change nobody decides in time is withdrawn, and where it was asked says why" do
+    post = step("tell", "post_to_channel", { "channel" => "#ops", "message" => "Hello" }, timeout_seconds: 600)
+    workflow = published("Tell", steps: [ post ])
+    PolicyRule::ApprovalConditions.stubs(:errors_for).returns([])
+    AbilityGateway.stubs(:approval_requirement).returns({ "role" => "admin", "count" => 1 })
+    run = start(workflow)
+    approval = Ability::Approval.find_by!(workflow_run_id: run.id)
+    approval.update_columns(notifications: [ { "channel_id" => "C-OPS", "message_id" => "7.7" } ])
+    WorkspaceAdapter.for(@workspace).class.any_instance.expects(:mark_approval_resolved)
+                    .with { |approval:, channel_id:, message_id:| channel_id == "C-OPS" && approval.withdrawn_reason == "Nobody decided within 10 minutes, so it did not run." }
+                    .returns({ success: true })
+
+    travel(11.minutes) { perform_enqueued_jobs { SolidWorkflow::SweeperJob.perform_now } }
+
+    assert approval.reload.expired?
+    assert_equal Workflow::Run::STATUS_FAILED, run.reload.status
+  end
+
   test "a denied change fails the step, and an error route carries the run on" do
     post = step("tell", "post_to_channel", { "channel" => "#ops", "message" => "Hello" }, on_failure: "error_route")
     workflow = published("Tell", steps: [ post, step("after", "delay", { "seconds" => 0 }) ], edges: [ edge("tell", "after", "error") ])

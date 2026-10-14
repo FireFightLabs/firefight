@@ -73,6 +73,12 @@ class DefinedWorkflow::Steps::Base
     # The fields the step hands later steps, which {{steps.<name>.<field>}} may read.
     def output_fields(_config) = []
 
+    # Its config as it is kept once an edit lands, with anything Firefight derives filled in, such as a choice's key.
+    def settled_config(config) = config
+
+    # Whether it waits on a person for as long as its settings say (DefinedWorkflow::Steps::Waiting).
+    def waits? = false
+
     # Each problem with the step's config, as a sentence. A step that changes something needs its undo.
     def problems(step, workspace) = undo_problems(step, workspace)
 
