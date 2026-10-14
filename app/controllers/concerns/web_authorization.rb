@@ -11,10 +11,11 @@ module WebAuthorization
 
   class_methods do
     # authorizes Ability::Action::RESOURCE_WEBHOOKS, create: :create, update: %i[update test], delete: :destroy
-    def authorizes(resource, mapping)
+    # scope names a method answering the scope the request is authorized in, such as the approval a decision is on.
+    def authorizes(resource, scope: nil, **mapping)
       table = authorized_actions.dup
       mapping.each do |crud_action, action_names|
-        Array(action_names).each { |name| table[name.to_s] = [ resource, crud_action.to_s ] }
+        Array(action_names).each { |name| table[name.to_s] = [ resource, crud_action.to_s, scope ] }
       end
       self.authorized_actions = table.freeze
     end
@@ -34,18 +35,19 @@ module WebAuthorization
   private
 
   def authorize_web_action!
-    resource, crud_action = self.class.authorized_actions[action_name]
+    resource, crud_action, scope = self.class.authorized_actions[action_name]
     return unless resource
 
-    authorize_web!(resource, crud_action)
+    authorize_web!(resource, crud_action, scope: scope ? send(scope) : {})
   end
 
   # For cases a static mapping cannot express. Redirects and returns false when refused.
-  def authorize_web!(resource, crud_action)
+  def authorize_web!(resource, crud_action, scope: {})
     @web_authorization = AbilityGateway.authorize!(
       principal: current_membership,
       action_key: Ability::Action.system_key(resource, crud_action),
       workspace: current_workspace,
+      scope: scope,
       params: web_authorization_params,
       context: { source: AbilityGateway::SOURCE_WEB, approval_id: replayed_approval_id }
     )

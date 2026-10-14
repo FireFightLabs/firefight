@@ -52,7 +52,7 @@ export function StepNode({ data }: NodeProps<StepFlowNode>) {
           <SuggestionDecision suggestion={decided} acceptLabel={suggestion ? "Add step" : "Remove step"} disabled={readOnly && !suggestion} />
         </div>
       )}
-      <RouteHandles routes={step.routes} connected={connected} connectable={!readOnly} />
+      <RouteHandles routes={step.routes} labels={step.routeLabels} connected={connected} connectable={!readOnly} />
     </div>
   )
 }

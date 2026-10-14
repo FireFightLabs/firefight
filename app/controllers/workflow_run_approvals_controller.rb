@@ -1,9 +1,10 @@
-# Decides a workflow's Approval step from the run's page, as the Approvals page decides any request. The model enforces
-# who may decide at click time, and a refusal says why in its words.
+# Decides a workflow's Approval step from the run's page, as the Approvals page decides any request. The gateway lets
+# approvals access, or being named on the step, decide it. The model enforces who may decide at click time, and a
+# refusal says why in its words.
 class WorkflowRunApprovalsController < InertiaController
   include WorkflowCanvas
 
-  authorizes Ability::Action::RESOURCE_APPROVALS, update: %i[approve deny]
+  authorizes Ability::Action::RESOURCE_APPROVALS, update: %i[approve deny], scope: :decision_scope
 
   def approve
     decide("You approved #{workflow.name}'s request. The run goes on.") { approval.approve!(by: current_membership) }
@@ -28,6 +29,8 @@ class WorkflowRunApprovalsController < InertiaController
   def approval
     @approval ||= current_workspace.ability_approvals.where(workflow_run_id: run.id, action_key: Ability::Action::WORKFLOW_APPROVAL).find(params[:approval_id])
   end
+
+  def decision_scope = approval.decision_scope
 
   def back_to_run(**flash) = redirect_to(workflow_path(workflow, WorkflowCanvasController::RUN_QUERY_PARAM => run.id), **flash)
 end

@@ -43,7 +43,7 @@ export function LoopNode({ data }: NodeProps<LoopFlowNode>) {
           <SuggestionDecision suggestion={decided} acceptLabel={suggestion ? "Add step" : "Remove step"} />
         </div>
       )}
-      <RouteHandles routes={step.routes} connected={connected} connectable={!readOnly} />
+      <RouteHandles routes={step.routes} labels={step.routeLabels} connected={connected} connectable={!readOnly} />
     </div>
   )
 }

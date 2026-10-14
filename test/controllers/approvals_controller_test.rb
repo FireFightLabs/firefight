@@ -154,6 +154,31 @@ class ApprovalsControllerTest < ActionDispatch::IntegrationTest
     assert @approval.reload.pending?
   end
 
+  test "a member a workflow's Approval step names decides that request on the approvals page without approvals access" do
+    bob = workspace_memberships(:bob_workspace_one)
+    asked = { "question" => "Release checkout?" }
+    named = Ability::Approval.create!(
+      workspace: @workspace, principal: workspace_memberships(:alice_workspace_one), principal_label: "Release workflow",
+      action_key: Ability::Action::WORKFLOW_APPROVAL, request_digest: Ability::Approval.digest(Ability::Action::WORKFLOW_APPROVAL, asked, {}),
+      params: asked, required_role: WorkspaceMembership.roles[:admin], approver_ids: Ability::Principal.references([ bob.id ])
+    )
+    sign_in(users(:bob), @workspace)
+
+    get gateway_approvals_url, headers: inertia_headers
+    reasons = inertia_props["pendingApprovals"].to_h { |row| [ row["id"], row["decideDeniedReason"] ] }
+    assert_nil reasons[named.id]
+    assert_equal "You don't have permission to decide this request. Ask a workspace admin to grant you approvals access under Gateway, Permissions.", reasons[@approval.id]
+
+    post approve_approval_url(@approval)
+    assert @approval.reload.pending?
+    assert_match "permission", flash[:alert]
+
+    post approve_approval_url(named)
+    assert_redirected_to gateway_approvals_path
+    assert_equal "You approved #{workspace_memberships(:alice_workspace_one).actor_display_name}'s request. They can run it now.", flash[:notice]
+    assert named.reload.approved?
+  end
+
   private
 
   def held(principal, action_key, **attributes)

@@ -70,6 +70,47 @@ class WorkflowRunAsksControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Approval is no longer pending.", flash[:alert]
   end
 
+  test "a member the approval names decides it on the run's page without approvals access, and one it does not name is told why" do
+    run = run_of({ "id" => "approve", "name" => "approve", "kind" => "approval",
+                   "config" => { "question" => "Ship?", "who" => "people", "approvers" => [ "bob@example.com" ] } })
+    approval = @workspace.ability_approvals.find_by!(workflow_run_id: run.id)
+    assert_nil WorkflowRunDetailSerializer.one_as_hash(run, member: @bob).deep_stringify_keys["steps"].sole.dig("ask", "blockedReason")
+
+    sign_in(users(:bob), @workspace)
+    perform_enqueued_jobs(except: QUIET) { post workflow_run_approval_approve_path(@workflow, run, approval) }
+    assert_equal "You approved Release's request. The run goes on.", flash[:notice]
+    assert_equal "approved", run.reload.steps.find_by!(step_key: "approve").route
+
+    by_role = { "id" => "approve", "name" => "approve", "kind" => "approval", "config" => { "question" => "Ship?", "who" => "role", "role" => "admin" } }
+    draft = @workflow.open_draft!(by: @alice)
+    draft.update!(steps: [ by_role ])
+    assert WorkflowPublishService.new(@workflow).publish!(draft.reload, by: @alice).ok
+    again = start
+    other = @workspace.ability_approvals.find_by!(workflow_run_id: again.id)
+    assert_equal "You don't have permission to decide this request. Ask a workspace admin to grant you approvals access under Gateway, Permissions.",
+                 WorkflowRunDetailSerializer.one_as_hash(again, member: @bob).deep_stringify_keys["steps"].sole.dig("ask", "blockedReason")
+
+    post workflow_run_approval_approve_path(@workflow, again, other)
+    assert_match "permission", flash[:alert]
+    assert other.reload.pending?
+  end
+
+  test "the person a task was given to marks it done on the run's page with its note" do
+    adapter = WorkspaceAdapter.for(@workspace).class
+    adapter.any_instance.stubs(:post_workflow_question_in_channel).returns({ channel_id: "C-OPS", message_id: "3.3" })
+    run = run_of({ "id" => "ticket", "name" => "ticket", "kind" => "manual",
+                   "config" => { "task" => "Open a ticket.", "to" => "person", "person" => "bob@example.com", "note" => "Ticket number" } })
+    given = run.steps.find_by!(step_key: "ticket").questions.sole
+    asked = WorkflowRunDetailSerializer.one_as_hash(run, member: @bob).deep_stringify_keys["steps"].sole["ask"]
+    assert_equal [ "task", @bob.actor_display_name, [ { "name" => "note", "label" => "Ticket number" } ] ], asked.values_at("kind", "who", "fields")
+
+    sign_in(users(:bob), @workspace)
+    perform_enqueued_jobs(except: QUIET) { post workflow_run_question_answer_path(@workflow, run, given), params: { values: { note: "PAY-9" } } }
+
+    assert_equal "You marked Release's task done.", flash[:notice]
+    assert_equal({ "done_by" => @bob.actor_display_name, "note" => "PAY-9" }, run.reload.steps.find_by!(step_key: "ticket").output)
+  end
+
   test "the run's page shows what the step asked and whether the person looking may answer it" do
     run = run_of({ "id" => "ask", "name" => "ask", "kind" => "ask_person",
                    "config" => { "to" => "person", "person" => "bob@example.com", "question" => "Ship?", "choices" => %w[ship_it wait] } })

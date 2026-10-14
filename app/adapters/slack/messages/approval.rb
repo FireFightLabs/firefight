@@ -15,8 +15,10 @@ module Slack
         ]
       end
 
+      # Approved or denied says by whom. Withdrawn, the buttons are gone and it says why, after whoever approved it when
+      # it was approved but never ran.
       def self.build_resolved(approval, params: approval.params)
-        verdict = if approval.expired? then "*Withdrawn*. It is no longer needed, so nothing will run."
+        verdict = if approval.expired? then withdrawn_text(approval)
         else "#{approval.approved? ? ':white_check_mark: *Approved*' : ':no_entry: *Denied*'} by *#{approval.approver&.actor_display_name}*"
         end
         [
@@ -24,6 +26,12 @@ module Slack
           { type: "section", text: { type: "mrkdwn", text: summary_text(approval, params: params) } },
           { type: "section", text: { type: "mrkdwn", text: verdict } }
         ]
+      end
+
+      def self.withdrawn_text(approval)
+        why = Mrkdwn.escape(approval.withdrawn_reason.presence || "It is no longer needed, so nothing will run.")
+        approved = " after *#{Mrkdwn.escape(approval.approver.actor_display_name)}* approved it" if approval.approver
+        ":hourglass:  *Withdrawn*#{approved}. #{why}"
       end
 
       # The same word the blocks say. An approval that expired here was withdrawn, since nothing needs it any more.

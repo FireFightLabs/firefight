@@ -45,6 +45,10 @@ module Integrations
         "success" => RunsEnded::OUTCOME_SUCCEEDED, "failure" => RunsEnded::OUTCOME_FAILED, "error" => RunsEnded::OUTCOME_FAILED
       }.freeze
       PROVIDER_NAME = "GitHub".freeze
+      # About an issue, which says when it is opened and when a label is added to it (Webhook events and payloads, issues).
+      ISSUES = "issues".freeze
+      OPENED = "opened".freeze
+      LABELED = "labeled".freeze
       WAKE_ACTIONS = {
         WORKFLOW_RUN => nil, DEPLOYMENT_STATUS => nil, STATUS => nil, WORKFLOW_JOB => [ COMPLETED ],
         CHECK_SUITE => [ COMPLETED ], CHECK_RUN => [ COMPLETED ], RELEASE => %w[published released]
@@ -157,6 +161,31 @@ module Integrations
           when WORKFLOW_RUN then workflow_run_ended(payload)
           when DEPLOYMENT_STATUS then deployment_ended(payload)
           else []
+          end
+        end
+
+        # Labels added to an issue (Integrations::IssueLabels), from the issues event, which arrives once the App subscribes
+        # to Issues (Webhook events and payloads, issues). labeled names the one label added, and opened the issue with the
+        # labels it was made with. GitHub also says labeled for each of those, so each label is its own, keyed by the issue,
+        # the label and the issue's updated_at, which reads the same in both. sender is who did it, by login only.
+        def labelled(payload, headers:)
+          return [] unless headers[EVENT_HEADER].to_s == ISSUES
+
+          issue = payload["issue"].to_h
+          repository = payload.dig("repository", "full_name")
+          return [] if issue["id"].blank? || repository.blank?
+
+          added = case payload["action"].to_s
+          when LABELED then [ payload["label"] ]
+          when OPENED then Array(issue["labels"])
+          else []
+          end
+          added.select { |label| label.is_a?(Hash) && label["name"].present? }.map do |label|
+            IssueLabels::Labelled.new(
+              reference: "#{issue['id']}:#{label['id'] || label['name']}:#{issue['updated_at']}", labels: [ label["name"] ],
+              issue_key: "#{repository}##{issue['number']}", issue_title: issue["title"].presence, issue_url: issue["html_url"].presence,
+              text: issue["body"].presence, asker_name: payload.dig("sender", "login").presence
+            )
           end
         end
 

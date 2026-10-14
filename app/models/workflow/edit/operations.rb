@@ -51,7 +51,7 @@ module Workflow::Edit::Operations
   def add_step(document, payload)
     step = payload["step"].to_h.slice("id", "name", "kind", "config", "position", *STEP_SETTINGS)
     step["id"] = step["id"].presence || new_step_id
-    step["config"] = step["config"].to_h
+    step["config"] = settled(step["kind"], step["config"].to_h)
     raise Workflow::Edit::Refused, "A step needs a name." if step["name"].blank?
     raise Workflow::Edit::Refused, "A step with that id is already in the workflow." if find_step(document, step["id"])
     raise Workflow::Edit::Refused, "A step called #{step['name']} is already in the workflow." if all_steps(document).any? { |other| other["name"] == step["name"] }
@@ -102,7 +102,7 @@ module Workflow::Edit::Operations
     change_step(document, payload) do |step|
       changes.slice(*STEP_SETTINGS).each do |key, value|
         if key == "config"
-          step["config"] = step["config"].to_h.merge(value.to_h).compact
+          step["config"] = settled(step["kind"], step["config"].to_h.merge(value.to_h).compact)
         elsif value.nil?
           step.delete(key)
         else
@@ -111,6 +111,9 @@ module Workflow::Edit::Operations
       end
     end
   end
+
+  # What Firefight derives in a kind's config, such as each choice's key, is filled in as the edit lands.
+  def settled(kind, config) = DefinedWorkflow::Steps.for(kind)&.settled_config(config) || config
 
   def rename(document, payload)
     name = payload["name"].to_s.strip

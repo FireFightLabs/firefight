@@ -20,13 +20,15 @@ interface FailureSettingsProps {
   idPrefix: string
   failure: FailureDraft
   errors: Partial<Record<keyof FailureDraft, string>>
+  // The step waits on a person for as long as its own settings say, so it has no time limit here.
+  waits: boolean
   disabled: boolean
   onChange: (failure: FailureDraft) => void
 }
 
 // What a step does when it fails: how many times it is tried and how long it waits between tries, how long one try may
 // take, and whether the run stops, carries on or takes the step's error path.
-export function FailureSettings({ idPrefix, failure, errors, disabled, onChange }: FailureSettingsProps) {
+export function FailureSettings({ idPrefix, failure, errors, waits, disabled, onChange }: FailureSettingsProps) {
   function typed(field: "maxAttempts" | "backoffSeconds" | "timeoutSeconds") {
     return (event: ChangeEvent<HTMLInputElement>) => onChange({ ...failure, [field]: event.target.value })
   }
@@ -50,12 +52,14 @@ export function FailureSettings({ idPrefix, failure, errors, disabled, onChange 
                  disabled={disabled} aria-invalid={errors.maxAttempts != null} />
           {errors.maxAttempts && <p className="text-xs text-destructive">{errors.maxAttempts}</p>}
         </div>
-        <div className="space-y-1">
-          <Label htmlFor={`${idPrefix}-timeout`} className="text-xs">Time limit in seconds</Label>
-          <Input id={`${idPrefix}-timeout`} inputMode="numeric" value={failure.timeoutSeconds} onChange={typed("timeoutSeconds")} placeholder="None"
-                 disabled={disabled} aria-invalid={errors.timeoutSeconds != null} />
-          {errors.timeoutSeconds && <p className="text-xs text-destructive">{errors.timeoutSeconds}</p>}
-        </div>
+        {!waits && (
+          <div className="space-y-1">
+            <Label htmlFor={`${idPrefix}-timeout`} className="text-xs">Time limit in seconds</Label>
+            <Input id={`${idPrefix}-timeout`} inputMode="numeric" value={failure.timeoutSeconds} onChange={typed("timeoutSeconds")} placeholder="None"
+                   disabled={disabled} aria-invalid={errors.timeoutSeconds != null} />
+            {errors.timeoutSeconds && <p className="text-xs text-destructive">{errors.timeoutSeconds}</p>}
+          </div>
+        )}
       </div>
       <div className="space-y-1">
         <Label htmlFor={`${idPrefix}-backoff`} className="text-xs">Wait between tries</Label>

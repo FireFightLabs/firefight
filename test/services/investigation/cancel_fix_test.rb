@@ -19,9 +19,9 @@ class Investigation::CancelFixTest < ActiveSupport::TestCase
     approval = @workspace.ability_approvals.create!(principal_type: "WorkspaceMembership", principal_id: @alice.id, principal_label: "Alice",
                                                     action_key: "cloudflare.execute", request_digest: "x", scope: {}, params: {}, required_role: "admin")
     second.update_columns(status: Investigation::RemediationStep::STATUS_WAITING_APPROVAL, approval_id: approval.id)
-    ApprovalNotificationService.expects(:mark_resolved!).with(approval)
+    ApprovalNotificationService.expects(:mark_resolved!).with { |withdrawn| withdrawn.id == approval.id && withdrawn.withdrawn_reason == "Bob Jones cancelled the fix before anyone decided." }
 
-    perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { assert_nil Investigation::FixRunner.cancel!(@plan, by: @bob) }
+    perform_enqueued_jobs(only: [ InvestigationFixJob, AbilityApprovalResolvedJob ], at: Time.current) { assert_nil Investigation::FixRunner.cancel!(@plan, by: @bob) }
 
     assert_equal [ Investigation::RemediationPlan::STATUS_CANCELLED, @bob ], [ @plan.reload.status, @plan.cancelled_by ]
     assert_equal [ "running", "skipped", "skipped" ], [ first.reload.status, second.reload.status, third.reload.status ]
@@ -82,11 +82,11 @@ class Investigation::CancelFixTest < ActiveSupport::TestCase
     stale = Ability::Approval.find(approval.id)
     approval.update_columns(status: Ability::Approval::STATUS_APPROVED)
 
-    stale.expire!
+    stale.expire!(reason: "Withdrawn.")
     assert_equal Ability::Approval::STATUS_APPROVED, stale.status
 
     approval.update_columns(status: Ability::Approval::STATUS_PENDING)
-    approval.expire!
+    approval.expire!(reason: "Someone cancelled the fix before anyone decided.")
     assert_includes Slack::Messages::Approval.build_resolved(approval).last.dig(:text, :text), "*Withdrawn*"
     assert_equal "Approval withdrawn: #{approval.action_key}", Slack::Messages::Approval.resolved_fallback(approval)
   end

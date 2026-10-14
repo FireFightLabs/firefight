@@ -63,17 +63,12 @@ class Investigation::FixRunner
                          to: Investigation::RemediationStep::STATUS_SKIPPED, result: "Cancelled by #{who} before it ran.")
     return unless stopped
 
-    withdraw(step.approval) if was == Investigation::RemediationStep::STATUS_WAITING_APPROVAL
+    if was == Investigation::RemediationStep::STATUS_WAITING_APPROVAL && step.approval&.pending?
+      step.approval.expire!(reason: "#{who.upcase_first} cancelled the #{step.plan.undo? ? 'undo' : 'fix'} before anyone decided.")
+      ApprovalNotificationService.mark_resolved!(step.approval)
+    end
     step.approval&.dismiss! if was == Investigation::RemediationStep::STATUS_APPROVED
   end
-
-  def self.withdraw(approval)
-    return unless approval&.pending?
-
-    approval.expire!
-    ApprovalNotificationService.mark_resolved!(approval)
-  end
-  private_class_method :withdraw
 
   # From ApprovalResumption, once the approver of a step held by a rule decided. A denial ends the step. An approval
   # leaves it for someone to run, once Halon has read how things stand now, and tells whoever applied the fix.
@@ -133,9 +128,13 @@ class Investigation::FixRunner
     blocked = step.ask_again_blocked_reason(by)
     return blocked if blocked
 
+    lapsing = step.approval
+    still_approved = lapsing&.approved?
     approval = step.request_approval_again!
     return "No approval rule holds this step any more. Cancel the fix and apply it again to run it." unless approval
 
+    # An approval that lapsed only now, in asking again, says so where it was asked.
+    ApprovalNotificationService.mark_resolved!(lapsing) if still_approved && lapsing.reload.expired?
     ApprovalResumption.park_fix_step!(approval, step)
     new(step.plan).publish!
     nil
