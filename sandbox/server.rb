@@ -90,6 +90,7 @@ module Sandbox
         Process.kill("KILL", -waiter.pid) rescue nil
       end
       status = waiter.value
+      Runs.reaped(waiter.pid)
       readers.each { |reader| reader.join(5) }
     end
     {
@@ -818,17 +819,28 @@ module Sandbox
     end
 
     # Ends the command the run has going, by its whole process group, and refuses any it would start after, such as the
-    # next step of preparing a copy. The run then answers that it was stopped.
+    # next step of preparing a copy. The run then answers that it was stopped. A run that already ended is left as it
+    # answered, and only commands not yet reaped are signalled, since a reaped command's id may belong to another by now.
     def self.stop(id)
       entry = GUARD.synchronize { STORE[id] } if id.match?(ID)
       raise Refused, "No run #{id}" unless entry
 
       pids = GUARD.synchronize do
+        next if entry["finished_at"]
+
         entry["stopped"] = true
         entry["pids"].dup
       end
+      return { "stopped" => false } unless pids
+
       pids.each { |pid| Process.kill("KILL", -pid) rescue nil }
       { "stopped" => true }
+    end
+
+    # A command of the current run that ended and was reaped, so a stop no longer signals its id.
+    def self.reaped(pid)
+      entry = Thread.current[CURRENT]
+      GUARD.synchronize { entry["pids"].delete(pid) } if entry
     end
 
     # A command the current run started, ended at once when the run was stopped as it started.

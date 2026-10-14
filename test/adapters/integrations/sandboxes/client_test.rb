@@ -94,6 +94,18 @@ module Integrations
         assert_operator clock - started, :<, 10, "the command was ended, not left to sleep out its 30 seconds"
       end
 
+      test "a stop that reaches a run after its commands ended signals no process, since their ids may belong to others by then" do
+        run_as_caller("true; echo done")
+        started = ::Sandbox::Runs.start({ "repo" => "acme__api", "argv" => [ "x" ] })
+        entry = ::Sandbox::Runs::STORE.fetch(started["id"])
+        Timeout.timeout(10) { Thread.pass until entry["finished_at"] }
+        assert_empty entry["pids"], "a command's id is let go once it is reaped"
+
+        Process.expects(:kill).never
+        assert_equal({ "stopped" => false }, ::Sandbox::Runs.stop(started["id"]))
+        assert_equal "done\n", entry["result"]["stdout"]
+      end
+
       test "a command in the terminal is followed in the background on a box that can, so a stop reaches it" do
         run_as_caller("sleep 30")
         signal = Concurrent::Event.new
