@@ -76,7 +76,8 @@ RUN curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh \
 
 # Halon's terminal. halon writes only its own folder, so nothing it runs touches a repository or a test copy. Provider
 # command line tools reach their APIs through Firefight with the command's own token, never a key. Northflank's needs a
-# newer Node than Debian's, so it runs on a pinned one of its own.
+# newer Node than Debian's, so it runs on a pinned one of its own, as does a code fix's driver (Fixing::RUN). The CI
+# image keeps the same Node in the same place, and a test fails when the two versions differ.
 ARG NODE_FOR_CLIS_VERSION=22.20.0
 ARG NORTHFLANK_CLI_VERSION=0.13.0
 RUN useradd --create-home --shell /bin/bash halon \

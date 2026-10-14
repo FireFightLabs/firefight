@@ -2,12 +2,13 @@ require "test_helper"
 require "open3"
 require "webrick"
 
-# A code fix's agent run for real: Fixing::RUN with its driver and the OpenCode sandbox/Dockerfile pins, against a model
-# scripted here in Anthropic's format and Firefight's permissions endpoint stood in for here. It needs that OpenCode,
-# named by OPENCODE_BIN. It is skipped on a machine without it, and fails in CI, whose image installs it, so a broken
-# install is never passed over in silence.
+# A code fix's agent run for real: Fixing::RUN with its driver on the box's Node and the OpenCode sandbox/Dockerfile
+# pins, against a model scripted here in Anthropic's format and Firefight's permissions endpoint stood in for here. It
+# needs that OpenCode, named by OPENCODE_BIN. It is skipped on a machine without it, and fails in CI, whose image
+# installs it, so a broken install is never passed over in silence.
 class OpencodePermissionsTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
+  include SandboxNodeHelper
 
   Fixing = Integrations::Packs::Github::Fixing
   BIN = ENV["OPENCODE_BIN"].to_s
@@ -19,6 +20,7 @@ class OpencodePermissionsTest < ActiveSupport::TestCase
   HOUSE_RULE = "Always name branches after the ticket.".freeze
 
   setup do
+    require_agent_node!
     unless File.executable?(BIN)
       missing = "OpenCode is not installed. Set OPENCODE_BIN to the opencode sandbox/Dockerfile pins."
       ENV["CI"].present? ? flunk(missing) : skip(missing)
@@ -146,7 +148,7 @@ class OpencodePermissionsTest < ActiveSupport::TestCase
                "mcp" => { Fixing::TOOLS_SERVER => { "type" => "remote", "url" => "#{base}/mcp", "enabled" => true, "headers" => { "Authorization" => "Bearer #{@token}" } } } }
     home = File.join(@root, "home")
     env = { "PATH" => "#{@bin}:#{ENV.fetch('PATH')}", "HOME" => home, "XDG_CONFIG_HOME" => "#{home}/.config", "XDG_DATA_HOME" => "#{home}/.local/share",
-            "XDG_CACHE_HOME" => "#{home}/.cache", "XDG_STATE_HOME" => "#{home}/.local/state", "SANDBOX_PROGRESS" => File.join(@root, "progress") }
+            "XDG_CACHE_HOME" => "#{home}/.cache", "XDG_STATE_HOME" => "#{home}/.local/state", "SANDBOX_PROGRESS" => File.join(@root, "progress"), "AGENT_NODE" => AGENT_NODE }
     output, = Open3.capture2(env, "bash", "-c", Fixing::RUN, Fixing::AGENT, "Fix it", "anthropic/#{MODEL}", "", "", "main", "halon/fix-1", "Fix", "",
                              "#{base}/permissions", chdir: @copy, stdin_data: "credential\n#{config.to_json}\n#{Fixing::DRIVER}")
     assert_match(/^SESSION ses_/, output, "The agent never started a session. The box said:\n#{output}\nOpenCode logged:\n#{opencode_log}")

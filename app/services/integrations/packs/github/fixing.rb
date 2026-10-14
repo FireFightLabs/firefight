@@ -32,7 +32,9 @@ module Integrations
           "skill" => ALLOW, "lsp" => ALLOW, "invalid" => ALLOW, CodeAgentPermission::REPEATED => ASK, "#{TOOLS_SERVER}_*" => ALLOW,
           "external_directory" => { "{env:TMPDIR}/*" => ALLOW }
         }.freeze
-        # Runs the agent in the box and puts its permission questions to Firefight (RUN).
+        # Runs the agent in the box and puts its permission questions to Firefight (RUN). RUN runs it on the box's pinned
+        # Node in /opt/clis/node (sandbox/Dockerfile, NODE_FOR_CLIS_VERSION), never Debian's 18, whose fetch never gave up on
+        # a server that did not answer. AGENT_NODE is read only so a test can run that same Node from where it keeps it.
         DRIVER = Rails.root.join("app/services/integrations/packs/github/opencode_driver.mjs").read.freeze
         # OpenCode's helper agent keeps no plan of its own, as its defaults have it, since todowrite above would allow one.
         AGENTS = { "general" => { "permission" => { "todowrite" => "deny" } } }.freeze
@@ -91,7 +93,7 @@ module Integrations
           mkdir "$dir/tmp"
           instructions="$(pwd -P)/AGENTS.md"; [ -f AGENTS.md ] || instructions="$(pwd -P)/CLAUDE.md"
           TMPDIR="$dir/tmp" OPENCODE_CONFIG="$dir/opencode.json" OPENCODE_DISABLE_PROJECT_CONFIG=1 FIREFIGHT_INSTRUCTIONS="$instructions" \
-            "$dir/agent.mjs" "$1" "$2" "$resume" "$permissions_url" < /dev/null 2>&1 | tee "${SANDBOX_PROGRESS:-/dev/null}" > "$dir/agent.log"
+            "${AGENT_NODE:-/opt/clis/node/bin/node}" "$dir/agent.mjs" "$1" "$2" "$resume" "$permissions_url" < /dev/null 2>&1 | tee "${SANDBOX_PROGRESS:-/dev/null}" > "$dir/agent.log"
           echo "AGENT_EXIT ${PIPESTATUS[0]}"
           echo "BASE $start"
           echo "SESSION $(grep -o '"sessionID":"[^"]*"' "$dir/agent.log" | head -1 | cut -d'"' -f4)"
