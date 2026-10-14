@@ -125,6 +125,7 @@ Rails.application.routes.draw do
   post "/code_agent/git/change.git/git-receive-pack", to: "code_agent_git#receive_pack", as: :code_agent_git_receive, format: false
   post "/code_agent/tools", to: "code_agent_tools#create", as: :code_agent_tools
   match "/code_agent/tools", to: "code_agent_tools#method_not_allowed", via: [ :get, :delete, :put, :patch ]
+  post "/code_agent/permissions", to: "code_agent_permissions#create", as: :code_agent_permissions
   post "/code_agent/:provider/*path", to: "code_agent#forward", as: :code_agent, format: false
   # A command in Halon's terminal calling the connected tools, through ff or a provider's own command line tool
   # (Chat::Terminal::RELAY_PATH).

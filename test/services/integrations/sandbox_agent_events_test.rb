@@ -111,6 +111,33 @@ module Integrations
       refute_match "cf-ray", work.lines.last.text
     end
 
+    test "a repeated step Firefight refused stops the agent with only the reason it was given" do
+      refused = { type: "error", error: { name: "UnknownError", data: { message: "#{SandboxAgentEvents::REFUSED_WITH}Halon refused this step. It ran ls three times." } } }
+      events = SandboxAgentEvents.new(Chat::CodeFixProgress.start)
+
+      assert_equal "Halon refused this step. It ran ls three times", events.stop_reason("#{refused.to_json}\n")
+    end
+
+    test "a line the driver prints while Firefight decides keeps the step live and adds nothing" do
+      work = Chat::CodeFixProgress.start
+      SandboxAgentEvents.new(work).read("#{{ type: 'permission_wait', permission: 'doom_loop' }.to_json}\n")
+
+      assert work.live?
+      assert_empty work.lines
+    end
+
+    test "a call a permission rule refuses fails alone, and the agent carries on and finishes" do
+      log = file_fixture("opencode/permission_denied.jsonl").read
+      work = Chat::CodeFixProgress.start
+      events = SandboxAgentEvents.new(work)
+      events.read(log)
+
+      assert_equal [ "Ran cd /runs/*; ls", "Created fixed.txt", "Thinking: I wrote fixed.txt after the stray command was refused." ], work.lines.map(&:text)
+      assert_equal [ "failed", nil, nil ], work.lines.map(&:result)
+      assert_equal [ "fixed.txt" ], work.changed
+      assert_nil events.stop_reason(log)
+    end
+
     test "the last words and why it stopped are read from the log when nothing was heard as it ran" do
       log = [ "tail of a line cut short\"}", { type: "text", part: { text: "I set the pool to 10.\n\nCould not run here:\n- the tests, since no database was there" } }.to_json,
               api_error.to_json ].join("\n")

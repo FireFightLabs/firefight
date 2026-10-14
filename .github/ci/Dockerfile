@@ -65,6 +65,10 @@ RUN cd /opt/browser && \
     npx playwright install --with-deps chromium && \
     rm -rf /root/.npm /var/lib/apt/lists /var/cache/apt/archives
 
+# The OpenCode sandbox/Dockerfile pins, so test/sandbox runs a code fix's agent for real against a scripted model.
+ENV OPENCODE_BIN=/opt/opencode/node_modules/.bin/opencode
+RUN npm install --prefix /opt/opencode --no-fund --no-audit opencode-ai@1.18.34 && rm -rf /root/.npm
+
 COPY --from=gems /usr/local/bundle /usr/local/bundle
 COPY --from=packages /opt/ci/node_modules /opt/ci/node_modules
 

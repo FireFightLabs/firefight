@@ -205,7 +205,8 @@ module Integrations
 
             change = read(run_script(root, copy, agent, gate, branch: "fix-pool"))
             assert_equal "ses_123", change.agent_session
-            assert_no_match "--session", File.read(File.join(root, "args"))
+            assert_equal "brief x/y  https://ff.example.com/code_agent/permissions", File.read(File.join(root, "args")).strip,
+                         "the driver gets the brief, the model, no session to resume and where to ask about permissions"
 
             saved = push(copy, gate, "halon/fix-saved", "", from: "fix-pool")
             assert_match Fixing::PUSHED, saved
@@ -213,8 +214,25 @@ module Integrations
             assert_empty git(gate, "branch", "--list", "fix-pool").strip, "and not on the branch it was for"
 
             again = read(run_script(root, copy, agent.sub("b.txt", "c.txt"), gate, branch: "fix-pool", earlier: change.commit, resume: "ses_123"))
-            assert_match "run --session ses_123 --model", File.read(File.join(root, "args"))
+            assert_equal "brief x/y ses_123 https://ff.example.com/code_agent/permissions", File.read(File.join(root, "args")).strip
             assert_equal "b\n", git(copy, "show", "#{again.commit}:b.txt"), "it carries on from what it saved"
+          end
+        end
+
+        test "the repository's own OpenCode settings are never read, and its instructions are, AGENTS.md before CLAUDE.md" do
+          Dir.mktmpdir do |root|
+            gate, copy, = repository_with_gate(root)
+            agent = "#!/bin/sh\necho \"PROJECT $OPENCODE_DISABLE_PROJECT_CONFIG $FIREFIGHT_INSTRUCTIONS\"\n"
+
+            File.write(File.join(copy, "CLAUDE.md"), "claude\n")
+            git(copy, "add", "CLAUDE.md")
+            commit(copy, "instructions")
+            assert_equal "PROJECT 1 #{File.realpath(copy)}/CLAUDE.md", read(run_script(root, copy, agent, gate)).log
+
+            File.write(File.join(copy, "AGENTS.md"), "agents\n")
+            git(copy, "add", "AGENTS.md")
+            commit(copy, "agents")
+            assert_equal "PROJECT 1 #{File.realpath(copy)}/AGENTS.md", read(run_script(root, copy, agent, gate)).log
           end
         end
 
@@ -320,16 +338,17 @@ module Integrations
           [ gate, copy, head, base ]
         end
 
+        # agent stands in for the driver, which the script runs as it is handed on stdin.
         def run_script(root, copy, agent, gate, branch: "halon/fix-1", earlier: "", env: {}, resume: "")
           bin = File.join(root, "bin")
           FileUtils.mkdir_p(bin)
-          File.write(File.join(bin, "opencode"), agent)
-          File.chmod(0o755, File.join(bin, "opencode"))
           output, = Open3.capture2({ "PATH" => "#{bin}:#{ENV.fetch('PATH')}" }.merge(env), "bash", "-c", Fixing::RUN, "opencode", "brief", "x/y",
-                                   earlier.to_s, gate, "main", branch, "Fix the pool", resume, chdir: copy,
-                                   stdin_data: "#{Base64.strict_encode64('halon:secret-token')}\n{\"apiKey\":\"secret-token\"}\n")
+                                   earlier.to_s, gate, "main", branch, "Fix the pool", resume, PERMISSIONS_URL, chdir: copy,
+                                   stdin_data: "#{Base64.strict_encode64('halon:secret-token')}\n{\"apiKey\":\"secret-token\"}\n#{agent}")
           output
         end
+
+        PERMISSIONS_URL = "https://ff.example.com/code_agent/permissions".freeze
 
         def push(copy, gate, branch, lease, from: branch)
           output, = Open3.capture2("bash", "-c", Fixing::PUSH, "push", gate, branch, lease, from, chdir: copy,

@@ -3,11 +3,17 @@
 class CodeAgentController < ActionController::API
   include ActionController::Live
 
+  # OpenCode names its own session on every model call (session/llm/request.ts at 1.18.34).
+  AGENT_SESSION_HEADER = "x-opencode-session-id".freeze
+
   rate_limit to: 120, within: 1.minute, by: -> { CodeAgentSession.digest(token) }, with: -> { head :too_many_requests }
 
   def forward
     session = CodeAgentSession.authenticate(token)
     return render(json: { error: { message: CodeAgentSession::ENDED } }, status: :unauthorized) unless session
+
+    refused = session.model_call_refusal!(request.headers[AGENT_SESSION_HEADER])
+    return render(json: { error: { message: refused } }, status: :forbidden) if refused
 
     passed = FirefightAi::ModelProxy.passed_headers(session.provider).index_with { |name| request.headers[name] }
     CodeAgent::Relay.new(session).forward(path: params[:path].to_s, body: request.raw_post, headers: passed) do |event, *rest|

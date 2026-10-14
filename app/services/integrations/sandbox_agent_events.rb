@@ -24,6 +24,7 @@ module Integrations
     NOTHING = /\A(?:none|nothing)\.?\z/i
     NOT_RUN_LIMIT = 10
     NOT_RUN_LINE_LIMIT = 300
+    REFUSED_WITH = "The user rejected permission to use this specific tool call with the following feedback: ".freeze
 
     # Whether a command runs a repository's tests, in any of the steps it chains.
     def self.runs_tests?(command)
@@ -191,12 +192,13 @@ module Integrations
       nil
     end
 
-    # A provider's refusal arrives as its own JSON body.
+    # A provider's refusal arrives as its own JSON body, and a step Firefight refused as OpenCode's words around the
+    # reason it was given (PermissionV1.CorrectedError at 1.18.34), so only the reason is said.
     def unwrapped(message)
       parsed = JSON.parse(message)
       parsed.is_a?(Hash) && parsed["message"].is_a?(String) ? parsed["message"] : message
     rescue JSON::ParserError
-      message
+      message.delete_prefix(REFUSED_WITH)
     end
 
     def path(value) = value.to_s.sub(COPY, "")
