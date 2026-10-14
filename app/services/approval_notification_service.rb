@@ -8,9 +8,13 @@ class ApprovalNotificationService
       deliver(approval) { adapter.post_approval_request(approval: approval, channel_id: channel_id) }
     end
 
-    asked = approval.notify_dm? ? approval.human_approvers : []
+    asked = (approval.notify_dm? ? approval.human_approvers : []) | approval.on_call_to_ask
     # Nobody working the incident can decide, so whoever is on call for it is asked directly too.
-    (asked | approval.on_call_to_ask).each { |member| ask_directly(approval, member, adapter) }
+    asked.each { |member| ask_directly(approval, member, adapter) }
+    # Asked nowhere, so it waits on the Approvals page alone.
+    return unless asked.empty? && !(approval.notify_channel? && channel_id)
+
+    Rails.logger.warn({ event: "approval.nowhere_to_ask", approval_id: approval.id }.to_json)
   end
 
   # Someone just escalated to is on call for the incident from now on, so each request waiting there that they may

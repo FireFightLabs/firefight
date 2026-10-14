@@ -94,6 +94,18 @@ class DefinedWorkflowManualStepTest < ActiveSupport::TestCase
     assert_equal({ "done_by" => @alice.actor_display_name }, row(run, "ticket").output)
   end
 
+  test "a task for anyone with no channel anywhere stays on the run's page and says so in the log" do
+    @workspace.update!(incidents_channel_id: nil)
+    @adapter.any_instance.expects(:post_workflow_question_in_channel).never
+    Rails.logger.expects(:warn).with { |line| line.include?("workflow_question.no_channel") }.at_least_once
+    Rails.logger.stubs(:warn).with { |line| !line.include?("workflow_question.no_channel") }
+
+    run = start(manual("to" => "anyone", "person" => nil))
+
+    assert task(run).open?
+    assert_nil task(run).answer_blocked_reason(@bob)
+  end
+
   test "a task nobody marks done within its wait is withdrawn where it was given and takes its not done route" do
     run = start(manual("wait_minutes" => 45))
     given = task(run)

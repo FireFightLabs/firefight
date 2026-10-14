@@ -30,7 +30,9 @@ class WorkflowQuestionService
   end
 
   def self.post_in_channel!(question, adapter)
-    return if question.channel_id.blank? || question.posted_in_channel?
+    return if question.posted_in_channel?
+    # Nowhere to post, so it is done from the run's page alone.
+    return Rails.logger.warn({ event: "workflow_question.no_channel", question_id: question.id }.to_json) if question.channel_id.blank?
 
     sent = adapter.post_workflow_question_in_channel(channel_id: question.channel_id, question: question)
     return if question.add_notification!(channel_id: sent[:channel_id], message_id: sent[:message_id], member_id: nil)

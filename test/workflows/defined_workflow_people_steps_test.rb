@@ -372,6 +372,18 @@ class DefinedWorkflowPeopleStepsTest < ActiveSupport::TestCase
     assert_equal PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL, requested(run).notify
   end
 
+  test "an approval a role decides with no channel anywhere waits on the Approvals page and says so in the log" do
+    @workspace.update!(incidents_channel_id: nil)
+    @adapter.any_instance.expects(:post_approval_request).never
+    @adapter.any_instance.expects(:post_approval_request_to_user).never
+    Rails.logger.expects(:warn).with { |line| line.include?("approval.nowhere_to_ask") }.at_least_once
+    Rails.logger.stubs(:warn).with { |line| !line.include?("approval.nowhere_to_ask") }
+
+    run = start(approval_flow("who" => "role", "role" => "admin", "approvers" => []))
+
+    assert requested(run).pending?
+  end
+
   test "an approval naming people messages only them, beside its channel, which is the owning team's without an incident" do
     @adapter.any_instance.expects(:post_approval_request_to_user).once.with { |approval:, user_id:| user_id == @bob.platform_user_id }.returns({ channel_id: "D-BOB", message_id: "4.4" })
     @adapter.any_instance.expects(:post_approval_request).with { |approval:, channel_id:| channel_id == "C0PLATFORM" }.returns({ channel_id: "C0PLATFORM", message_id: "5.5" })
