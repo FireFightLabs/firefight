@@ -89,6 +89,39 @@ class WorkflowProviderTriggersTest < ActiveSupport::TestCase
     assert_equal "acme/web is gone", run.trigger_payload.dig("change", "words")
   end
 
+  test "a service the map sees scale starts a workflow waiting for one, with the counts before and after, when its conditions on them hold" do
+    above = { "field" => "to", "operator" => PolicyRule::OPERATOR_GREATER_THAN, "value" => "20" }
+    workflow = published("Big", { "kind" => Workflow::Trigger::KIND_SERVICE_SCALED, "conditions" => [ above ] }, query: "{{trigger.resource.name}}")
+    any = published("Any change", { "kind" => Workflow::Trigger::KIND_RESOURCE_CHANGED, "conditions" => [ condition("change", ResourceMap::Change::KIND_SCALED) ] })
+    northflank = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Northflank").integration_environments.create!
+    web = ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web")
+
+    perform_enqueued_jobs(only: WorkflowEventJob) do
+      ResourceMap.record!(northflank, ResourceMap::Snapshot.new(resources: [ web.with(details: { ResourceMap::INSTANCES => 2 }) ]), at: 2.hours.ago)
+      ResourceMap.record!(northflank, ResourceMap::Snapshot.new(resources: [ web.with(details: { ResourceMap::INSTANCES => 12 }) ]), at: 1.hour.ago)
+      ResourceMap.record!(northflank, ResourceMap::Snapshot.new(resources: [ web.with(details: { ResourceMap::INSTANCES => 25 }) ]))
+    end
+
+    run = workflow.runs.sole
+    assert_equal({ "kind" => "scaled", "from" => 12, "to" => 25, "words" => "web went from 12 to 25 instances" },
+                 run.trigger_payload["change"].slice("kind", "from", "to", "words"))
+    assert_equal "web", run.trigger_payload.dig("resource", "name")
+    assert_equal 2, any.runs.count, "a scale is also a change on the map"
+  end
+
+  test "a number condition compares as a number, and a value that is not one is refused when publishing" do
+    assert Policy::Conditions.all?([ { "field" => "to", "operator" => PolicyRule::OPERATOR_GREATER_THAN, "value" => "9" } ], "to" => "10")
+    assert_not Policy::Conditions.all?([ { "field" => "to", "operator" => PolicyRule::OPERATOR_GREATER_THAN, "value" => "10" } ], "to" => "10")
+    assert Policy::Conditions.all?([ { "field" => "from", "operator" => PolicyRule::OPERATOR_LESS_THAN, "value" => "2.5" } ], "from" => "2")
+    assert_not Policy::Conditions.all?([ { "field" => "to", "operator" => PolicyRule::OPERATOR_LESS_THAN, "value" => "3" } ], "to" => "")
+
+    trigger = { "kind" => Workflow::Trigger::KIND_SERVICE_SCALED, "inputs" => [],
+                "conditions" => [ { "field" => "to", "operator" => PolicyRule::OPERATOR_GREATER_THAN, "value" => "lots" } ] }
+    assert_includes Workflow::Trigger.problems(trigger), "The trigger's condition 1 needs a number."
+    assert_includes Policy::Conditions.errors_for([ { "field" => "service", "operator" => PolicyRule::OPERATOR_GREATER_THAN, "value" => "3" } ]),
+                    "Condition 1 has an unknown operator", "a routing rule keeps the operators it had"
+  end
+
   test "a leaked secret starts a workflow and still reaches the security module" do
     workflow = published("Leak", { "kind" => Workflow::Trigger::KIND_SECURITY_EVENT, "conditions" => [ condition("public", "true") ] })
     Investigation::SecurityTrigger.any_instance.expects(:receive!)

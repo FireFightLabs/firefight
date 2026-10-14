@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Textarea } from "@/components/ui/textarea"
+import { WORKFLOW_ASK_KIND } from "@/lib/generated/constants"
 import { workflowRunQuestionAnswerPath } from "@/lib/routes"
 import type { Ask } from "@/pages/halon/components/workflow/ask-panel"
 import { RUN_VISIT } from "@/pages/halon/hooks/use-workflow-edits"
@@ -18,9 +19,10 @@ interface AnswerDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-// Answering a question with a short form: one of its choices when it has any, and every field. Send stays off until
-// each is given, and the run carries on with what is sent.
+// Answering a question with a short form: one of its choices when it has any, and every field. A task that collects a
+// note is marked done here with it. Send stays off until each is given, and the run carries on with what is sent.
 export function AnswerDialog({ workflowId, runId, ask, open, onOpenChange }: AnswerDialogProps) {
+  const task = ask.kind === WORKFLOW_ASK_KIND.TASK
   const [ choice, setChoice ] = useState("")
   const [ values, setValues ] = useState<Record<string, string>>({})
   const complete = (ask.choices.length === 0 || choice.length > 0) && ask.fields.every((field) => (values[field.name] ?? "").trim().length > 0)
@@ -41,7 +43,7 @@ export function AnswerDialog({ workflowId, runId, ask, open, onOpenChange }: Ans
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Answer</DialogTitle>
+          <DialogTitle>{task ? "Done" : "Answer"}</DialogTitle>
           <DialogDescription className="[overflow-wrap:anywhere]">{ask.question}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -67,7 +69,7 @@ export function AnswerDialog({ workflowId, runId, ask, open, onOpenChange }: Ans
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={close}>Cancel</Button>
-          <Button type="button" disabled={!complete} onClick={send}>Send answer</Button>
+          <Button type="button" disabled={!complete} onClick={send}>{task ? "Mark done" : "Send answer"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

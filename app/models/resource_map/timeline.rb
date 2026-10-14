@@ -37,15 +37,16 @@ class ResourceMap::Timeline
   KIND_APPEARED = "appeared".freeze
   KIND_REMOVED = "removed".freeze
   KIND_RENAMED = "renamed".freeze
+  KIND_SCALED = "scaled".freeze
   # A provider said something changed between sweeps.
   KIND_REPORTED = "reported".freeze
   # A run read live from the provider, such as a CI run, a build or a deploy.
   KIND_RUN = "run".freeze
   # A change made through Firefight.
   KIND_FIREFIGHT = "firefight".freeze
-  KINDS = [ KIND_DEPLOY, KIND_CONFIG, KIND_STATUS, KIND_APPEARED, KIND_REMOVED, KIND_RENAMED, KIND_REPORTED, KIND_RUN, KIND_FIREFIGHT ].freeze
+  KINDS = [ KIND_DEPLOY, KIND_CONFIG, KIND_SCALED, KIND_STATUS, KIND_APPEARED, KIND_REMOVED, KIND_RENAMED, KIND_REPORTED, KIND_RUN, KIND_FIREFIGHT ].freeze
   KIND_LABELS = {
-    KIND_DEPLOY => "Deploy", KIND_CONFIG => "Setting", KIND_STATUS => "Status", KIND_APPEARED => "Appeared", KIND_REMOVED => "Removed",
+    KIND_DEPLOY => "Deploy", KIND_CONFIG => "Setting", KIND_SCALED => "Scaled", KIND_STATUS => "Status", KIND_APPEARED => "Appeared", KIND_REMOVED => "Removed",
     KIND_RENAMED => "Renamed", KIND_REPORTED => "Reported change", KIND_RUN => "Run", KIND_FIREFIGHT => "Through Firefight"
   }.freeze
 
@@ -62,7 +63,7 @@ class ResourceMap::Timeline
   CHANGE_KINDS = {
     ResourceMap::Change::KIND_DEPLOYED => KIND_DEPLOY, ResourceMap::Change::KIND_CONFIGURED => KIND_CONFIG,
     ResourceMap::Change::KIND_STATUS_CHANGED => KIND_STATUS, ResourceMap::Change::KIND_APPEARED => KIND_APPEARED,
-    ResourceMap::Change::KIND_REMOVED => KIND_REMOVED, ResourceMap::Change::KIND_RENAMED => KIND_RENAMED
+    ResourceMap::Change::KIND_REMOVED => KIND_REMOVED, ResourceMap::Change::KIND_RENAMED => KIND_RENAMED, ResourceMap::Change::KIND_SCALED => KIND_SCALED
   }.freeze
   REPORTED_WORDS = {
     ResourceMap::Event::ADDED => "added", ResourceMap::Event::UPDATED => "changed", ResourceMap::Event::REMOVED => "removed",

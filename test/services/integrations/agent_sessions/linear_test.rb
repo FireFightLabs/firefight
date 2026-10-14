@@ -32,6 +32,31 @@ module Integrations
         assert_equal event, Event.from_job(event.to_job)
       end
 
+      # An Issues data change event as linear.app/developers/webhooks documents it, data the issue with its labels and
+      # updatedFrom the previous values of what changed.
+      def issue_change(action: "update", labels: [ %w[l-1 Bug], %w[l-2 Firefight] ], before: [ "l-1" ], type: "Issue")
+        { "action" => action, "type" => type, "organizationId" => "org-1", "updatedFrom" => ({ "labelIds" => before } if before),
+          "actor" => { "id" => "user-2", "type" => "user", "name" => "Bob", "email" => "bob@example.com" },
+          "data" => { "id" => "issue-1", "identifier" => "ENG-12", "title" => "Checkout returns 500", "url" => SESSION["issue"]["url"],
+                      "description" => "Since 14:00", "updatedAt" => "2026-10-14T09:00:00.000Z",
+                      "labelIds" => labels.map(&:first), "labels" => labels.map { |id, name| { "id" => id, "name" => name, "color" => "#000" } } } }.compact
+      end
+
+      test "a label added to an issue is read with the issue and who added it, and nothing else about an issue is" do
+        labelled = Linear.labelled(issue_change)
+
+        assert_equal [ "Firefight" ], labelled.labels
+        assert_equal [ "issue-1:l-2:2026-10-14T09:00:00.000Z", "ENG-12", "Checkout returns 500", SESSION["issue"]["url"], "Since 14:00" ],
+                     [ labelled.reference, labelled.issue_key, labelled.issue_title, labelled.issue_url, labelled.text ]
+        assert_equal [ "bob@example.com", "Bob" ], [ labelled.asker_email, labelled.asker_name ]
+        assert_equal [ "Bug", "Firefight" ], Linear.labelled(issue_change(action: "create", before: nil)).labels, "an issue made with labels has each one added"
+        assert_nil Linear.labelled(issue_change(before: %w[l-1 l-2])), "a label already on the issue was not added"
+        assert_nil Linear.labelled(issue_change(before: nil)), "a change that left the labels alone added none"
+        assert_nil Linear.labelled(issue_change(action: "remove", before: nil))
+        assert_nil Linear.labelled(issue_change(type: "Comment"))
+        assert_nil Linear.event(issue_change), "a label is not a session"
+      end
+
       test "a session opened by delegating the issue has no words of its own" do
         assert_nil Linear.event(created("agentSession" => SESSION.except("comment"))).text
       end

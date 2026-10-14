@@ -85,6 +85,59 @@ class Api::V1::AppEventsAgentSessionsTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
+  def labelled(names, organization: "org-1")
+    { "type" => "Issue", "action" => "update", "organizationId" => organization, "updatedFrom" => { "labelIds" => [] },
+      "actor" => { "id" => "user-2", "type" => "user", "name" => "Bob", "email" => "bob@example.com" },
+      "data" => { "id" => "issue-1", "identifier" => "ENG-12", "title" => "Checkout returns 500", "url" => "https://linear.app/acme/issue/ENG-12",
+                  "updatedAt" => "2026-10-14T09:00:00.000Z", "labelIds" => names.map { |name| "id-#{name}" },
+                  "labels" => names.map { |name| { "id" => "id-#{name}", "name" => name } } } }
+  end
+
+  def published(name, trigger)
+    alice = workspace_memberships(:alice_workspace_one)
+    workflow = Workflow.create!(workspace: @workspace, name: name, created_by: alice)
+    draft = workflow.open_draft!(by: alice)
+    look = { "id" => "look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => { "query" => "{{trigger.issue.title}}" } } }
+    draft.update!(trigger: { "kind" => Workflow::Trigger::KIND_ISSUE_ASSIGNED, "inputs" => [] }.merge(trigger), steps: [ look ], edges: [])
+    assert_empty draft.problems
+    assert WorkflowPublishService.new(workflow).publish!(draft.reload, by: alice).ok
+    workflow.reload
+  end
+
+  test "a label added to an issue starts the workflows waiting for that label, once, and an assignment still starts every one of them" do
+    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
+    labelled_one = published("Labelled", Workflow::Listening::KEY_LABEL => "firefight")
+    other_label = published("Other label", Workflow::Listening::KEY_LABEL => "Triage")
+    assigned_only = published("Assigned only", {})
+    Conversation::IssueSessions.any_instance.stubs(:asked)
+
+    perform_enqueued_jobs(only: [ WorkflowEventJob, Integrations::AgentSessionEventJob ]) do
+      2.times { deliver(labelled([ "Bug", "Firefight" ])) }
+      deliver(labelled([ "Bug" ]))
+    end
+
+    assert_response :ok
+    issue = labelled_one.runs.sole.trigger_payload["issue"]
+    assert_equal [ "ENG-12", "Checkout returns 500", "bob@example.com", Workflow::TriggerPayloads::ISSUE_LABELLED, %w[Bug Firefight] ],
+                 issue.values_at("key", "title", "asked_by_email", "how", "labels")
+    assert_empty other_label.runs
+    assert_empty assigned_only.runs
+
+    perform_enqueued_jobs(only: [ WorkflowEventJob, Integrations::AgentSessionEventJob ]) { deliver(session_created) }
+
+    assert_equal [ 2, 1, 1 ], [ labelled_one, other_label, assigned_only ].map { |workflow| workflow.runs.count }
+    assert_equal Workflow::TriggerPayloads::ISSUE_ASSIGNED, assigned_only.runs.sole.trigger_payload.dig("issue", "how")
+  end
+
+  test "a label added in an organization no connection was made through starts nothing" do
+    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
+    workflow = published("Labelled", Workflow::Listening::KEY_LABEL => "Firefight")
+
+    perform_enqueued_jobs(only: WorkflowEventJob) { deliver(labelled([ "Firefight" ], organization: "org-elsewhere")) }
+
+    assert_empty workflow.runs
+  end
+
   test "any other event is taken and left alone" do
     assert_no_enqueued_jobs do
       deliver({ "type" => "AppUserNotification", "action" => "issueMention", "organizationId" => "org-1" })

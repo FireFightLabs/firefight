@@ -797,7 +797,15 @@ module Integrations
         { type: TYPE_RUN, id: service["name"], name: target&.name || service["name"], location: target&.location, status: run_status(service), hosts: hosts,
           source: service,
           details: { TYPE => TYPE_RUN, "region" => target&.location, "image" => container["image"],
-                     "latest_revision" => short(service["latestReadyRevision"]), ResourceMap::TAGS => service["labels"].presence }.compact }
+                     "latest_revision" => short(service["latestReadyRevision"]), ResourceMap::INSTANCES => manual_instances(service),
+                     ResourceMap::TAGS => service["labels"].presence }.compact }
+      end
+
+      # A service set to manual scaling runs the instances it names. One that scales on its own names only the fewest and
+      # the most, so it has no one count.
+      def manual_instances(service)
+        scaling = service["scaling"].to_h
+        scaling["manualInstanceCount"] if scaling["scalingMode"] == MANUAL
       end
 
       def host_of(url)

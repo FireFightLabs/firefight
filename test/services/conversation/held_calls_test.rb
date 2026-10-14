@@ -132,8 +132,12 @@ class Conversation::HeldCallsTest < ActiveSupport::TestCase
       assert_equal Chat::HeldCall::STATUS_EXPIRED, Conversation::HeldCalls.shown(held.reload).status
       assert_equal Chat::HeldCall::EXPIRED, held.run_blocked_reason(@bob)
 
+      ApprovalNotificationService.expects(:mark_resolved!).with { |lapsed| lapsed.id == held.approval.id && lapsed.withdrawn_reason.present? }
       perform_enqueued_jobs(only: ApprovedCallExpiryJob) { ApprovedCallExpiryJob.perform_later(held.approval.id) }
       assert_equal [ Chat::HeldCall::STATUS_EXPIRED, Ability::Approval::STATUS_EXPIRED ], [ held.reload.status, held.approval.reload.status ]
+      assert_equal "Nobody ran it within 1 hour of its approval.", held.approval.withdrawn_reason
+      assert_match(/\*Withdrawn\* after \*.+\* approved it\. Nobody ran it within 1 hour of its approval\./,
+                   Slack::Messages::Approval.build_resolved(held.approval).last.dig(:text, :text))
       assert_equal [ Chat::CurrentState::ACTION_ASK_AGAIN ], held.offers
 
       assert_enqueued_with(job: AbilityApprovalNotificationJob) { assert_nil Conversation::HeldCalls.ask_again!(held, by: @bob) }

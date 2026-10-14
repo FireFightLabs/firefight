@@ -91,6 +91,18 @@ class WorkflowStepNodeSerializer < BaseSerializer
     Workflow::StepKinds.routes_of(step)
   end
 
+  # The words a route reads as where they are not its own, such as the label of an Ask a person choice for its key.
+  type "Record<string, string>"
+  def route_labels
+    Workflow::StepKinds.route_labels_of(step)
+  end
+
+  # It waits on a person for as long as its settings say, so the time limit of its errors and retries has no say.
+  type :boolean
+  def waits
+    Workflow::StepKinds.waits?(step)
+  end
+
   type "string[]"
   def outputs
     Workflow::StepKinds.outputs_of(step, facts)

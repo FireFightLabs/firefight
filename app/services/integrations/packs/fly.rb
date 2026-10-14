@@ -695,7 +695,7 @@ module Integrations
         return {} unless machines
 
         images = machines.filter_map { |machine| image_of(machine) }.uniq
-        { "instances" => machines.size, "region" => machines.filter_map { |machine| machine["region"] }.uniq.sort.join(", ").presence,
+        { ResourceMap::INSTANCES => machines.size, "region" => machines.filter_map { |machine| machine["region"] }.uniq.sort.join(", ").presence,
           "image" => (images.one? ? images.first : nil) }.compact
       end
 

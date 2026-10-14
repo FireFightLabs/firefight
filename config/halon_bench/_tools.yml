@@ -454,6 +454,8 @@ check_status_page:
         - Sentry
         - PagerDuty
         - Opsgenie
+        - Statuspage
+        - Instatus
         - PostHog
         - Mixpanel
         - Honeycomb
@@ -555,6 +557,7 @@ blind_spots:
         - Product analytics
         - Search and product data
         - Sign-in
+        - Status pages
         description: Only systems of this kind (optional)
     required: []
     type: object
@@ -1534,8 +1537,8 @@ list_integrations:
         type: string
         description: >-
           The category to show. Leave it out for the overview. One of: cloud_and_hosting (Cloud and hosting), observability (Observability), alerting_and_on-call
-          (Alerting and on-call), product_analytics (Product analytics), databases (Databases), code (Code), ci (CI), coding_agents (Coding agents),
-          issues (Issues), knowledge (Knowledge), custom (Custom)
+          (Alerting and on-call), status_pages (Status pages), product_analytics (Product analytics), databases (Databases), code (Code), ci (CI),
+          coding_agents (Coding agents), issues (Issues), knowledge (Knowledge), custom (Custom)
     type: object
   default: Shown to the person as a table they can connect from.
 northflank_api_request:

@@ -163,7 +163,7 @@ export function StepSettings({ workflowId, item, document, revision, stepKinds, 
             </div>
           </section>
         )}
-        <FailureSettings idPrefix={`step-${step.id}`} failure={draft.draft.failure} errors={draft.errors} disabled={disabled} onChange={draft.changeFailure} />
+        <FailureSettings idPrefix={`step-${step.id}`} failure={draft.draft.failure} errors={draft.errors} waits={step.waits} disabled={disabled} onChange={draft.changeFailure} />
         {!suggestion && document.saved && document.status === WORKFLOW_VERSION_STATUS.DRAFT && (
           <PinnedOutput workflowId={workflowId} step={step} editable={editable} />
         )}

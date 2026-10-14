@@ -12,6 +12,11 @@ class PolicyRule < ApplicationRecord
   ARRAY_VALUE_OPERATORS = [ OPERATOR_IS_ONE_OF ].freeze
   STRING_VALUE_OPERATORS = [ OPERATOR_CONTAINS, OPERATOR_STARTS_WITH, OPERATOR_MATCHES_REGEX ].freeze
   VALUELESS_OPERATORS = [ OPERATOR_IS_EMPTY ].freeze
+  # Comparisons of a number, such as a count above 20. A workflow's trigger offers them (Workflow::Trigger::CONDITION_OPERATORS),
+  # and a routing rule keeps OPERATORS, whose fields are words.
+  OPERATOR_GREATER_THAN = "greater_than"
+  OPERATOR_LESS_THAN = "less_than"
+  NUMBER_OPERATORS = [ OPERATOR_GREATER_THAN, OPERATOR_LESS_THAN ].freeze
 
   belongs_to :policy
 

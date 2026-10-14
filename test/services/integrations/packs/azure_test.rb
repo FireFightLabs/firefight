@@ -27,6 +27,8 @@ module Integrations
                                                                     "traffic" => [ { "revisionName" => "api--v2", "weight" => 100 } ] } },
                                 "template" => { "containers" => [ { "name" => "api", "image" => "acme.azurecr.io/api:v2" } ], "scale" => { "minReplicas" => 1, "maxReplicas" => 5 } } } }.freeze
 
+      PLAN = { "id" => PLAN_ID, "name" => "shop-plan", "sku" => { "name" => "P1v3", "tier" => "PremiumV3", "capacity" => 2 } }.freeze
+
       setup do
         @workspace = workspaces(:slack_workspace_one)
         @integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "azure", name: "Azure")
@@ -36,6 +38,7 @@ module Integrations
         @pack = Azure.new(@integration)
         AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.Web/sites") }.returns(pages([ SITE, FUNCTION ]))
         AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.App/containerApps") }.returns(pages([ APP ]))
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.Web/serverfarms") }.returns(pages([ PLAN ]))
         AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.Sql/servers") }.returns(pages([ { "id" => "#{GROUP}/Microsoft.Sql/servers/shop-sql", "name" => "shop-sql" } ]))
         AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/servers/shop-sql/databases") }.returns(pages([
           { "id" => "#{GROUP}/Microsoft.Sql/servers/shop-sql/databases/master", "name" => "master", "properties" => { "status" => "Online" } },
@@ -46,6 +49,7 @@ module Integrations
         ]))
         AzureApi.any_instance.stubs(:post).with { |path, *| path.end_with?("/config/appsettings/list", "/config/connectionstrings/list") }.returns({ "properties" => {} })
         AzureApi.any_instance.stubs(:get).with(WEB_ID, Azure::WEB_VERSION).returns(SITE)
+        AzureApi.any_instance.stubs(:get).with(PLAN_ID, Azure::WEB_VERSION).returns(PLAN)
         AzureApi.any_instance.stubs(:get).with(FUNCTION_ID, Azure::WEB_VERSION).returns(FUNCTION)
         AzureApi.any_instance.stubs(:get).with(APP_ID, Azure::APP_VERSION).returns(APP)
         AzureApi.any_instance.stubs(:get).with(SQL_ID, Azure::SQL_VERSION).returns({ "id" => SQL_ID, "name" => "orders", "properties" => { "status" => "Online" } })
@@ -324,7 +328,8 @@ module Integrations
         storefront = snapshot.resources.find { |resource| resource.external_id == WEB_ID }
         assert_equal [ ResourceMap::KIND_SERVICE, "running", PORTAL + WEB_ID + "/overview" ],
                      [ storefront.kind, storefront.status, storefront.url ]
-        assert_equal({ "type" => "App Service app", "resource_group" => "shop", "region" => "westeurope", "plan" => "shop-plan", "sku" => "PremiumV3" }, storefront.details)
+        assert_equal({ "type" => "App Service app", "resource_group" => "shop", "region" => "westeurope", "plan" => "shop-plan", "sku" => "PremiumV3",
+                       ResourceMap::INSTANCES => 2 }, storefront.details)
         assert_equal %w[api.happy.westeurope.azurecontainerapps.io shop.example.com storefront.azurewebsites.net], snapshot.links.map { |link| link.from.last }.sort
         assert_equal [ ResourceMap::KIND_DATABASE ], snapshot.unread_kinds
         assert_match "Azure SQL databases could not be read", snapshot.gap_texts.first
@@ -361,6 +366,50 @@ module Integrations
                                    .map { |link| [ link.from_resource.name, link.to_resource.name, link.variables ] }.sort
         assert_equal [ [ "api", "catalog", [ "DATABASE_URL" ] ], [ "storefront", "orders", [ "Orders" ] ] ], matched
         assert_no_setting_values(snapshot, sql_url, "azure-sql-pw", "pg-pw")
+      end
+
+      test "an app counts the instances its plan runs, a container app the replicas it is held to, and one that scales on its own counts none" do
+        fixed = APP.deep_merge("properties" => { "template" => { "scale" => { "minReplicas" => 3, "maxReplicas" => 3 } } })
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.App/containerApps") }.returns(pages([ fixed ]))
+        elastic = { "id" => "#{GROUP}/Microsoft.Web/serverfarms/jobs-plan", "name" => "jobs-plan", "sku" => { "name" => "Y1", "tier" => "Dynamic", "capacity" => 0 } }
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.Web/serverfarms") }.returns(pages([ PLAN, elastic ]))
+        function = FUNCTION.deep_merge("properties" => { "serverFarmId" => elastic["id"] })
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.Web/sites") }.returns(pages([ SITE, function ]))
+
+        counted = @pack.map_of(@row).resources.to_h { |resource| [ resource.name, resource.details[ResourceMap::INSTANCES] ] }
+
+        assert_equal({ "storefront" => 2, "api" => 3, "jobs" => nil }, counted.slice("storefront", "api", "jobs"))
+        assert_nil @pack.send(:container_item, APP)[:details][ResourceMap::INSTANCES], "between 1 and 5 replicas is no one count"
+      end
+
+      test "plans that could not be read leave apps uncounted, and take nothing away" do
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.Web/serverfarms") }.raises(AzureApi::Forbidden, "Azure answered 403: AuthorizationFailed")
+
+        snapshot = @pack.map_of(@row)
+
+        assert_nil snapshot.resources.find { |resource| resource.external_id == WEB_ID }.details[ResourceMap::INSTANCES]
+        gap = snapshot.gaps.find { |each| each.text.start_with?("App Service plans could not be read") }
+        assert_empty gap.kinds
+        assert snapshot.complete?
+      end
+
+      test "plans read only in part count the apps on them and say the rest went uncounted" do
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.Web/serverfarms") }.returns(pages([ PLAN ], complete: false))
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal 2, snapshot.resources.find { |resource| resource.external_id == WEB_ID }.details[ResourceMap::INSTANCES]
+        gap = snapshot.gaps.find { |each| each.text.start_with?("Only the first 1 App Service plans were read") }
+        assert_empty gap.kinds
+        assert snapshot.complete?
+      end
+
+      test "an app read again on its own counts its plan's instances" do
+        AzureApi.any_instance.stubs(:get).with(PLAN_ID, Azure::WEB_VERSION).returns(PLAN.deep_merge("sku" => { "capacity" => 4 }))
+
+        snapshot = @pack.map_refresh(@row, ResourceMap::Scope.new(account: SUBSCRIPTION, kind: ResourceMap::KIND_SERVICE, external_id: WEB_ID))
+
+        assert_equal 4, snapshot.resources.find { |resource| resource.external_id == WEB_ID }.details[ResourceMap::INSTANCES]
       end
 
       test "app settings Reader may not list are one gap, and the other apps are not asked" do

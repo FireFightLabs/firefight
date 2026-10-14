@@ -14,7 +14,7 @@ import { LedgerRows } from "@/pages/halon/components/workflow/ledger-rows"
 import { SavedResultDialog } from "@/pages/halon/components/workflow/saved-result-dialog"
 import { StepIcon } from "@/pages/halon/components/workflow/step-icon"
 import { CANVAS_VISIT, RUN_VISIT } from "@/pages/halon/hooks/use-workflow-edits"
-import { routeWords } from "@/pages/halon/lib/workflow/labels"
+import { routeLabel } from "@/pages/halon/lib/workflow/labels"
 import { durationLabel, STEP_STATUS_LABELS, STEP_STATUS_TONES } from "@/pages/halon/lib/workflow/run-states"
 import type { WorkflowRunDetail, WorkflowRunStep, WorkflowStepNode } from "@/types/serializers"
 import { useWorkflowAccess } from "@/pages/halon/hooks/use-workflow-access"
@@ -81,7 +81,7 @@ export function RunStepPanel({ workflowId, run, step, canPin }: RunStepPanelProp
               {STEP_STATUS_LABELS[row.status]}
               {row.startedAt && ` · ${durationLabel(row.startedAt, row.finishedAt)}`}
               {row.attempts > 1 && ` · ${row.attempts} tries`}
-              {row.route && ` · took ${routeWords(row.route)}`}
+              {row.route && ` · took ${routeLabel(row.route, step.routeLabels)}`}
             </p>
           )}
         </div>

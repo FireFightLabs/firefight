@@ -14,4 +14,8 @@ module HandlerAuthorization
   def authorization
     @authorization || raise(NotImplementedError, "#{name} declares no authorization")
   end
+
+  # The scope the interaction is authorized in, such as the approval a decision is on. A handler names one by defining
+  # its own.
+  def authorization_scope(_subject) = {}
 end
