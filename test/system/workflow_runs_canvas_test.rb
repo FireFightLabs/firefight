@@ -100,6 +100,9 @@ class WorkflowRunsCanvasTest < ApplicationSystemTestCase
     find("[role=radio]", text: "Runs").click
     click_button "Test run of version 1"
 
+    # Opening a run is a visit the server draws, which on a loaded runner takes longer than Capybara's default two
+    # seconds. The address carries the run only once the server answered, so wait for that before reading the page.
+    assert_current_path(/run=/, wait: 15)
     assert_text "Test run of v1"
     assert_text "Pick a step on the canvas to see what it took in, gave back and called."
   end

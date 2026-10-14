@@ -106,6 +106,13 @@ module Integrations
       end
     end
 
+    # Labels added to an issue reach the workflows of each workspace these connections belong to (IssueLabels).
+    def report_issue_labels!(rows, payload, headers:)
+      return if rows.empty?
+
+      IssueLabels.report!(rows, IssueLabels.of(rows.first.integration.provider, payload, headers: headers))
+    end
+
     # A push to a branch handbook pages are synced from reads them again at once, through each of these connections.
     def nudge_handbook!(rows, payload, headers:)
       return if rows.empty?

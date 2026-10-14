@@ -21,6 +21,15 @@ class Api::V1::MapEventsControllerTest < ActionDispatch::IntegrationTest
     assert ResourceMap::ReceivedEvent.exists?(integration_environment: @row, provider_event_id: "e1")
   end
 
+  test "a delivery naming labels added to an issue reaches the workflows of the connection's workspace" do
+    Integrations::IssueLabels.expects(:report!).with { |rows, labelled| rows == [ @row ] && labelled.map(&:labels) == [ [ "Firefight" ] ] }
+    body, headers = live_delivery([], secret: "whsec", labelled: [ "Firefight" ])
+
+    post api_v1_map_events_path(@row.map_events_token), params: body, headers: headers
+
+    assert_response :ok
+  end
+
   test "a delivery about a run has each watch reading through the connection check now, once, and keeps nothing for the map" do
     watch = watch_through(@row)
     body, headers = live_delivery([], secret: "whsec", run: "build 46 failed")
