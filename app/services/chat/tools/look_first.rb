@@ -15,6 +15,17 @@ module Chat::Tools::LookFirst
                 "old. Needed for any call that changes something".freeze
   SCHEMA = { "type" => "array", "items" => { "type" => "string" }, "description" => DESCRIPTION }.freeze
   BOUNCE = "Nothing you read in this turn shows this will help. Read first, then propose it.".freeze
+  # Said with every refusal, so Halon tells the person what is missing rather than proposing the same change again.
+  STUCK = "When no read you can make shows it, tell the person in plain words what you could not confirm and what would " \
+          "let you, rather than proposing it again.".freeze
+  # Said when the specialists asked in this turn read something. Halon makes the same read itself, and the read is
+  # loaded by name once a specialist has made it (Chat::Specialists.made_names).
+  SPECIALISTS_READ = "The specialists you asked read with %<reads>s. Make the read this rests on yourself, loading it by " \
+                     "naming it in open_tools' tools, then name it in because.".freeze
+  # Said when the change named asking a specialist, which is another model's words and never a read.
+  REPORT_NOT_A_READ = "#{Chat::Helper::ASK_SPECIALIST} is a specialist's report, not a read of yours.".freeze
+  # How many of the specialists' reads a refusal names.
+  SPECIALIST_READS_NAMED = 6
   # A tool name, the first word of each entry.
   NAMED = /\A[A-Za-z0-9_.\-]+/
 
@@ -31,6 +42,13 @@ module Chat::Tools::LookFirst
     schema
   end
 
+  # Firefight's own tools and capabilities this asks, by name: a capability that writes and a tool that ends something.
+  def self.firefight_change?(name)
+    named = name.to_s
+    Integrations::Capabilities::SPECS.values.any? { |spec| spec.writes && spec.tool_name == named } ||
+      Mcp::Tools.all.any? { |tool_class| tool_class.ends_something? && tool_class.name_value.to_s == named }
+  end
+
   def self.named(given) = Array(given.to_h.stringify_keys[BECAUSE]).map { |entry| entry.to_s.strip }.reject(&:empty?)
 
   # Why the change goes back to Halon, or nil when a read from this turn backs it. A call already put to the person passed
@@ -38,16 +56,35 @@ module Chat::Tools::LookFirst
   def self.refusal(agent_run, given, tool_call_id: nil)
     return unless applies?(agent_run)
 
-    chat = agent_run.chat
+    workspace = agent_run.workspace
+    refusal_in(agent_run.chat, given, tool_call_id: tool_call_id, read: ->(name, arguments) { read?(workspace, name, arguments) })
+  end
+
+  # The same check over any chat, read saying whether a call only read. A replay asks it with its scenario's word for
+  # that (Conversation::Rehearsal::RecordedTool).
+  def self.refusal_in(chat, given, read:, tool_call_id: nil)
     return if tool_call_id && chat.tool_calls.where(tool_call_id: tool_call_id).where.not(approval: nil).exists?
 
     entries = named(given)
-    read = read_names(chat, agent_run.workspace)
-    backed, unread = entries.partition { |entry| read.include?(tool_name(entry).downcase) }
+    made = reads(chat, read: read).map { |call| call.name.downcase }.to_set
+    backed, unread = entries.partition { |entry| made.include?(tool_name(entry).downcase) }
     return if backed.any?
 
-    missing = unread.map { |entry| tool_name(entry) }.uniq
-    [ BOUNCE, ("You named #{missing.to_sentence}, which you did not read in this turn or recently enough." if missing.any?) ].compact.join(" ")
+    not_reads, missing = unread.map { |entry| tool_name(entry) }.uniq.partition { |name| NOT_READS.include?(name) }
+    [ BOUNCE, (REPORT_NOT_A_READ if not_reads.include?(Chat::Helper::ASK_SPECIALIST)),
+      ("You named #{missing.to_sentence}, which you did not read in this turn or recently enough." if missing.any?),
+      specialists_read(chat), STUCK ].compact.join(" ")
+  end
+
+  # The reads the specialists made since the answer before this turn, which are the ones Halon makes again to back the
+  # change.
+  def self.specialists_read(chat)
+    names = Chat::Specialists.made_names(chat, since: window(chat).last).to_a
+    return if names.empty?
+
+    shown = names.first(SPECIALIST_READS_NAMED)
+    shown << "#{names.size - shown.size} more" if names.size > shown.size
+    format(SPECIALISTS_READ, reads: shown.to_sentence)
   end
 
   # The reads a change put to the person named, each as the step is titled and what Halon said it showed, from the turn
@@ -57,7 +94,7 @@ module Chat::Tools::LookFirst
     entries = named(tool_call.arguments)
     return [] if chat.nil? || message.nil? || entries.empty?
 
-    calls = reads(chat, workspace, until_at: message.created_at).group_by { |call| call.name.downcase }
+    calls = reads(chat, read: ->(name, arguments) { read?(workspace, name, arguments) }, until_at: message.created_at).group_by { |call| call.name.downcase }
     entries.filter_map do |entry|
       name = tool_name(entry)
       call = calls[name.downcase]&.last
@@ -68,23 +105,27 @@ module Chat::Tools::LookFirst
     end
   end
 
-  def self.read_names(chat, workspace) = reads(chat, workspace).map { |call| call.name.downcase }.to_set
-
   # The calls that read and answered in the turn running at until_at, which starts at the person's latest message, and
   # those of the answer before it made within PROPOSAL_FRESH_FOR of until_at. Only Halon's own reads count. A
   # specialist's report is outside text another model wrote, so neither ask_specialist nor what a specialist read
-  # backs a change, and Halon confirms the finding a change rests on itself.
-  def self.reads(chat, workspace, until_at: nil)
-    person = chat.messages.where(role: Chat::Message::ROLE_USER, nudge: false)
-    person = person.where(created_at: ..until_at) if until_at
-    started, before = person.reorder(created_at: :desc).limit(2).pluck(:created_at)
-    fresh_from = (until_at || Time.current) - PROPOSAL_FRESH_FOR
+  # backs a change, and Halon confirms the finding a change rests on itself, with the same read when it needs to.
+  def self.reads(chat, read:, until_at: nil)
+    started, fresh_from, from = window(chat, until_at: until_at)
     messages = chat.messages.where(role: Chat::Message::ROLE_ASSISTANT)
-    messages = messages.where(created_at: (before || started)..) if started
+    messages = messages.where(created_at: from..) if from
     messages = messages.where(created_at: ..until_at) if until_at
     RubyLLM::ActiveRecord::ToolCall.where(message_type: Chat::Message.polymorphic_name, message_id: messages.select(:id))
                                    .where.not(result_id: nil).where(failed: false).includes(:message).order(:created_at, :id)
-                                   .select { |call| backs?(call, started, fresh_from) && read?(workspace, call.name, call.arguments) }
+                                   .select { |call| backs?(call, started, fresh_from) && read.call(call.name, call.arguments) }
+  end
+
+  # When the turn running at until_at started, from when its previous answer's reads are fresh, and the earliest moment
+  # a read that counts could have been made.
+  def self.window(chat, until_at: nil)
+    person = chat.messages.where(role: Chat::Message::ROLE_USER, nudge: false)
+    person = person.where(created_at: ..until_at) if until_at
+    started, before = person.reorder(created_at: :desc).limit(2).pluck(:created_at)
+    [ started, (until_at || Time.current) - PROPOSAL_FRESH_FOR, (before || started if started) ]
   end
 
   def self.backs?(call, started, fresh_from) = started.nil? || call.message.created_at >= started || call.message.created_at >= fresh_from

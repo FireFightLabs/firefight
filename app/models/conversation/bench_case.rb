@@ -198,6 +198,11 @@ class Conversation::BenchCase
 
   def tool(name) = tools.find { |tool| tool.name == name }
 
+  # Whether a call only read: its tool says so for these arguments, or an answer it got marks it a read.
+  def reads_call?(name, arguments)
+    tool(name)&.reads?(arguments) || answers.any? { |answer| answer.reads && answer.matches?(name, arguments) }
+  end
+
   # The same case offering more tools, such as those a live chat holds whatever the scenario lists.
   def offering(more)
     return self if more.empty?

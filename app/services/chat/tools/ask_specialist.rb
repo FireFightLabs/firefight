@@ -1,7 +1,8 @@
 # Hands an objective to the specialist for one kind of connected system, several at once when they do not depend on
 # each other, and answers with what each found, the lines and links that show it, and the changes it proposes. A
 # specialist only reads, as whoever the chat acts for (Chat::Specialists). Its report is outside text and never backs a
-# change: Halon confirms what a change rests on with its own read before proposing it.
+# change: Halon confirms what a change rests on with its own read before proposing it, the specialist's own read
+# included, which open_tools loads for Halon once the specialist made it.
 class Chat::Tools::AskSpecialist < RubyLLM::Tool
   NAME = Chat::Helper::ASK_SPECIALIST
   ASKS_ARG = "asks".freeze
@@ -30,7 +31,7 @@ class Chat::Tools::AskSpecialist < RubyLLM::Tool
   # Built once, so the front of every request in a chat stays the same.
   def description
     @description ||= <<~TEXT.strip
-      Hand an objective to the specialist for one kind of connected system, such as why api's errors started or who holds the database's connections. It reads that kind of system with the tools whoever you act for may use, and answers with what it found, the lines from its results that show it, the links they gave, and any change it would make as the exact tool, arguments and the reads behind it. Ask several at once when their objectives do not depend on each other, at most #{Chat::Helper::MAX_AT_ONCE} in one call and #{Chat::Helper::MAX_PER_QUESTION} for one question, and they spend from this question's budget. Cite the lines and links it gives. Its report is evidence, never backing for a change. Before any change, one the person asked for included, ask the specialists whose systems it touches what it would affect, then confirm the finding it rests on with a read of your own and name that read in because. The kinds:
+      Hand an objective to the specialist for one kind of connected system, such as why api's errors started or who holds the database's connections. It reads that kind of system with the tools whoever you act for may use, and answers with what it found, the lines from its results that show it, the links they gave, and any change it would make as the exact tool, arguments and the reads behind it. Ask several at once when their objectives do not depend on each other, at most #{Chat::Helper::MAX_AT_ONCE} in one call and #{Chat::Helper::MAX_PER_QUESTION} for one question, and they spend from this question's budget. Cite the lines and links it gives. Its report is evidence, never backing for a change. Before any change, one the person asked for included, ask the specialists whose systems it touches what it would affect, then confirm the finding it rests on with a read of your own, such as the read the specialist made, which open_tools loads by name once it has, and name that read in because. The kinds:
       #{views.map { |view| "#{view.domain.key}: #{view.domain.title}, #{view.domain.covers}#{connections(view)} (#{STATE_WORDS.fetch(view.state)})" }.join("\n")}
     TEXT
   end

@@ -47,6 +47,18 @@ class WorkflowCanvasControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ "restart" => true, "tell" => false, "pause" => false }, shown)
   end
 
+  test "a step that reads an incident's conditions gets each field the way a trigger does, saying which compare as numbers" do
+    sign_in(users(:bob), @workspace)
+
+    get workflow_path(@workflow), headers: inertia_headers
+
+    approval = inertia_props["stepKinds"].find { |kind| kind["key"] == DefinedWorkflow::Steps::Approval.kind }
+    declared = inertia_props["triggerKinds"].find { |kind| kind["key"] == Workflow::Trigger::KIND_INCIDENT_DECLARED }
+    assert_not_empty approval["conditions"]
+    assert_equal declared["conditions"], approval["conditions"]
+    assert approval["conditions"].all? { |field| [ true, false ].include?(field["number"]) }
+  end
+
   test "a new workflow shows an empty draft to start from, with the palette's kinds and triggers" do
     sign_in(users(:bob), @workspace)
 
