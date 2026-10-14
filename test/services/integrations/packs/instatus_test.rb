@@ -107,6 +107,23 @@ module Integrations
         assert_raises(NativePack::Error) { call(:add_subscriber, "name" => "Ana") }
       end
 
+      test "an incident from a template is opened with the template's words and components, telling subscribers only as the person chose" do
+        template = { "id" => "t1", "type" => "INCIDENT", "name" => "Website down", "message" => "Investigating", "status" => "INVESTIGATING", "notify" => true,
+                     "components" => [ { "id" => "c1", "status" => "MAJOROUTAGE" } ] }
+        InstatusApi.any_instance.stubs(:template).with("pg1", "t1").returns(template)
+        assert_raises(NativePack::Error) { call(:create_incident_from_template, "template" => "t1") }
+
+        InstatusApi.any_instance.expects(:create_incident_from_template).never
+        InstatusApi.any_instance.expects(:create_incident).with("pg1", {
+          "name" => "Website down", "message" => "Investigating", "status" => "INVESTIGATING", "started" => "2026-10-14T10:00:00.000Z", "notify" => false,
+          "components" => [ "c1" ], "statuses" => [ { "id" => "c1", "status" => "MAJOROUTAGE" } ]
+        }).returns("id" => "i3", "name" => "Website down", "status" => "INVESTIGATING")
+
+        assert_includes text(call(:create_incident_from_template, "template" => "t1", "notify" => false)), "Subscribers were not told."
+        InstatusApi.any_instance.stubs(:template).with("pg1", "m1").returns(template.merge("id" => "m1", "type" => "MAINTENANCE"))
+        assert_raises(NativePack::Error) { call(:create_incident_from_template, "template" => "m1", "notify" => true) }
+      end
+
       test "a page is made with its first components, changed by the settings named, and deleted only when it is named" do
         InstatusApi.any_instance.expects(:create_page).with({ "name" => "Acme", "subdomain" => "acme2", "email" => "ops@acme.io", "components" => %w[API Web] })
                    .returns("id" => "pg2")

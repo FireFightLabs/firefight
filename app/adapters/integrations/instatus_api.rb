@@ -65,9 +65,9 @@ module Integrations
 
     def templates(page_id) = paged("/v1/#{segment(page_id)}/templates")
 
-    def create_incident(page_id, body) = send_json(Net::HTTP::Post, "/v1/#{segment(page_id)}/incidents", body)
+    def template(page_id, template_id) = get("/v1/#{segment(page_id)}/templates/#{segment(template_id)}")
 
-    def create_incident_from_template(page_id, template_id) = send_json(Net::HTTP::Post, "/v1/#{segment(page_id)}/incidents/#{segment(template_id)}", {})
+    def create_incident(page_id, body) = send_json(Net::HTTP::Post, "/v1/#{segment(page_id)}/incidents", body)
 
     def update_incident(page_id, incident_id, body) = send_json(Net::HTTP::Put, incident_path(page_id, incident_id), body)
 

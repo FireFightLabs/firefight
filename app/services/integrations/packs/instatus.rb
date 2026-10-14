@@ -21,6 +21,7 @@ module Integrations
       RESOLVED = "resolved".freeze
       ALL = "all".freeze
       INCIDENT_LISTS = [ OPEN, RESOLVED, ALL ].freeze
+      TEMPLATE_INCIDENT = "INCIDENT".freeze
 
       PAGE = { "type" => "string", "description" => "The status page, by its id, name or subdomain, as list_status_pages shows it (optional when the key reaches one page)" }.freeze
       INCIDENT = { "type" => "string", "description" => "The incident's id, as list_incidents shows it" }.freeze
@@ -162,12 +163,13 @@ module Integrations
            read_only: false
 
       tool :create_incident_from_template,
-           description: "Open an incident on a status page from one of its templates, with the words, status and components the " \
-                        "template holds. list_templates shows them",
+           description: "Open an incident on a status page from one of its incident templates, with the words, status and components " \
+                        "the template holds. list_templates shows them",
            params_schema: {
              "type" => "object",
-             "properties" => { "page" => PAGE, "template" => { "type" => "string", "description" => "The template's id, as list_templates shows it" } },
-             "required" => [ "template" ]
+             "properties" => { "page" => PAGE, "template" => { "type" => "string", "description" => "The template's id, as list_templates shows it" },
+                               "notify" => NOTIFY },
+             "required" => %w[template notify]
            },
            read_only: false
 
@@ -509,10 +511,21 @@ module Integrations
         changed(page, "incident", made, "opened incident #{made['name']} (id #{made['id']}) on #{page['name']}, #{made['status']}", body["notify"])
       end
 
+      # Instatus's own endpoint for this sends the notification the template saved, so the incident is opened from the
+      # template's words through the usual endpoint instead, telling subscribers only as the person chose.
       def create_incident_from_template(environment_row:, arguments:)
         page = page_of(environment_row, arguments)
-        made = api(environment_row).create_incident_from_template(page["id"], id_of(arguments, "template"))
-        changed(page, "incident", made, "opened incident #{made['name']} (id #{made['id']}) on #{page['name']} from its template, #{made['status']}")
+        told = notify(arguments)
+        template = api(environment_row).template(page["id"], id_of(arguments, "template"))
+        fail! "Template #{template['name']} is for maintenance. schedule_maintenance announces planned work." unless template["type"] == TEMPLATE_INCIDENT
+
+        statuses = Array(template["components"]).filter_map { |component| { "id" => component["id"], "status" => component["status"] } if component["id"] }
+        body = { "name" => template["name"].to_s.strip.presence || fail!("Template #{template['id']} has no title."), "message" => template["message"].to_s,
+                 "status" => choice(template["status"], InstatusApi::INCIDENT_STATUSES, "status") || InstatusApi::INCIDENT_STATUSES.first,
+                 "started" => Time.current.utc.iso8601(3), "notify" => told }
+        body.merge!("components" => statuses.map { |each| each["id"] }, "statuses" => statuses) if statuses.any?
+        made = api(environment_row).create_incident(page["id"], body)
+        changed(page, "incident", made, "opened incident #{made['name']} (id #{made['id']}) on #{page['name']} from template #{template['name']}, #{made['status']}", told)
       end
 
       def post_incident_update(environment_row:, arguments:)

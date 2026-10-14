@@ -26,6 +26,7 @@ module Integrations
       expect_get("/v2/pg1/subscribers", [], "search" => "ana", "status" => "confirmed")
       expect_get("/v1/pg1/templates", [])
       expect_get("/v2/pg1/components/c1", { id: "c1" })
+      expect_get("/v1/pg1/templates/t1", { id: "t1" })
 
       assert_equal [ { "id" => "pg1" } ], api.pages.items
       assert_equal [ { "id" => "i1" } ], api.incidents("pg1", statuses: %w[INVESTIGATING IDENTIFIED]).items
@@ -35,6 +36,7 @@ module Integrations
       assert_empty api.subscribers("pg1", search: "ana", status: "confirmed").items
       assert_empty api.templates("pg1").items
       assert_equal "c1", api.component("pg1", "c1")["id"]
+      assert_equal "t1", api.template("pg1", "t1")["id"]
     end
 
     test "changes are sent as JSON with the method and version Instatus documents for each, and an id never reaches another path" do
@@ -59,7 +61,6 @@ module Integrations
       expect_write(Net::HTTP::Delete, "/v1/pg1/maintenances/m1", nil, { id: "m1" })
       expect_write(Net::HTTP::Post, "/v1/pg1/subscribers", { "email" => "ana@acme.io", "all" => true }, { id: "s1" })
       expect_write(Net::HTTP::Delete, "/v1/pg1/subscribers/s1", nil, { id: "s1" })
-      expect_write(Net::HTTP::Post, "/v1/pg1/incidents/t1", {}, { id: "i2" })
 
       api.create_page("name" => "Acme", "subdomain" => "acme")
       api.update_page("pg1", "name" => "Acme status")
@@ -81,7 +82,6 @@ module Integrations
       api.delete_maintenance("pg1", "m1")
       api.add_subscriber("pg1", "email" => "ana@acme.io", "all" => true)
       api.remove_subscriber("pg1", "s1")
-      assert_equal "i2", api.create_incident_from_template("pg1", "t1")["id"]
     end
 
     test "Instatus's refusal is raised in its own words, a key it does not know is its own error, and a 429 is rate limited" do
