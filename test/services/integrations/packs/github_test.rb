@@ -304,7 +304,7 @@ module Integrations
 
       test "compare_commits puts migrations and config first, names dependency bumps, owners and pull requests" do
         GithubApp.stubs(:get).with("/repos/acme/checkout/compare/base1...head1", token: "ghs_token").returns(
-          "base_commit" => { "sha" => "base1" },
+          "base_commit" => { "sha" => "base1" }, "html_url" => "https://github.com/acme/checkout/compare/base1...head1",
           "commits" => [ comparison_commit("head1", "Raise pool timeout") ],
           "files" => [
             { "filename" => "app/models/pool.rb", "status" => "modified", "additions" => 2, "deletions" => 1, "patch" => "@@ -1 +1 @@\n-a\n+b" },
@@ -319,8 +319,12 @@ module Integrations
         GithubApp.stubs(:get).with("/repos/acme/checkout/contents/.github/CODEOWNERS?ref=head1", token: "ghs_token")
                  .returns("content" => Base64.encode64("* @acme/app\nconfig/ @acme/platform\n"))
 
-        text = @pack.compare_commits(environment_row: @row, arguments: { "repo" => "acme/checkout", "base" => "base1", "head" => "head1" })
+        result = @pack.compare_commits(environment_row: @row, arguments: { "repo" => "acme/checkout", "base" => "base1", "head" => "head1" })
+        text = Integrations::Capabilities::Answers.text(result)
 
+        range = Integrations::Capabilities::Comparison.of(result)
+        assert_equal [ 1, [ "head1 Raise pool timeout" ], { "config" => 1, "dependency" => 1, "code" => 1 }, true, "https://github.com/acme/checkout/compare/base1...head1" ],
+                     [ range.commits, range.titles, range.kinds, range.complete, range.link ], "what it compared is kept as data for a deploy to say what it carried"
         assert_operator text.index("Configuration:"), :<, text.index("Application code:"), "config is listed before code"
         assert_includes text, "pg 1.4.0 to 1.5.0"
         assert_includes text, "PR #412 Raise pool timeout by grace, reviewed by ada"
@@ -337,7 +341,7 @@ module Integrations
         GithubApp.stubs(:get).with("/repos/acme/checkout/commits/head1/pulls", token: "ghs_token").returns([])
         GithubApp.stubs(:get).with { |path, **| path.include?("CODEOWNERS") }.raises(GithubApp::NotFound)
 
-        text = @pack.compare_commits(environment_row: @row, arguments: { "repo" => "acme/checkout", "base" => "base1", "head" => "head1" })
+        text = Integrations::Capabilities::Answers.text(@pack.compare_commits(environment_row: @row, arguments: { "repo" => "acme/checkout", "base" => "base1", "head" => "head1" }))
 
         assert_includes text, "config/secrets.yml"
         assert_includes text, CodeHost::WITHHELD_PATCH

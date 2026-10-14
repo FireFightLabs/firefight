@@ -24,6 +24,13 @@ module Integrations
 
       def commit_route(resource, ref) = Route.new(tool_name: COMMIT_TOOL, arguments: { "repo" => resource.external_id, "sha" => ref.to_s })
 
+      # The read that says what changed between two commits, which a deploy read asks to say what a deploy carried.
+      COMPARE_TOOL = "compare_commits".freeze
+
+      def compare_route(resource, base, head)
+        Route.new(tool_name: COMPARE_TOOL, arguments: { "repo" => resource.external_id, "base" => base.to_s, "head" => head.to_s })
+      end
+
       def phrase(key) = PHRASES.fetch(key) { Capabilities::PHRASES.fetch(key) }
 
       def route(key, resource, given, tool: nil, settings: nil)

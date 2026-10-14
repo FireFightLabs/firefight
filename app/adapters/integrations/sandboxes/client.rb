@@ -15,7 +15,10 @@ module Integrations
       # How long the box may take on top of the command's own time limit.
       MARGIN = 30
       # How often a command running in the background is read, and how many reads in a row may fail before it is given up.
+      # The first read comes after FIRST_POLL and the wait doubles up to POLL_EVERY, so a quick command is not held up by
+      # the pace a long one is read at.
       POLL_EVERY = 2
+      FIRST_POLL = 0.2
       MISSES_ALLOWED = 5
       # Packing or unpacking a prepared copy, which can hold every dependency a repository installs.
       ARCHIVE_TIMEOUT = 20 * 60
@@ -27,14 +30,15 @@ module Integrations
         @box = box
       end
 
-      # Boxes take a few seconds to boot, and a provider can report one started before its service listens.
+      # Boxes take a few seconds to boot, and a provider can report one started before its service listens. A stop ends
+      # the wait (StopSignal).
       def wait_until_ready!
         deadline = READY_TIMEOUT.seconds.from_now
         loop do
           return if alive?
           raise Error, "The code sandbox did not come up within #{READY_TIMEOUT} seconds." if Time.current > deadline
 
-          sleep 1
+          pause(1)
         end
       end
 
@@ -47,12 +51,11 @@ module Integrations
       # runs it in one request as before, and on_output never hears anything. Either way the answer is the same. stdin is
       # what the command reads, for a credential that must not show in its arguments.
       # setup is the repository's setup (services, env, commands), whose services and variables a command in the copy runs with.
-      # A box reached through a proxy follows every command in the background, since a proxy may end a request that
-      # waits on a long one.
+      # A box that can run commands in the background follows every one there, since a proxy in front of a box may end a
+      # request that waits on a long one, and a stop (StopSignal) can only end a command it follows.
       def exec(repository:, argv:, ref: nil, where: IN_CHECKOUT, timeout: 60, services: nil, on_output: nil, stdin: nil, setup: nil)
         payload = { repo: repository, ref: ref, argv: argv, where: where, timeout: timeout, services: services, stdin: stdin, setup: setup }.compact
-        background = (on_output || @box.relayed) && runs_in_background?
-        return send_json(Net::HTTP::Post, "/exec", payload: payload, read_timeout: timeout + MARGIN) unless background
+        return send_json(Net::HTTP::Post, "/exec", payload: payload, read_timeout: timeout + MARGIN) unless runs_in_background?
 
         follow(send_json(Net::HTTP::Post, "/runs", payload: payload)["id"], deadline: clock + timeout + MARGIN, on_output: on_output || QUIET)
       end
@@ -65,7 +68,7 @@ module Integrations
         steps = 1 + Array(setup&.dig(:commands) || setup&.dig("commands")).size
         limit = (steps * 20.minutes.to_i) + MARGIN
         payload = { repo: repository, ref: ref, setup: setup }.compact
-        return send_json(Net::HTTP::Post, "/prepare", payload: payload, read_timeout: limit) unless @box.relayed && health["prepare_runs"] == true
+        return send_json(Net::HTTP::Post, "/prepare", payload: payload, read_timeout: limit) unless health["prepare_runs"] == true
 
         follow(send_json(Net::HTTP::Post, "/runs", payload: payload.merge(action: RUN_PREPARE))["id"], deadline: clock + limit, on_output: QUIET)
       end
@@ -178,9 +181,9 @@ module Integrations
       private
 
       def exec_or_follow(payload, timeout:, on_output:)
-        return send_json(Net::HTTP::Post, "/exec", payload: payload, read_timeout: timeout + MARGIN) unless on_output && runs_in_background?
+        return send_json(Net::HTTP::Post, "/exec", payload: payload, read_timeout: timeout + MARGIN) unless runs_in_background?
 
-        follow(send_json(Net::HTTP::Post, "/runs", payload: payload)["id"], deadline: clock + timeout + MARGIN, on_output: on_output)
+        follow(send_json(Net::HTTP::Post, "/runs", payload: payload)["id"], deadline: clock + timeout + MARGIN, on_output: on_output || QUIET)
       end
 
       # What the box's image can do, read once. A box that cannot be asked is taken to be one that can do none of it.
@@ -201,10 +204,13 @@ module Integrations
         end
       end
 
+      # A stop (StopSignal) ends the command in the box and stops following it.
       def follow(id, deadline:, on_output:)
         offset = 0
         misses = 0
+        wait = FIRST_POLL
         loop do
+          StopSignal.check!
           begin
             read = send_json(Net::HTTP::Get, "/runs/#{id}?after=#{offset}")
             misses = 0
@@ -219,9 +225,21 @@ module Integrations
           on_output.call(read["progress"].to_s)
           return answer(read["result"]) if read["done"]
           raise Error, "The code sandbox did not finish the command in time." if clock > deadline
+          next if read["more"]
 
-          pause(POLL_EVERY) unless read["more"]
+          pause(wait)
+          wait = [ wait * 2, POLL_EVERY ].min
         end
+      rescue StopSignal::Stopped
+        stop_run(id)
+        raise
+      end
+
+      # A box from an image before runs could be stopped is no longer followed, and the command runs out its time there.
+      def stop_run(id)
+        send_json(Net::HTTP::Delete, "/runs/#{id}", read_timeout: 5) if health["stops"] == true
+      rescue Error
+        nil
       end
 
       def answer(result)
@@ -230,7 +248,7 @@ module Integrations
         result.to_h
       end
 
-      def pause(seconds) = sleep(seconds)
+      def pause(seconds) = StopSignal.pause(seconds)
 
       def clock = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 

@@ -340,7 +340,75 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     assert_equal 1, chat.model_calls
   end
 
+  # Seen live: a check from outside waited on its sandbox for minutes after Stop, and the page said Stopping all along.
+  test "a stop while a tool runs ends the run at once, whatever the tool waits on, and saves no result for it" do
+    chat = SlowToolChat.new([ tool_reply("call_1"), llm_reply(content: "never asked") ], waits: 5)
+    stop_at = clock + 0.3
+    started = clock
+
+    outcome = run_loop(chat, canceled: -> { clock > stop_at })
+
+    assert_equal FirefightAi::AgentLoop::STATUS_CANCELED, outcome.status
+    assert_operator clock - started, :<, 2.5
+    assert chat.cancelled, "the chat is told, so the tool's result is never saved once it answers"
+    assert_empty chat.messages.select(&:tool_result?)
+    assert_equal 1, chat.model_calls
+  end
+
+  test "a tool that waits on something it can stop hears the stop and gives up" do
+    chat = SlowToolChat.new([ tool_reply("call_1") ], waits: 5, stoppable: true)
+    stop_at = clock + 0.3
+
+    run_loop(chat, canceled: -> { clock > stop_at })
+
+    assert chat.heard_stop.wait(2), "the tool's wait heard the stop"
+  end
+
+  test "a tool that finishes before any stop answers as before" do
+    chat = SlowToolChat.new([ tool_reply("call_1"), llm_reply(content: "done") ], waits: 0.1)
+
+    outcome = run_loop(chat, reply_is_answer: true, canceled: -> { false })
+
+    assert_equal FirefightAi::AgentLoop::STATUS_ANSWERED, outcome.status
+    assert_equal [ "call_1" ], chat.messages.select(&:tool_result?).map(&:tool_call_id)
+  end
+
   private
+
+  # A tool that takes waits seconds, waiting as a stoppable wait does when stoppable, or ignoring any stop otherwise, and
+  # whose result RubyLLM drops once the chat was cancelled, as RubyLLM checks after every tool.
+  class SlowToolChat < FakeChat
+    attr_reader :cancelled, :heard_stop
+
+    def initialize(replies, waits:, stoppable: false)
+      super(replies)
+      @waits = waits
+      @stoppable = stoppable
+      @heard_stop = Concurrent::Event.new
+    end
+
+    def cancel = (@cancelled = true)
+
+    private
+
+    def answer_tool_call(tool_call_id)
+      wait
+      raise RubyLLM::CancelledError if @cancelled
+
+      super
+    end
+
+    def wait
+      return sleep(@waits) unless @stoppable
+
+      StopSignal.pause(@waits)
+    rescue StopSignal::Stopped
+      @heard_stop.set
+      raise
+    end
+  end
+
+  def clock = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
   def malformed = RubyLLM::ToolCallParseError.new(finish_reason: :tool_calls)
 
@@ -358,9 +426,9 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
   end
 
   def run_loop(chat, budget: budget(), answered: -> { false }, on_step: nil, on_chunk: nil, reply_is_answer: false,
-               nudge: nil, take_messages: nil, purse: nil, retry_malformed: false, &on_turn)
+               nudge: nil, take_messages: nil, purse: nil, retry_malformed: false, canceled: FirefightAi::AgentLoop::NEVER_CANCELED, &on_turn)
     FirefightAi::AgentLoop.new(
-      chat: chat, budget: budget, answered: answered, on_step: on_step, on_chunk: on_chunk,
+      chat: chat, budget: budget, answered: answered, on_step: on_step, on_chunk: on_chunk, canceled: canceled,
       reply_is_answer: reply_is_answer, nudge: nudge, take_messages: take_messages, purse: purse, retry_malformed: retry_malformed,
       inference: { workspace: @workspace, feature: "investigation", provider: "openai", model: "gpt-4o", inferable: @incident }
     ).run(&on_turn)

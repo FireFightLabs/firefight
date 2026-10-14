@@ -738,6 +738,29 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_not @conversation.reload.answer_owed?
   end
 
+  test "a stop while a tool runs marks that call stopped while it ran, the ones never started stopped too, and says Stopped" do
+    personal_chat
+    stopped_mid_tool = lambda do |arguments|
+      reply = @conversation.chat.add_message(role: :assistant, content: "")
+      reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: "check_from_outside", arguments: { "url" => "https://faylee.app" })
+      reply.ruby_llm_tool_calls.create!(tool_call_id: "call_2", name: "check_from_outside", arguments: { "url" => "https://www.faylee.app" })
+      arguments[:on_step].call(FirefightAi::AgentLoop::Step.new(key: "call_1", tool: "check_from_outside", status: FirefightAi::AgentLoop::STEP_RUNNING,
+                                                                arguments: { "url" => "https://faylee.app" }))
+      @conversation.request_stop!
+    end
+    fake(outcome: FirefightAi::AgentLoop::STATUS_CANCELED, during: stopped_mid_tool)
+
+    ask(@conversation, "is indexing on for faylee.app")
+
+    calls = @conversation.chat.reload.tool_calls.includes(:result).index_by(&:tool_call_id)
+    assert_equal Conversation::Runner::STOPPED_WHILE_RUNNING, calls["call_1"].result.content
+    assert_equal Conversation::Runner::STOPPED_BEFORE_RUNNING, calls["call_2"].result.content
+    assert_equal [ [ true, Chat::StepOutcome::FAILURE_STOPPED ] ] * 2, calls.values.map { |call| [ call.failed, call.failure_kind ] }
+    assert_equal [ Conversation::LiveDelivery::STATUS_STOPPED ] * 2, calls.values.map { |call| AgentChatMessageSerializer.step_status(call) }
+    assert_equal Conversation::Runner::STOPPED, @conversation.chat.readable_messages.last.content
+    assert_not @conversation.reload.answer_owed?
+  end
+
   test "a stop that lands while the model is answering ends the turn the same way" do
     fake(during: ->(_arguments) { raise FirefightAi::Canceled, "cancelled" })
     Slack::Client.stubs(:stop_stream).returns({ ok: true, ts: "1" })

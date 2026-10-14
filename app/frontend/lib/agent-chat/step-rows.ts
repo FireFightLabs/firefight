@@ -11,6 +11,7 @@ export const ROW_STATUSES: Record<StepStatus, ThinkingRowStatus> = {
   [AGENT_STEP_STATUSES.REFUSED]: "refused",
   [AGENT_STEP_STATUSES.WAITING]: "waiting",
   [AGENT_STEP_STATUSES.CANCELLED]: "cancelled",
+  [AGENT_STEP_STATUSES.STOPPED]: "stopped",
 }
 
 export function rowStatus(status: string): ThinkingRowStatus {
