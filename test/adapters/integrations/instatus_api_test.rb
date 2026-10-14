@@ -84,6 +84,103 @@ module Integrations
       api.remove_subscriber("pg1", "s1")
     end
 
+    test "monitors page with page and limit until the last of totalPages, at the paths Instatus documents without a version" do
+      Http.expects(:request).with do |uri, request, **|
+        request.is_a?(Net::HTTP::Get) && uri.path == "/pg1/monitors" &&
+          URI.decode_www_form(uri.query).to_h == { "page" => "1", "limit" => InstatusApi::MONITOR_LIMIT.to_s, "status" => "DOWN" }
+      end.returns(response(200, { monitors: [ { id: "m1" } ], total: 2, page: 1, totalPages: 2, limit: 100 }))
+      Http.expects(:request).with { |uri, *| URI.decode_www_form(uri.query).to_h["page"] == "2" }
+          .returns(response(200, { monitors: [ { id: "m2" } ], total: 2, page: 2, totalPages: 2, limit: 100 }))
+
+      read = InstatusApi.new("in-key").monitors("pg1", status: "DOWN")
+
+      assert_equal %w[m1 m2], read.items.map { |monitor| monitor["id"] }
+      assert read.complete
+    end
+
+    test "monitor, alert, group, cron, metric, teammate, notice and outage calls go where Instatus documents each" do
+      api = InstatusApi.new("in-key")
+      expect_get("/monitors/m1/logs", { monitorLogs: [], total: 0 }, "limit" => "50", "status" => "DOWN")
+      expect_get("/monitors/m1/run", { status: "success" }, "location" => "EU_CENTRAL_1")
+      expect_get("/pg1/monitor-alerts", { monitorAlerts: [], totalPages: 1 }, "limit" => InstatusApi::MONITOR_LIMIT.to_s)
+      expect_get("/monitors-groups/g1/run", { result: "OK" }, {})
+      expect_get("/pg1/monitors/cron", { cronMonitors: [], totalPages: 1 }, "limit" => InstatusApi::MONITOR_LIMIT.to_s)
+      expect_get("/monitors/cron/k1/logs", { logs: [] }, "limit" => "50", "importance" => "important")
+      expect_get("/monitors/cron/k1/summary", { summary: { availability: 99.5 } }, {})
+      expect_get("/v1/pg1/metrics", [], {})
+      expect_get("/v1/pg1/metrics/x1", { id: "x1" }, {})
+      expect_get("/v1/pg1/team", [], {})
+      expect_get("/v1/pg1/generic-notices", [], {})
+      expect_get("/v1/pg1/outages", [], {})
+
+      assert_empty api.monitor_logs("m1", limit: 50, status: "DOWN")["monitorLogs"]
+      assert_equal "success", api.run_monitor("m1", location: "EU_CENTRAL_1")["status"]
+      assert_empty api.monitor_alerts("pg1").items
+      assert_equal "OK", api.run_monitor_group("g1")["result"]
+      assert_empty api.cron_monitors("pg1").items
+      assert_empty api.cron_logs("k1", limit: 50, important: true)["logs"]
+      assert_in_delta 99.5, api.cron_summary("k1").dig("summary", "availability")
+      assert_empty api.metrics("pg1").items
+      assert_equal "x1", api.metric("pg1", "x1")["id"]
+      assert_empty api.teammates("pg1").items
+      assert_empty api.notices("pg1").items
+      assert_empty api.outages("pg1").items
+
+      expect_write(Net::HTTP::Post, "/monitors", { "pageId" => "pg1", "url" => "https://acme.io" }, { monitor: { id: "m3" } })
+      expect_write(Net::HTTP::Put, "/monitors/m3", { "name" => "Acme" }, { monitor: { id: "m3" } })
+      expect_write(Net::HTTP::Delete, "/monitors/m3", nil, { message: "deleted" })
+      expect_write(Net::HTTP::Post, "/monitor-alerts", { "pageId" => "pg1", "type" => "EMAIL" }, { monitor: { id: "a1" } })
+      expect_write(Net::HTTP::Put, "/monitor-alerts/a1", { "monitors" => [ "m3" ] }, { monitor: { id: "a1" } })
+      expect_write(Net::HTTP::Delete, "/monitor-alerts/a1", nil, { message: "deleted" })
+      expect_write(Net::HTTP::Post, "/monitors-groups", { "pageId" => "pg1", "name" => "Core" }, { monitor: { id: "g1" } })
+      expect_write(Net::HTTP::Put, "/monitors-groups/g1", { "name" => "Edge" }, { monitor: { id: "g1" } })
+      expect_write(Net::HTTP::Post, "/monitors-groups/g1/monitors", { "monitors" => [ "m3" ] }, { message: "added" })
+      expect_write(Net::HTTP::Delete, "/monitors-groups/g1", nil, { message: "deleted" })
+      expect_write(Net::HTTP::Post, "/monitors/cron", { "pageId" => "pg1", "name" => "Backup" }, { cronMonitor: { id: "k1" } })
+      expect_write(Net::HTTP::Put, "/monitors/cron/k1", { "state" => "PAUSED" }, { cronMonitor: { id: "k1" } })
+      expect_write(Net::HTTP::Delete, "/monitors/cron/k1", nil, { cronMonitor: { id: "k1" } })
+      expect_write(Net::HTTP::Post, "/v1/pg1/metrics", { "name" => "Latency" }, { id: "x2" })
+      expect_write(Net::HTTP::Put, "/v1/pg1/metrics/x2", { "suffix" => "ms" }, { id: "x2" })
+      expect_write(Net::HTTP::Post, "/v1/pg1/metrics/x2/data", { "data" => [ { "timestamp" => 1, "value" => 2 } ] }, [])
+      expect_write(Net::HTTP::Delete, "/v1/pg1/metrics/x2/data", nil, { name: "Latency" })
+      expect_write(Net::HTTP::Delete, "/v1/pg1/metrics/x2", nil, nil)
+      expect_write(Net::HTTP::Post, "/v1/pg1/team", { "email" => "bo@acme.io" }, { id: "t1" })
+      expect_write(Net::HTTP::Delete, "/v1/pg1/team/t1", nil, { memberId: "t1" })
+      expect_write(Net::HTTP::Post, "/v1/pg1/generic-notices", { "name" => "DNS" }, { id: "n1" })
+      expect_write(Net::HTTP::Put, "/v1/pg1/generic-notices/n1", { "isCollapsed" => true }, { id: "n1" })
+      expect_write(Net::HTTP::Delete, "/v1/pg1/generic-notices/n1", nil, { id: "n1" })
+      expect_write(Net::HTTP::Post, "/v1/pg1/outages", { "componentId" => "c1" }, { id: "o1" })
+      expect_write(Net::HTTP::Put, "/v1/pg1/outages/o1", { "status" => "MAJOROUTAGE" }, { id: "o1" })
+      expect_write(Net::HTTP::Delete, "/v1/pg1/outages/o1", nil, nil)
+
+      api.create_monitor("pageId" => "pg1", "url" => "https://acme.io")
+      api.update_monitor("m3", "name" => "Acme")
+      api.delete_monitor("m3")
+      api.create_monitor_alert("pageId" => "pg1", "type" => "EMAIL")
+      api.update_monitor_alert("a1", "monitors" => [ "m3" ])
+      api.delete_monitor_alert("a1")
+      api.create_monitor_group("pageId" => "pg1", "name" => "Core")
+      api.update_monitor_group("g1", "name" => "Edge")
+      api.add_monitors_to_group("g1", [ "m3" ])
+      api.delete_monitor_group("g1")
+      api.create_cron_monitor("pageId" => "pg1", "name" => "Backup")
+      api.update_cron_monitor("k1", "state" => "PAUSED")
+      api.delete_cron_monitor("k1")
+      api.create_metric("pg1", "name" => "Latency")
+      api.update_metric("pg1", "x2", "suffix" => "ms")
+      api.add_metric_data("pg1", "x2", [ { "timestamp" => 1, "value" => 2 } ])
+      api.delete_metric_data("pg1", "x2")
+      api.delete_metric("pg1", "x2")
+      api.add_teammate("pg1", "bo@acme.io")
+      api.remove_teammate("pg1", "t1")
+      api.create_notice("pg1", "name" => "DNS")
+      api.update_notice("pg1", "n1", "isCollapsed" => true)
+      api.delete_notice("pg1", "n1")
+      api.create_outage("pg1", "componentId" => "c1")
+      api.update_outage("pg1", "o1", "status" => "MAJOROUTAGE")
+      api.delete_outage("pg1", "o1")
+    end
+
     test "Instatus's refusal is raised in its own words, a key it does not know is its own error, and a 429 is rate limited" do
       Http.stubs(:request).returns(response(404, { error: { code: "page_not_found", message: "There is no status page with this ID." } }))
       error = assert_raises(InstatusApi::Error) { InstatusApi.new("in-key").incident("nope", "i1") }

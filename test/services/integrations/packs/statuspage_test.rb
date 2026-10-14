@@ -25,7 +25,8 @@ module Integrations
         assert entry.holds_status_pages
         assert_equal Integration::KIND_NATIVE, entry.kind
         assert_equal %w[list_pages list_components get_component_uptime list_incidents get_incident get_postmortem list_incident_templates
-                        list_subscribers count_subscribers list_incident_subscribers], Statuspage.tool_definitions.select(&:read_only).map(&:name)
+                        list_subscribers count_subscribers list_incident_subscribers get_status_embed list_unsubscribed subscriber_histogram
+                        list_metrics_providers list_metrics list_page_access_users list_page_access_groups], Statuspage.tool_definitions.select(&:read_only).map(&:name)
         assert_includes Statuspage.tool_definitions.reject(&:read_only).map(&:name), "post_incident_update"
         assert_equal "sp-key", @row.reload.credentials_hash[Statuspage::API_KEY]
       end
@@ -138,6 +139,70 @@ module Integrations
                      .returns("id" => "pg1", "name" => "Acme", "domain" => "status.acme.io")
 
         assert_includes text(call(:update_page, "website" => "https://acme.io", "allow_sms_subscribers" => false)), "Statuspage changed url and allow sms subscribers on Acme."
+      end
+
+      test "a page's template and colours are set with its other settings, and its status embed is read and changed" do
+        StatuspageApi.any_instance.expects(:update_page).with("pg1", { "branding" => "premium", "css_reds" => "#e5484d" }).returns("id" => "pg1")
+        assert_includes text(call(:update_page, "branding" => "premium", "css_reds" => "#e5484d")), "Statuspage changed branding and css reds on Acme."
+
+        StatuspageApi.any_instance.stubs(:status_embed).returns("position" => "bottom-left", "incident_background_color" => "#000000")
+        assert_includes text(call(:get_status_embed)), "position: bottom-left\nincident background color: #000000"
+        StatuspageApi.any_instance.expects(:update_status_embed).with("pg1", { "position" => "top-right" }).returns({})
+        assert_includes text(call(:update_status_embed, "position" => "top-right")), "Statuspage changed the status embed's position on Acme."
+        assert_raises(NativePack::Error) { call(:update_status_embed) }
+      end
+
+      test "subscribers are unsubscribed, reminded and taken back in bulk, by id or all, never more than Statuspage takes" do
+        StatuspageApi.any_instance.expects(:unsubscribe_many).with("pg1", subscribers: %w[s1 s2], type: nil, state: "all", quietly: true).returns({})
+        assert_includes text(call(:unsubscribe_subscribers, "subscribers" => %w[s1 s2], "state" => "all", "quietly" => true)),
+                        "Statuspage is unsubscribing 2 subscribers from Acme, without telling them."
+        StatuspageApi.any_instance.expects(:resend_confirmations).with("pg1", subscribers: :all).returns({})
+        assert_includes text(call(:resend_confirmations, "subscribers" => [ "all" ])), "every subscriber"
+        StatuspageApi.any_instance.expects(:reactivate).with("pg1", subscribers: %w[s1], type: "email").returns({})
+        call(:reactivate_subscribers, "subscribers" => %w[s1], "type" => "email")
+
+        assert_raises(NativePack::Error) { call(:unsubscribe_subscribers, "subscribers" => Array.new(101) { |index| "s#{index}" }) }
+        assert_raises(NativePack::Error) { call(:resend_confirmations, "subscribers" => %w[all s1]) }
+        assert_raises(NativePack::Error) { call(:reactivate_subscribers, "subscribers" => %w[s1], "type" => "teams") }
+
+        StatuspageApi.any_instance.stubs(:subscriber_histogram).returns("email" => { "active" => 3, "quarantined" => 1 })
+        assert_includes text(call(:subscriber_histogram)), "email: 3 active, 1 quarantined"
+      end
+
+      test "a Self metrics provider is the only kind made, and a metric takes readings at the times given" do
+        StatuspageApi.any_instance.expects(:create_metrics_provider).with("pg1", "type" => "Self").returns("id" => "mp1")
+        assert_includes text(call(:create_metrics_provider)), "Statuspage added a Self metrics provider (id mp1) to Acme."
+        assert_not Statuspage.tool_definitions.find { |each| each.name == "create_metrics_provider" }.params_schema["properties"].key?("api_key")
+
+        StatuspageApi.any_instance.stubs(:metrics).returns(Pages::Read.new(items: [ { "id" => "m1", "name" => "Latency", "metrics_provider_id" => "mp1" } ], complete: true))
+        StatuspageApi.any_instance.expects(:add_metric_data).with("pg1", { "m1" => [ { "timestamp" => 1_791_936_000, "value" => 120.5 } ] }).returns({})
+        assert_includes text(call(:add_metric_data, "metric" => "latency", "points" => [ { "at" => "2026-10-14T00:00:00Z", "value" => 120.5 } ])),
+                        "Statuspage took 1 reading for Latency on Acme."
+        assert_raises(NativePack::Error) { call(:add_metric_data, "metric" => "m1", "points" => [ { "at" => "2026-10-14T00:00:00Z", "value" => "fast" } ]) }
+
+        StatuspageApi.any_instance.expects(:create_metric).with("pg1", "mp1", { "name" => "Errors", "suffix" => "%", "display" => true, "decimal_places" => 1 })
+                     .returns("id" => "m2", "name" => "Errors")
+        call(:create_metric, "provider" => "mp1", "name" => "Errors", "suffix" => "%", "display" => true, "decimal_places" => 1)
+      end
+
+      test "page access users and groups are named by email or name, and what they see is added to, replaced or removed" do
+        StatuspageApi.any_instance.stubs(:page_access_users).returns(Pages::Read.new(items: [ { "id" => "u1", "email" => "ana@acme.io" } ], complete: true))
+        StatuspageApi.any_instance.stubs(:page_access_groups).returns(Pages::Read.new(items: [ { "id" => "g9", "name" => "Partners" } ], complete: true))
+        StatuspageApi.any_instance.stubs(:metrics).returns(Pages::Read.new(items: [ { "id" => "m1", "name" => "Latency" } ], complete: true))
+
+        StatuspageApi.any_instance.expects(:create_page_access_user).with("pg1", { "email" => "bo@acme.io", "page_access_group_ids" => [ "g9" ] }).returns("id" => "u2", "email" => "bo@acme.io")
+        assert_includes text(call(:create_page_access_user, "email" => "bo@acme.io", "groups" => [ "partners" ])), "Statuspage let bo@acme.io (id u2) see Acme."
+        assert_raises(NativePack::Error) { call(:create_page_access_user, "groups" => [ "Partners" ]) }
+
+        StatuspageApi.any_instance.expects(:change_page_access_user_access).with("pg1", "u1", :components, :remove, [ "c2" ]).returns({})
+        assert_includes text(call(:change_page_access_user_access, "user" => "ana@acme.io", "list" => "components", "change" => "remove", "items" => [ "Checkout" ])),
+                        "Statuspage removed 1 components for ana@acme.io on Acme."
+        StatuspageApi.any_instance.expects(:change_page_access_user_access).with("pg1", "u1", :metrics, :add, [ "m1" ]).returns({})
+        call(:change_page_access_user_access, "user" => "u1", "list" => "metrics", "change" => "add", "items" => [ "Latency" ])
+
+        StatuspageApi.any_instance.expects(:change_page_access_group_components).with("pg1", "g9", :replace, %w[c1 c2]).returns({})
+        call(:change_page_access_group_components, "group" => "Partners", "change" => "replace", "components" => %w[API Checkout])
+        assert_raises(NativePack::Error) { call(:change_page_access_group_components, "group" => "Partners", "change" => "swap", "components" => [ "API" ]) }
       end
 
       private

@@ -80,6 +80,75 @@ module Integrations
       api.remove_incident_subscriber("pg1", "i1", "s2")
     end
 
+    test "metrics, page access, bulk subscriber, unsubscribed and embed calls go where the OpenAPI document puts each" do
+      api = StatuspageApi.new("sp-key")
+      expect_get("/v1/pages/pg1/metrics_providers", [], {})
+      expect_get("/v1/pages/pg1/metrics_providers/mp1/metrics", [], "page" => "1", "per_page" => "100")
+      expect_get("/v1/pages/pg1/metrics", [], "page" => "1", "per_page" => "100")
+      expect_get("/v1/pages/pg1/page_access_users", [], "email" => "ana@acme.io", "page" => "1", "per_page" => "100")
+      expect_get("/v1/pages/pg1/page_access_groups", [], "page" => "1", "per_page" => "100")
+      expect_get("/v1/pages/pg1/subscribers/unsubscribed", [], "page" => "1", "per_page" => "100")
+      expect_get("/v1/pages/pg1/subscribers/histogram_by_state", { email: { active: 2 } }, {})
+      expect_get("/v1/pages/pg1/status_embed_config", { position: "bottom-left" }, {})
+
+      assert_empty api.metrics_providers("pg1").items
+      assert_empty api.provider_metrics("pg1", "mp1").items
+      assert_empty api.metrics("pg1").items
+      assert_empty api.page_access_users("pg1", email: "ana@acme.io").items
+      assert_empty api.page_access_groups("pg1").items
+      assert_empty api.unsubscribed("pg1").items
+      assert_equal 2, api.subscriber_histogram("pg1").dig("email", "active")
+      assert_equal "bottom-left", api.status_embed("pg1")["position"]
+
+      expect_write(Net::HTTP::Post, "/v1/pages/pg1/metrics_providers", { "metrics_provider" => { "type" => "Self" } }, { id: "mp2" })
+      expect_write(Net::HTTP::Patch, "/v1/pages/pg1/metrics_providers/mp2", { "metrics_provider" => { "metric_base_uri" => "https://x" } }, { id: "mp2" })
+      expect_write(Net::HTTP::Delete, "/v1/pages/pg1/metrics_providers/mp2", nil, { id: "mp2" })
+      expect_write(Net::HTTP::Post, "/v1/pages/pg1/metrics_providers/mp1/metrics", { "metric" => { "name" => "Latency" } }, { id: "m1" })
+      expect_write(Net::HTTP::Patch, "/v1/pages/pg1/metrics/m1", { "metric" => { "name" => "API latency" } }, { id: "m1" })
+      expect_write(Net::HTTP::Post, "/v1/pages/pg1/metrics/data", { "data" => { "m1" => [ { "timestamp" => 1, "value" => 2 } ] } }, {})
+      expect_write(Net::HTTP::Delete, "/v1/pages/pg1/metrics/m1/data", nil, { id: "m1" })
+      expect_write(Net::HTTP::Delete, "/v1/pages/pg1/metrics/m1", nil, { id: "m1" })
+      expect_write(Net::HTTP::Post, "/v1/pages/pg1/page_access_users", { "page_access_user" => { "email" => "ana@acme.io" } }, { id: "u1" })
+      expect_write(Net::HTTP::Patch, "/v1/pages/pg1/page_access_users/u1", { "page_access_user" => { "page_access_group_ids" => [ "g1" ] } }, { id: "u1" })
+      expect_write(Net::HTTP::Patch, "/v1/pages/pg1/page_access_users/u1/components", { "component_ids" => [ "c1" ] }, { id: "u1" })
+      expect_write(Net::HTTP::Post, "/v1/pages/pg1/page_access_users/u1/components", { "component_ids" => [ "c1" ] }, { id: "u1" })
+      expect_write(Net::HTTP::Delete, "/v1/pages/pg1/page_access_users/u1/components", [ "c1" ], { id: "u1" })
+      expect_write(Net::HTTP::Patch, "/v1/pages/pg1/page_access_users/u1/metrics", { "metric_ids" => [ "m1" ] }, { id: "u1" })
+      expect_write(Net::HTTP::Delete, "/v1/pages/pg1/page_access_users/u1", nil, nil)
+      expect_write(Net::HTTP::Post, "/v1/pages/pg1/page_access_groups", { "page_access_group" => { "name" => "Partners" } }, { id: "g1" })
+      expect_write(Net::HTTP::Patch, "/v1/pages/pg1/page_access_groups/g1", { "page_access_group" => { "name" => "Vendors" } }, { id: "g1" })
+      expect_write(Net::HTTP::Patch, "/v1/pages/pg1/page_access_groups/g1/components", { "component_ids" => [ "c1" ] }, { id: "g1" })
+      expect_write(Net::HTTP::Delete, "/v1/pages/pg1/page_access_groups/g1", nil, { id: "g1" })
+      expect_write(Net::HTTP::Post, "/v1/pages/pg1/subscribers/unsubscribe", { "subscribers" => %w[s1 s2], "state" => "all", "skip_unsubscription_notification" => true }, nil)
+      expect_write(Net::HTTP::Post, "/v1/pages/pg1/subscribers/resend_confirmation", { "subscribers" => "all" }, nil)
+      expect_write(Net::HTTP::Post, "/v1/pages/pg1/subscribers/reactivate", { "subscribers" => %w[s1], "type" => "email" }, nil)
+      expect_write(Net::HTTP::Patch, "/v1/pages/pg1/status_embed_config", { "status_embed_config" => { "position" => "top-right" } }, { position: "top-right" })
+
+      api.create_metrics_provider("pg1", "type" => "Self")
+      api.update_metrics_provider("pg1", "mp2", "metric_base_uri" => "https://x")
+      api.delete_metrics_provider("pg1", "mp2")
+      api.create_metric("pg1", "mp1", "name" => "Latency")
+      api.update_metric("pg1", "m1", "name" => "API latency")
+      api.add_metric_data("pg1", { "m1" => [ { "timestamp" => 1, "value" => 2 } ] })
+      api.reset_metric_data("pg1", "m1")
+      api.delete_metric("pg1", "m1")
+      api.create_page_access_user("pg1", "email" => "ana@acme.io")
+      api.update_page_access_user("pg1", "u1", "page_access_group_ids" => [ "g1" ])
+      api.change_page_access_user_access("pg1", "u1", :components, :add, [ "c1" ])
+      api.change_page_access_user_access("pg1", "u1", :components, :replace, [ "c1" ])
+      api.change_page_access_user_access("pg1", "u1", :components, :remove, [ "c1" ])
+      api.change_page_access_user_access("pg1", "u1", :metrics, :add, [ "m1" ])
+      api.delete_page_access_user("pg1", "u1")
+      api.create_page_access_group("pg1", "name" => "Partners")
+      api.update_page_access_group("pg1", "g1", "name" => "Vendors")
+      api.change_page_access_group_components("pg1", "g1", :add, [ "c1" ])
+      api.delete_page_access_group("pg1", "g1")
+      api.unsubscribe_many("pg1", subscribers: %w[s1 s2], state: "all", quietly: true)
+      api.resend_confirmations("pg1", subscribers: :all)
+      api.reactivate("pg1", subscribers: %w[s1], type: "email")
+      api.update_status_embed("pg1", "position" => "top-right")
+    end
+
     test "Statuspage's refusal is raised in its own words, a key it does not take is its own error, and 420 and 429 are rate limited" do
       Http.stubs(:request).returns(response(404, { message: "The requested resource could not be found." }))
       error = assert_raises(StatuspageApi::Error) { StatuspageApi.new("sp-key").incident("pg1", "nope") }

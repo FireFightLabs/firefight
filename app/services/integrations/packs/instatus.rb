@@ -22,11 +22,27 @@ module Integrations
       ALL = "all".freeze
       INCIDENT_LISTS = [ OPEN, RESOLVED, ALL ].freeze
       TEMPLATE_INCIDENT = "INCIDENT".freeze
+      # How a page looks, each taken as Instatus names it in camel case. Its SMS provider's credentials are never sent.
+      PAGE_LOOKS = {
+        "logo_url" => "The address of its logo", "favicon_url" => "The address of its favicon", "brand_color" => "Its brand colour",
+        "ok_color" => "The colour of operational", "disrupted_color" => "The colour of a partial outage", "degraded_color" => "The colour of degraded performance",
+        "down_color" => "The colour of a major outage", "notice_color" => "The colour of a notice", "unknown_color" => "The colour of an unknown status",
+        "google_analytics" => "Its Google Analytics id", "html_in_meta" => "HTML in its head", "html_above_header" => "HTML above its header",
+        "html_below_header" => "HTML below its header", "html_above_footer" => "HTML above its footer", "html_below_footer" => "HTML below its footer",
+        "html_below_summary" => "HTML below its summary", "css_global" => "CSS for the whole page", "launch_date" => "The date it launched",
+        "date_format" => "How dates show, such as MMMMMM d, yyyy", "date_format_short" => "How short dates show, such as MMM yyyy",
+        "time_format" => "How times show, such as p", "twitter" => "Its Twitter account"
+      }.freeze
+      PAGE_LOOK_SWITCHES = { "use_large_header" => "Show the large header", "subscribe_by_sms" => "Let people subscribe by SMS" }.freeze
+      # Instatus's ids, which a component group is named by before any component is in it.
+      INSTATUS_ID = /\Ac[a-z0-9]{20,}\z/
+      NO_GROUP = "none".freeze
 
       PAGE = { "type" => "string", "description" => "The status page, by its id, name or subdomain, as list_status_pages shows it (optional when the key reaches one page)" }.freeze
       INCIDENT = { "type" => "string", "description" => "The incident's id, as list_incidents shows it" }.freeze
       MAINTENANCE = { "type" => "string", "description" => "The maintenance's id, as list_maintenances shows it" }.freeze
       COMPONENT = { "type" => "string", "description" => "The component, by its id or name, as list_components shows it" }.freeze
+      COMPONENT_GROUP = { "type" => "string", "description" => "The component group it goes in, by id or name, as list_components shows it (optional)" }.freeze
       UPDATE = { "type" => "string", "description" => "The update's id, as get_incident or get_maintenance shows it" }.freeze
       NOTIFY = { "type" => "boolean", "description" => "Whether Instatus tells the page's subscribers. Ask the person which they want" }.freeze
       COMPONENT_CHANGES = {
@@ -122,7 +138,8 @@ module Integrations
 
       tool :update_status_page,
            description: "Change a page's settings: its name, subdomain, the website its logo links to, its public email, its " \
-                        "language, whether it is private, and whether new subscribers confirm by email",
+                        "language, whether it is private, whether new subscribers confirm by email, and how it looks: logo, " \
+                        "colours, header, HTML, CSS and date formats",
            params_schema: {
              "type" => "object",
              "properties" => {
@@ -135,7 +152,8 @@ module Integrations
                "private" => { "type" => "boolean", "description" => "Only people allowed can view it (optional)" },
                "subscriber_confirmation" => { "type" => "string", "enum" => InstatusApi::CONFIRMATION_MODES,
                                               "description" => "REQUIRED (they confirm by email), WELCOME or NONE, the last two on Instatus's Pro plan (optional)" }
-             }
+             }.merge(PAGE_LOOKS.to_h { |field, words| [ field, { "type" => "string", "description" => "#{words} (optional)" } ] })
+               .merge(PAGE_LOOK_SWITCHES.to_h { |field, words| [ field, { "type" => "boolean", "description" => "#{words} (optional)" } ] })
            },
            read_only: false
 
@@ -300,7 +318,8 @@ module Integrations
                "page" => PAGE, "component" => COMPONENT,
                "status" => { "type" => "string", "enum" => InstatusApi::COMPONENT_STATUSES, "description" => "The status it shows (optional)" },
                "name" => { "type" => "string", "description" => "A new name (optional)" },
-               "description" => { "type" => "string", "description" => "A new description (optional)" }
+               "description" => { "type" => "string", "description" => "A new description (optional)" },
+               "group" => COMPONENT_GROUP.merge("description" => "The group it moves into, by id or name, or none to take it out of its group (optional)")
              },
              "required" => [ "component" ]
            },
@@ -315,7 +334,8 @@ module Integrations
                "name" => { "type" => "string", "description" => "Its name" },
                "description" => { "type" => "string", "description" => "What it is, as customers read it (optional)" },
                "status" => { "type" => "string", "enum" => InstatusApi::COMPONENT_STATUSES, "description" => "Its status (optional, OPERATIONAL)" },
-               "show_uptime" => { "type" => "boolean", "description" => "Show its uptime on the page (optional)" }
+               "show_uptime" => { "type" => "boolean", "description" => "Show its uptime on the page (optional)" },
+               "group" => COMPONENT_GROUP
              },
              "required" => [ "name" ]
            },
@@ -348,6 +368,9 @@ module Integrations
              "required" => [ "subscriber" ]
            },
            read_only: false
+
+      include Monitoring
+      include PageContent
 
       def self.credential_fields
         [
@@ -481,6 +504,8 @@ module Integrations
                  "websiteUrl" => arguments["website_url"].to_s.strip.presence, "publicEmail" => arguments["public_email"].to_s.strip.presence,
                  "language" => arguments["language"].to_s.strip.presence, "private" => ([ true, false ].include?(arguments["private"]) ? arguments["private"] : nil),
                  "subscriberConfirmationMode" => choice(arguments["subscriber_confirmation"], InstatusApi::CONFIRMATION_MODES, "subscriber_confirmation") }.compact
+        PAGE_LOOKS.each_key { |field| body[field.camelize(:lower)] = arguments[field].to_s.strip if arguments[field].present? }
+        PAGE_LOOK_SWITCHES.each_key { |field| body[field.camelize(:lower)] = arguments[field] if [ true, false ].include?(arguments[field]) }
         fail! "Name what to change on the page." if body.empty?
 
         made = api(environment_row).update_page(page["id"], body)
@@ -637,9 +662,10 @@ module Integrations
         component = component_of(environment_row, page, arguments["component"])
         body = { "status" => choice(arguments["status"], InstatusApi::COMPONENT_STATUSES, "status"), "name" => arguments["name"].to_s.strip.presence,
                  "description" => arguments["description"].to_s.strip.presence }.compact
-        fail! "Name what to change: status, name or description." if body.empty?
+        group = arguments["group"].to_s.strip
+        fail! "Name what to change: status, name, description or group." if body.empty? && group.empty?
 
-        made = api(environment_row).update_component(page["id"], component["id"], body)
+        made = group.empty? ? api(environment_row).update_component(page["id"], component["id"], body) : regroup(environment_row, page, component["id"], group_choice(environment_row, page, group), body)
         Telemetry.result("Instatus changed #{made['name'] || component['name']} on #{page['name']}, now #{made['status'] || body['status'] || component['status']}.", link: page_link(page))
       end
 
@@ -648,7 +674,10 @@ module Integrations
         body = { "name" => required(arguments, "name"), "description" => arguments["description"].to_s.strip.presence,
                  "status" => choice(arguments["status"], InstatusApi::COMPONENT_STATUSES, "status") || InstatusApi::COMPONENT_STATUSES.first,
                  "showUptime" => (arguments["show_uptime"] == true if arguments.key?("show_uptime")) }.compact
-        made = api(environment_row).create_component(page["id"], body)
+        group = arguments["group"].to_s.strip
+        group_id = group_choice(environment_row, page, group) if group.present?
+        made = api(environment_row).create_component(page["id"], group_id ? body.merge("grouped" => true, "group" => group_id) : body)
+        made = regroup(environment_row, page, made["id"], group_id) if group_id && group_id_of(made) != group_id
         Telemetry.result("Instatus added #{made['name'] || body['name']} (id #{made['id']}) to #{page['name']}, #{made['status'] || body['status']}.", link: page_link(page))
       end
 
@@ -739,6 +768,36 @@ module Integrations
         return {} if statuses.empty?
 
         { "components" => statuses.map { |each| each["id"] }, "statuses" => statuses }
+      end
+
+      # Instatus documents a component's group as group when it is made and as groupId when it is changed. A change sends
+      # groupId, reads back the group the component landed in, and sends group once when it did not land there, so a
+      # group never silently stays as it was. A component made without landing in its group is moved the same way.
+      def regroup(environment_row, page, component_id, group_id, body = {})
+        made = nil
+        %w[groupId group].each do |key|
+          made = api(environment_row).update_component(page["id"], component_id, body.merge(group_id ? { "grouped" => true, key => group_id } : { "grouped" => false }))
+          return made if group_id_of(made) == group_id
+        end
+        fail! "Instatus took the change but did not #{group_id ? "put the component in group #{group_id}" : 'take it out of its group'}. Check it in Instatus."
+      end
+
+      def group_id_of(component)
+        group = component.to_h["group"]
+        group.is_a?(Hash) ? group["id"] : group.presence
+      end
+
+      # A group by its id or name as the page's components show it, nil for none, or an id of Instatus's shape for a group
+      # no component is in yet.
+      def group_choice(environment_row, page, wanted)
+        return if wanted.casecmp?(NO_GROUP)
+
+        groups = all_components(environment_row, page).filter_map { |component| component["group"] }.map { |group| group.is_a?(Hash) ? group : { "id" => group } }.uniq
+        found = groups.find { |group| group["id"] == wanted } || groups.find { |group| group["name"].to_s.casecmp?(wanted) }
+        return found["id"] if found
+        return wanted if wanted.match?(INSTATUS_ID)
+
+        fail! "#{page['name']} has no component group #{wanted}. list_components shows each component's group."
       end
 
       def id_of(arguments, key) = arguments[key].to_s.strip.presence || fail!("Name the #{key} by its id.")

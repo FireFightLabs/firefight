@@ -15,6 +15,15 @@ module Integrations
     UNAUTHENTICATED = 401
     PER_PAGE = 100
     MAX_PAGES = 10
+    # A page of monitors, alerts or cron monitors, the most Instatus documents for cron monitors.
+    MONITOR_LIMIT = 100
+    MONITOR_STATUSES = %w[UP DOWN DEGRADED UNKNOWN].freeze
+    MONITOR_TYPES = %w[HTTP].freeze
+    MONITOR_LOCATIONS = %w[US_EAST_1 CA_CENTRAL_1 EU_CENTRAL_1 AP_NORTHEAST_1 AP_SOUTHEAST_2].freeze
+    ALERT_TYPES = %w[INCIDENT EMAIL SMS SLACK DISCORD MICROSOFT_TEAMS PHONE_CALL WEBHOOK GOOGLE_CHAT WHATSAPP].freeze
+    # Alerts whose recipient is a webhook address, which works as a password, so it is never sent or shown.
+    WEBHOOK_ALERTS = %w[SLACK DISCORD MICROSOFT_TEAMS WEBHOOK GOOGLE_CHAT].freeze
+    CRON_STATES = %w[ACTIVE PAUSED MUTED].freeze
 
     COMPONENT_STATUSES = %w[OPERATIONAL UNDERMAINTENANCE DEGRADEDPERFORMANCE PARTIALOUTAGE MAJOROUTAGE].freeze
     INCIDENT_STATUSES = %w[INVESTIGATING IDENTIFIED MONITORING RESOLVED].freeze
@@ -111,7 +120,107 @@ module Integrations
 
     def remove_subscriber(page_id, subscriber_id) = send_json(Net::HTTP::Delete, "/v1/#{segment(page_id)}/subscribers/#{segment(subscriber_id)}")
 
+    # Instatus's monitoring lives at paths with no version, and its lists page with page and limit inside an object that
+    # says how many pages there are.
+    def monitors(page_id, search: nil, status: nil)
+      monitor_paged("/#{segment(page_id)}/monitors", "monitors", { "search" => search.presence, "status" => status.presence })
+    end
+
+    def create_monitor(body) = send_json(Net::HTTP::Post, "/monitors", body)
+
+    def update_monitor(monitor_id, body) = send_json(Net::HTTP::Put, "/monitors/#{segment(monitor_id)}", body)
+
+    def delete_monitor(monitor_id) = send_json(Net::HTTP::Delete, "/monitors/#{segment(monitor_id)}")
+
+    def monitor_logs(monitor_id, limit:, status: nil, successful: nil)
+      get("/monitors/#{segment(monitor_id)}/logs", { "limit" => limit, "page" => 1, "status" => status.presence, "isSuccessful" => successful })
+    end
+
+    def run_monitor(monitor_id, location: nil) = get("/monitors/#{segment(monitor_id)}/run", { "location" => location.presence })
+
+    def monitor_alerts(page_id) = monitor_paged("/#{segment(page_id)}/monitor-alerts", "monitorAlerts")
+
+    def create_monitor_alert(body) = send_json(Net::HTTP::Post, "/monitor-alerts", body)
+
+    def update_monitor_alert(alert_id, body) = send_json(Net::HTTP::Put, "/monitor-alerts/#{segment(alert_id)}", body)
+
+    def delete_monitor_alert(alert_id) = send_json(Net::HTTP::Delete, "/monitor-alerts/#{segment(alert_id)}")
+
+    def create_monitor_group(body) = send_json(Net::HTTP::Post, "/monitors-groups", body)
+
+    def update_monitor_group(group_id, body) = send_json(Net::HTTP::Put, "/monitors-groups/#{segment(group_id)}", body)
+
+    def delete_monitor_group(group_id) = send_json(Net::HTTP::Delete, "/monitors-groups/#{segment(group_id)}")
+
+    def add_monitors_to_group(group_id, monitor_ids) = send_json(Net::HTTP::Post, "/monitors-groups/#{segment(group_id)}/monitors", { "monitors" => monitor_ids })
+
+    def run_monitor_group(group_id, location: nil) = get("/monitors-groups/#{segment(group_id)}/run", { "location" => location.presence })
+
+    def cron_monitors(page_id, search: nil, status: nil)
+      monitor_paged("/#{segment(page_id)}/monitors/cron", "cronMonitors", { "search" => search.presence, "status" => status.presence })
+    end
+
+    def create_cron_monitor(body) = send_json(Net::HTTP::Post, "/monitors/cron", body)
+
+    def update_cron_monitor(cron_id, body) = send_json(Net::HTTP::Put, "/monitors/cron/#{segment(cron_id)}", body)
+
+    def delete_cron_monitor(cron_id) = send_json(Net::HTTP::Delete, "/monitors/cron/#{segment(cron_id)}")
+
+    def cron_logs(cron_id, limit:, important: false)
+      get("/monitors/cron/#{segment(cron_id)}/logs", { "limit" => limit, "page" => 1, "importance" => (important ? "important" : nil) })
+    end
+
+    def cron_summary(cron_id) = get("/monitors/cron/#{segment(cron_id)}/summary")
+
+    def metrics(page_id) = paged("/v1/#{segment(page_id)}/metrics")
+
+    def metric(page_id, metric_id) = get("/v1/#{segment(page_id)}/metrics/#{segment(metric_id)}")
+
+    def create_metric(page_id, body) = send_json(Net::HTTP::Post, "/v1/#{segment(page_id)}/metrics", body)
+
+    def update_metric(page_id, metric_id, body) = send_json(Net::HTTP::Put, "/v1/#{segment(page_id)}/metrics/#{segment(metric_id)}", body)
+
+    def delete_metric(page_id, metric_id) = send_json(Net::HTTP::Delete, "/v1/#{segment(page_id)}/metrics/#{segment(metric_id)}")
+
+    # points are { timestamp in milliseconds, value }.
+    def add_metric_data(page_id, metric_id, points)
+      send_json(Net::HTTP::Post, "/v1/#{segment(page_id)}/metrics/#{segment(metric_id)}/data", { "data" => points })
+    end
+
+    def delete_metric_data(page_id, metric_id) = send_json(Net::HTTP::Delete, "/v1/#{segment(page_id)}/metrics/#{segment(metric_id)}/data")
+
+    def teammates(page_id) = paged("/v1/#{segment(page_id)}/team")
+
+    def add_teammate(page_id, email) = send_json(Net::HTTP::Post, "/v1/#{segment(page_id)}/team", { "email" => email })
+
+    def remove_teammate(page_id, member_id) = send_json(Net::HTTP::Delete, "/v1/#{segment(page_id)}/team/#{segment(member_id)}")
+
+    def notices(page_id) = paged("/v1/#{segment(page_id)}/generic-notices")
+
+    def create_notice(page_id, body) = send_json(Net::HTTP::Post, "/v1/#{segment(page_id)}/generic-notices", body)
+
+    def update_notice(page_id, notice_id, body) = send_json(Net::HTTP::Put, "/v1/#{segment(page_id)}/generic-notices/#{segment(notice_id)}", body)
+
+    def delete_notice(page_id, notice_id) = send_json(Net::HTTP::Delete, "/v1/#{segment(page_id)}/generic-notices/#{segment(notice_id)}")
+
+    def outages(page_id) = paged("/v1/#{segment(page_id)}/outages")
+
+    def create_outage(page_id, body) = send_json(Net::HTTP::Post, "/v1/#{segment(page_id)}/outages", body)
+
+    def update_outage(page_id, outage_id, body) = send_json(Net::HTTP::Put, "/v1/#{segment(page_id)}/outages/#{segment(outage_id)}", body)
+
+    def delete_outage(page_id, outage_id) = send_json(Net::HTTP::Delete, "/v1/#{segment(page_id)}/outages/#{segment(outage_id)}")
+
     private
+
+    def monitor_paged(path, key, query = {})
+      Pages.read(max_pages: MAX_PAGES) do |number|
+        number ||= 1
+        body = get(path, query.merge("page" => number, "limit" => MONITOR_LIMIT))
+        rows = body.is_a?(Hash) ? Array(body[key]) : []
+        [ rows, (number + 1 if number < body.to_h["totalPages"].to_i) ]
+      end
+    end
 
     def incident_path(page_id, incident_id) = "/v1/#{segment(page_id)}/incidents/#{segment(incident_id)}"
 
