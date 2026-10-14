@@ -366,9 +366,9 @@ module Workflow::TriggerKinds
     key: Workflow::Trigger::KIND_ISSUE_ASSIGNED, label: "Issue assigned to Firefight", icon: ICON_ISSUE,
     description: "Runs when someone assigns or hands an issue to Firefight in a connected tracker, beside Halon taking it up, or adds the label it names.",
     fields: lambda { |_facts|
-      named = Integrations::AgentSessions.labelling_providers.map(&:name)
+      named = Integrations::IssueLabels.providers.map(&:name).to_sentence(two_words_connector: " or ", last_word_connector: " or ")
       [ field(Workflow::Listening::KEY_LABEL, ToolField::KIND_TEXT,
-              "Or when an issue gets this label#{" in #{named.to_sentence}" if named.any?}, whatever its case. Leave it empty to run only when an issue is assigned.") ]
+              "Or when an issue gets this label#{" in #{named}" if named.present?}, whatever its case. Leave it empty to run only when an issue is assigned.") ]
     },
     conditions: lambda { |_facts|
       [ ConditionField.new(key: F::TITLE, label: "Issue title"), ConditionField.new(key: F::ASKED_BY, label: "Who assigned it, by email"),

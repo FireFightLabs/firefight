@@ -47,7 +47,8 @@ module Integrations
         GitlabApi.any_instance.stubs(:list).with("/groups/7/hooks").returns([ [ { "id" => 3, "url" => "https://example.com/theirs" } ], false ])
         GitlabApi.any_instance.expects(:put).never
         GitlabApi.any_instance.expects(:post).with("/groups/7/hooks", has_entries("url" => URL, "push_events" => true, "project_events" => true, "enable_ssl_verification" => true,
-                                                                                    "pipeline_events" => true, "job_events" => true, "deployment_events" => true))
+                                                                                    "pipeline_events" => true, "job_events" => true, "deployment_events" => true,
+                                                                                    "issues_events" => true))
                  .returns("id" => 11, "group_id" => 7)
 
         webhook = Gitlab.register(@row, url: URL)
@@ -114,20 +115,51 @@ module Integrations
         assert_not Gitlab.wakes?(push([]), headers: headers.("Push Hook"))
       end
 
-      test "a webhook registered before runs were followed is registered again, and one that follows them is left" do
+      test "a webhook registered before runs or issues were followed is registered again, and one that follows them is left" do
         @row.update!(map_events_webhook_id: "/groups/7/hooks/11")
         GitlabApi.any_instance.stubs(:get).with("/groups/7/hooks/11").returns("id" => 11, "url" => URL, "push_events" => true, "pipeline_events" => false)
         assert Gitlab.register_again?(@row, url: URL)
 
-        GitlabApi.any_instance.stubs(:get).with("/groups/7/hooks/11")
-                 .returns("id" => 11, "url" => URL, "push_events" => true, "pipeline_events" => true, "job_events" => true, "deployment_events" => true)
+        following = { "id" => 11, "url" => URL, "push_events" => true, "pipeline_events" => true, "job_events" => true, "deployment_events" => true }
+        GitlabApi.any_instance.stubs(:get).with("/groups/7/hooks/11").returns(following)
+        assert Gitlab.register_again?(@row, url: URL), "a webhook from before issues were followed hears no labels"
+
+        GitlabApi.any_instance.stubs(:get).with("/groups/7/hooks/11").returns(following.merge("issues_events" => true))
         assert_not Gitlab.register_again?(@row, url: URL)
 
         GitlabApi.any_instance.stubs(:get).with("/groups/7/hooks/11").raises(GitlabApi::NotFound, "GitLab answered 404")
         assert Gitlab.register_again?(@row, url: URL)
       end
 
+      test "a label added to an issue, or an issue opened with labels, is read with the issue and who did it, and nothing else about an issue is" do
+        headers = { "x-gitlab-event" => "Issue Hook" }
+        labelled = Gitlab.labelled(issue_hook("update"), headers: headers).sole
+        assert_equal [ [ "Firefight" ], "acme/platform/web#23", "Checkout returns 500", "https://gitlab.com/acme/platform/web/-/issues/23", "Since 14:00" ],
+                     [ labelled.labels, labelled.issue_key, labelled.issue_title, labelled.issue_url, labelled.text ]
+        assert_equal [ "Bob", "bob@example.com", "301:206:2026-10-14T09:00:00Z" ], [ labelled.asker_name, labelled.asker_email, labelled.reference ]
+
+        assert_equal [ %w[Bug Firefight] ], Gitlab.labelled(issue_hook("open", before: nil), headers: headers).map(&:labels)
+        assert_nil Gitlab.labelled(issue_hook("update", email: "[REDACTED]"), headers: headers).sole.asker_email, "GitLab may hide who it was"
+        assert_empty Gitlab.labelled(issue_hook("update", before: [ [ 205, "Bug" ], [ 206, "Firefight" ] ]), headers: headers), "a label already on it was not added"
+        assert_empty Gitlab.labelled(issue_hook("update", before: nil), headers: headers), "a change that left the labels alone added none"
+        assert_empty Gitlab.labelled(issue_hook("close", labels: [ [ 205, "Bug" ] ], before: [ [ 205, "Bug" ], [ 206, "Firefight" ] ]), headers: headers)
+        assert_empty Gitlab.labelled(issue_hook("update"), headers: { "x-gitlab-event" => "Merge Request Hook" })
+        assert_empty Gitlab.labelled(issue_hook("update"), headers: { "x-gitlab-event" => "Confidential Issue Hook" }), "a confidential issue is never followed"
+        assert_empty Gitlab.events(issue_hook("update"), headers: headers)
+      end
+
       private
+
+      # An issue event as GitLab documents it (webhook_events.md, Work item events): labels the issue's labels now, and an
+      # update's changes.labels the ones before and after. user is who did it.
+      def issue_hook(action, labels: [ [ 205, "Bug" ], [ 206, "Firefight" ] ], before: [ [ 205, "Bug" ] ], email: "bob@example.com")
+        as_labels = ->(listed) { listed.map { |id, title| { "id" => id, "title" => title } } }
+        { "object_kind" => "issue", "event_type" => "issue", "user" => { "name" => "Bob", "username" => "bob", "email" => email },
+          "project" => { "path_with_namespace" => "acme/platform/web" }, "labels" => as_labels.(labels),
+          "object_attributes" => { "id" => 301, "iid" => 23, "title" => "Checkout returns 500", "description" => "Since 14:00", "action" => action,
+                                   "url" => "https://gitlab.com/acme/platform/web/-/issues/23", "updated_at" => "2026-10-14T09:00:00Z" },
+          "changes" => (before ? { "labels" => { "previous" => as_labels.(before), "current" => as_labels.(labels) } } : {}) }
+      end
 
       def projects(listed) = GitlabApi.any_instance.stubs(:list).with("/projects", PROJECTS_QUERY, pages: Packs::Gitlab::MAX_PROJECT_PAGES).returns([ listed, false ])
 
