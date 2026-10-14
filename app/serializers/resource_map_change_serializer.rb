@@ -24,6 +24,10 @@ class ResourceMapChangeSerializer < BaseSerializer
   type :string, optional: true
   def detail = change.detail
 
+  # What changed, in the words the map records it with (ResourceMap::Change#words).
+  type :string
+  def words = change.words
+
   type :string
   def happened_at = change.happened_at.utc.iso8601
 end

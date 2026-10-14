@@ -415,6 +415,13 @@ module Integrations
         assert_no_setting_values(snapshot, url, "gcp-secret-pw", "10.20.0.3", "abc.us-central1.sql.goog")
       end
 
+      test "a Cloud Run service set to a number of instances counts them, and one that scales on its own counts none" do
+        manual = SERVICE.merge("scaling" => { "scalingMode" => "MANUAL", "manualInstanceCount" => 4 })
+
+        assert_equal 4, @pack.send(:run_item, manual)[:details][ResourceMap::INSTANCES]
+        assert_not @pack.send(:run_item, SERVICE)[:details].key?(ResourceMap::INSTANCES)
+      end
+
       test "each kind's labels are kept in its details from where Google's API puts them, and none leaves the key out" do
         labels = { "team" => "payments" }
         assert_equal labels, @pack.send(:run_item, SERVICE.merge("labels" => labels))[:details][ResourceMap::TAGS]

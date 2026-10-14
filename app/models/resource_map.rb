@@ -318,6 +318,9 @@ module ResourceMap
 
   # A new commit on a service is a deploy, since a sweep only sees the commit that is running.
   DEPLOYED_COMMIT = "deployed_commit".freeze
+  # How many copies of a service its provider runs, or is set to run, as a whole number. A count that moves is a scale,
+  # and a provider that cannot read one says so in the registry's scaling, so the map never shows a guess.
+  INSTANCES = "instances".freeze
   # The provider's own tags or labels on a resource, a hash of key to value. Never shown under DETAIL_LABELS, since
   # they are the provider's words rather than facts a person reads at a glance, and kept for finding resources by.
   TAGS = "tags".freeze
@@ -333,7 +336,7 @@ module ResourceMap
   # What a provider reported about a resource, named for a person, in the order a person reads it. Other details stay
   # for Halon and are not shown.
   DETAIL_LABELS = {
-    "type" => "Type", "plan" => "Plan", "instances" => "Instances", "engine" => "Engine", "region" => "Region",
+    "type" => "Type", "plan" => "Plan", INSTANCES => "Instances", "engine" => "Engine", "region" => "Region",
     "branch" => "Branch", DEPLOYED_COMMIT => "Running commit", PRODUCTION => "Production", "record" => "Record",
     "points_to" => "Points to", "proxied" => "Proxied", "origin" => "Origin", "origins" => "Origins", "ssl_mode" => "SSL mode",
     "certificates" => "Certificates", "waf_rules" => "WAF custom rules", "rate_limit_rules" => "Rate limiting rules",
@@ -418,10 +421,18 @@ module ResourceMap
       ([ Change::KIND_RENAMED, resource.name, found.name ] if resource.name != found.name),
       ([ Change::KIND_DEPLOYED, before, after ] if after.present? && before != after),
       ([ Change::KIND_STATUS_CHANGED, resource.status, found.status ] if resource.status != found.status && found.status.present?),
+      scaled(resource.details, found.details),
       *configured(resource.details, found.details)
     ].compact
   end
   private_class_method :changes_of
+
+  # A count read before and read differently now. One counted for the first time, or no longer counted, is not a scale.
+  def self.scaled(before, after)
+    from, to = [ before, after ].map { |details| Integer(details[INSTANCES], exception: false) }
+    [ Change::KIND_SCALED, from.to_s, to.to_s ] if from && to && from != to
+  end
+  private_class_method :scaled
 
   # A setting read before and read differently now. One read for the first time is not a change.
   def self.configured(before, after)

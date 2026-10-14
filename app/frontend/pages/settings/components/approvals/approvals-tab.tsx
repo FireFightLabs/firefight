@@ -4,7 +4,7 @@ import type { AbilityApproval } from "@/types/serializers"
 import { approveApprovalPath, denyApprovalPath } from "@/lib/routes"
 import { formatDateTime, minutesInWords } from "@/lib/formatters"
 import { APPROVAL_RUN_WINDOW_MINUTES } from "@/lib/generated/constants"
-import { useCan } from "@/lib/permissions"
+import { Blocked } from "@/components/blocked-tooltip"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -53,7 +53,9 @@ export function ApprovalsTab({
   pendingApprovals: AbilityApproval[]
   resolvedApprovals: AbilityApproval[]
 }) {
-  const canDecide = useCan("approvals")
+  // Approvals access decides every request, and a person a workflow's Approval step names decides that one, so the
+  // column shows once any request here is theirs to decide, and each row says why when it is not.
+  const canDecide = pendingApprovals.some((approval) => approval.decideDeniedReason == null)
   function resolve(approval: AbilityApproval, decision: "approve" | "deny") {
     const path = decision === "approve" ? approveApprovalPath(approval.id) : denyApprovalPath(approval.id)
     router.post(path, {}, { preserveScroll: true })
@@ -105,12 +107,16 @@ export function ApprovalsTab({
                     {canDecide && (
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button size="sm" onClick={() => resolve(approval, "approve")}>
-                            Approve
-                          </Button>
-                          <Button size="sm" variant="destructive" onClick={() => resolve(approval, "deny")}>
-                            Deny
-                          </Button>
+                          <Blocked reason={approval.decideDeniedReason ?? undefined} side="top">
+                            <Button size="sm" disabled={approval.decideDeniedReason != null} onClick={() => resolve(approval, "approve")}>
+                              Approve
+                            </Button>
+                          </Blocked>
+                          <Blocked reason={approval.decideDeniedReason ?? undefined} side="top">
+                            <Button size="sm" variant="destructive" disabled={approval.decideDeniedReason != null} onClick={() => resolve(approval, "deny")}>
+                              Deny
+                            </Button>
+                          </Blocked>
                         </div>
                       </TableCell>
                     )}

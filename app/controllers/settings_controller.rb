@@ -150,7 +150,7 @@ class SettingsController < InertiaController
     read = platform_texts((pending + resolved).map(&:platform_text))
 
     render inertia: "settings/approvals", props: {
-      pendingApprovals: AbilityApprovalSerializer.many(pending, platform_texts: read),
+      pendingApprovals: AbilityApprovalSerializer.many(pending, platform_texts: read, member: current_membership),
       resolvedApprovals: AbilityApprovalSerializer.many(resolved, platform_texts: read)
     }
   end

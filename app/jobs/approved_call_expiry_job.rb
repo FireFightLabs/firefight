@@ -1,4 +1,5 @@
-# An approved call that waits for a person to run it expires once its window passes, and whoever asked is told.
+# An approved call that waits for a person to run it expires once its window passes, whoever asked is told, and every
+# message it was asked in says it was withdrawn and why.
 class ApprovedCallExpiryJob < ApplicationJob
   queue_as :default
 
@@ -8,7 +9,9 @@ class ApprovedCallExpiryJob < ApplicationJob
 
     # The queue can run this a moment early, so it waits again until the window has passed.
     return self.class.set(wait_until: approval.run_expires_at).perform_later(approval.id) unless approval.run_lapsed?
+    return unless approval.lapse_run!
 
-    ApprovalResumption.lapsed!(approval) if approval.lapse_run!
+    ApprovalResumption.lapsed!(approval)
+    ApprovalNotificationService.mark_resolved!(approval)
   end
 end

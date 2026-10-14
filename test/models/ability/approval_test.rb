@@ -102,11 +102,11 @@ module Ability
     end
 
     test "expire! only touches pending approvals" do
-      @approval.expire!
+      @approval.expire!(reason: "Nobody decided within 1 day.")
       assert_equal Ability::Approval::STATUS_EXPIRED, @approval.status
 
       @approval.update!(status: Ability::Approval::STATUS_APPROVED)
-      @approval.expire!
+      @approval.expire!(reason: "Nobody decided within 1 day.")
       assert @approval.approved?
     end
 

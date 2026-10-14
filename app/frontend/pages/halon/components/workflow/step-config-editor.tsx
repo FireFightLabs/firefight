@@ -9,6 +9,7 @@ import { BrowserEditor } from "@/pages/halon/components/workflow/browser-editor"
 import { DelayEditor } from "@/pages/halon/components/workflow/delay-editor"
 import { FieldsEditor } from "@/pages/halon/components/workflow/fields-editor"
 import { ForEachEditor } from "@/pages/halon/components/workflow/for-each-editor"
+import { ManualEditor } from "@/pages/halon/components/workflow/manual-editor"
 import { RunWorkflowEditor } from "@/pages/halon/components/workflow/run-workflow-editor"
 import { SetDataEditor } from "@/pages/halon/components/workflow/set-data-editor"
 import { ToolStepEditor } from "@/pages/halon/components/workflow/tool-step-editor"
@@ -60,6 +61,8 @@ export function StepConfigEditor({ step, config, kind, tools, workflows, timeZon
     return <AskPersonEditor idPrefix={idPrefix} kind={kind} config={config} references={references} disabled={disabled} onChange={onChange} />
   case WORKFLOW_STEP_EDITOR.APPROVAL:
     return <ApprovalEditor idPrefix={idPrefix} kind={kind} config={config} references={references} disabled={disabled} onChange={onChange} />
+  case WORKFLOW_STEP_EDITOR.MANUAL:
+    return <ManualEditor idPrefix={idPrefix} kind={kind} config={config} references={references} disabled={disabled} onChange={onChange} />
   case WORKFLOW_STEP_EDITOR.WATCH:
     return <WatchEditor idPrefix={idPrefix} config={config} tools={tools} references={references} disabled={disabled} onChange={onChange} />
   default:

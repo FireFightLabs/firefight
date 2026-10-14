@@ -1,6 +1,5 @@
 import type {
   ResourceMapCertainty,
-  ResourceMapChangeKind,
   ResourceMapOrigin,
   ResourceMapRelation,
 } from "@/lib/generated/constants"
@@ -53,19 +52,7 @@ export function howFound(link: ResourceMapLink): string {
   return HOW_FOUND[link.origin](link)
 }
 
-const CHANGE_LABELS: Record<ResourceMapChangeKind, (change: ResourceMapChange) => string> = {
-  appeared: (change) => `${change.resourceName} appeared`,
-  removed: (change) => `${change.resourceName} is gone`,
-  deployed: (change) => `${change.resourceName} deployed ${shortCommit(change.toValue)}`,
-  renamed: (change) => `${change.fromValue ?? "A resource"} was renamed ${change.toValue ?? change.resourceName}`,
-  status_changed: (change) => `${change.resourceName} went from ${change.fromValue ?? "unknown"} to ${change.toValue ?? "unknown"}`,
-  configured: (change) => `${change.resourceName}: ${change.detail ?? "a setting"} went from ${change.fromValue ?? "unknown"} to ${change.toValue ?? "unknown"}`,
-}
-
+// What changed, in the words the map records it with, so the page and Halon read a change the same way.
 export function changeLabel(change: ResourceMapChange): string {
-  return CHANGE_LABELS[change.kind](change)
-}
-
-export function shortCommit(sha: string | undefined): string {
-  return sha ? sha.slice(0, 7) : "a new build"
+  return change.words
 }

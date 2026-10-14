@@ -83,7 +83,8 @@ class DefinedWorkflowPeopleStepsTest < ActiveSupport::TestCase
   end
 
   def ask_bob(config = {})
-    base = { "to" => "person", "person" => "bob@example.com", "question" => "Roll back checkout?", "choices" => %w[roll_back wait] }
+    base = { "to" => "person", "person" => "bob@example.com", "question" => "Roll back checkout?",
+             "choices" => [ { "key" => "roll_back", "label" => "Roll back now" }, { "key" => "wait", "label" => "Wait for the fix" } ] }
     ask = step("ask", "ask_person", base.merge(config))
     published("Ask Bob", steps: [ ask, step("back", "set_data", { "values" => [ { "name" => "went", "value" => "back" } ] }),
                                   step("hold", "set_data", { "values" => [ { "name" => "went", "value" => "hold" } ] }) ],
@@ -203,20 +204,28 @@ class DefinedWorkflowPeopleStepsTest < ActiveSupport::TestCase
     assert_equal Workflow::Run::STATUS_FAILED, run.status
     assert_match "There is nobody to ask: no member is nobody@example.com.", run.error
 
-    problems = DefinedWorkflow::Steps::AskPerson.problems(step("x", "ask_person", { "to" => "lead", "question" => "Go?", "choices" => [ "Roll back", "unanswered" ],
-                                                                                   "fields" => [ { "name" => "answer", "label" => "" } ] }), @workspace)
+    choices = [ { "key" => "Bad Key", "label" => "Go" }, { "key" => "unanswered", "label" => "Skip" }, { "key" => "blank", "label" => "" },
+                { "key" => "again", "label" => "go" }, { "key" => "long", "label" => "a" * 76 }, { "key" => "long", "label" => "Six" } ]
+    problems = DefinedWorkflow::Steps::AskPerson.problems(step("x", "ask_person", { "to" => "lead", "question" => "Go?", "choices" => choices,
+                                                                                   "fields" => [ { "name" => "answer", "label" => "" } ], "wait_minutes" => 2 }), @workspace)
     assert_includes problems, "x needs the incident whose people it asks."
-    assert_includes problems, "x needs each choice named in lowercase letters, numbers and underscores."
-    assert_includes problems, "x cannot call a choice unanswered, since that is the route when nobody answers."
+    assert_includes problems, "x offers at most 5 choices."
+    assert_includes problems, "x needs the words on each choice's button."
+    assert_includes problems, "x keeps each choice to 75 characters."
+    assert_includes problems, "x offers the same choice more than once."
+    assert_includes problems, "x keys each choice in lowercase letters, numbers and underscores."
+    assert_includes problems, "x keys two choices the same."
+    assert_includes problems, "x cannot key a choice unanswered, since that is the route when nobody answers."
+    assert_includes problems, "x waits from 5 minutes to 7 days, as a whole number of minutes."
     assert_includes problems, "x needs what each field asks."
     assert_includes problems, "x names a field answer or answered_by, which it hands on already."
     assert_includes DefinedWorkflow::Steps::AskPerson.problems(step("x", "ask_person", { "to" => "person", "person" => "a@b.c", "question" => "Go?" }), @workspace),
                     "x needs choices to pick from, a form to fill, or both."
   end
 
-  def approval_flow(config = {})
+  def approval_flow(config = {}, name = "Release")
     base = { "question" => "Release checkout?", "who" => "people", "approvers" => [ "alice@example.com" ] }
-    published("Release", steps: [ step("approve", "approval", base.merge(config)),
+    published(name, steps: [ step("approve", "approval", base.merge(config)),
                                   step("ship", "set_data", { "values" => [ { "name" => "went", "value" => "ship" } ] }),
                                   step("halt", "set_data", { "values" => [ { "name" => "went", "value" => "halt" } ] }),
                                   step("gone", "set_data", { "values" => [ { "name" => "went", "value" => "gone" } ] }) ],
@@ -310,5 +319,103 @@ class DefinedWorkflowPeopleStepsTest < ActiveSupport::TestCase
     assert_includes found, "x needs the incident its conditions read."
     assert_includes DefinedWorkflow::Steps::Approval.problems(step("x", "approval", { "question" => "Go?", "who" => "role", "role" => "member" }), @workspace),
                     "x needs the role that approves, admin or owner."
+    assert_includes DefinedWorkflow::Steps::Approval.problems(step("x", "approval", { "question" => "Go?", "who" => "role", "role" => "admin", "wait_minutes" => 20_000 }), @workspace),
+                    "x waits from 5 minutes to 7 days, as a whole number of minutes."
+  end
+
+  test "a choice's button reads exactly as the builder wrote it, and the route taken is its key" do
+    run = start(ask_bob)
+    question = row(run, "ask").questions.sole
+
+    buttons = Slack::Messages::WorkflowQuestion.build(question).find { |block| block[:type] == "actions" }[:elements]
+    assert_equal [ "Roll back now", "Wait for the fix" ], buttons.first(2).map { |button| button.dig(:text, :text) }
+    asked = WorkflowRunStepSerializer.one_as_hash(row(run, "ask"), member: @bob).deep_stringify_keys["ask"]
+    assert_equal [ { "value" => "roll_back", "label" => "Roll back now" }, { "value" => "wait", "label" => "Wait for the fix" } ], asked["choices"]
+
+    perform_enqueued_jobs(except: QUIET) { WorkflowQuestionService.choose_by_id!(@workspace, question.id, 1, by: @bob) }
+
+    assert_equal "wait", row(run.reload, "ask").route
+    assert_equal "Wait for the fix", question.reload.answer_words
+  end
+
+  test "ask a person waits as long as its settings say, then takes its unanswered route" do
+    run = start(ask_bob("wait_minutes" => 60))
+    question = row(run, "ask").questions.sole
+    assert_in_delta 60.minutes.from_now, question.due_at, 5.seconds
+
+    sweep(61.minutes)
+
+    assert_equal "unanswered", row(run.reload, "ask").route
+    assert question.reload.expired?
+  end
+
+  test "an approval nobody decides within its wait is withdrawn, saying why where it was asked" do
+    run = start(approval_flow("wait_minutes" => 30))
+    approval = requested(run)
+    @adapter.any_instance.expects(:mark_approval_resolved)
+            .with { |approval:, channel_id:, message_id:| channel_id == "C-OPS" && approval.withdrawn_reason == "Nobody decided within 30 minutes." }
+            .returns({ success: true })
+
+    sweep(31.minutes)
+
+    assert_equal "withdrawn", row(run.reload, "approve").route
+    assert_equal "Nobody decided within 30 minutes.", row(run, "approve").output["reason"]
+    assert_match "*Withdrawn*. Nobody decided within 30 minutes.", Slack::Messages::Approval.build_resolved(approval.reload).last.dig(:text, :text)
+  end
+
+  test "an approval a role decides is asked in a channel and messages nobody directly" do
+    @adapter.any_instance.expects(:post_approval_request_to_user).never
+    @adapter.any_instance.expects(:post_approval_request).with { |approval:, channel_id:| channel_id == @incident.channel_id }.returns({ channel_id: @incident.channel_id, message_id: "3.3" })
+
+    run = start(approval_flow("who" => "role", "role" => "admin", "approvers" => [], "incident" => @incident.identifier))
+
+    assert_equal PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL, requested(run).notify
+  end
+
+  test "an approval a role decides with no channel anywhere waits on the Approvals page and says so in the log" do
+    @workspace.update!(incidents_channel_id: nil)
+    @adapter.any_instance.expects(:post_approval_request).never
+    @adapter.any_instance.expects(:post_approval_request_to_user).never
+    Rails.logger.expects(:warn).with { |line| line.include?("approval.nowhere_to_ask") }.at_least_once
+    Rails.logger.stubs(:warn).with { |line| !line.include?("approval.nowhere_to_ask") }
+
+    run = start(approval_flow("who" => "role", "role" => "admin", "approvers" => []))
+
+    assert requested(run).pending?
+  end
+
+  test "an approval naming people messages only them, beside its channel, which is the owning team's without an incident" do
+    @adapter.any_instance.expects(:post_approval_request_to_user).once.with { |approval:, user_id:| user_id == @bob.platform_user_id }.returns({ channel_id: "D-BOB", message_id: "4.4" })
+    @adapter.any_instance.expects(:post_approval_request).with { |approval:, channel_id:| channel_id == "C0PLATFORM" }.returns({ channel_id: "C0PLATFORM", message_id: "5.5" })
+    CatalogEntry.any_instance.stubs(:role_value).with(CatalogAttributeDefinition::ROLE_NOTIFICATION_CHANNEL).returns("C0PLATFORM")
+    workflow = approval_flow("approvers" => [ "bob@example.com" ])
+    workflow.update!(owner_team: catalog_entries(:platform_team))
+
+    run = start(workflow)
+
+    assert_equal 2, requested(run).notifications.size
+  end
+
+  test "an approval whose run is stopped says so where it was asked" do
+    run = start(approval_flow)
+    @adapter.any_instance.expects(:mark_approval_resolved)
+            .with { |approval:, channel_id:, message_id:| approval.withdrawn_reason == "The run was stopped before anyone decided." }.returns({ success: true })
+
+    perform_enqueued_jobs(except: QUIET) { run.cancel!(by: @alice) }
+
+    assert requested(run).expired?
+  end
+
+  test "a person the approval names decides it without approvals access, and only that request" do
+    run = start(approval_flow("approvers" => [ "bob@example.com" ]))
+    approval = requested(run)
+    other = start(approval_flow({ "who" => "role", "role" => "admin", "approvers" => [] }, "Release by role"))
+    action = Ability::Action.lookup(Ability::Approval::DECIDE_KEY, @workspace)
+
+    assert AbilityGateway.permitted?(@bob, action, Ability::Approval::DECIDE_KEY, @workspace, approval.decision_scope)
+    assert_not AbilityGateway.permitted?(@bob, action, Ability::Approval::DECIDE_KEY, @workspace, {})
+    assert_not AbilityGateway.permitted?(@bob, action, Ability::Approval::DECIDE_KEY, @workspace, requested(other).decision_scope)
+    assert_nil approval.decide_denied_reason(@bob)
+    assert_equal "You don't have permission to decide this request. Ask a workspace admin to grant you approvals access under Gateway, Permissions.", requested(other).decide_denied_reason(@bob)
   end
 end

@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { isObject, jsonObject, type JsonObject } from "@/lib/tool-fields"
 import { workflowPinsPath } from "@/lib/routes"
 import { CANVAS_VISIT } from "@/pages/halon/hooks/use-workflow-edits"
-import { routeWords } from "@/pages/halon/lib/workflow/labels"
+import { routeLabel } from "@/pages/halon/lib/workflow/labels"
 import type { WorkflowStepNode } from "@/types/serializers"
 
 const NO_ROUTE = "none"
@@ -60,7 +60,7 @@ export function PinDialog({ open, workflowId, step, onOpenChange }: PinDialogPro
                 <SelectTrigger id={`pin-route-${step.id}`} className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NO_ROUTE}>None</SelectItem>
-                  {step.routes.map((each) => <SelectItem key={each} value={each}>{routeWords(each)}</SelectItem>)}
+                  {step.routes.map((each) => <SelectItem key={each} value={each}>{routeLabel(each, step.routeLabels)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

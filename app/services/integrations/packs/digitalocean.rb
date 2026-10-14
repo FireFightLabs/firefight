@@ -617,7 +617,7 @@ module Integrations
         commit = Array(app.dig("active_deployment", "services")).filter_map { |service| service["source_commit_hash"].presence }.first
         app_found = found(environment_row, KIND_APP, app["id"], app_name(app), account, status: app_phase(app).downcase,
                           details: { "region" => app.dig("region", "slug"), "tier" => app["tier_slug"], ResourceMap::DEPLOYED_COMMIT => commit,
-                                     "components" => components(spec).size }.compact)
+                                     "components" => components(spec).size, ResourceMap::INSTANCES => instances_of(spec) }.compact)
         resources << app_found
         settings_of(environment_row, app_found, spec)
         components(spec).filter_map { |component| repository_of(component) }.uniq.each do |repository|
@@ -630,6 +630,15 @@ module Integrations
           resources << domain
           links << ResourceMap::FoundLink.new(from: domain.key, to: app_found.key, relation: ResourceMap::RELATION_SERVED_BY)
         end
+      end
+
+      # The instances an app's services and workers run, one each unless set, or nil when one of them scales on its own,
+      # since its spec then names only the fewest and the most.
+      def instances_of(spec)
+        scaled = SCALED_LISTS.flat_map { |list| Array(spec[list]) }
+        return if scaled.empty? || scaled.any? { |component| component["autoscaling"] }
+
+        scaled.sum { |component| component["instance_count"] || 1 }
       end
 
       # The repository a component builds from, on whichever code host the registry has a site for, or nil.

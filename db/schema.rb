@@ -64,6 +64,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_100100) do
     t.boolean "on_call_may_approve", default: false, null: false
     t.jsonb "asked_member_ids", default: [], null: false
     t.uuid "workflow_run_id"
+    t.text "withdrawn_reason"
     t.index ["approved_under_rule_id"], name: "index_ability_approvals_on_approved_under_rule_id"
     t.index ["principal_type", "principal_id"], name: "index_ability_approvals_on_principal_type_and_principal_id"
     t.index ["workflow_run_id"], name: "index_ability_approvals_on_workflow_run_id"
@@ -3224,7 +3225,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_100100) do
     t.datetime "due_at", null: false
     t.text "question", null: false
     t.text "details"
-    t.string "choices", default: [], null: false, array: true
     t.jsonb "fields", default: [], null: false
     t.uuid "asked_member_ids", default: [], null: false, array: true
     t.string "status", default: "open", null: false
@@ -3234,6 +3234,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_100100) do
     t.jsonb "notifications", default: [], null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "kind", default: "question", null: false
+    t.boolean "open_to_anyone", default: false, null: false
+    t.string "channel_id"
+    t.jsonb "choices", default: [], null: false
     t.index ["answered_by_id"], name: "index_workflow_run_questions_on_answered_by_id"
     t.index ["run_step_id"], name: "index_workflow_run_questions_on_run_step_id"
     t.index ["workspace_id", "status"], name: "index_workflow_run_questions_on_workspace_id_and_status"

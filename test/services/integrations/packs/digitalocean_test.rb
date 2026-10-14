@@ -235,6 +235,15 @@ module Integrations
         assert_no_setting_values(snapshot, "kv-pass", "hunter2", "pg-pass", connection["host"])
       end
 
+      test "an app counts the instances its services and workers run, and one with a component that scales on its own counts none" do
+        fixed = SPEC.deep_dup.merge("workers" => [ { "name" => "jobs", "instance_count" => 3 }, { "name" => "mailer" } ])
+        DigitaloceanApi.any_instance.stubs(:apps).returns(listed(APP.merge("spec" => fixed)))
+        assert_equal 6, @pack.map_of(@row).resources.find { |resource| resource.external_id == APP_ID }.details[ResourceMap::INSTANCES]
+
+        DigitaloceanApi.any_instance.stubs(:apps).returns(listed(APP))
+        assert_not @pack.map_of(@row).resources.find { |resource| resource.external_id == APP_ID }.details.key?(ResourceMap::INSTANCES)
+      end
+
       test "a Droplet's and a database's tags are kept as keys alone, since DigitalOcean's tags carry no value" do
         DigitaloceanApi.any_instance.stubs(:droplets).returns(Pages::Read.new(items: [ { "id" => 1, "name" => "one", "tags" => %w[web prod] } ], complete: true))
         DigitaloceanApi.any_instance.stubs(:databases).returns(Pages::Read.new(items: [ { "id" => "db-2", "name" => "orders", "engine" => "pg" } ], complete: true))

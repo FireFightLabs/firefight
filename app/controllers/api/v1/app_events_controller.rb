@@ -32,6 +32,7 @@ class Api::V1::AppEventsController < ActionController::API
     rows = Integrations::MapEvents.rows_for_installation(provider_key, source.installation_of(payload, headers: request.headers)).to_a
     receive_map_delivery(map_source, rows, payload) if map_source
     Integrations::AgentSessions.delivered!(provider_key, rows, payload)
+    Integrations::AgentSessions.labelled!(provider_key, rows, payload)
     IssueSyncService.app_delivered!(provider_key, rows, payload)
     head :ok
   rescue JSON::ParserError
