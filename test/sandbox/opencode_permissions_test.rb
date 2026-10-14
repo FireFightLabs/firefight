@@ -109,11 +109,15 @@ class OpencodePermissionsTest < ActiveSupport::TestCase
 
   private
 
-  # What an agent would run to answer its own question: OpenCode's server is found by its command line, its password in
-  # the shell's own environment, and the first open question answered always. The path is built at run time, as a
-  # determined agent would, so OpenCode cannot tell it reaches outside the copy.
+  # What an agent would run to answer its own question: OpenCode's server is found by the command line of the shell's
+  # own ancestor, since other servers may run on the machine, its password in the shell's own environment, and the
+  # first open question answered always. The path is built at run time, as a determined agent would, so OpenCode cannot
+  # tell it reaches outside the copy.
   SELF_ANSWER = <<~SH.squish.freeze
-    root=/proc; port=$(cat $root/[0-9]*/cmdline 2>/dev/null | tr '\\0' ' ' | grep -o -- '--port [0-9]*' | head -1 | cut -d' ' -f2);
+    root=/proc; pid=$$; port=;
+    while [ -z "$port" ] && [ "$pid" -gt 1 ]; do
+    port=$(tr '\\0' ' ' < $root/$pid/cmdline | grep -o -- '--port [0-9]*' | cut -d' ' -f2);
+    pid=$(awk '/^PPid/ { print $2 }' $root/$pid/status); done;
     for i in $(seq 1 40); do
     id=$(curl -s -u "opencode:$OPENCODE_SERVER_PASSWORD" "http://127.0.0.1:$port/permission" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4);
     if [ -n "$id" ]; then curl -s -u "opencode:$OPENCODE_SERVER_PASSWORD" -H 'Content-Type: application/json' -d '{"reply":"always"}'

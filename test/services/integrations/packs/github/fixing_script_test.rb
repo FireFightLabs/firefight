@@ -338,11 +338,12 @@ module Integrations
           [ gate, copy, head, base ]
         end
 
-        # agent stands in for the driver, which the script runs as it is handed on stdin.
+        # agent stands in for the driver, which the script runs as it is handed on stdin. Each stand in is a shell
+        # script, so sh runs it where the box runs the driver on its Node.
         def run_script(root, copy, agent, gate, branch: "halon/fix-1", earlier: "", env: {}, resume: "")
           bin = File.join(root, "bin")
           FileUtils.mkdir_p(bin)
-          output, = Open3.capture2({ "PATH" => "#{bin}:#{ENV.fetch('PATH')}" }.merge(env), "bash", "-c", Fixing::RUN, "opencode", "brief", "x/y",
+          output, = Open3.capture2({ "PATH" => "#{bin}:#{ENV.fetch('PATH')}", "AGENT_NODE" => "/bin/sh" }.merge(env), "bash", "-c", Fixing::RUN, "opencode", "brief", "x/y",
                                    earlier.to_s, gate, "main", branch, "Fix the pool", resume, PERMISSIONS_URL, chdir: copy,
                                    stdin_data: "#{Base64.strict_encode64('halon:secret-token')}\n{\"apiKey\":\"secret-token\"}\n#{agent}")
           output
