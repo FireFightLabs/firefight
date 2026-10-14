@@ -266,12 +266,18 @@ class Integration < ApplicationRecord
   # This connection's tools that another connection's tool shares a name with as Halon calls it, by tool name, read in
   # one query.
   def tool_namesakes
-    @tool_namesakes ||= begin
-      names = tools.map(&:model_facing_name)
-      others = Integration::Tool.joins(:integration).includes(:integration)
-                                .where(integrations: { workspace_id: workspace_id, deleted_at: nil }).where.not(integration_id: id)
-                                .where("replace(integrations.slug || '_' || integration_tools.name, '.', '_') IN (?)", names).to_a.index_by(&:model_facing_name)
-      tools.each_with_object({}) { |tool, found| found[tool.name] = others[tool.model_facing_name] if others[tool.model_facing_name] }
+    @tool_namesakes ||= namesakes_for(tools.map(&:name))
+  end
+
+  # Another connection's tool for each of these tool names that Halon would call by the same name, by tool name, read in
+  # one query, so tools can be checked before they are saved.
+  def namesakes_for(names)
+    facing = names.group_by { |name| "#{slug}_#{name}".tr(".", "_") }
+    others = Integration::Tool.joins(:integration).includes(:integration)
+                              .where(integrations: { workspace_id: workspace_id, deleted_at: nil }).where.not(integration_id: id)
+                              .where("replace(integrations.slug || '_' || integration_tools.name, '.', '_') IN (?)", facing.keys).to_a.index_by(&:model_facing_name)
+    facing.each_with_object({}) do |(name_facing, same), found|
+      same.each { |name| found[name] = others[name_facing] } if others[name_facing]
     end
   end
 

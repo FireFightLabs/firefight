@@ -31,8 +31,7 @@ class StatusPagesConnectTest < ApplicationSystemTestCase
         click_button "Connect"
       end
 
-      # Connecting syncs every tool the pack offers and renders them, which CI machines take longer over.
-      assert_toast "#{name} is connected.", wait: 15
+      assert_toast "#{name} is connected."
       row = @workspace.integrations.find_by!(provider: key).integration_environments.sole
       assert_equal "#{key}-key", Integrations::ConnectionSettings.of(row).credential("api_key")
     end
@@ -51,8 +50,7 @@ class StatusPagesConnectTest < ApplicationSystemTestCase
     visit workflow_path(workflow)
 
     find("[data-step='tell']").click
-    # The tools load after the page, every tool of both packs, which CI machines take longer over.
-    find("button[role=combobox]", text: "Choose a tool", wait: 15).click
+    find("button[role=combobox]", text: "Choose a tool").click
 
     tools.each do |found|
       assert_selector "[role=option]", text: found.find_by!(name: "post_incident_update").model_facing_name

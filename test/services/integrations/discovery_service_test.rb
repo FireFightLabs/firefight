@@ -196,5 +196,51 @@ module Integrations
       assert_not HealthCheckService.check!(row)
       assert_equal IntegrationEnvironment::HEALTH_FAILING, row.reload.health_status
     end
+
+    test "a server's tools are saved together in one transaction, so a failure part way saves none of them" do
+      McpClient.any_instance.stubs(:tools_list).returns([ { "name" => "first" }, { "name" => "second" } ])
+      Ability::Action.stubs(:insert_all!).raises(ActiveRecord::RecordInvalid)
+
+      assert_raises(ActiveRecord::RecordInvalid) { DiscoveryService.sync!(@integration) }
+      assert_empty @integration.tools.reload, "no tool is left saved without its ability"
+    end
+
+    test "a failure filing the new actions in their packs leaves no tool or action saved" do
+      McpClient.any_instance.stubs(:tools_list).returns([ { "name" => "first" } ])
+      Ability::Role.stubs(:file_waiting).raises(ActiveRecord::RecordInvalid)
+
+      assert_raises(ActiveRecord::RecordInvalid) { DiscoveryService.sync!(@integration) }
+      assert_empty @integration.tools.reload
+      assert_not Ability::Action.exists?(key: "new_relic.first")
+    end
+
+    test "every new tool Halon would call by another connection's tool's name arrives switched off, two of them spelled apart included" do
+      other = Integration.create!(workspace: @integration.workspace, kind: Integration::KIND_MCP, provider: Integration::PROVIDER_CUSTOM_MCP,
+                                  name: "New Relic EU", settings: { "server_url" => "https://mcp.eu.example/mcp" })
+      other.update_columns(slug: "new")
+      other.tools.create!(name: "relic_logs_query", enabled: true)
+      McpClient.any_instance.stubs(:tools_list).returns([ { "name" => "logs.query" }, { "name" => "logs_query" }, { "name" => "status" } ])
+
+      DiscoveryService.sync!(@integration)
+
+      assert_equal({ "logs.query" => false, "logs_query" => false, "status" => true }, @integration.tools.reload.to_h { |tool| [ tool.name, tool.enabled ] })
+    end
+
+    test "a server's new tools and their abilities are saved in the same queries however many it lists" do
+      extend ManyToolsHelper
+      per_tool = [ 10, 40 ].map do |count|
+        integration = Integration.create!(workspace: workspaces(:slack_workspace_one), kind: Integration::KIND_MCP, provider: Integration::PROVIDER_CUSTOM_MCP,
+                                          name: "Server #{count}", settings: { "server_url" => "https://mcp#{count}.example/mcp" })
+        integration.integration_environments.create!(credentials: { authorization: "Bearer x" }.to_json)
+        McpClient.any_instance.stubs(:tools_list).returns(Array.new(count) { |index| { "name" => "tool_#{index}", "annotations" => { "readOnlyHint" => index.even? } } })
+        queries = queries_made { DiscoveryService.sync!(integration) }
+        assert_equal count, integration.tools.enabled.count
+        assert_equal count, Ability::Action.where(source: integration.tools).count
+        queries
+      end
+
+      slope = (per_tool.last - per_tool.first) / 30.0
+      assert_operator slope, :<, 0.5, "each new tool took #{slope.round(1)} queries"
+    end
   end
 end

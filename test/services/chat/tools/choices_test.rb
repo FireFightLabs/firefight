@@ -46,4 +46,15 @@ class Chat::Tools::ChoicesTest < ActiveSupport::TestCase
     assert_equal Integrations::Capabilities::HISTORY, Integrations::Capabilities::SPECS.values.find { |spec| spec.tool_name == reads.first.name }.key
     assert_not_includes reads.map(&:name), "rollback"
   end
+
+  test "a workspace's tool choices are read in the same queries however many tools its connections have" do
+    extend ManyToolsHelper
+    connection_with_tools(@workspace, 3, name: "Few")
+    few_queries = queries_made { Chat::Tools::Choices.tools(Workspace.find(@workspace.id)) }
+    connection_with_tools(@workspace, 40, name: "Many")
+    many_queries = queries_made { Chat::Tools::Choices.tools(Workspace.find(@workspace.id)) }
+
+    assert_operator many_queries, :<=, few_queries + 2, "40 more tools on another connection made #{many_queries - few_queries} more queries"
+    assert_equal 43, Chat::Tools::Choices.tools(Workspace.find(@workspace.id)).count { |choice| choice.group.start_with?("Few", "Many") }
+  end
 end

@@ -6,8 +6,10 @@ class Integration::Tool < ApplicationRecord
   # The action knows the tool it was read through, so asking whether a member reads it by default reads no tool again.
   has_one :ability_action, class_name: "Ability::Action", as: :source, dependent: :destroy, inverse_of: :source
 
+  NAME_FORMAT = /\A[a-z0-9_.]+\z/
+
   validates :name, presence: true, uniqueness: { scope: :integration_id },
-                   format: { with: /\A[a-z0-9_.]+\z/ }
+                   format: { with: NAME_FORMAT }
 
   scope :enabled, -> { where(enabled: true) }
   scope :available, -> { where(removed_at: nil) }
@@ -203,18 +205,60 @@ class Integration::Tool < ApplicationRecord
 
     action = Ability::Action.find_or_initialize_by(workspace_id: integration.workspace_id, key: action_key)
     minted = action.new_record?
-    action.assign_attributes(
-      kind: Ability::Action::KIND_TOOL,
-      risk_level: read_only? ? Ability::Action::RISK_READ : Ability::Action::RISK_WRITE,
-      reversible: read_only?,
-      params_schema: params_schema,
-      source: self
-    )
+    action.assign_attributes(ability_action_attributes)
     action.save!
     Ability::Role.file!(action, integration)
     grant_paging!(action) if minted
     action
   end
+
+  # What its action mirrors of it.
+  def ability_action_attributes
+    { kind: Ability::Action::KIND_TOOL, risk_level: read_only? ? Ability::Action::RISK_READ : Ability::Action::RISK_WRITE,
+      reversible: read_only?, params_schema: params_schema, source: self }
+  end
+
+  # Saves the new tools a server listed in one write, and the actions of those switched on in one more, filing each in
+  # its packs and granting paging as saving each one would, so a connection's first discovery costs the same few
+  # queries however many tools it lists. Each name was checked new against the connection's tools by the caller, and
+  # the database's unique index holds if another save raced it.
+  def self.insert_discovered!(integration, tools)
+    return [] if tools.empty?
+
+    now = Time.current
+    rows = tools.map do |tool|
+      raise ActiveRecord::RecordInvalid, tool unless tool.name.to_s.match?(NAME_FORMAT)
+
+      tool.attributes.except("id").merge("definition_chars" => tool.definition_length, "created_at" => now, "updated_at" => now)
+    end
+    insert_all!(rows)
+    saved = where(integration_id: integration.id, name: tools.map(&:name)).includes(:integration).to_a
+    mint_ability_actions!(integration, saved.select(&:enabled?))
+    integration.tools.reset
+    saved
+  end
+
+  def self.mint_ability_actions!(integration, tools)
+    return if tools.empty?
+
+    keys = tools.map(&:action_key)
+    raise ArgumentError, "#{keys.grep_v(Ability::Action::KEY_FORMAT).first} is not an ability's key" if keys.any? { |key| !key.match?(Ability::Action::KEY_FORMAT) }
+
+    known = Ability::Action.where(workspace_id: integration.workspace_id, key: keys).index_by(&:key)
+    now = Time.current
+    fresh = tools.reject { |tool| known.key?(tool.action_key) }.map do |tool|
+      attributes = tool.ability_action_attributes.except(:source)
+      attributes.merge(workspace_id: integration.workspace_id, key: tool.action_key, source_type: polymorphic_name, source_id: tool.id, created_at: now, updated_at: now)
+    end
+    Ability::Action.insert_all!(fresh) if fresh.any?
+    minted = Ability::Action.where(workspace_id: integration.workspace_id, key: fresh.pluck(:key)).index_by(&:key)
+    tools.each do |tool|
+      action = known[tool.action_key]&.tap { |found| found.update!(tool.ability_action_attributes) } || minted.fetch(tool.action_key)
+      Ability::Role.file!(action, integration)
+      tool.send(:grant_paging!, action) if minted.key?(tool.action_key)
+    end
+  end
+  private_class_method :mint_ability_actions!
 
   private
 

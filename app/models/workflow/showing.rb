@@ -36,10 +36,19 @@ module Workflow::Showing
   # What the workflow's own identity does not hold yet of what a step needs (DefinedWorkflow::Reach::Needed), as a
   # sentence, or nil when it holds it all or the step needs nothing. Publishing grants it.
   def grant_needed_for(needs)
-    resolved = agent && Ability::Resolver.resolve(agent, workspace)
+    resolved = agent_reach
     missing = needs.reject { |needed| resolved && needed.held_by?(agent, workspace, resolved) }
     return if missing.empty?
 
     "Needs #{missing.map { |needed| needed.label.downcase_first }.to_sentence}, which publishing grants to the workflow."
+  end
+
+  private
+
+  # What the identity holds, worked out once for every step and tool a page asks about.
+  def agent_reach
+    return @agent_reach if defined?(@agent_reach)
+
+    @agent_reach = agent && Ability::Resolver.resolve(agent, workspace)
   end
 end

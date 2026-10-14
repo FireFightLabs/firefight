@@ -61,12 +61,14 @@ module Chat::Tools::Choices
     end
   end
 
+  # Each connection's environments are read once for all its tools, which every tool's schema names.
   def connections(workspace)
-    Integration::Tool.in_workspace(workspace).includes(:integration).to_a
-                     .reject { |tool| Integrations::Capabilities.wrapped?(tool) || Integrations::Capabilities.tool_names.include?(tool.model_facing_name) }
-                     .map do |tool|
+    tools = Integration::Tool.in_workspace(workspace).includes(:integration).to_a
+                             .reject { |tool| Integrations::Capabilities.wrapped?(tool) || Integrations::Capabilities.tool_names.include?(tool.model_facing_name) }
+    rows = tools.map(&:integration).uniq.index_with(&:offered_environment_rows)
+    tools.map do |tool|
       Choice.new(name: tool.model_facing_name, group: tool.integration.display_name,
-                 description: Chat::Tools.clean(tool.description, Chat::Tools::ONE_LINE), fields: fields(tool.offered_schema),
+                 description: Chat::Tools.clean(tool.description, Chat::Tools::ONE_LINE), fields: fields(tool.offered_schema(rows.fetch(tool.integration))),
                  reads: tool.read_only? || Integrations::ReadGuards.for(tool).present?, watch_fields: watched_fields(tool),
                  read_only: tool.read_only?, action_key: tool.action_key, status_page: IntegrationProvider.find(tool.integration.provider)&.holds_status_pages || false)
     end

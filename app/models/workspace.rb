@@ -179,7 +179,19 @@ class Workspace < ApplicationRecord
   # reason, since each step of a chat names its tool's connection.
   def connection_tools_by_name
     @connection_tools_by_name ||= Integration::Tool.joins(:integration).where(integrations: { workspace_id: id, deleted_at: nil })
-                                                   .includes(:integration).index_by(&:model_facing_name)
+                                                   .includes(:integration, :ability_action).index_by(&:model_facing_name)
+  end
+
+  # Each connection's read pack by its id, read once, as a list of tools names each tool's connection.
+  def read_packs_by_integration
+    @read_packs_by_integration ||= Ability::Role.where(workspace_id: id, pack: Ability::Role::PACK_READ).where.not(integration_id: nil).index_by(&:integration_id)
+  end
+
+  # The ability a key names, Firefight's own or this workspace's, as Ability::Action.lookup finds it, with every
+  # ability read once, as a list of Firefight's own tools names one each.
+  def ability_for(key)
+    @abilities_by_key ||= Ability::Action.where(workspace_id: [ nil, id ]).index_by(&:key)
+    @abilities_by_key[key] || Ability::Action.lookup(key, self)
   end
 
   # Returns the row an admin customized, otherwise creates one from the
