@@ -378,7 +378,7 @@ module Integrations
           fail_policy! "#{branch} is the default branch of #{repo}, and a code change reaches it only through a pull request." if branch == default_branch(repo, token)
           fail_policy! "#{branch} in #{repo} is protected, so Firefight does not push to it." if GithubApp.get("/repos/#{repo}/branches/#{Http.segment(branch)}", token: token)["protected"]
 
-          rules = branch_rules(repo, branch, token)
+          rules = Array(branch_rules(repo, branch, token))
           fail_policy! "A ruleset in #{repo} keeps pushes off #{branch}, so Firefight does not push to it." if rules.any? { |rule| Branches::PUSH_RULES.include?(rule["type"]) }
         end
 

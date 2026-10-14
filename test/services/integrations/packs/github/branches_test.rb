@@ -4,6 +4,9 @@ module Integrations
   module Packs
     class Github
       class BranchesTest < ActiveSupport::TestCase
+        # GitHub's answer to a ruleset read on a private repository of a GitHub Free account.
+        PLAN_REFUSAL = "GitHub: Upgrade to GitHub Pro or make this repository public to enable this feature.".freeze
+
         setup do
           @integration = Integration.create!(workspace: workspaces(:slack_workspace_one), kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
           @row = @integration.integration_environments.create!(base_config: { "installation_id" => "12345" })
@@ -46,6 +49,23 @@ module Integrations
                           "Branch protection settings not shown: Firefight's GitHub App needs Administration read for them."
         end
 
+        test "a private repository whose plan has no rulesets or branch protection is said so in words, not as a failure" do
+          GithubApp.stubs(:get).with("/repos/acme/web/branches/main", token: "ghs_token").returns("protected" => false, "commit" => { "sha" => "a" * 40 })
+          GithubApp.stubs(:get).with("/repos/acme/web/rules/branches/main?per_page=100", token: "ghs_token").raises(GithubApp::PlanLimited, PLAN_REFUSAL)
+
+          text = text_of(@pack.branch_protection(environment_row: @row, arguments: { "repo" => "acme/web" }))
+
+          assert_includes text, "main in acme/web is not protected by branch protection, at #{'a' * 12}."
+          assert_includes text, "acme/web is a private repository on a GitHub plan without rulesets or branch protection for private repositories, so no rule applies to main."
+          assert_not_includes text, "Upgrade"
+
+          GithubApp.stubs(:get).with("/repos/acme/web/branches/main", token: "ghs_token").returns("protected" => true, "commit" => { "sha" => "a" * 40 })
+          GithubApp.stubs(:get).with("/repos/acme/web/branches/main/protection", token: "ghs_token").raises(GithubApp::PlanLimited, PLAN_REFUSAL)
+          text = text_of(@pack.branch_protection(environment_row: @row, arguments: { "repo" => "acme/web" }))
+          assert_includes text, "Branch protection settings not shown: the repository's GitHub plan does not have them."
+          assert_not_includes text, "Upgrade"
+        end
+
         test "a branch is made under halon/ from the default branch" do
           GithubApp.stubs(:get).with("/repos/acme/web/commits/main", token: "ghs_token").returns("sha" => "a" * 40)
           GithubApp.expects(:write).with(:post, "/repos/acme/web/git/refs", { ref: "refs/heads/halon/revert-pool", sha: "a" * 40 }, token: "ghs_token").returns({})
@@ -86,7 +106,21 @@ module Integrations
           assert_includes text_of(delete("halon/fix-2")), "Deleted the branch halon/fix-2 in acme/web."
         end
 
+        test "a halon/ branch in a private repository whose plan has no rulesets is deleted, and a refusal for a permission still stops it" do
+          stub_branch("halon/fix-3")
+          GithubApp.stubs(:get).with("/repos/acme/web/rules/branches/#{Http.segment("halon/fix-3")}?per_page=100", token: "ghs_token").raises(GithubApp::PlanLimited, PLAN_REFUSAL)
+          GithubApp.expects(:write).with(:delete, "/repos/acme/web/git/refs/heads/halon/fix-3", token: "ghs_token").returns({})
+
+          assert_includes text_of(delete("halon/fix-3")), "Deleted the branch halon/fix-3 in acme/web."
+
+          stub_branch("halon/fix-4")
+          GithubApp.stubs(:get).with("/repos/acme/web/rules/branches/#{Http.segment("halon/fix-4")}?per_page=100", token: "ghs_token")
+                   .raises(GithubApp::NotPermitted, "GitHub: Resource not accessible by integration")
+          assert_match "GitHub refused this", assert_raises(NativePack::Error) { delete("halon/fix-4") }.message
+        end
+
         private
+
 
         def stub_branch(name, protected: false, rules: [], pulls: [])
           GithubApp.stubs(:get).with("/repos/acme/web/branches/#{Http.segment(name)}", token: "ghs_token").returns("protected" => protected, "commit" => { "sha" => "c" * 40 })

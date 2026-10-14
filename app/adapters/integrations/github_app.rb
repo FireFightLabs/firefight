@@ -10,6 +10,11 @@ module Integrations
     # The installation was not granted a permission the call needs, which GitHub says as "Resource not accessible by
     # integration" (docs.github.com, REST API, troubleshooting).
     class NotPermitted < Error; end
+    # The repository's plan does not have the feature, such as rulesets or branch protection on a private repository of a
+    # GitHub Free account, which GitHub answers 403 with "Upgrade to GitHub Pro or make this repository public to enable
+    # this feature." (docs.github.com, GitHub's plans, which lists protected branches in private repositories from GitHub
+    # Pro up). It says what the plan lacks, never what the App may do.
+    class PlanLimited < Error; end
     # GitHub did not accept the token, such as one minted for an installation that changed since.
     class Unauthorized < Error; end
     # GitHub answered that the repository is not there, or not one the installation can see, the one answer a re-read
@@ -28,10 +33,11 @@ module Integrations
     DOWNLOAD_LIMIT = 2_000_000
     PROVIDER = "GitHub".freeze
     NOT_PERMITTED = /not accessible by integration/i
+    PLAN_LIMITED = /Upgrade to GitHub [\w ]+ or make this repository public to enable this feature/i
     NOT_FOUND = 404
     UNAUTHORIZED = 401
     REFINE = lambda do |code, said|
-      (NotPermitted if code == 403 && said.match?(NOT_PERMITTED)) || (Unauthorized if code == UNAUTHORIZED) || (NotFound if code == NOT_FOUND)
+      (NotPermitted if code == 403 && said.match?(NOT_PERMITTED)) || (PlanLimited if code == 403 && said.match?(PLAN_LIMITED)) || (Unauthorized if code == UNAUTHORIZED) || (NotFound if code == NOT_FOUND)
     end
     # GitHub says why it refused in message, and a 422 lists what failed validation in errors (docs.github.com, REST API,
     # Troubleshooting, Validation failed), such as "Reviews may only be requested from collaborators".
@@ -310,6 +316,7 @@ module Integrations
           raise NotFound, message if response.code.to_i == NOT_FOUND
           raise Unauthorized, message if response.code.to_i == UNAUTHORIZED
           raise NotPermitted, message if response.code.to_i == 403 && message.match?(NOT_PERMITTED)
+          raise PlanLimited, message if response.code.to_i == 403 && message.match?(PLAN_LIMITED)
 
           raise Error, message
         end

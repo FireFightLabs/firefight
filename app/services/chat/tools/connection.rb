@@ -2,12 +2,15 @@
 class Chat::Tools::Connection < RubyLLM::Tool
   # What to do with a provider's failure, said after its words where Halon meets it, outside the frame since it is ours.
   # Seen in a real chat, a rule update the provider could not parse, for one parenthesis too many, was left undone when
-  # the person added a request, and the reason was never said.
+  # the person added a request, and the reason was never said. In another, a code host's "upgrade your plan or make this
+  # repository public" on a read Firefight made was passed on as what the person had to do, though a push needed neither.
   CHANGE_FAILED = "When the provider's error points at something in what you sent, such as an expression it could not " \
                   "parse or a value it does not take, correct that part and send the change again, which asks the person " \
                   "again where the first one asked. A change the person asked for stays asked for while they add other " \
                   "requests, unless they say otherwise. Tell them in plain words why it failed, quoting the provider, and " \
-                  "what you changed.".freeze
+                  "what you changed. Something the error tells its reader to do, such as upgrade a plan or change a setting, " \
+                  "is the provider's suggestion for that one call, and what the person asked for may not need it. Pass it " \
+                  "on as the provider's, and look for another way to what they asked before offering it as the way forward.".freeze
   READ_FAILED = "This one call did not work, and the data may still be reachable another way, such as another log type, " \
                 "another metric, another tool or the steps in the provider's skill. Try one before calling it unavailable, " \
                 "and name the ways you tried when none worked.".freeze

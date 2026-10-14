@@ -77,6 +77,26 @@ module Integrations
       error = assert_raises(GithubApp::Error) { GithubApp.get("/repos/acme/checkout/pulls/1", token: "t") }
       assert_match(/Not Found/, error.message)
     end
+
+    test "a feature the repository's plan does not have is told apart from a missing permission and any other refusal" do
+      # GitHub's answer, word for word, to rules/branches on a private repository of a GitHub Free account.
+      Http.stubs(:request).returns(answer("403", message: "Upgrade to GitHub Pro or make this repository public to enable this feature.",
+                                                 documentation_url: "https://docs.github.com/rest/repos/rules#get-rules-for-a-branch", status: "403"))
+      error = assert_raises(GithubApp::PlanLimited) { GithubApp.get("/repos/acme/web/rules/branches/main?per_page=100", token: "ghs_token") }
+      assert_equal "GitHub: Upgrade to GitHub Pro or make this repository public to enable this feature.", error.message
+
+      Http.stubs(:request).returns(answer("403", message: "Upgrade to GitHub Team or make this repository public to enable this feature."))
+      assert_raises(GithubApp::PlanLimited) { GithubApp.get("/repos/acme/web/branches/main/protection", token: "ghs_token") }
+
+      Http.stubs(:request).returns(refused).then.returns(refused)
+      assert_raises(GithubApp::NotPermitted) { GithubApp.get("/repos/acme/web/rules/branches/main?per_page=100", token: "ghs_token") }
+
+      Http.stubs(:request).returns(answer("403", message: "Must have admin rights to Repository."))
+      error = assert_raises(GithubApp::Error) { GithubApp.get("/repos/acme/web/branches/main/protection", token: "ghs_token") }
+      assert_not_kind_of GithubApp::PlanLimited, error
+      assert_not_kind_of GithubApp::NotPermitted, error
+    end
+
     test "a pull request opens from a branch the change was already pushed to, ready for review" do
       GithubApp.expects(:post).with("/repos/acme/api/pulls", { title: "Restore the pool", head: "halon/fix-1", base: "main", body: "Why", draft: false }, token: "t")
                .returns("html_url" => "https://github.com/acme/api/pull/7")
