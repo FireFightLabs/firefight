@@ -108,15 +108,28 @@ class WorkflowTriggerServiceTest < ActiveSupport::TestCase
     assert_equal 1, other.runs.count
   end
 
-  test "the workspace's ceiling of event runs an hour is kept, and a refused start is kept on the workflow" do
-    @workspace.update!(workflow_event_runs_per_hour: 1)
+  test "an event past the workflow's most runs an hour is skipped and counted on the workflow, never kept as a refusal" do
     workflow = published("Declared", { "kind" => Workflow::Trigger::KIND_INCIDENT_DECLARED })
+    workflow.update!(runs_per_hour: 1)
+
+    heard(created_event)
+    heard(created_event(incidents(:active_major_ws1)))
+    heard(created_event(incidents(:active_critical_ws1)))
+
+    assert_equal 1, workflow.runs.count
+    assert_equal 2, workflow.recent_skips.sum(&:count)
+    assert_nil workflow.reload.trigger_refusal
+  end
+
+  test "events start runs up to each workflow's own limit, with no ceiling the workspace shares" do
+    first = published("Declared", { "kind" => Workflow::Trigger::KIND_INCIDENT_DECLARED })
+    second = published("Also declared", { "kind" => Workflow::Trigger::KIND_INCIDENT_DECLARED })
+    [ first, second ].each { |workflow| workflow.update!(runs_per_hour: 2) }
 
     heard(created_event)
     heard(created_event(incidents(:active_major_ws1)))
 
-    assert_equal 1, workflow.runs.count
-    assert_match "as many as it allows", workflow.reload.trigger_refusal
+    assert_equal [ 2, 2 ], [ first.runs.count, second.runs.count ]
   end
 
   test "nothing is heard without the workflows flag" do

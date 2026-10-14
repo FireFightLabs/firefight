@@ -156,6 +156,7 @@ Every LLM call is wrapped in `Inference.track` (`app/models/inference.rb`), whic
 - An investigation (`Investigation`) for `investigation`, `monitoring`, `citation_check`, `remember`'s `memory_check`, its helpers and specialists, and its fix's `undo`. An incident's lessons check memories under the `Incident`.
 - A watch (`Chat::Watch`) for `watch`, so each watch's cost stands on its own. Its chat is `chat_watches.chat_id`, and that chat's owner is the conversation or investigation that started it.
 - A state check (`state_check`) for what it checks: the held call (`Chat::HeldCall`), the plan (`Chat::Plan`) or the fix step, each of which belongs to a chat or a run.
+- A workflow's check before a change (`need_check`, `FirefightAi::NeedChecker`) for the step's row of the run (`Workflow::Run::Step`), so it counts against the workflow's spending ceiling (docs/workflows.md, Running safely).
 - A chat replayed by the bench and its judge (`Conversation::BenchResult`), a replayed run's `regression_judge` (the replay's `Investigation`), a coding agent's `code_fix`, `code_review` and `code_question` (`CodeAgentSession`), and incident features such as summaries, catch-ups, milestones, postmortems and lessons (`Incident`).
 - Nothing for calls that serve a workspace or the deployment rather than one chat or run: `embedding` (a search vector, which `SearchEmbeddingService#query_vector` caches and shares across the search box, chats and MCP for a few minutes), `provider_docs` (no workspace either) and the account check.
 

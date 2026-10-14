@@ -48,9 +48,11 @@ class DefinedWorkflow::Steps::RunScript < DefinedWorkflow::Steps::Sandbox
     raise Refused, UNAVAILABLE unless Integrations::Terminal.available?(workspace)
 
     file, runtime = RUNNERS.fetch(@config[KEY_LANGUAGE].to_s) { raise Refused, "#{@step.label} runs #{LANGUAGES.to_sentence(last_word_connector: ' or ')}." }
-    script = terminal.place(file, @config[KEY_SCRIPT].to_s)
-    data = place_data || terminal.place(DATA_FILE, "null")
-    said = run_command("#{runtime} #{script} < #{data}", label: "The script", params: { KEY_LANGUAGE => @config[KEY_LANGUAGE].to_s })
+    said = in_sandbox do
+      script = terminal.place(file, @config[KEY_SCRIPT].to_s)
+      data = place_data || terminal.place(DATA_FILE, "null")
+      run_command("#{runtime} #{script} < #{data}", label: "The script", params: { KEY_LANGUAGE => @config[KEY_LANGUAGE].to_s })
+    end
     result = said[OUTPUT_DATA]
     raise Failed, "The script printed nothing that reads as JSON. Print one JSON object or list, last." if result.nil? && said[OUTPUT_STDOUT].strip.present?
 

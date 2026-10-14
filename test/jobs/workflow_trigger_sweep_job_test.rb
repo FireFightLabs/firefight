@@ -151,7 +151,7 @@ class WorkflowTriggerSweepJobTest < ActiveJob::TestCase
     end
   end
 
-  test "a start the workflow's limits refuse is kept on it with why, and a later start clears it" do
+  test "a scheduled start past the workflow's most runs an hour is skipped and counted on it" do
     travel_to Time.zone.parse("2026-10-13 06:58 UTC") do
       workflow = scheduled("Busy", { "kind" => "schedule", "repeat" => "minutes", "every" => 5, "time_zone" => "UTC", "inputs" => [] })
       workflow.update!(runs_per_hour: 1)
@@ -160,7 +160,8 @@ class WorkflowTriggerSweepJobTest < ActiveJob::TestCase
       travel 3.minutes
       WorkflowTriggerSweepJob.perform_now
 
-      assert_match "already started 1 run in the last hour", workflow.reload.trigger_refusal
+      assert_nil workflow.reload.trigger_refusal
+      assert_equal 1, workflow.recent_skips.sole.count
       assert_equal 1, workflow.runs.count
     end
   end

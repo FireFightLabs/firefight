@@ -37,9 +37,9 @@ module FirefightAi
 
     def inference_context
       {
-        workspace: @workspace, feature: FEATURE, provider: ai_model.provider_name, model: ai_model.model,
+        workspace: @workspace, feature: self.class::FEATURE, provider: ai_model.provider_name, model: ai_model.model,
         inferable: @inferable, member: @member,
-        prompt_template: FEATURE, prompt_version: Prompt.version(template_text), prompt_text: template_text
+        prompt_template: self.class::FEATURE, prompt_version: Prompt.version(template_text), prompt_text: template_text
       }
     end
 

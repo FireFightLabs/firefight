@@ -26,6 +26,28 @@ class WorkflowRunDetailSerializer < WorkflowRunRowSerializer
     run.cancel_blocked_reason
   end
 
+  # What it spent, its model calls and its sandbox's time apart, both held to the workflow's spending ceiling.
+  type :number
+  def ai_spent_micros
+    run.ai_spent_micros
+  end
+
+  type :number
+  def sandbox_spent_micros
+    run.sandbox_spent_micros
+  end
+
+  type :number, optional: true
+  def cost_cap_cents
+    run.workflow.cost_cap_cents
+  end
+
+  # Each step that skipped itself, with why.
+  type "string[]"
+  def notes
+    run.steps.filter_map { |step| "#{step.name.presence || step.step_key}: #{step.note}" if step.note }
+  end
+
   has_many :steps, serializer: WorkflowRunStepSerializer do
     run.steps
   end

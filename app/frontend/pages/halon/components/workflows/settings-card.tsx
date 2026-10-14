@@ -118,15 +118,18 @@ export function SettingsCard({ workflow, teams, canManage }: { workflow: Workflo
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div className="flex flex-col gap-2">
-                <Label htmlFor="workflow-cost-cap">AI ceiling per run, in dollars</Label>
+                <Label htmlFor="workflow-cost-cap">Spending ceiling per run, in dollars</Label>
                 <Input id="workflow-cost-cap" type="number" min="0" step="0.01" placeholder="No ceiling" value={draft.costCapDollars}
                   onChange={(event) => change("costCapDollars", event.target.value)} />
-                <p className="text-xs text-muted-foreground">Empty means none, so the workspace&apos;s AI budget is the limit.</p>
+                <p className="text-xs text-muted-foreground">AI and sandbox time together. A run that reaches it stops. Empty means none, so only the workspace&apos;s AI budget limits it.</p>
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="workflow-runs-per-hour">Runs an hour at most</Label>
+                <Label htmlFor="workflow-runs-per-hour">Most runs per hour</Label>
                 <Input id="workflow-runs-per-hour" type="number" min={WORKFLOW_RUNS_PER_HOUR.MIN} max={WORKFLOW_RUNS_PER_HOUR.MAX} value={draft.runsPerHour}
-                  onChange={(event) => change("runsPerHour", event.target.value)} />
+                  placeholder={String(WORKFLOW_RUNS_PER_HOUR.DEFAULT)} onChange={(event) => change("runsPerHour", event.target.value)} />
+                <p className="text-xs text-muted-foreground">
+                  {WORKFLOW_RUNS_PER_HOUR.MIN} to {WORKFLOW_RUNS_PER_HOUR.MAX}. A run its trigger would start past it is skipped, and this page says how many and when.
+                </p>
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="workflow-subject">One live run per</Label>

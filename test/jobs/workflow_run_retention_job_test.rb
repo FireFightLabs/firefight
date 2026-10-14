@@ -16,4 +16,14 @@ class WorkflowRunRetentionJobTest < ActiveSupport::TestCase
     assert old.reload.details_pruned?
     assert_equal Workflow::Run::STATUS_CANCELLED, old.status
   end
+
+  test "lets go of skipped runs once they are older than the week the workflow's page shows" do
+    workflow = Workflow.create!(workspace: workspaces(:slack_workspace_one), name: "Busy")
+    travel_to(8.days.ago) { workflow.run_skipped! }
+    workflow.run_skipped!
+
+    WorkflowRunRetentionJob.perform_now
+
+    assert_equal [ Time.current.beginning_of_hour ], workflow.skipped_runs.pluck(:hour)
+  end
 end

@@ -1,5 +1,5 @@
 # The two steps that hand work to Halon: judging data it is given (Ask Halon) and following one skill with only its
-# tools (Run a skill). Each runs as whoever the run acts as, under the run's AI ceiling, on a chat of the step's own,
+# tools (Run a skill). Each runs as whoever the run acts as, under the run's spending ceiling, on a chat of the step's own,
 # and its answer goes back to the step as fields a later step can read.
 class Workflow::HalonStep
   KEY_ERROR = "error".freeze
@@ -10,7 +10,7 @@ class Workflow::HalonStep
   # Each problem that needs a person, with what a notice of it holds, so a later step can raise one notice for each.
   PROBLEMS = "problems".freeze
   PROBLEM_FIELDS = %w[topic summary severity resource due_on].freeze
-  OUT_OF_ROOM = "This run spent its AI ceiling, so Halon did not run this step.".freeze
+  OUT_OF_ROOM = "This run reached its spending ceiling, so Halon did not run this step.".freeze
 
   def initialize(run, record)
     @run = run
@@ -56,14 +56,9 @@ class Workflow::HalonStep
     Investigation.unavailable_reason(@workspace) || (OUT_OF_ROOM if room_cents <= 0)
   end
 
-  # What is left of the run's ceiling, else of what one chat may spend in this workspace.
-  def room_cents
-    limit = @workspace.conversation_limits.max_spend_cents
-    cap = @run.workflow.cost_cap_cents
-    return limit unless cap
-
-    [ cap - @run.ai_spent_cents, limit ].min
-  end
+  # What is left of the run's spending ceiling, its sandbox time counted with its AI, else of what one chat may spend in
+  # this workspace.
+  def room_cents = @room_cents ||= @run.room_cents(@workspace.conversation_limits.max_spend_cents)
 
   def shown(data) = data.is_a?(String) ? data : JSON.pretty_generate(data)
 

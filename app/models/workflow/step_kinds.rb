@@ -120,12 +120,13 @@ module Workflow::StepKinds
   # workflow's own identity needs granted to run the step (DefinedWorkflow::Reach::Needed). conditions are the fields an
   # incident's conditions read, for a step that reads them (Workflow::TriggerKinds::ConditionField).
   # route_labels are the words a route reads as where they are not its own, such as a choice's label for its key, and
-  # waits says the step waits on a person for as long as its settings say.
+  # waits says the step waits on a person for as long as its settings say. checks_first answers whether a change it
+  # makes checks first that it is still needed in a run nobody pressed, which its settings can switch off.
   Kind = Data.define(:key, :group, :label, :description, :icon, :editor, :fields, :defaults, :outputs, :routes, :effect, :reach, :conditions,
-                     :route_labels, :waits) do
+                     :route_labels, :waits, :checks_first) do
     def initialize(fields: [], defaults: {}, outputs: ->(_step, _facts) { [] }, routes: ->(_step) { [] },
                    effect: ->(_step, _facts) { EFFECT_READS }, reach: ->(_step, _facts) { [] }, conditions: ->(_facts) { [] },
-                   route_labels: ->(_step) { {} }, waits: false, **)
+                   route_labels: ->(_step) { {} }, waits: false, checks_first: ->(_step, _facts) { false }, **)
       super
     end
 
@@ -172,6 +173,8 @@ module Workflow::StepKinds
 
   def reach_of(step, facts) = find(step["kind"])&.reach&.call(step, facts) || []
 
+  def checks_first_of(step, facts) = find(step["kind"])&.checks_first&.call(step, facts) || false
+
   def route_labels_of(step) = find(step["kind"])&.route_labels&.call(step) || {}
 
   def waits?(step) = find(step["kind"])&.waits || false
@@ -184,7 +187,8 @@ module Workflow::StepKinds
       defaults: defaults, routes: routes, conditions: conditions, route_labels: route_labels, waits: klass.waits?,
       outputs: ->(step, _facts) { klass.output_fields(step["config"].to_h) },
       effect: ->(step, facts) { facts.workspace && klass.changes?(step["config"].to_h, facts.workspace) ? EFFECT_CHANGES : EFFECT_READS },
-      reach: ->(step, facts) { facts.workspace ? klass.reach(step["config"].to_h, facts.workspace).to_a : [] }
+      reach: ->(step, facts) { facts.workspace ? klass.reach(step["config"].to_h, facts.workspace).to_a : [] },
+      checks_first: ->(step, facts) { facts.workspace.present? && klass.checks_first?(step["config"].to_h, facts.workspace) }
     ))
   end
 
