@@ -1,0 +1,121 @@
+require "application_system_test_case"
+
+class AgentTurnOrderTest < ApplicationSystemTestCase
+  PLAN = "Plan: fix 8 review comments on PR 14, then reply to each.".freeze
+  UPDATE = "I'm going to update the PR now.".freeze
+  RESULT = "Updated the PR and replied to all 8 comments.".freeze
+
+  # The test adapter only records broadcasts, and this test needs the browser to receive one.
+  setup do
+    @cable = ActionCable.server.config.cable
+    ActionCable.server.config.cable = { "adapter" => "async" }
+    ActionCable.server.restart
+    workspace = workspaces(:slack_workspace_one)
+    Entitlements.stubs(:allows?).returns(true)
+    sign_in(users(:alice), workspace)
+    ApplicationCable::Connection.any_instance.stubs(:signed_in_user).returns(users(:alice))
+    @conversation = Conversation.start_personal!(workspace: workspace, member: workspace_memberships(:alice_workspace_one))
+    @conversation.ask!("Fix the review comments on PR 14")
+  end
+
+  teardown do
+    ActionCable.server.config.cable = @cable
+    ActionCable.server.restart
+  end
+
+  test "a turn reads in the order it happened, its notes fold with its work, and a reload reads the same" do
+    visit agent_chat_path(@conversation)
+    assert_text "Fix the review comments"
+    delivery = Conversation::LiveDelivery.new(@conversation)
+    open_stream(delivery)
+
+    delivery.chunk(PLAN)
+    reads = %w[call_1 call_2 call_3].map { |key| [ key, Chat::Tools.step("search_incidents", { "query" => "review #{key}" }) ] }
+    reads.each { |key, step| delivery.step(key: key, step: step, status: :running, kind: Chat::Tools::KIND_READ) }
+    reads.each { |key, step| delivery.step(key: key, step: step, status: :done, kind: Chat::Tools::KIND_READ) }
+    delivery.chunk(UPDATE)
+    fix = Chat::Tools.step("declare_incident", { "name" => "Update PR 14" })
+    delivery.step(key: "call_4", step: fix, status: :running)
+
+    assert_text "Read 3 sources"
+    assert_text(/#{Regexp.escape(PLAN)}.*Read 3 sources.*#{Regexp.escape(UPDATE)}.*Declare incident.*Working/m)
+    assert_no_text "Search incidents"
+    page.save_screenshot(Rails.root.join("tmp/screenshots/agent-turn-order-live.png"))
+
+    find("button", text: "Read 3 sources").click
+    assert_text(/Read 3 sources.*Search incidents.*Search incidents.*Search incidents.*#{Regexp.escape(UPDATE)}/m)
+
+    save_turn
+    delivery.step(key: "call_4", step: fix, status: :done)
+    @conversation.reply_delivered!
+    delivery.answered!(RESULT)
+
+    assert_text RESULT
+    assert_folded
+    page.save_screenshot(Rails.root.join("tmp/screenshots/agent-turn-order-folded.png"))
+
+    find("button", text: /Worked for/).click
+    assert_text(/#{Regexp.escape(PLAN)}.*Search incidents.*#{Regexp.escape(UPDATE)}.*Declare incident.*#{Regexp.escape(RESULT)}/m)
+    page.save_screenshot(Rails.root.join("tmp/screenshots/agent-turn-order-opened.png"))
+
+    visit agent_chat_path(@conversation)
+    assert_text RESULT
+    assert_folded
+    page.save_screenshot(Rails.root.join("tmp/screenshots/agent-turn-order-reloaded.png"))
+
+    page.current_window.resize_to(390, 844)
+    find("button", text: /Worked for/).click
+    assert_text(/#{Regexp.escape(PLAN)}.*#{Regexp.escape(UPDATE)}.*#{Regexp.escape(RESULT)}/m)
+    page.save_screenshot(Rails.root.join("tmp/screenshots/agent-turn-order-phone.png"))
+  end
+
+  test "words that put a change to the person stay a message where they were asked" do
+    chat = @conversation.chat_record
+    asked = chat.add_message(RubyLLM::Message.new(
+      role: :assistant, content: "Checkout needs a restart. Can I restart it?",
+      tool_calls: { "call_9" => RubyLLM::ToolCall.new(id: "call_9", name: "search_incidents", arguments: { "query" => "checkout" }) }
+    ))
+    chat.request_decisions!([ "call_9" ])
+    chat.decide!("call_9", approved: true)
+    chat.add_message(role: :tool, content: "restarted", tool_call_id: "call_9")
+    chat.add_message(role: :assistant, content: "Restarted checkout, it is healthy again.")
+    @conversation.reply_delivered!
+    assert asked
+
+    visit agent_chat_path(@conversation)
+
+    assert_text(/Checkout needs a restart. Can I restart it\?.*Worked for.*Restarted checkout/m)
+  end
+
+  private
+
+  def assert_folded
+    assert_selector "button", text: /Worked for .* · 4 steps/
+    assert_no_text PLAN
+    assert_no_text UPDATE
+  end
+
+  # What the loop saves as the turn goes: each message's words with the calls it made, then the turn's last words.
+  def save_turn
+    chat = @conversation.chat_record
+    planned = { "call_1" => "a", "call_2" => "b", "call_3" => "c" }.to_h do |key, query|
+      [ key, RubyLLM::ToolCall.new(id: key, name: "search_incidents", arguments: { "query" => "review #{query}" }) ]
+    end
+    chat.add_message(RubyLLM::Message.new(role: :assistant, content: PLAN, tool_calls: planned))
+    planned.each_key { |key| chat.add_message(role: :tool, content: "found", tool_call_id: key) }
+    fix = { "call_4" => RubyLLM::ToolCall.new(id: "call_4", name: "declare_incident", arguments: { "name" => "Update PR 14" }) }
+    chat.add_message(RubyLLM::Message.new(role: :assistant, content: UPDATE, tool_calls: fix))
+    chat.add_message(role: :tool, content: "done", tool_call_id: "call_4")
+    chat.add_message(role: :assistant, content: RESULT)
+  end
+
+  # An accepted subscription can miss what is sent before its stream is live, so the turn is announced until the page shows it.
+  def open_stream(delivery)
+    50.times do
+      delivery.thinking!
+      return if page.has_text?("Working", wait: 0.2)
+    end
+
+    flunk "the page never opened its socket"
+  end
+end

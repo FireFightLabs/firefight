@@ -60,6 +60,23 @@ class AgentChatMessageSerializerTest < ActiveSupport::TestCase
     assert_equal @asking.created_at.utc.iso8601(3), shown["createdAt"]
   end
 
+  test "what Halon wrote before carrying on is a status line, and the turn's last words are a message, the same on any page" do
+    @asking.update!(content: "Plan: read checkout's metrics, then answer.")
+    answer = @chat.add_message(role: :assistant, content: "Checkout is healthy.")
+
+    shown = JSON.parse(AgentChatMessageSerializer.many(@chat.messages.where(role: Chat::Message::READABLE_ROLES).order(:created_at).to_a).to_json)
+    assert_equal [ nil, Chat::TurnText::STATUS, Chat::TurnText::RESULT ], shown.map { |message| message["saidAs"] }
+
+    older_page = JSON.parse(AgentChatMessageSerializer.many([ @asking.reload ]).to_json)
+    assert_equal Chat::TurnText::STATUS, older_page.sole["saidAs"]
+    assert_equal Chat::TurnText::RESULT, JSON.parse(AgentChatMessageSerializer.one(answer).to_json)["saidAs"]
+  end
+
+  test "a step says the provider it went through, and a call no connection holds names none" do
+    assert tools.sole.key?("source")
+    assert_nil tools.sole["source"]
+  end
+
   private
 
   def statuses(message) = JSON.parse(AgentChatMessageSerializer.one(message.reload).to_json)["tools"].map { |tool| tool["status"] }

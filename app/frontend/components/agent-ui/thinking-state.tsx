@@ -27,6 +27,10 @@ export type ThinkingRow = {
   quiet?: boolean;
   /** what a long step is doing, or did, shown under the row whether or not it is opened */
   live?: ReactNode;
+  /** words the agent wrote between steps, drawn in place of the row as a status line with no mark */
+  note?: ReactNode;
+  /** steps folded into this row, which opening it shows nested under it */
+  rows?: ThinkingRow[];
 };
 
 /* the mark each status draws, so a step reads without its colour */
@@ -159,64 +163,75 @@ export default function ThinkingState({
               style={{ top: -8, height: lineHeight ? lineHeight - 2 : 0, transition: "height 500ms cubic-bezier(0.23,1,0.32,1)" }}
             />
             <div ref={traceRef} className="flex flex-col gap-1 py-1">
-            {rows.map((row, i) => {
-              const status = row.status ?? (i < rows.length - 1 || !working ? "done" : "running");
-              const opened = Boolean(openRows[row.id]);
-              const expandable = Boolean(row.details?.length) || Boolean(row.outcome);
-              const entrance = firstRows.has(row.id) ? undefined : "fade-up 320ms cubic-bezier(0.23,1,0.32,1) both";
-              const line = (
-                <>
-                  {row.quiet ? (
-                    <span aria-hidden className="flex size-3.5 shrink-0 items-center justify-center"><span className="size-1 rounded-full bg-ink-3" /></span>
-                  ) : (
-                    <>
-                      <RowMark status={status} />
-                      <span className="sr-only">{STATUS_WORDS[status]}</span>
-                    </>
-                  )}
-                  <span className={row.quiet ? "shrink-0 text-[12.5px] text-ink-3" : "shrink-0 text-[12.5px] font-medium text-ink"}>{row.primary}</span>
-                  {/* opened, the step's sentence reads in full, so why it was taken is never cut off */}
-                  {row.secondary && (
-                    <span className={`min-w-0 text-[12px] text-ink-3 ${opened ? "py-0.5 leading-[18px]" : "truncate"}`} title={row.secondary}>
-                      {row.secondary}
-                    </span>
-                  )}
-                  {expandable && (
-                    <svg
-                      width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
-                      className="ml-auto shrink-0 opacity-0 transition-[opacity,transform] duration-150 group-hover/row:opacity-100 group-focus-visible/row:opacity-100"
-                      style={{ transform: opened ? "rotate(180deg)" : "rotate(0)", opacity: opened ? 1 : undefined }}
-                      aria-hidden
-                    >
-                      <path d="M6 9l6 6 6-6" />
-                    </svg>
-                  )}
-                </>
-              );
-              return (
-                <div key={row.id} className="flex flex-col" style={{ animation: entrance }}>
-                  {expandable ? (
-                    <button
-                      type="button"
-                      aria-expanded={opened}
-                      onClick={() => toggleRow(row.id)}
-                      className="group/row flex min-h-7 w-full min-w-0 items-center gap-2 rounded-[6px] px-1.5 py-0.5 text-left transition-colors duration-150 hover:bg-hover"
-                    >
-                      {line}
-                    </button>
-                  ) : (
-                    <div className="flex min-h-7 w-full min-w-0 items-center gap-2 rounded-[6px] px-1.5 py-0.5">{line}</div>
-                  )}
-                  {expandable && opened && row.details && row.details.length > 0 && <DetailList details={row.details} className="mt-1 mb-1.5 ml-7" />}
-                  {row.live && <div className="mt-0.5 mb-1.5 ml-7 min-w-0">{row.live}</div>}
-                  {expandable && opened && row.outcome && <div className="mt-1 mb-1.5 ml-7">{row.outcome}</div>}
-                </div>
-              );
-            })}
+            {rows.map((row, i) => drawRow(row, row.status ?? (i < rows.length - 1 || !working ? "done" : "running")))}
             </div>
           </div>
         </div>
       </div>
     </div>
   );
+
+  function drawRow(row: ThinkingRow, status: ThinkingRowStatus): ReactNode {
+    const opened = Boolean(openRows[row.id]);
+    const expandable = Boolean(row.details?.length) || Boolean(row.outcome) || Boolean(row.rows?.length);
+    const entrance = firstRows.has(row.id) ? undefined : "fade-up 320ms cubic-bezier(0.23,1,0.32,1) both";
+    if (row.note) {
+      return (
+        <div key={row.id} className="min-w-0 py-1 pr-1.5 pl-7" style={{ animation: entrance }}>
+          {row.note}
+        </div>
+      );
+    }
+    const line = (
+      <>
+        {row.quiet ? (
+          <span aria-hidden className="flex size-3.5 shrink-0 items-center justify-center"><span className="size-1 rounded-full bg-ink-3" /></span>
+        ) : (
+          <>
+            <RowMark status={status} />
+            <span className="sr-only">{STATUS_WORDS[status]}</span>
+          </>
+        )}
+        <span className={row.quiet ? "shrink-0 text-[12.5px] text-ink-3" : "shrink-0 text-[12.5px] font-medium text-ink"}>{row.primary}</span>
+        {/* opened, the step's sentence reads in full, so why it was taken is never cut off */}
+        {row.secondary && (
+          <span className={`min-w-0 text-[12px] text-ink-3 ${opened ? "py-0.5 leading-[18px]" : "truncate"}`} title={row.secondary}>
+            {row.secondary}
+          </span>
+        )}
+        {expandable && (
+          <svg
+            width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+            className="ml-auto shrink-0 opacity-0 transition-[opacity,transform] duration-150 group-hover/row:opacity-100 group-focus-visible/row:opacity-100"
+            style={{ transform: opened ? "rotate(180deg)" : "rotate(0)", opacity: opened ? 1 : undefined }}
+            aria-hidden
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        )}
+      </>
+    );
+    return (
+      <div key={row.id} className="flex flex-col" style={{ animation: entrance }}>
+        {expandable ? (
+          <button
+            type="button"
+            aria-expanded={opened}
+            onClick={() => toggleRow(row.id)}
+            className="group/row flex min-h-7 w-full min-w-0 items-center gap-2 rounded-[6px] px-1.5 py-0.5 text-left transition-colors duration-150 hover:bg-hover"
+          >
+            {line}
+          </button>
+        ) : (
+          <div className="flex min-h-7 w-full min-w-0 items-center gap-2 rounded-[6px] px-1.5 py-0.5">{line}</div>
+        )}
+        {expandable && opened && row.details && row.details.length > 0 && <DetailList details={row.details} className="mt-1 mb-1.5 ml-7" />}
+        {row.live && <div className="mt-0.5 mb-1.5 ml-7 min-w-0">{row.live}</div>}
+        {expandable && opened && row.outcome && <div className="mt-1 mb-1.5 ml-7">{row.outcome}</div>}
+        {expandable && opened && row.rows && row.rows.length > 0 && (
+          <div className="mb-1 ml-5 flex flex-col gap-1">{row.rows.map((child) => drawRow(child, child.status ?? "done"))}</div>
+        )}
+      </div>
+    );
+  }
 }

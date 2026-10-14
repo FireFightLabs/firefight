@@ -8,7 +8,7 @@ class AgentChatQueriesTest < ActionDispatch::IntegrationTest
   MANY = 30
   # Pinned, so a query added per message or per prop shows here. Raise them only for a prop that is new.
   PAGE_QUERIES = 23
-  THREAD_QUERIES = 35
+  THREAD_QUERIES = 36
 
   setup do
     @workspace = workspaces(:slack_workspace_one)

@@ -1,9 +1,9 @@
 import { CODE_AGENT_RELOADS } from "@/pages/agent/lib/chat-updates"
 import { AgentCard } from "@/pages/agent/components/agent-card"
-import { AgentSteps } from "@/components/agent-chat/agent-steps"
 import { AnswerSources } from "@/components/agent-chat/answer-sources"
-import { AnswerText } from "@/components/agent-chat/answer-text"
 import { PersonBubble } from "@/components/agent-chat/person-bubble"
+import { TurnStory } from "@/components/agent-chat/turn-story"
+import { stepsOf } from "@/lib/agent-chat/group-turns"
 import { type ChatTurn, TURN_KINDS } from "@/pages/agent/types"
 
 interface MessageProps {
@@ -23,14 +23,11 @@ export function Message({ turn, live = false, onOpenImage }: MessageProps) {
   }
 
   // The answer reads first and a card follows it, the same order Slack posts them in.
-  const cards = turn.steps.filter((step) => step.card !== null)
+  const cards = stepsOf(turn.pieces).filter((step) => step.card !== null)
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      {turn.steps.length > 0 && <AgentSteps steps={turn.steps} thinking={live && turn.bodies.length === 0} reloads={CODE_AGENT_RELOADS} />}
-      {turn.bodies.map((body) => (
-        <AnswerText key={body.id} text={body.text} />
-      ))}
+      <TurnStory pieces={turn.pieces} live={live} reloads={CODE_AGENT_RELOADS} />
       {!live && turn.sources.length > 0 && <AnswerSources sources={turn.sources} />}
       {cards.map((step) => step.card && <AgentCard key={step.key} card={step.card} stepKey={step.key} />)}
       {!live && turn.models.length > 0 && <AnsweredBy models={turn.models} />}

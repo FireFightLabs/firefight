@@ -1,8 +1,8 @@
-import { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
+import { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS, AGENT_TEXT_ROLES } from "@/lib/generated/constants"
 import type { CodeFixWork } from "@/lib/code-fix-work"
 import type { StepOutcome } from "@/lib/step-outcome"
 import { roomStep } from "@/lib/agent-chat/group-turns"
-import type { AgentCard, AgentStep, StepKind, StepStatus, StreamEventType, ToolActivity } from "@/lib/agent-chat/types"
+import { type AgentCard, type AgentStep, PIECE_KINDS, type StepKind, type StepStatus, type StreamEventType, type ToolActivity, type TurnPiece } from "@/lib/agent-chat/types"
 
 export interface StreamEvent {
   type: StreamEventType
@@ -14,6 +14,7 @@ export interface StreamEvent {
   asked?: [ string, string ][]
   status?: StepStatus
   kind?: StepKind
+  source?: string | null
   seconds?: number
   card?: AgentCard | null
   outcome?: StepOutcome | null
@@ -47,6 +48,28 @@ export function streamedText(streamed: Streamed): string {
 export function streamedSteps(streamed: Streamed): AgentStep[] {
   return streamed.steps.map((step) => step.item)
 }
+
+// Words and steps in the order they were sent, the words between two steps as one piece. Words count as the turn's
+// result until a step follows them, which the turn's grouping settles (settledRoles).
+export function streamedPieces(streamed: Streamed): TurnPiece[] {
+  const sent = [
+    ...streamed.chunks.map((chunk) => ({ first: chunk.first, text: chunk.item, step: null })),
+    ...streamed.steps.map((step) => ({ first: step.first, text: null, step: step.item })),
+  ].sort((one, other) => one.first - other.first)
+
+  return sent.reduce<TurnPiece[]>((pieces, entry) => {
+    if (entry.step) {
+      return [ ...pieces, { kind: PIECE_KINDS.STEP, step: entry.step } ]
+    }
+    const last = pieces[pieces.length - 1]
+    if (last?.kind === PIECE_KINDS.TEXT) {
+      return [ ...pieces.slice(0, -1), { ...last, text: last.text + (entry.text ?? "") } ]
+    }
+    return [ ...pieces, { kind: PIECE_KINDS.TEXT, id: `${STREAMED_TEXT}${entry.first}`, text: entry.text ?? "", role: AGENT_TEXT_ROLES.RESULT } ]
+  }, [])
+}
+
+const STREAMED_TEXT = "streamed-"
 
 // A turn starting drops only what was sent before it, so a late start never wipes the steps that followed it.
 export function withEvent(streamed: Streamed, event: StreamEvent): Streamed {
@@ -89,6 +112,7 @@ function stepOf(event: StreamEvent): AgentStep {
     asked: event.asked ?? [],
     status: event.status ?? AGENT_STEP_STATUSES.RUNNING,
     kind: event.kind ?? AGENT_STEP_KINDS.ACT,
+    source: event.source ?? null,
     seconds: event.seconds ?? 0,
     card: event.card ?? null,
     outcome: event.outcome ?? null,

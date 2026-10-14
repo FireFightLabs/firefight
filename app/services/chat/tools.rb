@@ -28,7 +28,11 @@ module Chat::Tools
   KIND_READ = "read"
   KIND_ACT = "act"
 
-  Step = Data.define(:title, :headline, :asked, :card)
+  # source is the provider a call went through, such as GitHub, which a run of steps is summed up by. nil for Firefight's
+  # own tools.
+  Step = Data.define(:title, :headline, :asked, :card, :source) do
+    def initialize(source: nil, **) = super
+  end
 
   # A result the page draws as something other than text. The step carries only what to draw, and the page
   # reads the rows from the workspace as they are now, so a card says the truth after the person acts on it.
@@ -245,8 +249,13 @@ module Chat::Tools
     asked = shown_arguments(arguments.to_h.stringify_keys.except(*FOR_PERSON, LookFirst::BECAUSE))
     Step.new(
       title: title_for(tool_name, workspace, arguments.to_h.stringify_keys), headline: intent_of(arguments) || headline_for(tool_name, asked), asked: asked,
-      card: card_for(tool_name, arguments)
+      card: card_for(tool_name, arguments), source: source_for(tool_name, workspace)
     )
+  end
+
+  def self.source_for(tool_name, workspace)
+    integration = workspace && Target.connection_tool(workspace, tool_name)&.integration
+    integration && (IntegrationProvider.find(integration.provider)&.name || integration.name)
   end
 
   # A tool that takes a whole form in one argument is shown as the form's own fields, so a reader

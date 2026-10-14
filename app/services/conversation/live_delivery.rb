@@ -127,7 +127,7 @@ class Conversation::LiveDelivery
     shown = self.class.status_of(status, outcome)
     broadcast(
       type: EVENT_STEP, key: key, title: step.title, headline: step.headline, asked: step.asked,
-      status: shown, kind: kind, seconds: seconds, card: (step.card&.to_h if shown == STATUS_DONE || step.card&.shown_while_running?), outcome: outcome&.to_h,
+      status: shown, kind: kind, source: step.source, seconds: seconds, card: (step.card&.to_h if shown == STATUS_DONE || step.card&.shown_while_running?), outcome: outcome&.to_h,
       progress: progress&.to_h
     )
   end
@@ -141,7 +141,7 @@ class Conversation::LiveDelivery
 
     broadcast(
       type: EVENT_STEP, key: key, title: step.title, headline: step.headline, asked: step.asked,
-      status: STATUS_RUNNING, kind: kind, seconds: 0, card: nil, outcome: nil, progress: progress.to_h
+      status: STATUS_RUNNING, kind: kind, source: step.source, seconds: 0, card: nil, outcome: nil, progress: progress.to_h
     )
   end
 
@@ -151,7 +151,7 @@ class Conversation::LiveDelivery
 
     broadcast(
       type: EVENT_STEP, key: key, title: step.title, headline: step.headline, asked: step.asked,
-      status: STATUS_RUNNING, kind: kind, seconds: 0, card: (step.card&.to_h if step.card&.shown_while_running?), outcome: nil,
+      status: STATUS_RUNNING, kind: kind, source: step.source, seconds: 0, card: (step.card&.to_h if step.card&.shown_while_running?), outcome: nil,
       activity: activity.to_h
     )
   end

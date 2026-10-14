@@ -21,7 +21,7 @@ import { Watches } from "@/pages/agent/components/watches"
 import { WaitingMessage } from "@/pages/agent/components/waiting-message"
 import { ImageDialog } from "@/components/image-dialog"
 import { Message } from "@/pages/agent/components/message"
-import { BEFORE_ALL_TURNS, groupedTurns, liveTurn, placeAfterTurns, settledMessages } from "@/lib/agent-chat/group-turns"
+import { BEFORE_ALL_TURNS, groupedTurns, liveTurn, placeAfterTurns, settledMessages, writingWords } from "@/lib/agent-chat/group-turns"
 import { type AgentStream, type ChatTurn, TURN_KINDS } from "@/pages/agent/types"
 import type {
   AgentChatAttachment, AgentChatCodePause, AgentChatConfirmation, AgentChatDataRepair, AgentChatHeldCall, AgentChatMemoryQuestion, AgentChatMessage, AgentChatMitigation,
@@ -217,7 +217,7 @@ export function Thread({
       ))}
       {live && <Message turn={live} live onOpenImage={setOpenImageId} />}
       <CodePauses pauses={pausedLive} />
-      {stream.busy && stream.text.length === 0 && <LoadingState label="Working" since={workingSince} />}
+      {stream.busy && !writingWords(stream) && <LoadingState label="Working" since={workingSince} />}
       {waiting.map((message) => (
         <WaitingMessage key={message.id} body={message.body} attachments={message.attachments} onOpenImage={setOpenImageId} />
       ))}

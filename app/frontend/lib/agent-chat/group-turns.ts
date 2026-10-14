@@ -1,7 +1,7 @@
 import { withNewerQuestion } from "@/lib/code-fix-work"
 import { formatTime } from "@/lib/formatters"
-import { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, CHAT_MESSAGE_ROLES } from "@/lib/generated/constants"
-import { type AgentStep, type AgentStream, type ChatTurn, TURN_KINDS } from "@/lib/agent-chat/types"
+import { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_TEXT_ROLES, CHAT_MESSAGE_ROLES } from "@/lib/generated/constants"
+import { type AgentStep, type AgentStream, type ChatTurn, PIECE_KINDS, type TextRole, TURN_KINDS, type TurnPiece } from "@/lib/agent-chat/types"
 import type { AgentChatMessage, ChatCompaction } from "@/types/serializers"
 
 const LIVE_TURN_ID = "live"
@@ -16,6 +16,7 @@ export function roomStep(compaction: ChatCompaction): AgentStep {
     asked: [],
     status: AGENT_STEP_STATUSES.DONE,
     kind: AGENT_STEP_KINDS.ROOM,
+    source: null,
     seconds: 0,
     card: null,
     outcome: null,
@@ -26,8 +27,9 @@ export function roomStep(compaction: ChatCompaction): AgentStep {
   }
 }
 
-// One answer is saved as several messages, one per tool call, so a run of them is drawn as one. Room is made just
-// before the model writes, so each time lands in the trace ahead of the reply written after it.
+// One answer is saved as several messages, one per tool call, so a run of them is drawn as one, in the order it
+// happened. Each message's words come before the calls it made. Room is made just before the model writes, so each time
+// lands in the trace ahead of the words written after it.
 export function groupedTurns(messages: AgentChatMessage[], compactions: ChatCompaction[] = []): ChatTurn[] {
   const turns: ChatTurn[] = []
   const unplaced = [ ...compactions ].sort((first, second) => Date.parse(first.at) - Date.parse(second.at))
@@ -50,32 +52,33 @@ export function groupedTurns(messages: AgentChatMessage[], compactions: ChatComp
     }
 
     const previous = turns[turns.length - 1]
-    const steps = [ ...roomMadeBefore(message), ...message.tools ]
-    const bodies = message.body.trim().length > 0 ? [ { id: message.id, text: message.body } ] : []
+    const words = message.body.trim().length > 0 ? [ textPiece(message.id, message.body, roleOf(message.saidAs)) ] : []
+    const pieces = [ ...roomMadeBefore(message).map(stepPiece), ...words, ...message.tools.map(stepPiece) ]
     const models = message.model ? [ message.model ] : []
     if (previous?.kind === TURN_KINDS.AGENT) {
-      previous.steps.push(...steps)
-      previous.bodies.push(...bodies)
+      previous.pieces.push(...pieces)
       previous.models = withoutRepeats([ ...previous.models, ...models ])
       // The reply that ends the turn lists everything the turn read, so it replaces what an earlier reply listed.
       previous.sources = message.sources.length > 0 ? message.sources : previous.sources
       return
     }
 
-    turns.push({ kind: TURN_KINDS.AGENT, id: message.id, steps, bodies, models, sources: message.sources })
+    turns.push({ kind: TURN_KINDS.AGENT, id: message.id, pieces, models, sources: message.sources })
   })
 
   // Room made after the last reply belongs to the turn still being written. When a question comes last, that turn is
   // drawn live from the stream instead.
-  const madeSince = unplaced.map(roomStep)
+  const madeSince = unplaced.map((compaction) => stepPiece(roomStep(compaction)))
   const last = turns[turns.length - 1]
   if (madeSince.length > 0 && last?.kind === TURN_KINDS.AGENT) {
-    last.steps.push(...madeSince)
+    last.pieces.push(...madeSince)
   } else if (madeSince.length > 0 && turns.length === 0) {
-    turns.push({ kind: TURN_KINDS.AGENT, id: madeSince[0].key, steps: madeSince, bodies: [], models: [], sources: [] })
+    turns.push({ kind: TURN_KINDS.AGENT, id: unplaced[0].key, pieces: madeSince, models: [], sources: [] })
   }
 
-  return turns.filter((turn) => turn.kind === TURN_KINDS.PERSON || turn.steps.length > 0 || turn.bodies.length > 0)
+  return turns
+    .filter((turn) => turn.kind === TURN_KINDS.PERSON || turn.pieces.length > 0)
+    .map((turn) => (turn.kind === TURN_KINDS.AGENT ? { ...turn, pieces: settledRoles(turn.pieces) } : turn))
 }
 
 // While an answer is owed, whatever is saved after the last question is the turn in progress, and it is drawn live
@@ -88,7 +91,9 @@ export function settledMessages(messages: AgentChatMessage[], owed: boolean): Ag
   return messages.slice(0, lastQuestionIndex(messages) + 1)
 }
 
-// The turn in progress: what the socket has sent, on top of what was already saved when the page loaded.
+// The turn in progress is what was saved when the page last read the chat, then what the socket sent since. A step the
+// socket reported again replaces its saved copy where it stands. Words the socket sent just before a saved step were
+// saved with that step's message, so they are not drawn twice.
 export function liveTurn(stream: AgentStream, messages: AgentChatMessage[], compactions: ChatCompaction[] = []): ChatTurn | null {
   if (!stream.owed) {
     return null
@@ -97,15 +102,69 @@ export function liveTurn(stream: AgentStream, messages: AgentChatMessage[], comp
   const asked = messages[lastQuestionIndex(messages)]
   const madeSinceAsked = asked ? compactions.filter((compaction) => Date.parse(compaction.at) > Date.parse(asked.createdAt)) : compactions
   const saved = groupedTurns(messages.slice(lastQuestionIndex(messages) + 1), madeSinceAsked)[0]
-  const savedSteps = saved?.kind === TURN_KINDS.AGENT ? saved.steps : []
-  const savedBodies = saved?.kind === TURN_KINDS.AGENT ? saved.bodies : []
-  const steps = mergeSteps(savedSteps, stream.steps)
-  const bodies = stream.text.length > 0 ? [ { id: LIVE_TURN_ID, text: stream.text } ] : savedBodies
-  if (steps.length === 0 && bodies.length === 0) {
+  const savedPieces = saved?.kind === TURN_KINDS.AGENT ? saved.pieces : []
+  const savedSteps = stepsOf(savedPieces)
+  const savedWords = new Set(savedPieces.flatMap((piece) => (piece.kind === PIECE_KINDS.TEXT ? [ piece.text.trim() ] : [])))
+  const merged = mergeSteps(savedSteps, stream.steps)
+  const isSaved = (key: string) => savedSteps.some((step) => step.key === key)
+  const newer = stream.pieces.filter((piece, index) => {
+    if (piece.kind === PIECE_KINDS.STEP) {
+      return !isSaved(piece.step.key)
+    }
+    const next = stream.pieces[index + 1]
+    const savedWithNext = next?.kind === PIECE_KINDS.STEP && isSaved(next.step.key)
+    return !savedWithNext && piece.text.trim().length > 0 && !savedWords.has(piece.text.trim())
+  })
+  const latest = (piece: TurnPiece) => (piece.kind === PIECE_KINDS.STEP ? stepPiece(merged.find((step) => step.key === piece.step.key) ?? piece.step) : piece)
+  const pieces = settledRoles([ ...savedPieces, ...newer ].map(latest))
+  if (pieces.length === 0) {
     return null
   }
 
-  return { kind: TURN_KINDS.AGENT, id: LIVE_TURN_ID, steps, bodies, models: [], sources: [] }
+  return { kind: TURN_KINDS.AGENT, id: LIVE_TURN_ID, pieces, models: [], sources: [] }
+}
+
+// Halon is writing words the socket sent and nothing has followed yet, which read as the turn's result while they come
+// in, so the page does not also say it is working under them.
+export function writingWords(stream: AgentStream): boolean {
+  const last = stream.pieces[stream.pieces.length - 1]
+  return last?.kind === PIECE_KINDS.TEXT && last.text.trim().length > 0
+}
+
+// Every step of a turn, in the order they ran.
+export function stepsOf(pieces: TurnPiece[]): AgentStep[] {
+  return pieces.flatMap((piece) => (piece.kind === PIECE_KINDS.STEP ? [ piece.step ] : []))
+}
+
+// Words are the turn's result only while nothing follows them. Once Halon calls a tool or writes again in the same turn
+// they are a status line among its steps, which is how the server reads a saved turn (Chat::TurnText), so a turn reads
+// the same live and reloaded. Words that put a change to the person stay where they were asked.
+export function settledRoles(pieces: TurnPiece[]): TurnPiece[] {
+  return pieces.map((piece, index) => {
+    if (piece.kind !== PIECE_KINDS.TEXT || piece.role !== AGENT_TEXT_ROLES.RESULT) {
+      return piece
+    }
+    const carriedOn = pieces.slice(index + 1).some((later) => later.kind === PIECE_KINDS.TEXT || later.step.kind !== AGENT_STEP_KINDS.ROOM)
+    return carriedOn ? { ...piece, role: AGENT_TEXT_ROLES.STATUS } : piece
+  })
+}
+
+function stepPiece(step: AgentStep): TurnPiece {
+  return { kind: PIECE_KINDS.STEP, step }
+}
+
+function textPiece(id: string, text: string, role: TextRole): TurnPiece {
+  return { kind: PIECE_KINDS.TEXT, id, text, role }
+}
+
+// A message saved before its words were read this way says nothing, and reads as the turn's result until something
+// follows it.
+function roleOf(saidAs: string | null): TextRole {
+  return isTextRole(saidAs) ? saidAs : AGENT_TEXT_ROLES.RESULT
+}
+
+function isTextRole(value: string | null): value is TextRole {
+  return value !== null && Object.values<string>(AGENT_TEXT_ROLES).includes(value)
 }
 
 // A turn a model wrote throughout names it once. One handed to another model mid-turn names both, in order.

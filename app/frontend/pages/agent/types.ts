@@ -7,7 +7,7 @@ import type {
 } from "@/types/serializers"
 
 export { TURN_KINDS } from "@/lib/agent-chat/types"
-export type { AgentCard, AgentStep, AgentStream, AnswerSource, ChatTurn, RenderedTag, StepKind, StepStatus, StreamEventType, ToolActivity, TurnBody } from "@/lib/agent-chat/types"
+export type { AgentCard, AgentStep, AgentStream, AnswerSource, ChatTurn, RenderedTag, StepKind, StepStatus, StreamEventType, TextRole, ToolActivity, TurnPiece, TurnText } from "@/lib/agent-chat/types"
 
 // Setup's Meet Halon step, sent only while an admin is on it.
 export interface SetupGuide {

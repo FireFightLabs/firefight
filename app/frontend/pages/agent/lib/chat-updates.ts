@@ -129,7 +129,7 @@ function askedNow(props: AgentPageProps, question: string, attachments: AgentCha
 
   const asked = {
     id: `asking-${messages.length}`, body: question, role: CHAT_MESSAGE_ROLES.USER, tools: [], sources: [], attachments,
-    createdAt: new Date().toISOString(), model: null,
+    createdAt: new Date().toISOString(), model: null, saidAs: null,
   }
   const title = question || attachments.map((attachment) => attachment.name).join(", ")
   const now = new Date().toISOString()

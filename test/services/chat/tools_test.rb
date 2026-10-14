@@ -23,6 +23,11 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     revoke_investigator_packs!(@workspace)
   end
 
+  test "a step through a connection names the provider it went through, so a run of steps can say where it read" do
+    assert_equal "Fake", Chat::Tools.step("fake_echo_text", { "text" => "hi" }, workspace: @workspace).source
+    assert_nil Chat::Tools.step(Mcp::Tools::SEARCH_INCIDENTS, { "query" => "checkout" }, workspace: @workspace).source
+  end
+
   test "a connection tool is handed the run's box key, so every code read in the run shares one sandbox" do
     grant!(@tool)
     Integrations::NativePack.expects(:fetch!).with(@integration, box_key: @investigation.code_box_key, progress: instance_of(Proc), request: nil).returns(FakeNativePack.new(@integration))
