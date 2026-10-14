@@ -21,16 +21,20 @@ class Conversation::Rehearsal::RecordedTool < RubyLLM::Tool
 
   def parameters_schema
     schema = @definition.parameters.deep_stringify_keys
-    @definition.confirms ? Chat::Tools.with_intent(schema) : schema
+    schema = Chat::Tools.with_intent(schema) if @definition.confirms
+    looks_first? ? Chat::Tools::LookFirst.with_because(schema, required: Chat::Tools::LookFirst.firefight_change?(name)) : schema
   end
 
   def requires_approval? = @definition.confirms
 
   # A call that reads runs at once. One that changes something runs once the person approves it, which the replay
-  # records on the call as a live chat does.
+  # records on the call as a live chat does. A change that names no read Halon made goes back to it before anyone is
+  # asked, as live (Chat::Tools::LookFirst).
   def approval_resolver
     lambda do |tool_call|
-      next true unless @definition.asks?(Conversation::Rehearsal.asked(tool_call.arguments))
+      asked = Conversation::Rehearsal.asked(tool_call.arguments)
+      next true if unsupported(asked, tool_call.id)
+      next true unless @definition.asks?(asked)
 
       { Chat::APPROVAL_APPROVED => true, Chat::APPROVAL_DENIED => false }[@chat.tool_calls.where(tool_call_id: tool_call.id).pick(:approval)]
     end
@@ -38,6 +42,13 @@ class Conversation::Rehearsal::RecordedTool < RubyLLM::Tool
 
   def call(tool_call: nil, **arguments)
     asked = Conversation::Rehearsal.asked(arguments)
+    refusal = unsupported(asked, tool_call&.id)
+    if refusal
+      @chat.mark_failed!(tool_call.id, kind: Chat::StepOutcome::FAILURE_REFUSED) if tool_call
+      return refusal
+    end
+
+    asked = asked.except(Chat::Tools::LookFirst::BECAUSE)
     return @state.call(name, asked) if @state.handles?(name)
 
     found = @world.answer!(name, asked)
@@ -48,6 +59,19 @@ class Conversation::Rehearsal::RecordedTool < RubyLLM::Tool
   end
 
   private
+
+  # Look before you change asks what it asks live, in Halon's own chat and never a specialist's, of a connected tool's
+  # call that is not a read, a capability that writes and a Firefight tool that ends something.
+  def looks_first?
+    !@definition.reads && @chat.owner_type != Chat::Helper.polymorphic_name &&
+      (@definition.outside? || Chat::Tools::LookFirst.firefight_change?(name))
+  end
+
+  def unsupported(asked, tool_call_id)
+    return unless looks_first? && !@definition.reads?(asked)
+
+    Chat::Tools::LookFirst.refusal_in(@chat, asked, read: @bench_case.method(:reads_call?), tool_call_id: tool_call_id)
+  end
 
   # A read that finds nothing is an answer, not a failure. A change nothing answers, or a call a real chat never made, failed.
   def unscripted(tool_call, asked)

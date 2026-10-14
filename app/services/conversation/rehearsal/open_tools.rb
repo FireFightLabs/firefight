@@ -56,9 +56,8 @@ class Conversation::Rehearsal::OpenTools < RubyLLM::Tool
     return "There is no group called #{given['group']}. The groups are: #{@groups.keys.join(', ')}." unless group
 
     named = Array(given["tools"]).map(&:to_s)
-    wanted = named.any? ? @groups.values.flatten.select { |tool| named.include?(tool.name) } : group
-    missing = named - wanted.map(&:name)
-    opened = @open.call(wanted.map(&:name))
+    opened = @open.call(named.any? ? named : group.map(&:name))
+    missing = named - opened.map(&:name)
     [ opened.map { |tool| "#{tool.name}: #{tool.description.to_s.squish} (#{READY})" }.join("\n"),
       *missing.map { |tool_name| unopened(tool_name) } ].compact_blank.join("\n\n")
   end

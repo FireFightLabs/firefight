@@ -45,7 +45,8 @@ module FirefightAi
                        "what it found, the lines and links that show it, and any change it proposes. Cite those lines and " \
                        "links. A specialist's report is evidence to check, never backing for a change. Before a change, one " \
                        "the person asked for included, ask the specialists whose systems it touches what it would affect, " \
-                       "and confirm the finding it rests on with a read of your own.".freeze
+                       "and confirm the finding it rests on with a read of your own, such as the read the specialist " \
+                       "made, which open_tools loads by name once it has.".freeze
 
     TOOLS = "Your tools:\n- #{FINDING_TOOLS}\n- #{Evidence::RULE}\n- #{GUARDED_CHANGES}".freeze
     TOOLS_WITH_SPECIALISTS = "Your tools:\n- #{FINDING_TOOLS}\n- #{SPECIALIST_READS}\n- #{Evidence::RULE}\n- #{GUARDED_CHANGES}".freeze

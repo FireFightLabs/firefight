@@ -30,10 +30,12 @@ class Chat::Tools::Open < RubyLLM::Tool
           "tools there is, with those that exist but cannot be used, and opening a group loads its tools whole.".freeze
   HOLDS = "Every tool you may use is already in your hands, so call it by name. This lists every group of tools there is, " \
           "with those that exist but cannot be used, and opening a group only lists its tools again.".freeze
-  # A chat that asks specialists (Chat::Specialists) never opens a connection's reads, which stay with its specialist.
-  SPECIALISTS = "Reads of connected systems are made by specialists with ask_specialist, never opened here. A tool you do not " \
-                "hold yet, such as a change in a connected system, is loaded by naming it in tools here, or by searching for it " \
-                "when you hold a tool search. This lists every group of tools there is, with those that exist but cannot be used.".freeze
+  # A chat that asks specialists (Chat::Specialists) opens a connection's reads only once a specialist made them, so Halon
+  # can make the same read to back a change.
+  SPECIALISTS = "Reads of connected systems are made by specialists with ask_specialist. A read a specialist made in this " \
+                "chat is loaded by naming it in tools here, so you can make it yourself to back a change. A tool you do not " \
+                "hold yet, such as a change in a connected system, is loaded the same way, or by searching for it when you " \
+                "hold a tool search. This lists every group of tools there is, with those that exist but cannot be used.".freeze
   # How a read a specialist holds is listed.
   SPECIALISTS_READ = "read by the %<title>s specialist, so ask it with ask_specialist".freeze
 
@@ -79,6 +81,7 @@ class Chat::Tools::Open < RubyLLM::Tool
   def views = @views ||= Chat::Tools::Groups.for(@agent_run)
 
   def open(key, wanted)
+    @made = @presented.specialists ? Chat::Specialists.made_names(@agent_run.chat) : Set.new
     current = Chat::Tools::Groups.for(@agent_run)
     view = current.find { |one| one.key == key }
     elsewhere = elsewhere(current, view, wanted)
@@ -92,9 +95,10 @@ class Chat::Tools::Open < RubyLLM::Tool
     [ listing(chosen), elsewhere, idle(view), skills_for(chosen), as_read(chosen) ].compact.join("\n\n")
   end
 
-  # The specialist that holds this read, in a chat that asks them, or nil.
+  # The specialist that holds this read, in a chat that asks them, or nil. A read a specialist made in this chat is
+  # Halon's to load, so it can make the same read to back a change (Chat::Tools::LookFirst).
   def specialist_of(entry)
-    return unless @presented.specialists && Chat::Specialists.reserved?(@agent_run.workspace, entry)
+    return unless @presented.specialists && Chat::Specialists.held_back?(@agent_run.workspace, entry, @made || Set.new)
 
     Chat::Specialists.domain(Chat::Specialists.of_provider(entry.source))
   end
