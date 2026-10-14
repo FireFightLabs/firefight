@@ -3,6 +3,7 @@ import { router } from "@inertiajs/react"
 
 // Props a deferred load was fetching when Inertia dropped it, kept until the page has them.
 const dropped = new Set<string>()
+// The page on screen, which the router does not hand out itself.
 let latest: Page | null = null
 let recovering = false
 
@@ -29,7 +30,12 @@ function recover(page: Page) {
 // still lacks once the next visit lands, whether it succeeded or came back with errors. A failed or cut short ask is
 // tried again after the visit that follows. A page with deferred props of its own leaves them to Inertia.
 export function reloadDroppedDeferredProps() {
+  // Every way the page changes says so through one of these two, a response through beforeUpdate and the back button
+  // through navigate, so latest is always the page on screen.
   router.on("beforeUpdate", (event) => {
+    latest = event.detail.page
+  })
+  router.on("navigate", (event) => {
     latest = event.detail.page
   })
   router.on("finish", (event) => {
