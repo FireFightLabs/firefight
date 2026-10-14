@@ -18,6 +18,9 @@ const STARTUP_MS = 60_000
 const PROBE_MS = 10_000
 const RETRY_MS = 2_000
 const RETRIES = 15
+// Firefight holds a permission request about 25 seconds (CodeAgentPermissionService::WAIT_IN_CALL), so one still
+// unanswered after this stalled, and counts as a failure to be asked again.
+const ASK_MS = 30_000
 const RUN_RULES = ["question", "plan_enter", "plan_exit"].map((permission) => ({ permission, action: "deny", pattern: "*" }))
 
 const config = JSON.parse(readFileSync(process.env.OPENCODE_CONFIG, "utf8"))
@@ -112,6 +115,7 @@ function ask(asked, extra = {}) {
       events: recent,
       ...extra,
     }),
+    signal: AbortSignal.timeout(ASK_MS),
   })
 }
 

@@ -17,6 +17,7 @@ class OpencodePermissionsTest < ActiveSupport::TestCase
   LOOPED = "ls".freeze
   SAID = "I wrote fixed.txt.".freeze
   HOUSE_RULE = "Always name branches after the ticket.".freeze
+  HANG = 60
 
   setup do
     unless File.executable?(BIN)
@@ -90,6 +91,20 @@ class OpencodePermissionsTest < ActiveSupport::TestCase
     assert_equal "Halon refused this step. It listed the same folder three times", events(output).stop_reason(output)
   end
 
+  # Firefight holds one request about 25 seconds (CodeAgentPermissionService::WAIT_IN_CALL), so a request that hangs
+  # far past that is given up and asked again, and the run goes on rather than waiting on it until the box's time runs out.
+  test "a permission request that hangs is given up and asked again, and the run carries on" do
+    FirefightAi::PermissionJudge.any_instance.expects(:decide)
+                                .returns(FirefightAi::PermissionJudge::Decision.new(decision: FirefightAi::PermissionJudge::ALLOW, reason: "Fine.", lean: nil))
+
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    output = run_agent([ looping, [ write_step ] ], hang: HANG)
+
+    assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, HANG, "the run waited on the request that hung"
+    assert_equal [ "fixed.txt" ], changed(output)
+    assert_match(/^AGENT_EXIT 0$/, output)
+  end
+
   # The agent's shell runs as the box's one user, as OpenCode's server does, so it can find the server and its password
   # and answer the question itself. The run stops and Firefight keeps that it did, so the change is never opened.
   test "a question the agent's own shell answers stops the run, and Firefight keeps that it was answered in the box" do
@@ -125,12 +140,17 @@ class OpencodePermissionsTest < ActiveSupport::TestCase
   def looping = Array.new(3) { [ "bash", { "command" => LOOPED, "description" => "List" } ] }
 
   # steps are the model's answers in turn, each a list of blocks, a tool call or words.
-  def run_agent(steps)
+  # hang holds the first permission request that long before it fails, as a connection that stalls would.
+  def run_agent(steps, hang: nil)
     script = [ *steps, [ [ nil, SAID ] ] ]
     @server.mount_proc("/v1") { |request, response| answer(request, response, script) }
     # Firefight's own endpoint, reached through the app as the box reaches it, with Halon's decision made at once.
     @server.mount_proc("/permissions") do |request, response|
       @asked << request.body
+      if hang && @asked.one?
+        sleep hang
+        raise WEBrick::HTTPStatus::ServiceUnavailable
+      end
       answered = perform_enqueued_jobs do
         Rack::MockRequest.new(Rails.application).post(Fixing::PERMISSIONS_PATH, input: request.body, "CONTENT_TYPE" => "application/json",
                                                                                 "HTTP_AUTHORIZATION" => request["Authorization"])
