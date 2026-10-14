@@ -14,8 +14,8 @@ import { randomBytes } from "node:crypto"
 
 const [message, model, resume, askUrl] = process.argv.slice(2)
 const RECENT = 20
-const STARTUP_MS = 60_000
-const PROBE_MS = 10_000
+const STARTUP_MS = 30_000
+const ANSWER_MS = 30_000
 const RETRY_MS = 2_000
 const RETRIES = 15
 const RUN_RULES = ["question", "plan_enter", "plan_exit"].map((permission) => ({ permission, action: "deny", pattern: "*" }))
@@ -53,8 +53,13 @@ function freePort() {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
+// The run ends with why in plain words, as an error event the app reads the stop reason from.
+function stop(words) {
+  failed = true
+  emit("error", { error: { name: "DriverError", data: { message: words } } })
+}
+
 const port = await freePort()
-const base = `http://127.0.0.1:${port}`
 const server = spawn("opencode", ["serve", "--hostname", "127.0.0.1", "--port", String(port)], {
   env: { ...process.env, OPENCODE_SERVER_PASSWORD: password },
   stdio: ["ignore", "pipe", "inherit"],
@@ -63,38 +68,58 @@ const server = spawn("opencode", ["serve", "--hostname", "127.0.0.1", "--port", 
 server.stdout.pipe(process.stderr)
 server.on("exit", (code) => {
   if (!finished) {
-    process.stderr.write(`opencode serve exited with ${code}\n`)
+    stop(`OpenCode stopped unexpectedly with exit code ${code}`)
     process.exit(1)
   }
 })
 
-async function api(method, path, body, signal) {
-  const response = await fetch(base + path, {
-    method,
-    headers: { Authorization: auth, "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    signal,
-  })
+// The server listens before it attaches its handler, and a connection accepted in between is never answered
+// (NodeHttpServer under Server.listen at 1.18.34). So nothing is sent until it says it is listening, which is what
+// OpenCode's own SDK waits for (createOpencodeServer in packages/sdk/js/src/server.ts).
+const base = await new Promise((resolve) => {
+  const deadline = setTimeout(() => {
+    stop(`OpenCode did not start within ${STARTUP_MS / 1000} seconds`)
+    server.kill("SIGKILL")
+    process.exit(1)
+  }, STARTUP_MS)
+  let said = ""
+  const listen = (chunk) => {
+    said += chunk.toString()
+    const listening = said.match(/^opencode server listening on (https?:\/\/\S+)/m)
+    if (listening) {
+      clearTimeout(deadline)
+      server.stdout.off("data", listen)
+      resolve(listening[1])
+    }
+  }
+  server.stdout.on("data", listen)
+})
+
+function unreachable(error) {
+  if (error.name === "TimeoutError" || error.name === "AbortError") {
+    return `OpenCode did not answer within ${ANSWER_MS / 1000} seconds`
+  }
+  return `OpenCode could not be reached (${error.cause?.code ?? error.message})`
+}
+
+// Every call but the event stream is answered at once, so one that is not means OpenCode hangs and the run ends now.
+async function api(method, path, body) {
+  let response
+  try {
+    response = await fetch(base + path, {
+      method,
+      headers: { Authorization: auth, "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(ANSWER_MS),
+    })
+  } catch (error) {
+    throw new Error(unreachable(error))
+  }
   if (!response.ok) {
-    throw new Error(`${method} ${path} answered ${response.status}: ${await response.text()}`)
+    throw new Error(`OpenCode refused ${method} ${path} with status ${response.status}`)
   }
   const text = await response.text()
   return text ? JSON.parse(text) : undefined
-}
-
-async function ready() {
-  const deadline = Date.now() + STARTUP_MS
-  let last = "no answer"
-  while (Date.now() < deadline) {
-    try {
-      await api("GET", "/session/status", undefined, AbortSignal.timeout(PROBE_MS))
-      return
-    } catch (error) {
-      last = error.cause?.code ?? error.message
-      await sleep(250)
-    }
-  }
-  throw new Error(`opencode serve did not start: ${last}`)
 }
 
 // Firefight decides, and says to wait until it has. A Firefight that cannot be reached, or fails to answer again and
@@ -184,8 +209,21 @@ async function answeredInBox(question) {
   await api("POST", `/session/${sessionID}/abort`).catch(() => {})
 }
 
+// The stream stays open for the whole run, so only its answer is timed, not its end.
 async function mirror(sessions) {
-  const response = await fetch(base + "/event", { headers: { Authorization: auth, Accept: "text/event-stream" } })
+  const opening = new AbortController()
+  const unanswered = setTimeout(() => opening.abort(), ANSWER_MS)
+  let response
+  try {
+    response = await fetch(base + "/event", { headers: { Authorization: auth, Accept: "text/event-stream" }, signal: opening.signal })
+  } catch (error) {
+    throw new Error(unreachable(error))
+  } finally {
+    clearTimeout(unanswered)
+  }
+  if (!response.ok) {
+    throw new Error(`OpenCode refused GET /event with status ${response.status}`)
+  }
   const decoder = new TextDecoder()
   let buffered = ""
   const reader = response.body.getReader()
@@ -217,7 +255,6 @@ async function mirror(sessions) {
 }
 
 async function main() {
-  await ready()
   const stream = await mirror(new Set())
   sessionID = resume || (await api("POST", "/session", { permission: RUN_RULES })).id
   stream.sessions.add(sessionID)
@@ -266,8 +303,7 @@ async function main() {
 try {
   await main()
 } catch (error) {
-  failed = true
-  process.stderr.write(`${error.message}\n`)
+  stop(error.message)
 }
 finished = true
 server.kill()
