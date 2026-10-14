@@ -33,7 +33,7 @@ jobs:
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag="${{ hashFiles('.github/ci/Dockerfile', 'Gemfile.lock', 'package-lock.json', '.ruby-version') }}"
+          tag="${{ hashFiles('.github/ci/Dockerfile', 'Gemfile.lock', 'package-lock.json', 'sandbox/browser/package-lock.json', '.ruby-version') }}"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "ruby=$(sed 's/^ruby-//' .ruby-version)" >> "$GITHUB_OUTPUT"
           echo "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin > /dev/null 2>&1 || true
@@ -254,6 +254,7 @@ jobs:
         with:
           node: "true"
           packages: "true"
+          browser: "true"
 
       - name: Use the image's JavaScript packages
         if: needs.ci-image.outputs.image != ''
