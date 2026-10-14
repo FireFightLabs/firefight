@@ -15,6 +15,10 @@ module FirefightAi
 
     REMINDER = "That reply did nothing. Call a tool to keep going, or conclude with what you have.".freeze
     LAST_TURN = "This run has spent its budget. Conclude now with the evidence you already have.".freeze
+    # Said before asking again for a reply that ran past the output limit in the middle of a tool call, since the same
+    # reply written again would be cut off the same way.
+    CUT_OFF = "Your last reply ran past the most you can write at once and was cut off in the middle of a tool call, so " \
+              "nothing in it was run. Write it again shorter: fewer and tighter lines, or split it across calls.".freeze
 
     MICROS_PER_CENT = 10_000
 
@@ -65,7 +69,7 @@ module FirefightAi
     # model call and is never saved, so the instructions and the history in front of it reach the provider as it cached
     # them, and the model reads the latest of it on each call.
     # retry_malformed asks the same model once more, once per run, when its reply held a tool call whose arguments could not
-    # be read (RubyLLM::ToolCallParseError), which a chat does so the person is not left without an answer by one bad reply.
+    # be read (RubyLLM::ToolCallParseError), which a chat, a helper and a specialist do so one bad reply does not end them.
     # canceled says whether someone stopped the run. It is read between steps and, while tools run, every
     # STOP_CHECK_EVERY seconds, so a stop ends the run whatever a tool is waiting on (run_tools).
     def initialize(chat:, budget:, answered:, inference:, canceled: NEVER_CANCELED, on_step: nil, on_chunk: nil,
@@ -251,10 +255,12 @@ module FirefightAi
       retry
     end
 
-    # RubyLLM already took the unreadable reply out of the chat, so the same model is asked the same thing again.
+    # RubyLLM already took the unreadable reply out of the chat, so the same model is asked the same thing again, told
+    # to write less when the reply was cut off at the output limit.
     def ask_again?(error)
       return false unless @retry_malformed && error.is_a?(RubyLLM::ToolCallParseError) && !@asked_again
 
+      @nudge.call(CUT_OFF) if error.finish_reason == :max_tokens
       @asked_again = true
     end
 

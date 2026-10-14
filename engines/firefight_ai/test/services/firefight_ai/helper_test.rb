@@ -18,13 +18,13 @@ class FirefightAi::HelperTest < ActiveSupport::TestCase
     assert_includes prompt, FirefightAi::Copy::WRITING
   end
 
-  test "it runs one loop on the model it was given, whose plain reply is its report, within a few turns and its share of the budget" do
+  test "it runs one loop on the model it was given, whose plain reply is its report, within a few turns and its share of the budget, asking again once for a reply it cannot read" do
     chat = mock("chat")
     chat.stubs(:with_tools)
     chat.stubs(:with_caching)
     chat.expects(:with_instructions).with(FirefightAi::Helper.template_text, cache_until_here: true)
     FirefightAi::AgentLoop.expects(:new).with do |**given|
-      given[:reply_is_answer] && given[:choice] == @choice && given[:purpose] == AiPurpose::HELPER &&
+      given[:reply_is_answer] && given[:retry_malformed] && given[:choice] == @choice && given[:purpose] == AiPurpose::HELPER &&
         given[:budget].max_turns == FirefightAi::Helper::MAX_TURNS && given[:budget].max_spend_cents == 25 &&
         given[:inference][:feature] == FirefightAi::Helper::FEATURE && given[:inference][:model] == "gpt-4o-mini"
     end.returns(stub(run: :outcome))

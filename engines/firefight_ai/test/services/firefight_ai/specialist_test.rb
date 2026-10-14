@@ -18,14 +18,14 @@ class FirefightAi::SpecialistTest < ActiveSupport::TestCase
     assert_includes prompt, FirefightAi::Copy::WRITING
   end
 
-  test "it runs one loop on the model it was given, with its kind's playbook, until its report is taken" do
+  test "it runs one loop on the model it was given, with its kind's playbook, until its report is taken, asking again once for a reply it cannot read" do
     chat = mock("chat")
     chat.stubs(:with_tools)
     chat.stubs(:with_caching)
     chat.expects(:with_instructions).with("#{FirefightAi::Specialist.template_text}\nHow databases are read.", cache_until_here: true)
     answered = -> { true }
     FirefightAi::AgentLoop.expects(:new).with do |**given|
-      given[:reply_is_answer] && given[:answered] == answered && given[:choice] == @choice && given[:purpose] == AiPurpose::HELPER &&
+      given[:reply_is_answer] && given[:retry_malformed] && given[:answered] == answered && given[:choice] == @choice && given[:purpose] == AiPurpose::HELPER &&
         given[:budget].max_turns == FirefightAi::Specialist::MAX_TURNS && given[:budget].max_spend_cents == 25 &&
         given[:inference][:feature] == FirefightAi::Specialist::FEATURE && given[:inference][:prompt_version] == FirefightAi::Specialist.prompt_version
     end.returns(stub(run: :outcome))

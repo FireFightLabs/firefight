@@ -18,6 +18,7 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     connect!("linear", "Linear", "list_issues" => true)
     connect!("custom_mcp", "Team tools", "team_read" => true)
     @turn.asks_specialists = true
+    Chat.any_instance.stubs(:with_tools)
   end
 
   test "a connection's kind comes from its provider's category in the registry, a provider's own wins, and Custom stays Halon's" do
@@ -117,7 +118,7 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     assert_includes deferred, "custom_mcp_team_read", "a connection no specialist reads stays Halon's own"
   end
 
-  test "where Halon holds its tools, it holds no connection's read or change, and open_tools loads a change by name but never a read" do
+  test "where Halon holds its tools, it holds no connection's read or change, and open_tools loads a read only beside a change of its connection" do
     FirefightAi.stubs(:tool_search?).returns(false)
     FirefightAi.configuration.stubs(:held_tools_budget).returns(1_000_000)
     offered = []
@@ -132,10 +133,14 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
 
     open = Chat::Tools::Open.new(@turn, offer: ->(tools) { offered.concat(tools.map(&:name)) }, presented: presented)
     assert_includes open.description, Chat::Tools::Open::SPECIALISTS
-    said = open.call(group: "databases", tools: [ "planetscale_get_insights", "planetscale_create_branch" ])
+    said = open.call(group: "linear", tools: [ "planetscale_get_insights" ])
 
-    assert_equal [ "planetscale_create_branch" ], offered
+    assert_empty offered
     assert_includes said, "read by the databases specialist, so ask it with ask_specialist"
+
+    open.call(group: "databases", tools: [ "planetscale_get_insights", "planetscale_create_branch" ])
+    assert_equal %w[planetscale_create_branch planetscale_execute_read_query planetscale_get_insights], offered.sort,
+                 "a change and the reads behind it open together, a small group whole"
   end
 
   # Past the budget a chat that asks specialists still holds what a tool search would hand it whole, so its tool list
@@ -307,8 +312,64 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     assert said.start_with?(Chat::Tools::LookFirst::BOUNCE)
     assert_includes said, "ask_specialist is a specialist's report, not a read"
     assert_not_includes said, "which you did not read in this turn", "asking a specialist is never a read Halon forgot to make"
-    assert_includes said, format(Chat::Tools::LookFirst::SPECIALISTS_READ, reads: "planetscale_get_insights")
+    assert_includes said, format(Chat::Tools::LookFirst::LOADED, reads: "planetscale_get_insights")
+    assert_includes @chat.reload.known_tool_names, "planetscale_get_insights", "the specialist's read is in Halon's hands for its next step"
     assert said.end_with?(Chat::Tools::LookFirst::STUCK)
+  end
+
+  # Seen in a chat, Halon held a code host's changes and none of its reads, since every read was the code specialist's.
+  # Asked to address a pull request's review, it called reopen and comment on the pull request seven times meaning to
+  # read it, and each was sent back for want of a read it did not hold. A connection is never change-only in Halon's
+  # hands: once it holds a change, that connection's reads are Halon's to load and stay with it on the next turn, while
+  # its tool list from the start stays the same.
+  test "once Halon holds a connection's change, that connection's reads are its to load by name and stay in its hands" do
+    FirefightAi.stubs(:tool_search?).returns(false)
+    FirefightAi.configuration.stubs(:held_tools_budget).returns(1_000_000)
+    offered = []
+    presented = Chat::Tools.presented(@turn, FirefightAi::ModelChoice.new(model: "gpt-4o"))
+    remembering = lambda do |tools|
+      Chat::Tools.offer_to(@chat).call(tools)
+      offered.concat(tools.map(&:name))
+    end
+    open = Chat::Tools::Open.new(@turn, offer: remembering, presented: presented)
+
+    open.call(group: "databases", tools: [ "planetscale_create_branch" ])
+    offered.clear
+    said = open.call(group: "databases", tools: [ "planetscale_get_insights", "linear_list_issues" ])
+
+    assert_includes offered, "planetscale_get_insights", "the read backs a change Halon holds on the same connection"
+    assert_not_includes offered, "linear_list_issues", "a connection Halon holds no change of stays the specialist's"
+    assert_includes said, "read by the tickets and docs specialist, so ask it with ask_specialist"
+
+    next_turn = Conversation::Turn.new(@conversation, asker: @member).tap { |turn| turn.asks_specialists = true }
+    assert_includes Chat::Tools.known(next_turn, @chat).map { |tool| tool.name.to_s }, "planetscale_get_insights",
+                    "a read Halon loaded to back a change is still in its hands on the next turn"
+    held = Chat::Tools.presented(next_turn, FirefightAi::ModelChoice.new(model: "gpt-4o")).loaded.map { |tool| tool.name.to_s }
+    assert_equal presented.loaded.map { |tool| tool.name.to_s }, held
+  end
+
+  test "a change sent back for want of a read loads the read it named on the same connection, so Halon can make it next" do
+    asked!("open a branch for the orders fix")
+    Chat::Tools.offer_to(@chat).call([ Chat::Tools.catalog(@turn).find { |entry| entry.name == "planetscale_create_branch" }.tool ])
+
+    said = Chat::Tools::LookFirst.refusal(@turn, { "because" => [ "planetscale_execute_read_query: orders schema", "linear_list_issues: the ticket" ] },
+                                          change: "planetscale_create_branch")
+
+    assert said.start_with?(Chat::Tools::LookFirst::BOUNCE)
+    assert_includes said, format(Chat::Tools::LookFirst::LOADED, reads: "planetscale_execute_read_query")
+    known = @chat.reload.known_tool_names
+    assert_includes known, "planetscale_execute_read_query"
+    assert_not_includes known, "linear_list_issues", "a read of a connection Halon changes nothing on stays the specialist's"
+  end
+
+  test "a refusal hands Halon a general tool a specialist read through with its guard, since a call through it can read" do
+    connect!("cloudflare", "Cloudflare", "execute" => false)
+    asked!("purge the cache for the shop")
+    specialist_read!("cloudflare_execute", "zone shop.example has 3 page rules")
+
+    said = Chat::Tools::LookFirst.refusal(@turn, { "because" => [ "ask_specialist cloud: three page rules" ] }, change: "planetscale_create_branch")
+
+    assert_includes said, format(Chat::Tools::LookFirst::LOADED, reads: "cloudflare_execute")
   end
 
   private

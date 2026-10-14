@@ -308,14 +308,23 @@ class Conversation::Rehearsal
   # What Halon may hold: every scenario tool, less the reads a specialist holds when the deployment asks specialists.
   def halons = @specialists ? @case.tools.reject { |definition| Conversation::Rehearsal::Specialists.reserved?(definition) } : @case.tools
 
-  # The specialist that holds a scenario tool, by its title, or nil. Given the chat, a read a specialist made in it is
-  # Halon's to open, as live (Chat::Specialists.made_names).
+  # The specialist that holds a scenario tool, by its title, or nil. Given the chat, a read a specialist made in it, or
+  # one of a connection whose change Halon holds, is Halon's to open, as live (Chat::Specialists.loadable).
   def specialist_title(name, chat = nil)
     definition = @specialists && @case.tool(name)
     return unless definition && Conversation::Rehearsal::Specialists.reserved?(definition)
-    return if chat && Chat::Specialists.made_names(chat).include?(name)
+    return if chat && loadable(chat).include?(name)
 
     Chat::Specialists.domain(Conversation::Rehearsal::Specialists.domain_of(definition)).title
+  end
+
+  # The reserved reads Halon may open: those a specialist made in the chat and those of a provider one of whose changes
+  # Halon holds or names, as live, where a scenario's provider stands for its connection.
+  def loadable(chat, named = [])
+    changing = @case.tools.select { |definition| definition.outside? && !definition.reads && (definition.base || @opened.include?(definition.name) || named.include?(definition.name)) }
+                    .map(&:source).to_set
+    backing = @case.tools.select { |definition| definition.reads && changing.include?(definition.source) }.map(&:name)
+    Chat::Specialists.made_names(chat) | backing
   end
 
   # Measured once, since a scenario's tools stay the same for the whole chat.
@@ -338,7 +347,17 @@ class Conversation::Rehearsal
       return Conversation::Rehearsal::UseSkill.new(tools: @case.tools, open: ->(names) { open(chat, names) }, reserved: method(:specialist_title))
     end
 
-    Conversation::Rehearsal::RecordedTool.new(definition, bench_case: @case, chat: chat, world: @world, state: @state, unscripted: @unscripted)
+    Conversation::Rehearsal::RecordedTool.new(definition, bench_case: @case, chat: chat, world: @world, state: @state, unscripted: @unscripted,
+                                                          load: ->(names, change) { load(chat, names, change) })
+  end
+
+  # Opens the reads a refusal points at, as live (Chat::Tools::LookFirst.load_reads), and answers their names.
+  def load(chat, names, change)
+    reading = names.select do |name|
+      definition = @case.tool(name)
+      definition && (definition.reads || definition.reads_when.present? || Conversation::Rehearsal::Specialists.guard_of(definition))
+    end
+    open(chat, reading, [ change ]).map(&:name)
   end
 
   def groups
@@ -347,9 +366,9 @@ class Conversation::Rehearsal
   end
 
   # Makes the named tools callable for the rest of the chat, from the next model call on, and returns them. A read a
-  # specialist holds is made Halon's only once a specialist made it in this chat, as live.
-  def open(chat, names)
-    made = @specialists ? Chat::Specialists.made_names(chat) : Set.new
+  # specialist holds is made Halon's only once Halon may load it (loadable), counting a change named with it, as live.
+  def open(chat, names, held = [])
+    made = @specialists ? loadable(chat, names + held) : Set.new
     definitions = @case.tools.select do |definition|
       names.include?(definition.name) && !definition.base && definition.name != Chat::Tools::Open.tool_name &&
         (halons.include?(definition) || made.include?(definition.name))

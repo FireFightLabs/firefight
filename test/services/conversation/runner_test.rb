@@ -162,8 +162,8 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     ask(@conversation.reload, "you do have access, I granted it")
 
     assert seen.nudge
-    assert_match "your last answer rested on results that said something could not be used", seen.content
-    assert_match "open_tools: Nothing is connected for Coding agents", seen.content
+    assert_match "your recent answers rested on results that said something could not be used", seen.content
+    assert_match "open_tools, read just now: Nothing is connected for Coding agents", seen.content
     assert_match "check again in this turn before you answer", seen.content
     assert_match "Then answer from what you found now", seen.content
     assert_equal 1, second.calls.size
