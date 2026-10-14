@@ -138,6 +138,8 @@ module Ability
     # Reading a workflow, and building its draft, which is what Halon's proposals to one are.
     WORKFLOWS_READ = "#{RESOURCE_WORKFLOWS}.#{ACTION_READ}".freeze
     WORKFLOWS_CREATE = "#{RESOURCE_WORKFLOWS}.#{ACTION_CREATE}".freeze
+    # What a workflow's Approval step asks approvers to decide. It names no tool, since the step changes nothing itself.
+    WORKFLOW_APPROVAL = "#{RESOURCE_WORKFLOWS}.approval".freeze
     # A workflow's HTTP request reading an address, and sending one that changes something.
     HTTP_READ = "#{RESOURCE_HTTP_REQUESTS}.#{ACTION_READ}".freeze
     HTTP_SEND = "#{RESOURCE_HTTP_REQUESTS}.#{ACTION_CREATE}".freeze

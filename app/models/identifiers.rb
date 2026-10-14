@@ -28,6 +28,7 @@ module Identifiers
   CODE_QUESTION_MODAL = "code_question_modal"
   CODE_QUESTION_CHANGE_MODAL = "code_question_change_modal"
   RUNBOOK_RUN_MODAL = "runbook_run_modal"
+  WORKFLOW_QUESTION_MODAL = "workflow_question_modal"
 
   # Shortcut callback_ids
   CREATE_INCIDENT_SHORTCUT = "create_incident_shortcut"
@@ -220,6 +221,11 @@ module Identifiers
   CHAT_PLAN_RETRY = "chat_plan_retry"
   CHAT_PLAN_UNDO = "chat_plan_undo"
   CODE_QUESTION_CHOOSE_IDS = (0...CodeAgentQuestion::MAX_OPTIONS).map { |index| "#{CODE_QUESTION_CHOOSE}_#{index}" }.freeze
+  # Opens the form that answers a workflow's question.
+  WORKFLOW_QUESTION_ANSWER = "workflow_question_answer"
+  # Picks one of a workflow question's choices. Each button adds its place, since Slack wants a block's action ids unique.
+  WORKFLOW_QUESTION_CHOOSE = "workflow_question_choose"
+  WORKFLOW_QUESTION_CHOOSE_IDS = (0...Workflow::Run::Question::CHOICE_LIMIT).map { |index| "#{WORKFLOW_QUESTION_CHOOSE}_#{index}" }.freeze
 
   # Slack event types (top-level Events API)
   EVENT_REACTION_ADDED  = "reaction_added"

@@ -52,6 +52,17 @@ class AbilityApprovalSerializer < BaseSerializer
     approval.source
   end
 
+  # What a workflow's Approval step asks, and what it said approvers should know, in place of a call's params.
+  type :string, optional: true
+  def question
+    approval.question
+  end
+
+  type :string, optional: true
+  def question_details
+    approval.question_details
+  end
+
   type :string, optional: true
   def source_label
     Ability::Source.label(approval.source)

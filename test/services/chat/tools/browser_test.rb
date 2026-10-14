@@ -2,6 +2,7 @@ require "test_helper"
 
 class Chat::Tools::BrowserTest < ActiveSupport::TestCase
   JPEG = "\xFF\xD8\xFF\xE0fake-jpeg".b.freeze
+  DESKTOP_DIGEST = "a" * 64
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -108,8 +109,41 @@ class Chat::Tools::BrowserTest < ActiveSupport::TestCase
 
     assert_equal 2, handed["send_step"]
     assert_equal [ "desktop" ], handed["viewports"], "a send runs on one screen size, so nothing is sent twice"
-    assert_equal({ "method" => "POST", "url" => "https://shop.example.com/orders" }, handed["expected_send"])
+    assert_equal({ "method" => "POST", "url" => "https://shop.example.com/orders", "digest" => DESKTOP_DIGEST }, handed["expected_send"])
     assert Ability::Invocation.exists?(workspace: @workspace, action_key: Ability::Action::BROWSER_SUBMIT)
+  end
+
+  test "a send is held to the request of the screen size it runs on, when the look stopped on more than one" do
+    stop_before_paying(phone: true)
+    Chat::Tools::LookFirst.stubs(:refusal).returns(nil)
+    handed = nil
+    Integrations::Terminal.any_instance.expects(:browse).with { |spec| handed = spec }.returns(browsed(page))
+
+    tool.call(tool_call: call("call_send"), **sending.merge("because" => [ "check_in_browser: pay sends the order" ]).symbolize_keys)
+
+    assert_equal [ "desktop" ], handed["viewports"]
+    assert_equal DESKTOP_DIGEST, handed.dig("expected_send", "digest")
+  end
+
+  test "a send the page now makes differently is not sent, Halon is told, and asking again shows the person the new request" do
+    stop_before_paying
+    Chat::Tools::LookFirst.stubs(:refusal).returns(nil)
+    now = { "method" => "POST", "url" => "https://shop.example.com/orders", "fields" => [ { "name" => "card", "value" => "[hidden]" }, { "name" => "amount", "value" => "99" } ],
+            "digest" => "c" * 64 }
+    changed = page_with("stopped" => { "step" => 2, "reason" => "changed_request", "would_send" => now })
+    changed["viewports"] = changed["viewports"].first(1)
+    Integrations::Terminal.any_instance.expects(:browse).returns(browsed(changed))
+
+    said = tool.call(tool_call: call("call_send"), **sending.merge("because" => [ "check_in_browser: pay sends the order" ]).symbolize_keys)
+
+    assert_includes said, "Stopped at step 2: the page now sends POST https://shop.example.com/orders with card=[hidden], amount=99, not what the person agreed to. Nothing was sent."
+    assert_includes said, "To send it, ask the person"
+    message = @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    asked = message.ruby_llm_tool_calls.create!(tool_call_id: "call_again", name: Chat::Tools::Browser::NAME, arguments: sending)
+    assert_includes Chat::Tools.confirmation(asked).safeguards, [ "amount", "99" ]
+
+    Integrations::Terminal.any_instance.expects(:browse).with { |spec| spec.dig("expected_send", "digest") == "c" * 64 }.returns(browsed(page))
+    tool.call(tool_call: call("call_send_again"), **sending.merge("because" => [ "check_in_browser: pay sends the order" ]).symbolize_keys)
   end
 
   test "the confirmation shows the page before the send and what it sends, and is never allowed for the chat" do
@@ -225,12 +259,16 @@ class Chat::Tools::BrowserTest < ActiveSupport::TestCase
   end
 
   # The check the person was shown, which stopped before step 2 since it sends the order.
-  def stop_before_paying
+  # phone: true stops on the phone screen as well, with a request of its own.
+  def stop_before_paying(phone: false)
     check = Chat::BrowserCheck.from(sending.except("send_step", "intent"))
-    stopped = page_with("stopped" => { "step" => 2, "reason" => "sends_data",
-                                       "would_send" => { "method" => "POST", "url" => "https://shop.example.com/orders",
-                                                         "fields" => [ { "name" => "card", "value" => "[hidden]" } ] } })
-    Chat::Screenshot.record!(@chat, stopped["viewports"].first(1), tool_call_id: "call_look", digest: check.digest)
+    stopped = page["viewports"].map do |viewport|
+      digest = viewport["name"] == "desktop" ? DESKTOP_DIGEST : "d" * 64
+      viewport.merge("stopped" => { "step" => 2, "reason" => "sends_data",
+                                    "would_send" => { "method" => "POST", "url" => "https://shop.example.com/orders",
+                                                      "fields" => [ { "name" => "card", "value" => "[hidden]" } ], "digest" => digest } })
+    end
+    Chat::Screenshot.record!(@chat, phone ? stopped : stopped.first(1), tool_call_id: "call_look", digest: check.digest)
   end
 
   def page_with(changes) = page.merge("viewports" => page["viewports"].map { |viewport| viewport.merge(changes) })

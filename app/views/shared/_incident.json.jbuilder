@@ -1,17 +1,16 @@
 json.(incident, :id, :identifier, :name, :summary)
 
 json.status do
-  json.(incident.incident_status, :id, :name, :slug)
-  json.lifecycle_stage incident.incident_status.incident_lifecycle_stage.key
+  json.partial! "shared/incident_status", status: incident.incident_status
 end
 
 json.severity do
-  json.(incident.incident_severity, :id, :name, :slug, :rank)
+  json.partial! "shared/incident_severity", severity: incident.incident_severity
 end
 
 if incident.incident_type
   json.type do
-    json.(incident.incident_type, :id, :name, :slug)
+    json.partial! "shared/incident_type", type: incident.incident_type
   end
 else
   json.type nil

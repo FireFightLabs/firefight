@@ -36,6 +36,10 @@ class Chat::BrowserCheck
   DEADLINE_SECONDS = 120
   # The fields of what a page would send that the person is shown.
   FIELDS_SHOWN = 30
+  # What a send is held to of the request the person was shown: the method and address they read, and the browser's
+  # fingerprint of the whole request, its query and body included, so a page that changes either is stopped.
+  SEND_DIGEST = "digest".freeze
+  SEND_KEYS = [ "method", "url", SEND_DIGEST ].freeze
   SCHEMES = %w[http https].freeze
   # A scheme with no slashes, such as javascript: or data:. A host and port, such as shop.example.com:8080, is not one.
   OTHER_SCHEME = /\A(?!https?:)[a-z][a-z0-9+.\-]*:(?!\d)/i

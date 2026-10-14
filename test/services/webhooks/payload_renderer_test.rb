@@ -49,6 +49,30 @@ class Webhooks::PayloadRendererTest < ActiveSupport::TestCase
     assert payload["data"].key?("changes")
   end
 
+  test "renders a before and after for every changed field, including the renamed ones" do
+    incident = incidents(:active_critical_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+    incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: member)
+    event = incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: member) do
+      incident.update!(incident_status: incident_statuses(:identified_ws1), incident_severity: incident_severities(:major_ws1),
+                       incident_type: incident_types(:service_outage_ws1), lead: member, name: "Checkout is down")
+    end
+
+    data = JSON.parse(Webhooks::PayloadRenderer.render(event, delivery_id: @delivery_id))["data"]
+
+    assert_equal %w[lead name severity status type], data["changed_fields"].sort
+    assert_equal data["changed_fields"].sort, data["changes"].keys.sort
+    assert_equal "Investigating", data["changes"]["status"]["before"]["name"]
+    assert_equal data["incident"]["status"], data["changes"]["status"]["after"]
+    assert_equal incident_severities(:critical_ws1).name, data["changes"]["severity"]["before"]["name"]
+    assert_equal data["incident"]["severity"], data["changes"]["severity"]["after"]
+    assert_nil data["changes"]["type"]["before"]
+    assert_equal data["incident"]["type"], data["changes"]["type"]["after"]
+    assert_nil data["changes"]["lead"]["before"]
+    assert_equal data["incident"]["lead"], data["changes"]["lead"]["after"]
+    assert_equal({ "before" => "Database connection pool exhausted", "after" => "Checkout is down" }, data["changes"]["name"])
+  end
+
   test "renders a milestone note with its kind, author and source message" do
     event = @event.incident.incident_events.create!(
       event_type: IncidentEvent::MILESTONE_NOTED,
