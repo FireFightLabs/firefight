@@ -12,6 +12,24 @@ module Integrations
         AGENT = "opencode".freeze
         # The client OpenCode ships for Anthropic's own format.
         ANTHROPIC_CLIENT = "@ai-sdk/anthropic".freeze
+        # The MCP server Firefight's own tools come from, whose name OpenCode puts in front of each tool's.
+        TOOLS_SERVER = "firefight".freeze
+        # Every permission the agent could be asked for is decided here, since opencode run rejects whatever it would ask
+        # and a rejected call ends the whole run (cli/cmd/run.ts and session/processor.ts at 1.18.34). A refused call
+        # fails alone with an error the model reads, and the agent carries on. The last rule that matches wins, so the
+        # catch-all comes first and refuses whatever is not named, a permission a later OpenCode adds included. Named are
+        # the permissions 1.18.34's own tools ask for (tool/*.ts), Firefight's tools, and doom_loop, which ends the run
+        # on any answer but yes, while the run's time and budget still bound it. Reading a .env file and every path outside
+        # the copy but the run's TMPDIR stay out of reach, as OpenCode's defaults (agent/agent.ts) left them.
+        PERMISSIONS = {
+          "*" => "deny",
+          "read" => { "*" => "allow", "*.env" => "deny", "*.env.*" => "deny", "*.env.example" => "allow" },
+          "edit" => "allow", "glob" => "allow", "grep" => "allow", "bash" => "allow", "task" => "allow", "todowrite" => "allow",
+          "skill" => "allow", "lsp" => "allow", "invalid" => "allow", "doom_loop" => "allow", "#{TOOLS_SERVER}_*" => "allow",
+          "external_directory" => { "{env:TMPDIR}/*" => "allow" }
+        }.freeze
+        # OpenCode's helper agent keeps no plan of its own, as its defaults have it, since todowrite above would allow one.
+        AGENTS = { "general" => { "permission" => { "todowrite" => "deny" } } }.freeze
         # The agent's own working time. Waiting for answers to its questions comes on top.
         FIX_TIMEOUT = 15 * 60
         # A change sent back after its review gets this long, within what is left of its session.
@@ -483,7 +501,8 @@ module Integrations
           end
           if change.nothing?
             logged_failure("code_fix.agent_changed_nothing", repo, events.redacted(change.log))
-            fail! [ "The coding agent changed nothing in #{repo}.", events.last_words(change.log)&.then { |said| events.redacted(said).truncate(SAID_LIMIT) } ].compact.join("\n")
+            early = events.stop_reason(change.log)&.then { |reason| "stopped early (#{reason}) and " }
+            fail! [ "The coding agent #{early}changed nothing in #{repo}.", events.last_words(change.log)&.then { |said| events.redacted(said).truncate(SAID_LIMIT) } ].compact.join("\n")
           end
 
           change = corrected(session, change, &resend)
@@ -823,8 +842,7 @@ module Integrations
 
         # Reaches only Firefight's proxy for the run's model and Firefight's own tools, never the web directly. Its tools
         # read as the person who asked, ask them a question, and search the web where the workspace allows it. Outside the
-        # copy it may use only its own temporary directory, which OpenCode reads from TMPDIR as the script sets it, since a
-        # path it would otherwise ask about is refused in a run nobody watches (cli/cmd/run.ts at 1.18.34).
+        # copy it may use only its own temporary directory, which OpenCode reads from TMPDIR as the script sets it.
         # A model reached in Anthropic's own format is spoken to with OpenCode's Anthropic client, whatever the provider,
         # so the provider clears the oldest tool results itself (FirefightAi::ModelProxy::History).
         def agent_config(choice, agent_token)
@@ -836,9 +854,9 @@ module Integrations
             "share" => "disabled",
             "provider" => { provider => { **client.to_h, "options" => { "baseURL" => "#{proxy_base}/code_agent/#{provider}", "apiKey" => agent_token },
                                           "models" => { choice.model => {} } } },
-            "permission" => { "edit" => "allow", "bash" => "allow", "webfetch" => "deny", "websearch" => "deny",
-                              "external_directory" => { "{env:TMPDIR}/*" => "allow" } },
-            "mcp" => { "firefight" => { "type" => "remote", "url" => "#{proxy_base}/code_agent/tools", "enabled" => true,
+            "permission" => PERMISSIONS,
+            "agent" => AGENTS,
+            "mcp" => { TOOLS_SERVER => { "type" => "remote", "url" => "#{proxy_base}/code_agent/tools", "enabled" => true,
                                         "headers" => { "Authorization" => "Bearer #{agent_token}" } } }
           }
         end

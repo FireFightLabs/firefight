@@ -193,6 +193,23 @@ module Integrations
           end
         end
 
+        test "a run opencode ended on a refused permission, which it says on its error output, hands back a log that says what was refused" do
+          Dir.mktmpdir do |root|
+            gate, copy, = repository_with_gate(root)
+            started, refusal, *rest = file_fixture("opencode/permission_refused.jsonl").read.lines
+            File.write(File.join(root, "out.jsonl"), started)
+            File.write(File.join(root, "refusal.txt"), refusal)
+            File.write(File.join(root, "rest.jsonl"), rest.join)
+            agent = "#!/bin/sh\ncat #{root}/out.jsonl\ncat #{root}/refusal.txt >&2\ncat #{root}/rest.jsonl\n"
+
+            output = run_script(root, copy, agent, gate)
+
+            assert_match(/^NOTHING$/, output)
+            assert_equal "It asked for permission to reach / outside its copy of the repository, which nobody can grant while it runs",
+                         SandboxAgentEvents.new(Chat::CodeFixProgress.start).stop_reason(read(output).log)
+          end
+        end
+
         test "the agent's session is named for a pause, a continued change resumes it, and a paused change is saved to a branch of its own" do
           Dir.mktmpdir do |root|
             gate, copy, = repository_with_gate(root)

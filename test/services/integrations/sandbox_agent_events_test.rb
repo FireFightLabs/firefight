@@ -111,6 +111,41 @@ module Integrations
       refute_match "cf-ray", work.lines.last.text
     end
 
+    test "a run that ended on a permission opencode run refused says what was refused, heard as it ran or read from the log" do
+      log = file_fixture("opencode/permission_refused.jsonl").read
+      work = Chat::CodeFixProgress.start
+      events = SandboxAgentEvents.new(work)
+      events.read(log)
+
+      refused = "It asked for permission to reach / outside its copy of the repository, which nobody can grant while it runs"
+      assert_equal refused, events.stop_reason("")
+      assert_equal refused, SandboxAgentEvents.new(Chat::CodeFixProgress.start).stop_reason(log)
+      assert_equal [ "Ran cd /runs/*; ls" ], work.lines.map(&:text)
+      assert_equal "It asked for permission to use doom_loop on bash, which nobody can grant while it runs",
+                   SandboxAgentEvents.new(Chat::CodeFixProgress.start).stop_reason("! permission requested: doom_loop (bash); auto-rejecting\n")
+    end
+
+    test "a refusal the run carried on after is not why it stopped" do
+      carried_on = "#{file_fixture('opencode/permission_refused.jsonl').read}#{{ type: 'step_start', part: {} }.to_json}\n"
+      events = SandboxAgentEvents.new(Chat::CodeFixProgress.start)
+      events.read(carried_on)
+
+      assert_nil events.stop_reason("")
+      assert_nil SandboxAgentEvents.new(Chat::CodeFixProgress.start).stop_reason(carried_on)
+    end
+
+    test "a call a permission rule refuses fails alone, and the agent carries on and finishes" do
+      log = file_fixture("opencode/permission_denied.jsonl").read
+      work = Chat::CodeFixProgress.start
+      events = SandboxAgentEvents.new(work)
+      events.read(log)
+
+      assert_equal [ "Ran cd /runs/*; ls", "Created fixed.txt", "Thinking: I wrote fixed.txt after the stray command was refused." ], work.lines.map(&:text)
+      assert_equal [ "failed", nil, nil ], work.lines.map(&:result)
+      assert_equal [ "fixed.txt" ], work.changed
+      assert_nil events.stop_reason(log)
+    end
+
     test "the last words and why it stopped are read from the log when nothing was heard as it ran" do
       log = [ "tail of a line cut short\"}", { type: "text", part: { text: "I set the pool to 10.\n\nCould not run here:\n- the tests, since no database was there" } }.to_json,
               api_error.to_json ].join("\n")

@@ -59,8 +59,9 @@ module Integrations
           credential, config_line = told.lines.map(&:chomp)
           config = JSON.parse(config_line)
           assert_equal "https://ff.example.com/code_agent/anthropic", config.dig("provider", "anthropic", "options", "baseURL")
-          assert_equal({ "edit" => "allow", "bash" => "allow", "webfetch" => "deny", "websearch" => "deny",
-                         "external_directory" => { "{env:TMPDIR}/*" => "allow" } }, config["permission"], "its own temporary files are its to use, nothing else outside the copy")
+          assert_equal Fixing::PERMISSIONS, config["permission"]
+          assert_equal "*", config["permission"].keys.first, "the catch-all comes first, since the last rule that matches wins"
+          assert_equal Fixing::AGENTS, config["agent"]
           assert_equal "https://ff.example.com/code_agent/tools", config.dig("mcp", "firefight", "url")
           assert_equal "Bearer #{config.dig('provider', 'anthropic', 'options', 'apiKey')}", config.dig("mcp", "firefight", "headers", "Authorization")
           assert_equal "anthropic/claude-sonnet-4-5", sent[5]
@@ -133,6 +134,49 @@ module Integrations
           end
 
           assert_match "The coding agent changed nothing in acme/api.\nI could not find the pool setting.", error.message
+        end
+
+        test "an agent whose run ended early and changed nothing says why, whatever stopped it" do
+          refused = file_fixture("opencode/permission_refused.jsonl").read
+          stub_run("stdout" => "AGENT_EXIT 0\nBASE start-sha\nNOTHING\nLOG\n#{refused}", "timed_out" => false)
+          GithubApp.expects(:open_pull_request).never
+
+          error = assert_raises(Integrations::Error) do
+            @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" })
+          end
+
+          assert_equal "The coding agent stopped early (It asked for permission to reach / outside its copy of the repository, which nobody " \
+                       "can grant while it runs) and changed nothing in acme/api.", error.message
+        end
+
+        # OpenCode 1.18.34's own rules for its default agent (agent/agent.ts), which come before the config's, and those
+        # opencode run adds for the session (cli/cmd/run.ts). The last rule that matches wins, and none is ask.
+        test "no permission the agent could be asked for is left to ask, since opencode run rejects whatever it asks and that ends the run" do
+          defaults = [ [ "*", "*", "allow" ], [ "doom_loop", "*", "ask" ], [ "external_directory", "*", "ask" ],
+                       [ "external_directory", "/tmp/opencode/*", "allow" ], [ "question", "*", "deny" ], [ "plan_enter", "*", "deny" ],
+                       [ "plan_exit", "*", "deny" ], [ "read", "*", "allow" ], [ "read", "*.env", "ask" ], [ "read", "*.env.*", "ask" ],
+                       [ "read", "*.env.example", "allow" ], [ "question", "*", "allow" ], [ "plan_enter", "*", "allow" ] ]
+          config = Fixing::PERMISSIONS.flat_map do |permission, rule|
+            rule.is_a?(Hash) ? rule.map { |pattern, action| [ permission, pattern.sub("{env:TMPDIR}", "/tmp/run/tmp"), action ] } : [ [ permission, "*", rule ] ]
+          end
+          run = [ [ "question", "*", "deny" ], [ "plan_enter", "*", "deny" ], [ "plan_exit", "*", "deny" ] ]
+          rules = defaults + config + run
+          resolve = ->(permission, pattern) { rules.reverse.find { |name, glob, _| wildcard?(permission, name) && wildcard?(pattern, glob) }&.last || "ask" }
+
+          asked = %w[read edit glob grep bash task todowrite skill lsp webfetch websearch external_directory doom_loop question plan_enter plan_exit
+                     invalid firefight_call_tool a_permission_opencode_adds_later].product([ "*", "/runs/7f3a/*", "/*", "/home/runner/*", "/tmp/run/tmp/*",
+                                                                                            "config/.env", "app/models/user.rb", "rm -rf /" ])
+          assert_empty asked.select { |permission, pattern| resolve.(permission, pattern) == "ask" }
+          assert_not(Fixing::PERMISSIONS.to_json.include?("\"ask\""))
+          assert_equal "deny", resolve.("external_directory", "/runs/*")
+          assert_equal "deny", resolve.("external_directory", "/home/runner/*")
+          assert_equal "allow", resolve.("external_directory", "/tmp/run/tmp/notes/*")
+          assert_equal "deny", resolve.("read", "config/.env")
+          assert_equal "allow", resolve.("read", ".env.example")
+          assert_equal "deny", resolve.("webfetch", "*")
+          assert_equal "deny", resolve.("a_permission_opencode_adds_later", "*")
+          assert_equal "allow", resolve.("firefight_call_tool", "*")
+          assert_equal "allow", resolve.("bash", "rm -rf /")
         end
 
         test "a provider's error stops the change with a plain sentence, and its headers and body go only to the log" do
@@ -1131,6 +1175,13 @@ module Integrations
         # What the sandbox answers for the agent's run, the push answering as it pushed.
         def stub_run(answer)
           CodeReading.any_instance.stubs(:exec).with { |*, argv:, **| argv[2] == Fixing::RUN }.returns(answer)
+        end
+
+        # OpenCode's Wildcard.match (packages/core/src/util/wildcard.ts at 1.18.34).
+        def wildcard?(input, pattern)
+          escaped = Regexp.escape(pattern).gsub("\\*", ".*").gsub("\\?", ".")
+          escaped = "#{escaped.delete_suffix('\\ .*')}( .*)?" if escaped.end_with?("\\ .*")
+          input.match?(/\A#{escaped}\z/m)
         end
 
         # What GitHub says the push changed, against the base or, with from, against another commit.
