@@ -18,6 +18,13 @@ module FirefightAi
 
     MICROS_PER_CENT = 10_000
 
+    # A loop nobody can stop, whose tools run on its own thread.
+    NEVER_CANCELED = -> { false }
+    # How often a loop whose tools are running looks for a stop, in seconds.
+    STOP_CHECK_EVERY = 1
+    # How long a stopped loop lets a tool that had just answered finish saving its result, in seconds.
+    SETTLE_AFTER_STOP = 1
+
     # Micros, the ledger's unit, never rounded. The cap is still set in cents.
     Budget = Data.define(:max_spend_cents, :max_turns, :turns_used, :spent_micros) do
       def initialize(max_spend_cents:, max_turns:, turns_used: 0, spent_micros: 0) = super
@@ -59,7 +66,9 @@ module FirefightAi
     # them, and the model reads the latest of it on each call.
     # retry_malformed asks the same model once more, once per run, when its reply held a tool call whose arguments could not
     # be read (RubyLLM::ToolCallParseError), which a chat does so the person is not left without an answer by one bad reply.
-    def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil, on_chunk: nil,
+    # canceled says whether someone stopped the run. It is read between steps and, while tools run, every
+    # STOP_CHECK_EVERY seconds, so a stop ends the run whatever a tool is waiting on (run_tools).
+    def initialize(chat:, budget:, answered:, inference:, canceled: NEVER_CANCELED, on_step: nil, on_chunk: nil,
                    reply_is_answer: false, nudge: nil, memory: nil, take_messages: nil, output: nil,
                    choice: nil, purpose: AiPurpose::INVESTIGATION, purse: nil, on_backup: nil, on_take_over: nil, on_progress: nil,
                    steady: false, checks: [], retry_malformed: false, context: nil)
@@ -126,6 +135,7 @@ module FirefightAi
         return outcome(STATUS_WAITING) if @chat.to_llm.awaiting_approval?
 
         message = advance
+        return outcome(STATUS_CANCELED) if message.equal?(STOPPED)
         return outcome(STATUS_STALLED) if message.nil?
         unless message.role == :assistant
           report_spent_beside
@@ -160,14 +170,66 @@ module FirefightAi
       nil
     end
 
+    # What run_tools answers when a stop ended the tools.
+    STOPPED = Object.new.freeze
+
     # Only a model call is billed. Running the tools the model already asked for is not.
     def advance
-      return @chat.step if tools_pending?
+      return run_tools if tools_pending?
 
       # Someone said something new, so a reply that did nothing before this is not held against the agent.
       @reminders = 0 if @take_messages&.call
       @room.make { handover_note }
       generate
+    end
+
+    # The tools run on a thread of their own while the loop looks for a stop, so a stop ends the run at once, whether a
+    # tool waits on a sandbox, a provider's API or a remote server. The tools are told through StopSignal, so a wait that
+    # checks it gives up and tidies after itself, and the chat is cancelled, so RubyLLM saves no result for a tool that
+    # answers after the stop. The loop lends its database connection to the tools while it waits.
+    def run_tools
+      return @chat.step if @canceled.equal?(NEVER_CANCELED)
+
+      signal = Concurrent::Event.new
+      tools = StopSignal.watching(signal) { Thread.new { beside_the_loop { @chat.step } } }
+      tools.report_on_exception = false
+      until wait_for(tools, STOP_CHECK_EVERY)
+        next unless @canceled.call
+
+        signal.set
+        @chat.to_llm.cancel
+        settle(tools)
+        return STOPPED
+      end
+      tools.value
+    end
+
+    # Its own unit of work, so its connection goes back to the pool when it ends. Its errors reach the loop through
+    # Thread#value, which reports them as it always did, so nothing reports them here.
+    def beside_the_loop
+      execution = Rails.application.executor.run!
+      yield
+    ensure
+      execution&.complete!
+    end
+
+    # Joining raises what the tools raised, as running them on the loop's own thread would.
+    def wait_for(thread, seconds)
+      lend_connection
+      ActiveSupport::Dependencies.interlock.permit_concurrent_loads { thread.join(seconds) }
+    end
+
+    # A tool that gives up on the stop raises, which nobody waits for any more.
+    def settle(thread)
+      wait_for(thread, SETTLE_AFTER_STOP)
+    rescue StandardError
+      nil
+    end
+
+    def lend_connection
+      ActiveRecord::Base.connection_handler.connection_pool_list(:all).each do |pool|
+        pool.release_connection unless pool.active_connection&.transaction_open?
+      end
     end
 
     # A provider that still says too long gets the chat rebuilt and one more try, never a second. A reply that could not

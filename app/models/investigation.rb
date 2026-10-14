@@ -402,7 +402,7 @@ class Investigation < ApplicationRecord
   end
 
   ALREADY_FINISHED = "This investigation has already finished.".freeze
-  STOPPING = "Stopping. Halon ends the run after the step it is on.".freeze
+  STOPPING = "Stopping. Halon ends the run now, even in the middle of a step.".freeze
 
   def stop_blocked_reason = (ALREADY_FINISHED unless live?)
 

@@ -123,6 +123,17 @@ module Integrations
         assert_includes @reports.last, "Devin is waiting for a person: it asked a question in its session. Follow it at https://app.devin.ai/sessions/devin-1."
       end
 
+      test "a stop pressed while the change is followed stops the session too, so it never runs on unwatched" do
+        DevinApi.any_instance.stubs(:create_session).returns("session_id" => "devin-1", "url" => "https://app.devin.ai/sessions/devin-1")
+        DevinApi.any_instance.stubs(:session).returns(session("running", "working"))
+        DevinApi.any_instance.expects(:terminate).with("devin-1")
+        @pack.unstub(:pause)
+        signal = Concurrent::Event.new
+        signal.set
+
+        assert_raises(StopSignal::Stopped) { StopSignal.watching(signal) { @pack.fix_code(environment_row: @row, arguments: ARGUMENTS) } }
+      end
+
       test "a session Devin suspends, or one that ends without a pull request, fails with why and where to look" do
         DevinApi.any_instance.stubs(:create_session).returns("session_id" => "devin-1", "url" => "https://app.devin.ai/sessions/devin-1")
         DevinApi.any_instance.stubs(:messages).returns("items" => [ { "source" => "devin", "message" => "I could not reproduce it." } ])

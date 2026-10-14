@@ -199,8 +199,8 @@ skills:
     version: 1
     digest: 8a8c9c8edaba350c9a969fed239c9cbe39fc84ff92d48b4fc457cc32bfa05087
   deploying:
-    version: 1
-    digest: 9c125772cd2f7bbec9caf0c94b30ed39d6d676222bba2287594bd95e33af6dd7
+    version: 2
+    digest: 2ae9a919fa82fef500eb4c30f4bb6d9f1d8eb6bf721e1261d97bc1f72038d70b
   devin_handoff:
     version: 1
     digest: 978975d5dcd834c76d18d62976f34d387b04c9c5f7dff279d5fb4d75a08d547e

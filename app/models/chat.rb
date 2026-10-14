@@ -162,14 +162,16 @@ class Chat < ApplicationRecord
 
   def clear_stop! = update_column(:cancelled, false)
 
-  # A stop can land after the model asked for tools and before they ran. Each such call is answered, since a provider
-  # refuses a chat with a call and no result.
-  def answer_unanswered_calls!(text)
+  # A stop can land after the model asked for tools, before they ran or while one ran. Each such call is answered, since
+  # a provider refuses a chat with a call and no result, and shown as stopped. ran names the calls that had started,
+  # which are answered with ran_text.
+  def answer_stopped_calls!(text, ran: [], ran_text: text)
     last = sent_messages.reload.where(role: Chat::Message::ROLE_ASSISTANT).last
     return unless last
 
     last.ruby_llm_tool_calls.where(result_id: nil).find_each do |call|
-      add_message(role: Chat::Message::ROLE_TOOL, content: text, tool_call_id: call.tool_call_id)
+      add_message(role: Chat::Message::ROLE_TOOL, content: ran.include?(call.tool_call_id) ? ran_text : text, tool_call_id: call.tool_call_id)
+      call.update!(failed: true, failure_kind: Chat::StepOutcome::FAILURE_STOPPED)
     end
   end
 

@@ -1094,14 +1094,16 @@ export const AGENT_STEP_STATUSES = {
   "CANCELLED": "cancelled",
   "FAILED": "failed",
   "NOT_FOUND": "not_found",
-  "REFUSED": "refused"
+  "REFUSED": "refused",
+  "STOPPED": "stopped"
 } as const
 
 export const STEP_OUTCOME_KINDS = {
   "ANSWERED": "answered",
   "FAILED": "failed",
   "NOT_FOUND": "not_found",
-  "REFUSED": "refused"
+  "REFUSED": "refused",
+  "STOPPED": "stopped"
 } as const
 
 export const CODE_FIX_LINE_RESULTS = {

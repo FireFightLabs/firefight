@@ -18,6 +18,8 @@ module Integrations
     ORPHAN_GRACE = 15.minutes
     # A box replaced by a copy of a prepared repository is stopped this long after, so a call still reading in it ends.
     RETIRE_AFTER = 5.minutes
+    # How often a call waiting for a box another call is starting asks for its lock again, in seconds.
+    LOCK_ASKED_EVERY = 0.25
 
     class << self
       # What a prepared copy's tests cannot reach, one line each, for what could not run here. That is a service its setup
@@ -40,10 +42,12 @@ module Integrations
       # Held while the block runs, so a second worker waits and then finds what the first one made. A box adopted for a
       # run's key takes the same lock, so it and the run never both make that key's box. Starting a box and pushing a
       # repository wait minutes on the network, so the lock lives on a connection of its own outside the pool, with no
-      # transaction open, and closing that connection lets go of it even when the worker dies.
+      # transaction open, and closing that connection lets go of it even when the worker dies. The lock is asked for again
+      # until it is free rather than waited on in the database, so a stop (StopSignal) ends the wait.
       def locked(name)
         holder = CodeBox.connection_pool.db_config.new_connection
-        holder.select_value(CodeBox.sanitize_sql([ "SELECT pg_advisory_lock(hashtextextended(?, 0))::text", "code_box:#{name}" ]))
+        asked = CodeBox.sanitize_sql([ "SELECT pg_try_advisory_lock(hashtextextended(?, 0))", "code_box:#{name}" ])
+        StopSignal.pause(LOCK_ASKED_EVERY) until holder.select_value(asked) == true
         yield
       ensure
         holder&.disconnect!

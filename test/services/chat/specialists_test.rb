@@ -214,6 +214,34 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     assert_includes said, "Name the reads behind linear_create_issue by the tools you called."
   end
 
+  # Seen in a chat, a code specialist read a deploy's diff and found it changed only a test, then sent its findings one
+  # per call at the top level. The empty report was taken and Halon read "nothing reported", so the innocent deploy kept
+  # the blame. A report that says nothing is refused, a finding given at the top level is taken, and a later call adds.
+  test "a report that says nothing is refused, and findings sent one call each are all kept" do
+    own = specialist_agent(Chat::Specialists::CODE).chat
+    read!(own, "s_1", "github_show_commit", "test/system/agent_chat_paging_test.rb | 2 +-\n1 file changed, 1 insertion(+), 1 deletion(-)")
+    read!(own, "s_2", "github_fetch_file", "found = scope.limit(size + 1).to_a")
+    report = Chat::Specialists::Report.new(own, changes: [])
+
+    assert_equal Chat::Specialists::Report::EMPTY, report.call
+    assert_not report.taken?
+
+    said = report.call(claim: "The commit changes only a test.", lines: [ "1 file changed, 1 insertion(+), 1 deletion(-)" ])
+    assert_equal "Reported.", said
+    assert_equal "Reported.", report.call(claim: "The paging code is untouched.", lines: [ "found = scope.limit(size + 1).to_a" ])
+
+    assert report.taken?
+    assert_includes report.text, "1. The commit changes only a test."
+    assert_includes report.text, "Shows: 1 file changed, 1 insertion(+), 1 deletion(-)"
+    assert_includes report.text, "2. The paging code is untouched."
+
+    finding = { "claim" => "The commit changes only a test.", "lines" => [ "1 file changed, 1 insertion(+), 1 deletion(-)" ] }
+    assert_equal "Reported.", report.call(findings: [ finding ] * (Chat::Specialists::Report::MAX_FINDINGS - 2))
+    said = report.call(claim: "One more.", lines: [ "found = scope.limit(size + 1).to_a" ])
+    assert_includes said, "Not reported. The report holds #{Chat::Specialists::Report::MAX_FINDINGS} findings already"
+    assert_not_includes report.text, "One more.", "a finding that does not fit is refused, never dropped after Reported."
+  end
+
   # Seen on the big workspace bench, a rollback went ahead on thin reads. A specialist's report is another model's words,
   # so neither it nor what the specialist read backs a change, and Halon confirms the finding with a read of its own.
   test "a change backed only by a specialist goes back to Halon, and one naming Halon's own read is put to the person as any change" do

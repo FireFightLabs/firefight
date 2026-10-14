@@ -33,7 +33,9 @@ class Chat::Tools::Capability < RubyLLM::Tool
   # A change whose words name another connection than the one it would run through is refused rather than put to the
   # person (Chat::Tools::Target), and so is one that names no read from this turn (Chat::Tools::LookFirst).
   def approval_resolver
-    Chat::Tools::Target.resolver(@agent_run) { |given, tool_call| misdirection(given).present? || unsupported(given, tool_call&.id).present? }
+    Chat::Tools::Target.resolver(@agent_run) do |given, tool_call|
+      misdirection(given).present? || unsupported(given, tool_call&.id).present? || undone(given, tool_call&.id).present?
+    end
   end
 
   # The call that gave the answer the last call ended on, the platform's when it answered for an observability tool, and
@@ -42,9 +44,10 @@ class Chat::Tools::Capability < RubyLLM::Tool
   attr_reader :answered
 
   # A read of logs, errors or traces whose failing lines name an outside provider's host also says how that provider's
-  # status page stands (Chat::Tools::StatusCheck).
+  # status page stands (Chat::Tools::StatusCheck), and a read of deploys what the live one carried (Chat::Tools::DeploySpan).
   def call(tool_call: nil, **arguments)
-    Chat::Tools::StatusCheck.after(@agent_run, @spec, reply(tool_call, arguments))
+    said = Chat::Tools::StatusCheck.after(@agent_run, @spec, reply(tool_call, arguments))
+    Chat::Tools::DeploySpan.after(@agent_run, @spec, @answered, said)
   end
 
   private
@@ -53,7 +56,7 @@ class Chat::Tools::Capability < RubyLLM::Tool
     @answered = nil
     return refused(tool_call, "#{name} changes things, so it is not used while investigating. It belongs in the fix.") if @spec.writes && @agent_run.reads_only?
 
-    unbacked = unsupported(arguments.transform_keys(&:to_s), tool_call&.id)
+    unbacked = unsupported(arguments.transform_keys(&:to_s), tool_call&.id) || undone(arguments.transform_keys(&:to_s), tool_call&.id)
     return refused(tool_call, unbacked, kind: Chat::StepOutcome::FAILURE_REFUSED) if unbacked
 
     asked = arguments.transform_keys(&:to_s).except(Chat::Tools::LookFirst::BECAUSE)
@@ -84,6 +87,15 @@ class Chat::Tools::Capability < RubyLLM::Tool
 
   def unsupported(given, tool_call_id)
     Chat::Tools::LookFirst.refusal(@agent_run, given, tool_call_id: tool_call_id) if looks_first?
+  end
+
+  # What a rollback undoes, said to Halon before the person is asked, read once for each call.
+  def undone(given, tool_call_id)
+    return unless @spec.key == Integrations::Capabilities::ROLLBACK && looks_first?
+    return if tool_call_id && @agent_run.chat.tool_calls.where(tool_call_id: tool_call_id).where.not(approval: nil).exists?
+
+    @undone ||= {}
+    @undone.fetch(tool_call_id) { @undone[tool_call_id] = Chat::Tools::DeploySpan.undone_refusal(@agent_run, @spec, given) }
   end
 
   # A change only, since only a change carries words for the person. found is the call already routed, when there is one.
