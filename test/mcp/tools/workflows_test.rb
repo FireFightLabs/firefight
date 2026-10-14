@@ -118,6 +118,12 @@ module Mcp
         assert_equal 100, workflow.reload.runs_per_hour
       end
 
+      test "Halon is never offered the outside agents' way to change a workflow's settings" do
+        offered = Chat::Tools.firefight_entries(Conversation::Turn.new(Conversation.start_personal!(workspace: @workspace, member: @admin), asker: @admin)).map { |entry| entry.name.to_s }
+
+        assert_not_includes offered, UPDATE_WORKFLOW
+      end
+
       test "only an admin sets how long runs keep their details" do
         assert call(UpdateWorkflowSettings, @member, { workflow_run_retention_days: 30 }).error?
         assert_not call(UpdateWorkflowSettings, @admin, { workflow_run_retention_days: 30 }).error?
