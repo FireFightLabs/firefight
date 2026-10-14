@@ -5,6 +5,8 @@ import { formatWhen } from "@/pages/halon/components/workflows/labels"
 import type { WorkflowDetail } from "@/types/serializers"
 
 const HOUR_MS = 60 * 60 * 1000
+// The newest hours listed under the sentence. The sentence counts every skipped hour of the week.
+const HOURS_LISTED = 24
 
 // "Oct 14, 14:00 to 15:00", in the viewer's own time zone.
 function hourRange(hour: string): string {
@@ -39,11 +41,12 @@ export function WorkflowAlerts({ workflow }: { workflow: WorkflowDetail }) {
           <div className="space-y-1">
             <p>{workflow.skippedRunsSentence} Raise its most runs per hour under Settings to let more start.</p>
             <ul className="space-y-0.5 text-xs text-fg-muted">
-              {workflow.skippedRuns.map((skipped) => (
+              {workflow.skippedRuns.slice(0, HOURS_LISTED).map((skipped) => (
                 <li key={skipped.hour}>
                   {hourRange(skipped.hour)}: {skipped.count} skipped, the last at {formatTime(skipped.lastAt)}
                 </li>
               ))}
+              {workflow.skippedRuns.length > HOURS_LISTED && <li>and {workflow.skippedRuns.length - HOURS_LISTED} earlier hours</li>}
             </ul>
           </div>
         </div>

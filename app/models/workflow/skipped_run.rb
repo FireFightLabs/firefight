@@ -4,13 +4,13 @@
 class Workflow::SkippedRun < ApplicationRecord
   self.table_name = "workflow_skipped_runs"
 
-  # How far back the workflow's page shows them. Anything older is let go (WorkflowRunRetentionJob).
+  # How far back the workflow's page shows them, every hour of it, at most one row an hour. Anything older is let go
+  # (WorkflowRunRetentionJob).
   SHOWN_FOR = 1.week
-  SHOWN_LIMIT = 48
 
   belongs_to :workflow, inverse_of: :skipped_runs
 
-  scope :recent, ->(now = Time.current) { where(hour: (now - SHOWN_FOR)..).order(hour: :desc).limit(SHOWN_LIMIT) }
+  scope :recent, ->(now = Time.current) { where(hour: (now - SHOWN_FOR)..).order(hour: :desc) }
 
   def self.count!(workflow, at: Time.current)
     sql = <<~SQL.squish
