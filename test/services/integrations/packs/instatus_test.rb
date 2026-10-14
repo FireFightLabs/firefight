@@ -157,6 +157,24 @@ module Integrations
         assert_raises(NativePack::Error) { call(:update_component, "component" => "API", "group" => "Edge") }
       end
 
+      test "a component made without its id and outside its group is said in words, never moved at an empty address" do
+        InstatusApi.any_instance.expects(:create_component).returns("name" => "Search", "group" => nil)
+        InstatusApi.any_instance.expects(:update_component).never
+
+        error = assert_raises(NativePack::Error) { call(:create_component, "name" => "Search", "group" => "Core") }
+        assert_equal "Instatus added Search but did not return its id, so it was not put in group g1. Check it in Instatus.", error.message
+      end
+
+      test "an alert's recipient is an email or a phone number, never a webhook address, made or changed" do
+        assert_raises(Integrations::PolicyRefusal) { call(:update_monitor_alert, "alert" => "a1", "recipient" => "https://hooks.slack.com/services/x") }
+        assert_raises(Integrations::PolicyRefusal) { call(:create_monitor_alert, "type" => "EMAIL", "recipient" => "https://hook.acme.io/x", "monitors" => [ "m1" ]) }
+
+        InstatusApi.any_instance.expects(:update_monitor_alert).with("a1", { "recipient" => "+44 20 7946 0958" }).returns({})
+        call(:update_monitor_alert, "alert" => "a1", "recipient" => "+44 20 7946 0958")
+        InstatusApi.any_instance.expects(:update_monitor_alert).with("a1", { "recipient" => "ops@acme.io" }).returns({})
+        call(:update_monitor_alert, "alert" => "a1", "recipient" => "ops@acme.io")
+      end
+
       test "a page's look is set with its other settings, and its SMS provider's credentials cannot be sent" do
         InstatusApi.any_instance.expects(:update_page).with("pg1", { "brandColor" => "#111111", "cssGlobal" => "body { margin: 0 }", "useLargeHeader" => false })
                    .returns("id" => "pg1", "name" => "Acme", "subdomain" => "acme")

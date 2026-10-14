@@ -8,8 +8,8 @@ module Integrations
     # component is named by its id or name the same way. Results link to the page as its customers see it, at its custom
     # domain or its instatus.com subdomain, and an incident or maintenance to its own page there, at <page>/incident/<id>
     # and <page>/maintenance/<id>, the addresses Instatus's own feeds and widgets give. Instatus documents no address for
-    # its dashboard's screens, so none is built. Instatus documents component groups inconsistently (group on create,
-    # groupId on update), so a component's group is read and never set here.
+    # its dashboard's screens, so none is built. Monitoring and page content live in Instatus::Monitoring and
+    # Instatus::PageContent.
     class Instatus < NativePack
       API_KEY = "api_key".freeze
 
@@ -677,7 +677,11 @@ module Integrations
         group = arguments["group"].to_s.strip
         group_id = group_choice(environment_row, page, group) if group.present?
         made = api(environment_row).create_component(page["id"], group_id ? body.merge("grouped" => true, "group" => group_id) : body)
-        made = regroup(environment_row, page, made["id"], group_id) if group_id && group_id_of(made) != group_id
+        if group_id && group_id_of(made) != group_id
+          fail! "Instatus added #{body['name']} but did not return its id, so it was not put in group #{group_id}. Check it in Instatus." if made["id"].blank?
+
+          made = regroup(environment_row, page, made["id"], group_id)
+        end
         Telemetry.result("Instatus added #{made['name'] || body['name']} (id #{made['id']}) to #{page['name']}, #{made['status'] || body['status']}.", link: page_link(page))
       end
 

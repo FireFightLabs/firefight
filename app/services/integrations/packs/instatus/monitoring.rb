@@ -18,6 +18,8 @@ module Integrations
         CRON_LOG_MOST = 127
         # A header or query parameter with one of these in its name carries a credential.
         SECRET_NAME = /auth|token|key|secret|password|cookie|session|signature/i
+        EMAIL = /\A[^@\s\/]+@[^@\s\/]+\.[^@\s\/]+\z/
+        PHONE = /\A\+?[\d\s().-]{6,20}\z/
         ON_FAIL = {
           "type" => "object",
           "properties" => {
@@ -433,8 +435,14 @@ module Integrations
           end
         end
 
+        # A recipient is an email or a phone number. Anything else, such as a webhook address, works as a password.
         def alert_body(arguments)
-          body = { "recipient" => arguments["recipient"].to_s.strip.presence }.compact
+          recipient = arguments["recipient"].to_s.strip.presence
+          if recipient && !recipient.match?(EMAIL) && !recipient.match?(PHONE)
+            fail_policy!("An alert's recipient here is an email or a phone number. A webhook address works as a password, so set it in Instatus, under Monitoring, Alerts.")
+          end
+
+          body = { "recipient" => recipient }.compact
           %w[when_fails when_recovers when_degrades when_ssl_expires].each { |key| body[key.camelize(:lower)] = arguments[key] if [ true, false ].include?(arguments[key]) }
           body["sslExpiresInDays"] = arguments["ssl_expires_in_days"] if arguments["ssl_expires_in_days"].is_a?(Integer)
           body
