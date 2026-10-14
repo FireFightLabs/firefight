@@ -181,6 +181,57 @@ module Integrations
       api.delete_outage("pg1", "o1")
     end
 
+    test "workspace, audience group, integration, routing, escalation and on-call calls go where Instatus documents each, spelling and version included" do
+      api = InstatusApi.new("in-key")
+      expect_get("/v1/workspaces", [], {})
+      expect_get("/v1/pg1/audience-groups", [], {})
+      expect_get("/pg1/routing-rules", { routingRules: [ { id: "r1" } ] }, {})
+      expect_get("/pg1/escalation-policies", { escalationPolicies: [ { id: "e1" } ] }, {})
+      expect_get("/on-call-schedules/s1/members", { currentMembers: [], nextMembers: [], allMembers: [] }, {})
+
+      assert_empty api.workspaces.items
+      assert_empty api.audience_groups("pg1").items
+      assert_equal [ { "id" => "r1" } ], api.routing_rules("pg1")
+      assert_equal [ { "id" => "e1" } ], api.escalation_policies("pg1")
+      assert_empty api.on_call_members("s1")["currentMembers"]
+
+      expect_write(Net::HTTP::Post, "/v1/workspaces", { "name" => "Ops", "slug" => "ops" }, { id: "w1" })
+      expect_write(Net::HTTP::Delete, "/v1/workspaces/w1", nil, { id: "w1" })
+      expect_write(Net::HTTP::Post, "/v1/pg1/audience_groups", { "name" => "Partners", "components" => [ "c1" ] }, { id: "ag1" })
+      expect_write(Net::HTTP::Put, "/v1/pg1/audience_groups/ag1", { "teammates" => [ "t1" ] }, { id: "ag1" })
+      expect_write(Net::HTTP::Delete, "/v1/pg1/audience-groups/ag1", nil, { id: "ag1" })
+      expect_write(Net::HTTP::Post, "/v3/integrations", { "pageId" => "pg1", "integrationType" => "PINGDOM" }, { integration: { id: "i1" } })
+      expect_write(Net::HTTP::Put, "/v3/integrations/i1", { "label" => "Pingdom" }, { integration: { id: "i1" } })
+      expect_write(Net::HTTP::Delete, "/v3/integrations/i1", nil, {})
+      expect_write(Net::HTTP::Post, "/routing-rules", { "routingRule" => { "siteId" => "pg1", "order" => 1 } }, { routingRule: { id: "r2" } })
+      expect_write(Net::HTTP::Put, "/routing-rules/r2", { "routingRule" => { "id" => "r2", "siteId" => "pg1", "order" => 2 } }, { routingRule: { id: "r2" } })
+      expect_write(Net::HTTP::Delete, "/routing-rules/r2", nil, {})
+      expect_write(Net::HTTP::Post, "/escalation-policies", { "pageId" => "pg1", "name" => "Primary" }, { escalationPolicy: { id: "e2" } })
+      expect_write(Net::HTTP::Put, "/escalation-policies/e2", { "pageId" => "pg1", "name" => "Main" }, { escalationPolicy: { id: "e2" } })
+      expect_write(Net::HTTP::Delete, "/escalation-policies/e2", nil, {})
+      expect_write(Net::HTTP::Post, "/on-call-schedules", { "name" => "Primary", "onCallShifts" => [] }, { id: "s2" })
+      expect_write(Net::HTTP::Put, "/on-call-schedules/s2", { "id" => "s2", "name" => "Main" }, { id: "s2" })
+      expect_write(Net::HTTP::Delete, "/on-call-schedules/s2", nil, {})
+
+      api.create_workspace("name" => "Ops", "slug" => "ops")
+      api.delete_workspace("w1")
+      api.create_audience_group("pg1", "name" => "Partners", "components" => [ "c1" ])
+      api.update_audience_group("pg1", "ag1", "teammates" => [ "t1" ])
+      api.delete_audience_group("pg1", "ag1")
+      api.create_integration("pageId" => "pg1", "integrationType" => "PINGDOM")
+      api.update_integration("i1", "label" => "Pingdom")
+      api.delete_integration("i1")
+      api.create_routing_rule("siteId" => "pg1", "order" => 1)
+      api.update_routing_rule("r2", "id" => "r2", "siteId" => "pg1", "order" => 2)
+      api.delete_routing_rule("r2")
+      api.create_escalation_policy("pageId" => "pg1", "name" => "Primary")
+      api.update_escalation_policy("e2", "pageId" => "pg1", "name" => "Main")
+      api.delete_escalation_policy("e2")
+      api.create_on_call_schedule("name" => "Primary", "onCallShifts" => [])
+      api.update_on_call_schedule("s2", "id" => "s2", "name" => "Main")
+      api.delete_on_call_schedule("s2")
+    end
+
     test "Instatus's refusal is raised in its own words, a key it does not know is its own error, and a 429 is rate limited" do
       Http.stubs(:request).returns(response(404, { error: { code: "page_not_found", message: "There is no status page with this ID." } }))
       error = assert_raises(InstatusApi::Error) { InstatusApi.new("in-key").incident("nope", "i1") }

@@ -371,6 +371,7 @@ module Integrations
 
       include Monitoring
       include PageContent
+      include Operations
 
       def self.credential_fields
         [

@@ -211,6 +211,53 @@ module Integrations
 
     def delete_outage(page_id, outage_id) = send_json(Net::HTTP::Delete, "/v1/#{segment(page_id)}/outages/#{segment(outage_id)}")
 
+    def workspaces = paged("/v1/workspaces")
+
+    def create_workspace(body) = send_json(Net::HTTP::Post, "/v1/workspaces", body)
+
+    def delete_workspace(workspace_id) = send_json(Net::HTTP::Delete, "/v1/workspaces/#{segment(workspace_id)}")
+
+    # Instatus documents reading and deleting audience groups at audience-groups, and making and changing them at
+    # audience_groups, so each call uses the spelling documented for it.
+    def audience_groups(page_id) = paged("/v1/#{segment(page_id)}/audience-groups")
+
+    def create_audience_group(page_id, body) = send_json(Net::HTTP::Post, "/v1/#{segment(page_id)}/audience_groups", body)
+
+    def update_audience_group(page_id, group_id, body) = send_json(Net::HTTP::Put, "/v1/#{segment(page_id)}/audience_groups/#{segment(group_id)}", body)
+
+    def delete_audience_group(page_id, group_id) = send_json(Net::HTTP::Delete, "/v1/#{segment(page_id)}/audience-groups/#{segment(group_id)}")
+
+    # A third party monitoring tool that opens and resolves incidents on a page, on version 3 of the API.
+    def create_integration(body) = send_json(Net::HTTP::Post, "/v3/integrations", body)
+
+    def update_integration(integration_id, body) = send_json(Net::HTTP::Put, "/v3/integrations/#{segment(integration_id)}", body)
+
+    def delete_integration(integration_id) = send_json(Net::HTTP::Delete, "/v3/integrations/#{segment(integration_id)}")
+
+    def routing_rules(page_id) = Array(get("/#{segment(page_id)}/routing-rules").to_h["routingRules"])
+
+    def create_routing_rule(rule) = send_json(Net::HTTP::Post, "/routing-rules", { "routingRule" => rule })
+
+    def update_routing_rule(rule_id, rule) = send_json(Net::HTTP::Put, "/routing-rules/#{segment(rule_id)}", { "routingRule" => rule })
+
+    def delete_routing_rule(rule_id) = send_json(Net::HTTP::Delete, "/routing-rules/#{segment(rule_id)}")
+
+    def escalation_policies(page_id) = Array(get("/#{segment(page_id)}/escalation-policies").to_h["escalationPolicies"])
+
+    def create_escalation_policy(body) = send_json(Net::HTTP::Post, "/escalation-policies", body)
+
+    def update_escalation_policy(policy_id, body) = send_json(Net::HTTP::Put, "/escalation-policies/#{segment(policy_id)}", body)
+
+    def delete_escalation_policy(policy_id) = send_json(Net::HTTP::Delete, "/escalation-policies/#{segment(policy_id)}")
+
+    def on_call_members(schedule_id) = get("/on-call-schedules/#{segment(schedule_id)}/members")
+
+    def create_on_call_schedule(body) = send_json(Net::HTTP::Post, "/on-call-schedules", body)
+
+    def update_on_call_schedule(schedule_id, body) = send_json(Net::HTTP::Put, "/on-call-schedules/#{segment(schedule_id)}", body)
+
+    def delete_on_call_schedule(schedule_id) = send_json(Net::HTTP::Delete, "/on-call-schedules/#{segment(schedule_id)}")
+
     private
 
     def monitor_paged(path, key, query = {})
