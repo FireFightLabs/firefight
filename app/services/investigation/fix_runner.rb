@@ -65,6 +65,7 @@ class Investigation::FixRunner
 
     if was == Investigation::RemediationStep::STATUS_WAITING_APPROVAL && step.approval&.pending?
       step.approval.expire!(reason: "#{who.upcase_first} cancelled the #{step.plan.undo? ? 'undo' : 'fix'} before anyone decided.")
+      ApprovalNotificationService.mark_resolved!(step.approval)
     end
     step.approval&.dismiss! if was == Investigation::RemediationStep::STATUS_APPROVED
   end
@@ -127,9 +128,13 @@ class Investigation::FixRunner
     blocked = step.ask_again_blocked_reason(by)
     return blocked if blocked
 
+    lapsing = step.approval
+    still_approved = lapsing&.approved?
     approval = step.request_approval_again!
     return "No approval rule holds this step any more. Cancel the fix and apply it again to run it." unless approval
 
+    # An approval that lapsed only now, in asking again, says so where it was asked.
+    ApprovalNotificationService.mark_resolved!(lapsing) if still_approved && lapsing.reload.expired?
     ApprovalResumption.park_fix_step!(approval, step)
     new(step.plan).publish!
     nil

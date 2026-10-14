@@ -87,7 +87,7 @@ class WorkflowRunAsksControllerTest < ActionDispatch::IntegrationTest
     assert WorkflowPublishService.new(@workflow).publish!(draft.reload, by: @alice).ok
     again = start
     other = @workspace.ability_approvals.find_by!(workflow_run_id: again.id)
-    assert_equal "You need approvals access to decide this request. Ask a workspace admin under Gateway, Permissions.",
+    assert_equal "You don't have permission to decide this request. Ask a workspace admin to grant you approvals access under Gateway, Permissions.",
                  WorkflowRunDetailSerializer.one_as_hash(again, member: @bob).deep_stringify_keys["steps"].sole.dig("ask", "blockedReason")
 
     post workflow_run_approval_approve_path(@workflow, again, other)

@@ -101,7 +101,7 @@ class ApprovalsControllerTest < ActionDispatch::IntegrationTest
     get gateway_approvals_url, headers: inertia_headers
     reasons = inertia_props["pendingApprovals"].to_h { |row| [ row["id"], row["decideDeniedReason"] ] }
     assert_nil reasons[named.id]
-    assert_equal "You need approvals access to decide this request. Ask a workspace admin under Gateway, Permissions.", reasons[@approval.id]
+    assert_equal "You don't have permission to decide this request. Ask a workspace admin to grant you approvals access under Gateway, Permissions.", reasons[@approval.id]
 
     post approve_approval_url(@approval)
     assert @approval.reload.pending?

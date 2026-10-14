@@ -63,8 +63,8 @@ class AbilityApprovalSerializer < BaseSerializer
     approval.question_details
   end
 
-  # Why the person looking may not decide it, as the gateway answers, or nil when they may: approvals access, or being
-  # named on the workflow Approval step that asked it. Only a request still waiting is asked, given who is looking.
+  # Why the person looking may not decide it, as the gateway answers, or nil when they may, through approvals access or
+  # being named on the workflow Approval step that asked it. Only a request still waiting is asked, given who is looking.
   type :string, optional: true
   def decide_denied_reason
     approval.decide_denied_reason(options[:member]) if options[:member] && approval.pending?

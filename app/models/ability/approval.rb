@@ -86,14 +86,13 @@ module Ability
       update!(held_for_run: true)
     end
 
-    # An approved call nobody ran in time expires, in one statement, so a run claiming it at the same moment stands.
-    # Where it was asked then says it was withdrawn and why.
+    # An approved call nobody ran in time expires, in one statement, so a run claiming it at the same moment stands. It
+    # keeps why, which the caller has every message it was asked in say (ApprovalNotificationService.mark_resolved!).
     def lapse_run!
       now = Time.current
       lapsed = self.class.where(id: id, status: STATUS_APPROVED, consumed_at: nil).where(run_expires_at: ..now)
                          .update_all(status: STATUS_EXPIRED, withdrawn_reason: lapsed_reason, updated_at: now)
       reload
-      redraw_where_asked if lapsed == 1
       lapsed == 1
     end
 
@@ -106,14 +105,11 @@ module Ability
     end
 
     # Only from pending, in one statement, so an approval given at the same moment stands. reason is why it was withdrawn,
-    # as a sentence, which every message it was asked in then says in place of its buttons.
+    # as a sentence, which the caller has every message it was asked in say in place of its buttons.
     def expire!(reason:)
       now = Time.current
-      moved = self.class.where(id: id, status: STATUS_PENDING)
-                        .update_all(status: STATUS_EXPIRED, withdrawn_reason: reason, resolved_at: now, updated_at: now)
+      self.class.where(id: id, status: STATUS_PENDING).update_all(status: STATUS_EXPIRED, withdrawn_reason: reason, resolved_at: now, updated_at: now)
       reload
-      redraw_where_asked if moved == 1
-      self
     end
 
     # One statement, so two callers racing for the same approval cannot both win.
@@ -166,7 +162,7 @@ module Ability
       action = Ability::Action.lookup(DECIDE_KEY, workspace)
       return if principal && AbilityGateway.permitted?(principal, action, DECIDE_KEY, workspace, decision_scope)
 
-      "You need approvals access to decide this request. Ask a workspace admin under Gateway, Permissions."
+      "You don't have permission to decide this request. Ask a workspace admin to grant you approvals access under Gateway, Permissions."
     end
 
     # Where it is asked in a channel. A workflow's Approval step asks where its run asks people (Workflow::Run#asking_channel_id),
@@ -308,11 +304,6 @@ module Ability
     private
 
     def lapsed_reason = "Nobody ran it within #{ActiveSupport::Duration.build(RUN_WINDOW.to_i).inspect} of its approval."
-
-    # Every message it was asked in says it no longer waits, once the change is committed.
-    def redraw_where_asked
-      ActiveRecord.after_all_transactions_commit { AbilityApprovalResolvedJob.perform_later(id) }
-    end
 
     def approver_requirement_message
       return "requires the #{required_role} role" unless named_approvers?

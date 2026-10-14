@@ -139,7 +139,7 @@ class DefinedWorkflow::Steps::Approval < DefinedWorkflow::Steps::Base
   end
 
   def withdraw(approval, reason)
-    approval.expire!(reason: reason)
+    ActiveRecord.after_all_transactions_commit { AbilityApprovalResolvedJob.perform_later(approval.id) } if approval.expire!(reason: reason).expired?
     withdrawn(reason)
   end
 

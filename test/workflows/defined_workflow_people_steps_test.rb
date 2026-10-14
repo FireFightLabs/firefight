@@ -404,6 +404,6 @@ class DefinedWorkflowPeopleStepsTest < ActiveSupport::TestCase
     assert_not AbilityGateway.permitted?(@bob, action, Ability::Approval::DECIDE_KEY, @workspace, {})
     assert_not AbilityGateway.permitted?(@bob, action, Ability::Approval::DECIDE_KEY, @workspace, requested(other).decision_scope)
     assert_nil approval.decide_denied_reason(@bob)
-    assert_equal "You need approvals access to decide this request. Ask a workspace admin under Gateway, Permissions.", requested(other).decide_denied_reason(@bob)
+    assert_equal "You don't have permission to decide this request. Ask a workspace admin to grant you approvals access under Gateway, Permissions.", requested(other).decide_denied_reason(@bob)
   end
 end

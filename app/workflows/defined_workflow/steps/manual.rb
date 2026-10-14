@@ -1,5 +1,5 @@
-# Pauses the run and gives a person a task: a named member or an incident's lead, in a direct message, or anyone, in the
-# incident's channel or the channel of the team that owns the workflow. It shows on the run's page too, and whoever
+# Pauses the run and gives a person a task. A named member or an incident's lead gets it in a direct message, and a task
+# for anyone is posted in the incident's channel or the owning team's. It shows on the run's page too, and whoever
 # may presses Done there or in chat, writing the note it collects when it asks for one, such as a ticket number, which
 # later steps read. In a test run the person testing can mark it done. A task nobody marks done within the step's wait
 # is withdrawn and the step takes its not done route. It changes nothing itself, so it needs no grant.

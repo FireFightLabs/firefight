@@ -53,7 +53,7 @@ class WorkflowRunEndService
   def withdraw_asks!
     Workflow::Run::Question.open.where(run_step_id: @run.steps.select(:id)).find_each { |question| WorkflowQuestionService.withdraw!(question) }
     @workspace.ability_approvals.pending.where(workflow_run_id: @run.id, action_key: Ability::Action::WORKFLOW_APPROVAL).find_each do |approval|
-      approval.expire!(reason: "The run #{ended_words} before anyone decided.")
+      ApprovalNotificationService.mark_resolved!(approval) if approval.expire!(reason: "The run #{ended_words} before anyone decided.").expired?
     end
   end
 
