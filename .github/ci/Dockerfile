@@ -69,6 +69,13 @@ RUN cd /opt/browser && \
 ENV OPENCODE_BIN=/opt/opencode/node_modules/.bin/opencode
 RUN npm install --prefix /opt/opencode --no-fund --no-audit opencode-ai@1.18.34 && rm -rf /root/.npm
 
+# The Node sandbox/Dockerfile pins in /opt/clis/node, in the same place, since a code fix's driver runs on it there.
+# test/sandbox runs the driver on this one, and fails when its version is not the one sandbox/Dockerfile pins.
+ARG NODE_FOR_CLIS_VERSION=22.20.0
+RUN mkdir -p /opt/clis/node && \
+    curl -fsSL "https://nodejs.org/dist/v${NODE_FOR_CLIS_VERSION}/node-v${NODE_FOR_CLIS_VERSION}-linux-x64.tar.xz" | \
+      tar -C /opt/clis/node --strip-components=1 -xJ
+
 COPY --from=gems /usr/local/bundle /usr/local/bundle
 COPY --from=packages /opt/ci/node_modules /opt/ci/node_modules
 

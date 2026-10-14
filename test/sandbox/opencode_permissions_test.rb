@@ -2,12 +2,13 @@ require "test_helper"
 require "open3"
 require "webrick"
 
-# A code fix's agent run for real: Fixing::RUN with its driver and the OpenCode sandbox/Dockerfile pins, against a model
-# scripted here in Anthropic's format and Firefight's permissions endpoint stood in for here. It needs that OpenCode,
-# named by OPENCODE_BIN. It is skipped on a machine without it, and fails in CI, whose image installs it, so a broken
-# install is never passed over in silence.
+# A code fix's agent run for real: Fixing::RUN with its driver on the box's Node and the OpenCode sandbox/Dockerfile
+# pins, against a model scripted here in Anthropic's format and Firefight's permissions endpoint stood in for here. It
+# needs that OpenCode, named by OPENCODE_BIN. It is skipped on a machine without it, and fails in CI, whose image
+# installs it, so a broken install is never passed over in silence.
 class OpencodePermissionsTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
+  include SandboxNodeHelper
 
   Fixing = Integrations::Packs::Github::Fixing
   BIN = ENV["OPENCODE_BIN"].to_s
@@ -19,6 +20,7 @@ class OpencodePermissionsTest < ActiveSupport::TestCase
   HOUSE_RULE = "Always name branches after the ticket.".freeze
 
   setup do
+    require_agent_node!
     unless File.executable?(BIN)
       missing = "OpenCode is not installed. Set OPENCODE_BIN to the opencode sandbox/Dockerfile pins."
       ENV["CI"].present? ? flunk(missing) : skip(missing)
@@ -107,11 +109,15 @@ class OpencodePermissionsTest < ActiveSupport::TestCase
 
   private
 
-  # What an agent would run to answer its own question: OpenCode's server is found by its command line, its password in
-  # the shell's own environment, and the first open question answered always. The path is built at run time, as a
-  # determined agent would, so OpenCode cannot tell it reaches outside the copy.
+  # What an agent would run to answer its own question: OpenCode's server is found by the command line of the shell's
+  # own ancestor, since other servers may run on the machine, its password in the shell's own environment, and the
+  # first open question answered always. The path is built at run time, as a determined agent would, so OpenCode cannot
+  # tell it reaches outside the copy.
   SELF_ANSWER = <<~SH.squish.freeze
-    root=/proc; port=$(cat $root/[0-9]*/cmdline 2>/dev/null | tr '\\0' ' ' | grep -o -- '--port [0-9]*' | head -1 | cut -d' ' -f2);
+    root=/proc; pid=$$; port=;
+    while [ -z "$port" ] && [ "$pid" -gt 1 ]; do
+    port=$(tr '\\0' ' ' < $root/$pid/cmdline | grep -o -- '--port [0-9]*' | cut -d' ' -f2);
+    pid=$(awk '/^PPid/ { print $2 }' $root/$pid/status); done;
     for i in $(seq 1 40); do
     id=$(curl -s -u "opencode:$OPENCODE_SERVER_PASSWORD" "http://127.0.0.1:$port/permission" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4);
     if [ -n "$id" ]; then curl -s -u "opencode:$OPENCODE_SERVER_PASSWORD" -H 'Content-Type: application/json' -d '{"reply":"always"}'
@@ -146,7 +152,7 @@ class OpencodePermissionsTest < ActiveSupport::TestCase
                "mcp" => { Fixing::TOOLS_SERVER => { "type" => "remote", "url" => "#{base}/mcp", "enabled" => true, "headers" => { "Authorization" => "Bearer #{@token}" } } } }
     home = File.join(@root, "home")
     env = { "PATH" => "#{@bin}:#{ENV.fetch('PATH')}", "HOME" => home, "XDG_CONFIG_HOME" => "#{home}/.config", "XDG_DATA_HOME" => "#{home}/.local/share",
-            "XDG_CACHE_HOME" => "#{home}/.cache", "XDG_STATE_HOME" => "#{home}/.local/state", "SANDBOX_PROGRESS" => File.join(@root, "progress") }
+            "XDG_CACHE_HOME" => "#{home}/.cache", "XDG_STATE_HOME" => "#{home}/.local/state", "SANDBOX_PROGRESS" => File.join(@root, "progress"), "AGENT_NODE" => AGENT_NODE }
     output, = Open3.capture2(env, "bash", "-c", Fixing::RUN, Fixing::AGENT, "Fix it", "anthropic/#{MODEL}", "", "", "main", "halon/fix-1", "Fix", "",
                              "#{base}/permissions", chdir: @copy, stdin_data: "credential\n#{config.to_json}\n#{Fixing::DRIVER}")
     assert_match(/^SESSION ses_/, output, "The agent never started a session. The box said:\n#{output}\nOpenCode logged:\n#{opencode_log}")
