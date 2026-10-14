@@ -58,7 +58,7 @@ class Chat::Tools::Firefight < RubyLLM::Tool
   def looks_first? = @tool_class.ends_something? && Chat::Tools::LookFirst.applies?(@agent_run)
 
   def unsupported(given, tool_call_id)
-    Chat::Tools::LookFirst.refusal(@agent_run, given, tool_call_id: tool_call_id) if looks_first?
+    Chat::Tools::LookFirst.refusal(@agent_run, given, tool_call_id: tool_call_id, change: name) if looks_first?
   end
 
   # The action comes from the arguments, since an upsert is a create or an update depending on its target.

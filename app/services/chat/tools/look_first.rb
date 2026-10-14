@@ -18,10 +18,15 @@ module Chat::Tools::LookFirst
   # Said with every refusal, so Halon tells the person what is missing rather than proposing the same change again.
   STUCK = "When no read you can make shows it, tell the person in plain words what you could not confirm and what would " \
           "let you, rather than proposing it again.".freeze
-  # Said when the specialists asked in this turn read something. Halon makes the same read itself, and the read is
-  # loaded by name once a specialist has made it (Chat::Specialists.made_names).
+  # Said when the specialists asked in this turn read something Halon could not be handed. Halon makes the same read
+  # itself, loading it by name.
   SPECIALISTS_READ = "The specialists you asked read with %<reads>s. Make the read this rests on yourself, loading it by " \
                      "naming it in open_tools' tools, then name it in because.".freeze
+  # Said when the reads the refusal points at were handed to Halon with it: those the change named and those the
+  # specialists asked in this turn made, which Halon may use. Seen in a real chat, a model that was told to load a read
+  # by name never did, and called changes seven times meaning to read with them.
+  LOADED = "In your hands now: %<reads>s. Make the read that shows this change will help, then propose it again naming " \
+           "that read in because.".freeze
   # Said when the change named asking a specialist, which is another model's words and never a read.
   REPORT_NOT_A_READ = "#{Chat::Helper::ASK_SPECIALIST} is a specialist's report, not a read of yours.".freeze
   # How many of the specialists' reads a refusal names.
@@ -53,16 +58,19 @@ module Chat::Tools::LookFirst
 
   # Why the change goes back to Halon, or nil when a read from this turn backs it. A call already put to the person passed
   # this when it was asked, so it is never sent back after their answer.
-  def self.refusal(agent_run, given, tool_call_id: nil)
+  # change is the name of the tool that was called, whose connection's reads back it.
+  def self.refusal(agent_run, given, tool_call_id: nil, change: nil)
     return unless applies?(agent_run)
 
     workspace = agent_run.workspace
-    refusal_in(agent_run.chat, given, tool_call_id: tool_call_id, read: ->(name, arguments) { read?(workspace, name, arguments) })
+    refusal_in(agent_run.chat, given, tool_call_id: tool_call_id, read: ->(name, arguments) { read?(workspace, name, arguments) },
+                                      load: ->(names) { load_reads(agent_run, names, change: change) })
   end
 
   # The same check over any chat, read saying whether a call only read. A replay asks it with its scenario's word for
-  # that (Conversation::Rehearsal::RecordedTool).
-  def self.refusal_in(chat, given, read:, tool_call_id: nil)
+  # that (Conversation::Rehearsal::RecordedTool). load hands Halon the reads the refusal points at that it may use and
+  # answers their names, so the next step can make them.
+  def self.refusal_in(chat, given, read:, tool_call_id: nil, load: nil)
     return if tool_call_id && chat.tool_calls.where(tool_call_id: tool_call_id).where.not(approval: nil).exists?
 
     entries = named(given)
@@ -71,20 +79,37 @@ module Chat::Tools::LookFirst
     return if backed.any?
 
     not_reads, missing = unread.map { |entry| tool_name(entry) }.uniq.partition { |name| NOT_READS.include?(name) }
+    specialists = Chat::Specialists.made_names(chat, since: window(chat).last).to_a
+    loaded = load ? load.call((missing + specialists.first(SPECIALIST_READS_NAMED)).uniq).to_a : []
     [ BOUNCE, (REPORT_NOT_A_READ if not_reads.include?(Chat::Helper::ASK_SPECIALIST)),
       ("You named #{missing.to_sentence}, which you did not read in this turn or recently enough." if missing.any?),
-      specialists_read(chat), STUCK ].compact.join(" ")
+      specialists_read(specialists - loaded), (format(LOADED, reads: loaded.to_sentence) if loaded.any?), STUCK ].compact.join(" ")
   end
 
-  # The reads the specialists made since the answer before this turn, which are the ones Halon makes again to back the
-  # change.
-  def self.specialists_read(chat)
-    names = Chat::Specialists.made_names(chat, since: window(chat).last).to_a
+  # The reads the specialists made since the answer before this turn that Halon was not handed, which are the ones it
+  # loads to make again to back the change.
+  def self.specialists_read(names)
     return if names.empty?
 
     shown = names.first(SPECIALIST_READS_NAMED)
     shown << "#{names.size - shown.size} more" if names.size > shown.size
     format(SPECIALISTS_READ, reads: shown.to_sentence)
+  end
+
+  # Hands Halon the named reads it may use, in a chat that asks specialists only those it may load
+  # (Chat::Specialists.loadable), counting the change it called. Answers the names handed.
+  def self.load_reads(agent_run, names, change:)
+    return [] if names.empty?
+
+    workspace = agent_run.workspace
+    chat = agent_run.chat
+    loadable = Chat::Specialists.loadable(chat, workspace, held: chat.known_tool_names + [ change ].compact) if Chat::Specialists.for?(agent_run)
+    entries = Chat::Tools.catalog(agent_run).select do |entry|
+      names.include?(entry.name.to_s) && entry.tool && read?(workspace, entry.name, {}) &&
+        !(loadable && Chat::Specialists.held_back?(workspace, entry, loadable))
+    end
+    Chat::Tools.offer_to(chat).call(entries.map(&:tool)) if entries.any?
+    entries.map { |entry| entry.name.to_s }
   end
 
   # The reads a change put to the person named, each as the step is titled and what Halon said it showed, from the turn

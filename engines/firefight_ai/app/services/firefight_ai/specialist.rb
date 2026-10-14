@@ -28,7 +28,8 @@ module FirefightAi
         AgentLoop.new(
           chat: chat, budget: AgentLoop::Budget.new(max_spend_cents: max_spend_cents, max_turns: MAX_TURNS),
           answered: answered, canceled: canceled, reply_is_answer: true, on_step: on_step, memory: memory,
-          inference: inference_context, output: FirefightAi.output_cap(@purpose, choice: @choice), choice: @choice, purpose: @purpose
+          inference: inference_context, output: FirefightAi.output_cap(@purpose, choice: @choice), choice: @choice, purpose: @purpose,
+          retry_malformed: true
         ).run(&on_turn)
       end
     end

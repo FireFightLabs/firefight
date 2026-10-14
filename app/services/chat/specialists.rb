@@ -130,8 +130,9 @@ module Chat::Specialists
   def self.of_provider(provider_key) = IntegrationProvider.specialist_for(provider_key)
 
   # A connection tool that only reads and whose provider a specialist reads is the specialist's, so Halon is never handed
-  # it, and loads it by name only once a specialist made it in the chat (held_back?). A tool that can change something
-  # stays Halon's to load, and a connection no specialist reads stays Halon's own.
+  # it from the start, and loads it by name only once a specialist made it in the chat or Halon holds a change of the
+  # same connection (held_back?). A tool that can change something stays Halon's to load, and a connection no
+  # specialist reads stays Halon's own.
   def self.reserved?(workspace, entry)
     entry.source != Chat::Skill::SOURCE_FIREFIGHT && of_provider(entry.source).present? && workspace.reading_tool_names.include?(entry.name.to_s)
   end
@@ -152,8 +153,24 @@ module Chat::Specialists
     calls.order(:created_at).pluck(:name).uniq.to_set
   end
 
-  # Whether a read is the specialist's and not Halon's to load in this chat: reserved, and no specialist made it here.
-  def self.held_back?(workspace, entry, made) = reserved?(workspace, entry) && !made.include?(entry.name.to_s)
+  # The reads of every connection one of these tools changes something on. A connection is never change-only in Halon's
+  # hands: once it holds a change, the same connection's reads are its to load, so it can read what the change rests on
+  # rather than reach for the change to look.
+  def self.backing(workspace, held_names)
+    tools = workspace.connection_tools_by_name
+    changed = held_names.filter_map { |name| tools[name.to_s] }.reject(&:read_only?).map(&:integration_id).to_set
+    return Set.new if changed.empty?
+
+    tools.values.select { |tool| tool.read_only? && changed.include?(tool.integration_id) }.map(&:model_facing_name).to_set
+  end
+
+  # The reserved reads Halon may load by name in this chat: those a specialist made here, and those of a connection
+  # whose change Halon holds, which by default are the tools it loaded in the chat.
+  def self.loadable(chat, workspace, held: chat&.known_tool_names.to_a) = made_names(chat) | backing(workspace, held)
+
+  # Whether a read is the specialist's and not Halon's to load in this chat: reserved, and not among those Halon may
+  # load (loadable).
+  def self.held_back?(workspace, entry, loadable) = reserved?(workspace, entry) && !loadable.include?(entry.name.to_s)
 
   # The kinds a Firefight tool or capability helps, by its name, whether it reads or is a change one may propose.
   def self.helping(name)

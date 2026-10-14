@@ -6,7 +6,7 @@ class Conversation::BenchCaseTest < ActiveSupport::TestCase
   # since that each found a way Halon was boxed in.
   FAILURES = %w[release_watch_followed_nothing slow_query_investigation_timed_out sticks_with_no duplicate_workspace_signup confirm_card_repeats_choices].freeze
   HABITS = %w[reads_without_asking general_read_when_no_tool repository_from_the_map].freeze
-  CHATS = %w[review_fix_on_a_specialists_read].freeze
+  CHATS = %w[review_fix_on_a_specialists_read change_only_reads_through_a_change].freeze
 
   test "every scenario reads, says what a good run reaches and what it does next, and names only tools it offers" do
     scenarios = Conversation::BenchCase.scenarios

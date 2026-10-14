@@ -156,7 +156,7 @@ class Chat::Tools::Browser < RubyLLM::Tool
       return not_shown(check)
     end
 
-    Chat::Tools::LookFirst.refusal(@agent_run, given, tool_call_id: tool_call_id)
+    Chat::Tools::LookFirst.refusal(@agent_run, given, tool_call_id: tool_call_id, change: name)
   rescue Chat::BrowserCheck::Refused => error
     error.message
   end

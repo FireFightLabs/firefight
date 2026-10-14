@@ -119,7 +119,9 @@ class Conversation::RehearsalSpecialistsTest < ActiveSupport::TestCase
   # review, and every try at the change went back to Halon because only its own read backs one and every read of the
   # code host was the specialist's. A replay holds Halon to the same rule, and Halon loads the read the specialist made,
   # makes it itself and goes ahead.
-  test "a change backed only by a specialist goes back to Halon, which makes the specialist's read itself and then asks the person" do
+  # Seen in a real chat, a model told to load the specialist's read by name never did. The refusal hands it the read,
+  # so its next step makes it.
+  test "a change backed only by a specialist goes back to Halon with the specialist's read in hand, which it makes and then asks the person" do
     FirefightAi.configuration.stubs(:specialists).returns(:on)
     script(
       call("ask_specialist", "asks" => [ { "domain" => "databases", "objective" => "Who holds orders' connections?" } ]),
@@ -130,7 +132,6 @@ class Conversation::RehearsalSpecialistsTest < ActiveSupport::TestCase
       call("open_tools", "group" => "planetscale", "tools" => [ "planetscale_api_request" ]),
       call("planetscale_api_request", "method" => "POST", "path" => "/branches", "intent" => "Raise the limit",
            "because" => [ "ask_specialist databases: orders is at 498 of 500" ]),
-      call("open_tools", "group" => "planetscale", "tools" => [ "planetscale_get_insights" ]),
       call("planetscale_get_insights", "database" => "orders"),
       call("planetscale_api_request", "method" => "POST", "path" => "/branches", "intent" => "Raise the limit",
            "because" => [ "planetscale_get_insights: open connections 498 of 500 since 13:39" ]),
@@ -140,11 +141,10 @@ class Conversation::RehearsalSpecialistsTest < ActiveSupport::TestCase
     replay = Conversation::Rehearsal.replay!(bench_case(decisions: [ Conversation::BenchCase::DECISION_APPROVE ]), result: @result, model: @model)
     calls = replay.transcript.calls.reject(&:by)
 
-    assert_equal %w[ask_specialist open_tools planetscale_api_request open_tools planetscale_get_insights planetscale_api_request], calls.map(&:name)
-    _asked, _opened_change, bounced, opened, read, change = calls
+    assert_equal %w[ask_specialist open_tools planetscale_api_request planetscale_get_insights planetscale_api_request], calls.map(&:name)
+    _asked, _opened_change, bounced, read, change = calls
     assert bounced.result.start_with?(Chat::Tools::LookFirst::BOUNCE), "a specialist's report does not back a change"
-    assert_includes bounced.result, format(Chat::Tools::LookFirst::SPECIALISTS_READ, reads: "planetscale_get_insights")
-    assert_includes opened.result, "planetscale_get_insights: Query insights for a branch (ready to call)"
+    assert_includes bounced.result, format(Chat::Tools::LookFirst::LOADED, reads: "planetscale_get_insights")
     assert_equal INSIGHTS, read.result
     assert_equal Chat::APPROVAL_APPROVED, change.approval
     assert_equal "Created branch raise-limit.", change.result

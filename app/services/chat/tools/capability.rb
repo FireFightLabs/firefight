@@ -86,7 +86,7 @@ class Chat::Tools::Capability < RubyLLM::Tool
   def looks_first? = @spec.writes && Chat::Tools::LookFirst.applies?(@agent_run)
 
   def unsupported(given, tool_call_id)
-    Chat::Tools::LookFirst.refusal(@agent_run, given, tool_call_id: tool_call_id) if looks_first?
+    Chat::Tools::LookFirst.refusal(@agent_run, given, tool_call_id: tool_call_id, change: name) if looks_first?
   end
 
   # What a rollback undoes, said to Halon before the person is asked, read once for each call.

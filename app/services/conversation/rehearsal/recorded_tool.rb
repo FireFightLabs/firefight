@@ -4,8 +4,9 @@
 # tools answer from the replay's state instead (Conversation::Rehearsal::State), so they show what Halon changed.
 class Conversation::Rehearsal::RecordedTool < RubyLLM::Tool
   # world and state are shared by every tool in the replay, the scenario's world as the replay moved it and the watches
-  # and plans made in it. unscripted collects the ids of calls nothing in the case answered.
-  def initialize(definition, bench_case:, chat:, world:, state:, unscripted:)
+  # and plans made in it. unscripted collects the ids of calls nothing in the case answered. load hands Halon the reads a
+  # refusal points at, given the change's name, as live, and answers the names it handed.
+  def initialize(definition, bench_case:, chat:, world:, state:, unscripted:, load: nil)
     super()
     @definition = definition
     @bench_case = bench_case
@@ -13,6 +14,7 @@ class Conversation::Rehearsal::RecordedTool < RubyLLM::Tool
     @world = world
     @state = state
     @unscripted = unscripted
+    @load = load
   end
 
   def name = @definition.name
@@ -70,7 +72,8 @@ class Conversation::Rehearsal::RecordedTool < RubyLLM::Tool
   def unsupported(asked, tool_call_id)
     return unless looks_first? && !@bench_case.reads_call?(name, asked)
 
-    Chat::Tools::LookFirst.refusal_in(@chat, asked, read: @bench_case.method(:reads_call?), tool_call_id: tool_call_id)
+    Chat::Tools::LookFirst.refusal_in(@chat, asked, read: @bench_case.method(:reads_call?), tool_call_id: tool_call_id,
+                                                    load: (->(names) { @load.call(names, name) } if @load))
   end
 
   # A read that finds nothing is an answer, not a failure. A change nothing answers, or a call a real chat never made, failed.

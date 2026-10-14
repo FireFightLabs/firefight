@@ -25,6 +25,7 @@ class Chat::Tools::LookFirstTest < ActiveSupport::TestCase
     fake.integration_environments.create!(credentials: { token: "x" }.to_json)
     fake.tools.create!(name: "write_thing", description: "Writes", params_schema: { "type" => "object" }, enabled: true, read_only: false)
     Integrations::NativePack.stubs(:for).with("fake").returns(FakeNativePack)
+    Chat.any_instance.stubs(:with_tools)
   end
 
   test "a restart with nothing read in this turn goes back to Halon before any card, and nothing runs" do
@@ -51,7 +52,9 @@ class Chat::Tools::LookFirstTest < ActiveSupport::TestCase
     call = change!("call_stale", "restart", "resource" => "web", "because" => because)
     Integrations::NativeExecutor.expects(:call).never
     answer = tool("restart").call(tool_call: call, "resource" => "web", "because" => because)
-    assert_equal "#{Chat::Tools::LookFirst::BOUNCE} You named search_logs, which you did not read in this turn or recently enough. #{Chat::Tools::LookFirst::STUCK}", answer
+    assert_equal "#{Chat::Tools::LookFirst::BOUNCE} You named search_logs, which you did not read in this turn or recently enough. " \
+                 "#{format(Chat::Tools::LookFirst::LOADED, reads: 'search_logs')} #{Chat::Tools::LookFirst::STUCK}", answer
+    assert_includes @chat.reload.known_tool_names, "search_logs", "the read it named is handed to Halon for its next step"
   end
 
   test "approving what Halon proposed in its previous answer goes ahead on its reads while they are fresh" do

@@ -99,7 +99,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     return unless changes_at_all?
     return if reads?(given) || (data_writes? && Chat::DataRepairs.reads?(@tool, given))
 
-    Chat::Tools::LookFirst.refusal(@agent_run, given, tool_call_id: tool_call_id)
+    Chat::Tools::LookFirst.refusal(@agent_run, given, tool_call_id: tool_call_id, change: name)
   end
 
   def misdirection(given)

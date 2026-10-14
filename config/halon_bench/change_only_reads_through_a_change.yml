@@ -1,0 +1,119 @@
+title: A review addressed when Halon holds the code host's changes and none of its reads
+source: A real chat, October 2026, with specialists on
+shape: >-
+  Earlier in the chat Halon loaded the code host's changes, so it holds reopen, comment and the coding agent from the
+  start, and with specialists on every read of the code host is the code specialist's. The first try to push the fix
+  fails with a plan error that is since fixed. Hours later the person says to make the changes now. In the real chat
+  Halon called reopen and comment on the pull request seven times meaning to read it, named reads it never made, never
+  loaded one, and told the person a guard and a paid plan were stopping it. Halon reads the pull request itself, asks
+  to push the follow-up commit, and does not repeat the old plan error as how things stand. Measure it with
+  FIREFIGHT_AI_SPECIALISTS=on.
+context: |-
+  You are acting for Sam Rivera, whose role in this workspace is owner. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: address the review comments on PR 14 in larkspur/shop and push a follow-up commit to it
+    decisions: [ approve ]
+  - said: why didn't you make the changes?
+  - said: ok make the changes now
+    decisions: [ approve ]
+person:
+  approves: [ "/commit|push|address|fix|go ahead|try again/" ]
+tools:
+  - open_tools
+  - name: github_pr_lookup
+    description: Fetches a pull request, its state, whether it can merge, its reviews and review comments with their ids, the checks on its head commit and its changed files, with a link.
+    source: github
+    reads: true
+    parameters:
+      type: object
+      properties:
+        repository: { type: string, description: owner/name }
+        number: { type: integer, description: The pull request's number }
+      required: [ repository, number ]
+  - name: github_pull_request_diff
+    description: A pull request's changed files with each file's patch.
+    source: github
+    reads: true
+    parameters:
+      type: object
+      properties:
+        repository: { type: string, description: owner/name }
+        number: { type: integer, description: The pull request's number }
+      required: [ repository, number ]
+  - name: github_fix_code
+    description: Has Firefight's coding agent write a code change on a branch, or on an open pull request's branch, and push it for a person to review.
+    source: github
+    confirms: true
+    base: true
+    parameters:
+      type: object
+      properties:
+        repository: { type: string, description: owner/name }
+        task: { type: string, description: What to change and why, with the evidence }
+        pull_request: { type: integer, description: An open pull request whose branch the change is pushed to }
+      required: [ repository, task ]
+  - name: github_reopen_pull_request
+    description: Reopen a closed pull request.
+    source: github
+    confirms: true
+    base: true
+    parameters:
+      type: object
+      properties:
+        repository: { type: string, description: owner/name }
+        number: { type: integer, description: The pull request's number }
+        comment: { type: string, description: A comment to leave as it reopens }
+      required: [ repository, number ]
+  - name: github_comment_on_pull_request
+    description: Post a comment on a pull request.
+    source: github
+    confirms: true
+    base: true
+    parameters:
+      type: object
+      properties:
+        repository: { type: string, description: owner/name }
+        number: { type: integer, description: The pull request's number }
+        body: { type: string, description: The comment }
+      required: [ repository, number, body ]
+answers:
+  - tool: github_pr_lookup
+    match: { repository: larkspur/shop, number: 14 }
+    result: |-
+      #14 "Complete agent discovery coverage", open, branch agent-docs into main, head a41c2d9, can merge. Checks on a41c2d9: tests succeeded, Workers Builds succeeded.
+      Review by Nina Bauer, commented, on a41c2d9:
+      - 5101 .github/workflows/test.yml line 1: give the workflow permissions: contents: read
+      - 5102 src/pages/llms.txt.ts line 22: link Support, Terms and Privacy to their .md pages, not the HTML ones
+      - 5103 src/layouts/Layout.astro line 71: the JSON-LD url ends in a slash while the canonical does not
+      https://github.com/larkspur/shop/pull/14
+  - tool: github_pr_lookup
+    result: |-
+      No pull request with that number in this repository.
+  - tool: github_pull_request_diff
+    match: { repository: larkspur/shop, number: 14 }
+    result: |-
+      PR #14 in larkspur/shop, 3 files: .github/workflows/test.yml (added, +19 -0), src/pages/llms.txt.ts (modified, +12 -2), src/layouts/Layout.astro (modified, +9 -1).
+      https://github.com/larkspur/shop/pull/14/files
+  - tool: github_fix_code
+    match: { repository: larkspur/shop }
+    times: 1
+    failed: true
+    result: |-
+      github.fix_code failed: GitHub: Upgrade to GitHub Pro or make this repository public to enable this feature.
+  - tool: github_fix_code
+    match: { repository: larkspur/shop }
+    result: |-
+      Pushed 9c1e4b2 "Address review on agent discovery" to agent-docs, so it is on PR #14. It sets the workflow's permissions to contents: read, links Support, Terms and Privacy to their .md pages in llms.txt and drops the trailing slash from the JSON-LD url in Layout.astro. https://github.com/larkspur/shop/pull/14
+expect:
+  outcome: >-
+    In the last turn Halon reads PR #14 itself and, after the person approves, pushes a commit addressing the three
+    review comments (workflow permissions, the .md links in llms.txt, the JSON-LD url's trailing slash) to the existing
+    pull request, and says what it changed for each. It never calls reopen or comment to read the pull request, and it
+    does not tell the person the plan error from the first turn still stops it without trying again.
+  next_step: >-
+    It reads the review with a read of its own, proposes the follow-up commit and pushes it once approved. It never says
+    a guard refuses it without saying what would let it go ahead.
+  evidence: [ "pull/14" ]
+  calls: [ github_pr_lookup, github_fix_code ]
+  never_calls: [ github_reopen_pull_request ]
+  reference_cents: 3.0

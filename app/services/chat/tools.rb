@@ -484,13 +484,19 @@ module Chat::Tools
     [ shown&.title, shown&.headline ].compact_blank.join(" ")
   end
 
-  # What the chat found earlier, for whoever acts now, so a grant taken away since is not handed back. A read a specialist
-  # holds is never handed back to a chat that asks specialists.
+  # What the chat found earlier, for whoever acts now, so a grant taken away since is not handed back. In a chat that asks
+  # specialists a read a specialist holds is handed back only while Halon may load it (Chat::Specialists.loadable), such
+  # as one backing a change Halon still holds.
   def self.known(agent_run, chat)
     names = chat.known_tool_names
     return [] if names.empty?
 
-    ready = halons(agent_run, catalog(agent_run).select(&:tool)).index_by(&:name)
+    ready = catalog(agent_run).select(&:tool)
+    if Chat::Specialists.for?(agent_run)
+      loadable = Chat::Specialists.loadable(chat, agent_run.workspace, held: names)
+      ready = ready.reject { |entry| Chat::Specialists.held_back?(agent_run.workspace, entry, loadable) }
+    end
+    ready = ready.index_by(&:name)
     names.filter_map { |name| ready[name]&.tool }
   end
 

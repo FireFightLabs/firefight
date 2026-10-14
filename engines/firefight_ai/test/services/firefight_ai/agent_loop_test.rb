@@ -326,6 +326,28 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     assert_equal [ "gpt-4o" ], Inference.where(inferable: @incident).pluck(:model).uniq
   end
 
+  # Seen live: a specialist on Haiku wrote its report into one tool call, ran past its output limit halfway through, and
+  # the whole check failed with "It could not run". Asked again with no word, a model writes the same long reply again.
+  test "a reply cut off at the output limit mid tool call is asked for once more, told to write it shorter" do
+    chat = FakeChat.new([ RubyLLM::ToolCallParseError.new(finish_reason: :max_tokens), llm_reply(content: "Reported.") ])
+    said = []
+
+    outcome = run_loop(chat, reply_is_answer: true, retry_malformed: true, nudge: ->(text) { said << text })
+
+    assert_equal FirefightAi::AgentLoop::STATUS_ANSWERED, outcome.status
+    assert_equal 2, chat.model_calls
+    assert_equal [ FirefightAi::AgentLoop::CUT_OFF ], said
+  end
+
+  test "a reply that cannot be read for another reason is asked for again with no word added" do
+    chat = FakeChat.new([ malformed, llm_reply(content: "Stopped the watch.") ])
+    said = []
+
+    run_loop(chat, reply_is_answer: true, retry_malformed: true, nudge: ->(text) { said << text })
+
+    assert_empty said
+  end
+
   test "a second reply that cannot be read ends the run, never a third try" do
     chat = FakeChat.new([ malformed, malformed, llm_reply(content: "never asked") ])
 

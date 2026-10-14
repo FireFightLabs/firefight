@@ -33,7 +33,8 @@ class Chat::Tools::Open < RubyLLM::Tool
   # A chat that asks specialists (Chat::Specialists) opens a connection's reads only once a specialist made them, so Halon
   # can make the same read to back a change.
   SPECIALISTS = "Reads of connected systems are made by specialists with ask_specialist. A read a specialist made in this " \
-                "chat is loaded by naming it in tools here, so you can make it yourself to back a change. A tool you do not " \
+                "chat, and any read of a connection whose change you hold, is loaded by naming it in tools here, so you can " \
+                "make it yourself to back a change. A tool you do not " \
                 "hold yet, such as a change in a connected system, is loaded the same way, or by searching for it when you " \
                 "hold a tool search. This lists every group of tools there is, with those that exist but cannot be used.".freeze
   # How a read a specialist holds is listed.
@@ -81,8 +82,8 @@ class Chat::Tools::Open < RubyLLM::Tool
   def views = @views ||= Chat::Tools::Groups.for(@agent_run)
 
   def open(key, wanted)
-    @made = @presented.specialists ? Chat::Specialists.made_names(@agent_run.chat) : Set.new
     current = Chat::Tools::Groups.for(@agent_run)
+    @made = @presented.specialists ? loadable(current, wanted) : Set.new
     view = current.find { |one| one.key == key }
     elsewhere = elsewhere(current, view, wanted)
     return [ "There is no group called #{key}. The groups are: #{views.map(&:key).join(', ')}.", elsewhere ].compact.join("\n\n") unless view
@@ -95,8 +96,16 @@ class Chat::Tools::Open < RubyLLM::Tool
     [ listing(chosen), elsewhere, idle(view), skills_for(chosen), as_read(chosen) ].compact.join("\n\n")
   end
 
-  # The specialist that holds this read, in a chat that asks them, or nil. A read a specialist made in this chat is
-  # Halon's to load, so it can make the same read to back a change (Chat::Tools::LookFirst).
+  # The reads a specialist holds that Halon may load (Chat::Specialists.loadable), counting a change named in this call
+  # that Halon may use, so a change and the read behind it open together.
+  def loadable(current, wanted)
+    ready = current.flat_map(&:entries).select { |entry| entry.tool && wanted.include?(entry.name.to_s) }.map(&:name)
+    Chat::Specialists.loadable(@agent_run.chat, @agent_run.workspace, held: @agent_run.chat.known_tool_names + ready)
+  end
+
+  # The specialist that holds this read, in a chat that asks them, or nil. A read a specialist made in this chat, or one
+  # of a connection whose change Halon holds, is Halon's to load, so it can make it to back a change
+  # (Chat::Tools::LookFirst).
   def specialist_of(entry)
     return unless @presented.specialists && Chat::Specialists.held_back?(@agent_run.workspace, entry, @made || Set.new)
 
