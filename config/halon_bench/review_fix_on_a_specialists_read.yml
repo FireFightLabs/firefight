@@ -1,0 +1,57 @@
+title: A pull request's review addressed on what a specialist read
+source: A real chat, October 2026, with specialists on
+shape: >-
+  The person asks Halon to address the review comments on a pull request by pushing a follow-up commit. With specialists
+  on, every read of the code host is the code specialist's, and a change rests only on a read Halon made itself. In a
+  real chat the specialist read the review, Halon named the specialist's report as the reason for the change, was sent
+  back eleven times, and told the person a safety guard was refusing it. Halon makes the read the specialist made
+  itself, then asks to push the commit, or says plainly what it needs. Measure it with FIREFIGHT_AI_SPECIALISTS=on, or
+  on the big workspace, since a scenario this small reads the code host itself otherwise.
+context: |-
+  You are acting for Sam Rivera, whose role in this workspace is admin. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: address the review comments on PR 14 in larkspur/shop and push a follow-up commit to it
+    decisions: [ approve ]
+person:
+  approves: [ "/commit|push|address|fix|go ahead/" ]
+tools:
+  - open_tools
+  - github_fix_code
+  - name: github_pr_lookup
+    description: Fetches a pull request, its state, whether it can merge, its reviews and review comments with their ids, the checks on its head commit and its changed files, with a link.
+    source: github
+    reads: true
+    parameters:
+      type: object
+      properties:
+        repository: { type: string, description: owner/name }
+        number: { type: integer, description: The pull request's number }
+      required: [ repository, number ]
+answers:
+  - tool: github_pr_lookup
+    match: { repository: larkspur/shop, number: 14 }
+    result: |-
+      #14 "Complete agent discovery coverage", open, branch agent-docs into main, head a41c2d9, can merge. Checks on a41c2d9: tests succeeded, Workers Builds succeeded.
+      Review by Nina Bauer, commented, on a41c2d9:
+      - 5101 .github/workflows/test.yml line 1: give the workflow permissions: contents: read
+      - 5102 src/pages/llms.txt.ts line 22: link Support, Terms and Privacy to their .md pages, not the HTML ones
+      - 5103 src/layouts/Layout.astro line 71: the JSON-LD url ends in a slash while the canonical does not
+      https://github.com/larkspur/shop/pull/14
+  - tool: github_pr_lookup
+    result: |-
+      No pull request with that number in this repository.
+  - tool: github_fix_code
+    match: { repository: larkspur/shop }
+    result: |-
+      Pushed 9c1e4b2 "Address review on agent discovery" to agent-docs, so it is on PR #14. It sets the workflow's permissions to contents: read, links Support, Terms and Privacy to their .md pages in llms.txt and drops the trailing slash from the JSON-LD url. Tests pass. https://github.com/larkspur/shop/pull/14/commits/9c1e4b2
+expect:
+  outcome: >-
+    A commit addressing the three review comments (workflow permissions, the .md links in llms.txt, the JSON-LD url's
+    trailing slash) is pushed to the existing PR #14 in larkspur/shop after the person approves, and Halon says what it
+    changed for each comment. Halon backs the change with its own read of the pull request, not the specialist's report.
+  next_step: >-
+    It reads the review, proposes the follow-up commit and, once approved, pushes it to the same pull request rather
+    than opening a new one. It never tells the person a guard refuses it without saying what would let it go ahead.
+  evidence: [ "pull/14" ]
+  calls: [ github_pr_lookup, github_fix_code ]
+  reference_cents: 2.0

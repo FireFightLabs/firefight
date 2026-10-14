@@ -50,7 +50,18 @@ class Workflow::HalonStepTest < ActiveSupport::TestCase
                  Workflow::HalonStep.new(@run, @record).follow!(skill_name: "nope", focus: nil))
   end
 
-  test "nothing runs once the run's AI ceiling is spent" do
+  test "the run's sandbox time counts against its spending ceiling beside its AI" do
+    @run.workflow.update!(cost_cap_cents: 10)
+    CodeBox.create!(workspace: @workspace, key: @run.code_box_key, provider: SandboxProviders::BOAT, box_ref: "bx_1", address: "https://box.example.com",
+                    secret: "k", last_used_at: Time.current, box_started_at: 1.hour.ago, hourly_micros: 60_000, stopped_at: Time.current, running_seconds: 3600)
+    Inference.create!(workspace: @workspace, inferable: @run, feature: FirefightAi::WorkflowAnswer::FEATURE, provider: "openai", model: "gpt", cost_micros: 40_000, status: "success")
+    FirefightAi::WorkflowAnswer.any_instance.expects(:answer).never
+
+    assert_equal [ 4, 60_000, 10 ], [ @run.ai_spent_cents, @run.sandbox_spent_micros, @run.spent_cents ]
+    assert_equal({ "error" => Workflow::HalonStep::OUT_OF_ROOM }, Workflow::HalonStep.new(@run, @record).ask!(question: "Fine?", data: "x", fields: []))
+  end
+
+  test "nothing runs once the run's spending ceiling is spent" do
     @run.workflow.update!(cost_cap_cents: 10)
     Inference.create!(workspace: @workspace, inferable: @run, feature: FirefightAi::WorkflowAnswer::FEATURE, provider: "openai", model: "gpt", cost_micros: 100_000, status: "success")
     FirefightAi::WorkflowAnswer.any_instance.expects(:answer).never

@@ -2,15 +2,17 @@ require "test_helper"
 
 class Conversation::BenchCaseTest < ActiveSupport::TestCase
   # The five failures that started the bench, the nineteen scenarios of the stress test, the three habits the first
-  # real run found in every model, and the harder scenarios that tell a strong model from a cheap one.
+  # real run found in every model, the harder scenarios that tell a strong model from a cheap one, and the real chats
+  # since that each found a way Halon was boxed in.
   FAILURES = %w[release_watch_followed_nothing slow_query_investigation_timed_out sticks_with_no duplicate_workspace_signup confirm_card_repeats_choices].freeze
   HABITS = %w[reads_without_asking general_read_when_no_tool repository_from_the_map].freeze
+  CHATS = %w[review_fix_on_a_specialists_read].freeze
 
   test "every scenario reads, says what a good run reaches and what it does next, and names only tools it offers" do
     scenarios = Conversation::BenchCase.scenarios
 
-    assert_equal FAILURES.size + 19 + HABITS.size + 12, scenarios.size
-    assert_empty (FAILURES + HABITS) - scenarios.map(&:key)
+    assert_equal FAILURES.size + 19 + HABITS.size + 12 + CHATS.size, scenarios.size
+    assert_empty (FAILURES + HABITS + CHATS) - scenarios.map(&:key)
     assert_equal 19, scenarios.count { |scenario| scenario.key.start_with?("stress_") }
     assert_equal 12, scenarios.count { |scenario| scenario.key.start_with?("hard_") }
     scenarios.each do |scenario|

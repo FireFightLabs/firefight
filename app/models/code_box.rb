@@ -55,6 +55,17 @@ class CodeBox < ApplicationRecord
     moved
   end
 
+  # How long it has run, a box still up counted until now.
+  def seconds_run
+    return running_seconds if stopped_at
+
+    running_seconds + (Time.current - (box_started_at || created_at)).to_i.clamp(0..)
+  end
+
+  # Its provider's price for its size by the hour, for the time it ran. A box with no price, such as one on the
+  # deployment's own machines, costs nothing here.
+  def cost_micros = hourly_micros ? (hourly_micros * seconds_run / 3600.0).round : 0
+
   def used!
     self.class.where(id: id).update_all(last_used_at: Time.current)
   end

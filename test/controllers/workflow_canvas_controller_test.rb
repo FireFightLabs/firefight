@@ -20,6 +20,45 @@ class WorkflowCanvasControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "the header says how many runs were skipped for the workflow's most runs an hour, and when" do
+    @workflow.update!(runs_per_hour: 40)
+    travel_to(Time.zone.parse("2026-10-14 14:05 UTC")) { 3.times { @workflow.run_skipped! } }
+    sign_in(users(:bob), @workspace)
+
+    travel_to Time.zone.parse("2026-10-14 16:00 UTC") do
+      get workflow_path(@workflow), headers: inertia_headers
+    end
+
+    shown = inertia_props["workflow"]
+    assert_equal 40, shown["runsPerHour"]
+    assert_equal [ { "hour" => "2026-10-14T14:00:00Z", "count" => 3, "lastAt" => "2026-10-14T14:05:00Z" } ], shown["skippedRuns"]
+    assert_equal "3 runs were skipped in the last week because it had already started as many runs in the hour before as it allows.", shown["skippedRunsSentence"]
+  end
+
+  test "a step that changes something says whether it can check first that it is still needed" do
+    restart = { "id" => "restart", "name" => "restart", "kind" => "call_tool", "config" => { "tool" => "restart", "arguments" => { "resource" => "web" }, "check_first" => false } }
+    post = { "id" => "tell", "name" => "tell", "kind" => "post_to_channel", "config" => { "channel" => "#ops", "message" => "Hi" } }
+    @workflow.open_draft!(by: @alice).update!(steps: [ restart, post, delay("pause") ])
+    sign_in(users(:bob), @workspace)
+
+    get workflow_path(@workflow), headers: inertia_headers
+
+    shown = inertia_props["document"]["steps"].to_h { |step| [ step["id"], step["checksFirst"] ] }
+    assert_equal({ "restart" => true, "tell" => false, "pause" => false }, shown)
+  end
+
+  test "a step that reads an incident's conditions gets each field the way a trigger does, saying which compare as numbers" do
+    sign_in(users(:bob), @workspace)
+
+    get workflow_path(@workflow), headers: inertia_headers
+
+    approval = inertia_props["stepKinds"].find { |kind| kind["key"] == DefinedWorkflow::Steps::Approval.kind }
+    declared = inertia_props["triggerKinds"].find { |kind| kind["key"] == Workflow::Trigger::KIND_INCIDENT_DECLARED }
+    assert_not_empty approval["conditions"]
+    assert_equal declared["conditions"], approval["conditions"]
+    assert approval["conditions"].all? { |field| [ true, false ].include?(field["number"]) }
+  end
+
   test "a new workflow shows an empty draft to start from, with the palette's kinds and triggers" do
     sign_in(users(:bob), @workspace)
 

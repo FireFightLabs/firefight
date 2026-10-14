@@ -271,7 +271,55 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     assert_equal [ "498 of 500 connections" ], support.map(&:text)
   end
 
+  # Seen in a chat, a code specialist read a pull request's review comments, Halon asked to push a commit addressing them
+  # and was sent back eleven times, since only a read of its own backs a change and every read of the code host was the
+  # specialist's. A read a specialist made in the chat is Halon's to load by name, so it can make the same read itself,
+  # while the list it holds from the start stays the same.
+  test "a read a specialist made is Halon's to load by name, so it can confirm a change itself, and its held tools stay the same" do
+    FirefightAi.stubs(:tool_search?).returns(false)
+    FirefightAi.configuration.stubs(:held_tools_budget).returns(1_000_000)
+    offered = []
+    presented = Chat::Tools.presented(@turn, FirefightAi::ModelChoice.new(model: "gpt-4o"))
+    open = Chat::Tools::Open.new(@turn, offer: ->(tools) { offered.concat(tools.map(&:name)) }, presented: presented)
+
+    said = open.call(group: "databases", tools: [ "planetscale_get_insights" ])
+    assert_not_includes offered, "planetscale_get_insights", "nothing a specialist has not read is Halon's"
+    assert_includes said, "read by the databases specialist, so ask it with ask_specialist"
+
+    specialist_read!("planetscale_get_insights", "open connections 498 of 500")
+    offered.clear
+    said = open.call(group: "databases", tools: [ "planetscale_get_insights", "linear_list_issues" ])
+
+    assert_includes offered, "planetscale_get_insights"
+    assert_not_includes offered, "linear_list_issues"
+    assert_includes said, "read by the tickets and docs specialist, so ask it with ask_specialist", "a read no specialist made stays the specialist's"
+    held = Chat::Tools.presented(@turn, FirefightAi::ModelChoice.new(model: "gpt-4o")).loaded.map { |tool| tool.name.to_s }
+    assert_equal presented.loaded.map { |tool| tool.name.to_s }, held
+  end
+
+  test "a change backed by a specialist's report goes back naming the reads the specialist made, and what to do when none can be made" do
+    asked!("orders is out of connections, fix it")
+    read!(@chat, "call_ask", Chat::Tools::AskSpecialist::NAME, "Specialists reported, 1 of 1:\n1. worker holds the connections")
+    specialist_read!("planetscale_get_insights", "498 of 500")
+
+    said = Chat::Tools::LookFirst.refusal(@turn, { "because" => [ "ask_specialist databases: worker holds the connections" ] })
+
+    assert said.start_with?(Chat::Tools::LookFirst::BOUNCE)
+    assert_includes said, "ask_specialist is a specialist's report, not a read"
+    assert_not_includes said, "which you did not read in this turn", "asking a specialist is never a read Halon forgot to make"
+    assert_includes said, format(Chat::Tools::LookFirst::SPECIALISTS_READ, reads: "planetscale_get_insights")
+    assert said.end_with?(Chat::Tools::LookFirst::STUCK)
+  end
+
   private
+
+  def specialist_read!(name, answer)
+    helper = Chat::Helper.start!(chat: @chat, tool_call_id: "call_#{SecureRandom.hex(3)}", since: 1.minute.ago,
+                                 checks: [ Chat::Helpers::Check.new(title: "Databases", brief: "Read", deep: false, domain: Chat::Specialists::DATABASES) ]).sole
+    own = Chat.open!(owner: helper, workspace: @workspace, model_choice: FirefightAi::ModelChoice.new(model: "gpt-4o-mini"))
+    read!(own, "s_#{SecureRandom.hex(3)}", name, answer)
+    read!(own, "s_#{SecureRandom.hex(3)}", Chat::Specialists::Report::NAME, "Reported.")
+  end
 
   def connect!(provider, name, tools)
     integration = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: provider, name: name, slug: provider,

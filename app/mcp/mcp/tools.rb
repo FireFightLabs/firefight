@@ -117,6 +117,7 @@ module Mcp
     CREATE_WORKFLOW = "create_workflow".freeze
     RUN_WORKFLOW = "run_workflow".freeze
     UPDATE_WORKFLOW_SETTINGS = "update_workflow_settings".freeze
+    UPDATE_WORKFLOW = "update_workflow".freeze
     LIST_SKILLS = "list_skills".freeze
     GET_SKILL = "get_skill".freeze
     UPSERT_SKILL = "upsert_skill".freeze
@@ -156,7 +157,7 @@ module Mcp
         GetIncidentTranscript, UpsertCatalogType, DeleteCatalogType,
         StartInvestigation, GetInvestigation, GetHalonPerformance, AskHalon, GetHalonAnswer, ListWatches, StopWatch, ListNotices,
         ListHandbookPages, GetHandbookPage, UpsertHandbookPage, DeleteHandbookPage,
-        ListWorkflows, CreateWorkflow, RunWorkflow, UpdateWorkflowSettings,
+        ListWorkflows, CreateWorkflow, RunWorkflow, UpdateWorkflowSettings, UpdateWorkflow,
         ListSkills, GetSkill, UpsertSkill, DeleteSkill ]
     end
   end

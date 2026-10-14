@@ -48,6 +48,9 @@ class DefinedWorkflow::Steps::Browser < DefinedWorkflow::Steps::CallTool
 
     def checks?(config, _workspace) = !sends?(config)
 
+    # A send never happens in a run nobody pressed (call refuses it), so there is nothing to check first.
+    def checks_first?(_config, _workspace) = false
+
     def output_fields(_config) = OUTPUTS
 
     def problems(step, workspace)
@@ -79,10 +82,6 @@ class DefinedWorkflow::Steps::Browser < DefinedWorkflow::Steps::CallTool
   def tool_name = Chat::BrowserCheck::TOOL_NAME
 
   def arguments = @config.slice(*CHECK_KEYS)
-
-  # A send never happens in a run nobody pressed (call refuses it), so there is nothing to read first.
-  def read_first(*, **) = nil
-
 
   private
 
@@ -127,10 +126,13 @@ class DefinedWorkflow::Steps::Browser < DefinedWorkflow::Steps::CallTool
     blocked = workspace.browser_pages_blocked_reason(chosen.planned_pages)
     raise Refused, blocked if blocked
 
+    spent = @run.spending_blocked_reason
+    raise Refused, spent if spent
+
     agent_run = Workflow::AgentRun.new(run: @run, record: record, approval_id: approval_id)
     answer = nil
     agent_run.tool_call(action_key: action_key, params: chosen.to_params.merge("pages" => chosen.planned_pages)) do |authorization|
-      answer = Chat::Browsing.run(workspace: workspace, box_key: @run.code_box_key, check: chosen, expected_send: expected_send)
+      answer = in_sandbox { Chat::Browsing.run(workspace: workspace, box_key: @run.code_box_key, check: chosen, expected_send: expected_send) }
       authorization.answer_failed!(answer.error) if answer.error
       answer.words
     end

@@ -48,6 +48,23 @@ class WorkflowRunStepSerializer < BaseSerializer
     step.output
   end
 
+  # Why it skipped itself, such as a change whose problem cleared before it ran.
+  type :string, optional: true
+  def note
+    step.note
+  end
+
+  # How long it used the run's sandbox, and what that time cost at its box's price.
+  type :number
+  def sandbox_seconds
+    step.sandbox_seconds
+  end
+
+  type :number
+  def sandbox_micros
+    step.sandbox_micros
+  end
+
   type "{ id: string; handle: string; bytes: number | null }[]"
   def saved_results
     step.saved_results.map { |result| { id: result.id, handle: result.handle, bytes: result.content&.bytesize } }

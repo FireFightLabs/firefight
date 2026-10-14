@@ -60,6 +60,11 @@ module Workflow::Scheduling
     self.class.where(id: id).update_all(trigger_refusal: reason, trigger_refused_at: at, updated_at: at)
   end
 
+  # A trigger's start its limits refused: past the hour's limit it is counted as skipped, anything else is kept as why.
+  def trigger_start_refused!(refused)
+    refused.is_a?(Workflow::Run::OverHourLimit) ? run_skipped! : trigger_refused!(refused.message)
+  end
+
   def trigger_started!
     self.class.where(id: id).where.not(trigger_refusal: nil).update_all(trigger_refusal: nil, trigger_refused_at: nil, updated_at: Time.current)
   end

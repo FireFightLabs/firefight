@@ -24,6 +24,9 @@ class DefinedWorkflow::Steps::PostToChannel < DefinedWorkflow::Steps::CallTool
 
     def undoable?(_config, _workspace) = false
 
+    # Said once and never taken back, so there is nothing to check first.
+    def checks_first?(_config, _workspace) = false
+
     def output_fields(_config) = [ OUTPUT_CHANNEL, OUTPUT_LINK, DefinedWorkflow::Steps::CallTool::OUTPUT_ANSWER ]
 
     def reply?(config) = ActiveModel::Type::Boolean.new.cast(config[KEY_REPLY]) == true
@@ -54,8 +57,6 @@ class DefinedWorkflow::Steps::PostToChannel < DefinedWorkflow::Steps::CallTool
   def arguments = { KEY_CHANNEL => @config[KEY_CHANNEL].to_s, KEY_MESSAGE => @config[KEY_MESSAGE].to_s }
 
   def frozen = nil
-
-  def read_first(*, **) = nil
 
   private
 

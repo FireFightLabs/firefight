@@ -22,7 +22,8 @@ class DefinedWorkflow::Steps::Sandbox < DefinedWorkflow::Steps::Base
 
   class << self
     # A command that says it changes something is a change: its step needs its undo and a check after it, a test run
-    # only shows it, and the read before a change nobody pressed, approval rules and freeze windows apply.
+    # only shows it, and the check that it is still needed in a run nobody pressed, approval rules and freeze windows
+    # apply.
     def changes?(config, _workspace) = ActiveModel::Type::Boolean.new.cast(config[KEY_CHANGES]) == true
 
     def checks?(config, workspace) = !changes?(config, workspace)
@@ -49,8 +50,8 @@ class DefinedWorkflow::Steps::Sandbox < DefinedWorkflow::Steps::Base
 
   def timeout = (@config[KEY_TIMEOUT].presence || DEFAULT_TIMEOUT).to_i.clamp(TIMEOUTS.first, TIMEOUTS.last)
 
-  # A change is pretended in a test run, and waits out or stops for a freeze, and reads how things stand first when
-  # nobody pressed Run, as any change does. Answers a park, a pretended output, or nil to go on.
+  # A change is pretended in a test run, and waits out or stops for a freeze, and checks first that it is still needed
+  # when nobody pressed Run, as any change does. Answers a park, a pretended output, a skip, or nil to go on.
   def before_a_change(named)
     return simulated_output(self.class.describe(@config, workspace)) if simulated?
     return unless changes?
@@ -58,8 +59,7 @@ class DefinedWorkflow::Steps::Sandbox < DefinedWorkflow::Steps::Base
     parked = frozen
     return parked if parked
 
-    first = read_first(named, [ [ "command", self.class.describe(@config, workspace) ] ])
-    first.is_a?(SolidWorkflow::Park) ? first : nil
+    read_first(named, [ [ "command", self.class.describe(@config, workspace) ] ])
   end
 
   # One shell command in the run's box, as whoever the run acts as, with the step's data placed as a file and the relay

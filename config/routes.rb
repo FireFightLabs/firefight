@@ -66,6 +66,7 @@ Rails.application.routes.draw do
       resources :runbooks, only: [ :index, :show, :create, :update, :destroy ]
       resources :handbook_pages, path: "handbook/pages", only: [ :index, :show, :create, :update, :destroy ]
       resources :skills, only: [ :index, :show, :create, :update, :destroy ]
+      resources :workflows, only: [ :update ]
 
       resources :abilities, only: [ :index ]
       resources :principals, only: [ :index ]

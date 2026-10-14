@@ -35,6 +35,13 @@ class WorkflowDetailSerializer < WorkflowRowSerializer
   type :string, optional: true
   def trigger_refused_at = workflow.trigger_refused_at&.iso8601
 
+  # The hours over the last week its trigger's runs were skipped in for its most runs an hour, newest first.
+  type "{ hour: string; count: number; lastAt: string }[]"
+  def skipped_runs = recent_skips.map { |skipped| { hour: skipped.hour.utc.iso8601, count: skipped.count, lastAt: skipped.last_at.utc.iso8601 } }
+
+  type :string, optional: true
+  def skipped_runs_sentence = workflow.skipped_runs_sentence(recent_skips)
+
   type :string
   def freeze_behaviour = workflow.freeze_behaviour
 
@@ -53,4 +60,6 @@ class WorkflowDetailSerializer < WorkflowRowSerializer
   private
 
   def shown_version = memo.fetch(:shown_version) { workflow.draft || workflow.live_version }
+
+  def recent_skips = memo.fetch(:recent_skips) { workflow.recent_skips }
 end

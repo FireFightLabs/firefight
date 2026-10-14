@@ -7,6 +7,9 @@ class Workflow::Run < ApplicationRecord
 
   # Turned down before anything was made, with the sentence that says why.
   class Refused < StandardError; end
+  # Turned down because the workflow already started its most runs in the hour before. A trigger's run so refused is
+  # counted as skipped on the workflow.
+  class OverHourLimit < Refused; end
 
   STATUS_QUEUED = "queued".freeze
   STATUS_RUNNING = "running".freeze

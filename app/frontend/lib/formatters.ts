@@ -1,4 +1,4 @@
-import { CHAT_TIME_TOKEN_PATTERN } from "@/lib/generated/constants"
+import { CHAT_TIME_TOKEN_PATTERN, MICROS_PER_CENT } from "@/lib/generated/constants"
 
 const MOMENT = new Intl.DateTimeFormat(undefined, {
   weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short",
@@ -75,6 +75,29 @@ export function minutesInWords(minutes: number): string {
     return hours === 1 ? "an hour" : `${hours} hours`
   }
   return minutes === 1 ? "a minute" : `${minutes} minutes`
+}
+
+// An amount kept in millionths of a dollar: "$0", "under $0.01" for a sliver, else to the cent.
+export function dollarsFromMicros(micros: number): string {
+  if (micros <= 0) {
+    return "$0"
+  }
+  if (micros < MICROS_PER_CENT) {
+    return "under $0.01"
+  }
+  return `$${(micros / (MICROS_PER_CENT * 100)).toFixed(2)}`
+}
+
+// "1 second", "42 seconds", "3 minutes 5 seconds", for a length of time the server counted in seconds.
+export function secondsInWords(seconds: number): string {
+  const minutes = Math.floor(seconds / 60)
+  const rest = seconds % 60
+  const secondsPart = rest === 1 ? "1 second" : `${rest} seconds`
+  if (minutes === 0) {
+    return secondsPart
+  }
+  const minutesPart = minutes === 1 ? "1 minute" : `${minutes} minutes`
+  return rest === 0 ? minutesPart : `${minutesPart} ${secondsPart}`
 }
 
 // A share of a whole as a whole percentage, or a dash when there is nothing to divide by.
