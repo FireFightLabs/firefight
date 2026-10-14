@@ -44,6 +44,39 @@ class ApprovalResumption
     approval.update!(resume_payload: { kind: KIND_WORKFLOW_PUBLISH, workflow_id: workflow.id, revision: revision, source: source, stage: stage })
   end
 
+  RUNS_NOW = "It runs now.".freeze
+  # A caller with nothing parked, such as an API key or an agent over MCP, makes the call again itself.
+  ASKER_RUNS = "They can run it now.".freeze
+
+  # What approving it does next, told to whoever approved it.
+  def self.approved_words(approval)
+    payload = approval.resume_payload.to_h
+    case payload["kind"]
+    when KIND_WORKFLOW_STEP then approval.workflow_question? ? "Its run goes on." : "Its run goes on and makes the call."
+    when KIND_WORKFLOW_PUBLISH then publish_words(approval, payload)
+    when KIND_FIX_STEP then "#{fix_applier(payload)} can run it now."
+    when Chat::HeldCall::RESUME_KIND then Conversation::HeldCalls.runs_when_approved?(approval) ? RUNS_NOW : ASKER_RUNS
+    when KIND_INTERACTION, KIND_COMMAND, KIND_WEB, KIND_ISSUE_SYNC, KIND_PAGING then RUNS_NOW
+    else ASKER_RUNS
+    end
+  end
+
+  # Approving the publish call grants what the workflow needs next, which an approval rule can hold in turn.
+  def self.publish_words(approval, payload)
+    workflow = Workflow.find_by(id: payload["workflow_id"], workspace_id: approval.workspace_id)
+    return "It is published now." unless workflow
+
+    draft = workflow.draft
+    granting = payload["stage"] != WorkflowPublishService::STAGE_GRANT && draft && workflow.missing_reach(draft).any?
+    granting ? "#{workflow.name} is published now, unless granting what it needs waits on an approval too." : "#{workflow.name} is published now."
+  end
+  private_class_method :publish_words
+
+  def self.fix_applier(payload)
+    Investigation::RemediationStep.find_by(id: payload["step_id"])&.plan&.applier_name || "Whoever applied the fix"
+  end
+  private_class_method :fix_applier
+
   # An approval admits one execution. Re-entering the gateway on a consumed
   # approval would park a fresh one, so a job that runs twice must not replay.
   def self.resume!(approval)

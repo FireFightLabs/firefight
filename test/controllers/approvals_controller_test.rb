@@ -1,6 +1,8 @@
 require "test_helper"
 
 class ApprovalsControllerTest < ActionDispatch::IntegrationTest
+  include FixPlanTestHelper
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     sign_in(users(:alice), @workspace)
@@ -64,6 +66,70 @@ class ApprovalsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "You approved Full Access Key's request. They can run it now.", flash[:notice]
   end
 
+  test "approving a call Firefight parked to replay says it runs now" do
+    kinds = [ ApprovalResumption::KIND_COMMAND, ApprovalResumption::KIND_INTERACTION, ApprovalResumption::KIND_WEB, ApprovalResumption::KIND_ISSUE_SYNC,
+              ApprovalResumption::KIND_PAGING ]
+    kinds.each do |kind|
+      approval = held(workspace_memberships(:bob_workspace_one), "catalog.delete", resume_payload: { kind: kind })
+
+      post approve_approval_url(approval)
+
+      assert_equal "You approved Bob Jones's request. It runs now.", flash[:notice], kind
+    end
+  end
+
+  test "approving a workflow's Approval step says its run goes on" do
+    approval = held(workflow_agent, Ability::Action::WORKFLOW_APPROVAL)
+    ApprovalResumption.park_workflow_step!(approval, "engine-step", "check")
+
+    post approve_approval_url(approval)
+
+    assert_equal "You approved Weekday probe check workflow's request. Its run goes on.", flash[:notice]
+  end
+
+  test "approving a call a workflow's step made says its run goes on and makes the call" do
+    approval = held(workflow_agent, "catalog.delete")
+    ApprovalResumption.park_workflow_step!(approval, "engine-step", "remove")
+
+    post approve_approval_url(approval)
+
+    assert_equal "You approved Weekday probe check workflow's request. Its run goes on and makes the call.", flash[:notice]
+  end
+
+  test "approving publishing a workflow says it is published, and says when granting what it needs can wait as well" do
+    calm = drafted_workflow("Calm down", { "id" => "wait", "name" => "wait", "kind" => DefinedWorkflow::KIND_DELAY, "config" => { "minutes" => 5 } })
+    look = drafted_workflow("Look around", { "id" => "look", "name" => "look", "kind" => "call_tool",
+                                             "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => {} } })
+    granting = held(SystemAgent.investigator, Workflow::GRANT_KEY)
+    ApprovalResumption.park_workflow_publish!(granting, look, revision: look.draft.revision, source: AbilityGateway::SOURCE_MCP,
+                                                              stage: WorkflowPublishService::STAGE_GRANT)
+    said = [ calm, look ].map do |workflow|
+      approval = held(SystemAgent.investigator, Workflow::PUBLISH_KEY)
+      ApprovalResumption.park_workflow_publish!(approval, workflow, revision: workflow.draft.revision, source: AbilityGateway::SOURCE_MCP,
+                                                                    stage: WorkflowPublishService::STAGE_PUBLISH)
+      post approve_approval_url(approval)
+      flash[:notice]
+    end
+    post approve_approval_url(granting)
+    said << flash[:notice]
+
+    halon = SystemAgent.investigator.actor_display_name
+    assert_equal [ "You approved #{halon}'s request. Calm down is published now.",
+                   "You approved #{halon}'s request. Look around is published now, unless granting what it needs waits on an approval too.",
+                   "You approved #{halon}'s request. Look around is published now." ], said
+  end
+
+  test "approving a step of a fix says whoever applied the fix can run it" do
+    plan = build_fix_plan(@workspace)
+    plan.apply!(by: workspace_memberships(:bob_workspace_one), from: AbilityGateway::SOURCE_SLACK)
+    approval = held(workspace_memberships(:bob_workspace_one), "cloudflare.execute")
+    ApprovalResumption.park_fix_step!(approval, plan.steps.first)
+
+    post approve_approval_url(approval)
+
+    assert_equal "You approved Bob Jones's request. Bob Jones can run it now.", flash[:notice]
+  end
+
   test "a member without an approvals grant is refused by the gateway" do
     sign_in(users(:bob), @workspace)
 
@@ -89,6 +155,20 @@ class ApprovalsControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def held(principal, action_key, **attributes)
+    Ability::Approval.create!(workspace: @workspace, principal: principal, principal_label: principal.principal_label, action_key: action_key,
+                              request_digest: Ability::Approval.digest(action_key, {}, {}), required_role: WorkspaceMembership.roles[:admin], **attributes)
+  end
+
+  def workflow_agent = Workflow.create!(workspace: @workspace, name: "Weekday probe check").ensure_agent!
+
+  def drafted_workflow(name, step)
+    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
+    workflow = Workflow.create!(workspace: @workspace, name: name)
+    workflow.open_draft!(by: workspace_memberships(:alice_workspace_one)).update!(steps: [ step ])
+    workflow
+  end
 
   def sign_in(user, workspace)
     ApplicationController.any_instance.stubs(:current_user).returns(user)
