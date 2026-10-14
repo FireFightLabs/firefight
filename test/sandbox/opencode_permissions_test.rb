@@ -149,13 +149,16 @@ class OpencodePermissionsTest < ActiveSupport::TestCase
             "XDG_CACHE_HOME" => "#{home}/.cache", "XDG_STATE_HOME" => "#{home}/.local/state", "SANDBOX_PROGRESS" => File.join(@root, "progress") }
     output, = Open3.capture2(env, "bash", "-c", Fixing::RUN, Fixing::AGENT, "Fix it", "anthropic/#{MODEL}", "", "", "main", "halon/fix-1", "Fix", "",
                              "#{base}/permissions", chdir: @copy, stdin_data: "credential\n#{config.to_json}\n#{Fixing::DRIVER}")
-    assert_match(/^SESSION ses_/, output, "The agent never started a session. The box said:\n#{output}")
+    assert_match(/^SESSION ses_/, output, "The agent never started a session. The box said:\n#{output}\nOpenCode logged:\n#{opencode_log}")
     # What the box hands back keeps only the log's tail, so the whole run is read from its progress.
     "#{output}#{File.read(File.join(@root, 'progress'))}"
   end
 
   # The files the run's change touched, since the script puts the copy back once it kept the change.
   def changed(output) = Integrations::Packs::Github.new(Integration.new(provider: "github")).send(:read_change, output).counts.keys
+
+  # The tail of what OpenCode logged in the run's own home, for a run that went wrong.
+  def opencode_log = Dir[File.join(@root, "home/.local/share/opencode/log/*")].map { |file| File.read(file).last(6_000) }.join("\n")
 
   def events(output)
     events = Integrations::SandboxAgentEvents.new(Chat::CodeFixProgress.start)

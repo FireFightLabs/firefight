@@ -15,6 +15,7 @@ import { randomBytes } from "node:crypto"
 const [message, model, resume, askUrl] = process.argv.slice(2)
 const RECENT = 20
 const STARTUP_MS = 60_000
+const PROBE_MS = 10_000
 const RETRY_MS = 2_000
 const RETRIES = 15
 const RUN_RULES = ["question", "plan_enter", "plan_exit"].map((permission) => ({ permission, action: "deny", pattern: "*" }))
@@ -67,11 +68,12 @@ server.on("exit", (code) => {
   }
 })
 
-async function api(method, path, body) {
+async function api(method, path, body, signal) {
   const response = await fetch(base + path, {
     method,
     headers: { Authorization: auth, "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
   })
   if (!response.ok) {
     throw new Error(`${method} ${path} answered ${response.status}: ${await response.text()}`)
@@ -85,7 +87,7 @@ async function ready() {
   let last = "no answer"
   while (Date.now() < deadline) {
     try {
-      await api("GET", "/session/status")
+      await api("GET", "/session/status", undefined, AbortSignal.timeout(PROBE_MS))
       return
     } catch (error) {
       last = error.cause?.code ?? error.message
