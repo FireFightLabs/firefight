@@ -198,6 +198,28 @@ class ResourceMapTest < ActiveSupport::TestCase
     assert_equal [ "WAF custom rules", "3", "4" ], [ change.detail, change.from_value, change.to_value ]
   end
 
+  test "a service whose copies changed in number is scaled, and one counted for the first time or no longer counted is not" do
+    ResourceMap.record!(@row, snapshot(web), at: 3.hours.ago)
+    ResourceMap.record!(@row, snapshot(web.with(details: { ResourceMap::INSTANCES => 2 })), at: 2.hours.ago)
+    ResourceMap.record!(@row, snapshot(web.with(details: { ResourceMap::INSTANCES => 5 })), at: 1.hour.ago)
+    ResourceMap.record!(@row, snapshot(web.with(details: { ResourceMap::INSTANCES => 5 })), at: 30.minutes.ago)
+    ResourceMap.record!(@row, snapshot(web))
+
+    scaled = resource("web").changes_seen.where(kind: ResourceMap::Change::KIND_SCALED).sole
+    assert_equal [ "2", "5", "web went from 2 to 5 instances" ], [ scaled.from_value, scaled.to_value, scaled.words ]
+    assert_not resource("web").changes_seen.exists?(kind: ResourceMap::Change::KIND_CONFIGURED)
+    assert_equal [ [ "Instances", "5" ] ], ResourceMap.facts(ResourceMap::INSTANCES => 5)
+  end
+
+  test "a scale to one copy and to none reads in words" do
+    ResourceMap.record!(@row, snapshot(web.with(details: { ResourceMap::INSTANCES => 3 })), at: 2.hours.ago)
+    ResourceMap.record!(@row, snapshot(web.with(details: { ResourceMap::INSTANCES => 1 })), at: 1.hour.ago)
+    ResourceMap.record!(@row, snapshot(web.with(details: { ResourceMap::INSTANCES => 0 })))
+
+    assert_equal [ "web went from 1 to 0 instances", "web went from 3 to 1 instance" ],
+                 resource("web").changes_seen.where(kind: ResourceMap::Change::KIND_SCALED).newest_first.map(&:words)
+  end
+
   test "what a provider reported is named for a person, in reading order, with the running commit shortened" do
     facts = ResourceMap.facts("deployed_commit" => "c4e4267d46e638ac", "plan" => "nf-compute-100-2", "production" => true, "appId" => "/team/p/web")
 

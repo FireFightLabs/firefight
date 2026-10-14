@@ -1,6 +1,8 @@
 require "application_system_test_case"
 
 class WorkflowCanvasTest < ApplicationSystemTestCase
+  include PagingTestHelper
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
@@ -28,6 +30,24 @@ class WorkflowCanvasTest < ApplicationSystemTestCase
     click_button "Apply changes"
     assert_toast "Delay was updated."
     assert_equal({ "minutes" => 45 }, @workflow.reload.draft.steps.sole["config"])
+  end
+
+  test "a step added while the page is still fetching its tools gets the tools" do
+    connect_pagerduty!(@workspace)
+    tools = Chat::Tools::Choices.tools(@workspace)
+    added = Concurrent::Event.new
+    # The tools answer only once the step is in, so the step is added while the page is still asking for them.
+    Chat::Tools::Choices.stubs(:tools).with { added.wait(10) }.returns(tools)
+    sign_in(users(:bob), @workspace)
+    visit workflow_path(@workflow)
+
+    within("aside[aria-label='Add a step']") { click_button "Status page update" }
+    assert_toast "Status page update was added."
+    added.set
+
+    find("button[role=combobox]", text: "Choose a tool").click
+    assert_selector "[role=option]", text: "pagerduty_manage_incidents"
+    within("aside[aria-label='Add a step']") { assert_text "pagerduty_browse_incidents" }
   end
 
   test "a step is removed after asking, with what goes with it" do

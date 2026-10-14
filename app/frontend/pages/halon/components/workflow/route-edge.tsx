@@ -56,7 +56,7 @@ export function RouteEdge({ id, source, target, sourceX, sourceY, targetX, targe
               )}
               style={{ left: targetX, top: targetY - ROUTE_LABEL_RISE }}
             >
-              {routeWords(data.route)}
+              {data.label ?? routeWords(data.route)}
             </span>
           )}
           <div

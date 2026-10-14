@@ -7,6 +7,8 @@ module Integrations
   #   installation_of(payload, headers:)        the installation the delivery is about, kept on a connection's row
   #   installation_change(payload, headers:)    what it says changed about the installation (Installations), or nil
   #   event(payload)                            an Event, or nil for anything else, which is taken and left alone
+  #   labelled(payload)                         optional, a Labelled for an issue that gained labels, or nil, for a
+  #                                             provider that sends its issues' changes to the same webhook
   # and, made with the row of the connection the session came through, answers in it:
   #   say(session_id, activity)                 posts one Activity in the session
   # Each raises Integrations::Error with words a person reads when the provider refused.
@@ -41,9 +43,34 @@ module Integrations
       def initialize(kind:, body: nil, action: nil, parameter: nil, result: nil, ephemeral: false, choices: []) = super
     end
 
+    # An issue that gained labels, each by its name. reference names the issue, the labels and when, the same however
+    # often it is delivered. text is the issue's description, and asker_email and asker_name who added them.
+    Labelled = Data.define(:reference, :labels, :issue_key, :issue_title, :issue_url, :text, :asker_email, :asker_name)
+
     module_function
 
     def source_of(provider_key) = Provider.for(provider_key).agent_sessions
+
+    # The trackers whose app says when someone adds a label to an issue.
+    def labelling_providers = IntegrationProvider.all.select { |entry| source_of(entry.key).respond_to?(:labelled) }
+
+    # Labels added to an issue reach the workflows of each workspace a connection made through the installation belongs
+    # to, once each, as the connection that told Firefight. Only a workflow whose trigger names one of them starts
+    # (Workflow::Listening). It opens no session, since nobody asked Firefight anything.
+    def labelled!(provider_key, rows, payload)
+      source = source_of(provider_key)
+      labelled = source.labelled(payload) if source.respond_to?(:labelled)
+      return if labelled.nil?
+
+      rows.uniq { |row| row.integration.workspace_id }.each do |row|
+        integration = row.integration
+        issue = { "provider" => integration.display_name, "key" => labelled.issue_key, "title" => labelled.issue_title, "url" => labelled.issue_url,
+                  "text" => labelled.text, "asked_by" => labelled.asker_name, "asked_by_email" => labelled.asker_email,
+                  Workflow::Trigger::Fields::HOW => Workflow::TriggerPayloads::ISSUE_LABELLED, Workflow::Trigger::Fields::LABELS => labelled.labels }
+        Workflow::Trigger::Events.fire!(integration.workspace, Workflow::Trigger::KIND_ISSUE_ASSIGNED, key: "#{integration.id}:label:#{labelled.reference}",
+                                                                                                    subject: row, details: issue)
+      end
+    end
 
     # A delivery about a session reaches the connection made through the installation it names. One installation may
     # be connected in more than one Firefight workspace, and the session is the latest connection's, the one whose

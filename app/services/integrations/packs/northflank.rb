@@ -986,7 +986,7 @@ module Integrations
           status = service.dig("status", "deployment", "status") || service.dig("status", "build", "status")
           found = add(kind, service["id"], service["name"], status: status&.downcase, page: [ KIND_SERVICES, service["id"] ],
                       details: {
-                        "type" => service["serviceType"], "instances" => service.dig("deployment", "instances"),
+                        "type" => service["serviceType"], ResourceMap::INSTANCES => service.dig("deployment", "instances"),
                         "plan" => service.dig("billing", "deploymentPlan"), ResourceMap::DEPLOYED_COMMIT => internal["deployedSHA"],
                         "branch" => internal["branch"], IMAGE => service.dig("deployment", "external", "imagePath").presence,
                         IMAGE_CREDENTIALS => service.dig("deployment", "external", "credentials").presence

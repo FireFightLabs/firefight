@@ -588,7 +588,7 @@ module Integrations
         item = ResourceMap::Found.new(
           provider: PROVIDER_KEY, account: account, kind: KINDS.fetch(resource[:type]), external_id: resource[:id], name: resource[:name],
           status: latest["status"]&.downcase, url: service_url(environment_row, project, environment["id"], resource[:id]),
-          details: { "type" => resource[:engine] ? "#{resource[:engine]} #{DATABASE}" : resource[:type], "instances" => instance["numReplicas"],
+          details: { "type" => resource[:engine] ? "#{resource[:engine]} #{DATABASE}" : resource[:type], ResourceMap::INSTANCES => instance["numReplicas"],
                      "region" => instance["region"], ResourceMap::DEPLOYED_COMMIT => latest.dig("meta", "commitHash") }.compact
         )
         found << item

@@ -353,7 +353,14 @@ module TypescriptConstants
       }, nil),
       Export.new("WORKFLOW_ASK_PERSON", {
         "FIELDS" => DefinedWorkflow::Steps::AskPerson::KEY_FIELDS, "FIELD_NAME" => DefinedWorkflow::Steps::AskPerson::FIELD_NAME,
-        "FIELD_LABEL" => DefinedWorkflow::Steps::AskPerson::FIELD_LABEL, "FIELD_LIMIT" => DefinedWorkflow::Steps::AskPerson::FIELD_LIMIT
+        "FIELD_LABEL" => DefinedWorkflow::Steps::AskPerson::FIELD_LABEL, "FIELD_LIMIT" => DefinedWorkflow::Steps::AskPerson::FIELD_LIMIT,
+        "CHOICES" => DefinedWorkflow::Steps::AskPerson::KEY_CHOICES, "CHOICE_KEY" => DefinedWorkflow::Steps::AskPerson::CHOICE_KEY,
+        "CHOICE_LABEL" => DefinedWorkflow::Steps::AskPerson::CHOICE_LABEL, "CHOICE_LIMIT" => DefinedWorkflow::Steps::AskPerson::CHOICE_LIMIT,
+        "CHOICE_LABEL_LIMIT" => DefinedWorkflow::Steps::AskPerson::CHOICE_LABEL_LIMIT
+      }, nil),
+      Export.new("WORKFLOW_WAIT", {
+        "KEY" => DefinedWorkflow::Steps::Waiting::KEY_WAIT, "DEFAULT_MINUTES" => DefinedWorkflow::Steps::Waiting::DEFAULT_MINUTES,
+        "FEWEST_MINUTES" => DefinedWorkflow::Steps::Waiting::FEWEST_MINUTES, "MOST_MINUTES" => DefinedWorkflow::Steps::Waiting::MOST_MINUTES
       }, nil),
       Export.new("WORKFLOW_APPROVAL", {
         "INCIDENT" => DefinedWorkflow::Steps::Approval::KEY_INCIDENT, "CONDITIONS" => DefinedWorkflow::Steps::Approval::KEY_CONDITIONS
@@ -401,6 +408,8 @@ module TypescriptConstants
       }, nil),
       Export.new("WORKFLOW_TRIGGER_KEYS", { "KIND" => Workflow::Trigger::KEY_KIND, "INPUTS" => Workflow::Trigger::KEY_INPUTS, "CONDITIONS" => Workflow::Trigger::KEY_CONDITIONS }, nil),
       Export.new("WORKFLOW_CONDITION_LIMIT", Workflow::Trigger::CONDITION_LIMIT, nil),
+      Export.new("TRIGGER_NUMBER_OPERATORS", PolicyRule::NUMBER_OPERATORS, "TriggerNumberOperator"),
+      Export.new("TRIGGER_NUMBER_OPERATOR", PolicyRule::NUMBER_OPERATORS.to_h { |operator| [ operator.upcase, operator ] }, nil),
       Export.new("WORKFLOW_INPUT_LIMIT", Workflow::Trigger::INPUT_LIMIT, nil)
     ]
   end

@@ -98,9 +98,13 @@ module Conversation::HeldCalls
     blocked = held.ask_again_blocked_reason(by)
     return blocked if blocked
 
+    lapsing = held.approval
+    still_approved = lapsing.approved?
     case held.ask_again!
     when Chat::HeldCall::ASKED_AGAIN
       tell!(held)
+      # An approval that lapsed only now, in asking again, says so where it was asked.
+      ApprovalNotificationService.mark_resolved!(lapsing) if still_approved && lapsing.reload.expired?
       nil
     when Chat::HeldCall::NO_RULE_NOW then NO_RULE_NOW
     else format(NOT_ALLOWED_NOW, asker: held.asker_name)

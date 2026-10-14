@@ -2,6 +2,7 @@ import { createInertiaApp, type ResolvedComponent } from '@inertiajs/react'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
+import { reloadDroppedDeferredProps } from '@/lib/deferred-props'
 import type { ErrorReportingSettings } from '@/types'
 
 // Sentry's code is fetched only when the deployment gave the page a DSN, so a page without one never loads it.
@@ -35,6 +36,7 @@ void createInertiaApp({
 
   setup({ el, App, props }) {
     reportErrors(props.initialPage.props.errorReporting)
+    reloadDroppedDeferredProps()
     createRoot(el).render(
       <StrictMode>
         <App {...props} />

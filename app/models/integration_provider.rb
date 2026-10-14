@@ -31,6 +31,14 @@ class IntegrationProvider
   HISTORIES = [ HISTORY_FIREFIGHT, HISTORY_NONE ].freeze
   HISTORY_EXPLAINED = [ HISTORY_NONE ].freeze
 
+  # Whether the map counts the copies a provider's services run (ResourceMap::INSTANCES), so a scale is a change on the
+  # map and starts a Service scaled trigger. Only a provider on the map says. config/integration_providers.yml says what
+  # each value means.
+  SCALING_FIREFIGHT = "firefight".freeze
+  SCALING_NONE = "none".freeze
+  SCALINGS = [ SCALING_FIREFIGHT, SCALING_NONE ].freeze
+  SCALING_EXPLAINED = [ SCALING_NONE ].freeze
+
   # The category of the providers that hold an application's data, whose reads a person waits on in a chat.
   CATEGORY_DATABASES = "Databases".freeze
 
@@ -202,10 +210,10 @@ class IntegrationProvider
   # changes Firefight should not be asked for. Each must be one the server lists. consent_note is what the connect form
   # says about the provider's consent screen, such as which access to leave off.
   Entry =Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
-                      :source_links, :source_links_note, :map, :map_note, :history, :history_note, :code_fix_tool, :regions, :connect_fields, :site, :code_agent,
+                      :source_links, :source_links_note, :map, :map_note, :history, :history_note, :scaling, :scaling_note, :code_fix_tool, :regions, :connect_fields, :site, :code_agent,
                       :app, :setting_words, :holds_code, :mitigation_tools, :stopping_tools, :status_page, :hosts, :holds_flags, :write_tools,
                       :admin_marks_reads, :retiring, :test_logins, :specialist, :oauth_scopes, :consent_note, :own_server, :token, :holds_status_pages) do
-    def initialize(connect_with: nil, read_only_tools: [], write_tools: [], admin_marks_reads: false, mitigation_tools: [], stopping_tools: [], source_links_note: nil, map_note: nil, history: HISTORY_NONE, history_note: nil, code_fix_tool: nil, regions: [],
+    def initialize(connect_with: nil, read_only_tools: [], write_tools: [], admin_marks_reads: false, mitigation_tools: [], stopping_tools: [], source_links_note: nil, map_note: nil, history: HISTORY_NONE, history_note: nil, scaling: nil, scaling_note: nil, code_fix_tool: nil, regions: [],
                    connect_fields: [], site: nil, code_agent: false, app: nil, setting_words: [], holds_code: false, status_page: nil, hosts: [], holds_flags: false, retiring: nil,
                    test_logins: false, specialist: nil, oauth_scopes: [], consent_note: nil, own_server: nil, token: nil, holds_status_pages: false, **) = super
 
@@ -341,6 +349,7 @@ class IntegrationProvider
         source_links: declared(raw, "source_links", SOURCE_LINKS, SOURCE_LINKS_EXPLAINED), source_links_note: raw["source_links_note"],
         map: declared(raw, "map", MAPS, MAP_EXPLAINED), map_note: raw["map_note"],
         history: declared(raw, "history", HISTORIES, HISTORY_EXPLAINED), history_note: raw["history_note"],
+        scaling: (declared(raw, "scaling", SCALINGS, SCALING_EXPLAINED) if raw["map"] == MAP_FIREFIGHT), scaling_note: raw["scaling_note"],
         # The tool of a code host's pack that writes a change and opens it for review, which a fix's code steps run.
         code_fix_tool: raw["code_fix_tool"].presence,
         regions: regions, connect_fields: connect_fields_of(raw), site: raw["site"].presence,

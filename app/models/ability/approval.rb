@@ -18,6 +18,10 @@ module Ability
 
     class NotAllowed < StandardError; end
 
+    # What deciding a request is authorized as, and the scope key that names the request decided.
+    DECIDE_KEY = Ability::Action.system_key(Ability::Action::RESOURCE_APPROVALS, Ability::Action::ACTION_UPDATE)
+    SCOPE_APPROVAL = "approval"
+
     belongs_to :workspace
     belongs_to :principal, polymorphic: true, optional: true
     belongs_to :approver, polymorphic: true, optional: true
@@ -82,11 +86,12 @@ module Ability
       update!(held_for_run: true)
     end
 
-    # An approved call nobody ran in time expires, in one statement, so a run claiming it at the same moment stands.
+    # An approved call nobody ran in time expires, in one statement, so a run claiming it at the same moment stands. It
+    # keeps why, which the caller has every message it was asked in say (ApprovalNotificationService.mark_resolved!).
     def lapse_run!
       now = Time.current
       lapsed = self.class.where(id: id, status: STATUS_APPROVED, consumed_at: nil).where(run_expires_at: ..now)
-                         .update_all(status: STATUS_EXPIRED, updated_at: now)
+                         .update_all(status: STATUS_EXPIRED, withdrawn_reason: lapsed_reason, updated_at: now)
       reload
       lapsed == 1
     end
@@ -99,10 +104,11 @@ module Ability
       dismissed == 1
     end
 
-    # Only from pending, in one statement, so an approval given at the same moment stands.
-    def expire!
+    # Only from pending, in one statement, so an approval given at the same moment stands. reason is why it was withdrawn,
+    # as a sentence, which the caller has every message it was asked in say in place of its buttons.
+    def expire!(reason:)
       now = Time.current
-      self.class.where(id: id, status: STATUS_PENDING).update_all(status: STATUS_EXPIRED, resolved_at: now, updated_at: now)
+      self.class.where(id: id, status: STATUS_PENDING).update_all(status: STATUS_EXPIRED, withdrawn_reason: reason, resolved_at: now, updated_at: now)
       reload
     end
 
@@ -128,6 +134,44 @@ module Ability
     # What a workflow's Approval step asks, and what it said approvers should know.
     def question = (self[:params]["question"] if workflow_question?)
     def question_details = (self[:params]["details"] if workflow_question?)
+
+    # The scope a decision on this request is authorized with, which names it, so the gateway can let a person the
+    # request names decide it (decides_by_name?).
+    def decision_scope = self.class.decision_scope_for(id)
+
+    def self.decision_scope_for(id) = { SCOPE_APPROVAL => id.to_s }
+
+    # Someone a workflow's Approval step named may decide that one request without approvals.update, and nothing else.
+    # Anyone it reaches through a role, and every other request, still needs the grant.
+    def self.decides_by_name?(principal, action_key, scope, workspace)
+      return false unless action_key == DECIDE_KEY && principal.is_a?(WorkspaceMembership)
+
+      id = scope.to_h.stringify_keys[SCOPE_APPROVAL]
+      approval = id.present? && workspace.ability_approvals.find_by(id: id)
+      approval.present? && approval.named_decider?(principal)
+    end
+
+    def named_decider?(principal)
+      workflow_question? && named_approvers? && principal.is_a?(WorkspaceMembership) &&
+        approver_ids.map { |ref| Ability::Principal.reference(ref) }.include?(Ability::Principal.reference_for(principal))
+    end
+
+    # Why this principal may not decide this request at all, through the gateway, or nil when they may. The rules of the
+    # request itself are decide_blocked_reason's.
+    def decide_denied_reason(principal)
+      action = Ability::Action.lookup(DECIDE_KEY, workspace)
+      return if principal && AbilityGateway.permitted?(principal, action, DECIDE_KEY, workspace, decision_scope)
+
+      "You don't have permission to decide this request. Ask a workspace admin to grant you approvals access under Gateway, Permissions."
+    end
+
+    # Where it is asked in a channel. A workflow's Approval step asks where its run asks people (Workflow::Run#asking_channel_id),
+    # its incident's channel first. Every other request asks in the incidents channel.
+    def request_channel_id
+      return workflow_run.asking_channel_id(incident) if workflow_question? && workflow_run
+
+      workspace.incidents_channel_id.presence
+    end
 
     def pending? = status == STATUS_PENDING
     def approved? = status == STATUS_APPROVED
@@ -258,6 +302,8 @@ module Ability
     end
 
     private
+
+    def lapsed_reason = "Nobody ran it within #{ActiveSupport::Duration.build(RUN_WINDOW.to_i).inspect} of its approval."
 
     def approver_requirement_message
       return "requires the #{required_role} role" unless named_approvers?

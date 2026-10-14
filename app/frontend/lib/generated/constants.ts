@@ -397,6 +397,7 @@ export const WORKFLOW_TRIGGER_KINDS = [
   "inbound_webhook",
   "deploy_finished",
   "resource_changed",
+  "service_scaled",
   "security_event",
   "notice_raised",
   "investigation_finished",
@@ -417,6 +418,7 @@ export const WORKFLOW_TRIGGER_KINDS_BY_KEY = {
   "INBOUND_WEBHOOK": "inbound_webhook",
   "DEPLOY_FINISHED": "deploy_finished",
   "RESOURCE_CHANGED": "resource_changed",
+  "SERVICE_SCALED": "service_scaled",
   "SECURITY_EVENT": "security_event",
   "NOTICE_RAISED": "notice_raised",
   "INVESTIGATION_FINISHED": "investigation_finished",
@@ -517,6 +519,7 @@ export const RESOURCE_MAP_CHANGE_KINDS = [
   "deployed",
   "status_changed",
   "renamed",
+  "scaled",
   "configured"
 ] as const
 export type ResourceMapChangeKind = (typeof RESOURCE_MAP_CHANGE_KINDS)[number]
@@ -524,6 +527,7 @@ export type ResourceMapChangeKind = (typeof RESOURCE_MAP_CHANGE_KINDS)[number]
 export const RESOURCE_MAP_TIMELINE_KINDS = [
   "deploy",
   "config",
+  "scaled",
   "status",
   "appeared",
   "removed",
@@ -1747,7 +1751,8 @@ export const WORKFLOW_STEP_EDITORS = [
   "browser",
   "set_data",
   "ask_person",
-  "approval"
+  "approval",
+  "manual"
 ] as const
 export type WorkflowStepEditor = (typeof WORKFLOW_STEP_EDITORS)[number]
 
@@ -1764,7 +1769,8 @@ export const WORKFLOW_STEP_EDITOR = {
   "BROWSER": "browser",
   "SET_DATA": "set_data",
   "ASK_PERSON": "ask_person",
-  "APPROVAL": "approval"
+  "APPROVAL": "approval",
+  "MANUAL": "manual"
 } as const
 
 export const WORKFLOW_STEP_ICONS = [
@@ -1795,7 +1801,8 @@ export const WORKFLOW_STEP_ICONS = [
   "script",
   "browser",
   "webhook",
-  "data"
+  "data",
+  "task"
 ] as const
 export type WorkflowStepIcon = (typeof WORKFLOW_STEP_ICONS)[number]
 
@@ -1838,7 +1845,19 @@ export const WORKFLOW_ASK_PERSON = {
   "FIELDS": "fields",
   "FIELD_NAME": "name",
   "FIELD_LABEL": "label",
-  "FIELD_LIMIT": 5
+  "FIELD_LIMIT": 5,
+  "CHOICES": "choices",
+  "CHOICE_KEY": "key",
+  "CHOICE_LABEL": "label",
+  "CHOICE_LIMIT": 5,
+  "CHOICE_LABEL_LIMIT": 75
+} as const
+
+export const WORKFLOW_WAIT = {
+  "KEY": "wait_minutes",
+  "DEFAULT_MINUTES": 1440,
+  "FEWEST_MINUTES": 5,
+  "MOST_MINUTES": 10080
 } as const
 
 export const WORKFLOW_APPROVAL = {
@@ -1848,7 +1867,8 @@ export const WORKFLOW_APPROVAL = {
 
 export const WORKFLOW_ASK_KIND = {
   "QUESTION": "question",
-  "APPROVAL": "approval"
+  "APPROVAL": "approval",
+  "TASK": "task"
 } as const
 
 export const WORKFLOW_QUESTION_STATUS = {
@@ -2068,5 +2088,16 @@ export const WORKFLOW_TRIGGER_KEYS = {
 } as const
 
 export const WORKFLOW_CONDITION_LIMIT = 20 as const
+
+export const TRIGGER_NUMBER_OPERATORS = [
+  "greater_than",
+  "less_than"
+] as const
+export type TriggerNumberOperator = (typeof TRIGGER_NUMBER_OPERATORS)[number]
+
+export const TRIGGER_NUMBER_OPERATOR = {
+  "GREATER_THAN": "greater_than",
+  "LESS_THAN": "less_than"
+} as const
 
 export const WORKFLOW_INPUT_LIMIT = 10 as const

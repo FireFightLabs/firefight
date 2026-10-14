@@ -57,6 +57,23 @@ class Workflow::EditTest < ActiveSupport::TestCase
     assert_equal [ "look" ], draft.steps.first.dig("config", "steps").map { |each| each["name"] }
   end
 
+  test "an ask a person's choices are the builder's labels, each given a key once that stays when the label changes" do
+    config = { "to" => "person", "person" => "bob@example.com", "question" => "Roll back?",
+               "choices" => [ { "label" => "Roll back now" }, "Wait", { "label" => "Roll back now!" }, { "label" => "Unanswered" } ] }
+    edit(Workflow::Edit::OPERATION_ADD_STEP, { "step" => step("ask", "ask_person", config) })
+
+    assert_equal [ { "key" => "roll_back_now", "label" => "Roll back now" }, { "key" => "wait", "label" => "Wait" },
+                   { "key" => "roll_back_now_2", "label" => "Roll back now!" }, { "key" => "unanswered_2", "label" => "Unanswered" } ],
+                 draft.steps.first.dig("config", "choices")
+
+    changed = [ { "key" => "roll_back_now", "label" => "Roll back at once" }, { "key" => "wait", "label" => "Wait" }, { "key" => "", "label" => "Page the lead" } ]
+    edit(Workflow::Edit::OPERATION_CHANGE_CONFIG, { "step_id" => "ask", "changes" => { "config" => { "choices" => changed } } })
+
+    assert_equal [ { "key" => "roll_back_now", "label" => "Roll back at once" }, { "key" => "wait", "label" => "Wait" }, { "key" => "page_the_lead", "label" => "Page the lead" } ],
+                 draft.steps.first.dig("config", "choices")
+    assert_equal %w[roll_back_now wait page_the_lead unanswered], Workflow::StepKinds.routes_of(draft.steps.first)
+  end
+
   test "renaming a step rewrites every reference to it" do
     edit(Workflow::Edit::OPERATION_ADD_STEP, { "step" => step("check") })
     edit(Workflow::Edit::OPERATION_ADD_STEP, { "step" => step("tell", "delay", { "seconds" => "{{steps.check.n}} and {{ steps.check }} not {{steps.checked.n}}" }) })

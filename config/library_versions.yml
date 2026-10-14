@@ -390,6 +390,12 @@ skills:
   incident_command:
     version: 1
     digest: 35ea7b5b10dc6ded6f676e34d5f9a25eed06f3b6347b560aa7bd103a1bce8b1d
+  instatus_customer_updates:
+    version: 1
+    digest: 7b313c71419af73321ae71a0dcac83abe528ea6c5005b606af11917bd67bf7ff
+  instatus_maintenance:
+    version: 1
+    digest: c47c2bf7cb1749f25ec741092f48fc6a99de05da171bee9766552135fb6311eb
   inviting:
     version: 1
     digest: 1449e217bada92b57661327f35ba232362f43be748ce83d80e76de1a546abebd
@@ -729,6 +735,12 @@ skills:
   signoz_triage:
     version: 1
     digest: 68a279f42a8474fc3674d3adc2873a36b2d70a3d82c938ca8ffd780d1da81dfc
+  statuspage_customer_updates:
+    version: 1
+    digest: 51f6ec2016690bbc6f6a8632f29e25300ff8be31195a0abdef289d5b35743842
+  statuspage_maintenance:
+    version: 1
+    digest: 945a838180b85d692269bd05adb08550e0d0b7caae92ae1c8a87e75373447e45
   supabase_connections:
     version: 1
     digest: 8fea79988684bd606e4c0095a454b827818b5962ea54fb63f3bb5ec42e88ca0d

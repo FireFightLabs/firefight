@@ -7,9 +7,11 @@ class ResourceMap::Change < ApplicationRecord
   KIND_DEPLOYED = "deployed".freeze
   KIND_STATUS_CHANGED = "status_changed".freeze
   KIND_RENAMED = "renamed".freeze
+  # The number of copies a service runs moved (ResourceMap::INSTANCES). from and to are the counts.
+  KIND_SCALED = "scaled".freeze
   # A setting moved, such as the number of WAF custom rules. detail names the setting.
   KIND_CONFIGURED = "configured".freeze
-  KINDS = [ KIND_APPEARED, KIND_REMOVED, KIND_DEPLOYED, KIND_STATUS_CHANGED, KIND_RENAMED, KIND_CONFIGURED ].freeze
+  KINDS = [ KIND_APPEARED, KIND_REMOVED, KIND_DEPLOYED, KIND_STATUS_CHANGED, KIND_RENAMED, KIND_SCALED, KIND_CONFIGURED ].freeze
 
   belongs_to :workspace
   belongs_to :resource, class_name: "ResourceMap::Resource"
@@ -24,9 +26,18 @@ class ResourceMap::Change < ApplicationRecord
   # What changed and when, in the words the map page uses.
   def line = "#{words} at #{happened_at.utc.iso8601}"
 
-  # Each change the map records is heard once by the workspace's workflows that wait for one.
+  # Each change the map records is heard once by the workspace's workflows that wait for one, and a scale also by those
+  # that wait for a service to scale.
   def tell_workflows
     Workflow::Trigger::Events.fire!(workspace, Workflow::Trigger::KIND_RESOURCE_CHANGED, key: id, subject: self)
+    Workflow::Trigger::Events.fire!(workspace, Workflow::Trigger::KIND_SERVICE_SCALED, key: id, subject: self) if kind == KIND_SCALED
+  end
+
+  # A scale's counts as numbers, nil for any other change.
+  def counts
+    return unless kind == KIND_SCALED
+
+    [ from_value, to_value ].map { |value| Integer(value, exception: false) }
   end
 
   # What changed, without when.
@@ -38,6 +49,7 @@ class ResourceMap::Change < ApplicationRecord
     when KIND_DEPLOYED then "#{name} deployed #{to_value.present? ? to_value.first(7) : 'a new build'}"
     when KIND_RENAMED then "#{from_value || 'A resource'} was renamed #{to_value || name}"
     when KIND_STATUS_CHANGED then "#{name} went from #{from_value || 'unknown'} to #{to_value || 'unknown'}"
+    when KIND_SCALED then "#{name} went from #{from_value} to #{to_value} #{'instance'.pluralize(to_value.to_i)}"
     else "#{name}: #{detail || 'a setting'} went from #{from_value || 'unknown'} to #{to_value || 'unknown'}"
     end
   end

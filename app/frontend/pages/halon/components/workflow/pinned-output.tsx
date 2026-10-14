@@ -7,7 +7,7 @@ import { workflowPinPath } from "@/lib/routes"
 import { JsonBlock } from "@/pages/halon/components/workflow/json-block"
 import { PinDialog } from "@/pages/halon/components/workflow/pin-dialog"
 import { CANVAS_VISIT } from "@/pages/halon/hooks/use-workflow-edits"
-import { routeWords } from "@/pages/halon/lib/workflow/labels"
+import { routeLabel } from "@/pages/halon/lib/workflow/labels"
 import type { WorkflowStepNode } from "@/types/serializers"
 
 // A step's pinned output in its settings: what test runs use in its place, with Edit and Unpin, or Pin an output to
@@ -28,7 +28,7 @@ export function PinnedOutput({ workflowId, step, editable }: { workflowId: strin
       <h4 className="font-mono text-[10.5px] tracking-[0.1em] text-brand uppercase">Pinned output</h4>
       {step.pin ? (
         <>
-          <JsonBlock label={step.pin.route ? `Takes ${routeWords(step.pin.route)} and gives` : "Gives"} value={step.pin.output} />
+          <JsonBlock label={step.pin.route ? `Takes ${routeLabel(step.pin.route, step.routeLabels)} and gives` : "Gives"} value={step.pin.output} />
           <p className="text-xs text-fg-muted">Test runs use it in the step&apos;s place. Published runs always run the step.</p>
           {editable && (
             <div className="flex gap-2">

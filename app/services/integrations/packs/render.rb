@@ -799,7 +799,7 @@ module Integrations
           found = add(service["type"], service, status: service["suspended"] == SUSPENDED ? SUSPENDED : deploy&.dig("status"),
                                                 details: {
                                                   "type" => TYPE_WORDS[service["type"]], "plan" => details["plan"], "region" => details["region"],
-                                                  "instances" => details["numInstances"], "branch" => service["branch"],
+                                                  ResourceMap::INSTANCES => details["numInstances"], "branch" => service["branch"],
                                                   ResourceMap::DEPLOYED_COMMIT => commit
                                                 }.compact)
           repository(found, service["repo"])

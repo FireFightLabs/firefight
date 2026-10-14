@@ -41,7 +41,8 @@ class Conversation::IssueSessions
   # beside Halon taking it up.
   def tell_workflows
     issue = { "provider" => @integration.display_name, "key" => @event.issue_key, "title" => @event.issue_title, "url" => @event.issue_url,
-              "text" => @event.text, "asked_by" => @event.asker_name, "asked_by_email" => @event.asker_email }
+              "text" => @event.text, "asked_by" => @event.asker_name, "asked_by_email" => @event.asker_email,
+              Workflow::Trigger::Fields::HOW => Workflow::TriggerPayloads::ISSUE_ASSIGNED }
     Workflow::Trigger::Events.fire!(@workspace, Workflow::Trigger::KIND_ISSUE_ASSIGNED, key: "#{@integration.id}:#{@event.session_id}", subject: @row,
                                                                                        details: issue)
   end
