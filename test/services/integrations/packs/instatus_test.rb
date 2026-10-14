@@ -24,7 +24,9 @@ module Integrations
         entry = IntegrationProvider.find(Providers::Instatus.key)
         assert entry.holds_status_pages
         assert_equal Integration::KIND_NATIVE, entry.kind
-        assert_equal %w[list_status_pages list_components get_component list_incidents get_incident list_maintenances get_maintenance list_subscribers list_templates],
+        assert_equal %w[list_status_pages list_components get_component list_incidents get_incident list_maintenances get_maintenance list_subscribers list_templates
+                        list_monitors get_monitor_logs list_monitor_alerts list_cron_monitors get_cron_monitor list_metrics get_metric list_notices list_outages list_teammates
+                        list_workspaces list_audience_groups list_routing_rules list_escalation_policies who_is_on_call],
                      Instatus.tool_definitions.select(&:read_only).map(&:name)
         assert_includes Instatus.tool_definitions.reject(&:read_only).map(&:name), "post_incident_update"
         assert_equal "in-key", @row.reload.credentials_hash[Instatus::API_KEY]
@@ -138,6 +140,149 @@ module Integrations
         assert_raises(NativePack::Error) { call(:delete_status_page) }
         InstatusApi.any_instance.expects(:delete_page).with("pg1").returns("id" => "pg1")
         assert_equal "Instatus deleted the status page Acme (id pg1).", text(call(:delete_status_page, "page" => "Acme"))
+      end
+
+      test "a component is put in a group by name, sent as group on create and groupId on change, and the other name is tried when it did not land" do
+        InstatusApi.any_instance.expects(:create_component).with("pg1", { "name" => "Search", "status" => "OPERATIONAL", "grouped" => true, "group" => "g1" })
+                   .returns("id" => "c3", "name" => "Search", "group" => { "id" => "g1", "name" => "Core" })
+        call(:create_component, "name" => "Search", "group" => "Core")
+
+        InstatusApi.any_instance.expects(:update_component).with("pg1", "c2", { "grouped" => true, "groupId" => "g1" }).returns("id" => "c2", "group" => nil)
+        InstatusApi.any_instance.expects(:update_component).with("pg1", "c2", { "grouped" => true, "group" => "g1" })
+                   .returns("id" => "c2", "name" => "Checkout", "status" => "DEGRADEDPERFORMANCE", "group" => { "id" => "g1" })
+        call(:update_component, "component" => "Checkout", "group" => "g1")
+
+        InstatusApi.any_instance.expects(:update_component).with("pg1", "c1", { "grouped" => false }).twice.returns("id" => "c1", "group" => { "id" => "g1" })
+        error = assert_raises(NativePack::Error) { call(:update_component, "component" => "API", "group" => "none") }
+        assert_equal "Instatus took the change but did not take it out of its group. Check it in Instatus.", error.message
+        assert_raises(NativePack::Error) { call(:update_component, "component" => "API", "group" => "Edge") }
+      end
+
+      test "a component made without its id and outside its group is said in words, never moved at an empty address" do
+        InstatusApi.any_instance.expects(:create_component).returns("name" => "Search", "group" => nil)
+        InstatusApi.any_instance.expects(:update_component).never
+
+        error = assert_raises(NativePack::Error) { call(:create_component, "name" => "Search", "group" => "Core") }
+        assert_equal "Instatus added Search but did not return its id, so it was not put in group g1. Check it in Instatus.", error.message
+      end
+
+      test "an alert's recipient is an email or a phone number, never a webhook address, made or changed" do
+        assert_raises(Integrations::PolicyRefusal) { call(:update_monitor_alert, "alert" => "a1", "recipient" => "https://hooks.slack.com/services/x") }
+        assert_raises(Integrations::PolicyRefusal) { call(:create_monitor_alert, "type" => "EMAIL", "recipient" => "https://hook.acme.io/x", "monitors" => [ "m1" ]) }
+
+        InstatusApi.any_instance.expects(:update_monitor_alert).with("a1", { "recipient" => "+44 20 7946 0958" }).returns({})
+        call(:update_monitor_alert, "alert" => "a1", "recipient" => "+44 20 7946 0958")
+        InstatusApi.any_instance.expects(:update_monitor_alert).with("a1", { "recipient" => "ops@acme.io" }).returns({})
+        call(:update_monitor_alert, "alert" => "a1", "recipient" => "ops@acme.io")
+      end
+
+      test "a page's look is set with its other settings, and its SMS provider's credentials cannot be sent" do
+        InstatusApi.any_instance.expects(:update_page).with("pg1", { "brandColor" => "#111111", "cssGlobal" => "body { margin: 0 }", "useLargeHeader" => false })
+                   .returns("id" => "pg1", "name" => "Acme", "subdomain" => "acme")
+        call(:update_status_page, "brand_color" => "#111111", "css_global" => "body { margin: 0 }", "use_large_header" => false)
+
+        properties = Instatus.tool_definitions.find { |each| each.name == "update_status_page" }.params_schema["properties"].keys
+        assert_empty properties.grep(/twilio|esendex|nexmo|sms_service/)
+      end
+
+      test "a monitor never takes a credential, an alert never a webhook, and a cron monitor's ping address is never shown" do
+        error = assert_raises(Integrations::PolicyRefusal) do
+          call(:create_monitor, "name" => "API", "url" => "https://api.acme.io", "headers" => { "Authorization" => "Bearer x" })
+        end
+        assert_includes error.message, "Authorization"
+        assert_raises(Integrations::PolicyRefusal) { call(:create_monitor_alert, "type" => "SLACK", "recipient" => "https://hooks.slack.com/x", "monitors" => [ "m1" ]) }
+
+        InstatusApi.any_instance.expects(:create_monitor).with({
+          "name" => "API", "url" => "https://api.acme.io", "httpMethod" => "GET", "headers" => { "Accept" => "application/json" }, "checksInterval" => 60,
+          "onFail" => { "createIncident" => true, "notifySubscribers" => false }, "pageId" => "pg1", "type" => "HTTP"
+        }).returns("monitor" => { "id" => "m1", "name" => "API" })
+        assert_includes text(call(:create_monitor, "name" => "API", "url" => "https://api.acme.io", "headers" => { "Accept" => "application/json" }, "checks_interval" => 60,
+                                                   "on_fail" => { "create_incident" => true, "notify_subscribers" => false })),
+                        "Instatus started monitor API (id m1) checking https://api.acme.io on Acme."
+
+        InstatusApi.any_instance.stubs(:cron_monitors).returns(Pages::Read.new(items: [ { "id" => "k1", "name" => "Backup", "slug" => "acme-secret-slug", "period" => 86_400,
+                                                                                         "status" => "UP", "state" => "ACTIVE" } ], complete: true))
+        listed = text(call(:list_cron_monitors))
+        assert_includes listed, "Backup (id k1), UP, ACTIVE, every 86400 seconds"
+        assert_not_includes listed, "acme-secret-slug"
+
+        InstatusApi.any_instance.stubs(:monitor_alerts).returns(Pages::Read.new(items: [ { "id" => "a1", "type" => "WEBHOOK", "recipient" => "https://hook.acme.io/s3cret", "monitors" => [] },
+                                                                                          { "id" => "a2", "type" => "EMAIL", "recipient" => "ops@acme.io", "whenFails" => true, "monitors" => [ { "id" => "m1" } ] } ],
+                                                                                 complete: true))
+        alerts = text(call(:list_monitor_alerts))
+        assert_not_includes alerts, "s3cret"
+        assert_includes alerts, "EMAIL (id a2), to ops@acme.io, on fails, 1 monitors"
+      end
+
+      test "notices ask whether to tell subscribers, outages are recorded on a component, metrics take readings in milliseconds, and teammates are named by email" do
+        assert_raises(NativePack::Error) { call(:create_notice, "name" => "DNS move") }
+        InstatusApi.any_instance.expects(:create_notice).with("pg1", { "name" => "DNS move", "notify" => false, "isCollapsed" => false }).returns("id" => "n1")
+        assert_includes text(call(:create_notice, "name" => "DNS move", "notify" => false)), "Subscribers were not told."
+
+        InstatusApi.any_instance.expects(:create_outage).with("pg1", { "status" => "PARTIALOUTAGE", "from" => "2026-10-14T08:00:00.000Z", "componentId" => "c2" }).returns("id" => "o1")
+        call(:create_outage, "component" => "Checkout", "status" => "PARTIALOUTAGE", "from" => "2026-10-14T08:00:00Z")
+        assert_raises(NativePack::Error) { call(:create_outage, "component" => "Checkout", "status" => "OPERATIONAL", "from" => "2026-10-14T08:00:00Z") }
+
+        InstatusApi.any_instance.stubs(:metrics).returns(Pages::Read.new(items: [ { "id" => "x1", "name" => { "default" => "Latency" }, "suffix" => "ms" } ], complete: true))
+        InstatusApi.any_instance.expects(:add_metric_data).with("pg1", "x1", [ { "timestamp" => 1_791_936_000_000, "value" => 120 } ]).returns([])
+        call(:add_metric_data, "metric" => "latency", "points" => [ { "at" => "2026-10-14T00:00:00Z", "value" => 120 } ])
+
+        InstatusApi.any_instance.stubs(:teammates).returns(Pages::Read.new(items: [ { "id" => "t1", "user" => { "email" => "bo@acme.io", "name" => "Bo" } } ], complete: true))
+        InstatusApi.any_instance.expects(:remove_teammate).with("pg1", "t1").returns("memberId" => "t1")
+        assert_includes text(call(:remove_teammate, "member" => "bo@acme.io")), "Instatus took away bo@acme.io's access to manage Acme."
+      end
+
+      test "routing rules tell a teammate by email and escalation steps by member id, as Instatus documents each" do
+        InstatusApi.any_instance.stubs(:teammates).returns(Pages::Read.new(items: [ { "id" => "t1", "user" => { "email" => "bo@acme.io" } } ], complete: true))
+        InstatusApi.any_instance.expects(:create_routing_rule).with({
+          "siteId" => "pg1", "assertions" => [ { "type" => "TITLE", "comparison" => "CONTAINS", "value" => "checkout" } ],
+          "actions" => [ { "type" => "NOTIFY_TEAM_MEMBER", "targetId" => "bo@acme.io" }, { "type" => "NOTIFY_CURRENT_ON_CALL_USER" } ]
+        }).returns("routingRule" => { "id" => "r1" })
+        call(:create_routing_rule, "assertions" => [ { "type" => "TITLE", "comparison" => "CONTAINS", "value" => "checkout" } ],
+                                   "actions" => [ { "type" => "NOTIFY_TEAM_MEMBER", "target" => "t1" }, { "type" => "NOTIFY_CURRENT_ON_CALL_USER" } ])
+
+        InstatusApi.any_instance.expects(:create_escalation_policy).with({
+          "rules" => [ { "delayInMins" => 5, "condition" => "NOT_ACKNOWLEDGED", "actions" => [ { "type" => "NOTIFY_TEAM_MEMBER", "targetId" => "t1" } ] } ],
+          "repeat" => true, "repeatCount" => 2, "pageId" => "pg1", "name" => "Primary"
+        }).returns("escalationPolicy" => { "id" => "e1" })
+        assert_includes text(call(:create_escalation_policy, "name" => "Primary", "repeat" => true, "repeat_count" => 2,
+                                                             "rules" => [ { "delay_minutes" => 5, "actions" => [ { "type" => "NOTIFY_TEAM_MEMBER", "target" => "bo@acme.io" } ] } ])),
+                        "Instatus made escalation policy Primary (id e1) with 1 steps on Acme."
+        assert_raises(NativePack::Error) { call(:create_routing_rule, "assertions" => [ { "type" => "TITLE", "comparison" => "LIKE" } ], "actions" => [ { "type" => "NOTIFY_TEAM", "target" => "x" } ]) }
+        assert_raises(NativePack::Error) { call(:create_routing_rule, "assertions" => [ { "type" => "TITLE", "comparison" => "EQUALS" } ], "actions" => [ { "type" => "NOTIFY_TEAM" } ]) }
+      end
+
+      test "an on-call schedule's shifts name teammates by email and keep times of day as Instatus does, and who is on call reads its members" do
+        InstatusApi.any_instance.stubs(:teammates).returns(Pages::Read.new(items: [ { "id" => "t1", "user" => { "email" => "bo@acme.io" } } ], complete: true))
+        InstatusApi.any_instance.expects(:create_on_call_schedule).with({
+          "name" => "Primary",
+          "onCallShifts" => [ { "name" => "Nights", "members" => [ { "teamMemberId" => "t1" } ], "rotationType" => "WEEKLY", "startDate" => "2026-10-20T08:00:00.000Z",
+                                "restrictionType" => "TIMEINTERVALS",
+                                "timeIntervals" => [ { "startDay" => "SATURDAY", "startDayTime" => "1970-01-01T21:00:00.000Z", "endDay" => "SUNDAY", "endDayTime" => "1970-01-01T03:00:00.000Z" } ] } ]
+        }).returns("id" => "s1")
+        call(:create_on_call_schedule, "name" => "Primary", "shifts" => [ { "name" => "Nights", "members" => [ "bo@acme.io" ], "rotation" => "WEEKLY", "starts" => "2026-10-20T08:00:00Z",
+                                                                             "restriction" => "TIMEINTERVALS",
+                                                                             "intervals" => [ { "start_day" => "SATURDAY", "start_time" => "21:00", "end_day" => "SUNDAY", "end_time" => "03:00" } ] } ])
+        assert_raises(NativePack::Error) { call(:create_on_call_schedule, "name" => "x", "shifts" => [ { "name" => "a", "members" => [ "bo@acme.io" ], "rotation" => "WEEKLY", "starts" => "2026-10-20T08:00:00Z", "restriction" => "TIMEOFDAY", "day_starts" => "25:00", "day_ends" => "17:00" } ]) }
+
+        InstatusApi.any_instance.stubs(:on_call_members).with("s1").returns("currentMembers" => [ { "email" => "bo@acme.io" } ], "nextMembers" => [], "allMembers" => [ { "email" => "bo@acme.io" } ])
+        assert_equal "On call now on schedule s1: bo@acme.io. Next: nobody. In the rotation: bo@acme.io.", text(call(:who_is_on_call, "schedule" => "s1"))
+      end
+
+      test "audience groups, monitoring integrations and workspaces are named by name, and an integration's answer is read for its id and tool alone" do
+        InstatusApi.any_instance.stubs(:teammates).returns(Pages::Read.new(items: [ { "id" => "t1", "user" => { "email" => "bo@acme.io" } } ], complete: true))
+        InstatusApi.any_instance.expects(:create_audience_group).with("pg1", { "name" => "Partners", "components" => [ "c1" ], "teammates" => [ "t1" ] }).returns("id" => "ag1")
+        call(:create_audience_group, "name" => "Partners", "components" => [ "API" ], "teammates" => [ "bo@acme.io" ])
+
+        InstatusApi.any_instance.expects(:create_integration).with({ "pageId" => "pg1", "integrationType" => "PINGDOM", "components" => [ "c2" ] })
+                   .returns("integration" => { "id" => "i1", "monitoringTool" => "PINGDOM", "webhookUrl" => "https://api.instatus.com/hooks/s3cret" })
+        made = text(call(:create_monitoring_integration, "tool" => "pingdom", "components" => [ "Checkout" ]))
+        assert_includes made, "Instatus connected PINGDOM (id i1) for 1 components on Acme."
+        assert_not_includes made, "s3cret"
+
+        InstatusApi.any_instance.stubs(:workspaces).returns(Pages::Read.new(items: [ { "id" => "w1", "name" => "Ops", "slug" => "ops" } ], complete: true))
+        InstatusApi.any_instance.expects(:delete_workspace).with("w1").returns("id" => "w1")
+        assert_equal "Instatus deleted workspace Ops (id w1).", text(call(:delete_workspace, "workspace" => "ops"))
       end
 
       private

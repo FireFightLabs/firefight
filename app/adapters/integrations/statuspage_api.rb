@@ -20,6 +20,10 @@ module Integrations
     THROTTLED = 420
     PER_PAGE = 100
     MAX_PAGES = 10
+    BULK_LIMIT = 100
+    BULK_ALL = "all".freeze
+    METRIC_TRANSFORMS = %w[average count max min sum].freeze
+    SELF_PROVIDER = "Self".freeze
 
     COMPONENT_STATUSES = %w[operational under_maintenance degraded_performance partial_outage major_outage].freeze
     INCIDENT_STATUSES = %w[investigating identified monitoring resolved].freeze
@@ -174,7 +178,104 @@ module Integrations
       send_json(Net::HTTP::Delete, "/pages/#{segment(page_id)}/incidents/#{segment(incident_id)}/subscribers/#{segment(subscriber_id)}")
     end
 
+    def unsubscribed(page_id) = paged("/pages/#{segment(page_id)}/subscribers/unsubscribed")
+
+    def subscriber_histogram(page_id) = get("/pages/#{segment(page_id)}/subscribers/histogram_by_state")
+
+    # subscribers is a list of subscriber ids or :all. Statuspage takes at most BULK_LIMIT ids, and "all" only for a page
+    # with fewer subscribers than that when unsubscribing.
+    def unsubscribe_many(page_id, subscribers:, type: nil, state: nil, quietly: false)
+      body = { "subscribers" => bulk(subscribers), "type" => type.presence, "state" => state.presence, "skip_unsubscription_notification" => quietly }.compact
+      send_json(Net::HTTP::Post, "/pages/#{segment(page_id)}/subscribers/unsubscribe", body)
+    end
+
+    def resend_confirmations(page_id, subscribers:)
+      send_json(Net::HTTP::Post, "/pages/#{segment(page_id)}/subscribers/resend_confirmation", { "subscribers" => bulk(subscribers) })
+    end
+
+    # Takes quarantined subscribers back, the ones Statuspage stopped sending to after their messages bounced.
+    def reactivate(page_id, subscribers:, type: nil)
+      send_json(Net::HTTP::Post, "/pages/#{segment(page_id)}/subscribers/reactivate", { "subscribers" => bulk(subscribers), "type" => type.presence }.compact)
+    end
+
+    def metrics_providers(page_id) = Pages.read(max_pages: 1) { [ Array(get("/pages/#{segment(page_id)}/metrics_providers")), nil ] }
+
+    # A provider that holds no credentials, Self, whose metrics Firefight or anything else sends data to. The providers
+    # that pull from Datadog, New Relic, Librato or Pingdom take that service's keys, which are never sent from here.
+    def create_metrics_provider(page_id, provider)
+      send_json(Net::HTTP::Post, "/pages/#{segment(page_id)}/metrics_providers", { "metrics_provider" => provider })
+    end
+
+    def update_metrics_provider(page_id, provider_id, provider)
+      send_json(Net::HTTP::Patch, "/pages/#{segment(page_id)}/metrics_providers/#{segment(provider_id)}", { "metrics_provider" => provider })
+    end
+
+    def delete_metrics_provider(page_id, provider_id) = send_json(Net::HTTP::Delete, "/pages/#{segment(page_id)}/metrics_providers/#{segment(provider_id)}")
+
+    def metrics(page_id) = paged("/pages/#{segment(page_id)}/metrics")
+
+    def provider_metrics(page_id, provider_id) = paged("/pages/#{segment(page_id)}/metrics_providers/#{segment(provider_id)}/metrics")
+
+    def create_metric(page_id, provider_id, metric)
+      send_json(Net::HTTP::Post, "/pages/#{segment(page_id)}/metrics_providers/#{segment(provider_id)}/metrics", { "metric" => metric })
+    end
+
+    def update_metric(page_id, metric_id, metric) = send_json(Net::HTTP::Patch, "/pages/#{segment(page_id)}/metrics/#{segment(metric_id)}", { "metric" => metric })
+
+    def delete_metric(page_id, metric_id) = send_json(Net::HTTP::Delete, "/pages/#{segment(page_id)}/metrics/#{segment(metric_id)}")
+
+    # points by metric id, each a list of { timestamp in seconds, value }.
+    def add_metric_data(page_id, points) = send_json(Net::HTTP::Post, "/pages/#{segment(page_id)}/metrics/data", { "data" => points })
+
+    def reset_metric_data(page_id, metric_id) = send_json(Net::HTTP::Delete, "/pages/#{segment(page_id)}/metrics/#{segment(metric_id)}/data")
+
+    def page_access_users(page_id, email: nil) = paged("/pages/#{segment(page_id)}/page_access_users", { "email" => email.presence })
+
+    def create_page_access_user(page_id, user) = send_json(Net::HTTP::Post, "/pages/#{segment(page_id)}/page_access_users", { "page_access_user" => user })
+
+    def update_page_access_user(page_id, user_id, user)
+      send_json(Net::HTTP::Patch, "/pages/#{segment(page_id)}/page_access_users/#{segment(user_id)}", { "page_access_user" => user })
+    end
+
+    def delete_page_access_user(page_id, user_id) = send_json(Net::HTTP::Delete, "/pages/#{segment(page_id)}/page_access_users/#{segment(user_id)}")
+
+    # what is :components or :metrics, and how :add, :replace or :remove, as Statuspage's PATCH, POST and DELETE on them.
+    def change_page_access_user_access(page_id, user_id, what, how, ids)
+      access_change("/pages/#{segment(page_id)}/page_access_users/#{segment(user_id)}/#{what}", "#{what.to_s.singularize}_ids", how, ids)
+    end
+
+    def page_access_groups(page_id) = paged("/pages/#{segment(page_id)}/page_access_groups")
+
+    def create_page_access_group(page_id, group) = send_json(Net::HTTP::Post, "/pages/#{segment(page_id)}/page_access_groups", { "page_access_group" => group })
+
+    def update_page_access_group(page_id, group_id, group)
+      send_json(Net::HTTP::Patch, "/pages/#{segment(page_id)}/page_access_groups/#{segment(group_id)}", { "page_access_group" => group })
+    end
+
+    def delete_page_access_group(page_id, group_id) = send_json(Net::HTTP::Delete, "/pages/#{segment(page_id)}/page_access_groups/#{segment(group_id)}")
+
+    def change_page_access_group_components(page_id, group_id, how, ids)
+      access_change("/pages/#{segment(page_id)}/page_access_groups/#{segment(group_id)}/components", "component_ids", how, ids)
+    end
+
+    def status_embed(page_id) = get("/pages/#{segment(page_id)}/status_embed_config")
+
+    def update_status_embed(page_id, config)
+      send_json(Net::HTTP::Patch, "/pages/#{segment(page_id)}/status_embed_config", { "status_embed_config" => config })
+    end
+
     private
+
+    def bulk(subscribers) = subscribers == :all ? BULK_ALL : Array(subscribers)
+
+    def access_change(path, key, how, ids)
+      case how
+      when :add then send_json(Net::HTTP::Patch, path, { key => ids })
+      when :replace then send_json(Net::HTTP::Post, path, { key => ids })
+      when :remove then send_json(Net::HTTP::Delete, path, ids)
+      else raise ArgumentError, "unknown change #{how}"
+      end
+    end
 
     def group_body(name, components, description)
       { "description" => description.presence, "component_group" => { "name" => name, "components" => components } }.compact
@@ -183,10 +284,10 @@ module Integrations
     def postmortem_path(page_id, incident_id) = "/pages/#{segment(page_id)}/incidents/#{segment(incident_id)}/postmortem"
 
     # Up to MAX_PAGES pages of PER_PAGE, the next asked for only while a page comes back full.
-    def paged(path)
+    def paged(path, query = {})
       Pages.read(max_pages: MAX_PAGES) do |number|
         number ||= 1
-        rows = Array(get(path, { "page" => number, "per_page" => PER_PAGE }))
+        rows = Array(get(path, query.merge("page" => number, "per_page" => PER_PAGE)))
         [ rows, (number + 1 if rows.size == PER_PAGE) ]
       end
     end

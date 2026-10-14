@@ -19,7 +19,12 @@ module Integrations
       PAGE_SWITCHES = %w[allow_page_subscribers allow_incident_subscribers allow_email_subscribers allow_sms_subscribers
                          allow_webhook_subscribers allow_rss_atom_feeds].freeze
       PAGE_TEXTS = { "name" => "name", "domain" => "domain", "subdomain" => "subdomain", "website" => "url", "time_zone" => "time_zone",
-                     "notifications_from_email" => "notifications_from_email", "notifications_email_footer" => "notifications_email_footer" }.freeze
+                     "notifications_from_email" => "notifications_from_email", "notifications_email_footer" => "notifications_email_footer",
+                     "branding" => "branding" }.freeze
+      # The colours a page is drawn in, each a CSS colour such as #3ca63c.
+      PAGE_COLOURS = %w[css_body_background_color css_font_color css_light_font_color css_greens css_yellows css_oranges css_reds css_blues
+                        css_border_color css_graph_color css_link_color css_no_data].freeze
+      EMBED_FIELDS = %w[position incident_background_color incident_text_color maintenance_background_color maintenance_text_color].freeze
 
       PAGE = { "type" => "string", "description" => "The status page, by its id or name, as list_pages shows it (optional when the key reaches one page)" }.freeze
       INCIDENT = { "type" => "string", "description" => "The incident or maintenance, by its id, as list_incidents shows it" }.freeze
@@ -35,6 +40,12 @@ module Integrations
       STATUS = { "type" => "string", "enum" => StatuspageApi::INCIDENT_STATUSES + StatuspageApi::MAINTENANCE_STATUSES,
                  "description" => "investigating, identified, monitoring or resolved for an incident, scheduled, in_progress, verifying or completed for maintenance" }.freeze
       WHEN = ->(what) { { "type" => "string", "description" => "#{what}, as an ISO 8601 time such as 2026-10-14T22:00:00Z" } }
+      BULK_SUBSCRIBERS = {
+        "type" => "array", "items" => { "type" => "string" },
+        "description" => "Subscriber ids, as list_subscribers shows them, or [\"all\"] for every one"
+      }.freeze
+      # The kinds Statuspage takes back from quarantine, every kind but Teams.
+      REACTIVATE_TYPES = %w[email sms slack webhook integration_partner].freeze
       CONTACT = {
         "email" => { "type" => "string", "description" => "An email address, for an email subscriber, or with endpoint for a webhook one" },
         "endpoint" => { "type" => "string", "description" => "A webhook address, for a webhook subscriber, with the email told when it fails (optional)" },
@@ -132,8 +143,8 @@ module Integrations
 
       tool :update_page,
            description: "Change a page's settings: its name, its own domain or subdomain, the website its logo links to, its time " \
-                        "zone, whether search engines list it, who can view it and how people may subscribe, and the sender and " \
-                        "footer of its notification emails",
+                        "zone, whether search engines list it, who can view it, how people may subscribe, the sender and footer " \
+                        "of its notification emails, its template and its colours",
            params_schema: {
              "type" => "object",
              "properties" => {
@@ -147,8 +158,62 @@ module Integrations
                "viewers_must_be_team_members" => { "type" => "boolean", "description" => "Only team members can view it (optional)" }
              }.merge(PAGE_SWITCHES.to_h { |switch| [ switch, { "type" => "boolean", "description" => "#{switch.tr('_', ' ').upcase_first} (optional)" } ] }).merge(
                "notifications_from_email" => { "type" => "string", "description" => "The address its notifications come from (optional)" },
-               "notifications_email_footer" => { "type" => "string", "description" => "The footer of its notification emails, in Markdown (optional)" }
-             )
+               "notifications_email_footer" => { "type" => "string", "description" => "The footer of its notification emails, in Markdown (optional)" },
+               "branding" => { "type" => "string", "description" => "The template the page uses (optional)" }
+             ).merge(PAGE_COLOURS.to_h { |colour| [ colour, { "type" => "string", "description" => "#{colour.delete_prefix('css_').tr('_', ' ').upcase_first}, a CSS colour (optional)" } ] })
+           },
+           read_only: false
+
+      tool :get_status_embed,
+           description: "How a page's status embed looks, the box other sites show while an incident or maintenance is on",
+           params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
+           read_only: true
+
+      tool :update_status_embed,
+           description: "Change where a page's status embed sits and its colours during an incident and during maintenance",
+           params_schema: {
+             "type" => "object",
+             "properties" => { "page" => PAGE, "position" => { "type" => "string", "description" => "The corner it shows in, such as bottom-left (optional)" } }
+               .merge((EMBED_FIELDS - [ "position" ]).to_h { |field| [ field, { "type" => "string", "description" => "#{field.tr('_', ' ').upcase_first}, a CSS colour (optional)" } ] })
+           },
+           read_only: false
+
+      tool :list_unsubscribed,
+           description: "The people who unsubscribed from a page, each with how they were told",
+           params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
+           read_only: true
+
+      tool :subscriber_histogram,
+           description: "How many subscribers a page has by how they are told and by state: active, unconfirmed and quarantined",
+           params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
+           read_only: true
+
+      tool :unsubscribe_subscribers,
+           description: "Unsubscribe many subscribers at once, at most #{StatuspageApi::BULK_LIMIT} by id, or every one on a page with fewer than that",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "page" => PAGE, "subscribers" => BULK_SUBSCRIBERS,
+               "type" => { "type" => "string", "enum" => StatuspageApi::SUBSCRIBER_TYPES, "description" => "Only this kind (optional)" },
+               "state" => { "type" => "string", "enum" => StatuspageApi::SUBSCRIBER_STATES, "description" => "Only these (optional, active)" },
+               "quietly" => { "type" => "boolean", "description" => "Do not tell them they were unsubscribed (optional, false)" }
+             },
+             "required" => [ "subscribers" ]
+           },
+           read_only: false
+
+      tool :resend_confirmations,
+           description: "Send the confirmation message again to unconfirmed email subscribers, by id or every one",
+           params_schema: { "type" => "object", "properties" => { "page" => PAGE, "subscribers" => BULK_SUBSCRIBERS }, "required" => [ "subscribers" ] },
+           read_only: false
+
+      tool :reactivate_subscribers,
+           description: "Take quarantined subscribers back, the ones Statuspage stopped sending to after their messages bounced, by id or every one",
+           params_schema: {
+             "type" => "object",
+             "properties" => { "page" => PAGE, "subscribers" => BULK_SUBSCRIBERS,
+                               "type" => { "type" => "string", "enum" => REACTIVATE_TYPES, "description" => "Only this kind (optional)" } },
+             "required" => [ "subscribers" ]
            },
            read_only: false
 
@@ -431,6 +496,9 @@ module Integrations
            },
            read_only: false
 
+      include Metrics
+      include PageAccess
+
       def self.credential_fields
         [
           CredentialField.new(key: API_KEY, label: "API key", secret: true, placeholder: "Your Statuspage API key",
@@ -577,6 +645,7 @@ module Integrations
         page = page_of(environment_row, arguments)
         change = PAGE_TEXTS.to_h { |given, field| [ field, arguments[given].to_s.strip.presence ] }.compact
         (PAGE_SWITCHES + %w[hidden_from_search viewers_must_be_team_members]).each { |switch| change[switch] = arguments[switch] if [ true, false ].include?(arguments[switch]) }
+        PAGE_COLOURS.each { |colour| change[colour] = arguments[colour].to_s.strip if arguments[colour].present? }
         fail! "Name what to change on the page." if change.empty?
 
         made = api(environment_row).update_page(page["id"], change)
@@ -814,6 +883,66 @@ module Integrations
         Telemetry.result("Statuspage unsubscribed #{who(gone)} from incident #{id}.", link: incident_link(page, "id" => id))
       end
 
+      def get_status_embed(environment_row:, arguments:)
+        page = page_of(environment_row, arguments)
+        config = api(environment_row).status_embed(page["id"])
+        rows = EMBED_FIELDS.filter_map { |field| "#{field.tr('_', ' ')}: #{config[field]}" if config[field].present? }
+        Telemetry.result("Status embed of #{page['name']}:\n#{rows.join("\n")}", link: page_link(page))
+      end
+
+      def update_status_embed(environment_row:, arguments:)
+        page = page_of(environment_row, arguments)
+        change = EMBED_FIELDS.to_h { |field| [ field, arguments[field].to_s.strip.presence ] }.compact
+        fail! "Name what to change on the status embed." if change.empty?
+
+        api(environment_row).update_status_embed(page["id"], change)
+        Telemetry.result("Statuspage changed the status embed's #{change.keys.map { |field| field.tr('_', ' ') }.to_sentence(last_word_connector: ' and ')} on #{page['name']}.",
+                         link: page_link(page))
+      end
+
+      def list_unsubscribed(environment_row:, arguments:)
+        page = page_of(environment_row, arguments)
+        read = api(environment_row).unsubscribed(page["id"])
+        return Telemetry.result("Nobody unsubscribed from #{page['name']}.", link: page_link(page)) if read.items.empty?
+
+        shown = read.items.first(SUBSCRIBER_LIMIT)
+        more = read.items.size > shown.size || read.incomplete? ? "\nThere are more." : ""
+        Telemetry.result("Unsubscribed from #{page['name']}:\n#{shown.map { |subscriber| subscriber_line(subscriber) }.join("\n")}#{more}", link: page_link(page))
+      end
+
+      def subscriber_histogram(environment_row:, arguments:)
+        page = page_of(environment_row, arguments)
+        counts = api(environment_row).subscriber_histogram(page["id"]).to_h
+        rows = counts.filter_map do |kind, states|
+          next unless states.is_a?(Hash)
+
+          "#{kind}: #{states.map { |state, count| "#{count} #{state}" }.join(', ')}"
+        end
+        Telemetry.result(rows.any? ? "Subscribers on #{page['name']} by kind and state:\n#{rows.join("\n")}" : "#{page['name']} has no subscribers.", link: page_link(page))
+      end
+
+      def unsubscribe_subscribers(environment_row:, arguments:)
+        page = page_of(environment_row, arguments)
+        who = bulk_subscribers(arguments)
+        api(environment_row).unsubscribe_many(page["id"], subscribers: who, type: choice(arguments["type"], StatuspageApi::SUBSCRIBER_TYPES, "type"),
+                                                          state: choice(arguments["state"], StatuspageApi::SUBSCRIBER_STATES, "state"), quietly: arguments["quietly"] == true)
+        Telemetry.result("Statuspage is unsubscribing #{bulk_words(who)} from #{page['name']}#{', without telling them' if arguments['quietly'] == true}.", link: page_link(page))
+      end
+
+      def resend_confirmations(environment_row:, arguments:)
+        page = page_of(environment_row, arguments)
+        who = bulk_subscribers(arguments)
+        api(environment_row).resend_confirmations(page["id"], subscribers: who)
+        Telemetry.result("Statuspage is sending the confirmation message again to #{bulk_words(who)} on #{page['name']} that have not confirmed.", link: page_link(page))
+      end
+
+      def reactivate_subscribers(environment_row:, arguments:)
+        page = page_of(environment_row, arguments)
+        who = bulk_subscribers(arguments)
+        api(environment_row).reactivate(page["id"], subscribers: who, type: choice(arguments["type"], REACTIVATE_TYPES, "type"))
+        Telemetry.result("Statuspage is taking back #{bulk_words(who)} on #{page['name']} that it had quarantined.", link: page_link(page))
+      end
+
       def check_health!(environment_row)
         api(environment_row).pages
       rescue StatuspageApi::Error => error
@@ -830,6 +959,18 @@ module Integrations
           StatuspageApi.new(key)
         end
       end
+
+      # Subscriber ids, or :all when the list is ["all"].
+      def bulk_subscribers(arguments)
+        given = Array(arguments["subscribers"]).map { |each| each.to_s.strip }.compact_blank.uniq
+        return :all if given == [ StatuspageApi::BULK_ALL ]
+        fail! "Name the subscribers by id, or [\"all\"]." if given.empty? || given.include?(StatuspageApi::BULK_ALL)
+        fail! "Statuspage takes at most #{StatuspageApi::BULK_LIMIT} subscribers at a time." if given.size > StatuspageApi::BULK_LIMIT
+
+        given
+      end
+
+      def bulk_words(who) = who == :all ? "every subscriber" : "#{who.size} #{who.one? ? 'subscriber' : 'subscribers'}"
 
       def all_pages(environment_row) = @all_pages ||= api(environment_row).pages.items
 
