@@ -443,8 +443,18 @@ module Integrations
         token = GithubApp.installation_token(environment_row)
 
         comparison = GithubApp.get("/repos/#{repo}/compare/#{base}...#{head}", token: token)
-        comparison_text(repo, comparison, token)
+        commits = Array(comparison["commits"])
+        files = Array(comparison["files"])
+        total = comparison["total_commits"].to_i.nonzero? || commits.size
+        Capabilities::Comparison.with_comparison(
+          comparison_text(repo, comparison, token), commits: total, titles: commits.reverse.map { |commit| commit_title(commit) },
+                                                    paths: files.map { |file| file["filename"].to_s }, complete: total == commits.size && files.size < COMPARE_FILES,
+                                                    link: comparison["html_url"]
+        )
       end
+
+      # GitHub lists at most this many files of a comparison, so a range that reaches it may hold more.
+      COMPARE_FILES = 300
 
       def blame(environment_row:, arguments:)
         repo = repo_argument(arguments)
@@ -676,6 +686,8 @@ module Integrations
         query = { "sha" => branch, "until" => at.iso8601, "per_page" => 1 }.to_query
         Array(GithubApp.get("/repos/#{repo}/commits?#{query}", token: token)).first
       end
+
+      def commit_title(commit) = "#{commit['sha'].to_s[0, 12]} #{commit.dig('commit', 'message').to_s.lines.first&.strip}"
 
       def comparison_text(repo, comparison, token)
         commits = Array(comparison["commits"])

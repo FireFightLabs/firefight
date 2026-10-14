@@ -28,6 +28,18 @@ class Chat::BrowserCheck::Answer
   # The screen size that stopped before something it would send, when one did.
   def stopped_to_send = viewports.find { |viewport| [ STOP_SENDS_DATA, STOP_CHANGED_REQUEST ].include?(viewport.dig("stopped", "reason")) }
 
+  # Where a send stopped because the page no longer sends what was confirmed, with what it sends now, or nil.
+  def changed_request
+    viewports.map { |viewport| viewport["stopped"].to_h }.find { |stopped| stopped["reason"] == STOP_CHANGED_REQUEST }
+  end
+
+  # A request a page would send, as one line: the method, the address and the fields shown.
+  def sends(would)
+    would = would.to_h
+    fields = Array(would["fields"]).first(Chat::BrowserCheck::FIELDS_SHOWN).map { |field| "#{field['name']}=#{field['value']}" }
+    "#{would['method']} #{would['url']}#{" with #{fields.join(', ')}" if fields.any?}"
+  end
+
   # What went wrong on the page, a sentence each, empty when it loaded and every step passed. A fix's page check and a
   # watch go by it.
   def trouble
@@ -130,12 +142,6 @@ class Chat::BrowserCheck::Answer
     when STOP_PAGE_CAP then "Stopped at step #{stopped['step']}: it reached #{Chat::BrowserCheck::PAGES_PER_VIEWPORT} pages, the most one check loads."
     when STOP_DEADLINE then "Stopped at step #{stopped['step']}: the check reached its time limit of #{Chat::BrowserCheck::DEADLINE_SECONDS} seconds."
     end
-  end
-
-  def sends(would)
-    would = would.to_h
-    fields = Array(would["fields"]).first(Chat::BrowserCheck::FIELDS_SHOWN).map { |field| "#{field['name']}=#{field['value']}" }
-    "#{would['method']} #{would['url']}#{" with #{fields.join(', ')}" if fields.any?}"
   end
 
   def sending_words(can_send)

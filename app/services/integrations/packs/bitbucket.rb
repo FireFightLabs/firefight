@@ -312,7 +312,11 @@ module Integrations
         patches = patches_by_file(bitbucket.text("#{BitbucketApi.repository(repo)}/diff/#{Http.segment(spec)}"))
         files = stats.map { |stat| changed_file(stat, patches) }
         commits, more_commits = bitbucket.list("#{BitbucketApi.repository(repo)}/commits", { "include" => head, "exclude" => base }, pages: 3)
-        comparison_text(bitbucket, repo, base, head, commits, files, more || more_commits)
+        Capabilities::Comparison.with_comparison(
+          comparison_text(bitbucket, repo, base, head, commits, files, more || more_commits), commits: commits.size,
+                                                                                             titles: commits.map { |commit| "#{commit['hash'].to_s[0, 12]} #{commit['message']}" },
+                                                                                             paths: files.map { |file| file["filename"].to_s }, complete: !(more || more_commits)
+        )
       end
 
       def fetch_file(environment_row:, arguments:)

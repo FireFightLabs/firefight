@@ -83,7 +83,8 @@ module Integrations
                }, required: []),
       Spec.new(key: DEPLOYS, tool_name: "recent_deploys", writes: false, what: "deploys",
                description: "What went out to one resource on the map, newest first: when, which commit or version, by whom and " \
-                            "why, with the id rollback takes. Use it to see what changed before something broke",
+                            "why, with the id rollback takes. A deploy carries every commit since the one before it, so the answer " \
+                            "says what the live one carried when a code host holds its repository. Use it to see what changed before something broke",
                params: { "limit" => LIMIT }, required: []),
       Spec.new(key: STATUS, tool_name: "resource_status", writes: false, what: "status",
                description: "How one resource on the map is set up and how it stands now, read live from whichever connection " \
@@ -106,7 +107,8 @@ module Integrations
                          "limit" => LIMIT, **RANGE },
                required: []),
       Spec.new(key: ROLLBACK, tool_name: "rollback", writes: true, what: "a rollback",
-               description: "Put one resource on the map back on an earlier build or version, through whichever connection runs it",
+               description: "Put one resource on the map back on an earlier build or version, through whichever connection runs it. " \
+                            "It undoes every change since that version, which you are told before the person is asked",
                params: { "to" => { "type" => "string", "description" => "The build, version or deployment to go back to, by the id the provider gives it in recent_deploys or its build list" } },
                required: [ "to" ]),
       Spec.new(key: RESTART, tool_name: "restart", writes: true, what: "a restart",
@@ -384,18 +386,34 @@ module Integrations
     def self.commit_call(workspace, reference, ref, tools, principal:)
       visible = ResourceMap::Resource.visible_to(principal, workspace)
       named = visible.referenced(workspace, reference.to_s.strip).present.to_a
-      repositories = repositories_of(named, visible)
+      code_host_call(repositories_of(named, visible), :commit_route, tools, "reads a commit",
+                     "No code host on the map holds the repository #{reference} is built from, so #{ref} cannot be read as a commit.") do |adapter, resource|
+        adapter.commit_route(resource, ref)
+      end
+    end
+
+    # What changed between two commits of the repository a resource is built from, read through the code host holding it.
+    def self.compare_call(workspace, resource, base, head, tools, principal:)
+      visible = ResourceMap::Resource.visible_to(principal, workspace)
+      code_host_call(repositories_of([ resource ], visible), :compare_route, tools, "compares commits",
+                     "No code host on the map holds the repository #{resource.name} is built from.") do |adapter, repository|
+        adapter.compare_route(repository, base, head)
+      end
+    end
+
+    def self.code_host_call(repositories, route_name, tools, does, missing)
       found = repositories.flat_map { |resource| resource.holders.map { |row| [ resource, row, adapter_for(row.integration.provider) ] } }
-                          .find { |_resource, _row, adapter| adapter.respond_to?(:commit_route) }
-      raise Unroutable, "No code host on the map holds the repository #{reference} is built from, so #{ref} cannot be read as a commit." unless found
+                          .find { |_resource, _row, adapter| adapter.respond_to?(route_name) }
+      raise Unroutable, missing unless found
 
       resource, row, adapter = found
-      route = adapter.commit_route(resource, ref)
+      route = yield(adapter, resource)
       tool = tools.find { |each| each.integration_id == row.integration_id && each.name == route.tool_name }
-      raise Unroutable, "#{row.integration.name} reads a commit with its #{route.tool_name} tool, which is switched off or you may not run." unless tool
+      raise Unroutable, "#{row.integration.name} #{does} with its #{route.tool_name} tool, which is switched off or you may not run." unless tool
 
       Call.new(spec: nil, resource: resource, environment_row: row, tool: tool, arguments: Scopes.for_resource(row, resource, route.arguments), present: nil)
     end
+    private_class_method :code_host_call
 
     # The repositories among resources, or the ones they are built from, directly or through the build service whose
     # builds they run.
