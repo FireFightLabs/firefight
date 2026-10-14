@@ -20,7 +20,8 @@ class WorkflowHalonChatTest < ApplicationSystemTestCase
       click_button "What does this workflow do, step by step?"
       find("textarea").send_keys(:enter)
       assert_text "What does this workflow do, step by step?"
-      assert_selector "a[aria-label='Open the full chat']"
+      # The link to the chat comes with the server's answer to the question.
+      assert_selector "a[aria-label='Open the full chat']", wait: 15
     end
 
     chat = Conversation.beside(@workflow, workspace_memberships(:bob_workspace_one))

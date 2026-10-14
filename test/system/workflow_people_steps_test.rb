@@ -18,6 +18,31 @@ class WorkflowPeopleStepsTest < ApplicationSystemTestCase
 
   def step(id, kind, config = {}) = { "id" => id, "name" => id, "kind" => kind, "config" => config }
 
+  # Notes the words of every toast as it is drawn, so one that has already gone, or sits hidden behind a newer one, can
+  # still be checked. The first toast after a quiet spell arrives inside a new list, so the list's children count too.
+  def record_toasts
+    page.execute_script(<<~JS)
+      document.body.dataset.toastsDrawn = ""
+      const recorded = new WeakSet()
+      new MutationObserver((mutations) => {
+        mutations.flatMap((mutation) => [ ...mutation.addedNodes ]).forEach((node) => {
+          if (!(node instanceof Element)) {
+            return
+          }
+          const toasts = node.matches("[data-sonner-toast]") ? [ node ] : [ ...node.querySelectorAll("[data-sonner-toast]") ]
+          toasts.filter((toast) => !recorded.has(toast)).forEach((toast) => {
+            recorded.add(toast)
+            document.body.dataset.toastsDrawn += `${toast.textContent}|`
+          })
+        })
+      }).observe(document.body, { childList: true, subtree: true })
+    JS
+  end
+
+  def assert_toast_drawn(text)
+    assert_selector "body[data-toasts-drawn*='#{text}']", wait: 15
+  end
+
   def try!(*steps)
     @draft.update!(steps: steps, edges: [])
     run = nil
@@ -60,12 +85,12 @@ class WorkflowPeopleStepsTest < ApplicationSystemTestCase
     assert_button "Add a value"
     take_screenshot
 
-    # Stop is added below Set data and then connected to it, and the second toast collapses the first behind it with its
-    # words hidden until the stack is hovered, so the test waits for the last one and opens the stack as a person would.
+    # Stop is added below Set data and then connected to it. On a fast runner the second toast hides the first's words
+    # behind it, and on a slow one the first has gone before the second arrives, so the page records each toast it draws.
+    record_toasts
     within("aside[aria-label='Add a step']") { click_button "Stop" }
     assert_toast "Set data now leads to Stop."
-    find("[data-sonner-toast]", text: "Set data now leads to Stop.").hover
-    assert_toast "Stop was added."
+    assert_toast_drawn "Stop was added."
     assert_selector "label", text: /\Aoutcome/
     take_screenshot
   end
@@ -94,6 +119,10 @@ class WorkflowPeopleStepsTest < ApplicationSystemTestCase
     assert_equal [ { "key" => "roll_back_now", "label" => "Roll back now" } ], config["choices"]
     assert_equal 180, config["wait_minutes"]
 
+    # The second save says it happened with the same words, so the first toast has to be gone before it can prove
+    # anything. It stays while the pointer rests on it.
+    find("header h1", text: "Release").hover
+    assert_no_selector "[data-sonner-toast]", wait: 10
     find("input[aria-label='Words on the button']").fill_in(with: "Roll back at once")
     click_button "Apply changes"
     assert_toast "Ask a person was updated."
