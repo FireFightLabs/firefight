@@ -30,6 +30,7 @@ module SolidWorkflow
         end
 
         return park!(result, seen_wakes: seen_wakes) if result.is_a?(SolidWorkflow::Park)
+        return skip_itself!(result) if result.is_a?(SolidWorkflow::Skipped)
 
         output, route = result.is_a?(SolidWorkflow::Routed) ? [ result.output, result.route ] : [ result, nil ]
         current_updated_at = updated_at
@@ -98,6 +99,18 @@ module SolidWorkflow
       private
 
       MAX_ERROR_MESSAGE_BYTES = 2_000
+
+      # The step decided not to act, guarded like a success so a step moved on while it ran is left to whoever moved it.
+      def skip_itself!(result)
+        now = Time.current
+        moved = SolidWorkflow::Step.where(id: id, status: :running, updated_at: updated_at).update_all(
+          status: :skipped, skip_reason: result.reason, output: result.output || {}, completed_at: now, updated_at: now
+        )
+        reload
+        return if moved.zero?
+
+        workflow.record_event(SolidWorkflow::Events::Step::SKIPPED, step: self, reason: result.reason)
+      end
 
       def format_error(error)
         cleaner = Rails.respond_to?(:backtrace_cleaner) ? Rails.backtrace_cleaner : nil

@@ -119,6 +119,7 @@ module SolidWorkflow
       result = self.class.stand_in(step, workflow: workflow) || run_kind(step, filled.merge(kept), workflow)
       case result
       when SolidWorkflow::Park then result
+      when SolidWorkflow::Skipped then SolidWorkflow::Skipped.new(reason: result.reason, output: kept_output(result.output, workflow, step))
       when SolidWorkflow::Routed then SolidWorkflow::Routed.new(output: kept_output(result.output, workflow, step), route: result.route)
       else kept_output(result, workflow, step)
       end

@@ -108,6 +108,12 @@ class WorkflowStepNodeSerializer < BaseSerializer
     Workflow::StepKinds.outputs_of(step, facts)
   end
 
+  # Whether it makes a change that checks first it is still needed in a run nobody pressed, which its settings switch.
+  type :boolean
+  def checks_first
+    Workflow::StepKinds.checks_first_of(step, facts)
+  end
+
   type :string, optional: true
   def grant_needed
     options[:workflow]&.grant_needed_for(Workflow::StepKinds.reach_of(step, facts))

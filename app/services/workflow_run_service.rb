@@ -26,7 +26,7 @@ class WorkflowRunService
     standing = test ? earlier_results(version, content, up_to).merge(version.pinned_stand_ins(content || version.snapshot)).merge(stand_ins) : stand_ins
 
     run = Workflow.transaction do
-      refuse_limits!(trigger_kind) unless test
+      refuse_limits! unless test
       refuse!(already_running(subject)) if subject && @workflow.runs.unfinished.exists?(subject_key: subject)
 
       open_run(
@@ -101,14 +101,11 @@ class WorkflowRunService
     version
   end
 
-  # Counted with the workflow locked, and the workspace too for an event, until the run is made, so starts at once
-  # cannot each see room for one more.
-  def refuse_limits!(trigger_kind)
-    event = !Workflow::Limits::NOT_EVENTS.include?(trigger_kind)
+  # Counted with the workflow locked until the run is made, so starts at once cannot each see room for one more.
+  def refuse_limits!
     Workflow.find(@workflow.id).lock!
-    Workspace.find(@workflow.workspace_id).lock! if event
-    refuse!(@workflow.rate_blocked_reason)
-    refuse!(Workflow.event_blocked_reason(@workflow.workspace)) if event
+    over = @workflow.rate_blocked_reason
+    raise Workflow::Run::OverHourLimit, over if over
   end
 
   # Only steps of what runs that change something can be made for real, by their stable id.

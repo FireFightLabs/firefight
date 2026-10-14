@@ -57,6 +57,54 @@ class DefinedWorkflowSandboxStepsTest < ActiveSupport::TestCase
     assert_equal AbilityGateway::SOURCE_WORKFLOW, run.invocations.sole.source
   end
 
+  # The run's box started and ten seconds passing while its command runs.
+  def ten_seconds_in_the_box(workflow)
+    proc do |*|
+      CodeBox.create!(workspace: @workspace, key: workflow.runs.sole.code_box_key, provider: SandboxProviders::BOAT, box_ref: "bx_9", address: "https://box.example.com",
+                      secret: "k", last_used_at: Time.current, box_started_at: Time.current, hourly_micros: 360_000)
+      travel 10.seconds
+      true
+    end
+  end
+
+  test "a sandbox step keeps how long it used the run's box and what that cost, and the run's sandbox spend is the box's time" do
+    workflow = published("Count", steps: [ step("count", "run_command", { "command" => "ls" }) ])
+    Integrations::Terminal.any_instance.stubs(:run).with(&ten_seconds_in_the_box(workflow)).returns({ "exit_code" => 0, "stdout" => "", "stderr" => "" })
+
+    run = start(workflow)
+
+    assert_equal Workflow::Run::STATUS_SUCCEEDED, run.status, run.error
+    counted = run.steps.sole
+    assert_in_delta 10, counted.sandbox_seconds, 1
+    assert_in_delta 1_000, counted.sandbox_micros, 100
+    assert_in_delta 1_000, run.sandbox_spent_micros, 100
+  end
+
+  test "check from outside and the browser keep their sandbox time too" do
+    workflow = published("Look", steps: [ check("x") ])
+    Integrations::Terminal.any_instance.stubs(:check).with(&ten_seconds_in_the_box(workflow)).returns(Integrations::Terminal::Checked.new(answer: outside_answer, region: "fra"))
+
+    assert_in_delta 10, start(workflow).steps.sole.sandbox_seconds, 1
+
+    page = published("Page", steps: [ step("page", "browser", { "url" => "https://shop.example.com" }) ])
+    answer = Chat::BrowserCheck::Answer.new({ "viewports" => [ { "name" => "desktop", "status" => 200, "title" => "Shop" } ] }, check: Chat::BrowserCheck.from({ "url" => "https://shop.example.com" }))
+    Chat::Browsing.stubs(:run).with(&ten_seconds_in_the_box(page)).returns(answer)
+
+    assert_in_delta 10, start(page).steps.sole.sandbox_seconds, 1
+  end
+
+  test "once the run reached its spending ceiling a sandbox step does not start" do
+    workflow = published("Count", steps: [ step("count", "run_command", { "command" => "ls" }) ])
+    workflow.update!(cost_cap_cents: 25)
+    Workflow::Run.any_instance.stubs(:spent_cents).returns(25)
+    Integrations::Terminal.any_instance.expects(:run).never
+
+    run = start(workflow)
+
+    assert_equal Workflow::Run::STATUS_FAILED, run.status
+    assert_equal "count failed. This run reached its spending ceiling of $0.25, so this step did not run.", run.error
+  end
+
   test "a command that fails fails the step, and one that says it changes something is only shown in a test run" do
     Integrations::Terminal.any_instance.stubs(:run).returns({ "exit_code" => 2, "stdout" => "", "stderr" => "no such file\n" })
     failing = published("Fails", steps: [ step("bad", "run_command", { "command" => "cat nothing" }) ])

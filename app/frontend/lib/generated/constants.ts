@@ -1597,7 +1597,8 @@ export const WORKFLOW_PAGE_TAB_QUERY = "tab" as const
 
 export const WORKFLOW_RUNS_PER_HOUR = {
   "MIN": 1,
-  "MAX": 1000
+  "MAX": 1000,
+  "DEFAULT": 100
 } as const
 
 export const WORKFLOW_RUN_RETENTION_DAYS = {
@@ -1737,6 +1738,10 @@ export const WORKFLOW_STEP_EFFECT = {
   "READS": "reads",
   "CHANGES": "changes"
 } as const
+
+export const WORKFLOW_CHECK_FIRST_KEY = "check_first" as const
+
+export const MICROS_PER_CENT = 10000 as const
 
 export const WORKFLOW_STEP_EDITORS = [
   "fields",

@@ -69,6 +69,24 @@ class WorkflowRunsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ run.id ], inertia_props["runs"].map { |row| row["id"] }
   end
 
+  test "the run shows what it spent on AI and on its sandbox apart, each step's sandbox time, and why a change was skipped" do
+    steps!(step("pause", "delay", { "seconds" => 0 }))
+    run = try!
+    Inference.create!(workspace: @workspace, inferable: run, feature: FirefightAi::WorkflowAnswer::FEATURE, provider: "openai", model: "gpt", cost_micros: 120_000, status: "success")
+    CodeBox.create!(workspace: @workspace, key: run.code_box_key, provider: SandboxProviders::BOAT, box_ref: "bx_1", address: "https://box.example.com",
+                    secret: "k", last_used_at: Time.current, box_started_at: 1.hour.ago, hourly_micros: 40_000, stopped_at: Time.current, running_seconds: 3600)
+    run.steps.sole.update!(sandbox_seconds: 42, sandbox_micros: 467, status: DefinedWorkflow::STEP_SKIPPED,
+                           output: { DefinedWorkflow::Steps::Base::OUTPUT_SKIPPED => "Halon checked first and the problem has cleared, so this step did not run." })
+    sign_in(users(:bob), @workspace)
+
+    get workflow_path(@workflow, run: run.id), headers: inertia_headers
+
+    detail = inertia_props["run"]
+    assert_equal [ 120_000, 40_000 ], detail.values_at("aiSpentMicros", "sandboxSpentMicros")
+    assert_equal [ "pause: Halon checked first and the problem has cleared, so this step did not run." ], detail["notes"]
+    assert_equal [ 42, 467, "Halon checked first and the problem has cleared, so this step did not run." ], detail["steps"].sole.values_at("sandboxSeconds", "sandboxMicros", "note")
+  end
+
   test "a failed step is tried again, and a waiting step skipped, each saying so" do
     steps!(step("broken", "delay", { "at" => "not a moment" }, retry: { "max_attempts" => 1 }, on_failure: "continue"), step("later", "delay", { "minutes" => 30 }))
     run = try!

@@ -29,6 +29,6 @@ class DefinedWorkflow::Steps::RunCommand < DefinedWorkflow::Steps::Sandbox
     stopped = before_a_change(@step.label)
     return stopped if stopped
 
-    run_command(@config[KEY_COMMAND].to_s, label: "The command", params: { KEY_COMMAND => @config[KEY_COMMAND].to_s.truncate(500) })
+    in_sandbox { run_command(@config[KEY_COMMAND].to_s, label: "The command", params: { KEY_COMMAND => @config[KEY_COMMAND].to_s.truncate(500) }) }
   end
 end
