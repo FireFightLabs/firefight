@@ -677,6 +677,31 @@ module Integrations
                        assert_raises(PolicyRefusal) { @pack.fix_code(environment_row: @row, arguments: arguments.merge("branch" => "ruled")) }.message
         end
 
+        test "a private repository whose plan has no rulesets is pushed to, since no ruleset can hold the branch" do
+          stub_pull(7)
+          stub_branch("fix-pool")
+          GithubApp.stubs(:get).with("/repos/acme/api/rules/branches/fix-pool?per_page=100", token: "ghs_token")
+                   .raises(GithubApp::PlanLimited, "GitHub: Upgrade to GitHub Pro or make this repository public to enable this feature.")
+          stub_run("stdout" => agent_output, "timed_out" => false)
+          GithubApp.expects(:write).returns({})
+
+          assert_match "Pushed #{'c' * 12} to fix-pool in acme/api, updating https://github.com/acme/api/pull/7.",
+                       @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Raise", "brief" => "Raise it", "pull_request" => 7 })
+        end
+
+        test "a branch's rules GitHub refuses to read for a missing permission stop the fix before anything is written" do
+          stub_pull(7)
+          stub_branch("fix-pool")
+          GithubApp.stubs(:get).with("/repos/acme/api/rules/branches/fix-pool?per_page=100", token: "ghs_token")
+                   .raises(GithubApp::NotPermitted, "GitHub: Resource not accessible by integration")
+          CodeReading.any_instance.expects(:exec).never
+          GithubApp.expects(:write).never
+
+          assert_raises(GithubApp::NotPermitted) do
+            @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Raise", "brief" => "Raise it", "pull_request" => 7 })
+          end
+        end
+
         test "a branch that moved while the agent worked is never overwritten" do
           stub_pull(7)
           stub_branch("fix-pool")

@@ -6,6 +6,8 @@ module Integrations
       # Administration read, read only to add to the answer). A branch Firefight makes is named under halon/ (git/create-ref),
       # and only such a branch is ever deleted (git/delete-ref): never the default branch, a protected one, one a rule
       # keeps from deletion, or one an open pull request still comes from, since deleting it would close that pull request.
+      # A private repository on a plan without rulesets or branch protection (GitHub Free) has none to read, and GitHub
+      # refuses the read, which GithubApp raises as PlanLimited, so no rule holds its branches.
       module Branches
         PREFIX = "halon/".freeze
         # Rules from a ruleset that stop a branch being deleted or pushed to directly (repository-rule-deletion, -update and
@@ -19,6 +21,8 @@ module Integrations
           "pull_request" => "changes reach it only through a pull request", "required_status_checks" => "checks must pass",
           "non_fast_forward" => "it cannot be force pushed", "code_scanning" => "code scanning must pass", "workflows" => "workflows must pass"
         }.freeze
+        NO_RULES_ON_PLAN = "%<repo>s is a private repository on a GitHub plan without rulesets or branch protection for private " \
+                           "repositories, so no rule applies to %<name>s.".freeze
 
         def self.included(pack)
           pack.tool :list_branches,
@@ -80,7 +84,7 @@ module Integrations
             rules = branch_rules(repo, name, token)
             sections = [
               "#{name} in #{repo} is #{branch['protected'] ? 'protected' : 'not protected by branch protection'}, at #{branch.dig('commit', 'sha').to_s[0, 12]}.",
-              rules_text(rules),
+              rules ? rules_text(rules) : format(NO_RULES_ON_PLAN, repo: repo, name: name),
               (adding("Branch protection settings", "Administration read") { protection_text(repo, name, token) } if branch["protected"])
             ].compact
             linked(sections.join("\n\n"), repo_page(repo, "tree/#{Http.segment(name)}"))
@@ -129,7 +133,7 @@ module Integrations
           branch = GithubApp.get("/repos/#{repo}/branches/#{Http.segment(name)}", token: token)
           fail_policy! "#{name} in #{repo} is protected, so it is not deleted." if branch["protected"]
 
-          kept = branch_rules(repo, name, token).select { |rule| DELETE_RULES.include?(rule["type"]) }
+          kept = Array(branch_rules(repo, name, token)).select { |rule| DELETE_RULES.include?(rule["type"]) }
           fail_policy! "A ruleset in #{repo} keeps #{name} from being deleted." if kept.any?
 
           owner = repo.split("/").first
@@ -140,8 +144,11 @@ module Integrations
                 "#{pulls.one? ? 'it' : 'them'}. Close #{pulls.one? ? 'it' : 'them'} first if that is what is wanted."
         end
 
+        # The rules on a branch, or nil when the repository's plan has no rulesets, so none can hold it.
         def branch_rules(repo, name, token)
           Array(GithubApp.get("/repos/#{repo}/rules/branches/#{Http.segment(name)}?per_page=100", token: token))
+        rescue GithubApp::PlanLimited
+          nil
         end
 
         def rules_text(rules)

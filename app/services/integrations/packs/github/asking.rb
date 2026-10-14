@@ -40,6 +40,8 @@ module Integrations
           yield
         rescue GithubApp::NotPermitted
           "#{what} not shown: Firefight's GitHub App needs #{permission} for them."
+        rescue GithubApp::PlanLimited
+          "#{what} not shown: the repository's GitHub plan does not have them."
         rescue GithubApp::NotFound
           "#{what}: none."
         rescue GithubApp::Error => error

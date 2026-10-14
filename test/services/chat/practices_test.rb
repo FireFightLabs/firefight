@@ -88,6 +88,7 @@ class Chat::PracticesTest < ActiveSupport::TestCase
   test "what a failed call means is said after the provider's words" do
     assert_match "correct that part and send the change again", Chat::Tools::Connection::CHANGE_FAILED
     assert_match "stays asked for while they add other requests", Chat::Tools::Connection::CHANGE_FAILED
+    assert_match "is the provider's suggestion for that one call, and what the person asked for may not need it", Chat::Tools::Connection::CHANGE_FAILED
     assert_match "the data may still be reachable another way", Chat::Tools::Connection::READ_FAILED
     assert_match "Say so in your answer, with what you did instead", Chat::Tools::Connection::TIMED_OUT
     assert_match "Tell the person plainly that a Firefight rule refused it", FirefightAi::Evidence::REFUSED_BY_RULE
