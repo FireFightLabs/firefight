@@ -71,7 +71,7 @@ module Slack
     def post_approval_request(approval:, channel_id:)
       post_message(
         channel_id: channel_id,
-        text: "Approval required: #{approval.principal_label} wants to run #{approval.action_key}",
+        text: Slack::Messages::Approval.request_fallback(approval),
         blocks: Slack::Messages::Approval.build_request(approval, params: params_shown(approval))
       )
     end

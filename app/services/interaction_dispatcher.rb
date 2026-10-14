@@ -22,7 +22,8 @@ class InteractionDispatcher
     Identifiers::HANDBOOK_PROPOSAL_EDIT_MODAL => Interactions::EditHandbookProposalHandler,
     Identifiers::CODE_QUESTION_MODAL => Interactions::AnswerCodeQuestionHandler,
     Identifiers::CODE_QUESTION_CHANGE_MODAL => Interactions::ChangeCodeQuestionAnswerHandler,
-    Identifiers::RUNBOOK_RUN_MODAL => Interactions::RunbookRunHandler
+    Identifiers::RUNBOOK_RUN_MODAL => Interactions::RunbookRunHandler,
+    Identifiers::WORKFLOW_QUESTION_MODAL => Interactions::AnswerWorkflowQuestionHandler
   }.freeze
 
   BLOCK_ACTION_HANDLERS = {
@@ -119,7 +120,9 @@ class InteractionDispatcher
     Identifiers::CHAT_PLAN_CANCEL => Interactions::ChatPlanHandler,
     Identifiers::CHAT_PLAN_RETRY => Interactions::ChatPlanHandler,
     Identifiers::CHAT_PLAN_UNDO => Interactions::ChatPlanHandler,
-    **Identifiers::CODE_QUESTION_CHOOSE_IDS.index_with { Interactions::ChooseCodeQuestionOptionHandler }
+    **Identifiers::CODE_QUESTION_CHOOSE_IDS.index_with { Interactions::ChooseCodeQuestionOptionHandler },
+    Identifiers::WORKFLOW_QUESTION_ANSWER => Interactions::OpenWorkflowQuestionHandler,
+    **Identifiers::WORKFLOW_QUESTION_CHOOSE_IDS.index_with { Interactions::ChooseWorkflowAnswerHandler }
   }.freeze
 
   SHORTCUT_HANDLERS = {

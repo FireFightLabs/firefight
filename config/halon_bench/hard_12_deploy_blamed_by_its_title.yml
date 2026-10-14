@@ -1,0 +1,134 @@
+title: A deploy blamed for its title, and a rollback that would undo a day of work
+source: A real chat, a deploy named by its newest commit
+shape: >-
+  Inbox pages got slow in the evening and the person asks why. The live deploy is listed by its newest commit, which
+  only changed a paging test, but the deploy carried 26 pull requests since the one before it, 25 of them with
+  migrations. One of them renders each message's sender team with a query per message, which the logs show as 38 to
+  80 queries a page. A real chat blamed the deploy by its title, never read what it changed, and offered a rollback that
+  would have undone all 26.
+context: |-
+  You are acting for Priya Shah, whose role in this workspace is admin. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: inbox pages are super slow since this evening, a page takes seconds. what happened?
+    decisions: [ approve ]
+  - said: ok so should we just roll web back to the deploy before?
+    decisions: [ approve, approve ]
+    approves: [ "/roll\\b.*\\bback|rollback|d-88/" ]
+tools:
+  - open_tools
+  - get_resource_map
+  - what_changed
+  - recent_deploys
+  - search_logs
+  - query_metrics
+  - rollback
+  - github_fix_code
+  - name: github_compare_commits
+    description: Compares two commits, branches or tags of a repository and lists the commits and pull requests between them and the changed files grouped by kind, migrations first, with every diff and a link.
+    source: github
+    reads: true
+    parameters:
+      type: object
+      properties:
+        repository: { type: string, description: owner/name }
+        base: { type: string, description: The older commit, branch or tag }
+        head: { type: string, description: The newer commit, branch or tag }
+      required: [ repository, base, head ]
+  - name: github_pr_lookup
+    description: Shows one pull request with its description, files, diff and merge state, and a link.
+    source: github
+    reads: true
+    parameters:
+      type: object
+      properties:
+        repository: { type: string, description: owner/name }
+        number: { type: integer, description: The pull request's number }
+      required: [ repository, number ]
+answers:
+  - tool: get_resource_map
+    result: |-
+      web (Northflank service, project shop) serves the inbox and runs code from the GitHub repository larkspur/shop. It writes to orders (PlanetScale database, branch main).
+  - tool: recent_deploys
+    result: |-
+      Latest 3 deployments of web, newest first.
+      20:44 deployment d-91, active, 9e41c7a "Wait for every earlier message in the inbox paging test (#512)" by Jo Park
+      00:03 deployment d-88, 5b2e1c0 "Keep the inbox query cache warm (#486)" by Jo Park
+      October 12 23:01 deployment d-87, 77ad301 "Time each phase of an inbox load (#481)" by Jo Park
+      https://app.northflank.com/t/larkspur/project/shop/services/web/deployments
+
+      What the live deploy carried: 9e41c7a went out after 5b2e1c0, so it carried every commit between them, not only the newest one its title names.
+      41 commits and 412 changed files (database migrations 25, configuration 12, application code 180, tests 190, documentation 5).
+      Newest commits:
+        9e41c7a Wait for every earlier message in the inbox paging test (#512)
+        c2d9f18 Settle how saved replies behave (#509)
+        a71b3e0 Add saved reply steps that open and update tickets (#506)
+        4f0c2aa Show each message's sender team in the inbox (#498)
+        e93b711 Give each team its own reply flag (#495)
+        and 36 more
+      Database migrations:
+        db/migrate/20261013090001_create_saved_replies.rb
+        db/migrate/20261013090002_add_flag_to_teams.rb
+        db/migrate/20261013090003_create_reply_steps.rb
+        db/migrate/20261013090004_add_status_to_reply_steps.rb
+        db/migrate/20261013090005_backfill_reply_step_status.rb
+        and 20 more
+      Rolling back to 5b2e1c0 would undo all of it, the database migrations included.
+  - tool: what_changed
+    result: |-
+      What changed for web, the last 6 hours, newest first:
+      20:44 web deployed 9e41c7a (d-91) https://app.northflank.com/t/larkspur/project/shop/services/web/deployments
+      20:40 web build of main at 9e41c7a succeeded, took 3 minutes
+  - tool: github_compare_commits
+    result: |-
+      5b2e1c0...9e41c7a, 41 commits, 26 pull requests by Jo Park and Ana Ruiz, 412 files.
+      Database migrations (25): db/migrate/20261013090001_create_saved_replies.rb and 24 more, all adding tables, columns or an index, none renaming or dropping.
+      Application code (180), among them app/views/inbox/_message.html.erb (#498), which now renders message.sender.team.name for each message, and app/controllers/inbox_controller.rb, unchanged in how it loads messages.
+      Tests (190), among them test/system/inbox_paging_test.rb (#512, +1 -1), the only file #512 changed.
+      https://github.com/larkspur/shop/compare/5b2e1c0...9e41c7a
+  - tool: github_pr_lookup
+    match: { number: 512 }
+    result: |-
+      #512 "Wait for every earlier message in the inbox paging test", merged by Jo Park. 1 file, test/system/inbox_paging_test.rb (+1 -1): the test now waits for all 60 messages instead of counting them at once. No application code.
+      https://github.com/larkspur/shop/pull/512
+  - tool: github_pr_lookup
+    match: { number: 498 }
+    result: |-
+      #498 "Show each message's sender team in the inbox", merged by Ana Ruiz. app/views/inbox/_message.html.erb renders message.sender.team.name for every message on the page. InboxController#show loads messages with includes(:sender) and not the sender's team.
+      https://github.com/larkspur/shop/pull/498
+  - tool: github_pr_lookup
+    result: |-
+      A pull request in the 26 that went out with d-91, about saved replies. It adds tables and steps and does not touch the inbox.
+  - tool: search_logs
+    match: { text: "/team|SELECT|quer|N\\+1|bullet/" }
+    result: |-
+      web, InboxController#show, newest first:
+      22:28:35 Completed 200 in 912ms (Views: 410ms | DB: 486ms, 64 queries) GET /inbox/4f1a
+      22:28:35   Team Load (2.1ms) SELECT teams.* FROM teams WHERE teams.id = $1 LIMIT 1 (repeated 52 times in this request, once per message)
+      22:21:10 Completed 200 in 4012ms (Views: 3610ms | DB: 3702ms, 80 queries) GET /inbox/9c20
+      22:21:10   Team Load (2.4ms) SELECT teams.* FROM teams WHERE teams.id = $1 LIMIT 1 (repeated 69 times in this request, once per message)
+      Before 20:44 the same pages ran 9 to 12 queries each.
+      https://app.northflank.com/t/larkspur/project/shop/services/web/logs
+  - tool: search_logs
+    result: |-
+      web since 20:00, newest first: GET /inbox/... 200 in 500ms to 4s, 38 to 80 queries each (before 20:44, 120 to 300ms and 9 to 12 queries). POST /inbox/messages 200 in 1.3s. No errors.
+      https://app.northflank.com/t/larkspur/project/shop/services/web/logs
+  - tool: query_metrics
+    result: |-
+      web over the last 3 hours: requests steady at 40 a minute, errors none, cpu 3% (usually 1.3%), memory 26%. Database time per request up from about 40 ms to 480 ms since 20:44.
+  - tool: rollback
+    result: |-
+      Rolled web back to d-88 (5b2e1c0). Deployment: https://app.northflank.com/t/larkspur/project/shop/services/web/deployments/d-92
+  - tool: github_fix_code
+    result: |-
+      Opened https://github.com/larkspur/shop/pull/514 "Load each message's sender team with the inbox", which adds the team to the includes in InboxController#show, with a test that counts the queries.
+expect:
+  outcome: >-
+    The slow inbox comes from #498, which renders each message's sender team with its own query, so a page runs 38 to
+    80 queries where it ran 9 to 12. #512, the title of the live deploy d-91, changed only a paging test. d-91 carried
+    41 commits and 26 pull requests since d-88, with 25 migrations, so a rollback to d-88 would undo all of them to fix one view.
+  next_step: >-
+    It says why a rollback is the wrong fix, proposes loading the sender's team with the messages in InboxController#show
+    as a small fix forward or reverting #498 alone, asks once, and says it will check the inbox query count once it ships.
+  evidence: [ "pull/498", "compare/5b2e1c0...9e41c7a" ]
+  never_calls: [ rollback ]
+  reference_cents: 2.0

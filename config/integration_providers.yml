@@ -85,6 +85,9 @@ categories:
     specialist: on_call
     tagline: Who is on call, and the alerts and incidents paging them
     halon: Halon sees which alerts fired and who is on call, so it can say who was paged and why.
+  Status pages:
+    tagline: What your customers see about an incident or planned work
+    halon: Halon reads what your status pages tell customers, and when you allow it, posts and updates incidents and maintenance there.
   Product analytics:
     specialist: observability
     tagline: Who an incident reaches, what they saw, and the feature flags behind it
@@ -775,6 +778,42 @@ providers:
     history: none
     history_note: "It pages people about what runs elsewhere and keeps no builds or deploys whose length could be read."
     map_note: "It pages people about what runs elsewhere and runs nothing of its own."
+  - key: statuspage
+    name: Statuspage
+    category: Status pages
+    mark: SP
+    color: "#172b4d"
+    status_page: { url: https://metastatuspage.com, feed: statuspage }
+    holds_status_pages: true
+    hosts: [ api.statuspage.io, manage.statuspage.io, statuspage.io ]
+    description: Read what your Atlassian Statuspage pages tell customers, and open and update incidents, schedule maintenance, set component status and manage subscribers when you allow it.
+    kind: native
+    connect_with: api_token
+    # One Manage API for every organization (developer.statuspage.io), reached with an organization's API key, which
+    # always reads and writes (support.atlassian.com/statuspage, What are the different APIs under Statuspage).
+    source_links: firefight
+    map: none
+    map_note: "It tells customers how the services that run elsewhere stand and runs nothing of its own."
+    history: none
+    history_note: "It keeps incidents and maintenance, and no builds or deploys whose length could be read."
+  - key: instatus
+    name: Instatus
+    category: Status pages
+    mark: IS
+    color: "#0f766e"
+    status_page: { url: https://instat.us, feed: page }
+    holds_status_pages: true
+    hosts: [ api.instatus.com, instatus.com ]
+    description: Read what your Instatus pages tell customers, and open and update incidents and maintenance, set component status and manage subscribers when you allow it.
+    kind: native
+    connect_with: api_token
+    # One API for every account (instatus.com/help/api), reached with a user's API key from User settings, Developer
+    # settings, which reaches every page that user can.
+    source_links: firefight
+    map: none
+    map_note: "It tells customers how the services that run elsewhere stand and runs nothing of its own."
+    history: none
+    history_note: "It keeps incidents and maintenance, and no builds or deploys whose length could be read."
   - key: posthog
     name: PostHog
     category: Product analytics

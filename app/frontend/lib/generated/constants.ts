@@ -1098,14 +1098,16 @@ export const AGENT_STEP_STATUSES = {
   "CANCELLED": "cancelled",
   "FAILED": "failed",
   "NOT_FOUND": "not_found",
-  "REFUSED": "refused"
+  "REFUSED": "refused",
+  "STOPPED": "stopped"
 } as const
 
 export const STEP_OUTCOME_KINDS = {
   "ANSWERED": "answered",
   "FAILED": "failed",
   "NOT_FOUND": "not_found",
-  "REFUSED": "refused"
+  "REFUSED": "refused",
+  "STOPPED": "stopped"
 } as const
 
 export const CODE_FIX_LINE_RESULTS = {
@@ -1746,7 +1748,10 @@ export const WORKFLOW_STEP_EDITORS = [
   "ask_halon",
   "watch",
   "status_page",
-  "browser"
+  "browser",
+  "set_data",
+  "ask_person",
+  "approval"
 ] as const
 export type WorkflowStepEditor = (typeof WORKFLOW_STEP_EDITORS)[number]
 
@@ -1760,7 +1765,10 @@ export const WORKFLOW_STEP_EDITOR = {
   "ASK_HALON": "ask_halon",
   "WATCH": "watch",
   "STATUS_PAGE": "status_page",
-  "BROWSER": "browser"
+  "BROWSER": "browser",
+  "SET_DATA": "set_data",
+  "ASK_PERSON": "ask_person",
+  "APPROVAL": "approval"
 } as const
 
 export const WORKFLOW_STEP_ICONS = [
@@ -1790,7 +1798,8 @@ export const WORKFLOW_STEP_ICONS = [
   "status_page",
   "script",
   "browser",
-  "webhook"
+  "webhook",
+  "data"
 ] as const
 export type WorkflowStepIcon = (typeof WORKFLOW_STEP_ICONS)[number]
 
@@ -1820,6 +1829,44 @@ export const WORKFLOW_BROWSER = {
   "SEND_STEP": "send_step",
   "UNDO": "undo",
   "MAX_STEPS": 12
+} as const
+
+export const WORKFLOW_SET_DATA = {
+  "VALUES": "values",
+  "NAME": "name",
+  "VALUE": "value",
+  "LIMIT": 20
+} as const
+
+export const WORKFLOW_ASK_PERSON = {
+  "FIELDS": "fields",
+  "FIELD_NAME": "name",
+  "FIELD_LABEL": "label",
+  "FIELD_LIMIT": 5
+} as const
+
+export const WORKFLOW_APPROVAL = {
+  "INCIDENT": "incident",
+  "CONDITIONS": "conditions"
+} as const
+
+export const WORKFLOW_ASK_KIND = {
+  "QUESTION": "question",
+  "APPROVAL": "approval"
+} as const
+
+export const WORKFLOW_QUESTION_STATUS = {
+  "OPEN": "open",
+  "ANSWERED": "answered",
+  "EXPIRED": "expired"
+} as const
+
+export const APPROVAL_STATUS = {
+  "PENDING": "pending",
+  "APPROVED": "approved",
+  "DENIED": "denied",
+  "EXPIRED": "expired",
+  "DISMISSED": "dismissed"
 } as const
 
 export const BROWSER_ACTIONS = [

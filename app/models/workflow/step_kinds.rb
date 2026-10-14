@@ -43,8 +43,15 @@ module Workflow::StepKinds
   EDITOR_STATUS_PAGE = "status_page".freeze
   # The browser's path: an address, screen sizes, a login, steps and the one that may send.
   EDITOR_BROWSER = "browser".freeze
+  # Names and values for later steps.
+  EDITOR_SET_DATA = "set_data".freeze
+  # Who is asked, the question, its choices and its short form.
+  EDITOR_ASK_PERSON = "ask_person".freeze
+  # Who approves, the question, and the incident whose conditions are read again.
+  EDITOR_APPROVAL = "approval".freeze
   EDITORS = [
-    EDITOR_FIELDS, EDITOR_BRANCH, EDITOR_DELAY, EDITOR_FOR_EACH, EDITOR_RUN_WORKFLOW, EDITOR_TOOL, EDITOR_ASK_HALON, EDITOR_WATCH, EDITOR_STATUS_PAGE, EDITOR_BROWSER
+    EDITOR_FIELDS, EDITOR_BRANCH, EDITOR_DELAY, EDITOR_FOR_EACH, EDITOR_RUN_WORKFLOW, EDITOR_TOOL, EDITOR_ASK_HALON, EDITOR_WATCH, EDITOR_STATUS_PAGE, EDITOR_BROWSER,
+    EDITOR_SET_DATA, EDITOR_ASK_PERSON, EDITOR_APPROVAL
   ].freeze
 
   ICON_BRANCH = "branch".freeze
@@ -74,10 +81,12 @@ module Workflow::StepKinds
   ICON_SCRIPT = "script".freeze
   ICON_BROWSER = "browser".freeze
   ICON_WEBHOOK = "webhook".freeze
+  ICON_DATA = "data".freeze
   ICONS = [
     ICON_BRANCH, ICON_DELAY, ICON_EVENT, ICON_LOOP, ICON_JOIN, ICON_WORKFLOW, ICON_TOOL, ICON_HALON, ICON_MESSAGE,
     ICON_CHANNEL, ICON_INCIDENT, ICON_NOTICE, ICON_WATCH, ICON_SKILL, ICON_TERMINAL, ICON_GLOBE, ICON_PERSON,
-    ICON_APPROVAL, ICON_STOP, ICON_INVESTIGATE, ICON_CLASSIFY, ICON_PAGE, ICON_FOLLOW_UP, ICON_STATUS_PAGE, ICON_SCRIPT, ICON_BROWSER, ICON_WEBHOOK
+    ICON_APPROVAL, ICON_STOP, ICON_INVESTIGATE, ICON_CLASSIFY, ICON_PAGE, ICON_FOLLOW_UP, ICON_STATUS_PAGE, ICON_SCRIPT, ICON_BROWSER, ICON_WEBHOOK,
+    ICON_DATA
   ].freeze
 
   # A step that calls one tool Halon can call: a connection's, a capability that answers for anything on the map, or
@@ -105,14 +114,17 @@ module Workflow::StepKinds
   end
 
   # fields is a list, or a lambda given the Facts for one whose choices are the workspace's own. reach answers what the
-  # workflow's own identity needs granted to run the step (DefinedWorkflow::Reach::Needed).
-  Kind = Data.define(:key, :group, :label, :description, :icon, :editor, :fields, :defaults, :outputs, :routes, :effect, :reach) do
+  # workflow's own identity needs granted to run the step (DefinedWorkflow::Reach::Needed). conditions are the fields an
+  # incident's conditions read, for a step that reads them (Workflow::TriggerKinds::ConditionField).
+  Kind = Data.define(:key, :group, :label, :description, :icon, :editor, :fields, :defaults, :outputs, :routes, :effect, :reach, :conditions) do
     def initialize(fields: [], defaults: {}, outputs: ->(_step, _facts) { [] }, routes: ->(_step) { [] },
-                   effect: ->(_step, _facts) { EFFECT_READS }, reach: ->(_step, _facts) { [] }, **)
+                   effect: ->(_step, _facts) { EFFECT_READS }, reach: ->(_step, _facts) { [] }, conditions: ->(_facts) { [] }, **)
       super
     end
 
     def fields_for(facts) = fields.respond_to?(:call) ? fields.call(facts) : fields
+
+    def conditions_for(facts) = conditions.call(facts)
   end
 
   # Routes every step can carry an edge on besides its own: the error route, taken when it fails and says so.
@@ -154,10 +166,10 @@ module Workflow::StepKinds
   def reach_of(step, facts) = find(step["kind"])&.reach&.call(step, facts) || []
 
   # A kind the app runs, described by its class (DefinedWorkflow::Steps::Base), with how the canvas draws it.
-  def runtime(klass, icon:, editor:, description:, fields: [], defaults: {}, routes: ->(_step) { [] })
+  def runtime(klass, icon:, editor:, description:, fields: [], defaults: {}, routes: ->(_step) { [] }, conditions: ->(_facts) { [] })
     register(Kind.new(
       key: klass.kind, group: klass.group, label: klass.label, description: description, icon: icon, editor: editor, fields: fields,
-      defaults: defaults, routes: routes,
+      defaults: defaults, routes: routes, conditions: conditions,
       outputs: ->(step, _facts) { klass.output_fields(step["config"].to_h) },
       effect: ->(step, facts) { facts.workspace && klass.changes?(step["config"].to_h, facts.workspace) ? EFFECT_CHANGES : EFFECT_READS },
       reach: ->(step, facts) { facts.workspace ? klass.reach(step["config"].to_h, facts.workspace).to_a : [] }
@@ -219,6 +231,16 @@ module Workflow::StepKinds
     key: DefinedWorkflow::KIND_RUN_WORKFLOW, group: GROUP_CONTROL, label: "Run workflow", icon: ICON_WORKFLOW, editor: EDITOR_RUN_WORKFLOW,
     description: "Runs another workflow with inputs and takes what it hands back.",
     defaults: { "workflow" => "", "inputs" => {} }
+  ))
+
+  register(Kind.new(
+    key: DefinedWorkflow::KIND_STOP, group: GROUP_CONTROL, label: "Stop", icon: ICON_STOP, editor: EDITOR_FIELDS,
+    description: "Ends the run here, as succeeded or as failed with a reason. Steps that have not run yet are left.",
+    fields: [
+      field(DefinedWorkflow::STOP_OUTCOME, ToolField::KIND_SELECT, "How the run ends.", options: DefinedWorkflow::STOP_OUTCOMES, required: true),
+      field(DefinedWorkflow::STOP_REASON, ToolField::KIND_TEXT, "Why it ends, shown on the run. A run that fails needs one.")
+    ],
+    defaults: { DefinedWorkflow::STOP_OUTCOME => DefinedWorkflow::STOP_SUCCEEDED, DefinedWorkflow::STOP_REASON => "" }, outputs: fixed_outputs(DefinedWorkflow::KIND_STOP)
   ))
 
   runtime(DefinedWorkflow::Steps::CallTool, icon: ICON_TOOL, editor: EDITOR_TOOL,
@@ -441,4 +463,44 @@ module Workflow::StepKinds
               field(WEBHOOK::KEY_PAYLOAD, ToolField::KIND_PARAGRAPH, "What it sends, usually an earlier value.") ]
           },
           defaults: { WEBHOOK::KEY_WEBHOOK => "", WEBHOOK::KEY_PAYLOAD => "" })
+
+  SET_DATA = DefinedWorkflow::Steps::SetData
+  runtime(SET_DATA, icon: ICON_DATA, editor: EDITOR_SET_DATA,
+          description: "Names values for later steps, or picks what they need out of bigger data.",
+          defaults: { SET_DATA::KEY_VALUES => [ { SET_DATA::VALUE_NAME => "", SET_DATA::VALUE_VALUE => "" } ] })
+
+  ASK = DefinedWorkflow::Steps::AskPerson
+  runtime(ASK, icon: ICON_PERSON, editor: EDITOR_ASK_PERSON,
+          description: "Asks a person a question with choices or a short form, in a direct message and on the run, and waits for the answer.",
+          fields: lambda { |facts|
+            [ field(ASK::KEY_QUESTION, ToolField::KIND_PARAGRAPH, "What they are asked.", required: true),
+              field(ASK::KEY_DETAILS, ToolField::KIND_PARAGRAPH, "What they should know to answer, usually an earlier value."),
+              field(ASK::PEOPLE::KEY_TO, ToolField::KIND_SELECT, "Who it asks.", options: ASK::PEOPLE::TO, required: true),
+              field(ASK::PEOPLE::KEY_PERSON, ToolField::KIND_TEXT, "The person, by email.", required: true, shown_when: { ASK::PEOPLE::KEY_TO => [ ASK::PEOPLE::TO_PERSON ] }),
+              field(ASK::PEOPLE::KEY_INCIDENT, ToolField::KIND_TEXT, "The incident whose people it asks.", required: true,
+                    shown_when: { ASK::PEOPLE::KEY_TO => ASK::PEOPLE::FROM_INCIDENT }),
+              field(ASK::PEOPLE::KEY_ROLE, ToolField::KIND_SELECT, "The role whose holder it asks.", options: slugs(facts) { |workspace| workspace.incident_roles.active.ordered },
+                    required: true, shown_when: { ASK::PEOPLE::KEY_TO => [ ASK::PEOPLE::TO_ROLE ] }),
+              field(ASK::KEY_CHOICES, ToolField::KIND_LIST, "The choices they pick from, such as roll_back, wait. Each is a route out of the step.") ]
+          },
+          defaults: { ASK::KEY_QUESTION => "", ASK::PEOPLE::KEY_TO => ASK::PEOPLE::TO_PERSON, ASK::KEY_CHOICES => [], ASK::KEY_FIELDS => [] },
+          routes: ->(step) { ASK.routes_of(step["config"].to_h) })
+
+  APPROVAL = DefinedWorkflow::Steps::Approval
+  runtime(APPROVAL, icon: ICON_APPROVAL, editor: EDITOR_APPROVAL,
+          description: "Asks named people or a role to approve before the run goes on, in a direct message, on the Approvals page and on the run.",
+          fields: [
+            field(APPROVAL::KEY_QUESTION, ToolField::KIND_PARAGRAPH, "What approvers decide, such as Release checkout to production?", required: true),
+            field(APPROVAL::KEY_DETAILS, ToolField::KIND_PARAGRAPH, "What they should know to decide, usually an earlier value."),
+            field(APPROVAL::KEY_WHO, ToolField::KIND_SELECT, "Who approves.", options: APPROVAL::WHO, required: true),
+            field(APPROVAL::KEY_APPROVERS, ToolField::KIND_LIST, "The people who approve, by email. Any one of them decides.", required: true,
+                  shown_when: { APPROVAL::KEY_WHO => [ APPROVAL::WHO_PEOPLE ] }),
+            field(APPROVAL::KEY_ROLE, ToolField::KIND_SELECT, "The workspace role that approves. Anyone holding it decides.", options: APPROVAL::ROLES,
+                  required: true, shown_when: { APPROVAL::KEY_WHO => [ APPROVAL::WHO_ROLE ] }),
+            field(APPROVAL::KEY_INCIDENT, ToolField::KIND_TEXT, "The incident it is about, such as {{trigger.incident.identifier}}, so its conditions are read again.")
+          ],
+          defaults: { APPROVAL::KEY_QUESTION => "", APPROVAL::KEY_WHO => APPROVAL::WHO_ROLE, APPROVAL::KEY_ROLE => WorkspaceMembership.roles[:admin],
+                      APPROVAL::KEY_CONDITIONS => [] },
+          routes: ->(_step) { APPROVAL::ROUTES },
+          conditions: ->(facts) { Workflow::TriggerKinds.incident_conditions(facts) })
 end

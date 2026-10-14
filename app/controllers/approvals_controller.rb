@@ -5,8 +5,7 @@ class ApprovalsController < InertiaController
   before_action :set_approval
 
   def approve
-    done = Conversation::HeldCalls.runs_when_approved?(@approval) ? "It runs now." : "They can run it now."
-    resolve("You approved #{asker}'s request. #{done}") { @approval.approve!(by: current_membership) }
+    resolve("You approved #{asker}'s request. #{ApprovalResumption.approved_words(@approval)}") { @approval.approve!(by: current_membership) }
   end
 
   def deny

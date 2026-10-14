@@ -9,6 +9,9 @@ inputs:
   packages:
     description: Also install the system libraries the app loads
     default: "false"
+  browser:
+    description: Also install the Playwright sandbox/browser pins and its Chromium, for test/sandbox
+    default: "false"
 runs:
   using: composite
   steps:
@@ -33,3 +36,10 @@ runs:
       if: inputs.node == 'true'
       shell: bash
       run: npm ci
+
+    - name: Install Halon's browser
+      if: inputs.browser == 'true'
+      shell: bash
+      run: |
+        npm ci --prefix sandbox/browser --no-fund --no-audit
+        npx --prefix sandbox/browser playwright install --with-deps chromium

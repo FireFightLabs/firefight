@@ -1414,15 +1414,21 @@ module Integrations
           fail!("Logs Insights ended the query as #{status}. Check the query and the log groups, then try again.") if QUERY_DONE.include?(status)
 
           if Time.current > deadline
-            begin
-              logs.call(:logs, region, :stop_query, query_id: id)
-            rescue AwsApi::Error
-              nil
-            end
+            stop_query(logs, region, id)
             fail!("Logs Insights did not finish within #{QUERY_WAIT} seconds. Narrow the range or filter, then try again.")
           end
-          sleep QUERY_POLL
+          StopSignal.pause(QUERY_POLL)
         end
+      rescue StopSignal::Stopped
+        stop_query(logs, region, id)
+        raise
+      end
+
+      # A query nobody waits for any more is stopped, so it does not keep scanning.
+      def stop_query(logs, region, id)
+        logs.call(:logs, region, :stop_query, query_id: id)
+      rescue AwsApi::Error
+        nil
       end
 
       # Logs Insights writes @timestamp in UTC without a zone, such as 2026-10-01 12:00:00.000.
