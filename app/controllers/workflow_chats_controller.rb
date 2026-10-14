@@ -34,7 +34,7 @@ class WorkflowChatsController < InertiaController
     return back_to_canvas(alert: blocked) if blocked
 
     chat.request_stop!
-    back_to_canvas
+    back_to_canvas(notice: Conversation::STOPPING)
   end
 
   private

@@ -56,5 +56,18 @@ class AgentChatSerializer < BaseSerializer
     conversation.answer_owed?
   end
 
+  # Stop was pressed on the answer under way, kept on the chat's row, so a reload still says Halon is stopping. Read for
+  # an opened chat only, since a list has no Stop.
+  type :boolean
+  def stopRequested
+    options.fetch(:opened, false) && conversation.answer_owed? && conversation.chat&.cancelled == true
+  end
+
+  # When the answer under way began, so the time the page shows counts from there however often it is reloaded.
+  type "string | null"
+  def workingSince
+    conversation.answer_owed_since&.utc&.iso8601(3) if conversation.answer_owed?
+  end
+
   def platform_text(text) = options.fetch(:platform_texts, {}).fetch(text, text)
 end

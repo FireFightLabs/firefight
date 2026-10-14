@@ -58,6 +58,7 @@ const SKILL_PROPOSALS = [ AGENT_CHAT_PROPS.SKILL_PROPOSALS ]
 const CHAT_MODELS = [ AGENT_CHAT_PROPS.CHAT_MODELS, AGENT_CHAT_PROPS.ATTACHMENT_RULES ]
 const RUNS = [ AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION ]
 const ARCHIVED_COUNT = [ AGENT_CHAT_PROPS.ARCHIVED_COUNT ]
+const CONVERSATION = [ AGENT_CHAT_PROPS.CONVERSATION ]
 // Without preserveState Inertia remounts the page and the list loses its scroll.
 const IN_PLACE = { preserveScroll: true, preserveState: true }
 
@@ -131,12 +132,16 @@ function askedNow(props: AgentPageProps, question: string, attachments: AgentCha
     createdAt: new Date().toISOString(), model: null,
   }
   const title = question || attachments.map((attachment) => attachment.name).join(", ")
+  const now = new Date().toISOString()
   const conversation = props.conversation ?? {
     id: "", title, preview: question, archived: false, pinned: false, pinnedAt: null,
-    lastActiveAt: new Date().toISOString(), busy: true, askedIn: null, askedInUrl: null,
+    lastActiveAt: now, busy: true, askedIn: null, askedInUrl: null, stopRequested: false, workingSince: now,
   }
 
-  return { conversation: { ...conversation, busy: true }, messages: [ asked, ...messages ], threadFor: conversation.id }
+  return {
+    conversation: { ...conversation, busy: true, stopRequested: false, workingSince: conversation.workingSince ?? now },
+    messages: [ asked, ...messages ], threadFor: conversation.id,
+  }
 }
 
 // The picker moves the moment a model is picked and the server's toast confirms it. A refusal puts it back.
@@ -147,8 +152,9 @@ export function chooseChatModel(conversationId: string, model: string) {
 }
 
 // The answer ends with Stopped once the worker stops, and the live connection brings that in.
+// The chat stays as it is. Only whether it is stopping is read back, and the answer's end arrives on the live channel.
 export function stopChat(conversationId: string) {
-  router.post(agentChatStopPath(conversationId), {}, { ...IN_PLACE, ...READ_OPEN_CHAT })
+  router.post(agentChatStopPath(conversationId), {}, { ...IN_PLACE, only: CONVERSATION })
 }
 
 export function stopRun(investigationId: string) {

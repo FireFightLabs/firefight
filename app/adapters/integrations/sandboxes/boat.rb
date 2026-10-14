@@ -255,7 +255,8 @@ module Integrations
 
       def clock = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-      def pause(seconds) = sleep(seconds)
+      # A stop (StopSignal) ends the wait, and start lets go of the box it was starting.
+      def pause(seconds) = StopSignal.pause(seconds)
     end
   end
 end

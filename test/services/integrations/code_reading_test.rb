@@ -115,6 +115,28 @@ module Integrations
       assert_equal 1, held_elsewhere
     end
 
+    test "a stop ends a wait for a box's lock that another call holds while it starts the box" do
+      held = Concurrent::Event.new
+      release = Concurrent::Event.new
+      first = Thread.new do
+        CodeReading.locked("run-2") do
+          held.set
+          release.wait(10)
+        end
+      end
+      held.wait(5)
+      signal = Concurrent::Event.new
+      Concurrent::ScheduledTask.execute(0.3) { signal.set }
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+      assert_raises(StopSignal::Stopped) { StopSignal.watching(signal) { CodeReading.locked("run-2") { flunk "the lock was taken" } } }
+
+      assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 3
+    ensure
+      release&.set
+      first&.join
+    end
+
     test "two runs read in two boxes" do
       reading("investigation-1").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
       reading("conversation-2").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)

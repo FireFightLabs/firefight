@@ -10,7 +10,8 @@ class Chat::StoppedNote
   SUFFIXES = {
     Chat::StepOutcome::KIND_FAILED => ", which failed",
     Chat::StepOutcome::KIND_NOT_FOUND => ", which found nothing",
-    Chat::StepOutcome::KIND_REFUSED => ", which was refused"
+    Chat::StepOutcome::KIND_REFUSED => ", which was refused",
+    Chat::StepOutcome::KIND_STOPPED => ", which was stopped"
   }.freeze
 
   # A call put to the person, or one they turned down, is not something Halon left running.

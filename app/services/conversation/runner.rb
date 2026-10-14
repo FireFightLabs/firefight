@@ -4,6 +4,8 @@ class Conversation::Runner
   STOPPED = "Stopped.".freeze
   # What the model is told for a tool it asked for and never got, so the chat stays one a provider accepts.
   STOPPED_BEFORE_RUNNING = "Not run. The person stopped this answer first.".freeze
+  # What the model is told for a tool the person stopped while it ran, whose answer never came back.
+  STOPPED_WHILE_RUNNING = "Stopped by the person while it ran, so nothing came back. Whether a change it was making took effect is unknown.".freeze
   PHASE_EVENT = "conversation_reply.phase".freeze
   FIRST_TEXT_EVENT = "conversation_reply.first_text".freeze
   PHASE_SETUP = "setup".freeze
@@ -269,7 +271,7 @@ class Conversation::Runner
   def stopped!(chat)
     chat.clear_stop!
     chat.discard_interrupted_reply!
-    chat.answer_unanswered_calls!(STOPPED_BEFORE_RUNNING)
+    chat.answer_stopped_calls!(STOPPED_BEFORE_RUNNING, ran: running.to_a, ran_text: STOPPED_WHILE_RUNNING)
     @conversation.note!(STOPPED)
     @reply = STOPPED
     @conversation.reply_delivered!
@@ -437,6 +439,7 @@ class Conversation::Runner
       asked[step.key] = [ step.tool, step.arguments ]
     end
     done = step.status == FirefightAi::AgentLoop::STEP_DONE
+    done ? running.delete(step.key) : running.add(step.key)
     hand_reading_to_watches(step.key) if done
     shown = seen[step.key]
     return unless shown
@@ -497,6 +500,9 @@ class Conversation::Runner
   end
 
   def seen = @seen ||= {}
+
+  # The calls that started and have not answered, which a stop ends while they run.
+  def running = @running ||= Set.new
 
   def kinds = @kinds ||= {}
 

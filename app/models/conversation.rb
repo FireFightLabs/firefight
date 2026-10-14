@@ -283,6 +283,8 @@ class Conversation < ApplicationRecord
   end
 
   NOTHING_TO_STOP = "Halon is not working on anything in this chat.".freeze
+  # Said once Stop is pressed. The answer then ends with Stopped as soon as the worker hears it.
+  STOPPING = "Halon is stopping.".freeze
 
   def stop_blocked_reason = (NOTHING_TO_STOP unless answer_owed?)
 
