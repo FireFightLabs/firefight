@@ -197,6 +197,14 @@ module Integrations
       assert_equal IntegrationEnvironment::HEALTH_FAILING, row.reload.health_status
     end
 
+    test "a server's tools are saved together in one transaction, so a failure part way saves none of them" do
+      McpClient.any_instance.stubs(:tools_list).returns([ { "name" => "first" }, { "name" => "second" } ])
+      Integration::Tool.any_instance.stubs(:sync_ability_action!).returns(nil).then.raises(ActiveRecord::RecordInvalid)
+
+      assert_raises(ActiveRecord::RecordInvalid) { DiscoveryService.sync!(@integration) }
+      assert_empty @integration.tools.reload, "the first tool is not left saved without the second"
+    end
+
     test "each new tool is saved and switched on in the same few queries, however many a server lists" do
       extend ManyToolsHelper
       per_tool = [ 10, 40 ].map do |count|

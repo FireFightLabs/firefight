@@ -11,11 +11,16 @@ module Integrations
       Ability::Role.filing_together(integration) { integration.counting_tools_together { discover!(integration) } }
     end
 
-    # The connection's tools are read once, and a new tool is saved switched on in the same write unless another
-    # connection's tool shares its name as Halon calls it, read once for every new tool.
+    # The server is asked first, and every tool is then saved in one transaction, so a failure part way leaves none
+    # half saved and the writes commit once. The connection's tools are read once, and a new tool is saved switched on
+    # in the same write unless another connection's tool shares its name as Halon calls it, read once for every new tool.
     def self.discover!(integration)
-      entry = IntegrationProvider.find(integration.provider)
       definitions = integration.executor.tool_definitions(integration)
+      Integration::Tool.transaction { save_all!(integration, definitions) }
+    end
+
+    def self.save_all!(integration, definitions)
+      entry = IntegrationProvider.find(integration.provider)
       known = integration.tools.reload.index_by(&:name)
       namesakes = integration.namesakes_for(definitions.map(&:name) - known.keys)
       seen = definitions.map do |definition|
@@ -35,6 +40,6 @@ module Integrations
       integration.tools.available.where.not(name: seen).find_each { |tool| tool.update!(removed_at: Time.current) }
       seen
     end
-    private_class_method :discover!
+    private_class_method :discover!, :save_all!
   end
 end
