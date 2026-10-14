@@ -62,6 +62,15 @@ class LiveTestEvents < Integrations::MapEventSource
 
     # A delivery about a run, which changes nothing on the map.
     def wakes?(payload, headers:) = payload["run"].present?
+
+    # A delivery naming labels added to one issue.
+    def labelled(payload, headers:)
+      labels = Array(payload["labelled"])
+      return [] if labels.empty?
+
+      [ Integrations::IssueLabels::Labelled.new(reference: "issue-1:#{labels.join(',')}", labels: labels, issue_key: "LIVE-1", issue_title: "Checkout returns 500",
+                                                issue_url: "https://live.example.com/issues/1") ]
+    end
   end
 end
 
@@ -142,8 +151,8 @@ module LiveUpdatesTestHelper
     ENV["APP_HOST"] = previous
   end
 
-  def live_delivery(changes, secret:, run: nil)
-    body = { "changes" => changes, "run" => run }.compact.to_json
+  def live_delivery(changes, secret:, run: nil, labelled: nil)
+    body = { "changes" => changes, "run" => run, "labelled" => labelled }.compact.to_json
     [ body, { LiveTestEvents::SIGNATURE => OpenSSL::HMAC.hexdigest("SHA256", secret, body), "Content-Type" => "application/json" } ]
   end
 
