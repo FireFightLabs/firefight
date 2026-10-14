@@ -21,7 +21,10 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
   # the browser's main thread, a third of a second on the integrations page here and over a second on a busy CI runner,
   # so polling it while a request is in flight starved the page of the time it needed to follow the redirect and draw
   # the toast. Finding the toast by its own element reads a few words.
+  #
+  # The toast is drawn only once the server has answered the save, which on a loaded CI runner took longer than
+  # Capybara's two second default, so it waits as long as a slow answer can take.
   def assert_toast(text, **options)
-    assert_selector "[data-sonner-toast]", text: text, **options
+    assert_selector "[data-sonner-toast]", text: text, wait: 15, **options
   end
 end
