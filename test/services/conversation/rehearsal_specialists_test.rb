@@ -115,6 +115,67 @@ class Conversation::RehearsalSpecialistsTest < ActiveSupport::TestCase
     assert_match "failed at 14:26", world.answer!("northflank_workflow_runs", { "workflow" => "release", "run" => "4182" }).result
   end
 
+  # Seen in a chat, Halon was asked to push a commit addressing a pull request's review, the code specialist read the
+  # review, and every try at the change went back to Halon because only its own read backs one and every read of the
+  # code host was the specialist's. A replay holds Halon to the same rule, and Halon loads the read the specialist made,
+  # makes it itself and goes ahead.
+  test "a change backed only by a specialist goes back to Halon, which makes the specialist's read itself and then asks the person" do
+    FirefightAi.configuration.stubs(:specialists).returns(:on)
+    script(
+      call("ask_specialist", "asks" => [ { "domain" => "databases", "objective" => "Who holds orders' connections?" } ]),
+      call("planetscale_get_insights", "database" => "orders"),
+      call("report_findings", "summary" => "orders is out of connections", "findings" => [
+        { "claim" => "orders is at its limit", "lines" => [ "open connections 498 of 500 since 13:39" ] }
+      ]),
+      call("open_tools", "group" => "planetscale", "tools" => [ "planetscale_api_request" ]),
+      call("planetscale_api_request", "method" => "POST", "path" => "/branches", "intent" => "Raise the limit",
+           "because" => [ "ask_specialist databases: orders is at 498 of 500" ]),
+      call("open_tools", "group" => "planetscale", "tools" => [ "planetscale_get_insights" ]),
+      call("planetscale_get_insights", "database" => "orders"),
+      call("planetscale_api_request", "method" => "POST", "path" => "/branches", "intent" => "Raise the limit",
+           "because" => [ "planetscale_get_insights: open connections 498 of 500 since 13:39" ]),
+      reply("Raised it.")
+    )
+
+    replay = Conversation::Rehearsal.replay!(bench_case(decisions: [ Conversation::BenchCase::DECISION_APPROVE ]), result: @result, model: @model)
+    calls = replay.transcript.calls.reject(&:by)
+
+    assert_equal %w[ask_specialist open_tools planetscale_api_request open_tools planetscale_get_insights planetscale_api_request], calls.map(&:name)
+    _asked, _opened_change, bounced, opened, read, change = calls
+    assert bounced.result.start_with?(Chat::Tools::LookFirst::BOUNCE), "a specialist's report does not back a change"
+    assert_includes bounced.result, format(Chat::Tools::LookFirst::SPECIALISTS_READ, reads: "planetscale_get_insights")
+    assert_includes opened.result, "planetscale_get_insights: Query insights for a branch (ready to call)"
+    assert_equal INSIGHTS, read.result
+    assert_equal Chat::APPROVAL_APPROVED, change.approval
+    assert_equal "Created branch raise-limit.", change.result
+    assert_includes @offered.last, :planetscale_get_insights
+  end
+
+  # A provider whose every tool reads has no group of Halon's own until a specialist reads through it, and a read the
+  # specialist made opens by name all the same.
+  test "a read a specialist made opens by name though its provider has no tool of Halon's own" do
+    FirefightAi.configuration.stubs(:specialists).returns(:on)
+    script(
+      call("ask_specialist", "asks" => [ { "domain" => "databases", "objective" => "Who holds orders' connections?" } ]),
+      call("planetscale_get_insights", "database" => "orders"),
+      call("report_findings", "summary" => "orders is out of connections", "findings" => [
+        { "claim" => "orders is at its limit", "lines" => [ "open connections 498 of 500 since 13:39" ] }
+      ]),
+      call("open_tools", "group" => "planetscale", "tools" => [ "planetscale_get_insights" ]),
+      reply("orders is at its limit.")
+    )
+    reads_only = Conversation::BenchCase.from_hash({
+      "title" => "Connections", "context" => "You are acting for Sam.", "turns" => [ "why is orders refusing connections?" ],
+      "tools" => [ { "name" => "open_tools", "description" => "Opens groups", "base" => true },
+                   { "name" => "planetscale_get_insights", "description" => "Query insights for a branch", "reads" => true, "source" => "planetscale" } ],
+      "answers" => [ { "tool" => "planetscale_get_insights", "result" => INSIGHTS } ]
+    }, key: "connections")
+
+    replay = Conversation::Rehearsal.replay!(reads_only, result: @result, model: @model)
+
+    assert_equal "planetscale_get_insights: Query insights for a branch (ready to call)", replay.transcript.calls.reject(&:by).last.result
+  end
+
   test "the two ways have different prompt versions, so a bench run says which it measured" do
     FirefightAi.configuration.stubs(:specialists).returns(:off)
     off = Conversation::Bench.send(:prompt_version, @result.workspace, @model)
@@ -128,9 +189,10 @@ class Conversation::RehearsalSpecialistsTest < ActiveSupport::TestCase
 
   private
 
-  def bench_case
+  def bench_case(decisions: [])
     Conversation::BenchCase.from_hash({
-      "title" => "Connections", "context" => "You are acting for Sam, whose role in this workspace is admin.", "turns" => [ "why is orders refusing connections?" ],
+      "title" => "Connections", "context" => "You are acting for Sam, whose role in this workspace is admin.",
+      "turns" => [ { "said" => "why is orders refusing connections?", "decisions" => decisions } ],
       "tools" => [
         { "name" => "open_tools", "description" => "Opens groups", "base" => true },
         { "name" => "planetscale_get_insights", "description" => "Query insights for a branch", "reads" => true, "source" => "planetscale",
@@ -139,7 +201,8 @@ class Conversation::RehearsalSpecialistsTest < ActiveSupport::TestCase
           "reads_when" => { "method" => [ "GET" ] },
           "parameters" => { "type" => "object", "properties" => { "method" => { "type" => "string" }, "path" => { "type" => "string" } } } }
       ],
-      "answers" => [ { "tool" => "planetscale_get_insights", "result" => INSIGHTS } ]
+      "answers" => [ { "tool" => "planetscale_get_insights", "result" => INSIGHTS },
+                     { "tool" => "planetscale_api_request", "match" => { "method" => "POST" }, "result" => "Created branch raise-limit." } ]
     }, key: "connections")
   end
 
