@@ -272,11 +272,13 @@ class Integration < ApplicationRecord
   # Another connection's tool for each of these tool names that Halon would call by the same name, by tool name, read in
   # one query, so tools can be checked before they are saved.
   def namesakes_for(names)
-    facing = names.index_by { |name| "#{slug}_#{name}".tr(".", "_") }
+    facing = names.group_by { |name| "#{slug}_#{name}".tr(".", "_") }
     others = Integration::Tool.joins(:integration).includes(:integration)
                               .where(integrations: { workspace_id: workspace_id, deleted_at: nil }).where.not(integration_id: id)
                               .where("replace(integrations.slug || '_' || integration_tools.name, '.', '_') IN (?)", facing.keys).to_a.index_by(&:model_facing_name)
-    facing.each_with_object({}) { |(name_facing, name), found| found[name] = others[name_facing] if others[name_facing] }
+    facing.each_with_object({}) do |(name_facing, same), found|
+      same.each { |name| found[name] = others[name_facing] } if others[name_facing]
+    end
   end
 
   # The environment a caller named by slug, or nil for the connection's default. Every way in
