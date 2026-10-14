@@ -43,9 +43,9 @@ class WorkflowTriggerKindSerializer < BaseSerializer
     kind.event?
   end
 
-  type "{ key: string; label: string; options: { value: string; label: string }[] }[]"
+  type "{ key: string; label: string; options: { value: string; label: string }[]; number: boolean }[]"
   def conditions
-    kind.conditions_for(facts).map { |field| { key: field.key, label: field.label, options: field.options.map(&:to_h) } }
+    kind.conditions_for(facts).map { |field| { key: field.key, label: field.label, options: field.options.map(&:to_h), number: field.number } }
   end
 
   type "{ path: string; label: string }[]"

@@ -13,6 +13,10 @@
 # map says whether what a provider holds is on the resource map: firefight (a pack's map_of or the map_reader its
 # provider definition names puts it there), none (it holds no infrastructure, and map_note says why) or unchecked (it
 # may, and no reader exists yet). A new provider that holds infrastructure lands with its reader.
+# scaling says whether the map counts the copies a provider's services run (instances), so a scale is a change on the
+# map and starts a Service scaled trigger: firefight (its map reader counts them) or none (it runs no copies it could
+# count, and scaling_note says why). Only a provider on the map says, and scaling_note may say what a firefight one
+# counts, such as a service that scales on its own having no one count.
 # history says whether Halon can read how long the provider's runs take (its CI runs, builds or deploys, through the
 # run_history capability its adapter answers), which a watch learns its time limit from: firefight (its adapter answers
 # it) or none (it has no such runs, or does not say when they started and finished, and history_note says why).
@@ -134,6 +138,8 @@ providers:
     site: https://github.com
     source_links: firefight
     map: firefight
+    scaling: none
+    scaling_note: "It holds repositories and runs CI, which run no copies of a service."
     history: firefight
     code_fix_tool: fix_code
     holds_code: true
@@ -163,6 +169,8 @@ providers:
     # GitLab.com Premium or Ultimate and on any self-managed GitLab (docs.gitlab.com/user/group/settings/group_access_tokens).
     source_links: firefight
     map: firefight
+    scaling: none
+    scaling_note: "It holds repositories and runs CI, which run no copies of a service."
     history: firefight
     holds_code: true
     stopping_tools: [cancel_pipeline]
@@ -189,6 +197,8 @@ providers:
     # (support.atlassian.com/bitbucket-cloud/docs/using-workspace-access-tokens).
     source_links: firefight
     map: firefight
+    scaling: none
+    scaling_note: "It holds repositories and runs CI, which run no copies of a service."
     history: firefight
     holds_code: true
     stopping_tools: [cancel_pipeline]
@@ -298,6 +308,8 @@ providers:
         scope: true
     source_links: firefight
     map: firefight
+    scaling: firefight
+    scaling_note: "A service counts the instances it is set to run."
     history: firefight
     stopping_tools: [abort_template_run]
   - key: grafana
@@ -355,6 +367,8 @@ providers:
     token: { hint: "Use an account API token, from Manage account, Account API tokens. It belongs to the account rather than a person, so it keeps working when someone leaves." }
     source_links: firefight
     map: firefight
+    scaling: none
+    scaling_note: "Its Workers and sites run at every edge location on demand, so there is no count of copies to read."
     history: firefight
   - key: kubernetes
     name: Kubernetes
@@ -382,6 +396,8 @@ providers:
     source_links: none
     source_links_note: "Kubernetes has no hosted console of its own, and the dashboard a team may run sits at an address Firefight does not know, so each answer names the kubectl command that shows the same."
     map: firefight
+    scaling: firefight
+    scaling_note: "A deployment or stateful set counts the replicas it wants, which an autoscaler moves too. A daemon set counts the pods it schedules, one per node."
     history: firefight
     stopping_tools: [rollout_pause, suspend_cronjob]
   - key: modal
@@ -398,6 +414,8 @@ providers:
     connect_with: api_token
     source_links: firefight
     map: firefight
+    scaling: firefight
+    scaling_note: "An app counts the containers it runs when the map reads it, since Modal starts and stops them with the work."
     history: none
     history_note: "Modal's app history records when each version went live, not when its deploy started, so no deploy has a length to read."
     connect_fields:
@@ -421,6 +439,8 @@ providers:
     # A token is its person's, limited by their team role (docs.digitalocean.com/reference/api/create-personal-access-token).
     source_links: firefight
     map: firefight
+    scaling: firefight
+    scaling_note: "An app counts the instances its services and workers run. An app with a component that scales on its own has no one count, so it shows none."
     history: firefight
   - key: netlify
     name: Netlify
@@ -437,6 +457,8 @@ providers:
     # (docs.netlify.com/api-and-cli-guides/api-guides/get-started-with-api).
     source_links: firefight
     map: firefight
+    scaling: none
+    scaling_note: "It builds and serves sites from its edge network, which run no copies of a service."
     history: firefight
   - key: convex
     name: Convex
@@ -452,6 +474,8 @@ providers:
     connect_with: api_token
     source_links: firefight
     map: firefight
+    scaling: none
+    scaling_note: "It runs a deployment's functions on demand and says no count of copies."
     history: none
     history_note: "Convex's audit log records each push once, when it was made, with no start and finish to time it by."
     connect_fields:
@@ -472,6 +496,8 @@ providers:
     connect_with: api_token
     source_links: firefight
     map: firefight
+    scaling: none
+    scaling_note: "It runs each task on demand and says no count of copies."
     history: firefight
     connect_fields:
       - { key: project, label: Project ref, placeholder: proj_..., pattern: 'proj_[a-z0-9]+', allowed: "proj_ followed by lowercase letters and numbers",
@@ -538,6 +564,8 @@ providers:
           - { value: cn-northwest-1, label: "China (Ningxia)" }
     source_links: firefight
     map: firefight
+    scaling: firefight
+    scaling_note: "An ECS service counts the tasks it is set to run, which service auto scaling moves too. App Runner services and Elastic Beanstalk environments scale on their own and show none."
     history: firefight
   - key: google_cloud
     name: Google Cloud
@@ -557,6 +585,8 @@ providers:
       - { key: project, label: Projects, scope: true, hint: "The Google Cloud projects this environment runs in. Choose one or several, or all this key can read, which takes in a project added later at the next sweep.", placeholder: Choose projects, pattern: "[a-z][a-z0-9-]{4,28}[a-z0-9]", allowed: "6 to 30 lowercase letters, numbers and dashes, starting with a letter and not ending with a dash" }
     source_links: firefight
     map: firefight
+    scaling: firefight
+    scaling_note: "A Cloud Run service set to a number of instances counts them. One that scales on its own has no one count, so it shows none."
     history: firefight
     stopping_tools: [cancel_rollout]
   - key: azure
@@ -583,6 +613,8 @@ providers:
       - { key: subscription_id, label: Subscriptions, scope: true, hint: "The Azure subscriptions this environment runs in. Choose one or several, or all this service principal can read, which takes in a subscription added later at the next sweep. Halon reads every region in each.", placeholder: Choose subscriptions, pattern: "\\h{8}-\\h{4}-\\h{4}-\\h{4}-\\h{12}", allowed: "a GUID such as 00000000-0000-0000-0000-000000000000" }
     source_links: firefight
     map: firefight
+    scaling: firefight
+    scaling_note: "An App Service or Function app counts the instances of its plan, and a container app the replicas it is held to when its fewest and most are the same. Consumption and Elastic Premium plans, and container apps that scale on their own, have no one count."
     history: firefight
   - key: vercel
     name: Vercel
@@ -601,6 +633,8 @@ providers:
     # Every Vercel token belongs to a user, so a dedicated user makes it (vercel.com/docs/accounts/access-tokens).
     source_links: firefight
     map: firefight
+    scaling: none
+    scaling_note: "It runs functions on demand and says no count of copies."
     history: firefight
   - key: render
     name: Render
@@ -618,6 +652,8 @@ providers:
     # An API key belongs to its person and reaches every workspace they belong to (api-docs.render.com/reference/authentication).
     source_links: firefight
     map: firefight
+    scaling: firefight
+    scaling_note: "A service counts the instances it runs, which autoscaling moves too."
     history: firefight
   - key: railway
     name: Railway
@@ -638,6 +674,8 @@ providers:
     # (docs.railway.com/reference/public-api).
     source_links: firefight
     map: firefight
+    scaling: firefight
+    scaling_note: "A service counts the replicas it is set to run."
     history: firefight
   - key: fly
     name: Fly.io
@@ -655,6 +693,8 @@ providers:
       - { key: organization, label: Organization, placeholder: my-org, hint: "The slug of the Fly.io organization this environment runs in, as fly orgs list shows it." }
     source_links: firefight
     map: firefight
+    scaling: firefight
+    scaling_note: "An app counts its Machines."
     history: firefight
   - key: sentry
     name: Sentry
@@ -1161,6 +1201,8 @@ providers:
     token: { hint: "Use an organization API key, from your organization's Settings, API keys. Unlike a personal key, it keeps working when someone leaves the organization." }
     source_links: firefight
     map: firefight
+    scaling: none
+    scaling_note: "It holds databases, whose compute grows in size rather than in copies."
     history: firefight
     setting_words: [NEON]
   - key: supabase
@@ -1193,6 +1235,8 @@ providers:
     token: { hint: "Use a scoped personal access token. Make it as a dedicated user, such as Firefight, so changes do not show as a teammate and the connection keeps working when someone leaves." }
     source_links: firefight
     map: firefight
+    scaling: none
+    scaling_note: "It holds databases rather than services that run copies."
     history: none
     history_note: "Its server lists migrations by version and name without when they ran, and offers no branch action runs, the only runs Supabase times."
     setting_words: [SUPABASE]
@@ -1210,6 +1254,8 @@ providers:
     token: { hint: "Use a service token from your organization's settings, so the connection is not one person's. Paste its secret alone after Bearer, without its id." }
     source_links: firefight
     map: firefight
+    scaling: none
+    scaling_note: "It holds databases rather than services that run copies."
     history: none
     history_note: "Its server reads branches and their logs and offers no deploy requests, the only runs PlanetScale times."
     setting_words: [PLANETSCALE, PSCALE]
@@ -1225,6 +1271,8 @@ providers:
     site: https://console.clickhouse.cloud
     source_links: firefight
     map: firefight
+    scaling: none
+    scaling_note: "It holds databases rather than services that run copies."
     history: none
     history_note: "Its server reads a service's details and runs read only queries, and ClickHouse Cloud keeps no builds or deploys of a service."
     setting_words: [CLICKHOUSE]
@@ -1255,6 +1303,8 @@ providers:
       - { key: aws-ap-southeast-2, label: "Sydney, AWS (api.ap-southeast-2.aws.tinybird.co)", site: "https://cloud.tinybird.co/aws/ap-southeast-2" }
     source_links: firefight
     map: firefight
+    scaling: none
+    scaling_note: "It holds data sources and endpoints rather than services that run copies."
     history: firefight
     setting_words: [TINYBIRD]
   - key: turso
@@ -1269,6 +1319,8 @@ providers:
     source_links: none
     source_links_note: "Turso documents no dashboard address for a database, and its tools' answers carry none."
     map: firefight
+    scaling: none
+    scaling_note: "It holds databases rather than services that run copies."
     history: none
     history_note: "Its server reads a database as it stands now, and Turso keeps no builds, deploys or runs of one."
     setting_words: [TURSO, LIBSQL]
@@ -1284,6 +1336,8 @@ providers:
     site: https://console.upstash.com
     source_links: firefight
     map: firefight
+    scaling: none
+    scaling_note: "It holds databases rather than services that run copies."
     history: none
     history_note: "A Redis database and QStash have no builds or deploys, and its server keeps no runs whose length could be read."
     setting_words: [UPSTASH]
@@ -1299,6 +1353,8 @@ providers:
     source_links: none
     source_links_note: "A database reached by its own connection URL has no page to open."
     map: firefight
+    scaling: none
+    scaling_note: "It holds databases rather than services that run copies."
     history: none
     history_note: "A database reached by its connection URL keeps no record of deploys or runs."
   # A coding agent writes a fix's code change in its own environment and opens the pull request itself. code_agent marks

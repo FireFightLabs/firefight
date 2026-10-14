@@ -263,14 +263,15 @@ module Integrations
                          "#{app} puts back what its code says.", link: app_link(environment_row, app_id))
       end
 
-      # The environment's deployed apps on the map, each with its page, its version and the commit it was deployed from.
+      # The environment's deployed apps on the map, each with its page, its version, the commit it was deployed from and
+      # the containers it runs as it is read, which Modal starts and stops with the work.
       def map_of(environment_row)
         api = api(environment_row)
         workspace = api.workspace
         gaps = []
         resources = api.apps(environment(environment_row)).select { |app| app.state == DEPLOYED }.map do |app|
           where = environment(environment_row).presence || app.metadata&.environment_name.presence
-          details = { "version" => ("v#{app.metadata.lifecycle.version}" if app.metadata&.lifecycle), "running_containers" => app.n_running_tasks }
+          details = { "version" => ("v#{app.metadata.lifecycle.version}" if app.metadata&.lifecycle), ResourceMap::INSTANCES => app.n_running_tasks }
           begin
             latest = api.history(app.app_id).app_deployment_histories.max_by(&:version)
             details[ResourceMap::DEPLOYED_COMMIT] = latest&.commit_info&.commit_hash.presence

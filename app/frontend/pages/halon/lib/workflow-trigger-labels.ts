@@ -11,6 +11,7 @@ export const WORKFLOW_TRIGGER_LABELS: Record<WorkflowTriggerKind, string> = {
   inbound_webhook: "When its webhook is called",
   deploy_finished: "When a deploy or CI run finishes",
   resource_changed: "When a resource changes",
+  service_scaled: "When a service scales",
   security_event: "On a security event",
   notice_raised: "When Halon raises a notice",
   investigation_finished: "When an investigation finishes",

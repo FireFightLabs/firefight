@@ -10,6 +10,7 @@ module Workflow::Trigger
   KIND_INBOUND_WEBHOOK = "inbound_webhook".freeze
   KIND_DEPLOY_FINISHED = "deploy_finished".freeze
   KIND_RESOURCE_CHANGED = "resource_changed".freeze
+  KIND_SERVICE_SCALED = "service_scaled".freeze
   KIND_SECURITY_EVENT = "security_event".freeze
   KIND_NOTICE_RAISED = "notice_raised".freeze
   KIND_INVESTIGATION_FINISHED = "investigation_finished".freeze
@@ -19,7 +20,7 @@ module Workflow::Trigger
   KIND_CALLED = "called".freeze
   KINDS = [
     KIND_MANUAL, KIND_SCHEDULE, KIND_ONCE_AT, KIND_INCIDENT_DECLARED, KIND_INCIDENT_CHANGED, KIND_ALERT_RECEIVED,
-    KIND_INBOUND_WEBHOOK, KIND_DEPLOY_FINISHED, KIND_RESOURCE_CHANGED, KIND_SECURITY_EVENT, KIND_NOTICE_RAISED,
+    KIND_INBOUND_WEBHOOK, KIND_DEPLOY_FINISHED, KIND_RESOURCE_CHANGED, KIND_SERVICE_SCALED, KIND_SECURITY_EVENT, KIND_NOTICE_RAISED,
     KIND_INVESTIGATION_FINISHED, KIND_FOLLOW_UP_CHANGED, KIND_ISSUE_ASSIGNED, KIND_RUN_FAILED, KIND_CALLED
   ].freeze
 
@@ -27,7 +28,7 @@ module Workflow::Trigger
   WORDS = {
     KIND_MANUAL => "By hand", KIND_INCIDENT_DECLARED => "When an incident is declared", KIND_INCIDENT_CHANGED => "When an incident changes",
     KIND_ALERT_RECEIVED => "When an alert arrives", KIND_INBOUND_WEBHOOK => "When its webhook is called", KIND_DEPLOY_FINISHED => "When a deploy or CI run ends",
-    KIND_RESOURCE_CHANGED => "When a resource changes", KIND_SECURITY_EVENT => "On a security event", KIND_NOTICE_RAISED => "When Halon raises a notice",
+    KIND_RESOURCE_CHANGED => "When a resource changes", KIND_SERVICE_SCALED => "When a service scales", KIND_SECURITY_EVENT => "On a security event", KIND_NOTICE_RAISED => "When Halon raises a notice",
     KIND_INVESTIGATION_FINISHED => "When an investigation finishes", KIND_FOLLOW_UP_CHANGED => "When a follow up or postmortem changes",
     KIND_ISSUE_ASSIGNED => "When an issue is assigned to Firefight", KIND_RUN_FAILED => "When another workflow's run fails",
     KIND_CALLED => "When another workflow runs it"
@@ -36,7 +37,8 @@ module Workflow::Trigger
   # have nobody pressing Run when they start.
   EVENTS = [
     KIND_INCIDENT_DECLARED, KIND_INCIDENT_CHANGED, KIND_ALERT_RECEIVED, KIND_NOTICE_RAISED, KIND_INVESTIGATION_FINISHED,
-    KIND_FOLLOW_UP_CHANGED, KIND_RUN_FAILED, KIND_INBOUND_WEBHOOK, KIND_DEPLOY_FINISHED, KIND_RESOURCE_CHANGED, KIND_SECURITY_EVENT, KIND_ISSUE_ASSIGNED
+    KIND_FOLLOW_UP_CHANGED, KIND_RUN_FAILED, KIND_INBOUND_WEBHOOK, KIND_DEPLOY_FINISHED, KIND_RESOURCE_CHANGED, KIND_SERVICE_SCALED, KIND_SECURITY_EVENT,
+    KIND_ISSUE_ASSIGNED
   ].freeze
   # The kinds a published workflow may start on, another workflow running it among them. Every other kind is refused
   # when publishing, since nothing would start it.
@@ -47,6 +49,8 @@ module Workflow::Trigger
   # What must hold of the event for it to start a run, as the rule engine's conditions (Policy::Conditions).
   KEY_CONDITIONS = "conditions".freeze
   CONDITION_LIMIT = 20
+  # A trigger's conditions compare words as a routing rule's do, and numbers too, such as a count above 20.
+  CONDITION_OPERATORS = [ *PolicyRule::OPERATORS, *PolicyRule::NUMBER_OPERATORS ].freeze
   INPUT_FIELDS = Runbook::Procedure::INPUT_FIELDS
   INPUT_KEY = Runbook::Procedure::INPUT_KEY
   INPUT_LIMIT = Runbook::Procedure::INPUT_LIMIT
@@ -93,7 +97,7 @@ module Workflow::Trigger
     return [ "The trigger can hold at most #{CONDITION_LIMIT} conditions." ] if given.size > CONDITION_LIMIT
     return [ "Only a trigger that something happening starts can have conditions." ] if given.any? && !event?(trigger[KEY_KIND])
 
-    Policy::Conditions.errors_for(given).map { |message| "The trigger's #{message.downcase_first}." }
+    Policy::Conditions.errors_for(given, operators: CONDITION_OPERATORS).map { |message| "The trigger's #{message.downcase_first}." }
   end
 
   # When it fires as a person reads it. Every workflow can also be run by hand.

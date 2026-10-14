@@ -21,6 +21,9 @@ module Integrations
       TYPE_SESSION = "AgentSessionEvent".freeze
       TYPE_PERMISSION = "PermissionChange".freeze
       TYPE_APP = "OAuthApp".freeze
+      TYPE_ISSUE = "Issue".freeze
+      ACTION_CREATE = "create".freeze
+      ACTION_UPDATE = "update".freeze
       ACTION_CREATED = "created".freeze
       ACTION_PROMPTED = "prompted".freeze
       ACTION_REVOKED = "revoked".freeze
@@ -38,6 +41,32 @@ module Integrations
           when [ TYPE_APP, ACTION_REVOKED ] then Installations::CHANGE_REMOVED
           when [ TYPE_PERMISSION, ACTION_TEAM_ACCESS ] then Installations::CHANGE_REACH
           end
+        end
+
+        # An Issues data change event (linear.app/developers/webhooks, Data change events), which the app's webhook
+        # receives once the operator ticks Issues, names the issue's labels in data (labelIds, and labels with their
+        # names) and the ones it had before a change in updatedFrom. A label is added when an issue is made with it or
+        # when an update's labelIds holds it and updatedFrom's did not. An update that left the labels alone has no
+        # labelIds in updatedFrom. actor is who did it.
+        def labelled(payload)
+          issue = payload["data"]
+          return unless payload["type"] == TYPE_ISSUE && issue.is_a?(Hash) && issue["id"].present?
+
+          before = case payload["action"]
+          when ACTION_CREATE then []
+          when ACTION_UPDATE then payload.dig("updatedFrom", "labelIds")
+          end
+          return unless before.is_a?(Array)
+
+          added = Array(issue["labels"]).select { |label| label.is_a?(Hash) && Array(issue["labelIds"]).include?(label["id"]) && before.exclude?(label["id"]) }
+          names = added.filter_map { |label| label["name"].presence }
+          return if names.empty?
+
+          AgentSessions::Labelled.new(
+            reference: "#{issue['id']}:#{added.map { |label| label['id'] }.sort.join(',')}:#{issue['updatedAt']}", labels: names,
+            issue_key: issue["identifier"].presence, issue_title: issue["title"].presence, issue_url: (issue["url"] || payload["url"]).presence,
+            text: issue["description"].presence, **asker_of(payload["actor"])
+          )
         end
 
         def event(payload)
