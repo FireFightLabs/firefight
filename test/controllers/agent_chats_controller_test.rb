@@ -718,6 +718,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     post agent_chat_stop_url(conversation)
 
     assert conversation.chat.reload.stop_requested?
+    assert_equal Conversation::STOPPING, flash[:notice]
 
     conversation.reply_delivered!
     conversation.chat.clear_stop!
@@ -725,6 +726,25 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal Conversation::NOTHING_TO_STOP, flash[:alert]
     assert_not conversation.chat.reload.stop_requested?
+  end
+
+  # Seen live: a reload while Halon stopped showed it working again, with the timer back at zero.
+  test "a stop and when the answer began are the server's, so a reload shows the same" do
+    conversation = start_chat
+    conversation.ask!("anything in metrics?")
+    began = conversation.reload.answer_owed_since
+
+    get agent_chat_url(conversation), headers: chat_page_headers
+    assert_equal [ false, began.utc.iso8601(3) ], inertia_props["conversation"].values_at("stopRequested", "workingSince")
+
+    conversation.request_stop!
+    get agent_chat_url(conversation), headers: chat_page_headers
+    assert_equal [ true, began.utc.iso8601(3) ], inertia_props["conversation"].values_at("stopRequested", "workingSince")
+
+    conversation.reply_delivered!
+    conversation.chat.clear_stop!
+    get agent_chat_url(conversation), headers: chat_page_headers
+    assert_equal [ false, nil ], inertia_props["conversation"].values_at("stopRequested", "workingSince")
   end
 
   test "an open chat arrives with each call an approval rule held, what Halon read, when it expires and what the viewer may do" do

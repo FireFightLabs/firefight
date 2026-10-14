@@ -36,7 +36,8 @@ class Investigation::Runner
       seed_pack: @investigation.starting_facts,
       budget: budget,
       answered: -> { @investigation.reload.finding.present? },
-      canceled: -> { @investigation.reload.cancel_requested? },
+      # Read from the row, never by reloading the record, since it is asked while the run's tools use the record.
+      canceled: -> { Investigation.where(id: @investigation.id).pick(:cancel_requested) == true },
       on_step: method(:report_step),
       nudge: chat.method(:nudge!),
       memory: chat,

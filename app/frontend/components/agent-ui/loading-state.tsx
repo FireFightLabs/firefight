@@ -62,23 +62,30 @@ function LoaderGrid({
   );
 }
 
-function useElapsed() {
-  const [ds, setDs] = useState(0);
+/* counted from when the work began rather than from each tick, so a reload, a remount or a tab the browser slowed
+ * down still shows the real time */
+function useElapsed(since: string | null) {
+  const [mountedAt] = useState(() => Date.now());
+  const started = since ? Date.parse(since) : mountedAt;
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const t = setInterval(() => setDs((d) => d + 1), 100);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setNow(Date.now()), 100);
+    return () => clearInterval(timer);
   }, []);
-  const total = ds / 10;
+  const total = Math.max(0, now - started) / 1000;
   if (total < 60) return `${total.toFixed(1)}s`;
   return `${Math.floor(total / 60)}m ${(total % 60).toFixed(1)}s`;
 }
 
 export default function LoadingState({
   label,
+  since = null,
 }: {
   label?: string;
+  /** when the work began, as an ISO time, which the timer counts from. Without one it counts from when it appeared */
+  since?: string | null;
 }) {
-  const elapsed = useElapsed();
+  const elapsed = useElapsed(since);
   const resolvedLabel = label ?? "Churning";
   const { delays, dur, round } = PATTERNS.Drive;
 

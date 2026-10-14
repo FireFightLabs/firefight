@@ -279,7 +279,13 @@ module Integrations
         head = ref_argument(arguments, "head", required: true)
         gitlab = api(environment_row)
         comparison = gitlab.get("#{GitlabApi.project(repo)}/repository/compare", "from" => base, "to" => head)
-        comparison_text(gitlab, repo, base, comparison)
+        commits = Array(comparison["commits"]).sort_by { |commit| commit["committed_date"].to_s }.reverse
+        Capabilities::Comparison.with_comparison(
+          comparison_text(gitlab, repo, base, comparison), commits: commits.size,
+                                                           titles: commits.map { |commit| "#{commit['id'].to_s[0, 12]} #{commit['title'] || commit['message']}" },
+                                                           paths: Array(comparison["diffs"]).map { |diff| changed_file(diff)["filename"].to_s },
+                                                           complete: !comparison["compare_timeout"], link: comparison["web_url"]
+        )
       end
 
       def fetch_file(environment_row:, arguments:)

@@ -22,6 +22,8 @@ interface ComposerProps {
   incidents: AgentChatIncident[]
   // Turns send into Stop while nothing is typed. A message sent while the agent works joins its answer at the next step.
   busy: boolean
+  // Stop was pressed on the answer under way, as the server keeps it, so a reload still says so.
+  stopRequested: boolean
   fill: ComposerFill | null
   attachmentRules: AgentChatAttachmentRules
   // The models the chat can switch to, or null when there is only one.
@@ -42,22 +44,22 @@ function promptAttachment(item: ComposerAttachment): PromptAttachment {
   }
 }
 
-export function Composer({ conversationId, incidents, busy, fill, attachmentRules, chatModels, newChatModel, onPickNewChatModel }: ComposerProps) {
+export function Composer({ conversationId, incidents, busy, stopRequested, fill, attachmentRules, chatModels, newChatModel, onPickNewChatModel }: ComposerProps) {
   const { results, search } = useRemoteSearch<AgentChatIncident[]>(incidentSearchPath)
   // An open chat's model is the server's. A new chat's is picked here and sent with its first question.
   const pickedForNewChat = conversationId === null ? newChatModel : null
   const selectedModel = pickedForNewChat ?? chatModels?.selected ?? null
   const uploads = useAttachmentUploads(rulesFor(pickedForNewChat))
-  // Set when Stop is pressed and cleared by the next question, so the hint says so until the answer ends.
-  const [ stopRequested, setStopRequested ] = useState(false)
-  const stopping = busy && stopRequested
+  // Set when Stop is pressed and cleared by the next question, so the hint says so at once, before the server does.
+  const [ stopPressed, setStopPressed ] = useState(false)
+  const stopping = busy && (stopPressed || stopRequested)
 
   function send(question: string) {
     if (question.trim().length === 0 && uploads.uploaded.length === 0) {
       return
     }
 
-    setStopRequested(false)
+    setStopPressed(false)
     ask(conversationId, question, uploads.uploaded, uploads.previewsById, pickedForNewChat)
     uploads.clear()
   }
@@ -82,7 +84,7 @@ export function Composer({ conversationId, incidents, busy, fill, attachmentRule
 
   function stop() {
     if (conversationId) {
-      setStopRequested(true)
+      setStopPressed(true)
       stopChat(conversationId)
     }
   }

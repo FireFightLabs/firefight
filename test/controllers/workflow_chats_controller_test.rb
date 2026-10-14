@@ -74,6 +74,7 @@ class WorkflowChatsControllerTest < ActionDispatch::IntegrationTest
     post workflow_chat_stop_url(@workflow)
 
     assert_redirected_to workflow_path(@workflow)
+    assert_equal Conversation::STOPPING, flash[:notice]
   end
 
   test "without the workflows flag there is no chat to ask" do

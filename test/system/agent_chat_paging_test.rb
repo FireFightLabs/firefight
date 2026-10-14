@@ -4,6 +4,8 @@ class AgentChatPagingTest < ApplicationSystemTestCase
   START = Time.utc(2026, 10, 1, 9, 0)
   THREAD = "section.agent-thread"
   SKELETON = "[role=status][aria-label='Loading the conversation']"
+  # Seconds a page of the conversation may take to arrive.
+  PAGE_ARRIVES_WITHIN = 10
   # The skeleton may show for a moment only, so the page notes when it does.
   SKELETON_WATCH = <<~JS.freeze
     window.sawSkeleton = Boolean(document.querySelector(#{SKELETON.to_json}))
@@ -49,11 +51,11 @@ class AgentChatPagingTest < ApplicationSystemTestCase
 
     scroll_thread_to_top
     before = top_of(reading)
-    assert_text "Question 30"
+    assert_loaded "Question 30"
     assert_in_delta before, top_of(reading), 4, "the message being read stays where it was"
 
     scroll_thread_to_top
-    assert_text "Question 0"
+    assert_loaded "Question 0"
     assert_selector "#{THREAD} p", text: /\AQuestion \d+\z/, count: 60
     assert_no_text "Loading earlier messages"
   end
@@ -160,6 +162,12 @@ class AgentChatPagingTest < ApplicationSystemTestCase
     page.evaluate_script(<<~JS)
       [...document.querySelectorAll("#{THREAD} p, #{THREAD} li")].find((element) => element.textContent.trim() === #{text.to_json}).getBoundingClientRect().top
     JS
+  end
+
+  # A page of the conversation arrived. Looked for in the conversation alone, since the chat list names a chat by its
+  # first question, and given the time a page takes on a busy runner.
+  def assert_loaded(question)
+    assert_selector "#{THREAD} p", exact_text: question, wait: PAGE_ARRIVES_WITHIN
   end
 
   def assert_in_view(text)

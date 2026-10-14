@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1
 
-# The machine every CI job runs in, so a job starts with Ruby, the gems, Node, the JavaScript packages and Chrome
-# already in place instead of installing them. CI tags it with a hash of this file, Gemfile.lock, package-lock.json
-# and .ruby-version, and builds it again only when one of them changes.
+# The machine every CI job runs in, so a job starts with Ruby, the gems, Node, the JavaScript packages, Chrome and
+# Halon's Playwright browser already in place instead of installing them. CI tags it with a hash of this file,
+# Gemfile.lock, package-lock.json, sandbox/browser/package-lock.json and .ruby-version, and builds it again only when
+# one of them changes.
 
 ARG RUBY_VERSION
 ARG NODE_VERSION=22
@@ -53,6 +54,16 @@ COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
     ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+
+# Halon's browser as the sandbox image installs it, the Playwright sandbox/browser pins and that Playwright's own
+# Chromium with the libraries it needs, so test/sandbox runs sandbox/browser_check.mjs in a real browser.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/browser/ms-playwright \
+    BROWSER_CHECK_MODULES=/opt/browser/node_modules
+COPY sandbox/browser/package.json sandbox/browser/package-lock.json /opt/browser/
+RUN cd /opt/browser && \
+    npm ci --no-fund --no-audit && \
+    npx playwright install --with-deps chromium && \
+    rm -rf /root/.npm /var/lib/apt/lists /var/cache/apt/archives
 
 COPY --from=gems /usr/local/bundle /usr/local/bundle
 COPY --from=packages /opt/ci/node_modules /opt/ci/node_modules

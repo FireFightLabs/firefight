@@ -112,11 +112,18 @@ interface TriggerConditionsProps {
   drafts: ConditionDraft[]
   disabled: boolean
   onChange: (drafts: ConditionDraft[]) => void
+  // What the conditions decide, in words, for a step that reads them rather than a trigger.
+  title?: string
+  hint?: (count: number) => string
+}
+
+function triggerHint(count: number): string {
+  return count === 0 ? "It runs every time. Add a condition to run only for some." : "It runs only when every condition holds."
 }
 
 // What must hold of what happened for it to start a run, each condition a field the trigger offers, how it compares
 // and what with, the workspace's own values offered where the field has a fixed set. Every condition must hold.
-export function TriggerConditions({ idPrefix, fields, drafts, disabled, onChange }: TriggerConditionsProps) {
+export function TriggerConditions({ idPrefix, fields, drafts, disabled, onChange, title = "Only when", hint = triggerHint }: TriggerConditionsProps) {
   const fieldOptions = fields.map((field) => ({ value: field.key, label: field.label }))
 
   function update(key: string, patch: Partial<ConditionDraft>) {
@@ -133,10 +140,8 @@ export function TriggerConditions({ idPrefix, fields, drafts, disabled, onChange
 
   return (
     <section className="space-y-2">
-      <h4 className="font-mono text-[10.5px] tracking-[0.1em] text-brand uppercase">Only when</h4>
-      <p className="text-xs text-fg-muted">
-        {drafts.length === 0 ? "It runs every time. Add a condition to run only for some." : "It runs only when every condition holds."}
-      </p>
+      <h4 className="font-mono text-[10.5px] tracking-[0.1em] text-brand uppercase">{title}</h4>
+      <p className="text-xs text-fg-muted">{hint(drafts.length)}</p>
       {drafts.map((draft) => (
         <ConditionRow key={draft.key} idPrefix={`${idPrefix}-${draft.key}`} draft={draft} fields={fields} fieldOptions={fieldOptions}
                       disabled={disabled} onChange={update} onRemove={remove(draft.key)} />

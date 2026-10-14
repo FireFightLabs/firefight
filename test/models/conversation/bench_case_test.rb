@@ -9,10 +9,10 @@ class Conversation::BenchCaseTest < ActiveSupport::TestCase
   test "every scenario reads, says what a good run reaches and what it does next, and names only tools it offers" do
     scenarios = Conversation::BenchCase.scenarios
 
-    assert_equal FAILURES.size + 19 + HABITS.size + 11, scenarios.size
+    assert_equal FAILURES.size + 19 + HABITS.size + 12, scenarios.size
     assert_empty (FAILURES + HABITS) - scenarios.map(&:key)
     assert_equal 19, scenarios.count { |scenario| scenario.key.start_with?("stress_") }
-    assert_equal 11, scenarios.count { |scenario| scenario.key.start_with?("hard_") }
+    assert_equal 12, scenarios.count { |scenario| scenario.key.start_with?("hard_") }
     scenarios.each do |scenario|
       assert scenario.expect.outcome.present?, "#{scenario.key} says nothing about the right outcome"
       assert scenario.expect.next_step.present?, "#{scenario.key} says nothing about the next step"

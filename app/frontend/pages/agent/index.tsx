@@ -149,6 +149,7 @@ export default function AgentPage() {
                     skillProposals={skillProposals}
                     waiting={waitingMessages}
                     stream={stream}
+                    workingSince={conversation?.workingSince ?? null}
                   />
                 ) : (
                   <ThreadSkeleton />
@@ -173,6 +174,7 @@ export default function AgentPage() {
                 conversationId={conversationId}
                 incidents={incidents}
                 busy={stream.busy}
+                stopRequested={conversation?.stopRequested ?? false}
                 fill={fill}
                 attachmentRules={attachmentRules}
                 chatModels={chatModels}

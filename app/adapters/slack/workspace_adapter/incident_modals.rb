@@ -158,6 +158,14 @@ module Slack::WorkspaceAdapter::IncidentModals
 
   def handbook_proposal_error(message) = { response_action: "errors", errors: { Slack::Modals::EditHandbookProposal::TEXT_BLOCK => message } }
 
+  def open_workflow_question_modal(trigger_id:, question:)
+    open_modal(trigger_id: trigger_id, view: Slack::Modals::WorkflowQuestionAnswer.build(question))
+  end
+
+  def workflow_question_answer(values:) = Slack::Modals::WorkflowQuestionAnswer.answer(values)
+
+  def workflow_question_error(message, question:) = { response_action: "errors", errors: { Slack::Modals::WorkflowQuestionAnswer.error_block(question) => message } }
+
   def open_code_question_modal(trigger_id:, question:)
     open_modal(trigger_id: trigger_id, view: Slack::Modals::CodeQuestionAnswer.build(question))
   end

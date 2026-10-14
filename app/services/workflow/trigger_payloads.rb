@@ -33,6 +33,17 @@ class Workflow::TriggerPayloads
     end
   end
 
+  # The flat fields an incident's conditions read, as an incident trigger's do.
+  def incident_context(incident)
+    fields = {
+      F::SEVERITY => incident.incident_severity&.slug, F::TYPE => incident.incident_type&.slug, F::STATUS => incident.incident_status&.slug,
+      F::STAGE => incident.incident_status&.incident_lifecycle_stage&.key, F::SOURCE => incident.source, F::PRIVATE => incident.is_private.to_s,
+      F::TEST => incident.is_test.to_s, F::LEAD => incident.lead&.try(:email)
+    }
+    incident.custom_fields_for_display.each { |slug, value| fields["#{F::CUSTOM_FIELD_PREFIX}#{slug}"] = Array(value).join(", ") }
+    Policy::ContextBuilder.build(workspace: @workspace, fields: fields)
+  end
+
   private
 
   def tags_of(details) = Array(details["tags"]).map(&:to_s)
@@ -75,16 +86,6 @@ class Workflow::TriggerPayloads
 
   def rendered(partial, **locals)
     JSON.parse(Webhooks::PayloadRenderer.renderer.render(partial: partial, locals: locals, formats: [ :json ]))
-  end
-
-  def incident_context(incident)
-    fields = {
-      F::SEVERITY => incident.incident_severity&.slug, F::TYPE => incident.incident_type&.slug, F::STATUS => incident.incident_status&.slug,
-      F::STAGE => incident.incident_status&.incident_lifecycle_stage&.key, F::SOURCE => incident.source, F::PRIVATE => incident.is_private.to_s,
-      F::TEST => incident.is_test.to_s, F::LEAD => incident.lead&.try(:email)
-    }
-    incident.custom_fields_for_display.each { |slug, value| fields["#{F::CUSTOM_FIELD_PREFIX}#{slug}"] = Array(value).join(", ") }
-    Policy::ContextBuilder.build(workspace: @workspace, fields: fields)
   end
 
   def incident_summary(incident)

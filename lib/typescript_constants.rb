@@ -186,11 +186,12 @@ module TypescriptConstants
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,
         "WAITING" => Conversation::LiveDelivery::STATUS_WAITING, "CANCELLED" => Conversation::LiveDelivery::STATUS_CANCELLED,
         "FAILED" => Conversation::LiveDelivery::STATUS_FAILED, "NOT_FOUND" => Conversation::LiveDelivery::STATUS_NOT_FOUND,
-        "REFUSED" => Conversation::LiveDelivery::STATUS_REFUSED
+        "REFUSED" => Conversation::LiveDelivery::STATUS_REFUSED, "STOPPED" => Conversation::LiveDelivery::STATUS_STOPPED
       }, nil),
       Export.new("STEP_OUTCOME_KINDS", {
         "ANSWERED" => Chat::StepOutcome::KIND_ANSWERED, "FAILED" => Chat::StepOutcome::KIND_FAILED,
-        "NOT_FOUND" => Chat::StepOutcome::KIND_NOT_FOUND, "REFUSED" => Chat::StepOutcome::KIND_REFUSED
+        "NOT_FOUND" => Chat::StepOutcome::KIND_NOT_FOUND, "REFUSED" => Chat::StepOutcome::KIND_REFUSED,
+        "STOPPED" => Chat::StepOutcome::KIND_STOPPED
       }, nil),
       Export.new("CODE_FIX_LINE_RESULTS", {
         "PASSED" => Chat::CodeFixProgress::RESULT_PASSED, "FAILED" => Chat::CodeFixProgress::RESULT_FAILED
@@ -346,6 +347,20 @@ module TypescriptConstants
         "SEND_STEP" => DefinedWorkflow::Steps::Browser::KEY_SEND_STEP, "UNDO" => DefinedWorkflow::Steps::Base::KEY_UNDO,
         "MAX_STEPS" => Chat::BrowserCheck::MAX_STEPS
       }, nil),
+      Export.new("WORKFLOW_SET_DATA", {
+        "VALUES" => DefinedWorkflow::Steps::SetData::KEY_VALUES, "NAME" => DefinedWorkflow::Steps::SetData::VALUE_NAME,
+        "VALUE" => DefinedWorkflow::Steps::SetData::VALUE_VALUE, "LIMIT" => DefinedWorkflow::Steps::SetData::VALUE_LIMIT
+      }, nil),
+      Export.new("WORKFLOW_ASK_PERSON", {
+        "FIELDS" => DefinedWorkflow::Steps::AskPerson::KEY_FIELDS, "FIELD_NAME" => DefinedWorkflow::Steps::AskPerson::FIELD_NAME,
+        "FIELD_LABEL" => DefinedWorkflow::Steps::AskPerson::FIELD_LABEL, "FIELD_LIMIT" => DefinedWorkflow::Steps::AskPerson::FIELD_LIMIT
+      }, nil),
+      Export.new("WORKFLOW_APPROVAL", {
+        "INCIDENT" => DefinedWorkflow::Steps::Approval::KEY_INCIDENT, "CONDITIONS" => DefinedWorkflow::Steps::Approval::KEY_CONDITIONS
+      }, nil),
+      Export.new("WORKFLOW_ASK_KIND", WorkflowRunStepSerializer::ASK_KINDS.to_h { |kind| [ kind.upcase, kind ] }, nil),
+      Export.new("WORKFLOW_QUESTION_STATUS", Workflow::Run::Question::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
+      Export.new("APPROVAL_STATUS", Ability::Approval::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
       Export.new("BROWSER_ACTIONS", Chat::BrowserCheck::ACTIONS, "BrowserAction"),
       Export.new("BROWSER_ACTION", Chat::BrowserCheck::ACTIONS.to_h { |action| [ action.upcase, action ] }, nil),
       Export.new("BROWSER_SENDING_ACTIONS", Chat::BrowserCheck::SENDING_ACTIONS, nil),
