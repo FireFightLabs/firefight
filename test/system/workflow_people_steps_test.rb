@@ -23,13 +23,15 @@ class WorkflowPeopleStepsTest < ApplicationSystemTestCase
   def record_toasts
     page.execute_script(<<~JS)
       document.body.dataset.toastsDrawn = ""
+      const recorded = new WeakSet()
       new MutationObserver((mutations) => {
         mutations.flatMap((mutation) => [ ...mutation.addedNodes ]).forEach((node) => {
           if (!(node instanceof Element)) {
             return
           }
           const toasts = node.matches("[data-sonner-toast]") ? [ node ] : [ ...node.querySelectorAll("[data-sonner-toast]") ]
-          toasts.forEach((toast) => {
+          toasts.filter((toast) => !recorded.has(toast)).forEach((toast) => {
+            recorded.add(toast)
             document.body.dataset.toastsDrawn += `${toast.textContent}|`
           })
         })

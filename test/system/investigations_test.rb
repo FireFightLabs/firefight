@@ -121,13 +121,15 @@ class InvestigationsTest < ApplicationSystemTestCase
     page.execute_script(<<~JS, Investigation::Noting::NOTE_ADDED)
       const text = arguments[0]
       document.body.dataset.toastsShown = "0"
+      const counted = new WeakSet()
       new MutationObserver((mutations) => {
         mutations.flatMap((mutation) => [ ...mutation.addedNodes ]).forEach((node) => {
           if (!(node instanceof Element)) {
             return
           }
           const toasts = node.matches("[data-sonner-toast]") ? [ node ] : [ ...node.querySelectorAll("[data-sonner-toast]") ]
-          toasts.filter((toast) => toast.textContent.includes(text)).forEach(() => {
+          toasts.filter((toast) => !counted.has(toast) && toast.textContent.includes(text)).forEach((toast) => {
+            counted.add(toast)
             document.body.dataset.toastsShown = String(Number(document.body.dataset.toastsShown) + 1)
           })
         })
