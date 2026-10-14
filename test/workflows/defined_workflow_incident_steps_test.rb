@@ -147,6 +147,19 @@ class DefinedWorkflowIncidentStepsTest < ActiveSupport::TestCase
     assert_includes problems, "page calls search_incidents, which is not a tool of a connected status page that changes something."
   end
 
+  test "status page update calls the tools of a connected Statuspage or Instatus that change a page, and never their reads" do
+    [ Integrations::Providers::Statuspage.key, Integrations::Providers::Instatus.key ].each do |provider|
+      integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: provider, name: provider.titleize)
+      Integrations::DiscoveryService.sync!(integration)
+      update = integration.tools.find_by!(name: "post_incident_update")
+      read = integration.tools.find_by!(name: "list_incidents")
+      workspace = Workspace.find(@workspace.id)
+
+      assert DefinedWorkflow::Steps::StatusPageUpdate.status_page_tool?(workspace, update.model_facing_name), "#{provider} posts an update"
+      assert_not DefinedWorkflow::Steps::StatusPageUpdate.status_page_tool?(workspace, read.model_facing_name), "#{provider} only reads its incidents"
+    end
+  end
+
   test "investigate starts one and waits for what it finds" do
     workflow = published("Look into it", steps: [ step("look", "investigate", { "incident" => "INC-001" }) ])
     Investigation.stubs(:start_refusal).returns(nil)
