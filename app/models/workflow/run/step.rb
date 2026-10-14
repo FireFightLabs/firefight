@@ -17,6 +17,8 @@ class Workflow::Run::Step < ApplicationRecord
   belongs_to :run, class_name: "Workflow::Run", inverse_of: :steps
   # Halon's chat for a step that asks it something, reads before a change or keeps a watch.
   has_one :chat, as: :owner, dependent: :destroy
+  # What an Ask a person step asked, once per try.
+  has_many :questions, class_name: "Workflow::Run::Question", foreign_key: :run_step_id, inverse_of: :run_step, dependent: :delete_all
 
   delegate :workspace_id, :workspace, :code_box_key, to: :run
 
@@ -44,6 +46,15 @@ class Workflow::Run::Step < ApplicationRecord
   end
 
   # Whether it is parked on an approval nobody has given yet.
+  # The question an Ask a person step asked last.
+  def asked_question = questions.order(:created_at).last
+
+  # The request an Approval step asked last, which the run's page decides beside the Approvals page.
+  def asked_approval
+    Ability::Approval.where(workspace_id: workspace_id, workflow_run_id: run_id, action_key: Ability::Action::WORKFLOW_APPROVAL)
+                     .where("params ->> 'run_step_id' = ?", id).order(:created_at).last
+  end
+
   def waiting_approval?
     status == STATUS_WAITING && invocations.any? { |call| call.decision == Ability::Invocation::DECISION_PENDING && call.approval&.pending? }
   end

@@ -3,15 +3,22 @@ require "open3"
 require "webrick"
 
 # sandbox/browser_check.mjs in a real browser against pages served here. It needs Node and the Playwright the image pins
-# (sandbox/browser/package.json) with its Chromium, installed outside the repository and named by BROWSER_CHECK_MODULES,
-# so it is skipped where they are not installed.
+# (sandbox/browser/package.json) with its Chromium, installed outside the repository and named by BROWSER_CHECK_MODULES.
+# It is skipped on a machine without them, and fails in CI, whose image installs them, so a broken install is never
+# passed over in silence.
 class BrowserCheckTest < ActiveSupport::TestCase
   SCRIPT = Rails.root.join("sandbox/browser_check.mjs").to_s
   MODULES = ENV.fetch("BROWSER_CHECK_MODULES", Rails.root.join("sandbox/browser/node_modules").to_s)
   PASSWORD = "correct-horse-7781".freeze
+  PINNED = JSON.parse(Rails.root.join("sandbox/browser/package.json").read).dig("dependencies", "playwright")
 
   setup do
-    skip "Playwright is not installed. Set BROWSER_CHECK_MODULES to a node_modules holding sandbox/browser's playwright." unless File.directory?(File.join(MODULES, "playwright"))
+    unless File.directory?(File.join(MODULES, "playwright"))
+      missing = "Playwright is not installed. Set BROWSER_CHECK_MODULES to a node_modules holding sandbox/browser's playwright."
+      ENV["CI"].present? ? flunk(missing) : skip(missing)
+    end
+    installed = JSON.parse(File.read(File.join(MODULES, "playwright/package.json")))["version"]
+    assert_equal PINNED, installed, "The Playwright in #{MODULES} is not the one sandbox/browser pins."
 
     @received = Queue.new
     @server = WEBrick::HTTPServer.new(BindAddress: "127.0.0.1", Port: 0, Logger: WEBrick::Log.new(File::NULL), AccessLog: [])
@@ -28,6 +35,15 @@ class BrowserCheckTest < ActiveSupport::TestCase
         @received << [ request.request_method, path, request.body.to_s ] unless request.request_method == "OPTIONS"
         response["Access-Control-Allow-Origin"] = "*"
         response.body = "ok"
+      end
+    end
+    @loads = Hash.new(0)
+    drifting.each do |path, render|
+      @server.mount_proc(path) do |request, response|
+        next response.status = 404 unless request.path == path
+
+        response["Content-Type"] = "text/html"
+        response.body = render.call(@loads[path] += 1)
       end
     end
     @server.mount_proc("/inside") { |_request, response| response.set_redirect(WEBrick::HTTPStatus::Found, "http://10.255.255.1/admin") }
@@ -73,7 +89,7 @@ class BrowserCheckTest < ActiveSupport::TestCase
     assert_equal({ "step" => 3, "reason" => "sends_data",
                    "would_send" => { "method" => "POST", "url" => "#{base}/order",
                                      "fields" => [ { "name" => "email", "value" => "a@example.com" }, { "name" => "password", "value" => "[hidden]" } ] } },
-                 viewport["stopped"])
+                 viewport["stopped"].merge("would_send" => viewport["stopped"]["would_send"].except("digest")))
     assert viewport["screenshot"].present?
     assert_empty received
   end
@@ -125,8 +141,8 @@ class BrowserCheckTest < ActiveSupport::TestCase
   end
 
   test "the confirmed step sends exactly what was shown, once" do
-    viewports = check(url: "#{base}/", viewports: %w[desktop phone], steps: buying, send_step: 3,
-                      expected_send: { method: "POST", url: "#{base}/order" })
+    shown = check(url: "#{base}/", steps: buying).first["stopped"]["would_send"]
+    viewports = check(url: "#{base}/", viewports: %w[desktop phone], steps: buying, send_step: 3, expected_send: shown)
 
     assert_equal [ "desktop" ], viewports.map { |each| each["name"] }
     assert_nil viewports.first["stopped"]
@@ -138,6 +154,57 @@ class BrowserCheckTest < ActiveSupport::TestCase
 
     assert_equal [ "changed_request", "#{base}/order" ], [ viewport["stopped"]["reason"], viewport["stopped"]["would_send"]["url"] ]
     assert_empty received
+  end
+
+  test "what the person is shown carries a fingerprint of the whole request, never its values" do
+    shown = check(url: "#{base}/", steps: buying).first["stopped"]["would_send"]
+
+    assert_match(/\A\h{64}\z/, shown["digest"])
+    assert_not_includes @answer_text, "hunter22"
+  end
+
+  test "a page that changes what its form sends between the look and the send stops, says what it sends now and sends nothing" do
+    shown = check(url: "#{base}/drift-body", steps: [ { action: "click", text: "Buy" } ]).first["stopped"]["would_send"]
+    assert_equal [ { "name" => "amount", "value" => "1" } ], shown["fields"]
+
+    viewport = check(url: "#{base}/drift-body", steps: [ { action: "click", text: "Buy" } ], send_step: 1, expected_send: shown).first
+
+    assert_equal [ "changed_request", "#{base}/order" ], [ viewport["stopped"]["reason"], viewport["stopped"]["would_send"]["url"] ]
+    assert_equal [ { "name" => "amount", "value" => "2" } ], viewport["stopped"]["would_send"]["fields"]
+    assert_not_equal shown["digest"], viewport["stopped"]["would_send"]["digest"]
+    assert_empty received
+  end
+
+  test "a page that changes the query its form sends to between the look and the send stops and sends nothing" do
+    shown = check(url: "#{base}/drift-query", steps: [ { action: "click", text: "Buy" } ]).first["stopped"]["would_send"]
+
+    viewport = check(url: "#{base}/drift-query", steps: [ { action: "click", text: "Buy" } ], send_step: 1, expected_send: shown).first
+
+    assert_equal [ "changed_request", "POST", "#{base}/order?[redacted]" ], [ viewport["stopped"]["reason"], *viewport["stopped"]["would_send"].values_at("method", "url") ]
+    assert_empty received
+  end
+
+  test "a request whose script changes its JSON between the look and the send stops and sends nothing" do
+    shown = check(url: "#{base}/drift-json", steps: [ { action: "click", text: "Save" } ]).first["stopped"]["would_send"]
+
+    viewport = check(url: "#{base}/drift-json", steps: [ { action: "click", text: "Save" } ], send_step: 1, expected_send: shown).first
+
+    assert_equal "changed_request", viewport["stopped"]["reason"]
+    assert_empty received
+  end
+
+  test "the same request sends though its fields come in another order, its JSON keys too, and its anti-forgery token is new" do
+    form = check(url: "#{base}/steady", steps: [ { action: "click", text: "Buy" } ]).first["stopped"]["would_send"]
+    sent = check(url: "#{base}/steady", steps: [ { action: "click", text: "Buy" } ], send_step: 1, expected_send: form).first
+
+    assert_nil sent["stopped"]
+    assert_equal [ "POST", "/order" ], received.sole.first(2)
+
+    json = check(url: "#{base}/steady", steps: [ { action: "click", text: "Save" } ]).first["stopped"]["would_send"]
+    saved = check(url: "#{base}/steady", steps: [ { action: "click", text: "Save" } ], send_step: 1, expected_send: json).first
+
+    assert_nil saved["stopped"]
+    assert_equal [ "POST", "/api/cart" ], received.sole.first(2)
   end
 
   test "a saved login signs in first, and the password never comes back, even where the page shows it" do
@@ -241,6 +308,28 @@ class BrowserCheckTest < ActiveSupport::TestCase
       response["Content-Type"] = "text/html"
       response.body = body
     end
+  end
+
+  # Pages that render differently on each load, n counting the loads, as a page can between the look and the send.
+  def drifting
+    {
+      "/drift-body" => lambda { |n|
+        %(<html><body><form method="post" action="/order"><input type="hidden" name="amount" value="#{n}"><button type="submit">Buy</button></form></body></html>)
+      },
+      "/drift-query" => lambda { |n|
+        %(<html><body><form method="post" action="/order?amount=#{n}"><input type="hidden" name="item" value="1"><button type="submit">Buy</button></form></body></html>)
+      },
+      "/drift-json" => lambda { |n|
+        %(<html><body><button onclick="fetch('/api/cart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: #{n} }) })">Save</button></body></html>)
+      },
+      "/steady" => lambda { |n|
+        fields = [ %(<input type="hidden" name="item" value="1">), %(<input type="hidden" name="size" value="m">) ]
+        json = n.odd? ? "{ item: 1, size: 'm' }" : "{ size: 'm', item: 1 }"
+        %(<html><body><form method="post" action="/order">#{n.odd? ? fields.join : fields.reverse.join}) +
+          %(<input type="hidden" name="authenticity_token" value="#{SecureRandom.hex(16)}"><button type="submit">Buy</button></form>) +
+          %(<button onclick="fetch('/api/cart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(#{json}) })">Save</button></body></html>)
+      }
+    }
   end
 
   def pages

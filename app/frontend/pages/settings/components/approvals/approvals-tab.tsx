@@ -34,8 +34,12 @@ const STATUS_VARIANT: Record<string, "default" | "destructive" | "secondary" | "
   dismissed: "outline",
 }
 
-// A dashboard request is bound to its route, which reads better than the digest.
-function describeParams(params: Record<string, unknown>): string {
+// A dashboard request is bound to its route, which reads better than the digest. A workflow's approval says what it asks.
+function describeParams(approval: AbilityApproval): string {
+  if (approval.question) {
+    return approval.questionDetails ?? "-"
+  }
+  const params = approval.params
   if (typeof params.method === "string" && typeof params.path === "string") {
     return `${params.method} ${params.path}`
   }
@@ -92,10 +96,10 @@ export function ApprovalsTab({
                       {approval.sourceLabel ?? "-"}
                     </TableCell>
                     <TableCell>
-                      <ActionLabel actionKey={approval.actionKey} title={approval.connection} />
+                      <ActionLabel actionKey={approval.actionKey} title={approval.question ?? approval.connection} />
                     </TableCell>
                     <TableCell className="text-muted-foreground max-w-64 truncate text-xs">
-                      {describeParams(approval.params)}
+                      {describeParams(approval)}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{approval.requiredRole}</TableCell>
                     {canDecide && (
@@ -147,7 +151,7 @@ export function ApprovalsTab({
                     </TableCell>
                     <TableCell>{approval.principalLabel}</TableCell>
                     <TableCell>
-                      <ActionLabel actionKey={approval.actionKey} title={approval.connection} />
+                      <ActionLabel actionKey={approval.actionKey} title={approval.question ?? approval.connection} />
                     </TableCell>
                     <TableCell>
                       <Badge variant={STATUS_VARIANT[approval.status] ?? "secondary"}>{approval.status}</Badge>

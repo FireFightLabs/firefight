@@ -13,6 +13,9 @@ module SolidWorkflow
   # A sub workflow, or an item of a for each, ended without succeeding.
   class SubWorkflowFailed < Error; end
 
+  # A Stop step ended the run as failed, saying why. Never retried, since stopping again ends the same way.
+  class Stopped < Error; end
+
   # A step kind nothing runs.
   class UnknownStepKind < Error; end
 

@@ -424,6 +424,9 @@ Rails.application.routes.draw do
     post "/halon/workflows/:id/runs/:run_id/steps/:step_key/skip", to: "workflow_runs#skip_step", as: :workflow_run_step_skip
     get "/halon/workflows/:id/runs/:run_id/saved-results/:result_id", to: "workflow_saved_results#show", as: :workflow_run_saved_result
     get "/halon/workflows/:id/runs/:run_id/screenshots/:screenshot_id", to: "workflow_screenshots#show", as: :workflow_run_screenshot
+    post "/halon/workflows/:id/runs/:run_id/questions/:question_id/answer", to: "workflow_questions#answer", as: :workflow_run_question_answer
+    post "/halon/workflows/:id/runs/:run_id/approvals/:approval_id/approve", to: "workflow_run_approvals#approve", as: :workflow_run_approval_approve
+    post "/halon/workflows/:id/runs/:run_id/approvals/:approval_id/deny", to: "workflow_run_approvals#deny", as: :workflow_run_approval_deny
     get "/halon/monitoring", to: "halon_monitoring#show", as: :halon_monitoring
     patch "/halon/monitoring", to: "halon_monitoring#update"
     resources :investigation_checks, only: [ :create, :update, :destroy ], path: "halon/monitoring/checks" do
