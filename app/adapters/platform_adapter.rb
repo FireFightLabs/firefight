@@ -726,6 +726,12 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # A Manual step's task given to anyone, posted in a channel with Done.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_workflow_question_in_channel(channel_id:, question:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Redraws it once it is answered or withdrawn.
   # @return [Hash] { success: true }
   def update_workflow_question(channel_id:, message_id:, question:)

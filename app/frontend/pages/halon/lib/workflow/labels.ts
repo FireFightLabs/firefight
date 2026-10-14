@@ -11,6 +11,7 @@ import {
   IconCalendarRepeat,
   IconCategory,
   IconCircleX,
+  IconClipboardCheck,
   IconClock,
   IconCode,
   IconDatabase,
@@ -93,6 +94,7 @@ export const STEP_ICONS: Record<WorkflowStepIcon, Icon> = {
   browser: IconBrowser,
   webhook: IconWebhook,
   data: IconDatabase,
+  task: IconClipboardCheck,
 }
 
 
@@ -157,4 +159,10 @@ export const EFFECT_LABELS = { reads: "Reads", changes: "Changes" } as const
 // A route as an edge's label reads it, timed_out as timed out.
 export function routeWords(route: string): string {
   return route.split("_").join(" ")
+}
+
+// A route as it reads where its step names it in words of its own, an Ask a person choice's label for its key, and
+// otherwise as routeWords reads it.
+export function routeLabel(route: string, labels: Record<string, string> | undefined): string {
+  return labels?.[route] ?? routeWords(route)
 }

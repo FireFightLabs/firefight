@@ -122,7 +122,8 @@ class InteractionDispatcher
     Identifiers::CHAT_PLAN_UNDO => Interactions::ChatPlanHandler,
     **Identifiers::CODE_QUESTION_CHOOSE_IDS.index_with { Interactions::ChooseCodeQuestionOptionHandler },
     Identifiers::WORKFLOW_QUESTION_ANSWER => Interactions::OpenWorkflowQuestionHandler,
-    **Identifiers::WORKFLOW_QUESTION_CHOOSE_IDS.index_with { Interactions::ChooseWorkflowAnswerHandler }
+    **Identifiers::WORKFLOW_QUESTION_CHOOSE_IDS.index_with { Interactions::ChooseWorkflowAnswerHandler },
+    Identifiers::WORKFLOW_TASK_DONE => Interactions::FinishWorkflowTaskHandler
   }.freeze
 
   SHORTCUT_HANDLERS = {

@@ -226,6 +226,8 @@ module Identifiers
   # Picks one of a workflow question's choices. Each button adds its place, since Slack wants a block's action ids unique.
   WORKFLOW_QUESTION_CHOOSE = "workflow_question_choose"
   WORKFLOW_QUESTION_CHOOSE_IDS = (0...Workflow::Run::Question::CHOICE_LIMIT).map { |index| "#{WORKFLOW_QUESTION_CHOOSE}_#{index}" }.freeze
+  # Marks a Manual step's task done in one click, when it collects no note.
+  WORKFLOW_TASK_DONE = "workflow_task_done"
 
   # Slack event types (top-level Events API)
   EVENT_REACTION_ADDED  = "reaction_added"

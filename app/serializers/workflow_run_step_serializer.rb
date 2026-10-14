@@ -6,7 +6,8 @@ class WorkflowRunStepSerializer < BaseSerializer
 
   ASK_QUESTION = "question".freeze
   ASK_APPROVAL = "approval".freeze
-  ASK_KINDS = [ ASK_QUESTION, ASK_APPROVAL ].freeze
+  ASK_TASK = "task".freeze
+  ASK_KINDS = [ ASK_QUESTION, ASK_APPROVAL, ASK_TASK ].freeze
   ASK_TYPE = "{ kind: #{ASK_KINDS.map(&:inspect).join(' | ')}; id: string; question: string; details: string | null; " \
              "status: string; choices: { value: string; label: string }[]; fields: { name: string; label: string }[]; who: string; " \
              "blockedReason: string | null; answered: string | null; answeredBy: string | null }".freeze
@@ -99,11 +100,11 @@ class WorkflowRunStepSerializer < BaseSerializer
     step.waiting_approval?
   end
 
-  # What an Ask a person or Approval step asked people, with whether the person looking may answer it from here.
+  # What an Ask a person, Approval or Manual step asked people, with whether the person looking may answer it from here.
   type ASK_TYPE, optional: true
   def ask
     case step.kind
-    when DefinedWorkflow::Steps::AskPerson.kind then question_ask(step.asked_question)
+    when DefinedWorkflow::Steps::AskPerson.kind, DefinedWorkflow::Steps::Manual.kind then question_ask(step.asked_question)
     when DefinedWorkflow::Steps::Approval.kind then approval_ask(step.asked_approval)
     end
   end
@@ -138,11 +139,20 @@ class WorkflowRunStepSerializer < BaseSerializer
   def question_ask(question)
     return unless question
 
-    { kind: ASK_QUESTION, id: question.id, question: question.question, details: question.details, status: question.status,
-      choices: question.choices.map { |choice| { value: choice, label: question.choice_words(choice) } },
+    { kind: question.task? ? ASK_TASK : ASK_QUESTION, id: question.id, question: question.question, details: question.details, status: question.status,
+      choices: question.choice_keys.map { |key| { value: key, label: question.choice_words(key) } },
       fields: question.fields.map { |field| { name: field[Workflow::Run::Question::FIELD_NAME], label: field[Workflow::Run::Question::FIELD_LABEL] } },
-      who: question.asked_members.map(&:actor_display_name).to_sentence, blockedReason: question.answer_blocked_reason(member),
+      who: question.asked_words, blockedReason: question.answer_blocked_reason(member),
       answered: question.answer_words, answeredBy: question.answered_by&.actor_display_name }
+  end
+
+  # While it waits, whether the gateway lets this person decide comes first, as pressing would answer, then the request's
+  # own rules, such as it being decided already.
+  def approval_blocked_reason(approval)
+    return "Sign in to decide." unless member
+    return approval.decide_blocked_reason(member) unless approval.pending?
+
+    approval.decide_denied_reason(member) || approval.decide_blocked_reason(member)
   end
 
   def approval_ask(approval)
@@ -150,7 +160,7 @@ class WorkflowRunStepSerializer < BaseSerializer
 
     who = approval.named_approvers? ? approval.approvers.map(&:actor_display_name).to_sentence : "Any workspace #{approval.required_role}"
     { kind: ASK_APPROVAL, id: approval.id, question: approval.question.to_s, details: approval.question_details, status: approval.status,
-      choices: [], fields: [], who: who, blockedReason: member ? approval.decide_blocked_reason(member) : "Sign in to decide.",
+      choices: [], fields: [], who: who, blockedReason: approval_blocked_reason(approval),
       answered: (approval.status unless approval.pending?), answeredBy: approval.approver&.actor_display_name }
   end
 end

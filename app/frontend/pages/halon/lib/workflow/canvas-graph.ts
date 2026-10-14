@@ -2,6 +2,7 @@ import dagre from "@dagrejs/dagre"
 import type { Edge as FlowEdge, Node } from "@xyflow/react"
 
 import { WORKFLOW_EDIT_OPERATIONS, WORKFLOW_KINDS, WORKFLOW_STEP_STATUS } from "@/lib/generated/constants"
+import { routeLabel } from "@/pages/halon/lib/workflow/labels"
 import type { CanvasStep, Edge, StepRunState, Trigger } from "@/pages/halon/lib/workflow/types"
 import type { WorkflowDocument, WorkflowStepNode, WorkflowSuggestion } from "@/types/serializers"
 
@@ -49,6 +50,8 @@ export interface LoopNodeData extends Record<string, unknown> {
 
 export interface RouteEdgeData extends Record<string, unknown> {
   route: string | null
+  // The route as it reads, in its step's own words when it has them, such as an Ask a person choice's label.
+  label: string | null
   within: string | null
   // A connection Halon suggests adding, or taking away.
   suggestion: WorkflowSuggestion | null
@@ -142,6 +145,7 @@ export function buildGraph({ document, suggestions, highlightHalon, selectedId, 
     draggable: false,
   })
 
+  const labelsOf = new Map(items.map((item) => [ item.step.id, item.step.routeLabels ]))
   const edges: RouteFlowEdge[] = links.map(({ edge, suggestion }) => ({
     id: suggestion ? `${suggestion.id}:${edgeId(edge)}` : edgeId(edge),
     type: ROUTE_EDGE,
@@ -149,7 +153,10 @@ export function buildGraph({ document, suggestions, highlightHalon, selectedId, 
     target: edge.to,
     sourceHandle: edge.route ?? OUT_HANDLE,
     targetHandle: IN_HANDLE,
-    data: { route: edge.route, within: edge.within, suggestion, halonMarked: highlightHalon && edge.changedByHalon, implied: false, readOnly, lit: went(edge.from, edge.to) },
+    data: {
+      route: edge.route, label: edge.route ? routeLabel(edge.route, labelsOf.get(edge.from)) : null, within: edge.within, suggestion,
+      halonMarked: highlightHalon && edge.changedByHalon, implied: false, readOnly, lit: went(edge.from, edge.to),
+    },
     selectable: !readOnly && !suggestion,
     zIndex: 1,
   }))
@@ -161,7 +168,7 @@ export function buildGraph({ document, suggestions, highlightHalon, selectedId, 
       target: start.item.step.id,
       sourceHandle: OUT_HANDLE,
       targetHandle: IN_HANDLE,
-      data: { route: null, within: null, suggestion: null, halonMarked: false, implied: true, readOnly: true, lit: REACHED.includes(states?.get(start.item.step.id)?.status ?? "") },
+      data: { route: null, label: null, within: null, suggestion: null, halonMarked: false, implied: true, readOnly: true, lit: REACHED.includes(states?.get(start.item.step.id)?.status ?? "") },
       selectable: false,
     })
   }
