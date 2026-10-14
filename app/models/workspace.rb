@@ -188,6 +188,13 @@ class Workspace < ApplicationRecord
     @read_packs_by_integration ||= Ability::Role.where(workspace_id: id, pack: Ability::Role::PACK_READ).where.not(integration_id: nil).index_by(&:integration_id)
   end
 
+  # The ability a key names, Firefight's own or this workspace's, as Ability::Action.lookup finds it, with every
+  # ability read once, as a list of Firefight's own tools names one each.
+  def ability_for(key)
+    @abilities_by_key ||= Ability::Action.where(workspace_id: [ nil, id ]).index_by(&:key)
+    @abilities_by_key[key] || Ability::Action.lookup(key, self)
+  end
+
   # Returns the row an admin customized, otherwise creates one from the
   # defaults so overlay rows have a real incident_form_id to attach to.
   def ensure_incident_form!(slug)

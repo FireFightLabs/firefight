@@ -199,10 +199,10 @@ module Integrations
 
     test "a server's tools are saved together in one transaction, so a failure part way saves none of them" do
       McpClient.any_instance.stubs(:tools_list).returns([ { "name" => "first" }, { "name" => "second" } ])
-      Integration::Tool.any_instance.stubs(:sync_ability_action!).returns(nil).then.raises(ActiveRecord::RecordInvalid)
+      Ability::Action.stubs(:insert_all!).raises(ActiveRecord::RecordInvalid)
 
       assert_raises(ActiveRecord::RecordInvalid) { DiscoveryService.sync!(@integration) }
-      assert_empty @integration.tools.reload, "the first tool is not left saved without the second"
+      assert_empty @integration.tools.reload, "no tool is left saved without its ability"
     end
 
     test "a failure filing the new actions in their packs leaves no tool or action saved" do
@@ -226,7 +226,7 @@ module Integrations
       assert_equal({ "logs.query" => false, "logs_query" => false, "status" => true }, @integration.tools.reload.to_h { |tool| [ tool.name, tool.enabled ] })
     end
 
-    test "each new tool is saved and switched on in the same few queries, however many a server lists" do
+    test "a server's new tools and their abilities are saved in the same queries however many it lists" do
       extend ManyToolsHelper
       per_tool = [ 10, 40 ].map do |count|
         integration = Integration.create!(workspace: workspaces(:slack_workspace_one), kind: Integration::KIND_MCP, provider: Integration::PROVIDER_CUSTOM_MCP,
@@ -240,7 +240,7 @@ module Integrations
       end
 
       slope = (per_tool.last - per_tool.first) / 30.0
-      assert_operator slope, :<=, 5, "each new tool took #{slope.round(1)} queries"
+      assert_operator slope, :<, 0.5, "each new tool took #{slope.round(1)} queries"
     end
   end
 end

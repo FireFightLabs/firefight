@@ -82,7 +82,7 @@ module DefinedWorkflow::Reach
   def for_tool(workspace, name, arguments = {})
     name = name.to_s
     if (tool_class = firefight_tool(name))
-      action = Ability::Action.lookup(Ability::Action.system_key(*tool_class.authorization(workspace, arguments.to_h.symbolize_keys)), workspace)
+      action = workspace.ability_for(Ability::Action.system_key(*tool_class.authorization(workspace, arguments.to_h.symbolize_keys)))
       return action ? [ Needed.of_action(action) ] : []
     end
     return capability_reach(workspace, name, arguments) if MAP_READERS.include?(name)

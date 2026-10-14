@@ -18,6 +18,16 @@ class WorkflowToolChoiceSerializerTest < ActiveSupport::TestCase
     assert_operator many_queries, :<=, few_queries + 4, "40 more tools made #{many_queries - few_queries} more queries"
   end
 
+  test "Firefight's own tools look their abilities up together rather than one query each" do
+    workspace = Workspace.find(@workspace.id)
+    choices = Chat::Tools::Choices.tools(workspace)
+    own = choices.count { |choice| DefinedWorkflow::Reach.firefight_tool(choice.name) }
+    queries = queries_made { WorkflowToolChoiceSerializer.many(choices, workflow: Workflow.find(@workflow.id)) }
+
+    assert_operator own, :>, 40
+    assert_operator queries, :<, 20, "#{own} of Firefight's own tools took #{queries} queries"
+  end
+
   test "a read names its connection's read pack and a change its own ability, as before" do
     connection_with_tools(@workspace, 2, name: "Pair")
     choices = serialized.index_by { |choice| choice[:name] }

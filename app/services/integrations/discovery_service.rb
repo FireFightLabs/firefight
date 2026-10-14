@@ -15,14 +15,14 @@ module Integrations
       end
     end
 
-    # The connection's tools are read once, and a new tool is saved switched on in the same write unless another
-    # connection's tool shares its name as Halon calls it, read once for every new tool.
+    # The connection's tools are read once. A tool seen before is saved on its own, and the new ones together, each
+    # switched on unless another connection's tool shares its name as Halon calls it, read once for every new tool.
     def self.save_all!(integration, definitions)
       entry = IntegrationProvider.find(integration.provider)
       known = integration.tools.reload.index_by(&:name)
       namesakes = integration.namesakes_for(definitions.map(&:name) - known.keys)
-      seen = definitions.map do |definition|
-        tool = known[definition.name] || integration.tools.build(name: definition.name, enabled: !namesakes.key?(definition.name))
+      fresh = definitions.map do |definition|
+        tool = known[definition.name] || Integration::Tool.new(integration: integration, name: definition.name, enabled: !namesakes.key?(definition.name))
         declared = entry ? entry.reads?(definition.name, declared: definition.read_only) : definition.read_only
         tool.assign_attributes(
           description: definition.description,
@@ -31,9 +31,13 @@ module Integrations
           spec: definition.spec.to_h.merge(Integration::Tool::DECLARED_READ => declared),
           removed_at: nil
         )
+        next tool if tool.new_record?
+
         tool.save!
-        definition.name
+        nil
       end
+      Integration::Tool.insert_discovered!(integration, fresh.compact)
+      seen = definitions.map(&:name)
 
       integration.tools.available.where.not(name: seen).find_each { |tool| tool.update!(removed_at: Time.current) }
       seen
