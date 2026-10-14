@@ -142,6 +142,10 @@ module Integrations
         GitlabApi.any_instance.stubs(:text).with("#{PROJECT}/repository/files/CODEOWNERS/raw", { "ref" => "c" * 40 }).returns("db/ @data-team\n")
 
         text = call(:compare_commits, "repo" => "acme/platform/web", "base" => "v1", "head" => "v2")
+        range = Integrations::Capabilities::Comparison.of(@pack.compare_commits(environment_row: @row, arguments: { "repo" => "acme/platform/web", "base" => "v1", "head" => "v2" }))
+
+        assert_equal [ 1, [ "#{'c' * 12} Bump rack" ], { "migration" => 1, "dependency" => 1 }, [ "db/migrate/1_add.rb" ], false ],
+                     [ range.commits, range.titles, range.kinds, range.migrations, range.complete ], "a comparison GitLab stopped early is not complete"
 
         assert_includes text, "1 commits, 2 files changed. Base v1, head #{'c' * 40}. GitLab stopped comparing before the end"
         assert text.index("Database migrations") < text.index("Dependencies"), "migrations come first"

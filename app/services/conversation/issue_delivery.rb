@@ -8,7 +8,8 @@
 class Conversation::IssueDelivery
   OUTCOME_WORDS = {
     Chat::StepOutcome::KIND_ANSWERED => "Done", Chat::StepOutcome::KIND_FAILED => "Failed",
-    Chat::StepOutcome::KIND_NOT_FOUND => "Not found", Chat::StepOutcome::KIND_REFUSED => "Not allowed"
+    Chat::StepOutcome::KIND_NOT_FOUND => "Not found", Chat::StepOutcome::KIND_REFUSED => "Not allowed",
+    Chat::StepOutcome::KIND_STOPPED => "Stopped"
   }.freeze
   SOURCES_SHOWN = 8
   # What a person picks in the issue to answer a call to confirm, which comes back as a follow up saying it.

@@ -162,6 +162,16 @@ module Integrations
           return finished(environment_row, session, state) if state.ended?
           return out_of_time(environment_row, session, state) if clock >= deadline
         end
+      rescue StopSignal::Stopped
+        stop_unwatched(environment_row, session)
+        raise
+      end
+
+      # The person stopped the turn that followed the session, so it is stopped too rather than left running unwatched.
+      def stop_unwatched(environment_row, session)
+        stop(environment_row, session)
+      rescue CodingAgentApi::Error => error
+        Rails.logger.warn({ event: "coding_agent.stop_failed", provider: self.class::NAME, session: session.id, error: error.message }.to_json)
       end
 
       # The limit stops the session, so it never runs on unwatched. A pull request opened in time still counts.
@@ -278,7 +288,7 @@ module Integrations
 
       def clock = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-      def pause(seconds) = sleep(seconds)
+      def pause(seconds) = StopSignal.pause(seconds)
     end
   end
 end

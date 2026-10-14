@@ -67,11 +67,14 @@ interface ThreadProps {
   skillProposals: HalonSkillProposal[]
   waiting: AgentChatWaitingMessage[]
   stream: AgentStream
+  // When the answer under way began, so its timer counts from there after a reload.
+  workingSince: string | null
 }
 
 export function Thread({
   conversationId, confirmations, messages: newestFirst, paged, hasOlder, compactions, modelSwitches, heldCalls, packRefusals, secretEntries, watches,
   watchUpdates, pullRequestNotices, codePauses, memoryQuestions, plans, workflows, dataRepairs, mitigations, ownerAsks, handbookProposals, skillProposals, waiting, stream,
+  workingSince,
 }: ThreadProps) {
   const foot = useRef<HTMLDivElement>(null)
   const scroller = useRef<HTMLDivElement>(null)
@@ -214,7 +217,7 @@ export function Thread({
       ))}
       {live && <Message turn={live} live onOpenImage={setOpenImageId} />}
       <CodePauses pauses={pausedLive} />
-      {stream.busy && stream.text.length === 0 && <LoadingState label="Working" />}
+      {stream.busy && stream.text.length === 0 && <LoadingState label="Working" since={workingSince} />}
       {waiting.map((message) => (
         <WaitingMessage key={message.id} body={message.body} attachments={message.attachments} onOpenImage={setOpenImageId} />
       ))}
