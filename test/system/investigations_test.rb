@@ -123,9 +123,13 @@ class InvestigationsTest < ApplicationSystemTestCase
       document.body.dataset.toastsShown = "0"
       new MutationObserver((mutations) => {
         mutations.flatMap((mutation) => [ ...mutation.addedNodes ]).forEach((node) => {
-          if (node.matches?.("[data-sonner-toast]") && node.textContent.includes(text)) {
-            document.body.dataset.toastsShown = String(Number(document.body.dataset.toastsShown) + 1)
+          if (!(node instanceof Element)) {
+            return
           }
+          const toasts = node.matches("[data-sonner-toast]") ? [ node ] : [ ...node.querySelectorAll("[data-sonner-toast]") ]
+          toasts.filter((toast) => toast.textContent.includes(text)).forEach(() => {
+            document.body.dataset.toastsShown = String(Number(document.body.dataset.toastsShown) + 1)
+          })
         })
       }).observe(document.body, { childList: true, subtree: true })
     JS
