@@ -118,10 +118,28 @@ module Mcp
         assert_equal 100, workflow.reload.runs_per_hour
       end
 
-      test "Halon is never offered the outside agents' way to change a workflow's settings" do
-        offered = Chat::Tools.firefight_entries(Conversation::Turn.new(Conversation.start_personal!(workspace: @workspace, member: @admin), asker: @admin)).map { |entry| entry.name.to_s }
+      def halon_tool(member, name)
+        turn = Conversation::Turn.new(Conversation.start_personal!(workspace: @workspace, member: member), asker: member)
+        Chat::Tools.firefight_entries(turn).find { |entry| entry.name.to_s == name }&.tool
+      end
 
-        assert_not_includes offered, UPDATE_WORKFLOW
+      test "Halon may change a workflow's settings when asked, only once the person confirms it in the chat" do
+        tool = halon_tool(@admin, UPDATE_WORKFLOW)
+
+        assert tool, "Halon is offered update_workflow"
+        assert tool.requires_approval?, "the change waits for the person's confirmation, never made silently"
+        assert_includes tool.parameters_schema.dig("properties").keys, Chat::Tools::INTENT_ARG
+      end
+
+      test "Halon changes a workflow's settings through the gateway as the person, and a member without the grant is not offered it" do
+        call(CreateWorkflow, @admin, spec)
+        workflow = @workspace.workflows.find_by!(name: "Look around")
+
+        assert_nil halon_tool(@member, UPDATE_WORKFLOW)
+
+        halon_tool(@admin, UPDATE_WORKFLOW).call(workflow: "Look around", runs_per_hour: 5)
+        assert_equal 5, workflow.reload.runs_per_hour
+        assert Ability::Invocation.exists?(workspace: @workspace, action_key: Workflow::PUBLISH_KEY, source: AbilityGateway::SOURCE_CONVERSATION)
       end
 
       test "only an admin sets how long runs keep their details" do

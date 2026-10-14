@@ -391,7 +391,7 @@ The Versions view lists each version with its status, who made it, who published
 
 ### Settings
 
-The Settings view is what the workflow's own identity can do (`ReachCard`) and its settings (`SettingsCard`, `WorkflowsController#update`): its name and description, owning team, spending ceiling per run (AI and sandbox time together), most runs per hour, one live run per subject, what a change does in a freeze window, and the all clear, and Delete for one that never ran. The same settings change over the API (`PATCH /api/v1/workflows/:id`) and MCP (`update_workflow`), all three through `Workflow#update_settings!` (`Workflow::Settings`). Runs skipped past the most runs per hour show above the canvas (`WorkflowAlerts`), with how many in the last week and each hour's count and last skip (`skippedRuns`, `skippedRunsSentence`).
+The Settings view is what the workflow's own identity can do (`ReachCard`) and its settings (`SettingsCard`, `WorkflowsController#update`): its name and description, owning team, spending ceiling per run (AI and sandbox time together), most runs per hour, one live run per subject, what a change does in a freeze window, and the all clear, and Delete for one that never ran. The same settings change over the API (`PATCH /api/v1/workflows/:id`) and MCP (`update_workflow`), all three through `Workflow#update_settings!` (`Workflow::Settings`). Halon is offered `update_workflow` too, so it changes a limit when a person asks, always on a confirmation the person answers in the chat first, as the person through the gateway. Runs skipped past the most runs per hour show above the canvas (`WorkflowAlerts`), with how many in the last week and each hour's count and last skip (`skippedRuns`, `skippedRunsSentence`).
 
 ### Trying a draft
 
