@@ -625,7 +625,7 @@ module Integrations
           {
             "type" => kind.key == SERVICE.key ? "Service (#{item.dig('spec', 'type') || 'ClusterIP'})" : kind.name,
             "namespace" => item.dig("metadata", "namespace"),
-            "instances" => Kubernetes.desired(kind.key, item),
+            ResourceMap::INSTANCES => Kubernetes.desired(kind.key, item),
             "schedule" => item.dig("spec", "schedule"),
             "images" => Kubernetes.images(kind.key, item).join(", ").presence,
             ResourceMap::TAGS => item.dig("metadata", "labels").presence

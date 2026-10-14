@@ -42,6 +42,8 @@ export function HalonChatPanel({ workflowId, chat, messages, waiting, unavailabl
   const fullChatUrl = shown ? agentChatPath(shown.id) : null
   const shownMessages = shown ? messages : []
   const empty = shownMessages.length === 0 && !conversation.pending
+  // Stop was pressed on the answer under way, as the server keeps it until the answer ends.
+  const stopping = conversation.stream.busy && (shown?.stopRequested ?? false)
 
   function pickStarter(starter: string) {
     setFill((current) => ({ draft: starter, key: (current?.key ?? 0) + 1 }))
@@ -54,6 +56,9 @@ export function HalonChatPanel({ workflowId, chat, messages, waiting, unavailabl
   }
 
   function placeholder() {
+    if (stopping) {
+      return "Stopping"
+    }
     if (conversation.stream.busy) {
       return "Add something while Halon works"
     }
@@ -114,7 +119,7 @@ export function HalonChatPanel({ workflowId, chat, messages, waiting, unavailabl
             initialDraft={fill?.draft}
             autoFocus={fill !== null}
             onSend={conversation.ask}
-            onStop={conversation.stream.busy ? conversation.stop : undefined}
+            onStop={conversation.stream.busy && !stopping ? conversation.stop : undefined}
           />
         )}
       </div>

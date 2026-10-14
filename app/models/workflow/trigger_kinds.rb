@@ -37,9 +37,10 @@ module Workflow::TriggerKinds
   EDITOR_ONCE_AT = "once_at".freeze
   EDITORS = [ EDITOR_NONE, EDITOR_SCHEDULE, EDITOR_ONCE_AT ].freeze
 
-  # A field a condition may read, with the values the workspace has for it when there is a fixed set.
-  ConditionField = Data.define(:key, :label, :options) do
-    def initialize(options: [], **) = super
+  # A field a condition may read, with the values the workspace has for it when there is a fixed set. A number field is
+  # also compared as a number (PolicyRule::NUMBER_OPERATORS).
+  ConditionField = Data.define(:key, :label, :options, :number) do
+    def initialize(options: [], number: false, **) = super
   end
 
   # One value a condition may compare against, as stored and as a person reads it.
@@ -327,6 +328,26 @@ module Workflow::TriggerKinds
   ))
 
   register(Kind.new(
+    key: Workflow::Trigger::KIND_SERVICE_SCALED, label: "Service scaled", icon: ICON_MAP,
+    description: "Runs when the map sees a service run more or fewer instances than before, with how many it ran and runs now.",
+    conditions: lambda { |_facts|
+      [
+        ConditionField.new(key: F::TO, label: "Instances after", number: true), ConditionField.new(key: F::FROM, label: "Instances before", number: true),
+        ConditionField.new(key: F::NAME, label: "Resource name"), ConditionField.new(key: F::PROVIDER, label: "Where it runs"),
+        ConditionField.new(key: F::KIND, label: "Kind of resource", options: choices(ResourceMap::KINDS.map { |kind| [ kind, kind.humanize ] }))
+      ]
+    },
+    outputs: [
+      Output.new(path: "change.from", label: "How many instances it ran"), Output.new(path: "change.to", label: "How many it runs now"),
+      Output.new(path: "change.words", label: "What changed, in words"), Output.new(path: "resource.name", label: "The service"),
+      Output.new(path: "resource.provider", label: "Where it runs"), Output.new(path: "resource.url", label: "Its page")
+    ],
+    help: "runs when the map sees a service's instance count change, on every provider whose registry entry says scaling firefight. " \
+          "conditions read to and from (the counts after and before, compared with greater_than or less_than and a number, or is_one_of), " \
+          "name, provider and kind. trigger holds change (kind scaled, from and to as numbers, words) and resource (name, kind, provider, url)."
+  ))
+
+  register(Kind.new(
     key: Workflow::Trigger::KIND_SECURITY_EVENT, label: "Security event", icon: ICON_SECURITY,
     description: "Runs when a connected provider reports a security event, such as a secret that leaked into a repository.",
     conditions: lambda { |_facts|
@@ -343,17 +364,24 @@ module Workflow::TriggerKinds
 
   register(Kind.new(
     key: Workflow::Trigger::KIND_ISSUE_ASSIGNED, label: "Issue assigned to Firefight", icon: ICON_ISSUE,
-    description: "Runs when someone assigns or hands an issue to Firefight in a connected tracker, beside Halon taking it up.",
+    description: "Runs when someone assigns or hands an issue to Firefight in a connected tracker, beside Halon taking it up, or adds the label it names.",
+    fields: lambda { |_facts|
+      named = Integrations::AgentSessions.labelling_providers.map(&:name)
+      [ field(Workflow::Listening::KEY_LABEL, ToolField::KIND_TEXT,
+              "Or when an issue gets this label#{" in #{named.to_sentence}" if named.any?}, whatever its case. Leave it empty to run only when an issue is assigned.") ]
+    },
     conditions: lambda { |_facts|
       [ ConditionField.new(key: F::TITLE, label: "Issue title"), ConditionField.new(key: F::ASKED_BY, label: "Who assigned it, by email"),
         ConditionField.new(key: F::PROVIDER, label: "Tracker") ]
     },
     outputs: [
       Output.new(path: "issue.key", label: "The issue's key"), Output.new(path: "issue.title", label: "Its title"), Output.new(path: "issue.url", label: "Its page"),
-      Output.new(path: "issue.text", label: "What was asked"), Output.new(path: "issue.asked_by", label: "Who assigned it")
+      Output.new(path: "issue.text", label: "What was asked"), Output.new(path: "issue.asked_by", label: "Who assigned or labelled it"),
+      Output.new(path: "issue.how", label: "Assigned or labelled"), Output.new(path: "issue.labels", label: "The labels added")
     ],
-    help: "runs when an issue is assigned or handed to Firefight in a tracker. conditions read title, asked_by_email and provider. " \
-          "trigger holds issue (key, title, url, text, asked_by, asked_by_email)."
+    help: "runs when an issue is assigned or handed to Firefight in a tracker, and, when label names one, when someone adds that label to an " \
+          "issue in a tracker that reports it (case does not matter). conditions read title, asked_by_email and provider. " \
+          "trigger holds issue (key, title, url, text, asked_by, asked_by_email, how (assigned or labelled), labels)."
   ))
 
   register(Kind.new(

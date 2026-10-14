@@ -25,6 +25,7 @@ class Workflow::TriggerPayloads
     when Workflow::Trigger::KIND_RUN_FAILED then run_failed(subject)
     when Workflow::Trigger::KIND_DEPLOY_FINISHED then run_ended(subject, details)
     when Workflow::Trigger::KIND_RESOURCE_CHANGED then resource_changed(subject)
+    when Workflow::Trigger::KIND_SERVICE_SCALED then service_scaled(subject)
     when Workflow::Trigger::KIND_SECURITY_EVENT then security_event(details)
     when Workflow::Trigger::KIND_ISSUE_ASSIGNED then issue_assigned(subject, details)
     when Workflow::Trigger::KIND_INBOUND_WEBHOOK then webhook(details)
@@ -168,6 +169,15 @@ class Workflow::TriggerPayloads
     Built.new(payload: payload, context: Policy.normalize_context(context), tags: [])
   end
 
+  # A scale is a change on the map whose counts are numbers, so a condition and a later step can compare them.
+  def service_scaled(change)
+    built = resource_changed(change)
+    from, to = change.counts
+    payload = built.payload.deep_merge("change" => { "from" => from, "to" => to })
+    context = built.context.merge(F::FROM => from.to_s, F::TO => to.to_s)
+    Built.new(payload: payload, context: context, tags: [])
+  end
+
   SECURITY_KEYS = %w[kind provider reference place what url public].freeze
 
   def security_event(details)
@@ -176,12 +186,18 @@ class Workflow::TriggerPayloads
     Built.new(payload: { "event" => event }, context: Policy.normalize_context(context), tags: [])
   end
 
-  ISSUE_KEYS = %w[provider key title url text asked_by asked_by_email].freeze
+  ISSUE_KEYS = [ *%w[provider key title url text asked_by asked_by_email], F::HOW, F::LABELS ].freeze
+  # How an issue reached Firefight: assigned or handed to it, or given a label a trigger may name.
+  ISSUE_ASSIGNED = "assigned".freeze
+  ISSUE_LABELLED = "labelled".freeze
 
+  # Labels added are tagged, so only a trigger naming one of them hears it (Workflow::Listening#labelled?).
   def issue_assigned(row, details)
     issue = details.to_h.stringify_keys.slice(*ISSUE_KEYS).merge("connection" => row.integration.name)
+    labels = Array(issue[F::LABELS]).map(&:to_s)
+    tags = issue[F::HOW] == ISSUE_LABELLED ? labels.map { |name| "#{Workflow::Listening::LABEL_TAG}#{name.strip.downcase}" } : []
     context = { F::PROVIDER => issue["provider"], F::TITLE => issue["title"], F::ASKED_BY => issue["asked_by_email"] }
-    Built.new(payload: { "issue" => issue }, context: Policy.normalize_context(context), tags: [])
+    Built.new(payload: { "issue" => issue }, context: Policy.normalize_context(context), tags: tags)
   end
 
   # A body's fields as conditions read them, body.<path>, as deep as BODY_DEPTH, a list's items by their place.

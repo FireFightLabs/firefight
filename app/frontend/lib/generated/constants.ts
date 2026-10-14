@@ -397,6 +397,7 @@ export const WORKFLOW_TRIGGER_KINDS = [
   "inbound_webhook",
   "deploy_finished",
   "resource_changed",
+  "service_scaled",
   "security_event",
   "notice_raised",
   "investigation_finished",
@@ -417,6 +418,7 @@ export const WORKFLOW_TRIGGER_KINDS_BY_KEY = {
   "INBOUND_WEBHOOK": "inbound_webhook",
   "DEPLOY_FINISHED": "deploy_finished",
   "RESOURCE_CHANGED": "resource_changed",
+  "SERVICE_SCALED": "service_scaled",
   "SECURITY_EVENT": "security_event",
   "NOTICE_RAISED": "notice_raised",
   "INVESTIGATION_FINISHED": "investigation_finished",
@@ -517,6 +519,7 @@ export const RESOURCE_MAP_CHANGE_KINDS = [
   "deployed",
   "status_changed",
   "renamed",
+  "scaled",
   "configured"
 ] as const
 export type ResourceMapChangeKind = (typeof RESOURCE_MAP_CHANGE_KINDS)[number]
@@ -524,6 +527,7 @@ export type ResourceMapChangeKind = (typeof RESOURCE_MAP_CHANGE_KINDS)[number]
 export const RESOURCE_MAP_TIMELINE_KINDS = [
   "deploy",
   "config",
+  "scaled",
   "status",
   "appeared",
   "removed",
@@ -1094,14 +1098,16 @@ export const AGENT_STEP_STATUSES = {
   "CANCELLED": "cancelled",
   "FAILED": "failed",
   "NOT_FOUND": "not_found",
-  "REFUSED": "refused"
+  "REFUSED": "refused",
+  "STOPPED": "stopped"
 } as const
 
 export const STEP_OUTCOME_KINDS = {
   "ANSWERED": "answered",
   "FAILED": "failed",
   "NOT_FOUND": "not_found",
-  "REFUSED": "refused"
+  "REFUSED": "refused",
+  "STOPPED": "stopped"
 } as const
 
 export const CODE_FIX_LINE_RESULTS = {
@@ -2082,5 +2088,16 @@ export const WORKFLOW_TRIGGER_KEYS = {
 } as const
 
 export const WORKFLOW_CONDITION_LIMIT = 20 as const
+
+export const TRIGGER_NUMBER_OPERATORS = [
+  "greater_than",
+  "less_than"
+] as const
+export type TriggerNumberOperator = (typeof TRIGGER_NUMBER_OPERATORS)[number]
+
+export const TRIGGER_NUMBER_OPERATOR = {
+  "GREATER_THAN": "greater_than",
+  "LESS_THAN": "less_than"
+} as const
 
 export const WORKFLOW_INPUT_LIMIT = 10 as const

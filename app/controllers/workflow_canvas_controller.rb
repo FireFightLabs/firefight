@@ -91,7 +91,7 @@ class WorkflowCanvasController < InertiaController
     record = chat&.chat
     messages = record ? record.readable_messages.includes(:attached_files, :ruby_llm_usages, ruby_llm_tool_calls: :result).to_a : []
     {
-      PROP_CHAT => chat && AgentChatSerializer.one(chat),
+      PROP_CHAT => chat && AgentChatSerializer.one(chat, opened: true),
       PROP_CHAT_MESSAGES => AgentChatMessageSerializer.many(messages, member: current_membership, platform_texts: {}),
       PROP_HELPERS => AgentChatHelperSerializer.many(record&.helpers&.includes(:workspace, :own_chat) || []),
       PROP_CHAT_WAITING => record.present? && record.awaiting_decision.any?,

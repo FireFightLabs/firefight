@@ -4,8 +4,7 @@ class ApprovalsController < InertiaController
   authorizes Ability::Action::RESOURCE_APPROVALS, update: %i[approve deny], scope: :decision_scope
 
   def approve
-    done = Conversation::HeldCalls.runs_when_approved?(approval) ? "It runs now." : "They can run it now."
-    resolve("You approved #{asker}'s request. #{done}") { approval.approve!(by: current_membership) }
+    resolve("You approved #{asker}'s request. #{ApprovalResumption.approved_words(approval)}") { approval.approve!(by: current_membership) }
   end
 
   def deny

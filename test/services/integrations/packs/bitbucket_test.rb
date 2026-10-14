@@ -166,7 +166,12 @@ module Integrations
         get("#{REPO}/pullrequests/42", { "participants" => [ { "approved" => true, "user" => { "display_name" => "Cy" } } ] })
         text_at("#{REPO}/src/#{HEAD}/.bitbucket/CODEOWNERS", "app/ @platform\n")
 
-        text = call(:compare_commits, "repo" => "acme/web", "base" => BASE, "head" => HEAD)
+        result = call(:compare_commits, "repo" => "acme/web", "base" => BASE, "head" => HEAD)
+        text = body(result)
+        range = Integrations::Capabilities::Comparison.of(result)
+
+        assert_equal [ 1, [ "#{HEAD.first(12)} Raise the pool" ], { "migration" => 1, "code" => 1 }, true ],
+                     [ range.commits, range.titles, range.kinds, range.complete ]
 
         assert_match "1 commits, 2 files changed. Base #{BASE}, head #{HEAD}.", text
         assert text.index("db/migrate/1_pool.rb (added") < text.index("app/pool.rb (modified")

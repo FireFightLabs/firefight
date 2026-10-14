@@ -175,7 +175,7 @@ module Integrations
         found = snapshot.resources.sole
         assert_equal [ "modal", "acme/main", ResourceMap::KIND_SERVICE, APP_ID, "inference", "deployed", "https://modal.com/id/#{APP_ID}" ],
                      [ found.provider, found.account, found.kind, found.external_id, found.name, found.status, found.url ]
-        assert_equal({ "version" => "v7", "running_containers" => 2, ResourceMap::DEPLOYED_COMMIT => "abc123" }, found.details)
+        assert_equal({ "version" => "v7", ResourceMap::INSTANCES => 2, ResourceMap::DEPLOYED_COMMIT => "abc123" }, found.details)
 
         ModalApi.any_instance.stubs(:history).raises(ModalApi::Error, "Modal answered internal: oops")
         snapshot = @pack.map_of(@row)

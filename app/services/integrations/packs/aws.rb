@@ -981,7 +981,7 @@ module Integrations
         status = "degraded" if status == "completed" && service[:running_count].to_i < service[:desired_count].to_i
         cluster = service[:cluster_arn].to_s.split("/").last
         Entry.new(kind: SERVICE, arn: service[:service_arn], name: service[:service_name], region: region, cluster: cluster, status: status,
-                  details: { "region" => region, "type" => service[:launch_type] || "capacity provider", "instances" => service[:desired_count],
+                  details: { "region" => region, "type" => service[:launch_type] || "capacity provider", ResourceMap::INSTANCES => service[:desired_count],
                              "cluster" => cluster, "task_definition" => family_revision(service[:task_definition]),
                              ResourceMap::TAGS => tags_of(service[:tags]) }.compact)
       end
@@ -1414,15 +1414,21 @@ module Integrations
           fail!("Logs Insights ended the query as #{status}. Check the query and the log groups, then try again.") if QUERY_DONE.include?(status)
 
           if Time.current > deadline
-            begin
-              logs.call(:logs, region, :stop_query, query_id: id)
-            rescue AwsApi::Error
-              nil
-            end
+            stop_query(logs, region, id)
             fail!("Logs Insights did not finish within #{QUERY_WAIT} seconds. Narrow the range or filter, then try again.")
           end
-          sleep QUERY_POLL
+          StopSignal.pause(QUERY_POLL)
         end
+      rescue StopSignal::Stopped
+        stop_query(logs, region, id)
+        raise
+      end
+
+      # A query nobody waits for any more is stopped, so it does not keep scanning.
+      def stop_query(logs, region, id)
+        logs.call(:logs, region, :stop_query, query_id: id)
+      rescue AwsApi::Error
+        nil
       end
 
       # Logs Insights writes @timestamp in UTC without a zone, such as 2026-10-01 12:00:00.000.

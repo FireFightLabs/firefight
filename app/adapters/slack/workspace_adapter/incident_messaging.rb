@@ -426,7 +426,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   # refused, is complete, an answer rather than a breakage. Each says how it went in a word under its title.
   STEP_ERROR = "error".freeze
   STEP_OUTCOME_WORDS = {
-    Chat::StepOutcome::KIND_FAILED => "Failed", Chat::StepOutcome::KIND_NOT_FOUND => "Not found", Chat::StepOutcome::KIND_REFUSED => "Refused"
+    Chat::StepOutcome::KIND_FAILED => "Failed", Chat::StepOutcome::KIND_NOT_FOUND => "Not found", Chat::StepOutcome::KIND_REFUSED => "Refused",
+    Chat::StepOutcome::KIND_STOPPED => "Stopped"
   }.freeze
 
   # A bot posts to any public channel, but not to a private one it is not in. Posting to a person opens their DM with it.
