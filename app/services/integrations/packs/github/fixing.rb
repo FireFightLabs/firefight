@@ -576,6 +576,9 @@ module Integrations
           # The agent's own words about a refusal on the deployment's keys could name a balance, so they are not passed on.
           fail! AiCredit.cannot(integration.workspace, "write this code change") if (change.nothing? || !change.agent_exit.zero?) && session.house_refused_for_credit?
 
+          # Whatever the agent left, a run past a step it answered itself is never opened.
+          fail! CodeAgentPermission::ANSWERED_IN_BOX if session.permissions.answered_in_box.exists?
+
           unanswered = session.unanswered_question
           fail! "The coding agent asked a question nobody answered within #{CodeAgentQuestion::ANSWER_WITHIN.in_minutes.to_i} minutes, so nothing is opened: #{unanswered.question}" if unanswered
           unless change.agent_exit.zero?

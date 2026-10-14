@@ -6,6 +6,7 @@ class CreateCodeAgentPermissions < ActiveRecord::Migration[8.1]
       t.references :code_agent_session, type: :uuid, null: false, foreign_key: { on_delete: :cascade }, index: false
       t.references :workspace, type: :uuid, null: false, foreign_key: { on_delete: :cascade }
       t.string :request_id, null: false
+      t.string :agent_session_id
       t.string :permission, null: false
       t.text :asked, null: false
       t.text :steps

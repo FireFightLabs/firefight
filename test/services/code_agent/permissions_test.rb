@@ -112,6 +112,32 @@ class CodeAgent::PermissionsTest < ActionDispatch::IntegrationTest
     assert_equal CodeAgentPermission::REPLY_REJECT, response.parsed_body["reply"]
   end
 
+  test "a model call from OpenCode's session while its question is open means the box answered it, so the run gets no more calls" do
+    CodeAgent::Relay.any_instance.expects(:forward).once
+    ask
+
+    post "/code_agent/openai/v1/chat/completions", params: "{}", headers: headers.merge(CodeAgentController::AGENT_SESSION_HEADER => "ses_1")
+    assert_response :success, "another of OpenCode's sessions is not held"
+
+    post "/code_agent/openai/v1/chat/completions", params: "{}", headers: headers.merge(CodeAgentController::AGENT_SESSION_HEADER => "ses_main")
+    assert_response :forbidden
+    assert_equal CodeAgentPermission::ANSWERED_IN_BOX, response.parsed_body.dig("error", "message")
+    assert @session.permissions.sole.answered_in_box?
+    assert_match "the coding agent answered that itself", @session.permissions.sole.step_words
+  end
+
+  test "the box saying the question was answered there settles it so, whatever Halon decides after" do
+    FirefightAi::PermissionJudge.any_instance.stubs(:decide).returns(decision(FirefightAi::PermissionJudge::ALLOW, LOOPING))
+
+    ask(answered_in_box: true)
+    assert_equal({ "reply" => CodeAgentPermission::REPLY_REJECT, "message" => CodeAgentPermission::ANSWERED_IN_BOX }, response.parsed_body.except("permission"))
+    perform_enqueued_jobs { ask }
+
+    assert @session.permissions.sole.answered_in_box?
+    post "/code_agent/openai/v1/chat/completions", params: "{}", headers: headers
+    assert_response :forbidden
+  end
+
   test "an ended session asks nothing, and a request without its permission is refused" do
     post "/code_agent/permissions", params: { id: "per_1" }.to_json, headers: headers
     assert_response :unprocessable_content
@@ -123,10 +149,11 @@ class CodeAgent::PermissionsTest < ActionDispatch::IntegrationTest
 
   private
 
-  def ask(token: @token)
+  def ask(token: @token, answered_in_box: false)
     events = [ { type: "tool_use", part: { tool: "bash", state: { status: "completed", input: { command: "bundle exec rspec spec/pool_spec.rb" }, metadata: { exit: 1 } } } },
                { type: "tool_use", part: { tool: "edit", state: { status: "completed", input: { filePath: "/runs/7f3a/spec/pool_spec.rb" } } } } ].map(&:to_json)
-    post "/code_agent/permissions", params: { id: "per_1", permission: CodeAgentPermission::REPEATED, patterns: [ "bash" ], metadata: REPEATED, events: events }.to_json,
+    post "/code_agent/permissions", params: { id: "per_1", sessionID: "ses_main", permission: CodeAgentPermission::REPEATED, patterns: [ "bash" ], metadata: REPEATED,
+                                              events: events, answeredInBox: answered_in_box }.to_json,
                                     headers: headers(token)
   end
 

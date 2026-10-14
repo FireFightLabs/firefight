@@ -178,6 +178,16 @@ class CodeAgentSession < ApplicationRecord
 
   def open_question = questions.from_agent.find_by(status: CodeAgentQuestion::STATUS_OPEN)
 
+  # Why the agent's model call is refused, or nil. A step OpenCode asked about holds its session until Firefight answers,
+  # so a call from that session while the question is open means something in the box answered it instead, and one
+  # answered in the box ends the whole run. agent_session is OpenCode's own session that calls.
+  def model_call_refusal!(agent_session)
+    if agent_session.present?
+      permissions.where(status: CodeAgentPermission::STATUS_OPEN, agent_session_id: agent_session.to_s).find_each(&:answered_in_box!)
+    end
+    CodeAgentPermission::ANSWERED_IN_BOX if permissions.answered_in_box.exists?
+  end
+
   # A question nobody answered in time with nothing to fall back on ends the change, whatever the agent did after. One
   # with a recommendation went with it.
   def unanswered_question = questions.from_agent.find_by(status: CodeAgentQuestion::STATUS_EXPIRED)

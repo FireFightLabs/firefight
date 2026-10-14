@@ -1172,6 +1172,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_900000) do
     t.uuid "code_agent_session_id", null: false
     t.uuid "workspace_id", null: false
     t.string "request_id", null: false
+    t.string "agent_session_id"
     t.string "permission", null: false
     t.text "asked", null: false
     t.text "steps"

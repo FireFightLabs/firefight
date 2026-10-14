@@ -93,16 +93,28 @@ async function ready() {
 
 // Firefight decides, and says to wait until it has. A Firefight that cannot be reached, or fails to answer again and
 // again, refuses the step, since nothing else may answer it.
+function ask(asked, extra = {}) {
+  return fetch(askUrl, {
+    method: "POST",
+    headers: { Authorization: tokenHeader, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id: asked.id,
+      sessionID: asked.sessionID,
+      permission: asked.permission,
+      patterns: asked.patterns,
+      metadata: asked.metadata,
+      events: recent,
+      ...extra,
+    }),
+  })
+}
+
 async function decide(asked) {
   let failures = 0
   for (;;) {
     let answer
     try {
-      const response = await fetch(askUrl, {
-        method: "POST",
-        headers: { Authorization: tokenHeader, "Content-Type": "application/json" },
-        body: JSON.stringify({ id: asked.id, permission: asked.permission, patterns: asked.patterns, metadata: asked.metadata, events: recent }),
-      })
+      const response = await ask(asked)
       if (response.status === 401) {
         return { reply: "reject", message: "The change ended before this step was decided." }
       }
@@ -126,11 +138,44 @@ async function decide(asked) {
   }
 }
 
-async function answerPermission(asked) {
-  const answer = await decide(asked)
-  await api("POST", `/permission/${asked.id}/reply`, { reply: answer.reply, message: answer.message }).catch((error) =>
-    process.stderr.write(`${error.message}\n`),
-  )
+// Everything in the box runs as one user, so the agent can reach this server too. Only the driver's own reply is
+// trusted: a reply it did not send, or its own finding the request already answered, means something else answered
+// OpenCode. Firefight is told, which stops the run and opens nothing, and the session is stopped here as well.
+const asked = new Map()
+const ours = new Set()
+const reported = new Set()
+let stopping = false
+
+async function answerPermission(question) {
+  asked.set(question.id, question)
+  const answer = await decide(question)
+  if (reported.has(question.id)) {
+    return
+  }
+  ours.add(question.id)
+  try {
+    await api("POST", `/permission/${question.id}/reply`, { reply: answer.reply, message: answer.message })
+  } catch {
+    await answeredInBox(question)
+  }
+}
+
+async function answeredInBox(question) {
+  if (reported.has(question.id)) {
+    return
+  }
+  reported.add(question.id)
+  let message = "The coding agent answered its own question about a step instead of waiting for Halon, so it was stopped."
+  try {
+    const answer = await (await ask(question, { answeredInBox: true })).json()
+    message = answer.message ?? message
+  } catch {
+    // The run stops whether or not Firefight heard, and Firefight refuses the agent's next model call either way.
+  }
+  failed = true
+  stopping = true
+  emit("error", { error: { name: "AnsweredInBox", data: { message } } })
+  await api("POST", `/session/${sessionID}/abort`).catch(() => {})
 }
 
 async function mirror(sessions) {
@@ -203,7 +248,10 @@ async function main() {
     if (event.type === "permission.asked" && stream.sessions.has(properties.sessionID)) {
       answerPermission(properties)
     }
-    if (event.type === "session.status" && properties.sessionID === sessionID && properties.status?.type === "idle") {
+    if (event.type === "permission.replied" && stream.sessions.has(properties.sessionID) && !ours.has(properties.requestID)) {
+      await answeredInBox(asked.get(properties.requestID) ?? { id: properties.requestID, sessionID: properties.sessionID, permission: "unknown" })
+    }
+    if (stopping || (event.type === "session.status" && properties.sessionID === sessionID && properties.status?.type === "idle")) {
       break
     }
   }

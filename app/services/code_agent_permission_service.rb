@@ -15,9 +15,14 @@ class CodeAgentPermissionService
   # The box's question about request_id, made once, with Halon set to decide it, and the decision once there is one,
   # waiting a little for it. events are the agent's latest events as the box printed them, read into plain lines the
   # way its step shows them. Answers the permission and OpenCode's reply, or nil while it waits.
-  def self.ask!(session, request_id:, permission:, patterns:, metadata:, events:, hidden: [])
+  # agent_session is OpenCode's own session that asks. answered_in_box is the box saying something there answered
+  # OpenCode before Firefight did, which settles the question as such.
+  def self.ask!(session, request_id:, permission:, patterns:, metadata:, events:, agent_session: nil, answered_in_box: false, hidden: [])
     steps = Integrations::SandboxAgentEvents.new(Chat::CodeFixProgress.start, hidden: hidden).read(Array(events).join("\n")).lines.map(&:text)
-    asked, made = CodeAgentPermission.ask!(session, request_id: request_id, permission: permission, patterns: patterns, metadata: metadata, steps: steps)
+    asked, made = CodeAgentPermission.ask!(session, request_id: request_id, permission: permission, patterns: patterns, metadata: metadata, steps: steps,
+                                                    agent_session: agent_session)
+    return [ asked, asked.answered_in_box!.reply ] if answered_in_box
+
     CodeAgentPermissionJob.perform_later(asked.id) if made
     [ asked, wait(asked) ]
   end

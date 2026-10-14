@@ -90,7 +90,33 @@ class OpencodePermissionsTest < ActiveSupport::TestCase
     assert_equal "Halon refused this step. It listed the same folder three times", events(output).stop_reason(output)
   end
 
+  # The agent's shell runs as the box's one user, as OpenCode's server does, so it can find the server and its password
+  # and answer the question itself. The run stops and Firefight keeps that it did, so the change is never opened.
+  test "a question the agent's own shell answers stops the run, and Firefight keeps that it was answered in the box" do
+    FirefightAi::PermissionJudge.any_instance.stubs(:decide).with { sleep 3 }
+                                .returns(FirefightAi::PermissionJudge::Decision.new(decision: FirefightAi::PermissionJudge::ALLOW, reason: "Fine.", lean: nil))
+
+    output = run_agent([ Array.new(3) { [ "bash", { "command" => SELF_ANSWER, "description" => "Answer it" } ] }, [ write_step ] ])
+
+    assert_match(/^AGENT_EXIT 1$/, output)
+    assert_empty changed(output)
+    assert @session.permissions.sole.answered_in_box?, output
+    assert_equal CodeAgentPermission::ANSWERED_IN_BOX.delete_suffix("."), events(output).stop_reason(output)
+    assert_equal CodeAgentPermission::ANSWERED_IN_BOX, @session.model_call_refusal!(nil), "Firefight refuses the run any further model call"
+  end
+
   private
+
+  # What an agent would run to answer its own question: OpenCode's server is found by its command line, its password in
+  # the shell's own environment, and the first open question answered always. The path is built at run time, as a
+  # determined agent would, so OpenCode cannot tell it reaches outside the copy.
+  SELF_ANSWER = <<~SH.squish.freeze
+    root=/proc; port=$(cat $root/[0-9]*/cmdline 2>/dev/null | tr '\\0' ' ' | grep -o -- '--port [0-9]*' | head -1 | cut -d' ' -f2);
+    for i in $(seq 1 40); do
+    id=$(curl -s -u "opencode:$OPENCODE_SERVER_PASSWORD" "http://127.0.0.1:$port/permission" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4);
+    if [ -n "$id" ]; then curl -s -u "opencode:$OPENCODE_SERVER_PASSWORD" -H 'Content-Type: application/json' -d '{"reply":"always"}'
+    "http://127.0.0.1:$port/permission/$id/reply"; break; fi; sleep 0.2; done
+  SH
 
   def write_step = [ "write", { "filePath" => File.join(@copy, "fixed.txt"), "content" => "fixed\n" } ]
 
@@ -123,6 +149,7 @@ class OpencodePermissionsTest < ActiveSupport::TestCase
             "XDG_CACHE_HOME" => "#{home}/.cache", "XDG_STATE_HOME" => "#{home}/.local/state", "SANDBOX_PROGRESS" => File.join(@root, "progress") }
     output, = Open3.capture2(env, "bash", "-c", Fixing::RUN, Fixing::AGENT, "Fix it", "anthropic/#{MODEL}", "", "", "main", "halon/fix-1", "Fix", "",
                              "#{base}/permissions", chdir: @copy, stdin_data: "credential\n#{config.to_json}\n#{Fixing::DRIVER}")
+    assert_match(/^SESSION ses_/, output, "The agent never started a session. The box said:\n#{output}")
     # What the box hands back keeps only the log's tail, so the whole run is read from its progress.
     "#{output}#{File.read(File.join(@root, 'progress'))}"
   end

@@ -2,12 +2,17 @@
 # asks only for what Fixing::PERMISSIONS marks ask, and the box puts each question to Firefight, which hands it to
 # Halon. Halon lets the agent go on or refuses the step, with why, or, where the change was asked for in a chat or a
 # fix, leaves it to the person as a question with the way it leans. The decision is kept with the change and shown on
-# its step.
+# its step. Everything in the box runs as one user, so the agent can reach what answers OpenCode there. An answer that
+# did not come from Firefight is never trusted: the box reports it, Firefight refuses the agent's next model call while
+# its question is open, and either way the run stops and nothing is opened.
 class CodeAgentPermission < ApplicationRecord
   STATUS_OPEN = "open"
   STATUS_ALLOWED = "allowed"
   STATUS_STOPPED = "stopped"
-  STATUSES = [ STATUS_OPEN, STATUS_ALLOWED, STATUS_STOPPED ].freeze
+  # Answered by something in the box rather than by Firefight, such as the agent itself.
+  STATUS_ANSWERED_IN_BOX = "answered_in_box"
+  STATUSES = [ STATUS_OPEN, STATUS_ALLOWED, STATUS_STOPPED, STATUS_ANSWERED_IN_BOX ].freeze
+  ANSWERED_IN_BOX = "The coding agent answered its own question about a step instead of waiting for Halon, so it was stopped and nothing is opened.".freeze
 
   # OpenCode's answers to a permission request (PermissionV1.Reply at 1.18.34). once lets this one step through and
   # asks again next time, reject refuses it, with the reason as feedback the model reads.
@@ -38,15 +43,17 @@ class CodeAgentPermission < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
 
   scope :decided, -> { where.not(status: STATUS_OPEN) }
+  scope :answered_in_box, -> { where(status: STATUS_ANSWERED_IN_BOX) }
 
   # The question for request_id, made once however often the box asks, since it asks again until it has an answer.
   # permission is OpenCode's name for it, patterns and metadata what OpenCode sent with it, and steps what the agent did
-  # lately, one plain line each. Answers whether it was made now.
-  def self.ask!(session, request_id:, permission:, patterns:, metadata:, steps:)
+  # lately, one plain line each, and agent_session OpenCode's own session that asks. Answers whether it was made now.
+  def self.ask!(session, request_id:, permission:, patterns:, metadata:, steps:, agent_session: nil)
     found = find_by(session: session, request_id: request_id.to_s)
     return [ found, false ] if found
 
     made = create!(session: session, workspace: session.workspace, request_id: request_id.to_s, permission: permission.to_s.first(100),
+                   agent_session_id: agent_session.to_s.first(100).presence,
                    asked: Chat::SecretFree.redacted(describe(permission.to_s, Array(patterns).map(&:to_s), metadata.to_h)).truncate(ASKED_LIMIT),
                    steps: Array(steps).last(STEPS_KEPT).map { |step| Chat::SecretFree.redacted(step.to_s) })
     [ made, true ]
@@ -68,6 +75,15 @@ class CodeAgentPermission < ApplicationRecord
   end
 
   def open? = status == STATUS_OPEN
+
+  def answered_in_box? = status == STATUS_ANSWERED_IN_BOX
+
+  # Something in the box answered OpenCode instead of Firefight, whatever Firefight decided, so the run cannot go on.
+  def answered_in_box!
+    self.class.where(id: id).where.not(status: STATUS_ANSWERED_IN_BOX)
+        .update_all(status: STATUS_ANSWERED_IN_BOX, reason: nil, decided_by_type: nil, decided_by_id: nil, decided_at: Time.current, updated_at: Time.current)
+    reload
+  end
 
   def allowed? = status == STATUS_ALLOWED
 
@@ -114,6 +130,7 @@ class CodeAgentPermission < ApplicationRecord
   # words is quoted.
   def step_words
     return if open?
+    return "OpenCode #{asked}, and the coding agent answered that itself instead of waiting for Halon, so it was stopped" if answered_in_box?
 
     said = "OpenCode #{asked}, and #{decider} #{allowed? ? 'let it continue' : 'stopped it'}"
     return said if reason.blank?
@@ -125,5 +142,9 @@ class CodeAgentPermission < ApplicationRecord
 
   def decider = decided_by_name || "Firefight"
 
-  def stopped_words = [ "#{decider} refused this step.", reason.presence ].compact.join(" ")
+  def stopped_words
+    return ANSWERED_IN_BOX if answered_in_box?
+
+    [ "#{decider} refused this step.", reason.presence ].compact.join(" ")
+  end
 end

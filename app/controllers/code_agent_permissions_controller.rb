@@ -8,12 +8,13 @@ class CodeAgentPermissionsController < ActionController::API
     session = CodeAgentSession.authenticate(token)
     return render(json: { error: CodeAgentSession::ENDED }, status: :unauthorized) unless session
 
-    asked = params.permit(:id, :permission, patterns: [], events: []).to_h
+    asked = params.permit(:id, :permission, :sessionID, :answeredInBox, patterns: [], events: []).to_h
     metadata = params[:metadata].respond_to?(:to_unsafe_h) ? params[:metadata].to_unsafe_h : {}
     return render(json: { error: "Name the request and the permission." }, status: :unprocessable_content) if asked["id"].blank? || asked["permission"].blank?
 
     permission, reply = CodeAgentPermissionService.ask!(session, request_id: asked["id"], permission: asked["permission"], patterns: asked["patterns"],
-                                                                 metadata: metadata, events: asked["events"], hidden: [ token ])
+                                                                 metadata: metadata, events: asked["events"], agent_session: asked["sessionID"],
+                                                                 answered_in_box: ActiveModel::Type::Boolean.new.cast(asked["answeredInBox"]), hidden: [ token ])
     render json: { "permission" => permission.id, **(reply || { "wait" => true }) }
   end
 
