@@ -53,10 +53,12 @@ class Conversation::Rehearsal::OpenTools < RubyLLM::Tool
   def call(tool_call: nil, **arguments)
     given = arguments.stringify_keys
     group = @groups[given["group"].to_s]
-    return "There is no group called #{given['group']}. The groups are: #{@groups.keys.join(', ')}." unless group
-
     named = Array(given["tools"]).map(&:to_s)
-    opened = @open.call(named.any? ? named : group.map(&:name))
+    # A tool named is found wherever it sits, so a read a specialist made opens though its provider has no group of
+    # Halon's own.
+    opened = (group || named.any?) ? @open.call(named.presence || group.map(&:name)) : []
+    return "There is no group called #{given['group']}. The groups are: #{@groups.keys.join(', ')}." if group.nil? && opened.empty?
+
     missing = named - opened.map(&:name)
     [ opened.map { |tool| "#{tool.name}: #{tool.description.to_s.squish} (#{READY})" }.join("\n"),
       *missing.map { |tool_name| unopened(tool_name) } ].compact_blank.join("\n\n")

@@ -151,6 +151,31 @@ class Conversation::RehearsalSpecialistsTest < ActiveSupport::TestCase
     assert_includes @offered.last, :planetscale_get_insights
   end
 
+  # A provider whose every tool reads has no group of Halon's own until a specialist reads through it, and a read the
+  # specialist made opens by name all the same.
+  test "a read a specialist made opens by name though its provider has no tool of Halon's own" do
+    FirefightAi.configuration.stubs(:specialists).returns(:on)
+    script(
+      call("ask_specialist", "asks" => [ { "domain" => "databases", "objective" => "Who holds orders' connections?" } ]),
+      call("planetscale_get_insights", "database" => "orders"),
+      call("report_findings", "summary" => "orders is out of connections", "findings" => [
+        { "claim" => "orders is at its limit", "lines" => [ "open connections 498 of 500 since 13:39" ] }
+      ]),
+      call("open_tools", "group" => "planetscale", "tools" => [ "planetscale_get_insights" ]),
+      reply("orders is at its limit.")
+    )
+    reads_only = Conversation::BenchCase.from_hash({
+      "title" => "Connections", "context" => "You are acting for Sam.", "turns" => [ "why is orders refusing connections?" ],
+      "tools" => [ { "name" => "open_tools", "description" => "Opens groups", "base" => true },
+                   { "name" => "planetscale_get_insights", "description" => "Query insights for a branch", "reads" => true, "source" => "planetscale" } ],
+      "answers" => [ { "tool" => "planetscale_get_insights", "result" => INSIGHTS } ]
+    }, key: "connections")
+
+    replay = Conversation::Rehearsal.replay!(reads_only, result: @result, model: @model)
+
+    assert_equal "planetscale_get_insights: Query insights for a branch (ready to call)", replay.transcript.calls.reject(&:by).last.result
+  end
+
   test "the two ways have different prompt versions, so a bench run says which it measured" do
     FirefightAi.configuration.stubs(:specialists).returns(:off)
     off = Conversation::Bench.send(:prompt_version, @result.workspace, @model)

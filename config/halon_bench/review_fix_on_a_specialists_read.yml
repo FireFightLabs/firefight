@@ -29,7 +29,7 @@ tools:
       required: [ repository, number ]
 answers:
   - tool: github_pr_lookup
-    match: { number: 14 }
+    match: { repository: larkspur/shop, number: 14 }
     result: |-
       #14 "Complete agent discovery coverage", open, branch agent-docs into main, head a41c2d9, can merge. Checks on a41c2d9: tests succeeded, Workers Builds succeeded.
       Review by Nina Bauer, commented, on a41c2d9:

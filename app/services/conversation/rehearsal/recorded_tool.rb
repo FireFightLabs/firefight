@@ -68,7 +68,7 @@ class Conversation::Rehearsal::RecordedTool < RubyLLM::Tool
   end
 
   def unsupported(asked, tool_call_id)
-    return unless looks_first? && !@definition.reads?(asked)
+    return unless looks_first? && !@bench_case.reads_call?(name, asked)
 
     Chat::Tools::LookFirst.refusal_in(@chat, asked, read: @bench_case.method(:reads_call?), tool_call_id: tool_call_id)
   end
