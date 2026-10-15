@@ -188,7 +188,7 @@ module Integrations
     def self.wrapped?(tool) = adapter_for(tool.integration.provider)&.wraps?(tool.name) || false
 
     # The capabilities some connection in the workspace can answer, with the tools they can run as.
-    def self.offered(workspace, tools: Integration::Tool.in_workspace(workspace).to_a)
+    def self.offered(workspace, tools: workspace.switched_on_tools)
       SPECS.values.filter_map do |spec|
         able = tools.select { |tool| adapter_for(tool.integration.provider)&.runs?(spec.key, tool.name) }
         [ spec, able ] if able.any?
@@ -197,7 +197,7 @@ module Integrations
 
     # The connections whose provider checks addresses from outside, an uptime monitor that answers status for a hostname
     # it checks, region by region. A check from Halon's sandbox sees from one region and names these for the rest.
-    def self.outside_checkers(workspace, tools: Integration::Tool.in_workspace(workspace).to_a)
+    def self.outside_checkers(workspace, tools: workspace.switched_on_tools)
       status = offered(workspace, tools: tools).find { |spec, _able| spec.key == STATUS }
       Array(status&.last).map(&:integration).uniq.select { |integration| adapter_for(integration.provider).observes?(STATUS, ResourceMap::KIND_DOMAIN) }
     end
@@ -285,7 +285,7 @@ module Integrations
     # through one of them, so connecting one never takes away a read the platform answers today. The resource is found
     # among those principal may read on the map, so one outside its environments reads as not on the map.
     def self.resolve(workspace, key, given, tools = nil, principal:)
-      tools ||= Integration::Tool.in_workspace(workspace).to_a
+      tools ||= workspace.switched_on_tools
       spec = spec(key)
       candidates, reference = candidates_for(workspace, spec, given, tools, principal)
       routed(workspace, spec, candidates, given, reference, tools)
@@ -296,7 +296,7 @@ module Integrations
     # The tool's own recording (Integration::Tool#swept!) is what puts it in the activity log.
     def self.resolve_for(resource, key, given)
       workspace = resource.workspace
-      tools = Integration::Tool.in_workspace(workspace).to_a
+      tools = workspace.switched_on_tools
       spec = spec(key)
       candidates = holders([ resource ], spec, ResourceMap::Resource.present.where(workspace_id: workspace.id))
       candidates += observers(workspace, candidates, [ resource ], spec, tools)
@@ -359,7 +359,7 @@ module Integrations
     # Every connection that can answer for the resource, for connection: all, as a Call or a Refused for each. A change
     # is never made everywhere at once.
     def self.resolve_all(workspace, key, given, tools = nil, principal:)
-      tools ||= Integration::Tool.in_workspace(workspace).to_a
+      tools ||= workspace.switched_on_tools
       spec = spec(key)
       raise Unroutable, "#{ALL} is only for reading, so a change names one connection." if spec.writes
 
@@ -459,9 +459,9 @@ module Integrations
     # route for its parameters. The tool the route names has to be switched on, and an observability tool answers only
     # through one the caller may run, so connecting one never takes away a read the platform answers today.
     def self.call_for(workspace, spec, candidate, given, tools)
-      switched_on = Integration::Tool.in_workspace(workspace).where(integration_id: candidate.row.integration_id)
+      switched_on = workspace.switched_on_tools.select { |each| each.integration_id == candidate.row.integration_id }.index_by(&:name)
       usual = candidate.adapter.tool_for(spec.key)
-      usual_tool = switched_on.find_by(name: usual)
+      usual_tool = switched_on[usual]
       if spec.key == SCALE && given["instances"].blank? && given[PLAN_ARG].blank?
         raise Unroutable, "Say how many instances to run, or the plan to run at where the provider sizes by plan."
       end
@@ -480,7 +480,7 @@ module Integrations
         raise
       end
 
-      tool = route.tool_name == usual ? usual_tool : switched_on.find_by(name: route.tool_name)
+      tool = route.tool_name == usual ? usual_tool : switched_on[route.tool_name]
       raise switched_off(candidate, route.tool_name) unless tool
       if candidate.observer && tools.none? { |each| each.id == tool.id }
         raise Unroutable, "#{candidate.row.integration.name} would answer this with its #{tool.name} tool, which you may not run."

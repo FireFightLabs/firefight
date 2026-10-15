@@ -103,7 +103,7 @@ module Chat::Tools::DeploySpan
   def callable(agent_run)
     principal = agent_run.acting_principal
     resolved = Ability::Resolver.resolve(principal, agent_run.workspace)
-    Integration::Tool.in_workspace(agent_run.workspace).to_a.select { |tool| tool.callable_by?(principal, resolved) }
+    Chat::Tools.switched_on_tools(agent_run).select { |tool| tool.callable_by?(principal, resolved) }
   end
 
   def named?(deploy, wanted)

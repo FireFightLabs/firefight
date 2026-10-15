@@ -583,11 +583,12 @@ module Chat::Tools
     agent_run.catalog(catalog_version(agent_run), CATALOG_ENTRIES) { build_catalog(agent_run) }
   end
 
-  # The workspace's switched on tools the catalogue is built from, for a turn the same list its catalogue holds.
+  # The workspace's switched on tools the catalogue is built from: the list the workspace holds (Workspace::ToolCatalogue),
+  # which a helper shares with the run it helps, and for a turn getting ready the list its catalogue holds.
   def self.switched_on_tools(agent_run)
-    return Integration::Tool.in_workspace(agent_run.workspace).to_a unless agent_run.is_a?(Conversation::Turn)
+    return agent_run.workspace.switched_on_tools unless agent_run.is_a?(Conversation::Turn) && agent_run.catalog_held?
 
-    agent_run.catalog(catalog_version(agent_run), CATALOG_TOOLS) { Integration::Tool.in_workspace(agent_run.workspace).to_a }
+    agent_run.catalog(catalog_version(agent_run), CATALOG_TOOLS) { agent_run.workspace.switched_on_tools }
   end
 
   # The skills a turn's reminders name, read with its catalogue and again only when it is.
@@ -638,7 +639,7 @@ module Chat::Tools
     end
   end
 
-  def self.connection_entries(agent_run, tools: Integration::Tool.in_workspace(agent_run.workspace).to_a, resolved: nil)
+  def self.connection_entries(agent_run, tools: switched_on_tools(agent_run), resolved: nil)
     principal = agent_run.acting_principal
     resolved ||= principal && granted(agent_run)
 
@@ -682,7 +683,7 @@ module Chat::Tools
 
   # One entry per capability some connection in the workspace can answer. It is ready when the principal may call at
   # least one tool it would run as, and the gateway still decides each call.
-  def self.capability_entries(agent_run, tools: Integration::Tool.in_workspace(agent_run.workspace).to_a, resolved: nil)
+  def self.capability_entries(agent_run, tools: switched_on_tools(agent_run), resolved: nil)
     principal = agent_run.acting_principal
     resolved ||= principal && granted(agent_run)
 

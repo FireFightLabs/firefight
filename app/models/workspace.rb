@@ -16,6 +16,7 @@ class Workspace < ApplicationRecord
   include Workspace::Access
   include Workspace::Signup
   include Workspace::ToolLabels
+  include Workspace::ToolCatalogue
 
   enum :platform, { slack: Platforms::SLACK, teams: Platforms::TEAMS }, suffix: true
 
@@ -191,13 +192,6 @@ class Workspace < ApplicationRecord
     sql += ", (SELECT updated_at FROM #{principal.class.quoted_table_name} WHERE id = :principal)" if principal.is_a?(ActiveRecord::Base)
     query = self.class.sanitize_sql([ sql, { workspace: id, principal: principal.try(:id) } ])
     self.class.with_connection { |connection| connection.select_rows(query, "Reach version").first }
-  end
-
-  # Every tool of a connection not deleted, switched on or not, by the name the agent calls it, whole, for a caller that
-  # runs one or reads its schema. Naming one or telling a read from a change reads tool_labels (Workspace::ToolLabels).
-  def connection_tools_by_name
-    @connection_tools_by_name ||= Integration::Tool.joins(:integration).where(integrations: { workspace_id: id, deleted_at: nil })
-                                                   .includes(:integration, :ability_action).index_by(&:model_facing_name)
   end
 
   # Each connection's read pack by its id, read once, as a list of tools names each tool's connection.

@@ -33,6 +33,8 @@ class Conversation::Turn
 
   def release_catalog! = @catalog_held = false
 
+  def catalog_held? = @catalog_held == true
+
   def catalog(version, part)
     unless @catalog_held && @catalog
       current = version.call

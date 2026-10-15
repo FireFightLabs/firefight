@@ -40,8 +40,8 @@ module Workspace::CodeFixes
     integration = code_fix_agent_connection
     return unless integration
 
-    Integration::Tool.in_workspace(self).find_by(integration_id: integration.id, read_only: false,
-                                                 name: IntegrationProvider.find(integration.provider).code_fix_tool)
+    tool_name = IntegrationProvider.find(integration.provider).code_fix_tool
+    switched_on_tools.find { |tool| tool.integration_id == integration.id && !tool.read_only? && tool.name == tool_name }
   end
 
   # Why code steps cannot reach the chosen agent, or nil when they can or Firefight's own agent writes them.

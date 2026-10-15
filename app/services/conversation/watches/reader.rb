@@ -67,7 +67,7 @@ class Conversation::Watches::Reader
   # nil when the code host does not know the ref yet, such as a tag a release has not pushed.
   def commit_of(reference, ref)
     resolved = Ability::Resolver.resolve(@principal, @workspace)
-    tools = Integration::Tool.in_workspace(@workspace).to_a.select { |tool| tool.callable_by?(@principal, resolved) }
+    tools = @workspace.switched_on_tools.select { |tool| tool.callable_by?(@principal, resolved) }
     call = Integrations::Capabilities.commit_call(@workspace, reference, ref, tools, principal: @principal)
     raise Refused, held_words(call) if held?(call)
 

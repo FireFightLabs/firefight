@@ -141,7 +141,7 @@ module DefinedWorkflow::Reach
     skill.tools.flat_map do |handle|
       next for_tool(workspace, handle).select { |needed| needed.role || reads?(needed.action) } if skill.source == Chat::Skill::SOURCE_FIREFIGHT
 
-      Integration::Tool.in_workspace(workspace).select { |tool| tool.integration.provider == skill.source && tool.name == handle }
+      workspace.switched_on_tools.select { |tool| tool.integration.provider == skill.source && tool.name == handle }
                        .filter_map { |tool| read_pack(tool.integration_id) }.map { |role| Needed.of_role(role) }
     end.uniq(&:key)
   end
