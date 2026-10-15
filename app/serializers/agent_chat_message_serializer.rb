@@ -34,6 +34,8 @@ class AgentChatMessageSerializer < BaseSerializer
 
     def sources(message) = sources_by_reply.fetch(message.id, [])
 
+    def said_as(message) = said_as_by_message[message.id]
+
     def self.reply?(message) = message.role == Chat::Message::ROLE_ASSISTANT && message.content.present? && message.ruby_llm_tool_calls.empty?
 
     private
@@ -56,6 +58,8 @@ class AgentChatMessageSerializer < BaseSerializer
         end
       end
     end
+
+    def said_as_by_message = @said_as_by_message ||= Chat::TurnText.roles(@messages)
 
     def sources_by_reply
       @sources_by_reply ||= @messages.select { |message| self.class.reply?(message) }.group_by(&:chat_id).values
@@ -101,11 +105,16 @@ class AgentChatMessageSerializer < BaseSerializer
     page.sources(message).map(&:to_h)
   end
 
+  # Whether Halon's words are a question put to the person, a status line among the steps, or the turn's result
+  # (Chat::TurnText). Nil for a person's message and for one with no words.
+  type "string | null"
+  def said_as = page.said_as(message)
+
   # Only a person's message carries files.
   has_many :attached_files, as: :attachments, serializer: AgentChatAttachmentSerializer
 
   # Same shape as the live step event, so a step reads the same either way.
-  type "{ key: string; title: string; headline: string; asked: [string, string][]; status: string; kind: string; seconds: number; " \
+  type "{ key: string; title: string; headline: string; asked: [string, string][]; status: string; kind: string; source: string | null; seconds: number; " \
        "card: { kind: string; category: string | null } | null; outcome: #{OUTCOME_TYPE} | null; progress: #{PROGRESS_TYPE} | null; " \
        "questionBlockedReason: string | null; questionChangeBlockedReason: string | null; pauseBlockedReason: string | null }[]"
   def tools
@@ -119,7 +128,7 @@ class AgentChatMessageSerializer < BaseSerializer
 
       status = self.class.step_status(call, calls)
       { key: call.tool_call_id, title: step.title, headline: step.headline, asked: step.asked,
-        status: status, kind: Chat::Tools.kind(call.name, workspace, call.arguments),
+        status: status, kind: Chat::Tools.kind(call.name, workspace, call.arguments), source: step.source,
         seconds: self.class.step_seconds(call, message, last: call == calls.last),
         card: (card_for(step, call)&.to_h if status == Conversation::LiveDelivery::STATUS_DONE || step.card&.shown_while_running?),
         outcome: (Chat::StepOutcome.for_call(call, chat)&.to_h if FINISHED.include?(status)),

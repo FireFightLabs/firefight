@@ -1149,6 +1149,12 @@ export const AGENT_STEP_KINDS = {
   "ROOM": "room"
 } as const
 
+export const AGENT_TEXT_ROLES = {
+  "QUESTION": "question",
+  "STATUS": "status",
+  "RESULT": "result"
+} as const
+
 export const AGENT_CARD_KINDS = {
   "INTEGRATIONS": "integrations",
   "INVESTIGATION": "investigation",

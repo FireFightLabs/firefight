@@ -216,6 +216,9 @@ module TypescriptConstants
       Export.new("AGENT_STEP_KINDS", {
         "READ" => Chat::Tools::KIND_READ, "ACT" => Chat::Tools::KIND_ACT, "ROOM" => Chat::Compaction::STEP_KIND
       }, nil),
+      Export.new("AGENT_TEXT_ROLES", {
+        "QUESTION" => Chat::TurnText::QUESTION, "STATUS" => Chat::TurnText::STATUS, "RESULT" => Chat::TurnText::RESULT
+      }, nil),
       Export.new("AGENT_CARD_KINDS", {
         "INTEGRATIONS" => Chat::Tools::CARD_INTEGRATIONS, "INVESTIGATION" => Chat::Tools::CARD_INVESTIGATION,
         "CHART" => Chat::Tools::CARD_CHART, "HELPERS" => Chat::Tools::CARD_HELPERS, "SCREENSHOTS" => Chat::Tools::CARD_SCREENSHOTS, "THEORIES" => Chat::Tools::CARD_THEORIES

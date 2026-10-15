@@ -1,7 +1,7 @@
 import { createConsumer } from "@rails/actioncable"
 import { useEffect, useRef, useState } from "react"
 
-import { NOTHING_STREAMED, type StreamEvent, streamedSteps, streamedText, withEvent } from "@/lib/agent-chat/stream-order"
+import { NOTHING_STREAMED, type StreamEvent, streamedPieces, streamedSteps, streamedText, withEvent } from "@/lib/agent-chat/stream-order"
 import type { AgentStream } from "@/lib/agent-chat/types"
 import { AGENT_CHANNEL, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
 
@@ -108,5 +108,7 @@ export function useChatStream(conversationId: string | null, owed: boolean, hand
   }, [ conversationId ])
 
   // The streamed copy is shown only while the server owes an answer, so it hides in the same render the saved reply appears.
-  return { busy, owed, text: owed ? streamedText(streamed) : "", steps: owed ? streamedSteps(streamed) : [] }
+  return {
+    busy, owed, text: owed ? streamedText(streamed) : "", steps: owed ? streamedSteps(streamed) : [], pieces: owed ? streamedPieces(streamed) : [],
+  }
 }

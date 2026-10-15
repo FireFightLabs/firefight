@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react"
 
-import type { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
+import type { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS, AGENT_TEXT_ROLES } from "@/lib/generated/constants"
 import type { AgentChatAttachment, AgentChatMessage } from "@/types/serializers"
 
 // What a long tool last said about how far it got, sent live while it runs and never saved, so only a step the socket
@@ -24,18 +24,28 @@ export type StreamEventType = (typeof AGENT_STREAM_EVENTS)[keyof typeof AGENT_ST
 // Who a drawn turn belongs to. Page only, since the server saves messages by role and the page groups them.
 export const TURN_KINDS = { PERSON: "person", AGENT: "agent" } as const
 
-// One piece of an answer, keyed by the message it was saved as, or by the live stream.
-export interface TurnBody {
+// Whether Halon's words are a question put to the person, a status line among the steps, or the turn's result.
+export type TextRole = (typeof AGENT_TEXT_ROLES)[keyof typeof AGENT_TEXT_ROLES]
+
+// What a turn holds, in the order it happened.
+export const PIECE_KINDS = { STEP: "step", TEXT: "text" } as const
+
+// Words Halon wrote, keyed by the message they were saved as, or by where they began in the live stream.
+export interface TurnText {
+  kind: typeof PIECE_KINDS.TEXT
   id: string
   text: string
+  role: TextRole
 }
+
+export type TurnPiece = { kind: typeof PIECE_KINDS.STEP; step: AgentStep } | TurnText
 
 // Something Halon read to give an answer, with the page it came from when its result gave one.
 export type AnswerSource = AgentChatMessage["sources"][number]
 
 export type ChatTurn =
   | { kind: typeof TURN_KINDS.PERSON; id: string; body: string; attachments: AgentChatAttachment[] }
-  | { kind: typeof TURN_KINDS.AGENT; id: string; steps: AgentStep[]; bodies: TurnBody[]; models: string[]; sources: AnswerSource[] }
+  | { kind: typeof TURN_KINDS.AGENT; id: string; pieces: TurnPiece[]; models: string[]; sources: AnswerSource[] }
 
 export interface AgentStream {
   // The agent is working on an answer and has not said it is done.
@@ -44,6 +54,8 @@ export interface AgentStream {
   owed: boolean
   text: string
   steps: AgentStep[]
+  // The words and steps the socket sent, in the order they were sent.
+  pieces: TurnPiece[]
 }
 
 // A tag react-markdown renders through one of our components, with the syntax tree node it passes along.

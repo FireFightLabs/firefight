@@ -7,15 +7,17 @@ import { CodeBlock } from "@/components/agent-chat/code-block"
 
 interface AnswerTextProps {
   text: string
+  // Drawn as a status line among the steps rather than as something said to the person.
+  status?: boolean
 }
 
 const REMARK_PLUGINS = [ remarkGfm ]
 
 // The plugin wraps inline code in backticks and quotes in quote marks, which read as typos in an answer.
-const PROSE = [
-  "agent-answer prose prose-sm max-w-none min-w-0 text-[14px] leading-[1.7]",
+const PROSE_BASE = [
+  "agent-answer prose prose-sm max-w-none min-w-0",
   "[&>:first-child]:mt-0 [&>:last-child]:mb-0",
-  "prose-p:my-2.5 prose-ul:my-2.5 prose-ol:my-2.5 prose-ul:pl-5 prose-ol:pl-5 prose-li:my-1 prose-li:pl-0.5",
+  "prose-ul:pl-5 prose-ol:pl-5 prose-li:pl-0.5",
   "prose-headings:mt-6 prose-headings:mb-2 prose-headings:font-semibold prose-headings:tracking-[-0.01em] prose-headings:text-balance",
   "prose-h1:text-[17px] prose-h2:text-[15.5px] prose-h3:text-[14px] prose-h4:text-[14px]",
   "prose-a:underline-offset-3 prose-a:decoration-accent/45 hover:prose-a:decoration-accent",
@@ -33,10 +35,15 @@ const COMPONENTS: Components = {
   table: AnswerTable,
 }
 
+const PROSE = [ PROSE_BASE, "text-[14px] leading-[1.7] prose-p:my-2.5 prose-ul:my-2.5 prose-ol:my-2.5 prose-li:my-1" ].join(" ")
+
+// A status line Halon wrote between steps reads smaller and quieter than what it says to the person, the same markdown.
+const STATUS_PROSE = [ PROSE_BASE, "text-[12.5px] leading-[1.6] text-ink-2 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5" ].join(" ")
+
 // react-markdown never renders raw HTML, so a reply cannot inject markup.
-export function AnswerText({ text }: AnswerTextProps) {
+export function AnswerText({ text, status = false }: AnswerTextProps) {
   return (
-    <div className={PROSE}>
+    <div className={status ? STATUS_PROSE : PROSE}>
       <Markdown remarkPlugins={REMARK_PLUGINS} components={COMPONENTS}>{text}</Markdown>
     </div>
   )
