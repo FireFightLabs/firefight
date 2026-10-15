@@ -20,17 +20,19 @@ import type { HandbookProposal } from "@/types/serializers"
 interface EditProposalDialogProps {
   proposal: HandbookProposal | null
   onClose: () => void
+  // The page props accepting changes, for a page that must not be visited whole, such as the chat the card is in.
+  reloads?: string[]
 }
 
 // Changes what Halon proposed before accepting it, from the Handbook page or the card in a chat.
-export function EditProposalDialog({ proposal, onClose }: EditProposalDialogProps) {
+export function EditProposalDialog({ proposal, onClose, reloads }: EditProposalDialogProps) {
   const { data, setData, post, processing } = useForm({ text: proposal?.text ?? "" })
   const text = data.text.trim()
 
   function submit(event: FormEvent) {
     event.preventDefault()
     if (proposal) {
-      post(acceptHandbookProposalPath(proposal.id), { preserveScroll: true, preserveState: true, onSuccess: onClose })
+      post(acceptHandbookProposalPath(proposal.id), { preserveScroll: true, preserveState: true, ...(reloads ? { only: reloads } : {}), onSuccess: onClose })
     }
   }
 

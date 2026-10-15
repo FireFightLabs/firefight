@@ -236,6 +236,8 @@ module TypescriptConstants
       Export.new("AGENT_CHAT_HEAD_PROPS", AgentChatsController::HEAD_PROPS, nil),
       Export.new("AGENT_CHAT_THREAD_PROPS", AgentChatsController::THREAD_PROPS, nil),
       Export.new("AGENT_CHAT_WINDOWED_PROPS", AgentChatsController::WINDOWED_PROPS, nil),
+      Export.new("AGENT_CHAT_ASKED_PROPS", AgentChatsController::ASKED_PROPS, nil),
+      Export.new("AGENT_CHAT_DECIDED_PROPS", AgentChatsController::DECIDED_PROPS, nil),
       Export.new("AGENT_CHAT_LOADED_FROM_HEADER", AgentChatsController::LOADED_FROM_HEADER, nil),
       Export.new("SETUP_STEPS", {
         "ACCOUNT" => WorkspaceOnboarding::STEP_ACCOUNT, "PLAN" => WorkspaceOnboarding::STEP_PLAN, "AI" => WorkspaceOnboarding::STEP_AI,
@@ -332,6 +334,7 @@ module TypescriptConstants
         "HOURS_MIN" => Workflow::Trigger::Schedule::HOURS.min, "HOURS_MAX" => Workflow::Trigger::Schedule::HOURS.max
       }, nil),
       Export.new("WORKFLOW_CANVAS_PROPS", WorkflowCanvasController::PROPS, nil),
+      Export.new("WORKFLOW_CANVAS_CHAT_PROPS", WorkflowCanvasController::CHAT_PROPS, nil),
       Export.new("WORKFLOW_VERSION_QUERY_PARAM", WorkflowCanvasController::VERSION_QUERY_PARAM, nil),
       Export.new("WORKFLOW_VIEW_QUERY_PARAM", WorkflowCanvasController::VIEW_QUERY_PARAM, nil),
       Export.new("WORKFLOW_RUN_QUERY_PARAM", WorkflowCanvasController::RUN_QUERY_PARAM, nil),

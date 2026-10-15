@@ -52,51 +52,80 @@ class WorkflowCanvasController < InertiaController
   RUN_QUERY_PARAM = Workflow::Links::RUN_PARAM
   RUNS_SHOWN = 50
   VERSIONS_SHOWN = 50
+  # What asking Halon beside the canvas changes, the only props read back after a question or a stop.
+  CHAT_PROPS = [ PROP_CHAT, PROP_CHAT_MESSAGES, PROP_HELPERS, PROP_CHAT_WAITING ].freeze
 
+  # Each prop is worked out only when the visit asks for it, so asking Halon beside the canvas reads back the chat alone.
   def show
-    run = params[RUN_QUERY_PARAM].presence && workflow.runs.find_by(id: params[RUN_QUERY_PARAM])
-    shown = run ? run_version(run) : workflow.shown_version(params[VERSION_QUERY_PARAM])
-    suggestions = workflow.proposals.includes(:workflow, :source_run, source_chat: :owner).to_a
     render inertia: "halon/workflow", props: {
-      PROP_WORKFLOW => WorkflowDetailSerializer.one(Workflow.with_run_counts.includes(:latest_run, :owner_team, :agent).find(workflow.id)),
-      PROP_DOCUMENT => WorkflowDocumentSerializer.one(shown, facts: facts_for(Workflow::Version.all_steps(shown.steps)), workflow: workflow,
-                                                             last_changes: run || !shown.persisted? ? {} : shown.last_changes, pins: shown.pins,
-                                                             read_only: run.present?),
-      PROP_RUNS => WorkflowRunRowSerializer.many(workflow.runs.where(parent_run_id: nil).includes(:version, :started_by).newest_first.limit(RUNS_SHOWN)),
-      PROP_RUN => run && WorkflowRunDetailSerializer.one(run, member: current_membership),
-      PROP_LAST_RUN => last_run(shown) && WorkflowRunStatesSerializer.one(last_run(shown)),
-      PROP_VERSIONS => WorkflowVersionRowSerializer.many(workflow.versions.includes(:author, :published_by).newest_first.limit(VERSIONS_SHOWN)),
-      PROP_SUGGESTIONS => WorkflowSuggestionSerializer.many(suggestions, document: (workflow.draft || workflow.live_version || workflow.empty_version).snapshot,
-                                                                        facts: facts_for(suggestions.map { |suggestion| suggestion.payload["step"].to_h }),
-                                                                        workflow: workflow),
-      PROP_HALON_CHANGES => WorkflowHalonChangeSerializer.many(workflow.halon_changes(shown), workflow: workflow),
-      PROP_STEP_KINDS => WorkflowStepKindSerializer.many(Workflow::StepKinds.offered, facts: Workflow::StepKinds::Facts.new(workspace: current_workspace)),
-      PROP_TRIGGER_KINDS => WorkflowTriggerKindSerializer.many(Workflow::TriggerKinds.all, facts: Workflow::StepKinds::Facts.new(workspace: current_workspace)),
+      PROP_WORKFLOW => -> { WorkflowDetailSerializer.one(Workflow.with_run_counts.includes(:latest_run, :owner_team, :agent).find(workflow.id)) },
+      PROP_DOCUMENT => -> { document },
+      PROP_RUNS => -> { WorkflowRunRowSerializer.many(workflow.runs.where(parent_run_id: nil).includes(:version, :started_by).newest_first.limit(RUNS_SHOWN)) },
+      PROP_RUN => -> { shown_run && WorkflowRunDetailSerializer.one(shown_run, member: current_membership) },
+      PROP_LAST_RUN => -> { last_run(shown) && WorkflowRunStatesSerializer.one(last_run(shown)) },
+      PROP_VERSIONS => -> { WorkflowVersionRowSerializer.many(workflow.versions.includes(:author, :published_by).newest_first.limit(VERSIONS_SHOWN)) },
+      PROP_SUGGESTIONS => -> { suggestions_shown },
+      PROP_HALON_CHANGES => -> { WorkflowHalonChangeSerializer.many(workflow.halon_changes(shown), workflow: workflow) },
+      PROP_STEP_KINDS => -> { WorkflowStepKindSerializer.many(Workflow::StepKinds.offered, facts: Workflow::StepKinds::Facts.new(workspace: current_workspace)) },
+      PROP_TRIGGER_KINDS => -> { WorkflowTriggerKindSerializer.many(Workflow::TriggerKinds.all, facts: Workflow::StepKinds::Facts.new(workspace: current_workspace)) },
       PROP_TOOLS => InertiaRails.defer { tools_offered },
-      PROP_PUBLISH_REQUESTS => publish_requests,
-      PROP_MY_PUBLISH_REQUEST => my_publish_request,
-      PROP_TEAMS => teams,
-      PROP_ACCESS => access,
+      PROP_PUBLISH_REQUESTS => -> { publish_requests },
+      PROP_MY_PUBLISH_REQUEST => -> { my_publish_request },
+      PROP_TEAMS => -> { teams },
+      PROP_ACCESS => -> { access },
       PROP_PLACES => InertiaRails.defer { RunbookPlaceSerializer.many(Chat::Tools::Choices.places(current_workspace, current_membership)) },
       PROP_WATCH_READS => InertiaRails.defer { RunbookWatchReadSerializer.many(Chat::Tools::Choices.reads) },
-      PROP_OTHER_WORKFLOWS => Workflow.where(workspace: current_workspace).where.not(id: workflow.id).ordered.map { |other| { name: other.name, slug: other.slug } },
-      PROP_TIME_ZONES => Workspace::FreezeWindows.time_zones
+      PROP_OTHER_WORKFLOWS => -> { Workflow.where(workspace: current_workspace).where.not(id: workflow.id).ordered.map { |other| { name: other.name, slug: other.slug } } },
+      PROP_TIME_ZONES => -> { Workspace::FreezeWindows.time_zones }
     }.merge(chat_props)
   end
 
   private
 
+  def shown_run
+    return @shown_run if defined?(@shown_run)
+
+    @shown_run = params[RUN_QUERY_PARAM].presence && workflow.runs.find_by(id: params[RUN_QUERY_PARAM])
+  end
+
+  def shown
+    @shown ||= shown_run ? run_version(shown_run) : workflow.shown_version(params[VERSION_QUERY_PARAM])
+  end
+
+  def document
+    WorkflowDocumentSerializer.one(shown, facts: facts_for(Workflow::Version.all_steps(shown.steps)), workflow: workflow,
+                                          last_changes: shown_run || !shown.persisted? ? {} : shown.last_changes, pins: shown.pins,
+                                          read_only: shown_run.present?)
+  end
+
+  def suggestions_shown
+    suggestions = workflow.proposals.includes(:workflow, :source_run, source_chat: :owner).to_a
+    WorkflowSuggestionSerializer.many(suggestions, document: (workflow.draft || workflow.live_version || workflow.empty_version).snapshot,
+                                                   facts: facts_for(suggestions.map { |suggestion| suggestion.payload["step"].to_h }),
+                                                   workflow: workflow)
+  end
+
   def chat_props
-    chat = Conversation.beside(workflow, current_membership)
-    record = chat&.chat
-    messages = record ? record.readable_messages.includes(:attached_files, :ruby_llm_usages, ruby_llm_tool_calls: :result).to_a : []
     {
-      PROP_CHAT => chat && AgentChatSerializer.one(chat, opened: true),
-      PROP_CHAT_MESSAGES => AgentChatMessageSerializer.many(messages, member: current_membership, platform_texts: {}),
-      PROP_HELPERS => AgentChatHelperSerializer.many(record&.helpers&.includes(:workspace, :own_chat) || []),
-      PROP_CHAT_WAITING => record.present? && record.awaiting_decision.any?,
-      PROP_CHAT_UNAVAILABLE => Conversation.asking_blocked_reason(current_membership)
+      PROP_CHAT => -> { beside_chat && AgentChatSerializer.one(beside_chat, opened: true) },
+      PROP_CHAT_MESSAGES => -> { AgentChatMessageSerializer.many(beside_messages, member: current_membership, platform_texts: {}) },
+      PROP_HELPERS => -> { AgentChatHelperSerializer.many(beside_record&.helpers&.includes(:workspace, :own_chat) || []) },
+      PROP_CHAT_WAITING => -> { beside_record.present? && beside_record.awaiting_decision.any? },
+      PROP_CHAT_UNAVAILABLE => -> { Conversation.asking_blocked_reason(current_membership) }
     }
+  end
+
+  def beside_chat
+    return @beside_chat if defined?(@beside_chat)
+
+    @beside_chat = Conversation.beside(workflow, current_membership)
+  end
+
+  def beside_record = beside_chat&.chat
+
+  def beside_messages
+    record = beside_record
+    record ? record.readable_messages.includes(:attached_files, :ruby_llm_usages, ruby_llm_tool_calls: :result).to_a : []
   end
 
   # Whoever may publish is shown the members waiting on it.

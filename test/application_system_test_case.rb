@@ -6,6 +6,8 @@ require "test_helper"
 Capybara.disable_animation = true
 
 class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
+  include InPlaceHelper
+
   SCREEN_SIZE = [ 1400, 1400 ].freeze
 
   driven_by :selenium, using: :headless_chrome, screen_size: SCREEN_SIZE

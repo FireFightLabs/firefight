@@ -1,6 +1,9 @@
 import { router } from "@inertiajs/react"
 
-import { AGENT_CHAT_HEAD_PROPS, AGENT_CHAT_PROPS, AGENT_CHAT_THREAD_PROPS, CHAT_MESSAGE_ROLES, INVESTIGATION_QUERY_PARAM } from "@/lib/generated/constants"
+import {
+  AGENT_CHAT_ASKED_PROPS, AGENT_CHAT_DECIDED_PROPS, AGENT_CHAT_HEAD_PROPS, AGENT_CHAT_PROPS, AGENT_CHAT_THREAD_PROPS, CHAT_MESSAGE_ROLES,
+  INVESTIGATION_QUERY_PARAM,
+} from "@/lib/generated/constants"
 import {
   agentChatAskPath, agentChatConfirmPath, agentChatMitigationExtendPath, agentChatMitigationKeepPath, agentChatMitigationUndoPath,
   agentChatPackRefusalAskPath, agentChatPath, agentChatPullRequestFixPath, agentChatSecretEntryFillPath, agentChatStopPath, agentChatsPath,
@@ -21,6 +24,9 @@ const OPEN_CHAT = [ ...CHAT_HEAD, ...THREAD ]
 // replaces them. It reads the whole stretch on screen, since each visit to the chat names its oldest message.
 const MESSAGES = [ AGENT_CHAT_PROPS.MESSAGES ]
 const READ_OPEN_CHAT = { only: OPEN_CHAT, reset: MESSAGES }
+// A question and an answer to confirmations read back only what they change, never the cards around them or the list.
+const READ_ASKED = { only: [ ...AGENT_CHAT_ASKED_PROPS ], reset: MESSAGES }
+const READ_DECIDED = { only: [ ...AGENT_CHAT_DECIDED_PROPS ], reset: MESSAGES }
 // A hovered chat is read ahead and kept this long, so opening it shows it at once.
 export const CHAT_CACHE_FOR = "30s"
 const CHARTS = [ AGENT_CHAT_PROPS.CHARTS ]
@@ -41,8 +47,8 @@ const CODE_PAUSES = [ AGENT_CHAT_PROPS.CODE_PAUSES, AGENT_CHAT_PROPS.MESSAGES, A
 // Rows a statement changed are counted and copied, a temporary change starts, is kept or undone, and an owner is asked
 // or answers, often long after the answer, so the chat is told to look. A confirmation waiting on an owner moves too.
 const SAFEGUARDS = [ AGENT_CHAT_PROPS.DATA_REPAIRS, AGENT_CHAT_PROPS.MITIGATIONS, AGENT_CHAT_PROPS.OWNER_ASKS, AGENT_CHAT_PROPS.CONFIRMATIONS ]
-// Something contradicted a memory while Halon worked, so the chat asks which is right.
-const MEMORY_QUESTIONS = [ AGENT_CHAT_PROPS.MEMORY_QUESTIONS ]
+// Something contradicted a memory while Halon worked, so the chat asks which is right, and an answer settles the card.
+export const MEMORY_QUESTIONS = [ AGENT_CHAT_PROPS.MEMORY_QUESTIONS ]
 // A plan moves with every step Halon takes, and Retry or Undo start a turn, so the chat looks again.
 const PLANS = [ AGENT_CHAT_PROPS.PLANS, AGENT_CHAT_PROPS.CONVERSATION ]
 // A workflow made here is published, runs, ends or is cancelled long after the answer, so the chat looks again.
@@ -51,16 +57,16 @@ const WORKFLOWS = [ AGENT_CHAT_PROPS.WORKFLOWS ]
 // arrive with them.
 const HELPERS = [ AGENT_CHAT_PROPS.HELPERS, AGENT_CHAT_PROPS.CHARTS ]
 // Something contradicted the handbook while Halon worked, or someone decided on its proposed edit.
-const HANDBOOK_PROPOSALS = [ AGENT_CHAT_PROPS.HANDBOOK_PROPOSALS ]
-// Halon proposed a skill while it worked.
-const SKILL_PROPOSALS = [ AGENT_CHAT_PROPS.SKILL_PROPOSALS ]
+export const HANDBOOK_PROPOSALS = [ AGENT_CHAT_PROPS.HANDBOOK_PROPOSALS ]
+// Halon proposed a skill while it worked, or someone decided on it.
+export const SKILL_PROPOSALS = [ AGENT_CHAT_PROPS.SKILL_PROPOSALS ]
 // Which model the chat runs on, and whether that model reads images.
 const CHAT_MODELS = [ AGENT_CHAT_PROPS.CHAT_MODELS, AGENT_CHAT_PROPS.ATTACHMENT_RULES ]
 const RUNS = [ AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION ]
 const ARCHIVED_COUNT = [ AGENT_CHAT_PROPS.ARCHIVED_COUNT ]
 const CONVERSATION = [ AGENT_CHAT_PROPS.CONVERSATION ]
 // Without preserveState Inertia remounts the page and the list loses its scroll.
-const IN_PLACE = { preserveScroll: true, preserveState: true }
+export const IN_PLACE = { preserveScroll: true, preserveState: true }
 
 // Opening a chat shows its composer at once and a skeleton where the conversation goes, which loads next. The
 // conversation is an ordinary visit, not a background one: Inertia drops a background response read ahead from another
@@ -103,15 +109,18 @@ export function startNewChat() {
 // back.
 // Files show on the message at once, an image from the copy the browser already holds, until the server's answer
 // replaces it. A model picked before a new chat's first question goes with it.
-export function ask(conversationId: string | null, question: string, attachments: AgentChatAttachment[] = [], previews: Record<string, string> = {},
-  model: string | null = null) {
+// Only what a question changes is read back. A new chat, or one whose conversation has not arrived yet, reads it whole,
+// since the question's visit takes the place of the one bringing the conversation.
+export function ask(conversationId: string | null, threadReady: boolean, question: string, attachments: AgentChatAttachment[] = [],
+  previews: Record<string, string> = {}, model: string | null = null) {
   const path = conversationId ? agentChatAskPath(conversationId) : agentChatsPath()
+  const reads = conversationId && threadReady ? READ_ASKED : READ_OPEN_CHAT
   const shown = attachments.map((attachment) => ({ ...attachment, url: previews[attachment.id] ?? attachment.url }))
   const picked = model ? { model } : {}
   router
     .optimistic<AgentPageProps>((props) => askedNow(props, question, shown))
     .post(path, { question, attachment_ids: attachments.map((attachment) => attachment.id), ...picked }, {
-      ...IN_PLACE, ...READ_OPEN_CHAT, onSuccess: placeOpenChat,
+      ...IN_PLACE, ...reads, onSuccess: placeOpenChat,
     })
 }
 
@@ -173,7 +182,7 @@ export function answerConfirmations(conversationId: string, answers: Confirmatio
   const decisions = answers.map((answer) => ({
     tool_call_id: answer.toolCallId, approved: answer.approved, for_chat: answer.forChat, expires: answer.expires,
   }))
-  router.post(agentChatConfirmPath(conversationId), { decisions }, { ...IN_PLACE, ...READ_OPEN_CHAT })
+  router.post(agentChatConfirmPath(conversationId), { decisions }, { ...IN_PLACE, ...READ_DECIDED })
 }
 
 // A run opens over the chat that started it, and only the run is loaded.

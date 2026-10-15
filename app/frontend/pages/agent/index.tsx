@@ -172,6 +172,7 @@ export default function AgentPage() {
             ) : (
               <Composer
                 conversationId={conversationId}
+                threadReady={threadReady}
                 incidents={incidents}
                 busy={stream.busy}
                 stopRequested={conversation?.stopRequested ?? false}
