@@ -55,6 +55,7 @@ class SignInMethodsTest < ApplicationSystemTestCase
     FeatureFlags.enable_globally!(FeatureFlags::SELF_SERVE_SIGNUP)
     store = Rack::Attack.cache.store
     Rack::Attack.cache.store = ActiveSupport::Cache::MemoryStore.new
+    sleep(60 - Time.now.sec) if Time.now.sec > 45
 
     6.times do
       visit login_path

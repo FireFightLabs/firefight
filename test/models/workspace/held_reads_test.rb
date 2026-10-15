@@ -47,13 +47,16 @@ class Workspace::HeldReadsTest < ActiveSupport::TestCase
   test "the model an override names is the purpose's own before the one for any purpose, read once while held" do
     @workspace.ai_model_overrides.create!(purpose: AiPurpose::ANY, model: "gpt-4o", provider: "openai")
     @workspace.ai_model_overrides.create!(purpose: AiPurpose::SUMMARY, model: "gpt-4o-mini", provider: "openai")
+    @workspace.ai_model_overrides.create!(purpose: AiPurpose::POSTMORTEM, model: "gpt-4.1", provider: "openai")
     @workspace.hold_reads!
 
     sent = ActiveRecord::Base.uncached do
       queries_sent do
         assert_equal "gpt-4o-mini", @workspace.ai_model_override_for(AiPurpose::SUMMARY).model
         assert_equal "gpt-4o", @workspace.ai_model_override_for(AiPurpose::INVESTIGATION).model
-        assert_equal "gpt-4o", @workspace.ai_model_override_for(AiPurpose::POSTMORTEM).model
+        assert_equal "gpt-4.1", @workspace.ai_model_override_for(AiPurpose::POSTMORTEM).model
+        assert @workspace.ai_model_override_named_for?(AiPurpose::SUMMARY)
+        assert_not @workspace.ai_model_override_named_for?(AiPurpose::INVESTIGATION)
       end
     end
 

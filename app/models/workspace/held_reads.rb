@@ -28,6 +28,11 @@ module Workspace::HeldReads
     overrides.select { |row| row.purpose == purpose || row.purpose == AiPurpose::ANY }.min_by { |row| row.purpose == purpose ? 0 : 1 }
   end
 
+  # Whether the workspace names a model for exactly this purpose, not counting an override for any purpose.
+  def ai_model_override_named_for?(purpose)
+    read_held(:ai_model_overrides) { AiModelOverride.where(workspace_id: id).to_a }.any? { |row| row.purpose == purpose }
+  end
+
   # The AI accounts that can pay, in the order they are tried.
   def usable_ai_accounts = read_held(:usable_ai_accounts) { workspace_ai_accounts.usable.to_a }
 end

@@ -240,7 +240,7 @@ module FirefightAi
 
   # Whether an override or the purpose's env var names its model, rather than a recommendation or its parent.
   def named_for?(purpose, workspace)
-    ENV["#{env_prefix(purpose)}_MODEL"].present? || (workspace.present? && workspace.ai_model_overrides.exists?(purpose: purpose))
+    ENV["#{env_prefix(purpose)}_MODEL"].present? || (workspace.present? && workspace.ai_model_override_named_for?(purpose))
   end
 
   # Points a saved chat at the choice, its model and the context holding its account's settings, so a chat resumed after
