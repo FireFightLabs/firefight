@@ -51,7 +51,7 @@ module Integrations
     def self.read_tool(tool, definition)
       return tool if definition.read_tool == tool.name
 
-      Integration::Tool.in_workspace(tool.integration.workspace).find_by(integration_id: tool.integration_id, name: definition.read_tool)
+      tool.integration.workspace.switched_on_tools.find { |each| each.integration_id == tool.integration_id && each.name == definition.read_tool }
     end
 
     # The count a counting read answered, or nil when the answer holds none.

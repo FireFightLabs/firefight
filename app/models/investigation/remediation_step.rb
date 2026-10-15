@@ -142,20 +142,17 @@ class Investigation::RemediationStep < ApplicationRecord
     read_for, tool = @action_tool
     return tool if read_for == workspace.id
 
-    slug, name = action_key.to_s.split(".", 2)
-    Integration::Tool.in_workspace(workspace).where(integrations: { slug: slug }, name: name, read_only: false).first
+    workspace.switched_on_tools.find { |tool| tool.action_key == action_key.to_s && !tool.read_only? }
   end
 
-  # The tools a fix's action steps run, for a whole fix in one query rather than one a step, which tool_to_run answers
+  # The tools a fix's action steps run, for a whole fix from the workspace's one list rather than a read a step, which tool_to_run answers
   # from in place of asking again.
   def self.preload_action_tools(steps, workspace)
     steps = steps.to_a
     keyed = steps.reject(&:pull_request?).select { |step| step.action_key.present? }
     return steps if keyed.empty?
 
-    pairs = keyed.map { |step| step.action_key.split(".", 2) }
-    found = Integration::Tool.in_workspace(workspace).where(integrations: { slug: pairs.map(&:first).uniq }, name: pairs.map(&:last).uniq, read_only: false)
-                             .index_by(&:action_key)
+    found = workspace.switched_on_tools.reject(&:read_only?).index_by(&:action_key)
     keyed.each { |step| step.action_tool = [ workspace.id, found[step.action_key] ] }
     steps
   end
@@ -410,8 +407,7 @@ class Investigation::RemediationStep < ApplicationRecord
     return workspace.code_fix_agent_tool if workspace.code_fix_agent.present?
 
     writers = self.class.code_writers
-    tools = Integration::Tool.in_workspace(workspace).where(integrations: { provider: writers.keys }, read_only: false).to_a
-                             .select { |tool| writers[tool.integration.provider] == tool.name }
+    tools = workspace.switched_on_tools.select { |tool| !tool.read_only? && writers[tool.integration.provider] == tool.name }
     seen = repository_holders(workspace)
     holders = tools.select { |tool| seen.include?(tool.integration_id) }
     holders.one? ? holders.first : (tools.first if tools.one?)
@@ -482,7 +478,7 @@ class Investigation::RemediationStep < ApplicationRecord
   private_class_method :action_of
 
   def self.runnable_tool(workspace, name, position)
-    tool = Integration::Tool.in_workspace(workspace).find { |each| each.model_facing_name == name }
+    tool = workspace.switched_on_tools.find { |each| each.model_facing_name == name }
     refuse(position, "names #{name.inspect}, which this workspace has not switched on. Make it a manual step and say what is missing") unless tool
     refuse(position, "names #{name}, which only reads. A fix has to change something") if tool.read_only
     unless tool.configured_for?({})

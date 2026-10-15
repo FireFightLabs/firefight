@@ -83,7 +83,8 @@ class AgentChatProgressBarTest < ApplicationSystemTestCase
     slow_server(SLOW)
 
     click_on "what changed in checkout", match: :first
-    assert_text "Nothing since Monday."
+    # Opening a chat is a visit and then its deferred thread, each held back by the slow server, so the wait covers both.
+    assert_text "Nothing since Monday.", wait: (SLOW * 2) + Capybara.default_max_wait_time
     assert_answered
 
     assert page.evaluate_script("window.progressShown"), "opening a chat showed no progress bar"

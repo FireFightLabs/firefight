@@ -46,6 +46,6 @@ module Chat::Tools::SkillTools
 
   # A provider's tools by the name the provider gives them, which its skills and their copies use.
   def provider_handles(workspace, provider)
-    Integration::Tool.in_workspace(workspace).where(integrations: { provider: provider }).map(&:name) + [ Chat::Tools::UseSkill::MAP ]
+    workspace.switched_on_tools.select { |tool| tool.integration.provider == provider }.map(&:name) + [ Chat::Tools::UseSkill::MAP ]
   end
 end

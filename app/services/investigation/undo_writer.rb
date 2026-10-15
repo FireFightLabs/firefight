@@ -26,7 +26,7 @@ class Investigation::UndoWriter
       FirefightAi::UndoWriter::Step.new(position: step.position, kind: step.kind, description: step.description, repository: step.repository,
                                         tool: step.tool_name, arguments: step.arguments.presence, result: step.result, undo: step.undo, status: step.status)
     end
-    tools = Integration::Tool.in_workspace(workspace).reject(&:read_only).map(&:model_facing_name)
+    tools = workspace.switched_on_tools.reject(&:read_only).map(&:model_facing_name)
     fix = FirefightAi::UndoWriter.new(workspace).write(steps, summary: @plan.summary, tools: tools, inferable: @plan.finding.investigation)
     undo = @plan.propose_undo!(fix)
     publish(undo)

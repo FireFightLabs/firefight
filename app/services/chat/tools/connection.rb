@@ -65,7 +65,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # The arguments match the tool's own schema, not an execute signature, so skip the base check.
   def call(tool_call: nil, **arguments)
     given = arguments.transform_keys(&:to_s)
-    return failed(tool_call&.id, gone) unless Integration::Tool.in_workspace(@agent_run.workspace).exists?(id: @tool.id)
+    return failed(tool_call&.id, gone) unless Integration::Tool.switched_on_in(@agent_run.workspace).exists?(id: @tool.id)
 
     reached = reached_row(given)
     refused = misdirection(given, reached) || Chat::Tools::Target.drift(@agent_run, tool_call&.id, Chat::Tools::Target.connection_label(@tool, given, reached: reached))

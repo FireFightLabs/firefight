@@ -8,7 +8,7 @@ class Conversation::TurnQueriesTest < ActiveSupport::TestCase
   PER_STEP = 49
   # Reading the connection tools or the skills whole. A check that one tool is still switched on, and the comparison of
   # connections before each model call, read less and are not counted.
-  WHOLE_READS = /AS t0_r0 .*FROM "integration_tools"|FROM "chat_custom_skills"|SELECT DISTINCT "integrations"."provider"/
+  WHOLE_READS = /AS t0_r0\b.*FROM "integration_tools"|FROM "chat_custom_skills"|SELECT DISTINCT "integrations"."provider"/
 
   setup do
     @workspace = workspaces(:slack_workspace_one)

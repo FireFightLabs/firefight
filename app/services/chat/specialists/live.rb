@@ -14,7 +14,7 @@ class Chat::Specialists::Live
     @views ||= begin
       principal = @turn.acting_principal
       resolved = principal && Chat::Tools.granted(@turn)
-      tools = Integration::Tool.in_workspace(@turn.workspace).to_a
+      tools = Chat::Tools.switched_on_tools(@turn)
       connected = @turn.workspace.integrations.active.to_a.group_by { |integration| Chat::Specialists.of_provider(integration.provider) }
       Chat::Specialists::DOMAINS.map do |domain|
         integrations = connected.fetch(domain.key, [])

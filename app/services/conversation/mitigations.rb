@@ -115,8 +115,9 @@ module Conversation::Mitigations
 
   # Every tool that changes something here, by the name Halon calls it, and the capabilities that change things.
   def self.undo_tools(workspace)
-    connected = Integration::Tool.in_workspace(workspace).reject(&:read_only).map(&:model_facing_name)
-    capabilities = Integrations::Capabilities.offered(workspace).filter_map { |spec, _tools| spec.tool_name if spec.writes }
+    tools = workspace.switched_on_tools
+    connected = tools.reject(&:read_only).map(&:model_facing_name)
+    capabilities = Integrations::Capabilities.offered(workspace, tools: tools).filter_map { |spec, _tools| spec.tool_name if spec.writes }
     connected + capabilities
   end
 
