@@ -49,6 +49,3 @@
 # Ignore Docker-related files
 /.dockerignore
 /Dockerfile*
-
-# Built into the image by bin/dump-schema-cache, never taken from a checkout.
-/db/*schema_cache.yml

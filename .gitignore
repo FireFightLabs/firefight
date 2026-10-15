@@ -77,6 +77,3 @@ CLAUDE.local.md
 
 # Working notes a local tool leaves behind, never part of the repo.
 /.audit/
-
-# Built into the image by bin/dump-schema-cache.
-/db/*schema_cache.yml

@@ -40,9 +40,9 @@ ENV RAILS_ENV="production" \
 # Throw-away build stage to reduce size of final image
 FROM base AS build
 
-# Install packages needed to build gems, and the Postgres the schema cache is read from (bin/dump-schema-cache)
+# Install packages needed to build gems
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y build-essential git libpq-dev libyaml-dev pkg-config postgresql-17 postgresql-17-pgvector && \
+    apt-get install --no-install-recommends -y build-essential git libpq-dev libyaml-dev pkg-config && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
 # Install application gems
@@ -84,10 +84,6 @@ RUN --mount=type=secret,id=git_token \
 # Precompile bootsnap code for faster boot times.
 # -j 1 disable parallel compilation to avoid a QEMU bug: https://github.com/rails/bootsnap/issues/495
 RUN bundle exec bootsnap precompile -j 1 app/ lib/
-
-# Ship each database's schema cache, read from the schema files in this build, so a process boots knowing every
-# table's columns rather than asking the database on its first requests.
-RUN ./bin/dump-schema-cache
 
 # Install frontend dependencies
 RUN npm install
