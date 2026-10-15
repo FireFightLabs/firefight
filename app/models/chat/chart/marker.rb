@@ -9,7 +9,11 @@ module Chat::Chart::Marker
   # The start of a marker still being written, which a stream holds back at the end of the words so far.
   ARRIVING = /[ \t]*`?\{(?:\{\s*(?:c(?:h(?:a(?:r(?:t(?::\s*[0-9a-f]{0,8}\s*\}?)?)?)?)?)?)?)?/i
 
-  NOTE = "Charts drawn for the person, each placed in your answer by its marker:".freeze
+  # Firefight's own words, in square brackets as the evidence rule says. The titles are the tool's words, so they are
+  # framed like the rest of its result.
+  NOTE = "[Charts drawn for the person. Each line below starts with the marker that places that chart in your answer, " \
+         "then the chart's title as the tool gave it.]".freeze
+  FRAMED_AS = "charts".freeze
 
   def self.for(chart) = "{{chart:#{chart.handle}}}"
 
@@ -25,6 +29,6 @@ module Chat::Chart::Marker
   def self.note(charts)
     return if charts.blank?
 
-    [ NOTE, *charts.map { |chart| "#{self.for(chart)} #{chart.title}" } ].join("\n")
+    "#{NOTE}\n#{FirefightAi::Evidence.frame(FRAMED_AS, charts.map { |chart| "#{self.for(chart)} #{chart.title}" }.join("\n"))}"
   end
 end

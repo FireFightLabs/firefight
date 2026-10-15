@@ -35,24 +35,27 @@ class Chat::Chart < ApplicationRecord
     yield posts
   end
 
-  # Keeps the charts in one tool result. A chart that cannot be read is left out, so a malformed result never fails the
-  # tool call it came with.
+  # Keeps the charts in one tool result. A chart that cannot be read is left out on its own, so a malformed one never
+  # fails the tool call it came with or loses the charts beside it.
   # Several answers to one call (connection: all) each add theirs after the ones already kept. Returns the charts kept.
   def self.record!(chat, tool_call_id, charts, step_position: nil)
     kept = chat.charts.where(tool_call_id: tool_call_id).count
-    Array(charts).each.with_index(kept).filter_map do |chart, index|
-      from = Time.zone.parse(chart["from"].to_s)
-      to = Time.zone.parse(chart["to"].to_s)
-      next if from.nil? || to.nil? || chart["title"].blank?
+    Array(charts).each.with_index(kept).filter_map { |chart, index| keep(chat, tool_call_id, chart, index, step_position) }
+  end
 
-      chat.charts.create!(
-        tool_call_id: tool_call_id, step_position: step_position, position: index, title: chart["title"].to_s.truncate(200), unit: chart["unit"].to_s.truncate(40),
-        range_start: from, range_end: to, series: Array(chart["series"]), summary: chart["summary"].to_s.truncate(2_000),
-        source_url: (chart["link"].to_s if chart["link"].to_s.start_with?("https://"))
-      )
-    end
+  def self.keep(chat, tool_call_id, chart, index, step_position)
+    from = Time.zone.parse(chart["from"].to_s)
+    to = Time.zone.parse(chart["to"].to_s)
+    return if from.nil? || to.nil? || chart["title"].blank?
+
+    chat.charts.create!(
+      tool_call_id: tool_call_id, step_position: step_position, position: index, title: chart["title"].to_s.truncate(200), unit: chart["unit"].to_s.truncate(40),
+      range_start: from, range_end: to, series: Array(chart["series"]), summary: chart["summary"].to_s.truncate(2_000),
+      source_url: (chart["link"].to_s if chart["link"].to_s.start_with?("https://"))
+    )
   rescue ArgumentError, ActiveRecord::RecordInvalid => error
     Rails.logger.warn({ event: "chat.chart_not_kept", chat_id: chat.id, error: error.message }.to_json)
-    []
+    nil
   end
+  private_class_method :keep
 end

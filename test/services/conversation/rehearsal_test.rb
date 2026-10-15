@@ -102,7 +102,7 @@ class Conversation::RehearsalTest < ActiveSupport::TestCase
 
     chart = replay.chat.charts.sole
     assert_equal "Memory of worker", chart.title
-    assert_equal "worker max 1.9 GB\n\n#{Chat::Chart::Marker::NOTE}\n{{chart:#{chart.handle}}} Memory of worker", replay.transcript.calls.sole.result
+    assert_equal "worker max 1.9 GB\n\n#{Chat::Chart::Marker.note([ chart ])}", replay.transcript.calls.sole.result
     assert_equal [ chart ], replay.transcript.unplaced_charts, "a reply that names no marker leaves the chart unplaced"
   end
 

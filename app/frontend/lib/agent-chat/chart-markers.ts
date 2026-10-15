@@ -25,7 +25,9 @@ interface PlacedText {
 
 // The start of a marker still arriving, at the very end of the words streamed so far.
 const PARTIAL = new RegExp(`(?:${CHART_MARKER_ARRIVING_PATTERN})$`, "i")
-const FENCE = /^ {0,3}(```|~~~)/
+// A fence opens with three or more backticks or tildes, and closes only on a run of the same character at least as
+// long with nothing after it, as CommonMark reads it.
+const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/
 
 function markers(): RegExp {
   return new RegExp(CHART_MARKER_PATTERN, "gi")
@@ -97,19 +99,24 @@ function segmentsOf(id: string, text: string, byHandle: Map<string, ChatChart>, 
   return segments
 }
 
+function closes(run: string, rest: string, opener: string): boolean {
+  return run[0] === opener[0] && run.length >= opener.length && rest.trim() === ""
+}
+
 // Where code blocks are, by character, so a marker shown as code stays code.
 function fencedRanges(text: string): [number, number][] {
   const ranges: [number, number][] = []
   let offset = 0
   let openedAt: number | null = null
+  let opener = ""
   for (const line of text.split("\n")) {
-    if (FENCE.test(line)) {
-      if (openedAt === null) {
-        openedAt = offset
-      } else {
-        ranges.push([ openedAt, offset + line.length ])
-        openedAt = null
-      }
+    const fence = FENCE.exec(line)
+    if (fence && openedAt === null) {
+      openedAt = offset
+      opener = fence[1]
+    } else if (fence && closes(fence[1], fence[2], opener) && openedAt !== null) {
+      ranges.push([ openedAt, offset + line.length ])
+      openedAt = null
     }
     offset += line.length + 1
   }

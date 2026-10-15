@@ -50,14 +50,26 @@ class Chat::Chart::MarkerTest < ActiveSupport::TestCase
     assert_empty Chat::Chart::Marker.handles_in(text)
   end
 
-  test "the note on a tool result names each chart's marker and title, and says nothing when nothing was drawn" do
+  test "the note on a tool result is Firefight's own line, with each marker and the tool's title for it framed as the tool's words" do
     web, job = record("Memory of web", "Memory of job")
 
     note = Chat::Chart::Marker.note([ web, job ])
 
-    assert_includes note, "{{chart:#{web.handle}}} Memory of web"
-    assert_includes note, "{{chart:#{job.handle}}} Memory of job"
+    assert_equal "#{Chat::Chart::Marker::NOTE}\n" \
+                 "#{FirefightAi::Evidence.frame(Chat::Chart::Marker::FRAMED_AS, "{{chart:#{web.handle}}} Memory of web\n{{chart:#{job.handle}}} Memory of job")}", note
+    assert_match(/\A\[.*\]\z/, Chat::Chart::Marker::NOTE, "Firefight's own words sit in square brackets, as the evidence rule says")
     assert_nil Chat::Chart::Marker.note([])
+  end
+
+  test "charts kept before one that cannot be read are still returned, so each still gets its marker" do
+    kept = Chat::Chart.record!(@chat, "call_1", [
+      { "title" => "Memory of web", "from" => @started.iso8601, "to" => (@started + 1.hour).iso8601, "series" => [] },
+      { "title" => "Memory of job", "from" => "2026-13-45T00:00:00Z", "to" => (@started + 1.hour).iso8601, "series" => [] },
+      { "title" => "CPU of web", "from" => @started.iso8601, "to" => (@started + 1.hour).iso8601, "series" => [] }
+    ])
+
+    assert_equal [ "Memory of web", "CPU of web" ], kept.map(&:title)
+    assert_equal kept, @chat.charts.in_order.to_a
   end
 
   private

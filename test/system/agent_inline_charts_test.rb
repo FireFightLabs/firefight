@@ -48,11 +48,11 @@ class AgentInlineChartsTest < ApplicationSystemTestCase
 
   test "a marker in a code block stays code" do
     web, = drawn("call_1", "Memory of web")
-    answered("Write it like this:\n\n```\n#{marker(web)}\n```")
+    answered("Write it like this:\n\n````\n```\n#{marker(web)}\n````\n\nAnd this:\n\n```\n~~~\n#{marker(web)}\n```")
 
     visit agent_chat_path(@conversation)
 
-    assert_selector "pre", text: marker(web)
+    assert_selector "pre", text: marker(web), count: 2
     assert_selector "figure", count: 1
   end
 

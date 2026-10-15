@@ -502,7 +502,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert_equal "call_7", kept.tool_call_id
     assert_equal @investigation.steps.sole.position, kept.step_position
     assert_equal "https://app.northflank.com/t/acme/project/p/services/web", kept.source_url
-    assert_includes said, "#{Chat::Chart::Marker::NOTE}\n{{chart:#{kept.handle}}} 5xx responses of web", "the model is told the marker that places the chart"
+    assert_includes said, Chat::Chart::Marker.note([ kept ]), "the model is told the marker that places the chart"
   end
 
   test "a tool that drew no chart says nothing about markers" do
