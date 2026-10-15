@@ -158,7 +158,21 @@ class Chat::CodeFixProgress
   def pause_blocked_reason(workspace_id, principal)
     return unless pause
 
-    CodeAgentSession::Pause.find_by(id: pause["id"], workspace_id: workspace_id)&.decide_blocked_reason(principal)
+    pause_record(workspace_id)&.decide_blocked_reason(principal)
+  end
+
+  # The questions and pauses many steps' changes name, read in one query each rather than once a step, which each step's
+  # question and pause answer from.
+  def self.preload_records(works, workspace_id)
+    works = works.compact
+    questions = CodeAgentQuestion.where(id: works.filter_map { |work| work.question&.dig("id") }, workspace_id: workspace_id).includes(:session).index_by { |row| row.id.to_s }
+    pauses = CodeAgentSession::Pause.where(id: works.filter_map { |work| work.pause&.dig("id") }, workspace_id: workspace_id).includes(:session).index_by { |row| row.id.to_s }
+    works.each { |work| work.records_read(workspace_id, questions, pauses) }
+  end
+
+  def records_read(workspace_id, questions, pauses)
+    (@question_records ||= {})[workspace_id] = questions[question["id"].to_s] if question
+    (@pause_records ||= {})[workspace_id] = pauses[pause["id"].to_s] if pause
   end
 
   # Only a check's name, how it went and what one that could not run was missing are kept, never what it printed, which
@@ -257,5 +271,10 @@ class Chat::CodeFixProgress
   def question_record(workspace_id)
     @question_records ||= {}
     @question_records.fetch(workspace_id) { @question_records[workspace_id] = CodeAgentQuestion.find_by(id: question["id"], workspace_id: workspace_id) }
+  end
+
+  def pause_record(workspace_id)
+    @pause_records ||= {}
+    @pause_records.fetch(workspace_id) { @pause_records[workspace_id] = CodeAgentSession::Pause.find_by(id: pause["id"], workspace_id: workspace_id) }
   end
 end

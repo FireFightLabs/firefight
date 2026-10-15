@@ -17,7 +17,7 @@ class InvestigationFindingSerializer < BaseSerializer
   end
 
   has_one :remediation_plan, as: :fix, serializer: InvestigationFixPlanSerializer, optional: true do
-    finding.remediation_plan
+    finding.remediation_plan&.preload_steps!
   end
 
   # How the team rated it, by outcome.

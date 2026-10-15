@@ -44,4 +44,20 @@ class CodeAgent::RequestTest < ActiveSupport::TestCase
     assert_includes request.asked_section, FirefightAi::Copy::QUOTING
     assert_includes request.asked_section, "> Never silently create another workspace"
   end
+
+  test "what a chat read before a code change is gathered in the same queries however many reads it made" do
+    reads = lambda do |count|
+      count.times do
+        key = "call_#{SecureRandom.hex(3)}"
+        @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "").ruby_llm_tool_calls.create!(tool_call_id: key, name: Mcp::Tools::GET_RESOURCE_MAP, arguments: {})
+        @chat.add_message(role: :tool, content: FirefightAi::Evidence.frame("get_resource_map", "release runs on tag push"), tool_call_id: key)
+      end
+    end
+    reads.call(2)
+    few = queries_sent { CodeAgent::ChatEvidence.for(@chat, Workspace.find(@workspace.id)) }
+    reads.call(10)
+    many = queries_sent { CodeAgent::ChatEvidence.for(@chat, Workspace.find(@workspace.id)) }
+
+    assert_same_queries few, many
+  end
 end

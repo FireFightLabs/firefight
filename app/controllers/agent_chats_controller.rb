@@ -169,7 +169,7 @@ class AgentChatsController < InertiaController
       PROP_OWNER_ASKS => in_thread { AgentChatOwnerAskSerializer.many(on_chat { |chat| window.placed(chat.owner_asks.shown, Chat::OwnerAsk.placed_at) }) },
       PROP_HELPERS => in_thread { AgentChatHelperSerializer.many(on_chat { |chat| window.stepped(chat.helpers.includes(:workspace, :own_chat)) }) },
       PROP_HANDBOOK_PROPOSALS => in_thread do
-        HandbookProposalSerializer.many(window.placed(conversation.handbook_proposals.includes(:instruction, :result, :decided_by).order(:created_at)))
+        HandbookProposalSerializer.many(Chat::HandbookProposal.preload_pages(window.placed(conversation.handbook_proposals.includes(:instruction, :result, :decided_by).order(:created_at))))
       end,
       PROP_SKILL_PROPOSALS => in_thread { HalonSkillProposalSerializer.many(skill_proposals_shown) },
       PROP_THEORIES => in_thread { ChatTheorySerializer.many(on_chat { |chat| window.stepped(chat.theories) }) }
@@ -470,7 +470,7 @@ class AgentChatsController < InertiaController
   end
 
   def watch_updates_shown
-    on_chat { |chat| window.placed(chat.watch_updates.on_their_own.includes(:watch).reorder(:created_at)) }
+    on_chat { |chat| window.placed(chat.watch_updates.on_their_own.includes(watch: :steps).reorder(:created_at)) }
   end
 
   def pull_request_notices_shown
@@ -485,7 +485,9 @@ class AgentChatsController < InertiaController
   end
 
   def pack_refusals_shown
-    on_chat { |chat| window.placed(chat.pack_refusals.includes(pack_request: [ { requester: :user }, :role ]).order(:created_at)) }
+    on_chat { |chat| window.placed(chat.pack_refusals.includes(pack_request: [ { requester: :user }, :role ]).order(:created_at)) }.to_a.tap do |refusals|
+      Ability::PackRequest.preload_holdings(refusals.map(&:pack_request))
+    end
   end
 
   def decide_mitigation
@@ -580,8 +582,12 @@ class AgentChatsController < InertiaController
     redirect_back_or_to agent_chat_path(conversation), notice: archived ? "Chat archived." : "Chat back in the list."
   end
 
+  # The list already read the open chat when it is on the page shown, with its chat and previews, so it is not read twice.
+  # Its chat answers for the workspace this request holds, whose memoized tools the page's steps read.
   def conversation
-    @conversation ||= own_chats.find(params[:id])
+    @conversation ||= (@chat_page_rows&.find { |row| row.id == params[:id] } || own_chats.find(params[:id])).tap do |found|
+      found.chat.workspace = current_workspace if found.chat&.workspace_id == current_workspace.id
+    end
   end
 
   def asked_in_url
@@ -615,8 +621,7 @@ class AgentChatsController < InertiaController
 
   # One row over a page says whether there is another, without a count.
   def chat_page_rows
-    @chat_page_rows ||= own_chats.includes(chat: [ :last_readable_message, :first_question ]).in_reading_order
-      .offset((chat_page_number - 1) * chats_per_page).limit(chats_per_page + 1).to_a
+    @chat_page_rows ||= Conversation.with_previews(own_chats.in_reading_order.offset((chat_page_number - 1) * chats_per_page).limit(chats_per_page + 1))
   end
 
   def chats_per_page = CHATS_PER_PAGE

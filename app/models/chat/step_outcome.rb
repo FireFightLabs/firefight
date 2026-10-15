@@ -43,13 +43,29 @@ class Chat::StepOutcome
   ERROR_NAME = /\A[A-Z]\w*: (?=\S)/
 
   # A chat's call, once it has an answer. A call still running, waiting or cancelled has none.
-  def self.for_call(call, chat)
+  # saved is what saved_texts read for many calls at once, else the call's own saved answer is read here.
+  def self.for_call(call, chat, saved: nil)
     result = call&.result
     return nil unless result
 
     text = body(result.content)
     kind = kind_of(failed: call.failed, failure_kind: call.failure_kind)
-    build(kind, saved_text(chat, text) || text)
+    build(kind, saved_text(chat, text, saved) || text)
+  end
+
+  # The whole answers these calls name as kept aside, for every chat in one query, by chat id and handle. calls is each
+  # chat's id to its calls.
+  def self.saved_texts(calls)
+    wanted = calls.flat_map { |chat_id, chat_calls| chat_calls.filter_map { |call| (handle = saved_handle(call)) && [ chat_id, handle ] } }
+    return {} if wanted.empty?
+
+    Chat::SavedResult.where(chat_id: wanted.map(&:first).uniq, handle: wanted.map(&:last).uniq)
+                     .pluck(:chat_id, :handle, :content).to_h { |chat_id, handle, content| [ [ chat_id, handle ], content ] }
+  end
+
+  def self.saved_handle(call)
+    content = call.result&.content
+    content && body(content).match(SAVED_AS)&.[](:handle)
   end
 
   # How a run's step went, without reading what it returned, or nil while it has not finished. A list of steps shows only this.
@@ -111,9 +127,11 @@ class Chat::StepOutcome
     text[opening.end(0)..].split(FRAME_CLOSING, 2).first.to_s
   end
 
-  def self.saved_text(chat, text)
+  def self.saved_text(chat, text, saved)
     handle = text.match(SAVED_AS)&.[](:handle)
-    handle && chat&.saved_results&.find_by(handle: handle)&.content
+    return unless handle && chat
+
+    saved ? saved[[ chat.id, handle ]] : chat.saved_results.find_by(handle: handle)&.content
   end
-  private_class_method :build, :first_lines, :said, :body, :saved_text
+  private_class_method :build, :first_lines, :said, :body, :saved_text, :saved_handle
 end

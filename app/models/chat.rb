@@ -52,23 +52,37 @@ class Chat < ApplicationRecord
   RESULT_SHARE = 0.10
   CHARACTERS_PER_TOKEN = 4
 
-  # DISTINCT ON keeps one row per chat, so previews for a whole list load in one query.
-  has_one :last_readable_message,
-    -> {
-      where(role: Chat::Message::READABLE_ROLES, nudge: false)
-        .select("DISTINCT ON (chat_messages.chat_id) chat_messages.*")
-        .order("chat_messages.chat_id, chat_messages.created_at DESC")
-    },
-    class_name: "Chat::Message", inverse_of: false
+  # A list of chats reads these through preload_previews, which takes one row per chat from its index rather than every
+  # message of every chat.
+  has_one :last_readable_message, -> { where(role: Chat::Message::READABLE_ROLES, nudge: false).order(created_at: :desc) },
+          class_name: "Chat::Message", inverse_of: false
 
-  # The first thing the person asked, which a chat's title is taken from. Loaded the same way, one row per chat.
-  has_one :first_question,
-    -> {
-      where(role: Chat::Message::ROLE_USER, nudge: false)
-        .select("DISTINCT ON (chat_messages.chat_id) chat_messages.*")
-        .order("chat_messages.chat_id, chat_messages.created_at")
-    },
-    class_name: "Chat::Message", inverse_of: false
+  # The first thing the person asked, which a chat's title is taken from.
+  has_one :first_question, -> { where(role: Chat::Message::ROLE_USER, nudge: false).order(:created_at) },
+          class_name: "Chat::Message", inverse_of: false
+
+  PREVIEWS = %i[last_readable_message first_question].freeze
+
+  # What only a turn reads, Chat::Tools::Changes's note of each connection's tools, which is large and never listed.
+  TURN_ONLY_COLUMNS = %w[connections_seen].freeze
+
+  scope :listed, -> { select(column_names - TURN_ONLY_COLUMNS) }
+
+  # Each chat's newest readable message and first question, one query each for the whole list. Each chat's row is read
+  # from its end of the (chat_id, created_at) index, so a long chat costs no more than a short one.
+  def self.preload_previews(chats)
+    chats = chats.compact
+    return chats if chats.empty?
+
+    listed = sanitize_sql_array([ "unnest(ARRAY[?]::uuid[]) AS listed(id)", chats.map(&:id) ])
+    PREVIEWS.each do |name|
+      reflection = reflect_on_association(name)
+      newest = reflection.klass.all.instance_exec(&reflection.scope).where("chat_messages.chat_id = listed.id").limit(1)
+      found = reflection.klass.from("#{listed} CROSS JOIN LATERAL (#{newest.to_sql}) AS chat_messages").index_by(&:chat_id)
+      chats.each { |chat| chat.association(name).target = found[chat.id] }
+    end
+    chats
+  end
 
   validate :owner_in_same_workspace
 

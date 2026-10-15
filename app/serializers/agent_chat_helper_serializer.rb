@@ -39,6 +39,7 @@ class AgentChatHelperSerializer < BaseSerializer
     return [] unless chat
 
     calls = chat.tool_calls.includes(:result).order(:created_at).to_a
+    saved = Chat::StepOutcome.saved_texts(chat.id => calls)
     calls.filter_map do |call|
       step = Chat::Tools.step(call.name, call.arguments, workspace: helper.workspace)
       next unless step
@@ -47,7 +48,7 @@ class AgentChatHelperSerializer < BaseSerializer
       # A helper that ended while a call was open will never hear back from it.
       status = Conversation::LiveDelivery::STATUS_CANCELLED if status == Conversation::LiveDelivery::STATUS_RUNNING && !helper.running?
       { key: call.tool_call_id, title: step.title, headline: step.headline, asked: step.asked, status: status,
-        outcome: (Chat::StepOutcome.for_call(call, chat)&.to_h if AgentChatMessageSerializer::FINISHED.include?(status)) }
+        outcome: (Chat::StepOutcome.for_call(call, chat, saved: saved)&.to_h if AgentChatMessageSerializer::FINISHED.include?(status)) }
     end
   end
 end

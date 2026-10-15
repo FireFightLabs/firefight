@@ -36,6 +36,11 @@ class AgentChatMessageSerializer < BaseSerializer
 
     def said_as(message) = said_as_by_message[message.id]
 
+    # The whole answers this page's steps name as kept aside, by chat id and handle (Chat::StepOutcome.saved_texts).
+    def saved
+      @saved ||= Chat::StepOutcome.saved_texts(@messages.group_by(&:chat_id).transform_values { |messages| messages.flat_map(&:ruby_llm_tool_calls) })
+    end
+
     def self.reply?(message) = message.role == Chat::Message::ROLE_ASSISTANT && message.content.present? && message.ruby_llm_tool_calls.empty?
 
     private
@@ -53,9 +58,11 @@ class AgentChatMessageSerializer < BaseSerializer
         {}
       else
         workspace_of = @messages.to_h { |message| [ message.chat_id, message.chat.workspace_id ] }
-        Chat::StepProgress.where(chat_id: chat_ids, tool_call_id: keys).to_h do |kept|
-          [ [ kept.chat_id, kept.tool_call_id ], kept.work&.with_current_question(workspace_of[kept.chat_id]) ]
+        read = Chat::StepProgress.where(chat_id: chat_ids, tool_call_id: keys).to_h { |kept| [ [ kept.chat_id, kept.tool_call_id ], kept.work ] }
+        read.group_by { |(chat_id, _key), _work| workspace_of[chat_id] }.each do |workspace_id, works|
+          Chat::CodeFixProgress.preload_records(works.map(&:last), workspace_id)
         end
+        read.to_h { |(chat_id, key), work| [ [ chat_id, key ], work&.with_current_question(workspace_of[chat_id]) ] }
       end
     end
 
@@ -131,7 +138,7 @@ class AgentChatMessageSerializer < BaseSerializer
         status: status, kind: Chat::Tools.kind(call.name, workspace, call.arguments), source: step.source,
         seconds: self.class.step_seconds(call, message, last: call == calls.last),
         card: (card_for(step, call)&.to_h if status == Conversation::LiveDelivery::STATUS_DONE || step.card&.shown_while_running?),
-        outcome: (Chat::StepOutcome.for_call(call, chat)&.to_h if FINISHED.include?(status)),
+        outcome: (Chat::StepOutcome.for_call(call, chat, saved: page.saved)&.to_h if FINISHED.include?(status)),
         progress: works[call.tool_call_id]&.to_h,
         questionBlockedReason: works[call.tool_call_id]&.question_blocked_reason(chat.workspace_id, options[:member]),
         questionChangeBlockedReason: works[call.tool_call_id]&.question_change_blocked_reason(chat.workspace_id, options[:member]),

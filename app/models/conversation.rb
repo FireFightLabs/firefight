@@ -173,10 +173,18 @@ class Conversation < ApplicationRecord
     wanted = text.to_s.strip.downcase
     return [] if wanted.empty?
 
-    chats = own_for(member).includes(chat: [ :last_readable_message, :first_question ]).in_reading_order.to_a
+    chats = with_previews(own_for(member).in_reading_order)
     said = chats.flat_map { |conversation| [ conversation.title_question, conversation.preview_question ] }.compact.uniq
     read = shown && said.any? ? shown.call(said) : {}
     chats.select { |conversation| conversation.searched_text(read).downcase.include?(wanted) }.first(limit)
+  end
+
+  # Conversations as a list shows them, each with its chat as listed and that chat's previews (Chat.preload_previews).
+  def self.with_previews(conversations)
+    conversations = conversations.to_a
+    ActiveRecord::Associations::Preloader.new(records: conversations, associations: :chat, scope: Chat.listed).call
+    Chat.preload_previews(conversations.map(&:chat))
+    conversations
   end
 
   def personal? = kind == KIND_PERSONAL

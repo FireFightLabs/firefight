@@ -33,7 +33,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # change that names no read from this turn (Chat::Tools::LookFirst).
   def approval_resolver
     Chat::Tools::Target.resolver(@agent_run) do |given, tool_call|
-      reads?(given) || misdirection(given).present? || unsupported(given, tool_call&.id).present? ||
+      reads?(given) || misdirection(given, reached_row(given)).present? || unsupported(given, tool_call&.id).present? ||
         (data_writes? && runs_unasked?(given, tool_call)) || (stops? && stops_unasked?(given, tool_call))
     end
   end
@@ -67,7 +67,8 @@ class Chat::Tools::Connection < RubyLLM::Tool
     given = arguments.transform_keys(&:to_s)
     return failed(tool_call&.id, gone) unless Integration::Tool.in_workspace(@agent_run.workspace).exists?(id: @tool.id)
 
-    refused = misdirection(given) || Chat::Tools::Target.drift(@agent_run, tool_call&.id, Chat::Tools::Target.connection_label(@tool, given))
+    reached = reached_row(given)
+    refused = misdirection(given, reached) || Chat::Tools::Target.drift(@agent_run, tool_call&.id, Chat::Tools::Target.connection_label(@tool, given, reached: reached))
     return failed(tool_call&.id, refused) if refused
 
     unbacked = unsupported(given, tool_call&.id)
@@ -102,15 +103,24 @@ class Chat::Tools::Connection < RubyLLM::Tool
     Chat::Tools::LookFirst.refusal(@agent_run, given, tool_call_id: tool_call_id, change: name)
   end
 
-  def misdirection(given)
+  def misdirection(given, reached)
     Chat::Tools::Target.misdirection(@tool.integration, Chat::Tools.words_for_person(given), called: name) do |other|
       Chat::Tools::Target.reach_instead(other, @tool.name)
-    end || scope_misdirection(given)
+    end || scope_misdirection(given, reached)
+  end
+
+  # The environment row a call's arguments reach, resolved once for the checks before it runs, which each need it. A
+  # lambda that raises Integration::UnknownEnvironment, as resolving does, for arguments naming an environment it lacks.
+  def reached_row(given)
+    row = Chat::Tools::Target.environment_row_of(@tool, given)
+    -> { row }
+  rescue Integration::UnknownEnvironment => unknown
+    -> { raise unknown }
   end
 
   # Words naming another scope of this same connection than the one the call reaches, such as another project.
-  def scope_misdirection(given)
-    environment_row = Chat::Tools::Target.environment_row_of(@tool, given)
+  def scope_misdirection(given, reached)
+    environment_row = reached.call
     scope = Integrations::Scopes.of_call(environment_row, given)
     Chat::Tools::Target.scope_misdirection(environment_row, scope, Chat::Tools.words_for_person(given), called: name) do |named, field|
       "To reach #{field.one} #{named}, call #{name} again with #{field.key} #{named}."
@@ -209,7 +219,8 @@ class Chat::Tools::Connection < RubyLLM::Tool
     scope = environment_entry ? { "environment" => environment_entry.id } : {}
     # The project or workspace a call reaches is named before it is authorized, so the step, the activity log and an
     # approval say where it goes.
-    arguments = Integrations::Scopes.resolved(@tool.integration.resolve_environment(environment_entry&.id), arguments)
+    reached = @tool.integration.resolve_environment(environment_entry&.id)
+    arguments = Integrations::Scopes.resolved(reached, arguments)
     arguments = Integrations::Replicas.primary_first(@tool, arguments)
     result = nil
     environment_row = nil
@@ -222,7 +233,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
       next refused_by_rule!(tool_call_id, authorization, refusal) if refusal
 
       integration = @tool.integration
-      environment_row = integration.resolve_environment(environment_entry&.id)
+      environment_row = reached
       result = begin
         integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments, box_key: @agent_run.code_box_key,
                                   progress: progress_reporter(tool_call_id), request: code_request(tool_call_id),

@@ -57,7 +57,7 @@ class InvestigationRemediationPlanSerializer < BaseSerializer
   def undo_error = plan.undo_error
 
   has_many :steps, serializer: InvestigationRemediationStepSerializer do
-    plan.steps.includes(:invocation, :done_by)
+    plan.preload_steps!.steps
   end
 
   # Whether a step is running or about to, which is when the run page keeps itself current.

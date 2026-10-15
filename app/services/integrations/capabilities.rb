@@ -203,13 +203,19 @@ module Integrations
     end
 
     # The connections that could answer a capability, as an agent names them: the slug, then the environment's slug
-    # when one connection is wired to several.
-    def self.connections(tools)
-      tools.map(&:integration).uniq.flat_map do |integration|
-        rows = integration.integration_environments.enabled.includes(:environment).to_a
+    # when one connection is wired to several. enabled is each connection's switched on rows by its id, when the caller
+    # read them already, else they are read here for every connection at once.
+    def self.connections(tools, enabled = nil)
+      integrations = tools.map(&:integration).uniq
+      enabled ||= enabled_rows(IntegrationEnvironment.where(integration_id: integrations.map(&:id)))
+      integrations.flat_map do |integration|
+        rows = enabled.fetch(integration.id, [])
         rows.map { |row| connection_label(row, enabled: rows.size) }
       end.uniq
     end
+
+    # The switched on rows of these, with what a label reads, by connection.
+    def self.enabled_rows(scope) = scope.enabled.includes(:environment, :integration).group_by(&:integration_id)
 
     # The connections an agent may name for a capability, which are every one whose provider answers it, its tools switched on or
     # not, so a connection that holds the resource is never missing from the choice. Asking one whose tool is off answers
@@ -219,8 +225,8 @@ module Integrations
                                    .order("integrations.created_at").to_a
       answering = rows.select { |row| adapter_for(row.integration.provider)&.capabilities.to_a.include?(spec.key) }
       # The same query for every capability, so a turn sizing every capability's schema sends it once.
-      enabled = IntegrationEnvironment.enabled.joins(:integration).where(integrations: { workspace_id: workspace.id }).group(:integration_id).count
-      (connections(tools) + answering.map { |row| connection_label(row, enabled: enabled[row.integration_id].to_i) }).uniq
+      enabled = enabled_rows(IntegrationEnvironment.joins(:integration).where(integrations: { workspace_id: workspace.id }))
+      (connections(tools, enabled) + answering.map { |row| connection_label(row, enabled: enabled.fetch(row.integration_id, []).size) }).uniq
     end
 
     # enabled is how many of the connection's rows are switched on, when the caller already read them.

@@ -570,16 +570,46 @@ module Chat::Tools
     end
   end
 
-  # A chat's turn holds one while its runner gets it ready (Conversation::Turn#catalog).
+  # The parts a turn keeps of what it reads, built from the same version (Conversation::Turn#catalog).
+  CATALOG_ENTRIES = :entries
+  CATALOG_TOOLS = :tools
+  CATALOG_SKILLS = :skills
+
+  # A chat's turn reads one for the whole turn (Conversation::Turn#catalog).
   def self.catalog(agent_run)
     return build_catalog(agent_run) unless agent_run.is_a?(Conversation::Turn)
 
-    agent_run.catalog { build_catalog(agent_run) }
+    agent_run.catalog(catalog_version(agent_run), CATALOG_ENTRIES) { build_catalog(agent_run) }
+  end
+
+  # The workspace's switched on tools the catalogue is built from, for a turn the same list its catalogue holds.
+  def self.switched_on_tools(agent_run)
+    return Integration::Tool.in_workspace(agent_run.workspace).to_a unless agent_run.is_a?(Conversation::Turn)
+
+    agent_run.catalog(catalog_version(agent_run), CATALOG_TOOLS) { Integration::Tool.in_workspace(agent_run.workspace).to_a }
+  end
+
+  # The skills a turn's reminders name, read with its catalogue and again only when it is.
+  def self.skills(agent_run)
+    return Chat::Skill.available_to(agent_run.workspace) unless agent_run.is_a?(Conversation::Turn)
+
+    agent_run.catalog(catalog_version(agent_run), CATALOG_SKILLS) { Chat::Skill.available_to(agent_run.workspace) }
+  end
+
+  # What a turn's catalogue is built from: the workspace's connections, abilities and skills, the principal's grants as
+  # resolved, and which of Firefight's own tools the workspace is offered. A block, so a held catalogue never reads it.
+  def self.catalog_version(agent_run)
+    lambda do
+      workspace = agent_run.workspace
+      principal = agent_run.acting_principal
+      [ workspace.reach_version(principal), (granted(agent_run) if principal), Mcp::Tools.available_in(workspace).map(&:name_value),
+        Chat::CustomSkill.enabled_for?(workspace) ]
+    end
   end
 
   # The workspace's tools and the principal's grants are read once, since both lists need them.
   def self.build_catalog(agent_run)
-    tools = Integration::Tool.in_workspace(agent_run.workspace).to_a
+    tools = switched_on_tools(agent_run)
     resolved = agent_run.acting_principal && granted(agent_run)
     firefight_entries(agent_run, resolved: resolved) + capability_entries(agent_run, tools: tools, resolved: resolved) +
       connection_entries(agent_run, tools: tools, resolved: resolved)

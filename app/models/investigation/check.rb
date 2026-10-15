@@ -106,7 +106,7 @@ class Investigation::Check < ApplicationRecord
   # A person asked for it now. The schedule stays as it is.
   def run_now_blocked_reason
     return "#{name} #{NOT_DUE}" unless enabled?
-    return "#{name} #{ALREADY_RUNNING}" if investigations.live.exists?
+    return "#{name} #{ALREADY_RUNNING}" if running?
 
     Investigation.start_refusal(workspace)
   end
@@ -123,7 +123,24 @@ class Investigation::Check < ApplicationRecord
     "Halon ran #{name} #{usage_count} #{'time'.pluralize(usage_count)}, and those runs stay readable. Disable it instead."
   end
 
-  def last_run = investigations.seen.order(created_at: :desc).first
+  def last_run = defined?(@last_run) ? @last_run : investigations.seen.order(created_at: :desc).first
+
+  def running? = defined?(@running) ? @running : investigations.live.exists?
+
+  # Reads every check's latest run with its finding and which checks have a run going, in one query each, so a page of
+  # checks costs the same as one.
+  def self.preload_runs(checks)
+    ids = checks.map(&:id)
+    latest = Investigation.seen.where(subject_type: polymorphic_name, subject_id: ids).includes(:finding)
+                          .select("DISTINCT ON (investigations.subject_id) investigations.*").order(:subject_id, created_at: :desc).index_by(&:subject_id)
+    running = Investigation.live.where(subject_type: polymorphic_name, subject_id: ids).distinct.pluck(:subject_id).to_set
+    checks.each { |check| check.remember_runs(latest[check.id], running.include?(check.id)) }
+  end
+
+  def remember_runs(last_run, running)
+    @last_run = last_run
+    @running = running
+  end
 
   # The skill a check described only by its notes follows, the monitoring playbook.
   CUSTOM_SKILL = "monitoring".freeze

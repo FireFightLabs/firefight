@@ -23,10 +23,10 @@ module Chat::Tools::Target
   end
 
   # The connection a call through its tool reaches, with the one scope it reaches when the connection reaches several,
-  # such as "Production (Hosting), project shop".
-  def self.connection_label(tool, given)
+  # such as "Production (Hosting), project shop". reached answers the environment row when the caller resolved it already.
+  def self.connection_label(tool, given, reached: -> { environment_row_of(tool, given) })
     integration = tool.integration
-    environment_row = environment_row_of(tool, given)
+    environment_row = reached.call
     integration.target_label(environment_row, scope: Integrations::Scopes.of_call(environment_row, given))
   rescue Integration::UnknownEnvironment
     integration.target_label
