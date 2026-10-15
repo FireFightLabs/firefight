@@ -147,7 +147,7 @@ module Conversation::HeldCalls
   end
 
   def self.run_call(turn, held, approval)
-    tool = Integration::Tool.in_workspace(held.workspace).find { |each| each.action_key == approval.action_key }
+    tool = Integration::Tool.by_action_key(held.workspace, approval.action_key)
     if tool
       environment_entry = held.workspace.catalog_entries.find_by(id: approval.scope["environment"]) if approval.scope["environment"]
       return Chat::Tools::Connection.new(turn, tool).run(approval.params, environment_entry: environment_entry, tool_call_id: nil,
@@ -227,7 +227,7 @@ module Conversation::HeldCalls
   end
 
   def self.call_name(held)
-    tool = Chat::Tools::Target.connection_tool(held.workspace, held.tool_name)
+    tool = Chat::Tools::Target.label(held.workspace, held.tool_name)
     (tool ? tool.name : held.tool_name).to_s.tr("_.", "  ").humanize
   end
 

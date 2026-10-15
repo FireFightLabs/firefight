@@ -22,7 +22,7 @@ class HandbookController < InertiaController
       pages: HandbookPageSerializer.many(pages, read_whole: Chat::HandbookPage.for_halon(current_workspace).whole.map(&:id)),
       suggestions: HandbookSuggestionSerializer.many(Chat::HandbookPage::SUGGESTIONS),
       directingRole: Chat::HandbookPage.directing_role(current_workspace)&.name,
-      proposals: HandbookProposalSerializer.many(proposals.pending.newest_first.includes(:handbook_page, :conversation, :incident, :investigation)),
+      proposals: HandbookProposalSerializer.many(Chat::HandbookProposal.preload_pages(proposals.pending.newest_first.includes(:conversation, :incident, :investigation))),
       sources: HandbookSourceSerializer.many(current_workspace_sources),
       roles: HandbookRoleSerializer.many(current_workspace.incident_roles.active.ordered),
       timeZones: Workspace::FreezeWindows.time_zones,

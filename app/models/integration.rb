@@ -118,7 +118,9 @@ class Integration < ApplicationRecord
 
   # How a person tells this connection from another one to the same provider, by the name it was given and the
   # provider's, such as "Faylee (Northflank)". A connection named after its provider is that name alone.
-  def display_name
+  def display_name = self.class.display_name_for(name, provider)
+
+  def self.display_name_for(name, provider)
     provider_name = IntegrationProvider.find(provider)&.name
     return name if provider_name.blank? || provider_name.casecmp?(name.to_s.strip)
 

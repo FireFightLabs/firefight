@@ -40,4 +40,24 @@ class HalonCheckSweepJobTest < ActiveJob::TestCase
     assert_empty @check.investigations
     assert_equal Time.utc(2026, 10, 11, 9, 0), @check.reload.next_run_at
   end
+
+  test "a sweep reads each workspace, its model and its AI account once, however many of its checks are due" do
+    workspace_reads = lambda do |count|
+      travel_to(Time.utc(2026, 10, 10, 6, 0)) { count.times { |index| due_check("Disks #{index} #{SecureRandom.hex(2)}") } }
+      sent = travel_to(Time.utc(2026, 10, 10, 9, 2)) { queries_sent { HalonCheckSweepJob.perform_now(Time.utc(2026, 10, 11, 9, 2)) } }
+      sent.grep(/FROM "(workspaces|ai_model_overrides|workspace_ai_accounts)"/)
+    end
+
+    few = workspace_reads.call(1)
+    many = workspace_reads.call(6)
+
+    assert_equal few.size, many.size, repeated_queries(many)
+    assert_equal 8, @workspace.investigation_checks.sum { |check| check.investigations.count }
+  end
+
+  private
+
+  def due_check(name)
+    @workspace.investigation_checks.create!(name: name, kind: Investigation::Check::KIND_DISK, cadence: Investigation::Check::CADENCE_DAILY, hour: 9, time_zone: "UTC")
+  end
 end

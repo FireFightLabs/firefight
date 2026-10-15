@@ -120,7 +120,7 @@ module Chat::Tools::Provenance
     return COMMAND if name == Chat::Tools::Terminal::NAME
     return skill_from(arguments) if name == Chat::Tools::UseSkill.tool_name
 
-    tool = workspace && Chat::Tools::Target.connection_tool(workspace, name)
+    tool = workspace && Chat::Tools::Target.label(workspace, name)
     return "an answer from #{tool.integration.display_name}" if tool
 
     "the result of #{Chat::Tools.title_for(name, nil).downcase_first}"

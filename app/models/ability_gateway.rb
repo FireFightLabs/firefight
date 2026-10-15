@@ -171,12 +171,13 @@ class AbilityGateway
 
   # params is the call itself, which matters only for a tool that both reads and changes. A call it shows to read is a
   # read of its connection, held by default like any read and granted with the connection's read pack. A person a
-  # workflow's Approval step names may decide that request, named in the scope, and only that one.
-  def self.permitted?(principal, action, action_key, workspace, scope, params: nil, resolved: nil)
+  # workflow's Approval step names may decide that request, named in the scope, and only that one. approval is that
+  # request when the caller already read it.
+  def self.permitted?(principal, action, action_key, workspace, scope, params: nil, resolved: nil, approval: nil)
     return false unless action
     return true if Ability::Action.open?(action_key)
     return true if principal.implicitly_allowed?(action, resolved)
-    return true if Ability::Approval.decides_by_name?(principal, action_key, scope, workspace)
+    return true if Ability::Approval.decides_by_name?(principal, action_key, scope, workspace, loaded: approval)
 
     resolved ||= Ability::Resolver.resolve(principal, workspace)
     return !resolved.reach(action_key).nil? if Ability::Action.filtered?(action_key) && scope.blank?

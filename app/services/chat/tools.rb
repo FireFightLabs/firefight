@@ -80,7 +80,7 @@ module Chat::Tools
   end
 
   def self.guarded_read?(workspace, name, arguments)
-    tool = arguments && Target.connection_tool(workspace, name)
+    tool = arguments && Target.label(workspace, name)
     tool.present? && Integrations::ReadGuards.reads?(tool, arguments)
   end
 
@@ -254,7 +254,7 @@ module Chat::Tools
   end
 
   def self.source_for(tool_name, workspace)
-    integration = workspace && Target.connection_tool(workspace, tool_name)&.integration
+    integration = workspace && Target.label(workspace, tool_name)&.integration
     integration && (IntegrationProvider.find(integration.provider)&.name || integration.name)
   end
 
@@ -345,7 +345,7 @@ module Chat::Tools
     return unless workspace && mitigation&.proposed?
     return Integrations::Mitigations::SCALES_BACK if mitigation.tool_name == Integrations::Capabilities.spec(Integrations::Capabilities::SCALE).tool_name
 
-    tool = workspace.connection_tools_by_name[mitigation.tool_name.to_s]
+    tool = Target.label(workspace, mitigation.tool_name)
     tool && Integrations::Mitigations.undo_words(tool, mitigation.arguments)
   end
 
@@ -398,12 +398,13 @@ module Chat::Tools
   # A call that names one project or workspace of a connection that reaches several reads with it, as "Api request ·
   # Production (Hosting), project acme".
   def self.title_for(tool_name, workspace, arguments = {})
-    tool = workspace && Target.connection_tool(workspace, tool_name)
+    tool = workspace && Target.label(workspace, tool_name)
     return tool_name.to_s.tr("_", " ").humanize unless tool
 
     key = IntegrationProvider.find(tool.integration.provider)&.scope_field&.key
     scope = key && arguments[key].presence
-    "#{tool.name.tr('_.', '  ').humanize} · #{scope.is_a?(String) ? tool.integration.target_label(scope: scope) : tool.integration.display_name}"
+    connection = scope.is_a?(String) ? workspace.labelled_connection(tool.integration.id).target_label(scope: scope) : tool.integration.display_name
+    "#{tool.name.tr('_.', '  ').humanize} · #{connection}"
   end
 
   # A runbook's run, and a workflow made or run, are confirmed as the steps they will take, read from what they are
@@ -433,7 +434,7 @@ module Chat::Tools
 
   def self.call_title(tool_call)
     workspace = tool_call.message&.chat&.workspace
-    tool = workspace && Target.connection_tool(workspace, tool_call.name)
+    tool = workspace && Target.label(workspace, tool_call.name)
     (tool ? tool.name : tool_call.name).to_s.tr("_.", "  ").humanize
   end
 
@@ -570,16 +571,46 @@ module Chat::Tools
     end
   end
 
-  # A chat's turn holds one while its runner gets it ready (Conversation::Turn#catalog).
+  # The parts a turn keeps of what it reads, built from the same version (Conversation::Turn#catalog).
+  CATALOG_ENTRIES = :entries
+  CATALOG_TOOLS = :tools
+  CATALOG_SKILLS = :skills
+
+  # A chat's turn reads one for the whole turn (Conversation::Turn#catalog).
   def self.catalog(agent_run)
     return build_catalog(agent_run) unless agent_run.is_a?(Conversation::Turn)
 
-    agent_run.catalog { build_catalog(agent_run) }
+    agent_run.catalog(catalog_version(agent_run), CATALOG_ENTRIES) { build_catalog(agent_run) }
+  end
+
+  # The workspace's switched on tools the catalogue is built from, for a turn the same list its catalogue holds.
+  def self.switched_on_tools(agent_run)
+    return Integration::Tool.in_workspace(agent_run.workspace).to_a unless agent_run.is_a?(Conversation::Turn)
+
+    agent_run.catalog(catalog_version(agent_run), CATALOG_TOOLS) { Integration::Tool.in_workspace(agent_run.workspace).to_a }
+  end
+
+  # The skills a turn's reminders name, read with its catalogue and again only when it is.
+  def self.skills(agent_run)
+    return Chat::Skill.available_to(agent_run.workspace) unless agent_run.is_a?(Conversation::Turn)
+
+    agent_run.catalog(catalog_version(agent_run), CATALOG_SKILLS) { Chat::Skill.available_to(agent_run.workspace) }
+  end
+
+  # What a turn's catalogue is built from: the workspace's connections, abilities and skills, the principal's grants as
+  # resolved, and which of Firefight's own tools the workspace is offered. A block, so a held catalogue never reads it.
+  def self.catalog_version(agent_run)
+    lambda do
+      workspace = agent_run.workspace
+      principal = agent_run.acting_principal
+      [ workspace.reach_version(principal), (granted(agent_run) if principal), Mcp::Tools.available_in(workspace).map(&:name_value),
+        Chat::CustomSkill.enabled_for?(workspace) ]
+    end
   end
 
   # The workspace's tools and the principal's grants are read once, since both lists need them.
   def self.build_catalog(agent_run)
-    tools = Integration::Tool.in_workspace(agent_run.workspace).to_a
+    tools = switched_on_tools(agent_run)
     resolved = agent_run.acting_principal && granted(agent_run)
     firefight_entries(agent_run, resolved: resolved) + capability_entries(agent_run, tools: tools, resolved: resolved) +
       connection_entries(agent_run, tools: tools, resolved: resolved)

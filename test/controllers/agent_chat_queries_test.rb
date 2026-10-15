@@ -6,14 +6,18 @@ class AgentChatQueriesTest < ActionDispatch::IntegrationTest
   NOT_COUNTED = %w[SCHEMA TRANSACTION].freeze
   FEW = 2
   MANY = 30
-  # Pinned, so a query added per message or per prop shows here. Raise them only for a prop that is new.
-  PAGE_QUERIES = 23
-  THREAD_QUERIES = 36
+  # Pinned, so a query added per message or per prop shows here. Raise them only for a prop that is new. The
+  # conversation is counted before the tools' labels are cached (Workspace::ToolLabels), so it reads them, and once they
+  # are it sends one query fewer.
+  PAGE_QUERIES = 19
+  THREAD_QUERIES = 37
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)
     Entitlements.stubs(:allows?).returns(true)
+    # Cached as in production, so the tools' labels a page reads once are read from the cache after.
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
     sign_in(users(:alice), @workspace)
   end
 
@@ -46,6 +50,19 @@ class AgentChatQueriesTest < ActionDispatch::IntegrationTest
     assert together.as_json.flat_map { |shown| shown["tools"] }.any? { |step| step["card"].present? }
   end
 
+  test "a list reads each chat's newest readable message and first question as each chat reads its own, without what only a turn reads" do
+    empty = Conversation.start_personal!(workspace: @workspace, member: @member).tap(&:chat_record)
+    conversations = [ chat_with(FEW), chat_with(1), empty ]
+
+    listed = Conversation.with_previews(Conversation.where(id: conversations.map(&:id)))
+
+    listed.each do |conversation|
+      alone = Chat.find_by!(owner: conversation)
+      assert_equal [ alone.last_readable_message, alone.first_question ], [ conversation.chat.last_readable_message, conversation.chat.first_question ]
+    end
+    assert_not listed.first.chat.has_attribute?(:connections_seen)
+  end
+
   private
 
   def thread_headers = inertia_partial_headers("agent/index", AgentChatsController::THREAD_PROPS)
@@ -60,12 +77,20 @@ class AgentChatQueriesTest < ActionDispatch::IntegrationTest
       asking = chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
       2.times do |read|
         call = asking.ruby_llm_tool_calls.create!(tool_call_id: "call_#{round}_#{read}", name: Mcp::Tools::SEARCH_INCIDENTS, arguments: { "query" => "checkout" })
-        call.update!(result: chat.messages.create!(role: Chat::Message::ROLE_TOOL, content: "INC-#{round}#{read} https://example.com/incidents/#{round}#{read}"))
+        call.update!(result: chat.messages.create!(role: Chat::Message::ROLE_TOOL, content: answer(chat, round, read)))
       end
       chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "Checkout is fine, #{round}.")
     end
     conversation.reply_delivered!
     conversation
+  end
+
+  # The second read of each round was too large to hand over, so its answer names where it was kept whole.
+  def answer(chat, round, read)
+    return "INC-#{round}#{read} https://example.com/incidents/#{round}#{read}" if read.zero?
+
+    kept = chat.saved_results.keep!(tool_name: Mcp::Tools::SEARCH_INCIDENTS, text: "INC-#{round}#{read}\n" * 50)
+    "[Too large to hand over, saved as #{kept.handle}. Read it with read_result.]"
   end
 
   def counted

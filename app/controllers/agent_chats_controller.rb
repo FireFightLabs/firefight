@@ -175,7 +175,7 @@ class AgentChatsController < InertiaController
       PROP_OWNER_ASKS => in_thread { AgentChatOwnerAskSerializer.many(on_chat { |chat| window.placed(chat.owner_asks.shown, Chat::OwnerAsk.placed_at) }) },
       PROP_HELPERS => in_thread { AgentChatHelperSerializer.many(on_chat { |chat| window.stepped(chat.helpers.includes(:workspace, :own_chat)) }) },
       PROP_HANDBOOK_PROPOSALS => in_thread do
-        HandbookProposalSerializer.many(window.placed(conversation.handbook_proposals.includes(:instruction, :result, :decided_by).order(:created_at)))
+        HandbookProposalSerializer.many(Chat::HandbookProposal.preload_pages(window.placed(conversation.handbook_proposals.includes(:instruction, :result, :decided_by).order(:created_at))))
       end,
       PROP_SKILL_PROPOSALS => in_thread { HalonSkillProposalSerializer.many(skill_proposals_shown) },
       PROP_THEORIES => in_thread { ChatTheorySerializer.many(on_chat { |chat| window.stepped(chat.theories) }) }
@@ -440,7 +440,7 @@ class AgentChatsController < InertiaController
 
   # One still going is always read, since the strip above the composer shows it however far back it started.
   def watches_shown
-    on_chat { |chat| window.placed(chat.watches).or(chat.watches.active).includes(:steps, :asker, :updates) }
+    @watches_shown ||= on_chat { |chat| window.placed(chat.watches).or(chat.watches.active).includes(:steps, :asker, :updates) }.to_a
   end
 
   # The workflows made in this chat, none where the workspace has no workflows.
@@ -475,8 +475,14 @@ class AgentChatsController < InertiaController
     redirect_to agent_chat_path(conversation), notice: done
   end
 
+  # A line names its watch and links its steps. A watch the cards already read is used as read, and only the others are
+  # read with their steps, so a watch's steps are read once a page.
   def watch_updates_shown
-    on_chat { |chat| window.placed(chat.watch_updates.on_their_own.includes(:watch).reorder(:created_at)) }
+    updates = on_chat { |chat| window.placed(chat.watch_updates.on_their_own.reorder(:created_at)) }.to_a
+    shown = watches_shown.index_by(&:id)
+    updates.each { |update| update.association(:watch).target = shown[update.watch_id] if shown.key?(update.watch_id) }
+    ActiveRecord::Associations::Preloader.new(records: updates.reject { |update| shown.key?(update.watch_id) }, associations: { watch: :steps }).call
+    updates
   end
 
   def pull_request_notices_shown
@@ -491,7 +497,9 @@ class AgentChatsController < InertiaController
   end
 
   def pack_refusals_shown
-    on_chat { |chat| window.placed(chat.pack_refusals.includes(pack_request: [ { requester: :user }, :role ]).order(:created_at)) }
+    on_chat { |chat| window.placed(chat.pack_refusals.includes(pack_request: [ { requester: :user }, :role ]).order(:created_at)) }.to_a.tap do |refusals|
+      Ability::PackRequest.preload_holdings(refusals.map(&:pack_request))
+    end
   end
 
   def decide_mitigation
@@ -586,8 +594,12 @@ class AgentChatsController < InertiaController
     redirect_back_or_to agent_chat_path(conversation), notice: archived ? "Chat archived." : "Chat back in the list."
   end
 
+  # The list already read the open chat when it is on the page shown, with its chat and previews, so it is not read twice.
+  # Its chat answers for the workspace this request holds, whose memoized tools the page's steps read.
   def conversation
-    @conversation ||= own_chats.find(params[:id])
+    @conversation ||= (@chat_page_rows&.find { |row| row.id == params[:id] } || own_chats.find(params[:id])).tap do |found|
+      found.chat.workspace = current_workspace if found.chat&.workspace_id == current_workspace.id
+    end
   end
 
   def asked_in_url
@@ -621,8 +633,7 @@ class AgentChatsController < InertiaController
 
   # One row over a page says whether there is another, without a count.
   def chat_page_rows
-    @chat_page_rows ||= own_chats.includes(chat: [ :last_readable_message, :first_question ]).in_reading_order
-      .offset((chat_page_number - 1) * chats_per_page).limit(chats_per_page + 1).to_a
+    @chat_page_rows ||= Conversation.with_previews(own_chats.in_reading_order.offset((chat_page_number - 1) * chats_per_page).limit(chats_per_page + 1))
   end
 
   def chats_per_page = CHATS_PER_PAGE

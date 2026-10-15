@@ -5,6 +5,10 @@ module Chat::Tools::Target
   # The connection tool the agent calls by name, in this workspace, or nil.
   def self.connection_tool(workspace, tool_name) = workspace.connection_tools_by_name[tool_name.to_s]
 
+  # What names that tool and its connection, and whether it only reads, without reading the tool whole
+  # (Workspace::ToolLabels), or nil.
+  def self.label(workspace, tool_name) = workspace.tool_labels[tool_name.to_s]
+
   def self.capability_spec(tool_name) = Integrations::Capabilities::SPECS.values.find { |spec| spec.tool_name == tool_name.to_s }
 
   # What a call reaches, such as "Production (Hosting), project shop", or for a capability the resource it was routed
@@ -23,10 +27,10 @@ module Chat::Tools::Target
   end
 
   # The connection a call through its tool reaches, with the one scope it reaches when the connection reaches several,
-  # such as "Production (Hosting), project shop".
-  def self.connection_label(tool, given)
+  # such as "Production (Hosting), project shop". reached answers the environment row when the caller resolved it already.
+  def self.connection_label(tool, given, reached: -> { environment_row_of(tool, given) })
     integration = tool.integration
-    environment_row = environment_row_of(tool, given)
+    environment_row = reached.call
     integration.target_label(environment_row, scope: Integrations::Scopes.of_call(environment_row, given))
   rescue Integration::UnknownEnvironment
     integration.target_label

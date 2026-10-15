@@ -86,7 +86,28 @@ module Ability
     def holds_pack?
       return true if role.every_member?
 
-      workspace.ability_grants.where(principal: requester, role: role).reject(&:no_access?).any? { |grant| !grant.expired? }
+      self.class.holding?(held_grants || workspace.ability_grants.where(principal: requester, role: role))
+    end
+
+    def self.holding?(grants) = grants.reject(&:no_access?).any? { |grant| !grant.expired? }
+
+    # Each requester's grants of the pack they ask for, read for a whole list in one query rather than once a request.
+    def self.preload_holdings(requests)
+      requests = requests.to_a
+      return requests if requests.empty?
+
+      grants = Ability::Grant.where(workspace_id: requests.map(&:workspace_id).uniq, principal_type: WorkspaceMembership.polymorphic_name,
+                                    principal_id: requests.map(&:requester_id).uniq, role_id: requests.map(&:role_id).uniq)
+                             .group_by { |grant| [ grant.workspace_id, grant.principal_id, grant.role_id ] }
+      requests.each { |request| request.held_grants = grants.fetch([ request.workspace_id, request.requester_id, request.role_id ], []) }
+    end
+
+    attr_accessor :held_grants
+
+    # What a list read is forgotten once the row is read again, since a grant may have been given since.
+    def reload(*)
+      @held_grants = nil
+      super
     end
 
     def add_notification!(channel_id:, message_id:)

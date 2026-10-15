@@ -3,6 +3,29 @@
 class AgentChatHelperSerializer < BaseSerializer
   object_as :helper
 
+  # Every helper's calls with their answers, and the answers kept aside, read for the whole list at once rather than
+  # once a helper.
+  class Steps
+    attr_reader :saved
+
+    def initialize(helpers)
+      ids = helpers.filter_map(&:own_chat).map(&:id)
+      calls = ids.empty? ? [] : RubyLLM::ActiveRecord::ToolCall.where(message_type: Chat::Message.polymorphic_name)
+                                                                .joins("INNER JOIN chat_messages ON chat_messages.id = ruby_llm_tool_calls.message_id")
+                                                                .where(chat_messages: { chat_id: ids }).select("ruby_llm_tool_calls.*", "chat_messages.chat_id AS owning_chat_id")
+                                                                .includes(:result).order(RubyLLM::ActiveRecord::ToolCall.arel_table[:created_at]).to_a
+      @calls = calls.group_by(&:owning_chat_id)
+      @saved = Chat::StepOutcome.saved_texts(@calls)
+    end
+
+    def calls(chat) = @calls.fetch(chat.id, [])
+  end
+
+  def self.many(helpers, options = nil)
+    helpers = helpers.to_a
+    super(helpers, (options || {}).merge(steps: Steps.new(helpers)))
+  end
+
   type :string
   def id = helper.id
 
@@ -38,7 +61,8 @@ class AgentChatHelperSerializer < BaseSerializer
     chat = helper.own_chat
     return [] unless chat
 
-    calls = chat.tool_calls.includes(:result).order(:created_at).to_a
+    read = options[:steps] || memo.fetch(:steps) { Steps.new([ helper ]) }
+    calls = read.calls(chat)
     calls.filter_map do |call|
       step = Chat::Tools.step(call.name, call.arguments, workspace: helper.workspace)
       next unless step
@@ -47,7 +71,7 @@ class AgentChatHelperSerializer < BaseSerializer
       # A helper that ended while a call was open will never hear back from it.
       status = Conversation::LiveDelivery::STATUS_CANCELLED if status == Conversation::LiveDelivery::STATUS_RUNNING && !helper.running?
       { key: call.tool_call_id, title: step.title, headline: step.headline, asked: step.asked, status: status,
-        outcome: (Chat::StepOutcome.for_call(call, chat)&.to_h if AgentChatMessageSerializer::FINISHED.include?(status)) }
+        outcome: (Chat::StepOutcome.for_call(call, chat, saved: read.saved)&.to_h if AgentChatMessageSerializer::FINISHED.include?(status)) }
     end
   end
 end

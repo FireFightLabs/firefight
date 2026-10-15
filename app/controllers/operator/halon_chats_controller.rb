@@ -5,7 +5,8 @@ module Operator
 
     def index
       page = [ params[:page].to_i, 1 ].max
-      chats = ChatTrace.recent(filter).includes(chat: :first_question).offset((page - 1) * PER_PAGE).limit(PER_PAGE + 1).to_a
+      chats = ChatTrace.recent(filter).preload(:chat).offset((page - 1) * PER_PAGE).limit(PER_PAGE + 1).to_a
+      Chat.preload_previews(chats.map(&:chat))
 
       render inertia: "operator/halon/chats", props: {
         chats: HalonChatSerializer.many(chats.first(PER_PAGE), readable: readable),

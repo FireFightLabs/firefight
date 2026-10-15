@@ -205,7 +205,7 @@ module Conversation::Mitigations
   private_class_method :undone_by
 
   def self.run_step(turn, mitigation, step)
-    tool = Integration::Tool.in_workspace(mitigation.workspace).find { |each| each.action_key == step["action_key"] }
+    tool = Integration::Tool.by_action_key(mitigation.workspace, step["action_key"])
     return [ :failed, "the tool it runs with is switched off or gone" ] unless tool
 
     arguments = step["arguments"].to_h

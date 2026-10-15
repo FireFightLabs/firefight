@@ -27,7 +27,7 @@ class Conversation::Watches::Reader
     spec = Integrations::Capabilities.spec(key)
     raise Refused, "#{spec.tool_name} changes things, and a watch only reads." if spec.writes
 
-    callable = Integrations::Capabilities.callable(@workspace, key, @principal)
+    callable = callable(key)
     call = Integrations::Capabilities.resolve(@workspace, key, given, callable, principal: @principal)
     raise Refused, held_words(call) if held?(call)
 
@@ -37,6 +37,10 @@ class Conversation::Watches::Reader
   end
 
   def read(key, given) = read_call(route(key, given))
+
+  # The tools the person may run a capability as, read once a check however many of its steps read through it. A reader
+  # lives for one check, so a grant or a connection changed since is seen at the next.
+  def callable(key) = (@callable ||= {})[key] ||= Integrations::Capabilities.callable(@workspace, key, @principal)
 
   def read_call(call)
     answer = Answer.new(result: run(call), call: call)

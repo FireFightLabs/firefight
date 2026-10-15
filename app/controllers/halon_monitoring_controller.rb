@@ -9,7 +9,8 @@ class HalonMonitoringController < InertiaController
   NOTICES_SHOWN = 50
 
   def show
-    checks = current_workspace.investigation_checks.with_usage_counts.ordered
+    checks = current_workspace.investigation_checks.with_usage_counts.ordered.to_a
+    Investigation::Check.preload_runs(checks)
     notices = current_workspace.investigation_notices.includes(:resource, :check).recent.limit(NOTICES_SHOWN)
 
     render inertia: "halon/monitoring", props: {

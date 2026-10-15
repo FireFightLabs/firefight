@@ -1030,7 +1030,28 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_equal "1 of 2 done. Web deploy: build-images running, 2 of 3 done", Chat::Watch::Shown.standing(watch.reload)
   end
 
+  test "a check reads the person's reach and the workspace's tools once, however many steps it reads" do
+    answers("ci_runs" => History.result([ run_of("46", History::RUNNING, Time.current) ], what: "repo"))
+    few_watch = watch_with_steps(2)
+    check!(few_watch)
+    few = queries_sent { check!(few_watch) }
+    many_watch = watch_with_steps(Chat::Watch::MAX_STEPS)
+    check!(many_watch)
+    many = queries_sent { check!(many_watch) }
+
+    reach = ->(sent) { sent.grep(/FROM "ability_grants"|AS t0_r0 .*FROM "integration_tools" .*WHERE "integration_tools"."enabled"(?!.*"integration_tools"."integration_id" =)/) }
+    assert_equal reach.call(few).size, reach.call(many).size, repeated_queries(reach.call(many))
+    assert_equal Chat::Watch::MAX_STEPS, many_watch.steps.count
+  end
+
   private
+
+  # A watch of release runs, each a step of its own, started without asking the provider how long they take.
+  def watch_with_steps(count)
+    steps = Array.new(count) { |index| release_step.merge("label" => "Release run ##{index}", "run" => index.to_s) }
+    said = Conversation::Watches.start(@turn, watch_of(steps, title: "release #{SecureRandom.hex(2)}", minutes: 60))
+    @conversation.chat.watches.find(said[/\(watch (\h{8}-[\h-]+)\)/, 1])
+  end
 
   def connect!(provider, name, tools)
     integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: provider, name: name, slug: provider)

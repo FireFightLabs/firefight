@@ -253,7 +253,35 @@ class Chat::Tools::CapabilityTest < ActiveSupport::TestCase
     assert_match "3 log lines for web", answer
   end
 
+  test "a capability's schema names every connection that answers it in the same queries however many there are" do
+    connect(1)
+    few_tool = log_search
+    few = queries_sent { few_tool.parameters_schema }
+    connect(5)
+    many_tool = log_search
+    many = queries_sent { many_tool.parameters_schema }
+
+    assert_same_queries few, many
+    named = many_tool.parameters_schema.to_json
+    wired = @workspace.integrations.where(provider: "northflank").where.not(id: @northflank.id)
+    assert(wired.all? { |integration| named.include?("#{integration.slug}/#{catalog_entries(:development_env).slug}") })
+  end
+
   private
+
+  # Connections of the same provider, each wired to production and development, so each is named with its environment.
+  def connect(count)
+    count.times do
+      other = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Northflank #{SecureRandom.hex(3)}")
+      %i[production_env development_env].each { |entry| other.integration_environments.create!(catalog_entry_id: catalog_entries(entry).id, credentials: { token: "x" }.to_json) }
+      other.tools.create!(name: "search_logs", description: "search_logs", read_only: true, enabled: true, params_schema: { "type" => "object" })
+    end
+  end
+
+  def log_search
+    tools = Integration::Tool.in_workspace(@workspace).where(name: "search_logs").to_a
+    Chat::Tools::Capability.new(@investigation, Integrations::Capabilities::SPECS.values.find { |spec| spec.tool_name == "search_logs" }, tools)
+  end
 
   def connect_datadog!
     datadog = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "datadog", name: "Datadog", slug: "datadog",

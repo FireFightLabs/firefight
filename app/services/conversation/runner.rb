@@ -60,6 +60,8 @@ class Conversation::Runner
     @turn.hold_catalog!
     chat, purse, presented, suspects = timed_phase(PHASE_SETUP) do
       chat = setup_step(STEP_CHAT) { @conversation.chat_record }
+      # One workspace for the whole turn, so what it memoizes, such as its connection tools, is read once.
+      chat.workspace = @conversation.workspace if chat.workspace_id == @conversation.workspace_id
       # A turn paused on the person's confirmation is theirs, so a hand back waits for their next turn, which tells it.
       return nil if @handed_back && !setup_step(STEP_HAND_BACK_ROOM) { room_for_a_note?(chat) }
 
@@ -264,6 +266,7 @@ class Conversation::Runner
   # What the turn read, from its own calls, for the line under the reply.
   def sources_of(chat)
     reply = chat.messages.where(role: Chat::Message::ROLE_ASSISTANT).reorder(created_at: :desc, id: :desc).first
+    reply&.chat = chat
     reply ? Chat::Sources.for_reply(reply) : []
   end
 
@@ -390,11 +393,11 @@ class Conversation::Runner
 
   # Fresh beats remembered. A call this turn made with the very read a watch in this chat makes is handed to the watch.
   # A watch's reads only read, so a call that matches one read too.
-  def hand_reading_to_watches(key)
+  def hand_reading_to_watches(key, answered)
     tool, arguments = asked.delete(key)
     return unless tool && Chat::Watch.active.exists?(chat_id: @conversation.chat.id)
 
-    text = @conversation.chat.outcome_call(key)&.result&.content
+    text = answered.call&.result&.content
     return if text.blank?
 
     note = Conversation::Watches.observe!(@conversation.chat, tool, arguments, FirefightAi::Evidence.unframe(text).body)
@@ -440,15 +443,28 @@ class Conversation::Runner
     end
     done = step.status == FirefightAi::AgentLoop::STEP_DONE
     done ? running.delete(step.key) : running.add(step.key)
-    hand_reading_to_watches(step.key) if done
+    # A finished call is read once, for the watches and for what it got back.
+    answered = Answered.new(@conversation.chat, step.key) if done
+    hand_reading_to_watches(step.key, answered) if done
     shown = seen[step.key]
     return unless shown
 
     shown = shown.with(card: Chat::Tools.chart_card) if done && shown.card.nil? && charted?(step.key)
     delivery.step(
       key: step.key, step: shown, status: step.status, kind: kinds[step.key],
-      seconds: done ? seconds_since_last_step : 0, outcome: (outcome_of(step.key) if done), progress: works[step.key]
+      seconds: done ? seconds_since_last_step : 0, outcome: (Chat::StepOutcome.for_call(answered.call, @conversation.chat) if done), progress: works[step.key]
     )
+  end
+
+  # A finished call with its answer, read the first time something asks for it. The wrapper marked the call as the tool
+  # answered, and its answer is saved, before the loop reports the step done.
+  class Answered
+    def initialize(chat, key)
+      @chat = chat
+      @key = key
+    end
+
+    def call = defined?(@call) ? @call : (@call = @chat.outcome_call(@key))
   end
 
   # Kept with the chat this often at most while a coding agent works, and always once it ends.
@@ -487,9 +503,6 @@ class Conversation::Runner
 
   # The wrapper kept the call's charts as the tool answered, before the loop reports the step done.
   def charted?(key) = @conversation.chat.charts.exists?(tool_call_id: key)
-
-  # The wrapper marked the call as the tool answered, and its answer is saved, before the loop reports the step done.
-  def outcome_of(key) = Chat::StepOutcome.for_call(@conversation.chat.outcome_call(key), @conversation.chat)
 
   # Counted from the end of the last step, so the model's own time between calls counts as thinking.
   def seconds_since_last_step

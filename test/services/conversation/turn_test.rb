@@ -54,7 +54,7 @@ class Conversation::TurnTest < ActiveSupport::TestCase
     assert_includes admin_ready, "grant_ability"
   end
 
-  test "a turn being got ready reads one catalogue, and once released each read builds it fresh" do
+  test "a turn reads one catalogue, and builds it again only once a grant or a connection changed during the turn" do
     turn = turn(@member)
     Chat::Tools.expects(:build_catalog).with(turn).times(3).returns([])
 
@@ -62,6 +62,26 @@ class Conversation::TurnTest < ActiveSupport::TestCase
     2.times { Chat::Tools.catalog(turn) }
     turn.release_catalog!
     2.times { Chat::Tools.catalog(turn) }
+
+    connect_tracker!(@workspace, provider: "linear")
+    2.times { Chat::Tools.catalog(turn) }
+
+    Ability::Grant.grant!(workspace: @workspace, principal: @member, target: { role: @workspace.ability_roles.where.not(pack: nil).first! }, granted_by: @admin)
+    Chat::Tools.catalog(turn)
+  end
+
+  test "a catalogue built while the turn got ready names a tool switched on during the turn" do
+    turn = turn(@member)
+    integration = connect_tracker!(@workspace, provider: "linear")
+    reader = integration.tools.find_by!(name: "get_issue")
+    reader.update!(enabled: false)
+    turn.hold_catalog!
+    assert_not_includes ready_names(turn), reader.model_facing_name
+    turn.release_catalog!
+
+    reader.update!(enabled: true)
+
+    assert_includes ready_names(turn), reader.model_facing_name
   end
 
   test "a member is told which pack to ask for, the same with the packs read for every tool at once as one by one" do

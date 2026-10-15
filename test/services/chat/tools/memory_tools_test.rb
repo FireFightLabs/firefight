@@ -85,6 +85,17 @@ class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
     assert_match "5 more matched", answer
   end
 
+  test "recall marks every memory it read as used in one statement, however many it read" do
+    remember = ->(count) { count.times { |index| Chat::Memory.create!(workspace: @workspace, text: "Queue #{index} #{SecureRandom.hex(3)} drains into the ledger", state: Chat::Memory::STATE_UNCONFIRMED) } }
+    remember.call(2)
+    few = queries_sent { Chat::Tools::Recall.new(@turn).call("words" => "ledger") }
+    remember.call(10)
+    many = queries_sent { Chat::Tools::Recall.new(@turn).call("words" => "ledger") }
+
+    assert_same_queries few, many
+    assert_equal [ 1, 2 ], Chat::Memory.where(workspace: @workspace).map(&:use_count).uniq.sort
+  end
+
   test "a change to memory in a chat is authorized as the asker and ledgered, without the fact's words" do
     Chat::Tools::Remember.new(@turn).call("fact" => "Deploys happen from main", "about" => "auth service")
 
