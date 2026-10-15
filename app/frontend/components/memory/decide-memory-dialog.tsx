@@ -28,6 +28,8 @@ interface DecideMemoryDialogProps {
   memory: DecidedMemory | null
   decision: Decision
   onClose: () => void
+  // The page props deciding changes, for a page that must not be visited whole, such as the chat the card is in.
+  reloads?: string[]
 }
 
 const COPY: Record<Decision, { title: string; description: string; submit: string }> = {
@@ -44,7 +46,7 @@ const COPY: Record<Decision, { title: string; description: string; submit: strin
 }
 
 // Correcting and rejecting both retire the memory, and correcting also writes what replaces it.
-export function DecideMemoryDialog({ memory, decision, onClose }: DecideMemoryDialogProps) {
+export function DecideMemoryDialog({ memory, decision, onClose, reloads }: DecideMemoryDialogProps) {
   const { data, setData, post, processing } = useForm({ text: memory?.text ?? "", reason: "" })
   const copy = COPY[decision]
   const correcting = decision === DECISIONS.CORRECT
@@ -57,7 +59,7 @@ export function DecideMemoryDialog({ memory, decision, onClose }: DecideMemoryDi
     if (!memory) {
       return
     }
-    post(correcting ? correctMemoryPath(memory.id) : rejectMemoryPath(memory.id), { preserveScroll: true, preserveState: true, onSuccess: onClose })
+    post(correcting ? correctMemoryPath(memory.id) : rejectMemoryPath(memory.id), { preserveScroll: true, preserveState: true, ...(reloads ? { only: reloads } : {}), onSuccess: onClose })
   }
 
   function writeText(value: string) {

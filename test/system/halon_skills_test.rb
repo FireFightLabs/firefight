@@ -139,9 +139,11 @@ class HalonSkillsTest < ApplicationSystemTestCase
 
     visit agent_chat_path(conversation)
     assert_text "Add the skill rotate_keys?"
+    watch_page
     click_button "Add skill"
 
     assert_toast "rotate_keys was added. Halon loads it as it now reads."
     assert_text "Accepted by"
+    assert_stayed_in_place(only: AgentChatsController::PROP_SKILL_PROPOSALS)
   end
 end

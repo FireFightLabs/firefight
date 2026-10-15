@@ -15,6 +15,8 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
   test "a change leads with what will happen and its button is named for it, with the call itself under Details" do
     pause_on("delete_permission_set")
     visit agent_chat_path(@conversation)
+    assert_selector CARD
+    watch_page
 
     within(CARD) do
       assert_selector "h3", text: "Delete set_1"
@@ -28,6 +30,8 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
     end
 
     assert_decided [ Chat::APPROVAL_APPROVED ]
+    assert_no_selector CARD
+    assert_stayed_in_place(only: AgentChatsController::DECIDED_PROPS)
   end
 
   test "answering one change leaves the rest open, an answer can be changed, and nothing is sent until every one is answered" do

@@ -10,13 +10,13 @@ import { MarkdownText } from "@/components/markdown-text"
 import { HANDBOOK_PROPOSAL_QUERY } from "@/lib/generated/constants"
 import { useCan } from "@/lib/permissions"
 import { acceptHandbookProposalPath, dismissHandbookProposalPath, settingsHandbookPath } from "@/lib/routes"
+import { HANDBOOK_PROPOSALS, IN_PLACE } from "@/pages/agent/lib/chat-updates"
 import type { HandbookProposal } from "@/types/serializers"
 
 interface HandbookProposalCardProps {
   proposal: HandbookProposal
 }
 
-const IN_PLACE = { preserveScroll: true, preserveState: true }
 const NOT_YOURS = "Only people who may change the handbook can decide on this."
 const CARD_TEXT = "text-[13px]! text-ink!"
 const CARD_TEXT_MUTED = "text-[13px]! text-ink-3!"
@@ -38,12 +38,12 @@ export function HandbookProposalCard({ proposal }: HandbookProposalCardProps) {
 
   function accept() {
     setSending(true)
-    router.post(acceptHandbookProposalPath(proposal.id), {}, { ...IN_PLACE, onFinish: doneSending })
+    router.post(acceptHandbookProposalPath(proposal.id), {}, { ...IN_PLACE, only: HANDBOOK_PROPOSALS, onFinish: doneSending })
   }
 
   function dismiss() {
     setSending(true)
-    router.post(dismissHandbookProposalPath(proposal.id), {}, { ...IN_PLACE, onFinish: doneSending })
+    router.post(dismissHandbookProposalPath(proposal.id), {}, { ...IN_PLACE, only: HANDBOOK_PROPOSALS, onFinish: doneSending })
   }
 
   function openEdit() {
@@ -104,7 +104,7 @@ export function HandbookProposalCard({ proposal }: HandbookProposalCardProps) {
           Open the handbook
         </a>
       </div>
-      <EditProposalDialog key={editing ? "editing" : "closed"} proposal={editing ? proposal : null} onClose={closeEdit} />
+      <EditProposalDialog key={editing ? "editing" : "closed"} proposal={editing ? proposal : null} onClose={closeEdit} reloads={HANDBOOK_PROPOSALS} />
     </section>
   )
 }

@@ -2,7 +2,7 @@ import type { Page } from "@inertiajs/core"
 import { router } from "@inertiajs/react"
 import { useCallback } from "react"
 
-import { WORKFLOW_CANVAS_PROPS, WORKFLOW_VERSION_STATUS } from "@/lib/generated/constants"
+import { WORKFLOW_CANVAS_CHAT_PROPS, WORKFLOW_CANVAS_PROPS, WORKFLOW_VERSION_STATUS } from "@/lib/generated/constants"
 import { workflowEditsPath } from "@/lib/routes"
 import type { JsonObject } from "@/lib/tool-fields"
 import type { WorkflowDocument } from "@/types/serializers"
@@ -30,7 +30,7 @@ export const CHAT_VISIT = {
   preserveScroll: true,
   preserveState: true,
   preserveUrl: true,
-  only: [ WORKFLOW_CANVAS_PROPS.CHAT, WORKFLOW_CANVAS_PROPS.CHAT_MESSAGES, WORKFLOW_CANVAS_PROPS.HELPERS, WORKFLOW_CANVAS_PROPS.CHAT_WAITING ],
+  only: [ ...WORKFLOW_CANVAS_CHAT_PROPS ],
 }
 
 // The draft revision a change was made on. A change to the live version opens a draft from it, so it names none.

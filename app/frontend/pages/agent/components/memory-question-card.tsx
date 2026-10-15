@@ -6,14 +6,13 @@ import { Button } from "@/components/agent-ui/button"
 import { DecideMemoryDialog, DECISIONS } from "@/components/memory/decide-memory-dialog"
 import { MEMORY_QUERY_PARAM } from "@/lib/generated/constants"
 import { confirmMemoryPath, memoryPath, rejectMemoryPath } from "@/lib/routes"
+import { IN_PLACE, MEMORY_QUESTIONS } from "@/pages/agent/lib/chat-updates"
 import { askedAboutMemory } from "@/pages/agent/lib/memory-question"
 import type { AgentChatMemoryQuestion } from "@/types/serializers"
 
 interface MemoryQuestionCardProps {
   question: AgentChatMemoryQuestion
 }
-
-const IN_PLACE = { preserveScroll: true, preserveState: true }
 
 // Something Halon read contradicted a memory, so it asks the person which is right while they still have the context.
 // Still right keeps the memory, Not right takes what Halon read instead, and Correct says what is right instead of both.
@@ -33,14 +32,14 @@ export function MemoryQuestionCard({ question }: MemoryQuestionCardProps) {
   function keep() {
     if (memoryId) {
       setSending(true)
-      router.post(confirmMemoryPath(memoryId), {}, { ...IN_PLACE, onFinish: doneSending })
+      router.post(confirmMemoryPath(memoryId), {}, { ...IN_PLACE, only: MEMORY_QUESTIONS, onFinish: doneSending })
     }
   }
 
   function reject() {
     if (memoryId) {
       setSending(true)
-      router.post(rejectMemoryPath(memoryId), {}, { ...IN_PLACE, onFinish: doneSending })
+      router.post(rejectMemoryPath(memoryId), {}, { ...IN_PLACE, only: MEMORY_QUESTIONS, onFinish: doneSending })
     }
   }
 
@@ -89,6 +88,7 @@ export function MemoryQuestionCard({ question }: MemoryQuestionCardProps) {
         memory={correction}
         decision={DECISIONS.CORRECT}
         onClose={closeCorrection}
+        reloads={MEMORY_QUESTIONS}
       />
     </section>
   )

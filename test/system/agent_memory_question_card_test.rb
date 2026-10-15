@@ -28,6 +28,7 @@ class AgentMemoryQuestionCardTest < ApplicationSystemTestCase
     assert_text "I used to remember \"web deploys from main\" (from your chat on Oct 3, 2026, confirmed by you). " \
                 "The deploy log of web shows \"web deploys from the release branch\". Which is right?"
     assert_link "Open on the Memory page"
+    watch_page
 
     click_on "Not right"
 
@@ -35,10 +36,13 @@ class AgentMemoryQuestionCardTest < ApplicationSystemTestCase
     assert_text "Marked not right by you. Halon now remembers \"web deploys from the release branch\" instead."
     assert_no_button "Still right"
     assert_equal Chat::Memory::STATE_CONFIRMED, @newer.reload.state
+    assert_stayed_in_place(only: AgentChatsController::PROP_MEMORY_QUESTIONS)
   end
 
   test "Correct says what is right instead of both" do
     visit agent_chat_path(@conversation)
+    assert_text "Which is right?"
+    watch_page
 
     click_on "Correct"
     fill_in "What is true", with: "web deploys from the release branch on weekdays and from main on Sundays"
@@ -46,6 +50,7 @@ class AgentMemoryQuestionCardTest < ApplicationSystemTestCase
 
     assert_text "Corrected. Halon keeps the old wording as rejected so it does not learn it again."
     assert_equal Chat::Memory::STATE_REJECTED, @newer.reload.state
+    assert_stayed_in_place(only: AgentChatsController::PROP_MEMORY_QUESTIONS)
   end
 
   private

@@ -19,6 +19,8 @@ export interface ComposerFill {
 
 interface ComposerProps {
   conversationId: string | null
+  // The open chat's conversation has arrived, so a question reads back only what it changes.
+  threadReady: boolean
   incidents: AgentChatIncident[]
   // Turns send into Stop while nothing is typed. A message sent while the agent works joins its answer at the next step.
   busy: boolean
@@ -44,7 +46,7 @@ function promptAttachment(item: ComposerAttachment): PromptAttachment {
   }
 }
 
-export function Composer({ conversationId, incidents, busy, stopRequested, fill, attachmentRules, chatModels, newChatModel, onPickNewChatModel }: ComposerProps) {
+export function Composer({ conversationId, threadReady, incidents, busy, stopRequested, fill, attachmentRules, chatModels, newChatModel, onPickNewChatModel }: ComposerProps) {
   const { results, search } = useRemoteSearch<AgentChatIncident[]>(incidentSearchPath)
   // An open chat's model is the server's. A new chat's is picked here and sent with its first question.
   const pickedForNewChat = conversationId === null ? newChatModel : null
@@ -60,7 +62,7 @@ export function Composer({ conversationId, incidents, busy, stopRequested, fill,
     }
 
     setStopPressed(false)
-    ask(conversationId, question, uploads.uploaded, uploads.previewsById, pickedForNewChat)
+    ask(conversationId, threadReady, question, uploads.uploaded, uploads.previewsById, pickedForNewChat)
     uploads.clear()
   }
 

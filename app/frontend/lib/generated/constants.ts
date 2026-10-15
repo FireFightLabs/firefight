@@ -1281,6 +1281,22 @@ export const AGENT_CHAT_WINDOWED_PROPS = [
   "theories"
 ] as const
 
+export const AGENT_CHAT_ASKED_PROPS = [
+  "conversation",
+  "threadFor",
+  "messages",
+  "waitingMessages"
+] as const
+
+export const AGENT_CHAT_DECIDED_PROPS = [
+  "conversation",
+  "messages",
+  "confirmations",
+  "dataRepairs",
+  "mitigations",
+  "ownerAsks"
+] as const
+
 export const AGENT_CHAT_LOADED_FROM_HEADER = "X-Chat-Loaded-From" as const
 
 export const SETUP_STEPS = {
@@ -1678,6 +1694,13 @@ export const WORKFLOW_CANVAS_PROPS = {
   "CHAT_WAITING": "chatWaiting",
   "CHAT_UNAVAILABLE": "chatUnavailable"
 } as const
+
+export const WORKFLOW_CANVAS_CHAT_PROPS = [
+  "chat",
+  "chatMessages",
+  "helpers",
+  "chatWaiting"
+] as const
 
 export const WORKFLOW_VERSION_QUERY_PARAM = "version" as const
 

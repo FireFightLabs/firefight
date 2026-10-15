@@ -88,6 +88,12 @@ class AgentChatsController < InertiaController
   # The conversation itself, loaded in one request right after the page shows. Confirmations and waiting messages are
   # live whenever they were made, so they are always read whole.
   THREAD_PROPS = [ PROP_THREAD_FOR, PROP_MESSAGES, PROP_CONFIRMATIONS, PROP_WAITING_MESSAGES, *WINDOWED_PROPS ].freeze
+  # What a question changes, the only props read back after one: whether Halon works, the message saved, or the one
+  # waiting for Halon's next step.
+  ASKED_PROPS = [ PROP_CONVERSATION, PROP_THREAD_FOR, PROP_MESSAGES, PROP_WAITING_MESSAGES ].freeze
+  # What answering confirmations changes: the cards, the steps that waited on them, whether Halon goes on, and what an
+  # answer starts (a change's time until it is undone, an owner asked, the rows a statement may change).
+  DECIDED_PROPS = [ PROP_CONVERSATION, PROP_MESSAGES, PROP_CONFIRMATIONS, PROP_DATA_REPAIRS, PROP_MITIGATIONS, PROP_OWNER_ASKS ].freeze
   THREAD_GROUP = "thread"
   # Older messages load a page at a time as the person scrolls up, each page asked for by the oldest message shown.
   MESSAGES_BEFORE_PARAM = "before"
