@@ -7,6 +7,8 @@ class AgentChatInPlaceTest < ApplicationSystemTestCase
 
   THREAD = "section.agent-thread-open".freeze
   HANDBOOK_CARD = "section[aria-label='Handbook edit']".freeze
+  # Long enough for Inertia's progress bar, which shows a quarter second into a visit, and for the page to be seen waiting.
+  SLOW = 1.5
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -24,13 +26,19 @@ class AgentChatInPlaceTest < ApplicationSystemTestCase
     visit agent_chat_path(@conversation)
     assert_text "Nothing is open."
     watch_page
+    slow_server(SLOW)
 
     prompt.send_keys("and now?", :enter)
 
     assert_selector THREAD, text: "and now?"
+    assert_selector THREAD, text: "Nothing is open."
     assert_text "Working"
+    assert_equal 1, requests_out, "the message showed only once the server answered"
+    assert_answered
+    assert_equal 1, find(THREAD).text.scan("and now?").size
     assert_selector "[aria-label='Prompt'][placeholder='Add something while Halon works']"
     assert_stayed_in_place(only: AgentChatsController::ASKED_PROPS)
+    assert_no_progress_bar
     assert_equal "and now?", @conversation.chat.reload.messages.where(role: Chat::Message::ROLE_USER).order(:created_at).last.content
     page.save_screenshot(Rails.root.join("tmp/screenshots/agent-chat-sent-in-place.png"))
   end
@@ -40,12 +48,19 @@ class AgentChatInPlaceTest < ApplicationSystemTestCase
     @conversation.update!(answer_owed_since: 5.seconds.ago)
     visit agent_chat_path(@conversation)
     assert_selector "[aria-label='Prompt'][placeholder='Add something while Halon works']"
+    # The conversation follows the composer in a request of its own, and a message sent before it arrives reads it whole.
+    assert_selector THREAD, text: "and the worker?"
     watch_page
+    slow_server(SLOW)
 
     prompt.send_keys("check the queue too", :enter)
 
     assert_selector THREAD, text: "check the queue too"
+    assert_equal 1, requests_out, "the message showed only once the server answered"
+    assert_answered
+    assert_equal 1, find(THREAD).text.scan("check the queue too").size
     assert_stayed_in_place(only: AgentChatsController::ASKED_PROPS)
+    assert_no_progress_bar
     page.save_screenshot(Rails.root.join("tmp/screenshots/agent-chat-waiting-in-place.png"))
   end
 
@@ -54,12 +69,14 @@ class AgentChatInPlaceTest < ApplicationSystemTestCase
     accepted = Chat::HandbookProposal.propose!(@conversation, page: page, text: "Web deploys from the release branch.", evidence: "The deploy log of web.")
     visit agent_chat_path(@conversation)
     watch_page
+    slow_server(SLOW)
 
     within(HANDBOOK_CARD) { click_button "Accept edit" }
 
     assert_toast "How web deploys"
     assert_selector HANDBOOK_CARD, text: "The page now says"
     assert_stayed_in_place(only: AgentChatsController::PROP_HANDBOOK_PROPOSALS)
+    assert_no_progress_bar
     assert accepted.reload.decided_at
 
     edited = Chat::HandbookProposal.propose!(@conversation, page: page.reload, text: "Web deploys from the release branch at noon.",
@@ -85,12 +102,16 @@ class AgentChatInPlaceTest < ApplicationSystemTestCase
     visit workflow_path(workflow)
     click_button "Ask Halon"
     watch_page
+    slow_server(SLOW)
 
     within("aside[aria-label='Halon']") { find("[aria-label='Prompt']").send_keys("What does it do?", :enter) }
 
     assert_selector "aside[aria-label='Halon']", text: "What does it do?"
+    assert_equal 1, requests_out, "the question showed only once the server answered"
+    assert_answered
     assert_selector "aside[aria-label='Halon'] [aria-label='Prompt'][placeholder='Add something while Halon works']"
     assert_stayed_in_place(only: WorkflowCanvasController::CHAT_PROPS)
+    assert_no_progress_bar
     page.save_screenshot(Rails.root.join("tmp/screenshots/workflow-chat-sent-in-place.png"))
   end
 

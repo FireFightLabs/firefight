@@ -1,7 +1,8 @@
 require "test_helper"
 
 # Seen live: each message sent read the whole open chat back, every card under it included, for 1.4 seconds. Each change
-# made from a chat reads back only what it changed, and nothing else on the page is worked out for it.
+# made from a chat reads back only what it changed, and nothing else on the page is worked out for it, the props every page
+# shares included.
 class AgentChatInPlaceTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestHelper
 
@@ -22,7 +23,7 @@ class AgentChatInPlaceTest < ActionDispatch::IntegrationTest
     assert_redirected_to agent_chat_path(@conversation)
 
     nothing_else_worked_out
-    get agent_chat_url(@conversation), headers: headers
+    assert_no_counts { get agent_chat_url(@conversation), headers: headers }
 
     assert_equal AgentChatsController::ASKED_PROPS.sort, (inertia_props.keys - [ "errors" ]).sort
     assert_equal [ "and now?", "Nothing is open.", "what is open" ], inertia_props["messages"].map { |message| message["body"] }
@@ -36,7 +37,8 @@ class AgentChatInPlaceTest < ActionDispatch::IntegrationTest
 
     AgentChatSerializer.expects(:many).never
     AgentChatHeldCallSerializer.expects(:many).never
-    get agent_chat_url(@conversation), headers: headers
+    no_shared_prop_worked_out
+    assert_no_counts { get agent_chat_url(@conversation), headers: headers }
 
     assert_equal AgentChatsController::DECIDED_PROPS.sort, (inertia_props.keys - [ "errors" ]).sort
   end
@@ -53,7 +55,8 @@ class AgentChatInPlaceTest < ActionDispatch::IntegrationTest
       serializer.expects(:one).never
       serializer.expects(:many).never
     end
-    get workflow_url(workflow), headers: headers
+    no_shared_prop_worked_out
+    assert_no_counts { get workflow_url(workflow), headers: headers }
 
     assert_equal WorkflowCanvasController::CHAT_PROPS.sort, (inertia_props.keys - [ "errors" ]).sort
     assert_equal [ "What does it do?" ], inertia_props["chatMessages"].map { |message| message["body"] }
@@ -67,5 +70,26 @@ class AgentChatInPlaceTest < ActionDispatch::IntegrationTest
     AgentChatHeldCallSerializer.expects(:many).never
     AgentChatPlanSerializer.expects(:many).never
     AgentChatConfirmationSerializer.expects(:many).never
+    Conversation.expects(:with_previews).never
+    no_shared_prop_worked_out
+  end
+
+  # What every page shares is worked out only for a response that carries it, never for a partial reload naming others.
+  def no_shared_prop_worked_out
+    CurrentUserSerializer.expects(:one).never
+    CurrentWorkspaceSerializer.expects(:one).never
+    CurrentWorkspaceSerializer.expects(:many).never
+    InertiaController.any_instance.expects(:manageable_resources).never
+    InertiaController.any_instance.expects(:agent_available?).never
+    Chat::CustomSkill.expects(:enabled_for?).never
+  end
+
+  # The badges' counts are shared props too.
+  def assert_no_counts(&)
+    sent = []
+    recorder = ->(*, payload) { sent << payload[:sql] }
+    ActiveSupport::Notifications.subscribed(recorder, "sql.active_record", &)
+    assert_response :success
+    assert_empty sent.grep(/ability_approvals|ability_pack_requests/)
   end
 end

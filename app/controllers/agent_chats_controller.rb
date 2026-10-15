@@ -146,7 +146,7 @@ class AgentChatsController < InertiaController
       PROP_ATTACHMENT_RULES => -> { attachment_rules(conversation.chat, picked: conversation.picked_model_choice) },
       PROP_CHAT_MODELS => -> { chat_models(conversation) },
       PROP_THREAD_FOR => in_thread { conversation.id },
-      PROP_MESSAGES => InertiaRails.scroll(window.scroll_metadata(MESSAGES_BEFORE_PARAM), defer: opening?, group: THREAD_GROUP, match_on: "id") { messages_shown },
+      PROP_MESSAGES => InertiaRails.scroll(-> { window.scroll_metadata(MESSAGES_BEFORE_PARAM) }, defer: opening?, group: THREAD_GROUP, match_on: "id") { messages_shown },
       PROP_CONFIRMATIONS => in_thread { AgentChatConfirmationSerializer.many(on_chat(&:awaiting_decision), screenshot_path: screenshot_path) },
       PROP_WAITING_MESSAGES => in_thread { waiting_shown },
       PROP_INVESTIGATIONS => in_thread { InvestigationCardSerializer.many(window.stepped(started_investigations)) },
@@ -610,7 +610,7 @@ class AgentChatsController < InertiaController
 
   def base_props
     {
-      PROP_CONVERSATIONS => InertiaRails.scroll(chat_page_metadata) { AgentChatSerializer.many(chat_page, platform_texts: listed_in_platform(chat_page)) },
+      PROP_CONVERSATIONS => InertiaRails.scroll(-> { chat_page_metadata }) { AgentChatSerializer.many(chat_page, platform_texts: listed_in_platform(chat_page)) },
       PROP_ARCHIVED_COUNT => -> { own_chats.archived.count },
       PROP_INCIDENTS => -> { AgentChatIncidentSerializer.many(mentionable_incidents) },
       # What an integrations card draws, read fresh on every visit, so returning from connecting shows it connected.

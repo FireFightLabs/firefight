@@ -66,13 +66,17 @@ const RUNS = [ AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGAT
 const ARCHIVED_COUNT = [ AGENT_CHAT_PROPS.ARCHIVED_COUNT ]
 const CONVERSATION = [ AGENT_CHAT_PROPS.CONVERSATION ]
 // Without preserveState Inertia remounts the page and the list loses its scroll.
-export const IN_PLACE = { preserveScroll: true, preserveState: true }
+const KEEPS_PAGE = { preserveScroll: true, preserveState: true }
+// Everything that stays on the chat shown (a change made from it, a card's action, a live reload) shows its result there,
+// optimistically, by the card's own state or through the live connection. The progress bar would read as the page
+// reloading, so only a visit that changes what is shown (opening a chat, a new chat, a run) shows it.
+export const IN_PLACE = { ...KEEPS_PAGE, showProgress: false }
 
 // Opening a chat shows its composer at once and a skeleton where the conversation goes, which loads next. The
 // conversation is an ordinary visit, not a background one: Inertia drops a background response read ahead from another
 // chat, and opening a third chat meanwhile should stop it.
-const CHAT_HEAD_VISIT = { ...IN_PLACE, only: CHAT_HEAD }
-const THREAD_VISIT = { ...IN_PLACE, only: THREAD, reset: MESSAGES }
+const CHAT_HEAD_VISIT = { ...KEEPS_PAGE, only: CHAT_HEAD }
+const THREAD_VISIT = { ...KEEPS_PAGE, only: THREAD, reset: MESSAGES }
 
 // Spread onto a Link, so a chat stays a real link that opens in a new tab.
 export function openChatVisit(chatId: string) {
@@ -80,7 +84,7 @@ export function openChatVisit(chatId: string) {
 }
 
 // Spread onto the link back to the list, which clears the open chat.
-export const ALL_CHATS_VISIT = { ...IN_PLACE, ...READ_OPEN_CHAT }
+export const ALL_CHATS_VISIT = { ...KEEPS_PAGE, ...READ_OPEN_CHAT }
 
 export function openChat(chatId: string) {
   router.visit(agentChatPath(chatId), openChatVisit(chatId))
@@ -187,11 +191,11 @@ export function answerConfirmations(conversationId: string, answers: Confirmatio
 
 // A run opens over the chat that started it, and only the run is loaded.
 export function openRun(chatId: string, investigationId: string) {
-  router.visit(agentChatPath(chatId, { [INVESTIGATION_QUERY_PARAM]: investigationId }), { ...IN_PLACE, only: RUNS })
+  router.visit(agentChatPath(chatId, { [INVESTIGATION_QUERY_PARAM]: investigationId }), { ...KEEPS_PAGE, only: RUNS })
 }
 
 export function closeRun(chatId: string) {
-  router.visit(agentChatPath(chatId), { ...IN_PLACE, only: RUNS, replace: true })
+  router.visit(agentChatPath(chatId), { ...KEEPS_PAGE, only: RUNS, replace: true })
 }
 
 // A run answers after the turn that started it, so its card is told to look again whenever it moves.
@@ -254,69 +258,73 @@ export function undoMitigation(conversationId: string, mitigationId: string, cal
 // starts a turn and moves the pause's card in the thread too.
 export const CODE_AGENT_RELOADS = CODE_PAUSES
 
+function reloadInPlace(only: string[]) {
+  router.reload({ ...IN_PLACE, only })
+}
+
 export function refreshRuns() {
-  router.reload({ only: RUNS })
+  reloadInPlace(RUNS)
 }
 
 // A step that returned charts arrives while the answer is still being written, so only the charts are loaded.
 export function refreshCharts() {
-  router.reload({ only: CHARTS })
+  reloadInPlace(CHARTS)
 }
 
 export function refreshScreenshots() {
-  router.reload({ only: SCREENSHOTS })
+  reloadInPlace(SCREENSHOTS)
 }
 
 export function refreshHeldCalls() {
-  router.reload({ only: HELD_CALLS })
+  reloadInPlace(HELD_CALLS)
 }
 
 export function refreshPackRefusals() {
-  router.reload({ only: PACK_REFUSALS })
+  reloadInPlace(PACK_REFUSALS)
 }
 
 export function refreshSecretEntries() {
-  router.reload({ only: SECRET_ENTRIES })
+  reloadInPlace(SECRET_ENTRIES)
 }
 
 export function refreshWatches() {
-  router.reload({ only: WATCHES })
+  reloadInPlace(WATCHES)
 }
 
 export function refreshPlans() {
-  router.reload({ only: PLANS })
+  reloadInPlace(PLANS)
 }
 
 export function refreshWorkflows() {
-  router.reload({ only: WORKFLOWS })
+  reloadInPlace(WORKFLOWS)
 }
 
 export function refreshPullRequestNotices() {
-  router.reload({ only: PULL_REQUEST_NOTICES })
+  reloadInPlace(PULL_REQUEST_NOTICES)
 }
 
 export function refreshSafeguards() {
-  router.reload({ only: SAFEGUARDS })
+  reloadInPlace(SAFEGUARDS)
 }
 
 export function refreshMemoryQuestions() {
-  router.reload({ only: MEMORY_QUESTIONS })
+  reloadInPlace(MEMORY_QUESTIONS)
 }
 
 export function refreshHelpers() {
-  router.reload({ only: HELPERS })
+  reloadInPlace(HELPERS)
 }
 
 export function refreshHandbookProposals() {
-  router.reload({ only: HANDBOOK_PROPOSALS })
+  reloadInPlace(HANDBOOK_PROPOSALS)
 }
 
 export function refreshSkillProposals() {
-  router.reload({ only: SKILL_PROPOSALS })
+  reloadInPlace(SKILL_PROPOSALS)
 }
 
 export function refreshOpenChat() {
-  router.reload({ ...READ_OPEN_CHAT, onSuccess: placeOpenChat })
+  router.reload({ ...IN_PLACE, ...READ_OPEN_CHAT, onSuccess: placeOpenChat })
 }
 
 export function renameChat(chat: AgentChat, title: string) {
@@ -334,13 +342,13 @@ export function setChatArchived(chat: AgentChat, archived: boolean) {
 
 // Deleting the open chat clears the page too.
 export function deleteChat(chat: AgentChat, open: boolean) {
-  const reads = open ? { ...READ_OPEN_CHAT, only: [ ...OPEN_CHAT, ...ARCHIVED_COUNT ] } : { only: ARCHIVED_COUNT }
+  const reads = open ? { ...KEEPS_PAGE, ...READ_OPEN_CHAT, only: [ ...OPEN_CHAT, ...ARCHIVED_COUNT ] } : { ...IN_PLACE, only: ARCHIVED_COUNT }
   router
     .optimistic<AgentPageProps>((props) => ({
       conversations: props.conversations.filter((candidate) => candidate.id !== chat.id),
       archivedCount: props.archivedCount - (chat.archived ? 1 : 0),
     }))
-    .delete(agentChatPath(chat.id), { ...IN_PLACE, ...reads })
+    .delete(agentChatPath(chat.id), reads)
 }
 
 function changeChat(chat: AgentChat, change: ChatChange, alsoOnRow: Partial<AgentChat> = {}) {

@@ -25,11 +25,13 @@ export const RUN_VISIT = {
   only: [ ...CANVAS_VISIT.only, WORKFLOW_CANVAS_PROPS.RUN, WORKFLOW_CANVAS_PROPS.RUNS, WORKFLOW_CANVAS_PROPS.LAST_RUN ],
 }
 
-// Asking Halon reloads the chat beside the canvas, keeping the address.
+// Asking Halon reloads the chat beside the canvas, keeping the address. The chat shows a question and its answer as they
+// happen, so no progress bar runs over the page.
 export const CHAT_VISIT = {
   preserveScroll: true,
   preserveState: true,
   preserveUrl: true,
+  showProgress: false,
   only: [ ...WORKFLOW_CANVAS_CHAT_PROPS ],
 }
 

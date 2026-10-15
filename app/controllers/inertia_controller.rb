@@ -7,22 +7,19 @@ class InertiaController < ApplicationController
   before_action :authorize_web_action!
   include ContinuesSetup
 
-  inertia_share do
-    {
-      currentUser: current_user && CurrentUserSerializer.one(current_user),
-      currentWorkspace: current_workspace && CurrentWorkspaceSerializer.one(current_workspace),
-      availableWorkspaces: current_user ? CurrentWorkspaceSerializer.many(current_user.workspaces.order(:name)) : [],
-      currentUserIsAdmin: current_membership&.admin_access? || false,
-      currentUserCan: current_membership ? manageable_resources : {},
-      pendingApprovalsCount: current_workspace ? current_workspace.ability_approvals.pending.count : 0,
-      # Only an admin can give a pack, so only an admin is shown how many wait.
-      waitingPackRequestsCount: current_membership&.admin_access? ? current_workspace.ability_pack_requests.waiting.count : 0,
-      agentAvailable: agent_available?,
-      # Whether the workspace has workflows, so the Workflows page and everything about it shows only where it does.
-      workflowsEnabled: current_workspace.present? && FeatureFlags.enabled?(current_workspace, FeatureFlags::WORKFLOWS),
-      customSkillsEnabled: current_workspace.present? && Chat::CustomSkill.enabled_for?(current_workspace)
-    }
-  end
+  # Each is read only when a response carries it, so a partial reload that names other props never computes them.
+  inertia_share currentUser: -> { current_user && CurrentUserSerializer.one(current_user) },
+                currentWorkspace: -> { current_workspace && CurrentWorkspaceSerializer.one(current_workspace) },
+                availableWorkspaces: -> { current_user ? CurrentWorkspaceSerializer.many(current_user.workspaces.order(:name)) : [] },
+                currentUserIsAdmin: -> { current_membership&.admin_access? || false },
+                currentUserCan: -> { current_membership ? manageable_resources : {} },
+                pendingApprovalsCount: -> { current_workspace ? current_workspace.ability_approvals.pending.count : 0 },
+                # Only an admin can give a pack, so only an admin is shown how many wait.
+                waitingPackRequestsCount: -> { current_membership&.admin_access? ? current_workspace.ability_pack_requests.waiting.count : 0 },
+                agentAvailable: -> { agent_available? },
+                # Whether the workspace has workflows, so the Workflows page and everything about it shows only where it does.
+                workflowsEnabled: -> { current_workspace.present? && FeatureFlags.enabled?(current_workspace, FeatureFlags::WORKFLOWS) },
+                customSkillsEnabled: -> { current_workspace.present? && Chat::CustomSkill.enabled_for?(current_workspace) }
 
   private
 

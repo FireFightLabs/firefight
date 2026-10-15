@@ -162,12 +162,13 @@ class Chat::CodeFixProgress
   end
 
   # The questions and pauses many steps' changes name, read in one query each rather than once a step, which each step's
-  # question and pause answer from.
+  # question and pause answer from. Their sessions are read together, since a question and a pause often share one.
   def self.preload_records(works, workspace_id)
     works = works.compact
-    questions = CodeAgentQuestion.where(id: works.filter_map { |work| work.question&.dig("id") }, workspace_id: workspace_id).includes(:session).index_by { |row| row.id.to_s }
-    pauses = CodeAgentSession::Pause.where(id: works.filter_map { |work| work.pause&.dig("id") }, workspace_id: workspace_id).includes(:session).index_by { |row| row.id.to_s }
-    works.each { |work| work.records_read(workspace_id, questions, pauses) }
+    questions = CodeAgentQuestion.where(id: works.filter_map { |work| work.question&.dig("id") }, workspace_id: workspace_id).to_a
+    pauses = CodeAgentSession::Pause.where(id: works.filter_map { |work| work.pause&.dig("id") }, workspace_id: workspace_id).to_a
+    ActiveRecord::Associations::Preloader.new(records: questions + pauses, associations: :session).call
+    works.each { |work| work.records_read(workspace_id, questions.index_by { |row| row.id.to_s }, pauses.index_by { |row| row.id.to_s }) }
   end
 
   def records_read(workspace_id, questions, pauses)
