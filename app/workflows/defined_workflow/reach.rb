@@ -52,7 +52,7 @@ module DefinedWorkflow::Reach
   # connection tool, switched on or not, by the name Halon calls it.
   def tool_names(workspace)
     own = firefight_tools.map { |tool_class| tool_class.name_value.to_s }
-    own + MAP_READERS + workspace.connection_tools_by_name.keys
+    own + MAP_READERS + workspace.tool_labels.keys
   end
 
   def tool_known?(workspace, name) = tool_names(workspace).include?(name.to_s)

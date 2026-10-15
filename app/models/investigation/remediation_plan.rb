@@ -77,6 +77,22 @@ class Investigation::RemediationPlan < ApplicationRecord
 
   def applying? = status == STATUS_APPLYING
 
+  # Reads the steps once with what a page shows of each and where each code change's repository is seen, so the plan's
+  # own checks and each step's row ask nothing more per step. Returns the plan.
+  def preload_steps!
+    return self if @steps_preloaded
+
+    ActiveRecord::Associations::Preloader.new(records: [ self ], associations: { steps: [ :invocation, :done_by, { approval: :approver } ] }).call
+    workspace = finding.investigation.workspace
+    Investigation::RemediationStep.preload_repository_holders(steps, workspace)
+    Investigation::RemediationStep.preload_action_tools(steps, workspace)
+    works = steps.to_h { |step| [ step, step.work ] }
+    Chat::CodeFixProgress.preload_records(works.values, workspace.id)
+    works.each { |step, work| step.shown_work = work&.with_current_question(workspace.id) }
+    @steps_preloaded = true
+    self
+  end
+
   # Why this fix cannot be applied now, or nil. Without a person, only what holds for everyone, which the run page shows.
   # With one, also whether they may run every tool it needs, so nothing starts that would stop partway for want of access.
   def apply_blocked_reason(membership = nil)

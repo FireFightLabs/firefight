@@ -20,6 +20,12 @@ class Integration::Tool < ApplicationRecord
   }
   scope :in_workspace, ->(workspace) { switched_on_in(workspace).eager_load(:ability_action, integration: :integration_environments) }
 
+  # The one switched on tool an action key names, such as "planetscale.execute_write_query", read whole, or nil.
+  def self.by_action_key(workspace, action_key)
+    slug, name = action_key.to_s.split(".", 2)
+    in_workspace(workspace).find_by(integrations: { slug: slug }, name: name)
+  end
+
   # How long its definition is, as FirefightAi.fits_up_front? counts it, so whether many tools fit is one sum.
   # Counted as a model is handed it (definition_length), not on the tool's own name, description and schema.
   before_save :count_definition_chars, if: -> {

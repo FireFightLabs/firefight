@@ -72,7 +72,7 @@ class Chat::DataRepair < ApplicationRecord
   def copy_for(member)
     return Copy.new(text: nil, filename: nil, refusal: "The copy of these rows was dropped once kept for #{COPY_KEPT_FOR.inspect}.") unless copy_kept?
 
-    tool = Integration::Tool.in_workspace(workspace).find { |each| each.action_key == action_key }
+    tool = Integration::Tool.by_action_key(workspace, action_key)
     definition = Integrations::DataWrites.for(tool)
     reader = definition && Integrations::DataWrites.read_tool(tool, definition)
     unless reader

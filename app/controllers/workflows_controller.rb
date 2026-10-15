@@ -126,7 +126,7 @@ class WorkflowsController < InertiaController
   # A page of runs, newest first, with whether there are more, so every run stays reachable.
   def paged(scope)
     number = [ params[:page].to_i, 1 ].max
-    records = scope.includes(:workflow, :started_by).newest_first.offset((number - 1) * RUNS_SHOWN).limit(RUNS_SHOWN + 1).to_a
+    records = scope.includes(:workflow, :started_by, :version).newest_first.offset((number - 1) * RUNS_SHOWN).limit(RUNS_SHOWN + 1).to_a
     Paged.new(records: records.first(RUNS_SHOWN), page: { number: number, more: records.size > RUNS_SHOWN })
   end
 
@@ -138,7 +138,7 @@ class WorkflowsController < InertiaController
   def runs_of(workflows)
     return [] if workflows.empty?
 
-    Workflow::Run.where(workflow_id: workflows.map(&:id)).includes(:workflow, :started_by).newest_first.limit(RUNS_SHOWN)
+    Workflow::Run.where(workflow_id: workflows.map(&:id)).includes(:workflow, :started_by, :version).newest_first.limit(RUNS_SHOWN)
   end
 
   # Whoever may publish is shown what waits for them.

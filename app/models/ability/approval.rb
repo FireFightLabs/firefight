@@ -142,12 +142,13 @@ module Ability
     def self.decision_scope_for(id) = { SCOPE_APPROVAL => id.to_s }
 
     # Someone a workflow's Approval step named may decide that one request without approvals.update, and nothing else.
-    # Anyone it reaches through a role, and every other request, still needs the grant.
-    def self.decides_by_name?(principal, action_key, scope, workspace)
+    # Anyone it reaches through a role, and every other request, still needs the grant. loaded is the request when the
+    # caller holds it already, used only when it is the one the scope names.
+    def self.decides_by_name?(principal, action_key, scope, workspace, loaded: nil)
       return false unless action_key == DECIDE_KEY && principal.is_a?(WorkspaceMembership)
 
       id = scope.to_h.stringify_keys[SCOPE_APPROVAL]
-      approval = id.present? && workspace.ability_approvals.find_by(id: id)
+      approval = id.present? && ((loaded if loaded&.id.to_s == id.to_s && loaded.workspace_id == workspace.id) || workspace.ability_approvals.find_by(id: id))
       approval.present? && approval.named_decider?(principal)
     end
 
@@ -160,7 +161,7 @@ module Ability
     # request itself are decide_blocked_reason's.
     def decide_denied_reason(principal)
       action = Ability::Action.lookup(DECIDE_KEY, workspace)
-      return if principal && AbilityGateway.permitted?(principal, action, DECIDE_KEY, workspace, decision_scope)
+      return if principal && AbilityGateway.permitted?(principal, action, DECIDE_KEY, workspace, decision_scope, approval: self)
 
       "You don't have permission to decide this request. Ask a workspace admin to grant you approvals access under Gateway, Permissions."
     end

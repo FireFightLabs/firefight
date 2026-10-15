@@ -48,7 +48,7 @@ module Chat::StaleRefusals
 
   def provider_error?(workspace, call)
     call.failed && call.failure_kind == Chat::StepOutcome::FAILURE_ERROR &&
-      (workspace.connection_tools_by_name.key?(call.name) || Integrations::Capabilities.tool_names.include?(call.name))
+      (workspace.tool_labels.key?(call.name) || Integrations::Capabilities.tool_names.include?(call.name))
   end
 
   def ago(at)

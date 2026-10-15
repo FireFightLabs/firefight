@@ -461,8 +461,9 @@ class Chat::Memory < ApplicationRecord
     decide!(STATE_UNCONFIRMED, from: [ STATE_EXPIRED ], state_reason: nil)
   end
 
-  def used!
-    self.class.where(id: id).update_all([ "use_count = use_count + 1, last_used_at = ?", Time.current ])
+  # Every memory read at once is counted in one statement.
+  def self.used!(memories)
+    where(id: memories.map(&:id)).update_all([ "use_count = use_count + 1, last_used_at = ?", Time.current ]) if memories.any?
   end
 
   private

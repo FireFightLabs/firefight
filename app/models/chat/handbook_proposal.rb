@@ -51,6 +51,20 @@ class Chat::HandbookProposal < ApplicationRecord
     waiting.where(handbook_page_id: nil).to_a.find { |proposal| proposal.title.casecmp?(title.to_s.squish) }
   end
 
+  # What a list of proposals shows of each page, its wording now, and which new pages' titles a page took since, read
+  # for the whole list at once rather than once a proposal.
+  def self.preload_pages(proposals)
+    proposals = proposals.to_a
+    ActiveRecord::Associations::Preloader.new(records: proposals, associations: { handbook_page: :current_wording }).call
+    wanted = proposals.select(&:new_page?).map { |proposal| proposal.title.to_s.downcase }.uniq
+    taken = wanted.empty? ? Set.new : Chat::HandbookPage.where(workspace_id: proposals.map(&:workspace_id).uniq)
+                                                          .where("lower(title) IN (?)", wanted).pluck(:workspace_id, Arel.sql("lower(title)")).to_set
+    proposals.select(&:new_page?).each { |proposal| proposal.title_taken = taken.include?([ proposal.workspace_id, proposal.title.to_s.downcase ]) }
+    proposals
+  end
+
+  attr_writer :title_taken
+
   def self.owner_columns(owner) = owner.is_a?(Investigation) ? { investigation: owner } : { conversation: owner }
 
   # Decisions a chat or run has not been told yet, claimed once each so two turns never both tell the same one.
@@ -138,9 +152,15 @@ class Chat::HandbookProposal < ApplicationRecord
   private
 
   def stale?
-    return Chat::HandbookPage.where(workspace_id: workspace_id).where("lower(title) = ?", title.to_s.downcase).exists? if new_page?
+    return title_taken? if new_page?
 
-    Chat::Instruction.current.where(handbook_page_id: handbook_page_id).pick(:id) != instruction_id
+    handbook_page&.current_wording&.id != instruction_id
+  end
+
+  def title_taken?
+    return @title_taken unless @title_taken.nil?
+
+    Chat::HandbookPage.where(workspace_id: workspace_id).where("lower(title) = ?", title.to_s.downcase).exists?
   end
 
   def stale_sentence

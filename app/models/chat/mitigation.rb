@@ -150,7 +150,7 @@ class Chat::Mitigation < ApplicationRecord
   def label = [ call_words, (" on #{target}" if target.present?) ].join
 
   def call_words
-    tool = workspace.connection_tools_by_name[tool_name.to_s]
+    tool = workspace.tool_labels[tool_name.to_s]
     (tool ? tool.name : tool_name).to_s.tr("_.", "  ").humanize
   end
 end

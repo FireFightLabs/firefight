@@ -122,5 +122,5 @@ class InvestigationRemediationStepSerializer < BaseSerializer
   private
 
   # The work as the step kept it, with its question as it stands now.
-  def work = memo.fetch(:work) { step.work&.with_current_question(step.workspace_id) }
+  def work = memo.fetch(:work) { step.shown_work }
 end

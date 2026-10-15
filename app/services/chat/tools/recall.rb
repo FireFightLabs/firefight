@@ -34,7 +34,7 @@ class Chat::Tools::Recall < RubyLLM::Tool
     gone = "#{subject.name} is no longer on the map. It was last seen #{subject.removed_at.to_date.iso8601}, so check before relying on any of this." if subject.is_a?(ResourceMap::Resource) && subject.removed_at
     return [ gone, "Nothing is remembered about that yet." ].compact.join("\n") if found.memories.empty?
 
-    found.memories.each(&:used!) if @agent_run.changes_memory?
+    Chat::Memory.used!(found.memories) if @agent_run.changes_memory?
     more = "#{found.more} more matched. Ask with more words, or name what it is about, to see them." if found.more.positive?
     [ gone, *found.memories.map(&:line), more ].compact.join("\n")
   end

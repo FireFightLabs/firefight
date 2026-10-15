@@ -139,9 +139,28 @@ class Investigation::RemediationStep < ApplicationRecord
   def tool_to_run(workspace = plan.finding.investigation.workspace)
     return code_tool(workspace) if pull_request?
 
+    read_for, tool = @action_tool
+    return tool if read_for == workspace.id
+
     slug, name = action_key.to_s.split(".", 2)
     Integration::Tool.in_workspace(workspace).where(integrations: { slug: slug }, name: name, read_only: false).first
   end
+
+  # The tools a fix's action steps run, for a whole fix in one query rather than one a step, which tool_to_run answers
+  # from in place of asking again.
+  def self.preload_action_tools(steps, workspace)
+    steps = steps.to_a
+    keyed = steps.reject(&:pull_request?).select { |step| step.action_key.present? }
+    return steps if keyed.empty?
+
+    pairs = keyed.map { |step| step.action_key.split(".", 2) }
+    found = Integration::Tool.in_workspace(workspace).where(integrations: { slug: pairs.map(&:first).uniq }, name: pairs.map(&:last).uniq, read_only: false)
+                             .index_by(&:action_key)
+    keyed.each { |step| step.action_tool = [ workspace.id, found[step.action_key] ] }
+    steps
+  end
+
+  attr_writer :action_tool
 
   # What the coding agent is asked, from the run's finding and the rest of the fix, so each pull request says why it
   # exists and where it sits among the others.
@@ -355,6 +374,12 @@ class Investigation::RemediationStep < ApplicationRecord
 
   def work = Chat::CodeFixProgress.from_json(progress)
 
+  # The work as a page shows it, with its question as it stands now. A plan read for a page sets it for every step at
+  # once (RemediationPlan#preload_steps!).
+  attr_writer :shown_work
+
+  def shown_work = defined?(@shown_work) ? @shown_work : work&.with_current_question(workspace_id)
+
   def mark_done!(by:) = move!(from: STATUS_PROPOSED, to: STATUS_DONE, done_by_id: by.id, finished_at: Time.current)
 
   # What a long running step has done so far, such as where its coding agent is working, shown while it runs. Only a
@@ -384,14 +409,43 @@ class Investigation::RemediationStep < ApplicationRecord
   def code_tool(workspace)
     return workspace.code_fix_agent_tool if workspace.code_fix_agent.present?
 
-    writers = IntegrationProvider.code_hosts.to_h { |provider| [ provider.key, provider.code_fix_tool ] }
+    writers = self.class.code_writers
     tools = Integration::Tool.in_workspace(workspace).where(integrations: { provider: writers.keys }, read_only: false).to_a
                              .select { |tool| writers[tool.integration.provider] == tool.name }
-    # A path two code hosts both hold, such as a mirror, is two repositories, so it is the code hosts' own that count.
-    seen = ResourceMap::Resource.present.where(workspace: workspace, kind: ResourceMap::KIND_REPOSITORY, external_id: repository, provider: writers.keys)
-                                .includes(:integration_environment).filter_map { |resource| resource.integration_environment&.integration_id }
+    seen = repository_holders(workspace)
     holders = tools.select { |tool| seen.include?(tool.integration_id) }
     holders.one? ? holders.first : (tools.first if tools.one?)
+  end
+
+  # Each code host by its key, with the tool on it that writes a change.
+  def self.code_writers = IntegrationProvider.code_hosts.to_h { |provider| [ provider.key, provider.code_fix_tool ] }
+
+  # The connections whose sweeps put each code change's repository on the map, for a whole fix in one query rather than
+  # one a step, which code_tool reads in place of asking again.
+  def self.preload_repository_holders(steps, workspace)
+    steps = steps.to_a
+    wanted = steps.select(&:pull_request?)
+    return steps if wanted.empty?
+
+    seen = repositories_held(workspace, wanted.map(&:repository).uniq)
+    wanted.each { |step| step.held_repository = [ workspace.id, seen.fetch(step.repository, []) ] }
+    steps
+  end
+
+  # A path two code hosts both hold, such as a mirror, is two repositories, so it is the code hosts' own that count.
+  def self.repositories_held(workspace, repositories)
+    ResourceMap::Resource.present.where(workspace: workspace, kind: ResourceMap::KIND_REPOSITORY, external_id: repositories, provider: code_writers.keys)
+                         .includes(:integration_environment).group_by(&:external_id)
+                         .transform_values { |resources| resources.filter_map { |resource| resource.integration_environment&.integration_id } }
+  end
+
+  attr_writer :held_repository
+
+  def repository_holders(workspace)
+    held_for, holders = @held_repository
+    return holders if held_for == workspace.id
+
+    self.class.repositories_held(workspace, repository).fetch(repository, [])
   end
 
   # The results the finding's claims rest on, each by the step it was read in.

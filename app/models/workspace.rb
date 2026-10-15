@@ -15,6 +15,7 @@ class Workspace < ApplicationRecord
   include Workspace::ChatConnection
   include Workspace::Access
   include Workspace::Signup
+  include Workspace::ToolLabels
 
   enum :platform, { slack: Platforms::SLACK, teams: Platforms::TEAMS }, suffix: true
 
@@ -170,13 +171,30 @@ class Workspace < ApplicationRecord
     WorkspaceAdapter.for(self)
   end
 
-  # Memoized, since a page of chat messages asks this for every tool call it renders.
-  def reading_tool_names
-    @reading_tool_names ||= Integration::Tool.in_workspace(self).select(&:read_only).map(&:model_facing_name).to_set
+  # What a chat's tool catalogue and skills are read from, as one value read in one query: the connections, their tools and
+  # environments, the workspace's abilities, packs and skills, and the principal's own row. Any change to one changes it,
+  # so a turn keeps what it read only while this stays the same (Conversation::Turn#catalog).
+  REACH_VERSION_SQL = <<~SQL.squish.freeze
+    SELECT
+      (SELECT concat(count(*), '/', max(updated_at)) FROM integrations WHERE workspace_id = :workspace),
+      (SELECT concat(count(*), '/', max(integration_tools.updated_at)) FROM integration_tools
+         JOIN integrations ON integrations.id = integration_tools.integration_id WHERE integrations.workspace_id = :workspace),
+      (SELECT concat(count(*), '/', max(integration_environments.updated_at)) FROM integration_environments
+         JOIN integrations ON integrations.id = integration_environments.integration_id WHERE integrations.workspace_id = :workspace),
+      (SELECT concat(count(*), '/', max(updated_at)) FROM ability_actions WHERE workspace_id = :workspace),
+      (SELECT concat(count(*), '/', max(updated_at)) FROM ability_roles WHERE workspace_id = :workspace),
+      (SELECT concat(count(*), '/', max(updated_at)) FROM chat_custom_skills WHERE workspace_id = :workspace)
+  SQL
+
+  def reach_version(principal)
+    sql = REACH_VERSION_SQL
+    sql += ", (SELECT updated_at FROM #{principal.class.quoted_table_name} WHERE id = :principal)" if principal.is_a?(ActiveRecord::Base)
+    query = self.class.sanitize_sql([ sql, { workspace: id, principal: principal.try(:id) } ])
+    self.class.with_connection { |connection| connection.select_rows(query, "Reach version").first }
   end
 
-  # Every tool of a connection not deleted, switched on or not, by the name the agent calls it. Memoized for the same
-  # reason, since each step of a chat names its tool's connection.
+  # Every tool of a connection not deleted, switched on or not, by the name the agent calls it, whole, for a caller that
+  # runs one or reads its schema. Naming one or telling a read from a change reads tool_labels (Workspace::ToolLabels).
   def connection_tools_by_name
     @connection_tools_by_name ||= Integration::Tool.joins(:integration).where(integrations: { workspace_id: id, deleted_at: nil })
                                                    .includes(:integration, :ability_action).index_by(&:model_facing_name)
