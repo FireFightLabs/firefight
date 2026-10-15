@@ -29,6 +29,10 @@ class AgentChatThreadQueriesTest < ActionDispatch::IntegrationTest
     assert_flat { |count| count.times { code_fix_step } }
   end
 
+  test "helpers cost the same for many as for a few, each with steps and an answer kept aside" do
+    assert_flat { |count| count.times { helper_with_steps } }
+  end
+
   private
 
   def assert_flat
@@ -67,6 +71,22 @@ class AgentChatThreadQueriesTest < ActionDispatch::IntegrationTest
     work.asked!(ask_question!(session, "Tag or commit?").to_h)
     work.paused!(pause.to_h)
     Chat::StepProgress.keep!(@chat, key, work)
+  end
+
+  # A helper whose own chat read twice, the second answer too large to hand over and kept aside.
+  def helper_with_steps
+    key = "call_#{SecureRandom.hex(4)}"
+    Chat::Helper.start!(chat: @chat, tool_call_id: key, since: Time.current,
+                        checks: [ Chat::Helpers::Check.new(title: "Logs of web", brief: "Read web's errors", deep: false) ])
+    helper = @chat.helpers.find_by!(tool_call_id: key)
+    own = Chat.open!(owner: helper, workspace: @workspace, model_choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"))
+    asking = own.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    2.times do |read|
+      call = asking.ruby_llm_tool_calls.create!(tool_call_id: "#{key}_#{read}", name: Mcp::Tools::SEARCH_INCIDENTS, arguments: { "query" => "web" })
+      kept = own.saved_results.keep!(tool_name: Mcp::Tools::SEARCH_INCIDENTS, text: "INC-1\n" * 50) if read.positive?
+      content = kept ? "[Too large to hand over, saved as #{kept.handle}. Read it with read_result.]" : "INC-1"
+      call.update!(result: own.messages.create!(role: Chat::Message::ROLE_TOOL, content: content))
+    end
   end
 
   def watch_with_line

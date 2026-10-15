@@ -15,6 +15,7 @@ class Workspace < ApplicationRecord
   include Workspace::ChatConnection
   include Workspace::Access
   include Workspace::Signup
+  include Workspace::ToolLabels
 
   enum :platform, { slack: Platforms::SLACK, teams: Platforms::TEAMS }, suffix: true
 
@@ -192,14 +193,8 @@ class Workspace < ApplicationRecord
     self.class.with_connection { |connection| connection.select_rows(query, "Reach version").first }
   end
 
-  # Memoized, since a page of chat messages asks this for every tool call it renders.
-  # Read from connection_tools_by_name, so a page or a turn asking both reads the tools once.
-  def reading_tool_names
-    @reading_tool_names ||= connection_tools_by_name.values.select { |tool| tool.switched_on? && tool.read_only }.map(&:model_facing_name).to_set
-  end
-
-  # Every tool of a connection not deleted, switched on or not, by the name the agent calls it. Memoized for the same
-  # reason, since each step of a chat names its tool's connection.
+  # Every tool of a connection not deleted, switched on or not, by the name the agent calls it, whole, for a caller that
+  # runs one or reads its schema. Naming one or telling a read from a change reads tool_labels (Workspace::ToolLabels).
   def connection_tools_by_name
     @connection_tools_by_name ||= Integration::Tool.joins(:integration).where(integrations: { workspace_id: id, deleted_at: nil })
                                                    .includes(:integration, :ability_action).index_by(&:model_facing_name)

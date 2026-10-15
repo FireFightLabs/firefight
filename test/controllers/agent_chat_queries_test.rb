@@ -6,14 +6,18 @@ class AgentChatQueriesTest < ActionDispatch::IntegrationTest
   NOT_COUNTED = %w[SCHEMA TRANSACTION].freeze
   FEW = 2
   MANY = 30
-  # Pinned, so a query added per message or per prop shows here. Raise them only for a prop that is new.
+  # Pinned, so a query added per message or per prop shows here. Raise them only for a prop that is new. The
+  # conversation is counted before the tools' labels are cached (Workspace::ToolLabels), so it reads them, and once they
+  # are it sends one query fewer.
   PAGE_QUERIES = 19
-  THREAD_QUERIES = 36
+  THREAD_QUERIES = 37
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)
     Entitlements.stubs(:allows?).returns(true)
+    # Cached as in production, so the tools' labels a page reads once are read from the cache after.
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
     sign_in(users(:alice), @workspace)
   end
 

@@ -20,9 +20,6 @@ class Integration::Tool < ApplicationRecord
   }
   scope :in_workspace, ->(workspace) { switched_on_in(workspace).eager_load(:ability_action, integration: :integration_environments) }
 
-  # What switched_on_in asks of a tool already read, its connection not deleted.
-  def switched_on? = enabled? && available? && integration.disabled_at.nil? && integration.deleted_at.nil?
-
   # How long its definition is, as FirefightAi.fits_up_front? counts it, so whether many tools fit is one sum.
   # Counted as a model is handed it (definition_length), not on the tool's own name, description and schema.
   before_save :count_definition_chars, if: -> {

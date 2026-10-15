@@ -80,7 +80,7 @@ module Chat::Tools
   end
 
   def self.guarded_read?(workspace, name, arguments)
-    tool = arguments && Target.connection_tool(workspace, name)
+    tool = arguments && Target.label(workspace, name)
     tool.present? && Integrations::ReadGuards.reads?(tool, arguments)
   end
 
@@ -254,7 +254,7 @@ module Chat::Tools
   end
 
   def self.source_for(tool_name, workspace)
-    integration = workspace && Target.connection_tool(workspace, tool_name)&.integration
+    integration = workspace && Target.label(workspace, tool_name)&.integration
     integration && (IntegrationProvider.find(integration.provider)&.name || integration.name)
   end
 
@@ -398,12 +398,13 @@ module Chat::Tools
   # A call that names one project or workspace of a connection that reaches several reads with it, as "Api request ·
   # Production (Hosting), project acme".
   def self.title_for(tool_name, workspace, arguments = {})
-    tool = workspace && Target.connection_tool(workspace, tool_name)
+    tool = workspace && Target.label(workspace, tool_name)
     return tool_name.to_s.tr("_", " ").humanize unless tool
 
     key = IntegrationProvider.find(tool.integration.provider)&.scope_field&.key
     scope = key && arguments[key].presence
-    "#{tool.name.tr('_.', '  ').humanize} · #{scope.is_a?(String) ? tool.integration.target_label(scope: scope) : tool.integration.display_name}"
+    connection = scope.is_a?(String) ? Target.connection_tool(workspace, tool_name).integration.target_label(scope: scope) : tool.integration.display_name
+    "#{tool.name.tr('_.', '  ').humanize} · #{connection}"
   end
 
   # A runbook's run, and a workflow made or run, are confirmed as the steps they will take, read from what they are

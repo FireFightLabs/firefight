@@ -5,6 +5,10 @@ module Chat::Tools::Target
   # The connection tool the agent calls by name, in this workspace, or nil.
   def self.connection_tool(workspace, tool_name) = workspace.connection_tools_by_name[tool_name.to_s]
 
+  # What names that tool and its connection, and whether it only reads, without reading the tool whole
+  # (Workspace::ToolLabels), or nil.
+  def self.label(workspace, tool_name) = workspace.tool_labels[tool_name.to_s]
+
   def self.capability_spec(tool_name) = Integrations::Capabilities::SPECS.values.find { |spec| spec.tool_name == tool_name.to_s }
 
   # What a call reaches, such as "Production (Hosting), project shop", or for a capability the resource it was routed

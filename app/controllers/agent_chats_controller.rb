@@ -434,7 +434,7 @@ class AgentChatsController < InertiaController
 
   # One still going is always read, since the strip above the composer shows it however far back it started.
   def watches_shown
-    on_chat { |chat| window.placed(chat.watches).or(chat.watches.active).includes(:steps, :asker, :updates) }
+    @watches_shown ||= on_chat { |chat| window.placed(chat.watches).or(chat.watches.active).includes(:steps, :asker, :updates) }.to_a
   end
 
   # The workflows made in this chat, none where the workspace has no workflows.
@@ -469,8 +469,14 @@ class AgentChatsController < InertiaController
     redirect_to agent_chat_path(conversation), notice: done
   end
 
+  # A line names its watch and links its steps. A watch the cards already read is used as read, and only the others are
+  # read with their steps, so a watch's steps are read once a page.
   def watch_updates_shown
-    on_chat { |chat| window.placed(chat.watch_updates.on_their_own.includes(watch: :steps).reorder(:created_at)) }
+    updates = on_chat { |chat| window.placed(chat.watch_updates.on_their_own.reorder(:created_at)) }.to_a
+    shown = watches_shown.index_by(&:id)
+    updates.each { |update| update.association(:watch).target = shown[update.watch_id] if shown.key?(update.watch_id) }
+    ActiveRecord::Associations::Preloader.new(records: updates.reject { |update| shown.key?(update.watch_id) }, associations: { watch: :steps }).call
+    updates
   end
 
   def pull_request_notices_shown

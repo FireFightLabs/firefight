@@ -173,7 +173,7 @@ module Chat::Tools::LookFirst
   def self.can_read?(workspace, name)
     return true if read?(workspace, name, {})
 
-    tool = Chat::Tools::Target.connection_tool(workspace, name)
+    tool = Chat::Tools::Target.label(workspace, name)
     tool.present? && Integrations::ReadGuards.for(tool).present?
   end
 
