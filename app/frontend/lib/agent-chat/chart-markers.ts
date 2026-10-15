@@ -99,6 +99,11 @@ function segmentsOf(id: string, text: string, byHandle: Map<string, ChatChart>, 
   return segments
 }
 
+// A backtick fence's info string holds no backtick, or the line is inline code rather than a fence.
+function opens(run: string, rest: string): boolean {
+  return run[0] !== "`" || !rest.includes("`")
+}
+
 function closes(run: string, rest: string, opener: string): boolean {
   return run[0] === opener[0] && run.length >= opener.length && rest.trim() === ""
 }
@@ -111,7 +116,7 @@ function fencedRanges(text: string): [number, number][] {
   let opener = ""
   for (const line of text.split("\n")) {
     const fence = FENCE.exec(line)
-    if (fence && openedAt === null) {
+    if (fence && openedAt === null && opens(fence[1], fence[2])) {
       openedAt = offset
       opener = fence[1]
     } else if (fence && closes(fence[1], fence[2], opener) && openedAt !== null) {

@@ -56,6 +56,16 @@ class AgentInlineChartsTest < ApplicationSystemTestCase
     assert_selector "figure", count: 1
   end
 
+  test "a line of backticks with a backtick after them opens no code block, so a marker after it still places its chart" do
+    web, = drawn("call_1", "Memory of web")
+    answered("```sh`ell is not a fence.\n\nWeb climbed.\n\n#{marker(web)}\n\nIt came back down.")
+
+    visit agent_chat_path(@conversation)
+
+    assert_text(/Web climbed\..*Memory of web.*It came back down\./m)
+    assert_no_selector "pre", text: marker(web)
+  end
+
   test "a live answer draws a chart as soon as its marker arrives, and the words after it never move it" do
     cable_async!
     ApplicationCable::Connection.any_instance.stubs(:signed_in_user).returns(users(:alice))
