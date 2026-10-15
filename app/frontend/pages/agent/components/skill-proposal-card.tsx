@@ -8,7 +8,7 @@ import { SkillContentDiff } from "@/components/skills/skill-content-diff"
 import { SKILL_PAGE_QUERIES } from "@/lib/generated/constants"
 import { useCan } from "@/lib/permissions"
 import { acceptHalonSkillProposalPath, dismissHalonSkillProposalPath, halonSkillsPath } from "@/lib/routes"
-import { IN_PLACE, SKILL_PROPOSALS } from "@/pages/agent/lib/chat-updates"
+import { SHOWN_IN_PLACE, SKILL_PROPOSALS } from "@/pages/agent/lib/chat-updates"
 import type { HalonSkillProposal } from "@/types/serializers"
 
 interface SkillProposalCardProps {
@@ -39,12 +39,12 @@ export function SkillProposalCard({ proposal }: SkillProposalCardProps) {
 
   function accept() {
     setSending(true)
-    router.post(acceptHalonSkillProposalPath(proposal.id), {}, { ...IN_PLACE, only: SKILL_PROPOSALS, onFinish: doneSending })
+    router.post(acceptHalonSkillProposalPath(proposal.id), {}, { ...SHOWN_IN_PLACE, only: SKILL_PROPOSALS, onFinish: doneSending })
   }
 
   function dismiss() {
     setSending(true)
-    router.post(dismissHalonSkillProposalPath(proposal.id), {}, { ...IN_PLACE, only: SKILL_PROPOSALS, onFinish: doneSending })
+    router.post(dismissHalonSkillProposalPath(proposal.id), {}, { ...SHOWN_IN_PLACE, only: SKILL_PROPOSALS, onFinish: doneSending })
   }
 
   return (

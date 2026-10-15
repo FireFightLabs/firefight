@@ -67,6 +67,9 @@ const ARCHIVED_COUNT = [ AGENT_CHAT_PROPS.ARCHIVED_COUNT ]
 const CONVERSATION = [ AGENT_CHAT_PROPS.CONVERSATION ]
 // Without preserveState Inertia remounts the page and the list loses its scroll.
 export const IN_PLACE = { preserveScroll: true, preserveState: true }
+// A change whose result the chat already shows, from what was sent or the card's own state, with the live connection
+// bringing the rest. The page's progress bar would read as the page reloading, so it stays for visits that change it.
+export const SHOWN_IN_PLACE = { ...IN_PLACE, showProgress: false }
 
 // Opening a chat shows its composer at once and a skeleton where the conversation goes, which loads next. The
 // conversation is an ordinary visit, not a background one: Inertia drops a background response read ahead from another
@@ -120,7 +123,7 @@ export function ask(conversationId: string | null, threadReady: boolean, questio
   router
     .optimistic<AgentPageProps>((props) => askedNow(props, question, shown))
     .post(path, { question, attachment_ids: attachments.map((attachment) => attachment.id), ...picked }, {
-      ...IN_PLACE, ...reads, onSuccess: placeOpenChat,
+      ...SHOWN_IN_PLACE, ...reads, onSuccess: placeOpenChat,
     })
 }
 
@@ -182,7 +185,7 @@ export function answerConfirmations(conversationId: string, answers: Confirmatio
   const decisions = answers.map((answer) => ({
     tool_call_id: answer.toolCallId, approved: answer.approved, for_chat: answer.forChat, expires: answer.expires,
   }))
-  router.post(agentChatConfirmPath(conversationId), { decisions }, { ...IN_PLACE, ...READ_DECIDED })
+  router.post(agentChatConfirmPath(conversationId), { decisions }, { ...SHOWN_IN_PLACE, ...READ_DECIDED })
 }
 
 // A run opens over the chat that started it, and only the run is loaded.

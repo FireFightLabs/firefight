@@ -20,7 +20,8 @@ import type { HandbookProposal } from "@/types/serializers"
 interface EditProposalDialogProps {
   proposal: HandbookProposal | null
   onClose: () => void
-  // The page props accepting changes, for a page that must not be visited whole, such as the chat the card is in.
+  // The page props accepting changes, for a page that must not be visited whole, such as the chat the card is in. The card
+  // shows the result there, so no progress bar runs over the page.
   reloads?: string[]
 }
 
@@ -32,7 +33,7 @@ export function EditProposalDialog({ proposal, onClose, reloads }: EditProposalD
   function submit(event: FormEvent) {
     event.preventDefault()
     if (proposal) {
-      post(acceptHandbookProposalPath(proposal.id), { preserveScroll: true, preserveState: true, ...(reloads ? { only: reloads } : {}), onSuccess: onClose })
+      post(acceptHandbookProposalPath(proposal.id), { preserveScroll: true, preserveState: true, ...(reloads ? { only: reloads, showProgress: false } : {}), onSuccess: onClose })
     }
   }
 

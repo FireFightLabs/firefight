@@ -28,7 +28,8 @@ interface DecideMemoryDialogProps {
   memory: DecidedMemory | null
   decision: Decision
   onClose: () => void
-  // The page props deciding changes, for a page that must not be visited whole, such as the chat the card is in.
+  // The page props deciding changes, for a page that must not be visited whole, such as the chat the card is in. The card
+  // shows the result there, so no progress bar runs over the page.
   reloads?: string[]
 }
 
@@ -59,7 +60,7 @@ export function DecideMemoryDialog({ memory, decision, onClose, reloads }: Decid
     if (!memory) {
       return
     }
-    post(correcting ? correctMemoryPath(memory.id) : rejectMemoryPath(memory.id), { preserveScroll: true, preserveState: true, ...(reloads ? { only: reloads } : {}), onSuccess: onClose })
+    post(correcting ? correctMemoryPath(memory.id) : rejectMemoryPath(memory.id), { preserveScroll: true, preserveState: true, ...(reloads ? { only: reloads, showProgress: false } : {}), onSuccess: onClose })
   }
 
   function writeText(value: string) {

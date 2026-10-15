@@ -27,8 +27,35 @@ module InPlaceHelper
     }
   JS
 
+  # Every request Inertia sends from here waits before it leaves, as a slow server would, and the page notes whether its
+  # progress bar was ever shown and how many requests are still out.
+  SLOW_SERVER = <<~JS.freeze
+    window.progressShown = false;
+    window.requestsOut = 0;
+    setInterval(() => {
+      const bar = document.getElementById("nprogress");
+      if (bar && bar.checkVisibility()) { window.progressShown = true; }
+    }, 10);
+    const sendNow = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function (...args) {
+      window.requestsOut += 1;
+      this.addEventListener("loadend", () => { window.requestsOut -= 1; });
+      setTimeout(() => sendNow.call(this, ...args), DELAY);
+    };
+  JS
+
   def watch_page
     page.execute_script(RECORDER)
+  end
+
+  def slow_server(seconds)
+    page.execute_script(SLOW_SERVER.sub("DELAY", (seconds * 1000).to_i.to_s))
+  end
+
+  def requests_out = page.evaluate_script("window.requestsOut")
+
+  def assert_no_progress_bar
+    assert_equal false, page.evaluate_script("window.progressShown"), "the page's progress bar showed"
   end
 
   # Each change sent since the page was watched asked for the named props alone, and the page was never replaced.

@@ -73,7 +73,7 @@ export function useWorkflowChat(workflowId: string, chat: AgentChat | null): Wor
         return
       }
       setPending(trimmed)
-      router.post(workflowChatPath(workflowId), { question: trimmed, fresh }, { ...CHAT_VISIT, onSuccess: asked, onFinish: settled })
+      router.post(workflowChatPath(workflowId), { question: trimmed, fresh }, { ...CHAT_VISIT, showProgress: false, onSuccess: asked, onFinish: settled })
     }
 
     function stop() {

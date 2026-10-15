@@ -9,8 +9,10 @@ class AgentChatQueriesTest < ActionDispatch::IntegrationTest
   # Pinned, so a query added per message or per prop shows here. Raise them only for a prop that is new. The
   # conversation is counted before the tools' labels are cached (Workspace::ToolLabels), so it reads them, and once they
   # are it sends one query fewer.
-  PAGE_QUERIES = 19
-  THREAD_QUERIES = 37
+  PAGE_QUERIES = 18
+  THREAD_QUERIES = 44
+  # What a question sent from the open chat reads back. Nothing the page shares is counted, since none of it is sent.
+  ASKED_QUERIES = 27
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -34,6 +36,21 @@ class AgentChatQueriesTest < ActionDispatch::IntegrationTest
     assert_equal PAGE_QUERIES, counted { get agent_chat_url(conversation), headers: inertia_headers }.size
     queries = counted { get agent_chat_url(conversation), headers: thread_headers }
     assert_equal THREAD_QUERIES, queries.size, repeated(queries)
+  end
+
+  test "a question sent from the open chat reads back the pinned queries, however long the chat" do
+    [ chat_with(FEW), chat_with(MANY) ].each do |conversation|
+      oldest = conversation.chat.readable_messages.first
+      headers = inertia_partial_headers("agent/index", AgentChatsController::ASKED_PROPS)
+                .merge("X-Inertia-Reset" => AgentChatsController::PROP_MESSAGES, AgentChatsController::LOADED_FROM_HEADER => oldest.id)
+
+      # A request reads its workspace afresh, so the tools' labels it memoizes are read again.
+      sign_in(users(:alice), Workspace.find(@workspace.id))
+      Rails.cache.clear
+      queries = counted { get agent_chat_url(conversation), headers: headers }
+
+      assert_equal ASKED_QUERIES, queries.size, repeated(queries)
+    end
   end
 
   test "the steps and sources a page shows are the same as each message read on its own" do
@@ -93,7 +110,10 @@ class AgentChatQueriesTest < ActionDispatch::IntegrationTest
     "[Too large to hand over, saved as #{kept.handle}. Read it with read_result.]"
   end
 
+  # Each request starts with an empty query cache, as it does in production, so a query the request before made is still
+  # counted.
   def counted
+    ActiveRecord::Base.connection_pool.clear_query_cache
     queries = []
     callback = ->(*, payload) { queries << payload[:sql] unless NOT_COUNTED.include?(payload[:name]) || payload[:cached] }
     ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
