@@ -55,17 +55,18 @@ class SignInMethodsTest < ApplicationSystemTestCase
     FeatureFlags.enable_globally!(FeatureFlags::SELF_SERVE_SIGNUP)
     store = Rack::Attack.cache.store
     Rack::Attack.cache.store = ActiveSupport::Cache::MemoryStore.new
-    sleep(60 - Time.now.sec) if Time.now.sec > 45
 
-    6.times do
-      visit login_path
-      fill_in "Email", with: @alice.email
-      click_on "Email me a sign-in link"
-      assert_text(/Check your email|Too many sign-in links/)
+    travel_to Time.current.beginning_of_hour + 1.hour do
+      6.times do
+        visit login_path
+        fill_in "Email", with: @alice.email
+        click_on "Email me a sign-in link"
+        assert_text(/Check your email|Too many sign-in links/)
+      end
+
+      assert_text "Too many sign-in links were asked for. Wait a little, then try again."
+      assert_current_path login_path
     end
-
-    assert_text "Too many sign-in links were asked for. Wait a little, then try again."
-    assert_current_path login_path
     page.save_screenshot(Rails.root.join("tmp/screenshots/sign-in-too-many.png"))
   ensure
     Rack::Attack.cache.store = store
