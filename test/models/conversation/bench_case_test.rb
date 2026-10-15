@@ -7,12 +7,14 @@ class Conversation::BenchCaseTest < ActiveSupport::TestCase
   FAILURES = %w[release_watch_followed_nothing slow_query_investigation_timed_out sticks_with_no duplicate_workspace_signup confirm_card_repeats_choices].freeze
   HABITS = %w[reads_without_asking general_read_when_no_tool repository_from_the_map].freeze
   CHATS = %w[review_fix_on_a_specialists_read change_only_reads_through_a_change].freeze
+  # Habits of the answer itself, such as placing the charts it drew beside what they show.
+  ANSWERS = %w[charts_sit_where_they_are_read].freeze
 
   test "every scenario reads, says what a good run reaches and what it does next, and names only tools it offers" do
     scenarios = Conversation::BenchCase.scenarios
 
-    assert_equal FAILURES.size + 19 + HABITS.size + 12 + CHATS.size, scenarios.size
-    assert_empty (FAILURES + HABITS + CHATS) - scenarios.map(&:key)
+    assert_equal FAILURES.size + 19 + HABITS.size + 12 + CHATS.size + ANSWERS.size, scenarios.size
+    assert_empty (FAILURES + HABITS + CHATS + ANSWERS) - scenarios.map(&:key)
     assert_equal 19, scenarios.count { |scenario| scenario.key.start_with?("stress_") }
     assert_equal 12, scenarios.count { |scenario| scenario.key.start_with?("hard_") }
     scenarios.each do |scenario|

@@ -1164,6 +1164,10 @@ export const AGENT_CARD_KINDS = {
   "THEORIES": "theories"
 } as const
 
+export const CHART_MARKER_PATTERN = "`?\\{\\{\\s*chart:\\s*([0-9a-f]{8})\\s*\\}\\}`?" as const
+
+export const CHART_MARKER_ARRIVING_PATTERN = "[ \\t]*`?\\{(?:\\{\\s*(?:c(?:h(?:a(?:r(?:t(?::\\s*[0-9a-f]{0,8}\\s*\\}?)?)?)?)?)?)?)?" as const
+
 export const HELPER_STATUSES = {
   "RUNNING": "running",
   "REPORTED": "reported",
@@ -1691,6 +1695,7 @@ export const WORKFLOW_CANVAS_PROPS = {
   "CHAT": "chat",
   "CHAT_MESSAGES": "chatMessages",
   "HELPERS": "helpers",
+  "CHARTS": "charts",
   "CHAT_WAITING": "chatWaiting",
   "CHAT_UNAVAILABLE": "chatUnavailable"
 } as const
@@ -1699,6 +1704,7 @@ export const WORKFLOW_CANVAS_CHAT_PROPS = [
   "chat",
   "chatMessages",
   "helpers",
+  "charts",
   "chatWaiting"
 ] as const
 

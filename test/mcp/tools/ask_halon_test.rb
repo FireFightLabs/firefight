@@ -22,6 +22,14 @@ class Mcp::Tools::AskHalonTest < ActiveSupport::TestCase
     assert_performed_with(job: ConversationReplyJob, args: [ conversation.id, @member.id ], queue: "conversations")
   end
 
+  test "an answer reads without the markers that place its charts on the dashboard" do
+    halon_replies("Memory of web climbed.\n\n{{chart:3f9a1c2e}}\n\nThe job held.")
+
+    response = perform_enqueued_jobs(only: ConversationReplyJob) { ask("How is memory?") }
+
+    assert_equal "Memory of web climbed.\n\nThe job held.", response.structured_content[:answer]
+  end
+
   test "an answer that takes longer than the wait says Halon is still working and how to fetch it, without holding the database" do
     Mcp::Tools::HalonAnswer.expects(:let_go_of_the_database).times(Mcp::Tools::HalonAnswer::WAIT / Mcp::Tools::HalonAnswer::LOOK_EVERY)
 

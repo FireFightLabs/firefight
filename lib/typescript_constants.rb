@@ -223,6 +223,9 @@ module TypescriptConstants
         "INTEGRATIONS" => Chat::Tools::CARD_INTEGRATIONS, "INVESTIGATION" => Chat::Tools::CARD_INVESTIGATION,
         "CHART" => Chat::Tools::CARD_CHART, "HELPERS" => Chat::Tools::CARD_HELPERS, "SCREENSHOTS" => Chat::Tools::CARD_SCREENSHOTS, "THEORIES" => Chat::Tools::CARD_THEORIES
       }, nil),
+      # Where Halon puts a chart in its answer, as a regular expression's source, matched case-insensitively.
+      Export.new("CHART_MARKER_PATTERN", Chat::Chart::Marker::PATTERN.source, nil),
+      Export.new("CHART_MARKER_ARRIVING_PATTERN", Chat::Chart::Marker::ARRIVING.source, nil),
       Export.new("HELPER_STATUSES", {
         "RUNNING" => Chat::Helper::STATUS_RUNNING, "REPORTED" => Chat::Helper::STATUS_REPORTED, "FAILED" => Chat::Helper::STATUS_FAILED,
         "STOPPED" => Chat::Helper::STATUS_STOPPED

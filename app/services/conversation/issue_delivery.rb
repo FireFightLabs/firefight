@@ -53,7 +53,7 @@ class Conversation::IssueDelivery
   def chunk(_text) = nil
 
   def answered!(reply, sources: [])
-    body = [ reply, sources_line(sources), approval_line ].compact.join("\n\n")
+    body = [ Chat::Chart::Marker.strip(reply), sources_line(sources), approval_line ].compact.join("\n\n")
     say(Integrations::AgentSessions::Activity.new(kind: Integrations::AgentSessions::RESPONSE, body: body))
   end
 

@@ -55,7 +55,7 @@ module Mcp
       # A turn that gave up says why in the chat, so the last thing Halon said is the answer or the reason.
       def self.last_answer(conversation)
         said = conversation.chat&.readable_messages&.where(role: Chat::Message::ROLE_ASSISTANT)&.last
-        said&.content.presence || Conversation::Delivery::FAILED
+        Chat::Chart::Marker.strip(said&.content).presence || Conversation::Delivery::FAILED
       end
 
       # The request only waits, so its connections go back to the pool until the next look. One inside a transaction stays.

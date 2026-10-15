@@ -10,8 +10,9 @@ import { stepsWord } from "@/lib/code-fix-work"
 import { STEP_OUTCOME_KINDS } from "@/lib/generated/constants"
 import { isOutcomeKind, type StepOutcomeKind } from "@/lib/step-outcome"
 import { incidentPath } from "@/lib/routes"
-import { AnswerText } from "@/components/agent-chat/answer-text"
-import { ChartGrid } from "@/pages/agent/components/chart-grid"
+import { ChartGrid } from "@/components/charts/chart-grid"
+import { PlacedAnswer } from "@/components/agent-chat/placed-answer"
+import { placeCharts } from "@/lib/agent-chat/chart-markers"
 import { LifecycleFormDialog } from "@/components/incidents/lifecycle-form-dialog"
 import { openRun, stopRun } from "@/pages/agent/lib/chat-updates"
 import type { AgentPageProps } from "@/pages/agent/types"
@@ -36,6 +37,8 @@ export function InvestigationRunCard({ toolCallKey }: InvestigationRunCardProps)
   const chatId = conversation.id
   const runId = run.id
   const working = isLive(run.status)
+  // The answer's charts sit where it placed them, and the rest follow it, as soon as the run draws them.
+  const placed = placeCharts([ { id: run.id, text: run.answer ?? "" } ], run.charts, false)
 
   function open() {
     openRun(chatId, runId)
@@ -58,8 +61,8 @@ export function InvestigationRunCard({ toolCallKey }: InvestigationRunCardProps)
         done={doneLabel(run)}
         working={working}
       />
-      {run.answer && <AnswerText text={run.answer} />}
-      {run.charts.length > 0 && <ChartGrid charts={run.charts} />}
+      <PlacedAnswer segments={placed.segments.get(run.id) ?? []} />
+      {placed.unplaced.length > 0 && <ChartGrid charts={placed.unplaced} />}
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant="secondary" onClick={open}>
           {working ? "Open the run" : "See how it got there"}

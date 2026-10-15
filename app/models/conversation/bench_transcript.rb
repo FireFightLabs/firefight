@@ -38,6 +38,14 @@ class Conversation::BenchTranscript
     @unscripted = unscripted
     @sources = sources
     @entries = chat.messages.includes(ruby_llm_tool_calls: :result).flat_map { |message| entries_of(message) }
+    @charts = chat.charts.to_a
+  end
+
+  # The charts the replay drew that no reply placed by its marker (Chat::Chart::Marker), which follow the answer
+  # rather than sit beside what they show.
+  def unplaced_charts
+    placed = replies.flat_map { |reply| Chat::Chart::Marker.handles_in(reply) }
+    @charts.reject { |chart| placed.include?(chart.handle) }
   end
 
   # Every address the answers list as read, which counts as citing them as a link in the words does.

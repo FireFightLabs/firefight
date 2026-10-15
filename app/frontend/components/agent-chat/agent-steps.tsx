@@ -5,6 +5,7 @@ import { useSettledSteps } from "@/hooks/use-settled-steps"
 import { rowStatus } from "@/lib/agent-chat/step-rows"
 import { holdsRunOpen, runSummary, type WorkRun, workRuns, workSummary } from "@/lib/agent-chat/work-parts"
 import { AnswerText } from "@/components/agent-chat/answer-text"
+import { withoutMarkers } from "@/lib/agent-chat/chart-markers"
 import { HelperRuns } from "@/components/agent-chat/helper-runs"
 import { StepActivity } from "@/components/agent-chat/step-activity"
 import { StepOutcomeDetails } from "@/components/agent-chat/step-outcome"
@@ -45,7 +46,7 @@ export function AgentSteps({ pieces, underWay = false, reloads }: AgentStepsProp
 const HOLDS_OPEN: ThinkingRowStatus[] = [ "failed", "waiting" ]
 
 function StatusLine({ text }: { text: string }) {
-  return <AnswerText text={text} status />
+  return <AnswerText text={withoutMarkers(text)} status />
 }
 
 // A finished run of more than one step folds into a line saying what it did. The run still going, and one that needs a

@@ -16,6 +16,16 @@ class ConversationTest < ActiveSupport::TestCase
     assert_not @conversation.answer_owed?
   end
 
+  test "the list's preview and its search read Halon's answer without the markers that place its charts" do
+    @conversation.ask!("How is memory?")
+    @conversation.note!("Memory of web climbed.\n\n{{chart:3f9a1c2e}}\n\nThe job held.")
+
+    assert_equal "Memory of web climbed.\n\nThe job held.", @conversation.reload.preview
+    member = workspace_memberships(:alice_workspace_one)
+    assert_empty Conversation.search_for(member, "3f9a1c2e")
+    assert_equal [ @conversation ], Conversation.search_for(member, "the job held")
+  end
+
   # Seen in a real chat, the page waited on a turn whose worker was gone.
   test "an answer owed for longer than the reply ceiling counts as abandoned" do
     @conversation.ask!("What changed today?")

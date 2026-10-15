@@ -40,6 +40,8 @@ class Conversation::Delivery
     @text = Conversation::ChunkBuffer.new(interval: cadence[:interval], max_chars: cadence[:max_chars]) do |text|
       append(text)
     end
+    # A thread has no chart to put where Halon placed one, so it reads the words without the markers.
+    @markers = Chat::Chart::Marker::Stream.new { |text| @text.add(text) }
   end
 
   def output_style = adapter.ai_stream_output_style
@@ -76,7 +78,7 @@ class Conversation::Delivery
     # Helpers keep the charts they read under the step that started them.
     charted << key if [ Chat::Tools::CARD_CHART, Chat::Tools::CARD_HELPERS ].include?(step.card&.kind)
     screenshotted << key if step.card&.kind == Chat::Tools::CARD_SCREENSHOTS
-    @text.flush!
+    flush_text!
     adapter.report_agent_step(
       channel_id: @conversation.channel_id, answer_id: @answer_id, key: key, title: step.title, status: status, outcome: outcome&.kind,
       details: progress&.headline
@@ -117,7 +119,7 @@ class Conversation::Delivery
 
   # Said once in the thread, as a finished step, so the people reading know why the answer may read differently.
   def switched_model(switch)
-    @text.flush!
+    flush_text!
     adapter.report_agent_step(
       channel_id: @conversation.channel_id, answer_id: @answer_id, key: switch.step_key, title: switch.shown_as,
       status: FirefightAi::AgentLoop::STEP_DONE
@@ -126,17 +128,17 @@ class Conversation::Delivery
   end
 
   def chunk(text)
-    @text.add(text)
+    @markers.add(text)
   end
 
   # The answer is already saved in the chat, and the turn has been paid for, so a platform failure
   # is logged rather than retried into a second model call.
   # sources are what Halon read to give the reply (Chat::Sources), one compact line under it.
   def answered!(reply, sources: [])
-    @text.flush!
+    flush_text!
     adapter.post_agent_reply(
       channel_id: @conversation.channel_id, thread_id: @conversation.thread_id,
-      answer_id: @answer_id, text: reply, streamed: streamed?, sources: sources
+      answer_id: @answer_id, text: Chat::Chart::Marker.strip(reply), streamed: streamed?, sources: sources
     )
     @conversation.answer_finished!
     post_cards
@@ -154,7 +156,7 @@ class Conversation::Delivery
   # Where it was posted is kept, so it can be redrawn if the person moves past it.
   # The pages Halon's browser saw in this turn go first, so a send is asked about under the page it sends from.
   def confirm!(tool_calls)
-    @text.flush!
+    flush_text!
     post_screenshots
     posted = adapter.ask_agent_confirmation(
       channel_id: @conversation.channel_id, thread_id: @conversation.thread_id, answer_id: @answer_id,
@@ -223,6 +225,11 @@ class Conversation::Delivery
     Chat::Screenshot.posted_under_answer(screenshots) do |posts, left_out|
       adapter.post_screenshots(channel_id: @conversation.channel_id, thread_id: @conversation.thread_id, screenshots: posts, left_out: left_out)
     end
+  end
+
+  def flush_text!
+    @markers.finish
+    @text.flush!
   end
 
   # Streamed text is not repeated, unless a refused piece means the person missed part of it.

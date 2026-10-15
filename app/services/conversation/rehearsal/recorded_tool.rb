@@ -57,10 +57,17 @@ class Conversation::Rehearsal::RecordedTool < RubyLLM::Tool
     return unscripted(tool_call, asked) unless found
 
     @chat.mark_failed!(tool_call.id) if found.failed && tool_call
-    found.result
+    [ found.result, charted(found, tool_call) ].compact.join("\n\n")
   end
 
   private
+
+  # The answer's charts are kept with the replay's chat and named to Halon by their markers, as a live call's are.
+  def charted(found, tool_call)
+    return if found.charts.empty? || tool_call.nil?
+
+    Chat::Chart::Marker.note(Chat::Chart.record!(@chat, tool_call.id, found.charts))
+  end
 
   # Look before you change asks what it asks live, in Halon's own chat and never a specialist's, of a connected tool's
   # call that is not a read, a capability that writes and a Firefight tool that ends something.

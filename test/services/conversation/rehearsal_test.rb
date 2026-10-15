@@ -86,6 +86,26 @@ class Conversation::RehearsalTest < ActiveSupport::TestCase
     assert_equal "shop.example", replay.transcript.calls.sole.result
   end
 
+  test "an answer's charts are kept with the replay's chat and named to Halon by their markers, as live" do
+    script(call("query_metrics", "resource" => "worker"), reply("Worker climbs."))
+    bench = Conversation::BenchCase.from_hash({
+      "title" => "Memory", "context" => "You are acting for Sam.", "turns" => [ "how is memory?" ],
+      "tools" => [ { "name" => "query_metrics", "description" => "Reads metrics", "reads" => true,
+                     "parameters" => { "type" => "object", "properties" => { "resource" => { "type" => "string" } } } } ],
+      "answers" => [ { "tool" => "query_metrics", "result" => "worker max 1.9 GB",
+                       "charts" => [ { "title" => "Memory of worker", "unit" => "MB", "from" => "2026-10-15T13:00:00Z", "to" => "2026-10-15T14:00:00Z",
+                                       "series" => [ { "label" => "worker-1", "points" => [ [ "2026-10-15T13:00:00Z", 410 ] ] } ] } ] } ],
+      "expect" => { "outcome" => "Worker climbs" }
+    }, key: "memory")
+
+    replay = Conversation::Rehearsal.replay!(bench, result: @result, model: @model)
+
+    chart = replay.chat.charts.sole
+    assert_equal "Memory of worker", chart.title
+    assert_equal "worker max 1.9 GB\n\n#{Chat::Chart::Marker.note([ chart ])}", replay.transcript.calls.sole.result
+    assert_equal [ chart ], replay.transcript.unplaced_charts, "a reply that names no marker leaves the chart unplaced"
+  end
+
   test "an answer after reading a connected system goes out as written, as it does live" do
     script(
       call("northflank_api_request", "method" => "GET", "path" => "/v1/projects/web/workflows/release/runs"),

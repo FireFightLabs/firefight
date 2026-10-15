@@ -199,6 +199,7 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     assert_includes said, "Link: #{INSIGHTS_LINK}"
     assert_includes said, "Proposed change: planetscale_create_branch {\"name\":\"fix\"}"
     assert_includes said, "planetscale_create_branch: #{Chat::Specialists::CONFIRM_FIRST}"
+    assert_not_includes said, Chat::Chart::Marker::NOTE, "a specialist that drew no chart names no marker"
     helper = @chat.helpers.sole
     assert_equal [ Chat::Specialists::DATABASES, Chat::Helper::STATUS_REPORTED ], [ helper.domain, helper.status ]
     assert_equal "planetscale_create_branch", helper.proposed_changes.sole["tool"]

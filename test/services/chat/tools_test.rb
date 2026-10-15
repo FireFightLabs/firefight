@@ -502,6 +502,16 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert_equal "call_7", kept.tool_call_id
     assert_equal @investigation.steps.sole.position, kept.step_position
     assert_equal "https://app.northflank.com/t/acme/project/p/services/web", kept.source_url
+    assert_includes said, Chat::Chart::Marker.note([ kept ]), "the model is told the marker that places the chart"
+  end
+
+  test "a tool that drew no chart says nothing about markers" do
+    grant!(@tool)
+    @workspace.chats.create!(owner: @investigation, model: "claude-sonnet-4-5", provider: :anthropic)
+    Integrations::NativeExecutor.stubs(:call).returns("content" => [ { "type" => "text", "text" => "web-1: max 42" } ])
+    tool = Chat::Tools.catalog(@investigation.reload).find { |entry| entry.name == "fake_echo_text" }.tool
+
+    assert_no_match Chat::Chart::Marker::NOTE, tool.call(tool_call: stub(id: "call_7"), text: "hi")
   end
 
   test "the model sees each tool's own description and parameters" do

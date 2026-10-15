@@ -23,10 +23,11 @@ class InvestigationCardSerializer < BaseSerializer
     investigation.incident&.identifier
   end
 
-  # The answer, or why there is none, so the chat reads without opening the run.
+  # The answer, or why there is none, so the chat reads without opening the run. It keeps the markers that place the
+  # run's charts, which the card draws there.
   type :string, optional: true
   def answer
-    investigation.finding&.summary || investigation.stopped_because
+    investigation.finding&.placed_summary || investigation.stopped_because
   end
 
   # An incident is offered only while the run has none.

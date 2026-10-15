@@ -318,7 +318,7 @@ class Conversation < ApplicationRecord
   def rename!(new_title) = update_in_place!(title: new_title.to_s.strip.truncate(TITLE_LIMIT))
 
   def preview
-    chat&.last_readable_message&.content.to_s.truncate(PREVIEW_LIMIT)
+    Chat::Chart::Marker.strip(chat&.last_readable_message&.content.to_s).truncate(PREVIEW_LIMIT)
   end
 
   # A direct message chat is asked only in the platform, so what the person said is in the platform's own markup, which

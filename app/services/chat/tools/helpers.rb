@@ -61,10 +61,12 @@ class Chat::Tools::Helpers < RubyLLM::Tool
     checks = self.class.checks_in(arguments)
     return failed(tool_call, "Give at least one check with a title and a brief.") if checks.empty?
 
+    started = Time.current
     progress(STARTED, value: 0, total: checks.size)
     result = Chat::Helpers.run!(@agent_run, share: @share, tool_call_id: tool_call&.id.to_s, checks: checks, on_done: method(:reported))
     Chat::Tools.mark_failed(@agent_run, tool_call&.id) if result.failed
-    Chat::Tools.hand_over(@agent_run, NAME, Chat::ToolCall::Outcome.new(value: result.text))
+    said = Chat::Tools.hand_over(@agent_run, NAME, Chat::ToolCall::Outcome.new(value: result.text))
+    [ said, Chat::Tools.charts_drawn(@agent_run, tool_call&.id.to_s, since: started) ].compact.join("\n\n")
   end
 
   # The checks as the model sent them, leaving out any without a brief.

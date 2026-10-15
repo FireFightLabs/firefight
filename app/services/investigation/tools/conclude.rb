@@ -20,7 +20,7 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
     {
       "type" => "object",
       "properties" => {
-        "summary" => { "type" => "string", "description" => "What happened and why, in a few sentences, using only what the evidence shows" },
+        "summary" => { "type" => "string", "description" => "What happened and why, in a few sentences, using only what the evidence shows. A chart's marker goes on a line of its own after the sentence about what it shows" },
         "hypothesis" => { "type" => "string", "description" => "The assertion of the theory the evidence supports, exactly as recorded, or leave out when none holds" },
         "evidence" => {
           "type" => "array", "description" => "What the answer rests on, one item per claim",

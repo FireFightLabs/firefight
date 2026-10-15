@@ -34,6 +34,8 @@ class WorkflowCanvasController < InertiaController
   PROP_CHAT = "chat"
   PROP_CHAT_MESSAGES = "chatMessages"
   PROP_HELPERS = "helpers"
+  # The charts Halon drew in that chat, set in its answers where it placed them.
+  PROP_CHARTS = "charts"
   PROP_CHAT_WAITING = "chatWaiting"
   PROP_CHAT_UNAVAILABLE = "chatUnavailable"
   PROPS = {
@@ -43,7 +45,7 @@ class WorkflowCanvasController < InertiaController
     "TEAMS" => PROP_TEAMS, "MY_PUBLISH_REQUEST" => PROP_MY_PUBLISH_REQUEST, "ACCESS" => PROP_ACCESS,
     "PLACES" => PROP_PLACES, "WATCH_READS" => PROP_WATCH_READS,
     "RUNS" => PROP_RUNS, "RUN" => PROP_RUN, "LAST_RUN" => PROP_LAST_RUN, "CHAT" => PROP_CHAT, "CHAT_MESSAGES" => PROP_CHAT_MESSAGES,
-    "HELPERS" => PROP_HELPERS, "CHAT_WAITING" => PROP_CHAT_WAITING, "CHAT_UNAVAILABLE" => PROP_CHAT_UNAVAILABLE
+    "HELPERS" => PROP_HELPERS, "CHARTS" => PROP_CHARTS, "CHAT_WAITING" => PROP_CHAT_WAITING, "CHAT_UNAVAILABLE" => PROP_CHAT_UNAVAILABLE
   }.freeze
   # The address names an older version to look at by its id, and the view the canvas shows.
   VERSION_QUERY_PARAM = "version"
@@ -53,7 +55,7 @@ class WorkflowCanvasController < InertiaController
   RUNS_SHOWN = 50
   VERSIONS_SHOWN = 50
   # What asking Halon beside the canvas changes, the only props read back after a question or a stop.
-  CHAT_PROPS = [ PROP_CHAT, PROP_CHAT_MESSAGES, PROP_HELPERS, PROP_CHAT_WAITING ].freeze
+  CHAT_PROPS = [ PROP_CHAT, PROP_CHAT_MESSAGES, PROP_HELPERS, PROP_CHARTS, PROP_CHAT_WAITING ].freeze
 
   # Each prop is worked out only when the visit asks for it, so asking Halon beside the canvas reads back the chat alone.
   def show
@@ -110,6 +112,7 @@ class WorkflowCanvasController < InertiaController
       PROP_CHAT => -> { beside_chat && AgentChatSerializer.one(beside_chat, opened: true) },
       PROP_CHAT_MESSAGES => -> { AgentChatMessageSerializer.many(beside_messages, member: current_membership, platform_texts: {}) },
       PROP_HELPERS => -> { AgentChatHelperSerializer.many(beside_record&.helpers&.includes(:workspace, :own_chat) || []) },
+      PROP_CHARTS => -> { ChatChartSerializer.many(beside_record&.charts || []) },
       PROP_CHAT_WAITING => -> { beside_record.present? && beside_record.awaiting_decision.any? },
       PROP_CHAT_UNAVAILABLE => -> { Conversation.asking_blocked_reason(current_membership) }
     }

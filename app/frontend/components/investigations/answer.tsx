@@ -1,5 +1,7 @@
 import { IconAlertTriangle, IconCircleCheck, IconLoader2 } from "@tabler/icons-react"
 import { Button } from "@/components/ui/button"
+import { ChartGrid } from "@/components/charts/chart-grid"
+import { placeCharts, SEGMENT_KINDS } from "@/lib/agent-chat/chart-markers"
 import { AnswerHeading } from "@/components/investigations/answer-heading"
 import { AnswerPart } from "@/components/investigations/answer-part"
 import { IncidentsBlocked, useIncidentsBlockedReason } from "@/components/incidents/incidents-blocked"
@@ -16,6 +18,10 @@ const FRAMES = {
   stopped: "edge-bar [--edge-bar-inset:12px] [--edge-bar:var(--warning)]",
   answered: "edge-bar [--edge-bar-inset:12px] [--edge-bar:var(--success)]",
 }
+
+// The answer's charts sit where Halon placed them. Every chart the run drew is under its step too, so one it placed
+// nowhere is not repeated here.
+const ANSWER_ID = "answer"
 
 const FRAME = "rounded-xl border border-border bg-surface-card p-5 transition-colors duration-200"
 
@@ -62,6 +68,7 @@ export function Answer({ investigation, onDeclare }: AnswerProps) {
   }
 
   const verdicts = Object.entries(finding.verdicts)
+  const summary = placeCharts([ { id: ANSWER_ID, text: finding.summary } ], investigation.charts, false).segments.get(ANSWER_ID) ?? []
 
   return (
     <section className={`${FRAME} ${FRAMES.answered}`}>
@@ -71,7 +78,11 @@ export function Answer({ investigation, onDeclare }: AnswerProps) {
           Answer
         </span>
       </AnswerHeading>
-      <p className="mt-3 text-base leading-relaxed text-fg-primary text-pretty">{finding.summary}</p>
+      <div className="mt-3 flex flex-col gap-3">
+        {summary.map((segment) => (segment.kind === SEGMENT_KINDS.TEXT
+          ? <p key={segment.key} className="text-base leading-relaxed text-fg-primary text-pretty">{segment.text}</p>
+          : <ChartGrid key={segment.key} charts={segment.charts} />))}
+      </div>
       {finding.suggestsIncident && !investigation.incidentId && onDeclare && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 edge-bar rounded-lg bg-error-tint px-4 py-3 [--edge-bar-inset:8px] [--edge-bar:var(--error)]">
           <span className="flex items-center gap-2 text-sm text-fg-primary">

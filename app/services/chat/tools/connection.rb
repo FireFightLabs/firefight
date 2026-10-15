@@ -253,12 +253,12 @@ class Chat::Tools::Connection < RubyLLM::Tool
     return FirefightAi::Evidence.refused(shown_as, @refusal, step: said.step) if @refusal
 
     guarded = safeguards&.after(ok: !@failed, result: result)
-    keep_charts(tool_call_id, result, said.step)
+    charted = Chat::Chart::Marker.note(keep_charts(tool_call_id, result, said.step))
     tracked = present.nil? && Chat::Tools::TrackedIssues.after(
       @agent_run, tool: @tool, environment_row: environment_row, scope: scope, arguments: arguments, result: result, kind: @issue_kind
     )
     reminder = Chat::Tools::SkillReminder.for(@agent_run, source: @tool.integration.provider, handle: @tool.name, tool_call_id: tool_call_id)
-    [ Chat::Tools.hand_over(@agent_run, shown_as, said), @failure_note, guarded.presence, tracked.presence, reminder ].compact.join("\n\n")
+    [ Chat::Tools.hand_over(@agent_run, shown_as, said), charted, @failure_note, guarded.presence, tracked.presence, reminder ].compact.join("\n\n")
   rescue AbilityGateway::Denied
     @agent_run.pack_refused!(@tool.action_key, tool_call_id)
     failed(tool_call_id, @agent_run.refusal(@tool.action_key) + Mcp::ConnectionToolFactory.environment_hint(@tool))
@@ -368,13 +368,14 @@ class Chat::Tools::Connection < RubyLLM::Tool
     @agent_run.code_agent_request(tool_call_id, evidence: CodeAgent::ChatEvidence.for(@agent_run.chat, @agent_run.workspace, before: tool_call_id))
   end
 
-  # A chart is for the person, so it is kept with the chat and never handed to the model.
+  # A chart is for the person, so it is kept with the chat and only its marker is handed to the model. Returns the
+  # charts kept.
   def keep_charts(tool_call_id, result, step_position)
     charts = result&.dig(Integrations::Telemetry::STRUCTURED, Integrations::Telemetry::CHARTS)
-    return if charts.blank? || tool_call_id.blank?
+    return [] if charts.blank? || tool_call_id.blank?
 
     chat, tool_call_id = @agent_run.respond_to?(:charts_kept_on) ? @agent_run.charts_kept_on(tool_call_id) : [ @agent_run.chat, tool_call_id ]
-    Chat::Chart.record!(chat, tool_call_id, charts, step_position: step_position) if chat
+    chat ? Chat::Chart.record!(chat, tool_call_id, charts, step_position: step_position) : []
   end
 
   def text_of(result)

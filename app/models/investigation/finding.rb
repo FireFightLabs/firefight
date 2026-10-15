@@ -32,6 +32,14 @@ class Investigation::Finding < ApplicationRecord
   # The fix. An undo of it is a plan on the same finding, reached through the fix.
   has_one :remediation_plan, -> { where(undoes_id: nil) }, class_name: "Investigation::RemediationPlan", dependent: :destroy, inverse_of: :finding
 
+  # The answer as every reader but the dashboard takes it, Slack, MCP, the timeline, search and other prompts among them,
+  # without the markers that place the run's charts (Chat::Chart::Marker). placed_summary keeps them.
+  def summary = Chat::Chart::Marker.strip(super)
+
+  def gaps = Chat::Chart::Marker.strip(super)
+
+  def placed_summary = self[:summary]
+
   validates :published_state, inclusion: { in: STATES }
   validates :outcome, inclusion: { in: OUTCOMES }, allow_nil: true
 

@@ -1,0 +1,65 @@
+title: Charts sit where the answer talks about them
+source: Charts placed in the answer, October 2026
+shape: >-
+  Halon reads memory for two services and each read draws a chart for the person. The answer is best read with each
+  chart beside the sentence about it, and the two charts side by side where it compares them, so a good answer places
+  each chart's marker on a line of its own right after the words it shows, rather than leaving them all to follow the
+  answer.
+context: |-
+  You are acting for Priya Shah, whose role in this workspace is admin. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: is web or the worker running out of memory? compare the two over the last hour
+tools:
+  - open_tools
+  - get_resource_map
+  - query_metrics
+  - search_logs
+answers:
+  - tool: get_resource_map
+    result: |-
+      web (Northflank service, project shop, 3 instances) serves larkspur.shop. worker (Northflank service, project shop, 2 instances) runs the background jobs. https://app.firefight.app/map/web
+  - tool: query_metrics
+    match: { resource: /worker/ }
+    result: |-
+      worker, memory over the last hour: min 410 MB, average 1.6 GB, max 1.95 GB of a 2 GB limit, latest 1.94 GB. It climbed steadily from 13:05 and has not come down. Restarts 0.
+      https://app.northflank.com/t/larkspur/project/shop/services/worker/metrics
+    charts:
+      - title: Memory of worker
+        unit: MB
+        from: "2026-10-15T13:00:00Z"
+        to: "2026-10-15T14:00:00Z"
+        link: https://app.northflank.com/t/larkspur/project/shop/services/worker/metrics
+        series:
+          - label: worker-1
+            points: [ [ "2026-10-15T13:00:00Z", 410 ], [ "2026-10-15T13:20:00Z", 900 ], [ "2026-10-15T13:40:00Z", 1500 ], [ "2026-10-15T14:00:00Z", 1940 ] ]
+  - tool: query_metrics
+    result: |-
+      web, memory over the last hour: min 520 MB, average 560 MB, max 610 MB of a 2 GB limit, latest 540 MB. Flat, with the usual saw tooth after each garbage collection. Restarts 0.
+      https://app.northflank.com/t/larkspur/project/shop/services/web/metrics
+    charts:
+      - title: Memory of web
+        unit: MB
+        from: "2026-10-15T13:00:00Z"
+        to: "2026-10-15T14:00:00Z"
+        link: https://app.northflank.com/t/larkspur/project/shop/services/web/metrics
+        series:
+          - label: web-1
+            points: [ [ "2026-10-15T13:00:00Z", 540 ], [ "2026-10-15T13:20:00Z", 600 ], [ "2026-10-15T13:40:00Z", 530 ], [ "2026-10-15T14:00:00Z", 540 ] ]
+  - tool: search_logs
+    result: |-
+      worker, newest first:
+      13:58:12 ImportJob holding 48,210 rows in memory for batch 7 of 7
+      13:05:02 ImportJob started for account acme, 1.2M rows
+      https://app.northflank.com/t/larkspur/project/shop/services/worker/logs
+expect:
+  outcome: >-
+    The worker is about to run out of memory, at 1.94 GB of its 2 GB limit and still climbing since 13:05, while web
+    is flat around 550 MB. The answer places each chart's marker on a line of its own right after the sentence about
+    that service, or both markers on adjacent lines where it compares the two, rather than leaving the charts to follow
+    the answer unplaced.
+  next_step: >-
+    It reads the worker's logs for what holds the memory, finds the import job holding rows since 13:05, and proposes a
+    fix such as batching the import, asking before restarting the worker.
+  evidence: [ "https://app.northflank.com/t/larkspur/project/shop/services/worker/metrics" ]
+  calls: [ query_metrics ]
+  reference_cents: 1.5

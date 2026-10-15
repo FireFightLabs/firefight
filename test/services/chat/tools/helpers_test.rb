@@ -30,6 +30,32 @@ class Chat::Tools::HelpersTest < ActiveSupport::TestCase
     assert_includes said, "Helpers reported, 2 of 2:"
   end
 
+  test "charts the helpers drew are named to the model by their markers, outside the reports, so Halon can place them" do
+    started = Time.utc(2026, 9, 25, 14, 0)
+    Chat::Helpers.stubs(:run!).with do |*, tool_call_id:, **|
+      Chat::Chart.record!(@chat, tool_call_id, [ { "title" => "Memory of web", "unit" => "MB", "from" => started.iso8601, "to" => (started + 1.hour).iso8601,
+                                                   "series" => [ { "label" => "web-1", "points" => [ [ started.iso8601, 1 ] ] } ] } ])
+      true
+    end.returns(Chat::Helpers::Result.new(text: "Helpers reported, 1 of 1:", failed: false))
+
+    said = @tool.call(tool_call: tool_call("call_1"), checks: [ { "title" => "Memory", "brief" => "Read web's memory" } ])
+
+    chart = @chat.charts.sole
+    assert said.end_with?(Chat::Chart::Marker.note([ chart ])), said
+  end
+
+  # Tool call ids are unique only within a message, so a later call can carry an id an earlier one had.
+  test "only the charts this call's helpers drew are named, never an earlier call's under the same id" do
+    started = Time.utc(2026, 9, 25, 14, 0)
+    chart = ->(title) { { "title" => title, "unit" => "MB", "from" => started.iso8601, "to" => (started + 1.hour).iso8601, "series" => [] } }
+    Chat::Chart.record!(@chat, "call_1", [ chart.call("Memory of an earlier check") ]).sole.update!(created_at: 1.hour.ago)
+    Chat::Helpers.stubs(:run!).returns(Chat::Helpers::Result.new(text: "Helpers reported, 1 of 1:", failed: false))
+
+    said = @tool.call(tool_call: tool_call("call_1"), checks: [ { "title" => "Memory", "brief" => "Read web's memory" } ])
+
+    assert_not_includes said, Chat::Chart::Marker::NOTE
+  end
+
   test "the step says how many helpers have finished while they work, through the call's progress" do
     Chat::Helpers.stubs(:run!).with do |*, on_done:, **|
       on_done.call(1, 2)
