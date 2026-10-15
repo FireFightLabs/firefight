@@ -87,14 +87,19 @@ class AgentTurnOrderTest < ApplicationSystemTestCase
     visit agent_chat_path(@conversation)
 
     assert_text(/Checkout needs a restart. Can I restart it\?.*Worked for.*Restarted checkout/m)
+    assert_equal [ "Checkout needs a restart. Can I restart it?", "Worked for a moment · 1 step", "Restarted checkout, it is healthy again." ],
+                 turn_parts.first(3), "the question is said in the turn, outside the folded work"
   end
 
   private
 
   # What the finished turn shows after its folded work, in order.
-  def said_after_work
+  def said_after_work = turn_parts.drop(1)
+
+  # Each thing the finished turn shows, in order, the folded work as its one line.
+  def turn_parts
     turn = find("button", text: /Worked for/).ancestor("div.flex-col.gap-3", match: :first)
-    evaluate_script("Array.from(arguments[0].children).slice(1).map((child) => child.innerText.trim())", turn)
+    evaluate_script("Array.from(arguments[0].children).map((child) => child.innerText.trim().split('\\n')[0])", turn)
   end
 
   def assert_folded
