@@ -127,6 +127,12 @@ class Conversation::IssueTurnTest < ActiveSupport::TestCase
     assert_no_match "https://", asked.body
   end
 
+  test "the response never shows a chart's marker, since an issue has no chart to put there" do
+    Conversation::IssueDelivery.new(@conversation).answered!("Checkout's database is out of connections.\n\n{{chart:3f9a1c2e}}\n\nIt filled at 14:02.")
+
+    assert_equal "Checkout's database is out of connections.\n\nIt filled at 14:02.", @said.last.last.body
+  end
+
   test "a turn that could not finish is the session's error" do
     Conversation::Delivery.give_up!(@conversation, Conversation::Delivery::FAILED)
 

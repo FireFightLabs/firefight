@@ -75,7 +75,8 @@ class Chat::Helper < ApplicationRecord
       { status: status, ended_because: ended_because, finished_at: Time.current, updated_at: Time.current,
         turns_used: turns_used, spent_micros: spent_micros }.compact
     ) == 1
-    update_column(:report, report.to_s.truncate(specialist? ? SPECIALIST_REPORT_LIMIT : REPORT_LIMIT)) if moved && report.present?
+    # Its charts are named to Halon apart from the report (Chat::Tools.charts_drawn), and the page shows it as text.
+    update_column(:report, Chat::Chart::Marker.strip(report.to_s).truncate(specialist? ? SPECIALIST_REPORT_LIMIT : REPORT_LIMIT)) if moved && report.present?
     update_column(:proposals, proposals.to_json) if moved && proposals.any?
     reload
     moved

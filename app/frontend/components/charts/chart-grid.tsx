@@ -1,7 +1,7 @@
 import { MetricChart } from "@/components/charts/metric-chart"
 import type { ChatChart } from "@/types/serializers"
 
-// One card per metric, two across when there is more than one.
+// One card per metric, two across when there is more than one and room for them, one above the other on a phone.
 export function ChartGrid({ charts }: { charts: ChatChart[] }) {
   return (
     <div className={`grid w-full gap-2 ${charts.length > 1 ? "max-w-160 sm:grid-cols-2" : "max-w-110"}`}>

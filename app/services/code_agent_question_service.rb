@@ -126,7 +126,7 @@ class CodeAgentQuestionService
       chat = place.chat
       return "" unless chat
 
-      said = chat.readable_messages.last(CHAT_MESSAGES_KNOWN).map { |message| "#{message.role == Chat::Message::ROLE_USER ? 'The person' : 'Halon'}: #{message.content}" }
+      said = chat.readable_messages.last(CHAT_MESSAGES_KNOWN).map { |message| "#{message.role == Chat::Message::ROLE_USER ? 'The person' : 'Halon'}: #{Chat::Chart::Marker.strip(message.content)}" }
       read = CodeAgent::Request.kept_evidence(CodeAgent::ChatEvidence.for(chat, place.workspace)).map { |item| FirefightAi::Evidence.frame(item.label, item.text) }
       Chat::SecretFree.redacted([ *said, *read ].join("\n\n"))
     when Investigation::RemediationStep then place.code_question_material

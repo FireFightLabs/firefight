@@ -6,7 +6,7 @@ class Conversation::BenchScoreTest < ActiveSupport::TestCase
   YES = FirefightAi::Schemas::ReplayVerdict::YES
 
   # Stands in for a replay's transcript, with only what the score reads.
-  Transcript = Struct.new(:confirmations, :unneeded_confirmations, :called, :replies, :not_recorded, keyword_init: true) do
+  Transcript = Struct.new(:confirmations, :unneeded_confirmations, :called, :replies, :not_recorded, :unplaced_charts, keyword_init: true) do
     def called?(name) = called.include?(name)
 
     def cites_any?(texts) = texts.any? { |text| replies.join.include?(text) }
@@ -86,7 +86,7 @@ class Conversation::BenchScoreTest < ActiveSupport::TestCase
   test "notes say what took marks away without what any call was given" do
     call = Conversation::BenchTranscript::Call.new(name: "northflank_api_request", arguments: { "path" => "/secret" }, reads: true,
                                                    approval: Chat::APPROVAL_APPROVED, recorded: true, failed: false, result: "")
-    notes = Conversation::BenchScore.notes(transcript: transcript(unneeded_confirmations: [ call ], not_recorded: 2), verdict: verdict(unneeded_questions: 1, questions: 1),
+    notes = Conversation::BenchScore.notes(transcript: transcript(unneeded_confirmations: [ call ], not_recorded: 2, unplaced_charts: [ :memory ]), verdict: verdict(unneeded_questions: 1, questions: 1),
                                            expect: expect(calls: [ "start_watch" ], evidence: [ "runs/4" ]))
 
     assert_equal [
@@ -94,6 +94,7 @@ class Conversation::BenchScoreTest < ActiveSupport::TestCase
       "Asked 1 question it could have answered itself.",
       "Never called start_watch.",
       "Cited none of the evidence a right answer links to.",
+      "Left 1 chart unplaced, so it follows the answer rather than sitting beside what it shows.",
       "2 calls were not in the record, so nothing answered them."
     ], notes
     refute_match "/secret", notes.join
@@ -105,8 +106,9 @@ class Conversation::BenchScoreTest < ActiveSupport::TestCase
     Conversation::BenchScore.of(transcript: transcript, verdict: verdict, expect: expect, spent_micros: spent_cents * FirefightAi::AgentLoop::MICROS_PER_CENT)
   end
 
-  def transcript(confirmations: [], unneeded_confirmations: [], called: [], replies: [ "Done." ], not_recorded: 0)
-    Transcript.new(confirmations: confirmations, unneeded_confirmations: unneeded_confirmations, called: called, replies: replies, not_recorded: not_recorded)
+  def transcript(confirmations: [], unneeded_confirmations: [], called: [], replies: [ "Done." ], not_recorded: 0, unplaced_charts: [])
+    Transcript.new(confirmations: confirmations, unneeded_confirmations: unneeded_confirmations, called: called, replies: replies, not_recorded: not_recorded,
+                   unplaced_charts: unplaced_charts)
   end
 
   def verdict(outcome: REACHED, moved_forward: YES, questions: 0, unneeded_questions: 0)

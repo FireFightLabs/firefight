@@ -27,6 +27,25 @@ class Conversation::DeliveryTest < ActiveSupport::TestCase
     delivery.answered!("CPU peaked at 0.8.")
   end
 
+  test "a thread never shows a chart's marker, streamed in pieces or posted whole, and the chart still follows the answer" do
+    marker = "{{chart:#{@chat.charts.sole.handle}}}"
+    @adapter.stubs(:start_agent_answer).returns({ answer_id: "1.25" })
+    delivery = Conversation::Delivery.for(@conversation)
+    delivery.thinking!
+    appended = +""
+    @adapter.stubs(:append_agent_text).with { |text:, **| appended << text }.returns({ streaming: true })
+    @adapter.stubs(:report_agent_step)
+    delivery.step(key: "call_7", step: Chat::Tools::Step.new(title: "Query metrics", headline: "", asked: [], card: Chat::Tools.chart_card),
+                  status: FirefightAi::AgentLoop::STEP_DONE)
+    @adapter.expects(:post_agent_reply).with { |text:, **| text == "CPU peaked at 0.8.\n\nIt fell back after." }.returns({ message_id: "1.3", channel_id: "C1" })
+    @adapter.expects(:post_charts).returns([])
+
+    [ "CPU peaked at 0.8.\n\n#{marker[0, 5]}", "#{marker[5..]}\n\nIt fell ", "back after." ].each { |piece| delivery.chunk(piece) }
+    delivery.answered!("CPU peaked at 0.8.\n\n#{marker}\n\nIt fell back after.")
+
+    assert_equal "CPU peaked at 0.8.\n\nIt fell back after.", appended
+  end
+
   test "the pages Halon's browser saw are posted under the answer, and before a send it asks about, never twice" do
     Chat::Screenshot.record!(@chat, [ { "name" => "desktop", "final_url" => "https://shop.example.com", "title" => "Shop",
                                         "screenshot" => Base64.strict_encode64("\xFF\xD8\xFFjpeg".b) } ], tool_call_id: "call_8")

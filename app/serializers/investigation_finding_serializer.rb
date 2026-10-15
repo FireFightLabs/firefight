@@ -3,9 +3,13 @@ class InvestigationFindingSerializer < BaseSerializer
   object_as :finding
 
   attributes(
-    summary: { type: :string }, gaps: { type: :string, optional: true }, outcome: { type: :string, optional: true },
+    gaps: { type: :string, optional: true }, outcome: { type: :string, optional: true },
     suggests_incident: { type: :boolean }
   )
+
+  # With the markers that place the run's charts, which the page draws there.
+  type :string
+  def summary = finding.placed_summary
 
   type :string, optional: true
   def cause

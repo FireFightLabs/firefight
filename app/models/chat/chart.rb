@@ -17,6 +17,9 @@ class Chat::Chart < ApplicationRecord
   # A thread gets at most this many charts under one answer, the first ones the agent drew.
   POSTED_LIMIT = 6
 
+  # What Halon names the chart by in its answer (Chat::Chart::Marker).
+  def handle = id.to_s.first(8)
+
   def to_post = Post.new(title: title, summary: summary.to_s, link: source_url, png: Image.new(self).png)
 
   # The charts to post under an answer, and a line saying how many were left out, so a thread never quietly misses one.
@@ -34,10 +37,10 @@ class Chat::Chart < ApplicationRecord
 
   # Keeps the charts in one tool result. A chart that cannot be read is left out, so a malformed result never fails the
   # tool call it came with.
-  # Several answers to one call (connection: all) each add theirs after the ones already kept.
+  # Several answers to one call (connection: all) each add theirs after the ones already kept. Returns the charts kept.
   def self.record!(chat, tool_call_id, charts, step_position: nil)
     kept = chat.charts.where(tool_call_id: tool_call_id).count
-    Array(charts).each.with_index(kept) do |chart, index|
+    Array(charts).each.with_index(kept).filter_map do |chart, index|
       from = Time.zone.parse(chart["from"].to_s)
       to = Time.zone.parse(chart["to"].to_s)
       next if from.nil? || to.nil? || chart["title"].blank?
@@ -50,5 +53,6 @@ class Chat::Chart < ApplicationRecord
     end
   rescue ArgumentError, ActiveRecord::RecordInvalid => error
     Rails.logger.warn({ event: "chat.chart_not_kept", chat_id: chat.id, error: error.message }.to_json)
+    []
   end
 end

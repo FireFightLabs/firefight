@@ -44,6 +44,14 @@ class Chat::HelperTest < ActiveSupport::TestCase
     assert_equal [ Chat::Helper::STATUS_REPORTED, "- Check 1: web logs show 3 new errors (steps 4, 6)" ], [ helper.status, helper.line ]
   end
 
+  test "a report is kept without chart markers, since its charts are named to Halon apart from it and the page shows it as text" do
+    helper = start(1).sole
+
+    helper.finish!(Chat::Helper::STATUS_REPORTED, report: "web memory climbed (step 2)\n{{chart:3f9a1c2e}}")
+
+    assert_equal "web memory climbed (step 2)", helper.report
+  end
+
   test "a helper whose asking call was closed as interrupted ends saying so, rather than running forever" do
     asked = @chat.add_message(role: Chat::Message::ROLE_ASSISTANT, content: "")
     asked.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Chat::Tools::Helpers::NAME, arguments: {})

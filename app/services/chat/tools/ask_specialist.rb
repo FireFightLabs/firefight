@@ -71,7 +71,8 @@ class Chat::Tools::AskSpecialist < RubyLLM::Tool
     result = Chat::Helpers.run!(@agent_run, share: @share, tool_call_id: tool_call&.id.to_s, checks: ready.map { |ask| check(ask) }, on_done: method(:reported))
     Chat::Tools.mark_failed(@agent_run, tool_call&.id) if result.failed
     text = [ result.text, *proposed(tool_call), *said ].join("\n\n")
-    Chat::Tools.hand_over(@agent_run, NAME, Chat::ToolCall::Outcome.new(value: text))
+    said = Chat::Tools.hand_over(@agent_run, NAME, Chat::ToolCall::Outcome.new(value: text))
+    [ said, Chat::Tools.charts_drawn(@agent_run, tool_call&.id.to_s) ].compact.join("\n\n")
   end
 
   Ask = Data.define(:domain, :objective)

@@ -4,6 +4,7 @@ import type {
   AgentChat,
   AgentChatHelper,
   AgentChatMessage,
+  ChatChart,
   RunbookPlace,
   RunbookWatchRead,
   WorkflowDetail,
@@ -61,6 +62,8 @@ export interface WorkflowPageProps extends SharedProps {
   chat: AgentChat | null
   chatMessages: AgentChatMessage[]
   helpers: AgentChatHelper[]
+  // The charts Halon drew in that chat, which its answers place among their words.
+  charts: ChatChart[]
   // Something in the chat waits on the person, which only the full chat lets them answer.
   chatWaiting: boolean
   // Why Halon cannot be asked in this workspace, or null when it can.

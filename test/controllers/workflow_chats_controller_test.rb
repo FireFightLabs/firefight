@@ -29,6 +29,19 @@ class WorkflowChatsControllerTest < ActionDispatch::IntegrationTest
     assert_nil inertia_props["chatUnavailable"]
   end
 
+  test "the chat beside the canvas carries the charts Halon drew in it, with the handles its answers place them by" do
+    post workflow_chat_url(@workflow), params: { question: "How much memory does the check use?" }
+    started = Time.utc(2026, 9, 25, 14, 0)
+    Chat::Chart.record!(beside.chat, "call_1", [ { "title" => "Memory of web", "unit" => "MB", "from" => started.iso8601, "to" => (started + 1.hour).iso8601,
+                                                   "series" => [ { "label" => "web-1", "points" => [ [ started.iso8601, 1 ] ] } ] } ])
+
+    get workflow_url(@workflow), headers: inertia_headers.merge("X-Inertia-Partial-Data" => WorkflowCanvasController::PROP_CHARTS,
+                                                                 "X-Inertia-Partial-Component" => "halon/workflow")
+
+    chart = beside.chat.charts.sole
+    assert_equal [ [ chart.handle, "call_1" ] ], inertia_props[WorkflowCanvasController::PROP_CHARTS].map { |each| each.values_at("handle", "toolCallId") }
+  end
+
   test "a later question carries the chat on, and a new chat leaves the old one in the person's chats" do
     post workflow_chat_url(@workflow), params: { question: "What does it do?" }
     first = beside

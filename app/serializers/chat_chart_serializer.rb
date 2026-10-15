@@ -1,4 +1,4 @@
-# A chart a tool returned in a chat, for the chart card under the step that made it.
+# A chart a tool returned in a chat, drawn where Halon's answer places it, or after the answer when it places it nowhere.
 class ChatChartSerializer < BaseSerializer
   object_as :chart
 
@@ -7,6 +7,10 @@ class ChatChartSerializer < BaseSerializer
 
   type :string
   def tool_call_id = chart.tool_call_id
+
+  # What Halon's answer names the chart by where it places it (Chat::Chart::Marker).
+  type :string
+  def handle = chart.handle
 
   type :string
   def title = chart.title

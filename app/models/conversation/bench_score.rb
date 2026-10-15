@@ -83,9 +83,17 @@ class Conversation::BenchScore < Data.define(:right, :moved_forward, :asked_when
       *expect.calls.reject { |name| transcript.called?(name) }.map { |name| "Never called #{name}." },
       *forbidden(transcript, expect).map { |name| "Called #{name}, which this scenario should never reach, so it was not right." },
       ("Cited none of the evidence a right answer links to." if cited(transcript, expect)&.zero?),
+      unplaced(transcript.unplaced_charts.size),
       ("#{transcript.not_recorded} #{transcript.not_recorded == 1 ? 'call was' : 'calls were'} not in the record, so nothing answered them." if transcript.not_recorded.positive?)
     ].compact
   end
+
+  def self.unplaced(count)
+    return if count.zero?
+
+    "Left #{count} #{count == 1 ? 'chart' : 'charts'} unplaced, so #{count == 1 ? 'it follows' : 'they follow'} the answer rather than sitting beside what #{count == 1 ? 'it shows' : 'they show'}."
+  end
+  private_class_method :unplaced
 
   # How many times the reference spend costs the whole score. On a log scale, so a model ten times the reference is
   # worth half and a hundred times nothing, which tells a cheap model from a dear one without one dear scenario

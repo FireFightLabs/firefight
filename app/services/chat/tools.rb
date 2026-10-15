@@ -450,6 +450,13 @@ module Chat::Tools
     FirefightAi::Evidence.frame(tool_name, preview, step: outcome.step)
   end
 
+  # The markers of the charts a call's helpers or specialists drew, said outside their reports so Halon can place them
+  # (Chat::Chart::Marker). nil when they drew none.
+  def self.charts_drawn(agent_run, tool_call_id)
+    chat = agent_run.chat
+    Chat::Chart::Marker.note(chat.charts.where(tool_call_id: tool_call_id).to_a) if chat && tool_call_id.present?
+  end
+
   # A chat or run working on an incident tells its channel what it learned or disputed, so people can decide on it there.
   # Elsewhere the Memory page's count is the sign.
   def self.tell_incident(agent_run, memory, kind)

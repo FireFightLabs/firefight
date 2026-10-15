@@ -3,7 +3,11 @@ import { PersonBubble } from "@/components/agent-chat/person-bubble"
 import { TurnStory } from "@/components/agent-chat/turn-story"
 import { stepsOf } from "@/lib/agent-chat/group-turns"
 import { type ChatTurn as Turn, TURN_KINDS } from "@/lib/agent-chat/types"
+import { AGENT_CARD_KINDS } from "@/lib/generated/constants"
 import { CHAT_VISIT } from "@/pages/halon/hooks/use-workflow-edits"
+
+// Charts, a helper's among them, are drawn here in the answer (TurnStory).
+const CHART_CARDS: string[] = [ AGENT_CARD_KINDS.CHART, AGENT_CARD_KINDS.HELPERS ]
 
 interface ChatTurnProps {
   turn: Turn
@@ -12,14 +16,14 @@ interface ChatTurnProps {
   onOpenImage: (attachmentId: string) => void
 }
 
-// One turn of the chat beside the canvas: what the person said, or Halon's steps and answer. A card Halon drew, such as
-// a chart, is drawn in the full chat, which the turn points to.
+// One turn of the chat beside the canvas: what the person said, or Halon's steps and answer with its charts where it
+// placed them. Any other card Halon drew is drawn in the full chat, which the turn points to.
 export function ChatTurn({ turn, live = false, fullChatUrl, onOpenImage }: ChatTurnProps) {
   if (turn.kind === TURN_KINDS.PERSON) {
     return <PersonBubble body={turn.body} attachments={turn.attachments} onOpenImage={onOpenImage} />
   }
 
-  const drewCards = stepsOf(turn.pieces).some((step) => step.card !== null)
+  const drewCards = stepsOf(turn.pieces).some((step) => step.card !== null && !CHART_CARDS.includes(step.card.kind))
 
   return (
     <div className="flex min-w-0 flex-col gap-3">

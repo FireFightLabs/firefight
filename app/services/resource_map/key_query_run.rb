@@ -12,7 +12,10 @@ class ResourceMap::KeyQueryRun
   end
 
   # A chart an answer drew, in the shape a chat's chart has, so the page draws both the same way.
-  Chart = Data.define(:id, :tool_call_id, :title, :unit, :step_position, :source_url, :range_start, :range_end, :series)
+  Chart = Data.define(:id, :tool_call_id, :title, :unit, :step_position, :source_url, :range_start, :range_end, :series) do
+    # A check's answer is no words of Halon's, so nothing places its charts by this.
+    def handle = id.to_s
+  end
 
   def self.call(resource, check, principal:, minutes: KEY_QUERIES::DEFAULT_MINUTES, approval_id: nil)
     workspace = resource.workspace

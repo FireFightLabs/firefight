@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import { type ChatStreamHandlers, useChatStream } from "@/hooks/use-chat-stream"
 import type { StreamEvent } from "@/lib/agent-chat/stream-order"
 import type { AgentStream } from "@/lib/agent-chat/types"
-import { AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS, WORKFLOW_CANVAS_PROPS } from "@/lib/generated/constants"
+import { AGENT_CARD_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS, WORKFLOW_CANVAS_PROPS } from "@/lib/generated/constants"
 import { workflowChatPath, workflowChatStopPath } from "@/lib/routes"
 import { CANVAS_VISIT, CHAT_VISIT } from "@/pages/halon/hooks/use-workflow-edits"
 import type { AgentChat } from "@/types/serializers"
@@ -27,16 +27,20 @@ function reloadChat() {
 // What the chat's live connection reloads lands on the page as it is, so it shows no progress bar either.
 const CANVAS_RELOAD = { ...CANVAS_VISIT, showProgress: false }
 
-// A step that finished may have proposed a change, which the canvas shows as it lands.
+// A step that finished may have proposed a change, which the canvas shows as it lands. One that drew a chart reloads the
+// charts, so the answer has it when it places it.
 function onStreamed(event: StreamEvent) {
   if (event.type === AGENT_STREAM_EVENTS.STEP && event.status !== AGENT_STEP_STATUSES.RUNNING) {
     router.reload(CANVAS_RELOAD)
+  }
+  if (event.type === AGENT_STREAM_EVENTS.STEP && event.card?.kind === AGENT_CARD_KINDS.CHART) {
+    router.reload({ ...CHAT_VISIT, only: [ WORKFLOW_CANVAS_PROPS.CHARTS ] })
   }
 }
 
 function onNotice(event: StreamEvent): boolean {
   if (event.type === AGENT_STREAM_EVENTS.HELPERS) {
-    router.reload({ ...CHAT_VISIT, only: [ WORKFLOW_CANVAS_PROPS.HELPERS ] })
+    router.reload({ ...CHAT_VISIT, only: [ WORKFLOW_CANVAS_PROPS.HELPERS, WORKFLOW_CANVAS_PROPS.CHARTS ] })
     return true
   }
   if (event.type === AGENT_STREAM_EVENTS.HELD_CALL) {

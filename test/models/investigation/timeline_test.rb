@@ -21,7 +21,7 @@ class Investigation::TimelineTest < ActiveSupport::TestCase
   end
 
   test "the answer is on the timeline, and a stop says why" do
-    @investigation.note_answered!(Investigation::Finding.new(summary: "The 14:02 deploy halved the pool"))
+    @investigation.note_answered!(Investigation::Finding.new(summary: "The 14:02 deploy halved the pool\n{{chart:3f9a1c2e}}"))
     @investigation.note_stopped!(Investigation::BUDGET_SPENT)
 
     assert_equal "The 14:02 deploy halved the pool",

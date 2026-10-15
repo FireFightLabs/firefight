@@ -54,9 +54,11 @@ class Conversation::BenchCase
   # the answer holds for, and sets is what giving it makes true, so a run read as running by one tool reads as failed
   # through every tool once one read moved it on, and a read after a change shows what the change left. times is how
   # often it answers before the next one takes over, nil for always. reads marks a call that only read through a tool
-  # that cannot tell, such as a script, so asking the person to confirm it was not needed.
-  Answer = Data.define(:tool, :match, :result, :failed, :times, :reads, :state, :sets) do
-    def initialize(tool:, match:, result:, failed: false, times: nil, reads: false, state: {}, sets: {}) = super
+  # that cannot tell, such as a script, so asking the person to confirm it was not needed. charts are the charts the
+  # answer draws for the person, in the shape a telemetry tool returns them (Integrations::Telemetry), kept with the
+  # replay's chat and named to Halon by their markers as live.
+  Answer = Data.define(:tool, :match, :result, :failed, :times, :reads, :state, :sets, :charts) do
+    def initialize(tool:, match:, result:, failed: false, times: nil, reads: false, state: {}, sets: {}, charts: []) = super
 
     def matches?(name, arguments)
       tool == name && match.all? { |key, wanted| Conversation::BenchCase.same?(wanted, arguments[key]) }
@@ -142,7 +144,8 @@ class Conversation::BenchCase
 
   def self.answer_from(data)
     Answer.new(tool: required(data, "tool"), match: data["match"].to_h, result: data["result"].to_s, failed: data["failed"] == true,
-               times: data["times"], reads: data["reads"] == true, state: facts(data["state"]), sets: facts(data["sets"]))
+               times: data["times"], reads: data["reads"] == true, state: facts(data["state"]), sets: facts(data["sets"]),
+               charts: Array(data["charts"]).map { |chart| chart.to_h.deep_stringify_keys })
   end
 
   def self.turn_from(data)
@@ -271,7 +274,8 @@ class Conversation::BenchCase
       end,
       "answers" => answers.map do |answer|
         { "tool" => answer.tool, "match" => answer.match.presence, "state" => answer.state.presence, "result" => answer.result,
-          "failed" => answer.failed || nil, "times" => answer.times, "reads" => answer.reads || nil, "sets" => answer.sets.presence }.compact
+          "failed" => answer.failed || nil, "times" => answer.times, "reads" => answer.reads || nil, "sets" => answer.sets.presence,
+          "charts" => answer.charts.presence }.compact
       end,
       "expect" => { "outcome" => expect.outcome, "next_step" => expect.next_step, "evidence" => expect.evidence.presence,
                     "calls" => expect.calls.presence, "never_calls" => expect.never_calls.presence, "reference_cents" => expect.reference_cents }.compact
