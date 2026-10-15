@@ -12,7 +12,9 @@ module FirefightAi
     # still sees the reads asked before it, and a call that opens tools has done so before the next one is looked up.
     #
     # A group is announced (before_tool_call) on the calling thread in the order asked, and each result is saved there as
-    # soon as every call asked before it is saved. A call that raised saves nothing asked after it, and a stop saves
+    # soon as every call asked before it is saved. Each call runs at its place in the order asked (CallOrder), so the rows
+    # the app writes while calls run, such as an investigation's step numbers, charts, saved results and held calls, keep
+    # that order too. A call that raised saves nothing asked after it, and a stop saves
     # nothing more at all, as a run of one call at a time would not have got that far.
     module ToolsTogether
       Group = Data.define(:together, :calls)
@@ -46,8 +48,9 @@ module FirefightAi
         raise_if_cancelled!
         tool_calls.each_value { |tool_call| run_callbacks(:before_tool_call, tool_call) }
         saving = InOrder.new(tool_calls.keys) { |id, result| save_result(tool_calls[id], result) }
+        order = CallOrder::Group.new(tool_calls.size)
         self.class.const_get(:ToolConcurrency).run(concurrency, tool_calls, on_result: saving.method(:answered)) do |tool_call|
-          run_called(tool_call, saving)
+          CallOrder.running(order, tool_calls.keys.index(tool_call.id)) { run_called(tool_call, saving) }
         end
       end
 

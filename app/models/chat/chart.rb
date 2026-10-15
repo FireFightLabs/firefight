@@ -38,9 +38,12 @@ class Chat::Chart < ApplicationRecord
   # Keeps the charts in one tool result. A chart that cannot be read is left out on its own, so a malformed one never
   # fails the tool call it came with or loses the charts beside it.
   # Several answers to one call (connection: all) each add theirs after the ones already kept. Returns the charts kept.
+  # Calls of one step running together keep theirs in the order they were asked (CallOrder).
   def self.record!(chat, tool_call_id, charts, step_position: nil)
-    kept = chat.charts.where(tool_call_id: tool_call_id).count
-    Array(charts).each.with_index(kept).filter_map { |chart, index| keep(chat, tool_call_id, chart, index, step_position) }
+    CallOrder.after_earlier_calls do
+      kept = chat.charts.where(tool_call_id: tool_call_id).count
+      Array(charts).each.with_index(kept).filter_map { |chart, index| keep(chat, tool_call_id, chart, index, step_position) }
+    end
   end
 
   def self.keep(chat, tool_call_id, chart, index, step_position)
