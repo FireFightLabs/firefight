@@ -54,11 +54,12 @@ export function holdsRunOpen(step: AgentStep): boolean {
 
 const HOLD_RUN_OPEN: string[] = [ AGENT_STEP_STATUSES.RUNNING, AGENT_STEP_STATUSES.FAILED, AGENT_STEP_STATUSES.WAITING ]
 
-// "Read 12 sources · GitHub", "Read 3 sources, made 1 change · GitHub, Linear".
+// "Looked at 12 things · GitHub", "Looked at 3 things, made 1 change · GitHub, Linear". Never "Read", which is how the
+// sources list under the result starts.
 export function runSummary(steps: AgentStep[]): string {
   const reads = steps.filter((step) => step.kind === AGENT_STEP_KINDS.READ).length
   const changes = steps.filter((step) => step.kind === AGENT_STEP_KINDS.ACT).length
-  const read = reads > 0 ? `Read ${countOf(reads, "source")}` : null
+  const read = reads > 0 ? `Looked at ${countOf(reads, "thing")}` : null
   const made = changes > 0 ? `${read ? "made" : "Made"} ${countOf(changes, "change")}` : null
   const did = [ read, made ].filter((words) => words !== null).join(", ")
   const sources = steps.flatMap((step) => (step.source ? [ step.source ] : [])).filter((source, index, all) => all.indexOf(source) === index)

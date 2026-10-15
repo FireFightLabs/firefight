@@ -37,13 +37,13 @@ class AgentTurnOrderTest < ApplicationSystemTestCase
     fix = Chat::Tools.step("declare_incident", { "name" => "Update PR 14" })
     delivery.step(key: "call_4", step: fix, status: :running)
 
-    assert_text "Read 3 sources"
-    assert_text(/#{Regexp.escape(PLAN)}.*Read 3 sources.*#{Regexp.escape(UPDATE)}.*Declare incident.*Working/m)
+    assert_text "Looked at 3 things"
+    assert_text(/#{Regexp.escape(PLAN)}.*Looked at 3 things.*#{Regexp.escape(UPDATE)}.*Declare incident.*Working/m)
     assert_no_text "Search incidents"
     page.save_screenshot(Rails.root.join("tmp/screenshots/agent-turn-order-live.png"))
 
-    find("button", text: "Read 3 sources").click
-    assert_text(/Read 3 sources.*Search incidents.*Search incidents.*Search incidents.*#{Regexp.escape(UPDATE)}/m)
+    find("button", text: "Looked at 3 things").click
+    assert_text(/Looked at 3 things.*Search incidents.*Search incidents.*Search incidents.*#{Regexp.escape(UPDATE)}/m)
 
     save_turn
     delivery.step(key: "call_4", step: fix, status: :done)
@@ -53,6 +53,7 @@ class AgentTurnOrderTest < ApplicationSystemTestCase
     assert_text RESULT
     assert_folded
     assert_text(/Worked for 5m 36s · 4 steps.*#{Regexp.escape(RESULT)}/m)
+    assert_equal [ RESULT, "Read 3 sources" ], said_after_work, "the result is followed only by the sources it read"
     page.save_screenshot(Rails.root.join("tmp/screenshots/agent-turn-order-folded.png"))
 
     find("button", text: /Worked for/).click
@@ -89,6 +90,12 @@ class AgentTurnOrderTest < ApplicationSystemTestCase
   end
 
   private
+
+  # What the finished turn shows after its folded work, in order.
+  def said_after_work
+    turn = find("button", text: /Worked for/).ancestor("div.flex-col.gap-3", match: :first)
+    evaluate_script("Array.from(arguments[0].children).slice(1).map((child) => child.innerText.trim())", turn)
+  end
 
   def assert_folded
     assert_selector "button", text: "Worked for 5m 36s · 4 steps"
