@@ -7,7 +7,7 @@ module AiFunding
     house_model = FirefightAi.deployment_model_for(purpose, workspace: workspace)
     return [ house_model ] if workspace.nil?
 
-    own = workspace.workspace_ai_accounts.usable.select { |account| account.provider_definition }.map { |account| account.choice_for(purpose) }
+    own = workspace.usable_ai_accounts.select { |account| account.provider_definition }.map { |account| account.choice_for(purpose) }
     payer = house_payer(workspace)
     payer ? own + [ house_model.with(payer: payer) ] : own
   end

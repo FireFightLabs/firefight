@@ -58,6 +58,7 @@ class Conversation::Runner
   def run
     @marked = Time.current
     @turn.hold_catalog!
+    @conversation.workspace.hold_reads!
     chat, purse, presented, suspects = timed_phase(PHASE_SETUP) do
       chat = setup_step(STEP_CHAT) { @conversation.chat_record }
       # One workspace for the whole turn, so what it memoizes, such as its connection tools, is read once.
@@ -114,6 +115,7 @@ class Conversation::Runner
     end
 
     @turn.release_catalog!
+    @conversation.workspace.release_reads!
     outcome = timed_phase(PHASE_RESPONDER) do |started|
       @responder_started = started
       responder.run(
@@ -157,6 +159,8 @@ class Conversation::Runner
     outcome
   rescue FirefightAi::Canceled
     stopped!(@conversation.chat_record)
+  ensure
+    @conversation.workspace.release_reads!
   end
 
   private

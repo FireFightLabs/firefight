@@ -60,7 +60,7 @@ module Integrations
 
     # The workspace's connections that can raise a page, oldest first.
     def self.connections(workspace)
-      workspace.integrations.active.order(:created_at).select { |integration| pages?(integration.provider) }
+      workspace.read_held(:paging_connections) { workspace.integrations.active.order(:created_at).select { |integration| pages?(integration.provider) } }
     end
 
     def self.target_words(provider_key) = pager_of(provider_key)&.const_get(:TARGET_WORDS, false)

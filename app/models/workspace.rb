@@ -17,6 +17,7 @@ class Workspace < ApplicationRecord
   include Workspace::Signup
   include Workspace::ToolLabels
   include Workspace::ToolCatalogue
+  include Workspace::HeldReads
 
   enum :platform, { slack: Platforms::SLACK, teams: Platforms::TEAMS }, suffix: true
 
@@ -173,23 +174,27 @@ class Workspace < ApplicationRecord
   end
 
   # What a chat's tool catalogue and skills are read from, as one value read in one query: the connections, their tools and
-  # environments, the workspace's abilities, packs and skills, and the principal's own row. Any change to one changes it,
-  # so a turn keeps what it read only while this stays the same (Conversation::Turn#catalog).
+  # environments, the workspace's abilities, packs and skills, and the principal's own row. Each is the version of its rows
+  # (Workspace::ToolCatalogue::ROWS_VERSION), which every write moves, whatever made it, so a turn keeps what it read only
+  # while this stays the same (Conversation::Turn#catalog).
   REACH_VERSION_SQL = <<~SQL.squish.freeze
     SELECT
-      (SELECT concat(count(*), '/', max(updated_at)) FROM integrations WHERE workspace_id = :workspace),
-      (SELECT concat(count(*), '/', max(integration_tools.updated_at)) FROM integration_tools
+      (SELECT #{format(Workspace::ToolCatalogue::ROWS_VERSION, table: 'integrations')} FROM integrations WHERE workspace_id = :workspace),
+      (SELECT #{format(Workspace::ToolCatalogue::ROWS_VERSION, table: 'integration_tools')} FROM integration_tools
          JOIN integrations ON integrations.id = integration_tools.integration_id WHERE integrations.workspace_id = :workspace),
-      (SELECT concat(count(*), '/', max(integration_environments.updated_at)) FROM integration_environments
+      (SELECT #{format(Workspace::ToolCatalogue::ROWS_VERSION, table: 'integration_environments')} FROM integration_environments
          JOIN integrations ON integrations.id = integration_environments.integration_id WHERE integrations.workspace_id = :workspace),
-      (SELECT concat(count(*), '/', max(updated_at)) FROM ability_actions WHERE workspace_id = :workspace),
-      (SELECT concat(count(*), '/', max(updated_at)) FROM ability_roles WHERE workspace_id = :workspace),
-      (SELECT concat(count(*), '/', max(updated_at)) FROM chat_custom_skills WHERE workspace_id = :workspace)
+      (SELECT #{format(Workspace::ToolCatalogue::ROWS_VERSION, table: 'ability_actions')} FROM ability_actions WHERE workspace_id = :workspace),
+      (SELECT #{format(Workspace::ToolCatalogue::ROWS_VERSION, table: 'ability_roles')} FROM ability_roles WHERE workspace_id = :workspace),
+      (SELECT #{format(Workspace::ToolCatalogue::ROWS_VERSION, table: 'chat_custom_skills')} FROM chat_custom_skills WHERE workspace_id = :workspace)
   SQL
 
   def reach_version(principal)
     sql = REACH_VERSION_SQL
-    sql += ", (SELECT updated_at FROM #{principal.class.quoted_table_name} WHERE id = :principal)" if principal.is_a?(ActiveRecord::Base)
+    if principal.is_a?(ActiveRecord::Base)
+      table = principal.class.quoted_table_name
+      sql += ", (SELECT #{format(Workspace::ToolCatalogue::ROWS_VERSION, table: table)} FROM #{table} WHERE id = :principal)"
+    end
     query = self.class.sanitize_sql([ sql, { workspace: id, principal: principal.try(:id) } ])
     self.class.with_connection { |connection| connection.select_rows(query, "Reach version").first }
   end

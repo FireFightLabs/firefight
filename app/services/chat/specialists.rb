@@ -93,6 +93,13 @@ module Chat::Specialists
   # the terminal and a held call keep reaching every tool as before.
   def self.for?(agent_run) = agent_run.is_a?(Conversation::Turn) && agent_run.asks_specialists?
 
+  # What the decision reads of each tool's connection and action, never the action's schema or the connection's settings.
+  # The connection's slug names the tool, and its provider says which specialist reads it. The action's kind and risk say
+  # whether a member holds the tool without a grant (WorkspaceMembership#default_read?), its workspace and key which
+  # grant narrows it, and its source (type and id) is how it is found from the tool and answers back to it.
+  INTEGRATION_COLUMNS = %i[id provider slug].freeze
+  ACTION_COLUMNS = %i[id source_type source_id workspace_id key kind risk_level].freeze
+
   # Whether this turn asks specialists. In auto, only where the provider does not search tools itself, since there the
   # long tail already stays out of the model's context and out of the cached front until it is searched for, which is
   # what specialists are for. Elsewhere, only when some connection's reads would go to a specialist and the connections'
@@ -115,8 +122,9 @@ module Chat::Specialists
     principal = turn.acting_principal
     return false unless principal
 
-    tools = Integration::Tool.switched_on_in(turn.workspace).select(:id, :integration_id, :name, :read_only, :definition_chars)
-                             .preload(:integration, :ability_action).to_a
+    tools = Integration::Tool.switched_on_in(turn.workspace).select(:id, :integration_id, :name, :read_only, :definition_chars).to_a
+    ActiveRecord::Associations::Preloader.new(records: tools, associations: :integration, scope: Integration.select(*INTEGRATION_COLUMNS)).call
+    ActiveRecord::Associations::Preloader.new(records: tools, associations: :ability_action, scope: Ability::Action.select(*ACTION_COLUMNS)).call
     reading = tools.select(&:read_only?).map(&:model_facing_name).to_set
     resolved = Chat::Tools.granted(turn)
     tail = tools.select do |tool|
