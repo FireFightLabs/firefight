@@ -142,7 +142,8 @@ export function checkCouldNotRun(check: CodeFixCheck): boolean {
 
 // Answering a question or deciding a pause redirects back. A page whose list loads by the page names the props that
 // change, so the redirect never asks for the list again, and replaces them, since a paged list would otherwise gain the
-// page it reads again. Elsewhere it is an ordinary visit.
+// page it reads again. The card shows the result where it is, so no progress bar runs over the page. Elsewhere it is an
+// ordinary visit.
 export function decisionVisit(reloads: string[] | undefined) {
-  return reloads ? { preserveScroll: true, preserveState: true, only: reloads, reset: reloads } : { preserveScroll: true }
+  return reloads ? { preserveScroll: true, preserveState: true, showProgress: false, only: reloads, reset: reloads } : { preserveScroll: true }
 }

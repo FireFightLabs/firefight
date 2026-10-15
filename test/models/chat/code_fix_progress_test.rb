@@ -1,6 +1,9 @@
 require "test_helper"
 
 class Chat::CodeFixProgressTest < ActiveSupport::TestCase
+  include CodeQuestionTestHelper
+  include QueryCountHelper
+
   test "what is kept reads back the same, so a reload shows what arrived live" do
     work = Chat::CodeFixProgress.start(at: Time.zone.parse("2026-10-07 10:00:00"))
     work.live!
@@ -71,5 +74,31 @@ class Chat::CodeFixProgressTest < ActiveSupport::TestCase
     work.waited!(asked, at: asked + 200.seconds)
     assert_equal "Waiting for your answer, 3m", work.lines.last.text
     assert_equal 4, work.lines.size, "a wait after other work is a line of its own"
+  end
+
+  # Seen in CI: a page's questions and pauses each read their sessions, which sent the same rows twice whenever the two
+  # lists named them in a different order.
+  test "the sessions a page of steps' questions and pauses name are read in one query" do
+    workspace = workspaces(:slack_workspace_one)
+    member = workspace_memberships(:alice_workspace_one)
+    conversation = Conversation.start_personal!(workspace: workspace, member: member)
+    works = Array.new(3) { |index| asked_and_paused(workspace, member, conversation, "call_#{index}") }
+
+    sent = queries_sent(cached: true) { Chat::CodeFixProgress.preload_records(works, workspace.id) }
+    assert_equal 1, sent.grep(/FROM "code_agent_sessions"/).size, repeated_queries(sent)  end
+
+  private
+
+  def asked_and_paused(workspace, member, conversation, key)
+    request = CodeAgent::Request.new(principal: member, source: AbilityGateway::SOURCE_CONVERSATION, place: conversation, tool_call_id: key)
+    session, = CodeAgentSession.open!(workspace: workspace, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"),
+                                      repository: "acme/api", request: request)
+    pause = CodeAgentSession::Pause.create!(session: session, workspace: workspace, conversation: conversation, arguments: { "repo" => "acme/api" },
+                                            repository: "acme/api", base: "main", copy_ref: "c" * 40, budget_micros: 2_000_000,
+                                            resumable_until: 15.minutes.from_now, status: CodeAgentSession::Pause::STATUS_OFFERED)
+    Chat::CodeFixProgress.start.tap do |work|
+      work.asked!(ask_question!(session, "Tag or commit?").to_h)
+      work.paused!(pause.to_h)
+    end
   end
 end

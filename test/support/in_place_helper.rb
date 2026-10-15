@@ -54,6 +54,11 @@ module InPlaceHelper
 
   def requests_out = page.evaluate_script("window.requestsOut")
 
+  # Waits until every request a slow server holds has been answered.
+  def assert_answered(within: 10)
+    page.document.synchronize(within) { raise Capybara::ElementNotFound, "a request is still out" unless requests_out.zero? }
+  end
+
   def assert_no_progress_bar
     assert_equal false, page.evaluate_script("window.progressShown"), "the page's progress bar showed"
   end

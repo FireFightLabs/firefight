@@ -24,20 +24,23 @@ function reloadChat() {
   router.reload(CHAT_VISIT)
 }
 
+// What the chat's live connection reloads lands on the page as it is, so it shows no progress bar either.
+const CANVAS_RELOAD = { ...CANVAS_VISIT, showProgress: false }
+
 // A step that finished may have proposed a change, which the canvas shows as it lands.
 function onStreamed(event: StreamEvent) {
   if (event.type === AGENT_STREAM_EVENTS.STEP && event.status !== AGENT_STEP_STATUSES.RUNNING) {
-    router.reload(CANVAS_VISIT)
+    router.reload(CANVAS_RELOAD)
   }
 }
 
 function onNotice(event: StreamEvent): boolean {
   if (event.type === AGENT_STREAM_EVENTS.HELPERS) {
-    router.reload({ only: [ WORKFLOW_CANVAS_PROPS.HELPERS ] })
+    router.reload({ ...CHAT_VISIT, only: [ WORKFLOW_CANVAS_PROPS.HELPERS ] })
     return true
   }
   if (event.type === AGENT_STREAM_EVENTS.HELD_CALL) {
-    router.reload({ only: [ WORKFLOW_CANVAS_PROPS.CHAT_WAITING ] })
+    router.reload({ ...CHAT_VISIT, only: [ WORKFLOW_CANVAS_PROPS.CHAT_WAITING ] })
     return true
   }
   return false
@@ -46,7 +49,7 @@ function onNotice(event: StreamEvent): boolean {
 // A turn's end reloads the canvas too, since what Halon proposed shows there.
 function reloadAll() {
   reloadChat()
-  router.reload(CANVAS_VISIT)
+  router.reload(CANVAS_RELOAD)
 }
 
 const HANDLERS: ChatStreamHandlers = { reloadChat: reloadAll, onNotice, onStreamed }
@@ -73,7 +76,7 @@ export function useWorkflowChat(workflowId: string, chat: AgentChat | null): Wor
         return
       }
       setPending(trimmed)
-      router.post(workflowChatPath(workflowId), { question: trimmed, fresh }, { ...CHAT_VISIT, showProgress: false, onSuccess: asked, onFinish: settled })
+      router.post(workflowChatPath(workflowId), { question: trimmed, fresh }, { ...CHAT_VISIT, onSuccess: asked, onFinish: settled })
     }
 
     function stop() {

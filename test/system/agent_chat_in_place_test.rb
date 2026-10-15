@@ -48,6 +48,8 @@ class AgentChatInPlaceTest < ApplicationSystemTestCase
     @conversation.update!(answer_owed_since: 5.seconds.ago)
     visit agent_chat_path(@conversation)
     assert_selector "[aria-label='Prompt'][placeholder='Add something while Halon works']"
+    # The conversation follows the composer in a request of its own, and a message sent before it arrives reads it whole.
+    assert_selector THREAD, text: "and the worker?"
     watch_page
     slow_server(SLOW)
 
@@ -116,8 +118,4 @@ class AgentChatInPlaceTest < ApplicationSystemTestCase
   private
 
   def prompt = find("[aria-label='Prompt']")
-
-  def assert_answered
-    page.document.synchronize(SLOW * 4) { raise Capybara::ElementNotFound, "a request is still out" unless requests_out.zero? }
-  end
 end

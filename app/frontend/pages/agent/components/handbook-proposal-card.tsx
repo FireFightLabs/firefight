@@ -10,7 +10,7 @@ import { MarkdownText } from "@/components/markdown-text"
 import { HANDBOOK_PROPOSAL_QUERY } from "@/lib/generated/constants"
 import { useCan } from "@/lib/permissions"
 import { acceptHandbookProposalPath, dismissHandbookProposalPath, settingsHandbookPath } from "@/lib/routes"
-import { HANDBOOK_PROPOSALS, SHOWN_IN_PLACE } from "@/pages/agent/lib/chat-updates"
+import { HANDBOOK_PROPOSALS, IN_PLACE } from "@/pages/agent/lib/chat-updates"
 import type { HandbookProposal } from "@/types/serializers"
 
 interface HandbookProposalCardProps {
@@ -38,12 +38,12 @@ export function HandbookProposalCard({ proposal }: HandbookProposalCardProps) {
 
   function accept() {
     setSending(true)
-    router.post(acceptHandbookProposalPath(proposal.id), {}, { ...SHOWN_IN_PLACE, only: HANDBOOK_PROPOSALS, onFinish: doneSending })
+    router.post(acceptHandbookProposalPath(proposal.id), {}, { ...IN_PLACE, only: HANDBOOK_PROPOSALS, onFinish: doneSending })
   }
 
   function dismiss() {
     setSending(true)
-    router.post(dismissHandbookProposalPath(proposal.id), {}, { ...SHOWN_IN_PLACE, only: HANDBOOK_PROPOSALS, onFinish: doneSending })
+    router.post(dismissHandbookProposalPath(proposal.id), {}, { ...IN_PLACE, only: HANDBOOK_PROPOSALS, onFinish: doneSending })
   }
 
   function openEdit() {

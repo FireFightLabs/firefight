@@ -113,7 +113,7 @@ class AgentChatQueriesTest < ActionDispatch::IntegrationTest
   # Each request starts with an empty query cache, as it does in production, so a query the request before made is still
   # counted.
   def counted
-    ActiveRecord::Base.connection_pool.clear_query_cache
+    ActiveRecord::Base.lease_connection.clear_query_cache
     queries = []
     callback = ->(*, payload) { queries << payload[:sql] unless NOT_COUNTED.include?(payload[:name]) || payload[:cached] }
     ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
