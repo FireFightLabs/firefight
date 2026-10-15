@@ -345,7 +345,7 @@ module Chat::Tools
     return unless workspace && mitigation&.proposed?
     return Integrations::Mitigations::SCALES_BACK if mitigation.tool_name == Integrations::Capabilities.spec(Integrations::Capabilities::SCALE).tool_name
 
-    tool = workspace.connection_tools_by_name[mitigation.tool_name.to_s]
+    tool = Target.label(workspace, mitigation.tool_name)
     tool && Integrations::Mitigations.undo_words(tool, mitigation.arguments)
   end
 
@@ -403,7 +403,7 @@ module Chat::Tools
 
     key = IntegrationProvider.find(tool.integration.provider)&.scope_field&.key
     scope = key && arguments[key].presence
-    connection = scope.is_a?(String) ? Target.connection_tool(workspace, tool_name).integration.target_label(scope: scope) : tool.integration.display_name
+    connection = scope.is_a?(String) ? workspace.labelled_connection(tool.integration.id).target_label(scope: scope) : tool.integration.display_name
     "#{tool.name.tr('_.', '  ').humanize} · #{connection}"
   end
 
@@ -434,7 +434,7 @@ module Chat::Tools
 
   def self.call_title(tool_call)
     workspace = tool_call.message&.chat&.workspace
-    tool = workspace && Target.connection_tool(workspace, tool_call.name)
+    tool = workspace && Target.label(workspace, tool_call.name)
     (tool ? tool.name : tool_call.name).to_s.tr("_.", "  ").humanize
   end
 

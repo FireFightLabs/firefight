@@ -139,9 +139,28 @@ class Investigation::RemediationStep < ApplicationRecord
   def tool_to_run(workspace = plan.finding.investigation.workspace)
     return code_tool(workspace) if pull_request?
 
+    read_for, tool = @action_tool
+    return tool if read_for == workspace.id
+
     slug, name = action_key.to_s.split(".", 2)
     Integration::Tool.in_workspace(workspace).where(integrations: { slug: slug }, name: name, read_only: false).first
   end
+
+  # The tools a fix's action steps run, for a whole fix in one query rather than one a step, which tool_to_run answers
+  # from in place of asking again.
+  def self.preload_action_tools(steps, workspace)
+    steps = steps.to_a
+    keyed = steps.reject(&:pull_request?).select { |step| step.action_key.present? }
+    return steps if keyed.empty?
+
+    pairs = keyed.map { |step| step.action_key.split(".", 2) }
+    found = Integration::Tool.in_workspace(workspace).where(integrations: { slug: pairs.map(&:first).uniq }, name: pairs.map(&:last).uniq, read_only: false)
+                             .index_by(&:action_key)
+    keyed.each { |step| step.action_tool = [ workspace.id, found[step.action_key] ] }
+    steps
+  end
+
+  attr_writer :action_tool
 
   # What the coding agent is asked, from the run's finding and the rest of the fix, so each pull request says why it
   # exists and where it sits among the others.

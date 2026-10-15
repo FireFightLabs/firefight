@@ -21,6 +21,12 @@ class AgentChatToolLabelsTest < ActionDispatch::IntegrationTest
     asking = @conversation.chat_record.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
     call = asking.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: @reader.model_facing_name, arguments: {})
     call.update!(result: @conversation.chat_record.messages.create!(role: Chat::Message::ROLE_TOOL, content: "web, api"))
+    vercel = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "vercel", name: "Sites", slug: "sites")
+    vercel.integration_environments.create!(credentials: { token: "x" }.to_json)
+    scoped = vercel.tools.create!(name: "list_projects", description: "Lists", read_only: true, enabled: true, params_schema: { "type" => "object" })
+    # A call that names one team of several is titled with it, from the connection's own words.
+    named = asking.ruby_llm_tool_calls.create!(tool_call_id: "call_2", name: scoped.model_facing_name, arguments: { "team" => "acme" })
+    named.update!(result: @conversation.chat_record.messages.create!(role: Chat::Message::ROLE_TOOL, content: "shop"))
     @conversation.reply_delivered!
   end
 
@@ -31,7 +37,9 @@ class AgentChatToolLabelsTest < ActionDispatch::IntegrationTest
     tool_reads = cold.grep(TOOL_ROWS)
     assert_equal 1, tool_reads.size, tool_reads.join("\n")
     assert_no_match(/params_schema|description|"spec"|integration_environments|ability_actions/, tool_reads.sole)
-    assert_empty warm.grep(TOOL_ROWS)
+    assert_empty warm.grep(TOOL_ROWS), "a step naming one team of several reads no tool whole either"
+    titled = inertia_props[AgentChatsController::PROP_MESSAGES].flat_map { |message| message["tools"] }.find { |step| step["key"] == "call_2" }
+    assert_match "acme", titled["title"]
     page = queries_sent { get agent_chat_url(@conversation), headers: inertia_headers }
     assert_empty (cold + warm + page).grep(/FROM "workspaces" WHERE "workspaces"."id"/), "each request holds one workspace"
   end

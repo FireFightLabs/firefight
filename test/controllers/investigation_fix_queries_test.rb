@@ -58,8 +58,10 @@ class InvestigationFixQueriesTest < ActionDispatch::IntegrationTest
                                            action_key: "cloudflare.execute", request_digest: Ability::Approval.digest("cloudflare.execute", { "n" => position }, {}),
                                            required_role: WorkspaceMembership.roles[:admin], status: Ability::Approval::STATUS_APPROVED,
                                            approver: workspace_memberships(:alice_workspace_one), resolved_at: Time.current, run_expires_at: 1.hour.from_now)
+      # Each step runs a tool of its own, so a tool read per step shows.
+      tool = @workspace.integrations.find_by!(slug: "cloudflare").tools.create!(name: "execute_#{position}", description: "Call", params_schema: {}, enabled: true, read_only: false)
       @plan.steps.create!(position: position, kind: Investigation::RemediationStep::KIND_ACTION, description: "Delete rule #{position}",
-                          action_key: "cloudflare.execute", tool_name: "cloudflare_execute", arguments: { "code" => "delete" },
+                          action_key: tool.action_key, tool_name: tool.model_facing_name, arguments: { "code" => "delete" },
                           status: Investigation::RemediationStep::STATUS_APPROVED, approval: approval)
       @plan.steps.create!(position: position + 1, kind: Investigation::RemediationStep::KIND_PULL_REQUEST, description: "Drop rule #{position}",
                           repository: "acme/infra-#{position}", status: Investigation::RemediationStep::STATUS_RUNNING, progress: paused_work.to_json)

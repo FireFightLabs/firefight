@@ -85,6 +85,7 @@ class Investigation::RemediationPlan < ApplicationRecord
     ActiveRecord::Associations::Preloader.new(records: [ self ], associations: { steps: [ :invocation, :done_by, { approval: :approver } ] }).call
     workspace = finding.investigation.workspace
     Investigation::RemediationStep.preload_repository_holders(steps, workspace)
+    Investigation::RemediationStep.preload_action_tools(steps, workspace)
     works = steps.to_h { |step| [ step, step.work ] }
     Chat::CodeFixProgress.preload_records(works.values, workspace.id)
     works.each { |step, work| step.shown_work = work&.with_current_question(workspace.id) }

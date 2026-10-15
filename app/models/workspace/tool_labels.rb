@@ -34,6 +34,13 @@ module Workspace::ToolLabels
     end
   end
 
+  # A labelled tool's connection whole, with its environments, for what it reaches when a call names one scope of several
+  # (Integration#target_label). The workspace's connections are few, so they are read together, once.
+  def labelled_connection(id)
+    @labelled_connections ||= integrations.where(deleted_at: nil).includes(:integration_environments).index_by(&:id)
+    @labelled_connections[id]
+  end
+
   # Memoized for the same reason, since a page asks whether each step only read.
   def reading_tool_names
     @reading_tool_names ||= tool_labels.values.select { |label| label.switched_on? && label.read_only? }.to_set(&:model_facing_name)
