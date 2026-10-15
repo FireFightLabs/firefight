@@ -13,6 +13,8 @@ class Conversation::Turn
     @reads_only = reads_only
     @approved_plan = approved_plan
     @approved_tools = approved_plan&.approved_tools.to_a
+    # The reads of one step run together (FirefightAi::AgentLoop::ToolsTogether), so what a turn keeps is kept once.
+    @keeping = Monitor.new
   end
 
   # The scheduled plan this turn carries out with its approved-ahead tools, or nil.
@@ -36,16 +38,18 @@ class Conversation::Turn
   def catalog_held? = @catalog_held == true
 
   def catalog(version, part)
-    unless @catalog_held && @catalog
-      current = version.call
-      @catalog = {} unless @catalog && current == @catalog_version
-      @catalog_version = current
+    @keeping.synchronize do
+      unless @catalog_held && @catalog
+        current = version.call
+        @catalog = {} unless @catalog && current == @catalog_version
+        @catalog_version = current
+      end
+      @catalog.fetch(part) { @catalog[part] = yield }
     end
-    @catalog.fetch(part) { @catalog[part] = yield }
   end
 
   # What a turn reads once and keeps as it goes, such as the chat's calls a skill reminder reads (Chat::Tools::SkillReminder).
-  def kept(name) = (@kept ||= {})[name] ||= yield
+  def kept(name) = @keeping.synchronize { (@kept ||= {})[name] ||= yield }
 
   # A tool of a scheduled plan whose changes the person approved ahead, run without asking since nobody may be there.
   def approved_ahead?(tool_name) = @approved_tools.include?(tool_name.to_s)

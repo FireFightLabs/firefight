@@ -17,6 +17,9 @@ class Chat::Tools::Firefight < RubyLLM::Tool
 
   def name = @tool_class.name_value
 
+  # A tool declared read only runs beside the step's other reads (FirefightAi::AgentLoop::ToolsTogether).
+  def concurrent_read? = @tool_class.annotations_value&.read_only_hint == true
+
   def description = @tool_class.description_value.to_s
 
   # A call that waits for the person also asks for its intent, which the confirmation leads with.

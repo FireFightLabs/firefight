@@ -10,7 +10,7 @@ class FirefightAi::CopyTest < ActiveSupport::TestCase
 
   test "Halon is told how to write in a chat, an investigation and an incident channel, with no em dash or semicolon, no pronoun guessed from a name and a person's words quoted exactly" do
     chat = mock("chat")
-    chat.stubs(:to_llm).returns(stub(messages: [], with_temperature: nil))
+    chat.stubs(:to_llm).returns(stub(messages: [], with_temperature: nil, with_tool_options: nil))
     chat.stubs(:with_tools)
     chat.stubs(:with_caching)
     instructions = nil

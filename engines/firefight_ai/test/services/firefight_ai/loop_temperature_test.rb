@@ -35,11 +35,12 @@ class FirefightAi::LoopTemperatureTest < ActiveSupport::TestCase
     FirefightAi.configuration.stubs(:loop_temperature).returns(0.0)
     llm = mock("llm")
     llm.stubs(:messages).returns([])
+    llm.stubs(:with_tool_options)
     llm.expects(:with_temperature).with(0.0).once
     chat = stub(to_llm: llm)
 
     loop_for(chat, steady: true)
-    loop_for(stub(to_llm: stub(messages: [])), steady: false)
+    loop_for(stub(to_llm: stub(messages: [], with_tool_options: nil)), steady: false)
   end
 
   private

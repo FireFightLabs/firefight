@@ -46,11 +46,15 @@ class Chat::Tools::SkillReminder
 
     def initialize(chat)
       @chat = chat
+      @reading = Mutex.new
     end
 
+    # A turn's reads run together, so one reads at a time.
     def all
-      @rows.nil? ? read_whole : read_since
-      @rows.values.sort_by { |call| [ call.created_at, call.id ] }
+      @reading.synchronize do
+        @rows.nil? ? read_whole : read_since
+        @rows.values.sort_by { |call| [ call.created_at, call.id ] }
+      end
     end
 
     private

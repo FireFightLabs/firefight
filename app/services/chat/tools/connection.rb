@@ -40,6 +40,9 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
   def name = @tool.model_facing_name
 
+  # A tool that only reads runs beside the step's other reads (FirefightAi::AgentLoop::ToolsTogether).
+  def concurrent_read? = @tool.read_only?
+
   # Another system's words, so only text reaches the model and a runaway description is capped.
   def description
     said = Chat::Tools.clean(@tool.described_for_agents, Chat::Tools::FULL_DESCRIPTION)
