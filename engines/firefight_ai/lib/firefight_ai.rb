@@ -438,12 +438,29 @@ module FirefightAi
   # Whether definitions this many characters long in all, each counted as fits_up_front? counts it, fit the same budget.
   def chars_fit_up_front?(chars) = chars <= configuration.held_tools_budget * TOOL_CHARS_PER_TOKEN
 
+  # How long a boundary a person's next message reads from lasts: an hour, the longest a provider keeps one, so a reply
+  # after a pause reads the history rather than writing all of it again (AgentLoop hold_history).
+  CACHE_BETWEEN_TURNS = "1h".freeze
+
+  ANTHROPIC = "anthropic".freeze
+  # How OpenRouter names Anthropic's models, by their maker.
+  ANTHROPIC_ON_ROUTER = "anthropic/".freeze
+
+  # Whether the provider keeps a boundary for CACHE_BETWEEN_TURNS: Anthropic's own API, and OpenRouter for Anthropic's
+  # models, which hands the lifetime on to the host serving the call. Anywhere else a boundary keeps the provider's default.
+  def lasting_cache?(choice)
+    provider = choice.provider_name.to_s
+    provider == ANTHROPIC || (provider == SESSION_ROUTER && choice.model.to_s.start_with?(ANTHROPIC_ON_ROUTER))
+  end
+
   # Sets a saved chat up for an agent's turn on choice. The instructions end in a cache boundary, so the tool definitions
   # in front of them and the instructions themselves are read from the provider's cache on every turn after the first.
-  # Every boundary keeps the provider's default lifetime, five minutes, since turns follow each other within seconds and a
-  # write that lasts an hour costs twice the input price rather than one and a quarter. tools are handed over whole. deferred_tools are handed over
-  # for the provider to search, and only where it does (ToolSearch), since anywhere else they would arrive whole.
-  # rolling also asks the provider to cache the conversation as it grows, which a chat resent on every turn needs.
+  # A boundary keeps the provider's default lifetime, five minutes, since a run's calls follow each other within seconds
+  # and a write that lasts an hour costs twice the input price rather than one and a quarter. A chat a person comes back
+  # to after a pause holds its instructions and the start of each turn for longer (AgentLoop hold_history). tools are
+  # handed over whole. deferred_tools are handed over for the provider to search, and only where it does (ToolSearch),
+  # since anywhere else they would arrive whole. rolling also asks the provider to cache the conversation as it grows,
+  # which a chat resent on every turn needs.
   def ready_chat(chat, choice:, instructions:, tools:, deferred_tools: [], rolling: true)
     bind(chat, choice)
     chat.with_instructions(instructions, cache_until_here: true)

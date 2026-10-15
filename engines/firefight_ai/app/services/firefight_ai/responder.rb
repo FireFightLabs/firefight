@@ -51,7 +51,8 @@ module FirefightAi
           on_step: on_step, on_chunk: on_chunk, nudge: nudge, memory: memory, inference: inference_context, reply_is_answer: true,
           take_messages: take_messages, output: output_cap, choice: ai_model, purpose: AiPurpose::INVESTIGATION,
           purse: purse, on_backup: on_backup, on_take_over: on_take_over, on_progress: on_progress, steady: true,
-          checks: (FirefightAi.configuration.finish_reads ? [ NextStep.check ] : []) + checks, retry_malformed: true
+          checks: (FirefightAi.configuration.finish_reads ? [ NextStep.check ] : []) + checks, retry_malformed: true,
+          hold_history: true
         ).run(&on_turn)
       end
     rescue RubyLLM::ToolCallParseError => e

@@ -305,6 +305,24 @@ class Chat < ApplicationRecord
   # A call left unfinished before tools were remembered still needs its tool.
   def known_tool_names = found_tool_names | unfinished_tool_names
 
+  # Where a turn's history was cached (FirefightAi::AgentLoop hold_history). The message with after messages behind it
+  # stays a cache boundary on every call after, in place of the one held before, since a provider takes four boundaries.
+  # The messages are read again so the calls still to come send the change, and the workspace the turn handed this chat
+  # is kept, so what it read once is not read again.
+  def hold_history!(after:)
+    held = sent_messages.reorder(created_at: :desc, id: :desc).offset(after).first
+    return unless held
+
+    transaction do
+      sent_messages.where(cache_until_here: true).where.not(role: Chat::Message::ROLE_SYSTEM).where.not(id: held.id)
+                   .update_all(cache_until_here: false, cache_ttl: nil, updated_at: Time.current)
+      sent_messages.where(id: held.id).update_all(cache_until_here: true, cache_ttl: nil, updated_at: Time.current)
+    end
+    turn_workspace = association(:workspace).target
+    reload
+    self.workspace = turn_workspace if turn_workspace
+  end
+
   # Records which model will run, without opening a connection to the provider.
   def self.open!(owner:, workspace:, model_choice:)
     chat = new(owner: owner, workspace: workspace)
