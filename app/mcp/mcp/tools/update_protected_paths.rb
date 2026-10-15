@@ -13,7 +13,7 @@ module Mcp
                   "is the whole list after the change. Only a workspace admin may call this. Docs: #{Docs::MCP_SERVER}"
       # It decides what Halon may change, so a chat asks before it applies.
       annotations(**DESTRUCTIVE)
-      choice :connection, from: ->(workspace) { workspace.integrations.where(deleted_at: nil).order(:name).select(&:holds_code?) }
+      choice :connection, from: ->(workspace) { workspace.read_held(:code_connections) { workspace.integrations.where(deleted_at: nil).order(:name).select(&:holds_code?) } }
       input_schema(
         properties: {
           connection: { type: "string", description: "The code host connection's slug" },

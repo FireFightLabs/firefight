@@ -18,6 +18,33 @@ class ConversationReplyJobTest < ActiveSupport::TestCase
     ConversationReplyJob.perform_now(conversation.id)
   end
 
+  test "Flipper reads each flag once while a reply runs, and reads as ever once it is over" do
+    conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
+    during = nil
+    runner = Object.new
+    runner.define_singleton_method(:run) { during = Flipper.memoizing? }
+    Conversation::Runner.stubs(:new).returns(runner)
+
+    assert_not Flipper.memoizing?
+    ConversationReplyJob.perform_now(conversation.id)
+
+    assert during
+    assert_not Flipper.memoizing?
+  end
+
+  test "Flipper is switched off after a reply that failed, and left on when a request already memoized it" do
+    conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
+    Conversation::Runner.any_instance.stubs(:run).raises(FirefightAi::TerminalError, "no model")
+    ConversationReplyJob.perform_now(conversation.id)
+    assert_not Flipper.memoizing?
+
+    Flipper.memoize = true
+    ConversationReplyJob.perform_now(conversation.id)
+    assert Flipper.memoizing?
+  ensure
+    Flipper.memoize = false
+  end
+
   test "a dashboard chat hears that the turn died rather than waiting on it" do
     conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
     Conversation::Runner.any_instance.stubs(:run).raises(FirefightAi::TerminalError, "no model")

@@ -244,8 +244,10 @@ class WorkspaceAiAccount < ApplicationRecord
   end
 
   def stuck!(column, error)
-    self.class.where(id: id, column => nil)
-        .update_all(column => Time.current, :last_error => AiAccountError.words(error, model: nil), :updated_at => Time.current) == 1
+    moved = self.class.where(id: id, column => nil)
+                .update_all(column => Time.current, :last_error => AiAccountError.words(error, model: nil), :updated_at => Time.current) == 1
+    association(:workspace).target&.forget_held_read(:usable_ai_accounts)
+    moved
   end
 
   def provider_offered

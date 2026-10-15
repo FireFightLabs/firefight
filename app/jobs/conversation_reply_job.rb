@@ -2,6 +2,10 @@ class ConversationReplyJob < ApplicationJob
   # Its own queue, so an answer someone is waiting for never sits behind an investigation.
   queue_as :conversations
 
+  # Flipper reads each flag once while a reply runs, as its middleware does for a request, which no job gets. Flipper's
+  # instance is the fiber's own, so another reply in the same worker is never affected.
+  around_perform { |_job, block| FeatureFlags.memoized(&block) }
+
   # A second turn would clear away the empty reply RubyLLM saves while the first is working, orphaning its tool results.
   # The lock outlives a dead worker no longer than the page waits on it.
   limits_concurrency key: ->(conversation_id, *) { conversation_id }, duration: Conversation::REPLY_CEILING

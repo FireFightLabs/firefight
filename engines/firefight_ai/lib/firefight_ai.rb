@@ -192,7 +192,7 @@ module FirefightAi
   # model of FIREFIGHT_AI_PROVIDER when it is set and holds a key, else of the first provider this deployment holds a key for. A side job takes FIREFIGHT_AI_QUICK_MODEL, then the
   # quick model of the provider the loop runs on, then FIREFIGHT_AI_MODEL. Both end at the purpose's fallback.
   def deployment_model_for(purpose, workspace: nil)
-    override = workspace && workspace.ai_model_overrides.for_purpose(purpose).min_by { |row| row.purpose == purpose ? 0 : 1 }
+    override = workspace&.ai_model_override_for(purpose)
     return ModelChoice.new(model: override.model, provider: override.provider.presence) if override
 
     prefix = env_prefix(purpose)
@@ -240,7 +240,7 @@ module FirefightAi
 
   # Whether an override or the purpose's env var names its model, rather than a recommendation or its parent.
   def named_for?(purpose, workspace)
-    ENV["#{env_prefix(purpose)}_MODEL"].present? || (workspace.present? && workspace.ai_model_overrides.exists?(purpose: purpose))
+    ENV["#{env_prefix(purpose)}_MODEL"].present? || (workspace.present? && workspace.ai_model_override_named_for?(purpose))
   end
 
   # Points a saved chat at the choice, its model and the context holding its account's settings, so a chat resumed after

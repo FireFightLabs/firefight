@@ -53,6 +53,17 @@ module FeatureFlags
     Workspace.where(id: ids)
   end
 
+  # Reads each flag once while the block runs, for work that checks the same flags again and again and has no request to
+  # memoize them, such as a reply. Flipper's instance is the fiber's own, so nothing else running in the process is
+  # affected. Left as it was when something already memoizes.
+  def self.memoized
+    already = Flipper.memoizing?
+    Flipper.memoize = true unless already
+    yield
+  ensure
+    Flipper.memoize = false unless already
+  end
+
   def self.known!(flag, scope)
     name = flag.to_s.to_sym
     raise UnknownFlag, "Unknown feature flag #{flag.inspect}" unless ALL.include?(name)
