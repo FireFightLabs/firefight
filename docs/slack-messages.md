@@ -68,6 +68,31 @@ The only messages that skip it are the ones with nothing to separate: a title
 and a context line, no body. `Alert`, `LeadAssignment`, `PackAnswer` and a reopen with no reason are the whole list. A
 rich card draws its own edges, so it needs none.
 
+## Asking before a change
+
+Every request Halon makes reads the same, whether it is a confirmation in a chat (`AgentConfirmation`), a call an
+approval rule held (`HeldCall`) or the request an approver gets (`Approval`): a card titled ":raised_hand: Halon wants to:
+add a commit to PR #856", one line on what it changes or why, and the buttons, Approve (Deny for an approver), Cancel and
+Details. Nothing in the card is code: no tool names, arguments, ids or hashes, and the reads and reasons are under
+Details, a modal. When Halon read text from outside that holds the change's own values, the line carries one italic
+caution. Once answered the same message is redrawn to one line saying how it stands, or to a checklist while an approved
+code change runs (`ChangeProgress`, its parts from `Chat::CodeFixProgress#stages`), ending on done with the page it
+made, failed with why, or cancelled by whom. See docs/ai.md, Some changes wait for the person to confirm.
+
+```
+:raised_hand:  Halon wants to: add a commit to PR #856
+Address the review comments on PR #856 as you asked.        [Approve] [Cancel] [Details]
+                         ... after Approve ...
+:arrows_counterclockwise:  plan "Add a commit to PR #856"
+  ✓ Write the change   3 files changed
+  ◌ Check the change
+  ◌ Open a pull request
+Approved by @Dana  ·  started 15:05                          [Details]
+                         ... when it ends ...
+:white_check_mark:  Add a commit to PR #856
+Done  ·  github.com/FireFightLabs/firefight/pull/856  ·  approved by @Dana      [Details]
+```
+
 ## Title: card, alert or bold section
 
 | | Use |
@@ -430,7 +455,7 @@ old wording, with who decided in a context line. See docs/ai.md, Halon proposes 
 
 When a person writes to Halon in the app's direct messages, the answer is a reply under their message, streamed like a
 thread chat's (`Conversation::Delivery`), because Slack streams only into a thread. Everything the chat posts after
-that (confirmations, held calls, plans, watch updates, handbook proposals) goes in the thread the person last wrote in,
+that (requests to approve a change, plans, watch updates, handbook proposals) goes in the thread the person last wrote in,
 never as a new top-level DM. A reply under one of Firefight's own DMs is answered in that thread too, by the person's
 chat. A refusal is one plain line in the same thread. See docs/ai.md, Direct messages.
 

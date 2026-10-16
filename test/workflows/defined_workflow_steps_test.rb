@@ -139,7 +139,7 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
     approval = Ability::Approval.find_by!(workflow_run_id: run.id)
     approval.update_columns(notifications: [ { "channel_id" => "C-OPS", "message_id" => "7.7" } ])
     WorkspaceAdapter.for(@workspace).class.any_instance.expects(:mark_approval_resolved)
-                    .with { |approval:, channel_id:, message_id:| channel_id == "C-OPS" && approval.withdrawn_reason == "Nobody decided within 10 minutes, so it did not run." }
+                    .with { |approval:, channel_id:, message_id:, **| channel_id == "C-OPS" && approval.withdrawn_reason == "Nobody decided within 10 minutes, so it did not run." }
                     .returns({ success: true })
 
     travel(11.minutes) { perform_enqueued_jobs { SolidWorkflow::SweeperJob.perform_now } }

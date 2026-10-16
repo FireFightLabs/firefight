@@ -1,7 +1,8 @@
 require "test_helper"
 
-# A call an approval rule held in a chat. Approving it unlocks it and never runs it: Halon reads how things stand now, the
-# person who asked is told where the chat lives, and it runs once, when someone presses Run.
+# A call an approval rule held in a chat. It is asked in the chat's thread as soon as it is held, and approving it runs it
+# at once, as whoever asked. A call approved before approving ran it still waits for Run, after Halon reads how things
+# stand now, and expires unrun after an hour.
 class Conversation::HeldCallsTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
@@ -20,7 +21,7 @@ class Conversation::HeldCallsTest < ActiveSupport::TestCase
     @conversation = Conversation.start_personal!(workspace: @workspace, member: @bob)
     @conversation.chat_record
     @adapter = stub(post_held_call_to_user: { channel_id: "D1", message_id: "9.1" }, post_held_call: { channel_id: "C1", message_id: "9.2" },
-                    update_held_call: { success: true })
+                    update_held_call: { success: true }, agent_step_update_interval: 3)
     WorkspaceAdapter.stubs(:for).returns(@adapter)
     ConversationChannel.stubs(:broadcast_to)
   end
@@ -35,23 +36,42 @@ class Conversation::HeldCallsTest < ActiveSupport::TestCase
     assert_match "never call it again yourself", said
   end
 
-  test "approving it only unlocks it: nothing runs, Halon is asked to check, and the person who asked is told in Slack" do
-    Integrations::McpExecutor.expects(:call).never
+  test "approving it runs it at once as whoever asked, tells them in Slack, and the turn says how it went" do
     hold_call
     held = @conversation.chat.held_calls.sole
     @adapter.expects(:post_held_call_to_user).with do |user_id:, held_call:|
-      user_id == @bob.platform_user_id && held_call.headline == "Alice Smith approved: Execute on #{@faylee.target_label}. Run it now?"
+      user_id == @bob.platform_user_id && held_call.headline == "Execute on #{@faylee.target_label}" && held_call.line == "Approved by Alice Smith, working on it."
     end.returns(channel_id: "D1", message_id: "9.1")
 
-    perform_enqueued_jobs(only: AbilityApprovalResumptionJob) { held.approval.approve!(by: @alice) }
+    assert_enqueued_with(job: ConversationReplyJob, args: [ @conversation.id, @bob.id, held.id ]) do
+      perform_enqueued_jobs(only: AbilityApprovalResumptionJob) { held.approval.approve!(by: @alice) }
+    end
 
-    assert_equal Chat::HeldCall::STATUS_CHECKING, held.reload.status
+    assert_equal [ Chat::HeldCall::STATUS_RUNNING, @alice ], [ held.reload.status, held.decided_by ]
     assert_equal [ "D1", "9.1" ], [ held.message_channel_id, held.message_id ]
-    assert_enqueued_with(job: HeldCallCheckJob, args: [ held.id ])
-    assert_enqueued_with(job: ApprovedCallExpiryJob, args: [ held.approval.id ])
-    assert_in_delta 1.hour.from_now, held.approval.run_expires_at, 5.seconds
-    assert_not Ability::Invocation.exists?(approval_id: held.approval.id, decision: Ability::Invocation::DECISION_ALLOW)
-    assert_equal "Halon is still checking how things stand now.", held.run_blocked_reason(@bob)
+    assert_no_enqueued_jobs(only: HeldCallCheckJob)
+    assert @conversation.reload.answer_owed?
+
+    Integrations::McpExecutor.expects(:call).once.returns("content" => [ { "type" => "text", "text" => "Scaled web to 0" } ])
+    ApprovalNotificationService.expects(:mark_resolved!).at_least_once
+    Conversation::Runner.new(@conversation, asker: @bob, held_call: held.reload).send(:run_held_call, @conversation.chat)
+
+    shown = Conversation::HeldCalls.shown(held.reload)
+    assert_equal [ Chat::HeldCall::STATUS_RAN, "Done: execute on #{@faylee.target_label}", "Approved by Alice Smith." ], [ shown.status, shown.headline, shown.line ]
+    invocation = Ability::Invocation.find_by!(approval_id: held.approval.id, decision: Ability::Invocation::DECISION_ALLOW)
+    assert_equal [ @bob, Ability::Invocation::OUTCOME_SUCCESS ], [ invocation.principal, invocation.outcome ]
+  end
+
+  test "a code change approved this way shows how far it got on its message while it runs" do
+    held = hold_call.then { @conversation.chat.held_calls.sole }
+    work = Chat::CodeFixProgress.start
+    work.changed!("app/workflows/lead_assignment_workflow.rb")
+    @adapter.expects(:update_held_call).with do |held_call:, **|
+      held_call.progress == work && held_call.progress.stages.first.detail == "1 file changed"
+    end.returns(success: true)
+    held.update_columns(status: Chat::HeldCall::STATUS_RUNNING, message_channel_id: "C1", message_id: "9.2")
+
+    Conversation::HeldCalls.moved!(held, progress: work)
   end
 
   test "Halon reads how things stand now before Run is offered, and the card says plainly when it looks done already" do
@@ -136,8 +156,9 @@ class Conversation::HeldCallsTest < ActiveSupport::TestCase
       perform_enqueued_jobs(only: ApprovedCallExpiryJob) { ApprovedCallExpiryJob.perform_later(held.approval.id) }
       assert_equal [ Chat::HeldCall::STATUS_EXPIRED, Ability::Approval::STATUS_EXPIRED ], [ held.reload.status, held.approval.reload.status ]
       assert_equal "Nobody ran it within 1 hour of its approval.", held.approval.withdrawn_reason
-      assert_match(/\*Withdrawn\* after \*.+\* approved it\. Nobody ran it within 1 hour of its approval\./,
-                   Slack::Messages::Approval.build_resolved(held.approval).last.dig(:text, :text))
+      shown = ApprovalNotificationService.shown(held.approval)
+      assert_match(/Withdrawn after \*.+\* approved it\. Nobody ran it within 1 hour of its approval\./,
+                   Slack::Messages::Approval.build_resolved(held.approval, shown: shown).first.dig(:text, :text))
       assert_equal [ Chat::CurrentState::ACTION_ASK_AGAIN ], held.offers
 
       assert_enqueued_with(job: AbilityApprovalNotificationJob) { assert_nil Conversation::HeldCalls.ask_again!(held, by: @bob) }
@@ -154,8 +175,9 @@ class Conversation::HeldCallsTest < ActiveSupport::TestCase
     Integrations::McpExecutor.expects(:call).never
     hold_call
     held = @conversation.chat.held_calls.sole
-    @adapter.expects(:post_held_call_to_user).with { |held_call:, **| held_call.headline == "Alice Smith denied: Execute on #{@faylee.target_label}. Nothing ran." }
-            .returns(channel_id: "D1", message_id: "9.3")
+    @adapter.expects(:post_held_call_to_user).with do |held_call:, **|
+      held_call.headline == "Denied: execute on #{@faylee.target_label}" && held_call.line == "Denied by Alice Smith. Nothing ran."
+    end.returns(channel_id: "D1", message_id: "9.3")
 
     perform_enqueued_jobs(only: AbilityApprovalResumptionJob) { held.approval.deny!(by: @alice) }
 
@@ -164,16 +186,27 @@ class Conversation::HeldCallsTest < ActiveSupport::TestCase
     assert_nil Conversation::HeldCalls.untold_note(@conversation.chat)
   end
 
-  test "in a chat that lives in a Slack thread the news is posted in the thread and redrawn there as it moves" do
+  test "in a chat that lives in a Slack thread it is asked in the thread as soon as it is held, and redrawn there as it moves" do
     @conversation.update!(kind: Conversation::KIND_CHANNEL, channel_id: "C9", thread_id: "5.5")
-    hold_call
-    held = @conversation.chat.held_calls.sole
-    @adapter.expects(:post_held_call).with { |channel_id:, thread_id:, **| channel_id == "C9" && thread_id == "5.5" }.returns(channel_id: "C9", message_id: "5.6")
+    @adapter.expects(:post_held_call).with do |channel_id:, thread_id:, held_call:|
+      channel_id == "C9" && thread_id == "5.5" && held_call.status == Chat::HeldCall::STATUS_WAITING &&
+        held_call.headline == "Halon wants to: execute on #{@faylee.target_label}" && held_call.line == "Waiting for a workspace admin to approve it."
+    end.returns(channel_id: "C9", message_id: "5.6")
     @adapter.expects(:post_held_call_to_user).never
 
+    perform_enqueued_jobs(only: HeldCallPostJob) { hold_call }
+    held = @conversation.chat.held_calls.sole
+    assert_equal [ "C9", "5.6" ], [ held.message_channel_id, held.message_id ]
+
+    @adapter.expects(:update_held_call).with { |message_id:, direct:, held_call:, **| message_id == "5.6" && !direct && held_call.status == Chat::HeldCall::STATUS_RUNNING }
     perform_enqueued_jobs(only: AbilityApprovalResumptionJob) { held.approval.approve!(by: @alice) }
-    @adapter.expects(:update_held_call).with { |message_id:, direct:, **| message_id == "5.6" && !direct }
-    Conversation::HeldCalls.dismiss!(held.reload, by: @bob)
+  end
+
+  test "a chat on the dashboard is not told by direct message that its own call is waiting" do
+    @adapter.expects(:post_held_call_to_user).never
+    @adapter.expects(:post_held_call).never
+
+    perform_enqueued_jobs(only: HeldCallPostJob) { hold_call }
   end
 
   test "an outside agent's chat and an investigation keep nothing to run later, as before" do
@@ -218,10 +251,12 @@ class Conversation::HeldCallsTest < ActiveSupport::TestCase
     Chat::Tools::Connection.new(Conversation::Turn.new(@conversation, asker: @bob), @tool).call(tool_call: stub(id: "call_1"), "code" => "scale web to 0")
   end
 
+  # A call approved before approving ran it, which waits for Run while Halon reads how things stand.
   def approved_call
     hold_call
     held = @conversation.chat.held_calls.sole
-    perform_enqueued_jobs(only: AbilityApprovalResumptionJob) { held.approval.approve!(by: @alice) }
+    held.approval.approve!(by: @alice)
+    held.move!(from: Chat::HeldCall::STATUS_WAITING, to: Chat::HeldCall::STATUS_CHECKING, message_channel_id: "D1", message_id: "9.1")
     held.reload
   end
 

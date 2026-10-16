@@ -23,16 +23,4 @@ class Slack::WorkspaceAdapter::ScreenshotsTest < ActiveSupport::TestCase
 
     assert_equal [ { message_id: "1.3", channel_id: "C1" } ], @adapter.post_screenshots(channel_id: "C1", thread_id: "1.2", screenshots: [ @shot ])
   end
-
-  test "a send is asked about under the page it sends from" do
-    confirmation = Chat::Tools::Confirmation.new(
-      tool_call_id: "call_1", question: "Let Halon's browser send step 2 on shop.example.com?", intent: "Place the test order", asked: [],
-      status: :awaiting, target: nil, call: nil, safeguards: [ [ "Sends", "POST https://shop.example.com/orders" ] ], page: Object.new
-    )
-
-    text = Slack::Messages::AgentConfirmation.build(conversation_id: "c1", confirmations: [ confirmation ]).to_json
-
-    assert_includes text, Slack::Messages::AgentConfirmation::PAGE_ABOVE
-    assert_includes text, "POST https://shop.example.com/orders"
-  end
 end

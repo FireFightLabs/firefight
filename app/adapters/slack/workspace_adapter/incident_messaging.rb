@@ -593,20 +593,28 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def ask_agent_confirmation(channel_id:, thread_id:, answer_id:, conversation_id:, confirmations:)
-    finish_agent_answer(
-      channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,
-      text: Slack::Messages::AgentConfirmation.fallback(confirmations),
-      blocks: Slack::Messages::AgentConfirmation.build(conversation_id: conversation_id, confirmations: confirmations)
-    )
+    with_rich_blocks do |rich|
+      finish_agent_answer(
+        channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,
+        text: Slack::Messages::AgentConfirmation.fallback(confirmations),
+        blocks: Slack::Messages::AgentConfirmation.build(conversation_id: conversation_id, confirmations: confirmations, rich: rich)
+      )
+    end
   end
 
   def update_agent_confirmation(channel_id:, message_id:, conversation_id:, confirmations:)
-    update_message(
-      channel_id: channel_id, message_id: message_id,
-      text: Slack::Messages::AgentConfirmation.fallback(confirmations),
-      blocks: Slack::Messages::AgentConfirmation.build(conversation_id: conversation_id, confirmations: confirmations)
-    )
+    with_rich_blocks do |rich|
+      update_message(
+        channel_id: channel_id, message_id: message_id,
+        text: Slack::Messages::AgentConfirmation.fallback(confirmations),
+        blocks: Slack::Messages::AgentConfirmation.build(conversation_id: conversation_id, confirmations: confirmations, rich: rich)
+      )
+    end
     { success: true }
+  end
+
+  def open_agent_confirmation_details(trigger_id:, confirmation:)
+    with_rich_blocks { |rich| open_modal(trigger_id: trigger_id, view: Slack::Modals::AgentConfirmationDetails.build(confirmation, rich: rich)) }
   end
 
   def update_investigation_answer(channel_id:, message_id:, finding:)
@@ -700,19 +708,29 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_held_call(channel_id:, thread_id:, held_call:)
-    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
-                          text: Slack::Messages::HeldCall.fallback(held_call), blocks: Slack::Messages::HeldCall.build(held_call))
+    with_rich_blocks do |rich|
+      post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
+                            text: Slack::Messages::HeldCall.fallback(held_call), blocks: Slack::Messages::HeldCall.build(held_call, rich: rich))
+    end
   end
 
   def post_held_call_to_user(user_id:, held_call:)
-    post_message(channel_id: user_id, text: Slack::Messages::HeldCall.fallback(held_call),
-                 blocks: Slack::Messages::HeldCall.build(held_call, direct: true))
+    with_rich_blocks do |rich|
+      post_message(channel_id: user_id, text: Slack::Messages::HeldCall.fallback(held_call),
+                   blocks: Slack::Messages::HeldCall.build(held_call, direct: true, rich: rich))
+    end
   end
 
   def update_held_call(channel_id:, message_id:, held_call:, direct: false)
-    update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::HeldCall.fallback(held_call),
-                   blocks: Slack::Messages::HeldCall.build(held_call, direct: direct))
+    with_rich_blocks do |rich|
+      update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::HeldCall.fallback(held_call),
+                     blocks: Slack::Messages::HeldCall.build(held_call, direct: direct, rich: rich))
+    end
     { success: true }
+  end
+
+  def open_held_call_details(trigger_id:, held_call:)
+    open_modal(trigger_id: trigger_id, view: Slack::Modals::HeldCallDetails.build(held_call))
   end
 
   def post_watch_update(channel_id:, thread_id:, update:)

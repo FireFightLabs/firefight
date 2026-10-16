@@ -87,7 +87,8 @@ class Investigation::CancelFixTest < ActiveSupport::TestCase
 
     approval.update_columns(status: Ability::Approval::STATUS_PENDING)
     approval.expire!(reason: "Someone cancelled the fix before anyone decided.")
-    assert_includes Slack::Messages::Approval.build_resolved(approval).last.dig(:text, :text), "*Withdrawn*"
-    assert_equal "Approval withdrawn: #{approval.action_key}", Slack::Messages::Approval.resolved_fallback(approval)
+    shown = ApprovalNotificationService.shown(approval)
+    assert_includes Slack::Messages::Approval.build_resolved(approval, shown: shown).first.dig(:text, :text), "Withdrawn"
+    assert_equal "Alice wants to: use execute on Cloudflare: withdrawn", Slack::Messages::Approval.resolved_fallback(approval, shown: shown)
   end
 end

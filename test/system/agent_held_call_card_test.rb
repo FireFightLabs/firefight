@@ -1,7 +1,7 @@
 require "application_system_test_case"
 
-# A call an approval rule held in a chat, once someone else approved it. The card asks the person who asked to run it,
-# under how things stand now, and nothing runs until they press Run.
+# A call an approval rule held in a chat. The card says what Halon wants to do and who may approve it, follows the run as
+# a checklist once approved, and says how it went. A call approved before approving ran it still asks to be run.
 class AgentHeldCallCardTest < ApplicationSystemTestCase
   include ActiveJob::TestHelper
   include FixPlanTestHelper
@@ -32,10 +32,13 @@ class AgentHeldCallCardTest < ApplicationSystemTestCase
 
     visit agent_chat_path(@conversation)
 
-    assert_text "Bob Jones approved: Api request on Faylee (Northflank), project faylee. Run it now?"
+    assert_text "Halon wants to: api request on Faylee (Northflank), project faylee"
+    assert_text "Approved by Bob Jones. Run it now?"
     assert_text "This looks done already."
     assert_text "web already runs 0 instances, since 14:02."
     assert_text "Expires in 52 minutes"
+    assert_no_text "services/web/scale"
+    click_button "Details"
     assert_text "services/web/scale"
     page.save_screenshot(Rails.root.join("tmp/screenshots/held_call_ready.png").to_s)
     assert_equal Chat::HeldCall::STATUS_READY, held.reload.status, "nothing ran on approval"
@@ -60,7 +63,8 @@ class AgentHeldCallCardTest < ApplicationSystemTestCase
     checking.approval.update_columns(status: Ability::Approval::STATUS_EXPIRED)
     visit agent_chat_path(@conversation)
 
-    assert_text "The approval for Api request on Faylee (Northflank), project faylee expired before anyone ran it."
+    assert_text "Expired: api request on Faylee (Northflank), project faylee"
+    assert_text "The approval expired before it ran. Ask for it again if it is still needed."
     assert_button "Ask again"
     assert_no_button "Run"
     page.save_screenshot(Rails.root.join("tmp/screenshots/held_call_expired.png").to_s)
@@ -71,9 +75,43 @@ class AgentHeldCallCardTest < ApplicationSystemTestCase
 
     visit agent_chat_path(@conversation)
 
-    assert_text "Bob Jones denied: Api request on Faylee (Northflank), project faylee. Nothing ran."
+    assert_text "Denied: api request on Faylee (Northflank), project faylee"
+    assert_text "Denied by Bob Jones. Nothing ran."
     assert_no_button "Run"
     page.save_screenshot(Rails.root.join("tmp/screenshots/held_call_denied.png").to_s)
+  end
+
+  test "while it waits it says who may approve it, and once approved it follows the change as a checklist and ends on its link" do
+    held = held_call(status: Chat::HeldCall::STATUS_WAITING, approval_status: Ability::Approval::STATUS_PENDING)
+
+    visit agent_chat_path(@conversation)
+
+    assert_text "Halon wants to: api request on Faylee (Northflank), project faylee"
+    assert_text "Waiting for a workspace admin to approve it."
+    assert_no_button "Run"
+    page.save_screenshot(Rails.root.join("tmp/screenshots/held_call_waiting.png").to_s)
+
+    held.approval.update_columns(status: Ability::Approval::STATUS_APPROVED, approver_type: @bob.class.polymorphic_name, approver_id: @bob.id)
+    held.update_columns(status: Chat::HeldCall::STATUS_RUNNING, decided_by_id: @bob.id)
+    work = Chat::CodeFixProgress.start
+    work.changed!("app/a.rb")
+    Chat::StepProgress.keep!(@chat, "call_1", work)
+    visit agent_chat_path(@conversation)
+
+    assert_text "Approved by Bob Jones, working on it."
+    assert_text "Write the change"
+    assert_text "1 file changed"
+    assert_text "Check the change"
+    assert_text "Open a pull request"
+    page.save_screenshot(Rails.root.join("tmp/screenshots/held_call_running.png").to_s)
+
+    work.opened!(files: { "app/a.rb" => [ 1, 1 ] }, pull_request: "https://github.com/acme/shop/pull/856")
+    Chat::StepProgress.keep!(@chat, "call_1", work)
+    held.update_columns(status: Chat::HeldCall::STATUS_RAN)
+    visit agent_chat_path(@conversation)
+
+    assert_text "Done: api request on Faylee (Northflank), project faylee"
+    assert_link "github.com/acme/shop/pull/856", href: "https://github.com/acme/shop/pull/856"
   end
 
   test "an approved step of a fix asks to be run on the run page, under how things stand now" do

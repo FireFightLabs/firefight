@@ -155,17 +155,23 @@ class PlatformAdapter
   end
 
   # @return [Hash] { message_id: String, channel_id: String }
-  def post_approval_request(approval:, channel_id:)
+  def post_approval_request(approval:, channel_id:, shown:)
     raise NotImplemented.new(__method__, self.class)
   end
 
   # @return [Hash] { message_id: String, channel_id: String }
-  def post_approval_request_to_user(approval:, user_id:)
+  def post_approval_request_to_user(approval:, user_id:, shown:)
     raise NotImplemented.new(__method__, self.class)
   end
 
   # @return [Hash] { success: true }
-  def mark_approval_resolved(approval:, channel_id:, message_id:)
+  def mark_approval_resolved(approval:, channel_id:, message_id:, shown:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Opens the call an approval request is for, its key, scope and parameters, which its card keeps off it.
+  # @return [Hash] { success: true }
+  def open_approval_details(trigger_id:, approval:)
     raise NotImplemented.new(__method__, self.class)
   end
 
@@ -856,6 +862,12 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Opens everything a request to approve a change keeps off its card. confirmation is a Chat::Tools::Confirmation.
+  # @return [Hash] { success: true }
+  def open_agent_confirmation_details(trigger_id:, confirmation:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # A call the agent made in a chat that an approval rule held, once someone decided on it, in the chat's thread, with
   # Run and Dismiss while it waits for the person who asked. held_call is a Conversation::HeldCalls::Shown.
   # @return [Hash] { message_id:, channel_id: }
@@ -872,6 +884,12 @@ class PlatformAdapter
   # Redraws either as the call moves on. direct is the message to whoever asked rather than the one in the thread.
   # @return [Hash] { success: true }
   def update_held_call(channel_id:, message_id:, held_call:, direct: false)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Opens the held call as it was given, which its message keeps off it. held_call is a Conversation::HeldCalls::Shown.
+  # @return [Hash] { success: true }
+  def open_held_call_details(trigger_id:, held_call:)
     raise NotImplemented.new(__method__, self.class)
   end
 

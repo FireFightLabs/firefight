@@ -174,6 +174,14 @@ module Ability
       workspace.incidents_channel_id.presence
     end
 
+    # The call this approval let through, as the gateway ledgered it, the latest when it was tried more than once. nil
+    # until it is approved and runs.
+    def run
+      return unless approved?
+
+      Ability::Invocation.where(approval_id: id, decision: Ability::Invocation::DECISION_ALLOW).order(:created_at).last
+    end
+
     def pending? = status == STATUS_PENDING
     def approved? = status == STATUS_APPROVED
     def denied? = status == STATUS_DENIED
@@ -277,12 +285,16 @@ module Ability
       approver_ids.filter_map { |ref| Ability::Principal.find_reference(workspace, Ability::Principal.reference(ref)) }
     end
 
+    # A change Halon asked for in a chat is asked in the chat's thread (Conversation::HeldCalls) and of its approvers
+    # directly, never in the shared incidents channel, unless nobody could be asked directly.
+    def from_chat? = source == AbilityGateway::SOURCE_CONVERSATION
+
     def notify_channel?
-      [ nil, PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL, PolicyRule::ApprovalOutcome::NOTIFY_BOTH ].include?(notify)
+      !from_chat? && [ nil, PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL, PolicyRule::ApprovalOutcome::NOTIFY_BOTH ].include?(notify)
     end
 
     def notify_dm?
-      [ PolicyRule::ApprovalOutcome::NOTIFY_DM, PolicyRule::ApprovalOutcome::NOTIFY_BOTH ].include?(notify)
+      from_chat? || [ PolicyRule::ApprovalOutcome::NOTIFY_DM, PolicyRule::ApprovalOutcome::NOTIFY_BOTH ].include?(notify)
     end
 
     def add_notification!(channel_id:, message_id:)

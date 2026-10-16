@@ -255,6 +255,7 @@ class AgentChatsController < InertiaController
         for_chat: ActiveModel::Type::Boolean.new.cast(decision[:for_chat]), expires: decision[:expires].presence&.to_s }
     end
     Conversation::Confirming.decide(conversation, decisions, by: current_membership)
+    Conversation::Confirming.redraw_latest(conversation, decisions.first[:tool_call_id]) if decisions.any?
     redirect_to agent_chat_path(conversation)
   end
 

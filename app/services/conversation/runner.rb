@@ -286,15 +286,32 @@ class Conversation::Runner
     FirefightAi::AgentLoop::Outcome.new(status: FirefightAi::AgentLoop::STATUS_CANCELED, turns_used: 0, spent_micros: 0)
   end
 
-  # The call runs once, as whoever it was approved for, and Halon reads what it answered before it says how it went.
+  # The call runs once, as whoever it was approved for, and Halon reads what it answered before it says how it went. The
+  # thread shows Halon working while it runs, and a code change's progress reaches the call's own message as it moves.
   def run_held_call(chat)
     return unless @held_call.status == Chat::HeldCall::STATUS_RUNNING
 
-    said = Conversation::HeldCalls.execute!(@held_call)
+    thinking!
+    said = Conversation::HeldCalls.execute!(@held_call, progress: held_call_progress(chat))
     return unless room_for_a_note?(chat)
 
     chat.nudge!(Conversation::HeldCalls.ran_note(@held_call.reload, said))
     @held_call.update_columns(told_at: Time.current)
+  end
+
+  # Kept with the chat by the call's id, as a step's work is, and shown on the call's message no more often than the
+  # platform allows, so the message reads as a live checklist. A report that cannot be kept or shown never stops the call.
+  def held_call_progress(chat)
+    shown_pace = Chat::CodeFixProgress::Pace.new(every: WorkspaceAdapter.for(@conversation.workspace).agent_step_update_interval)
+    lambda do |update|
+      next unless update.is_a?(Chat::CodeFixProgress)
+
+      shown = shown_pace.due?(@held_call.tool_call_id, update)
+      Chat::StepProgress.keep!(chat, @held_call.tool_call_id, update) if saving_pace.due?(@held_call.tool_call_id, update) || shown
+      Conversation::HeldCalls.moved!(@held_call, progress: update) if shown
+    rescue StandardError => error
+      Rails.logger.warn({ event: "held_call.progress_not_shown", held_call_id: @held_call.id, error: error.class.name }.to_json)
+    end
   end
 
   # Held calls that ended since Halon last looked, so it never says one is still waiting, or that one ran when it did not.

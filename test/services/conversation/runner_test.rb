@@ -680,7 +680,8 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     fake(reply: "A deploy at 14:02")
     Slack::Client.expects(:update_message).with do |arguments|
       shown = arguments[:blocks].to_json
-      arguments[:ts] == "1700000000.000200" && shown.include?("Withdrawn") && !shown.include?(Identifiers::AGENT_CONFIRM)
+      pressed = arguments[:blocks].flat_map { |block| block[:actions] || block[:elements] || [] }.map { |element| element[:action_id] }
+      arguments[:ts] == "1700000000.000200" && shown.include?("Withdrawn") && pressed.exclude?(Identifiers::AGENT_CONFIRM)
     end.returns({ ok: true, ts: "1700000000.000200" })
     ask(@conversation.reload, "Actually, what changed today?")
 

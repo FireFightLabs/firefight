@@ -162,6 +162,8 @@ module Identifiers
   CANCEL_FIX = "cancel_fix"
   APPROVE_ABILITY = "approve_ability"
   DENY_ABILITY = "deny_ability"
+  # Opens the call an approval request is for, which its card keeps off it.
+  APPROVAL_DETAILS = "approval_details"
   AGENT_CONFIRM = "agent_confirm"
   # When a change customers feel is undone, picked on its confirmation before Confirm.
   AGENT_EXPIRY = "agent_expiry"
@@ -173,10 +175,13 @@ module Identifiers
   OWNER_AGREE = "owner_agree"
   OWNER_DECLINE = "owner_decline"
   AGENT_CANCEL = "agent_cancel"
+  # Opens everything a request to approve a change keeps off its card: the call, its reasons and what was read.
+  AGENT_CONFIRMATION_DETAILS = "agent_confirmation_details"
   # A call held for approval in a chat, once approved: run it, dismiss it, or ask again once the approval expired.
   HELD_CALL_RUN = "held_call_run"
   HELD_CALL_DISMISS = "held_call_dismiss"
   HELD_CALL_ASK_AGAIN = "held_call_ask_again"
+  HELD_CALL_DETAILS = "held_call_details"
   # On a pull request Halon opened that needs attention. It runs the code change on its branch as whoever asked for it.
   PULL_REQUEST_FIX = "pull_request_fix"
   # A change refused for want of a pack. The person refused asks the admins, and an admin gives it.

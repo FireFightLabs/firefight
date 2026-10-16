@@ -56,14 +56,15 @@ class Chat::SafeguardsTest < ActiveSupport::TestCase
     blocks = Slack::Messages::AgentConfirmation.build(conversation_id: "c1", confirmations: [ confirmation ])
     actions = blocks.find { |block| block[:type] == "actions" }[:elements]
 
-    assert blocks.any? { |block| block.dig(:text, :text).to_s.include?("*Rows it changes:* 42 rows of orders") }
-    assert_equal [ Identifiers::AGENT_CONFIRM, Identifiers::AGENT_CANCEL ], actions.map { |element| element[:action_id] }
+    details = Slack::Modals::AgentConfirmationDetails.build(confirmation)[:blocks].map { |block| block.dig(:text, :text) }.join
+    assert_includes details, "Rows it changes: 42 rows of orders"
+    assert_equal [ Identifiers::AGENT_CONFIRM, Identifiers::AGENT_CANCEL, Identifiers::AGENT_CONFIRMATION_DETAILS ], actions.map { |element| element[:action_id] }
     undo = blocks.find { |block| block.dig(:accessory, :action_id) == Identifiers::AGENT_EXPIRY }
     assert_equal Chat::Tools::UNDO_AUTOMATICALLY, undo.dig(:text, :text)
     assert_equal "c1:call_1:60", undo.dig(:accessory, :initial_option, :value)
 
     waiting = Slack::Messages::AgentConfirmation.build(conversation_id: "c1", confirmations: [ confirmation.with(status: :owner_asked, waiting_on: "Bob Jones") ])
-    assert waiting.any? { |block| block.dig(:elements, 0, :text).to_s.include?("Waiting for Bob Jones to agree") }
+    assert waiting.any? { |block| block.dig(:text, :text).to_s.include?("waiting for Bob Jones to agree") }
   end
 
   test "picking when it is undone in Slack keeps the choice before Confirm" do

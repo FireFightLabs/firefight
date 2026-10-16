@@ -25,11 +25,11 @@ class Conversation::Confirming
   end
 
   def self.decide_one(chat, tool_call_id, approved:, for_chat:, expires:, by:)
-    return chat.decide!(tool_call_id, approved: false) unless approved
+    return chat.decide!(tool_call_id, approved: false, by: by) unless approved
 
     Conversation::Mitigations.choose!(chat, tool_call_id, expires) unless expires.nil?
     for_chat &&= !Chat::DataRepairs.asks_each?(chat, tool_call_id)
-    return chat.decide!(tool_call_id, approved: true, for_chat: for_chat) unless Conversation::OwnerAsks.ask!(chat, tool_call_id, by: by)
+    return chat.decide!(tool_call_id, approved: true, for_chat: for_chat, by: by) unless Conversation::OwnerAsks.ask!(chat, tool_call_id, by: by)
 
     name, provenance = chat.tool_calls.where(tool_call_id: tool_call_id).pick(:name, :provenance)
     chat.allow_tool!(name) if for_chat && provenance.nil?
@@ -39,15 +39,44 @@ class Conversation::Confirming
 
   def self.approve_allowed(chat, by)
     chat.reload.awaiting_decision_allowable.select { |tool_call| chat.allows_tool?(tool_call.name) && !Chat::DataRepairs.asks_each?(chat, tool_call.tool_call_id) }
-      .count { |tool_call| Conversation::OwnerAsks.ask!(chat, tool_call.tool_call_id, by: by) || chat.decide!(tool_call.tool_call_id, approved: true) }
+      .count { |tool_call| Conversation::OwnerAsks.ask!(chat, tool_call.tool_call_id, by: by) || chat.decide!(tool_call.tool_call_id, approved: true, by: by) }
   end
   private_class_method :approve_allowed
 
+  # Redraws the confirmation last posted in the chat's thread once a call it asked about was answered somewhere else, or
+  # ran, so the message always says how the call stands. Only the latest message is kept, so a call asked in an earlier
+  # one is redrawn only from its own button. A chat on the dashboard or in an issue has no such message.
+  # progress is a code change's work as it stands this moment, which is shown over the copy kept at the chat's pace.
+  def self.redraw_latest(conversation, tool_call_id, progress: nil)
+    return if conversation.confirmation_message_id.blank? || conversation.channel_id.blank?
+    return if conversation.personal? || conversation.mcp? || conversation.issue?
+
+    chat = conversation.chat
+    return unless chat
+
+    latest = chat.tool_calls.where.not(approval: nil).reorder(created_at: :desc).pick(:message_id)
+    return unless latest && latest == chat.tool_calls.where(tool_call_id: tool_call_id).pick(:message_id)
+
+    redraw(conversation, tool_call_id, channel_id: conversation.channel_id, message_id: conversation.confirmation_message_id, progress: progress)
+  end
+
+  # A call the person approved moved on, a code change getting further or the call answering, so its message says how
+  # it stands.
+  def self.moved(conversation, tool_call_id, progress: nil)
+    chat = conversation.chat
+    return unless chat && chat.tool_calls.where(tool_call_id: tool_call_id).pick(:approval) == Chat::APPROVAL_APPROVED
+
+    redraw_latest(conversation, tool_call_id, progress: progress)
+  end
+
   # Redraws the message the answered call was asked in, with every call asked alongside it.
-  def self.redraw(conversation, tool_call_id, channel_id:, message_id:)
+  def self.redraw(conversation, tool_call_id, channel_id:, message_id:, progress: nil)
     return if message_id.blank?
 
-    asked_together = conversation.chat.asked_with(tool_call_id).map { |tool_call| Chat::Tools.confirmation(tool_call) }
+    asked_together = conversation.chat.asked_with(tool_call_id).map do |tool_call|
+      shown = Chat::Tools.confirmation(tool_call)
+      progress && tool_call.tool_call_id == tool_call_id ? shown.with(progress: progress) : shown
+    end
     WorkspaceAdapter.for(conversation.workspace).update_agent_confirmation(
       channel_id: channel_id, message_id: message_id, conversation_id: conversation.id, confirmations: asked_together
     )

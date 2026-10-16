@@ -754,8 +754,8 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     get agent_chat_url(conversation), headers: chat_page_headers
 
     shown = inertia_props[AgentChatsController::PROP_HELD_CALLS].sole
-    assert_equal [ held.id, "Bob Jones approved: Resolve incident. Run it now?", "This looks done already.", "INC-1 is already resolved." ],
-                 shown.values_at("id", "headline", "warning", "state")
+    assert_equal [ held.id, "Halon wants to: resolve incident", "Approved by Bob Jones. Run it now?", "This looks done already.", "INC-1 is already resolved." ],
+                 shown.values_at("id", "headline", "line", "warning", "state")
     assert_equal [ [ "run", "dismiss" ], nil ], shown.values_at("offers", "runBlockedReason")
     assert shown["expiresAt"]
   end

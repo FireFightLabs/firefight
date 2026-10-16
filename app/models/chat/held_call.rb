@@ -1,6 +1,7 @@
-# A call Halon made in a chat that an approval rule held for someone else to approve. Approving it never runs it. Once
-# approved, Halon reads how things stand now, and the person who asked runs it from the chat, or dismisses it. An approval
-# nobody runs within Ability::Approval::RUN_WINDOW expires and can be asked for again.
+# A call Halon made in a chat that an approval rule held for someone else to approve. It is asked in the chat's thread,
+# and approving it runs it at once (Conversation::HeldCalls.approved!). A call approved before that waited for the person
+# who asked to run it or dismiss it, after Halon read how things stand now, and expired unrun after
+# Ability::Approval::RUN_WINDOW, so those states stay for the calls still in them.
 class Chat::HeldCall < ApplicationRecord
   # The approval's resume_payload kind, which is how a decision on the approval finds this call.
   RESUME_KIND = "chat_call".freeze
@@ -47,6 +48,7 @@ class Chat::HeldCall < ApplicationRecord
       transaction do
         held = create!(chat: chat, approval: approval, tool_name: tool_name.to_s, tool_call_id: tool_call_id, target: target)
         approval.update!(held_for_run: true, resume_payload: { kind: RESUME_KIND, held_call_id: held.id })
+        ActiveRecord.after_all_transactions_commit { HeldCallPostJob.perform_later(held.id) }
         held
       end
     end
@@ -64,10 +66,6 @@ class Chat::HeldCall < ApplicationRecord
   def expires_at = approval.run_expires_at
 
   def asker_name = asker.try(:display_name) || approval.principal_label
-
-  # A call held in a chat nobody opens in Firefight, one in a tracker's issue, runs as soon as it is approved, since
-  # nobody could press Run.
-  def runs_when_approved? = conversation.try(:issue?) == true
 
   # What it shows now, an approved call whose window passed reading as expired before the job marks it.
   def shown_status = lapsed? ? STATUS_EXPIRED : status

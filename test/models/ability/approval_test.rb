@@ -16,7 +16,7 @@ module Ability
       )
     end
 
-    test "a command typed in Slack is posted for approval as Slack shows it, so a mention in it never notifies anyone" do
+    test "a command typed in Slack is shown under Details as Slack shows it, so a mention in it never notifies anyone" do
       bob = workspace_memberships(:bob_workspace_one)
       params = { "command" => "/ff", "subcommand" => "investigate", "text" => "investigate <!here> <@#{bob.platform_user_id}> &amp; :fire:" }
       approval = Ability::Approval.create!(
@@ -24,12 +24,14 @@ module Ability
         source: AbilityGateway::SOURCE_SLACK, request_digest: Ability::Approval.digest("investigations.create", params, {}),
         required_role: WorkspaceMembership.roles[:admin]
       )
-      Slack::Client.expects(:post_message).with do |arguments|
-        text = arguments[:blocks][1][:text][:text]
-        text.include?("investigate @here @#{bob.display_name} \\u0026 🔥") && !text.include?("<!here>")
-      end.returns({ "ok" => true, "ts" => "1.2", "channel" => "C1" })
+      opened = nil
+      Slack::Client.expects(:open_modal).with { |view:, **| opened = view }.returns({ "ok" => true })
 
-      WorkspaceAdapter.for(@workspace).post_approval_request(approval: approval, channel_id: "C1")
+      WorkspaceAdapter.for(@workspace).open_approval_details(trigger_id: "T1", approval: approval)
+
+      text = opened[:blocks].map { |block| block.dig(:text, :text) }.join("\n")
+      assert_includes text, "investigate @here @#{bob.display_name} &amp; 🔥"
+      assert_not_includes text, "<!here>"
     end
 
     test "digest is deterministic across key ordering and symbol/string keys" do
@@ -177,7 +179,11 @@ module Ability
       faylee.tools.create!(name: "api_request", params_schema: { "type" => "object" })
       @approval.update!(action_key: "faylee.api_request")
 
-      assert_match "wants to run `faylee.api_request` through *Faylee (Northflank)*", Slack::Messages::Approval.summary_text(Ability::Approval.find(@approval.id))
+      approval = Ability::Approval.find(@approval.id)
+      text = Slack::Messages::Approval.build_request(approval, shown: ApprovalNotificationService.shown(approval)).first.dig(:text, :text)
+      assert_match "wants to: use api request on Faylee (Northflank)*", text
+      assert_match "Through *Faylee (Northflank)*", text
+      assert_not_includes text, "faylee.api_request"
       assert_equal [ "Faylee (Northflank)" ], Ability::Approval.with_connection_names([ Ability::Approval.find(@approval.id) ]).map(&:connection_name)
     end
 
