@@ -439,14 +439,23 @@ module Integrations
 
     def remote_url(repository) = @remote.url(repository)
 
+    # The credential goes to git in its environment, never its arguments, which any user's process on the server can list.
     def git!(dir, *arguments, authenticated: false)
-      prefix = authenticated ? [ "-c", "http.extraHeader=Authorization: Basic #{credential}", *@remote.options.flat_map { |option| [ "-c", option ] } ] : []
       env = { "GIT_TERMINAL_PROMPT" => "0", "GIT_CONFIG_NOSYSTEM" => "1", "HOME" => dir }
-      _output, errors, status = Open3.capture3(env, "git", *prefix, *arguments)
+      env.merge!(config_env([ "http.extraHeader=Authorization: Basic #{credential}", *@remote.options ])) if authenticated
+      _output, errors, status = Open3.capture3(env, "git", *arguments)
       raise Error, "git #{arguments.first} failed: #{redacted(errors).strip.lines.last}" unless status.success?
     rescue SystemCallError => error
       # A server without git, or one that cannot start it, fails the read that needed it, never the whole run.
       raise Error, "git could not run on this server (#{error.class.name.demodulize}), so the repository was not copied to the sandbox."
+    end
+
+    def config_env(settings)
+      settings.each_with_index.each_with_object({ "GIT_CONFIG_COUNT" => settings.size.to_s }) do |(setting, index), env|
+        key, value = setting.split("=", 2)
+        env["GIT_CONFIG_KEY_#{index}"] = key
+        env["GIT_CONFIG_VALUE_#{index}"] = value.to_s
+      end
     end
 
     def credential
