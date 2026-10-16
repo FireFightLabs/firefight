@@ -362,6 +362,11 @@ module Ability
       Workflow.publish_approval_blocked_reason(self) if resume_payload.to_h["kind"] == Workflow::PUBLISH_APPROVAL_KIND
     end
 
+    # A call held for a run is scheduled to lapse by whoever holds it. Any other is scheduled here, after commit.
+    def expire_unheld_approval
+      ActiveRecord.after_all_transactions_commit { ApprovedCallExpiryJob.set(wait_until: run_expires_at).perform_later(id) }
+    end
+
     def resume_parked_request
       return if resume_payload.blank?
 
@@ -382,8 +387,11 @@ module Ability
       end
 
       now = Time.current
-      run_by = (now + RUN_WINDOW if held_for_run? && new_status == STATUS_APPROVED)
+      # Every approved call lapses unused after RUN_WINDOW, a caller that never comes back with it included. A workflow's
+      # question admits no call, so it has nothing to lapse.
+      run_by = (now + RUN_WINDOW if new_status == STATUS_APPROVED && !workflow_question?)
       update!(status: new_status, approver: principal, resolved_at: now, run_expires_at: run_by)
+      expire_unheld_approval if run_by && !held_for_run?
       resume_parked_request
     end
   end
