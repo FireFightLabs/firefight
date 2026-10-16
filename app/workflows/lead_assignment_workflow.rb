@@ -6,7 +6,8 @@ class LeadAssignmentWorkflow < SolidWorkflow::Base
   step :update_announcement
   # A lead outside the channel sees nothing of the incident, so a failure here leaves the rest of the steps to carry on.
   step :invite_lead, on_failure: SolidWorkflow::Definition::ON_FAILURE_CONTINUE
-  step :post_lead_expectations, depends_on: [ :update_channel_topic, :invite_lead ]
+  # Slack refuses an ephemeral to someone outside the channel, and that refusal must not cancel the announcement.
+  step :post_lead_expectations, depends_on: [ :update_channel_topic, :invite_lead ], on_failure: SolidWorkflow::Definition::ON_FAILURE_CONTINUE
   step :post_lead_announcement, depends_on: [ :update_channel_topic, :invite_lead ]
 
   def update_channel_topic(workflow:, step:, input:)
@@ -41,9 +42,11 @@ class LeadAssignmentWorkflow < SolidWorkflow::Base
     { invited: result.invited.size, already_in_channel: result.already_in_channel.size, failed: result.failed.size }
   end
 
-  # A lead with no platform account has nobody to show the expectations to.
+  # A lead with no platform account has nobody to show the expectations to. An ephemeral reaches only someone in the
+  # channel, so it is skipped unless the invite reported nobody failed. A raised invite leaves no output, so it skips too.
   def post_lead_expectations(workflow:, step:, input:)
     return { skipped: true } if workflow.context["lead_platform_user_id"].blank?
+    return { skipped: true } unless input.dig("invite_lead", "failed") == 0
 
     checkpointed(step) do
       workflow.subject.workspace.adapter.post_lead_expectations(

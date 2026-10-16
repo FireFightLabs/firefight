@@ -111,13 +111,13 @@ class LeadAssignmentWorkflowTest < ActiveSupport::TestCase
     assert workflow.steps.all?(&:succeeded?)
   end
 
-  test "a failed invite posts a note and the rest of the workflow carries on" do
+  test "a failed invite posts a note, skips the expectations and the rest of the workflow carries on" do
     stub_all_side_effects
     Slack::Client.expects(:invite_to_channel).raises(AdapterError.new("users_not_found"))
     Slack::Client.expects(:post_message).with(
       has_entries(channel: @incident.channel_id, text: includes("Couldn't add <@#{@bob.platform_user_id}>"))
     ).once.returns({ ok: true, ts: "123.456" })
-    Slack::Client.expects(:post_ephemeral).with(has_entries(user: @bob.platform_user_id)).returns({ ok: true })
+    Slack::Client.expects(:post_ephemeral).never
 
     workflow = LeadAssignmentWorkflow.start_inline!(@incident, context: {
       lead_platform_user_id: @bob.platform_user_id
@@ -125,6 +125,48 @@ class LeadAssignmentWorkflowTest < ActiveSupport::TestCase
 
     assert_equal "succeeded", workflow.state
     assert_equal 1, workflow.steps.find_by!(name: "invite_lead").output["failed"]
+    assert_equal({ "skipped" => true }, workflow.steps.find_by!(name: "post_lead_expectations").output)
+    assert workflow.steps.find_by!(name: "post_lead_expectations").succeeded?
+    assert workflow.steps.find_by!(name: "post_lead_announcement").succeeded?
+  end
+
+  test "a raised invite is tolerated, the expectations are skipped and the announcement still posts" do
+    stub_all_side_effects
+    IncidentInviteService.any_instance.stubs(:invite!).raises(ArgumentError.new("boom"))
+    Slack::Client.expects(:post_ephemeral).never
+    Slack::Client.expects(:post_message).with(
+      has_entries(channel: @incident.channel_id, text: includes(@bob.platform_user_id))
+    ).once.returns({ ok: true, ts: "123.456" })
+
+    workflow = LeadAssignmentWorkflow.start_inline!(@incident, context: {
+      lead_platform_user_id: @bob.platform_user_id
+    })
+
+    assert_equal "succeeded", workflow.state
+    assert_not workflow.steps.find_by!(name: "invite_lead").succeeded?
+    assert workflow.steps.find_by!(name: "invite_lead").failure_tolerated?
+    assert_equal({ "skipped" => true }, workflow.steps.find_by!(name: "post_lead_expectations").output)
+    assert workflow.steps.find_by!(name: "post_lead_expectations").succeeded?
+    assert workflow.steps.find_by!(name: "post_lead_announcement").succeeded?
+  end
+
+  test "a refused expectations message does not stop the announcement or fail the run" do
+    stub_all_side_effects
+    Slack::Client.stubs(:post_ephemeral).raises(AdapterError.new("user_not_in_channel"))
+
+    workflow = LeadAssignmentWorkflow.start_inline!(@incident, context: {
+      lead_platform_user_id: @bob.platform_user_id
+    })
+    expectations = workflow.steps.find_by!(name: "post_lead_expectations")
+
+    assert expectations.pending?
+    assert workflow.steps.find_by!(name: "post_lead_announcement").succeeded?
+
+    expectations.update!(attempts: expectations.max_attempts - 1, run_at: nil)
+    workflow = LeadAssignmentWorkflow.drain_inline!(workflow)
+
+    assert_equal "succeeded", workflow.state
+    assert expectations.reload.failure_tolerated?
     assert workflow.steps.find_by!(name: "post_lead_announcement").succeeded?
   end
 
