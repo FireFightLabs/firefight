@@ -13,6 +13,13 @@
   <p class="subject">Connecting to <strong><%= current_resource_owner.workspace.name %></strong> as <%= current_resource_owner.display_name %>.</p>
 <% end %>
 
+<ul class="scopes" aria-label="What it will be able to do">
+  <% oauth_scope_words(@pre_auth).each do |words| %>
+    <li><%= words %></li>
+  <% end %>
+</ul>
+<p class="destination">After you authorize, your browser goes back to <%= oauth_destination(@pre_auth) %>.</p>
+
 <div class="actions">
   <%= form_tag oauth_authorization_path, method: :post, id: "authorize" do %>
     <% oauth_pre_auth_fields(@pre_auth).each do |name, value| %>
