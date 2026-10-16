@@ -33,6 +33,28 @@ class Conversation::ChunkBufferTest < ActiveSupport::TestCase
     assert_equal [ "**two words** and `a b` then\n", "```\nputs 1\n```\n" ], sent
   end
 
+  test "a link whose label or title has spaces stays open until its closing delimiter" do
+    sent = []
+    buffer = Conversation::ChunkBuffer.new(interval: 1.hour, max_chars: 5, whole_markup: true) { |text| sent << text }
+
+    buffer.add("See <https://example.com/pr|the pull request ")
+    buffer.add("for it> and [the docs](https://example.com/docs \"the setup ")
+    buffer.add("page\") now")
+    buffer.flush!
+
+    assert_equal [ "See ", "<https://example.com/pr|the pull request for it> and ", "[the docs](https://example.com/docs \"the setup page\") ", "now" ], sent
+  end
+
+  test "markers inside inline code and a lone angle bracket in prose open nothing" do
+    sent = []
+    buffer = Conversation::ChunkBuffer.new(interval: 1.hour, max_chars: 5, whole_markup: true) { |text| sent << text }
+
+    buffer.add("Use `**` for bold and `[x` for a link, and 2 < 3 holds ")
+    buffer.add("here")
+
+    assert_equal [ "Use `**` for bold and `[x` for a link, and 2 < 3 holds " ], sent
+  end
+
   test "text that never closes what it opened goes as it is once it grew long" do
     sent = []
     buffer = Conversation::ChunkBuffer.new(interval: 1.hour, max_chars: 5, whole_markup: true) { |text| sent << text }

@@ -20,6 +20,12 @@ class Slack::Blocks::CardTest < ActiveSupport::TestCase
                  [ blocks.first.dig(:text, :text), blocks.second.dig(:elements, 0, :text), blocks.third[:elements] ]
   end
 
+  test "the plain form keeps a long subtitle inside what Slack takes" do
+    blocks = Slack::Blocks::Card.new(title: "Fix", subtitle: "x" * 4_000).to_blocks(rich: false)
+
+    assert_equal Slack::Messages::Formatting::SECTION_TEXT_LIMIT, blocks.second.dig(:elements, 0, :text).size
+  end
+
   test "a card leaves out what it was not given, and holds three buttons at most" do
     assert_equal [ { type: "card", body: { type: "mrkdwn", text: "Your step." } } ], Slack::Blocks::Card.new(title: nil, body: "Your step.").to_blocks(rich: true)
     assert_raises(ArgumentError) { Slack::Blocks::Card.new(title: "Too many", actions: [ BUTTON ] * 4) }

@@ -40,7 +40,7 @@ module Slack
         said = [ ("*#{headline}*" if headline), body.presence ].compact.join("\n")
         [
           ({ type: "section", text: { type: "mrkdwn", text: said.truncate(Slack::Messages::Formatting::SECTION_TEXT_LIMIT) } } if said.present?),
-          ({ type: "context", elements: [ { type: "mrkdwn", text: subtitle } ] } if subtitle.present?),
+          ({ type: "context", elements: [ { type: "mrkdwn", text: subtitle.truncate(Slack::Messages::Formatting::SECTION_TEXT_LIMIT) } ] } if subtitle.present?),
           ({ type: "actions", elements: actions } if actions.any?)
         ].compact
       end

@@ -7,8 +7,10 @@ class Conversation::ChunkBuffer
   MAX_CHARS = 200
   LONG_HELD = 2_000
   CODE_FENCE = /^[ \t]*```/
-  # A link, an angle bracket link or a link's address still open at the end of the text.
-  OPEN_LINK = /(?:\[[^\]\n]*|\]\([^)\s]*|<[^>\s]*)\z/
+  # A link, an angle bracket link or a link's address still open at the end of the text, a label with spaces included,
+  # until its closing delimiter. A lone < in prose opens nothing, so only one that starts a Slack link counts.
+  OPEN_LINK = /(?:\[[^\]\n]*|\]\([^)\n]*|<(?:https?:|mailto:|[@#!])[^>\n]*)\z/
+  INLINE_CODE = /`[^`\n]*`/
 
   def initialize(interval: INTERVAL, max_chars: MAX_CHARS, whole_markup: false, &send_text)
     @interval = interval
@@ -55,7 +57,11 @@ class Conversation::ChunkBuffer
     return false if fences.odd?
 
     outside_code = text.gsub(/```.*?```/m, "")
-    outside_code.count("`").even? && outside_code.scan("**").size.even? && !outside_code.rstrip.match?(OPEN_LINK)
+    return false if outside_code.count("`").odd?
+
+    # Markers inside a closed inline code span are literal, so they open no bold and no link.
+    prose = outside_code.gsub(INLINE_CODE, "")
+    prose.scan("**").size.even? && !prose.rstrip.match?(OPEN_LINK)
   end
 
   def send_held(length)
