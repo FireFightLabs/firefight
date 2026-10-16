@@ -24,7 +24,7 @@ class SetupControllerTest < ActionDispatch::IntegrationTest
     assert_nil props["plan"]
     assert_equal IntegrationProvider.category_list.map(&:slug), props["categories"].pluck("slug")
     assert_equal WorkspaceOnboarding::CATEGORY_REQUIRED, props["categories"].find { |category| category["slug"] == "code" }["unusedBlockedReason"]
-    assert_equal WorkspaceOnboarding::NO_WORKING_ACCOUNT, props["aiChoices"][WorkspaceOnboarding::AI_ACCOUNT]
+    assert_equal WorkspaceOnboarding::NO_WORKING_ACCOUNT, ai_choice(props, WorkspaceOnboarding::AI_ACCOUNT)["blockedReason"]
   end
 
   test "Who can do what starts with nothing connected and nobody but the owner to choose" do
@@ -125,7 +125,7 @@ class SetupControllerTest < ActionDispatch::IntegrationTest
     assert_equal "As a rough guide, $10 is about 90 questions to Halon.", purchase["starterEstimate"]
     returning = onboarding_checklist_path(step: WorkspaceOnboarding::STEP_AI, ai: WorkspaceOnboarding::AI_CREDITS)
     assert_equal "#{AiAccountTestHelper::CHECKOUT_PATH}?#{{ return_to: returning }.to_query}", purchase["checkoutPath"]
-    assert_nil inertia_props["aiChoices"][WorkspaceOnboarding::AI_CREDITS]
+    assert_nil ai_choice(inertia_props, WorkspaceOnboarding::AI_CREDITS)["blockedReason"]
   end
 
   test "with no starter credit the packs are offered without saying what it buys" do
@@ -138,7 +138,7 @@ class SetupControllerTest < ActionDispatch::IntegrationTest
     assert_equal 4, purchase["packs"].size
     assert_nil purchase["starterNote"]
     assert_nil purchase["starterEstimate"]
-    assert_equal WorkspaceOnboarding::NO_CREDIT_BALANCE, inertia_props["aiChoices"][WorkspaceOnboarding::AI_CREDITS]
+    assert_equal WorkspaceOnboarding::NO_CREDIT_BALANCE, ai_choice(inertia_props, WorkspaceOnboarding::AI_CREDITS)["blockedReason"]
   end
 
   test "an install someone runs themselves offers no credits and no packs" do
@@ -148,7 +148,7 @@ class SetupControllerTest < ActionDispatch::IntegrationTest
 
     assert_nil inertia_props["aiCredits"]
     assert_nil inertia_props["aiCreditPurchase"]
-    assert_not_includes inertia_props["aiChoices"].keys, WorkspaceOnboarding::AI_CREDITS
+    assert_not_includes inertia_props["aiChoices"].pluck("value"), WorkspaceOnboarding::AI_CREDITS
   end
 
   test "back from paying, setup opens on the AI step with credits chosen, even once the step is done" do
@@ -268,4 +268,41 @@ class SetupControllerTest < ActionDispatch::IntegrationTest
 
     assert_nil inertia_props[AgentChatsController::PROP_SETUP_GUIDE]
   end
+
+  test "an install someone runs themselves offers its own keys in plain words" do
+    sign_in(@owner.user, @workspace)
+
+    get onboarding_checklist_path, headers: inertia_headers
+
+    house = ai_choice(inertia_props, WorkspaceOnboarding::AI_HOUSE)
+    assert_equal "Use this server's AI keys", house["title"]
+    assert_equal "Halon uses the AI provider keys set up on the server Firefight runs on, so you don't add your own.", house["detail"]
+    assert_equal "Use my own AI account", ai_choice(inertia_props, WorkspaceOnboarding::AI_ACCOUNT)["title"]
+  end
+
+  test "a hosted build describes the AI it supplies in its own words, and the workspace's own account keeps setup's" do
+    house = Entitlements::HouseAi.new(title: "Use the hosted AI", detail: "Paid from the workspace's balance.")
+    on_firefights_cloud!(credit: AiAccountTestHelper::Credit.new(true, false), house: house)
+    sign_in(@owner.user, @workspace)
+
+    get onboarding_checklist_path, headers: inertia_headers
+
+    assert_equal [ WorkspaceOnboarding::AI_ACCOUNT, WorkspaceOnboarding::AI_CREDITS ], inertia_props["aiChoices"].pluck("value")
+    assert_equal({ "value" => WorkspaceOnboarding::AI_CREDITS, "title" => house.title, "detail" => house.detail },
+                 ai_choice(inertia_props, WorkspaceOnboarding::AI_CREDITS).compact)
+    assert_equal "Use my own AI account", ai_choice(inertia_props, WorkspaceOnboarding::AI_ACCOUNT)["title"]
+  end
+
+  test "a hosted build that does not describe its AI keeps setup's words for credits" do
+    on_firefights_cloud!(credit: AiAccountTestHelper::Credit.new(true, false))
+    sign_in(@owner.user, @workspace)
+
+    get onboarding_checklist_path, headers: inertia_headers
+
+    assert_equal "Use Firefight credits", ai_choice(inertia_props, WorkspaceOnboarding::AI_CREDITS)["title"]
+  end
+
+  private
+
+  def ai_choice(props, value) = props["aiChoices"].find { |choice| choice["value"] == value }
 end

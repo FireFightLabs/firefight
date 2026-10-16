@@ -8,6 +8,7 @@ import type {
   MemberAccess,
   OnboardingCategory,
   OnboardingStep,
+  SetupAiChoice,
   SetupPlan,
   WorkspaceAiAccount,
 } from "@/types/serializers"
@@ -26,8 +27,8 @@ export interface SetupPageProps extends SharedProps {
   // The step to open on, when someone comes back to one from paying for credits.
   openStep: string | null
   aiChoice: string | null
-  // Each choice offered, with why it cannot be chosen yet.
-  aiChoices: Record<string, string | null>
+  // Each choice offered, in its words, with why it cannot be chosen yet.
+  aiChoices: SetupAiChoice[]
   aiAccounts: WorkspaceAiAccount[]
   aiProviders: AiProviderOption[]
   aiSignIn: AiSignIn | null

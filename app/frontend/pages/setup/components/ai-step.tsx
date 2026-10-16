@@ -16,35 +16,22 @@ import type { OnboardingStep } from "@/types/serializers"
 
 type AiChoice = (typeof SETUP_AI_CHOICES)[keyof typeof SETUP_AI_CHOICES]
 
-const CHOICE_COPY: Record<AiChoice, { title: string; detail: string }> = {
-  [SETUP_AI_CHOICES.ACCOUNT]: {
-    title: "Use my own AI account",
-    detail: "Add an API key from your model provider. Halon's AI costs go to that account.",
-  },
-  [SETUP_AI_CHOICES.CREDITS]: {
-    title: "Use Firefight credits",
-    detail: "Prepaid credits on this workspace. Firefight runs the models and takes each call from the balance.",
-  },
-  [SETUP_AI_CHOICES.HOUSE]: {
-    title: "Use the AI keys this Firefight runs on",
-    detail: "Whoever runs this Firefight already set up model keys, and Halon can use them.",
-  },
-}
-
 function isChoice(value: string): value is AiChoice {
   return Object.values<string>(SETUP_AI_CHOICES).includes(value)
 }
 
 // Halon needs a model to write with. The person's own key is always offered, with its live check, and Firefight credits
-// or the deployment's own keys where this Firefight has them.
+// or the deployment's own keys where this Firefight has them. Each choice arrives in the words the server gives it.
 export function AiStep({ step }: { step: OnboardingStep }) {
   const { aiChoice, aiChoices, aiAccounts, aiProviders, aiSignIn, aiFallback, aiCredits, aiCreditPurchase } = usePage<SetupPageProps>().props
   const canManageAccounts = useCan("ai_accounts")
   // Packs bought here bring the person back to this step, so the row's link away to billing is left off.
   const purchase = canManageAccounts ? aiCreditPurchase : null
-  const offered = Object.keys(aiChoices).filter(isChoice)
-  const [ choice, setChoice ] = useState<AiChoice>(aiChoice && isChoice(aiChoice) && offered.includes(aiChoice) ? aiChoice : SETUP_AI_CHOICES.ACCOUNT)
+  const offeredValues = aiChoices.map((option) => option.value)
+  const [ choice, setChoice ] = useState<AiChoice>(aiChoice && isChoice(aiChoice) && offeredValues.includes(aiChoice) ? aiChoice : SETUP_AI_CHOICES.ACCOUNT)
   const [ saving, setSaving ] = useState(false)
+
+  const blockedReason = aiChoices.find((option) => option.value === choice)?.blockedReason ?? null
 
   function pick(value: string) {
     if (isChoice(value)) {
@@ -68,21 +55,21 @@ export function AiStep({ step }: { step: OnboardingStep }) {
         can change this later under Settings, Workspace.
       </p>
 
-      {offered.length > 1 && (
+      {aiChoices.length > 1 && (
         <RadioGroup value={choice} onValueChange={pick} className="gap-2" aria-label="How Halon gets its AI">
-          {offered.map((value) => (
+          {aiChoices.map((option) => (
             <Label
-              key={value}
-              htmlFor={`ai-choice-${value}`}
+              key={option.value}
+              htmlFor={`ai-choice-${option.value}`}
               className={cn(
                 "flex cursor-pointer items-start gap-3 rounded-lg border p-4 font-normal transition-colors duration-150",
-                choice === value ? "border-brand-border bg-brand-tint" : "border-border hover:bg-surface-hover",
+                choice === option.value ? "border-brand-border bg-brand-tint" : "border-border hover:bg-surface-hover",
               )}
             >
-              <RadioGroupItem value={value} id={`ai-choice-${value}`} className="mt-0.5" />
+              <RadioGroupItem value={option.value} id={`ai-choice-${option.value}`} className="mt-0.5" />
               <span className="flex flex-col gap-0.5">
-                <span className="text-sm font-medium text-fg-primary">{CHOICE_COPY[value].title}</span>
-                <span className="text-xs leading-relaxed text-fg-secondary">{CHOICE_COPY[value].detail}</span>
+                <span className="text-sm font-medium text-fg-primary">{option.title}</span>
+                <span className="text-xs leading-relaxed text-fg-secondary">{option.detail}</span>
               </span>
             </Label>
           ))}
@@ -121,7 +108,7 @@ export function AiStep({ step }: { step: OnboardingStep }) {
 
       <StepActions
         label={step.state === SETUP_STEP_STATES.DONE ? "Save" : "Continue"}
-        blockedReason={aiChoices[choice]}
+        blockedReason={blockedReason}
         busy={saving}
         onContinue={save}
       />

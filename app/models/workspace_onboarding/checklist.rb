@@ -29,6 +29,13 @@ module WorkspaceOnboarding::Checklist
   AI_HOUSE = "house".freeze
   AI_CHOICES = [ AI_ACCOUNT, AI_CREDITS, AI_HOUSE ].freeze
   HOUSE_PAYERS = [ Inference::PAID_BY_OPERATOR, Inference::PAID_BY_FIREFIGHT ].freeze
+  # How each choice is put on the AI step. A hosted build describes the AI it supplies itself (Entitlements.house_ai),
+  # and that replaces the words for credits and the house.
+  AI_CHOICE_COPY = {
+    AI_ACCOUNT => { title: "Use my own AI account", detail: "Add an API key from your model provider. Halon's AI costs go to that account." },
+    AI_CREDITS => { title: "Use Firefight credits", detail: "Prepaid credits on this workspace. Firefight runs the models and takes each call from the balance." },
+    AI_HOUSE => { title: "Use this server's AI keys", detail: "Halon uses the AI provider keys set up on the server Firefight runs on, so you don't add your own." }
+  }.freeze
 
   ANSWER_CONNECTED = "connected".freeze
   ANSWER_UNUSED = "unused".freeze
@@ -51,6 +58,9 @@ module WorkspaceOnboarding::Checklist
   Step = Data.define(:key, :state, :note) do
     def finished? = FINISHED_STATES.include?(state)
   end
+
+  # One choice the AI step offers, in the words it is shown with, and why it cannot be chosen yet or nil.
+  AiChoice = Data.define(:value, :title, :detail, :blocked_reason)
 
   included do
     validates :ai_choice, inclusion: { in: AI_CHOICES }, allow_nil: true
@@ -115,6 +125,15 @@ module WorkspaceOnboarding::Checklist
   # What a person can choose for Halon's AI here: their own key always, and credits or the deployment's keys where they exist.
   def ai_choices
     [ AI_ACCOUNT, (AI_CREDITS if Entitlements.ai_credit(workspace)), (AI_HOUSE if house_ai?) ].compact
+  end
+
+  # The choices offered, each with its words and why it cannot be chosen yet.
+  def ai_choice_options
+    house = Entitlements.house_ai(workspace)&.to_h
+    ai_choices.map do |choice|
+      copy = (house if choice != AI_ACCOUNT) || AI_CHOICE_COPY.fetch(choice)
+      AiChoice.new(value: choice, **copy.slice(:title, :detail), blocked_reason: ai_choice_blocked_reason(choice))
+    end
   end
 
   def ai_choice_blocked_reason(choice)

@@ -1,11 +1,12 @@
 # A workspace's own AI accounts, made without the check call, and backends standing in for Firefight's cloud.
 module AiAccountTestHelper
   # The cloud build's backend: Firefight's own workspaces stay on Firefight's key, the rest pay with credits. created
-  # holds each workspace it was told was created, in order.
-  HostedBackend = Struct.new(:own, :credit, :created) do
+  # holds each workspace it was told was created, in order. house is how it describes the AI it supplies, or nil.
+  HostedBackend = Struct.new(:own, :credit, :house, :created) do
     def check(_workspace, _feature) = Entitlements.allow
     def firefight_pays_for_ai?(_workspace) = own
     def ai_credit(_workspace) = credit
+    def house_ai(_workspace) = house
 
     def workspace_created!(workspace)
       self.created ||= []
@@ -55,7 +56,7 @@ module AiAccountTestHelper
     account
   end
 
-  def on_firefights_cloud!(own: false, credit: nil)
-    Entitlements.backend = HostedBackend.new(own, credit)
+  def on_firefights_cloud!(own: false, credit: nil, house: nil)
+    Entitlements.backend = HostedBackend.new(own, credit, house)
   end
 end

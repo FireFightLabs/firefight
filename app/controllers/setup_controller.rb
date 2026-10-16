@@ -31,8 +31,7 @@ class SetupController < InertiaController
       plan: @onboarding.plan && SetupPlanSerializer.one(@onboarding.plan),
       openStep: returning_step,
       aiChoice: returning_ai_choice || @onboarding.ai_choice,
-      # Each choice offered here, with why it cannot be chosen yet, or nil.
-      aiChoices: @onboarding.ai_choices.index_with { |choice| @onboarding.ai_choice_blocked_reason(choice) },
+      aiChoices: SetupAiChoiceSerializer.many(@onboarding.ai_choice_options),
       **ai_account_props,
       aiCreditPurchase: AiCredit::Purchase.for(current_workspace, return_to: onboarding_checklist_path(step: WorkspaceOnboarding::STEP_AI, ai: WorkspaceOnboarding::AI_CREDITS)),
       categories: OnboardingCategorySerializer.many(cards),
