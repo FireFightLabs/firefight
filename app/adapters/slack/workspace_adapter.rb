@@ -313,6 +313,8 @@ module Slack
           ts: message_id
         )
         message = raw.is_a?(Hash) ? (raw[:message] || raw["message"] || raw) : {}
+        # Slack hands back the newest message at or before the one asked for, so a deleted message reads as an older one.
+        next unless (message[:ts] || message["ts"]) == message_id
 
         {
           message_id: message[:ts] || message["ts"],
@@ -324,6 +326,8 @@ module Slack
         }
       end
     end
+
+    def message_for_model(text:) = text.present? ? messages_for_model(texts: [ text ])[text] : text
 
     def messages_as_markdown(texts:)
       names = mentioned_names(texts)
@@ -342,6 +346,30 @@ module Slack
 
     # The app is known only by the user id Slack names in the event's authorizations, since the install keeps none. An
     # event without them keeps every mention, as guessing which one is the app could drop someone else.
+    # People in an organisation wide install come from each of its workspaces, so the team is only compared for a single
+    # workspace.
+    def sender_from_another_organisation?(payload:)
+      team = payload.dig("event", "user_team").presence
+      team.present? && payload["enterprise_id"].blank? && team != payload["team_id"]
+    end
+
+    def pinned_message(payload:)
+      event = payload["event"] || {}
+      return unless event.dig("item", "type") == "message"
+
+      { channel_id: event.dig("item", "channel"), message_id: event.dig("item", "message", "ts") || event.dig("item", "ts"),
+        thread_id: event.dig("item", "message", "thread_ts"), user_id: event["user"] }
+    end
+
+    def reaction(payload:)
+      event = payload["event"] || {}
+      { emoji: event["reaction"], channel_id: event.dig("item", "channel"), message_id: event.dig("item", "ts"), user_id: event["user"] }
+    end
+
+    def pressed_message(raw:)
+      { channel_id: raw&.dig("container", "channel_id"), message_id: raw&.dig("container", "message_ts"), content: raw&.dig("message", "blocks") || [] }
+    end
+
     def text_for_app(payload:)
       text = payload.dig("event", "text").to_s
       app_ids = Array(payload["authorizations"]).filter_map { |authorization| authorization["user_id"] if authorization["is_bot"] }
@@ -365,8 +393,8 @@ module Slack
     # Read from the thread's first message. One that cannot be read, or is not there any more, counts as the person's,
     # so their message is answered rather than dropped.
     def direct_thread_root(channel_id:, thread_id:)
-      root = fetch_message(channel_id: channel_id, message_id: thread_id)[:raw].to_h.with_indifferent_access
-      return { started: PlatformAdapter::THREAD_STARTED_BY_PERSON, text: nil } unless root[:ts] == thread_id
+      root = fetch_message(channel_id: channel_id, message_id: thread_id)&.dig(:raw).to_h.with_indifferent_access
+      return { started: PlatformAdapter::THREAD_STARTED_BY_PERSON, text: nil } if root.empty?
 
       { started: thread_started_by(root), text: root[:text].presence }
     rescue AdapterError => error

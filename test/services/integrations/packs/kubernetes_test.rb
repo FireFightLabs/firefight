@@ -76,8 +76,9 @@ module Integrations
       end
 
       test "a namespace the connection does not reach is refused, and a name alone finds its one workload" do
-        assert_match "reaches only production, not payments", call_error(:describe_workload, "namespace" => "payments", "resource" => "deployment/web")
-        assert_match "reaches only production, not payments", call_error(:describe_workload, "resource" => "payments/deployment/web")
+        [ { "namespace" => "payments", "resource" => "deployment/web" }, { "resource" => "payments/deployment/web" } ].each do |arguments|
+          assert_match "reaches only production, not payments", assert_raises(Integrations::PolicyRefusal) { call(:describe_workload, arguments) }.message
+        end
         assert_match "No workload called api in production", call_error(:describe_workload, "resource" => "api")
         assert_match "deployment/web in production", call(:describe_workload, "resource" => "web")
 

@@ -118,7 +118,7 @@ module Mcp
 
       test "Halon's chat offers it to whoever holds the grant, asks the person first, and the post names Halon and who asked" do
         conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
-        entry = -> { Chat::Tools.catalog(Conversation::Turn.new(conversation, asker: @member)).find { |each| each.name.to_s == POST_TO_CHANNEL } }
+        entry = -> { Chat::Tools.catalog(Conversation::Turn.new(conversation, asker: @member)).find { |each| each.name.to_s == FirefightTools::POST_TO_CHANNEL } }
         assert_equal Chat::Tools::STATE_NOT_GRANTED, entry.call.state
         assert_equal Chat::Tools::Groups::CHANNELS, entry.call.group
 
@@ -138,13 +138,13 @@ module Mcp
       end
 
       test "a runbook step posts as Halon for the person running it, offered in the editor with its channel and message" do
-        choice = Chat::Tools::Choices.tools(@workspace).find { |each| each.name == POST_TO_CHANNEL }
+        choice = Chat::Tools::Choices.tools(@workspace).find { |each| each.name == FirefightTools::POST_TO_CHANNEL }
         assert_equal "Posting in channels", choice.group
         assert_equal [ [ "channel", true ], [ "message", true ], [ "approval_id", false ] ], choice.fields.map { |field| [ field.key, field.required ] }
 
         grant_post(@member)
         runbook = @workspace.runbooks.create!(name: "Announce release", inputs: [ { "key" => "version", "question" => "Which version?" } ])
-        runbook.sync_steps!([ { title: "Announce in #general", tool: POST_TO_CHANNEL, arguments: { "channel" => "#general", "message" => "Release {{version}} is out." } } ])
+        runbook.sync_steps!([ { title: "Announce in #general", tool: FirefightTools::POST_TO_CHANNEL, arguments: { "channel" => "#general", "message" => "Release {{version}} is out." } } ])
         Slack::Client.expects(:post_message).with { |payload| payload[:channel] == "C0GENERAL1" && payload[:text] == "Message from Halon: Release 2.4 is out." }
                      .returns({ ok: true, ts: "1.2", channel: "C0GENERAL1" })
 

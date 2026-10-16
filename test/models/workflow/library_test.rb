@@ -144,7 +144,7 @@ class Workflow::LibraryTest < ActiveSupport::TestCase
     offer(item)
     workflow = Workflow.from_library!(item, workspace: @workspace, by: @alice)
     WorkflowPublishService.new(workflow).publish!(workflow.draft, by: @alice)
-    look = { "id" => "step_look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => {} } }
+    look = { "id" => "step_look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => {} } }
     offer(item(version: 2, extra: [ look ]))
 
     Workflow::Library.upgrade_all!

@@ -14,10 +14,10 @@ module Slack
             { type: "section", text: { type: "mrkdwn", text: "*#{incident.identifier}: #{incident.name || 'Untitled Incident'}*" } },
             {
               type: "input",
-              block_id: "reason_block",
+              block_id: Identifiers::REASON_BLOCK,
               element: {
                 type: "plain_text_input",
-                action_id: "reason_input",
+                action_id: Identifiers::REASON_INPUT,
                 multiline: true,
                 placeholder: { type: "plain_text", text: "Why is this incident being reopened?" },
                 max_length: Incident::REOPEN_REASON_LIMIT

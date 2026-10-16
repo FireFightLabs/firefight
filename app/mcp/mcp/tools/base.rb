@@ -146,7 +146,7 @@ module Mcp
 
         def own_words? = @own_words == true
 
-        # A tool that ends something for good or for now: it resolves, cancels, deletes or revokes it. In a chat Halon
+        # A tool that ends something for good or for now, as resolving, cancelling, deleting or revoking does. In a chat Halon
         # reads what shows it will help before it calls one (Chat::Tools::LookFirst), as for any change to a connected
         # system. Firefight's other writes, such as an action item or an incident update, need no read first.
         def ends_something

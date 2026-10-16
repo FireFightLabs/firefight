@@ -9,6 +9,7 @@ module OmniauthTestHelper
       info: {
         name: "Test User",
         email: "test@example.com",
+        email_verified: true,
         image: "https://example.com/avatar.jpg"
       },
       credentials: {

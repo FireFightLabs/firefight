@@ -14,10 +14,10 @@ module Slack
           blocks: [
             {
               type: "input",
-              block_id: "runbook_block",
+              block_id: Identifiers::RUNBOOK_BLOCK,
               element: {
                 type: "static_select",
-                action_id: "runbook_select",
+                action_id: Identifiers::RUNBOOK_SELECT,
                 placeholder: { type: "plain_text", text: "Pick a runbook" },
                 options: options(runbooks)
               },

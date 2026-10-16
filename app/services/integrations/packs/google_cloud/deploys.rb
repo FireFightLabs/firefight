@@ -10,7 +10,7 @@ module Integrations
         LIST_ROLLOUTS = "list_rollouts".freeze
         ROLLBACK_TARGET = "rollback_target".freeze
         CANCEL_ROLLOUT = "cancel_rollout".freeze
-        # Approving a rollout and advancing a canary are changes like any other: each its own tool, granted, confirmed and
+        # Approving a rollout and advancing a canary are changes like any other, each its own tool, granted, confirmed and
         # held by approval rules. Neither is a capability, so no unattended rule or fix step can reach them, and an
         # investigation or a watch is offered no change at all.
         APPROVE_ROLLOUT = "approve_rollout".freeze

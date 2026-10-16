@@ -277,7 +277,7 @@ module Integrations
     end
 
     # Asks the provider to keep the box's disk as it is now, with the copy just prepared, and drops this repository's
-    # oldest copies past PreparedCopy::KEPT_PER_REPOSITORY. A copy that cannot be kept is simply not kept.
+    # oldest copies past PreparedCopy::KEPT_PER_REPOSITORY. A copy that cannot be kept is not kept.
     def keep_in_provider(keeper, repository, key, commit)
       return if PreparedCopy.kept_by(box.provider, @workspace, @remote.key(repository), key)
 
@@ -333,7 +333,7 @@ module Integrations
     end
 
     # What the copy installed, kept for the next copy with the same key. A copy too large to keep, or one the box could
-    # not pack, is simply not kept.
+    # not pack, is not kept.
     def keep_prepared(repository, name, ref, key)
       Dir.mktmpdir("prepared-copy") do |dir|
         path = File.join(dir, "prepared.tar.gz")

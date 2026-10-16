@@ -11,7 +11,7 @@ class WorkflowProviderTriggersTest < ActiveSupport::TestCase
     @row = @github.integration_environments.create!
   end
 
-  def look(query) = { "id" => "look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => { "query" => query } } }
+  def look(query) = { "id" => "look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => { "query" => query } } }
 
   def published(name, trigger, query: "{{trigger}}")
     workflow = Workflow.create!(workspace: @workspace, name: name, created_by: @alice)

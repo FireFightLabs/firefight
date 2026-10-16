@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class UpsertFormField < Base
-      tool_name UPSERT_FORM_FIELD
+      tool_name FirefightTools::UPSERT_FORM_FIELD
       description "Configure one field on a lifecycle form: attach a custom field, or change " \
                   "the visibility, required mode, or conditions of a field already there. " \
                   "Identify the field by custom_field key or system_field key. Conditions make " \

@@ -3,7 +3,7 @@ module Mcp
     class UpsertPermissionSet < Base
       extend GatewayPayloads
 
-      tool_name UPSERT_PERMISSION_SET
+      tool_name FirefightTools::UPSERT_PERMISSION_SET
       description "Create or update a permission set, a named bundle of abilities granted as one. " \
                   "Pass slug to update an existing set; omit it to create one from the name. " \
                   "abilities is the set's full contents, not a delta. Built-in packs (built_in: true) are kept in step " \

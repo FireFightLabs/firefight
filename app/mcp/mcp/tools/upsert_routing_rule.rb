@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class UpsertRoutingRule < Base
-      tool_name UPSERT_ROUTING_RULE
+      tool_name FirefightTools::UPSERT_ROUTING_RULE
       description "Create or update an alert routing rule. A rule matching the given priority " \
                   "is updated; otherwise a new rule is created (at that priority, or appended " \
                   "when priority is omitted). Dry-run first with evaluate_routing. Pass source " \

@@ -59,6 +59,8 @@ class Chat::Mitigation < ApplicationRecord
   def self.placed_at = Arel::Nodes::NamedFunction.new("COALESCE", [ arel_table[:started_at], arel_table[:created_at] ])
   scope :remind_due, ->(now = Time.current) { where(status: STATUS_ACTIVE, reminded_at: nil).where(expires_at: ..(now + REMIND_BEFORE)) }
   scope :expiry_due, ->(now = Time.current) { where(status: STATUS_ACTIVE).where(expires_at: ..now) }
+  # An undo still claimed after CLAIM_LAPSES, so its worker died partway.
+  scope :undo_lapsed, -> { where(status: STATUS_UNDOING, claimed_at: ...CLAIM_LAPSES.ago) }
 
   # The steps of a plan whose changes Firefight already put back when their time ran out or someone pressed Undo now, so
   # the plan's own undo leaves them out.

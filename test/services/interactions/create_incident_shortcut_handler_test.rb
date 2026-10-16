@@ -27,10 +27,10 @@ class Interactions::CreateIncidentShortcutHandlerTest < ActiveSupport::TestCase
     WorkspaceAdapter.expects(:for).with(@workspace).returns(adapter)
     adapter.expects(:build_modal).with(PlatformAdapter::Modal::INCIDENT_CREATION).returns({ type: "modal" })
     adapter.expects(:open_modal).raises(AdapterError::TriggerExpired.new("expired"))
+    adapter.expects(:modal_errors_response).with { |errors| errors[:base].include?("expired") }.returns(:refused)
 
     result = Interactions::CreateIncidentShortcutHandler.execute(build_interaction)
-    assert_equal "errors", result[:response_action]
-    assert_includes result[:errors][:base], "expired"
+    assert_equal :refused, result
   end
 
   private

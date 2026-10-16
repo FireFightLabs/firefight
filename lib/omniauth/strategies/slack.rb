@@ -17,6 +17,7 @@ module OmniAuth
         {
           name: user_info.dig("user", "real_name") || user_info.dig("user", "name"),
           email: user_info.dig("user", "profile", "email"),
+          email_verified: user_info.dig("user", "is_email_confirmed"),
           image: user_info.dig("user", "profile", "image_512"),
           team_id: raw_info.dig("team", "id"),
           team_name: raw_info.dig("team", "name")

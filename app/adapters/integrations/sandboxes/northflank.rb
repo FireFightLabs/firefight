@@ -4,6 +4,7 @@ module Integrations
     # box is reached by its service id. In a project of their own, which allows ingress from the app's project, it is
     # reached by its service id and that project's namespace.
     class Northflank < Provider
+      KEY = "northflank".freeze
       API_ROOT = "https://api.northflank.com/v1".freeze
       PORT = 8080
       DEFAULT_PLAN = "nf-compute-100-2".freeze
@@ -84,14 +85,14 @@ module Integrations
         plan = request(Net::HTTP::Get, "/plans").dig("data", "plans").to_a.find { |each| each["id"] == size }
         plan && (plan["amountPerHour"].to_f * 1_000_000).round
       rescue Error => error
-        Rails.logger.warn({ event: "code_box.price_unread", provider: SandboxProviders::NORTHFLANK, error: error.message }.to_json)
+        Rails.logger.warn({ event: "code_box.price_unread", provider: KEY, error: error.message }.to_json)
         nil
       end
 
       # The boxes' project's region, which every box in it runs in (docs/v1/api/team/projects/get-project). A project
       # never moves, so it is read once a day.
       def region
-        Rails.cache.fetch([ "sandbox-region", SandboxProviders::NORTHFLANK, project ], expires_in: 1.day) do
+        Rails.cache.fetch([ "sandbox-region", KEY, project ], expires_in: 1.day) do
           request(Net::HTTP::Get, "/projects/#{project}")["data"].to_h["region"].presence
         end
       end

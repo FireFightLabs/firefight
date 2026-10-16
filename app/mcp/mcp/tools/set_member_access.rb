@@ -3,7 +3,7 @@ module Mcp
     class SetMemberAccess < Base
       extend GatewayPayloads
 
-      tool_name SET_MEMBER_ACCESS
+      tool_name FirefightTools::SET_MEMBER_ACCESS
       description "Set what members can read or change in one connected tool, the same as a Who can do what dropdown. " \
                   "permission_set is the row's read or change permission_set from list_member_access. choice is everyone " \
                   "(every member, including people who join later), nobody, or chosen with people. Chosen people are " \

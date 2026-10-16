@@ -13,7 +13,6 @@ module Integrations
         super(name: name.to_s, sql: sql.to_s, read_tool: (read_tool || name).to_s, read_sql: (read_sql || sql).to_s, dropped: dropped.map(&:to_s), many: many)
       end
 
-      # The statements a call runs, as text.
       def statements(given)
         value = given[sql]
         many ? Array(value).map(&:to_s) : [ value.to_s ]

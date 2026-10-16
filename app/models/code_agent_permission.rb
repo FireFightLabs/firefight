@@ -3,7 +3,7 @@
 # Halon. Halon lets the agent go on or refuses the step, with why, or, where the change was asked for in a chat or a
 # fix, leaves it to the person as a question with the way it leans. The decision is kept with the change and shown on
 # its step. Everything in the box runs as one user, so the agent can reach what answers OpenCode there. An answer that
-# did not come from Firefight is never trusted: the box reports it, Firefight refuses the agent's next model call while
+# did not come from Firefight is never trusted. The box reports it, Firefight refuses the agent's next model call while
 # its question is open, and either way the run stops and nothing is opened.
 class CodeAgentPermission < ApplicationRecord
   STATUS_OPEN = "open"

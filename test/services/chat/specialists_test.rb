@@ -111,7 +111,7 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     deferred = presented.deferred.map { |tool| tool.name.to_s }
 
     assert presented.specialists
-    assert_includes loaded, Mcp::Tools::SEARCH_INCIDENTS
+    assert_includes loaded, FirefightTools::SEARCH_INCIDENTS
     assert_not_includes loaded + deferred, "planetscale_get_insights"
     assert_not_includes loaded + deferred, "linear_list_issues"
     assert_includes deferred, "planetscale_create_branch"
@@ -126,7 +126,7 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     held = presented.loaded.map { |tool| tool.name.to_s }
 
     assert presented.held
-    assert_includes held, Mcp::Tools::RESOLVE_INCIDENT
+    assert_includes held, FirefightTools::RESOLVE_INCIDENT
     assert_includes held, "custom_mcp_team_read"
     assert_not_includes held, "planetscale_get_insights"
     assert_not_includes held, "planetscale_create_branch"
@@ -150,8 +150,8 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     FirefightAi.configuration.stubs(:held_tools_budget).returns(12_000)
     held = Chat::Tools.presented(@turn, FirefightAi::ModelChoice.new(model: "gpt-4o")).loaded.map { |tool| tool.name.to_s }
 
-    assert_includes held, Mcp::Tools::SEARCH_INCIDENTS
-    assert_not_includes held, Mcp::Tools::RESOLVE_INCIDENT
+    assert_includes held, FirefightTools::SEARCH_INCIDENTS
+    assert_not_includes held, FirefightTools::RESOLVE_INCIDENT
     assert_not_includes held, "custom_mcp_team_read"
     assert_not_includes held, "planetscale_get_insights"
   end
@@ -321,7 +321,7 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
   # Seen in a chat, Halon held a code host's changes and none of its reads, since every read was the code specialist's.
   # Asked to address a pull request's review, it called reopen and comment on the pull request seven times meaning to
   # read it, and each was sent back for want of a read it did not hold. A connection is never change-only in Halon's
-  # hands: once it holds a change, that connection's reads are Halon's to load and stay with it on the next turn, while
+  # hands. Once it holds a change, that connection's reads are Halon's to load and stay with it on the next turn, while
   # its tool list from the start stays the same.
   test "once Halon holds a connection's change, that connection's reads are its to load by name and stay in its hands" do
     FirefightAi.stubs(:tool_search?).returns(false)

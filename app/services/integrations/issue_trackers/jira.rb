@@ -204,7 +204,7 @@ module Integrations
       end
 
       def page(cloud_id, key)
-        site = SourceLinks::Jira.site_of(cloud_id) || site_of_resource(cloud_id)
+        site = AtlassianSite.of(cloud_id) || site_of_resource(cloud_id)
         site && "https://#{site}/browse/#{key}"
       end
 
@@ -214,11 +214,11 @@ module Integrations
         result = call(RESOURCES, {}, "the address of the Jira site")
         resources = result && !result["isError"] ? Capabilities::Answers.data(result) : nil
         found = Array(resources).find { |resource| resource.is_a?(Hash) && resource["id"] == cloud_id.to_s }
-        found && SourceLinks::Jira.site_of(found["url"])
+        found && AtlassianSite.of(found["url"])
       end
 
       def place!(target)
-        site = SourceLinks::Jira.site_of(target.to_h[SITE])
+        site = AtlassianSite.of(target.to_h[SITE])
         project = target.to_h[PROJECT].to_s.strip.upcase
         raise Issues::Failed, "Choose the Jira site and project new issues are filed in under Settings, Workspace." if site.nil? || project.empty?
 

@@ -5,7 +5,7 @@ module Mcp
       # What a group of resources with no value is called.
       UNSET = { ResourceMap::Stats::BY_ENVIRONMENT => GetResourceMap::NO_ENVIRONMENT, ResourceMap::Stats::BY_STATUS => "no status" }.freeze
 
-      tool_name RESOURCE_MAP_STATS
+      tool_name FirefightTools::RESOURCE_MAP_STATS
       authorize_as Ability::Action::RESOURCE_MAP
       description "The resource map in numbers: how many resources by provider, kind, account, environment, status or " \
                   "health, narrowed by the same filters as find_resources, with each connection's last sweep, error and " \

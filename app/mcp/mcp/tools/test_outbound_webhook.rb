@@ -8,7 +8,7 @@ module Mcp
         idempotent_hint: false, open_world_hint: true
       }.freeze
 
-      tool_name TEST_OUTBOUND_WEBHOOK
+      tool_name FirefightTools::TEST_OUTBOUND_WEBHOOK
       description "Send a test delivery to a Firefight outbound webhook, to confirm the endpoint receives " \
                   "and verifies what Firefight sends before relying on it. It replays the newest " \
                   "event in this workspace the webhook subscribes to, signed the way a live " \

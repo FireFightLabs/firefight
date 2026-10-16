@@ -2,7 +2,7 @@ require "test_helper"
 
 class CodeBoxTest < ActiveSupport::TestCase
   setup do
-    @box = CodeBox.create!(workspace: workspaces(:slack_workspace_one), key: "investigation-1", provider: SandboxProviders::BOAT, box_ref: "bx_1",
+    @box = CodeBox.create!(workspace: workspaces(:slack_workspace_one), key: "investigation-1", provider: Integrations::Sandboxes::Boat::KEY, box_ref: "bx_1",
                            **CodeBox.address_columns("https://swift-otter-8080.on.boat.dev?_token=gate"), secret: "key-1",
                            last_used_at: Time.current, box_started_at: 10.minutes.ago, hourly_micros: 36_000)
   end

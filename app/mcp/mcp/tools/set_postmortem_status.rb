@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class SetPostmortemStatus < Base
-      tool_name SET_POSTMORTEM_STATUS
+      tool_name FirefightTools::SET_POSTMORTEM_STATUS
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Move a postmortem along, from draft to in progress, in review, or completed. " \
                   "Where it sits is how a team knows whether it still needs writing or reading. " \

@@ -85,7 +85,7 @@ module Events
 
     # People and channels named with their ids kept, so Halon reads who was meant and can act on them.
     def self.read_by_model(workspace, text)
-      text.present? ? workspace.adapter.messages_for_model(texts: [ text ])[text] : text
+      workspace.adapter.message_for_model(text: text)
     end
     private_class_method :read_by_model
 

@@ -1,4 +1,4 @@
-# Some addresses carry their secret as their last path segment: a Logfire alert source's, whose webhook can send no
+# Some addresses carry their secret as their last path segment, such as an alert source's whose provider can send no
 # header, and the issue tracker and map event addresses, which identify a workspace or connection by a token. The
 # segment is swapped for MASK before anything records the path, so request logs, traces, error pages and params never
 # hold it, and the secret travels on in the env alone. Routes still match, as the masked segment is still a segment.

@@ -38,7 +38,7 @@ class Conversation::TurnQueriesTest < ActiveSupport::TestCase
 
     turn_of(4, conversation)
 
-    called = conversation.chat.tool_calls.includes(:result).where(name: [ @tool.model_facing_name, Mcp::Tools::SEARCH_INCIDENTS.to_s ])
+    called = conversation.chat.tool_calls.includes(:result).where(name: [ @tool.model_facing_name, FirefightTools::SEARCH_INCIDENTS.to_s ])
     assert_equal 8, called.size
     assert(called.none?(&:failed), called.map { |call| call.result&.content }.join("\n"))
   end
@@ -69,7 +69,7 @@ class Conversation::TurnQueriesTest < ActiveSupport::TestCase
                 "call_open_c" => call("call_open_c", Chat::Tools::Open.tool_name, "group" => @group) }
     steps = Array.new(count) do |index|
       { "call_c#{index}" => call("call_c#{index}", @tool.model_facing_name, {}),
-        "call_f#{index}" => call("call_f#{index}", Mcp::Tools::SEARCH_INCIDENTS.to_s, "query" => "checkout #{index}") }
+        "call_f#{index}" => call("call_f#{index}", FirefightTools::SEARCH_INCIDENTS.to_s, "query" => "checkout #{index}") }
     end
     replies = [ opening, *steps ].map { |calls| llm_reply(tool_calls: calls, finish_reason: :tool_calls) } + [ llm_reply(content: "Checkout is fine.") ]
     stubbed = RubyLLM::Provider.any_instance.stubs(:complete).returns(replies.first)

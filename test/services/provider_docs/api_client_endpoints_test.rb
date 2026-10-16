@@ -1,7 +1,7 @@
 require "test_helper"
 
 # script/provider_docs/api_client_endpoints.mjs on a client of two endpoint classes, run as ProviderDocs::Package runs
-# it, under Node's permission model: the calls the provider documents beside its client's join the reference, so a call
+# it, under Node's permission model. The calls the provider documents beside its client's join the reference, so a call
 # that exists is never read as one the API does not offer.
 class ProviderDocs::ApiClientEndpointsTest < ActiveSupport::TestCase
   SCRIPT = ProviderDocs::Package::SCRIPT

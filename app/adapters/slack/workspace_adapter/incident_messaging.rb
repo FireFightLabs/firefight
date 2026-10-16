@@ -1096,12 +1096,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     refused.present? && Time.zone.parse(refused.to_s) >= retry_after.ago
   end
 
-  def remember_refusal!(key)
-    now = Time.current.iso8601
-    Workspace.where(id: @workspace.id)
-             .update_all([ "platform_data = COALESCE(platform_data, '{}'::jsonb) || jsonb_build_object(?::text, ?::text)", key, now ])
-    @workspace.platform_data = @workspace.platform_data.to_h.merge(key => now)
-  end
+  def remember_refusal!(key) = @workspace.remember_platform_data!(key, Time.current.iso8601)
 
   # Stops the stream that showed the run's steps in its thread, keeping them, and clears the working state. A stream that
   # already ended is left as it was, since the answer follows it either way.

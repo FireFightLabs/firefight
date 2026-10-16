@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class DeleteSkill < Base
-      tool_name DELETE_SKILL
+      tool_name FirefightTools::DELETE_SKILL
       behind_flag FeatureFlags::CUSTOM_SKILLS
       description "Delete one of this workspace's skills by its name or id, with every version. Halon stops loading it at once, " \
                   "and a copy of one of Firefight's skills gives Firefight's back. A skill a workflow runs is refused with how " \

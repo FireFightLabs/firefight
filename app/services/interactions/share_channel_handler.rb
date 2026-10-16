@@ -5,8 +5,9 @@ module Interactions
 
     def self.execute(interaction)
       workspace = interaction.workspace
+      adapter = workspace.adapter
 
-      workspace.adapter.open_share_modal(
+      adapter.open_share_modal(
         trigger_id: interaction.trigger_id,
         user_id: interaction.user_id,
         channel_id: workspace.incidents_channel_id
@@ -19,7 +20,7 @@ module Interactions
         user_id: interaction.user_id
       })
 
-      { response_action: "clear" }
+      adapter.modal_close_response
     rescue AdapterError::TriggerExpired
       Rails.logger.warn({
         event: "interactions.trigger_expired",
@@ -28,10 +29,7 @@ module Interactions
         user_id: interaction.user_id
       })
 
-      {
-        response_action: "errors",
-        errors: { base: "This interaction has expired. Please try again." }
-      }
+      adapter.modal_errors_response({ base: "This interaction has expired. Please try again." })
     end
   end
 end

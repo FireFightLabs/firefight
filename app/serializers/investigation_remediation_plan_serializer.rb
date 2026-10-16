@@ -25,7 +25,7 @@ class InvestigationRemediationPlanSerializer < BaseSerializer
   type :string, optional: true
   def applied_by = plan.applier_name
 
-  # For a fix Halon applied on its own: each unattended rule it acted under and what it read just before, one per line.
+  # For a fix Halon applied on its own, each unattended rule it acted under and what it read just before, one per line.
   type :string, optional: true
   def unattended_reading = (plan.unattended_reading if plan.unattended?)
 

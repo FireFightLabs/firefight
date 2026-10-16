@@ -39,7 +39,7 @@ class Workspace::ChatConnectionTest < ActiveSupport::TestCase
   test "connecting fills the platform columns and keeps the chosen name" do
     auth = mock_slack_auth_hash(extra: { team_info: { "id" => "T_CONNECT_ME", "name" => "Slack Name" } })
 
-    @unconnected.connect_slack!(auth)
+    @unconnected.connect_chat!(SlackAuthenticationService.install_from(auth))
 
     @unconnected.reload
     assert @unconnected.chat_connected?
@@ -52,7 +52,7 @@ class Workspace::ChatConnectionTest < ActiveSupport::TestCase
   test "a connected workspace cannot be connected again" do
     auth = mock_slack_auth_hash
 
-    assert_raises(Workspace::ChatConnection::AlreadyConnected) { workspaces(:slack_workspace_one).connect_slack!(auth) }
+    assert_raises(Workspace::ChatConnection::AlreadyConnected) { workspaces(:slack_workspace_one).connect_chat!(SlackAuthenticationService.install_from(auth)) }
   end
 
   test "incident creation refuses with the reason" do

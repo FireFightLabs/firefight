@@ -1,7 +1,7 @@
 # Halon owns the pull requests it opens. Each one is read through its code host after it opens, whenever the host says
 # something about it, its checks or its base changed, and on a sweep for hosts that send nothing. When it conflicts with
 # its base, a check fails or a reviewer asks for changes, the chat it came from is told once, with the reason and Fix it,
-# in the chat, its thread or the asker's direct messages. Fix it is the person's yes: the code change then runs on the
+# in the chat, its thread or the asker's direct messages. Fix it is the person's yes. The code change then runs on the
 # pull request's branch as them, through the gateway and approval rules, at the start of a turn in that chat, and Halon
 # says how it went. Following ends when the pull request is merged or closed.
 module PullRequestFollowing
@@ -127,7 +127,7 @@ module PullRequestFollowing
                               thread_id: destination.thread_id, platform_user_id: by.platform_user_id)
   end
 
-  # The code change on the pull request's branch, as the person who pressed Fix it, through the very tool a chat offers
+  # The code change on the pull request's branch, as the person who pressed Fix it, through the same tool a chat offers
   # them, so grants, approval rules and the ledger apply as if Halon had called it. Answers what the tool said.
   def run_fix!(turn, notice)
     session = notice.session

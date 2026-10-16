@@ -15,7 +15,7 @@ class AgentIntegrationCardTest < ApplicationSystemTestCase
     conversation = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one))
     conversation.ask!("what can we connect for logs")
     reply = conversation.chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
-    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Mcp::Tools::LIST_INTEGRATIONS, arguments: { "category" => "observability" })
+    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: FirefightTools::LIST_INTEGRATIONS, arguments: { "category" => "observability" })
     conversation.chat.add_message(role: :tool, content: "{}", tool_call_id: "call_1")
     conversation.note!("Datadog is connected already. Pick one below to add another.")
     conversation.reply_delivered!
@@ -41,7 +41,7 @@ class AgentIntegrationCardTest < ApplicationSystemTestCase
     conversation = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one))
     conversation.ask!("what telemetry do we have")
     reply = conversation.chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
-    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Mcp::Tools::LIST_INTEGRATIONS, arguments: { "category" => "observability" })
+    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: FirefightTools::LIST_INTEGRATIONS, arguments: { "category" => "observability" })
     conversation.chat.add_message(role: :tool, content: "{}", tool_call_id: "call_1")
     conversation.note!("Datadog is connected.")
     conversation.reply_delivered!

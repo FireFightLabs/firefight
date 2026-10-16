@@ -9,7 +9,7 @@ import { onboardingChecklistAiPath } from "@/lib/routes"
 import { cn } from "@/lib/utils"
 import { AiAccountsCard } from "@/components/ai/ai-accounts-card"
 import { AiCreditsRow } from "@/components/ai/ai-credits-row"
-import { CreditPacks, creditPriceNote } from "@/components/ai/credit-packs"
+import { CreditPacks } from "@/components/ai/credit-packs"
 import { StepActions } from "@/pages/setup/components/step-actions"
 import type { SetupPageProps } from "@/pages/setup/types"
 import type { OnboardingStep } from "@/types/serializers"
@@ -27,6 +27,7 @@ export function AiStep({ step }: { step: OnboardingStep }) {
   const canManageAccounts = useCan("ai_accounts")
   // Packs bought here bring the person back to this step, so the row's link away to billing is left off.
   const purchase = canManageAccounts ? aiCreditPurchase : null
+  const purchaseWords = Boolean(purchase?.note || purchase?.estimate)
   const offeredValues = aiChoices.map((option) => option.value)
   const [ choice, setChoice ] = useState<AiChoice>(aiChoice && isChoice(aiChoice) && offeredValues.includes(aiChoice) ? aiChoice : SETUP_AI_CHOICES.ACCOUNT)
   const [ saving, setSaving ] = useState(false)
@@ -92,11 +93,12 @@ export function AiStep({ step }: { step: OnboardingStep }) {
           <AiCreditsRow credits={aiCredits} canManage={canManageAccounts && !purchase} />
           {purchase && (
             <div className="flex flex-col gap-3 border-t px-4 py-3">
-              <div className="flex flex-col gap-1 text-xs leading-relaxed text-muted-foreground">
-                {purchase.note && <p className="text-sm text-fg-primary">{purchase.note}</p>}
-                <p>{creditPriceNote(purchase.markupPercent)}</p>
-                {purchase.estimate && <p>{purchase.estimate}</p>}
-              </div>
+              {purchaseWords && (
+                <div className="flex flex-col gap-1 text-xs leading-relaxed text-muted-foreground">
+                  {purchase.note && <p className="text-sm text-fg-primary">{purchase.note}</p>}
+                  {purchase.estimate && <p>{purchase.estimate}</p>}
+                </div>
+              )}
               <div className="flex flex-col gap-2">
                 <span className="text-xs font-medium text-fg-secondary">Buy more</span>
                 <CreditPacks packs={purchase.packs} blockedReason={purchase.blockedReason} checkoutPath={purchase.checkoutPath} />

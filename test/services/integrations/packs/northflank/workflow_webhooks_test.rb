@@ -54,7 +54,7 @@ module Integrations
 
           assert_equal "https://webhooks.northflank.com/workflows/#{TOKEN}", @pack.secret_value(environment_row: @row, path: "firefight/release/deploy-hook")
           assert_nil @pack.secret_value(environment_row: @row, path: "firefight/release/missing")
-          assert_raises(NativePack::Error) { @pack.secret_value(environment_row: @row, path: "elsewhere/release/deploy-hook") }
+          assert_raises(Integrations::PolicyRefusal) { @pack.secret_value(environment_row: @row, path: "elsewhere/release/deploy-hook") }
         end
 
         test "reading a workflow through api_request never shows a webhook token or address" do

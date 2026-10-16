@@ -19,6 +19,10 @@ class Conversation::Rehearsal::State
 
   Watch = Struct.new(:id, :title, :purpose, :steps, :minutes, keyword_init: true)
   Plan = Struct.new(:id, :goal, :steps, :status, :outcome, keyword_init: true)
+  PLAN_GOING = "going".freeze
+  PLAN_FINISHED = "finished".freeze
+  PLAN_CANCELLED = "cancelled".freeze
+  STEP_WAITING = "waiting".freeze
 
   def initialize(world)
     @world = world
@@ -103,8 +107,8 @@ class Conversation::Rehearsal::State
   end
 
   def make_plan(given)
-    plan = Plan.new(id: "P#{@plans.size + 1}", goal: given["goal"].to_s, status: "going",
-                    steps: Array(given["steps"]).map { |step| step.to_h.merge("status" => "waiting") })
+    plan = Plan.new(id: "P#{@plans.size + 1}", goal: given["goal"].to_s, status: PLAN_GOING,
+                    steps: Array(given["steps"]).map { |step| step.to_h.merge("status" => STEP_WAITING) })
     @plans << plan
     "Plan #{plan.id} saved for \"#{plan.goal}\". The person sees it as a checklist:\n#{plan_lines(plan)}"
   end
@@ -113,7 +117,7 @@ class Conversation::Rehearsal::State
     plan = find_plan(given["plan"])
     return "There is no plan going in this chat." unless plan
 
-    plan.steps = Array(given["revise"]).map { |step| step.to_h.merge("status" => "waiting") } if given["revise"].present?
+    plan.steps = Array(given["revise"]).map { |step| step.to_h.merge("status" => STEP_WAITING) } if given["revise"].present?
     number = given["step"].to_i
     step = plan.steps[number - 1] if number.positive?
     step&.merge!(given.slice("status", "note", "verdict").compact)
@@ -124,7 +128,7 @@ class Conversation::Rehearsal::State
     plan = find_plan(given["plan"])
     return "There is no plan going in this chat." unless plan
 
-    plan.status = "finished"
+    plan.status = PLAN_FINISHED
     plan.outcome = given["outcome"]
     "Plan #{plan.id} finished: #{plan.outcome}"
   end
@@ -133,7 +137,7 @@ class Conversation::Rehearsal::State
     plan = find_plan(given["plan"])
     return "There is no plan going in this chat." unless plan
 
-    plan.status = "cancelled"
+    plan.status = PLAN_CANCELLED
     "Plan #{plan.id} cancelled: #{given['reason']}"
   end
 
@@ -167,7 +171,7 @@ class Conversation::Rehearsal::State
   end
 
   def find_plan(reference)
-    going = @plans.select { |plan| plan.status == "going" }
+    going = @plans.select { |plan| plan.status == PLAN_GOING }
     going.find { |plan| plan.id.casecmp?(reference.to_s) } || going.last
   end
 

@@ -1,6 +1,6 @@
 # What setup offers to buy with Firefight credits, from the hosted build's answer (Entitlements.ai_credit), with the AI
 # the plan includes every month, or else the starter credit a new workspace was given, and roughly what it buys said in
-# words. Nil where credits are not sold.
+# words. The markup only shapes the estimate and never reaches the browser. Nil where credits are not sold.
 module AiCredit::Purchase
   # What one chat answer cost on the default model at list price, measured by the chat bench on Claude Sonnet 5.5 at
   # about $0.09 a scenario. It only says roughly what a balance buys and never charges anything.
@@ -14,7 +14,7 @@ module AiCredit::Purchase
     included = offer[:includedMicros].to_i
     amount = included.positive? ? included : offer[:starterMicros].to_i
     note = included.positive? ? included_note(included) : starter_note(amount)
-    offer.except(:starterMicros, :includedMicros).merge(
+    offer.except(:starterMicros, :includedMicros, :markupPercent).merge(
       note: (note if amount.positive?),
       estimate: (estimate(amount, offer[:markupPercent].to_i) if amount.positive?)
     )

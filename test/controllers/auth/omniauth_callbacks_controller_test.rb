@@ -186,7 +186,7 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     get "/auth/slack_openid/callback"
 
     assert_redirected_to login_path
-    assert_equal "Sign-in failed. Please try again.", flash[:alert]
+    assert_equal "Sign-in did not finish. Sign in again to continue.", flash[:alert]
     assert_nil session[:user_id]
   end
 
@@ -210,11 +210,28 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     assert_equal alice.id, session[:user_id]
   end
 
+  test "an install that breaks says it did not finish and to start again" do
+    OmniAuth.config.mock_auth[:slack] = mock_slack_auth_hash(extra: { team_info: { "id" => "T_BROKEN", "name" => "Broken Co" } })
+    SlackAuthenticationService.any_instance.stubs(:handle_install).raises(StandardError, "kaboom")
+
+    get "/auth/slack/callback"
+
+    assert_redirected_to login_path
+    assert_equal "Adding Firefight to Slack did not finish. Start again to add it.", flash[:alert]
+  end
+
+  test "access denied by an unknown strategy says sign-in did not finish" do
+    get "/auth/failure?message=access_denied&strategy=unknown"
+
+    assert_redirected_to login_path
+    assert_equal "Sign-in did not finish. Start again to continue.", flash[:alert]
+  end
+
   test "failure with csrf_detected redirects to login with specific alert" do
     get "/auth/failure?message=csrf_detected"
 
     assert_redirected_to login_path
-    assert_equal "Authentication session expired. Please try again.", flash[:alert]
+    assert_equal "The sign-in expired before it finished. Start again to continue.", flash[:alert]
   end
 
   test "failure with access_denied redirects with denial alert" do
@@ -235,13 +252,13 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     get "/auth/failure?message=invalid_credentials"
 
     assert_redirected_to login_path
-    assert_equal "Invalid credentials. Please contact support.", flash[:alert]
+    assert_equal "The sign-in was refused by the account provider. Start again, or contact support if it keeps happening.", flash[:alert]
   end
 
   test "failure with unknown message falls back to generic alert" do
     get "/auth/failure?message=something_weird"
 
     assert_redirected_to login_path
-    assert_equal "Authentication failed. Please try again.", flash[:alert]
+    assert_equal "Sign-in did not finish. Start again to continue.", flash[:alert]
   end
 end

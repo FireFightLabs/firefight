@@ -6,7 +6,7 @@ class Conversation::Tools::StartInvestigation < RubyLLM::Tool
               "without checking something it can reach now, such as a tool granted since, offer to run it again and start " \
               "it yourself once the person agrees."
 
-  def self.tool_name = Mcp::Tools::START_INVESTIGATION
+  def self.tool_name = FirefightTools::START_INVESTIGATION
 
   def initialize(turn)
     super()

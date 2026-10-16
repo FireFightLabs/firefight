@@ -23,6 +23,16 @@ module Integrations
                    "say in your answer that PlanetScale was slow and what you did instead.", error.message
     end
 
+    test "a server's own error words lose credentials before they reach the model, as an answer's do" do
+      client = mock("client")
+      client.expects(:call_tool).raises(McpClient::Error.new("MCP error: cannot open DATABASE_URL=postgres://app:s3cret@db.internal/app"))
+      McpClient.stubs(:new).returns(client)
+
+      error = assert_raises(McpClient::Error) { call(@read) }
+
+      assert_equal "MCP error: cannot open DATABASE_URL=[REDACTED:credential_url]db.internal/app", error.message
+    end
+
     test "a database read that answers in time comes back as it always did" do
       client = mock("client")
       client.expects(:call_tool).with(name: "planetscale_execute_read_query", arguments: { "query" => "select 1" })

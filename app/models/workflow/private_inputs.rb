@@ -1,5 +1,5 @@
 # A trigger input marked private, such as a check's notes, whose value names systems and thresholds and so is kept like
-# instructions are: encrypted, and never in the trigger, an edit, a run's inputs, a step's data or the engine's context.
+# instructions are, encrypted and never in the trigger, an edit, a run's inputs, a step's data or the engine's context.
 # Each version keeps the values its trigger asks with, so a draft's change waits for publishing like the rest of it, and a
 # run keeps the value it was started with. Everywhere else a private input reads as its token, and only a Halon step,
 # whose words are kept encrypted too, is handed the value, in memory, just before it asks the model.

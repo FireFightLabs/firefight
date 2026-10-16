@@ -408,7 +408,7 @@ module Integrations
           "  #{job['name']}  #{outcome(job)}#{" at #{failed.join(', ')}" if failed.any?}#{took}  job #{job['id']}  #{job['html_url']}"
         end
 
-        def actions_link(url) = url.present? ? Telemetry::Link.new(provider: "GitHub", url: url) : nil
+        def actions_link(url) = url.present? ? Telemetry::Link.new(provider: GithubApp::PROVIDER, url: url) : nil
 
         # The newest failed run that fits, and its first failed job.
         def newest_failed_job(repo, token, arguments)

@@ -14,14 +14,14 @@ class Chat::SourcesTest < ActiveSupport::TestCase
 
   test "an answer lists the reads of its turn, each with the page its result gave, once each, never a change or a failed call" do
     asked!("how did the release go?", at: 10.minutes.ago)
-    read!("old", Mcp::Tools::SEARCH_INCIDENTS, "INC-1 https://old.test/1", at: 9.minutes.ago)
+    read!("old", FirefightTools::SEARCH_INCIDENTS, "INC-1 https://old.test/1", at: 9.minutes.ago)
     reply!("Earlier answer.", at: 8.minutes.ago)
     asked!("and now?", at: 5.minutes.ago)
-    read!("c1", Mcp::Tools::GET_INCIDENT, "INC-160 API errors.\n#{Integrations::Telemetry.link_line(Integrations::Telemetry::Link.new(provider: 'Firefight', url: 'https://app.firefight.app/incidents/INC-160'))}", at: 4.minutes.ago)
-    read!("c2", Mcp::Tools::SEARCH_INCIDENTS, "Run 4182 failed at migrate. #{RUN}.", at: 3.minutes.ago)
-    read!("c3", Mcp::Tools::SEARCH_INCIDENTS, "Run 4182 failed at migrate. #{RUN}.", at: 3.minutes.ago)
-    read!("c4", Mcp::Tools::RESOLVE_INCIDENT, "Resolved INC-160 https://x.test/resolved", at: 2.minutes.ago)
-    read!("c5", Mcp::Tools::GET_INCIDENT, "boom https://x.test/failed", at: 2.minutes.ago, failed: true)
+    read!("c1", FirefightTools::GET_INCIDENT, "INC-160 API errors.\n#{Integrations::Telemetry.link_line(Integrations::Telemetry::Link.new(provider: 'Firefight', url: 'https://app.firefight.app/incidents/INC-160'))}", at: 4.minutes.ago)
+    read!("c2", FirefightTools::SEARCH_INCIDENTS, "Run 4182 failed at migrate. #{RUN}.", at: 3.minutes.ago)
+    read!("c3", FirefightTools::SEARCH_INCIDENTS, "Run 4182 failed at migrate. #{RUN}.", at: 3.minutes.ago)
+    read!("c4", FirefightTools::RESOLVE_INCIDENT, "Resolved INC-160 https://x.test/resolved", at: 2.minutes.ago)
+    read!("c5", FirefightTools::GET_INCIDENT, "boom https://x.test/failed", at: 2.minutes.ago, failed: true)
     reply = reply!("Run 4182 failed.", at: 1.minute.ago)
 
     sources = Chat::Sources.for_reply(reply)
@@ -36,7 +36,7 @@ class Chat::SourcesTest < ActiveSupport::TestCase
     helper = Chat::Helper.start!(chat: @chat, tool_call_id: "call_ask", since: 3.minutes.ago,
                                  checks: [ Chat::Helpers::Check.new(title: "Databases", brief: "Read", deep: false, domain: Chat::Specialists::DATABASES) ]).sole
     own = Chat.open!(owner: helper, workspace: @workspace, model_choice: FirefightAi::ModelChoice.new(model: "gpt-4o-mini"))
-    read!("s_1", Mcp::Tools::SEARCH_INCIDENTS, "498 of 500 https://app.planetscale.com/x/insights", at: 2.minutes.ago, chat: own)
+    read!("s_1", FirefightTools::SEARCH_INCIDENTS, "498 of 500 https://app.planetscale.com/x/insights", at: 2.minutes.ago, chat: own)
     reply = reply!("worker holds them.", at: 1.minute.ago)
 
     assert_equal [ "https://app.planetscale.com/x/insights" ], Chat::Sources.for_reply(reply).map(&:url)
@@ -44,7 +44,7 @@ class Chat::SourcesTest < ActiveSupport::TestCase
 
   test "the page ships the sources with the reply that ends a turn, and a thread gets them as one small line under the answer" do
     asked!("how did the release go?", at: 3.minutes.ago)
-    read!("c1", Mcp::Tools::SEARCH_INCIDENTS, "Run 4182 failed. #{RUN}", at: 2.minutes.ago)
+    read!("c1", FirefightTools::SEARCH_INCIDENTS, "Run 4182 failed. #{RUN}", at: 2.minutes.ago)
     reply = reply!("Run 4182 failed.", at: 1.minute.ago)
 
     shipped = AgentChatMessageSerializer.one(reply)[:sources]

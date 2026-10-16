@@ -21,7 +21,7 @@ class McpPostmortemToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "an incident still open has nothing to write up" do
-    _, is_error, text = call_tool(Mcp::Tools::START_POSTMORTEM, { incident: @incident.identifier })
+    _, is_error, text = call_tool(FirefightTools::START_POSTMORTEM, { incident: @incident.identifier })
 
     assert is_error
     assert_match(/still open/, text)
@@ -31,7 +31,7 @@ class McpPostmortemToolsTest < ActionDispatch::IntegrationTest
   test "a canceled incident has nothing to write up either" do
     IncidentLifecycleService.new(@workspace).cancel_with_default_status(@incident, changed_by: @membership)
 
-    _, is_error, text = call_tool(Mcp::Tools::START_POSTMORTEM, { incident: @incident.identifier })
+    _, is_error, text = call_tool(FirefightTools::START_POSTMORTEM, { incident: @incident.identifier })
 
     assert is_error
     assert_match(/canceled/, text)
@@ -41,7 +41,7 @@ class McpPostmortemToolsTest < ActionDispatch::IntegrationTest
   test "an agent starts a blank postmortem and is recorded as its author" do
     resolve!
 
-    content, is_error = call_tool(Mcp::Tools::START_POSTMORTEM, {
+    content, is_error = call_tool(FirefightTools::START_POSTMORTEM, {
       incident: @incident.identifier
     }, token: @agent_token)
 
@@ -54,9 +54,9 @@ class McpPostmortemToolsTest < ActionDispatch::IntegrationTest
 
   test "starting one twice says it already has one" do
     resolve!
-    call_tool(Mcp::Tools::START_POSTMORTEM, { incident: @incident.identifier })
+    call_tool(FirefightTools::START_POSTMORTEM, { incident: @incident.identifier })
 
-    _, is_error, text = call_tool(Mcp::Tools::START_POSTMORTEM, { incident: @incident.identifier })
+    _, is_error, text = call_tool(FirefightTools::START_POSTMORTEM, { incident: @incident.identifier })
 
     assert is_error
     assert_match(/already has a postmortem/, text)
@@ -64,9 +64,9 @@ class McpPostmortemToolsTest < ActionDispatch::IntegrationTest
 
   test "an agent writes the body and the timeline records the edit" do
     resolve!
-    call_tool(Mcp::Tools::START_POSTMORTEM, { incident: @incident.identifier }, token: @agent_token)
+    call_tool(FirefightTools::START_POSTMORTEM, { incident: @incident.identifier }, token: @agent_token)
 
-    content, is_error = call_tool(Mcp::Tools::UPDATE_POSTMORTEM, {
+    content, is_error = call_tool(FirefightTools::UPDATE_POSTMORTEM, {
       incident: @incident.identifier,
       html: "<h2>What happened</h2><p>The connection pool was exhausted.</p>",
       version: @incident.reload.postmortem.content_version
@@ -80,9 +80,9 @@ class McpPostmortemToolsTest < ActionDispatch::IntegrationTest
 
   test "the markup is sanitised down to what the editor allows" do
     resolve!
-    call_tool(Mcp::Tools::START_POSTMORTEM, { incident: @incident.identifier })
+    call_tool(FirefightTools::START_POSTMORTEM, { incident: @incident.identifier })
 
-    call_tool(Mcp::Tools::UPDATE_POSTMORTEM, {
+    call_tool(FirefightTools::UPDATE_POSTMORTEM, {
       incident: @incident.identifier,
       html: "<p>Fine</p><script>alert('no')</script>",
       version: @incident.reload.postmortem.content_version
@@ -95,13 +95,13 @@ class McpPostmortemToolsTest < ActionDispatch::IntegrationTest
 
   test "reading one back returns the body and who wrote it" do
     resolve!
-    call_tool(Mcp::Tools::START_POSTMORTEM, { incident: @incident.identifier }, token: @agent_token)
-    call_tool(Mcp::Tools::UPDATE_POSTMORTEM, {
+    call_tool(FirefightTools::START_POSTMORTEM, { incident: @incident.identifier }, token: @agent_token)
+    call_tool(FirefightTools::UPDATE_POSTMORTEM, {
       incident: @incident.identifier, html: "<p>Root cause was the pooler.</p>",
       version: @incident.reload.postmortem.content_version
     }, token: @agent_token)
 
-    content, is_error = call_tool(Mcp::Tools::GET_POSTMORTEM, { incident: @incident.identifier })
+    content, is_error = call_tool(FirefightTools::GET_POSTMORTEM, { incident: @incident.identifier })
 
     assert_not is_error, content.inspect
     assert_includes content["html"], "Root cause was the pooler"
@@ -111,12 +111,12 @@ class McpPostmortemToolsTest < ActionDispatch::IntegrationTest
   # An agent read the document, a person edited it before the agent wrote. The agent loses.
   test "an agent writing against a replaced version is refused rather than winning" do
     resolve!
-    call_tool(Mcp::Tools::START_POSTMORTEM, { incident: @incident.identifier }, token: @agent_token)
+    call_tool(FirefightTools::START_POSTMORTEM, { incident: @incident.identifier }, token: @agent_token)
     postmortem = @incident.reload.postmortem
     stale = postmortem.content_version
     postmortem.update_content!("<p>Typed by a person</p>", by: @membership, expected_version: stale)
 
-    _, is_error, text = call_tool(Mcp::Tools::UPDATE_POSTMORTEM, {
+    _, is_error, text = call_tool(FirefightTools::UPDATE_POSTMORTEM, {
       incident: @incident.identifier, html: "<p>Written by an agent</p>", version: stale
     }, token: @agent_token)
 
@@ -128,7 +128,7 @@ class McpPostmortemToolsTest < ActionDispatch::IntegrationTest
   test "an incident with no postmortem says so rather than returning an empty one" do
     resolve!
 
-    _, is_error, text = call_tool(Mcp::Tools::GET_POSTMORTEM, { incident: @incident.identifier })
+    _, is_error, text = call_tool(FirefightTools::GET_POSTMORTEM, { incident: @incident.identifier })
 
     assert is_error
     assert_match(/no postmortem yet/, text)
@@ -136,9 +136,9 @@ class McpPostmortemToolsTest < ActionDispatch::IntegrationTest
 
   test "moving it to review records where it now sits" do
     resolve!
-    call_tool(Mcp::Tools::START_POSTMORTEM, { incident: @incident.identifier })
+    call_tool(FirefightTools::START_POSTMORTEM, { incident: @incident.identifier })
 
-    content, is_error = call_tool(Mcp::Tools::SET_POSTMORTEM_STATUS, {
+    content, is_error = call_tool(FirefightTools::SET_POSTMORTEM_STATUS, {
       incident: @incident.identifier, status: Postmortem::STATUS_IN_REVIEW
     })
 
@@ -153,7 +153,7 @@ class McpPostmortemToolsTest < ActionDispatch::IntegrationTest
       permissions: { Ability::Action::RESOURCE_INCIDENTS => %w[read] }
     )
 
-    _, is_error = call_tool(Mcp::Tools::START_POSTMORTEM, { incident: @incident.identifier }, token: token)
+    _, is_error = call_tool(FirefightTools::START_POSTMORTEM, { incident: @incident.identifier }, token: token)
 
     assert is_error
     assert_nil @incident.reload.postmortem

@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class GiveShoutout < Base
-      tool_name GIVE_SHOUTOUT
+      tool_name FirefightTools::GIVE_SHOUTOUT
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Thank someone for their work on an incident, posted in the incident channel, " \
                   "the same as a person running /ff shoutout. If the call requires approval, " \

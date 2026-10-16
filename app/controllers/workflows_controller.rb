@@ -106,8 +106,7 @@ class WorkflowsController < InertiaController
     blocked = @workflow.deletion_blocked_reason
     return redirect_to(workflow_path(@workflow), alert: blocked) if blocked
 
-    @workflow.agent&.destroy!
-    @workflow.destroy!
+    @workflow.destroy_with_agent!
     redirect_to halon_workflows_path, notice: "#{@workflow.name} was deleted."
   end
 

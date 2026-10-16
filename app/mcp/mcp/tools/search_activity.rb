@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class SearchActivity < Base
-      tool_name SEARCH_ACTIVITY
+      tool_name FirefightTools::SEARCH_ACTIVITY
       description "The gateway's audit log: every call to a connected tool, every configuration " \
                   "change and every refused or waiting request, with who made it and from where. " \
                   "Newest first. Docs: #{Docs::ACTIVITY}"

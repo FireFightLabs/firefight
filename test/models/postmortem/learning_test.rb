@@ -25,4 +25,21 @@ class Postmortem::LearningTest < ActiveSupport::TestCase
 
     assert_equal workspace_memberships(:bob_workspace_one), postmortem.completed_by
   end
+
+  test "of two people completing it at once, only the one who completed it first is on record and the job is queued once" do
+    incident = incidents(:active_critical_ws1)
+    postmortem = Postmortem.create!(incident: incident, generated_by: workspace_memberships(:alice_workspace_one), title: "Pool",
+                                    status: Postmortem::STATUS_IN_REVIEW, content: { "html" => "<p>It was the pool</p>" })
+    stale = Postmortem.find(postmortem.id)
+
+    assert_enqueued_jobs(1, only: IncidentLearningJob) do
+      postmortem.update_status!(Postmortem::STATUS_COMPLETED, by: workspace_memberships(:bob_workspace_one))
+      assert_no_difference -> { postmortem.postmortem_updates.count } do
+        stale.update_status!(Postmortem::STATUS_COMPLETED, by: workspace_memberships(:alice_workspace_one))
+      end
+    end
+
+    assert_equal workspace_memberships(:bob_workspace_one), postmortem.completed_by
+    assert_equal Postmortem::STATUS_COMPLETED, stale.status
+  end
 end

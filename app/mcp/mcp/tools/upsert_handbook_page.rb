@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class UpsertHandbookPage < Base
-      tool_name UPSERT_HANDBOOK_PAGE
+      tool_name FirefightTools::UPSERT_HANDBOOK_PAGE
       description "Add a handbook page, or change one by its id or title. Halon reads the handbook at the start of every chat " \
                   "and investigation. To change a page, pass page and only what changes, with wording_id from get_handbook_page " \
                   "so an edit made over someone else's is refused rather than written over it. A page with incident_role says " \

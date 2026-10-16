@@ -2,7 +2,7 @@ module Mcp
   module Tools
     # How long the workspace's workflow runs keep their details, the setting under Settings, Workspace.
     class UpdateWorkflowSettings < Base
-      tool_name UPDATE_WORKFLOW_SETTINGS
+      tool_name FirefightTools::UPDATE_WORKFLOW_SETTINGS
       authorize_as Ability::Action::RESOURCE_WORKSPACE, Ability::Action::ACTION_UPDATE
       behind_flag FeatureFlags::WORKFLOWS
       description "Set how many days a workflow run keeps what each step did, between #{Workflow::Run::Retention::DAYS.min} and " \

@@ -17,7 +17,7 @@ module Workflow::Trigger::Events
   module_function
 
   # Says that something happened. details are plain values the job reads it with, beside the record it is about. It
-  # never raises: telling workflows is never allowed to stop what happened from finishing, such as an investigation
+  # never raises, since telling workflows is never allowed to stop what happened from finishing, such as an investigation
   # closing or a failed run being said, so a failure here is logged and the event goes unheard.
   def fire!(workspace, kind, key:, subject:, details: {}, actor: nil)
     return unless listened?(workspace, kind)

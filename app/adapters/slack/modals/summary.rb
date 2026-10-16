@@ -20,10 +20,10 @@ module Slack
             },
             {
               type: "input",
-              block_id: "summary_block",
+              block_id: Identifiers::SUMMARY_BLOCK,
               element: {
                 type: "plain_text_input",
-                action_id: "summary_input",
+                action_id: Identifiers::SUMMARY_INPUT,
                 multiline: true,
                 placeholder: { type: "plain_text", text: "What is your current understanding of the incident and its impact?" },
                 max_length: 3000

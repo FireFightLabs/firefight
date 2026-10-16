@@ -16,7 +16,7 @@ module Mcp
       test "it authorizes as map read, only reads and sits in the map's tool group" do
         assert_equal [ Ability::Action::RESOURCE_MAP, Ability::Action::ACTION_READ ], SearchMap.authorization(@workspace, {})
         assert SearchMap.annotations_value.read_only_hint
-        group = Chat::Tools::Groups::FIREFIGHT.find { |each| each.tools.include?(SEARCH_MAP) }
+        group = Chat::Tools::Groups::FIREFIGHT.find { |each| each.tools.include?(FirefightTools::SEARCH_MAP) }
         assert_equal Chat::Tools::Groups::MAP, group.key
       end
 

@@ -120,7 +120,7 @@ class SetupControllerTest < ActionDispatch::IntegrationTest
     purchase = inertia_props["aiCreditPurchase"]
     assert_equal AiAccountTestHelper::PACK_CENTS, purchase["packs"].pluck("cents")
     assert_equal %w[$25 $50 $100 $250], purchase["packs"].pluck("price")
-    assert_equal 20, purchase["markupPercent"]
+    assert_not purchase.key?("markupPercent"), "the markup stays on the server"
     assert_equal "Includes $10 to get started. Buy more any time.", purchase["note"]
     assert_equal "As a rough guide, $10 is about 90 questions to Halon.", purchase["estimate"]
     returning = onboarding_checklist_path(step: WorkspaceOnboarding::STEP_AI, ai: WorkspaceOnboarding::AI_CREDITS)

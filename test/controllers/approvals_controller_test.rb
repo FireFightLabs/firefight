@@ -99,7 +99,7 @@ class ApprovalsControllerTest < ActionDispatch::IntegrationTest
   test "approving publishing a workflow says it is published, and says when granting what it needs can wait as well" do
     calm = drafted_workflow("Calm down", { "id" => "wait", "name" => "wait", "kind" => DefinedWorkflow::KIND_DELAY, "config" => { "minutes" => 5 } })
     look = drafted_workflow("Look around", { "id" => "look", "name" => "look", "kind" => "call_tool",
-                                             "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => {} } })
+                                             "config" => { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => {} } })
     granting = held(SystemAgent.investigator, Workflow::GRANT_KEY)
     ApprovalResumption.park_workflow_publish!(granting, look, revision: look.draft.revision, source: AbilityGateway::SOURCE_MCP,
                                                               stage: WorkflowPublishService::STAGE_GRANT)
