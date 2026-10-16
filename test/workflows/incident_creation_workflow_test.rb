@@ -76,6 +76,37 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
     assert_equal 1, @workspace.onboarding.reload.walkthrough_step
   end
 
+  test "the first walkthrough step comes last, after the quick actions are pinned and everyone declared with it has joined" do
+    stub_successful_slack_workflow
+    @workspace.create_onboarding!
+    @incident.update!(is_test: true)
+    responder = workspace_memberships(:bob_workspace_one)
+    channel = sequence("channel")
+    Slack::WorkspaceAdapter.any_instance.expects(:invite_users)
+      .with(has_entries(user_ids: [ responder.platform_user_id ])).in_sequence(channel).returns({ ok: true })
+    Slack::WorkspaceAdapter.any_instance.expects(:post_incident_quick_actions).in_sequence(channel).returns({ message_id: "1.1", channel_id: "C12345678" })
+    Slack::WorkspaceAdapter.any_instance.expects(:pin_message).in_sequence(channel).returns({ ok: true })
+    Slack::WorkspaceAdapter.any_instance.expects(:invite_user)
+      .with(has_entries(user_id: @member.platform_user_id)).in_sequence(channel).returns({ ok: true })
+    Slack::WorkspaceAdapter.any_instance.expects(:post_first_incident_walkthrough)
+      .with(has_entries(step: 1)).in_sequence(channel).returns({ message_id: "1.2", channel_id: "C12345678" })
+
+    workflow = IncidentCreationWorkflow.start_inline!(@incident, context: { "invite_membership_ids" => [ responder.id ] })
+
+    assert_equal "succeeded", workflow.state
+  end
+
+  test "the guide is the run's to post until it reaches its walkthrough step" do
+    stub_successful_slack_workflow
+    workflow = IncidentCreationWorkflow.start!(@incident)
+
+    assert IncidentCreationWorkflow.opening?(@incident)
+
+    IncidentCreationWorkflow.drain_inline!(workflow)
+
+    assert_not IncidentCreationWorkflow.opening?(@incident)
+  end
+
   test "attach_runbooks auto-attaches matching runbooks on incident creation" do
     stub_successful_slack_workflow
     runbook = @workspace.runbooks.create!(name: "Auto attach me")

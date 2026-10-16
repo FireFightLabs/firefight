@@ -4,7 +4,8 @@ class IncidentCreationWorkflow < SolidWorkflow::Base
   step :create_slack_channel
   step :set_channel_metadata, depends_on: [ :create_slack_channel ]
   step :post_quick_actions_message, depends_on: [ :set_channel_metadata ]
-  step :post_first_incident_walkthrough, depends_on: [ :post_quick_actions_message ]
+  # Last in the channel, under the pinned quick actions and after everyone declared with it has joined.
+  step :post_first_incident_walkthrough, depends_on: [ :post_quick_actions_message, :invite_declarer, :invite_responders ]
   step :post_announcement, depends_on: [ :create_slack_channel ]
   step :invite_declarer, depends_on: [ :post_quick_actions_message ]
   step :invite_responders, depends_on: [ :create_slack_channel ]
@@ -12,6 +13,14 @@ class IncidentCreationWorkflow < SolidWorkflow::Base
   step :post_carried_over_investigation, depends_on: [ :post_quick_actions_message ]
   step :start_alert_investigation, depends_on: [ :post_quick_actions_message ]
   step :create_incident_event
+
+  # The run has not yet reached its walkthrough step, so the guide is still this run's to post.
+  def self.opening?(incident)
+    SolidWorkflow::Step.pending.where(
+      name: "post_first_incident_walkthrough",
+      workflow: SolidWorkflow::Workflow.live.where(subject: incident, workflow_class: name)
+    ).exists?
+  end
 
   def create_slack_channel(workflow:, step:, input:)
     service(workflow).create_channel(workflow.subject)
