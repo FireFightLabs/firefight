@@ -1,5 +1,5 @@
 # Makes the short plan Halon keeps for a request that takes more than one step, which the person sees as a checklist.
-# A later time is refused, since something to do then is a workflow.
+# A later time is a workflow, so a run_at sent anyway is refused with where to make it.
 class Conversation::Tools::MakePlan < Conversation::Tools::PlanTool
   NAME = "make_plan".freeze
 
@@ -9,9 +9,8 @@ class Conversation::Tools::MakePlan < Conversation::Tools::PlanTool
               "goal in the person's words and a step per action naming where it happens, then say the plan back in two short " \
               "lines and start, since each change asks the person when it runs. The person sees it as a checklist that moves " \
               "as you update it. Each change carries its undo, written now. A plan that changes anything ends with a check " \
-              "step that reads health, error rate and latency against normal. Give run_at only when the person asked for it " \
-              "to happen at a later time: the plan then waits for them to approve it, and at that time Halon reads how things " \
-              "stand and runs it as them. A time inside a freeze is refused, so offer one after it."
+              "step that reads health, error rate and latency against normal. A plan is for what you do now. Something the " \
+              "person wants done at a later time is a workflow, made with create_workflow."
 
   def name = NAME
 
@@ -20,13 +19,7 @@ class Conversation::Tools::MakePlan < Conversation::Tools::PlanTool
       "type" => "object",
       "properties" => {
         "goal" => { "type" => "string", "description" => "What the person wants done, in their own words, such as release main to production" },
-        "steps" => { "type" => "array", "items" => STEP, "description" => "The steps in order, #{Chat::Plan::MIN_STEPS} to #{Chat::Plan::MAX_STEPS}" },
-        "run_at" => { "type" => "string",
-                      "description" => "Only when the person asked for a later time: when to run it, as a local date and time such as " \
-                                       "2026-10-11T06:00, worked out from today's date (optional)" },
-        "time_zone" => { "type" => "string",
-                         "description" => "The time zone run_at is in, such as Europe/Berlin, when the person named one. Left out, it is " \
-                                          "their own time zone (optional)" }
+        "steps" => { "type" => "array", "items" => STEP, "description" => "The steps in order, #{Chat::Plan::MIN_STEPS} to #{Chat::Plan::MAX_STEPS}" }
       },
       "required" => %w[goal steps]
     }

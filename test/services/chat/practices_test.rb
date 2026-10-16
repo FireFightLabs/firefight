@@ -57,7 +57,7 @@ class Chat::PracticesTest < ActiveSupport::TestCase
 
   test "a plan's rules are in its tools and in the plans Halon reads each turn" do
     assert_match "say the plan back in two short lines and start", Conversation::Tools::MakePlan.new(@turn).description
-    assert_match "A time inside a freeze is refused", Conversation::Tools::MakePlan.new(@turn).description
+    assert_match "at a later time is a workflow, made with create_workflow", Conversation::Tools::MakePlan.new(@turn).description
     update = Conversation::Tools::UpdatePlan.new(@turn).description
     assert_match "resource_status and its error rate and p95 latency with run_key_query", update
     assert_match "offer to retry or undo", update

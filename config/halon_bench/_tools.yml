@@ -760,8 +760,7 @@ make_plan:
     is settled with the person first. Give the goal in the person's words and a step per action naming where it happens, then say the plan back
     in two short lines and start, since each change asks the person when it runs. The person sees it as a checklist that moves as you update it.
     Each change carries its undo, written now. A plan that changes anything ends with a check step that reads health, error rate and latency against
-    normal. Give run_at only when the person asked for it to happen at a later time: the plan then waits for them to approve it, and at that time
-    Halon reads how things stand and runs it as them. A time inside a freeze is refused, so offer one after it.
+    normal. A plan is for what you do now. Something the person wants done at a later time is a workflow, made with create_workflow.
   parameters:
     type: object
     properties:
@@ -796,14 +795,6 @@ make_plan:
           - description
           - kind
         description: The steps in order, 2 to 12
-      run_at:
-        type: string
-        description: >-
-          Only when the person asked for a later time: when to run it, as a local date and time such as 2026-10-11T06:00, worked out from today's
-          date (optional)
-      time_zone:
-        type: string
-        description: The time zone run_at is in, such as Europe/Berlin, when the person named one. Left out, it is their own time zone (optional)
     required:
     - goal
     - steps

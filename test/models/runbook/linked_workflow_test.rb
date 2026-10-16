@@ -211,7 +211,7 @@ class Runbook::LinkedWorkflowTest < ActiveSupport::TestCase
   end
 
   test "shipping workflows moves every workspace's runbooks and forgets both flags" do
-    require Rails.root.join("db/migrate/20261016160000_ship_workflows_and_custom_skills")
+    require Rails.root.join("db/migrate/20261016190000_ship_workflows_and_custom_skills")
     other = rollback_runbook
     ActiveRecord::Base.connection.execute(
       "INSERT INTO flipper_gates (feature_key, key, value, created_at, updated_at) VALUES ('custom_skills', 'actors', 'Workspace;#{@workspace.id}', now(), now())"
