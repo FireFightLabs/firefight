@@ -36,6 +36,8 @@ class FirefightAi::AgentLoopMemoryTest < ActiveSupport::TestCase
     end
 
     def to_llm = self
+
+    def caching = nil
     def reload = self
     def awaiting_approval? = false
     def before_tool_call(&) = nil
