@@ -1,6 +1,6 @@
 require "test_helper"
 
-# Where a workspace has workflows, a runbook is a guide and what it ran moves into a workflow it links. Every field a
+# A runbook is a guide and what it ran moves into a workflow it links. Every field a
 # runbook held is accounted for: what it runs in the workflow, the rest on the runbook as it was.
 class Runbook::LinkedWorkflowTest < ActiveSupport::TestCase
   setup do
@@ -142,11 +142,11 @@ class Runbook::LinkedWorkflowTest < ActiveSupport::TestCase
 
   test "a runbook only moves once, and a disabled one moves too" do
     @runbook.update!(deleted_at: Time.current)
-    enable_workflows
+    Runbook.move_runnable_parts!(@workspace)
 
     workflows = Runbook.move_runnable_parts!(@workspace)
 
-    assert_empty workflows, "turning workflows on already moved it"
+    assert_empty workflows, "the first move already moved it"
     assert_equal 1, @workspace.workflows.where(name: "Release Firefight").count
     assert @runbook.reload.workflow
   end
@@ -169,20 +169,14 @@ class Runbook::LinkedWorkflowTest < ActiveSupport::TestCase
     assert_empty @workspace.workflows
   end
 
-  test "turning workflows on moves every runbook of that workspace and no other" do
+  test "moving a workspace's runbooks moves every runbook of that workspace and no other" do
     other = workspaces(:slack_workspace_two).runbooks.create!(name: "Rollback", inputs: [ { key: "service", question: "Which service?" } ])
 
-    enable_workflows
+    Runbook.move_runnable_parts!(@workspace)
 
     assert @runbook.reload.workflow
     assert_nil other.reload.workflow
     assert_equal [ { "key" => "service", "question" => "Which service?" } ], other.inputs
-  end
-
-  test "without workflows nothing moves" do
-    assert_empty Runbook.move_runnable_parts!(@workspace)
-    assert_nil @runbook.reload.workflow
-    assert @runbook.procedure?
   end
 
   test "the parts read back from the workflow are the runbook's own" do
@@ -202,16 +196,33 @@ class Runbook::LinkedWorkflowTest < ActiveSupport::TestCase
     assert_nil Runbook::WorkflowShape.parts_of(Workflow::Version.new(trigger: draft.trigger, steps: retried, edges: draft.edges, outputs: {}))
   end
 
-  test "the migration moves the runbooks of workspaces with workflows and leaves the others exactly as they are" do
+  test "the first migration moves the runbooks of workspaces that had workflows and leaves the others exactly as they are" do
     require Rails.root.join("db/migrate/20261013180100_move_runbook_steps_into_workflows")
-    other = workspaces(:slack_workspace_two).runbooks.create!(name: "Rollback", watch: { "title" => "web", "steps" => [ { "capability" => "resource_status", "resource" => "web", "goal" => "up" } ] })
-    Flipper.enable_actor(FeatureFlags::WORKFLOWS, @workspace)
+    other = rollback_runbook
+    ActiveRecord::Base.connection.execute(
+      "INSERT INTO flipper_gates (feature_key, key, value, created_at, updated_at) VALUES ('workflows', 'actors', 'Workspace;#{@workspace.id}', now(), now())"
+    )
 
     ActiveRecord::Migration.suppress_messages { MoveRunbookStepsIntoWorkflows.new.up }
 
     assert_equal "Release Firefight", @runbook.reload.workflow.name
     assert_nil other.reload.workflow
     assert_equal "web", other.watch["title"]
+  end
+
+  test "shipping workflows moves every workspace's runbooks and forgets both flags" do
+    require Rails.root.join("db/migrate/20261016190000_ship_workflows_and_custom_skills")
+    other = rollback_runbook
+    ActiveRecord::Base.connection.execute(
+      "INSERT INTO flipper_gates (feature_key, key, value, created_at, updated_at) VALUES ('custom_skills', 'actors', 'Workspace;#{@workspace.id}', now(), now())"
+    )
+
+    ActiveRecord::Migration.suppress_messages { ShipWorkflowsAndCustomSkills.new.up }
+
+    assert_equal "Release Firefight", @runbook.reload.workflow.name
+    assert_equal "Rollback", other.reload.workflow.name
+    assert_nil other.watch
+    assert_equal 0, ActiveRecord::Base.connection.select_value("SELECT COUNT(*) FROM flipper_gates WHERE feature_key IN ('workflows', 'custom_skills')")
   end
 
   private
@@ -231,10 +242,9 @@ class Runbook::LinkedWorkflowTest < ActiveSupport::TestCase
     runbook.reload
   end
 
-  def moved
-    Flipper.enable_actor(FeatureFlags::WORKFLOWS, @workspace)
-    @runbook.reload.move_runnable_parts!
-  end
+  def moved = @runbook.reload.move_runnable_parts!
 
-  def enable_workflows = FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
+  def rollback_runbook
+    workspaces(:slack_workspace_two).runbooks.create!(name: "Rollback", watch: { "title" => "web", "steps" => [ { "capability" => "resource_status", "resource" => "web", "goal" => "up" } ] })
+  end
 end

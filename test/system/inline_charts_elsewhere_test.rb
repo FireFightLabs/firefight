@@ -58,7 +58,6 @@ class InlineChartsElsewhereTest < ApplicationSystemTestCase
   end
 
   test "the chat beside a workflow's canvas sets Halon's charts in its answer" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     workflow = Workflow.create!(workspace: @workspace, name: "Release check")
     workflow.edit!(operation: Workflow::Edit::OPERATION_ADD_STEP, by: @alice,
                    payload: { "step" => { "id" => "wait", "name" => "wait_a_bit", "kind" => DefinedWorkflow::KIND_DELAY, "config" => { "minutes" => 1 } } })

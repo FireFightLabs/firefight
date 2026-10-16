@@ -7,7 +7,6 @@ class Interactions::SkillProposalHandlersTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)
     @member = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
     @thread = @workspace.conversations.create!(subject: @incident, kind: Conversation::KIND_CHANNEL, channel_id: @incident.channel_id, thread_id: "1.1",
                                                started_by: @member, max_turns: 10, max_spend_cents: 50)
     @adapter = @workspace.adapter

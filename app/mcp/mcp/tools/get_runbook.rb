@@ -4,10 +4,9 @@ module Mcp
       tool_name FirefightTools::GET_RUNBOOK
       authorize_as Ability::Action::RESOURCE_RUNBOOKS
       description "Fetch one incident response runbook in full by slug: its summary, full " \
-                  "content, external link, and ordered steps with instructions. A runbook Halon can run also " \
-                  "has each step's tool and arguments, its inputs, its other names and what it watches after. Where the workspace " \
-                  "has workflows, the steps are its checklist, and what it runs (each step's tool and arguments, the inputs and " \
-                  "the watch) is the workflow it links, named under workflow with its page. " \
+                  "content, external link, ordered steps with instructions and its other names. The steps are its checklist, and " \
+                  "what it runs (each step's tool and arguments, the inputs and the watch) is the workflow it links, named under " \
+                  "workflow with its page. " \
                   "Docs: #{Docs::RUNBOOKS}"
       annotations(**READ_ONLY)
       own_words

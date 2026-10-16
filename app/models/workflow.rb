@@ -87,7 +87,6 @@ class Workflow < ApplicationRecord
 
   # Why a run cannot start now, as a sentence, or nil when it can.
   def start_blocked_reason
-    return "Workflows are not switched on for this workspace." unless FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS)
     return "#{name} is switched off." unless enabled?
     return "#{name} has no published version to run." unless live_version
 

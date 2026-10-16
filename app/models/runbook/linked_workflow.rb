@@ -1,4 +1,4 @@
-# With workflows on, a runbook is a guide and what it runs lives in the one workflow it links. Every step stays on the
+# A runbook is a guide and what it runs lives in the one workflow it links. Every step stays on the
 # runbook as a checklist item, so incidents and the actions claimed from its steps read as before.
 module Runbook::LinkedWorkflow
   extend ActiveSupport::Concern
@@ -13,10 +13,8 @@ module Runbook::LinkedWorkflow
   end
 
   class_methods do
-    # Run when the flag is turned on, and once by the migration for the workspaces that already had it.
+    # Run once for every workspace by the migrations that moved runbooks into workflows.
     def move_runnable_parts!(workspace)
-      return [] unless FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS)
-
       workspace.runbooks.includes(:runbook_steps).order(:position).filter_map(&:move_runnable_parts!)
     end
 
@@ -25,8 +23,6 @@ module Runbook::LinkedWorkflow
       given.key?(:inputs) || given.key?(:watch) || Array(given[:steps]).any? { |step| step.to_h.with_indifferent_access[:tool].present? }
     end
   end
-
-  def workflows_on? = FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS)
 
   def runnable_parts? = runbook_steps.any?(&:tool?) || inputs.any? || watch.present?
 
@@ -37,7 +33,6 @@ module Runbook::LinkedWorkflow
 
   # A workflow changed on its page beyond what a runbook can say still answers the inputs a run asks.
   def readable_parts
-    return Runbook::WorkflowShape::Parts.new(steps: own_parts.steps, inputs: inputs, watch: watch) unless workflows_on?
     return Runbook::WorkflowShape::Parts.new unless workflow
 
     version = workflow.live_version || workflow.draft
@@ -45,7 +40,7 @@ module Runbook::LinkedWorkflow
   end
 
   def workflow_for_agents
-    return unless workflows_on? && workflow
+    return unless workflow
 
     version = workflow.live_version || workflow.draft
     parts = Runbook::WorkflowShape.parts_of(version)
@@ -53,16 +48,13 @@ module Runbook::LinkedWorkflow
     { name: workflow.name, slug: workflow.slug, state: workflow.state, page: Workflow::Links.page(workflow), steps: steps }
   end
 
-  def runnable_now? = workflows_on? ? workflow.present? && workflow.start_blocked_reason.nil? : procedure?
+  def runnable_now? = workflow.present? && workflow.start_blocked_reason.nil?
 
   def run_blocked_reason(member)
-    return "Workflows are not switched on for this workspace." unless workflows_on?
     return "#{name} links no workflow to run." unless workflow
 
     workflow.run_now_blocked_reason(member)
   end
-
-  def runnable_workflow = (workflow if workflows_on?)
 
   # The link is claimed on a runbook still linking none, so two moves at once make one workflow. A workflow never keeps a
   # value shaped like a secret, so a runbook holding one is left as it was.

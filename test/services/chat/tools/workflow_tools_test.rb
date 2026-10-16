@@ -5,7 +5,6 @@ class Chat::Tools::WorkflowToolsTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @workflow = Workflow.create!(workspace: @workspace, name: "Release check")
     @workflow.edit!(operation: Workflow::Edit::OPERATION_ADD_STEP, payload: { "step" => step("wait") }, by: @member)
     @workflow.reload.draft.publish!(by: @member)
@@ -18,17 +17,6 @@ class Chat::Tools::WorkflowToolsTest < ActiveSupport::TestCase
   def read(turn = @turn, **arguments) = Chat::Tools::GetWorkflow.new(turn).call(**arguments.stringify_keys)
 
   def propose(turn = @turn, **arguments) = Chat::Tools::ProposeWorkflowEdit.new(turn).call(**arguments.stringify_keys)
-
-  test "only a workspace with workflows is offered them" do
-    names = Conversation::Tools.for(@turn, offer: []).map(&:name)
-    assert_includes names, Chat::Tools::GetWorkflow::NAME
-    assert_includes names, Chat::Tools::ProposeWorkflowEdit::NAME
-
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-    names = Conversation::Tools.for(@turn, offer: []).map(&:name)
-    assert_not_includes names, Chat::Tools::GetWorkflow::NAME
-    assert_not_includes names, Chat::Tools::ProposeWorkflowEdit::NAME
-  end
 
   test "a chat beside the canvas tells Halon which workflow is open" do
     context = Conversation::Context.new(@conversation, @turn).current
@@ -81,5 +69,11 @@ class Chat::Tools::WorkflowToolsTest < ActiveSupport::TestCase
 
     assert_match Ability::Action::WORKFLOWS_CREATE, answer
     assert_empty @workflow.proposals
+  end
+
+  test "every workspace is offered them" do
+    names = Conversation::Tools.for(@turn, offer: []).map(&:name)
+    assert_includes names, Chat::Tools::GetWorkflow::NAME
+    assert_includes names, Chat::Tools::ProposeWorkflowEdit::NAME
   end
 end

@@ -7,7 +7,6 @@ class WorkflowTriggerServiceTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
     @incident = incidents(:active_critical_ws1)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     FirefightAi::WorkflowRepair.any_instance.stubs(:suggest).returns(nil)
     WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:post_workflow_failure).returns({})
   end
@@ -130,14 +129,6 @@ class WorkflowTriggerServiceTest < ActiveSupport::TestCase
     heard(created_event(incidents(:active_major_ws1)))
 
     assert_equal [ 2, 2 ], [ first.runs.count, second.runs.count ]
-  end
-
-  test "nothing is heard without the workflows flag" do
-    workflow = published("Declared", { "kind" => Workflow::Trigger::KIND_INCIDENT_DECLARED })
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-
-    assert_no_enqueued_jobs(only: WorkflowEventJob) { Workflows::EventSubscriber.handle(domain_event(created_event)) }
-    assert_empty workflow.runs
   end
 
   test "an alert starts a run once per group, so a storm starts one" do

@@ -132,17 +132,11 @@ class WorkspaceMembership < ApplicationRecord
       "decides who may ask, and a grant of a connection's reads, alone or in a pack, decides where they read it. What members " \
       "can do in each tool, above, can leave a connection's reads to the people chosen for it, or let every member change it. No access " \
       "below takes any of these away at once, and Restore gives it back. Configuring the workspace and any tool that " \
-      "changes something needs one of the grants below, such as a connection's changes pack."
+      "changes something needs one of the grants below, such as a connection's changes pack. Members also build " \
+      "workflows, test them and run published ones. Publishing one is an admin's."
   }.freeze
 
-  # Said only where workflows are switched on, since a member holds them without a grant there.
-  WORKFLOWS_NOTE = "Members also build workflows, test them and run published ones. Publishing one is an admin's.".freeze
-
-  def implicit_authority_note
-    note = IMPLICIT_AUTHORITY_NOTES.fetch(implicit_authority)
-    workflows = implicit_authority == Principal::IMPLICIT_MEMBER && FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS)
-    workflows ? "#{note} #{WORKFLOWS_NOTE}" : note
-  end
+  def implicit_authority_note = IMPLICIT_AUTHORITY_NOTES.fetch(implicit_authority)
 
   # Where each default stands for this member, which the Permissions screen shows and lets an admin take away. A
   # connection's reads are one row, its read pack, rather than a row for each tool.
@@ -154,7 +148,7 @@ class WorkspaceMembership < ApplicationRecord
     withheld = grants.select { |grant| grant.workspace_id == workspace_id && grant.no_access? }
     by_action = withheld.select(&:action).index_by { |grant| grant.action.key }
     by_role = withheld.select(&:role).index_by(&:role_id)
-    system = (NARROWABLE_KEYS - Ability::Action.hidden_keys(workspace)).map do |key|
+    system = NARROWABLE_KEYS.map do |key|
       DefaultAccess.new(action: Ability::Action.system!(key), role: nil, state: default_state(key, by_action, resolved), grant: by_action[key])
     end
     system + read_packs.map do |pack|

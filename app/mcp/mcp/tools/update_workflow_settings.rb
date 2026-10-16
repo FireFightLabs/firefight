@@ -4,7 +4,6 @@ module Mcp
     class UpdateWorkflowSettings < Base
       tool_name FirefightTools::UPDATE_WORKFLOW_SETTINGS
       authorize_as Ability::Action::RESOURCE_WORKSPACE, Ability::Action::ACTION_UPDATE
-      behind_flag FeatureFlags::WORKFLOWS
       description "Set how many days a workflow run keeps what each step did, between #{Workflow::Run::Retention::DAYS.min} and " \
                   "#{Workflow::Run::Retention::DAYS.max}. After it a run keeps only its one line, and a pinned run keeps everything. " \
                   "Only a workspace admin may call this. Docs: #{Docs::MCP_SERVER}"

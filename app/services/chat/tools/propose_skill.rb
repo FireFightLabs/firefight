@@ -3,9 +3,9 @@
 class Chat::Tools::ProposeSkill < RubyLLM::Tool
   def self.tool_name = "propose_skill"
 
-  # Only where the workspace has its own skills, and never in a run that only measures Halon.
+  # Never in a run that only measures Halon.
   def self.all(agent_run)
-    return [] unless agent_run.changes_memory? && Chat::CustomSkill.enabled_for?(agent_run.workspace)
+    return [] unless agent_run.changes_memory?
 
     [ new(agent_run) ]
   end

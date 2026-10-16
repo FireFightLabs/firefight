@@ -211,9 +211,6 @@ export const SECRET_ENTRY_KINDS = {
 } as const
 
 export const RUNBOOK_CHOICE_PROPS = {
-  "TOOL_CHOICES": "toolChoices",
-  "WATCH_READS": "watchReads",
-  "PLACES": "places",
   "WORKFLOWS": "workflowChoices"
 } as const
 
@@ -1576,10 +1573,6 @@ export const SANDBOX_SERVICES = [
   "redis"
 ] as const
 export type SandboxService = (typeof SANDBOX_SERVICES)[number]
-
-export const WORKFLOWS_RESOURCE = "workflows" as const
-
-export const SKILLS_RESOURCE = "skills" as const
 
 export const WORKFLOW_STATES = [
   "draft",

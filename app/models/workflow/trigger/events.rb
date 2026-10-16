@@ -38,6 +38,6 @@ module Workflow::Trigger::Events
 
   # Whether any workflow of the workspace starts on the kind, which keeps the job from being asked about every event.
   def listened?(workspace, kind)
-    FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS) && Workflow.listening(workspace, kind).exists?
+    Workflow.listening(workspace, kind).exists?
   end
 end

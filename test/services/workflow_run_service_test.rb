@@ -6,7 +6,6 @@ class WorkflowRunServiceTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
   end
 
   def step(id, kind, config = {}, **extra) = { "id" => id, "name" => id, "kind" => kind, "config" => config }.merge(extra.stringify_keys)
@@ -27,14 +26,6 @@ class WorkflowRunServiceTest < ActiveSupport::TestCase
     run = nil
     perform_enqueued_jobs { run = WorkflowRunService.new(workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_PERSON, started_by: @alice, **options) }
     run.reload
-  end
-
-  test "refuses to start anything for a workspace without the workflows flag" do
-    workflow = published("Check", steps: [ step("pause", "delay", { "seconds" => 1 }) ])
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-
-    assert_equal "Workflows are not switched on for this workspace.", refusal(workflow)
-    assert_empty workflow.runs
   end
 
   test "refuses a switched off workflow, one never published, and missing inputs" do
@@ -161,27 +152,5 @@ class WorkflowRunServiceTest < ActiveSupport::TestCase
     run.reload
     assert_equal Workflow::Run::STATUS_SUCCEEDED, run.status
     assert_match "[REDACTED", run.steps.find_by!(step_key: "reply").output.dig("event", "token")
-  end
-
-  test "a run held when the flag is turned off carries on once it is back" do
-    workflow = published("Held", steps: [ step("pause", "delay", { "minutes" => 5 }) ])
-    run = start(workflow)
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-
-    travel 6.minutes do
-      perform_enqueued_jobs { SolidWorkflow::SweeperJob.perform_now }
-      assert_equal Workflow::Run::STATUS_WAITING, run.reload.status
-
-      FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
-      perform_enqueued_jobs { SolidWorkflow::SweeperJob.perform_now }
-    end
-    assert_equal Workflow::Run::STATUS_SUCCEEDED, run.reload.status
-  end
-
-  test "class workflows run whatever the flag says" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-    user = User.create!(name: "Flag Off", email: "flag-off-#{SecureRandom.hex(3)}@example.com")
-
-    assert ExampleCalculationWorkflow.start_inline!(user, context: { numbers: [ 1, 2 ] }).succeeded?
   end
 end

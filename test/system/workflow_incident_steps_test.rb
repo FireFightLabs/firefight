@@ -3,7 +3,6 @@ require "application_system_test_case"
 class WorkflowIncidentStepsTest < ApplicationSystemTestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @workflow = Workflow.create!(workspace: @workspace, name: "Calm the incident")
   end
 

@@ -49,7 +49,7 @@ class AgentChatsController < InertiaController
   PROP_SKILL_PROPOSALS = "skillProposals"
   # Setup's Meet Halon step, while an admin is on it: the question to start with, and whether Halon has answered.
   PROP_SETUP_GUIDE = "setupGuide"
-  # Workflows Halon made in the open chat, each a card with Run now and Cancel, only where the workspace has workflows.
+  # Workflows Halon made in the open chat, each a card with Run now and Cancel.
   PROP_WORKFLOWS = "workflows"
   # The plans Halon keeps in the open chat, each a checklist that moves as it works.
   PROP_PLANS = "plans"
@@ -447,17 +447,11 @@ class AgentChatsController < InertiaController
     @watches_shown ||= on_chat { |chat| window.placed(chat.watches).or(chat.watches.active).includes(:steps, :asker, :updates) }.to_a
   end
 
-  # The workflows made in this chat, none where the workspace has no workflows.
-  def chat_workflows
-    return Workflow.none unless FeatureFlags.enabled?(current_workspace, FeatureFlags::WORKFLOWS)
+  # The workflows made in this chat.
+  def chat_workflows = conversation.workflows.with_run_counts
 
-    conversation.workflows.with_run_counts
-  end
-
-  # The skills Halon proposed in the stretch of the chat on screen, none where the workspace keeps no skills of its own.
+  # The skills Halon proposed in the stretch of the chat on screen.
   def skill_proposals_shown
-    return [] unless Chat::CustomSkill.enabled_for?(current_workspace)
-
     window.placed(conversation.skill_proposals.includes(:decided_by, :parent_version, custom_skill: :live_version).order(:created_at))
   end
 

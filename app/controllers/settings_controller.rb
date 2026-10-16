@@ -9,12 +9,8 @@ class SettingsController < InertiaController
   ACTIVITY_LIMIT = 200
   RESOLVED_APPROVALS_LIMIT = 50
   # The runbook editor asks for these by name when it opens (lib/typescript_constants.rb).
-  RUNBOOK_TOOL_CHOICES = "toolChoices".freeze
-  RUNBOOK_WATCH_READS = "watchReads".freeze
-  RUNBOOK_PLACES = "places".freeze
   RUNBOOK_WORKFLOWS = "workflowChoices".freeze
-  RUNBOOK_CHOICE_PROPS = { "TOOL_CHOICES" => RUNBOOK_TOOL_CHOICES, "WATCH_READS" => RUNBOOK_WATCH_READS, "PLACES" => RUNBOOK_PLACES,
-                           "WORKFLOWS" => RUNBOOK_WORKFLOWS }.freeze
+  RUNBOOK_CHOICE_PROPS = { "WORKFLOWS" => RUNBOOK_WORKFLOWS }.freeze
 
 
   def index
@@ -66,9 +62,6 @@ class SettingsController < InertiaController
           .where(field_type: IncidentCondition::SUPPORTED_CUSTOM_FIELD_TYPES)
       ),
       # What a step or a watch can be built from, read when the editor opens, since every tool's fields take a while.
-      RUNBOOK_TOOL_CHOICES => InertiaRails.optional { RunbookToolChoiceSerializer.many(Chat::Tools::Choices.tools(current_workspace)) },
-      RUNBOOK_WATCH_READS => InertiaRails.optional { RunbookWatchReadSerializer.many(Chat::Tools::Choices.reads) },
-      RUNBOOK_PLACES => InertiaRails.optional { RunbookPlaceSerializer.many(Chat::Tools::Choices.places(current_workspace, current_membership)) },
       RUNBOOK_WORKFLOWS => InertiaRails.optional { RunbookWorkflowChoiceSerializer.many(runbook_workflow_choices) }
     }
   end
@@ -228,11 +221,7 @@ class SettingsController < InertiaController
 
   private
 
-  def runbook_workflow_choices
-    return [] unless FeatureFlags.enabled?(current_workspace, FeatureFlags::WORKFLOWS)
-
-    current_workspace.workflows.ordered.includes(:draft_version)
-  end
+  def runbook_workflow_choices = current_workspace.workflows.ordered.includes(:draft_version)
 
   # Personal keys are omitted, they resolve to their owner's authority rather than carrying grants.
   def principal_rows

@@ -6,7 +6,6 @@ class WorkflowRunEndServiceTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @adapter = WorkspaceAdapter.for(@workspace).class
     Investigation.stubs(:unavailable_reason).returns(nil)
   end

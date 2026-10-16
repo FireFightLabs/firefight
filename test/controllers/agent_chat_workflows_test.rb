@@ -9,7 +9,6 @@ class AgentChatWorkflowsTest < ActionDispatch::IntegrationTest
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
     @bob = workspace_memberships(:bob_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     Entitlements.stubs(:allows?).returns(true)
     Investigation.stubs(:unavailable_reason).returns(nil)
     ConversationChannel.stubs(:broadcast_to)
@@ -62,14 +61,6 @@ class AgentChatWorkflowsTest < ActionDispatch::IntegrationTest
 
     member = @workspace.workspace_memberships.create!(user: users(:charlie), role: :member, joined_at: Time.current)
     assert_equal "Only #{@bob.display_name} or a workspace admin can stop Check web.", @workflow.stop_blocked_reason(member)
-  end
-
-  test "without the flag the chat shows no workflow card" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-
-    get agent_chat_path(@conversation), headers: thread_headers
-
-    assert_empty inertia_props["workflows"]
   end
 
   test "Cancel pressed on the message in the thread works the same and a refusal is said privately" do

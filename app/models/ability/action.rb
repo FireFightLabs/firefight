@@ -263,17 +263,7 @@ module Ability
     end
     # Nobody needs a grant for an open action, so none is offered.
     scope :grantable, -> { where.not(key: admin_only_keys + OPEN_KEYS) }
-    scope :grantable_for, ->(workspace) { where(workspace_id: [ nil, workspace.id ]).grantable.where.not(key: hidden_keys(workspace)) }
-
-    # Resources whose work is not switched on for the workspace, which nothing offers until it is.
-    def self.hidden_resources(workspace)
-      hidden = []
-      hidden.push(RESOURCE_WORKFLOWS, RESOURCE_HTTP_REQUESTS) unless FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS)
-      hidden << RESOURCE_SKILLS unless FeatureFlags.enabled?(workspace, FeatureFlags::CUSTOM_SKILLS)
-      hidden
-    end
-
-    def self.hidden_keys(workspace) = keys_for(hidden_resources(workspace))
+    scope :grantable_for, ->(workspace) { where(workspace_id: [ nil, workspace.id ]).grantable }
 
     def self.system_key(resource, action)
       "#{resource}.#{action}"

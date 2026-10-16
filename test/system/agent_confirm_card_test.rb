@@ -218,7 +218,6 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
   private
 
   test "a time a workflow would run at reads in the viewer's own time zone, with the zone named" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     page.driver.browser.execute_cdp("Emulation.setTimezoneOverride", timezoneId: "Europe/Belgrade")
     # A June morning still to come, when Belgrade is two hours ahead of UTC, so the card has a run ahead of it.
     at = Time.utc(Time.current.year + 1, 6, 14, 7)

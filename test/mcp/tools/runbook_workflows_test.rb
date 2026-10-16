@@ -9,7 +9,6 @@ module Mcp
         @workspace = workspaces(:slack_workspace_one)
         @admin = workspace_memberships(:alice_workspace_one)
         @member = workspace_memberships(:bob_workspace_one)
-        FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
         WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:post_workflow_publish_request_to_user).returns({ channel_id: "D1", message_id: "1.1" })
       end
 

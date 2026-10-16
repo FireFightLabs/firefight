@@ -137,21 +137,10 @@ module Mcp
         assert_equal AbilityGateway::SOURCE_CONVERSATION, row.source
       end
 
-      test "a runbook step posts as Halon for the person running it, offered in the editor with its channel and message" do
+      test "it is offered in the editor with its channel and message" do
         choice = Chat::Tools::Choices.tools(@workspace).find { |each| each.name == FirefightTools::POST_TO_CHANNEL }
         assert_equal "Posting in channels", choice.group
         assert_equal [ [ "channel", true ], [ "message", true ], [ "approval_id", false ] ], choice.fields.map { |field| [ field.key, field.required ] }
-
-        grant_post(@member)
-        runbook = @workspace.runbooks.create!(name: "Announce release", inputs: [ { "key" => "version", "question" => "Which version?" } ])
-        runbook.sync_steps!([ { title: "Announce in #general", tool: FirefightTools::POST_TO_CHANNEL, arguments: { "channel" => "#general", "message" => "Release {{version}} is out." } } ])
-        Slack::Client.expects(:post_message).with { |payload| payload[:channel] == "C0GENERAL1" && payload[:text] == "Message from Halon: Release 2.4 is out." }
-                     .returns({ ok: true, ts: "1.2", channel: "C0GENERAL1" })
-
-        conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
-        said = Conversation::Tools::RunRunbook.new(Conversation::Turn.new(conversation, asker: @member)).call(runbook: runbook.name, inputs: { "version" => "2.4" })
-
-        assert_match "Step 1 (Announce in #general) went through", said
       end
 
       private

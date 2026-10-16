@@ -6,7 +6,6 @@ module Mcp
     class CreateWorkflow < Base
       tool_name FirefightTools::CREATE_WORKFLOW
       authorize_as Ability::Action::RESOURCE_WORKFLOWS, Ability::Action::ACTION_CREATE
-      behind_flag FeatureFlags::WORKFLOWS
       description "Make a workflow: something that runs later, on a schedule or by hand, as its own identity with only what an admin " \
                   "grants it. Give a template from the library with its params, or a trigger, steps and edges. Every change carries its " \
                   "undo and is followed by a step that reads how it went. It is published when you may publish it and grant what it " \

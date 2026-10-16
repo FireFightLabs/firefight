@@ -5,7 +5,6 @@ class Mcp::Tools::SkillsTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     @admin = workspace_memberships(:alice_workspace_one)
     @member = workspace_memberships(:bob_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
     @skill = Chat::CustomSkill.create_with!(workspace: @workspace, name: "game_day", by: @admin,
                                             content: { "when" => "Someone asks for a game day", "tools" => [ "declare_incident" ], "steps" => "1. Declare it." })
   end
@@ -80,15 +79,6 @@ class Mcp::Tools::SkillsTest < ActiveSupport::TestCase
     Workflow.where(workspace: @workspace).destroy_all
     assert_not call(Mcp::Tools::DeleteSkill, @admin, skill: "game_day").error?
     assert_not Chat::CustomSkill.exists?(@skill.id)
-  end
-
-  test "the tools exist only with the custom skills flag and are not offered to Halon" do
-    names = [ FirefightTools::LIST_SKILLS, FirefightTools::GET_SKILL, FirefightTools::UPSERT_SKILL, FirefightTools::DELETE_SKILL ]
-    assert_empty names - FirefightTools.available_in(@workspace).map { |tool| tool.name_value.to_s }
-    assert_empty names - Chat::Tools::Groups::NOT_FOR_HALON
-
-    FeatureFlags.disable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
-    assert_empty names & FirefightTools.available_in(@workspace).map { |tool| tool.name_value.to_s }
   end
 
   private

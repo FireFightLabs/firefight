@@ -4,7 +4,6 @@ class WorkflowEditsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @workflow = Workflow.create!(workspace: @workspace, name: "Probe check")
   end
 
@@ -66,15 +65,5 @@ class WorkflowEditsControllerTest < ActionDispatch::IntegrationTest
     post workflow_edits_path(@workflow), params: { operation: "paint", payload: {} }, as: :json
 
     assert_equal "That is not a change a workflow takes.", flash[:alert]
-  end
-
-  test "nothing changes without the workflows flag" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-    sign_in(users(:bob), @workspace)
-
-    post workflow_edits_path(@workflow), params: { operation: Workflow::Edit::OPERATION_ADD_STEP, payload: { step: delay("wait") } }, as: :json
-
-    assert_response :not_found
-    assert_nil @workflow.reload.draft
   end
 end

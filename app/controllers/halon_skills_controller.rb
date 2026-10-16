@@ -3,7 +3,6 @@
 # version of a copy.
 class HalonSkillsController < InertiaController
   include RequiresAgent
-  include RequiresCustomSkills
 
   before_action :require_agent!
 
