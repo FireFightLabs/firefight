@@ -21,7 +21,7 @@ class Conversation::DirectMessages
     read = read_by_model(text)
     # A run Halon answered in these direct messages takes a reply as a note while it works, as a mention in its thread.
     run = Investigation.live_in_thread(@workspace, @thread_id) if reply
-    return run.add_note_from(read, member: @sender, source: @source, files: shared(files), as_written: text) if run
+    return add_note(run, read, files, text, message_id) if run
 
     existing = Conversation.in_thread(@workspace, @channel_id, @thread_id)
     finished = Investigation.posted_in_thread(@workspace, @thread_id) if reply && !existing
@@ -40,6 +40,13 @@ class Conversation::DirectMessages
   end
 
   private
+
+  # Taken notes are done once taken, since the run shows it read them among its steps.
+  def add_note(run, read, files, text, message_id)
+    refusal = run.add_note_from(read, member: @sender, source: @source, files: shared(files), as_written: text)
+    adapter.mark_done(channel_id: @channel_id, message_id: message_id) if refusal.nil? && message_id
+    refusal
+  end
 
   # A thread of its own when the person opened a new chat or replied to a finished run, which it is then about.
   # Otherwise the chat they were having, held while it is looked up so two messages sent together share one.

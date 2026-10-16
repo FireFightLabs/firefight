@@ -451,7 +451,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   # An answer longer than one message holds runs on into the next, so it is never cut.
   def post_ai_response(channel_id:, incident:, answer:)
     parts = Slack::Messages::Formatting.message_parts(Slack::Messages::AiResponse.build(incident: incident, answer: answer))
-    parts.map { |blocks| post_message(channel_id: channel_id, text: answer, blocks: blocks) }.first
+    fallback = "#{incident.identifier}: #{answer.to_s.squish.truncate(200)}"
+    parts.map { |blocks| post_message(channel_id: channel_id, text: fallback, blocks: blocks) }.first
   end
 
   STEP_STATUSES = { running: "in_progress", done: "complete" }.freeze

@@ -153,6 +153,16 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
     assert_no_enqueued_jobs { mention("what is going on", channel: "C0GENERAL") }
   end
 
+  test "a note taken by a running investigation swaps the mention's eyes for a check, since the run shows it read it" do
+    run = running_investigation
+    Slack::Client.expects(:remove_reaction).with { |arguments| arguments[:timestamp] == "1700000000.000950" && arguments[:name] == "eyes" }.returns({ ok: true })
+    Slack::Client.expects(:add_reaction).with { |arguments| arguments[:timestamp] == "1700000000.000950" && arguments[:name] == "heavy_check_mark" }.returns({ ok: true })
+
+    mention("skip GitHub", thread_ts: "1700000000.000950", parent: run.thread_id)
+
+    assert_equal "skip GitHub", run.notes.sole.content
+  end
+
   test "a mention in a running investigation's thread is added to the run, and opens no chat" do
     run = running_investigation
 

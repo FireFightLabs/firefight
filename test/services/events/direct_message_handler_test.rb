@@ -185,6 +185,15 @@ class Events::DirectMessageHandlerTest < ActiveSupport::TestCase
     assert_equal [ "and @#{bob.display_name} (#{bob.platform_user_id})?", written ], [ queued.content, queued.as_written ]
   end
 
+  test "a note taken by a running investigation in direct messages swaps the eyes for a check" do
+    run = investigation(status: Investigation::STATUS_RUNNING)
+    Slack::Client.expects(:add_reaction).with { |arguments| arguments[:timestamp] == "1700000000.000950" && arguments[:name] == "heavy_check_mark" }.returns({ ok: true })
+
+    write("skip GitHub", ts: "1700000000.000950", thread: run.thread_id)
+
+    assert_equal "skip GitHub", run.notes.sole.content
+  end
+
   test "a reply in a running investigation's thread is added to the run as a note, and opens no chat" do
     run = investigation(status: Investigation::STATUS_RUNNING)
 

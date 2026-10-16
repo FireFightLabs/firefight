@@ -44,7 +44,10 @@ module Events
         channel_id: channel_id, metadata: { command: Identifiers::COMMAND_FF, Command::SHARED_FILE_IDS => files.map(&:id) }
       )
       refusal = CommandDispatcher.dispatch(command)
-      notify_blocked(workspace, channel_id, event, refusal[:text], marked: true) if refusal.is_a?(Hash)
+      return notify_blocked(workspace, channel_id, event, refusal[:text], marked: true) if refusal.is_a?(Hash)
+
+      # The run answers in its own live checklist, so the mention is done once the run has started.
+      workspace.adapter.mark_done(channel_id: channel_id, message_id: event["ts"])
     end
     private_class_method :investigate
 
@@ -52,7 +55,10 @@ module Events
       member = Conversation::Opener.member(workspace, event["user"])
       files = shared_files(workspace, event, member)
       refusal = run.add_note_from(read_by_model(workspace, user_text), member: member, source: AbilityGateway::SOURCE_SLACK, files: files, as_written: user_text)
-      notify_blocked(workspace, channel_id, event, refusal, marked: true) if refusal
+      return notify_blocked(workspace, channel_id, event, refusal, marked: true) if refusal
+
+      # The run shows it read the note among its steps, so the mention is done once the note is taken.
+      workspace.adapter.mark_done(channel_id: channel_id, message_id: event["ts"])
     end
     private_class_method :add_note
 
