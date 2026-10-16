@@ -48,13 +48,19 @@ class WebhookSigningSecretTest < ActionDispatch::IntegrationTest
     assert_equal @webhook.signing_secret, flash.inertia[:webhook_signing_secret]
   end
 
-  test "secrets saved before encryption are encrypted in place" do
-    Webhook.where(id: @webhook.id).update_all(signing_secret: "plain_secret_from_before_0001")
+  test "secrets saved before encryption are encrypted in place, and rolling back stores them plain again" do
+    plain = "plain_secret_from_before_0001"
+    Webhook.connection.exec_update("UPDATE webhooks SET signing_secret = $1 WHERE id = $2", "write", [ plain, @webhook.id ])
 
     ActiveRecord::Migration.suppress_messages { EncryptOutboundWebhookSigningSecrets.new.migrate(:up) }
 
-    raw = Webhook.connection.select_value(Webhook.where(id: @webhook.id).select(:signing_secret).to_sql)
-    assert_not_equal "plain_secret_from_before_0001", raw
-    assert_equal "plain_secret_from_before_0001", @webhook.reload.signing_secret
+    assert ActiveRecord::Encryption.encryptor.encrypted?(raw_secret)
+    assert_equal plain, @webhook.reload.signing_secret
+
+    ActiveRecord::Migration.suppress_messages { EncryptOutboundWebhookSigningSecrets.new.migrate(:down) }
+
+    assert_equal plain, raw_secret
   end
+
+  def raw_secret = Webhook.connection.select_value(Webhook.where(id: @webhook.id).select(:signing_secret).to_sql)
 end
