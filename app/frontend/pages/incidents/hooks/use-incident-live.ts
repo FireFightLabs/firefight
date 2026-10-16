@@ -37,7 +37,6 @@ export function useIncidentLive(incidentId: string): number {
   useEffect(() => {
     const waiting = new Set<IncidentLivePart>()
     let gathering: number | undefined
-    let dropped = false
 
     function readAgain() {
       gathering = undefined
@@ -61,16 +60,10 @@ export function useIncidentLive(incidentId: string): number {
     const subscription = consumer.subscriptions.create(
       { channel: INCIDENT_CHANNEL, id: incidentId },
       {
-        // Nothing sent while the socket was away is sent again, so the whole page is read once it is back.
+        // Nothing sent before the socket listened is sent again, whether the page had just opened or the socket was away,
+        // so the whole page is read each time it starts listening.
         connected() {
-          if (!dropped) {
-            return
-          }
-          dropped = false
           gather(EVERY_PART)
-        },
-        disconnected() {
-          dropped = true
         },
         received(signal: LiveSignal) {
           if (EVERY_PART.includes(signal.part)) {

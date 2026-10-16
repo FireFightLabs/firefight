@@ -5,7 +5,7 @@ class Postmortem < ApplicationRecord
 
   # Its words are saved every few seconds while someone writes, which the incident page does not show.
   shown_on_incident_page Incident::LiveSignal::PART_POSTMORTEM,
-                         if: -> { previously_new_record? || destroyed? || saved_change_to_status? || saved_change_to_generation_state? }
+                         if: -> { previously_new_record? || saved_change_to_status? || saved_change_to_generation_state? }
 
   class StaleContent < StandardError; end
 

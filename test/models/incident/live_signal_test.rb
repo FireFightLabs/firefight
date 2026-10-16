@@ -59,6 +59,34 @@ class Incident::LiveSignalTest < ActiveSupport::TestCase
     assert_broadcasts IncidentChannel.stream_name(other.id), 1
   end
 
+  test "an alert moved and saved again in one transaction still tells the incident it left" do
+    source = AlertSource.create!(workspace: @workspace, name: "Test source", provider: AlertSource::PROVIDER_GENERIC)
+    alert = source.alerts.create!(workspace: @workspace, external_id: "e1", fingerprint: "f1", incident: @incident,
+                                  received_at: 5.minutes.ago, last_seen_at: 5.minutes.ago)
+    pubsub_adapter.clear_messages(@stream)
+
+    Alert.transaction do
+      alert.update!(incident: incidents(:active_major_ws1))
+      alert.update!(status: Alert::STATUS_RESOLVED, resolved_at: Time.current)
+    end
+
+    assert_equal [ Incident::LiveSignal::PART_INCIDENT ], parts_sent
+  end
+
+  test "a run moved to another incident tells both pages" do
+    other = incidents(:active_major_ws1)
+    investigation = @workspace.investigations.create!(
+      subject: @incident, trigger_source: Investigation::TRIGGER_CONVERSATION, triggered_by: @member, max_turns: 10, max_spend_cents: 400,
+      brief: { Investigation::Brief::KEY_SYMPTOM => "checkout is slow" }, status: Investigation::STATUS_SUCCEEDED
+    )
+    pubsub_adapter.clear_messages(@stream)
+
+    investigation.update!(subject: other)
+
+    assert_equal [ Incident::LiveSignal::PART_INVESTIGATION ], parts_sent
+    assert_broadcasts IncidentChannel.stream_name(other.id), 1
+  end
+
   test "a postmortem's words saved as someone writes leave the page alone" do
     postmortem = Postmortem.start_blank!(@incident, by: @member)
     pubsub_adapter.clear_messages(@stream)

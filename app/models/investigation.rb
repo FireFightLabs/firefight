@@ -7,7 +7,7 @@ class Investigation < ApplicationRecord
 
   # The incident page shows only whether a run is working on it. Its lease is renewed every turn.
   shown_on_incident_page Incident::LiveSignal::PART_INVESTIGATION,
-                         if: -> { previously_new_record? || destroyed? || saved_change_to_status? || saved_change_to_subject_id? }
+                         if: -> { previously_new_record? || saved_change_to_status? || saved_change_to_subject_id? }
 
   STATUS_PENDING = "pending"
   STATUS_RUNNING = "running"
@@ -563,6 +563,13 @@ class Investigation < ApplicationRecord
   end
 
   private
+
+  # A run holds its incident as its subject, so a move is read from there.
+  def incident_page_id_before_save
+    type_before = saved_changes.fetch("subject_type", [ subject_type ]).first
+    id_before = saved_changes.fetch("subject_id", [ subject_id ]).first
+    id_before if type_before == Incident.name && id_before != incident_id
+  end
 
   def asks_something
     errors.add(:brief, "needs a question when there is no incident") if subject.nil? && question.blank?
