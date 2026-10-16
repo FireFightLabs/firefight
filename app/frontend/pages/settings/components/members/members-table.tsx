@@ -38,7 +38,8 @@ function removalWords(member: WorkspaceMembership, workspaceName: string) {
     member.personalTokenCount > 0 ? counted(member.personalTokenCount, "personal token", "personal tokens") : null,
     member.connectedAgentCount > 0 ? counted(member.connectedAgentCount, "connected agent", "connected agents") : null,
   ].filter((loss): loss is string => loss !== null)
-  const stopping = losses.length > 0 ? ` Their ${losses.join(" and ")} stop working for good.` : ""
+  const single = member.personalTokenCount + member.connectedAgentCount === 1
+  const stopping = losses.length > 0 ? ` Their ${losses.join(" and ")} ${single ? "stops" : "stop"} working for good.` : ""
   return `${member.name} loses access to ${workspaceName} at once and is signed out of it.${stopping} ` +
     "Incidents and history that name them stay, and you can add them back later."
 }

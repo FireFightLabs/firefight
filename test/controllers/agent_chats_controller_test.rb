@@ -609,6 +609,23 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal Conversation::Confirming::NOT_ANSWERED, flash[:alert]
   end
 
+  test "a token Halon minted is shown once from its card, to the person it was minted for" do
+    conversation = start_chat
+    agent = @workspace.agents.create!(name: "Deployer", slug: "deployer")
+    key, = ApiKey.create_with_token!(workspace: @workspace, created_by: @member, agent: agent, name: "Deployer token")
+    entry = Chat::SecretEntry.record_token!(chat: conversation.chat_record, tool_call_id: "call_1", api_key: key, requester: @member)
+
+    post agent_chat_secret_entry_reveal_url(conversation, entry), as: :json
+
+    assert_response :success
+    assert_equal agent, ApiKey.authenticate(response.parsed_body["value"]).principal
+    assert_equal "no-store", response.headers["Cache-Control"]
+
+    post agent_chat_secret_entry_reveal_url(conversation, entry), as: :json
+    assert_response :unprocessable_content
+    assert_match "already shown", response.parsed_body["error"]
+  end
+
   test "cancelling a paused change says so" do
     conversation = start_chat
     conversation.ask!("delete the test permission set")

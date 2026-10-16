@@ -371,11 +371,11 @@ class AgentChatsController < InertiaController
     redirect_to agent_chat_path(conversation), (result.ok ? :notice : :alert) => result.words
   end
 
-  # A credential a tool call made, read from the provider now for the person it was made for. Answered as JSON for the
-  # dialog that shows it, and never cached.
+  # A credential a tool call made, read from the provider now, or a Firefight token minted now, for the person it was made
+  # for. Answered as JSON for the dialog that shows it, and never cached.
   def reveal_secret
     response.headers["Cache-Control"] = "no-store"
-    entry = conversation.chat&.secret_entries&.find_by(id: params[:secret_entry_id], kind: Chat::SecretEntry::KIND_REVEAL)
+    entry = conversation.chat&.secret_entries&.find_by(id: params[:secret_entry_id], kind: [ Chat::SecretEntry::KIND_REVEAL, Chat::SecretEntry::KIND_TOKEN ])
     return render(json: { error: SECRET_GONE }, status: :not_found) unless entry
 
     revealed = SecretEntryService.reveal(entry, by: current_membership)
