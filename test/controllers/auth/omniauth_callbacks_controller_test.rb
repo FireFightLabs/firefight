@@ -252,7 +252,7 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     get "/auth/failure?message=invalid_credentials"
 
     assert_redirected_to login_path
-    assert_equal "Invalid credentials. Please contact support.", flash[:alert]
+    assert_equal "The sign-in was refused by the account provider. Start again, or contact support if it keeps happening.", flash[:alert]
   end
 
   test "failure with unknown message falls back to generic alert" do

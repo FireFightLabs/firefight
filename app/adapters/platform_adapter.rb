@@ -362,6 +362,25 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # The message a pin or unpin event is about, or nil when the pin is not on a message.
+  # @return [Hash, nil] { channel_id:, message_id:, thread_id:, user_id: }
+  def pinned_message(payload:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # A reaction event: the emoji's name, the message it is on and who added it.
+  # @return [Hash] { emoji:, channel_id:, message_id:, user_id: }
+  def reaction(payload:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # The app's own message a button was pressed on. content is the message as posted, handed back unread to the adapter
+  # method that rewrites it.
+  # @return [Hash] { channel_id:, message_id:, content: }
+  def pressed_message(raw:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # What started a thread in a person's direct messages with the app.
   THREAD_STARTED_BY_PERSON = :person
   # One of the app's own messages, such as a watch update, an approval or a question for its owner.

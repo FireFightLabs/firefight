@@ -349,6 +349,23 @@ module Slack
       team.present? && payload["enterprise_id"].blank? && team != payload["team_id"]
     end
 
+    def pinned_message(payload:)
+      event = payload["event"] || {}
+      return unless event.dig("item", "type") == "message"
+
+      { channel_id: event.dig("item", "channel"), message_id: event.dig("item", "message", "ts") || event.dig("item", "ts"),
+        thread_id: event.dig("item", "message", "thread_ts"), user_id: event["user"] }
+    end
+
+    def reaction(payload:)
+      event = payload["event"] || {}
+      { emoji: event["reaction"], channel_id: event.dig("item", "channel"), message_id: event.dig("item", "ts"), user_id: event["user"] }
+    end
+
+    def pressed_message(raw:)
+      { channel_id: raw&.dig("container", "channel_id"), message_id: raw&.dig("container", "message_ts"), content: raw&.dig("message", "blocks") || [] }
+    end
+
     def text_for_app(payload:)
       text = payload.dig("event", "text").to_s
       app_ids = Array(payload["authorizations"]).filter_map { |authorization| authorization["user_id"] if authorization["is_bot"] }

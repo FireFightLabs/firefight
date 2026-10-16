@@ -8,20 +8,18 @@ module Events
     SHOUTOUT_EMOJI = "heart_on_fire"
 
     def self.execute(workspace, payload)
-      event = payload["event"] || {}
-      reaction = event["reaction"]
+      adapter = workspace.adapter
+      reaction = adapter.reaction(payload: payload)
 
-      action_type = EMOJI_ACTION_TYPE_MAP[reaction]
-      return unless action_type || reaction == SHOUTOUT_EMOJI
+      action_type = EMOJI_ACTION_TYPE_MAP[reaction[:emoji]]
+      return unless action_type || reaction[:emoji] == SHOUTOUT_EMOJI
 
-      channel_id = event.dig("item", "channel")
-      message_ts = event.dig("item", "ts")
-      user_id = event["user"]
+      channel_id = reaction[:channel_id]
+      message_ts = reaction[:message_id]
+      user_id = reaction[:user_id]
 
       incident = workspace.incidents.active.in_channel(channel_id).first
       return unless incident
-
-      adapter = workspace.adapter
 
       if action_type
         message_text = fetch_message_text(adapter, channel_id, message_ts)
@@ -48,7 +46,7 @@ module Events
         event: "events.reaction_added.api_error",
         error: e.message,
         team_id: payload["team_id"],
-        channel: event.dig("item", "channel")
+        channel: channel_id
       }.to_json)
     end
 

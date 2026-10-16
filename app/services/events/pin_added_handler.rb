@@ -5,28 +5,28 @@ module Events
     end
 
     def self.handle(workspace, payload, event_type)
-      event = payload["event"] || {}
-      return unless event.dig("item", "type") == "message"
+      pinned = workspace.adapter.pinned_message(payload: payload)
+      return unless pinned
 
-      channel_id = event.dig("item", "channel")
-      message_ts = event.dig("item", "message", "ts") || event.dig("item", "ts")
+      channel_id = pinned[:channel_id]
+      message_ts = pinned[:message_id]
       return unless channel_id && message_ts
 
       incident = workspace.incidents.in_channel(channel_id).recent.first
       return unless incident
       return if incident.own_pinned_message?(message_ts)
 
-      member = workspace.workspace_memberships.find_by(platform_user_id: event["user"])
+      member = workspace.workspace_memberships.find_by(platform_user_id: pinned[:user_id])
       permalink = MessagePermalinks.fetch(workspace, channel_id, message_ts)
 
       incident.incident_events.create!(
         event_type: event_type,
         actor: member,
         metadata: {
-          user_id: event["user"],
+          user_id: pinned[:user_id],
           message_ts: message_ts,
           channel_id: channel_id,
-          thread_ts: event.dig("item", "message", "thread_ts"),
+          thread_ts: pinned[:thread_id],
           permalink: permalink,
           message_text: message_text(workspace, channel_id, message_ts)
         }

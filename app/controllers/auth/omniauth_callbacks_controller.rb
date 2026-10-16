@@ -7,6 +7,7 @@ module Auth
     INSTALL_FAILED = "Adding Firefight to Slack did not finish. Start again to add it.".freeze
     SESSION_EXPIRED = "The sign-in expired before it finished. Start again to continue.".freeze
     AUTH_FAILED = "Sign-in did not finish. Start again to continue.".freeze
+    CREDENTIALS_REFUSED = "The sign-in was refused by the account provider. Start again, or contact support if it keeps happening.".freeze
     UNAVAILABLE_MESSAGE = "That way of signing in is not available.".freeze
     SLACK_INSTALL_STRATEGY = "slack".freeze
     GOOGLE_UNVERIFIED_MESSAGE = "Google has not verified the email on that account. Verify it with Google, then sign in again.".freeze
@@ -86,7 +87,7 @@ module Auth
         label = UserIdentity.label_for_strategy(params[:strategy])
         label ? "You denied access to your #{label} account." : AUTH_FAILED
       when "invalid_credentials"
-        "Invalid credentials. Please contact support."
+        CREDENTIALS_REFUSED
       else
         AUTH_FAILED
       end

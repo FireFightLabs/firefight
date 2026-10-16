@@ -17,15 +17,11 @@ module Interactions
       )
       return nil unless acknowledged
 
-      dm_channel_id = interaction.raw&.dig("container", "channel_id") || interaction.channel_id
-      dm_message_ts = interaction.raw&.dig("container", "message_ts")
+      pressed = workspace.adapter.pressed_message(raw: interaction.raw)
+      channel_id = pressed[:channel_id] || interaction.channel_id
 
-      if dm_channel_id && dm_message_ts
-        workspace.adapter.mark_escalation_dm_acknowledged(
-          channel_id: dm_channel_id,
-          message_id: dm_message_ts,
-          original_blocks: interaction.raw&.dig("message", "blocks") || []
-        )
+      if channel_id && pressed[:message_id]
+        workspace.adapter.mark_escalation_dm_acknowledged(channel_id: channel_id, message_id: pressed[:message_id], original_blocks: pressed[:content])
       end
 
       nil
