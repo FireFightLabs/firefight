@@ -34,7 +34,7 @@ class LeadAssignmentWorkflowTest < ActiveSupport::TestCase
     })
 
     assert_equal "succeeded", workflow.state
-    assert_equal 5, workflow.steps.count
+    assert_equal 6, workflow.steps.count
     assert workflow.steps.all?(&:succeeded?)
   end
 
@@ -80,9 +80,67 @@ class LeadAssignmentWorkflowTest < ActiveSupport::TestCase
     })
   end
 
+  test "invites a lead who is not in the channel before showing the expectations" do
+    stub_all_side_effects
+    invited = sequence("lead invite")
+
+    Slack::Client.expects(:invite_to_channel).with(
+      has_entries(channel: @incident.channel_id, users: @bob.platform_user_id)
+    ).in_sequence(invited).returns({ ok: true })
+    Slack::Client.expects(:post_ephemeral).with(has_entries(user: @bob.platform_user_id)).in_sequence(invited).returns({ ok: true })
+
+    workflow = LeadAssignmentWorkflow.start_inline!(@incident, context: {
+      lead_platform_user_id: @bob.platform_user_id
+    })
+
+    assert_equal "succeeded", workflow.state
+    assert_equal 1, workflow.steps.find_by!(name: "invite_lead").output["invited"]
+  end
+
+  test "a lead already in the channel changes nothing and raises no error" do
+    stub_all_side_effects
+    Slack::Client.expects(:invite_to_channel).raises(AdapterError::AlreadyInChannel.new("already_in_channel"))
+    Slack::Client.expects(:post_message).with(has_entries(text: includes("Couldn't add"))).never
+
+    workflow = LeadAssignmentWorkflow.start_inline!(@incident, context: {
+      lead_platform_user_id: @bob.platform_user_id
+    })
+
+    assert_equal "succeeded", workflow.state
+    assert_equal 1, workflow.steps.find_by!(name: "invite_lead").output["already_in_channel"]
+    assert workflow.steps.all?(&:succeeded?)
+  end
+
+  test "a failed invite posts a note and the rest of the workflow carries on" do
+    stub_all_side_effects
+    Slack::Client.expects(:invite_to_channel).raises(AdapterError.new("users_not_found"))
+    Slack::Client.expects(:post_message).with(
+      has_entries(channel: @incident.channel_id, text: includes("Couldn't add <@#{@bob.platform_user_id}>"))
+    ).once.returns({ ok: true, ts: "123.456" })
+    Slack::Client.expects(:post_ephemeral).with(has_entries(user: @bob.platform_user_id)).returns({ ok: true })
+
+    workflow = LeadAssignmentWorkflow.start_inline!(@incident, context: {
+      lead_platform_user_id: @bob.platform_user_id
+    })
+
+    assert_equal "succeeded", workflow.state
+    assert_equal 1, workflow.steps.find_by!(name: "invite_lead").output["failed"]
+    assert workflow.steps.find_by!(name: "post_lead_announcement").succeeded?
+  end
+
+  test "a lead with no platform account is not invited" do
+    stub_all_side_effects
+    Slack::Client.expects(:invite_to_channel).never
+
+    workflow = LeadAssignmentWorkflow.start_inline!(@incident, context: { lead_platform_user_id: nil })
+
+    assert_equal({ "skipped" => true }, workflow.steps.find_by!(name: "invite_lead").output)
+  end
+
   private
 
   def stub_all_side_effects
+    stub_invite_to_channel
     stub_set_channel_topic
     stub_set_channel_purpose
     stub_update_message

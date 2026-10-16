@@ -68,6 +68,11 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
+  def post_lead_invite_failed(channel_id:, lead_platform_user_id:, lead_name: nil)
+    text = Slack::Messages::LeadAssignment.invite_failed(lead_platform_user_id: lead_platform_user_id, lead_name: lead_name)
+    post_message(channel_id: channel_id, text: text, blocks: nil)
+  end
+
   def post_lead_expectations(channel_id:, user_id:)
     blocks = [
       {
