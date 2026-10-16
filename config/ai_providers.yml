@@ -11,8 +11,8 @@
 # account, the same Claude Haiku 5.5, and a provider with none carries on with its main model.
 #
 # Each may list several, preferred first. The first one the registry holds for the provider with a price is used, and
-# main and backup need a known size too, so a model newer than the catalog RubyLLM ships is picked up once the nightly
-# refresh brings it in. The last of main and fast must be one RubyLLM's catalog holds, with tool calling and a known
+# main and backup need a known size too, so a model newer than the catalog RubyLLM ships is picked up once a refresh
+# brings it in. One passed over for a later one is logged and asks for a refresh (AiProviders.passed_over). The last of main and fast must be one RubyLLM's catalog holds, with tool calling and a known
 # size, which test/models/ai_providers_test.rb checks, so there is always one to fall back to. fast and backup list
 # models tried in turn when the provider says one is not there for the account, and each may itself be a list read the
 # same way. That is how a Vertex AI project without Claude enabled ends on Gemini. Providers whose models are named by whoever runs them (an Azure deployment, a local Ollama or
