@@ -573,7 +573,7 @@ Rails.application.routes.draw do
         post :test
         post :activate
         post :deactivate
-        get :signing_secret
+        post :rotate_signing_secret
       end
       get :sample_payload, on: :collection
       resources :deliveries, only: [], controller: "webhook_deliveries" do

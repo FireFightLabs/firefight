@@ -17,6 +17,12 @@ class WebhookSerializer < BaseSerializer
     webhook.subscribed_events
   end
 
+  # The secret itself is shown once when made or replaced, never in a page's props.
+  type :string
+  def signing_secret_hint
+    webhook.signing_secret_hint
+  end
+
   type :string
   def created_at
     webhook.created_at.utc.iso8601

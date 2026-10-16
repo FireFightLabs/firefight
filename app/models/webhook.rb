@@ -33,7 +33,11 @@ class Webhook < ApplicationRecord
 
   SUBSCRIBABLE_EVENTS = SUBSCRIBABLE_EVENT_TEMPLATES.keys.freeze
 
+  SECRET_HINT_LENGTH = 4
+
+  # Kept encrypted, shown once when it is made or replaced, and otherwise only as signing_secret_hint.
   has_secure_token :signing_secret, length: 32
+  encrypts :signing_secret
 
   belongs_to :workspace
   has_many :webhook_deliveries, dependent: :destroy
@@ -53,6 +57,15 @@ class Webhook < ApplicationRecord
 
   def activate!
     update!(active: true)
+  end
+
+  # "Secret ending in 4f2a", the only way a secret is shown after it was made.
+  def signing_secret_hint = "Secret ending in #{signing_secret.to_s.last(SECRET_HINT_LENGTH)}"
+
+  # A new secret in place of the old, which stops signing at once. Answers the new one, to be shown once.
+  def rotate_signing_secret!
+    regenerate_signing_secret
+    signing_secret
   end
 
   def deactivate!

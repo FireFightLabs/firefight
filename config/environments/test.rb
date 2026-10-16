@@ -1,4 +1,6 @@
 Rails.application.configure do
+  # Fixtures for encrypted attributes are written encrypted, as the app would store them.
+  config.active_record.encryption.encrypt_fixtures = true
   config.enable_reloading = false
 
   config.eager_load = ENV["CI"].present?
