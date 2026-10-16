@@ -12,6 +12,12 @@ class Chat::CodeFixProgress
   OUTCOME_PAUSED = "paused"
   OUTCOMES = [ OUTCOME_OPENED, OUTCOME_PUSHED, OUTCOME_FAILED, OUTCOME_PAUSED ].freeze
 
+  # Where the change goes, known before the agent starts: a new pull request, one already open, or a branch with none.
+  TARGET_NEW_PULL_REQUEST = "new_pull_request"
+  TARGET_PULL_REQUEST = "pull_request"
+  TARGET_BRANCH = "branch"
+  TARGETS = [ TARGET_NEW_PULL_REQUEST, TARGET_PULL_REQUEST, TARGET_BRANCH ].freeze
+
   # The newest lines are kept and the rest only counted, so a long run stays small.
   LINES_KEPT = 60
   LINE_LIMIT = 160
@@ -40,7 +46,8 @@ class Chat::CodeFixProgress
   # reason says what a check that could not run was missing.
   Check = Data.define(:name, :status, :reason)
 
-  def self.start(at: Time.current) = new(started_at: at)
+  # pull_request is the open pull request a change is added to, linked while it runs.
+  def self.start(at: Time.current, target: TARGET_NEW_PULL_REQUEST, pull_request: nil) = new(started_at: at, target: target, pull_request: pull_request)
 
   def self.from_h(hash)
     return nil if hash.blank?
@@ -55,7 +62,7 @@ class Chat::CodeFixProgress
       finished_at: parse_time(data["finishedAt"]), outcome: data["outcome"], pull_request: data["pullRequest"], reason: data["reason"],
       question: data["question"].presence && QUESTION_CHOICES.merge(data["question"].to_h), review: data["review"].presence && REVIEW_LISTS.merge(data["review"].to_h),
       checks: Array(data["checks"]).map { |check| Check.new(name: check["name"].to_s, status: check["status"].to_s, reason: check["reason"]) },
-      pause: data["pause"].presence
+      pause: data["pause"].presence, target: data["target"].presence
     )
   end
 
@@ -68,8 +75,9 @@ class Chat::CodeFixProgress
   def self.parse_time(value) = value.present? ? Time.zone.parse(value.to_s) : nil
 
   def initialize(started_at:, live: false, total: 0, lines: [], changed: [], tests: [], files: [], finished_at: nil, outcome: nil,
-                 pull_request: nil, reason: nil, question: nil, checks: [], review: nil, pause: nil)
+                 pull_request: nil, reason: nil, question: nil, checks: [], review: nil, pause: nil, target: nil)
     @started_at = started_at
+    @target = target
     @live = live
     @total = total
     @lines = lines
@@ -90,6 +98,14 @@ class Chat::CodeFixProgress
   def live? = @live
 
   def live! = (@live = true)
+
+  # A change kept before it said where it goes is read from how it ended.
+  def target
+    return @target if @target
+    return TARGET_NEW_PULL_REQUEST unless outcome == OUTCOME_PUSHED
+
+    pull_request ? TARGET_PULL_REQUEST : TARGET_BRANCH
+  end
 
   def finished? = finished_at.present?
 
@@ -278,7 +294,7 @@ class Chat::CodeFixProgress
       "files" => files.map { |file| { "path" => file.path, "added" => file.added, "removed" => file.removed } },
       "finishedAt" => finished_at&.utc&.iso8601, "outcome" => outcome, "pullRequest" => pull_request, "reason" => reason,
       "question" => question, "checks" => checks.map { |check| { "name" => check.name, "status" => check.status, "reason" => check.reason } }, "review" => review,
-      "pause" => pause
+      "pause" => pause, "target" => @target
     }
   end
 
@@ -314,12 +330,11 @@ class Chat::CodeFixProgress
     STAGE_PENDING
   end
 
-  def hand_over_title
-    return "Push to the pull request" if outcome == OUTCOME_PUSHED && pull_request
-    return "Push to the branch" if outcome == OUTCOME_PUSHED
+  HAND_OVER_TITLES = {
+    TARGET_NEW_PULL_REQUEST => "Open a pull request", TARGET_PULL_REQUEST => "Push to the pull request", TARGET_BRANCH => "Push to the branch"
+  }.freeze
 
-    "Open a pull request"
-  end
+  def hand_over_title = HAND_OVER_TITLES.fetch(target)
 
   def written_words
     return waiting_words if waiting_for_answer?
