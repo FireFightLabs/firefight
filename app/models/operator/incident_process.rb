@@ -128,7 +128,7 @@ module Operator
 
       PlatformCallFailure.where(workspace_id: @incident.workspace_id, channel_id: @incident.channel_id).map do |failure|
         entry(key: "platform-#{failure.id}", at: failure.created_at, kind: KIND_PLATFORM, tone: TONE_BAD,
-              title: "#{failure.platform.titleize} #{failure.operation} failed", detail: failure.error_class, technical: failure.message)
+              title: "#{failure.platform.titleize} #{failure.operation} failed", detail: PlatformFailures.reason(failure).line, technical: failure.message)
       end
     end
 

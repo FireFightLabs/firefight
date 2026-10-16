@@ -289,7 +289,10 @@ module Slack
       "slack://channel?team=#{@workspace.platform_id}&id=#{channel_id}"
     end
 
+    # A message is named by both, so without either there is nothing to link and Slack is not asked.
     def get_message_permalink(channel_id:, message_id:)
+      return { permalink: nil } if channel_id.blank? || message_id.blank?
+
       translate_errors do
         result = Slack::Client.get_permalink(
           workspace: @workspace,

@@ -9,6 +9,7 @@ import { useState } from "react"
 
 import type { AttributeDefinition, AttributeType, CatalogType } from "@/pages/catalogue/types"
 import { ATTRIBUTE_TYPES, ATTRIBUTE_TYPE_LABELS } from "@/pages/catalogue/lib/constants"
+import { Blocked } from "@/components/blocked-tooltip"
 import { ColorPicker } from "@/components/color-picker"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -287,14 +288,17 @@ export function TypeFormDialog({ type, availableTypes, attributeRoles, open, onO
                         />
                         <span className="text-[11px] text-muted-foreground">Required</span>
                       </label>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-7 shrink-0 text-muted-foreground hover:text-danger"
-                        onClick={() => removeAttribute(attr.id)}
-                      >
-                        <IconTrash className="size-3.5" />
-                      </Button>
+                      <Blocked reason={attr.removalBlockedReason ?? undefined}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7 shrink-0 text-muted-foreground hover:text-danger"
+                          disabled={Boolean(attr.removalBlockedReason)}
+                          onClick={() => removeAttribute(attr.id)}
+                        >
+                          <IconTrash className="size-3.5" />
+                        </Button>
+                      </Blocked>
                     </div>
 
                     {rolesFor(attr.attributeType).length > 0 && (

@@ -15,7 +15,8 @@ module Operator
     LIMIT = 25
     ID_START = /\A[0-9a-f-]+\z/
     INCIDENT_NUMBER = /\A[a-z]+-\d+\z/i
-    # A trace row key such as model-<id>, as it appears in a trace URL.
+    # A trace row key such as model-<id>, as it appears in a trace URL. A query that is all hex is an id, though its first
+    # part can be all letters.
     SPAN_KEY = /\A([a-z]+)-([0-9a-f][0-9a-f-]{5,})\z/
 
     # label names the record and place is its workspace. via is the pasted id when it belongs to a record inside this
@@ -31,7 +32,7 @@ module Operator
       @readable = readable
       @query = query.to_s.strip.downcase
       span_key = @query.match(SPAN_KEY)
-      @query = span_key[2] if span_key && !@query.match?(INCIDENT_NUMBER)
+      @query = span_key[2] if span_key && !@query.match?(ID_START) && !@query.match?(INCIDENT_NUMBER)
     end
 
     def matches

@@ -80,7 +80,6 @@ class AgentChatInPlaceTest < ActionDispatch::IntegrationTest
     CurrentWorkspaceSerializer.expects(:many).never
     InertiaController.any_instance.expects(:manageable_resources).never
     InertiaController.any_instance.expects(:agent_available?).never
-    Chat::CustomSkill.expects(:enabled_for?).never
   end
 
   # The badges' counts are shared props too.

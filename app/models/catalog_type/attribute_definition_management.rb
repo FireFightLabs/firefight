@@ -45,9 +45,8 @@ module CatalogType::AttributeDefinitionManagement
   end
 
   def remove_attribute_definition!(attr_def)
-    if system?
-      raise ActiveRecord::RecordNotDestroyed, "Cannot remove system attribute definitions"
-    end
+    blocked_reason = attr_def.removal_blocked_reason
+    raise ActiveRecord::RecordNotDestroyed, blocked_reason if blocked_reason
 
     if attr_def.reference?
       if attr_def.catalog_entry_relationships.exists?

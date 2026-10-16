@@ -259,7 +259,7 @@ class PlatformAdapter
     raise NotImplementedError
   end
 
-  # @return [Hash] { permalink: "https://..." }
+  # @return [Hash] { permalink: "https://..." }, permalink nil when either id is blank.
   def get_message_permalink(channel_id:, message_id:)
     raise NotImplemented.new(__method__, self.class)
   end
@@ -893,24 +893,22 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # One line a watch Halon keeps said, such as a milestone or how it ended, in the chat's thread. update is a
-  # Conversation::Watches::Said.
+  # The one card a watch Halon keeps has in a place, posted once: in a chat's thread, or to a person's direct messages
+  # when thread_id is nil and channel_id is their user id. card is a Conversation::Watches::Card.
   # @return [Hash] { message_id:, channel_id: }
-  def post_watch_update(channel_id:, thread_id:, update:)
+  def post_watch_card(channel_id:, thread_id:, card:)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # The same line to whoever asked for the watch. conversation_id is the dashboard chat it reports to, which the message
-  # offers to open, or nil for a chat that is not on the dashboard.
-  # @return [Hash] { message_id:, channel_id: }
-  def post_watch_update_to_user(user_id:, update:, conversation_id: nil)
-    raise NotImplemented.new(__method__, self.class)
-  end
-
-  # Redraws a line a watch said where it was posted, such as once the watch is over and Stop has nothing left to stop.
-  # direct and conversation_id are as the line was first sent with.
+  # Redraws a watch's card where it was posted, from how the watch stands now.
   # @return [Hash] { success: true }
-  def update_watch_update(channel_id:, message_id:, update:, direct: false, conversation_id: nil)
+  def update_watch_card(channel_id:, message_id:, card:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # How a watch ended, as a short message of its own beside its card, so the person is told. Placed as post_watch_card.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_watch_end(channel_id:, thread_id:, card:)
     raise NotImplemented.new(__method__, self.class)
   end
 
