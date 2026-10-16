@@ -12,6 +12,7 @@ module FirefightAi
           c.request_timeout = FirefightAi.configuration.request_timeout
           c.faraday_adapter = adapter
         end
+        FirefightAi::Tracing.span_tools!
         FirefightAi::Tracing.enable! if FirefightAi.configuration.trace_calls
       end
     end

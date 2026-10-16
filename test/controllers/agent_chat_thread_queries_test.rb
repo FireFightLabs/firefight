@@ -43,8 +43,10 @@ class AgentChatThreadQueriesTest < ActionDispatch::IntegrationTest
     assert_same_queries few, thread_queries
   end
 
+  # A statement the page sends again with the same values counts once, since the cache answers it unless a write from
+  # another thread emptied it (QueryCountHelper#queries_sent).
   def thread_queries
-    queries_sent { get agent_chat_url(@conversation), headers: inertia_partial_headers("agent/index", AgentChatsController::THREAD_PROPS) }.tap do
+    queries_sent(repeats: false) { get agent_chat_url(@conversation), headers: inertia_partial_headers("agent/index", AgentChatsController::THREAD_PROPS) }.tap do
       assert_response :success
     end
   end

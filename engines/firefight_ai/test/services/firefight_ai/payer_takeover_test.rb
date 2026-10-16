@@ -19,6 +19,7 @@ class FirefightAi::PayerTakeoverTest < ActiveSupport::TestCase
     end
 
     def to_llm = self
+    def with_tool_options(**) = self
     def awaiting_approval? = false
     def with_max_output_tokens(_limit) = self
     def deferred_tools = {}

@@ -12,6 +12,9 @@ class Chat::Tools::SearchHandbook < RubyLLM::Tool
 
   def name = self.class.tool_name
 
+  # Only reads, so it runs beside the step's other reads (FirefightAi::AgentLoop::ToolsTogether).
+  def concurrent_read? = true
+
   def description
     "Search this workspace's handbook, how the workspace works as its people wrote it, such as how a release runs, who " \
       "owns a service or when changes are frozen. Use it for the pages the start of the chat names as too long to give " \

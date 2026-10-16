@@ -109,7 +109,10 @@ module FirefightAi
       @checks = checks.dup
       @retry_malformed = retry_malformed
       @context = context.presence
+      # The app hears of a step and of a tool's progress one report at a time, though tools of one step run together.
+      @reporting = ::Monitor.new
       steady!
+      run_tools_together!
       @seen_tool_call_ids = messages.flat_map { |message| message.tool_calls&.keys || [] }.to_set
       report_steps_to(on_step) if on_step
       report_progress_to(on_progress) if on_progress
@@ -117,7 +120,8 @@ module FirefightAi
 
     def report_progress_to(on_progress)
       @chat.to_llm.after_tool_progress do |tool_call, progress|
-        on_progress.call(Progress.new(key: tool_call.id, message: progress.message&.to_s, value: progress.value, total: progress.total))
+        report = Progress.new(key: tool_call.id, message: progress.message&.to_s, value: progress.value, total: progress.total)
+        @reporting.synchronize { on_progress.call(report) }
       end
     end
 
@@ -125,15 +129,14 @@ module FirefightAi
     def report_steps_to(on_step)
       llm = @chat.to_llm
       llm.before_tool_call do |tool_call|
-        on_step.call(
-          Step.new(key: tool_call.id, tool: tool_call.name, status: STEP_RUNNING, arguments: tool_call.arguments)
-        )
+        step = Step.new(key: tool_call.id, tool: tool_call.name, status: STEP_RUNNING, arguments: tool_call.arguments)
+        @reporting.synchronize { on_step.call(step) }
       end
       # after_tool_result only gets the tool's return value, which cannot name its call, so the saved result message is used.
       llm.after_message do |message|
         next unless message.tool_result?
 
-        on_step.call(Step.new(key: message.tool_call_id, tool: nil, status: STEP_DONE))
+        @reporting.synchronize { on_step.call(Step.new(key: message.tool_call_id, tool: nil, status: STEP_DONE)) }
       end
     end
 
@@ -195,6 +198,14 @@ module FirefightAi
       generate
     end
 
+    # The calls of one step that only read run together, each on a thread of its own, and every other call alone, in the
+    # order asked (ToolsTogether).
+    def run_tools_together!
+      llm = @chat.to_llm
+      llm.extend(ToolsTogether)
+      llm.with_tool_options(concurrency: :threads)
+    end
+
     # The tools run on a thread of their own while the loop looks for a stop, so a stop ends the run at once, whether a
     # tool waits on a sandbox, a provider's API or a remote server. The tools are told through StopSignal, so a wait that
     # checks it gives up and tidies after itself, and the chat is cancelled, so RubyLLM saves no result for a tool that
@@ -203,7 +214,8 @@ module FirefightAi
       return @chat.step if @canceled.equal?(NEVER_CANCELED)
 
       signal = Concurrent::Event.new
-      tools = StopSignal.watching(signal) { Thread.new { beside_the_loop { @chat.step } } }
+      trace = Tracing.context
+      tools = StopSignal.watching(signal) { Thread.new { Tracing.within(trace) { beside_the_loop { @chat.step } } } }
       tools.report_on_exception = false
       until wait_for(tools, STOP_CHECK_EVERY)
         next unless @canceled.call

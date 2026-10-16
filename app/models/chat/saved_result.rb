@@ -23,12 +23,15 @@ class Chat::SavedResult < ApplicationRecord
   scope :in_order, -> { order(:created_at, :handle) }
 
   # Called on a chat's or a run's own results, so the name counts within it. One worker holds a chat
-  # at a time, and the unique index settles it if two ever meet.
+  # at a time, and the unique index settles it if two ever meet. Calls of one step running together keep theirs in the
+  # order they were asked (CallOrder).
   def self.keep!(tool_name:, text:, step: nil)
     kept = text.to_s[0, MAX_KEPT]
-    create!(handle: "result_#{count + 1}", tool_name: tool_name, content: kept, line_count: kept.lines.size, step: step)
-  rescue ActiveRecord::RecordNotUnique
-    retry
+    CallOrder.after_earlier_calls do
+      create!(handle: "result_#{count + 1}", tool_name: tool_name, content: kept, line_count: kept.lines.size, step: step)
+    rescue ActiveRecord::RecordNotUnique
+      retry
+    end
   end
 
   def lines_between(from, to)

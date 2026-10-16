@@ -15,6 +15,8 @@ class FirefightAi::NextStepTest < ActiveSupport::TestCase
 
     def to_llm = self
 
+    def with_tool_options(**) = self
+
     def awaiting_approval? = false
 
     def add_message(attributes) = (messages << RubyLLM::Message.new(**attributes)).last

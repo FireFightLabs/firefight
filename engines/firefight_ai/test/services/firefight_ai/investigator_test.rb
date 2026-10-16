@@ -88,7 +88,7 @@ class FirefightAi::InvestigatorTest < ActiveSupport::TestCase
 
   def chat_double(messages:)
     chat = mock("chat")
-    chat.stubs(:to_llm).returns(stub(messages: messages, with_temperature: nil))
+    chat.stubs(:to_llm).returns(stub(messages: messages, with_temperature: nil, with_tool_options: nil))
     chat.stubs(:with_tools)
     chat.stubs(:with_caching)
     chat.stubs(:with_instructions)

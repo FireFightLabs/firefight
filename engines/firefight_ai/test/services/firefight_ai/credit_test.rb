@@ -206,6 +206,7 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
     end
 
     def to_llm = self
+    def with_tool_options(**) = self
     def awaiting_approval? = false
     def max_output_tokens = @limit
 

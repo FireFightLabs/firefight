@@ -41,6 +41,9 @@ class Chat::Tools::Docs < RubyLLM::Tool
 
   def name = @kind
 
+  # Only reads, so it runs beside the step's other reads (FirefightAi::AgentLoop::ToolsTogether).
+  def concurrent_read? = true
+
   def description
     if @kind == SEARCH
       "Search the documentation of the providers this workspace connected, such as how a webhook trigger takes its " \

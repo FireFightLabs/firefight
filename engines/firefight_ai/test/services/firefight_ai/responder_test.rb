@@ -80,7 +80,7 @@ class FirefightAi::ResponderTest < ActiveSupport::TestCase
 
   def chat_double(&told)
     chat = mock("chat")
-    chat.stubs(:to_llm).returns(stub(messages: [], with_temperature: nil))
+    chat.stubs(:to_llm).returns(stub(messages: [], with_temperature: nil, with_tool_options: nil))
     chat.stubs(:with_tools)
     chat.stubs(:with_caching)
     told ? chat.expects(:with_instructions).with { |text| told.call(text) } : chat.stubs(:with_instructions)
