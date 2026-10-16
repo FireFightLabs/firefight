@@ -59,6 +59,20 @@ class WorkspaceAiAccountTest < ActiveSupport::TestCase
     assert account.valid?, account.errors.full_messages.to_sentence
   end
 
+  test "a region or location is a plain name, never something that moves the model's address to another host" do
+    account = @workspace.workspace_ai_accounts.new(provider: "bedrock", label: "Bedrock", kind: AiProviders::KIND_API_KEY, position: 1)
+    account.assign_settings("region" => "x@10.0.0.5:8443/", "api_key" => "AKIAOWN", "secret_key" => "own-secret")
+    account.assign_models("main" => "anthropic.claude-sonnet-4-5-20250929-v1:0", "fast" => "anthropic.claude-sonnet-4-5-20250929-v1:0")
+
+    assert_not account.valid?
+    assert_includes account.errors[:base], "Region should be a name such as us-east-1"
+
+    vertex = @workspace.workspace_ai_accounts.new(provider: "vertexai", label: "Vertex", kind: AiProviders::KIND_API_KEY, position: 1)
+    vertex.assign_settings("project_id" => "acme", "location" => "10.0.0.5:8443/#", "service_account_key" => "{}")
+    assert_not vertex.valid?
+    assert_includes vertex.errors[:base], "Location should be a name such as us-east-1"
+  end
+
   test "Vertex AI needs a service account key, so it never falls back to the machine's own Google credentials" do
     account = @workspace.workspace_ai_accounts.new(provider: "vertexai", label: "Vertex", kind: AiProviders::KIND_API_KEY, position: 1)
     account.assign_settings("project_id" => "acme", "location" => "us-central1")
