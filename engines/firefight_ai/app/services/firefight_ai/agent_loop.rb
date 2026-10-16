@@ -359,21 +359,20 @@ module FirefightAi
     # grows, the history in front of the context ends in a cache boundary for this call only, marked on a copy, so no
     # later call carries the mark. Otherwise a provider that caches at boundaries, such as Anthropic, would write the history with this context at
     # its end and find none of it on the next call, whose context comes after more of the chat. holding marks the
-    # boundary the run's first call holds (hold_history).
+    # boundary the run's first call holds (hold_history). A loop with no context, such as a helper's or a specialist's,
+    # marks its history the same way, since the provider's own rolling boundary (with_caching) is not read on every
+    # route. Through OpenRouter, Claude Haiku 4.5 read only the instructions from the cache on each of 85 specialist
+    # calls, while every mark on a message was read.
     def with_context_last(holding: false)
-      return yield unless @context
-
       llm = @chat.to_llm
       marks = cache_marks(llm, holding)
       marks.each { |message, copy| swap(llm.messages, message, copy) }
-      note = llm.add_message(role: :user, content: @context)
+      note = llm.add_message(role: :user, content: @context) if @context
       yield
     ensure
-      if @context
-        messages = @chat.to_llm.messages
-        messages.delete_if { |message| message.equal?(note) } if note
-        marks&.each { |message, copy| swap(messages, copy, message) }
-      end
+      messages = @chat.to_llm.messages
+      messages.delete_if { |message| message.equal?(note) } if note
+      marks&.each { |message, copy| swap(messages, copy, message) }
     end
 
     # Each message marked for this call with the copy that carries the mark. In a chat that holds its history, on a model

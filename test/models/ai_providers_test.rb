@@ -1,6 +1,8 @@
 require "test_helper"
 
 class AiProvidersTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   # Read from the catalog RubyLLM ships, which the nightly refresh fills the registry from. The test registry holds a
   # few rows only. A newer main model ahead of it is picked up once the registry holds it, and the last is always there.
   test "every recommended model is one the catalog holds for its provider, with tool calling and a known size" do
@@ -129,6 +131,28 @@ class AiProvidersTest < ActiveSupport::TestCase
 
     FirefightAi.stubs(:priced_for?).returns(false)
     assert_equal "claude-haiku-4-5", AiProviders.find("anthropic").fast_model
+  end
+
+  test "quick work moves to Claude Haiku 5.5 once a refresh brings it into the registry, and until then the older model it ran on is named and a refresh asked for" do
+    fast = -> { AiProviders.find("openrouter").fast_model }
+    row = RubyLLM::ActiveRecord::Model.find_by!(provider: "openrouter", model_id: "anthropic/claude-haiku-5.5")
+    warnings = []
+    Rails.logger.stubs(:warn).with { |line| warnings << line.to_s }
+
+    row.update!(model_id: "anthropic/claude-haiku-5.5-unlisted")
+    FirefightAi.reload_registry_if_changed!
+
+    assert_enqueued_with(job: RefreshModelRegistryJob) { assert_equal "anthropic/claude-haiku-4.5", fast.call }
+    assert_includes warnings, { event: "ai.model_passed_over", provider: "openrouter", wanted: [ "anthropic/claude-haiku-5.5" ],
+                                used: "anthropic/claude-haiku-4.5" }.to_json
+
+    row.update!(model_id: "anthropic/claude-haiku-5.5")
+    FirefightAi.reload_registry_if_changed!
+
+    assert_equal "anthropic/claude-haiku-5.5", fast.call, "a process that read the registry before the refresh reads it again"
+  ensure
+    row&.update!(model_id: "anthropic/claude-haiku-5.5")
+    RubyLLM.models.load_from_store
   end
 
   test "Vertex AI tries Claude Haiku and then Gemini, so a project without Claude enabled still answers" do

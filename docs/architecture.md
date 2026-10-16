@@ -67,7 +67,7 @@ service.change_status(incident, { incident_status: resolved_status, summary: "Ne
 # Cancel with the workspace's default canceled status (the Cancel button, /ff cancel)
 service.cancel_with_default_status(incident, changed_by: member)
 
-# Assign lead — records change, starts LeadAssignmentWorkflow (channel topic, lead DM, announcement)
+# Assign lead — records change, starts LeadAssignmentWorkflow (channel topic, invite the lead to the channel, ephemeral lead expectations, announcement)
 service.assign_lead(incident, lead_member, changed_by: member)
 ```
 

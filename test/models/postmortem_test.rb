@@ -77,6 +77,36 @@ class PostmortemTest < ActiveSupport::TestCase
     %w[<h2> <strong> <em> <ul> <li>].each { |tag| assert_includes html, tag }
   end
 
+  test "complete_generation! keeps markup written in the model's draft or the incident's own text from running" do
+    member = workspace_memberships(:alice_workspace_one)
+    incident = Incident.create!(
+      workspace: workspaces(:slack_workspace_one), declared_by: member,
+      incident_status: incident_statuses(:resolved_ws1), incident_severity: incident_severities(:minor_ws1),
+      name: "Checkout <img src=x onerror=alert(1)>", is_private: false, resolved_at: Time.current, source: Incident::SOURCE_SLACK
+    )
+    incident.record_change!(IncidentEvent::INCIDENT_RESOLVED, by: member)
+    draft = FirefightAi::PostmortemGenerator::Draft.new(
+      title: "INC Postmortem: Checkout", summary: nil, model: "gpt-4o",
+      sections: { "introduction" => "Card payments ~~failed~~ <script>alert(1)</script><a href=\"javascript:bad()\">here</a>" }
+    )
+
+    postmortem = Postmortem.complete_generation!(incident, draft, generated_by: member)
+
+    [ postmortem.reload.content["html"], postmortem.postmortem_updates.order(:created_at).last.content["html"] ].each do |html|
+      assert_includes html, "Card payments <del>failed</del>"
+      assert_not_includes html, "<script"
+      assert_not_includes html, "onerror"
+      assert_not_includes html, "javascript:"
+    end
+  end
+
+  test "html_content sanitizes a postmortem stored before generated drafts were" do
+    postmortem = postmortems(:postmortem_resolved_ws1)
+    postmortem.content = { "html" => "<h2>Impact</h2><img src=x onerror=alert(1)>" }
+
+    assert_equal "<h2>Impact</h2>", postmortem.html_content
+  end
+
   test "incident can only have one postmortem" do
     existing = postmortems(:postmortem_resolved_ws1)
     duplicate = Postmortem.new(
