@@ -214,7 +214,7 @@ module Operator
       window = run.created_at..((run.completed_at || Time.current) + 5.minutes)
       PlatformCallFailure.where(workspace_id: run.workspace_id, channel_id: run.channel_id, created_at: window).map do |failure|
         Trace.span(key: "platform-#{failure.id}", kind: KIND_PLATFORM, title: "#{failure.platform.titleize} #{failure.operation} failed",
-                   started_at: failure.created_at, tone: IncidentProcess::TONE_BAD, detail: failure.error_class,
+                   started_at: failure.created_at, tone: IncidentProcess::TONE_BAD, detail: PlatformFailures.reason(failure).line,
                    facts: [ [ "Error", failure.error_class ], [ "Message", failure.message ] ])
       end
     end

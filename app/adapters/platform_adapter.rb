@@ -259,7 +259,7 @@ class PlatformAdapter
     raise NotImplementedError
   end
 
-  # @return [Hash] { permalink: "https://..." }
+  # @return [Hash] { permalink: "https://..." }, permalink nil when either id is blank.
   def get_message_permalink(channel_id:, message_id:)
     raise NotImplemented.new(__method__, self.class)
   end

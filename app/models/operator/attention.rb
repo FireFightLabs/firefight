@@ -36,7 +36,10 @@ module Operator
     TARGET_QUEUES = "queues".freeze
     TARGET_WORKSPACE = "workspace".freeze
     TARGET_SANDBOXES = "sandboxes".freeze
-    TARGETS = [ TARGET_WORKFLOW, TARGET_INCIDENT, TARGET_RUN, TARGET_FAILED_JOBS, TARGET_QUEUES, TARGET_WORKSPACE, TARGET_SANDBOXES ].freeze
+    TARGET_PLATFORM_FAILURE = "platform_failure".freeze
+    TARGETS = [
+      TARGET_WORKFLOW, TARGET_INCIDENT, TARGET_RUN, TARGET_FAILED_JOBS, TARGET_QUEUES, TARGET_WORKSPACE, TARGET_SANDBOXES, TARGET_PLATFORM_FAILURE
+    ].freeze
 
     # Stop reasons worth tuning. The other reasons are a person's choice or the model ending without an answer.
     TUNING_LIMITS = [ Investigation::BUDGET_SPENT, Investigation::TOO_MANY_TURNS ].freeze
@@ -145,20 +148,20 @@ module Operator
       rogue + trouble + unread
     end
 
+    # One item per workspace, call, the platform's code and channel, saying why in the platform's own words and opening
+    # every recent time it failed that way.
     def platform_items
-      failures = @filter.scope(PlatformCallFailure.where(created_at: @filter.range))
-      groups = failures.group(:workspace_id, :operation, :error_class, :channel_id).order(Arel.sql("MAX(created_at) DESC")).limit(PER_KIND)
-                       .pluck(Arel.sql("(ARRAY_AGG(id ORDER BY created_at DESC))[1]"), Arel.sql("COUNT(*)"))
+      groups = PlatformFailures.groups(@filter.scope(PlatformCallFailure.where(created_at: @filter.range)), limit: PER_KIND)
       latest = PlatformCallFailure.includes(:workspace).where(id: groups.map(&:first)).index_by(&:id)
-      incidents = incidents_by_channel(latest.values)
+      incidents = PlatformFailures.incidents_for(latest.values)
 
       groups.map do |latest_id, count|
         failure = latest.fetch(latest_id)
         incident = incidents[[ failure.workspace_id, failure.channel_id ]]
         item(key: "platform-#{failure.id}", kind: KIND_PLATFORM_FAILED, title: "#{failure.platform.titleize} call failed",
              subject: [ failure.operation, incident&.identifier ].compact.join(" · "), place: failure.workspace.name,
-             detail: "#{count} #{'time'.pluralize(count)} · #{failure.error_class}", at: failure.created_at,
-             target: (TARGET_INCIDENT if incident), target_id: incident&.id)
+             detail: "#{count} #{'time'.pluralize(count)} · #{PlatformFailures.reason(failure).line}", at: failure.created_at,
+             target: TARGET_PLATFORM_FAILURE, target_id: failure.id)
       end
     end
 
@@ -264,13 +267,6 @@ module Operator
 
     def subject_place(subject)
       subject.respond_to?(:workspace) ? subject.workspace.name : all_workspaces
-    end
-
-    def incidents_by_channel(failures)
-      pairs = failures.filter_map { |failure| [ failure.workspace_id, failure.channel_id ] if failure.channel_id }
-      return {} if pairs.empty?
-
-      Incident.where(workspace_id: pairs.map(&:first), channel_id: pairs.map(&:last)).index_by { |incident| [ incident.workspace_id, incident.channel_id ] }
     end
 
     def host_of(url)

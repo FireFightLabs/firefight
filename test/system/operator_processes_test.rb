@@ -51,4 +51,29 @@ class OperatorProcessesTest < ApplicationSystemTestCase
     assert_selector "button[aria-pressed=true]", text: "invite_responders"
     page.save_screenshot(Rails.root.join("tmp/screenshots/operator-workflow.png"))
   end
+
+  test "an operator sees why a Slack call failed and opens every time it failed that way" do
+    workspace = @incident.workspace
+    message = 'Slack API error: invalid_arguments (details: {"error":"invalid_arguments","response_metadata":{"messages":' \
+              '["[ERROR] missing required field: channel","[ERROR] missing required field: message_ts"],"warnings":["missing_charset"]}})'
+    failures = [ 40, 20, 5 ].map do |minutes|
+      PlatformCallFailure.create!(workspace: workspace, platform: Platforms::SLACK, operation: "chat.getPermalink", error_class: "AdapterError",
+                                  message: message, channel_id: @incident.channel_id, created_at: minutes.minutes.ago)
+    end
+    PlatformCallFailure.create!(workspace: workspace, platform: Platforms::SLACK, operation: "agents.sessions.setStatus", error_class: "AdapterError",
+                                message: 'Slack API error: not_authorized (details: {"error":"not_authorized","response_metadata":{"warnings":["missing_charset"]}})')
+
+    visit operator_root_path
+    assert_text "3 times · invalid_arguments: missing required field: channel, missing required field: message_ts"
+    assert_text "1 time · not_authorized"
+    assert_no_text "missing_charset"
+    page.save_screenshot(Rails.root.join("tmp/screenshots/operator-overview-platform-failures.png"))
+
+    find("a[href=\"#{operator_platform_failure_path(failures.last)}\"]").click
+    assert_text "Why Slack refused it"
+    assert_text "missing required field: message_ts"
+    assert_selector "pre", text: "missing_charset", count: 3
+    assert_link @incident.identifier, count: 3
+    page.save_screenshot(Rails.root.join("tmp/screenshots/operator-platform-failure.png"))
+  end
 end

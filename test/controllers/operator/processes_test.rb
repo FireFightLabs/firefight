@@ -38,6 +38,26 @@ class Operator::ProcessesTest < ActionDispatch::IntegrationTest
     assert_equal @step.id, step["retryStepId"]
   end
 
+  test "a failed platform call opens every recent time it failed the same way, with where and why" do
+    as_operator
+    workspace = @incident.workspace
+    message = 'Slack API error: not_in_channel (details: {"error":"not_in_channel","response_metadata":{"warnings":["missing_charset"]}})'
+    older = PlatformCallFailure.create!(workspace: workspace, platform: Platforms::SLACK, operation: "conversations.invite", error_class: "AdapterError::NotInChannel",
+                                        message: message, channel_id: @incident.channel_id, created_at: 1.hour.ago)
+    latest = PlatformCallFailure.create!(workspace: workspace, platform: Platforms::SLACK, operation: "conversations.invite", error_class: "AdapterError::NotInChannel",
+                                         message: message, channel_id: @incident.channel_id)
+
+    get operator_root_path, headers: inertia_headers
+    row = inertia_props["attentionItems"].find { |item| item["href"] == operator_platform_failure_path(latest) }
+    assert_equal "2 times · not_in_channel", row["detail"]
+
+    get operator_platform_failure_path(latest), headers: inertia_headers
+    assert_equal [ "conversations.invite", "not_in_channel", workspace.name, 2 ],
+                 [ inertia_props.dig("failure", "operation"), inertia_props.dig("failure", "reason"), inertia_props.dig("failure", "workspace"), inertia_props["total"] ]
+    assert_equal [ latest.id, older.id ], inertia_props["occurrences"].map { |occurrence| occurrence["id"] }
+    assert_equal [ @incident.identifier, message ], inertia_props["occurrences"].first.values_at("incident", "message")
+  end
+
   test "workflows filter by state and kind, and one opens with its steps placed and its events" do
     as_operator
 
