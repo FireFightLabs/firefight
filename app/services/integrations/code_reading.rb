@@ -439,7 +439,7 @@ module Integrations
 
     def remote_url(repository) = @remote.url(repository)
 
-    # The credential goes to git in its environment, never its arguments, which any process on the server can list.
+    # The credential goes to git in its environment, never its arguments, which any user's process on the server can list.
     def git!(dir, *arguments, authenticated: false)
       env = { "GIT_TERMINAL_PROMPT" => "0", "GIT_CONFIG_NOSYSTEM" => "1", "HOME" => dir }
       env.merge!(config_env([ "http.extraHeader=Authorization: Basic #{credential}", *@remote.options ])) if authenticated
