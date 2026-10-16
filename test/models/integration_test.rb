@@ -1,6 +1,15 @@
 require "test_helper"
 
 class IntegrationTest < ActiveSupport::TestCase
+  test "a connection is never wired to another workspace's environment" do
+    integration = workspaces(:slack_workspace_two).integrations.create!(kind: Integration::KIND_NATIVE, provider: "fake", name: "Fake", slug: "fake")
+
+    row = integration.integration_environments.new(catalog_entry_id: catalog_entries(:production_env).id)
+
+    assert_not row.valid?
+    assert_includes row.errors[:environment], "is not an environment of this workspace"
+  end
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @integration = Integration.create!(

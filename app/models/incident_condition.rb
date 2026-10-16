@@ -28,6 +28,7 @@ class IncidentCondition < ApplicationRecord
   validates :values, presence: true
 
   validate :values_is_array
+  validate :same_workspace
   validate :incident_field_definition_matches_condition_field
   validate :incident_field_definition_type_supported
   validate :conditionable_may_be_hidden
@@ -68,6 +69,16 @@ class IncidentCondition < ApplicationRecord
     when FIELD_CUSTOM_FIELD then incident_field_definition&.selectable_values || {}
     end
     values.map { |value| names[value] || value }
+  end
+
+  # The field it reads and the record it belongs to are both this workspace's, whichever screen made it.
+  def same_workspace
+    if incident_field_definition && incident_field_definition.workspace_id != workspace_id
+      errors.add(:incident_field_definition, "is not a field of this workspace")
+    end
+    return unless conditionable.respond_to?(:workspace_id) && conditionable.workspace_id != workspace_id
+
+    errors.add(:conditionable, "is not in this workspace")
   end
 
   # A condition is a second way to hide a field, so it respects the lock the Visible toggle does.

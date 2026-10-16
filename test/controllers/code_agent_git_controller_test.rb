@@ -23,7 +23,7 @@ class CodeAgentGitControllerTest < ActionDispatch::IntegrationTest
         path == Integrations::GitGate::RECEIVE && method == :post && length == sent.bytesize && headers["Content-Type"] == "application/x-git-receive-pack-request"
     end.multiple_yields([ :start, 200, { "content-type" => "application/x-git-receive-pack-result" } ], [ :chunk, "000eunpack ok\n0000" ])
 
-    post "/code_agent/git/change.git/git-receive-pack", params: body, headers: git_headers("application/x-git-receive-pack-request", token: @session.open_push!(5.minutes))
+    post "/code_agent/git/change.git/git-receive-pack", params: body, headers: git_headers("application/x-git-receive-pack-request", token: @session.open_push!(5.minutes, commit: NEW))
 
     assert_response :success
     assert_equal body, sent, "the pack behind the commands is passed on unread"
@@ -33,7 +33,7 @@ class CodeAgentGitControllerTest < ActionDispatch::IntegrationTest
 
   test "a push to main, another branch, a tag or a delete is refused before anything reaches the code host" do
     Integrations::GitHttp.expects(:forward).never
-    push_token = @session.open_push!(5.minutes)
+    push_token = @session.open_push!(5.minutes, commit: NEW)
     [ "#{OLD} #{NEW} refs/heads/main", "#{OLD} #{NEW} refs/heads/feature", "#{'0' * 40} #{NEW} refs/tags/v1", "#{OLD} #{'0' * 40} refs/heads/halon/fix-1" ].each do |command|
       post "/code_agent/git/change.git/git-receive-pack", params: pkt("#{command}\0report-status\n") + "0000PACK",
                                                              headers: git_headers("application/x-git-receive-pack-request", token: push_token)
@@ -41,6 +41,18 @@ class CodeAgentGitControllerTest < ActionDispatch::IntegrationTest
       assert_response :forbidden
       assert_match "A code change", response.body
     end
+  end
+
+  test "a push of any commit but the one reviewed is refused, even to the session's own branch" do
+    Integrations::GitHttp.expects(:forward).never
+    push_token = @session.open_push!(5.minutes, commit: NEW)
+    other = "c" * 40
+
+    post "/code_agent/git/change.git/git-receive-pack", params: pkt("#{OLD} #{other} refs/heads/halon/fix-1\0report-status\n") + "0000PACK",
+                                                           headers: git_headers("application/x-git-receive-pack-request", token: push_token)
+
+    assert_response :forbidden
+    assert_match "only the commit that was reviewed", response.body
   end
 
   test "fetching reads the session's repository, and what git asks for first is passed through with its protocol" do
@@ -82,7 +94,7 @@ class CodeAgentGitControllerTest < ActionDispatch::IntegrationTest
     post "/code_agent/git/change.git/git-receive-pack", params: push, headers: git_headers("application/x-git-receive-pack-request")
     assert_response :unauthorized
 
-    push_token = @session.open_push!(5.minutes)
+    push_token = @session.open_push!(5.minutes, commit: NEW)
     post "/code_agent/git/change.git/git-upload-pack", params: "0000", headers: git_headers("application/x-git-upload-pack-request", token: push_token)
     assert_response :unauthorized, "the push token only pushes"
 
@@ -93,7 +105,7 @@ class CodeAgentGitControllerTest < ActionDispatch::IntegrationTest
 
   test "a push opened after the agent's session ran out of time still reaches the code host" do
     @session.update_columns(expires_at: 1.minute.ago)
-    push_token = @session.open_push!(5.minutes)
+    push_token = @session.open_push!(5.minutes, commit: NEW)
     Integrations::GitHttp.expects(:forward).multiple_yields([ :start, 200, {} ], [ :chunk, "0000" ])
 
     post "/code_agent/git/change.git/git-receive-pack", params: pkt("#{OLD} #{NEW} refs/heads/halon/fix-1\0report-status\n") + "0000PACK",
@@ -101,7 +113,7 @@ class CodeAgentGitControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     @session.close!
-    assert_nil @session.open_push!(5.minutes), "a closed session never opens a push"
+    assert_nil @session.open_push!(5.minutes, commit: NEW), "a closed session never opens a push"
   end
 
   private

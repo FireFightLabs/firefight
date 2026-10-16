@@ -25,6 +25,7 @@ class IntegrationEnvironment < ApplicationRecord
 
   validates :health_status, inclusion: { in: HEALTH_STATUSES }
   validates :catalog_entry_id, uniqueness: { scope: :integration_id }
+  validate :environment_in_same_workspace
 
   # The resources it reports are found by the environment it is wired to.
   after_update_commit :index_reported_resources, if: :saved_change_to_catalog_entry_id?
@@ -162,6 +163,12 @@ class IntegrationEnvironment < ApplicationRecord
   end
 
   private
+
+  def environment_in_same_workspace
+    return if environment.nil? || integration.nil? || environment.workspace_id == integration.workspace_id
+
+    errors.add(:environment, "is not an environment of this workspace")
+  end
 
   # Found again, since a connection removed with its rows has no tools left to count.
   def recount_tool_definitions = Integration.find_by(id: integration_id)&.recount_tool_definitions!

@@ -22,8 +22,8 @@ class ApiKey < ApplicationRecord
   validate :one_identity_only
   validate :not_a_workflows_own
 
-  after_update :invalidate_cache!
-  after_destroy :invalidate_cache!
+  # After commit, so a request reading the row between the change and its commit cannot cache the old one again.
+  after_commit :invalidate_cache!, on: %i[update destroy]
 
   scope :active, -> { where(active: true, deleted_at: nil) }
   scope :not_expired, -> { where("expires_at IS NULL OR expires_at > ?", Time.current) }
@@ -49,6 +49,8 @@ class ApiKey < ApplicationRecord
 
     return nil unless api_key
     return nil unless api_key.active? && !api_key.deleted? && !api_key.expired?
+    # Read fresh rather than from the cached row, so turning an agent off stops its token at once.
+    return nil if api_key.agent_id && !Agent.active.exists?(api_key.agent_id)
 
     api_key
   end
