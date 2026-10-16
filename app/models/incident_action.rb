@@ -1,6 +1,9 @@
 class IncidentAction < ApplicationRecord
   include IncidentAction::Snapshots
   include IncidentAction::IssueLink
+  include Incident::LiveSignal
+
+  shown_on_incident_page Incident::LiveSignal::PART_ACTIONS
 
   ACTION_TYPE_ACTION = "action"
   ACTION_TYPE_FOLLOWUP = "followup"
@@ -112,6 +115,7 @@ class IncidentAction < ApplicationRecord
   def move_status!(from:, to:, **columns)
     won = self.class.where(id: id, status: Array(from)).update_all(status: to, updated_at: Time.current, **columns)
     reload
+    signal_incident_page if won == 1
     won == 1
   end
 

@@ -1,4 +1,8 @@
 class IncidentRunbook < ApplicationRecord
+  include Incident::LiveSignal
+
+  shown_on_incident_page Incident::LiveSignal::PART_INCIDENT
+
   belongs_to :incident
   belongs_to :runbook
   belongs_to :workspace

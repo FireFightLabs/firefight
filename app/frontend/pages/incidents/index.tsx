@@ -16,6 +16,7 @@ import { SubscribersPanel } from "@/pages/incidents/components/index/subscribers
 import { RunbooksPanel } from "@/pages/incidents/components/index/runbooks-panel";
 import { TimelineSkeleton } from "@/pages/incidents/components/index/timeline-skeleton";
 import type { IncidentPageProps } from "@/pages/incidents/types";
+import { useIncidentLive } from "@/pages/incidents/hooks/use-incident-live";
 import { useCan } from "@/lib/permissions";
 import { dashboardPath, incidentPath } from "@/lib/routes";
 import { INVESTIGATION_START_PROP, OPEN_INVESTIGATION_PROP } from "@/lib/generated/constants";
@@ -38,6 +39,7 @@ export default function IncidentPage() {
     investigationStart,
   } = usePage<IncidentPageProps>().props;
   const canEditIncident = useCan("incidents");
+  const incidentReads = useIncidentLive(incident.id);
 
   // Closing a run drops it from the address and loads nothing else but the Investigate button, which the run may have freed.
   function closeInvestigation() {
@@ -122,7 +124,7 @@ export default function IncidentPage() {
               </Deferred>
               <AlertsPanel alerts={incident.alerts} />
               <PagesPanel pages={incident.pages} />
-              <ChangesPanel incidentId={incident.id} canReadMap={canReadMap} />
+              <ChangesPanel incidentId={incident.id} canReadMap={canReadMap} readAgain={incidentReads} />
               <RunbooksPanel
                 runbooks={incident.runbooks}
                 attachable={attachableRunbooks}
