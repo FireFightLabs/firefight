@@ -14,10 +14,13 @@ export function RowActions({
   onEdit,
   onDelete,
   deleteDisabledReason,
+  deleteLabel = "Delete",
 }: {
   onEdit?: () => void
   onDelete: () => void
   deleteDisabledReason?: string
+  // What taking the row away is called, such as Remove for a member, whose row stays in the history.
+  deleteLabel?: string
 }) {
   return (
     <DropdownMenu>
@@ -44,7 +47,7 @@ export function RowActions({
                   disabled
                   onSelect={(event) => event.preventDefault()}
                 >
-                  Delete
+                  {deleteLabel}
                 </DropdownMenuItem>
               </span>
             </TooltipTrigger>
@@ -53,7 +56,7 @@ export function RowActions({
             </TooltipContent>
           </Tooltip>
         ) : (
-          <DropdownMenuItem variant="destructive" onClick={onDelete}>Delete</DropdownMenuItem>
+          <DropdownMenuItem variant="destructive" onClick={onDelete}>{deleteLabel}</DropdownMenuItem>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

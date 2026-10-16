@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_172000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_173000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -3490,6 +3490,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_172000) do
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
     t.uuid "workspace_id", null: false
+    t.datetime "removed_at"
     t.index ["role"], name: "index_workspace_memberships_on_role"
     t.index ["user_id"], name: "index_workspace_memberships_on_user_id"
     t.index ["workspace_id", "platform_user_id"], name: "index_workspace_memberships_on_workspace_and_platform_user", unique: true

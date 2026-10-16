@@ -24,6 +24,8 @@ class WorkspaceMemberProvisioner
   # is still asked whether the person belongs to the workspace. A person who joined by email before using the platform
   # here is matched by who they are, and by email only when the platform confirmed it. Returns nil on AdapterError.
   def self.admit!(workspace:, platform_user_id:, adapter:, user: nil, user_profile: nil)
+    raise Refused, WorkspaceMembership::REMOVED_REFUSAL if removed?(workspace, platform_user_id, user)
+
     existing = workspace.workspace_memberships.find_by(platform_user_id: platform_user_id)
     return still_admitted!(existing, adapter) if existing
 
@@ -98,6 +100,13 @@ class WorkspaceMemberProvisioner
     false
   end
   private_class_method :refused_when_saved?
+
+  # A person an admin removed is never seated again by the platform. Only an admin adds them back.
+  def self.removed?(workspace, platform_user_id, user)
+    removed = workspace.removed_memberships
+    removed.exists?(platform_user_id: platform_user_id) || (user.present? && removed.exists?(user: user))
+  end
+  private_class_method :removed?
 
   def self.plain(profile)
     profile.is_a?(Hash) ? profile : {}

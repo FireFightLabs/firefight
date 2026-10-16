@@ -180,6 +180,8 @@ class AbilityGateway
   # request when the caller already read it.
   def self.permitted?(principal, action, action_key, workspace, scope, params: nil, resolved: nil, approval: nil)
     return false unless action
+    # A member an admin removed reaches nothing, whatever they left running.
+    return false if principal.is_a?(WorkspaceMembership) && principal.removed?
     return true if Ability::Action.open?(action_key)
     return true if principal.implicitly_allowed?(action, resolved)
     return true if Ability::Approval.decides_by_name?(principal, action_key, scope, workspace, loaded: approval)

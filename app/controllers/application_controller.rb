@@ -50,7 +50,7 @@ class ApplicationController < ActionController::Base
     return @replayed_membership if defined?(@replayed_membership)
 
     membership_id = request.env.dig(WebRequestReplay::ENV_KEY, "membership_id")
-    @replayed_membership = membership_id && WorkspaceMembership.find_by(id: membership_id)
+    @replayed_membership = membership_id && WorkspaceMembership.current_members.find_by(id: membership_id)
   end
 
   def verified_request?

@@ -1,5 +1,7 @@
 class User < ApplicationRecord
-  has_many :workspace_memberships, dependent: :destroy
+  has_many :all_workspace_memberships, class_name: "WorkspaceMembership", dependent: :destroy, inverse_of: :user
+  # A membership an admin removed reaches nothing, so it is left out of every workspace the person can reach.
+  has_many :workspace_memberships, -> { where(removed_at: nil) }, inverse_of: :user
   has_many :workspaces, through: :workspace_memberships
   has_many :identities, class_name: "UserIdentity", dependent: :destroy, inverse_of: :user
 

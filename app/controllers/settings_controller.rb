@@ -77,7 +77,10 @@ class SettingsController < InertiaController
   def members
     render inertia: "settings/members", props: {
       members: WorkspaceMembershipSerializer.many(
-        current_workspace.workspace_memberships.includes(:user).order(:joined_at)
+        current_workspace.workspace_memberships.with_access_counts.includes(:user).order(:joined_at), by: current_membership
+      ),
+      removedMembers: WorkspaceMembershipSerializer.many(
+        current_workspace.removed_memberships.with_access_counts.includes(:user).order(removed_at: :desc), by: current_membership
       ),
       invitationsOffered: SignInMethods.self_serve?,
       invitationUnavailableReason: WorkspaceInvitation.unavailable_reason,
@@ -216,7 +219,7 @@ class SettingsController < InertiaController
       ),
       channels: workspace_channels,
       members: WorkspaceMembershipSerializer.many(
-        current_workspace.workspace_memberships.includes(:user)
+        current_workspace.workspace_memberships.with_access_counts.includes(:user)
       ),
       catalogOptions: catalog_condition_options,
       roleWarnings: Alert::RoutingRoleGaps.for(current_workspace)
