@@ -85,17 +85,20 @@ class Postmortem < ApplicationRecord
     postmortem
   end
 
+  # Each start names a new attempt. Only that attempt may finish or fail the draft, so one that outlived the stale
+  # timeout and a retry is dropped rather than overwriting the newer draft.
   def self.start_generation!(incident, by:)
     existing = incident.postmortem
     if existing.nil?
       create!(
         incident: incident, generated_by: by, status: STATUS_DRAFT,
-        generation_state: GENERATION_GENERATING,
+        generation_state: GENERATION_GENERATING, generation_attempt: SecureRandom.uuid,
         title: "Generating postmortem for #{incident.identifier}…", content: { "html" => "" }
       )
     else
-      moved = where(id: existing.id, generation_state: [ nil, GENERATION_FAILED ])
-        .update_all(generation_state: GENERATION_GENERATING, generation_error: nil, updated_at: Time.current) > 0
+      moved = where(id: existing.id, generation_state: [ nil, GENERATION_FAILED ]).update_all(
+        generation_state: GENERATION_GENERATING, generation_error: nil, generation_attempt: SecureRandom.uuid, updated_at: Time.current
+      ) > 0
       moved ? existing.reload.tap(&:signal_incident_page) : nil
     end
   rescue ActiveRecord::RecordNotUnique
@@ -104,18 +107,21 @@ class Postmortem < ApplicationRecord
 
   scope :generation_stalled, -> { where(generation_state: GENERATION_GENERATING, updated_at: ...GENERATION_STALE_AFTER.ago) }
 
-  # Once, so the sweep and a job giving up never both tell the author. True for whichever did it.
-  def give_up_generation!
-    gave_up = self.class.where(id: id, generation_state: GENERATION_GENERATING).update_all(
-      generation_state: GENERATION_FAILED, generation_error: GENERATION_INTERRUPTED, updated_at: Time.current
-    ) > 0
-    signal_incident_page if gave_up
-    gave_up
+  def current_generation?(attempt)
+    generating? && generation_attempt == attempt
   end
 
-  def mark_generation_failed!(reason)
+  # Once, so the sweep and a job giving up never both tell the author. True for whichever did it.
+  def give_up_generation!(attempt: generation_attempt)
+    fail_generation!(GENERATION_INTERRUPTED, attempt)
+  end
+
+  # False when the attempt is no longer the one generating, so a late failure never marks a newer attempt failed.
+  def mark_generation_failed!(reason, attempt: generation_attempt)
     reason = reason.class.name.demodulize unless reason.is_a?(String)
-    update!(generation_state: GENERATION_FAILED, generation_error: reason)
+    failed = fail_generation!(reason, attempt)
+    Rails.logger.info({ event: "postmortem_generation.superseded", postmortem_id: id, attempt: attempt, reason: reason }) unless failed
+    failed
   end
 
   # A failure people are told about in words, rather than by its cause. Nil for the rest.
@@ -125,7 +131,9 @@ class Postmortem < ApplicationRecord
     AiCredit.cannot(incident.workspace, "write this postmortem") if generation_failed? && AiCredit.recorded?(generation_error)
   end
 
-  def self.complete_generation!(incident, draft, generated_by:)
+  # Nil when the attempt is no longer the one generating. The claim and the write are one transaction, so a retry
+  # started meanwhile waits on the row and begins after this draft is saved.
+  def self.complete_generation!(incident, draft, generated_by:, attempt: incident.postmortem&.generation_attempt)
     html = SECTION_KEYS.map do |key|
       "<h2>#{SECTION_HEADINGS[key]}</h2>\n#{section_html(incident, draft, key)}"
     end.join("\n")
@@ -142,12 +150,25 @@ class Postmortem < ApplicationRecord
     }
 
     postmortem = incident.postmortem
-    if postmortem
-      postmortem.update!(attrs)
-    else
-      postmortem = create!(attrs.merge(incident: incident, generated_by: generated_by))
+    saved = transaction do
+      if postmortem
+        next false unless where(id: postmortem.id, generation_state: GENERATION_GENERATING, generation_attempt: attempt)
+          .update_all(generation_state: nil, generation_attempt: nil, updated_at: Time.current) > 0
+
+        postmortem.reload.update!(attrs)
+      else
+        postmortem = create!(attrs.merge(incident: incident, generated_by: generated_by))
+      end
+      postmortem.record_change!(IncidentEvent::POSTMORTEM_GENERATED, by: generated_by)
+      true
     end
-    postmortem.record_change!(IncidentEvent::POSTMORTEM_GENERATED, by: generated_by)
+    unless saved
+      Rails.logger.info({ event: "postmortem_generation.superseded", postmortem_id: postmortem.id, attempt: attempt })
+      return nil
+    end
+
+    # The claim cleared generating outside the save, so the page is told the draft is ready here.
+    postmortem.signal_incident_page
     postmortem
   end
 
@@ -181,6 +202,14 @@ class Postmortem < ApplicationRecord
   end
 
   private
+
+  def fail_generation!(reason, attempt)
+    failed = self.class.where(id: id, generation_state: GENERATION_GENERATING, generation_attempt: attempt).update_all(
+      generation_state: GENERATION_FAILED, generation_error: reason, updated_at: Time.current
+    ) > 0
+    reload.signal_incident_page if failed
+    failed
+  end
 
   # For postmortems created before the HTML storage migration.
   def legacy_sections_to_html
