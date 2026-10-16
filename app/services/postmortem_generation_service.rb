@@ -31,13 +31,16 @@ class PostmortemGenerationService
   # nil when a generation was already running.
   def start!(incident, by:)
     postmortem = Postmortem.start_generation!(incident, by: by)
-    PostmortemGenerationJob.perform_later(incident.id) if postmortem
+    PostmortemGenerationJob.perform_later(incident.id, postmortem.generation_attempt) if postmortem
     postmortem
   end
 
-  def generate!(incident, generated_by:)
+  # Nil when a newer attempt took over while this one was writing, which then announces nothing.
+  def generate!(incident, generated_by:, attempt: incident.postmortem&.generation_attempt)
     draft = FirefightAi::PostmortemGenerator.new(@workspace).generate(incident)
-    postmortem = Postmortem.complete_generation!(incident, draft, generated_by: generated_by)
+    postmortem = Postmortem.complete_generation!(incident, draft, generated_by: generated_by, attempt: attempt)
+    return unless postmortem
+
     announce(incident, postmortem)
     OnboardingWalkthroughService.new(@workspace).advance!(incident)
     postmortem

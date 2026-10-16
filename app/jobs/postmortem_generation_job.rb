@@ -4,54 +4,60 @@ class PostmortemGenerationJob < ApplicationJob
   # After the retries the requester is told, so they are not left with a
   # "generating..." ephemeral that never resolves.
   retry_on FirefightAi::TransientError, wait: :polynomially_longer, attempts: 3 do |job, error|
-    job.cleanup_in_progress!
-    job.notify_failure(error, terminal: false)
+    job.notify_failure(error, terminal: false) if job.cleanup_in_progress!
   end
 
   # Retrying a terminal error produces the same outcome and burns tokens.
   discard_on FirefightAi::TerminalError do |job, error|
-    job.record_failure(error)
-    job.notify_failure(error, terminal: true)
+    job.notify_failure(error, terminal: true) if job.record_failure(error)
   end
 
   discard_on ActiveRecord::RecordNotFound
 
-  def self.interrupted_too_often(incident_id) = give_up_interrupted!(Incident.find_by(id: incident_id)&.postmortem)
-
-  # A draft whose job will not run again ends failed, which the page offers to try again, and its author is told.
-  def self.give_up_interrupted!(postmortem)
-    return unless postmortem&.give_up_generation!
-
-    new(postmortem.incident_id).notify(reason: Postmortem::GENERATION_INTERRUPTED, retrying: false)
+  def self.interrupted_too_often(incident_id, attempt = nil)
+    postmortem = Incident.find_by(id: incident_id)&.postmortem
+    give_up_interrupted!(postmortem, attempt: attempt || postmortem&.generation_attempt)
   end
 
-  # The postmortem records who started it. A copy on the job could only disagree
-  # and could not name an agent at all.
-  def perform(incident_id)
+  # A draft whose job will not run again ends failed, which the page offers to try again, and its author is told.
+  def self.give_up_interrupted!(postmortem, attempt: postmortem&.generation_attempt)
+    return unless postmortem&.give_up_generation!(attempt: attempt)
+
+    new(postmortem.incident_id, attempt).notify(reason: Postmortem::GENERATION_INTERRUPTED, retrying: false)
+  end
+
+  # The postmortem records who started it. A copy on the job could only disagree and could not name an agent at all.
+  # attempt is the one this job was started for, so a job that outlives a retry changes nothing. A job enqueued before
+  # attempts were named takes the current one.
+  def perform(incident_id, attempt = nil)
     incident = Incident.find(incident_id)
-    return unless incident.postmortem&.generating?
+    postmortem = incident.postmortem
+    attempt ||= postmortem&.generation_attempt
+    return unless postmortem&.current_generation?(attempt)
 
     unless Entitlements.allows?(incident.workspace, Entitlements::AI)
-      incident.postmortem.mark_generation_failed!("EntitlementBlocked")
+      postmortem.mark_generation_failed!("EntitlementBlocked", attempt: attempt)
       Rails.logger.info({ event: "postmortem_generation.entitlement_blocked", incident_id: incident_id, workspace_id: incident.workspace_id })
       return
     end
 
-    PostmortemGenerationService.new(incident.workspace).generate!(incident, generated_by: incident.postmortem.generated_by)
+    PostmortemGenerationService.new(incident.workspace).generate!(incident, generated_by: postmortem.generated_by, attempt: attempt)
   rescue FirefightAi::TransientError, FirefightAi::TerminalError, ActiveRecord::RecordNotFound
     raise
   rescue StandardError => error
     # Nothing may leave the placeholder in generating.
-    record_failure(error)
-    notify_failure(error, terminal: true)
+    notify_failure(error, terminal: true) if record_failure(error)
     raise
   end
 
-  # The placeholder stays, marked failed, so the page can offer a retry.
+  # The placeholder stays, marked failed, so the page can offer a retry. False when a newer attempt is generating, whose
+  # author is not told that this one failed.
   def record_failure(error)
-    incident_id, = arguments
+    incident_id, attempt = arguments
     postmortem = Incident.find_by(id: incident_id)&.postmortem
-    postmortem.mark_generation_failed!(failure_reason(error)) if postmortem&.generating?
+    return true unless postmortem&.generating?
+
+    postmortem.mark_generation_failed!(failure_reason(error), attempt: attempt || postmortem.generation_attempt)
   end
 
   def cleanup_in_progress!

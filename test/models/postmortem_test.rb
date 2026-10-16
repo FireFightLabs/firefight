@@ -77,6 +77,21 @@ class PostmortemTest < ActiveSupport::TestCase
     %w[<h2> <strong> <em> <ul> <li>].each { |tag| assert_includes html, tag }
   end
 
+  test "complete_generation! saves only the attempt that is generating, so a late one cannot replace a retry's draft" do
+    member = workspace_memberships(:alice_workspace_one)
+    incident = incidents(:resolved_minor_ws1)
+    incident.postmortem.destroy!
+    incident.reload
+    stale = Postmortem.start_generation!(incident, by: member).generation_attempt
+    incident.reload.postmortem.give_up_generation!
+    current = Postmortem.start_generation!(incident, by: member).generation_attempt
+    draft = ->(title) { FirefightAi::PostmortemGenerator::Draft.new(title: title, summary: nil, sections: {}, model: "gpt-4o") }
+
+    assert Postmortem.complete_generation!(incident.reload, draft.call("Newer draft"), generated_by: member, attempt: current)
+    assert_nil Postmortem.complete_generation!(incident.reload, draft.call("Older draft"), generated_by: member, attempt: stale)
+    assert_equal "Newer draft", incident.reload.postmortem.title
+  end
+
   test "incident can only have one postmortem" do
     existing = postmortems(:postmortem_resolved_ws1)
     duplicate = Postmortem.new(
