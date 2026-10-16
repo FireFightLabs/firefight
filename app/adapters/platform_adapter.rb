@@ -235,6 +235,7 @@ class PlatformAdapter
   end
 
   # Shows on a message Halon was working on that the answer is in, replacing mark_working. Best effort.
+  # @return [Hash] { success: } false when either mark did not change, so the caller can try again later
   def mark_done(channel_id:, message_id:)
     raise NotImplemented.new(__method__, self.class)
   end

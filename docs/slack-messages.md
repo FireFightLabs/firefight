@@ -336,7 +336,7 @@ one step per message, posted by `OnboardingWalkthroughService#advance!` as the
 incident earns it (declared, lead set, first message, resolved, postmortem),
 with the last posted step kept on the onboarding row so nothing posts twice. The first step is the last thing
 `IncidentCreationWorkflow` puts in the channel: its step waits on the pinned quick actions and on every other step that
-speaks in or fills the channel (the invites, runbooks, a carried over answer, an alert investigation's start). Those
+speaks in or fills the channel (the invites, runbooks, a carried-over answer, an alert investigation's start). Those
 steps are `on_failure: continue`, so one that fails for good still lets the guide post. Every other caller skips while
 that step is still to run (`IncidentCreationWorkflow.opening?`), so the `incident.created` progress job cannot post it
 above the quick actions. `Resolution` carries the postmortem button and a

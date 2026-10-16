@@ -18,5 +18,15 @@ class Chat::StepProgress < ApplicationRecord
     kept
   end
 
+  # The work of the call by this id that was already made at a moment, such as when something it started was opened. Its
+  # work can be kept before that moment or after it, so the row is bounded by the call and by the next call reusing the id.
+  def self.of_call_made_by(chat, tool_call_id, at)
+    calls = chat.tool_calls.where(tool_call_id: tool_call_id)
+    made_at = calls.where(created_at: ..at).maximum(:created_at) || at
+    next_at = calls.where("created_at > ?", made_at).minimum(:created_at)
+    kept = where(chat: chat).of_call(tool_call_id, since: made_at)
+    (next_at ? kept.where(created_at: ...next_at) : kept).first
+  end
+
   def work = Chat::CodeFixProgress.from_json(progress)
 end

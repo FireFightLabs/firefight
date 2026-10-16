@@ -127,6 +127,28 @@ class IncidentsControllerTest < ActionDispatch::IntegrationTest
                  answer.values_at("headline", "whatIsWrong", "suggestedFix", "full")
   end
 
+  test "the timeline never shows another incident's run, even when an event names it" do
+    incident = incidents(:active_critical_ws1)
+    other = incidents(:active_major_ws1)
+    run = other.workspace.investigations.create!(subject: other, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400,
+                                                 brief: Investigation::Brief.from({ symptom: "Search is slow" }, source: Investigation::Brief::SOURCE_COMMAND))
+    run.create_finding!(summary: "The search index is rebuilding.", answer_kind: Investigation::Finding::KIND_ROOT_CAUSE, confidence: 0.9,
+                        what_is_wrong: "Search reads a half built index.", suggested_fix: "Wait for the rebuild.")
+    started = incident.incident_events.create!(event_type: IncidentEvent::INVESTIGATION_STARTED,
+                                               metadata: { investigation_id: run.id, message: "Checkout is failing" })
+    answered = incident.incident_events.create!(event_type: IncidentEvent::INVESTIGATION_ANSWERED,
+                                                metadata: { investigation_id: run.id, message: "PgBouncer pool_size dropped to 20." })
+
+    get incident_path(incident), headers: inertia_headers.merge(
+      "X-Inertia-Partial-Data" => "timelineEvents", "X-Inertia-Partial-Component" => "incidents/index"
+    )
+
+    events = inertia_props["timelineEvents"].index_by { |event| event["id"] }
+    assert_nil events[answered.id]["answer"]
+    assert_equal "PgBouncer pool_size dropped to 20.", events[answered.id]["details"]
+    assert_equal "Checkout is failing", events[started.id]["details"]
+  end
+
   private
 
   def sign_in(user, workspace)

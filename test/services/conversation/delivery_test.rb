@@ -113,6 +113,33 @@ class Conversation::DeliveryTest < ActiveSupport::TestCase
     assert_nothing_raised { Conversation::Delivery.for(@conversation).answered!("Done.") }
   end
 
+  test "a message whose working mark could not come off is kept, and the next answer marks it done" do
+    @conversation.acknowledged!("1.21")
+    @conversation.acknowledged!("1.22")
+    Slack::Client.stubs(:remove_reaction).with { |arguments| arguments[:timestamp] == "1.21" }.raises(AdapterError::ServerError.new("internal_error"))
+    Slack::Client.stubs(:remove_reaction).with { |arguments| arguments[:timestamp] == "1.22" }.returns({ ok: true })
+    Slack::Client.stubs(:add_reaction).returns({ ok: true })
+
+    Conversation::Delivery.for(@conversation).answered!("Done.")
+
+    assert_equal [ "1.21" ], @conversation.reload.acknowledged_message_ids
+
+    Slack::Client.stubs(:remove_reaction).returns({ ok: true })
+    Conversation::Delivery.for(@conversation).answered!("Done again.")
+
+    assert_empty @conversation.reload.acknowledged_message_ids
+  end
+
+  test "a message whose done mark could not go on is kept for the next answer" do
+    @conversation.acknowledged!("1.21")
+    Slack::Client.stubs(:remove_reaction).returns({ ok: true })
+    Slack::Client.stubs(:add_reaction).raises(AdapterError::ServerError.new("internal_error"))
+
+    Conversation::Delivery.for(@conversation).answered!("Done.")
+
+    assert_equal [ "1.21" ], @conversation.reload.acknowledged_message_ids
+  end
+
   test "a step line in the thread names what kind of system it read, never the tool or its connection" do
     @adapter.expects(:report_agent_step).with { |title:, **| title == "Read the code" }
     step = Chat::Tools::Step.new(title: "Github fix code · acme", headline: "", asked: [], card: nil, line: "Read the code")

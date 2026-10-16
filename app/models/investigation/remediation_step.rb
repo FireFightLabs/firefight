@@ -602,11 +602,12 @@ class Investigation::RemediationStep < ApplicationRecord
   private_class_method :own_action_of
 
   # A step for a person that one of Firefight's own tools does is sent back to be that tool's action step, unless its
-  # missing says why the tool cannot do it here.
+  # missing says why the tool cannot do it here. Naming the tool alone says nothing about why.
   def self.refuse_by_hand!(workspace, step)
     words = "#{step.title} #{step.description}"
     doer = Mcp::Tools.for_fixes(workspace).find { |tool_class| tool_class.by_hand_words&.match?(words) }&.name_value&.to_s
-    return unless doer && !step.missing.to_s.include?(doer)
+    missing = step.missing.to_s
+    return if doer.nil? || (missing.include?(doer) && missing.sub(doer, "").match?(/\p{Alpha}/))
 
     refuse(step.position, "is for a person, but Firefight does that with #{doer}. Make it an action step with #{doer}, " \
                           "or say in missing why #{doer} cannot do it here")

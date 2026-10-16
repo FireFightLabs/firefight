@@ -180,8 +180,9 @@ module Slack
 
     # Each step on its own, so a message whose first mark is already gone still gets the second.
     def mark_done(channel_id:, message_id:)
-      unmark_working(channel_id: channel_id, message_id: message_id)
-      quietly(:mark_done) { add_reaction(channel_id: channel_id, message_id: message_id, name: Slack::Emoji::REACTION_DONE) }
+      removed = unmark_working(channel_id: channel_id, message_id: message_id)
+      added = quietly(:mark_done) { add_reaction(channel_id: channel_id, message_id: message_id, name: Slack::Emoji::REACTION_DONE) }
+      { success: removed[:success] && added[:success] }
     end
 
     def unmark_working(channel_id:, message_id:)
