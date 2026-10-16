@@ -14,9 +14,9 @@ class PostmortemGenerationJob < ApplicationJob
 
   discard_on ActiveRecord::RecordNotFound
 
+  # A job enqueued before attempts were named has none, which matches only a draft started before then.
   def self.interrupted_too_often(incident_id, attempt = nil)
-    postmortem = Incident.find_by(id: incident_id)&.postmortem
-    give_up_interrupted!(postmortem, attempt: attempt || postmortem&.generation_attempt)
+    give_up_interrupted!(Incident.find_by(id: incident_id)&.postmortem, attempt: attempt)
   end
 
   # A draft whose job will not run again ends failed, which the page offers to try again, and its author is told.
@@ -28,11 +28,10 @@ class PostmortemGenerationJob < ApplicationJob
 
   # The postmortem records who started it. A copy on the job could only disagree and could not name an agent at all.
   # attempt is the one this job was started for, so a job that outlives a retry changes nothing. A job enqueued before
-  # attempts were named takes the current one.
+  # attempts were named has none, which matches only a draft started before then.
   def perform(incident_id, attempt = nil)
     incident = Incident.find(incident_id)
     postmortem = incident.postmortem
-    attempt ||= postmortem&.generation_attempt
     return unless postmortem&.current_generation?(attempt)
 
     unless Entitlements.allows?(incident.workspace, Entitlements::AI)
@@ -50,14 +49,14 @@ class PostmortemGenerationJob < ApplicationJob
     raise
   end
 
-  # The placeholder stays, marked failed, so the page can offer a retry. False when a newer attempt is generating, whose
-  # author is not told that this one failed.
+  # The placeholder stays, marked failed, so the page can offer a retry. True only when this job marked its own attempt
+  # failed, so an attempt that was finished, given up or replaced tells nobody.
   def record_failure(error)
     incident_id, attempt = arguments
     postmortem = Incident.find_by(id: incident_id)&.postmortem
-    return true unless postmortem&.generating?
+    return false unless postmortem
 
-    postmortem.mark_generation_failed!(failure_reason(error), attempt: attempt || postmortem.generation_attempt)
+    postmortem.mark_generation_failed!(failure_reason(error), attempt: attempt)
   end
 
   def cleanup_in_progress!
