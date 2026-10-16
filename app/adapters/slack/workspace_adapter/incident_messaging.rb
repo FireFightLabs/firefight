@@ -613,8 +613,17 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { success: true }
   end
 
+  # A trigger opens one view, so the modal is never sent a second time the way a message is. A refused alert block is
+  # remembered instead, so the next Details opens plainly.
   def open_agent_confirmation_details(trigger_id:, confirmation:)
-    with_rich_blocks { |rich| open_modal(trigger_id: trigger_id, view: Slack::Modals::AgentConfirmationDetails.build(confirmation, rich: rich)) }
+    rich = rich_blocks?
+    open_modal(trigger_id: trigger_id, view: Slack::Modals::AgentConfirmationDetails.build(confirmation, rich: rich))
+  rescue AdapterError::Unrenderable => error
+    raise unless rich
+
+    Rails.logger.info({ event: "slack.rich_blocks_refused", workspace_id: @workspace.id, error: error.message }.to_json)
+    rich_blocks_refused!
+    { success: false }
   end
 
   def update_investigation_answer(channel_id:, message_id:, finding:)

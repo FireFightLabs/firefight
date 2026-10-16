@@ -23,4 +23,18 @@ class Slack::WorkspaceAdapter::ScreenshotsTest < ActiveSupport::TestCase
 
     assert_equal [ { message_id: "1.3", channel_id: "C1" } ], @adapter.post_screenshots(channel_id: "C1", thread_id: "1.2", screenshots: [ @shot ])
   end
+
+  test "Details opens once per click, and a refused alert block is remembered so the next one opens plainly" do
+    confirmation = Chat::Tools::Confirmation.new(
+      tool_call_id: "call_1", question: "Delete set?", intent: "Remove it", asked: [], status: :awaiting, target: nil, call: nil,
+      read: Chat::Tools::Provenance::Read.new(sources: [ Chat::Tools::Provenance::Source.new(label: "Read doc", found: [ "set" ], from: "the web") ], others: 0)
+    )
+    Slack::Client.expects(:open_modal).once.raises(AdapterError::Unrenderable, "invalid_blocks")
+
+    assert_equal({ success: false }, @adapter.open_agent_confirmation_details(trigger_id: "T1", confirmation: confirmation))
+    assert @workspace.reload.platform_data["plan_blocks_refused_at"].present?
+
+    Slack::Client.expects(:open_modal).with { |view:, **| view[:blocks].none? { |block| block[:type] == "alert" } }.returns({ ok: true })
+    @adapter.open_agent_confirmation_details(trigger_id: "T2", confirmation: confirmation)
+  end
 end
