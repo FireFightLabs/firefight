@@ -10,6 +10,8 @@ class AiAccountSignIn
   class Unreachable < Failed; end
 
   TIMEOUT = 15
+  # A sign in comes back to whichever workspace the browser is in by then, which may not be the one that started it.
+  OTHER_WORKSPACE = "This sign in was started for another workspace, so nothing was added. Start it again here.".freeze
 
   def initialize(workspace, by: nil)
     @workspace = workspace
@@ -25,12 +27,13 @@ class AiAccountSignIn
     challenge = Base64.urlsafe_encode64(Digest::SHA256.digest(verifier), padding: false)
     query = { response_type: "code", client_id: sign_in.client_id, redirect_uri: redirect_uri, state: state,
               scope: sign_in.scopes.join(" ").presence, code_challenge: challenge, code_challenge_method: "S256" }.compact
-    { url: "#{sign_in.authorize_url}?#{query.to_query}", pending: { "provider" => provider.slug, "state" => state, "verifier" => verifier } }
+    { url: "#{sign_in.authorize_url}?#{query.to_query}", pending: { "provider" => provider.slug, "state" => state, "verifier" => verifier, "workspace_id" => @workspace.id } }
   end
 
   def finish!(pending, code:, state:, redirect_uri:)
     raise Failed, "That sign in expired. Start it again." unless pending.present? &&
                                                                ActiveSupport::SecurityUtils.secure_compare(pending["state"].to_s, state.to_s)
+    raise Failed, OTHER_WORKSPACE unless pending["workspace_id"] == @workspace.id
 
     provider = AiProviders.find(pending["provider"])
     sign_in = provider&.sign_in

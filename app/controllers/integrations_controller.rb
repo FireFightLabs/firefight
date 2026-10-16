@@ -238,7 +238,7 @@ class IntegrationsController < InertiaController
       "state" => flow[:state], "verifier" => flow[:verifier],
       "client_id" => flow[:client_id], "token_endpoint" => flow[:token_endpoint],
       "server_url" => server_url, "region" => region, "fields" => provider.connect_values(fields_param(provider), asked), "kind" => kind,
-      "return_to" => return_to_param
+      "return_to" => return_to_param, "workspace_id" => current_workspace.id
     }
     redirect_to flow[:authorize_url], allow_other_host: true
   rescue Integrations::OauthFlow::Error => e
@@ -251,6 +251,10 @@ class IntegrationsController < InertiaController
     unless provider && params[:state].present? &&
            ActiveSupport::SecurityUtils.secure_compare(pending["state"].to_s, params[:state].to_s)
       return redirect_to integrations_path, alert: "The connection attempt expired. Try again."
+    end
+    # The browser may have moved to another workspace while it was away.
+    unless pending["workspace_id"] == current_workspace.id
+      return redirect_to integrations_path, alert: "This connection was started in another workspace, so nothing was connected. Start it again here."
     end
     return app_callback(provider, pending) if pending["app"] && provider.app_connect?
 
@@ -365,7 +369,7 @@ class IntegrationsController < InertiaController
     session[:integration_oauth] = {
       "provider" => provider.key, "name" => params[:name].presence || provider.app_connection_name, "environment_id" => environment_id_param,
       "state" => flow[:state], "verifier" => flow[:verifier], "client_id" => flow[:client_id], "token_endpoint" => flow[:token_endpoint],
-      "app" => true, "return_to" => return_to_param
+      "app" => true, "return_to" => return_to_param, "workspace_id" => current_workspace.id
     }
     redirect_to flow[:authorize_url], allow_other_host: true
   end
@@ -394,7 +398,7 @@ class IntegrationsController < InertiaController
 
     session[:integration_oauth] = {
       "provider" => provider.key, "name" => params[:name].presence || provider.name,
-      "environment_id" => environment_id_param, "state" => state, "return_to" => return_to_param
+      "environment_id" => environment_id_param, "state" => state, "return_to" => return_to_param, "workspace_id" => current_workspace.id
     }
     redirect_to install_url, allow_other_host: true
   end

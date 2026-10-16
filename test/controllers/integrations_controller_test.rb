@@ -650,6 +650,22 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_not @workspace.integrations.exists?(provider: "github")
   end
 
+  test "a connection started in one workspace is refused when its callback comes back in another, and nothing is connected" do
+    IntegrationProvider.stubs(:oauth_client).with("github").returns(app_slug: "firefight", client_id: "Iv1.abc")
+    get oauth_start_integrations_url(provider: "github")
+    state = Rack::Utils.parse_query(URI.parse(response.location).query)["state"]
+    other = workspaces(:slack_workspace_two)
+    sign_in(users(:alice), other)
+    Integrations::GithubApp.expects(:user_installation_ids).never
+
+    get oauth_callback_integrations_url(state: state, installation_id: "98765", code: "user-code")
+
+    assert_redirected_to integrations_path
+    assert_equal "This connection was started in another workspace, so nothing was connected. Start it again here.", flash[:alert]
+    assert_not other.integrations.exists?(provider: "github")
+    assert_not @workspace.integrations.exists?(provider: "github")
+  end
+
   test "GitHub connect without an app slug configured explains itself" do
     IntegrationProvider.stubs(:oauth_client).with("github").returns({})
 
