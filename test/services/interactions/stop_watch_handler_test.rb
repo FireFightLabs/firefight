@@ -10,16 +10,20 @@ class Interactions::StopWatchHandlerTest < ActiveSupport::TestCase
     @watch = Chat::Watch.create!(chat: @thread.chat_record, workspace: @workspace, asker: @alice, title: "release run #46",
                                  expires_at: 1.hour.from_now, limit_basis: Chat::Watch::BASIS_DEFAULT)
     @update = @watch.updates.create!(kind: Chat::Watch::Update::KIND_PROGRESS, text: "Release run: tag passed.")
-    @adapter = stub(post_watch_update: { success: true }, post_watch_update_to_user: { success: true }, direct_conversation?: false,
-                    update_watch_update: { success: true })
+    @adapter = stub(post_watch_card: { message_id: "5.8", channel_id: "D1" }, post_watch_end: { message_id: "5.9", channel_id: "C9" },
+                    direct_conversation?: false, update_watch_card: { success: true })
     WorkspaceAdapter.stubs(:for).returns(@adapter)
     Workspace.any_instance.stubs(:adapter).returns(@adapter)
     ConversationChannel.stubs(:broadcast_to)
   end
 
-  test "anyone in the channel stops the watch from its message, the end is said where it reports, and the message loses Stop" do
-    @adapter.expects(:post_watch_update).with { |update:, **| update.text == "#{@bob.display_name} stopped the watch \"release run #46\"." && !update.live }
-    @adapter.expects(:update_watch_update).with { |channel_id:, message_id:, update:, **| channel_id == "C9" && message_id == "5.7" && update.id == @update.id && !update.live }
+  test "anyone in the channel stops the watch from its card, which is redrawn without Stop, and the asker is told in a line of its own" do
+    @watch.update_columns(thread_card_channel_id: "C9", thread_card_message_id: "5.7")
+    @adapter.expects(:update_watch_card).once.with do |channel_id:, message_id:, card:|
+      [ channel_id, message_id, card.status, card.live?, card.why ] == [ "C9", "5.7", Chat::Watch::STATUS_STOPPED, false, "Stopped by #{@bob.display_name}." ]
+    end
+    @adapter.expects(:post_watch_end).with { |channel_id:, thread_id:, card:| channel_id == "C9" && thread_id == "5.5" && card.state == "Stopped" }
+    @adapter.expects(:post_watch_end).with { |channel_id:, thread_id:, **| channel_id == @alice.platform_user_id && thread_id.nil? }
     @adapter.expects(:post_ephemeral).never
 
     Interactions::StopWatchHandler.execute(press(@bob))
@@ -30,7 +34,7 @@ class Interactions::StopWatchHandlerTest < ActiveSupport::TestCase
   test "a press after the watch ended says so to whoever pressed and takes Stop off that message too" do
     Conversation::Watches.stop!(@watch, by: @alice)
 
-    @adapter.expects(:update_watch_update).once
+    @adapter.expects(:update_watch_card).once.with { |channel_id:, message_id:, card:| [ channel_id, message_id, card.live? ] == [ "C9", "5.7", false ] }
     @adapter.expects(:post_ephemeral).with(channel_id: "C9", user_id: @bob.platform_user_id, text: Chat::Watch::NOTHING_TO_STOP)
 
     Interactions::StopWatchHandler.execute(press(@bob))
@@ -42,7 +46,7 @@ class Interactions::StopWatchHandlerTest < ActiveSupport::TestCase
                                 expires_at: 1.hour.from_now, limit_basis: Chat::Watch::BASIS_DEFAULT)
     update = watch.updates.create!(kind: Chat::Watch::Update::KIND_STARTED, text: "Watching the deploy.")
 
-    @adapter.expects(:update_watch_update).never
+    @adapter.expects(:update_watch_card).never
     @adapter.expects(:post_ephemeral).with(channel_id: "C9", user_id: @bob.platform_user_id,
                                            text: "Only #{@alice.display_name} or whoever this chat belongs to can stop this watch.")
 

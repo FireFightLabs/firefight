@@ -23,6 +23,7 @@ class Conversation::WatchOrderTest < ActiveSupport::TestCase
     place!(@render, ResourceMap::KIND_SERVICE, "job", "srv-job")
     Investigation.stubs(:unavailable_reason).returns("Halon is off for this test")
     stub_post_message
+    stub_update_message
     @read = []
   end
 
@@ -233,7 +234,7 @@ class Conversation::WatchOrderTest < ActiveSupport::TestCase
     assert_equal "Reopened GitHub release run: The run was re-run and is going again.", watch.updates.find_by!(kind: Chat::Watch::Update::KIND_REOPENED).text
     assert_enqueued_with(job: WatchCheckJob, args: [ watch.id ])
     ended = watch.updates.find_by!(kind: Chat::Watch::Update::KIND_ENDED)
-    assert_equal Conversation::Watches::TONE_FAILED, Conversation::Watches.said(watch, ended).tone, "the line that said it failed still says so"
+    assert_equal Conversation::Watches::TONE_FAILED, Conversation::Watches.tone(watch, ended), "the line that said it failed still says so"
   end
 
   test "a step that succeeded on the wrong reading is reopened while its watch goes on" do
