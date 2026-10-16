@@ -243,8 +243,30 @@ the race where two people act at once.
 and their siblings authorize as `permissions` and `api_keys`, both in
 `ADMIN_ONLY_RESOURCES`. An admin's personal token or OAuth session reaches them
 and no service key or agent ever can, whatever it was granted, so an agent
-cannot mint another agent. Creating one returns its token once and never again,
-and a listing never carries one.
+cannot mint another agent. A token is never handed to a model or an agent
+(`Mcp::Tools::Base.mints_token?`, `TokenHandoff`): over MCP the answer carries a
+placeholder and the person behind the token is shown it once in Slack, in an
+ephemeral message in their direct messages with the app
+(`PlatformAdapter#post_token_once`), and a call whose person Slack cannot reach is
+refused before anything is made. A token Slack could not show is switched off at
+once. In Halon's chat it waits on a card under the step (`Chat::SecretEntry`
+`KIND_TOKEN`), which mints it again when its person opens it, once. A listing
+never carries one, and `ff_` tokens are redacted wherever text is scrubbed
+(`firefight_token` in `SECRET_PATTERNS`).
+
+**A person says yes to every change of who may do what.** A tool that changes
+permissions, principals, approvals, tokens or webhooks
+(`Ability::Action::PERSON_CONFIRMED_RESOURCES`, `Mcp::Tools::Base.asks_a_person?`,
+which `test_outbound_webhook` overrides since a test delivery changes nothing)
+waits over MCP for an admin to approve it, whoever holds the token, even though
+approvals and permissions are exempt from approval rules
+(`AbilityGateway.person_must_approve?`, `PERSON_REQUIREMENT`). A request made
+with a token, or by an agent, is approved only by a person in a session of their
+own, never with a token (`Ability::Approval#approve_with_token_blocked_reason`),
+and approval rules and unattended rules are never changed with a token
+(`PolicyRule.approval_change_blocked_reason`,
+`Ability::UnattendedRule.change_blocked_reason`), each refused before the call
+with its sentence (`Base.token_refusal`).
 
 ## Reading the conversation
 
