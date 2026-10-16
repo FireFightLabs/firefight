@@ -4,6 +4,10 @@
 # side that loses the race does nothing, which is what stops a change Firefight made from coming back as an event and
 # being applied a second time.
 class Incident::Page < ApplicationRecord
+  include Incident::LiveSignal
+
+  shown_on_incident_page Incident::LiveSignal::PART_INCIDENT
+
   ORIGIN_RAISED = "raised".freeze
   ORIGIN_ALERT = "alert".freeze
   ORIGINS = [ ORIGIN_RAISED, ORIGIN_ALERT ].freeze
@@ -64,6 +68,7 @@ class Incident::Page < ApplicationRecord
   def move!(from:, to:, **columns)
     won = self.class.where(id: id, state: Array(from)).update_all(state: to, updated_at: Time.current, **columns)
     reload
+    signal_incident_page if won == 1
     won == 1
   end
 
