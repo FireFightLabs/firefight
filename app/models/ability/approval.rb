@@ -285,16 +285,21 @@ module Ability
       approver_ids.filter_map { |ref| Ability::Principal.find_reference(workspace, Ability::Principal.reference(ref)) }
     end
 
-    # A change Halon asked for in a chat is asked in the chat's thread (Conversation::HeldCalls) and of its approvers
-    # directly, never in the shared incidents channel, unless nobody could be asked directly.
+    # A change Halon asked for in a chat is always asked in the chat's thread (Conversation::HeldCalls). Where else is
+    # the rule's to say: a rule naming the channel, direct messages or both is followed as it is for anyone. A rule that
+    # names nowhere asks its approvers directly rather than in the shared incidents channel, and the channel only when
+    # nobody could be asked directly (ApprovalNotificationService.post!).
     def from_chat? = source == AbilityGateway::SOURCE_CONVERSATION
 
+    # A chat's request whose rule names nowhere to ask.
+    def chat_default? = from_chat? && notify.nil?
+
     def notify_channel?
-      !from_chat? && [ nil, PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL, PolicyRule::ApprovalOutcome::NOTIFY_BOTH ].include?(notify)
+      !chat_default? && [ nil, PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL, PolicyRule::ApprovalOutcome::NOTIFY_BOTH ].include?(notify)
     end
 
     def notify_dm?
-      from_chat? || [ PolicyRule::ApprovalOutcome::NOTIFY_DM, PolicyRule::ApprovalOutcome::NOTIFY_BOTH ].include?(notify)
+      chat_default? || [ PolicyRule::ApprovalOutcome::NOTIFY_DM, PolicyRule::ApprovalOutcome::NOTIFY_BOTH ].include?(notify)
     end
 
     def add_notification!(channel_id:, message_id:)

@@ -58,7 +58,17 @@ class ApprovalNotificationServiceTest < ActiveSupport::TestCase
     assert_equal 1, @approval.reload.notifications.size
   end
 
-  test "a change Halon asked for in a chat asks its approvers directly and never the shared incidents channel" do
+  test "a chat's change whose rule names the incidents channel is asked there, as the admin set it" do
+    @approval.update!(source: AbilityGateway::SOURCE_CONVERSATION, notify: PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL)
+    channels = []
+    Slack::Client.stubs(:post_message).with { |args| channels << args[:channel] }.returns({ ok: true, ts: "7.7", channel: "C0INCIDENTS" })
+
+    ApprovalNotificationService.post!(@approval)
+
+    assert_equal [ "C0INCIDENTS" ], channels
+  end
+
+  test "a change Halon asked for in a chat whose rule names nowhere asks its approvers directly, never the incidents channel" do
     @approval.update!(source: AbilityGateway::SOURCE_CONVERSATION, approver_ids: [ @bob.id ])
     channels = []
     Slack::Client.stubs(:post_message).with { |args| channels << args[:channel] }.returns({ ok: true, ts: "5.5", channel: "D0BOB" })
