@@ -33,6 +33,16 @@ class Operator::FinderTest < ActiveSupport::TestCase
     assert_match "span=#{Operator::Trace::KIND_MODEL}-#{inference.id}", Operator::FindMatchSerializer.path_for(match)
   end
 
+  test "an id whose first part is only letters is still an id, and a row key of any kind still leads to its id" do
+    run = @workspace.investigations.create!(
+      id: "abcdefab-1234-4abc-8def-0123456789ab", subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND,
+      max_turns: 20, max_spend_cents: 400, status: Investigation::STATUS_SUCCEEDED, completed_at: Time.current
+    )
+
+    assert_equal [ [ Operator::Finder::KIND_RUN, run.id ] ], found(run.id)
+    assert_equal [ [ Operator::Finder::KIND_RUN, run.id ] ], found("call-#{run.id}")
+  end
+
   test "a ledger entry leads back to the run whose tool call it was" do
     invocation = Ability::Invocation.create!(
       workspace: @workspace, principal: SystemAgent.investigator, principal_label: "Firefight Investigator", action_key: "github.show_commit",
