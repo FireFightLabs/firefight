@@ -19,6 +19,7 @@ module SecretSamples
     huggingface_token: "hf_#{'x' * 40}",
     github_pat: "github_pat_11ABCDEFG0#{'a' * 60}",
     supabase_secret: "sb_secret_#{'N7UND0Ug' * 3}",
+    firefight_token: "ff_#{'N7UNDqUgzk' * 3}abcdef",
     slack_webhook: "https://hooks.slack.com/services/T0123ABCD/B0123ABCD/#{'x' * 24}",
     bearer_token: "Bearer #{'q' * 40}",
     password_setting: "password=#{'p4ssw0rd' * 3}",

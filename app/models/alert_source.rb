@@ -37,7 +37,7 @@ class AlertSource < ApplicationRecord
 
   belongs_to :workspace
   # Its alerts are the record of what fired, so a source holding any is disabled rather than deleted (deletion_blocked_reason).
-  has_many :alerts, dependent: :restrict_with_exception
+  has_many :alerts
   has_one :alert_routing_policy, -> { for_domain(Policy::DOMAIN_ALERT_ROUTING) },
           class_name: "Policy", as: :scoped_to, dependent: :destroy
 

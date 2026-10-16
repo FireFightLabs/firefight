@@ -391,7 +391,7 @@ module Ability
       # question admits no call, so it has nothing to lapse.
       run_by = (now + RUN_WINDOW if new_status == STATUS_APPROVED && !workflow_question?)
       update!(status: new_status, approver: principal, resolved_at: now, run_expires_at: run_by)
-      expire_unheld_approval if run_by && !held_for_run?
+      expire_unheld_approval if run_by && !held_for_run? && resume_payload.blank?
       resume_parked_request
     end
   end
