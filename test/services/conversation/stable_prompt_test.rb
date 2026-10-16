@@ -169,6 +169,31 @@ class Conversation::StablePromptTest < ActiveSupport::TestCase
     assert_equal [ bodies[2]["tools"].to_json ] * 2, [ bodies[3], bodies[4] ].map { |body| body["tools"].to_json }, "the rest of the turn and the next send the tools as the call that loaded one did"
   end
 
+  test "a helper with no context marks the history each call sends, and every call sends what the call before it cached as it sent it" do
+    choice = openrouter
+    chat = Chat.open!(owner: @conversation, workspace: @workspace, model_choice: choice)
+    chat.add_message(role: :user, content: "Check checkout and payments.")
+    answer_with(openrouter_tool_call("core_read"))
+    answer_with(openrouter_tool_call("core_read", id: "call_2"))
+    answer_with(openrouter_reply("Checkout and payments are fine."))
+
+    FirefightAi::Helper.new(@workspace, inferable: @conversation, choice: choice, purpose: AiPurpose::HELPER)
+                       .run(chat: chat, tools: [ CoreRead.new ], max_spend_cents: 100, canceled: -> { false })
+
+    bodies = sent_requests.map { |request| request[:body] }
+    assert_equal 3, bodies.size
+    assert(bodies.all? { |body| marked?(system_of(body)) }, "the instructions are a boundary on every call")
+    assert_nil bodies.first["messages"].rindex { |message| message["role"] != "developer" && marked?(message) }, "the brief is never marked"
+    bodies.each_cons(2).with_index(2) do |(before, after), call|
+      cached = after["messages"].rindex { |message| message["role"] != "developer" && marked?(message) }
+      assert_equal after["messages"].size - 1, cached, "call #{call} marks the last message it sends, the tool result"
+      assert_equal as_cached(before["messages"]), as_cached(after["messages"][0...before["messages"].size]),
+                   "call #{call} sends what call #{call - 1} sent as it sent it"
+      assert_operator after.to_json.scan("\"cache_control\"").size, :<=, 4
+    end
+    assert_not chat.messages.where(cache_until_here: true).where.not(role: Chat::Message::ROLE_SYSTEM).exists?, "a call's mark is never saved"
+  end
+
   test "a chat on Anthropic keeps its instructions and the start of each turn for an hour, and every other boundary for five minutes" do
     choice = anthropic
     chat = Chat.open!(owner: @conversation, workspace: @workspace, model_choice: choice)

@@ -67,7 +67,7 @@ service.change_status(incident, { incident_status: resolved_status, summary: "Ne
 # Cancel with the workspace's default canceled status (the Cancel button, /ff cancel)
 service.cancel_with_default_status(incident, changed_by: member)
 
-# Assign lead — records change, starts LeadAssignmentWorkflow (channel topic, lead DM, announcement)
+# Assign lead — records change, starts LeadAssignmentWorkflow (channel topic, invite the lead to the channel, ephemeral lead expectations, announcement)
 service.assign_lead(incident, lead_member, changed_by: member)
 ```
 
@@ -573,7 +573,7 @@ How long each kind of work runs, what a stop in the middle leaves, and why runni
 | Code fix step (`InvestigationFixJob`, a coding agent in the sandbox for up to 15 minutes, or one provider call) | Seconds to 15 minutes | Again (`notices_interruptions`): the step the cut off run had started ends at once with `LOST_TRACK` (check whether it went through) and is never called again, and the rest of the fix carries on. Lost: the job booked for `stale_after` ends it the same way | A change to someone's systems is never repeated without them. The sandbox is restored by the box's own trap, and `CodeBoxSweepJob` stops a box no run knows about |
 | Fix state check (`FixStepCheckJob`), undo writing (`InvestigationUndoJob`) | Seconds to a minute | Again: reads or writes the undo again | `checked!` and `writing_undo?` guard the row |
 | Workflow step (`SolidWorkflow::RunStepJob`) | Seconds (Slack calls) | Again: the step carries its job (`claimed_by`), so the same job takes up its own running step at once (`step.resumed` event). Lost: the sweeper resets it after `orphaned_step_threshold` | Every step that posts a new message is `checkpointed`, so a post that went out is not sent again. Narrow window: a kill after Slack answered and before the checkpoint or record was written can post twice, and `create_slack_channel` can make a second `name-<time>` channel |
-| Postmortem draft (`PostmortemGenerationJob`) | Under two minutes | Again: written again (paid again). Lost: ended by the sweep with a plain reason and Try again | `start_generation!` is one guarded update, `generating?` guard |
+| Postmortem draft (`PostmortemGenerationJob`) | Under two minutes | Again: written again (paid again). Lost: ended by the sweep with a plain reason and Try again | `start_generation!` is one guarded update naming a new attempt, and finishing or failing saves only for that attempt |
 | Issue sync (`IssueSyncJob`) | Seconds | Opening, again (`notices_interruptions`): never tried a second time, the item says to look in the tracker. Pushing: sets the same fields again. Lost: the sweep ends the opening | Trackers have no way to tell a second issue apart, so it is never opened twice |
 | Webhook dispatch (`Webhooks::DispatchJob`) | Milliseconds | Again: adds only the deliveries still missing | Looks up deliveries for the event before creating |
 | Webhook delivery (`Webhooks::DeliveryJob`) | Up to about 15 seconds | Again: sent again with the same `X-Webhook-Delivery` id and the next attempt number, never once it ended. Lost: the sweep ends it as `interrupted` | The stored signed payload is resent byte for byte |

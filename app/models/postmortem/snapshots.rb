@@ -19,18 +19,24 @@ module Postmortem::Snapshots
   end
 
   ALLOWED_TAGS = %w[
-    p br hr h1 h2 h3 h4 h5 h6 strong em u s code pre blockquote
+    p br hr h1 h2 h3 h4 h5 h6 strong em u s del code pre blockquote
     ul ol li a span div
     table thead tbody tr th td
   ].freeze
   ALLOWED_ATTRIBUTES = %w[href title class colspan rowspan target rel].freeze
 
+  class_methods do
+    # Every way HTML reaches a postmortem, the editor, a generated draft or an older snapshot, is kept to the same tags,
+    # so text a person or the model wrote never becomes markup the dashboard runs.
+    def sanitized_html(html)
+      Rails::Html::SafeListSanitizer.new.sanitize(html.to_s, tags: ALLOWED_TAGS, attributes: ALLOWED_ATTRIBUTES)
+    end
+  end
+
   # A caller says which version it read and loses the race rather than the
   # writing. The row is locked so two callers holding the same version cannot both win.
   def update_content!(html_content, by:, expected_version: nil)
-    sanitized = Rails::Html::SafeListSanitizer.new.sanitize(
-      html_content.to_s, tags: ALLOWED_TAGS, attributes: ALLOWED_ATTRIBUTES
-    )
+    sanitized = self.class.sanitized_html(html_content)
 
     transaction do
       lock!

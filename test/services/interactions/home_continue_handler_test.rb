@@ -69,7 +69,7 @@ class Interactions::HomeContinueHandlerTest < ActiveSupport::TestCase
       .with(channel_id: "C_HOME_WRITE", user_id: member.platform_user_id, text: PostmortemGenerationService.started_message(closed)).once
 
     result = nil
-    assert_enqueued_with(job: PostmortemGenerationJob, args: [ closed.id ]) do
+    assert_enqueued_with(job: PostmortemGenerationJob, args: ->(args) { args == [ closed.id, closed.reload.postmortem.generation_attempt ] }) do
       result = Interactions::HomeContinueHandler.execute(
         build_interaction(selected: Identifiers::HOME_ACTION_POSTMORTEM, channel_id: closed.channel_id, user_id: member.platform_user_id)
       )

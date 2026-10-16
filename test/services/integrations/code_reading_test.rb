@@ -266,6 +266,20 @@ module Integrations
       assert_no_match Base64.strict_encode64("x-access-token:ghs_token"), error.message
     end
 
+    test "the credential reaches git in its environment, never in arguments other processes can list" do
+      calls = []
+      Open3.stubs(:capture3).with { |*arguments| calls << arguments }.returns([ "", "fatal: stopped here", stub(success?: false) ])
+
+      assert_raises(Error) { reading("investigation-1").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT) }
+
+      env, *argv = calls.first
+      assert_equal "git", argv.first
+      assert_no_match "Authorization", argv.join(" ")
+      assert_no_match "ghs_token", argv.join(" ")
+      assert_equal "http.extraHeader", env["GIT_CONFIG_KEY_0"]
+      assert_equal "Authorization: Basic #{Base64.strict_encode64('x-access-token:ghs_token')}", env["GIT_CONFIG_VALUE_0"]
+    end
+
     test "a repository on another code host is its own repository in the box, under a name the box can keep" do
       remote = CodeReading::Remote.new(root: "https://gitlab.example.com", user: "oauth2", token: -> { "glpat_token" }, host: "gitlab.example.com",
                                        options: [ "http.extraHeader=X-Firefight: 1" ])

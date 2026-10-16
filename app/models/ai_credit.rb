@@ -29,7 +29,8 @@ module AiCredit
   def self.why(workspace)
     case situation(workspace)
     when :no_account then "this workspace has no AI account set up"
-    when :credits_used then "this workspace's Firefight credits are used up"
+    # A hosted build whose plan includes AI says what ran out in its own words.
+    when :credits_used then Entitlements.ai_credit(workspace).try(:used_up).presence || "this workspace's Firefight credits are used up"
     when :key_refused then "this workspace's AI account refused its key"
     when :own_out then "this workspace's AI account is out of credit"
     else "the AI account behind this workspace is out of credit"

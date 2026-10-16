@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1012,7 +1012,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_130000) do
     t.text "progress", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["chat_id", "tool_call_id"], name: "index_chat_step_progresses_on_chat_id_and_tool_call_id", unique: true
+    t.index ["chat_id", "tool_call_id", "created_at"], name: "index_chat_step_progresses_on_call_and_time"
   end
 
   create_table "chat_terminal_sessions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2285,6 +2285,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_130000) do
     t.string "already_done_reason"
     t.string "outcome_label"
     t.string "outcome_url"
+    t.boolean "firefight_tool", default: false, null: false
     t.index ["applied_under_rule_id"], name: "index_investigation_remediation_steps_on_applied_under_rule_id"
     t.index ["approval_id"], name: "index_investigation_remediation_steps_on_approval_id"
     t.index ["done_by_id"], name: "index_investigation_remediation_steps_on_done_by_id"
@@ -2543,6 +2544,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_130000) do
     t.datetime "created_at", null: false
     t.uuid "generated_by_id", null: false
     t.string "generated_by_type", null: false
+    t.uuid "generation_attempt"
     t.string "generation_error"
     t.text "generation_prompt"
     t.string "generation_state"

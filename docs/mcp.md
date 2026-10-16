@@ -237,7 +237,7 @@ the race where two people act at once.
 
 **Postmortems.** `get_postmortem`, `start_postmortem`, `update_postmortem` and `set_postmortem_status` close the loop an agent could otherwise not: it could declare, work and resolve an incident and then not write it up. `Incident#postmortem_blocked_reason` is the one home for when a write-up is possible, so the dashboard, MCP and REST all refuse a still-open or canceled incident with the same sentence. `postmortems.generated_by` is polymorphic, so an agent is recorded as the author. `update_postmortem` replaces the body rather than appending, and the HTML is sanitised down to what the editor allows.
 
-`PostmortemGenerationJob` takes only an incident id now. The postmortem already records who started it, and the old second argument could not name an agent at all.
+`PostmortemGenerationJob` takes the incident id and the generation attempt it was started for, never the author. The postmortem already records who started it, which can be an agent, and the attempt keeps a job that outlived a retry from saving over it (docs/ai.md).
 
 **Credentials are admin-only and ungrantable.** `upsert_agent`, `upsert_api_key`
 and their siblings authorize as `permissions` and `api_keys`, both in

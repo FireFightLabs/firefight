@@ -93,9 +93,9 @@ export function AiStep({ step }: { step: OnboardingStep }) {
           {purchase && (
             <div className="flex flex-col gap-3 border-t px-4 py-3">
               <div className="flex flex-col gap-1 text-xs leading-relaxed text-muted-foreground">
-                {purchase.starterNote && <p className="text-sm text-fg-primary">{purchase.starterNote}</p>}
+                {purchase.note && <p className="text-sm text-fg-primary">{purchase.note}</p>}
                 <p>{creditPriceNote(purchase.markupPercent)}</p>
-                {purchase.starterEstimate && <p>{purchase.starterEstimate}</p>}
+                {purchase.estimate && <p>{purchase.estimate}</p>}
               </div>
               <div className="flex flex-col gap-2">
                 <span className="text-xs font-medium text-fg-secondary">Buy more</span>
