@@ -78,6 +78,28 @@ module Integrations
         assert_equal "Northflank 409: Storage class nvme doesn't support that", error.message
       end
 
+      test "a box asks for Northflank's default ephemeral storage quota unless NORTHFLANK_SANDBOX_STORAGE asks for more" do
+        sizes = []
+        Http.stubs(:request).with { |_uri, request, **| sizes << JSON.parse(request.body).dig("deployment", "storage", "ephemeralStorage", "storageSize") }
+            .returns(response(201, { "data" => { "id" => "halon-box-1" } }))
+
+        Northflank.new.start(name: "halon-box-1")
+        ENV.stubs(:[]).with("NORTHFLANK_SANDBOX_STORAGE").returns("16384")
+        Northflank.new.start(name: "halon-box-2")
+
+        assert_equal [ 2_048, 16_384 ], sizes
+      end
+
+      test "storage past the project's allowance says which setting to change" do
+        ENV.stubs(:[]).with("NORTHFLANK_SANDBOX_STORAGE").returns("16384")
+        Http.stubs(:request).returns(response(400, { "error" => { "message" => "Configured runtime ephemeral storage exceeds your project resource allowance" } }))
+
+        error = assert_raises(Error) { Northflank.new.start(name: "halon-box-1") }
+        assert_equal "Northflank 400: Configured runtime ephemeral storage exceeds your project resource allowance. A box asks for 16384 MB of disk " \
+                     "(NORTHFLANK_SANDBOX_STORAGE, 2048 when it is not set), more than Northflank project firefight allows. Lower " \
+                     "NORTHFLANK_SANDBOX_STORAGE, or ask Northflank support to raise the project's ephemeral storage quota.", error.message
+      end
+
       test "only services named like a box are listed, so the sweep never touches the app" do
         Http.stubs(:request).returns(response(200, { "data" => { "services" => [
           { "id" => "halon-box-1", "name" => "halon-box-1", "createdAt" => "2026-09-24T10:00:00Z" },

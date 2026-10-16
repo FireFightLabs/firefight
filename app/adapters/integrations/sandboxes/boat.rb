@@ -32,7 +32,10 @@ module Integrations
         "running" => ProviderSandbox::PHASE_RUNNING, "archiving" => ProviderSandbox::PHASE_STOPPING, "archived" => ProviderSandbox::PHASE_STOPPED,
         "error" => ProviderSandbox::PHASE_FAILED, "cancelled" => ProviderSandbox::PHASE_FAILED
       }.freeze
-      SNAPSHOT_PHASES = { "saving" => ProviderSandbox::PHASE_STARTING, "ready" => ProviderSandbox::PHASE_READY, "failed" => ProviderSandbox::PHASE_FAILED }.freeze
+      SAVING = "saving".freeze
+      READY = "ready".freeze
+      FAILED = "failed".freeze
+      SNAPSHOT_PHASES = { SAVING => ProviderSandbox::PHASE_STARTING, READY => ProviderSandbox::PHASE_READY, FAILED => ProviderSandbox::PHASE_FAILED }.freeze
       FREE_SNAPSHOTS = 10
       # $1.70 a month for each named snapshot beyond the free ones.
       SNAPSHOT_MONTHLY_MICROS = 1_700_000
@@ -63,11 +66,12 @@ module Integrations
       def region = REGION
 
       # A box from from, a prepared copy's named snapshot, or from the image's own copy when there is one ready, so the
-      # image is pulled only by the first box of each version.
+      # image is pulled only by the first box of each version. A box that pulled the image saves the copy for the next
+      # one unless another box is saving it already.
       def start(name:, owner: nil, from: nil, fail_fast: false)
-        image_copy = from ? nil : ready_image_copy
-        created = @api.create({ type: size, ttlSeconds: TTL.to_i, noEnv: true, failFast: fail_fast, from: from || image_copy }.compact,
-                              idempotency_key: SecureRandom.uuid)
+        image_copy = from ? nil : image_copy_status
+        source = from || (image_copy_name if image_copy == READY)
+        created = @api.create({ type: size, ttlSeconds: TTL.to_i, noEnv: true, failFast: fail_fast, from: source }.compact, idempotency_key: SecureRandom.uuid)
         ref = created.dig("sandbox", "id") || created["id"]
         raise Error, "boat.dev created no sandbox." if ref.blank?
 
@@ -75,12 +79,12 @@ module Integrations
           @api.rename(ref, owned_name(name, owner))
           wait_until_up(ref)
           box = run_image(ref)
-          @api.save_snapshot(ref, image_copy_name) unless from || image_copy
-          box
         rescue StandardError
           forget(ref)
           raise
         end
+        save_image_copy(ref, replacing: image_copy == FAILED) unless source || image_copy == SAVING
+        box
       end
 
       # boat keeps no variable the app could read the box's key back from, so the container is started again with a new
@@ -138,7 +142,7 @@ module Integrations
         name
       end
 
-      def kept_ready?(name) = @api.snapshot(name)["status"] == "ready"
+      def kept_ready?(name) = @api.snapshot(name)["status"] == READY
 
       def discard(name)
         @api.delete_snapshot(name)
@@ -187,10 +191,21 @@ module Integrations
       # digits and dashes.
       def image_copy_name = "#{IMAGE_PREFIX}#{Digest::SHA256.hexdigest(Sandboxes.image)[0, 16]}"
 
-      def ready_image_copy
-        image_copy_name if kept_ready?(image_copy_name)
+      # The image copy's status in boat's words, saving, ready or failed, or nil when there is none.
+      def image_copy_status
+        @api.snapshot(image_copy_name)["status"]
       rescue BoatApi::NotFound
         nil
+      end
+
+      # Only a head start for the next box, so a box that is up stays up when the copy cannot be saved, such as when
+      # another box started at the same time saves it first (409 save_in_progress). A failed copy is deleted first,
+      # since it holds the name.
+      def save_image_copy(ref, replacing:)
+        discard(image_copy_name) if replacing
+        @api.save_snapshot(ref, image_copy_name)
+      rescue BoatApi::Error => error
+        Rails.logger.warn({ event: "code_box.image_copy_failed", provider: SandboxProviders::BOAT, box_ref: ref, error: error.message }.to_json)
       end
 
       def wait_until_up(ref)

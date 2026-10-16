@@ -52,6 +52,45 @@ module Integrations
         assert_equal "halon-kept-abc", froms.last
       end
 
+      test "boxes that start at once and are refused the image copy another is saving all stay up, and the refusal is logged" do
+        @api.stubs(:snapshot).raises(BoatApi::NotFound, "boat.dev answered 404: Named snapshot not found. (not_found)")
+        @api.stubs(:sandbox).returns({ "id" => "bx_23456789", "state" => "idle" })
+        @api.stubs(:command_status).returns({ "status" => "exited", "exitCode" => 0 })
+        @api.stubs(:create).returns(*Array.new(3) { |index| { "sandbox" => { "id" => "bx_#{index}" } } })
+        @api.stubs(:save_snapshot).raises(BoatApi::Error, 'boat.dev answered 409: "halon-image-5160fe96712a73cc" is already being saved. Wait for it to finish. (save_in_progress)')
+        @api.expects(:delete).never
+        logged = Queue.new
+        Rails.logger.stubs(:warn).with { |line| logged << line }
+
+        boxes = Array.new(3) { |index| Thread.new { @boat.start(name: "halon-box-#{index}") } }.map(&:value)
+
+        assert_equal 3, boxes.map(&:ref).uniq.size, "every box is handed back to read in"
+        refusals = Array.new(logged.size) { JSON.parse(logged.pop) }.select { |line| line["event"] == "code_box.image_copy_failed" }
+        assert_equal 3, refusals.size
+        assert_match "save_in_progress", refusals.first["error"]
+      end
+
+      test "a box started while the image copy is being saved pulls the image and leaves the saving to the box already at it" do
+        @api.stubs(:snapshot).returns({ "name" => "halon-image-x", "status" => "saving" })
+        created = nil
+        @api.expects(:create).with { |body, **| created = body }.returns({ "sandbox" => { "id" => "bx_23456789" } })
+        @api.expects(:save_snapshot).never
+
+        @boat.start(name: "halon-box-1")
+
+        assert_nil created[:from]
+      end
+
+      test "a failed image copy is deleted so the next box can save it again under its name" do
+        @api.stubs(:snapshot).returns({ "name" => "halon-image-x", "status" => "failed" })
+        @api.stubs(:create).returns({ "sandbox" => { "id" => "bx_23456789" } })
+        saving = sequence("saving")
+        @api.expects(:delete_snapshot).with(regexp_matches(/\Ahalon-image-\h{16}\z/)).in_sequence(saving)
+        @api.expects(:save_snapshot).with("bx_23456789", regexp_matches(/\Ahalon-image-\h{16}\z/)).in_sequence(saving)
+
+        @boat.start(name: "halon-box-1")
+      end
+
       test "a sandbox that will not start, or an image that will not run, is deleted and said in boat's words" do
         @api.stubs(:snapshot).raises(BoatApi::NotFound, "gone")
         @api.stubs(:create).returns({ "sandbox" => { "id" => "bx_23456789" } })

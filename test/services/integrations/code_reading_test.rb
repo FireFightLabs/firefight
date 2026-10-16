@@ -137,6 +137,19 @@ module Integrations
       first&.join
     end
 
+    test "reads a step runs at once share the run's one box, each waiting for the first to start it" do
+      @provider.define_singleton_method(:start) do |**options|
+        sleep 0.2
+        super(**options)
+      end
+
+      reads = Array.new(3) { Thread.new { reading("investigation-together").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT) } }
+
+      assert_equal [ "ok" ] * 3, reads.map { |read| read.value["stdout"] }
+      assert_equal 1, @provider.started.size
+      assert_equal 1, @pushed.size
+    end
+
     test "two runs read in two boxes" do
       reading("investigation-1").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
       reading("conversation-2").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)

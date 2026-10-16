@@ -7,8 +7,14 @@ module Integrations
       API_ROOT = "https://api.northflank.com/v1".freeze
       PORT = 8080
       DEFAULT_PLAN = "nf-compute-100-2".freeze
-      # Megabytes. Repositories, their dependencies and a database for their tests share it.
-      DEFAULT_STORAGE = 16_384
+      # MiB, which Northflank's own messages call MB. Repositories, their dependencies and a database for their tests
+      # share it. Northflank's default quota is 2 GiB an instance (docs/v1/application/billing/resource-plans-and-quotas)
+      # and its API does not say a project's own, so a box asks for that unless NORTHFLANK_SANDBOX_STORAGE asks for the
+      # more a raised quota allows.
+      DEFAULT_STORAGE = 2_048
+      # Northflank's refusal of a size past the project's quota, "Configured runtime ephemeral storage exceeds your
+      # project resource allowance".
+      STORAGE_REFUSED = /ephemeral storage/i
       DESCRIPTION = "Firefight code sandbox".freeze
 
       def start(name:, owner: nil, **)
@@ -19,7 +25,7 @@ module Integrations
           billing: { deploymentPlan: size },
           deployment: {
             instances: 1, docker: { configType: "default" }, external: { imagePath: Sandboxes.image },
-            storage: { ephemeralStorage: { storageSize: Integer(ENV["NORTHFLANK_SANDBOX_STORAGE"].presence || DEFAULT_STORAGE) } }
+            storage: { ephemeralStorage: { storageSize: storage } }
           },
           ports: [ { name: "cmd", internalPort: PORT, public: false, protocol: "HTTP" } ],
           runtimeEnvironment: { SANDBOX_KEY: key }
@@ -28,6 +34,12 @@ module Integrations
         raise Error, "Northflank created no service." if ref.blank?
 
         Box.new(ref: ref, address: "http://#{ref}#{suffix}:#{PORT}", key: key)
+      rescue Error => error
+        raise unless error.message.match?(STORAGE_REFUSED)
+
+        raise Error, Sentence.all(error.message, "A box asks for #{storage} MB of disk (NORTHFLANK_SANDBOX_STORAGE, #{DEFAULT_STORAGE} when it is not set), " \
+                                                 "more than Northflank project #{project} allows",
+                                  "Lower NORTHFLANK_SANDBOX_STORAGE, or ask Northflank support to raise the project's ephemeral storage quota")
       end
 
       # Northflank answers a service's variables only from its runtime environment
@@ -86,6 +98,8 @@ module Integrations
         services = request(Net::HTTP::Get, "/projects/#{project}/services?per_page=100").dig("data", "services").to_a
         services.select { |service| service["name"].to_s.start_with?(NAME_PREFIX) }
       end
+
+      def storage = Integer(ENV["NORTHFLANK_SANDBOX_STORAGE"].presence || DEFAULT_STORAGE)
 
       def project = ENV["NORTHFLANK_SANDBOX_PROJECT"].presence || raise(Error, "NORTHFLANK_SANDBOX_PROJECT is not set.")
 
