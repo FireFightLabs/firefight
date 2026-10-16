@@ -165,10 +165,12 @@ class Chat::CodeFixProgress
   # question and pause answer from. Their sessions are read together, since a question and a pause often share one.
   def self.preload_records(works, workspace_id)
     works = works.compact
-    questions = CodeAgentQuestion.where(id: works.filter_map { |work| work.question&.dig("id") }, workspace_id: workspace_id).to_a
-    pauses = CodeAgentSession::Pause.where(id: works.filter_map { |work| work.pause&.dig("id") }, workspace_id: workspace_id).to_a
-    # One read for the sessions of both, rather than one per kind of record, so the count never rests on the query cache.
-    sessions = CodeAgentSession.where(id: questions.map(&:code_agent_session_id) | pauses.map(&:session_id)).index_by(&:id)
+    questions = CodeAgentQuestion.where(id: works.filter_map { |work| work.question&.dig("id") }, workspace_id: workspace_id).order(:created_at).to_a
+    pauses = CodeAgentSession::Pause.where(id: works.filter_map { |work| work.pause&.dig("id") }, workspace_id: workspace_id).order(:created_at).to_a
+    # One read for the sessions of both, listed in the order their pauses were made, which is how the page's pause cards
+    # read the same sessions. The two reads are then one statement the query cache answers once, rather than the same
+    # rows in whatever order the database returned the questions.
+    sessions = CodeAgentSession.where(id: pauses.map(&:session_id) | questions.map(&:code_agent_session_id)).index_by(&:id)
     questions.each { |question| question.association(:session).target = sessions[question.code_agent_session_id] }
     pauses.each { |pause| pause.association(:session).target = sessions[pause.session_id] }
     works.each { |work| work.records_read(workspace_id, questions.index_by { |row| row.id.to_s }, pauses.index_by { |row| row.id.to_s }) }
