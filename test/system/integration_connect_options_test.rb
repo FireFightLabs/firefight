@@ -86,7 +86,7 @@ class IntegrationConnectOptionsTest < ApplicationSystemTestCase
     find("button[aria-label='Logs datasource']").click
     find("[role=option]", text: "Loki US").click
 
-    assert_text "Grafana now uses Loki US for logs datasource."
+    assert_toast "Grafana now uses Loki US for logs datasource."
     assert_equal "b2", row.reload.fields["logs_source"]
     page.save_screenshot(Rails.root.join("tmp/screenshots/integration-learned-choice.png"))
   end
