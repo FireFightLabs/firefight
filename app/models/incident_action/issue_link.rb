@@ -104,6 +104,7 @@ module IncidentAction::IssueLink
   def move_issue!(from:, to:, **columns)
     won = self.class.where(id: id).where(issue_sync_state: Array(from)).update_all(issue_sync_state: to, updated_at: Time.current, **columns)
     reload
+    signal_incident_page if won == 1
     won == 1
   end
 
@@ -114,11 +115,14 @@ module IncidentAction::IssueLink
     column = SYNCED_AT.fetch(field)
     scope = self.class.where(id: id).where("#{column} IS NULL OR #{column} < ?", at)
     scope = scope.where(status: from_status) if from_status
-    scope.update_all(column => at, updated_at: Time.current, **columns) == 1
+    claimed = scope.update_all(column => at, updated_at: Time.current, **columns) == 1
+    signal_incident_page if claimed && columns.any?
+    claimed
   end
 
   def issue_note!(note)
     update_columns(issue_sync_note: note&.truncate(1000), updated_at: Time.current)
+    signal_incident_page
   end
 
   private

@@ -3,6 +3,11 @@ class Investigation < ApplicationRecord
   include Investigation::Citing
   include Investigation::Timeline
   include Investigation::Noting
+  include Incident::LiveSignal
+
+  # The incident page shows only whether a run is working on it. Its lease is renewed every turn.
+  shown_on_incident_page Incident::LiveSignal::PART_INVESTIGATION,
+                         if: -> { previously_new_record? || destroyed? || saved_change_to_status? || saved_change_to_subject_id? }
 
   STATUS_PENDING = "pending"
   STATUS_RUNNING = "running"
@@ -215,6 +220,7 @@ class Investigation < ApplicationRecord
     return false unless moved
 
     reload
+    signal_incident_page
     note_started!
     note_answered!(finding) if finding
     true
@@ -538,6 +544,7 @@ class Investigation < ApplicationRecord
       ) > 0
     reload if moved
     if moved
+      signal_incident_page
       tell_workflows!
       ActiveRecord.after_all_transactions_commit { WorkflowSignalJob.perform_later(finished_signal) } if trigger_source == TRIGGER_WORKFLOW
     end

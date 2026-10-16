@@ -75,6 +75,16 @@ Frontend    → useIncidentsTable(data, columns, filters, pagination) → router
 
 **A flash belongs to the response that set it.** `redirect_to ..., notice:` (or `alert:`, or `flash.inertia[:key]`) reaches the page as `page.flash`, and `FlashToaster` toasts it once per response, keyed on the object rather than its text, so the same action done twice toasts twice. Partial reloads, polls and closing a panel replace the flash with whatever that response set, usually nothing, so they never toast it again. This relies on `@inertiajs/react` 3.0.1 or later, since 3.0.0 merged the previous flash into every partial reload.
 
+**The incident page keeps itself up to date.** A change to an incident made anywhere (Slack, the API, MCP, Halon, a workflow, a job, another tab or the page itself) reaches an open incident page without a refresh:
+
+- **Where the signal starts.** Every record the page shows includes `Incident::LiveSignal` (`app/models/incident/live_signal.rb`) and names the part of the page it lives in with `shown_on_incident_page`: the incident, its role assignments, subscriptions, custom field values, alerts, on-call pages and attached runbooks are `incident`, `IncidentEvent` is `timeline`, `IncidentAction` is `actions`, `Postmortem` is `postmortem` (status and generation only, not every autosave of its words) and `Investigation` is `investigation` (start, finish, status). The hook is an `after_commit`, and the broadcast waits for `ActiveRecord.after_all_transactions_commit`, so a change that rolls back is never announced. A record that moves to another incident signals both. A write that skips callbacks (a guarded `update_all` such as `IncidentAction#move_status!`, `Incident::Page#move!`, `Postmortem.start_generation!`, `Investigation#finish!`, or an `update_columns`) calls `signal_incident_page` itself once it wins. A new model shown on the page, or a new callback-skipping write to one, has to do the same, or the page goes stale for that change.
+- **What is sent.** `IncidentChannel` broadcasts `{ part: }` on `incident:<id>`, nothing else. The page reads the data through its ordinary, authorized Inertia request, so the socket never carries incident content.
+- **Who may listen.** `IncidentChannel#subscribed` asks `Incident#watchable_by?`, which is the page's own rule: a member of the incident's workspace who `may?` read incidents, answered by `AbilityGateway.permitted?`. Anyone else is rejected.
+- **What the page reloads.** `useIncidentLive` (`pages/incidents/hooks/use-incident-live.ts`) subscribes on mount and unsubscribes on leave or when the incident changes. Signals arriving within 300ms are gathered into one `router.reload({ only, showProgress: false })`, naming only the props of the parts that changed (`PROPS_OF`, typed against the generated `INCIDENT_LIVE_PARTS`, so a new part is a type error until it has props). Shared props are lambdas, so the reload never works them out. The run drawn over the page reads itself while it works and is never reloaded from here. What changed is read again in place (`useResourceJson`'s `readAgain`) each time the incident is.
+- **Nothing typed is lost.** `router.reload` keeps component state and is asynchronous, so it never cancels a change the person is posting. A dialog or picker open on the page keeps what was typed. Keep a control that holds input mounted at the same place in the tree whatever the data says, as `ActionPanel` does with its add dialog when its first item arrives.
+- **One toast.** A change made on the page toasts from its own response (`FlashToaster`). The reload the page then hears about carries no flash, so it toasts nothing.
+- **A dropped socket reads everything once.** Nothing sent while the socket was away is sent again, so on reconnect the hook reloads every part.
+
 **Frontend filter navigation** (`useIncidentsTable` hook):
 - Filter/pagination changes call `router.get(dashboardPath(), params, { preserveState: true, preserveScroll: true, only: [...] })`
 - Search input debounced 300ms before triggering navigation
@@ -131,6 +141,7 @@ app/frontend/
       components/
         index/             # incident-header, incident-timeline, action-panel, ... (detail page only)
         postmortem/        # postmortem-editor, ai-rewrite-dialog, revisions-sheet (postmortem page only)
+      hooks/               # use-incident-live (the page's live connection)
       lib/                 # action-status (shared status icons/labels), action-anchor (sidebar deep link)
       types.ts             # Re-exports Incident, IncidentAction, TimelineEvent from @/types/serializers
     catalogue/
