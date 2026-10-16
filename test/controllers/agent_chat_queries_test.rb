@@ -10,7 +10,7 @@ class AgentChatQueriesTest < ActionDispatch::IntegrationTest
   # conversation is counted before the tools' labels are cached (Workspace::ToolLabels), so it reads them, and once they
   # are it sends one query fewer.
   PAGE_QUERIES = 18
-  THREAD_QUERIES = 44
+  THREAD_QUERIES = 46
   # What a question sent from the open chat reads back. Nothing the page shares is counted, since none of it is sent.
   ASKED_QUERIES = 27
 

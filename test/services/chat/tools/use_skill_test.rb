@@ -163,7 +163,6 @@ class Chat::Tools::UseSkillTest < ActiveSupport::TestCase
   end
 
   test "a workspace's own skill is listed and loaded like any other, its tools offered through the same rules" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
     grant_system!(Ability::Action::RESOURCE_FORMS, Ability::Action::ACTION_READ)
     Chat::CustomSkill.create_with!(workspace: @workspace, name: "game_day", by: workspace_memberships(:alice_workspace_one),
                                    content: { "when" => "Someone asks for a game day", "tools" => %w[get_form declare_incident], "steps" => "1. Read the form with `get_form`." })
@@ -177,7 +176,6 @@ class Chat::Tools::UseSkillTest < ActiveSupport::TestCase
   end
 
   test "a workspace's copy is loaded in place of Firefight's skill of the same name" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
     copy = Chat::CustomSkill.copy!(Chat::Skill.find("declaring"), workspace: @workspace, by: workspace_memberships(:alice_workspace_one))
     copy.write!(copy.live_version.content.merge("steps" => "1. Our own way, with `get_form`."), by: workspace_memberships(:alice_workspace_one))
 

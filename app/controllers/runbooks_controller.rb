@@ -80,15 +80,13 @@ class RunbooksController < InertiaController
 
   private
 
-  def workflows_on? = FeatureFlags.enabled?(current_workspace, FeatureFlags::WORKFLOWS)
-
   def workflow_params
-    return {} unless workflows_on? && params.key?(:workflow_id)
+    return {} unless params.key?(:workflow_id)
 
     { workflow: params[:workflow_id].presence && current_workspace.workflows.find(params[:workflow_id]) }
   end
 
-  def runnable_parts_sent? = workflows_on? && Runbook.names_a_run?(steps: step_params, **procedure_params.slice(:inputs, :watch))
+  def runnable_parts_sent? = Runbook.names_a_run?(steps: step_params, **procedure_params.slice(:inputs, :watch))
 
   def refuse_runnable_parts
     redirect_back fallback_location: settings_runbooks_path, inertia: { errors: { base: RUNS_IN_ITS_WORKFLOW } }

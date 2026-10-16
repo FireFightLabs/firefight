@@ -5,20 +5,10 @@ class WorkflowCanvasControllerTest < ActionDispatch::IntegrationTest
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
     @bob = workspace_memberships(:bob_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @workflow = Workflow.create!(workspace: @workspace, name: "Probe check")
   end
 
   def delay(id, name = id) = { "id" => id, "name" => name, "kind" => DefinedWorkflow::KIND_DELAY, "config" => { "minutes" => 5 } }
-
-  test "the canvas is not found for a workspace without the workflows flag" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-    sign_in(users(:bob), @workspace)
-
-    get workflow_path(@workflow), headers: inertia_headers
-
-    assert_response :not_found
-  end
 
   test "the header says how many runs were skipped for the workflow's most runs an hour, and when" do
     @workflow.update!(runs_per_hour: 40)

@@ -57,7 +57,7 @@ class Chat::PracticesTest < ActiveSupport::TestCase
 
   test "a plan's rules are in its tools and in the plans Halon reads each turn" do
     assert_match "say the plan back in two short lines and start", Conversation::Tools::MakePlan.new(@turn).description
-    assert_match "A time inside a freeze is refused", Conversation::Tools::MakePlan.new(@turn).description
+    assert_match "at a later time is a workflow, made with create_workflow", Conversation::Tools::MakePlan.new(@turn).description
     update = Conversation::Tools::UpdatePlan.new(@turn).description
     assert_match "resource_status and its error rate and p95 latency with run_key_query", update
     assert_match "offer to retry or undo", update
@@ -66,7 +66,7 @@ class Chat::PracticesTest < ActiveSupport::TestCase
 
   test "following, saving and starting work is said by the tools that do it" do
     assert_match "is yours to follow: start a watch on it in the same turn", Conversation::Tools::StartWatch.new(@turn).description
-    assert_match "offer to save it as a runbook", Conversation::Tools::RunRunbook.new(@turn).description
+    assert_match "offer to save it as a workflow", Conversation::Tools::RunRunbook.new(@turn).description
     assert_match "offer to run it again and start it yourself once the person agrees", Conversation::Tools::StartInvestigation.new(@turn).description
     assert_match "Keep for yourself anything that changes something", Chat::Tools::Helpers.new(@turn, share: nil).description
   end

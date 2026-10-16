@@ -7,7 +7,6 @@ class Api::V1::RunbookWorkflowsApiTest < ActionDispatch::IntegrationTest
     @workspace = workspaces(:slack_workspace_one)
     @admin = workspace_memberships(:alice_workspace_one)
     _, @token = ApiKey.create_with_token!(workspace: @workspace, created_by: @admin, on_behalf_of: @admin, name: "Personal")
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
   end
 
   test "a runbook with a tool step is written as a checklist and a draft workflow it links, shown with its inputs and watch" do

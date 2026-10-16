@@ -17,16 +17,12 @@ class Workflow::ScheduleSweep
 
   def run!
     Workflow.due(@now).includes(:live_version, :workspace).find_each do |workflow|
-      next unless FeatureFlags.enabled?(workflow.workspace, FeatureFlags::WORKFLOWS)
-
       due_at = workflow.claim_due!(@now)
       next unless due_at
 
       start(workflow, due_at)
     end
     Workflow.given_up_unrecorded.includes(:live_version, :workspace).find_each do |workflow|
-      next unless FeatureFlags.enabled?(workflow.workspace, FeatureFlags::WORKFLOWS)
-
       give_up(workflow, workflow.given_up_at)
     end
   end

@@ -37,8 +37,6 @@ module Conversation::Workflows
   end
 
   def press!(workflow, action, by:)
-    return Result.new(ok: false, words: "Workflows are not switched on for this workspace.") unless FeatureFlags.enabled?(workflow.workspace, FeatureFlags::WORKFLOWS)
-
     case action
     when Workflow::ACTION_RUN_NOW then run_now!(workflow, by: by)
     when Workflow::ACTION_CANCEL, Workflow::ACTION_TURN_OFF then stop!(workflow, by: by)

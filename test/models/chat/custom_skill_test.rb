@@ -5,7 +5,6 @@ class Chat::CustomSkillTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
     @bob = workspace_memberships(:bob_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
   end
 
   def content(steps: "1. Declare it with `declare_incident`.", tools: [ "declare_incident" ], used_when: "Someone asks to open a game day")
@@ -24,28 +23,6 @@ class Chat::CustomSkillTest < ActiveSupport::TestCase
     assert_equal [ 1, Chat::CustomSkill::Version::STATUS_LIVE, Chat::CustomSkill::Version::AUTHOR_PERSON, @alice ],
                  [ version.number, version.status, version.author_kind, version.author ]
     assert_equal [ "declare_incident" ], version.tools
-  end
-
-  test "Halon loads the workspace's live skills beside Firefight's, only with the custom skills flag" do
-    skill = make
-    names = Chat::Skill.available_to(@workspace).map(&:name)
-    assert_includes names, "game_day"
-    assert_includes names, "declaring"
-
-    found = Chat::Skill.available_to(@workspace).find { |each| each.name == "game_day" }
-    assert_equal [ Chat::Skill::SOURCE_WORKSPACE, skill.id, 1 ], [ found.source, found.custom_skill_id, found.version ]
-
-    FeatureFlags.disable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
-    assert_not_includes Chat::Skill.available_to(@workspace).map(&:name), "game_day"
-  end
-
-  test "the workspace's skills follow their own flag, not the workflows flag" do
-    make
-    FeatureFlags.disable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
-
-    assert_not Chat::CustomSkill.enabled_for?(@workspace)
-    assert_not_includes Chat::Skill.available_to(@workspace).map(&:name), "game_day"
   end
 
   test "a skill switched off is not loaded, says so to a workflow that runs it, and a copy switched off gives Firefight's back" do
@@ -222,5 +199,15 @@ class Chat::CustomSkillTest < ActiveSupport::TestCase
                  [ parsed.name, parsed.content["when"], parsed.content["tools"], parsed.content["steps"] ]
     assert_raises(Chat::CustomSkill::Document::Unreadable) { Chat::CustomSkill::Document.parse("no front matter") }
     assert_raises(Chat::CustomSkill::Document::Unreadable) { Chat::CustomSkill::Document.parse("---\nwhen: x\n---\nsteps") }
+  end
+
+  test "Halon loads the workspace's live skills beside Firefight's" do
+    skill = make
+    names = Chat::Skill.available_to(@workspace).map(&:name)
+    assert_includes names, "game_day"
+    assert_includes names, "declaring"
+
+    found = Chat::Skill.available_to(@workspace).find { |each| each.name == "game_day" }
+    assert_equal [ Chat::Skill::SOURCE_WORKSPACE, skill.id, 1 ], [ found.source, found.custom_skill_id, found.version ]
   end
 end

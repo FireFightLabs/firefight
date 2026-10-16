@@ -38,7 +38,6 @@ class StatusPagesConnectTest < ApplicationSystemTestCase
   end
 
   test "a workflow's Status page update step offers the Statuspage and Instatus tools that change a page, and none that only read" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     workflow = Workflow.create!(workspace: @workspace, name: "Tell customers")
     tools = [ Integrations::Providers::Statuspage.key, Integrations::Providers::Instatus.key ].map do |key|
       integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: key, name: key.titleize)

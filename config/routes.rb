@@ -204,7 +204,7 @@ Rails.application.routes.draw do
         patch :disable
         patch :enable
       end
-      # Run it, which starts the workflow the runbook links and answers not found without the workflows flag.
+      # Run it, which starts the workflow the runbook links.
       resources :runs, only: :create, controller: "runbook_runs"
     end
     get "/settings/custom-fields", to: "settings#custom_fields", as: :settings_custom_fields
@@ -405,7 +405,7 @@ Rails.application.routes.draw do
     patch "/halon/on-call", to: "halon_on_call#update"
     post "/halon/on-call/paging/:integration_id/grant", to: "paging_grants#create", as: :halon_paging_grant
     resources :unattended_rules, only: [ :create, :update, :destroy ], path: "halon/on-call/rules"
-    # A workflow's page is its canvas, and every change made on it, behind the workflows flag (WorkflowCanvas).
+    # A workflow's page is its canvas, and every change made on it (WorkflowCanvas).
     get "/halon/workflows/:id", to: "workflow_canvas#show", constraints: { id: /[0-9a-f-]{36}/ }
     post "/halon/workflows/:id/edits", to: "workflow_edits#create", as: :workflow_edits
     post "/halon/workflows/:id/suggestions/accept", to: "workflow_suggestions#accept_all", as: :workflow_suggestions_accept
@@ -460,7 +460,7 @@ Rails.application.routes.draw do
     get "/halon/workflow-library/workflows/:id/export", to: "halon_workflow_library#export", as: :export_halon_workflow
     post "/halon/workflow-library/workflows/:id/take-library", to: "halon_workflow_library#take_library", as: :take_library_halon_workflow
     post "/halon/workflow-library/workflows/:id/keep-own", to: "halon_workflow_library#keep_own", as: :keep_own_halon_workflow
-    # A workspace's workflows, which answer not found without the workflows flag.
+    # A workspace's workflows.
     get "/halon/workflows", to: "workflows#index", as: :halon_workflows
     post "/halon/workflows", to: "workflows#create"
     resources :workflow_publish_requests, only: [], path: "halon/workflows/requests" do

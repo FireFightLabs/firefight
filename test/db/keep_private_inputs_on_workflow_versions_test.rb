@@ -7,7 +7,6 @@ class KeepPrivateInputsOnWorkflowVersionsTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
   end
 
   teardown do

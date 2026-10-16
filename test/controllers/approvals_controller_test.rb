@@ -189,7 +189,6 @@ class ApprovalsControllerTest < ActionDispatch::IntegrationTest
   def workflow_agent = Workflow.create!(workspace: @workspace, name: "Weekday probe check").ensure_agent!
 
   def drafted_workflow(name, step)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     workflow = Workflow.create!(workspace: @workspace, name: name)
     workflow.open_draft!(by: workspace_memberships(:alice_workspace_one)).update!(steps: [ step ])
     workflow

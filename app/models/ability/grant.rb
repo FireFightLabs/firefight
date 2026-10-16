@@ -73,7 +73,7 @@ module Ability
       desired = Array(matrix).flat_map do |resource, actions|
         Array(actions).map { |action| Ability::Action.system_key(resource, action) }
       end
-      offered = Ability::Action.grantable_keys - Ability::Action.hidden_keys(workspace)
+      offered = Ability::Action.grantable_keys
       unknown = desired - offered
       raise ArgumentError, "unknown permission #{unknown.first}" if unknown.any?
 

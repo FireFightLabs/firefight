@@ -4,7 +4,6 @@ module Mcp
     class RunWorkflow < Base
       tool_name FirefightTools::RUN_WORKFLOW
       authorize_as Ability::Action::RESOURCE_WORKFLOWS, Ability::Action::ACTION_CREATE
-      behind_flag FeatureFlags::WORKFLOWS
       description "Run a published workflow by its name, slug or another name it goes by, with a value for each input it asks " \
                   "(list_workflows names them). It runs as the workflow's own identity. Answers the run's page. Docs: #{Docs::MCP_SERVER}"
       annotations(**WRITE)

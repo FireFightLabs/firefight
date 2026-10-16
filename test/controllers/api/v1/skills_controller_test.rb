@@ -4,7 +4,6 @@ class Api::V1::SkillsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @admin = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
     _, @token = ApiKey.create_with_token!(workspace: @workspace, created_by: @admin, on_behalf_of: @admin, name: "Personal")
     @skill = Chat::CustomSkill.create_with!(workspace: @workspace, name: "game_day", by: @admin,
                                             content: { "when" => "Someone asks for a game day", "tools" => [ "declare_incident" ], "steps" => "1. Declare it." })
@@ -81,13 +80,5 @@ class Api::V1::SkillsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :unprocessable_entity
     assert_match "take it out of that workflow", response.body
-  end
-
-  test "without the custom skills flag the endpoints do not exist" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
-
-    get api_v1_skills_url, headers: api_headers(token: @token)
-
-    assert_response :not_found
   end
 end

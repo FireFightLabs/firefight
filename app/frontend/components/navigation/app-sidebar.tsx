@@ -167,8 +167,6 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
     pendingApprovalsCount,
     waitingPackRequestsCount,
     agentAvailable,
-    workflowsEnabled,
-    customSkillsEnabled,
   } = usePage<SharedProps>().props
 
   const chatSection: SidebarNavSection = {
@@ -178,12 +176,8 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
       { title: "Handbook", url: settingsHandbookPath(), icon: IconNotebook },
       { title: "Memory", url: memoryPath(), icon: IconBrain },
       { title: "Monitoring", url: halonMonitoringPath(), icon: IconRadar },
-      ...(customSkillsEnabled ? [ { title: "Skills", url: halonSkillsPath(), icon: IconSparkles } ] : []),
-      ...(workflowsEnabled
-        ? [
-          { title: "Workflows", url: halonWorkflowsPath(), icon: IconRoute },
-        ]
-        : []),
+      { title: "Skills", url: halonSkillsPath(), icon: IconSparkles },
+      { title: "Workflows", url: halonWorkflowsPath(), icon: IconRoute },
       { title: "Performance", url: halonPerformancePath(), icon: IconChartBar },
       { title: "On-call", url: halonOnCallPath(), icon: IconPhoneCall, adminOnly: true },
       { title: "Test logins", url: settingsTestLoginsPath(), icon: IconLogin2 },

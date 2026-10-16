@@ -4,7 +4,6 @@ class WorkflowHalonChatTest < ApplicationSystemTestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @workflow = Workflow.create!(workspace: @workspace, name: "Release check")
     @workflow.edit!(operation: Workflow::Edit::OPERATION_ADD_STEP, by: @alice,
                     payload: { "step" => { "id" => "wait", "name" => "wait_a_bit", "kind" => DefinedWorkflow::KIND_DELAY, "config" => { "minutes" => 1 } } })

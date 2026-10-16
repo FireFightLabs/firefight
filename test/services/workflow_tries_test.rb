@@ -7,7 +7,6 @@ class WorkflowTriesTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @workflow = Workflow.create!(workspace: @workspace, name: "Release check")
   end
 
@@ -123,12 +122,8 @@ class WorkflowTriesTest < ActiveSupport::TestCase
     assert_equal "That step is not part of the run.", error.message
   end
 
-  test "nothing is tried without the workflows flag or anything to try" do
+  test "nothing is tried without anything to try" do
     error = assert_raises(Workflow::Run::Refused) { WorkflowRunService.new(@workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_PERSON, started_by: @alice, test: true) }
     assert_equal "Release check has no steps to test yet.", error.message
-
-    branchy
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-    assert_raises(Workflow::Run::Refused) { WorkflowRunService.new(@workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_PERSON, started_by: @alice, test: true) }
   end
 end

@@ -760,8 +760,7 @@ make_plan:
     is settled with the person first. Give the goal in the person's words and a step per action naming where it happens, then say the plan back
     in two short lines and start, since each change asks the person when it runs. The person sees it as a checklist that moves as you update it.
     Each change carries its undo, written now. A plan that changes anything ends with a check step that reads health, error rate and latency against
-    normal. Give run_at only when the person asked for it to happen at a later time: the plan then waits for them to approve it, and at that time
-    Halon reads how things stand and runs it as them. A time inside a freeze is refused, so offer one after it.
+    normal. A plan is for what you do now. Something the person wants done at a later time is a workflow, made with create_workflow.
   parameters:
     type: object
     properties:
@@ -796,14 +795,6 @@ make_plan:
           - description
           - kind
         description: The steps in order, 2 to 12
-      run_at:
-        type: string
-        description: >-
-          Only when the person asked for a later time: when to run it, as a local date and time such as 2026-10-11T06:00, worked out from today's
-          date (optional)
-      time_zone:
-        type: string
-        description: The time zone run_at is in, such as Europe/Berlin, when the person named one. Left out, it is their own time zone (optional)
     required:
     - goal
     - steps
@@ -917,8 +908,8 @@ search_runbooks:
   live: true
   description: >-
     Search this workspace's incident response runbooks: documented procedures for handling incidents (e.g. how to fail over a database, roll back
-    a deploy). Matches name, summary and other names. runnable says Halon can run it with run_runbook, and workflow names the workflow it runs
-    where the workspace has workflows. Use get_runbook for the full step-by-step content. Docs: https://firefight.app/docs/incidents/runbooks.md
+    a deploy). Matches name, summary and other names. runnable says Halon can run it with run_runbook, and workflow names the workflow it runs.
+    Use get_runbook for the full step-by-step content. Docs: https://firefight.app/docs/incidents/runbooks.md
   reads: true
   parameters:
     properties:
@@ -934,12 +925,11 @@ search_runbooks:
 run_runbook:
   live: true
   description: >-
-    Run a saved runbook that has tool steps, such as Release Firefight, by its name, slug or another name it goes by (search_runbooks says which
-    are runnable). First tell the person what it will do and which inputs it uses, and ask for any input it has no default for. The person confirms
-    the whole run before anything happens. Each step runs as them with their permissions, the run stops at the first step that is refused, waits
-    for an approval or fails, and once every step went through its watch starts and reports back here. When a request matches a saved runbook,
-    such as a release or a rollback, run it rather than doing its steps one by one. When the person has you do the same multi-step task again,
-    offer to save it as a runbook they can ask for by name.
+    Run a saved runbook by its name, slug or another name it goes by (search_runbooks says which are runnable), which starts the workflow it links,
+    such as Release Firefight. First tell the person what it will do and which inputs it uses, and ask for any input it has no default for. The
+    person confirms the run before it starts. It runs as the workflow's own identity with only what an admin granted it, and its page shows each
+    step as it goes. When a request matches a saved runbook, such as a release or a rollback, run it rather than doing its steps one by one. When
+    the person has you do the same multi-step task again, offer to save it as a workflow.
   confirms: true
   parameters:
     type: object

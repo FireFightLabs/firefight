@@ -34,8 +34,7 @@ interface WorkspacePageProps extends SharedProps {
   aiSignIn: AiSignIn | null
   aiFallback: string
   aiCredits: AiCredits | null
-  // Only where workflows are switched on.
-  workflowRunRetentionDays: number | null
+  workflowRunRetentionDays: number
 }
 
 function retentionText(days?: number): string {
@@ -370,7 +369,7 @@ export default function Workspace() {
           </CardContent>
         </Card>
 
-        {workflowRunRetentionDays !== null && <WorkflowRunsCard days={workflowRunRetentionDays} />}
+        <WorkflowRunsCard days={workflowRunRetentionDays} />
 
         <AiAccountsCard
           accounts={aiAccounts}

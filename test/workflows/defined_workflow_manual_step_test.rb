@@ -10,7 +10,6 @@ class DefinedWorkflowManualStepTest < ActiveSupport::TestCase
     @alice = workspace_memberships(:alice_workspace_one)
     @bob = workspace_memberships(:bob_workspace_one)
     @incident = incidents(:active_critical_ws1)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     FirefightAi::WorkflowRepair.any_instance.stubs(:suggest).returns(nil)
     @adapter = WorkspaceAdapter.for(@workspace).class
     @adapter.any_instance.stubs(:post_workflow_failure).returns({})

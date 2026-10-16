@@ -6,8 +6,8 @@ module Mcp
                   "existing runbook (steps/conditions replace the current set when given); an unknown slug is an error, not a create; " \
                   "omit it to create one (name required). Attach conditions auto-attach the " \
                   "runbook to matching incidents. A step may name a tool Halon runs it with (tool and arguments), " \
-                  "which makes it a runbook Halon can run by its name or an alias (run_runbook). Where the workspace has workflows, " \
-                  "every step stays on the runbook as its checklist, and the steps that name a tool, the inputs and the watch are " \
+                  "which makes it a runbook Halon can run by its name or an alias (run_runbook). Every step stays on the runbook " \
+                  "as its checklist, and the steps that name a tool, the inputs and the watch are " \
                   "written into the workflow it links, made for it when it links none: published when you may publish it, otherwise " \
                   "a draft the admins are asked to publish. A change step there also needs its undo. If the call requires approval, " \
                   "retry the identical call with approval_id once approved. Docs: #{Docs::RUNBOOKS}"
@@ -23,7 +23,7 @@ module Mcp
             type: "array",
             description: "Ordered steps, e.g. [{\"title\": \"...\", \"instruction\": \"...\"}]; replaces existing steps. A step Halon " \
                          "runs also names its tool, as Halon calls it, and the arguments, whose values may hold an input as {{key}}, and " \
-                         "where the workspace has workflows a step that changes something says how a person puts it back as undo, e.g. " \
+                         "a step that changes something says how a person puts it back as undo, e.g. " \
                          "{\"title\": \"Start the release\", \"tool\": \"run_workflow\", \"arguments\": {\"workflow\": \"release.yml\", \"inputs\": {\"bump\": \"{{bump}}\"}}}",
             items: { type: "object" }
           },
@@ -65,7 +65,7 @@ module Mcp
         upsert = Runbook::Upsert.new(workspace)
         target = upsert_target(workspace, args)
         by = (principal if principal.is_a?(WorkspaceMembership))
-        runbook = if FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS) && upsert.runnable?(args)
+        runbook = if upsert.runnable?(args)
           AbilityGateway.authorize!(principal: principal, action_key: Workflow::CREATE_KEY, workspace: workspace,
                                     params: { "runbook" => args[:name].presence || target&.name }, context: { source: AbilityGateway::SOURCE_MCP }) do
             upsert.call(target, args, by: by)

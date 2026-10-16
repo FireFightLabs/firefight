@@ -44,19 +44,6 @@ class ApiKeyTest < ActiveSupport::TestCase
     end
   end
 
-  test "the matrix refuses the workflows ability where workflows are off, and keeps it where they are on" do
-    key = api_keys(:read_only_key)
-    FeatureFlags.disable!(key.workspace, FeatureFlags::WORKFLOWS)
-
-    assert_raises(ArgumentError) { key.replace_permissions!(Ability::Action::RESOURCE_WORKFLOWS => [ Ability::Action::ACTION_READ ]) }
-
-    FeatureFlags.enable!(key.workspace, FeatureFlags::WORKFLOWS)
-    key.replace_permissions!(Ability::Action::RESOURCE_WORKFLOWS => [ Ability::Action::ACTION_READ ])
-    assert_equal({ Ability::Action::RESOURCE_WORKFLOWS => [ Ability::Action::ACTION_READ ] }, key.granted_permissions)
-    FeatureFlags.disable!(key.workspace, FeatureFlags::WORKFLOWS)
-    assert_empty key.granted_permissions
-  end
-
   test "the matrix grants a service key the map's read and refuses what the map does not offer" do
     key = api_keys(:read_only_key)
 
@@ -324,5 +311,12 @@ class ApiKeyTest < ActiveSupport::TestCase
 
     key.touch_last_used!
     assert_equal original.to_i, key.reload.last_used_at.to_i
+  end
+
+  test "the matrix keeps the workflows ability" do
+    key = api_keys(:read_only_key)
+
+    key.replace_permissions!(Ability::Action::RESOURCE_WORKFLOWS => [ Ability::Action::ACTION_READ ])
+    assert_equal({ Ability::Action::RESOURCE_WORKFLOWS => [ Ability::Action::ACTION_READ ] }, key.granted_permissions)
   end
 end
