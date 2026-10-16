@@ -15,6 +15,9 @@ class MemberRemovalTest < ActionDispatch::IntegrationTest
     sign_in(users(:alice), @workspace)
   end
 
+  # Action Cable names a connection by its identifiers, sorted.
+  def page_stream(user, workspace) = "action_cable/#{[ user.to_gid_param, workspace.id ].sort.join(':')}"
+
   test "the Members page says what removing someone takes away, and why a member cannot be removed" do
     get settings_members_url, headers: inertia_headers
 
@@ -24,9 +27,21 @@ class MemberRemovalTest < ActionDispatch::IntegrationTest
     assert_equal [ 1, 1 ], rows["Bob Jones"].values_at("personalTokenCount", "connectedAgentCount")
   end
 
+  test "the owner count comes with the page's rows, so no row counts owners on its own" do
+    owner = @workspace.workspace_memberships.find_by!(role: :owner)
+    @workspace.workspace_memberships.where.not(id: owner.id).update_all(role: :member)
+
+    counted = @workspace.workspace_memberships.with_access_counts.find(owner.id)
+
+    assert_equal 1, counted.owner_count
+    assert_no_queries { counted.owner_count }
+  end
+
   test "removing a member revokes their tokens and connected agents, cuts their live pages, keeps their history and says so" do
-    assert_broadcasts("action_cable/#{users(:bob).to_gid_param}", 1) do
-      delete workspace_membership_url(@bob)
+    assert_broadcasts(page_stream(users(:bob), @workspace), 1) do
+      assert_no_broadcasts(page_stream(users(:bob), workspaces(:slack_workspace_two))) do
+        delete workspace_membership_url(@bob)
+      end
     end
 
     assert_redirected_to settings_members_path

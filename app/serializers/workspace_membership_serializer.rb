@@ -30,11 +30,16 @@ class WorkspaceMembershipSerializer < BaseSerializer
     membership.joined_at.utc.iso8601
   end
 
-  # Why the viewer cannot remove this member, or why one removed cannot be added back. The row renders it, the controller
-  # refuses with it.
+  # Why the viewer cannot remove this member. The row renders it, the controller refuses with it.
   type :string, optional: true
   def removal_blocked_reason
-    membership.removed? ? membership.restore_blocked_reason : membership.removal_blocked_reason(options[:by])
+    membership.removal_blocked_reason(options[:by]) unless membership.removed?
+  end
+
+  # Why a removed member cannot be added back.
+  type :string, optional: true
+  def restore_blocked_reason
+    membership.restore_blocked_reason if membership.removed?
   end
 
   type :string, optional: true

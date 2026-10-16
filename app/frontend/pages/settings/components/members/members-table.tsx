@@ -168,7 +168,7 @@ export function RemovedMembersTable({ members, canManage }: { members: Workspace
                 </TableCell>
                 {canManage ? (
                   <TableCell className="text-right">
-                    {member.removalBlockedReason ? (
+                    {member.restoreBlockedReason ? (
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <span>
@@ -177,7 +177,7 @@ export function RemovedMembersTable({ members, canManage }: { members: Workspace
                             </Button>
                           </span>
                         </TooltipTrigger>
-                        <TooltipContent>{member.removalBlockedReason}</TooltipContent>
+                        <TooltipContent>{member.restoreBlockedReason}</TooltipContent>
                       </Tooltip>
                     ) : (
                       <Button variant="outline" size="sm" onClick={() => addBack(member)}>

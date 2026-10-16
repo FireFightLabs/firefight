@@ -50,7 +50,7 @@ export function WebhooksTab({
     ? webhooks.find((webhook) => webhook.id === activeWebhookId) ?? null
     : null
   const [deleting, setDeleting] = useState<Webhook | null>(null)
-  // Custom flash keys arrive through flash.inertia[:key] on the server, see WebhooksController#create.
+  // Custom flash keys arrive through flash.inertia[:key] on the server (WebhooksController#create).
   const { flash } = usePage()
   const [revealedSecret, setRevealedSecret] = useState<string | null>(null)
 

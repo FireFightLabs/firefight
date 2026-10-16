@@ -202,7 +202,7 @@ class WorkspaceMembership < ApplicationRecord
     return "You can't remove yourself. Ask another admin." if by && by.id == id
     return "Only an owner can remove an owner." if owner_role? && !by&.owner_role?
 
-    "#{display_name} is the only owner, so they can't be removed." if owner_role? && workspace.workspace_memberships.owner_role.count == 1
+    "#{display_name} is the only owner, so they can't be removed." if owner_role? && owner_count == 1
   end
 
   def restore_blocked_reason = ("#{display_name} is already a member." unless removed?)
@@ -227,12 +227,18 @@ class WorkspaceMembership < ApplicationRecord
       "(SELECT COUNT(*) FROM api_keys WHERE api_keys.workspace_membership_id = workspace_memberships.id " \
       "AND api_keys.deleted_at IS NULL AND api_keys.active) AS personal_token_count",
       "(SELECT COUNT(DISTINCT application_id) FROM oauth_access_tokens WHERE oauth_access_tokens.resource_owner_id = " \
-      "workspace_memberships.id AND oauth_access_tokens.revoked_at IS NULL) AS connected_agent_count"
+      "workspace_memberships.id AND oauth_access_tokens.revoked_at IS NULL) AS connected_agent_count",
+      "(SELECT COUNT(*) FROM workspace_memberships owners WHERE owners.workspace_id = workspace_memberships.workspace_id " \
+      "AND owners.role = '#{roles[:owner]}' AND owners.removed_at IS NULL) AS owner_count"
     )
   }
 
   def live_personal_token_count
     has_attribute?(:personal_token_count) ? self[:personal_token_count].to_i : personal_api_keys.where(deleted_at: nil, active: true).count
+  end
+
+  def owner_count
+    has_attribute?(:owner_count) ? self[:owner_count].to_i : workspace.workspace_memberships.owner_role.count
   end
 
   def connected_agent_count

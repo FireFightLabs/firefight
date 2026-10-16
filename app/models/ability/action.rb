@@ -249,7 +249,7 @@ module Ability
     APPROVAL_EXEMPT_RESOURCES = [ RESOURCE_APPROVALS, RESOURCE_PERMISSIONS ].freeze
 
     # Who may do what, the principals and tokens that carry it, the approvals that decide it and where events are sent.
-    # A change to any of them is made only with a person's say: Halon asks on its card every time, and a call made with
+    # A change to any of them is made only with a person's say. Halon asks on its card every time, and a call made with
     # a token or by a machine waits for a person to approve it (AbilityGateway.person_requirement).
     PERSON_CONFIRMED_RESOURCES = [ RESOURCE_PERMISSIONS, RESOURCE_API_KEYS, RESOURCE_APPROVALS, RESOURCE_WEBHOOKS ].freeze
 

@@ -172,7 +172,7 @@ module Mcp
         def token_refusal(_workspace, _args) = nil
 
         # Whether this call mints a Firefight token, whose answer carries it under :token. It is never handed to a
-        # model: Mcp::ToolDispatcher and Halon's chat hand it to the person the call runs as (TokenHandoff).
+        # model. Mcp::ToolDispatcher and Halon's chat hand it to the person the call runs as (TokenHandoff).
         def mints_token?(_workspace, _args) = false
 
         # Whether a call changes permissions, a credential, an approval or a webhook, which only a person's say lets

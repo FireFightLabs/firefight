@@ -478,14 +478,12 @@ module Slack
       Slack::HandleResolver.new(@workspace).resolve(text)
     end
 
-    # A user id as channel opens or reuses the DM with them.
-    # Each on its own, so a direct message the person closed still leaves the note in the thread.
     # Ephemeral in the app's direct messages, so Slack keeps it for this person alone and drops it when they reload.
     def post_token_once(user_id:, title:, token:)
       translate_errors do
         channel = Slack::Client.open_direct_channel(workspace: @workspace, user: user_id)
-        words = "Here is the token for #{title}. Only you see this message, it is gone once Slack reloads, and Firefight keeps no copy, " \
-                "so copy it now."
+        words = "Here is the token for #{title}. Copy it now. Only you can see this message, it disappears when Slack reloads, " \
+                "and Firefight keeps no copy."
         Slack::Client.post_ephemeral(
           workspace: @workspace, channel: channel, user: user_id, text: words,
           blocks: [ { type: "section", text: { type: "mrkdwn", text: Slack::Mrkdwn.escape(words) } },
@@ -495,6 +493,8 @@ module Slack
       end
     end
 
+    # A user id as channel opens or reuses the DM with them.
+    # Each on its own, so a direct message the person closed still leaves the note in the thread.
     def post_refusal(channel_id:, thread_id:, user_id:, text:)
       quietly(:refusal_in_thread) do
         translate_errors { Slack::Client.post_ephemeral(workspace: @workspace, channel: channel_id, user: user_id, text: text, thread_ts: thread_id) }

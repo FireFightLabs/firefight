@@ -56,8 +56,8 @@ class SecretEntryService
 
   # Minted now, for the one opening that wins, and never kept.
   def self.token(entry, by)
-    return Revealed.new(value: nil, words: entry.reveal_blocked_reason(by) || "This token was already shown.") unless entry.take_token!(by)
     return Revealed.new(value: nil, words: "This key was deleted, so it has no token to show.") unless entry.api_key&.live?
+    return Revealed.new(value: nil, words: entry.reveal_blocked_reason(by) || "This token was already shown.") unless entry.take_token!(by)
 
     value = entry.api_key.reissue_token!
     moved!(entry)

@@ -28,6 +28,11 @@ function membersHint(chatConnected: boolean, invitationsOffered: boolean) {
   return "Anyone in your team's chat who uses Firefight is added here automatically. Invite anyone else by email."
 }
 
+function removedHint(invitationsOffered: boolean) {
+  const way = invitationsOffered ? "An admin adds them back here, or invites them by email." : "An admin adds them back here."
+  return `They can't use Firefight in this workspace, and using Firefight in your team's chat doesn't add them back. ${way}`
+}
+
 export default function Members() {
   const { members, removedMembers, invitations, invitationsOffered, invitationUnavailableReason, invitationDays, currentWorkspace } =
     usePage<MembersPageProps>().props
@@ -58,9 +63,7 @@ export default function Members() {
           <section className="space-y-4">
             <div className="space-y-1">
               <h2 className="text-lg font-semibold tracking-tight text-foreground">Removed</h2>
-              <p className="text-sm text-muted-foreground">
-                They reach nothing here, and the chat never adds them back on its own. An admin adds them back, or invites them by email.
-              </p>
+              <p className="text-sm text-muted-foreground">{removedHint(invitationsOffered)}</p>
             </div>
             <RemovedMembersTable members={removedMembers} canManage={canInvite} />
           </section>

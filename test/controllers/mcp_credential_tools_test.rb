@@ -39,7 +39,7 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
     assert_not is_error, content.inspect
     agent = @workspace.agents.find_by!(slug: "support_agent")
     assert_match(/\Aff_/, @shown.sole)
-    assert_match "Shown once to Alice Smith in Slack", content["token"]
+    assert_match "Shown once to Alice Smith in a direct message", content["token"]
     assert_equal 1, content["live_tokens"]
     assert_equal 0, content["granted_abilities"]
     assert_equal @membership, agent.api_keys.sole.created_by

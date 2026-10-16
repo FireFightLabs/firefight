@@ -5,8 +5,9 @@
 class TokenHandoff
   class Undelivered < StandardError; end
 
-  UNREACHABLE = "Firefight shows a new token only to the person it is for, never to an agent, and cannot reach you in Slack. " \
-                "Create it in Firefight, under Gateway, Agents or Developer, API keys, where it is shown to you once.".freeze
+  UNREACHABLE = "Firefight shows a new token only to the person it is for, never to an agent, and has no direct message to " \
+                "show it to you in. Create it in Firefight instead, from Gateway then Agents, or Developer then API keys. " \
+                "It is shown to you once there.".freeze
 
   # Whether a token minted now for an outside agent's call can reach the person behind it.
   def self.reachable?(principal, workspace)
@@ -18,11 +19,12 @@ class TokenHandoff
   def self.to_person!(token, principal:, workspace:)
     key = key_of(token)
     WorkspaceAdapter.for(workspace).post_token_once(user_id: principal.platform_user_id, title: key.name, token: token)
-    "Shown once to #{principal.display_name} in Slack, in a message only they see. Firefight keeps no copy."
+    "Shown once to #{principal.display_name} in a direct message only they see. Firefight keeps no copy."
   rescue AdapterError => error
     key&.update!(active: false)
     Rails.logger.warn({ event: "token_handoff.undelivered", api_key_id: key&.id, error: error.class.name }.to_json)
-    raise Undelivered, "Slack could not show the token to #{principal.display_name}, so it was revoked. Issue a new one in Firefight."
+    raise Undelivered, "The direct message with the token could not reach #{principal.display_name}, so the token was revoked. " \
+                       "Issue a new one in Firefight."
   end
 
   # Leaves a card in the chat for its person and answers what Halon reads in its place.

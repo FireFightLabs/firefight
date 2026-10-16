@@ -20,8 +20,8 @@ module Ability
 
     # A request a token or a machine made is approved by a person in a session of their own, so no token approves what a
     # token asked for.
-    APPROVE_WITH_TOKEN = "A request made with a token is approved only by a person in Firefight or Slack, never with a token.".freeze
-    MACHINE_REQUESTERS = %w[Agent ApiKey SystemAgent].freeze
+    APPROVE_WITH_TOKEN = "A request made with a token is approved only by a person signed in to Firefight or answering in chat, never with a token.".freeze
+    MACHINE_REQUESTERS = [ Agent.name, ApiKey.name, SystemAgent.name ].freeze
 
     # What deciding a request is authorized as, and the scope key that names the request decided.
     DECIDE_KEY = Ability::Action.system_key(Ability::Action::RESOURCE_APPROVALS, Ability::Action::ACTION_UPDATE)

@@ -1,6 +1,7 @@
-# An admin removing a member: the row stays for the history that names them, and everything that let them in stops at
-# once. Their personal tokens and connected agents are revoked, and their open pages are cut off, so a socket from
-# before the removal cannot keep streaming. The gateway refuses whatever they left running (AbilityGateway.permitted?).
+# An admin removing a member. The row stays for the history that names them, and everything that let them in stops at
+# once. Their personal tokens and connected agents are revoked, and their open pages in this workspace are cut off, so a
+# socket from before the removal cannot keep streaming. The gateway refuses whatever they left running
+# (AbilityGateway.permitted?).
 class MembershipRemoval
   class Blocked < StandardError; end
 
@@ -10,7 +11,7 @@ class MembershipRemoval
     return false unless membership.mark_removed!
 
     revoke_access!(membership)
-    ActionCable.server.remote_connections.where(current_user: membership.user).disconnect
+    ActionCable.server.remote_connections.where(current_user: membership.user, current_workspace_id: membership.workspace_id).disconnect
     true
   end
 

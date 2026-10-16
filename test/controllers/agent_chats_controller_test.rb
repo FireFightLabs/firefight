@@ -626,6 +626,20 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_match "already shown", response.parsed_body["error"]
   end
 
+  test "a token card whose key was deleted says so and is not marked shown" do
+    conversation = start_chat
+    agent = @workspace.agents.create!(name: "Deployer", slug: "deployer")
+    key, = ApiKey.create_with_token!(workspace: @workspace, created_by: @member, agent: agent, name: "Deployer token")
+    entry = Chat::SecretEntry.record_token!(chat: conversation.chat_record, tool_call_id: "call_1", api_key: key, requester: @member)
+    key.soft_delete!
+
+    post agent_chat_secret_entry_reveal_url(conversation, entry), as: :json
+
+    assert_response :unprocessable_content
+    assert_equal "This key was deleted, so it has no token to show.", response.parsed_body["error"]
+    assert_equal Chat::SecretEntry::STATUS_READY, entry.reload.status
+  end
+
   test "cancelling a paused change says so" do
     conversation = start_chat
     conversation.ask!("delete the test permission set")

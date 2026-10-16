@@ -53,7 +53,7 @@ class TokenHandoffTest < ActiveSupport::TestCase
 
     assert_not response.error?
     assert_no_match(/ff_[A-Za-z0-9]{20,}/, Mcp::ToolDispatcher.text_of(response))
-    assert_match "Shown once to Alice Smith in Slack", response.structured_content[:token]
+    assert_match "Shown once to Alice Smith in a direct message", response.structured_content[:token]
   end
 
   test "an outside agent cannot mint a token for someone Firefight cannot reach in Slack, and nothing is made" do
