@@ -5,6 +5,16 @@ module Slack
       SECTION_TEXT_LIMIT = 3000
       LIST_MARKER = /\A([ \t]*)[-*+][ \t]+/
       CODE_FENCE = /\A[ \t]*```/
+      # Between the parts of a state or footer line. Never a pipe.
+      SEPARATOR = "  ·  ".freeze
+      # A message holds at most 50 blocks. A long reply runs on into further messages below this many, leaving room for
+      # what follows it, such as the sources line.
+      MESSAGE_BLOCK_LIMIT = 45
+      # Room to close a code block a section ends inside and open it again in the next.
+      FENCE = "```".freeze
+      FENCE_ROOM = FENCE.length + 1
+      # A markdown link, its address allowed one level of parentheses and an optional title, as models write them.
+      MARKDOWN_LINK = /\[([^\]\n]+)\]\((https?:\/\/(?:[^()\s]|\([^()\s]*\))+)(?:\s+"[^"\n]*")?\)/
 
       # A time of day each reader sees in their own time zone, with UTC for a client that cannot show it.
       def self.slack_time(time) = "<!date^#{time.to_i}^{time}|#{time.utc.strftime('%H:%M UTC')}>"
@@ -103,11 +113,48 @@ module Slack
         return "" if text.nil?
 
         out = text.dup
-        out.gsub!(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/, "<\\2|\\1>")
+        out.gsub!(MARKDOWN_LINK) { "<#{Regexp.last_match(2).delete('<>|')}|#{Regexp.last_match(1).delete('<>|')}>" }
         out.gsub!(/^\#{1,6}\s+(.+)$/, "*\\1*")
         out.gsub!(/\*\*(.+?)\*\*/m, "*\\1*")
         out.gsub!(/__(.+?)__/m, "*\\1*")
         out
+      end
+
+      # Text as sections that each fit Slack's limit, broken at line ends, then at spaces, and only mid word for a word
+      # longer than a section. Nothing is dropped. A code block a break falls inside is closed and opened again, so both
+      # halves still read as code. Links hold no spaces, so a break never splits one.
+      def self.sections(text, limit: SECTION_TEXT_LIMIT)
+        width = limit - FENCE_ROOM * 2
+        lines = text.to_s.gsub(/\r\n?/, "\n").split("\n", -1).flat_map { |line| line.length > width ? wrapped(line, width) : [ line ] }
+        in_code = false
+        built = lines.each_with_object([ +"" ]) do |line, chunks|
+          if chunks.last.present? && chunks.last != FENCE && chunks.last.length + 1 + line.length > width
+            chunks.last << "\n#{FENCE}" if in_code
+            chunks << (in_code ? +FENCE : +"")
+          end
+          chunks.last << "\n" unless chunks.last.empty?
+          chunks.last << line
+          in_code = !in_code if line.match?(CODE_FENCE)
+        end
+        built.map(&:strip).reject { |chunk| chunk.empty? || chunk == FENCE }
+      end
+
+      def self.wrapped(line, width)
+        rest = line
+        pieces = []
+        while rest.length > width
+          cut = rest.rindex(/\s/, width)
+          cut = width if cut.nil? || cut.zero?
+          pieces << rest[0, cut].rstrip
+          rest = rest[cut..].lstrip
+        end
+        pieces << rest
+      end
+      private_class_method :wrapped
+
+      # Blocks as one or more messages, each under Slack's block limit, in order.
+      def self.message_parts(blocks)
+        blocks.each_slice(MESSAGE_BLOCK_LIMIT).to_a.presence || [ [] ]
       end
 
       # What a person typed, as a message's body, quoted line by line and split before Slack's section limit.

@@ -18,7 +18,7 @@ class Slack::Messages::ResolutionTest < ActiveSupport::TestCase
   end
 
   test "offers the write-up and says it draws on the timeline alone when the channel is empty" do
-    blocks = Slack::Messages::Resolution.build(@incident, resolved_by_platform_user_id: @member.platform_user_id)
+    blocks = Slack::Messages::Resolution.build(@incident, resolved_by_platform_user_id: @member.platform_user_id, rich: true)
 
     button = blocks.find { |block| block[:type] == "actions" }[:elements].first
     assert_equal Identifiers::WRITE_POSTMORTEM, button[:action_id]
@@ -34,7 +34,7 @@ class Slack::Messages::ResolutionTest < ActiveSupport::TestCase
       )
     end
 
-    blocks = Slack::Messages::Resolution.build(@incident, resolved_by_platform_user_id: @member.platform_user_id)
+    blocks = Slack::Messages::Resolution.build(@incident, resolved_by_platform_user_id: @member.platform_user_id, rich: true)
 
     assert_match "the 2 messages in this channel", blocks.last[:elements].first[:text]
   end
@@ -42,17 +42,36 @@ class Slack::Messages::ResolutionTest < ActiveSupport::TestCase
   test "an incident that already has a postmortem gets no button" do
     Postmortem.start_blank!(@incident, by: @member)
 
-    blocks = Slack::Messages::Resolution.build(@incident.reload, resolved_by_platform_user_id: @member.platform_user_id)
+    blocks = Slack::Messages::Resolution.build(@incident.reload, resolved_by_platform_user_id: @member.platform_user_id, rich: true)
 
     assert_nil blocks.find { |block| block[:type] == "actions" }
     assert_equal "context", blocks.last[:type]
-    assert_match "Resolved by", blocks.last[:elements].first[:text]
+    assert_match "Resolved by", blocks.first.dig(:text, :text)
   end
 
   test "the announcement thread carries no button" do
-    blocks = Slack::Messages::Resolution.announcement_thread(@incident, resolved_by_platform_user_id: @member.platform_user_id)
+    blocks = Slack::Messages::Resolution.announcement_thread(@incident, resolved_by_platform_user_id: @member.platform_user_id, rich: true)
 
     assert_nil blocks.find { |block| block[:type] == "actions" }
-    assert_equal "header", blocks.first[:type]
+    assert_equal "alert", blocks.first[:type]
+  end
+
+  test "a resolution is a success alert in sentence case saying who and how long, in the channel and the thread" do
+    @incident.update!(declared_at: 72.minutes.ago, resolved_at: Time.current)
+    expected = "#{Slack::Emoji::RESOLVED} Resolved by <@#{@member.platform_user_id}> after 1h 12m"
+
+    [ Slack::Messages::Resolution.build(@incident, resolved_by_platform_user_id: @member.platform_user_id, rich: true),
+      Slack::Messages::Resolution.announcement_thread(@incident, resolved_by_platform_user_id: @member.platform_user_id, rich: true) ].each do |blocks|
+      assert_equal({ type: "alert", level: Slack::Blocks::Alert::SUCCESS, text: { type: "mrkdwn", text: expected } }, blocks.first)
+      assert_not blocks.to_s.include?("Incident Resolved")
+    end
+  end
+
+  test "a workspace that does not draw alerts gets the same line as a bold title" do
+    blocks = Slack::Messages::Resolution.announcement_thread(@incident, resolved_by_platform_user_id: @member.platform_user_id, rich: false)
+
+    assert_equal "section", blocks.first[:type]
+    assert blocks.first.dig(:text, :text).start_with?("#{Slack::Emoji::RESOLVED}  *Resolved by <@#{@member.platform_user_id}>")
+    assert_not blocks.to_s.include?("|  ")
   end
 end

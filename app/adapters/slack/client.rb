@@ -136,7 +136,7 @@ module Slack
       )
     end
 
-    def self.post_ephemeral(workspace:, channel:, user:, text:, blocks: nil)
+    def self.post_ephemeral(workspace:, channel:, user:, text:, blocks: nil, thread_ts: nil)
       api_post(
         workspace: workspace,
         endpoint: "chat.postEphemeral",
@@ -144,7 +144,8 @@ module Slack
           channel: channel,
           user: user,
           text: text,
-          blocks: blocks
+          blocks: blocks,
+          thread_ts: thread_ts
         }.compact
       )
     end
@@ -203,6 +204,18 @@ module Slack
       api_post(
         workspace: workspace,
         endpoint: "reactions.add",
+        payload: {
+          channel: channel,
+          timestamp: timestamp,
+          name: name
+        }
+      )
+    end
+
+    def self.remove_reaction(workspace:, channel:, timestamp:, name:)
+      api_post(
+        workspace: workspace,
+        endpoint: "reactions.remove",
         payload: {
           channel: channel,
           timestamp: timestamp,

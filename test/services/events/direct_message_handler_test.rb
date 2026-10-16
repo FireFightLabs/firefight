@@ -9,6 +9,7 @@ class Events::DirectMessageHandlerTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
     Slack::Client.stubs(:add_reaction).returns({ ok: true })
+    Slack::Client.stubs(:remove_reaction).returns({ ok: true })
   end
 
   test "a direct message goes to the handler for direct messages, never to an incident channel's transcript" do

@@ -96,7 +96,7 @@ module Slack
           { type: "mrkdwn", text: action.assigned? ? "Assigned to #{Slack::Mrkdwn.mention(action.assignee)}" : "Unassigned" }
         ]
         if (status_label = STATUS_LABEL[action.status])
-          context_parts << { type: "mrkdwn", text: "  |  #{status_label}" }
+          context_parts << { type: "mrkdwn", text: "·  #{status_label}" }
         end
 
         [

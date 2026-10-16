@@ -17,16 +17,17 @@ class Slack::Messages::LifecycleReasonsTest < ActiveSupport::TestCase
   end
 
   test "reopen shows the reason as the body in the channel and the announcement thread" do
-    channel = Slack::Messages::Reopen.build(@incident, reopened_by_platform_user_id: @member.platform_user_id, reason: REASON)
-    thread = Slack::Messages::Reopen.announcement_thread(@incident, reopened_by_platform_user_id: @member.platform_user_id, reason: REASON)
+    channel = Slack::Messages::Reopen.build(@incident, reopened_by_platform_user_id: @member.platform_user_id, reason: REASON, rich: true)
+    thread = Slack::Messages::Reopen.announcement_thread(@incident, reopened_by_platform_user_id: @member.platform_user_id, reason: REASON, rich: true)
 
     [ channel, thread ].each { |blocks| assert_body_after_divider(blocks) }
   end
 
   test "escalation shows the reason as the body before who it went to, in the channel and the direct message" do
-    channel = Slack::Messages::Escalation.build(@incident, escalated_by: @member, escalated_to: @target, reason: REASON)
+    channel = Slack::Messages::Escalation.build(@incident, escalated_by: @member, escalated_to: @target, reason: REASON, rich: true)
     assert_body_after_divider(channel)
-    assert_match "Escalated to", channel[3][:text][:text]
+    assert_equal "alert", channel.first[:type]
+    assert_match "Escalated to #{Slack::Mrkdwn.mention(@target)} by #{Slack::Mrkdwn.mention(@member)}", channel.first.dig(:text, :text)
 
     direct = Slack::Messages::Escalation.direct_message(@incident, escalated_by: @member, escalation_event_id: "event", reason: REASON)
     body = direct.index { |block| block.dig(:text, :text) == QUOTED }
@@ -37,14 +38,14 @@ class Slack::Messages::LifecycleReasonsTest < ActiveSupport::TestCase
   test "a resolution quotes every line of its summary" do
     @incident.update!(summary: REASON)
 
-    assert_body_after_divider(Slack::Messages::Resolution.build(@incident, resolved_by_platform_user_id: @member.platform_user_id))
-    assert_body_after_divider(Slack::Messages::Resolution.announcement_thread(@incident, resolved_by_platform_user_id: @member.platform_user_id))
+    assert_body_after_divider(Slack::Messages::Resolution.build(@incident, resolved_by_platform_user_id: @member.platform_user_id, rich: true))
+    assert_body_after_divider(Slack::Messages::Resolution.announcement_thread(@incident, resolved_by_platform_user_id: @member.platform_user_id, rich: true))
   end
 
   test "no reason leaves no empty body" do
-    blocks = Slack::Messages::Reopen.build(@incident, reopened_by_platform_user_id: @member.platform_user_id, reason: nil)
+    blocks = Slack::Messages::Reopen.build(@incident, reopened_by_platform_user_id: @member.platform_user_id, reason: nil, rich: false)
 
-    assert_equal %w[section divider context], blocks.pluck(:type)
+    assert_equal %w[section context], blocks.pluck(:type)
   end
 
   test "the timeline quotes a reopen's and an escalation's reason the same way" do

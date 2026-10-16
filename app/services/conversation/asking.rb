@@ -11,8 +11,10 @@ class Conversation::Asking
   # The asker is who the turn acts as, which in a Slack thread can be someone other than whoever started it.
   # A question sent while a turn runs joins that turn. The job queued behind it answers only what is left.
   # A question written in the chat platform is asked as the model reads it, and kept as written for the pages.
-  def self.ask(conversation, question, asker:, files: [], context: nil, as_written: nil)
+  # acknowledged_message_id is the message the platform marked as being worked on, marked done once it is answered.
+  def self.ask(conversation, question, asker:, files: [], context: nil, as_written: nil, acknowledged_message_id: nil)
     conversation.ask!(question, asker: asker, files: files, context: context, as_written: as_written)
+    conversation.acknowledged!(acknowledged_message_id)
     reply(conversation, asker)
   end
 

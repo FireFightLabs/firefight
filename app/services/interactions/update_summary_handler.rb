@@ -24,7 +24,7 @@ module Interactions
     rescue ActiveRecord::RecordNotFound => e
       Rails.logger.warn({ event: "interactions.update_summary.record_not_found", error: e.message })
       Interactions::ModalCleanup.delete_temp_message(workspace, metadata) if workspace && metadata
-      { response_action: "errors", errors: { "summary_block" => "Something went wrong. Please close this modal and try again." } }
+      { response_action: "errors", errors: { "summary_block" => Interactions::ModalCleanup::RECORD_GONE } }
     end
   end
 end

@@ -38,7 +38,7 @@ module Interactions
       { response_action: "clear" }
     rescue ActiveRecord::RecordNotFound => e
       Rails.logger.warn({ event: "interactions.create_action_item.record_not_found", kind: kind, error: e.message })
-      { response_action: "errors", errors: { "description_block" => "Something went wrong. Please close this modal and try again." } }
+      { response_action: "errors", errors: { "description_block" => Interactions::ModalCleanup::RECORD_GONE } }
     end
   end
 end

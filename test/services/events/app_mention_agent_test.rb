@@ -7,6 +7,10 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)
     Slack::Client.stubs(:add_reaction).returns({ ok: true })
+    Slack::Client.stubs(:remove_reaction).returns({ ok: true })
+    # A refusal is also kept in the person's direct messages, a channel named by their user id.
+    @kept = []
+    Slack::Client.stubs(:post_message).with { |arguments| arguments[:channel].to_s.start_with?("U") && @kept << arguments }.returns({ ok: true, ts: "9" })
   end
 
   test "a mention in an incident's channel goes to Halon's thread conversation, in every workspace" do
@@ -56,13 +60,18 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
     assert_empty @incident.investigations
   end
 
-  test "a run that cannot start says why to the person who asked, and only to them" do
+  test "a run that cannot start says why to the person who asked, and only to them, in the thread and kept in their direct messages" do
     mention("investigate")
+    alice = workspace_memberships(:alice_workspace_one).platform_user_id
     Slack::Client.expects(:post_ephemeral).with do |arguments|
-      arguments[:user] == workspace_memberships(:alice_workspace_one).platform_user_id && arguments[:text].include?("Already investigating")
+      arguments[:user] == alice && arguments[:text].include?("Already investigating")
     end.returns({ ok: true })
+    Slack::Client.expects(:remove_reaction).with { |arguments| arguments[:name] == "eyes" }.returns({ ok: true })
 
     mention("Investigate again")
+
+    assert_equal [ alice ], @kept.map { |arguments| arguments[:channel] }
+    assert_includes @kept.sole[:text], "Already investigating"
   end
 
   test "files shared with a mention are downloaded through Slack and go with the question" do
@@ -294,6 +303,14 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
     assert_equal [ Ability::Invocation::DECISION_ALLOW, AbilityGateway::SOURCE_SLACK, @incident.id ], [ asked.decision, asked.source, asked.incident_id ]
     assert asked.completed_at
     assert_empty @workspace.ability_approvals
+  end
+
+  test "the question a mention asks is remembered as being worked on, so its eyes give way to a check once answered" do
+    Slack::Client.expects(:add_reaction).with { |arguments| arguments[:timestamp] == "1700000000.000200" && arguments[:name] == "eyes" }.returns({ ok: true })
+
+    mention("what is going on", thread_ts: "1700000000.000200")
+
+    assert_equal [ "1700000000.000200" ], Conversation.in_thread(@workspace, @incident.channel_id, "1700000000.000200").acknowledged_message_ids
   end
 
   private

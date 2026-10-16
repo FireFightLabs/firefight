@@ -77,4 +77,33 @@ class Conversation::DeliveryTest < ActiveSupport::TestCase
       assert_nil posts.last.png
     end
   end
+
+  test "once the answer is in, each message Halon was working on loses its eyes and gets a check, once" do
+    @conversation.acknowledged!("1.21")
+    @conversation.acknowledged!("1.22")
+    marked = []
+    Slack::Client.stubs(:remove_reaction).with { |arguments| marked << [ :removed, arguments[:timestamp], arguments[:name] ] }.returns({ ok: true })
+    Slack::Client.stubs(:add_reaction).with { |arguments| marked << [ :added, arguments[:timestamp], arguments[:name] ] }.returns({ ok: true })
+
+    Conversation::Delivery.for(@conversation).answered!("Done.")
+    Conversation::Delivery.for(@conversation).answered!("Done again.")
+
+    assert_equal [ [ :removed, "1.21", "eyes" ], [ :added, "1.21", "heavy_check_mark" ], [ :removed, "1.22", "eyes" ], [ :added, "1.22", "heavy_check_mark" ] ], marked
+    assert_empty @conversation.reload.acknowledged_message_ids
+  end
+
+  test "a reaction Slack will not take off never stops the answer" do
+    @conversation.acknowledged!("1.21")
+    Slack::Client.stubs(:remove_reaction).raises(AdapterError.new("no_reaction"))
+    Slack::Client.expects(:add_reaction).returns({ ok: true })
+
+    assert_nothing_raised { Conversation::Delivery.for(@conversation).answered!("Done.") }
+  end
+
+  test "a step line in the thread names what kind of system it read, never the tool or its connection" do
+    @adapter.expects(:report_agent_step).with { |title:, **| title == "Read the code" }
+    step = Chat::Tools::Step.new(title: "Github fix code · acme", headline: "", asked: [], card: nil, line: "Read the code")
+
+    Conversation::Delivery.for(@conversation).step(key: "call_1", step: step, status: FirefightAi::AgentLoop::STEP_RUNNING)
+  end
 end

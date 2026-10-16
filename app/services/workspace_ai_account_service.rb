@@ -52,23 +52,38 @@ class WorkspaceAiAccountService
   # A direct message to each admin and owner, through the workspace's platform, saying which account stopped and what
   # Halon does now.
   def notify_admins!(account, notice)
-    text = notice_text(account, notice)
+    told = admin_notice(account, notice)
     adapter = WorkspaceAdapter.for(@workspace)
     @workspace.workspace_memberships.admins_and_owners.where.not(platform_user_id: nil).find_each do |admin|
-      adapter.post_direct_message(user_id: admin.platform_user_id, text: text)
+      adapter.post_notice(user_id: admin.platform_user_id, notice: told)
     rescue AdapterError => error
       Rails.logger.warn({ event: "ai_account.notice_failed", account_id: account.id, error: error.class.name }.to_json)
     end
     Rails.logger.info({ event: "ai_account.noticed", account_id: account.id, notice: notice }.to_json)
   end
 
+  # The notice as the platform draws it, its title and next step apart and the settings page as a link.
+  def admin_notice(account, notice)
+    PlatformAdapter::Notice.new(
+      title: notice_headline(account, notice), body: "#{notice_next_step} Fix it under Settings, Workspace, AI accounts.",
+      link_label: "Open AI accounts", link_url: settings_link, fallback: notice_text(account, notice)
+    )
+  end
+
   def notice_text(account, notice)
-    what = notice == WorkspaceAiAccount::NOTICE_KEY_REFUSED ? "had its key refused" : "ran out of credit"
-    following = AiFunding.for(@workspace, AiPurpose::INVESTIGATION).any?
-    next_step = following ? "Halon is using the next one in the list." : "Halon has no other account to use, so it cannot answer until this is fixed."
     link = settings_link
     where = link ? "Fix it under Settings, Workspace, AI accounts: #{link}" : "Fix it under Settings, Workspace, AI accounts."
-    "Halon's AI account \"#{account.label}\" #{what}. #{next_step} #{where}"
+    "#{notice_headline(account, notice)}. #{notice_next_step} #{where}"
+  end
+
+  def notice_headline(account, notice)
+    what = notice == WorkspaceAiAccount::NOTICE_KEY_REFUSED ? "had its key refused" : "ran out of credit"
+    "Halon's AI account \"#{account.label}\" #{what}"
+  end
+
+  def notice_next_step
+    following = AiFunding.for(@workspace, AiPurpose::INVESTIGATION).any?
+    following ? "Halon is using the next one in the list." : "Halon has no other account to use, so it cannot answer until this is fixed."
   end
 
   private

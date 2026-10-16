@@ -1,33 +1,38 @@
 module Slack
   module Messages
+    # An incident update as a card: the title, what changed as its subtitle, and the update as its body, with who wrote it
+    # and when the next one is due under it. A cancellation ends the incident, so it never reads as an update.
     module StatusUpdate
-      def self.build(incident, message:, updated_by_platform_user_id:, scope:, updated_by_name: nil, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
-        field_lines = [
+      def self.build(incident, message:, updated_by_platform_user_id:, scope:, rich:, updated_by_name: nil, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
+        canceled = incident.canceled?
+        noun = canceled ? "Incident canceled" : "Incident updated"
+        title = scope == :inline ? "#{incident.identifier}#{IncidentDetail::SEPARATOR}#{noun}" : noun
+
+        card = Slack::Blocks::Card.new(
+          title: title,
+          subtitle: change_line(incident, previous_status_name, previous_severity_name, previous_type_name),
+          body: (Formatting.markdown_to_mrkdwn(message) if message.present?),
+          icon: canceled ? Slack::Emoji::CANCELED : Slack::Emoji::UPDATED,
+          quoted: true
+        )
+        card.to_blocks(rich: rich) << Slack::Blocks.context(context_text(incident, updated_by_platform_user_id, updated_by_name))
+      end
+
+      def self.change_line(incident, previous_status_name, previous_severity_name, previous_type_name)
+        lines = [
           Formatting.diff_text("Severity", previous_severity_name, incident.incident_severity.name),
           Formatting.diff_text("Status", previous_status_name, incident.incident_status.name)
         ]
         type_text = Formatting.type_diff_text(previous_type_name, incident.incident_type&.name)
-        field_lines << type_text if type_text
+        lines << type_text if type_text
+        lines.join(IncidentDetail::SEPARATOR)
+      end
 
-        # A cancellation ends the incident, so it must not read as an update
-        # and takes the header block Resolved and Reopened use.
-        canceled = incident.canceled?
-        icon = canceled ? ":wastebasket:" : ":memo:"
-        noun = canceled ? "Incident canceled" : "Incident updated"
-
-        blocks = if canceled && scope == :announcement
-          [ { type: "header", text: { type: "plain_text", text: "#{icon} #{noun}", emoji: true } } ]
-        else
-          title = scope == :inline ? "#{incident.identifier} — #{noun}" : noun
-          [ { type: "section", text: { type: "mrkdwn", text: "#{icon}  *#{title}*" } } ]
-        end
-
-        blocks << { type: "divider" }
-        Formatting.body_sections(message).each { |text| blocks << { type: "section", text: { type: "mrkdwn", text: text } } } if message.present?
-        blocks << { type: "section", text: { type: "mrkdwn", text: field_lines.join("  ·  ") } }
-        blocks << { type: "context", elements: [ { type: "mrkdwn", text: context_text(incident, updated_by_platform_user_id, updated_by_name) } ] }
-
-        blocks
+      # What changed and who changed it, the subtitle of a subscriber's card.
+      def self.digest_line(incident, updated_by_platform_user_id, updated_by_name, previous_status_name, previous_severity_name, previous_type_name)
+        verb = incident.canceled? ? "Canceled" : "Updated"
+        [ change_line(incident, previous_status_name, previous_severity_name, previous_type_name),
+          "#{verb} by #{Mrkdwn.person(updated_by_platform_user_id, updated_by_name)}" ].join(IncidentDetail::SEPARATOR)
       end
 
       def self.context_text(incident, updated_by_platform_user_id, updated_by_name = nil)
@@ -38,14 +43,14 @@ module Slack
           fallback = incident.next_update_at.in_time_zone.strftime("%H:%M")
           parts << "Next update <!date^#{unix_ts}^{date_short_pretty} at {time}|#{fallback}>"
         end
-        parts.join("  ·  ")
+        parts.join(Formatting::SEPARATOR)
       end
 
       def self.update_reminder(incident)
         [
           {
             type: "section",
-            text: { type: "mrkdwn", text: ":alarm_clock: It's time to provide a status update for *#{incident.identifier}*" }
+            text: { type: "mrkdwn", text: "#{Slack::Emoji::REMINDER} It's time to provide a status update for *#{incident.identifier}*" }
           },
           {
             type: "actions",

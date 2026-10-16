@@ -1,94 +1,26 @@
 require "test_helper"
 
 class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
-  test "preview_announcement_blocks returns valid Block Kit structure" do
-    result = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678")
+  test "preview_announcement_blocks says it is only visible to the installer, then shows the announcement card" do
+    blocks = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678", rich: true)[:blocks]
 
-    assert result[:blocks].present?
-    assert result[:blocks].is_a?(Array)
-    assert result[:blocks].length > 0
+    assert_includes blocks.first[:elements].first[:text], "Only visible to you"
+    card = blocks.second
+    assert_equal "card", card[:type]
+    assert_includes card.dig(:title, :text), "[PREVIEW] Website is down"
+    assert_equal "Minor · Investigating", card.dig(:subtitle, :text)
+    assert_includes card.dig(:body, :text), "502 Gateway"
+    assert_equal [ Identifiers::PREVIEW_SUBSCRIBE_DISABLED, Identifiers::PREVIEW_HOMEPAGE_DISABLED ], card[:actions].pluck(:action_id)
+    assert_equal "Declared by <@U12345678>", blocks.third[:elements].first[:text]
   end
 
-  test "preview_announcement_blocks includes context indicating ephemeral" do
-    result = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678")
+  test "preview_announcement_blocks draws plainly where cards are not drawn, with the same buttons" do
+    blocks = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678", rich: false)[:blocks]
 
-    context = result[:blocks].find { |b| b[:type] == "context" }
-    assert context.present?
-    assert context[:elements].any? { |e| e[:text]&.include?("Only visible to you") }
-  end
-
-  test "preview_announcement_blocks includes incident header" do
-    result = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678")
-
-    header = result[:blocks].find { |b| b[:type] == "header" }
-    assert header.present?
-    assert_includes header.dig(:text, :text), "[PREVIEW]"
-    assert_includes header.dig(:text, :text), "Website is down"
-  end
-
-  test "preview_announcement_blocks includes incident description" do
-    result = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678")
-
-    sections = result[:blocks].select { |b| b[:type] == "section" }
-    description = sections.find { |s| s.dig(:text, :text)&.include?("502 Gateway") }
-    assert description.present?
-  end
-
-  test "preview_announcement_blocks includes severity field" do
-    result = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678")
-
-    sections = result[:blocks].select { |b| b[:type] == "section" }
-    severity = sections.find { |s| s.dig(:text, :text)&.include?("Severity") }
-    assert severity.present?
-    assert_includes severity.dig(:text, :text), "Minor"
-  end
-
-  test "preview_announcement_blocks includes status field" do
-    result = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678")
-
-    sections = result[:blocks].select { |b| b[:type] == "section" }
-    status = sections.find { |s| s.dig(:text, :text)&.include?("Status") }
-    assert status.present?
-    assert_includes status.dig(:text, :text), "Investigating"
-  end
-
-  test "preview_announcement_blocks includes reporter field with user mention" do
-    result = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678")
-
-    sections = result[:blocks].select { |b| b[:type] == "section" }
-    reporter = sections.find { |s| s.dig(:text, :text)&.include?("Declared by") }
-    assert reporter.present?
-    assert_includes reporter.dig(:text, :text), "<@U12345678>"
-  end
-
-  test "preview_announcement_blocks includes dividers" do
-    result = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678")
-
-    dividers = result[:blocks].select { |b| b[:type] == "divider" }
-    assert dividers.length >= 2, "Should have at least 2 dividers"
-  end
-
-  test "preview_announcement_blocks includes action buttons" do
-    result = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678")
-
-    actions = result[:blocks].find { |b| b[:type] == "actions" }
-    assert actions.present?
-    assert_equal 2, actions[:elements].length
-
-    homepage_button = actions[:elements].find { |e| e[:action_id] == Identifiers::PREVIEW_HOMEPAGE_DISABLED }
-    assert homepage_button.present?
-    assert_nil homepage_button[:style]
-
-    subscribe_button = actions[:elements].find { |e| e[:action_id] == Identifiers::PREVIEW_SUBSCRIBE_DISABLED }
-    assert subscribe_button.present?
-  end
-
-  test "preview_announcement_blocks uses vertical layout for metadata" do
-    result = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678")
-
-    sections = result[:blocks].select { |b| b[:type] == "section" }
-    metadata_sections = sections.select { |s| s.dig(:text, :text)&.match?(/Severity|Status|Declared by/) }
-    assert metadata_sections.length >= 3, "Should have individual sections for severity, status, and reporter"
+    assert_not blocks.any? { |block| block[:type] == "card" }
+    assert_includes blocks.second.dig(:text, :text), "[PREVIEW] Website is down"
+    assert_equal [ Identifiers::PREVIEW_SUBSCRIBE_DISABLED, Identifiers::PREVIEW_HOMEPAGE_DISABLED ],
+                 blocks.find { |block| block[:type] == "actions" }[:elements].pluck(:action_id)
   end
 
   test "share_channel_modal returns valid modal structure" do
@@ -108,7 +40,8 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
     section = result[:blocks].find { |b| b[:type] == "section" }
     assert section.present?
     assert_includes section.dig(:text, :text), "<@U12345678>"
-    assert_includes section.dig(:text, :text), "FireFight"
+    assert_includes section.dig(:text, :text), "Firefight"
+    assert_not_includes section.dig(:text, :text), "FireFight"
   end
 
   test "share_channel_modal includes channel mention" do
@@ -180,7 +113,7 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
 
   test "all messages use valid block types" do
     messages = [
-    Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678"),
+    Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678", rich: false),
     Slack::InstallationMessageBuilder.share_message("U12345678", "C12345678", "T12345678")
     ]
 
@@ -195,7 +128,7 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
 
   test "all action buttons have required fields" do
     messages = [
-    Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678"),
+    Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678", rich: false),
     Slack::InstallationMessageBuilder.share_message("U12345678", "C12345678", "T12345678")
     ]
 

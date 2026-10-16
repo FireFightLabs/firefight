@@ -50,7 +50,7 @@ class IncidentCreationServiceTest < ActiveSupport::TestCase
 
     Slack::Client.expects(:set_channel_topic).with(
       workspace: @workspace, channel: "C_INC",
-      topic: "Severity: Critical | Status: Investigating"
+      topic: "Severity: Critical · Status: Investigating"
     ).returns({ ok: true })
     Slack::Client.expects(:set_channel_purpose).with(
       workspace: @workspace, channel: "C_INC",

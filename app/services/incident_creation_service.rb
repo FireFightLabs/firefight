@@ -19,10 +19,10 @@ class IncidentCreationService
 
   def set_channel_metadata(incident)
     adapter = @workspace.adapter
-    topic = "Severity: #{incident.incident_severity.name} | Status: #{incident.incident_status.name}"
+    topic = "Severity: #{incident.incident_severity.name}#{Incident::TOPIC_SEPARATOR}Status: #{incident.incident_status.name}"
     purpose = "Incident response channel for #{incident.identifier}"
     if incident.is_test?
-      topic = "Test incident | #{topic}"
+      topic = "Test incident#{Incident::TOPIC_SEPARATOR}#{topic}"
       purpose = "Test incident channel for #{incident.identifier}. Not counted in your metrics."
     end
     adapter.set_channel_metadata(channel_id: incident.channel_id, topic: topic, purpose: purpose)

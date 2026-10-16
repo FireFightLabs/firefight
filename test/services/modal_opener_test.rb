@@ -2,12 +2,11 @@ require "test_helper"
 
 class ModalOpenerTest < ActiveSupport::TestCase
   NOTICES = {
-    cancel: ":wastebasket: is canceling the incident...",
-    close: ":lock: is closing the incident...",
-    escalate: ":rotating_light: is escalating the incident...",
-    reopen: ":rotating_light: is reopening the incident...",
-    summary: ":writing_hand: is updating the incident summary...",
-    update: ":writing_hand: is writing an internal status update..."
+    cancel: "#{Slack::Emoji::CANCELED} is canceling the incident...",
+    close: "#{Slack::Emoji::RESOLVED} is closing the incident...",
+    escalate: "#{Slack::Emoji::ESCALATED} is escalating the incident...",
+    reopen: "#{Slack::Emoji::REOPENED} is reopening the incident...",
+    summary: "#{Slack::Emoji::SUMMARY} is updating the incident summary..."
   }.freeze
 
   setup do
@@ -29,6 +28,14 @@ class ModalOpenerTest < ActiveSupport::TestCase
 
       open(kind)
     end
+  end
+
+  # What an update will say is not the channel's until it is sent, so nothing is posted while it is written.
+  test "a status update posts no placeholder and opens its modal with nothing to clean up" do
+    Slack::Client.expects(:post_message).never
+    Slack::Client.expects(:open_modal).with { |arguments| !arguments[:view][:private_metadata].to_s.include?("temp_message_ts") }.returns({ ok: true, view: { id: "V1" } })
+
+    open(:update)
   end
 
   # The placeholder id comes back as :message_id. Reading the wrong key made this a silent no-op.

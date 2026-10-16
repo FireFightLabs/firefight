@@ -279,6 +279,23 @@ class Conversation < ApplicationRecord
 
   def answer_finished! = update_in_place!(answer_message_id: nil, answer_shown: false)
 
+  # A person's message the platform marked as being worked on, marked done once a turn answers it.
+  def acknowledged!(message_id)
+    return if message_id.blank?
+
+    self.class.where(id: id).update_all([ "acknowledged_message_ids = array_append(array_remove(acknowledged_message_ids, ?::varchar), ?::varchar)",
+                                          message_id, message_id ])
+  end
+
+  # The marked messages, taken under a lock so two turns ending together never mark one twice.
+  def take_acknowledged!
+    self.class.transaction do
+      taken = self.class.where(id: id).lock.pick(:acknowledged_message_ids).to_a
+      self.class.where(id: id).update_all(acknowledged_message_ids: []) if taken.any?
+      taken
+    end
+  end
+
   # A turn whose job died is run again at most once. One statement on the turn as it was read, so two sweeps cannot both
   # run it, and a turn started since is not touched. The mark goes once the turn ends.
   def rerun_lost_reply!(owed)

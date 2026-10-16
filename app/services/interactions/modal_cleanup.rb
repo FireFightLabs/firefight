@@ -2,6 +2,10 @@ module Interactions
   # Slow modals are paired with a temporary "writing..." message in the channel,
   # its coordinates ride in private_metadata.
   module ModalCleanup
+    # Said on a form whose incident, or a record it names, is gone by the time it is sent, with what to do next.
+    RECORD_GONE = "Firefight couldn't find this incident or something the form names. It may have been deleted. " \
+                  "Close this form and open it again from the incident's channel.".freeze
+
     # Failure to delete is not user-visible, so AdapterError never becomes a submission error.
     def self.delete_temp_message(workspace, metadata)
       return if metadata.temp_message_ts.blank? || metadata.channel_id.blank?

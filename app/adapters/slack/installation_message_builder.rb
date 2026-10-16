@@ -1,6 +1,6 @@
 module Slack
   class InstallationMessageBuilder
-    def self.preview_announcement_blocks(user_id)
+    def self.preview_announcement_blocks(user_id, rich:)
       preview_blocks = [
         {
           type: "context",
@@ -13,10 +13,17 @@ module Slack
         summary: "The marketing website is down: I'm getting a '502 Gateway OverallTimeout' error",
         severity_name: "Minor",
         status_name: "Investigating",
-        reporter_id: user_id
+        reporter_id: user_id,
+        rich: rich
       )
 
       { blocks: preview_blocks }
+    end
+
+    def self.introduction(user_id, channel_id)
+      "👋 #{Slack::Mrkdwn.person(user_id, nil)} is using Firefight in your Slack workspace\n\nFirefight helps your team manage incidents with better " \
+        "coordination and full visibility into what's happening.\n\nJoin the <##{channel_id}> channel to stay informed about active " \
+        "incidents, or explore the commands to see how Firefight can help during outages."
     end
 
     def self.share_channel_modal(user_id, channel_id)
@@ -40,7 +47,7 @@ module Slack
             type: "section",
             text: {
               type: "mrkdwn",
-              text: "👋 <@#{user_id}> is using FireFight in your Slack workspace\n\nFireFight helps your team manage incidents with better coordination and full visibility into what's happening.\n\nJoin the <##{channel_id}> channel to stay informed about active incidents, or explore the commands to see how FireFight can help during outages."
+              text: introduction(user_id, channel_id)
             }
           },
           {
@@ -70,7 +77,7 @@ module Slack
             type: "section",
             text: {
               type: "mrkdwn",
-              text: "👋 <@#{sharing_user_id}> is using FireFight in your Slack workspace\n\nFireFight helps your team manage incidents with better coordination and full visibility into what's happening.\n\nJoin the <##{channel_id}> channel to stay informed about active incidents, or explore the commands to see how FireFight can help during outages."
+              text: introduction(sharing_user_id, channel_id)
             }
           },
           {

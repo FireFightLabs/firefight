@@ -322,10 +322,10 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_equal "what is going on", @conversation.title
   end
 
-  test "a tool the agent reaches for is shown as a step" do
+  test "a tool the agent reaches for is shown as a step, in plain words rather than by the tool's name" do
     fake(reply: "ok", steps: [ FirefightAi::AgentLoop::Step.new(key: "call_1", tool: "search_incidents", status: :running) ])
     Slack::Client.expects(:append_stream).with do |arguments|
-      arguments[:chunks].sole[:title] == "Search incidents"
+      arguments[:chunks].sole[:title] == Investigation::Progress::TITLES.fetch(Investigation::Progress::ALERTS)
     end.returns({ ok: true })
 
     ask(@conversation, "what is going on")

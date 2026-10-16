@@ -43,7 +43,7 @@ class Interactions::AbilityApprovalDecisionHandlerTest < ActiveSupport::TestCase
   test "a member a workflow's Approval step names decides it from Slack without approvals access, and nothing else" do
     stub_update_message
     named = workflow_approval(approver_ids: Ability::Principal.references([ @member.id ]))
-    Slack::WorkspaceAdapter.any_instance.expects(:post_ephemeral).with { |text:, **| text.include?("approvals.update") }.returns({ success: true })
+    Slack::WorkspaceAdapter.any_instance.expects(:post_ephemeral).with { |text:, **| text == "You don't have permission to change approvals in Firefight. Ask a workspace admin to give you Approvals access under Gateway, Permissions." }.returns({ success: true })
 
     InteractionDispatcher.dispatch(build_interaction(@member.platform_user_id, value: named.id))
     InteractionDispatcher.dispatch(build_interaction(@member.platform_user_id, value: workflow_approval.id))

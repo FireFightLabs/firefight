@@ -45,11 +45,13 @@ class Events::AppMentionHandlerTest < ActiveSupport::TestCase
     end
   end
 
-  test "blocked entitlement posts the denial message and enqueues no job" do
+  test "blocked entitlement tells the person in the channel and keeps it in their direct messages, and enqueues no job" do
     message = deny_entitlements!("Your trial has ended — upgrade to keep using AI.")
     Slack::Client.expects(:post_ephemeral).with(
       has_entries(workspace: @workspace, channel: @incident.channel_id, user: @member.platform_user_id, text: message)
     ).once
+    Slack::Client.expects(:post_message).with { |arguments| arguments[:channel] == @member.platform_user_id && arguments[:text] == message }.once
+    Slack::Client.expects(:remove_reaction).never
 
     assert_no_enqueued_jobs do
       Events::AppMentionHandler.execute(@workspace, payload)
@@ -126,5 +128,6 @@ class Events::AppMentionHandlerTest < ActiveSupport::TestCase
 
   def stub_add_reaction
     Slack::Client.stubs(:add_reaction).returns({ ok: true })
+    Slack::Client.stubs(:remove_reaction).returns({ ok: true })
   end
 end

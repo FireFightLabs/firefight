@@ -64,4 +64,33 @@ class Slack::Messages::FormattingTest < ActiveSupport::TestCase
   test "quoted markdown keeps a one line message as it was" do
     assert_equal "> Rolling back the deploy", Formatting.quoted_markdown("Rolling back the deploy")
   end
+
+  test "a markdown link renders as a Slack link, its address keeping parentheses and losing a title" do
+    assert_equal "See <https://en.wikipedia.org/wiki/Mars_(planet)|Mars> and <https://x.dev/a|the PR>",
+                 Formatting.markdown_to_mrkdwn("See [Mars](https://en.wikipedia.org/wiki/Mars_(planet)) and [the PR](https://x.dev/a \"PR 1\")")
+  end
+
+  test "a link's label and address cannot break out of the link" do
+    assert_equal "<https://x.dev/a|ab>", Formatting.markdown_to_mrkdwn("[a|b](https://x.dev/a)")
+  end
+
+  test "sections never drop a character, break at line ends and stay under the limit" do
+    text = Array.new(400) { |index| "Line #{index} #{'y' * 30}" }.join("\n")
+
+    sections = Formatting.sections(text)
+
+    assert_operator sections.size, :>, 1
+    assert sections.all? { |section| section.length <= Formatting::SECTION_TEXT_LIMIT }
+    assert_equal text, sections.join("\n")
+  end
+
+  test "a line longer than a section breaks at a space, and a code block a break falls inside is closed and opened again" do
+    long = ([ "word" ] * 1000).join(" ")
+    assert_equal long, Formatting.sections(long).join(" ")
+
+    code = "```\n#{Array.new(200) { |index| "puts #{index} #{'z' * 20}" }.join("\n")}\n```"
+    sections = Formatting.sections(code)
+    assert_operator sections.size, :>, 1
+    assert sections.all? { |section| section.start_with?("```") && section.end_with?("```") }
+  end
 end
