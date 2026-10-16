@@ -228,8 +228,9 @@ class WorkspaceMembership < ApplicationRecord
       "AND api_keys.deleted_at IS NULL AND api_keys.active) AS personal_token_count",
       "(SELECT COUNT(DISTINCT application_id) FROM oauth_access_tokens WHERE oauth_access_tokens.resource_owner_id = " \
       "workspace_memberships.id AND oauth_access_tokens.revoked_at IS NULL) AS connected_agent_count",
-      "(SELECT COUNT(*) FROM workspace_memberships owners WHERE owners.workspace_id = workspace_memberships.workspace_id " \
-      "AND owners.role = '#{roles[:owner]}' AND owners.removed_at IS NULL) AS owner_count"
+      sanitize_sql_array([ "(SELECT COUNT(*) FROM workspace_memberships owners WHERE owners.workspace_id = " \
+                           "workspace_memberships.workspace_id AND owners.role = ? AND owners.removed_at IS NULL) AS owner_count",
+                           roles[:owner] ])
     )
   }
 
