@@ -194,6 +194,50 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Says in an incident's channel that someone is in the given dialog, doing what doing says ("escalating the incident").
+  # @return [Hash] { message_id: String }
+  def post_modal_placeholder(channel_id:, user_id:, modal:, doing:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { message_id: String }
+  def post_summary_updated(channel_id:, updated_by_platform_user_id:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Tells one person why Halon will not do what they asked: in the thread they asked in, seen by them alone, and in their
+  # direct messages, where it stays once they reload.
+  # @return [Hash] { success: true }
+  def post_refusal(channel_id:, thread_id:, user_id:, text:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @param notice [PlatformAdapter::Notice]
+  # @return [Hash] { success: true }
+  def post_notice(user_id:, notice:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { success: true }
+  def remove_reaction(channel_id:, message_id:, name:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Shows on a person's message that Halon is working on it. Best effort, a refusal is logged and never raised.
+  def mark_working(channel_id:, message_id:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Shows on a message Halon was working on that the answer is in, replacing mark_working. Best effort.
+  def mark_done(channel_id:, message_id:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Takes mark_working off a message Halon will not answer, such as one it refused. Best effort.
+  def unmark_working(channel_id:, message_id:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # @return [Hash] { success: true }
   def pin_message(channel_id:, message_id:)
     raise NotImplemented.new(__method__, self.class)
@@ -1079,6 +1123,11 @@ class PlatformAdapter
   # A file shared with a message, fetched from the platform. body is nil when it was too large to fetch or could not be,
   # and failure is then a sentence saying why, for whoever reads it to pass on.
   SharedFile = Data.define(:name, :byte_size, :body, :too_large, :failure)
+
+  # Something an admin needs to know and act on, sent to them directly: what happened as the title, what it means as the
+  # body, and where to fix it as a link. link_url may be nil, when the place is named in the body instead. fallback is the
+  # whole notice as one sentence, for a notification.
+  Notice = Data.define(:title, :body, :link_label, :link_url, :fallback)
 
   # The files shared with a message, as the platform's own event described them, which callers pass on unread. A file
   # over max_bytes is not downloaded.

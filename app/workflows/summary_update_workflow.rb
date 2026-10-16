@@ -15,10 +15,9 @@ class SummaryUpdateWorkflow < SolidWorkflow::Base
 
   def post_confirmation(workflow:, step:, input:)
     checkpointed(step) do
-      workflow.subject.workspace.adapter.post_message(
+      workflow.subject.workspace.adapter.post_summary_updated(
         channel_id: workflow.subject.channel_id,
-        text: ":memo: Summary updated by <@#{workflow.context["updated_by_platform_user_id"]}>",
-        blocks: nil
+        updated_by_platform_user_id: workflow.context["updated_by_platform_user_id"]
       )
     end
   end

@@ -27,13 +27,16 @@ module Events
       unready = Investigation.unknown_window_reason(workspace)
       return tell(workspace, channel_id, thread_id, unready) if unready
 
+      # Marked before the question is queued, so an answer that comes back quickly always finds the mark to replace.
+      acknowledge(workspace, channel_id, event["ts"])
       refusal = Conversation::DirectMessages.receive!(
         workspace: workspace, sender: sender, channel_id: channel_id, message_id: event["ts"], thread_id: thread_id,
         text: event["text"].to_s.strip, files: event["files"], source: AbilityGateway::SOURCE_SLACK
       )
-      return tell(workspace, channel_id, thread_id, refusal) if refusal
+      return unless refusal
 
-      acknowledge(workspace, channel_id, event["ts"])
+      workspace.adapter.unmark_working(channel_id: channel_id, message_id: event["ts"])
+      tell(workspace, channel_id, thread_id, refusal)
     end
 
     # Someone from another organisation reached through a shared connection. People in an organisation wide install
@@ -45,9 +48,7 @@ module Events
     private_class_method :from_another_organisation?
 
     def self.acknowledge(workspace, channel_id, timestamp)
-      workspace.adapter.add_reaction(channel_id: channel_id, message_id: timestamp, name: "eyes")
-    rescue AdapterError => e
-      Rails.logger.info({ event: "events.direct_message.reaction_failed", error: e.message }.to_json)
+      workspace.adapter.mark_working(channel_id: channel_id, message_id: timestamp)
     end
     private_class_method :acknowledge
 

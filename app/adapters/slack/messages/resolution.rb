@@ -1,25 +1,35 @@
 module Slack
   module Messages
+    # An incident's resolution, as an alert saying who resolved it and how long it took, then the summary. In the channel
+    # it also offers the postmortem.
     module Resolution
-      def self.build(incident, resolved_by_platform_user_id:, resolved_by_name: nil)
-        duration_text = Formatting.format_duration(incident.time_to_resolve)
-        emoji = Formatting.severity_emoji(incident.incident_severity)
-
-        blocks = [
-          { type: "section", text: { type: "mrkdwn", text: ":white_check_mark:  *Incident Resolved*" } },
-          { type: "divider" },
-          *summary_blocks(incident),
-          {
-            type: "context",
-            elements: [
-              { type: "mrkdwn", text: "Resolved by #{Mrkdwn.person(resolved_by_platform_user_id, resolved_by_name)}  |  #{emoji} #{incident.incident_severity.name}  |  Time to resolve: #{duration_text}" }
-            ]
-          }
-        ]
-
+      def self.build(incident, resolved_by_platform_user_id:, rich:, resolved_by_name: nil)
+        blocks = common(incident, resolved_by_platform_user_id, resolved_by_name, rich)
         blocks.concat(postmortem_offer(incident)) if incident.postmortem_blocked_reason.nil?
         blocks
       end
+
+      def self.announcement_thread(incident, resolved_by_platform_user_id:, rich:, resolved_by_name: nil)
+        common(incident, resolved_by_platform_user_id, resolved_by_name, rich)
+      end
+
+      # "Resolved by @Dana after 1h 12m", the line the alert and a subscriber's direct message share.
+      def self.headline(incident, resolved_by_platform_user_id, resolved_by_name = nil)
+        line = "Resolved by #{Mrkdwn.person(resolved_by_platform_user_id, resolved_by_name)}"
+        incident.time_to_resolve.nil? ? line : "#{line} after #{Formatting.format_duration(incident.time_to_resolve)}"
+      end
+
+      def self.common(incident, resolved_by_platform_user_id, resolved_by_name, rich)
+        alert = Slack::Blocks::Alert.new(level: Slack::Blocks::Alert::LEVEL_SUCCESS, text: headline(incident, resolved_by_platform_user_id, resolved_by_name),
+                                         emoji: Slack::Emoji::RESOLVED)
+        [
+          *alert.to_blocks(rich: rich),
+          { type: "divider" },
+          *summary_blocks(incident),
+          Slack::Blocks.context("#{Slack::Emoji::SEVERITY} #{incident.incident_severity.name}")
+        ]
+      end
+      private_class_method :common
 
       def self.postmortem_offer(incident)
         [
@@ -52,20 +62,6 @@ module Slack
         else
           "Drafted from the timeline and the #{count} #{'message'.pluralize(count)} in this channel. You edit it in the dashboard."
         end
-      end
-
-      def self.announcement_thread(incident, resolved_by_platform_user_id:, resolved_by_name: nil)
-        duration_text = Formatting.format_duration(incident.time_to_resolve)
-        emoji = Formatting.severity_emoji(incident.incident_severity)
-
-        [
-          { type: "header", text: { type: "plain_text", text: "Incident Resolved", emoji: true } },
-          { type: "divider" },
-          *summary_blocks(incident),
-          { type: "section", text: { type: "mrkdwn", text: ":bust_in_silhouette: Resolved by: #{Mrkdwn.person(resolved_by_platform_user_id, resolved_by_name, bold: true)}" } },
-          { type: "section", text: { type: "mrkdwn", text: "#{emoji} Severity: *#{incident.incident_severity.name}*" } },
-          { type: "section", text: { type: "mrkdwn", text: ":stopwatch: Time to resolve: *#{duration_text}*" } }
-        ]
       end
     end
   end

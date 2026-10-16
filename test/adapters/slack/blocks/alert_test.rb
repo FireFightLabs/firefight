@@ -18,4 +18,10 @@ class Slack::Blocks::AlertTest < ActiveSupport::TestCase
   test "an alert's level is one Slack knows" do
     assert_raises(ArgumentError) { Slack::Blocks::Alert.new(level: "loud", text: "No") }
   end
+
+  test "an alert may lead with the emoji of what happened in place of its level's" do
+    alert = Slack::Blocks::Alert.new(level: Slack::Blocks::Alert::LEVEL_WARNING, text: "Reopened by <@U1>", emoji: Slack::Emoji::REOPENED)
+
+    assert_equal "#{Slack::Emoji::REOPENED}  Reopened by <@U1>", alert.to_blocks(rich: true).sole.dig(:text, :text)
+  end
 end

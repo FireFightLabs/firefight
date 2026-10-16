@@ -7,7 +7,7 @@ module Slack
     include Slack::WorkspaceAdapter::WorkflowMessaging
     include Slack::WorkspaceAdapter::FileOperations
 
-    CHANNEL_DESCRIPTION = "FireFight announcements channel. Every time someone declares an incident, we'll announce it here, and make sure the post is always up to date."
+    CHANNEL_DESCRIPTION = "Firefight announcements channel. Every time someone declares an incident, we'll announce it here, and make sure the post is always up to date."
 
     def create_channel(name:, is_private: false)
       translate_errors do
@@ -151,6 +151,33 @@ module Slack
 
         { success: true }
       end
+    end
+
+    def remove_reaction(channel_id:, message_id:, name:)
+      translate_errors do
+        Slack::Client.remove_reaction(
+          workspace: @workspace,
+          channel: channel_id,
+          timestamp: message_id,
+          name: name
+        )
+
+        { success: true }
+      end
+    end
+
+    def mark_working(channel_id:, message_id:)
+      quietly(:mark_working) { add_reaction(channel_id: channel_id, message_id: message_id, name: Slack::Emoji::REACTION_WORKING) }
+    end
+
+    # Each step on its own, so a message whose first mark is already gone still gets the second.
+    def mark_done(channel_id:, message_id:)
+      unmark_working(channel_id: channel_id, message_id: message_id)
+      quietly(:mark_done) { add_reaction(channel_id: channel_id, message_id: message_id, name: Slack::Emoji::REACTION_DONE) }
+    end
+
+    def unmark_working(channel_id:, message_id:)
+      quietly(:unmark_working) { remove_reaction(channel_id: channel_id, message_id: message_id, name: Slack::Emoji::REACTION_WORKING) }
     end
 
     def pin_message(channel_id:, message_id:)
@@ -414,6 +441,24 @@ module Slack
     end
 
     # A user id as channel opens or reuses the DM with them.
+    # Each on its own, so a direct message the person closed still leaves the note in the thread.
+    def post_refusal(channel_id:, thread_id:, user_id:, text:)
+      quietly(:refusal_in_thread) do
+        translate_errors { Slack::Client.post_ephemeral(workspace: @workspace, channel: channel_id, user: user_id, text: text, thread_ts: thread_id) }
+      end
+      translate_errors do
+        Slack::Client.post_message(workspace: @workspace, channel: user_id, text: text, blocks: Slack::Messages::Refusal.build(text, channel_id: channel_id))
+      end
+      { success: true }
+    end
+
+    def post_notice(user_id:, notice:)
+      translate_errors do
+        Slack::Client.post_message(workspace: @workspace, channel: user_id, text: notice.fallback, blocks: Slack::Messages::Notice.build(notice))
+        { success: true }
+      end
+    end
+
     def post_direct_message(user_id:, text:)
       translate_errors do
         Slack::Client.post_message(workspace: @workspace, channel: user_id, text: text)
@@ -474,6 +519,14 @@ module Slack
     rescue AdapterError::AuthRevoked => e
       Slack::AuthRevokedNotifier.notify(@workspace, error_code: e.error_code)
       raise
+    end
+
+    # Something that only helps, such as a reaction already gone, never stops the work it goes with.
+    def quietly(what)
+      yield
+    rescue AdapterError => e
+      Rails.logger.info({ event: "slack.best_effort_skipped", what: what, error: e.message }.to_json)
+      { success: false }
     end
   end
 end

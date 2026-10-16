@@ -15,10 +15,17 @@ class Slack::Messages::AlertTest < ActiveSupport::TestCase
   test "the title links to the alert's page in the tool that sent it" do
     alert = alert_with("title" => "ReferenceError <b>", "url" => "https://sentry.io/organizations/acme/issues/1/?a=b|c")
 
-    assert_equal ":rotating_light:  *<https://sentry.io/organizations/acme/issues/1/?a=bc|ReferenceError &lt;b&gt;>*", title_text(alert)
+    assert_equal "#{Slack::Emoji::ALERT_FIRING}  *<https://sentry.io/organizations/acme/issues/1/?a=bc|ReferenceError &lt;b&gt;>*", title_text(alert)
   end
 
   test "a title without a link stays plain" do
-    assert_equal ":rotating_light:  *Disk full*", title_text(alert_with("title" => "Disk full"))
+    assert_equal "#{Slack::Emoji::ALERT_FIRING}  *Disk full*", title_text(alert_with("title" => "Disk full"))
+  end
+
+  test "a firing alert has an emoji of its own, never the one an incident is declared with, and no pipes" do
+    blocks = Slack::Messages::Alert.build(alert_with("title" => "Disk full"))
+
+    assert_not_equal Slack::Emoji::DECLARED, Slack::Emoji::ALERT_FIRING
+    assert_not blocks.to_s.include?("|")
   end
 end

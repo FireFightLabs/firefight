@@ -37,7 +37,7 @@ module Interactions
       error_msg = if e.message.include?("canceled status")
         "Your workspace doesn't have a canceled status configured. Please add one before marking duplicates."
       else
-        "Something went wrong. Please close this modal and try again."
+        Interactions::ModalCleanup::RECORD_GONE
       end
       { response_action: "errors", errors: { "target_incident_block" => error_msg } }
     rescue ActiveRecord::RecordInvalid => e

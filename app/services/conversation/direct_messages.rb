@@ -6,7 +6,7 @@ class Conversation::DirectMessages
   # thread_id is the thread the message was sent in, and its own id when it starts one. Returns a sentence to tell the
   # person when the message was not taken, or nil.
   def self.receive!(workspace:, sender:, channel_id:, message_id:, thread_id:, text:, files:, source:)
-    new(workspace, sender, channel_id, thread_id, source).receive!(text, files, reply: thread_id != message_id)
+    new(workspace, sender, channel_id, thread_id, source).receive!(text, files, reply: thread_id != message_id, message_id: message_id)
   end
 
   def initialize(workspace, sender, channel_id, thread_id, source)
@@ -17,11 +17,11 @@ class Conversation::DirectMessages
     @source = source
   end
 
-  def receive!(text, files, reply:)
+  def receive!(text, files, reply:, message_id: nil)
     read = read_by_model(text)
     # A run Halon answered in these direct messages takes a reply as a note while it works, as a mention in its thread.
     run = Investigation.live_in_thread(@workspace, @thread_id) if reply
-    return run.add_note_from(read, member: @sender, source: @source, files: shared(files), as_written: text) if run
+    return add_note(run, read, files, text, message_id) if run
 
     existing = Conversation.in_thread(@workspace, @channel_id, @thread_id)
     finished = Investigation.posted_in_thread(@workspace, @thread_id) if reply && !existing
@@ -31,7 +31,8 @@ class Conversation::DirectMessages
     Conversation.ask_from_thread!(asker: @sender, workspace: @workspace, incident: existing&.incident || finished&.incident, source: @source) do
       conversation = existing || opened(finished, new_chat: finished.present? || started == PlatformAdapter::THREAD_STARTED_AS_CHAT)
       conversation.asked_in_thread!(@channel_id, @thread_id) if conversation.direct?
-      Conversation::Asking.ask(conversation, read, asker: @sender, files: shared(files), context: replied_to(root), as_written: text)
+      Conversation::Asking.ask(conversation, read, asker: @sender, files: shared(files), context: replied_to(root), as_written: text,
+                               acknowledged_message_id: message_id)
     end
     nil
   rescue AbilityGateway::Denied => denied
@@ -39,6 +40,13 @@ class Conversation::DirectMessages
   end
 
   private
+
+  # Taken notes are done once taken, since the run shows it read them among its steps.
+  def add_note(run, read, files, text, message_id)
+    refusal = run.add_note_from(read, member: @sender, source: @source, files: shared(files), as_written: text)
+    adapter.mark_done(channel_id: @channel_id, message_id: message_id) if refusal.nil? && message_id
+    refusal
+  end
 
   # A thread of its own when the person opened a new chat or replied to a finished run, which it is then about.
   # Otherwise the chat they were having, held while it is looked up so two messages sent together share one.

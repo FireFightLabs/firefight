@@ -33,6 +33,29 @@ footer     Updated by @user · Next …       context block, small grey text
 ]
 ```
 
+## Cards and alerts
+
+Slack's card block is how a message says "this is one thing", and an alert line how it ended. Both are built with the
+shared builders in `app/adapters/slack/blocks/` (see An investigation in a channel for their limits and fallback),
+never by hand:
+
+```ruby
+Slack::Messages::WholeCard.build(rich: rich, title: "INC-003 · Checkout is slow", subtitle: "Minor · Investigating · Lead <@U1>",
+                                 body: summary, quoted: true, actions: [ join, subscribe, open ], icon: Slack::Emoji::DECLARED)
+
+Slack::Blocks::Alert.new(level: Slack::Blocks::Alert::LEVEL_SUCCESS, text: "Resolved by <@U1> after 1h 12m",
+                         emoji: Slack::Emoji::RESOLVED).to_blocks(rich: rich)
+```
+
+- **The announcement, an incident update and a subscriber's direct message are cards.** Their body is what a person
+  wrote, so they go through `WholeCard`, which never cuts it: a body that fits Slack's card goes inside, a longer one
+  (and every body when the card is drawn plain) follows as sections, quoted line by line with `quoted: true`.
+- **Resolved, reopened and escalated are alert lines**, `Blocks::Alert` at success or warning. Slack refuses the alert
+  block in messages, so in a message it is always a section led by its emoji. `emoji:` gives it the concept's own
+  (`Slack::Emoji::REOPENED`) in place of the level's, so a reopen and an escalation never look alike.
+- **Every post or update of a card goes inside `with_rich_blocks`**, which posts the plain version at once when the
+  workspace's Slack refuses the newer blocks.
+
 ## The divider is not decoration
 
 Slack draws no boundary between consecutive bot messages. Without a divider
@@ -42,38 +65,40 @@ wrong more than once, most visibly on cancellation, where two lifecycle events
 in the same thread rendered at different weights.
 
 The only messages that skip it are the ones with nothing to separate: a title
-and a context line, no body. `Alert`, `LeadAssignment` and `PackAnswer` are the whole list.
+and a context line, no body. `Alert`, `LeadAssignment`, `PackAnswer` and a reopen with no reason are the whole list. A
+rich card draws its own edges, so it needs none.
 
-## Title: header block or bold section
+## Title: card, alert or bold section
 
-| | Use | Where |
-|---|---|---|
-| `header` block | milestones | the announcement thread |
-| bold `section` | everything else | incident channels, DMs, ephemerals |
+| | Use |
+|---|---|
+| card | the announcement (`Announcement`), an incident update or cancellation (`StatusUpdate`), a subscriber's update |
+| alert | resolved (`Resolution`), reopened (`Reopen`), escalated (`Escalation`) |
+| bold `section` | everything else, and the plain form of both |
 
-A **milestone** is an event that starts, ends, or restarts an incident:
-declared, resolved, canceled, reopened, escalated. There are a handful per
-incident and they should be findable by scrolling. Everything else, including
-ordinary status updates, is running commentary and takes the smaller title.
+A **milestone** is an event that ends or restarts an incident, or pulls someone in: resolved, reopened, escalated. It
+is an alert, so it reads at a glance among dozens of updates, in the channel and the announcement thread alike.
+Everything else is running commentary and takes the bold section.
 
-The distinction only applies in the **announcement thread**, where milestones
-sit among dozens of updates. In the incident channel every message already
-carries the identifier, so they all use the bold section.
+**The announcement and the pinned quick actions say each thing once.** The announcement is one card: the title
+(`IncidentDetail.title_for`, "INC-003 · Checkout is slow"), the state on one line as its subtitle
+(`IncidentDetail.state_line`, "Minor · Investigating · Lead @Dana"), the summary, and Join channel, Subscribe and Open
+in Firefight. Who declared it, custom fields and linked incidents follow it. The pinned message in the incident's
+channel is the title, the same state line with who declared it, the summary and the buttons. Neither lists the fields
+a section each.
 
-Because one builder often serves both surfaces, this usually means a `scope:`
-argument rather than two methods (see `StatusUpdate.build`).
+An update is a card whose subtitle is what changed ("Severity: Minor · Status: ~Investigating~ → Identified") and whose
+body is the update, with who wrote it and when the next one is due under it. In the channel its title carries the
+identifier (`scope: :inline`), in the announcement thread it does not (`scope: :announcement`).
 
 ## The announcement thread has subscribers
 
-Every reply Firefight posts in an incident's announcement thread also goes to
-each subscriber as a DM. Build the reply once and hand it to
-`reply_and_notify_subscribers`, which wraps it with
-`Slack::Messages::Subscription.wrap_update`: the incident's title and channel
-on top, the reply untouched in the middle, and Open channel, Incident homepage
-and Unsubscribe underneath. A thread reply needs no title because the
-announcement sits above it. A DM sits under nothing, which is why the wrapper
-exists and why the reply itself never gets a DM-only variant. The fallback
-text is prefixed with the identifier for the same reason.
+Every update, resolution, reopen and escalation Firefight posts in an incident's announcement thread also reaches each
+subscriber, as **one short card per update** (`Slack::Messages::Subscription.digest`), never a copy of the thread reply.
+The card is the incident's title, what happened as its subtitle ("Resolved by @Dana after 1h 12m", "Severity: Minor ·
+Updated by @Dana"), the words of the update as its body, and Open channel, Open in Firefight and Unsubscribe. Hand
+`reply_and_notify_subscribers` a lambda that builds the thread reply for whether it may be drawn rich, and the digest's
+headline, body and icon. The fallback text is the identifier and the headline.
 
 Subscription confirmations are ephemeral, built by `Subscription.notice`. Each
 carries an Unsubscribe button, which the shared Subscribe button cannot,
@@ -82,9 +107,24 @@ The shared button only ever subscribes.
 
 ## Emoji and spacing
 
-- **Every title opens with an emoji.** It is the fastest thing to scan for, and
-  two events that mean different things never share one. Cancellation is
-  `:wastebasket:`, an update is `:memo:`.
+- **One emoji per concept, defined once in `Slack::Emoji`.** A message names the concept (`Slack::Emoji::RESOLVED`) and
+  never writes a shortcode of its own for one listed there. `test/adapters/slack/emoji_test.rb` fails if two concepts
+  share one.
+
+  | Concept | Emoji | | Concept | Emoji |
+  |---|---|---|---|---|
+  | declared | `:rotating_light:` | | firing alert | `:red_circle:` |
+  | updated | `:memo:` | | alert resolved | `:large_green_circle:` |
+  | summary | `:pencil2:` | | paged | `:pager:` |
+  | resolved | `:white_check_mark:` | | approval | `:lock:` |
+  | accepted | `:ballot_box_with_check:` | | pack refused | `:key:` |
+  | canceled | `:wastebasket:` | | lead | `:firefighter:` |
+  | reopened | `:arrows_counterclockwise:` | | severity | `:fire:` |
+  | escalated | `:fire_engine:` | | Halon | `:sparkles:` |
+  | acknowledged | `:ok_hand:` | | warning to an admin | `:warning:` |
+  | reminder | `:alarm_clock:` | | subscribe, unsubscribe | `:bell:`, `:no_bell:` |
+
+- **Every title opens with an emoji.** It is the fastest thing to scan for.
 - **Two spaces after the title emoji**, one space everywhere else. The wider
   gap is what makes a title read as a title next to a field line that starts
   the same way.
@@ -123,14 +163,15 @@ The shared button only ever subscribes.
   opened, is a context line under the item (`Action.issue_status`). A change
   that reaches the item from its issue redraws its message as it stands
   (`refresh_action_message`, `Action.current`).
-- **Fields are state**, joined with `  ·  ` on one line when there are three or
-  fewer, one per line when the message is a milestone worth reading slowly.
+- **Fields are state**, joined with `·` on one line, never a section each.
   Use `Formatting.diff_text` so a change shows its before and after rather than
   just its result.
 - **Footer is attribution and metadata**, always a `context` block. Who did it,
   when the next update is due, how long it took. Never a `section`, or it
   competes with the body.
-- **Separator between footer parts is `  ·  `**, two spaces either side.
+- **Separator between footer parts is `  ·  `** (`Formatting::SEPARATOR`), two spaces either side, and inside a title
+  or a card's subtitle ` · ` (`IncidentDetail::SEPARATOR`). **Never a pipe**, in a message, a context line or a
+  channel topic (`Incident::TOPIC_SEPARATOR`).
 
 ## Rules the API enforces, painfully
 
@@ -218,7 +259,8 @@ neither.
 
 ## Copy
 
-Everything in [CLAUDE.md](../CLAUDE.md) applies: no em dashes, no semicolons.
+Everything in [CLAUDE.md](../CLAUDE.md) applies: no em dashes, no semicolons. The product is **Firefight**, never
+FireFight, and the AI is **Halon**, never "Firefight AI".
 Two exceptions specific to Slack:
 
 - **Titles may use a dash as a separator**: `INC-052 — Checkout failing`.
@@ -227,7 +269,23 @@ Two exceptions specific to Slack:
   dashboard. This is why `NormalizedDescription` terminates on save rather than
   at render.
 
-Sentence case for titles: "Incident canceled", not "Incident Canceled".
+Sentence case for titles: "Incident canceled", not "Incident Canceled". "Resolved by Dana after 1h 12m", not
+"Incident Resolved".
+
+**A refusal never shows a raw key.** `AuthorizedDispatch.denied_message` says what the person may not do in words ("You
+don't have permission to change incidents in Firefight") and which access to ask for. A form that fails because its
+incident is gone says so and what to do (`Interactions::ModalCleanup::RECORD_GONE`), never "Something went wrong".
+
+**A refusal of a mention is kept.** Halon's refusal of an @mention is said to the person alone in the thread they asked
+in, and kept in their direct messages (`post_refusal`), since a message only they see is gone once they reload.
+
+**A dialog that is about to post publicly may say so first.** Opening a dialog that cancels, closes, escalates or
+reopens an incident or changes its summary posts "@Dana is escalating the incident..." in the channel
+(`post_modal_placeholder`), removed once the dialog is sent or closed. A status update posts none, since what it will
+say is not the channel's until it is sent.
+
+**An admin's notice is formatted** (`PlatformAdapter::Notice`, `Messages::Notice`): a warning title, a divider, what it
+means, and a button to the page that fixes it.
 
 ## Messages that are edited in place
 
@@ -314,7 +372,7 @@ card  Applied by @Dana                                      [Undo fix] [Open in 
 ```
 
 **Cards and alerts go through `Slack::Blocks`.** `Card.new(title:, subtitle:, body:, actions:, icon:)` and
-`Alert.new(level:, text:)` each answer `to_blocks(rich:)`, cut to Slack's limits (a card's title 150 characters, its
+`Alert.new(level:, text:, emoji:)` each answer `to_blocks(rich:)`, cut to Slack's limits (a card's title 150 characters, its
 body 200, three buttons). Slack draws the alert block only in modals and refuses it in a message, so in a message an
 alert is always a section led by its level's emoji, and `to_blocks(rich: true, modal: true)` asks for the alert block
 in a modal.
@@ -351,6 +409,22 @@ changes until someone accepts. A page longer than a section holds is cut with a 
 whole, and one longer than a form takes has no Edit, since it is edited on the Handbook page. Edit opens
 `EditHandbookProposal`, which accepts with the person's wording. Once decided it is redrawn without the buttons or the
 old wording, with who decided in a context line. See docs/ai.md, Halon proposes handbook pages and edits.
+
+## Halon in a thread
+
+- **Halon shows it is working and when it is done.** A person's mention or direct message gets :eyes:
+  (`mark_working`) and the conversation remembers it (`Conversation#acknowledged!`). When the turn answers, or asks to
+  confirm, each remembered message loses :eyes: and gets :heavy_check_mark: (`mark_done`), once. A refused message just
+  loses :eyes: (`unmark_working`). A mention added to a live investigation keeps :eyes: until the run's own answer.
+- **A step line is plain words** (`Chat::Tools::Step#shown_line`): the words the agent wrote for the call, or the kind
+  of system it read as an investigation's checklist names it ("Read the code", "Checked recent deploys"), never a tool's
+  name, its connection or a file. A coding agent's progress under it is counts and how it ended
+  (`CodeFixProgress#thread_line`), never the file it read or the command it ran.
+- **A reply is never cut.** `AgentReply` and `AiResponse` break text into sections at line ends, then spaces
+  (`Formatting.sections`), close and reopen a code block a break falls inside, and run on into further messages past
+  45 blocks (`Formatting.message_parts`).
+- **Links always render.** `Formatting.markdown_to_mrkdwn` turns `[label](url)` into `<url|label>`, an address with
+  parentheses and a link with a title included.
 
 ## Answering in direct messages
 

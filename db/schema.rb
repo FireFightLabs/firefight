@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1422,6 +1422,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_130000) do
   end
 
   create_table "conversations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "acknowledged_message_ids", default: [], null: false, array: true
     t.string "answer_message_id"
     t.datetime "answer_owed_since"
     t.boolean "answer_shown", default: false, null: false

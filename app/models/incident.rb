@@ -16,6 +16,8 @@ class Incident < ApplicationRecord
   DEFAULT_PER_PAGE = 20
   # The longest reopen reason, which the chat platform's input caps and the dashboard's matches.
   REOPEN_REASON_LIMIT = 3000
+  # Between the parts of an incident channel's topic, the same middle dot every message uses.
+  TOPIC_SEPARATOR = " · ".freeze
   MAX_PER_PAGE = 50
 
   include Incident::Sequencing

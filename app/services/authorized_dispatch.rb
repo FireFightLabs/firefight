@@ -34,10 +34,18 @@ module AuthorizedDispatch
     nil
   end
 
+  # What a person may not do, in words, never the action's key.
+  DENIED_VERBS = {
+    Ability::Action::ACTION_READ => "see", Ability::Action::ACTION_CREATE => "create", Ability::Action::ACTION_UPDATE => "change",
+    Ability::Action::ACTION_DELETE => "delete"
+  }.freeze
+
   def self.denied_message(error)
-    resource = error.action_key.split(".").first
-    "You don't have permission to do that in Firefight (#{error.action_key}). " \
-      "Ask a workspace admin to grant you #{resource} access under Gateway, Permissions."
+    resource, crud_action = error.action_key.to_s.split(".", 2)
+    label = Ability::Action.label(resource)
+    verb = DENIED_VERBS[crud_action]
+    what = verb ? "#{verb} #{label.downcase} in Firefight" : "do that in Firefight"
+    "You don't have permission to #{what}. Ask a workspace admin to give you #{label} access under Gateway, Permissions."
   end
 
   def self.pending_message(approval)

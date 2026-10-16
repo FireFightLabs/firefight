@@ -80,7 +80,7 @@ class Conversation::CodeFixProgressTest < ActiveSupport::TestCase
     assert_not_includes kept.read_attribute_before_type_cast(:progress), "pool_test", "kept encrypted, like the chat's messages"
   end
 
-  test "a Slack thread shows the latest thing and the counts as the step's details, redrawn at most every few seconds" do
+  test "a Slack thread shows the counts and how it ended as the step's details, never a file or command, redrawn at most every few seconds" do
     incident = incidents(:active_critical_ws1)
     conversation = @workspace.conversations.create!(
       subject: incident, kind: Conversation::KIND_CHANNEL, channel_id: incident.channel_id, thread_id: "1700000000.000100",
@@ -103,7 +103,7 @@ class Conversation::CodeFixProgressTest < ActiveSupport::TestCase
     end
 
     detailed = reported.select { |chunk| chunk[:type] == "task_update" && chunk[:details] }
-    assert_equal [ "Read file0.rb · 1 step", "Ran bin/rails test · 21 steps · tests passed",
+    assert_equal [ "Writing the change: 1 step so far", "Writing the change: 21 steps, tests passed so far",
                    "Opened the pull request · 21 steps · 1 file changed · tests passed", "Opened the pull request · 21 steps · 1 file changed · tests passed" ],
                  detailed.map { |chunk| chunk[:details] }
     assert_equal [ "in_progress", "in_progress", "in_progress", "complete" ], detailed.map { |chunk| chunk[:status] }

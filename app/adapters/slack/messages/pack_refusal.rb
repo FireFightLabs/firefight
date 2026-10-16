@@ -5,7 +5,7 @@ module Slack
     module PackRefusal
       def self.build(refusal)
         blocks = [
-          { type: "section", text: { type: "mrkdwn", text: ":lock:  *#{Mrkdwn.escape(refusal.headline)}*" } },
+          { type: "section", text: { type: "mrkdwn", text: "#{Slack::Emoji::PACK_REFUSAL}  *#{Mrkdwn.escape(refusal.headline)}*" } },
           { type: "divider" },
           { type: "section", text: { type: "mrkdwn", text: Mrkdwn.escape(refusal.body) } }
         ]

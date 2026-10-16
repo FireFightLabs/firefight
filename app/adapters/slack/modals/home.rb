@@ -46,7 +46,7 @@ module Slack
               block_id: "command_details_block",
               text: {
                 type: "mrkdwn",
-                text: "*For example:*\n\n:pencil2:  Update the current status or severity `/ff status`\n\n:rotating_light:  Escalate to someone who can help `/ff escalate`\n\n:dart:  Assign the incident lead role `/ff lead`\n\n:lock:  Close the incident when it's resolved `/ff close`"
+                text: "*For example:*\n\n#{Slack::Emoji::UPDATED}  Update the current status or severity `/ff status`\n\n#{Slack::Emoji::ESCALATED}  Escalate to someone who can help `/ff escalate`\n\n:dart:  Assign the incident lead role `/ff lead`\n\n#{Slack::Emoji::RESOLVED}  Close the incident when it's resolved `/ff close`"
               }
             }
           ]
@@ -66,7 +66,7 @@ module Slack
           {
             label: { type: "plain_text", text: "Communicate", emoji: true },
             options: [
-              { text: { type: "plain_text", text: ":rotating_light: Escalate to someone", emoji: true }, value: Identifiers::HOME_ACTION_ESCALATE },
+              { text: { type: "plain_text", text: "#{Slack::Emoji::ESCALATED} Escalate to someone", emoji: true }, value: Identifiers::HOME_ACTION_ESCALATE },
               { text: { type: "plain_text", text: ":busts_in_silhouette: Invite responders", emoji: true }, value: Identifiers::HOME_ACTION_INVITE }
             ]
           },
@@ -77,7 +77,7 @@ module Slack
               { text: { type: "plain_text", text: ":busts_in_silhouette: Assign incident roles", emoji: true }, value: Identifiers::HOME_ACTION_ROLES },
               { text: { type: "plain_text", text: ":ballot_box_with_check: Manage actions", emoji: true }, value: Identifiers::HOME_ACTION_ACTIONS },
               { text: { type: "plain_text", text: ":book: Attach runbook",   emoji: true }, value: Identifiers::HOME_ACTION_RUNBOOK },
-              { text: { type: "plain_text", text: ":lock: Close incident",    emoji: true }, value: Identifiers::HOME_ACTION_CLOSE }
+              { text: { type: "plain_text", text: "#{Slack::Emoji::RESOLVED} Close incident", emoji: true }, value: Identifiers::HOME_ACTION_CLOSE }
             ]
           },
           {

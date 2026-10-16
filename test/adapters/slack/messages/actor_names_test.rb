@@ -13,24 +13,24 @@ class Slack::Messages::ActorNamesTest < ActiveSupport::TestCase
   end
 
   test "status updates, cancellations, resolutions and reopens name the actor" do
-    update = text_of(Slack::Messages::StatusUpdate.build(@incident, message: "x", updated_by_platform_user_id: nil, updated_by_name: "Wendy Web", scope: :inline))
-    resolved = text_of(Slack::Messages::Resolution.build(@incident, resolved_by_platform_user_id: nil, resolved_by_name: "Triage agent"))
-    resolved_thread = text_of(Slack::Messages::Resolution.announcement_thread(@incident, resolved_by_platform_user_id: nil, resolved_by_name: "Wendy Web"))
-    reopened = text_of(Slack::Messages::Reopen.build(@incident, reopened_by_platform_user_id: nil, reopened_by_name: "Wendy Web"))
-    reopened_thread = text_of(Slack::Messages::Reopen.announcement_thread(@incident, reopened_by_platform_user_id: nil, reopened_by_name: "Wendy Web"))
+    update = text_of(Slack::Messages::StatusUpdate.build(@incident, message: "x", updated_by_platform_user_id: nil, updated_by_name: "Wendy Web", scope: :inline, rich: false))
+    resolved = text_of(Slack::Messages::Resolution.build(@incident, resolved_by_platform_user_id: nil, resolved_by_name: "Triage agent", rich: false))
+    resolved_thread = text_of(Slack::Messages::Resolution.announcement_thread(@incident, resolved_by_platform_user_id: nil, resolved_by_name: "Wendy Web", rich: true))
+    reopened = text_of(Slack::Messages::Reopen.build(@incident, reopened_by_platform_user_id: nil, reopened_by_name: "Wendy Web", rich: false))
+    reopened_thread = text_of(Slack::Messages::Reopen.announcement_thread(@incident, reopened_by_platform_user_id: nil, reopened_by_name: "Wendy Web", rich: true))
 
     assert_includes update, "Updated by *Wendy Web*"
     assert_includes resolved, "Resolved by *Triage agent*"
-    assert_includes resolved_thread, "Resolved by: *Wendy Web*"
+    assert_includes resolved_thread, "Resolved by *Wendy Web*"
     assert_includes reopened, "Reopened by *Wendy Web*"
-    assert_includes reopened_thread, "Reopened by: *Wendy Web*"
+    assert_includes reopened_thread, "Reopened by *Wendy Web*"
     [ update, resolved, resolved_thread, reopened, reopened_thread ].each { |text| assert_not_includes text, "<@>" }
   end
 
   test "a person with a Slack account is still mentioned" do
-    resolved_thread = text_of(Slack::Messages::Resolution.announcement_thread(@incident, resolved_by_platform_user_id: "U1", resolved_by_name: "Alice"))
+    resolved_thread = text_of(Slack::Messages::Resolution.announcement_thread(@incident, resolved_by_platform_user_id: "U1", resolved_by_name: "Alice", rich: true))
 
-    assert_includes resolved_thread, "Resolved by: *<@U1>*"
+    assert_includes resolved_thread, "Resolved by <@U1>"
   end
 
   test "the lead announcement and the incident details name a lead and a declarer with no Slack account" do
@@ -38,12 +38,12 @@ class Slack::Messages::ActorNamesTest < ActiveSupport::TestCase
     @incident.update!(declared_by: @agent)
 
     lead = text_of(Slack::Messages::LeadAssignment.announcement(lead_platform_user_id: nil, lead_name: "Wendy Web"))
-    details = text_of(Slack::Messages::IncidentDetail.for_incident(@incident.reload))
+    details = text_of(Slack::Messages::Announcement.build(@incident.reload, rich: true))
     postmortem = text_of(Slack::Messages::Postmortem.build(@incident, Postmortem.new(title: "Review")))
 
     assert_includes lead, "*Wendy Web* is now the *Incident Lead*"
-    assert_includes details, "*Lead:* *Wendy Web*"
-    assert_includes details, "*Declared by:* *Triage agent*"
+    assert_includes details, "Lead *Wendy Web*"
+    assert_includes details, "Declared by *Triage agent*"
     assert_includes postmortem, "Lead: *Wendy Web*"
   end
 

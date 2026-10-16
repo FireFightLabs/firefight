@@ -223,11 +223,20 @@ class Chat::CodeFixProgress
 
   # How far it got in counts alone, for a channel, where the latest thing it did would name files and commands.
   def counts_line
+    lead = waiting_for_answer? ? "Waiting for an answer" : "Writing the change"
+    "#{lead}: #{counts.join(', ')} so far"
+  end
+
+  # The same for a chat's thread, which also says how it ended once it has.
+  def thread_line
+    finished? ? [ finished_words, *counts ].join(" · ").truncate(HEADLINE_LIMIT) : counts_line
+  end
+
+  def counts
     counts = [ "#{total} #{'step'.pluralize(total)}" ]
     counts << "#{changed.size} #{'file'.pluralize(changed.size)} changed" if changed.any?
     counts << tests_words if tests.any?
-    lead = waiting_for_answer? ? "Waiting for an answer" : "Writing the change"
-    "#{lead}: #{counts.join(', ')} so far"
+    counts
   end
 
   # Changes only when there is something new to show.

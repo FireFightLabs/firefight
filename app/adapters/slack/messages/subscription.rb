@@ -9,51 +9,29 @@ module Slack
         ]
       end
 
-      # A DM has no announcement above it, so it gets the incident's name on
-      # top and the ways out underneath.
-      def self.wrap_update(incident, blocks, workspace:, homepage_url:)
-        heading = [
-          { type: "section", text: { type: "mrkdwn", text: heading_text(incident) } },
-          { type: "divider" }
-        ]
-        footer = [
-          { type: "divider" },
-          { type: "actions", elements: footer_buttons(incident, workspace: workspace, homepage_url: homepage_url) }
-        ]
-        heading + blocks + footer
+      # What a subscriber is sent for each update to an incident: one short card naming the incident, what happened as
+      # its subtitle and the words of the update as its body, with Open channel, Open in Firefight and Unsubscribe. The
+      # announcement thread's reply itself is never copied, a direct message sits under nothing and is read in one glance.
+      def self.digest(incident, headline:, body:, icon:, homepage_url:, rich:)
+        WholeCard.build(
+          rich: rich, title: Slack::Mrkdwn.escape(IncidentDetail.title_for(incident)), subtitle: headline,
+          body: (Formatting.markdown_to_mrkdwn(body) if body.present?), quoted: true,
+          actions: digest_buttons(incident, homepage_url: homepage_url), icon: icon
+        )
       end
 
-      def self.heading_text(incident)
-        title = ":rotating_light: *#{Slack::Mrkdwn.escape(IncidentDetail.title_for(incident))}*"
-        incident.channel_id.present? ? "#{title} in <##{incident.channel_id}>" : title
-      end
-
-      def self.footer_buttons(incident, workspace:, homepage_url:)
+      def self.digest_buttons(incident, homepage_url:)
         buttons = []
-        if incident.channel_id.present?
-          buttons << {
-            type: "button",
-            text: { type: "plain_text", text: ":speech_balloon: Open channel", emoji: true },
-            url: "https://slack.com/app_redirect?team=#{workspace.platform_id}&channel=#{incident.channel_id}",
-            action_id: Identifiers::OPEN_INCIDENT_CHANNEL
-          }
-        end
-        if homepage_url
-          buttons << {
-            type: "button",
-            text: { type: "plain_text", text: ":globe_with_meridians: Incident homepage", emoji: true },
-            url: homepage_url,
-            action_id: Identifiers::INCIDENT_HOMEPAGE
-          }
-        end
+        buttons << IncidentDetail.join_channel_button(incident, label: "Open channel") if incident.channel_id.present?
+        buttons << IncidentDetail.homepage_button(homepage_url) if homepage_url
         buttons << unsubscribe_button(incident)
       end
-      private_class_method :footer_buttons
+      private_class_method :digest_buttons
 
       def self.subscribe_button(incident)
         {
           type: "button",
-          text: { type: "plain_text", text: ":bell: Subscribe", emoji: true },
+          text: { type: "plain_text", text: "#{Slack::Emoji::SUBSCRIBE} Subscribe", emoji: true },
           action_id: Identifiers::SUBSCRIBE_INCIDENT,
           value: incident.id
         }
@@ -63,7 +41,7 @@ module Slack
       def self.unsubscribe_button(incident)
         {
           type: "button",
-          text: { type: "plain_text", text: ":no_bell: Unsubscribe", emoji: true },
+          text: { type: "plain_text", text: "#{Slack::Emoji::UNSUBSCRIBE} Unsubscribe", emoji: true },
           action_id: Identifiers::UNSUBSCRIBE_INCIDENT,
           value: incident.id
         }

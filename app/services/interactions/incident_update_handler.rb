@@ -45,7 +45,7 @@ module Interactions
     rescue ActiveRecord::RecordNotFound => e
       Rails.logger.warn({ event: "interactions.incident_update.record_not_found", error: e.message })
       Interactions::ModalCleanup.delete_temp_message(workspace, metadata) if workspace && metadata
-      workspace.adapter.form_error_response(IncidentSystemField::KEY_STATUS, "Something went wrong. Please close this modal and try again.")
+      workspace.adapter.form_error_response(IncidentSystemField::KEY_STATUS, Interactions::ModalCleanup::RECORD_GONE)
     end
 
     # A blank next_update_at here means the save cleared it because the incident is over.

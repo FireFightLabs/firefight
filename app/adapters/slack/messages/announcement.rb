@@ -1,43 +1,40 @@
 module Slack
   module Messages
-    # `build_from` takes a plain hash for the install-time preview, when there
-    # is no incident yet.
+    # An incident in #incidents, as one card: its title, its state on one line, its summary, and Join channel, Subscribe
+    # and Open in Firefight. Who declared it, and custom fields and linked incidents when it has them, follow the card.
+    # `build_from` takes a plain hash for the install-time preview, when there is no incident yet.
     module Announcement
-      def self.build(incident)
-        blocks = IncidentDetail.for_incident(incident, channel_id: incident.channel_id)
-        blocks + footer(Slack::DashboardUrl.incident(incident), incident_id: incident.id)
+      def self.build(incident, rich:)
+        card = WholeCard.build(
+          rich: rich,
+          title: Mrkdwn.escape(IncidentDetail.title_for(incident)),
+          subtitle: IncidentDetail.state_line_for(incident),
+          body: body_from(incident.summary), quoted: true,
+          actions: [
+            (IncidentDetail.join_channel_button(incident) if incident.channel_id.present?),
+            IncidentDetail.subscribe_button(incident.id),
+            IncidentDetail.homepage_button(Slack::DashboardUrl.incident(incident))
+          ].compact,
+          icon: Slack::Emoji::DECLARED
+        )
+        footer = [ IncidentDetail.declared_by_line(incident), (IncidentDetail::TEST_NOTE if incident.is_test?) ].compact
+        card + [ Slack::Blocks.context(footer.join(Formatting::SEPARATOR)) ] + IncidentDetail.extra_blocks(incident)
       end
 
-      def self.build_from(title:, summary:, severity_name:, status_name:, type_name: nil, reporter_id:, lead_id: nil, channel_id: nil, relationship_text: nil, custom_fields_text: nil, homepage_url: nil)
-        IncidentDetail.blocks(
-          title: title, summary: summary, severity_name: severity_name, status_name: status_name,
-          reporter_id: reporter_id, lead_id: lead_id, channel_id: channel_id,
-          relationship_text: relationship_text, custom_fields_text: custom_fields_text
-        ) + footer(homepage_url, incident_id: nil)
+      def self.build_from(title:, summary:, severity_name:, status_name:, reporter_id:, rich:, homepage_url: nil)
+        card = WholeCard.build(
+          rich: rich,
+          title: Mrkdwn.escape(title),
+          subtitle: IncidentDetail.state_line(severity_name: severity_name, status_name: status_name),
+          body: body_from(summary), quoted: true,
+          actions: [ IncidentDetail.subscribe_button(nil), IncidentDetail.homepage_button(homepage_url) ],
+          icon: Slack::Emoji::DECLARED
+        )
+        card + [ Slack::Blocks.context("Declared by #{Mrkdwn.person(reporter_id, nil)}") ]
       end
 
-      # The preview has no incident to subscribe to, so its button is inert.
-      def self.footer(homepage_url, incident_id:)
-        homepage_button = {
-          type: "button",
-          text: { type: "plain_text", text: ":globe_with_meridians: Incident homepage", emoji: true },
-          action_id: homepage_url ? Identifiers::INCIDENT_HOMEPAGE : Identifiers::PREVIEW_HOMEPAGE_DISABLED
-        }
-        homepage_button[:url] = homepage_url if homepage_url
-
-        subscribe_button = {
-          type: "button",
-          text: { type: "plain_text", text: ":bell: Subscribe", emoji: true },
-          action_id: incident_id ? Identifiers::SUBSCRIBE_INCIDENT : Identifiers::PREVIEW_SUBSCRIBE_DISABLED
-        }
-        subscribe_button[:value] = incident_id if incident_id
-
-        [
-          { type: "divider" },
-          { type: "actions", elements: [ homepage_button, subscribe_button ] }
-        ]
-      end
-      private_class_method :footer
+      def self.body_from(text) = (Formatting.markdown_to_mrkdwn(text) if text.present?)
+      private_class_method :body_from
     end
   end
 end

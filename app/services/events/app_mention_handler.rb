@@ -15,10 +15,10 @@ module Events
       return unless incident || investigate?(user_text)
 
       gate = Entitlements.check(workspace, Entitlements::AI)
-      return notify_blocked(workspace, channel_id, event["user"], gate.message) if gate.blocked?
+      return notify_blocked(workspace, channel_id, event, gate.message) if gate.blocked?
 
       unready = Investigation.unknown_window_reason(workspace)
-      return notify_blocked(workspace, channel_id, event["user"], unready) if unready
+      return notify_blocked(workspace, channel_id, event, unready) if unready
 
       acknowledge(workspace, channel_id, event["ts"])
       return investigate(workspace, channel_id, event, user_text) if investigate?(user_text)
@@ -44,7 +44,10 @@ module Events
         channel_id: channel_id, metadata: { command: Identifiers::COMMAND_FF, Command::SHARED_FILE_IDS => files.map(&:id) }
       )
       refusal = CommandDispatcher.dispatch(command)
-      notify_blocked(workspace, channel_id, event["user"], refusal[:text]) if refusal.is_a?(Hash)
+      return notify_blocked(workspace, channel_id, event, refusal[:text], marked: true) if refusal.is_a?(Hash)
+
+      # The run answers in its own live checklist, so the mention is done once the run has started.
+      workspace.adapter.mark_done(channel_id: channel_id, message_id: event["ts"])
     end
     private_class_method :investigate
 
@@ -52,7 +55,10 @@ module Events
       member = Conversation::Opener.member(workspace, event["user"])
       files = shared_files(workspace, event, member)
       refusal = run.add_note_from(read_by_model(workspace, user_text), member: member, source: AbilityGateway::SOURCE_SLACK, files: files, as_written: user_text)
-      notify_blocked(workspace, channel_id, event["user"], refusal) if refusal
+      return notify_blocked(workspace, channel_id, event, refusal, marked: true) if refusal
+
+      # The run shows it read the note among its steps, so the mention is done once the note is taken.
+      workspace.adapter.mark_done(channel_id: channel_id, message_id: event["ts"])
     end
     private_class_method :add_note
 
@@ -63,10 +69,11 @@ module Events
           workspace: workspace, incident: incident, channel_id: channel_id,
           thread_id: thread_id, platform_user_id: event["user"]
         )
-        Conversation::Asking.ask(conversation, read_by_model(workspace, user_text), asker: asker, files: shared_files(workspace, event, asker), as_written: user_text)
+        Conversation::Asking.ask(conversation, read_by_model(workspace, user_text), asker: asker, files: shared_files(workspace, event, asker),
+                                 as_written: user_text, acknowledged_message_id: event["ts"])
       end
     rescue AbilityGateway::Denied => e
-      notify_blocked(workspace, channel_id, event["user"], AuthorizedDispatch.denied_message(e))
+      notify_blocked(workspace, channel_id, event, AuthorizedDispatch.denied_message(e), marked: true)
     end
     private_class_method :answer
 
@@ -83,16 +90,17 @@ module Events
     private_class_method :read_by_model
 
     def self.acknowledge(workspace, channel_id, timestamp)
-      workspace.adapter.add_reaction(channel_id: channel_id, message_id: timestamp, name: "eyes")
-    rescue AdapterError => e
-      Rails.logger.info({ event: "events.app_mention.reaction_failed", error: e.message }.to_json)
+      workspace.adapter.mark_working(channel_id: channel_id, message_id: timestamp)
     end
     private_class_method :acknowledge
 
-    def self.notify_blocked(workspace, channel_id, user_id, message)
+    # Said to the person alone, in the thread they asked in and in their direct messages, where it stays once they
+    # reload. The message stops showing that Halon is working on it.
+    def self.notify_blocked(workspace, channel_id, event, message, marked: false)
       return if message.blank?
 
-      workspace.adapter.post_ephemeral(channel_id: channel_id, user_id: user_id, text: message)
+      workspace.adapter.unmark_working(channel_id: channel_id, message_id: event["ts"]) if marked
+      workspace.adapter.post_refusal(channel_id: channel_id, thread_id: event["thread_ts"], user_id: event["user"], text: message)
     rescue AdapterError => e
       Rails.logger.info({ event: "events.app_mention.blocked_notice_failed", error: e.message }.to_json)
     end

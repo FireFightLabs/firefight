@@ -25,9 +25,10 @@ class IncidentUpdateService
 
   def update_channel_topic(incident)
     adapter = @workspace.adapter
-    type_text = incident.incident_type ? " | Type: #{incident.incident_type.name}" : ""
-    lead_text = incident.lead ? " | Lead: #{incident.lead.user.name}" : ""
-    topic = "Severity: #{incident.incident_severity.name} | Status: #{incident.incident_status.name}#{type_text}#{lead_text}"
+    parts = [ "Severity: #{incident.incident_severity.name}", "Status: #{incident.incident_status.name}" ]
+    parts << "Type: #{incident.incident_type.name}" if incident.incident_type
+    parts << "Lead: #{incident.lead.user.name}" if incident.lead
+    topic = parts.join(Incident::TOPIC_SEPARATOR)
     adapter.set_channel_topic(
       channel_id: incident.channel_id,
       topic: topic

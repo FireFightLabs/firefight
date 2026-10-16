@@ -82,8 +82,8 @@ class Conversation::Delivery
     screenshotted << key if step.card&.kind == Chat::Tools::CARD_SCREENSHOTS
     flush_text!
     adapter.report_agent_step(
-      channel_id: @conversation.channel_id, answer_id: @answer_id, key: key, title: step.title, status: status, outcome: outcome&.kind,
-      details: progress&.headline
+      channel_id: @conversation.channel_id, answer_id: @answer_id, key: key, title: step.shown_line, status: status, outcome: outcome&.kind,
+      details: progress&.thread_line
     )
     shown!
   end
@@ -94,8 +94,8 @@ class Conversation::Delivery
     return unless progress_pace.due?(key, progress)
 
     adapter.report_agent_step(
-      channel_id: @conversation.channel_id, answer_id: @answer_id, key: key, title: step.title,
-      status: FirefightAi::AgentLoop::STEP_RUNNING, details: progress.headline
+      channel_id: @conversation.channel_id, answer_id: @answer_id, key: key, title: step.shown_line,
+      status: FirefightAi::AgentLoop::STEP_RUNNING, details: progress.thread_line
     )
   end
 
@@ -143,6 +143,7 @@ class Conversation::Delivery
       answer_id: @answer_id, text: Chat::Chart::Marker.strip(reply), streamed: streamed?, sources: sources
     )
     @conversation.answer_finished!
+    mark_answered
     post_cards
   rescue AdapterError => error
     Rails.logger.warn({
@@ -166,6 +167,7 @@ class Conversation::Delivery
     )
     @conversation.confirmation_posted!(posted[:message_id])
     @conversation.answer_finished!
+    mark_answered
   rescue AdapterError => error
     Rails.logger.warn({ event: "conversation.confirmation_undelivered", conversation_id: @conversation.id, error: error.message }.to_json)
   end
@@ -191,6 +193,11 @@ class Conversation::Delivery
   def helper_pace = @helper_pace ||= Chat::CodeFixProgress::Pace.new(every: adapter.agent_step_update_interval)
 
   def cards = @cards ||= []
+
+  # The messages this turn answered stop showing that Halon is working on them.
+  def mark_answered
+    @conversation.take_acknowledged!.each { |message_id| adapter.mark_done(channel_id: @conversation.channel_id, message_id: message_id) }
+  end
 
   def charted = @charted ||= []
 

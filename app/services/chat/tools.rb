@@ -30,8 +30,12 @@ module Chat::Tools
 
   # source is the provider a call went through, such as GitHub, which a run of steps is summed up by. nil for Firefight's
   # own tools.
-  Step = Data.define(:title, :headline, :asked, :card, :source) do
-    def initialize(source: nil, **) = super
+  # line is the step as a chat platform's thread shows it, plain words that never name the tool, its connection or a
+  # file. nil when the title already reads that way.
+  Step = Data.define(:title, :headline, :asked, :card, :source, :line) do
+    def initialize(source: nil, line: nil, **) = super
+
+    def shown_line = line || title
   end
 
   # A result the page draws as something other than text. The step carries only what to draw, and the page
@@ -249,8 +253,37 @@ module Chat::Tools
     asked = shown_arguments(arguments.to_h.stringify_keys.except(*FOR_PERSON, LookFirst::BECAUSE))
     Step.new(
       title: title_for(tool_name, workspace, arguments.to_h.stringify_keys), headline: intent_of(arguments) || headline_for(tool_name, asked), asked: asked,
-      card: card_for(tool_name, arguments), source: source_for(tool_name, workspace)
+      card: card_for(tool_name, arguments), source: source_for(tool_name, workspace), line: line_for(tool_name, arguments, workspace)
     )
+  end
+
+  # The words the agent wrote for the call when it wrote any, otherwise the kind of system the call reads, as an
+  # investigation's checklist names it (Investigation::Progress::TITLES), so "Read the code" and never "Github fix code · acme".
+  # A connection whose provider answers no kind of question is named by its provider, and Firefight's own tools that read
+  # no system of the workspace's say they gathered what Firefight knows.
+  def self.line_for(tool_name, arguments, workspace)
+    short_title_of(arguments) || line_by_group(tool_name.to_s, workspace)
+  end
+
+  def self.line_by_group(name, workspace)
+    titles = Investigation::Progress::TITLES
+    group = Investigation::Progress.tool_groups[name]
+    return titles.fetch(group) if group
+
+    integration = workspace && Target.label(workspace, name)&.integration
+    if integration
+      group = Investigation::Progress::SPECIALIST_GROUPS[IntegrationProvider.specialist_for(integration.provider)]
+      return group ? titles.fetch(group) : "Checked #{source_for(name, workspace)}"
+    end
+
+    titles.fetch(Investigation::Progress::RESOURCE_GROUPS[own_resource(name, workspace)] || Investigation::Progress::KNOWN)
+  end
+
+  def self.own_resource(name, workspace)
+    own = Mcp::Tools.all.find { |tool_class| tool_class.name_value.to_s == name }
+    own && Array(own.authorization(workspace, {})).first
+  rescue NotImplementedError, ActiveRecord::RecordNotFound
+    nil
   end
 
   def self.source_for(tool_name, workspace)

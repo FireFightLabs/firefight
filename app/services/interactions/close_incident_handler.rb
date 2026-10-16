@@ -43,7 +43,7 @@ module Interactions
     rescue ActiveRecord::RecordNotFound => e
       Rails.logger.warn({ event: "interactions.close_incident.record_not_found", error: e.message })
       Interactions::ModalCleanup.delete_temp_message(workspace, metadata) if workspace && metadata
-      workspace.adapter.form_error_response(IncidentSystemField::KEY_SUMMARY, "Something went wrong. Please close this modal and try again.")
+      workspace.adapter.form_error_response(IncidentSystemField::KEY_SUMMARY, Interactions::ModalCleanup::RECORD_GONE)
     end
 
     # Slack hands over a platform user id, so the person may not have a membership row yet.

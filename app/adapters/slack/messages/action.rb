@@ -17,7 +17,7 @@ module Slack
           {
             type: "context",
             elements: [
-              { type: "mrkdwn", text: "Added by #{creator}  |  #{action.assigned? ? "Assigned to #{Mrkdwn.mention(action.assignee)}" : "Unassigned"}" }
+              { type: "mrkdwn", text: "Added by #{creator}#{Formatting::SEPARATOR}#{action.assigned? ? "Assigned to #{Mrkdwn.mention(action.assignee)}" : "Unassigned"}" }
             ]
           }
         ]
