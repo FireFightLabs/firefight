@@ -72,13 +72,21 @@ module FirefightAi
     # be read (RubyLLM::ToolCallParseError), which a chat, a helper and a specialist do so one bad reply does not end them.
     # canceled says whether someone stopped the run. It is read between steps and, while tools run, every
     # STOP_CHECK_EVERY seconds, so a stop ends the run whatever a tool is waiting on (run_tools).
+    # hold_history is for a chat a person comes back to after a pause. A run's first call caches the history it starts
+    # from, and memory keeps that boundary in the saved chat in place of the run before's (hold_history!), so the next
+    # turn reads it whatever happened in between. Where the provider keeps a boundary for CACHE_BETWEEN_TURNS, the
+    # instructions and that boundary last that long, and every other boundary keeps the provider's five minutes, which
+    # costs less to write (cache_marks).
     def initialize(chat:, budget:, answered:, inference:, canceled: NEVER_CANCELED, on_step: nil, on_chunk: nil,
                    reply_is_answer: false, nudge: nil, memory: nil, take_messages: nil, output: nil,
                    choice: nil, purpose: AiPurpose::INVESTIGATION, purse: nil, on_backup: nil, on_take_over: nil, on_progress: nil,
-                   steady: false, checks: [], retry_malformed: false, context: nil)
+                   steady: false, checks: [], retry_malformed: false, context: nil, hold_history: false)
       @chat = chat
       @choice = choice || ModelChoice.new(model: inference[:model], provider: inference[:provider])
       @purpose = purpose
+      @memory = memory
+      @holds_history = hold_history && !memory.nil?
+      @hold_history = @holds_history
       @output = output
       @output_limit = output&.max
       @room = Room.new(chat, memory)
@@ -241,7 +249,10 @@ module FirefightAi
     # when one can carry on, and otherwise fails the run. A provider that stopped answering, after RubyLLM's own retries,
     # hands the run to a backup when one is set up.
     def generate
-      Inference.track(tracked) { with_context_last { @chat.step(&streamer) } }.first
+      holding = @hold_history
+      reply = Inference.track(tracked) { with_context_last(holding: holding) { @chat.step(&streamer) } }.first
+      hold_history if holding
+      reply
     rescue RubyLLM::ContextLengthExceededError
       raise if @made_room_after_refusal || !@room.possible?
 
@@ -333,27 +344,72 @@ module FirefightAi
 
     # The context goes after everything the chat holds for this one call, and comes out again once the reply is in, so
     # the reply and the tool results after it are saved where they would be without it. Where the chat is cached as it
-    # grows, the message before the context is marked a cache boundary for this call only, on a copy, so no later call
-    # carries the mark. Otherwise a provider that caches at boundaries, such as Anthropic, would write the history with this context at
-    # its end and find none of it on the next call, whose context comes after more of the chat.
-    def with_context_last
+    # grows, the history in front of the context ends in a cache boundary for this call only, marked on a copy, so no
+    # later call carries the mark. Otherwise a provider that caches at boundaries, such as Anthropic, would write the history with this context at
+    # its end and find none of it on the next call, whose context comes after more of the chat. holding marks the
+    # boundary the run's first call holds (hold_history).
+    def with_context_last(holding: false)
       return yield unless @context
 
       llm = @chat.to_llm
-      last = llm.messages.last
-      marked = last.dup.tap(&:cache_until_here) if llm.caching && last && !last.cache_until_here? && !opening?(llm, last)
-      swap(llm.messages, last, marked) if marked
+      marks = cache_marks(llm, holding)
+      marks.each { |message, copy| swap(llm.messages, message, copy) }
       note = llm.add_message(role: :user, content: @context)
       yield
     ensure
       if @context
         messages = @chat.to_llm.messages
         messages.delete_if { |message| message.equal?(note) } if note
-        swap(messages, marked, last) if marked
+        marks&.each { |message, copy| swap(messages, copy, message) }
       end
     end
 
-    # The chat's first message after the instructions is never marked, since OpenRouter keys a route on it as sent.
+    # Each message marked for this call with the copy that carries the mark. In a chat that holds its history, on a model
+    # whose provider keeps a boundary for an hour, the saved boundaries (the instructions and the held history) and the
+    # one a run's first call holds last that long, ahead of every five minute one as Anthropic requires. The lifetime is
+    # decided on each call, so a chat a backup moved to another provider sends only what that provider takes.
+    def cache_marks(llm, holding)
+      return [] unless llm.caching
+
+      lasting = FirefightAi::CACHE_BETWEEN_TURNS if @holds_history && FirefightAi.lasting_cache?(@choice)
+      boundary = boundary_in(llm)
+      @holding = boundary if holding
+      saved = lasting ? llm.messages.select(&:cache_until_here?) : []
+      [ *saved.map { |message| [ message, marked(message, lasting) ] }, *([ [ boundary, marked(boundary, (lasting if holding)) ] ] if boundary) ]
+    end
+
+    def marked(message, ttl) = message.dup.tap { |copy| copy.cache_until_here(ttl: ttl) }
+
+    # The message the cached history ends at: the last one, or the one before a run of user messages, since OpenRouter
+    # sends a run of plain messages as one text and a marked message as a block of its own. Marking the last of such a
+    # run sent it differently on this call than on every call after, and each of those found nothing cached past the
+    # run's start. Seen on a long chat, a call seconds after its history was cached read only the instructions and wrote
+    # 270,000 tokens again. nil when that message cannot be marked.
+    def boundary_in(llm)
+      messages = llm.messages
+      first = messages.size - 1
+      first -= 1 while first.positive? && messages[first].role == :user && messages[first - 1].role == :user
+      boundary = first == messages.size - 1 ? messages[first] : messages[first - 1]
+      boundary if boundary && markable?(llm, boundary)
+    end
+
+    # The chat's first message after the instructions is never marked, since OpenRouter keys a route on it as sent, nor
+    # is a reply with no words, which a provider refuses a boundary on.
+    def markable?(llm, message)
+      message.role != :system && !message.cache_until_here? && !opening?(llm, message) &&
+        !(message.role == :assistant && message.content.to_s.strip.empty?)
+    end
+
+    # The boundary the run's first call was cached up to is kept in the saved chat, found by how many messages follow
+    # it, in place of the one the run before kept. Only the first call of a run holds one.
+    def hold_history
+      @hold_history = false
+      boundary = @holding
+      @holding = nil
+      index = boundary && messages.index { |message| message.equal?(boundary) }
+      @memory.hold_history!(after: messages.size - 1 - index) if index
+    end
+
     def opening?(llm, message) = llm.messages.find { |candidate| candidate.role != :system }.equal?(message)
 
     def swap(messages, from, to)
