@@ -12,12 +12,17 @@ class AddPlainWordsToInvestigationAnswers < ActiveRecord::Migration[8.1]
     add_column :investigation_remediation_steps, :failure, :string
     add_column :investigation_remediation_plans, :ending_told_at, :datetime
 
-    # A fix that ended before this was told by its own message then, so it is never told a second time.
+    # A fix that ended before this was told by its own message then, so it is never told a second time. A cancelled fix
+    # whose step is still running ends when that step does, so it is left for that ending to be told.
     reversible do |direction|
       direction.up do
         execute <<~SQL.squish
           UPDATE investigation_remediation_plans SET ending_told_at = updated_at
-          WHERE status IN ('applied', 'partly_applied', 'cancelled')
+          WHERE status IN ('applied', 'partly_applied')
+             OR (status = 'cancelled' AND NOT EXISTS (
+                   SELECT 1 FROM investigation_remediation_steps
+                   WHERE investigation_remediation_steps.plan_id = investigation_remediation_plans.id
+                     AND investigation_remediation_steps.status = 'running'))
         SQL
       end
     end
