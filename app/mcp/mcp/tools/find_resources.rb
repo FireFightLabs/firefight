@@ -4,7 +4,7 @@ module Mcp
     class FindResources < Base
       extend MapPayloads
 
-      tool_name FIND_RESOURCES
+      tool_name FirefightTools::FIND_RESOURCES
       authorize_as Ability::Action::RESOURCE_MAP
       description "Find resources on the resource map by what they are, where they run and who owns them, a page at a time. " \
                   "Filter by provider, kind, account, environment, status, health, owning team, catalog service, provider " \

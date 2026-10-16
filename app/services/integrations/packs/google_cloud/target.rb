@@ -35,7 +35,6 @@ module Integrations
 
         def job? = type == TYPE_JOB
 
-        # A delivery pipeline or one of its stages.
         def deploy? = [ TYPE_PIPELINE, TYPE_STAGE ].include?(type)
 
         # The delivery pipeline a pipeline or stage is, by its own name.

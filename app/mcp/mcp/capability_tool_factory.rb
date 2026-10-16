@@ -47,9 +47,9 @@ module Mcp
 
       from, to = ResourceMap::Timeline.window(given)
       timeline = ResourceMap::Timeline.new(workspace: workspace, principal: principal, subject: subject, from: from, to: to)
-      live, read = what_changed_runs(timeline, server_context)
       AbilityGateway.authorize!(principal: principal, action_key: Ability::Action::MAP_READ, workspace: workspace, params: given,
                                 context: { source: AbilityGateway::SOURCE_MCP }) do
+        live, read = what_changed_runs(timeline, server_context)
         ::MCP::Tool::Response.new([ { type: "text", text: timeline.text(live: live, read: read) } ], structured_content: timeline.to_h(live: live, read: read))
       end
     rescue ArgumentError => e

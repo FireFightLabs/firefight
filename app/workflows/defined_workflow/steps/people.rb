@@ -10,7 +10,7 @@ module DefinedWorkflow::Steps::People
   TO_ROLE = "role".freeze
   TO_ON_CALL = "on_call".freeze
   TO = [ TO_PERSON, TO_LEAD, TO_ROLE, TO_ON_CALL ].freeze
-  # Who needs an incident to be found.
+  # The kinds of recipient that are read off an incident, so the step needs one.
   FROM_INCIDENT = [ TO_LEAD, TO_ROLE, TO_ON_CALL ].freeze
 
   module_function
@@ -55,7 +55,7 @@ module DefinedWorkflow::Steps::People
   def incident(workspace, config)
     return if config[KEY_INCIDENT].to_s.strip.empty?
 
-    Mcp::Tools::GetIncident.find_by_reference(workspace.incidents.where(deleted_at: nil), config[KEY_INCIDENT].to_s)
+    workspace.incidents.where(deleted_at: nil).find_by_reference(config[KEY_INCIDENT].to_s)
   end
 
   def nobody_words(workspace, config)

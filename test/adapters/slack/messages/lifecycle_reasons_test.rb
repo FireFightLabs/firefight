@@ -1,6 +1,6 @@
 require "test_helper"
 
-# The reason a person gave for a milestone is the message's body: right under the divider, before the fields, and quoted
+# The reason a person gave for a milestone is the message's body, right under the divider, before the fields, and quoted
 # on every line so a second line never reads as Firefight's own words.
 class Slack::Messages::LifecycleReasonsTest < ActiveSupport::TestCase
   REASON = "Checkout errors are back\nsince the 14:05 deploy".freeze

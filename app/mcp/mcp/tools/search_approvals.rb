@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class SearchApprovals < Base
-      tool_name SEARCH_APPROVALS
+      tool_name FirefightTools::SEARCH_APPROVALS
       description "Search this workspace's ability approvals: calls parked behind an approval " \
                   "policy, who requested them, and how they resolved. Poll your own approval " \
                   "id here after a call parks, then retry the identical call with approval_id " \

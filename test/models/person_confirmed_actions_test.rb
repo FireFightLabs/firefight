@@ -31,9 +31,9 @@ class PersonConfirmedActionsTest < ActiveSupport::TestCase
     grant = Ability::Action.system!("permissions.create")
     turn = Conversation::Turn.new(conversation, asker: @admin)
 
-    assert turn.confirms?(grant, allowed: true, tool_name: Mcp::Tools::GRANT_ABILITY, asks_a_person: true)
-    turn.instance_variable_set(:@approved_tools, [ Mcp::Tools::GRANT_ABILITY ])
-    assert turn.confirms?(grant, tool_name: Mcp::Tools::GRANT_ABILITY, asks_a_person: true)
+    assert turn.confirms?(grant, allowed: true, tool_name: FirefightTools::GRANT_ABILITY, asks_a_person: true)
+    turn.instance_variable_set(:@approved_tools, [ FirefightTools::GRANT_ABILITY ])
+    assert turn.confirms?(grant, tool_name: FirefightTools::GRANT_ABILITY, asks_a_person: true)
     tool = Chat::Tools::Firefight.new(turn, Mcp::Tools::GrantAbility, grant)
     assert tool.requires_approval?, "Halon's own tool asks"
     assert_not turn.confirms?(Ability::Action.system!("catalog.create"), allowed: true, tool_name: "upsert_catalog_entry")
@@ -45,17 +45,17 @@ class PersonConfirmedActionsTest < ActiveSupport::TestCase
     )
     chat = conversation.chat_record
     message = chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
-    call = message.ruby_llm_tool_calls.create!(tool_call_id: "call_grant", name: Mcp::Tools::GRANT_ABILITY, arguments: { "principal" => "bob" })
+    call = message.ruby_llm_tool_calls.create!(tool_call_id: "call_grant", name: FirefightTools::GRANT_ABILITY, arguments: { "principal" => "bob" })
     chat.request_decisions!([ "call_grant" ])
     call.reload
 
     assert_not Chat::Tools.confirmation(call).allowable?
     Conversation::Confirming.decide(conversation, [ { tool_call_id: "call_grant", approved: true, for_chat: true } ], by: @admin)
-    assert_not chat.reload.allows_tool?(Mcp::Tools::GRANT_ABILITY), "approving it never allows it for the rest of the chat"
+    assert_not chat.reload.allows_tool?(FirefightTools::GRANT_ABILITY), "approving it never allows it for the rest of the chat"
 
-    later = message.ruby_llm_tool_calls.create!(tool_call_id: "call_grant_again", name: Mcp::Tools::GRANT_ABILITY, arguments: { "principal" => "carol" })
+    later = message.ruby_llm_tool_calls.create!(tool_call_id: "call_grant_again", name: FirefightTools::GRANT_ABILITY, arguments: { "principal" => "carol" })
     chat.request_decisions!([ "call_grant_again" ])
-    chat.allow_tool!(Mcp::Tools::GRANT_ABILITY)
+    chat.allow_tool!(FirefightTools::GRANT_ABILITY)
     assert_no_enqueued_jobs(only: ConversationReplyJob) do
       Conversation::Confirming.decide(conversation, [], by: @admin)
     end

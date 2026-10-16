@@ -3,7 +3,7 @@ module Mcp
     class DeleteSeverity < Base
       include ConfiguresOption
 
-      tool_name DELETE_SEVERITY
+      tool_name FirefightTools::DELETE_SEVERITY
       deletes_option IncidentSeverity, resource: Ability::Action::RESOURCE_SEVERITIES
 
       def self.perform(workspace:, args:)

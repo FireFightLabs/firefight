@@ -1,5 +1,5 @@
 # A step's output pinned on a draft, so a test run tries the steps after it without calling it again. A pin is a test
-# aid, never content: a published version runs every step, and pins ride along to the next draft opened from it. Each
+# aid, never content. A published version runs every step, and pins ride along to the next draft opened from it. Each
 # pin is written with one guarded update on the draft, so a pin never lands on a version that was published meanwhile.
 module Workflow::Version::Pins
   extend ActiveSupport::Concern

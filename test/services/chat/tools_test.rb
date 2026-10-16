@@ -25,7 +25,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
   test "a step through a connection names the provider it went through, so a run of steps can say where it read" do
     assert_equal "Fake", Chat::Tools.step("fake_echo_text", { "text" => "hi" }, workspace: @workspace).source
-    assert_nil Chat::Tools.step(Mcp::Tools::SEARCH_INCIDENTS, { "query" => "checkout" }, workspace: @workspace).source
+    assert_nil Chat::Tools.step(FirefightTools::SEARCH_INCIDENTS, { "query" => "checkout" }, workspace: @workspace).source
   end
 
   test "a connection tool is handed the run's box key, so every code read in the run shares one sandbox" do
@@ -124,10 +124,10 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     grant!(@tool)
     grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
     chat = open_chat
-    chat.remember_found_tools!([ Mcp::Tools::SEARCH_INCIDENTS ])
-    chat.remember_found_tools!([ "fake_echo_text", Mcp::Tools::SEARCH_INCIDENTS ])
+    chat.remember_found_tools!([ FirefightTools::SEARCH_INCIDENTS ])
+    chat.remember_found_tools!([ "fake_echo_text", FirefightTools::SEARCH_INCIDENTS ])
 
-    assert_equal [ Mcp::Tools::SEARCH_INCIDENTS, "fake_echo_text" ], Chat::Tools.known(@investigation, chat).map(&:name)
+    assert_equal [ FirefightTools::SEARCH_INCIDENTS, "fake_echo_text" ], Chat::Tools.known(@investigation, chat).map(&:name)
   end
 
   test "a remembered tool whose grant was taken away is not handed back" do
@@ -176,9 +176,9 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
     answer = open_tool(offer: ->(tools) { offered.concat(tools) }).call(group: Chat::Tools::Groups::INCIDENT_HISTORY)
 
-    assert_match Mcp::Tools::SEARCH_INCIDENTS, answer
-    assert_includes offered.map(&:name), Mcp::Tools::SEARCH_INCIDENTS
-    assert_not_includes offered.map(&:name), Mcp::Tools::DECLARE_INCIDENT
+    assert_match FirefightTools::SEARCH_INCIDENTS, answer
+    assert_includes offered.map(&:name), FirefightTools::SEARCH_INCIDENTS
+    assert_not_includes offered.map(&:name), FirefightTools::DECLARE_INCIDENT
   end
 
   test "a kind of tool nobody has connected says so, and names what could be connected" do
@@ -279,7 +279,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
   test "every one of Firefight's tools belongs to exactly one group, so a new tool cannot be left unreachable" do
     grouped = Chat::Tools::Groups::FIREFIGHT.flat_map(&:tools)
-    offered = Mcp::Tools.all.map { |tool| tool.name_value.to_s } - Chat::Tools::Groups::NOT_FOR_HALON
+    offered = FirefightTools.all.map { |tool| tool.name_value.to_s } - Chat::Tools::Groups::NOT_FOR_HALON
 
     assert_equal offered.sort, grouped.sort
   end
@@ -287,9 +287,9 @@ class Chat::ToolsTest < ActiveSupport::TestCase
   test "the map's tools sit together in a group of their own, which open_tools lists by what it answers" do
     map = Chat::Tools::Groups::FIREFIGHT.find { |group| group.key == Chat::Tools::Groups::MAP }
 
-    assert_equal [ Mcp::Tools::GET_RESOURCE_MAP, Mcp::Tools::SEARCH_MAP, Mcp::Tools::FIND_RESOURCES, Mcp::Tools::GET_RESOURCE, Mcp::Tools::GET_RESOURCE_LINKS,
-                   Mcp::Tools::GET_RESOURCE_NEIGHBOURS, Mcp::Tools::TRAVERSE_RESOURCE_MAP, Mcp::Tools::BLAST_RADIUS,
-                   Mcp::Tools::RESOURCE_MAP_STATS, Mcp::Tools::SUGGEST_RESOURCE_LINK ], map.tools
+    assert_equal [ FirefightTools::GET_RESOURCE_MAP, FirefightTools::SEARCH_MAP, FirefightTools::FIND_RESOURCES, FirefightTools::GET_RESOURCE, FirefightTools::GET_RESOURCE_LINKS,
+                   FirefightTools::GET_RESOURCE_NEIGHBOURS, FirefightTools::TRAVERSE_RESOURCE_MAP, FirefightTools::BLAST_RADIUS,
+                   FirefightTools::RESOURCE_MAP_STATS, FirefightTools::SUGGEST_RESOURCE_LINK ], map.tools
     assert_match "The resource map: read off the connections, for where something runs and which provider and account hold it, then find resources by filter",
                  open_tool.description
   end
@@ -297,13 +297,13 @@ class Chat::ToolsTest < ActiveSupport::TestCase
   test "Halon is never offered the ways in built for an outside agent" do
     names = Chat::Tools.catalog(@investigation).map(&:name)
 
-    assert_not_includes names, Mcp::Tools::ASK_HALON
-    assert_not_includes names, Mcp::Tools::START_INVESTIGATION
+    assert_not_includes names, FirefightTools::ASK_HALON
+    assert_not_includes names, FirefightTools::START_INVESTIGATION
   end
 
   test "a found Firefight tool runs through the gateway and answers with what it found" do
     grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
-    tool = Chat::Tools.catalog(@investigation).find { |entry| entry.name == Mcp::Tools::SEARCH_INCIDENTS }.tool
+    tool = Chat::Tools.catalog(@investigation).find { |entry| entry.name == FirefightTools::SEARCH_INCIDENTS }.tool
 
     result = tool.call(query: @incident.identifier)
 
@@ -387,18 +387,18 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
   test "what one of Firefight's own tools found is framed as data too" do
     grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
-    tool = Chat::Tools.catalog(@investigation).find { |entry| entry.name == Mcp::Tools::SEARCH_INCIDENTS }.tool
+    tool = Chat::Tools.catalog(@investigation).find { |entry| entry.name == FirefightTools::SEARCH_INCIDENTS }.tool
 
     result = tool.call(query: @incident.identifier)
 
-    assert result.start_with?("<tool_result tool=\"#{Mcp::Tools::SEARCH_INCIDENTS}\" step=\"1\" trust=\"untrusted\">")
+    assert result.start_with?("<tool_result tool=\"#{FirefightTools::SEARCH_INCIDENTS}\" step=\"1\" trust=\"untrusted\">")
   end
 
   test "a call that came back as an error is remembered as failed, so a card does not say Completed" do
     grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
     chat = open_chat_for_run
-    tool = Chat::Tools.catalog(@investigation.reload).find { |entry| entry.name == Mcp::Tools::GET_INCIDENT }.tool
-    call = RubyLLM::ToolCall.new(id: "call_1", name: Mcp::Tools::GET_INCIDENT, arguments: { "incident" => "INC-99999" })
+    tool = Chat::Tools.catalog(@investigation.reload).find { |entry| entry.name == FirefightTools::GET_INCIDENT }.tool
+    call = RubyLLM::ToolCall.new(id: "call_1", name: FirefightTools::GET_INCIDENT, arguments: { "incident" => "INC-99999" })
     # The loop saves the model's call before running the tool. Here the call is saved by hand.
     chat.add_message(RubyLLM::Message.new(role: :assistant, content: "", tool_calls: { "call_1" => call }))
 
@@ -448,12 +448,12 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     conversation = Conversation.start_personal!(workspace: @workspace, member: member)
     turn = Conversation::Turn.new(conversation, asker: member)
     chat = @workspace.chats.create!(owner: conversation, model: "claude-sonnet-4-5", provider: :anthropic)
-    chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "").ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Mcp::Tools::COMPLETE_ACTION_ITEM, arguments: {})
+    chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "").ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: FirefightTools::COMPLETE_ACTION_ITEM, arguments: {})
     Mcp::ToolDispatcher.stubs(:run).returns(Mcp::ToolDispatcher.error_response("This action item is already done."))
-    complete = Chat::Tools.catalog(turn).find { |entry| entry.name == Mcp::Tools::COMPLETE_ACTION_ITEM }.tool
+    complete = Chat::Tools.catalog(turn).find { |entry| entry.name == FirefightTools::COMPLETE_ACTION_ITEM }.tool
     complete.stubs(:requires_approval?).returns(false)
 
-    answer = complete.call(tool_call: RubyLLM::ToolCall.new(id: "call_1", name: Mcp::Tools::COMPLETE_ACTION_ITEM, arguments: {}), incident: @incident.identifier, action_item: "1")
+    answer = complete.call(tool_call: RubyLLM::ToolCall.new(id: "call_1", name: FirefightTools::COMPLETE_ACTION_ITEM, arguments: {}), incident: @incident.identifier, action_item: "1")
 
     assert_match "This action item is already done.", answer
     assert_equal [ "call_1" ], chat.failed_tool_call_ids
@@ -709,14 +709,14 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
   # Seen in a real chat, four steps in a row that all read "Get form" with nothing to tell them apart.
   test "a step is told apart by the argument its tool cannot be called without" do
-    step = Chat::Tools.step(Mcp::Tools::GET_FORM, { "form" => "declare" })
+    step = Chat::Tools.step(FirefightTools::GET_FORM, { "form" => "declare" })
 
     assert_equal "Get form", step.title
     assert_equal "declare", step.headline
   end
 
   test "an argument named for what is being looked for still comes first" do
-    step = Chat::Tools.step(Mcp::Tools::SEARCH_INCIDENTS, { "limit" => 5, "query" => "checkout" })
+    step = Chat::Tools.step(FirefightTools::SEARCH_INCIDENTS, { "limit" => 5, "query" => "checkout" })
 
     assert_equal "checkout", step.headline
   end
@@ -724,14 +724,14 @@ class Chat::ToolsTest < ActiveSupport::TestCase
   # Seen in a real chat. declare_incident takes one argument holding a whole form, and the card showed
   # the raw hash twice and nothing a person would recognise.
   test "arguments that hold a form are shown as the form's own fields, and the headline is the name inside" do
-    step = Chat::Tools.step(Mcp::Tools::DECLARE_INCIDENT, { "answers" => { "name" => "Checkout failing", "severity" => "minor", "summary" => "Carts empty" } })
+    step = Chat::Tools.step(FirefightTools::DECLARE_INCIDENT, { "answers" => { "name" => "Checkout failing", "severity" => "minor", "summary" => "Carts empty" } })
 
     assert_equal "Checkout failing", step.headline
     assert_equal [ [ "name", "Checkout failing" ], [ "severity", "minor" ], [ "summary", "Carts empty" ] ], step.asked
   end
 
   test "a nested value that is not a form is shown as one line, never as a Ruby hash" do
-    step = Chat::Tools.step(Mcp::Tools::UPSERT_ROUTING_RULE, { "name" => "Pager", "conditions" => [ { "field" => "severity", "equals" => "critical" } ] })
+    step = Chat::Tools.step(FirefightTools::UPSERT_ROUTING_RULE, { "name" => "Pager", "conditions" => [ { "field" => "severity", "equals" => "critical" } ] })
 
     assert_equal "Pager", step.headline
     assert_equal [ "name", "Pager" ], step.asked.first
@@ -740,36 +740,36 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
   # Seen in a real chat, three cards in a row titled by the incident's UUID.
   test "the incident is where a step happens, so anything else that tells it apart comes first" do
-    step = Chat::Tools.step(Mcp::Tools::ASSIGN_INCIDENT_ROLE, { "incident" => "8472d293-97c5-41b8-ab22-ccba74f691d2", "role" => "incident_lead", "member" => "me" })
+    step = Chat::Tools.step(FirefightTools::ASSIGN_INCIDENT_ROLE, { "incident" => "8472d293-97c5-41b8-ab22-ccba74f691d2", "role" => "incident_lead", "member" => "me" })
 
     assert_equal "incident_lead", step.headline
   end
 
   # Seen in a real chat, eight cards in a row reading only "Resolve incident".
   test "a tool that takes only the incident is told apart by it" do
-    step = Chat::Tools.step(Mcp::Tools::RESOLVE_INCIDENT, { "incident" => "INC-4" })
+    step = Chat::Tools.step(FirefightTools::RESOLVE_INCIDENT, { "incident" => "INC-4" })
 
     assert_equal "Resolve incident", step.title
     assert_equal "INC-4", step.headline
   end
 
   test "showing a category of integrations carries a card to draw, and nothing else does" do
-    card = Chat::Tools.step(Mcp::Tools::LIST_INTEGRATIONS, { "category" => "Observability" }).card
+    card = Chat::Tools.step(FirefightTools::LIST_INTEGRATIONS, { "category" => "Observability" }).card
 
     assert_equal Chat::Tools::CARD_INTEGRATIONS, card.kind
     assert_equal "observability", card.category
-    assert_nil Chat::Tools.step(Mcp::Tools::LIST_INTEGRATIONS, {}).card
-    assert_nil Chat::Tools.step(Mcp::Tools::LIST_INTEGRATIONS, { "category" => "monitoring" }).card
-    assert_nil Chat::Tools.step(Mcp::Tools::SEARCH_INCIDENTS, { "query" => "checkout" }).card
+    assert_nil Chat::Tools.step(FirefightTools::LIST_INTEGRATIONS, {}).card
+    assert_nil Chat::Tools.step(FirefightTools::LIST_INTEGRATIONS, { "category" => "monitoring" }).card
+    assert_nil Chat::Tools.step(FirefightTools::SEARCH_INCIDENTS, { "query" => "checkout" }).card
   end
 
   test "a tool with nothing it must be given has no headline rather than a guessed one" do
-    assert_equal "", Chat::Tools.step(Mcp::Tools::SEARCH_ALERTS, { "limit" => 50 }).headline
+    assert_equal "", Chat::Tools.step(FirefightTools::SEARCH_ALERTS, { "limit" => 50 }).headline
   end
 
   test "a step that only reads is thinking, a step that changes something is not" do
-    assert_equal Chat::Tools::KIND_READ, Chat::Tools.kind(Mcp::Tools::GET_WORKSPACE_CONFIG, @workspace)
-    assert_equal Chat::Tools::KIND_ACT, Chat::Tools.kind(Mcp::Tools::UPSERT_SEVERITY, @workspace)
+    assert_equal Chat::Tools::KIND_READ, Chat::Tools.kind(FirefightTools::GET_WORKSPACE_CONFIG, @workspace)
+    assert_equal Chat::Tools::KIND_ACT, Chat::Tools.kind(FirefightTools::UPSERT_SEVERITY, @workspace)
     assert_equal Chat::Tools::KIND_READ, Chat::Tools.kind(@tool.model_facing_name, @workspace)
     assert_equal Chat::Tools::KIND_ACT, Chat::Tools.kind("something_nobody_declared", @workspace)
   end
@@ -795,7 +795,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
   test "an investigation is never handed one of Firefight's own tools that writes, whatever its principal was granted, and is told why" do
     grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_CREATE)
 
-    declare = Chat::Tools.firefight_entries(@investigation.reload).find { |entry| entry.name == Mcp::Tools::DECLARE_INCIDENT }
+    declare = Chat::Tools.firefight_entries(@investigation.reload).find { |entry| entry.name == FirefightTools::DECLARE_INCIDENT }
 
     assert_equal [ Chat::Tools::STATE_READS_ONLY, nil ], [ declare.state, declare.tool ]
   end
@@ -883,7 +883,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
     assert presented.searched
     assert_equal [ "fake_echo_text" ], presented.deferred.map(&:name)
-    assert_includes presented.loaded.map(&:name), Mcp::Tools::SEARCH_INCIDENTS
+    assert_includes presented.loaded.map(&:name), FirefightTools::SEARCH_INCIDENTS
     assert_includes presented.loaded.map(&:name), ResourceMap::Timeline::TOOL_NAME
     assert(presented.loaded.none? { |tool| tool.is_a?(Chat::Tools::Connection) })
   end
@@ -896,9 +896,9 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
     presented = Chat::Tools.presented(turn, searching_choice)
 
-    assert_includes presented.loaded.map(&:name), Mcp::Tools::SEARCH_INCIDENTS
-    assert_includes presented.deferred.map(&:name), Mcp::Tools::DECLARE_INCIDENT
-    assert_not_includes presented.loaded.map(&:name), Mcp::Tools::DECLARE_INCIDENT
+    assert_includes presented.loaded.map(&:name), FirefightTools::SEARCH_INCIDENTS
+    assert_includes presented.deferred.map(&:name), FirefightTools::DECLARE_INCIDENT
+    assert_not_includes presented.loaded.map(&:name), FirefightTools::DECLARE_INCIDENT
     assert(presented.loaded.none? { |tool| Chat::Tools.writing_names.include?(tool.name.to_s) })
   end
 
@@ -958,7 +958,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert_equal [ opened.class, opened.description, opened.parameters_schema, opened.requires_approval? ],
                  [ held.class, held.description, held.parameters_schema, held.requires_approval? ]
     assert_empty Chat::Tools.catalog(@investigation).reject(&:tool).map(&:name) & loaded.map(&:name)
-    assert_not_includes loaded.map(&:name), Mcp::Tools::DECLARE_INCIDENT
+    assert_not_includes loaded.map(&:name), FirefightTools::DECLARE_INCIDENT
   end
 
   # Two steps that ran, each echoing its own text, so a claim can cite either.

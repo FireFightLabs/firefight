@@ -39,6 +39,16 @@ class HandbookService
     page
   end
 
+  # Embeds each section whose words changed on the deployment's embedding model, recorded against the workspace.
+  def index!(page)
+    page.rechunk!
+    model = FirefightAi.embedding_model
+    page.chunks.unembedded(model).find_each do |chunk|
+      result = FirefightAi.embed(chunk.embedded_text, workspace: @workspace)
+      chunk.update_columns(embedding: result.vectors, embedding_model: result.model, embedded_digest: chunk.content_digest)
+    end
+  end
+
   private
 
   def refuse!(reason)

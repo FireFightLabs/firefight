@@ -113,7 +113,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
   test "process_oauth_callback handles transaction rollback on error" do
     expected_platform_id = @auth_hash.extra.team_info["id"]
 
-    Workspace.stubs(:find_or_create_from_slack!).raises(
+    Workspace.stubs(:find_or_create_from_chat_install!).raises(
       ActiveRecord::RecordInvalid.new(Workspace.new)
     )
 
@@ -316,6 +316,43 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     end
 
     assert_not invite_code.reload.redeemed?
+  end
+
+  test "an install with no sign-in before it never reaches a person through an email Slack has not confirmed" do
+    team_id = "T#{SecureRandom.hex(8)}"
+    workspace = Workspace.create!(platform: "slack", platform_id: team_id, name: "Attacker Co", access_token: "token",
+                                  installed_at: Time.current, incidents_channel_id: "C12345678")
+    victim = users(:charlie)
+    auth_hash = mock_slack_auth_hash(
+      uid: "U_ATTACKER",
+      info: { email: victim.email, email_verified: false },
+      extra: { team_info: { "id" => team_id, "name" => "Attacker Co" } }
+    )
+
+    outcome = @service.handle_install(auth_hash)
+
+    assert outcome.refused?
+    assert_equal SlackAuthenticationService::UNVERIFIED_EMAIL_MESSAGE, outcome.message
+    assert_not workspace.workspace_memberships.exists?(user: victim)
+  end
+
+  test "an install with no sign-in before it reaches the person Slack has already linked, whatever email it now reports" do
+    team_id = "T#{SecureRandom.hex(8)}"
+    Workspace.create!(platform: "slack", platform_id: team_id, name: "Linked Co", access_token: "token",
+                      installed_at: Time.current, incidents_channel_id: "C12345678")
+    person = users(:charlie)
+    person.identities.create!(provider: UserIdentity::SLACK, uid: SlackAuthenticationService.identity_uid(team_id, "U_LINKED"),
+                              email: person.email, email_verified: true)
+    auth_hash = mock_slack_auth_hash(
+      uid: "U_LINKED",
+      info: { email: "someone-else@example.com", email_verified: true },
+      extra: { team_info: { "id" => team_id, "name" => "Linked Co" } }
+    )
+
+    outcome = @service.handle_install(auth_hash)
+
+    assert outcome.signed_in?
+    assert_equal person.id, outcome.membership.user_id
   end
 
   test "handle_install returns invite_required when invite code was already redeemed concurrently" do

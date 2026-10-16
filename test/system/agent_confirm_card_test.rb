@@ -224,7 +224,7 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
     at = Time.utc(Time.current.year + 1, 6, 14, 7)
     message = @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
     arguments = { "name" => "Morning look", "trigger" => { "kind" => "once_at", "at" => at.strftime("%Y-%m-%dT%H:%M"), "time_zone" => "UTC" },
-                  "steps" => [ { "name" => "look", "kind" => "call_tool", "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => {} } } ],
+                  "steps" => [ { "name" => "look", "kind" => "call_tool", "config" => { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => {} } } ],
                   "short_title" => "Make Morning look", "intent" => "Look around in the morning" }
     @chat.request_decisions!([ message.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Conversation::Tools::CreateWorkflow::NAME, arguments: arguments).tool_call_id ])
     @conversation.reply_delivered!

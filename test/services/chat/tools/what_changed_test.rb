@@ -48,7 +48,7 @@ class Chat::Tools::WhatChangedTest < ActiveSupport::TestCase
     assert_match "Failing lines here name api.github.com, which is GitHub's. Its status page, read now:", answer
     assert_match "GitHub status, from https://www.githubstatus.com, read at", answer
     assert_match "Partial System Outage.", answer
-    step = @investigation.steps.find_by!(tool_name: Mcp::Tools::CHECK_STATUS_PAGE)
+    step = @investigation.steps.find_by!(tool_name: FirefightTools::CHECK_STATUS_PAGE)
     assert_equal [ Ability::Action::WEB_READ, "Check GitHub's status page" ], [ step.action_key, step.label ]
   end
 

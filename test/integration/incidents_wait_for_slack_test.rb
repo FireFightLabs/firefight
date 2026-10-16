@@ -31,7 +31,7 @@ class IncidentsWaitForSlackTest < ActionDispatch::IntegrationTest
 
     post mcp_path,
          params: { jsonrpc: "2.0", id: 1, method: "tools/call",
-                   params: { name: Mcp::Tools::DECLARE_INCIDENT, arguments: { answers: { name: "Checkout failing", severity: @severity.slug } } } }.to_json,
+                   params: { name: FirefightTools::DECLARE_INCIDENT, arguments: { answers: { name: "Checkout failing", severity: @severity.slug } } } }.to_json,
          headers: { "Content-Type" => "application/json", "Authorization" => "Bearer #{token}" }
 
     result = JSON.parse(response.body).fetch("result")

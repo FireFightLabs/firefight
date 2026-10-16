@@ -22,7 +22,7 @@ class McpTranscriptToolTest < ActionDispatch::IntegrationTest
       permissions: { Ability::Action::RESOURCE_INCIDENTS => %w[read create update delete] }
     )
 
-    _, is_error, text = call_tool(Mcp::Tools::GET_INCIDENT_TRANSCRIPT,
+    _, is_error, text = call_tool(FirefightTools::GET_INCIDENT_TRANSCRIPT,
                                   { incident: @incident.identifier }, token: token)
 
     assert is_error
@@ -36,7 +36,7 @@ class McpTranscriptToolTest < ActionDispatch::IntegrationTest
       permissions: { Ability::Action::RESOURCE_INCIDENT_TRANSCRIPTS => %w[read] }
     )
 
-    content, is_error = call_tool(Mcp::Tools::GET_INCIDENT_TRANSCRIPT,
+    content, is_error = call_tool(FirefightTools::GET_INCIDENT_TRANSCRIPT,
                                   { incident: @incident.identifier }, token: token)
 
     assert_not is_error, content.inspect
@@ -48,7 +48,7 @@ class McpTranscriptToolTest < ActionDispatch::IntegrationTest
     @workspace.update!(transcript_access_enabled: false)
     say "found it"
 
-    _, is_error, text = call_tool(Mcp::Tools::GET_INCIDENT_TRANSCRIPT, { incident: @incident.identifier })
+    _, is_error, text = call_tool(FirefightTools::GET_INCIDENT_TRANSCRIPT, { incident: @incident.identifier })
 
     assert is_error
     assert_match(/has not turned on transcript access/, text)
@@ -59,7 +59,7 @@ class McpTranscriptToolTest < ActionDispatch::IntegrationTest
     say "second", at: 2.minutes.ago
     say "third", at: 1.minute.ago
 
-    content, = call_tool(Mcp::Tools::GET_INCIDENT_TRANSCRIPT, { incident: @incident.identifier })
+    content, = call_tool(FirefightTools::GET_INCIDENT_TRANSCRIPT, { incident: @incident.identifier })
 
     assert_equal %w[first second third], content["messages"].map { |m| m["text"] }
     assert_equal @membership.display_name, content["messages"].first["said_by"]
@@ -68,10 +68,10 @@ class McpTranscriptToolTest < ActionDispatch::IntegrationTest
   test "a long conversation is walked backwards from the end" do
     5.times { |i| say "message #{i}", at: (5 - i).minutes.ago }
 
-    content, = call_tool(Mcp::Tools::GET_INCIDENT_TRANSCRIPT, { incident: @incident.identifier, limit: 2 })
+    content, = call_tool(FirefightTools::GET_INCIDENT_TRANSCRIPT, { incident: @incident.identifier, limit: 2 })
     assert_equal [ "message 3", "message 4" ], content["messages"].map { |m| m["text"] }
 
-    earlier, = call_tool(Mcp::Tools::GET_INCIDENT_TRANSCRIPT, {
+    earlier, = call_tool(FirefightTools::GET_INCIDENT_TRANSCRIPT, {
       incident: @incident.identifier, limit: 2, before: content["more_before"]
     })
     assert_equal [ "message 1", "message 2" ], earlier["messages"].map { |m| m["text"] }
@@ -81,7 +81,7 @@ class McpTranscriptToolTest < ActionDispatch::IntegrationTest
   test "the first page of a short conversation offers nothing before it" do
     say "all there is"
 
-    content, = call_tool(Mcp::Tools::GET_INCIDENT_TRANSCRIPT, { incident: @incident.identifier })
+    content, = call_tool(FirefightTools::GET_INCIDENT_TRANSCRIPT, { incident: @incident.identifier })
 
     assert_nil content["more_before"]
   end
@@ -93,10 +93,10 @@ class McpTranscriptToolTest < ActionDispatch::IntegrationTest
     say "tied second", at: same, message_id: "1700000000.0002"
     say "tied first", at: same, message_id: "1700000000.0001"
 
-    content, = call_tool(Mcp::Tools::GET_INCIDENT_TRANSCRIPT, { incident: @incident.identifier, limit: 2 })
+    content, = call_tool(FirefightTools::GET_INCIDENT_TRANSCRIPT, { incident: @incident.identifier, limit: 2 })
     assert_equal [ "tied second", "later" ], content["messages"].map { |m| m["text"] }
 
-    earlier, = call_tool(Mcp::Tools::GET_INCIDENT_TRANSCRIPT, {
+    earlier, = call_tool(FirefightTools::GET_INCIDENT_TRANSCRIPT, {
       incident: @incident.identifier, limit: 2, before: content["more_before"]
     })
     assert_equal [ "tied first" ], earlier["messages"].map { |m| m["text"] }
@@ -106,7 +106,7 @@ class McpTranscriptToolTest < ActionDispatch::IntegrationTest
   test "the limit is capped rather than trusted" do
     say "only one"
 
-    content, is_error = call_tool(Mcp::Tools::GET_INCIDENT_TRANSCRIPT, {
+    content, is_error = call_tool(FirefightTools::GET_INCIDENT_TRANSCRIPT, {
       incident: @incident.identifier, limit: 100_000
     })
 
@@ -122,14 +122,14 @@ class McpTranscriptToolTest < ActionDispatch::IntegrationTest
       content: "the key is [REDACTED]", posted_at: 1.minute.ago, scrubbed: true
     )
 
-    content, = call_tool(Mcp::Tools::GET_INCIDENT_TRANSCRIPT, { incident: @incident.identifier })
+    content, = call_tool(FirefightTools::GET_INCIDENT_TRANSCRIPT, { incident: @incident.identifier })
 
     assert content["messages"].first["redacted"]
   end
 
   # By id, since identifiers restart per workspace and INC-1 exists in both.
   test "another workspace's incident is not reachable" do
-    _, is_error = call_tool(Mcp::Tools::GET_INCIDENT_TRANSCRIPT, { incident: incidents(:active_p0_ws2).id })
+    _, is_error = call_tool(FirefightTools::GET_INCIDENT_TRANSCRIPT, { incident: incidents(:active_p0_ws2).id })
 
     assert is_error
   end

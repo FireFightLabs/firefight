@@ -20,6 +20,20 @@ class IncidentConditionTest < ActiveSupport::TestCase
     assert_equal "Severity is not one of #{critical.name}, #{major.name}", condition.to_sentence
   end
 
+  test "a condition never names another workspace's custom field, on a runbook or anywhere else" do
+    other = workspaces(:slack_workspace_two)
+    foreign = incident_field_definitions(:customer_tier_ws1)
+    runbook = other.runbooks.create!(name: "Foreign field runbook")
+
+    condition = runbook.incident_conditions.new(
+      workspace: other, condition_field: IncidentCondition::FIELD_CUSTOM_FIELD,
+      operator: IncidentCondition::OPERATOR_ONE_OF, values: [ "anything" ], incident_field_definition: foreign
+    )
+
+    assert_not condition.valid?
+    assert_includes condition.errors[:incident_field_definition], "is not a field of this workspace"
+  end
+
   test "valid condition" do
     condition = IncidentCondition.new(
       workspace: @workspace,

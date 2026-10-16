@@ -9,9 +9,9 @@ module Interactions
       incident = workspace.incidents.find(metadata.incident_id)
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
 
-      return already_active_error unless incident.terminal?
+      return already_active_error(workspace) unless incident.terminal?
 
-      reason = interaction.values.dig("reason_block", "reason_input", "value")
+      reason = workspace.adapter.submitted_value(values: interaction.values, block_id: Identifiers::REASON_BLOCK, input_id: Identifiers::REASON_INPUT, kind: PlatformAdapter::Input::TEXT)
 
       IncidentLifecycleService.new(workspace).change_status(
         incident,
@@ -26,11 +26,11 @@ module Interactions
     rescue ActiveRecord::RecordNotFound => e
       Rails.logger.warn({ event: "interactions.reopen_incident.record_not_found", error: e.message })
       Interactions::ModalCleanup.delete_temp_message(workspace, metadata) if workspace && metadata
-      { response_action: "errors", errors: { "reason_block" => Interactions::ModalCleanup::RECORD_GONE } }
+      workspace.adapter.modal_errors_response({ Identifiers::REASON_BLOCK => Interactions::ModalCleanup::RECORD_GONE })
     end
 
-    def self.already_active_error
-      { response_action: "errors", errors: { "reason_block" => "This incident is already active." } }
+    def self.already_active_error(workspace)
+      workspace.adapter.modal_errors_response({ Identifiers::REASON_BLOCK => "This incident is already active." })
     end
     private_class_method :already_active_error
   end

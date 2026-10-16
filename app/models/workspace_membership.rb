@@ -285,28 +285,28 @@ class WorkspaceMembership < ApplicationRecord
 
   # Locks the workspace so "am I the first member" and the insert are one
   # step. Two installs finishing at once would otherwise both become owner.
-  def self.find_or_create_from_omniauth!(user, workspace, auth_hash)
+  def self.find_or_create_for_platform_user!(user, workspace, platform_user_id:, platform_data:)
     transaction do
       # A separate instance on purpose. with_lock reloads, which clears
       # previously_new_record? that the install flow reads afterwards.
       Workspace.lock.find(workspace.id)
-      create_from_omniauth!(user, workspace, auth_hash)
+      create_for_platform_user!(user, workspace, platform_user_id: platform_user_id, platform_data: platform_data)
     end
   end
 
-  # A member who joined before the workspace connected Slack keeps their row and gains their platform id.
-  def self.create_from_omniauth!(user, workspace, auth_hash)
+  # A member who joined before the workspace connected a chat platform keeps their row and gains their platform id.
+  def self.create_for_platform_user!(user, workspace, platform_user_id:, platform_data:)
     is_first_member = workspace.workspace_memberships.empty?
 
     membership = find_or_create_by!(
       user: user,
       workspace: workspace
     ) do |created|
-      created.platform_user_id = auth_hash.uid
+      created.platform_user_id = platform_user_id
       created.role = is_first_member ? :owner : :member
-      created.platform_data = auth_hash.extra.user_info
+      created.platform_data = platform_data
       created.joined_at = Time.current
     end
-    membership.link_platform_user!(auth_hash.uid, auth_hash.extra.user_info)
+    membership.link_platform_user!(platform_user_id, platform_data)
   end
 end

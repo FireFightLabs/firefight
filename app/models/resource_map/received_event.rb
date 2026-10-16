@@ -24,6 +24,7 @@ class ResourceMap::ReceivedEvent < ApplicationRecord
   validates :outcome, inclusion: { in: OUTCOMES }, allow_nil: true
 
   scope :waiting, -> { where(outcome: nil) }
+  scope :expired, -> { where(received_at: ...KEPT_FOR.ago) }
 
   def scope_read = ResourceMap::Scope.from_job(scope)
 

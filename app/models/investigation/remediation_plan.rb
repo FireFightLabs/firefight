@@ -258,7 +258,7 @@ class Investigation::RemediationPlan < ApplicationRecord
   end
 
 
-  # Runs a failed step again, in one go with the fix taken back up: the step is cleared, the steps that were held back
+  # Runs a failed step again, in one go with the fix taken back up. The step is cleared, the steps that were held back
   # behind a failure are proposed again, and the fix is being applied once more. False when the step had moved on or the
   # fix had been cancelled, so a second press changes nothing. Steps still held back by another failure are skipped
   # again when the fix next runs (FixRunner#hold_back!).

@@ -12,7 +12,7 @@ module Mcp
       # What a count by environment calls resources only a connection wired to no environment reports.
       NO_ENVIRONMENT = "no environment".freeze
 
-      tool_name GET_RESOURCE_MAP
+      tool_name FirefightTools::GET_RESOURCE_MAP
       authorize_as Ability::Action::RESOURCE_MAP
       description "The first place to find which provider and account hold a named domain, zone, service or database. " \
                   "It only reads, so look here before asking a person or using a provider's own tools. " \

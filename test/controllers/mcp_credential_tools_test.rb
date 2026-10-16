@@ -22,8 +22,8 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
       permissions: (Ability::Action::GRANTABLE_RESOURCES - Ability::Action.hidden_resources(@workspace)).index_with { |resource| Ability::Action.actions_for(resource) }
     )
 
-    [ Mcp::Tools::UPSERT_AGENT, Mcp::Tools::LIST_AGENTS,
-      Mcp::Tools::UPSERT_API_KEY, Mcp::Tools::LIST_API_KEYS ].each do |name|
+    [ FirefightTools::UPSERT_AGENT, FirefightTools::LIST_AGENTS,
+      FirefightTools::UPSERT_API_KEY, FirefightTools::LIST_API_KEYS ].each do |name|
       _, is_error = call_tool(name, { name: "Nope", slug: "nope" }, token: token)
       assert is_error, "#{name} should be out of reach for an agent"
     end
@@ -32,7 +32,7 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "creating an agent shows its token once to the person in Slack, never to the agent, and it can do nothing yet" do
-    content, is_error = call_tool(Mcp::Tools::UPSERT_AGENT, {
+    content, is_error = call_tool(FirefightTools::UPSERT_AGENT, {
       name: "Support agent", description: "Triages tickets"
     })
 
@@ -46,32 +46,32 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "the token authenticates as the agent, not as whoever minted it" do
-    call_tool(Mcp::Tools::UPSERT_AGENT, { name: "Support agent" })
+    call_tool(FirefightTools::UPSERT_AGENT, { name: "Support agent" })
     agent = @workspace.agents.find_by!(slug: "support_agent")
 
     assert_equal agent, ApiKey.authenticate(@shown.sole).principal
   end
 
   test "rotating leaves the old token working and a listing names both" do
-    call_tool(Mcp::Tools::UPSERT_AGENT, { name: "Rotator" })
-    second, is_error = call_tool(Mcp::Tools::ROTATE_AGENT_TOKEN, { slug: "rotator" })
+    call_tool(FirefightTools::UPSERT_AGENT, { name: "Rotator" })
+    second, is_error = call_tool(FirefightTools::ROTATE_AGENT_TOKEN, { slug: "rotator" })
 
     assert_not is_error, second.inspect
     assert_equal 2, @shown.uniq.size
     assert_not_nil ApiKey.authenticate(@shown.first)
     assert_equal 2, second["live_tokens"]
 
-    listed, = call_tool(Mcp::Tools::LIST_AGENTS)
+    listed, = call_tool(FirefightTools::LIST_AGENTS)
     prefixes = listed["agents"].find { |a| a["slug"] == "rotator" }["tokens"].map { |t| t["prefix"] }
     assert_equal 2, prefixes.size
   end
 
   test "revoking one token by prefix leaves the agent running on the other" do
-    call_tool(Mcp::Tools::UPSERT_AGENT, { name: "Rotator" })
-    call_tool(Mcp::Tools::ROTATE_AGENT_TOKEN, { slug: "rotator" })
+    call_tool(FirefightTools::UPSERT_AGENT, { name: "Rotator" })
+    call_tool(FirefightTools::ROTATE_AGENT_TOKEN, { slug: "rotator" })
     prefix = ApiKey.authenticate(@shown.first).token_prefix
 
-    content, is_error = call_tool(Mcp::Tools::REVOKE_AGENT_TOKEN, { slug: "rotator", token_prefix: prefix })
+    content, is_error = call_tool(FirefightTools::REVOKE_AGENT_TOKEN, { slug: "rotator", token_prefix: prefix })
 
     assert_not is_error, content.inspect
     assert_nil ApiKey.authenticate(@shown.first)
@@ -79,9 +79,9 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "deleting an agent takes its tokens with it" do
-    call_tool(Mcp::Tools::UPSERT_AGENT, { name: "Doomed" })
+    call_tool(FirefightTools::UPSERT_AGENT, { name: "Doomed" })
 
-    _, is_error = call_tool(Mcp::Tools::DELETE_AGENT, { slug: "doomed" })
+    _, is_error = call_tool(FirefightTools::DELETE_AGENT, { slug: "doomed" })
 
     assert_not is_error
     assert_nil ApiKey.authenticate(@shown.sole)
@@ -89,7 +89,7 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "a service key is minted with the permissions it was asked for" do
-    content, is_error = call_tool(Mcp::Tools::UPSERT_API_KEY, {
+    content, is_error = call_tool(FirefightTools::UPSERT_API_KEY, {
       name: "Datadog", permissions: { Ability::Action::RESOURCE_INCIDENTS => %w[read create] }
     })
 
@@ -101,11 +101,11 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "sending permissions replaces the set rather than adding to it" do
-    content, = call_tool(Mcp::Tools::UPSERT_API_KEY, {
+    content, = call_tool(FirefightTools::UPSERT_API_KEY, {
       name: "Narrowing", permissions: { Ability::Action::RESOURCE_INCIDENTS => %w[read create update] }
     })
 
-    call_tool(Mcp::Tools::UPSERT_API_KEY, {
+    call_tool(FirefightTools::UPSERT_API_KEY, {
       prefix: content["prefix"], permissions: { Ability::Action::RESOURCE_INCIDENTS => %w[read] }
     })
 
@@ -114,22 +114,22 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "a listing never carries a token" do
-    call_tool(Mcp::Tools::UPSERT_API_KEY, { name: "Datadog" })
+    call_tool(FirefightTools::UPSERT_API_KEY, { name: "Datadog" })
 
-    content, = call_tool(Mcp::Tools::LIST_API_KEYS)
+    content, = call_tool(FirefightTools::LIST_API_KEYS)
 
     assert content["api_keys"].any?
     assert content["api_keys"].none? { |key| key.key?("token") }
   end
 
   test "a personal token is not listed among the workspace's service keys" do
-    content, = call_tool(Mcp::Tools::LIST_API_KEYS)
+    content, = call_tool(FirefightTools::LIST_API_KEYS)
 
     assert content["api_keys"].none? { |key| key["name"] == "Admin" }
   end
 
   test "an alert source is created and reachable at its endpoint path" do
-    content, is_error = call_tool(Mcp::Tools::UPSERT_ALERT_SOURCE, { name: "Datadog monitors" })
+    content, is_error = call_tool(FirefightTools::UPSERT_ALERT_SOURCE, { name: "Datadog monitors" })
 
     assert_not is_error, content.inspect
     source = @workspace.alert_sources.find_by!(name: "Datadog monitors")
@@ -138,9 +138,9 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "an alert source can be disabled without losing its endpoint" do
-    created, = call_tool(Mcp::Tools::UPSERT_ALERT_SOURCE, { name: "Noisy" })
+    created, = call_tool(FirefightTools::UPSERT_ALERT_SOURCE, { name: "Noisy" })
 
-    content, is_error = call_tool(Mcp::Tools::UPSERT_ALERT_SOURCE, {
+    content, is_error = call_tool(FirefightTools::UPSERT_ALERT_SOURCE, {
       slug: created["slug"], enabled: false
     })
 
@@ -152,7 +152,7 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
   test "a webhook is created with the events it subscribes to" do
     events = [ Webhook::SUBSCRIBABLE_EVENTS.first ]
 
-    content, is_error = call_tool(Mcp::Tools::UPSERT_OUTBOUND_WEBHOOK, {
+    content, is_error = call_tool(FirefightTools::UPSERT_OUTBOUND_WEBHOOK, {
       name: "Ops relay", url: "https://example.com/hooks/firefight", subscribed_events: events
     })
 
@@ -162,7 +162,7 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "a webhook signing secret is never returned by a write" do
-    content, = call_tool(Mcp::Tools::UPSERT_OUTBOUND_WEBHOOK, {
+    content, = call_tool(FirefightTools::UPSERT_OUTBOUND_WEBHOOK, {
       name: "Ops relay", url: "https://example.com/hooks/firefight"
     })
 
@@ -174,7 +174,7 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
 
     content, is_error = nil
     assert_difference -> { webhook.webhook_deliveries.count }, 1 do
-      content, is_error = call_tool(Mcp::Tools::TEST_OUTBOUND_WEBHOOK, { id: webhook.id })
+      content, is_error = call_tool(FirefightTools::TEST_OUTBOUND_WEBHOOK, { id: webhook.id })
     end
 
     assert_not is_error, content.inspect
@@ -193,7 +193,7 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
     )
 
     assert_no_difference -> { WebhookDelivery.count } do
-      _, is_error, text = call_tool(Mcp::Tools::TEST_OUTBOUND_WEBHOOK, { id: webhook.id })
+      _, is_error, text = call_tool(FirefightTools::TEST_OUTBOUND_WEBHOOK, { id: webhook.id })
 
       assert is_error
       assert_equal webhook.test_blocked_reason, text
@@ -204,7 +204,7 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
     other = webhooks(:workspace_two_webhook)
 
     assert_no_difference -> { WebhookDelivery.count } do
-      _, is_error, text = call_tool(Mcp::Tools::TEST_OUTBOUND_WEBHOOK, { id: other.id })
+      _, is_error, text = call_tool(FirefightTools::TEST_OUTBOUND_WEBHOOK, { id: other.id })
 
       assert is_error
       assert_match(/Not found in this workspace/, text)
@@ -222,16 +222,16 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
     )
     webhook = webhooks(:active_webhook)
 
-    _, is_error, text = call_tool(Mcp::Tools::TEST_OUTBOUND_WEBHOOK, { id: webhook.id }, token: reader)
+    _, is_error, text = call_tool(FirefightTools::TEST_OUTBOUND_WEBHOOK, { id: webhook.id }, token: reader)
     assert is_error
     assert_match(/webhooks:update/, text)
 
-    _, is_error = call_tool(Mcp::Tools::TEST_OUTBOUND_WEBHOOK, { id: webhook.id }, token: writer)
+    _, is_error = call_tool(FirefightTools::TEST_OUTBOUND_WEBHOOK, { id: webhook.id }, token: writer)
     assert_not is_error
   end
 
   test "test_outbound_webhook is offered as a send, not a destructive or idempotent call" do
-    tool = rpc("tools/list").dig("result", "tools").find { |offered| offered["name"] == Mcp::Tools::TEST_OUTBOUND_WEBHOOK }
+    tool = rpc("tools/list").dig("result", "tools").find { |offered| offered["name"] == FirefightTools::TEST_OUTBOUND_WEBHOOK }
 
     assert tool, "test_outbound_webhook should be offered"
     assert_not tool.dig("annotations", "destructiveHint")
@@ -245,10 +245,10 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
       permissions: { Ability::Action::RESOURCE_ALERTS => %w[read create update delete] }
     )
 
-    _, is_error = call_tool(Mcp::Tools::UPSERT_ALERT_SOURCE, { name: "From a key" }, token: token)
+    _, is_error = call_tool(FirefightTools::UPSERT_ALERT_SOURCE, { name: "From a key" }, token: token)
     assert_not is_error
 
-    _, is_error = call_tool(Mcp::Tools::UPSERT_AGENT, { name: "Nope" }, token: token)
+    _, is_error = call_tool(FirefightTools::UPSERT_AGENT, { name: "Nope" }, token: token)
     assert is_error
   end
 

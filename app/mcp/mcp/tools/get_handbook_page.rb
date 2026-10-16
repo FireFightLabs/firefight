@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class GetHandbookPage < Base
-      tool_name GET_HANDBOOK_PAGE
+      tool_name FirefightTools::GET_HANDBOOK_PAGE
       authorize_as Ability::Action::RESOURCE_HANDBOOK
       description "Read one handbook page whole, by its id or its title: its text, its kind, the role it names when it says who " \
                   "directs Halon, where a synced page comes from, and wording_id, which upsert_handbook_page takes to refuse " \

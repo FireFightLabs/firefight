@@ -3,13 +3,10 @@
 # workspace can be held to one provider (Workspace#sandbox_provider), such as one whose data stays in one region, and
 # then never fails over, since the point of holding it there is that its code goes nowhere else.
 module SandboxProviders
-  DOCKER = "docker".freeze
-  NORTHFLANK = "northflank".freeze
-  BOAT = "boat".freeze
-  KEYS = [ DOCKER, NORTHFLANK, BOAT ].freeze
-  NAMES = { DOCKER => "Docker", NORTHFLANK => "Northflank", BOAT => "boat.dev" }.freeze
-  # Providers whose boxes run Docker, so a repository's setup can start the services its CI names from their own images.
-  RUN_IMAGES = [ BOAT ].freeze
+  REGISTRY = YAML.load_file(Rails.root.join("config/sandbox_providers.yml")).fetch("providers").freeze
+  KEYS = REGISTRY.map { |entry| entry.fetch("key") }.freeze
+  NAMES = REGISTRY.to_h { |entry| [ entry.fetch("key"), entry.fetch("name") ] }.freeze
+  RUN_IMAGES = REGISTRY.select { |entry| entry["runs_images"] }.map { |entry| entry.fetch("key") }.freeze
 
   def self.main = ENV["SANDBOX_PROVIDER"].presence
 

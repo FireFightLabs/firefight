@@ -16,7 +16,7 @@ class WorkflowRunLimitsTest < ApplicationSystemTestCase
   def restart = { "id" => "restart", "name" => "restart", "kind" => "call_tool",
                   "config" => { "tool" => "restart", "arguments" => { "resource" => "web" }, "undo" => "Roll web back." } }
 
-  def look = { "id" => "look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => {} } }
+  def look = { "id" => "look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => {} } }
 
   def drafted!
     @workflow.open_draft!(by: @alice).update!(steps: [ restart, look ], edges: [ { "from" => "restart", "to" => "look" } ])
@@ -72,7 +72,7 @@ class WorkflowRunLimitsTest < ApplicationSystemTestCase
     end
     Inference.create!(workspace: @workspace, inferable: run.steps.find_by!(step_key: "restart"), feature: FirefightAi::NeedChecker::FEATURE, provider: "openai",
                       model: "gpt", cost_micros: 31_000, status: "success")
-    CodeBox.create!(workspace: @workspace, key: run.code_box_key, provider: SandboxProviders::BOAT, box_ref: "bx_1", address: "https://box.example.com",
+    CodeBox.create!(workspace: @workspace, key: run.code_box_key, provider: Integrations::Sandboxes::Boat::KEY, box_ref: "bx_1", address: "https://box.example.com",
                     secret: "k", last_used_at: Time.current, box_started_at: 1.hour.ago, hourly_micros: 120_000, stopped_at: Time.current, running_seconds: 3600)
     run.steps.find_by!(step_key: "look").update!(sandbox_seconds: 42, sandbox_micros: 1_400)
     sign_in(users(:alice), @workspace)

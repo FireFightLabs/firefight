@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class AssignActionItem < Base
-      tool_name ASSIGN_ACTION_ITEM
+      tool_name FirefightTools::ASSIGN_ACTION_ITEM
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Take a piece of work, or hand it to someone else. Leave member out to take it " \
                   "yourself, which is what a person does with the \"I can take this\" button. " \

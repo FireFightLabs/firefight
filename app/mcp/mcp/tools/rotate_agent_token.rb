@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class RotateAgentToken < Base
-      tool_name ROTATE_AGENT_TOKEN
+      tool_name FirefightTools::ROTATE_AGENT_TOKEN
       description "Issue a new token for an agent. The old one keeps working, so the agent stays up " \
                   "while its configuration is updated, and revoking the old one is a separate " \
                   "deliberate step with revoke_agent_token. The new token is shown once to the person the call runs as and " \

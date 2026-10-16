@@ -1,5 +1,5 @@
 require "test_helper"
-require Rails.root.join("db/migrate/20261016170000_count_remote_tools_as_reads_only_from_the_registry")
+require Rails.root.join("db/migrate/20261016200000_count_remote_tools_as_reads_only_from_the_registry")
 
 class CountRemoteToolsAsReadsOnlyFromTheRegistryTest < ActiveSupport::TestCase
   setup do

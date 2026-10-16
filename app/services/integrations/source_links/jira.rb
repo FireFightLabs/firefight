@@ -14,7 +14,6 @@ module Integrations
       ISSUE_KEY = /\A[A-Z][A-Z0-9_]+-\d+\z/
       # The key Jira gives a new issue, as its answer names it.
       CREATED_KEY = /"key"\s*:\s*"([A-Z][A-Z0-9_]+-\d+)"/
-      HOST = /\A[a-z0-9-]+(\.[a-z0-9-]+)+\z/i
 
       def initialize(settings)
         @settings = settings
@@ -26,20 +25,11 @@ module Integrations
         return Confluence.new(@settings).link(tool_name: tool_name, arguments: arguments, text: text) if Confluence::PAGE_TOOLS.include?(tool_name)
 
         asked = arguments.to_h.stringify_keys
-        site = self.class.site_of(asked[CLOUD_ID])
+        site = AtlassianSite.of(asked[CLOUD_ID])
         key = tool_name == CREATE_ISSUE ? text.to_s[CREATED_KEY, 1] : asked[ISSUE].to_s.strip
         return unless site && key.to_s.match?(ISSUE_KEY)
 
         Telemetry::Link.new(provider: NAME, url: "https://#{site}/browse/#{key}")
-      end
-
-      # The site's host, from its address or a bare host name. An id has no dot, so it never reads as one.
-      def self.site_of(cloud_id)
-        value = cloud_id.to_s.strip
-        host = value.include?("://") ? URI.parse(value).host.to_s : value.chomp("/")
-        host.downcase if host.match?(HOST)
-      rescue URI::InvalidURIError
-        nil
       end
     end
   end

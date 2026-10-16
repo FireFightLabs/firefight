@@ -5,8 +5,8 @@ module Slack
     module CorrectMemory
       CORRECTION_BLOCK = "correction_block".freeze
       CORRECTION_INPUT = "correction_input".freeze
-      REASON_BLOCK = "reason_block".freeze
-      REASON_INPUT = "reason_input".freeze
+      REASON_BLOCK = Identifiers::REASON_BLOCK
+      REASON_INPUT = Identifiers::REASON_INPUT
 
       # memory is a MemoryPostService::ShownMemory.
       def self.build(post_id:, memory:)

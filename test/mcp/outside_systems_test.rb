@@ -40,6 +40,17 @@ class Mcp::OutsideSystemsTest < ActiveSupport::TestCase
     assert Mcp::CapabilityToolFactory.what_changed({ workspace: @workspace, principal: @alice }, { minutes: 99_999_999 }).error?
   end
 
+  test "what_changed reads nothing from a provider for a caller the map refuses" do
+    AbilityGateway.stubs(:authorize!).with { |action_key:, **| action_key == Ability::Action::MAP_READ }
+                  .raises(AbilityGateway::Denied.new(Ability::Action::MAP_READ))
+    Integrations::NativeExecutor.expects(:call).never
+
+    response = Mcp::CapabilityToolFactory.what_changed({ workspace: @workspace, principal: @alice }, { resource: "web" })
+
+    assert response.error?
+    assert_match "lacks '#{Ability::Action::MAP_READ}' permission", response.content.sole[:text]
+  end
+
   test "logs whose failing lines name an outside provider's host point at its status page" do
     lines = [ "ERROR Net::ReadTimeout calling https://api.stripe.com/v1/charges" ].map { |text| Integrations::Telemetry::LogLine.new(at: Time.current, source: "web", text: text) }
     Integrations::NativeExecutor.expects(:call).returns(Integrations::Telemetry.result(Integrations::Telemetry.logs_text(lines, asked: "web"), link: nil))

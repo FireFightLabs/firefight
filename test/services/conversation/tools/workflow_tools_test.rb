@@ -165,7 +165,7 @@ class Conversation::Tools::WorkflowToolsTest < ActiveSupport::TestCase
   test "running one by name is confirmed with its steps and inputs, then starts as the workflow" do
     workflow = Workflow::Authoring.create!(workspace: @workspace, by: @admin, spec: {
       name: "Release Firefight", trigger: { kind: "manual", inputs: [ { key: "bump", question: "Which bump?", default: "patch" } ] },
-      steps: [ { name: "look", kind: "call_tool", config: { tool: Mcp::Tools::SEARCH_INCIDENTS, arguments: { query: "release {{inputs.bump}}" } } } ]
+      steps: [ { name: "look", kind: "call_tool", config: { tool: FirefightTools::SEARCH_INCIDENTS, arguments: { query: "release {{inputs.bump}}" } } } ]
     })
     workflow.update!(aliases: [ "ship it" ])
     WorkflowPublishService.new(workflow).publish!(workflow.draft, by: @admin)

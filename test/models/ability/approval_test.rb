@@ -66,6 +66,17 @@ module Ability
       assert_equal first.consumed_at.to_i, @approval.reload.consumed_at.to_i
     end
 
+    test "a deny and an approve decided at once from two copies leave the first decision standing" do
+      denying = Ability::Approval.find(@approval.id)
+      approving = Ability::Approval.find(@approval.id)
+
+      denying.deny!(by: @admin)
+
+      assert_raises(Ability::Approval::NotAllowed) { approving.approve!(by: @admin) }
+      assert @approval.reload.denied?
+      assert_not @approval.usable?
+    end
+
     test "approver must hold the required role at click time" do
       member = workspace_memberships(:bob_workspace_one)
 

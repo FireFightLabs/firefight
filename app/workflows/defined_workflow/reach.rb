@@ -57,7 +57,7 @@ module DefinedWorkflow::Reach
 
   def tool_known?(workspace, name) = tool_names(workspace).include?(name.to_s)
 
-  def firefight_tools = Mcp::Tools.all.reject { |tool_class| Chat::Tools::Groups::NOT_FOR_HALON.include?(tool_class.name_value.to_s) }
+  def firefight_tools = FirefightTools.all.reject { |tool_class| Chat::Tools::Groups::NOT_FOR_HALON.include?(tool_class.name_value.to_s) }
 
   def firefight_tool(name) = firefight_tools.find { |tool_class| tool_class.name_value.to_s == name.to_s }
 

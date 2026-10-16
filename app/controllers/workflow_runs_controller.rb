@@ -1,4 +1,4 @@
-# One run of a workflow, which is read on the workflow's canvas (?run=): its own address opens it there. From that view a
+# One run of a workflow, which is read on the workflow's canvas (?run=), and its own address opens it there. From that view a
 # run starts again from a step, a failed step is tried again or a step skipped, the run is stopped while it goes, or its
 # details are pinned past the workspace's retention. Each is refused with the model's sentence when it cannot be done.
 class WorkflowRunsController < InertiaController

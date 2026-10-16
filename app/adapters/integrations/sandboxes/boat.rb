@@ -4,6 +4,7 @@ module Integrations
     # one as a container, reached at the https address boat gives its port (docs.boat.dev/hosting). Named snapshots
     # keep the pulled image and each workspace's prepared repositories, so a later box starts from them in seconds.
     class Boat < Provider
+      KEY = "boat".freeze
       PORT = 8080
       CONTAINER = "firefight-sandbox".freeze
       DEFAULT_SIZE = "default".freeze
@@ -79,7 +80,7 @@ module Integrations
       def start(name:, owner: nil, from: nil, fail_fast: false)
         copy = (image_copy_name(owner.workspace_id) if owner && from.nil?)
         ready = copy.present? && image_copy_status(copy) == READY
-        SandboxImageCopy.ready!(SandboxProviders::BOAT, copy) if ready
+        SandboxImageCopy.ready!(KEY, copy) if ready
         _ref, box = bring_up(owned_name(name, owner), from: from || (copy if ready), fail_fast: fail_fast)
         box
       end
@@ -170,7 +171,7 @@ module Integrations
       # Deletes boxes archived for DELETE_AFTER, prepared copies no row names, and copies of an image that is no longer
       # run or was made more than IMAGE_KEPT_FOR ago, with the claims on saving the ones no longer run.
       def tidy(kept_refs:)
-        SandboxImageCopy.forget_others!(SandboxProviders::BOAT, image_copies_prefix)
+        SandboxImageCopy.forget_others!(KEY, image_copies_prefix)
         @api.sandboxes.each do |sandbox|
           next unless sandbox["name"].to_s.start_with?(NAME_PREFIX) && sandbox["state"] == "archived"
           next unless older_than?(sandbox["updatedAt"], DELETE_AFTER)
@@ -234,9 +235,9 @@ module Integrations
       end
 
       # Whether claimant won the save of the image copy. The copy is only a head start for the next box, so a claim
-      # that cannot be read is simply not won.
+      # that cannot be read counts as not won.
       def claimed?(copy, claimant)
-        SandboxImageCopy.claim!(SandboxProviders::BOAT, copy, claimant)
+        SandboxImageCopy.claim!(KEY, copy, claimant)
       rescue ActiveRecord::ActiveRecordError => error
         let_go(copy, nil, error)
         false
@@ -253,8 +254,8 @@ module Integrations
 
       # A claim that cannot be let go of here runs out after SandboxImageCopy::ABANDONED_AFTER.
       def let_go(copy, claimant, error)
-        Rails.logger.warn({ event: "code_box.image_copy_failed", provider: SandboxProviders::BOAT, claimant: claimant, error: error.message }.to_json)
-        SandboxImageCopy.failed!(SandboxProviders::BOAT, copy, claimant) if claimant
+        Rails.logger.warn({ event: "code_box.image_copy_failed", provider: KEY, claimant: claimant, error: error.message }.to_json)
+        SandboxImageCopy.failed!(KEY, copy, claimant) if claimant
       rescue ActiveRecord::ActiveRecordError
         nil
       end
@@ -312,7 +313,7 @@ module Integrations
       def forget(ref)
         @api.delete(ref)
       rescue BoatApi::Error => error
-        Rails.logger.warn({ event: "code_box.delete_failed", provider: SandboxProviders::BOAT, box_ref: ref, error: error.message }.to_json)
+        Rails.logger.warn({ event: "code_box.delete_failed", provider: KEY, box_ref: ref, error: error.message }.to_json)
       end
 
       def stamp(value) = value.present? ? Time.zone.parse(value.to_s) : nil

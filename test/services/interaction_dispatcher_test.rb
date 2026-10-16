@@ -193,7 +193,10 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
   end
 
   test "dispatch returns handler result for noop" do
-    interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::PREVIEW_HOMEPAGE_DISABLED)
+    workspace = Workspace.create!(platform: "slack", platform_id: "T#{SecureRandom.hex(8)}", name: "Test Workspace",
+                                  access_token: "xoxb-test-token", installed_at: Time.current)
+    interaction = Interaction.new(platform: Platforms::SLACK, type: Interaction::BLOCK_ACTIONS, team_id: workspace.platform_id,
+                                  action_id: Identifiers::PREVIEW_HOMEPAGE_DISABLED)
     result = InteractionDispatcher.dispatch(interaction)
     assert_equal "clear", result[:response_action]
   end

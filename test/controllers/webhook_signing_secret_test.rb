@@ -1,5 +1,5 @@
 require "test_helper"
-require Rails.root.join("db/migrate/20261016172000_encrypt_outbound_webhook_signing_secrets")
+require Rails.root.join("db/migrate/20261016202000_encrypt_outbound_webhook_signing_secrets")
 
 # A webhook's signing secret is kept encrypted, shown once when it is made or replaced, and otherwise only as a hint.
 class WebhookSigningSecretTest < ActionDispatch::IntegrationTest

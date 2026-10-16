@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class DeleteUnattendedRule < Base
-      tool_name DELETE_UNATTENDED_RULE
+      tool_name FirefightTools::DELETE_UNATTENDED_RULE
       description "Delete an unattended rule by id. A rule Halon already acted under is refused with the reason, and is " \
                   "switched off with upsert_unattended_rule instead. Docs: #{Docs::ON_CALL}"
       annotations(**DESTRUCTIVE)

@@ -52,7 +52,7 @@ class Workflow::HalonStepTest < ActiveSupport::TestCase
 
   test "the run's sandbox time counts against its spending ceiling beside its AI" do
     @run.workflow.update!(cost_cap_cents: 10)
-    CodeBox.create!(workspace: @workspace, key: @run.code_box_key, provider: SandboxProviders::BOAT, box_ref: "bx_1", address: "https://box.example.com",
+    CodeBox.create!(workspace: @workspace, key: @run.code_box_key, provider: Integrations::Sandboxes::Boat::KEY, box_ref: "bx_1", address: "https://box.example.com",
                     secret: "k", last_used_at: Time.current, box_started_at: 1.hour.ago, hourly_micros: 60_000, stopped_at: Time.current, running_seconds: 3600)
     Inference.create!(workspace: @workspace, inferable: @run, feature: FirefightAi::WorkflowAnswer::FEATURE, provider: "openai", model: "gpt", cost_micros: 40_000, status: "success")
     FirefightAi::WorkflowAnswer.any_instance.expects(:answer).never

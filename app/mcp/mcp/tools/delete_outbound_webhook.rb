@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class DeleteOutboundWebhook < Base
-      tool_name DELETE_OUTBOUND_WEBHOOK
+      tool_name FirefightTools::DELETE_OUTBOUND_WEBHOOK
       description "Delete a Firefight outbound webhook by id, along with its delivery history. It is " \
                   "Firefight's own, never a provider's webhook. Disabling it with " \
                   "upsert_outbound_webhook is the reversible move. If the call requires approval, " \

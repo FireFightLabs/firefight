@@ -21,8 +21,8 @@ class AgentHelpersTest < ApplicationSystemTestCase
       Chat::Helpers::Check.new(title: "Recent deploys", brief: "List deploys", deep: false),
       Chat::Helpers::Check.new(title: "Error rate", brief: "Compare the error rate", deep: false)
     ])
-    read!(@logs, "h_1", Mcp::Tools::SEARCH_INCIDENTS, { "query" => "checkout timeouts" }, "INC-7 checkout timeouts to orders-db")
-    read!(@deploys, "h_2", Mcp::Tools::SEARCH_INCIDENTS, { "query" => "deploys" }, "web deploy 4f2a1c at 13:58")
+    read!(@logs, "h_1", FirefightTools::SEARCH_INCIDENTS, { "query" => "checkout timeouts" }, "INC-7 checkout timeouts to orders-db")
+    read!(@deploys, "h_2", FirefightTools::SEARCH_INCIDENTS, { "query" => "deploys" }, "web deploy 4f2a1c at 13:58")
   end
 
   test "each helper is its own trace under the step, with its report or why it has none in view" do

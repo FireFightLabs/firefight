@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class DeleteRoutingRule < Base
-      tool_name DELETE_ROUTING_RULE
+      tool_name FirefightTools::DELETE_ROUTING_RULE
       description "Delete an alert routing rule by priority. Pass source for that source's " \
                   "policy; omit it for the workspace default. If the call requires approval, " \
                   "retry the identical call with approval_id once approved. Docs: #{Docs::ROUTING_RULES}"

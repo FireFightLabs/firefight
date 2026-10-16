@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class ReopenActionItem < Base
-      tool_name REOPEN_ACTION_ITEM
+      tool_name FirefightTools::REOPEN_ACTION_ITEM
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Open a piece of work that was marked done again. Whoever held it holds it again, and its issue reopens " \
                   "when the item is kept in step with one. Refused for an action once the incident is over. Get the item's " \

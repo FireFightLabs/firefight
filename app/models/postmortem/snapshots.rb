@@ -42,11 +42,22 @@ module Postmortem::Snapshots
   end
 
   # A completed postmortem is a considered account, so the learning job reads it against what the incident taught. It is
-  # queued once the change is recorded, since the job credits whoever marked it completed.
+  # queued once the change is recorded, since the job credits whoever marked it completed. Completing is claimed in one
+  # statement, so two people completing it at once queue the job once, and only the one who won is on record as completing it.
   def update_status!(new_status, by:)
-    completing = new_status == Postmortem::STATUS_COMPLETED && status != Postmortem::STATUS_COMPLETED
-    record_change!(IncidentEvent::POSTMORTEM_EDITED, by: by) do
-      update!(status: new_status)
+    completing = transaction do
+      to_complete = new_status == Postmortem::STATUS_COMPLETED
+      claimed = to_complete &&
+                self.class.where(id: id).where.not(status: Postmortem::STATUS_COMPLETED).update_all(status: new_status, updated_at: Time.current) == 1
+      if to_complete && !claimed && status != Postmortem::STATUS_COMPLETED
+        reload
+        next false
+      end
+
+      record_change!(IncidentEvent::POSTMORTEM_EDITED, by: by) do
+        update!(status: new_status)
+      end
+      claimed
     end
     IncidentLearningJob.perform_later(incident_id, true) if completing && defined?(FirefightAi)
   end

@@ -64,7 +64,7 @@ module Integrations
         Array.new(5) { Thread.new { @boat.prepare_image!(OWNER.workspace_id) } }.each(&:join)
 
         assert_equal 1, saved.size
-        assert_equal SandboxImageCopy::STATUS_SAVING, SandboxImageCopy.find_by!(provider: SandboxProviders::BOAT, name: copy_for(OWNER)).status
+        assert_equal SandboxImageCopy::STATUS_SAVING, SandboxImageCopy.find_by!(provider: Integrations::Sandboxes::Boat::KEY, name: copy_for(OWNER)).status
       end
 
       test "a first pull that takes minutes is followed to the end, the box comes up, and the client then waits only for it to answer" do
@@ -89,7 +89,7 @@ module Integrations
 
         2.times { @boat.prepare_image!(OWNER.workspace_id) }
 
-        assert_match(/\Aprepare-/, SandboxImageCopy.find_by!(provider: SandboxProviders::BOAT, name: copy_for(OWNER)).claimed_by)
+        assert_match(/\Aprepare-/, SandboxImageCopy.find_by!(provider: Integrations::Sandboxes::Boat::KEY, name: copy_for(OWNER)).claimed_by)
       end
 
       test "a copy boat already has, or is saving, is not prepared again, and a prepare that fails lets the claim go" do
@@ -108,7 +108,7 @@ module Integrations
 
         @boat.prepare_image!(OWNER.workspace_id)
 
-        assert_equal SandboxImageCopy::STATUS_FAILED, SandboxImageCopy.find_by!(provider: SandboxProviders::BOAT, name: copy_for(OWNER)).status
+        assert_equal SandboxImageCopy::STATUS_FAILED, SandboxImageCopy.find_by!(provider: Integrations::Sandboxes::Boat::KEY, name: copy_for(OWNER)).status
       end
 
       test "a refused save is logged and lets a later prepare claim the save again" do
@@ -121,7 +121,7 @@ module Integrations
         Rails.logger.expects(:warn).with { |line| line.include?("code_box.image_copy_failed") && line.include?("save_in_progress") }
 
         @boat.prepare_image!(OWNER.workspace_id)
-        assert_equal SandboxImageCopy::STATUS_FAILED, SandboxImageCopy.find_by!(provider: SandboxProviders::BOAT, name: copy_for(OWNER)).status
+        assert_equal SandboxImageCopy::STATUS_FAILED, SandboxImageCopy.find_by!(provider: Integrations::Sandboxes::Boat::KEY, name: copy_for(OWNER)).status
 
         @api.expects(:save_snapshot).with("bx_later", copy_for(OWNER)).returns({ "status" => "saving" })
         @boat.prepare_image!(OWNER.workspace_id)
@@ -131,7 +131,7 @@ module Integrations
         no_copy!
         @api.stubs(:create).returns({ "sandbox" => { "id" => "bx_new" } })
         @api.stubs(:stop)
-        claim = SandboxImageCopy.create!(provider: SandboxProviders::BOAT, name: copy_for(OWNER), status: SandboxImageCopy::STATUS_SAVING,
+        claim = SandboxImageCopy.create!(provider: Integrations::Sandboxes::Boat::KEY, name: copy_for(OWNER), status: SandboxImageCopy::STATUS_SAVING,
                                          claimed_by: "prepare-other", claimed_at: 1.minute.ago)
         @api.expects(:save_snapshot).never
         @boat.prepare_image!(OWNER.workspace_id)
@@ -147,10 +147,10 @@ module Integrations
         @api.stubs(:snapshot).returns({ "name" => copy_for(OWNER), "status" => "ready" })
         @api.stubs(:create).returns({ "sandbox" => { "id" => "bx_23456789" } })
         @api.stubs(:stop)
-        SandboxImageCopy.create!(provider: SandboxProviders::BOAT, name: copy_for(OWNER), status: SandboxImageCopy::STATUS_SAVING,
+        SandboxImageCopy.create!(provider: Integrations::Sandboxes::Boat::KEY, name: copy_for(OWNER), status: SandboxImageCopy::STATUS_SAVING,
                                  claimed_by: "prepare-other", claimed_at: 1.minute.ago)
         @boat.start(name: "halon-box-1", owner: OWNER)
-        assert_equal SandboxImageCopy::STATUS_READY, SandboxImageCopy.find_by!(provider: SandboxProviders::BOAT, name: copy_for(OWNER)).status
+        assert_equal SandboxImageCopy::STATUS_READY, SandboxImageCopy.find_by!(provider: Integrations::Sandboxes::Boat::KEY, name: copy_for(OWNER)).status
 
         no_copy!
         @api.expects(:save_snapshot).with("bx_23456789", copy_for(OWNER)).returns({ "status" => "saving" })
@@ -218,12 +218,12 @@ module Integrations
         @api.expects(:delete_snapshot).with("halon-image-0000000000000000-aaaaaaaaaaaa").once
         @api.expects(:delete_snapshot).with(image_copy_name).once
 
-        SandboxImageCopy.create!(provider: SandboxProviders::BOAT, name: "halon-image-0000000000000000-aaaaaaaaaaaa", status: SandboxImageCopy::STATUS_READY)
-        SandboxImageCopy.create!(provider: SandboxProviders::BOAT, name: copy_for(OWNER), status: SandboxImageCopy::STATUS_READY)
+        SandboxImageCopy.create!(provider: Integrations::Sandboxes::Boat::KEY, name: "halon-image-0000000000000000-aaaaaaaaaaaa", status: SandboxImageCopy::STATUS_READY)
+        SandboxImageCopy.create!(provider: Integrations::Sandboxes::Boat::KEY, name: copy_for(OWNER), status: SandboxImageCopy::STATUS_READY)
 
         @boat.tidy(kept_refs: Set["halon-kept-known"])
 
-        assert_equal [ copy_for(OWNER) ], SandboxImageCopy.where(provider: SandboxProviders::BOAT).pluck(:name),
+        assert_equal [ copy_for(OWNER) ], SandboxImageCopy.where(provider: Integrations::Sandboxes::Boat::KEY).pluck(:name),
                      "only claims on this image's copies are kept, and the copy every workspace shared before is deleted"
       end
 

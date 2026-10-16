@@ -1,5 +1,5 @@
 # A problem Halon raised on its own, from a scheduled check or a security event, and what it last said about it. It is
-# the memory that keeps Halon quiet: one row per problem (key), said once, then said again only when it got worse
+# the memory that keeps Halon quiet, with one row per problem (key), said once, then said again only when it got worse
 # (Investigation::Notice::NEWS), or when it comes back after a long time unseen. It is said in the channel of the
 # team that owns what it is about, else the workspace's monitoring channel.
 class Investigation::Notice < ApplicationRecord

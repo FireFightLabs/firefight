@@ -28,7 +28,7 @@ class Conversation::LookBeforeAskingTest < ActiveSupport::TestCase
     assert_includes instructions, "When a read can answer it, read before asking the person"
 
     turn = Conversation::Turn.new(@conversation, asker: @asker)
-    map = Chat::Tools.catalog(turn).find { |entry| entry.name == Mcp::Tools::GET_RESOURCE_MAP }
+    map = Chat::Tools.catalog(turn).find { |entry| entry.name == FirefightTools::GET_RESOURCE_MAP }
     assert_equal Chat::Tools::STATE_READY, map.state
     assert map.description.start_with?("The first place to find which provider and account hold a named domain, zone, service or database.")
 
@@ -39,7 +39,7 @@ class Conversation::LookBeforeAskingTest < ActiveSupport::TestCase
     use_skill = tools.find { |tool| tool.name == Chat::Tools::UseSkill.tool_name }
     steps = use_skill.call("skill" => "cloudflare_dns")
     assert steps.start_with?("Start from the zone on the resource map. `get_resource_map` with the domain")
-    offered_map = @offered.flatten.find { |tool| tool.name == Mcp::Tools::GET_RESOURCE_MAP }
+    offered_map = @offered.flatten.find { |tool| tool.name == FirefightTools::GET_RESOURCE_MAP }
     assert offered_map, "loading the DNS skill hands over the map"
     assert_not offered_map.requires_approval?
     status = @offered.flatten.find { |tool| tool.name == "resource_status" }

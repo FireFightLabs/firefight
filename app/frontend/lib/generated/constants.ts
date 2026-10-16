@@ -1686,6 +1686,15 @@ export const WORKFLOW_SCHEDULE_REPEATS = [
 ] as const
 export type WorkflowScheduleRepeat = (typeof WORKFLOW_SCHEDULE_REPEATS)[number]
 
+export const WORKFLOW_SCHEDULE_WEEKS = [
+  "1",
+  "2",
+  "3",
+  "4",
+  "last"
+] as const
+export type WorkflowScheduleWeek = (typeof WORKFLOW_SCHEDULE_WEEKS)[number]
+
 export const WORKFLOW_SCHEDULE_KEYS = {
   "REPEAT": "repeat",
   "EVERY": "every",

@@ -252,6 +252,35 @@ module Identifiers
   # Where a message event was sent (event["channel_type"]). A person's direct messages with the app.
   CHANNEL_TYPE_DIRECT = "im"
 
+  # Modal inputs, each a block and the input inside it. A handler reads a submission and names a refused field by these.
+  ACTION_ITEM_DESCRIPTION_BLOCK = "description_block"
+  ACTION_ITEM_DESCRIPTION_INPUT = "description_input"
+  ACTION_ITEM_ASSIGNEE_BLOCK = "assignee_block"
+  ACTION_ITEM_ASSIGNEE_SELECT = "assignee_select"
+  REASON_BLOCK = "reason_block"
+  REASON_INPUT = "reason_input"
+  ESCALATE_TO_BLOCK = "escalate_to_block"
+  ESCALATE_TO_SELECT = "escalate_to_select"
+  SUMMARY_BLOCK = "summary_block"
+  SUMMARY_INPUT = "summary_input"
+  LEAD_BLOCK = "lead_block"
+  LEAD_SELECT = "lead_select"
+  RUNBOOK_BLOCK = "runbook_block"
+  RUNBOOK_SELECT = "runbook_select"
+  SHOUTOUT_RECIPIENT_BLOCK = "recipient_block"
+  SHOUTOUT_RECIPIENT_SELECT = "recipient_select"
+  SHOUTOUT_MESSAGE_BLOCK = "message_block"
+  SHOUTOUT_MESSAGE_INPUT = "message_input"
+  RELATIONSHIP_TYPE_BLOCK = "relationship_type_block"
+  RELATIONSHIP_TYPE_SELECT = "relationship_type_select"
+  TARGET_INCIDENT_BLOCK = "target_incident_block"
+  TARGET_INCIDENT_SELECT = "target_incident_select"
+  HOME_ACTION_SELECT_BLOCK = "action_select_block"
+  SHARE_TARGET_BLOCK = "share_target_block"
+  SHARE_TARGET_SELECT = "share_target_select"
+  INVITE_USERS_BLOCK = "invite_users_block"
+  INVITE_USERS_SELECT = "invite_users_select"
+
   ACTION_ITEMS_LIST_KINDS = { INCIDENT_ACTIONS_MODAL => :action, INCIDENT_FOLLOWUPS_MODAL => :followup }.freeze
   ACTION_ITEMS_FORM_KINDS = { CREATE_ACTION_MODAL => :action, CREATE_FOLLOWUP_MODAL => :followup }.freeze
 

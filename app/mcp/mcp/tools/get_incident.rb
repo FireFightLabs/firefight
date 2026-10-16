@@ -3,7 +3,7 @@ module Mcp
     class GetIncident < Base
       TIMELINE_LIMIT = 50
 
-      tool_name GET_INCIDENT
+      tool_name FirefightTools::GET_INCIDENT
       authorize_as Ability::Action::RESOURCE_INCIDENTS
       description "Fetch one incident in full by id or identifier (e.g. INC-42): details, " \
                   "timeline events, postmortem status, the alerts attached to it, and its pages in on-call tools. " \
@@ -19,7 +19,7 @@ module Mcp
       def self.perform(workspace:, args:)
         reference = args[:incident].to_s
         scope = workspace.incidents.where(deleted_at: nil)
-        incident = find_by_reference(scope, reference)
+        incident = scope.find_by_reference(reference)
         raise ActiveRecord::RecordNotFound unless incident
 
         events = incident.incident_events.undismissed.includes(:eventable).order(created_at: :desc).limit(TIMELINE_LIMIT + 1).to_a
@@ -80,14 +80,6 @@ module Mcp
               }.compact
             end
           }
-        end
-      end
-
-      def self.find_by_reference(scope, reference)
-        if reference.match?(/\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/)
-          scope.find_by(id: reference)
-        else
-          scope.find_by(identifier: reference)
         end
       end
 

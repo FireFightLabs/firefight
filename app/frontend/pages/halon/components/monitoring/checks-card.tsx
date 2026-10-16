@@ -3,11 +3,13 @@ import { Link, router } from "@inertiajs/react"
 import { IconPlayerPlay, IconPlus, IconRadar } from "@tabler/icons-react"
 
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
+import { labelFor } from "@/components/investigations/labels"
 import { OptionsTable } from "@/components/options-table"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { TableCell, TableHead } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import type { InvestigationStatus } from "@/lib/generated/constants"
 import {
   disableInvestigationCheckPath,
   enableInvestigationCheckPath,
@@ -36,7 +38,7 @@ function runNow(check: InvestigationCheck) {
 }
 
 // How a check's latest run ended, in the words of a check rather than an investigation.
-const RUN_WORDS: Record<string, string> = {
+const RUN_WORDS: Record<InvestigationStatus, string> = {
   pending: "Queued",
   running: "Running",
   succeeded: "Checked",
@@ -50,7 +52,7 @@ function LastRun({ check }: { check: InvestigationCheck }) {
     return <span className="text-fg-muted">Not run yet</span>
   }
 
-  const status = RUN_WORDS[run.status] ?? run.status
+  const status = labelFor(RUN_WORDS, run.status)
   return (
     <Link href={investigationPath(run.id)} className="text-link hover:underline">
       {status} {timeAgo(run.at)}

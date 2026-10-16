@@ -1,4 +1,4 @@
-import { WORKFLOW_SCHEDULE_KEYS, WORKFLOW_SCHEDULE_REPEATS, WORKFLOW_TRIGGER_EDITOR, type WorkflowScheduleRepeat } from "@/lib/generated/constants"
+import { WORKFLOW_SCHEDULE_KEYS, WORKFLOW_SCHEDULE_REPEATS, WORKFLOW_TRIGGER_EDITOR, type WorkflowScheduleRepeat, type WorkflowScheduleWeek } from "@/lib/generated/constants"
 import { jsonObject, type JsonObject } from "@/lib/tool-fields"
 import { browserTimeZone } from "@/pages/halon/components/workflows/time-zone-select"
 import type { WorkflowTriggerKind } from "@/types/serializers"
@@ -14,8 +14,7 @@ export interface Schedule {
   zone: string
 }
 
-export const WEEKS = [ "1", "2", "3", "4", "last" ]
-export const WEEK_LABELS: Record<string, string> = { "1": "First", "2": "Second", "3": "Third", "4": "Fourth", last: "Last" }
+export const WEEK_LABELS: Record<WorkflowScheduleWeek, string> = { "1": "First", "2": "Second", "3": "Third", "4": "Fourth", last: "Last" }
 export const DAY_NAMES = [ "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" ]
 
 export function startingSchedule(): Schedule {

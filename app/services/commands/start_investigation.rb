@@ -31,7 +31,7 @@ module Commands
     # the platform sent it, and the run reads it with people and channels named and their ids kept.
     def self.brief(command)
       said = command.args.drop(1).join(" ")
-      read = said.present? ? command.workspace.adapter.messages_for_model(texts: [ said ])[said] : said
+      read = command.workspace.adapter.message_for_model(text: said)
       Investigation::Brief.from({ Investigation::Brief::KEY_SYMPTOM => said, Investigation::Brief::KEY_SYMPTOM_FOR_MODEL => (read if read != said) },
                                 source: Investigation::Brief::SOURCE_COMMAND)
     end

@@ -8,7 +8,7 @@ module Mcp
       DEFAULT_HOPS = 2
       LIMIT = ResourceMap::Graph::NODE_LIMIT
 
-      tool_name TRAVERSE_RESOURCE_MAP
+      tool_name FirefightTools::TRAVERSE_RESOURCE_MAP
       authorize_as Ability::Action::RESOURCE_MAP
       description "Walk the resource map's links from one resource, towards what it depends on (depends_on) or what " \
                   "depends on it (dependents), up to #{MAX_HOPS} links away. Each resource reached is a row with the " \
