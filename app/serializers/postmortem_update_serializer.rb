@@ -28,7 +28,8 @@ class PostmortemUpdateSerializer < BaseSerializer
 
   type :string, optional: true
   def html_content
-    update.content&.dig("html").presence || legacy_sections_html(update.content)
+    html = update.content&.dig("html").presence || legacy_sections_html(update.content)
+    html && Postmortem.sanitized_html(html)
   end
 
   private

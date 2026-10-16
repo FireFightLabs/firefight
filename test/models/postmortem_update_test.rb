@@ -54,4 +54,11 @@ class PostmortemUpdateTest < ActiveSupport::TestCase
     assert_equal update, event.eventable
     assert_equal event, update.reload.incident_event
   end
+
+  test "a revision stored before generated drafts were sanitized reaches the dashboard sanitized" do
+    update = postmortem_updates(:postmortem_update_generated_ws1)
+    update.content = { "html" => "<p>Checkout</p><img src=x onerror=alert(1)>" }
+
+    assert_equal "<p>Checkout</p>", PostmortemUpdateSerializer.one(update).as_json["htmlContent"]
+  end
 end

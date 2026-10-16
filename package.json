@@ -66,5 +66,10 @@
     "lint": "eslint 'app/frontend/**/*.{ts,tsx}'",
     "lint:fix": "eslint 'app/frontend/**/*.{ts,tsx}' --fix",
     "typecheck": "tsc -b --noEmit"
+  },
+  "overrides": {
+    "@tailwindcss/typography": {
+      "postcss-selector-parser": "^7.1.6"
+    }
   }
 }
