@@ -59,6 +59,14 @@ class OnboardingWalkthroughServiceTest < ActiveSupport::TestCase
     assert_equal({ skipped: true }, @service.advance!(second))
   end
 
+  test "waits while the incident's channel is still being set up, so the creation workflow posts the guide last" do
+    IncidentCreationWorkflow.start!(@incident)
+    Slack::WorkspaceAdapter.any_instance.expects(:post_first_incident_walkthrough).never
+
+    assert_equal({ skipped: true }, @service.advance!(@incident))
+    assert_nil @onboarding.reload.walkthrough_step
+  end
+
   test "two callers arriving together post the step once" do
     WorkspaceOnboarding.where(id: @onboarding.id).update_all(walkthrough_step: 1)
     WorkspaceOnboarding.any_instance.stubs(:walkthrough_step).returns(nil)
