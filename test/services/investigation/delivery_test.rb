@@ -122,6 +122,15 @@ class Investigation::DeliveryTest < ActiveSupport::TestCase
     assert_equal "in_progress", redrawn.sole[:tasks].second[:status]
   end
 
+  test "a redraw Slack refuses is tried again with the same checklist, so the last one is never lost" do
+    delivery = Investigation::Delivery.new(@investigation)
+    delivery.start!
+    Slack::Client.expects(:update_message).twice.raises(AdapterError::ServerError, "slack is down").then.returns({ ok: true })
+
+    delivery.stopped!(Investigation::BUDGET_SPENT)
+    delivery.stopped!(Investigation::BUDGET_SPENT)
+  end
+
   test "a run that stops redraws its checklist saying so, in the thread only" do
     delivery = Investigation::Delivery.new(@investigation)
     delivery.start!

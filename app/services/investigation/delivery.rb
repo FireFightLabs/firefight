@@ -109,12 +109,13 @@ class Investigation::Delivery
       progress ||= Investigation::Progress.new(@investigation)
       return if progress.signature == @shown_progress
 
-      @progress_shown_at = now
-      @shown_progress = progress.signature
       adapter.update_investigation_progress(
         channel_id: channel_id, message_id: thread_id, incident: @investigation.incident, question: shown_question, started_by: started_by,
         progress: progress
       )
+      # Noted only once the platform took it, so a refused redraw, the last one too, is tried again.
+      @progress_shown_at = now
+      @shown_progress = progress.signature
     end
   rescue AdapterError => error
     Rails.logger.warn({ event: "investigation.progress_not_shown", investigation_id: @investigation.id, error: error.message }.to_json)
