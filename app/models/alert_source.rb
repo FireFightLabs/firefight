@@ -36,7 +36,8 @@ class AlertSource < ApplicationRecord
   encrypts :secret_token
 
   belongs_to :workspace
-  has_many :alerts, dependent: :destroy
+  # Its alerts are the record of what fired, so a source holding any is disabled rather than deleted (deletion_blocked_reason).
+  has_many :alerts, dependent: :restrict_with_exception
   has_one :alert_routing_policy, -> { for_domain(Policy::DOMAIN_ALERT_ROUTING) },
           class_name: "Policy", as: :scoped_to, dependent: :destroy
 
@@ -48,6 +49,26 @@ class AlertSource < ApplicationRecord
   validates :secret_token, presence: true, length: { maximum: SECRET_MAX_LENGTH }
 
   scope :enabled, -> { where(enabled: true) }
+
+  # How many alerts each source holds, in one subquery for the whole list.
+  scope :with_usage_counts, lambda {
+    select("#{table_name}.*", "(SELECT COUNT(*) FROM alerts WHERE alerts.alert_source_id = #{table_name}.id) AS usage_count")
+  }
+
+  def usage_count = has_attribute?(:usage_count) ? self[:usage_count].to_i : alerts.count
+
+  # Why the source cannot be deleted, or nil. Above zero alerts it is disabled instead, which keeps its address.
+  def deletion_blocked_reason
+    count = usage_count
+    "#{name} has #{count} #{'alert'.pluralize(count)} and cannot be deleted. Disable it instead." if count.positive?
+  end
+
+  def destroy_guarded!
+    reason = deletion_blocked_reason
+    raise OptionGuards::Blocked, reason if reason
+
+    destroy!
+  end
 
   def self.new_secret = SecureRandom.hex(24)
 

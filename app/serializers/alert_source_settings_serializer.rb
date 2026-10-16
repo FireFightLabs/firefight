@@ -67,6 +67,12 @@ class AlertSourceSettingsSerializer < BaseSerializer
     alert_source.config.fetch("flap_window_minutes", AlertSource::DEFAULT_FLAP_WINDOW_MINUTES).to_i
   end
 
+  # Why it cannot be deleted, shipped so the row renders Delete inert with the model's sentence.
+  type :string, optional: true
+  def deletion_blocked_reason
+    alert_source.deletion_blocked_reason
+  end
+
   type :string
   def created_at
     alert_source.created_at.utc.iso8601
