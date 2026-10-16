@@ -136,6 +136,8 @@ services.cannot_call :render, :redirect_to, :session, :cookies, :flash, receiver
 # Commit hooks enqueueing jobs are the event-bus pattern, so jobs stay allowed.
 models.cannot_use :controllers, :api_controllers, :dispatchers, :handlers, :serializers, :adapters
 models.cannot_use :services
+# A model says what happened (Incident::LiveSignal) and a service tells the pages, so models never broadcast.
+models.cannot_use :channels
 
 # Entry points never reference each other, so shared behaviour has nowhere to live but a service or model.
 mcp.cannot_use :controllers, :api_controllers, :handlers, :dispatchers, :serializers

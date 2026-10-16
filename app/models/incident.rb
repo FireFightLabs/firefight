@@ -29,6 +29,9 @@ class Incident < ApplicationRecord
   include Incident::Subscriptions
   include Incident::Searchable
   include Incident::Outcome
+  include Incident::LiveSignal
+
+  shown_on_incident_page Incident::LiveSignal::PART_INCIDENT
 
   belongs_to :workspace
   # Polymorphic because an agent can declare an incident.
@@ -302,6 +305,13 @@ class Incident < ApplicationRecord
   # The run working on this incident now. A partial unique index keeps it to one.
   def live_investigation
     investigations.live.seen.first
+  end
+
+  # Whether a person may follow this incident's page as it changes, by the page's own rule, which asks for a member of
+  # its workspace who may read incidents.
+  def watchable_by?(user)
+    member = user && workspace.workspace_memberships.find_by(user: user)
+    member.present? && member.may?(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ, workspace)
   end
 
   # Why a person cannot start a run here now, including because one is already working on it.

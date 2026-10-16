@@ -21,6 +21,8 @@ interface WhatChangedProps {
   quiet: string
   // A line shown above the list, such as the last change the map saw.
   glance?: ReactNode
+  // Raised when what the answer is about changed, so it is read again in place.
+  readAgain?: number
 }
 
 const SOURCE_TONES: Record<ResourceMapTimelineSource, string> = {
@@ -32,9 +34,9 @@ const SOURCE_TONES: Record<ResourceMapTimelineSource, string> = {
 
 // What changed, read from what Firefight holds when it opens. Reading runs asks the provider that runs each resource, as
 // the person, so it waits for the button.
-export function WhatChanged({ pathFor, quiet, glance }: WhatChangedProps) {
+export function WhatChanged({ pathFor, quiet, glance, readAgain = 0 }: WhatChangedProps) {
   const [ reads, setReads ] = useState(0)
-  const loaded = useResourceJson<ChangesAnswer>(pathFor(reads))
+  const loaded = useResourceJson<ChangesAnswer>(pathFor(reads), readAgain)
 
   function readRuns() {
     setReads(reads + 1)

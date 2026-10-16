@@ -316,6 +316,7 @@ class IssueSyncService
     return if event.key == action.external_key
 
     action.update_columns(external_key: event.key, external_url: event.url.presence || action.external_url, updated_at: Time.current)
+    action.signal_incident_page
   end
 
   def gone(action, how, by:)

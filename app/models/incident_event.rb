@@ -1,4 +1,8 @@
 class IncidentEvent < ApplicationRecord
+  include Incident::LiveSignal
+
+  shown_on_incident_page Incident::LiveSignal::PART_TIMELINE
+
   # Dismissal is error correction on an AI note, never a way to hide what a person did.
   class NotDismissable < StandardError; end
 
@@ -213,6 +217,7 @@ class IncidentEvent < ApplicationRecord
     won = self.class.where(id: id).where("metadata->>'acknowledged_by_platform_user_id' IS NULL")
               .update_all([ "metadata = COALESCE(metadata, '{}'::jsonb) || ?::jsonb", acknowledged.to_json ])
     reload
+    signal_incident_page if won == 1
     won == 1
   end
 
