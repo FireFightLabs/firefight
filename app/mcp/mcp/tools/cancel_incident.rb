@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class CancelIncident < Base
-      tool_name CANCEL_INCIDENT
+      tool_name FirefightTools::CANCEL_INCIDENT
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Cancel an incident, meaning it turned out not to be one: a false positive, a " \
                   "duplicate, or a mistake. It keeps its channel and timeline but never counts as " \

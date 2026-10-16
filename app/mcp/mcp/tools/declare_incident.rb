@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class DeclareIncident < Base
-      tool_name DECLARE_INCIDENT
+      tool_name FirefightTools::DECLARE_INCIDENT
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_CREATE
       description "Declare a new incident. Firefight opens a channel for it and announces it, the same " \
                   "as a person running /ff new. Call get_form with form: \"declare\" first: this " \

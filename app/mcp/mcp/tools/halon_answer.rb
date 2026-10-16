@@ -38,7 +38,7 @@ module Mcp
       def self.working(conversation)
         response(
           status: STATUS_WORKING, conversation_id: conversation.id,
-          answer: "Halon is still working on this. Call #{GET_HALON_ANSWER} with this conversation_id to wait for the answer."
+          answer: "Halon is still working on this. Call #{FirefightTools::GET_HALON_ANSWER} with this conversation_id to wait for the answer."
         )
       end
 

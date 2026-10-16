@@ -15,6 +15,7 @@ if ENV["OTEL_EXPORTER_OTLP_ENDPOINT"].present?
       "deployment.environment" => ENV.fetch("DEPLOYMENT_ENVIRONMENT", Rails.env)
     )
     c.use_all
+    c.add_span_processor(TraceQueryFilter.new)
   end
 end
 

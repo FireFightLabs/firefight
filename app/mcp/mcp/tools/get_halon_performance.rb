@@ -2,7 +2,7 @@ module Mcp
   module Tools
     # The numbers on the Performance page, so an agent can answer how Halon has been doing.
     class GetHalonPerformance < Base
-      tool_name GET_HALON_PERFORMANCE
+      tool_name FirefightTools::GET_HALON_PERFORMANCE
       authorize_as Ability::Action::RESOURCE_INVESTIGATIONS
       description "How Halon has done in this workspace over the last 7, 30 or 90 days: how many investigations ran and " \
                   "reached an answer, the median time to an answer, what the team said of the answers (right, partly " \

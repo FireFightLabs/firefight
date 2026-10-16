@@ -5,6 +5,7 @@ module Integrations
     # and is reached by name when the app runs in a container on that network, and is published on the host's
     # loopback otherwise.
     class Docker < Provider
+      KEY = "docker".freeze
       LABEL = "firefight.sandbox".freeze
       WORKSPACE_LABEL = "firefight.workspace".freeze
       BOX_KEY_LABEL = "firefight.box-key".freeze

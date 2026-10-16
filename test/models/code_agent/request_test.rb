@@ -12,7 +12,7 @@ class CodeAgent::RequestTest < ActiveSupport::TestCase
     @chat.messages.create!(role: Chat::Message::ROLE_USER, content: "Make the release job send the commit")
     @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "I will change release.yml.")
     read = @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
-    read.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Mcp::Tools::GET_RESOURCE_MAP, arguments: {})
+    read.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: FirefightTools::GET_RESOURCE_MAP, arguments: {})
     @chat.add_message(role: :tool, content: FirefightAi::Evidence.frame("get_resource_map", "release runs on tag push, token ghp_#{'a' * 36}"), tool_call_id: "call_1")
     @chat.messages.create!(role: Chat::Message::ROLE_USER, content: "No, the tag, not the commit")
     asking = @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
@@ -49,7 +49,7 @@ class CodeAgent::RequestTest < ActiveSupport::TestCase
     reads = lambda do |count|
       count.times do
         key = "call_#{SecureRandom.hex(3)}"
-        @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "").ruby_llm_tool_calls.create!(tool_call_id: key, name: Mcp::Tools::GET_RESOURCE_MAP, arguments: {})
+        @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "").ruby_llm_tool_calls.create!(tool_call_id: key, name: FirefightTools::GET_RESOURCE_MAP, arguments: {})
         @chat.add_message(role: :tool, content: FirefightAi::Evidence.frame("get_resource_map", "release runs on tag push"), tool_call_id: key)
       end
     end

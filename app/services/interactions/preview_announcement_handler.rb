@@ -16,7 +16,7 @@ module Interactions
         channel_id: interaction.channel_id
       })
 
-      { response_action: "clear" }
+      workspace.adapter.modal_close_response
     end
   end
 end

@@ -18,6 +18,11 @@ class IncidentInviteService
     failed = []
 
     distinct(people).each do |person|
+      if person.is_a?(WorkspaceMembership) && person.platform_user_id.blank?
+        failed << Failure.new(person: person, error: "#{person.actor_display_name} has not used Firefight in chat yet, so there is no account to invite.")
+        next
+      end
+
       @adapter.invite_user(channel_id: incident.channel_id, user_id: platform_user_id(person))
       invited << person
     rescue AdapterError::AlreadyInChannel

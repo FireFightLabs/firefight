@@ -102,7 +102,7 @@ module Integrations
       # secret of the webhook's own to keep.
       def register_issue_webhook(environment_row, url:, target:)
         api = api(environment_row)
-        site = SourceLinks::Jira.site_of(target.to_h[IssueTrackers::Jira::SITE])
+        site = AtlassianSite.of(target.to_h[IssueTrackers::Jira::SITE])
         project = target.to_h[IssueTrackers::Jira::PROJECT].to_s.strip.upcase
         raise Issues::Failed, "Choose the Jira site and project new issues are filed in under Settings, Workspace." if site.nil? || project.empty?
 
@@ -138,7 +138,7 @@ module Integrations
       # as an error answer so a missing issue reads as one.
       def answering(environment_row, arguments)
         api = api(environment_row)
-        site = SourceLinks::Jira.site_of(arguments[CLOUD])
+        site = AtlassianSite.of(arguments[CLOUD])
         return refused("Give the Jira site's address as cloudId.") unless site
 
         answer = yield api, api.cloud_id(site)

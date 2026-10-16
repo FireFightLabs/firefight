@@ -3,7 +3,7 @@ module Mcp
     class ListPrincipals < Base
       extend GatewayPayloads
 
-      tool_name LIST_PRINCIPALS
+      tool_name FirefightTools::LIST_PRINCIPALS
       description "Everyone who can hold a grant, people, agents, service keys and Firefight's own " \
                   "built in agents, with the grants each holds. Use the kind and id with grant_ability, " \
                   "and a person's id as an approver in upsert_approval_rule. Docs: #{Docs::PERMISSIONS}"

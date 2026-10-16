@@ -130,7 +130,7 @@ module Conversation::Mitigations
     tell!(mitigation, KIND_REMINDER, "#{mitigation.title} ends in about #{left}. #{how} Keep it or extend it if it is still needed.")
   end
 
-  # Run out and not kept: the undo runs, or a person is told it is due by hand.
+  # Run out and not kept. The undo runs, or a person is told it is due by hand.
   def self.expire!(mitigation)
     return unless mitigation.move!(from: Chat::Mitigation::STATUS_ACTIVE, to: Chat::Mitigation::STATUS_UNDOING, claimed_at: Time.current)
 
@@ -223,7 +223,8 @@ module Conversation::Mitigations
   private_class_method :run_step
 
   def self.outcome_words(mitigation, outcome, step, _by)
-    return "Undoing #{mitigation.title} needs an approval, so it waits in the chat for someone to approve it and then for Run." if outcome == :held
+    # A held call runs as soon as it is approved (Conversation::HeldCalls.approved!), so there is no Run to wait for.
+    return "Undoing #{mitigation.title} needs an approval, so it waits in the chat until someone approves it, and then it runs." if outcome == :held
 
     "Firefight could not undo #{mitigation.title} at the step \"#{step['description']}\": #{outcome.last}. Undo it by hand."
   end
@@ -264,7 +265,7 @@ module Conversation::Mitigations
   end
   private_class_method :post
 
-  # Pressed on a message the platform shows: the message is redrawn so it no longer offers what is done. Returns why
+  # Pressed on a message the platform shows. The message is redrawn so it no longer offers what is done. Returns why
   # nothing was done, or nil.
   def self.pressed!(mitigation, action, by:, channel_id:, message_id:)
     blocked = public_send(action, mitigation, by: by)

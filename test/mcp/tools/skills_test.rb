@@ -83,12 +83,12 @@ class Mcp::Tools::SkillsTest < ActiveSupport::TestCase
   end
 
   test "the tools exist only with the custom skills flag and are not offered to Halon" do
-    names = [ Mcp::Tools::LIST_SKILLS, Mcp::Tools::GET_SKILL, Mcp::Tools::UPSERT_SKILL, Mcp::Tools::DELETE_SKILL ]
-    assert_empty names - Mcp::Tools.available_in(@workspace).map { |tool| tool.name_value.to_s }
+    names = [ FirefightTools::LIST_SKILLS, FirefightTools::GET_SKILL, FirefightTools::UPSERT_SKILL, FirefightTools::DELETE_SKILL ]
+    assert_empty names - FirefightTools.available_in(@workspace).map { |tool| tool.name_value.to_s }
     assert_empty names - Chat::Tools::Groups::NOT_FOR_HALON
 
     FeatureFlags.disable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
-    assert_empty names & Mcp::Tools.available_in(@workspace).map { |tool| tool.name_value.to_s }
+    assert_empty names & FirefightTools.available_in(@workspace).map { |tool| tool.name_value.to_s }
   end
 
   private

@@ -171,7 +171,7 @@ module Conversation::HeldCalls
       return Chat::Tools::Browser.new(turn).run_approved(approval.params, approval_id: approval.id, tool_call_id: held.tool_call_id)
     end
 
-    tool_class = Mcp::Tools.all.find { |each| each.name_value.to_s == held.tool_name }
+    tool_class = FirefightTools.all.find { |each| each.name_value.to_s == held.tool_name }
     return "#{held.tool_name} is no longer a tool here, so it did not run." unless tool_class
 
     action = Ability::Action.lookup(approval.action_key, held.workspace)

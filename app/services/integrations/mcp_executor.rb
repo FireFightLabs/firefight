@@ -10,9 +10,14 @@ module Integrations
       return { "content" => [ { "type" => "text", "text" => refused } ], "isError" => true } if refused
       SecretReads.refuse!(tool, arguments)
       within = QUICK_READ if quick_read?(tool)
-      result = client_for(tool.integration, environment_row, within: within)
-               .call_tool(name: tool.remote_name, arguments: arguments)
-      kept = Redactions.apply(ToolResult.normalize(result), **Redactions.rules(tool.integration.provider))
+      rules = Redactions.rules(tool.integration.provider)
+      result = begin
+        client_for(tool.integration, environment_row, within: within).call_tool(name: tool.remote_name, arguments: arguments)
+      rescue Integrations::Error => error
+        # The server's own words reach the model and the chat as an answer does, so they lose credentials the same way.
+        raise error.exception(Redactions.message(error.message, **rules))
+      end
+      kept = Redactions.apply(ToolResult.normalize(result), **rules)
       kept = ApiIndex.hinted(kept, tool.integration.provider, tool.name, arguments, failed: failed?(tool, kept))
       SourceLinks.attach(kept, settings: ConnectionSettings.of(environment_row), tool_name: tool.name, arguments: arguments)
     rescue TimedOut

@@ -92,7 +92,7 @@ class McpOauthFlowTest < ActionDispatch::IntegrationTest
 
     post mcp_path,
          params: { jsonrpc: "2.0", id: 1, method: "tools/call",
-                   params: { name: Mcp::Tools::SEARCH_INCIDENTS, arguments: { limit: 1 } } }.to_json,
+                   params: { name: FirefightTools::SEARCH_INCIDENTS, arguments: { limit: 1 } } }.to_json,
          headers: { "Content-Type" => "application/json", "Authorization" => "Bearer #{access_token}" }
     assert_response :success
     result = JSON.parse(response.body).fetch("result")

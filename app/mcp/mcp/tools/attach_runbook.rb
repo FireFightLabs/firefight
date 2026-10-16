@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class AttachRunbook < Base
-      tool_name ATTACH_RUNBOOK
+      tool_name FirefightTools::ATTACH_RUNBOOK
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Attach a runbook to an incident, posting its steps in the incident channel " \
                   "for responders to claim. Runbooks whose conditions match attach on their " \
@@ -19,7 +19,7 @@ module Mcp
       )
 
       def self.perform_with_principal(workspace:, principal:, args:)
-        incident = GetIncident.find_by_reference(workspace.incidents.where(deleted_at: nil), args[:incident].to_s)
+        incident = workspace.incidents.where(deleted_at: nil).find_by_reference(args[:incident].to_s)
         raise ActiveRecord::RecordNotFound unless incident
 
         attached_by = principal if principal.is_a?(WorkspaceMembership)

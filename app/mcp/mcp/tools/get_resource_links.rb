@@ -11,7 +11,7 @@ module Mcp
       PAGE_SIZE = 100
       MAX_PAGE_SIZE = 500
 
-      tool_name GET_RESOURCE_LINKS
+      tool_name FirefightTools::GET_RESOURCE_LINKS
       authorize_as Ability::Action::RESOURCE_MAP
       description "The links into and out of one resource on the resource map, a page at a time. A link reads as a " \
                   "sentence, from depends on to, such as \"web uses orders-db\", with how it was found: declared by a " \

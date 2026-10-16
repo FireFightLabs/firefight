@@ -5,7 +5,7 @@ module Mcp
     class GetResource < Base
       extend MapPayloads
 
-      tool_name GET_RESOURCE
+      tool_name FirefightTools::GET_RESOURCE
       authorize_as Ability::Action::RESOURCE_MAP
       description "One resource on the resource map by its name, its provider's id or its id: where it runs, its page, " \
                   "status as the last sweep saw it, details, the catalog services it runs with what each is for and who " \

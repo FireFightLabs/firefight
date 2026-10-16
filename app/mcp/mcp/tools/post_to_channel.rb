@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class PostToChannel < Base
-      tool_name POST_TO_CHANNEL
+      tool_name FirefightTools::POST_TO_CHANNEL
       authorize_as Ability::Action::RESOURCE_CHANNEL_POSTS, Ability::Action::ACTION_CREATE
       description "Post a message as Firefight in any channel it can post in, such as release notes in #general or a " \
                   "heads up to a team's channel. The post names who asked for it. Use post_incident_update for an " \

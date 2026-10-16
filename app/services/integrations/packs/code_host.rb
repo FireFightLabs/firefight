@@ -19,8 +19,6 @@ module Integrations
       LOG_LINES = 200
       MAX_LOG_LINES = 1_000
       ANSI = /\e\[[0-9;?]*[A-Za-z]|\e\][^\a]*\a/
-      # GitLab marks a log's collapsible sections with lines such as section_start:1700000000:build_script, which say nothing.
-      SECTION_MARK = /\A\s*section_(start|end):\d+:[\w.\-]+(\[[^\]]*\])?/
       REGEX_TIMEOUT = 1
       # A deploy target that looks like production, when none is named.
       PRODUCTION = /\Aprod/i
@@ -146,11 +144,13 @@ module Integrations
         "Owners of the changed files, from CODEOWNERS:\n#{by_owner.map { |owner, paths| "  #{owner}: #{paths.join(', ')}" }.join("\n")}"
       end
 
-      # A build log as lines a person reads, without colour codes, section markers or a progress bar's earlier states,
-      # filtered as asked and cut to its last lines. Returns the lines kept and how many matched.
-      def build_log_lines(raw, arguments)
+      # A build log as lines a person reads, without colour codes, a progress bar's earlier states or the markers a host
+      # names in marks, filtered as asked and cut to its last lines. Returns the lines kept and how many matched.
+      def build_log_lines(raw, arguments, marks: nil)
         lines = raw.to_s.split(/\r?\n/).filter_map do |line|
-          shown = line.gsub(ANSI, "").split("\r").map { |part| part.sub(SECTION_MARK, "") }.reject(&:blank?).last.to_s.rstrip
+          parts = line.gsub(ANSI, "").split("\r")
+          parts = parts.map { |part| part.sub(marks, "") } if marks
+          shown = parts.reject(&:blank?).last.to_s.rstrip
           shown unless shown.empty?
         end
         text, exclude = arguments["text"].to_s, arguments["exclude"].to_s

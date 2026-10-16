@@ -1,5 +1,5 @@
 # Fills in an action or follow-up form a reaction opened with the message it was added to. The form opens on the
-# trigger and Slack is answered at once, so reading the message, however slow, never delays either.
+# trigger and the platform is answered at once, so reading the message, however slow, never delays either.
 class ActionItemFormFillInJob < ApplicationJob
   queue_as :default
 

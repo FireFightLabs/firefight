@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class GetIncidentTranscript < Base
-      tool_name GET_INCIDENT_TRANSCRIPT
+      tool_name FirefightTools::GET_INCIDENT_TRANSCRIPT
       authorize_as Ability::Action::RESOURCE_INCIDENT_TRANSCRIPTS
       description "What people actually said in an incident's channel, in order, with who said it " \
                   "and when. This is the conversation the timeline summarises: the theories that " \

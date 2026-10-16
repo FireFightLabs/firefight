@@ -412,7 +412,7 @@ class Conversation::Runner
 
   def watch_notes = @watch_notes ||= []
 
-  # Fresh beats remembered. A call this turn made with the very read a watch in this chat makes is handed to the watch.
+  # Fresh beats remembered. A call this turn made with the same read a watch in this chat makes is handed to the watch.
   # A watch's reads only read, so a call that matches one read too.
   def hand_reading_to_watches(key, answered)
     tool, arguments = asked.delete(key)

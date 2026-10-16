@@ -30,7 +30,13 @@ class Integrations::GitGateTest < ActiveSupport::TestCase
     assert_equal "A code change never pushes tags (refs/tags/v1).", refusal([ command(ZERO, NEW, "refs/tags/v1") ])
     assert_equal "A code change never deletes a branch or a tag (refs/heads/halon/fix-1).", refusal([ command(OLD, ZERO, "refs/heads/halon/fix-1") ])
     assert_match "never main", refusal([ command(OLD, NEW, "refs/heads/halon/fix-1"), command(OLD, NEW, "refs/heads/main") ]), "one bad ref refuses the push"
-    assert_equal "This code change has no branch it may push to.", Integrations::GitGate.refusal([ command(OLD, NEW, "refs/heads/x") ], nil)
+    assert_equal "This code change has no branch it may push to.", Integrations::GitGate.refusal([ command(OLD, NEW, "refs/heads/x") ], nil, NEW)
+  end
+
+  test "a push of anything but the reviewed commit is refused, and so is one with no reviewed commit" do
+    assert_equal "A code change pushes only the commit that was reviewed, #{NEW[0, 12]}, never #{OLD[0, 12]}.",
+                 refusal([ command(ZERO, OLD, "refs/heads/halon/fix-1") ], commit: NEW)
+    assert_equal "This code change has no reviewed commit to push.", refusal([ command(ZERO, NEW, "refs/heads/halon/fix-1") ], commit: nil)
   end
 
   test "anything that is not a ref update command is refused" do
@@ -41,7 +47,7 @@ class Integrations::GitGateTest < ActiveSupport::TestCase
 
   private
 
-  def refusal(commands) = Integrations::GitGate.refusal(commands, "halon/fix-1")
+  def refusal(commands, commit: commands.first&.new) = Integrations::GitGate.refusal(commands, "halon/fix-1", commit)
 
   def command(old, new, ref) = Integrations::GitGate::Command.new(old: old, new: new, ref: ref)
 

@@ -35,7 +35,7 @@ module Chat::Tools::Provenance
       *[ Chat::Tools::Recall, Chat::Tools::Remember, Chat::Tools::DisputeMemory, Chat::Tools::CorrectMemory ].map(&:tool_name),
       *[ Conversation::Tools::ListWatches, Conversation::Tools::StopWatch, Conversation::Tools::ExtendWatch ].map(&:tool_name),
       Chat::Tools::Theories.tool_name,
-      *Mcp::Tools.all.select(&:own_words?).map { |tool_class| tool_class.name_value.to_s }
+      *FirefightTools.all.select(&:own_words?).map { |tool_class| tool_class.name_value.to_s }
     ].to_set.freeze
   end
 

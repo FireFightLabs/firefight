@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class ReopenIncident < Base
-      tool_name REOPEN_INCIDENT
+      tool_name FirefightTools::REOPEN_INCIDENT
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Reopen an incident that was resolved or canceled, putting it back on this " \
                   "workspace's default live status. Not form-driven: give the reason it is coming " \

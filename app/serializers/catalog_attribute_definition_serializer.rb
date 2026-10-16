@@ -31,4 +31,9 @@ class CatalogAttributeDefinitionSerializer < BaseSerializer
   def options
     attr_def.config["options"]
   end
+
+  type :string, optional: true
+  def removal_blocked_reason
+    attr_def.removal_blocked_reason
+  end
 end

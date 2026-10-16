@@ -142,6 +142,33 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "Cannot remove attribute 'Tier' because it is used by active entries" ], session["inertia_errors"][:base]
   end
 
+  test "a built-in type's attributes reach the page with the reason they cannot be removed" do
+    get "/app/catalogue/team", headers: inertia_headers
+
+    definitions = inertia_props.dig("type", "attributeDefinitions")
+    assert_equal "Team is a built-in type, so its attributes cannot be removed.",
+      definitions.find { |definition| definition["slug"] == "description" }["removalBlockedReason"]
+    assert definitions.all? { |definition| definition["removalBlockedReason"].present? }
+
+    get "/app/catalogue/vendor", headers: inertia_headers
+    assert inertia_props.dig("type", "attributeDefinitions").all? { |definition| definition["removalBlockedReason"].nil? }
+  end
+
+  test "update_type refuses to remove a built-in type's attribute with the reason it gives" do
+    type = catalog_types(:team_ws1)
+    kept = %i[team_slack_channel team_manager team_members].map { |name| catalog_attribute_definitions(name) }
+
+    patch "/app/catalogue/types/#{type.id}", params: {
+      name: "Team", color: type.color, icon: type.icon,
+      attribute_definitions: kept.map { |definition| { id: definition.id, name: definition.name, attributeType: definition.attribute_type } }
+    }
+
+    assert_response :redirect
+    assert catalog_attribute_definitions(:team_description).reload.persisted?
+    assert_equal [ "Team is a built-in type, so its attributes cannot be removed." ], session["inertia_errors"][:base]
+    assert_nil flash[:notice]
+  end
+
   test "update_type names the attribute in a base error rather than blaming the type's own fields" do
     type = catalog_types(:custom_vendor_ws1)
     email_def = catalog_attribute_definitions(:vendor_name_attr)

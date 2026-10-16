@@ -543,7 +543,7 @@ module Integrations
             reviewed = after.with(sent_back: reviewed.sent_back)
           end
           kept_out!(environment_row, repo, change, updating: lease.present?)
-          push!(session, reading, repo, ref, branch, lease)
+          push!(session, reading, repo, ref, branch, lease, commit: change.commit)
           [ change, reviewed ]
         rescue StandardError => error
           stopped = error
@@ -599,10 +599,10 @@ module Integrations
         # The reviewed change pushed through the gate, as the box's own git sends it. A branch that moved since is refused.
         # The gate lets a push through only while this one runs, signed in with a token made for it, so the agent, which
         # holds the session's token, can never push on its own.
-        def push!(session, reading, repo, ref, branch, lease, from: nil)
+        def push!(session, reading, repo, ref, branch, lease, commit:, from: nil)
           @work.add("Pushing #{branch}")
           report(@work)
-          push_token = session.open_push!((PUSH_TIMEOUT + Sandboxes::Client::MARGIN).seconds) || fail!("This code change's session has ended, so nothing was pushed.")
+          push_token = session.open_push!((PUSH_TIMEOUT + Sandboxes::Client::MARGIN).seconds, commit: commit) || fail!("This code change's session has ended, so nothing was pushed.")
           # An answer can change until the push opens, so one that landed after the last look stops the change rather than
           # being lost. A pause's push only saves the work, and Continue hands the agent the changed answer.
           if from.nil? && CodeAgentQuestion.correction_waiting.exists?(code_agent_session_id: session.id)
@@ -642,7 +642,7 @@ module Integrations
           pause
         end
 
-        # The change reached its spending limit: what it wrote so far is committed and pushed through the gate to a branch
+        # The change reached its spending limit. What it wrote so far is committed and pushed through the gate to a branch
         # of its own without opening anything, the box is kept for Continue to carry on in place, and the person is asked
         # whether to continue. A change for an open pull request is saved beside it, never on its branch.
         def pause!(environment_row, reading, repo, ref, session, change, events, base:, branch:, lease:)
@@ -651,7 +651,7 @@ module Integrations
           unless change.nothing?
             kept_out!(environment_row, repo, change, updating: adding)
             session.update_columns(git_branch: saved)
-            push!(session, reading, repo, ref, saved, (@pause&.saved_commit if @pause&.saved_branch), from: branch)
+            push!(session, reading, repo, ref, saved, (@pause&.saved_commit if @pause&.saved_branch), from: branch, commit: change.commit)
           end
           CodeBox.live.find_by(key: box_key)&.used!
           pause = CodeAgentSession::Pause.create!(
@@ -674,12 +674,12 @@ module Integrations
             "from the work saved so far. A workspace admin sets the budget each new code fix starts with under Settings, Workspace."
         end
 
-        # What a fresh agent is told when the box the change stopped in is gone: the request and the person's answers, what
-        # the earlier session already changed on the saved branch, and that the rest is its to finish.
         # Where a continued change is written: the copy it stopped in while that can carry on in place, otherwise the
         # commit it saved, which the box fetches.
         def continued_ref(pause) = pause.resumable_in_place? ? pause.copy_ref : pause.saved_commit
 
+        # What a fresh agent is told when the box the change stopped in is gone: the request and the person's answers, what
+        # the earlier session already changed on the saved branch, and that the rest is its to finish.
         def handover(pause)
           answers = pause.session.questions.from_agent.select { |question| question.answered? || question.defaulted? }.map { |question| "- #{question.question} #{question.agent_words}" }
           [ "You are continuing a change an earlier session started and could not finish, since it reached its spending limit.",

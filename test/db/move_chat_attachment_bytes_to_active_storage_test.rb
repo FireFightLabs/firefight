@@ -49,7 +49,7 @@ class MoveChatAttachmentBytesToActiveStorageTest < ActiveSupport::TestCase
     Chat::Attachment.reset_column_information
   end
 
-  # The shape main had before, rolled back with the test's transaction.
+  # The shape the tables had before, rolled back with the test's transaction.
   def restore_blob_column
     Chat::Attachment.lease_connection.add_reference :chat_attachments, :blob, foreign_key: { to_table: :active_storage_blobs }, index: true
     Chat::Attachment.reset_column_information

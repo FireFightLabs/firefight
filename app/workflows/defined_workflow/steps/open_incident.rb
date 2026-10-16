@@ -20,7 +20,7 @@ class DefinedWorkflow::Steps::OpenIncident < DefinedWorkflow::Steps::FirefightTo
   OUTPUT_DATA = DefinedWorkflow::Steps::CallTool::OUTPUT_DATA
 
   class << self
-    def tool_for(_config, _workspace) = Mcp::Tools::DECLARE_INCIDENT
+    def tool_for(_config, _workspace) = FirefightTools::DECLARE_INCIDENT
 
     def arguments_for(config, _workspace)
       answers = config.slice(KEY_NAME, KEY_SUMMARY, KEY_SEVERITY, KEY_TYPE).compact_blank

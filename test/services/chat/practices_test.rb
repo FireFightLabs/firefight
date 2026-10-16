@@ -41,7 +41,7 @@ class Chat::PracticesTest < ActiveSupport::TestCase
     answer = use_skill.call("skill" => "incident_command")
 
     assert_includes answer, Chat::Skill.find("incident_command").steps
-    assert_includes offered.map(&:name), Mcp::Tools::GET_INCIDENT
+    assert_includes offered.map(&:name), FirefightTools::GET_INCIDENT
   end
 
   test "the rules the playbooks took over are in them" do

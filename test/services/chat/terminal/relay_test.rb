@@ -94,7 +94,7 @@ class Chat::Terminal::RelayTest < ActiveSupport::TestCase
     assert_equal [ { "name" => @reads.model_facing_name, "reads" => true, "description" => "Echoes text back" } ], listed
     names = relay(changes: true).tools.map { |tool| tool["name"] }
     assert_includes names, @writes.model_facing_name
-    assert_not_includes names, Mcp::Tools::DECLARE_INCIDENT
+    assert_not_includes names, FirefightTools::DECLARE_INCIDENT
   end
 
   test "a command can make only so many calls, and none once it ended" do

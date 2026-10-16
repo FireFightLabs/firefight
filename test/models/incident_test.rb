@@ -21,6 +21,16 @@ class IncidentTest < ActiveSupport::TestCase
     assert_not AlertGroup.exists?(group.id)
   end
 
+  test "find_by_reference finds an incident by its id or its identifier within the scope" do
+    incident = incidents(:active_critical_ws1)
+    scope = incident.workspace.incidents
+
+    assert_equal incident, scope.find_by_reference(incident.id)
+    assert_equal incident, scope.find_by_reference(incident.identifier)
+    assert_nil scope.find_by_reference("INC-NOPE")
+    assert_nil workspaces(:slack_workspace_two).incidents.find_by_reference(incident.id)
+  end
+
   test "requires sequence_number" do
     incident = Incident.new(
       workspace: workspaces(:slack_workspace_one),

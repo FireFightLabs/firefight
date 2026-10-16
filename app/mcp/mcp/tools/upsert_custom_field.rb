@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class UpsertCustomField < Base
-      tool_name UPSERT_CUSTOM_FIELD
+      tool_name FirefightTools::UPSERT_CUSTOM_FIELD
       description "Create or update a custom incident field definition. Pass slug to update an " \
                   "existing field; omit it to create one (name and field_type required). " \
                   "Options are matched by label, so renaming one keeps every incident pointing " \

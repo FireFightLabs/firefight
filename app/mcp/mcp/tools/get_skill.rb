@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class GetSkill < Base
-      tool_name GET_SKILL
+      tool_name FirefightTools::GET_SKILL
       authorize_as Ability::Action::RESOURCE_SKILLS
       behind_flag FeatureFlags::CUSTOM_SKILLS
       description "Read one of this workspace's skills whole, by its name or id: when Halon uses it, the tools it names, its " \

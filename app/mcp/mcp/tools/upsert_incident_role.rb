@@ -3,7 +3,7 @@ module Mcp
     class UpsertIncidentRole < Base
       include ConfiguresOption
 
-      tool_name UPSERT_INCIDENT_ROLE
+      tool_name FirefightTools::UPSERT_INCIDENT_ROLE
       configures_option IncidentRole,
         resource: Ability::Action::RESOURCE_INCIDENT_ROLES,
         guidance: "A role holds one person at a time. "

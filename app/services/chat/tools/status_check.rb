@@ -24,11 +24,11 @@ module Chat::Tools::StatusCheck
     blocked = agent_run.workspace.web_lookup_blocked_reason
     return "#{lead} Its status page is #{page}, which Firefight cannot read here. #{blocked}" if blocked
 
-    said = agent_run.tool_call(action_key: Ability::Action::WEB_READ, params: { "provider" => entry.name }, tool_name: Mcp::Tools::CHECK_STATUS_PAGE,
+    said = agent_run.tool_call(action_key: Ability::Action::WEB_READ, params: { "provider" => entry.name }, tool_name: FirefightTools::CHECK_STATUS_PAGE,
                                label: "Check #{entry.name}'s status page") do
       Integrations::StatusPages.words(Integrations::StatusPages.read(entry))
     end
-    "#{lead} Its status page, read now:\n#{Chat::Tools.hand_over(agent_run, Mcp::Tools::CHECK_STATUS_PAGE, said)}"
+    "#{lead} Its status page, read now:\n#{Chat::Tools.hand_over(agent_run, FirefightTools::CHECK_STATUS_PAGE, said)}"
   rescue Integrations::Error, ArgumentError => error
     "#{lead} Its status page #{page} could not be read: #{error.message}"
   rescue AbilityGateway::Denied, AbilityGateway::PendingApproval

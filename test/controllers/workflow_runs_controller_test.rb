@@ -73,7 +73,7 @@ class WorkflowRunsControllerTest < ActionDispatch::IntegrationTest
     steps!(step("pause", "delay", { "seconds" => 0 }))
     run = try!
     Inference.create!(workspace: @workspace, inferable: run, feature: FirefightAi::WorkflowAnswer::FEATURE, provider: "openai", model: "gpt", cost_micros: 120_000, status: "success")
-    CodeBox.create!(workspace: @workspace, key: run.code_box_key, provider: SandboxProviders::BOAT, box_ref: "bx_1", address: "https://box.example.com",
+    CodeBox.create!(workspace: @workspace, key: run.code_box_key, provider: Integrations::Sandboxes::Boat::KEY, box_ref: "bx_1", address: "https://box.example.com",
                     secret: "k", last_used_at: Time.current, box_started_at: 1.hour.ago, hourly_micros: 40_000, stopped_at: Time.current, running_seconds: 3600)
     run.steps.sole.update!(sandbox_seconds: 42, sandbox_micros: 467, status: DefinedWorkflow::STEP_SKIPPED,
                            output: { DefinedWorkflow::Steps::Base::OUTPUT_SKIPPED => "Halon checked first and the problem has cleared, so this step did not run." })

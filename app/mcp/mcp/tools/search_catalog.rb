@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class SearchCatalog < Base
-      tool_name SEARCH_CATALOG
+      tool_name FirefightTools::SEARCH_CATALOG
       authorize_as Ability::Action::RESOURCE_CATALOG
       description "Search the service catalog: services, teams and other entries with their " \
                   "attributes and relationships (e.g. which team owns a service, its Slack " \

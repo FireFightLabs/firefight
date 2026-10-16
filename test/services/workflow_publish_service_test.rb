@@ -12,7 +12,7 @@ class WorkflowPublishServiceTest < ActiveSupport::TestCase
   def drafted(name = "Look around")
     workflow = Workflow.create!(workspace: @workspace, name: name, created_by: @bob)
     workflow.open_draft!(by: @bob).update!(steps: [ { "id" => "look", "name" => "look", "kind" => "call_tool",
-                                                      "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => {} } } ])
+                                                      "config" => { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => {} } } ])
     workflow
   end
 
