@@ -12,7 +12,7 @@ module SolidWorkflow
 
         depends_on.all? do |dep_name|
           dep_step = step_map[dep_name]
-          dep_step && (dep_step.succeeded? || dep_step.skipped?)
+          dep_step && (dep_step.succeeded? || dep_step.skipped? || dep_step.failure_tolerated?)
         end
       end
 
