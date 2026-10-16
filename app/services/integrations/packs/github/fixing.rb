@@ -304,7 +304,11 @@ module Integrations
         def add_to_branch(environment_row, repo, title, brief, choice, arguments, token)
           target = branch_target(repo, arguments, token)
           base = target.pull&.dig("base", "ref") || default_branch(repo, token)
-          @work = Chat::CodeFixProgress.start
+          @work = if target.pull
+            Chat::CodeFixProgress.start(target: Chat::CodeFixProgress::TARGET_PULL_REQUEST, pull_request: target.pull["html_url"])
+          else
+            Chat::CodeFixProgress.start(target: Chat::CodeFixProgress::TARGET_BRANCH)
+          end
           read_review_comments(repo, target.pull, token) if target.pull
           ref = (continued_ref(@pause) if @pause) || target.sha
           change, reviewed = write_change(environment_row, repo, ref, choice, brief, arguments["context"], title,

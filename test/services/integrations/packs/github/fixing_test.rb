@@ -706,6 +706,37 @@ module Integrations
           assert_not_includes error.message, "No test."
         end
 
+        test "a change added to an open pull request says so on its checklist from the first report, linking the pull request" do
+          heard = []
+          pack = Github.new(@integration, box_key: "investigation-1", progress: ->(update) { heard << update.to_h.deep_dup })
+          stub_pull(7)
+          stub_branch("fix-pool")
+          stub_run("stdout" => agent_output.sub("BASE start-sha", "BASE #{'h' * 40}"), "timed_out" => false)
+          CodeReading.any_instance.stubs(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH }.returns("stdout" => PUSHED)
+          GithubApp.stubs(:write).returns({})
+
+          pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix docs on PR #7", "brief" => "Address the comments", "pull_request" => 7 })
+
+          running = heard.map { |kept| Chat::CodeFixProgress.from_h(kept) }.reject(&:finished?)
+          assert running.any?
+          running.each do |work|
+            assert_equal [ "Push to the pull request", "https://github.com/acme/api/pull/7" ], work.stages.last.to_h.values_at(:title, :link)
+          end
+        end
+
+        test "a change added to a branch with no pull request says so on its checklist from the first report" do
+          heard = []
+          pack = Github.new(@integration, box_key: "investigation-1", progress: ->(update) { heard << update.to_h.deep_dup })
+          stub_branch("fix-pool")
+          GithubApp.stubs(:get).with("/repos/acme/api/pulls?#{{ 'state' => 'open', 'head' => 'acme:fix-pool', 'per_page' => 1 }.to_query}", token: "ghs_token").returns([])
+          stub_run("stdout" => agent_output, "timed_out" => false)
+
+          pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Raise", "brief" => "Raise it", "branch" => "fix-pool" })
+
+          assert heard.any?
+          heard.each { |kept| assert_equal [ "Push to the branch", nil ], Chat::CodeFixProgress.from_h(kept).stages.last.to_h.values_at(:title, :link) }
+        end
+
         test "a branch name finds its open pull request to tell" do
           stub_branch("fix-pool")
           GithubApp.stubs(:get).with("/repos/acme/api/pulls?#{{ 'state' => 'open', 'head' => 'acme:fix-pool', 'per_page' => 1 }.to_query}", token: "ghs_token")
