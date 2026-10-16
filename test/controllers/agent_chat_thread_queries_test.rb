@@ -72,7 +72,7 @@ class AgentChatThreadQueriesTest < ActionDispatch::IntegrationTest
     work = Chat::CodeFixProgress.start
     work.asked!(ask_question!(session, "Tag or commit?").to_h)
     work.paused!(pause.to_h)
-    Chat::StepProgress.keep!(@chat, key, work)
+    Chat::StepProgress.keep!(@chat, key, work, since: 1.hour.ago)
   end
 
   # A helper whose own chat read twice, the second answer too large to hand over and kept aside.

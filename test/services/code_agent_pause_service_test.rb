@@ -22,7 +22,7 @@ class CodeAgentPauseServiceTest < ActionDispatch::IntegrationTest
     )
     work = Chat::CodeFixProgress.start
     work.paused!(@pause.to_h)
-    Chat::StepProgress.keep!(@conversation.chat_record, "call_1", work)
+    Chat::StepProgress.keep!(@conversation.chat_record, "call_1", work, since: 1.hour.ago)
     @adapter = stub(post_code_pause: { channel_id: "C9", message_id: "5.7" }, update_code_pause: { success: true })
     WorkspaceAdapter.stubs(:for).returns(@adapter)
   end

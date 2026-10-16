@@ -482,7 +482,7 @@ class Conversation::Runner
     return unless update.is_a?(Chat::CodeFixProgress) && shown
 
     works[key] = update
-    Chat::StepProgress.keep!(@conversation.chat, key, update) if saving_pace.due?(key, update)
+    Chat::StepProgress.keep!(@conversation.chat, key, update, since: @turn_started_at || Time.current) if saving_pace.due?(key, update)
     delivery.progress(key: key, step: shown, kind: kinds[key], progress: update)
   rescue StandardError => error
     Rails.logger.warn({ event: "conversation.progress_not_kept", conversation_id: @conversation.id, error: error.class.name }.to_json)
