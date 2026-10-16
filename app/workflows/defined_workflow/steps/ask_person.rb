@@ -26,7 +26,7 @@ class DefinedWorkflow::Steps::AskPerson < DefinedWorkflow::Steps::Base
   ROUTE_ANSWERED = "answered".freeze
   ROUTE_UNANSWERED = "unanswered".freeze
   CHOICE_LIMIT = QUESTION::CHOICE_LIMIT
-  # Slack draws a button's words up to this many characters.
+  # A chat platform cuts a button's words past this many characters.
   CHOICE_LABEL_LIMIT = 75
   # A derived key's length, short enough to read and leaving room for a number that keeps it unique.
   CHOICE_KEY_LENGTH = 40

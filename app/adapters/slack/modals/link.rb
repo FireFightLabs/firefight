@@ -37,10 +37,10 @@ module Slack
             { type: "section", text: { type: "mrkdwn", text: "*#{incident.identifier}: #{incident.name || 'Untitled Incident'}*" } },
             {
               type: "input",
-              block_id: "relationship_type_block",
+              block_id: Identifiers::RELATIONSHIP_TYPE_BLOCK,
               element: {
                 type: "static_select",
-                action_id: "relationship_type_select",
+                action_id: Identifiers::RELATIONSHIP_TYPE_SELECT,
                 options: RELATIONSHIP_OPTIONS.values,
                 initial_option: RELATIONSHIP_OPTIONS.fetch(default_type, RELATIONSHIP_OPTIONS[IncidentRelationship::RELATED])
               },
@@ -48,10 +48,10 @@ module Slack
             },
             {
               type: "input",
-              block_id: "target_incident_block",
+              block_id: Identifiers::TARGET_INCIDENT_BLOCK,
               element: {
                 type: "static_select",
-                action_id: "target_incident_select",
+                action_id: Identifiers::TARGET_INCIDENT_SELECT,
                 placeholder: { type: "plain_text", text: "Select an incident" },
                 options: incident_options
               },

@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     # One workflow's settings, the ones its Settings page changes (Workflow::Settings). Only what is given changes. It
-    # changes a live workflow's limits, so it is marked destructive: Halon asks the person on a confirmation in the chat
+    # changes a live workflow's limits, so it is marked destructive. Halon asks the person on a confirmation in the chat
     # before it runs (Chat::Tools::Firefight#destructive_by_declaration?), and the gateway and approval rules still decide.
     class UpdateWorkflow < Base
       tool_name UPDATE_WORKFLOW

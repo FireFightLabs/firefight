@@ -52,12 +52,8 @@ module Events
       }.to_json)
     end
 
-    # The platform may hand back an older message in place of a deleted one, which is never the one reacted to.
     def self.fetch_message_text(adapter, channel_id, ts)
-      message = adapter.fetch_message(channel_id: channel_id, message_id: ts)
-      return "" unless message&.dig(:message_id) == ts
-
-      message[:text] || ""
+      adapter.fetch_message(channel_id: channel_id, message_id: ts)&.dig(:text) || ""
     rescue AdapterError
       ""
     end

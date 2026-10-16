@@ -919,7 +919,7 @@ module Integrations
         end
       end
 
-      # A project stands as its newest build ended, or is building: one ListBuildsForProject a project for its newest
+      # A project stands as its newest build ended, or is building. One ListBuildsForProject a project for its newest
       # build's id, and one BatchGetBuilds for every hundred of them. A project never built has no status.
       def latest_builds(environment_row, region, entries)
         newest = entries.to_h do |entry|

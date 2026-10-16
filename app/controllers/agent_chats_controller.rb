@@ -286,7 +286,6 @@ class AgentChatsController < InertiaController
     redirect_to agent_chat_path(conversation), notice: %(Stopped watching "#{watch.title}".)
   end
 
-  # Schedule on a plan waiting for its time. It runs then, as whoever approved it, once a fresh reading says nothing moved.
   # Run now or Cancel on a workflow Halon made in this chat.
   def press_workflow
     workflow = chat_workflows.find_by(id: params[:workflow_id])
@@ -296,6 +295,7 @@ class AgentChatsController < InertiaController
     redirect_to agent_chat_path(conversation), (result.ok ? :notice : :alert) => result.words
   end
 
+  # Schedule on a plan waiting for its time. It runs then, as whoever approved it, once a fresh reading says nothing moved.
   def schedule_plan
     decide_plan { |plan| [ Conversation::Plans.approve!(plan, by: current_membership), "Plan scheduled for #{plan.reload.run_at_words}." ] }
   end
@@ -341,7 +341,7 @@ class AgentChatsController < InertiaController
     send_data copy.text, filename: copy.filename, type: "text/plain", disposition: "attachment"
   end
 
-  # Fix it on a pull request Halon opened from this chat: the code change runs on its branch as whoever asked for it.
+  # Fix it on a pull request Halon opened from this chat. The code change runs on its branch as whoever asked for it.
   def fix_pull_request
     notice = conversation.pull_request_notices.find_by(id: params[:notice_id])
     return redirect_to(agent_chat_path(conversation), alert: "That pull request is no longer in this chat.") unless notice

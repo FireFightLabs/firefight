@@ -9,6 +9,6 @@ class WorkflowStateCheckJob < ApplicationJob
 
     owner = Workflow::Run::Step.find_by(id: record_id) || run
     found = Workflow::NeedCheck.run(run: run, owner: owner, call: Workflow::NeedCheck::Call.new(named: named, asked: asked))
-    DefinedWorkflow.deliver!(engine_step_id, key, { "verdict" => found.verdict, "state" => found.state })
+    DefinedWorkflow.deliver!(engine_step_id, key, { DefinedWorkflow::Steps::Base::REPORT_VERDICT => found.verdict, DefinedWorkflow::Steps::Base::REPORT_STATE => found.state })
   end
 end

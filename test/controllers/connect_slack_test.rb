@@ -127,7 +127,7 @@ class ConnectSlackTest < ActionDispatch::IntegrationTest
   end
 
   test "a workspace already connected is not connected again" do
-    @workspace.connect_slack!(mock_slack_auth_hash(extra: { team_info: { "id" => "T_ALREADY", "name" => "x" } }))
+    @workspace.connect_chat!(SlackAuthenticationService.install_from(mock_slack_auth_hash(extra: { team_info: { "id" => "T_ALREADY", "name" => "x" } })))
 
     post onboarding_connect_slack_path
 

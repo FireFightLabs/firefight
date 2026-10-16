@@ -292,7 +292,7 @@ module Ability
     end
 
     # A change Halon asked for in a chat is always asked in the chat's thread (Conversation::HeldCalls). Where else is
-    # the rule's to say: a rule naming the channel, direct messages or both is followed as it is for anyone. A rule on
+    # the rule's to say. A rule naming the channel, direct messages or both is followed as it is for anyone. A rule on
     # Default asks a chat's request of its approvers directly rather than in the shared incidents channel, and the
     # channel only when nobody could be asked directly (ApprovalNotificationService.post!). Any other request on Default
     # is asked in the channel, as it was before Default existed, and so is one whose rule stored nothing.
@@ -369,7 +369,12 @@ module Ability
 
       now = Time.current
       run_by = (now + RUN_WINDOW if held_for_run? && new_status == STATUS_APPROVED)
-      update!(status: new_status, approver: principal, resolved_at: now, run_expires_at: run_by)
+      won = self.class.where(id: id, status: STATUS_PENDING)
+                .update_all(status: new_status, approver_type: principal.class.polymorphic_name, approver_id: principal.id,
+                            resolved_at: now, run_expires_at: run_by, updated_at: now)
+      raise NotAllowed, "approval is no longer pending" unless won == 1
+
+      reload
       resume_parked_request
     end
   end

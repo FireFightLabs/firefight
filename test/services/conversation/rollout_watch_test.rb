@@ -2,7 +2,7 @@ require "test_helper"
 
 # Seen in a real chat: a step reading web's status with the goal "The latest production web rollout is completed and
 # serving" read 8 seconds after the watch began, found the previous release's rollout complete and marked itself done
-# before the new release was built. Only Northflank's API is stubbed: the pack, the gateway, the capability routing and
+# before the new release was built. Only Northflank's API is stubbed. The pack, the gateway, the capability routing and
 # the watch run as they do in production, and the model is sure it is done on every reading, as it was then.
 class Conversation::RolloutWatchTest < ActiveSupport::TestCase
   include SlackClientStubHelper

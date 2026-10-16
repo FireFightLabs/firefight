@@ -8,15 +8,15 @@ module Interactions
       metadata = interaction.metadata
       incident = workspace.incidents.find(metadata.incident_id)
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
-      slug = interaction.values.dig("runbook_block", "runbook_select", "selected_option", "value")
+      slug = interaction.values.dig(Identifiers::RUNBOOK_BLOCK, Identifiers::RUNBOOK_SELECT, "selected_option", "value")
 
       RunbookAttachmentService.new(workspace).attach_by_slug(
         incident: incident, slug: slug, attached_by: member
       )
 
-      { response_action: "clear" }
+      workspace.adapter.modal_close_response
     rescue ActiveRecord::RecordNotFound
-      { response_action: "errors", errors: { "runbook_block" => "That runbook is no longer available." } }
+      workspace.adapter.modal_errors_response({ Identifiers::RUNBOOK_BLOCK => "That runbook is no longer available." })
     end
   end
 end

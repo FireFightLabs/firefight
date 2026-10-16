@@ -136,7 +136,7 @@ class Workflow < ApplicationRecord
   # What an approval held to publish a workflow an agent made is parked as (ApprovalResumption).
   PUBLISH_APPROVAL_KIND = "workflow_publish".freeze
 
-  # Why an approval to publish a workflow cannot be given: the draft it asked about changed since, so whoever approves
+  # Why an approval to publish a workflow cannot be given. The draft it asked about changed since, so whoever approves
   # would publish what nobody looked at. nil when it can.
   def self.publish_approval_blocked_reason(approval)
     payload = approval.resume_payload.to_h
@@ -152,6 +152,14 @@ class Workflow < ApplicationRecord
     return if count.zero?
 
     "#{name} ran #{count} #{USAGE_NOUN.pluralize(count)}, and those runs stay readable. Turn it off instead."
+  end
+
+  # The workflow's agent exists only to run it, so it goes with the workflow.
+  def destroy_with_agent!
+    transaction do
+      agent&.destroy!
+      destroy!
+    end
   end
 
   private

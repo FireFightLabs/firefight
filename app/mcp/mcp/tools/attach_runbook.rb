@@ -19,7 +19,7 @@ module Mcp
       )
 
       def self.perform_with_principal(workspace:, principal:, args:)
-        incident = GetIncident.find_by_reference(workspace.incidents.where(deleted_at: nil), args[:incident].to_s)
+        incident = workspace.incidents.where(deleted_at: nil).find_by_reference(args[:incident].to_s)
         raise ActiveRecord::RecordNotFound unless incident
 
         attached_by = principal if principal.is_a?(WorkspaceMembership)

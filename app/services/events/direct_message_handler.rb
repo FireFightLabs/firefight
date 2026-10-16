@@ -16,7 +16,7 @@ module Events
 
       channel_id = event["channel"]
       thread_id = event["thread_ts"] || event["ts"]
-      return tell(workspace, channel_id, thread_id, NOT_A_MEMBER) if from_another_organisation?(payload, event)
+      return tell(workspace, channel_id, thread_id, NOT_A_MEMBER) if workspace.adapter.sender_from_another_organisation?(payload: payload)
 
       sender = Conversation::Opener.member(workspace, event["user"])
       return tell(workspace, channel_id, thread_id, AuthorizedDispatch::UNRESOLVED_MESSAGE) unless sender
@@ -38,14 +38,6 @@ module Events
       workspace.adapter.unmark_working(channel_id: channel_id, message_id: event["ts"])
       tell(workspace, channel_id, thread_id, refusal)
     end
-
-    # Someone from another organisation reached through a shared connection. People in an organisation wide install
-    # come from each of its workspaces, so the team is only compared for a single workspace.
-    def self.from_another_organisation?(payload, event)
-      team = event["user_team"].presence
-      team.present? && payload["enterprise_id"].blank? && team != payload["team_id"]
-    end
-    private_class_method :from_another_organisation?
 
     def self.acknowledge(workspace, channel_id, timestamp)
       workspace.adapter.mark_working(channel_id: channel_id, message_id: timestamp)

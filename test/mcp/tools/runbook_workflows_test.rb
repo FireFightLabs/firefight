@@ -2,7 +2,7 @@ require "test_helper"
 
 module Mcp
   module Tools
-    # The runbook tools keep their names and answers where the workspace has workflows: a runbook is a guide whose
+    # The runbook tools keep their names and answers where the workspace has workflows. A runbook is a guide whose
     # steps are its checklist, and what it runs is read from and written to the workflow it links.
     class RunbookWorkflowsTest < ActiveSupport::TestCase
       setup do

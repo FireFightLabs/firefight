@@ -231,7 +231,7 @@ module Chat::Tools
 
   def self.changes_in(place) = "Changes something in #{place}."
 
-  # One time a change customers feel may be undone after: value is what the answer sends back, minutes or keep.
+  # One time a change customers feel may be undone after. value is what the answer sends back, minutes or keep.
   Expiry = Data.define(:value, :label)
 
   # A call that waits for the person's decision carries one sentence saying what it will do, and a few words naming the

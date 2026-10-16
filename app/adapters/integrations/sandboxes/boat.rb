@@ -231,7 +231,7 @@ module Integrations
       end
 
       # Whether claimant won the save of the image copy. The copy is only a head start for the next box, so a claim
-      # that cannot be read is simply not won.
+      # that cannot be read counts as not won.
       def claimed?(claimant)
         SandboxImageCopy.claim!(SandboxProviders::BOAT, image_copy_name, claimant)
       rescue ActiveRecord::ActiveRecordError => error

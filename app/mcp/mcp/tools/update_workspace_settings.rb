@@ -1,7 +1,7 @@
 module Mcp
   module Tools
-    # The settings under Settings, Workspace. Transcript access is here rather than on
-    # Permissions on purpose: a grant says who may ask, this says whether there is anything to ask for.
+    # The settings under Settings, Workspace. Transcript access is here rather than on Permissions on purpose. A grant
+    # says who may ask, this says whether there is anything to ask for.
     class UpdateWorkspaceSettings < Base
       SETTINGS = Workspace::Settings::KEYS
       # The same choices the settings page offers, as an enum a client can check and with the labels a model reads.

@@ -351,7 +351,7 @@ module Conversation::Watches
   KINDS_SHOWN = 6
 
   # A history that holds runs, none of the name asked for, cannot follow that name, so it says at once which runs it does
-  # hold rather than waiting for a run that never shows up there. An empty history may simply hold nothing yet.
+  # hold rather than waiting for a run that never shows up there. An empty history may hold nothing yet.
   def self.refuse_other_kinds!(reader, arguments, name)
     return if name.blank?
 

@@ -84,7 +84,7 @@ class DefinedWorkflow::Steps::PostIncidentUpdate < DefinedWorkflow::Steps::Firef
   def finished(posted, checkpoint) = { OUTPUT_POSTED => posted, OUTPUT_ANSWER => checkpoint[CHECKPOINT_ANSWER] }
 
   def incident_live?
-    incident = Mcp::Tools::GetIncident.find_by_reference(workspace.incidents.where(deleted_at: nil), @config[KEY_INCIDENT].to_s)
+    incident = workspace.incidents.where(deleted_at: nil).find_by_reference(@config[KEY_INCIDENT].to_s)
     incident.present? && !incident.terminal?
   end
 

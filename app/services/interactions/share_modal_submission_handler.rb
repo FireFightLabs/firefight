@@ -5,10 +5,11 @@ module Interactions
 
     def self.execute(interaction)
       workspace = interaction.workspace
+      adapter = workspace.adapter
 
       selected_conversations = interaction.values.dig(
-        "share_target_block",
-        "share_target_select",
+        Identifiers::SHARE_TARGET_BLOCK,
+        Identifiers::SHARE_TARGET_SELECT,
         "selected_conversations"
       ) || []
 
@@ -20,13 +21,10 @@ module Interactions
           user_id: interaction.user_id
         })
 
-        return {
-          response_action: "errors",
-          errors: { share_target_block: "Please select at least one channel or person" }
-        }
+        return adapter.modal_errors_response({ Identifiers::SHARE_TARGET_BLOCK => "Please select at least one channel or person" })
       end
 
-      result = workspace.adapter.post_share_messages(
+      result = adapter.post_share_messages(
         user_id: interaction.user_id,
         channel_id: workspace.incidents_channel_id,
         target_conversations: selected_conversations
@@ -41,7 +39,7 @@ module Interactions
         targets: selected_conversations
       })
 
-      { response_action: "clear" }
+      adapter.modal_close_response
     end
   end
 end

@@ -58,7 +58,7 @@ class Investigation::Unattended
 
   private
 
-  # A change a chat would wrap in a safeguard (Chat::Safeguards) needs a person: a stop asks whoever started what it
+  # A change a chat would wrap in a safeguard (Chat::Safeguards) needs a person. A stop asks whoever started what it
   # stops, a mitigation runs for a time someone chose, and a data write is counted and copied first. Nobody is there to
   # answer at 3am, so Halon leaves such a change for a person rather than make it without the safeguard.
   def safeguarded(step)

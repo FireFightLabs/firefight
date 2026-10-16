@@ -642,7 +642,7 @@ module Integrations
           pause
         end
 
-        # The change reached its spending limit: what it wrote so far is committed and pushed through the gate to a branch
+        # The change reached its spending limit. What it wrote so far is committed and pushed through the gate to a branch
         # of its own without opening anything, the box is kept for Continue to carry on in place, and the person is asked
         # whether to continue. A change for an open pull request is saved beside it, never on its branch.
         def pause!(environment_row, reading, repo, ref, session, change, events, base:, branch:, lease:)
@@ -674,12 +674,12 @@ module Integrations
             "from the work saved so far. A workspace admin sets the budget each new code fix starts with under Settings, Workspace."
         end
 
-        # What a fresh agent is told when the box the change stopped in is gone: the request and the person's answers, what
-        # the earlier session already changed on the saved branch, and that the rest is its to finish.
         # Where a continued change is written: the copy it stopped in while that can carry on in place, otherwise the
         # commit it saved, which the box fetches.
         def continued_ref(pause) = pause.resumable_in_place? ? pause.copy_ref : pause.saved_commit
 
+        # What a fresh agent is told when the box the change stopped in is gone: the request and the person's answers, what
+        # the earlier session already changed on the saved branch, and that the rest is its to finish.
         def handover(pause)
           answers = pause.session.questions.from_agent.select { |question| question.answered? || question.defaulted? }.map { |question| "- #{question.question} #{question.agent_words}" }
           [ "You are continuing a change an earlier session started and could not finish, since it reached its spending limit.",

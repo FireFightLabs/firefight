@@ -42,6 +42,14 @@ class IntegrationEnvironment < ApplicationRecord
            .merge(where(catalog_entry_id: nil).or(where(catalog_entries: { deleted_at: nil })))
   }
 
+  scope :installed_through, ->(installation) {
+    where("integration_environments.base_config ->> :key = :installation", key: INSTALLATION_KEY, installation: installation.to_s)
+  }
+
+  # Rows whose webhook for map changes or for issues lapses within the given time.
+  scope :map_events_webhook_due, ->(within) { where.not(map_events_webhook_id: nil).where(map_events_expires_at: ..within.from_now) }
+  scope :issue_webhook_due, ->(within) { where.not(issue_webhook_id: nil).where(issue_webhook_expires_at: ..within.from_now) }
+
   # What the gateway checks a call through this row against, its environment when it has one.
   def ability_scope = catalog_entry_id ? { Ability::Scope::DIMENSION_ENVIRONMENT => catalog_entry_id } : {}
 

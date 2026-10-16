@@ -113,7 +113,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
   test "process_oauth_callback handles transaction rollback on error" do
     expected_platform_id = @auth_hash.extra.team_info["id"]
 
-    Workspace.stubs(:find_or_create_from_slack!).raises(
+    Workspace.stubs(:find_or_create_from_chat_install!).raises(
       ActiveRecord::RecordInvalid.new(Workspace.new)
     )
 

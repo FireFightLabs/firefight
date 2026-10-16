@@ -130,7 +130,7 @@ module Conversation::Mitigations
     tell!(mitigation, KIND_REMINDER, "#{mitigation.title} ends in about #{left}. #{how} Keep it or extend it if it is still needed.")
   end
 
-  # Run out and not kept: the undo runs, or a person is told it is due by hand.
+  # Run out and not kept. The undo runs, or a person is told it is due by hand.
   def self.expire!(mitigation)
     return unless mitigation.move!(from: Chat::Mitigation::STATUS_ACTIVE, to: Chat::Mitigation::STATUS_UNDOING, claimed_at: Time.current)
 
@@ -264,7 +264,7 @@ module Conversation::Mitigations
   end
   private_class_method :post
 
-  # Pressed on a message the platform shows: the message is redrawn so it no longer offers what is done. Returns why
+  # Pressed on a message the platform shows. The message is redrawn so it no longer offers what is done. Returns why
   # nothing was done, or nil.
   def self.pressed!(mitigation, action, by:, channel_id:, message_id:)
     blocked = public_send(action, mitigation, by: by)

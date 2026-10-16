@@ -162,7 +162,7 @@ module Chat::Specialists
   end
 
   # The reads of every connection one of these tools changes something on. A connection is never change-only in Halon's
-  # hands: once it holds a change, the same connection's reads are its to load, so it can read what the change rests on
+  # hands. Once it holds a change, the same connection's reads are its to load, so it can read what the change rests on
   # rather than reach for the change to look.
   def self.backing(workspace, held_names)
     tools = workspace.connection_tools_by_name

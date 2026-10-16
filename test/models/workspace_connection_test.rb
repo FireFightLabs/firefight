@@ -54,7 +54,7 @@ class WorkspaceConnectionTest < ActiveSupport::TestCase
       extra: { team_info: { "id" => @workspace.platform_id, "name" => @workspace.name } }
     )
 
-    Workspace.find_or_create_from_slack!(auth_hash)
+    Workspace.find_or_create_from_chat_install!(SlackAuthenticationService.install_from(auth_hash))
 
     assert_not @workspace.reload.disconnected?
     assert_equal "xoxb-new", @workspace.access_token

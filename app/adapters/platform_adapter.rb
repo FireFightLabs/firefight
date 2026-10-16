@@ -142,6 +142,24 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Keeps the modal open with a message beside each refused input, keyed by the input's Identifiers block id.
+  # @return [Hash]
+  def modal_errors_response(errors)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Closes the submitted modal and every modal under it.
+  # @return [Hash]
+  def modal_close_response
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Opens another view on top of the submitted modal.
+  # @return [Hash]
+  def modal_push_response(view)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Whether free text names people (mentions, handles, ids), so a command can
   # choose between acting and opening a picker.
   # @return [Boolean]
@@ -264,7 +282,8 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # @return [Hash] { message_id:, channel_id:, user_id:, text:, posted_at:, raw: }
+  # Nil when the platform answers with a message other than the one asked for, as it may for one that was deleted.
+  # @return [Hash, nil] { message_id:, channel_id:, user_id:, text:, posted_at:, raw: }
   def fetch_message(channel_id:, message_id:)
     raise NotImplemented.new(__method__, self.class)
   end
@@ -287,6 +306,12 @@ class PlatformAdapter
   # name, as "@Ana (U07ABC)", so the model can pass it to a tool, an emoji reads as the emoji and code keeps its marks.
   # @return [Hash{String => String}] each text given, mapped to the model's reading of it.
   def messages_for_model(texts:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # One message as a model is given it, read as messages_for_model reads it. Blank text comes back as given.
+  # @return [String, nil]
+  def message_for_model(text:)
     raise NotImplemented.new(__method__, self.class)
   end
 
@@ -313,6 +338,12 @@ class PlatformAdapter
   # taken out, and anyone else it mentions left where they are.
   # @return [String]
   def text_for_app(payload:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Whether a message event came from someone in another organisation, reached through a connection shared with it.
+  # @return [Boolean]
+  def sender_from_another_organisation?(payload:)
     raise NotImplemented.new(__method__, self.class)
   end
 
@@ -451,6 +482,32 @@ class PlatformAdapter
   # @param subscriber_user_ids [Array<String>] platform user ids to copy
   # @return [Hash] { message_id: ... }
   def post_escalation_announcement_thread(channel_id:, parent_message_id:, incident:, escalated_by:, escalated_to:, reason: nil, subscriber_user_ids: [])
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { message_id:, channel_id: }
+  def post_incident_update_message(channel_id:, incident:, message:, updated_by_platform_user_id:, updated_by_name: nil, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { message_id:, channel_id: }
+  def post_resolution_message(channel_id:, incident:, resolved_by_platform_user_id:, resolved_by_name: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { message_id:, channel_id: }
+  def post_reopen_message(channel_id:, incident:, reopened_by_platform_user_id:, reopened_by_name: nil, reason: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { message_id:, channel_id: }
+  def post_lead_announcement(channel_id:, lead_platform_user_id:, lead_name: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Tells the channel the lead could not be added to it, and how they can still join.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_lead_invite_failed(channel_id:, lead_platform_user_id:, lead_name: nil)
     raise NotImplemented.new(__method__, self.class)
   end
 

@@ -5,7 +5,7 @@ module Interactions
 
     def self.execute(interaction)
       selected = interaction.values.dig(
-        "action_select_block",
+        Identifiers::HOME_ACTION_SELECT_BLOCK,
         Identifiers::HOME_ACTION_SELECT,
         "selected_option",
         "value"
@@ -22,7 +22,7 @@ module Interactions
 
       if selected == Identifiers::HOME_ACTION_LIST
         post_list(workspace, adapter, channel_id, interaction.user_id)
-        return { response_action: "clear" }
+        return adapter.modal_close_response
       end
 
       if selected == Identifiers::HOME_ACTION_POSTMORTEM
@@ -31,7 +31,7 @@ module Interactions
 
       incident = workspace.incidents.active.in_channel(channel_id).first
       unless incident
-        return { response_action: "errors", errors: { "action_select_block" => "No active incident found in this channel." } }
+        return adapter.modal_errors_response({ Identifiers::HOME_ACTION_SELECT_BLOCK => "No active incident found in this channel." })
       end
 
       incident_metadata = ModalState.encode(incident_id: incident.id, channel_id: channel_id)
@@ -50,7 +50,7 @@ module Interactions
       when Identifiers::HOME_ACTION_ROLES
         roles = workspace.incident_roles.active.ordered
         if roles.empty?
-          return { response_action: "errors", errors: { "action_select_block" => "No incident roles are set up yet. Add them in Settings." } }
+          return adapter.modal_errors_response({ Identifiers::HOME_ACTION_SELECT_BLOCK => "No incident roles are set up yet. Add them in Settings." })
         end
 
         adapter.form_update_response(adapter.build_modal(PlatformAdapter::Modal::ROLES, incident, roles))
@@ -59,7 +59,7 @@ module Interactions
       when Identifiers::HOME_ACTION_RUNBOOK
         available = incident.attachable_runbooks
         if available.empty?
-          return { response_action: "errors", errors: { "action_select_block" => "No runbooks left to attach. Add them in Settings." } }
+          return adapter.modal_errors_response({ Identifiers::HOME_ACTION_SELECT_BLOCK => "No runbooks left to attach. Add them in Settings." })
         end
 
         adapter.form_update_response(adapter.build_modal(PlatformAdapter::Modal::ATTACH_RUNBOOK, incident, available))
@@ -67,8 +67,8 @@ module Interactions
         adapter.form_update_response(adapter.build_modal(PlatformAdapter::Modal::INCIDENT_CLOSE, incident, metadata: incident_metadata))
       when Identifiers::HOME_ACTION_TIMELINE
         view = adapter.build_timeline_view(incident)
-        return { response_action: "clear" } unless view
-        { response_action: "push", view: view }
+        return adapter.modal_close_response unless view
+        adapter.modal_push_response(view)
       end
     rescue JSON::ParserError, ActiveRecord::RecordNotFound => e
       Rails.logger.warn({ event: "interactions.home_continue.error", error: e.message })
@@ -78,22 +78,22 @@ module Interactions
     def self.handle_postmortem(workspace, channel_id, user_id)
       incident = workspace.incidents.closed.in_channel(channel_id).first
       unless incident
-        return { response_action: "errors", errors: { "action_select_block" => "No closed incident found in this channel." } }
+        return workspace.adapter.modal_errors_response({ Identifiers::HOME_ACTION_SELECT_BLOCK => "No closed incident found in this channel." })
       end
 
       member = workspace.workspace_memberships.find_by(platform_user_id: user_id)
       unless member
-        return { response_action: "errors", errors: { "action_select_block" => PostmortemGenerationService::UNKNOWN_MEMBER_MESSAGE } }
+        return workspace.adapter.modal_errors_response({ Identifiers::HOME_ACTION_SELECT_BLOCK => PostmortemGenerationService::UNKNOWN_MEMBER_MESSAGE })
       end
 
       outcome = PostmortemGenerationService.new(workspace).request!(incident, by: member)
       unless outcome.started
-        return { response_action: "errors", errors: { "action_select_block" => outcome.message } }
+        return workspace.adapter.modal_errors_response({ Identifiers::HOME_ACTION_SELECT_BLOCK => outcome.message })
       end
 
       # The modal closes on clear, so the acknowledgement goes to the channel.
       workspace.adapter.post_ephemeral(channel_id: channel_id, user_id: user_id, text: outcome.message)
-      { response_action: "clear" }
+      workspace.adapter.modal_close_response
     end
     private_class_method :handle_postmortem
 

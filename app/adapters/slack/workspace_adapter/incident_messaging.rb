@@ -1059,12 +1059,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     refused.blank? || Time.zone.parse(refused.to_s) < RETRY_RICH_BLOCKS_AFTER.ago
   end
 
-  def rich_blocks_refused!
-    now = Time.current.iso8601
-    Workspace.where(id: @workspace.id)
-             .update_all([ "platform_data = COALESCE(platform_data, '{}'::jsonb) || jsonb_build_object(?::text, ?::text)", RICH_BLOCKS_REFUSED_AT, now ])
-    @workspace.platform_data = @workspace.platform_data.to_h.merge(RICH_BLOCKS_REFUSED_AT => now)
-  end
+  def rich_blocks_refused! = @workspace.remember_platform_data!(RICH_BLOCKS_REFUSED_AT, Time.current.iso8601)
 
   # Stops the stream that showed the run's steps in its thread, keeping them, and clears the working state. A stream that
   # already ended is left as it was, since the answer follows it either way.

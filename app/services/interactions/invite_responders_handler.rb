@@ -8,25 +8,20 @@ module Interactions
       metadata = interaction.metadata
       incident = workspace.incidents.find(metadata.incident_id)
 
-      user_ids = interaction.values.dig("invite_users_block", "invite_users_select", "selected_users") || []
+      adapter = workspace.adapter
+      user_ids = interaction.values.dig(Identifiers::INVITE_USERS_BLOCK, Identifiers::INVITE_USERS_SELECT, "selected_users") || []
       if user_ids.empty?
-        return {
-          response_action: "errors",
-          errors: { invite_users_block: "Please select at least one responder" }
-        }
+        return adapter.modal_errors_response({ Identifiers::INVITE_USERS_BLOCK => "Please select at least one responder" })
       end
 
       result = IncidentInviteService.new(workspace).invite!(incident: incident, people: user_ids)
-      workspace.adapter.post_invite_summary(
+      adapter.post_invite_summary(
         channel_id: incident.channel_id, user_id: interaction.user_id, result: result
       )
 
-      { response_action: "clear" }
+      adapter.modal_close_response
     rescue ActiveRecord::RecordNotFound
-      {
-        response_action: "errors",
-        errors: { invite_users_block: "Incident not found. Please try again." }
-      }
+      workspace.adapter.modal_errors_response({ Identifiers::INVITE_USERS_BLOCK => "Incident not found. Please try again." })
     end
   end
 end

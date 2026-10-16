@@ -145,8 +145,8 @@ jobs:
           if-no-files-found: ignore
           retention-days: 90
 
-      # The baseline is the latest bench that passed on main. With none yet, nothing is compared and the run on main
-      # after this change merges becomes the first.
+      # The baseline is the latest bench that passed on main. With none yet, nothing is compared and the next run on main
+      # becomes the first.
       - name: Fetch the baseline from main
         id: baseline
         if: steps.keys.outputs.run == 'true' && github.event_name == 'pull_request'

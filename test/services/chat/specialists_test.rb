@@ -321,7 +321,7 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
   # Seen in a chat, Halon held a code host's changes and none of its reads, since every read was the code specialist's.
   # Asked to address a pull request's review, it called reopen and comment on the pull request seven times meaning to
   # read it, and each was sent back for want of a read it did not hold. A connection is never change-only in Halon's
-  # hands: once it holds a change, that connection's reads are Halon's to load and stay with it on the next turn, while
+  # hands. Once it holds a change, that connection's reads are Halon's to load and stay with it on the next turn, while
   # its tool list from the start stays the same.
   test "once Halon holds a connection's change, that connection's reads are its to load by name and stay in its hands" do
     FirefightAi.stubs(:tool_search?).returns(false)

@@ -53,7 +53,6 @@ module Integrations
 
     def bounded(value, default, most) = value.to_i.positive? ? [ value.to_i, most ].min : default
 
-    # The period a time falls in at that granularity.
     def period_of(time, by) = by == BY_MONTH ? time.utc.strftime("%Y-%m") : time.utc.strftime("%Y-%m-%d")
   end
 end

@@ -1,6 +1,6 @@
 require "test_helper"
 
-# Where a hosted build sells a plan, starting it is a required step of setup: the workspace stays closed until a trial
+# Where a hosted build sells a plan, starting it is a required step of setup. The workspace stays closed until a trial
 # or the plan is running, the admin setting it up is sent to the step from anywhere, and nothing after it can be answered.
 class SetupPlanTest < ActionDispatch::IntegrationTest
   setup do

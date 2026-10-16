@@ -34,9 +34,7 @@ module Integrations
     def rows_for_installation(provider_key, installation)
       return IntegrationEnvironment.none if installation.blank?
 
-      IntegrationEnvironment.reachable.where(integrations: { provider: provider_key.to_s })
-                            .where("integration_environments.base_config ->> :key = :installation", key: IntegrationEnvironment::INSTALLATION_KEY,
-                                                                                                    installation: installation.to_s)
+      IntegrationEnvironment.reachable.where(integrations: { provider: provider_key.to_s }).installed_through(installation)
     end
 
     # Keeps each event once per connection and queues a re-read of each scope a new one names. Answers how many were new.

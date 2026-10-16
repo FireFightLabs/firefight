@@ -38,6 +38,12 @@ module Slack::WorkspaceAdapter::IncidentModals
     { response_action: "update", view: view }
   end
 
+  def modal_errors_response(errors) = { response_action: "errors", errors: errors }
+
+  def modal_close_response = { response_action: "clear" }
+
+  def modal_push_response(view) = { response_action: "push", view: view }
+
   def update_modal(view_id:, view:)
     translate_errors do
       Slack::Client.update_modal(workspace: @workspace, view_id: view_id, view: view)
@@ -108,8 +114,7 @@ module Slack::WorkspaceAdapter::IncidentModals
     return unless state.source_message_id && state.channel_id
 
     message = fetch_message(channel_id: state.channel_id, message_id: state.source_message_id)
-    # Slack hands back the newest message at or before the one asked for, so a deleted message reads as an older one.
-    return unless message[:message_id] == state.source_message_id
+    return unless message
 
     description = readable(message[:text])
     return if description.blank?

@@ -1,6 +1,6 @@
 # Wakes whoever is on call for an incident. With an on-call tool connected it reads who is on call there first, as the
 # workflow's own identity, then raises a page through it (page_on_call), kept in step with the incident as any page is.
-# Without one it escalates to the member the step names (escalate_incident), who is asked in Slack and chased until they
+# Without one it escalates to the member the step names (escalate_incident), who is asked in chat and chased until they
 # acknowledge. A page once raised has reached a person and cannot be taken back, so it carries no undo.
 class DefinedWorkflow::Steps::PageOnCall < DefinedWorkflow::Steps::FirefightTool
   kind "page_on_call"

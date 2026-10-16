@@ -1,7 +1,7 @@
-# A workflow's own address, which an inbound webhook trigger starts it at: POST to it with a JSON body, signed the way
-# Firefight signs its outbound webhooks (v1, an HMAC-SHA256 of "v1:<timestamp>:<body>" keyed by the workflow's secret,
-# sent with the timestamp it signed). The address names the workflow by an unguessable token. The secret is never
-# stored: it is worked out from the token with a key only Firefight holds, so replacing the address replaces the
+# A workflow's own address, which an inbound webhook trigger starts it at. A run starts on a POST to it with a JSON
+# body, signed the way Firefight signs its outbound webhooks (v1, an HMAC-SHA256 of "v1:<timestamp>:<body>" keyed by
+# the workflow's secret, sent with the timestamp it signed). The address names the workflow by an unguessable token. The secret is never
+# stored. It is worked out from the token with a key only Firefight holds, so replacing the address replaces the
 # secret too, and showing it is reading it again.
 module Workflow::Hook
   extend ActiveSupport::Concern

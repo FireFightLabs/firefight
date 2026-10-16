@@ -40,7 +40,7 @@ module FirefightAi
     attr_reader :held_tools_budget
 
     # Whether Halon's chat hands reads of connected systems to specialists (ask_specialist), each holding one kind of
-    # system's reads, rather than holding or opening those tools itself. auto, the default, decides per chat: specialists
+    # system's reads, rather than holding or opening those tools itself. auto, the default, decides per chat, and specialists
     # read when the tools whoever asks may use do not fit the held tools budget, on a provider that does not search tools
     # itself. on and off override it, so the bench can compare the ways on the same code. The chat's prompt says which way
     # it works, so each has its own version.
