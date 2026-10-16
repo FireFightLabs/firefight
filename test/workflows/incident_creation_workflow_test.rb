@@ -76,7 +76,7 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
     assert_equal 1, @workspace.onboarding.reload.walkthrough_step
   end
 
-  test "the first walkthrough step comes last, after the quick actions are pinned and everyone declared with it has joined" do
+  test "the first walkthrough step comes last, after the quick actions, the invites and everything else posted in the channel" do
     stub_successful_slack_workflow
     @workspace.create_onboarding!
     @incident.update!(is_test: true)
@@ -88,12 +88,54 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
     Slack::WorkspaceAdapter.any_instance.expects(:pin_message).in_sequence(channel).returns({ ok: true })
     Slack::WorkspaceAdapter.any_instance.expects(:invite_user)
       .with(has_entries(user_id: @member.platform_user_id)).in_sequence(channel).returns({ ok: true })
+    RunbookAttachmentService.any_instance.expects(:auto_attach).in_sequence(channel).returns([])
+    IncidentCreationService.any_instance.expects(:post_carried_over_investigation).in_sequence(channel).returns({ skipped: true })
+    Investigation::AlertStart.expects(:start!).in_sequence(channel).returns(Investigation::AlertStart::OUTCOME_OFF)
     Slack::WorkspaceAdapter.any_instance.expects(:post_first_incident_walkthrough)
       .with(has_entries(step: 1)).in_sequence(channel).returns({ message_id: "1.2", channel_id: "C12345678" })
 
     workflow = IncidentCreationWorkflow.start_inline!(@incident, context: { "invite_membership_ids" => [ responder.id ] })
 
     assert_equal "succeeded", workflow.state
+  end
+
+  test "a step before the guide that fails for good still lets the guide post, and the run carries on" do
+    stub_successful_slack_workflow
+    @workspace.create_onboarding!
+    @incident.update!(is_test: true)
+    Slack::WorkspaceAdapter.any_instance.stubs(:invite_user).raises(AdapterError::RestrictedAction.new("restricted_action"))
+    RunbookAttachmentService.any_instance.stubs(:auto_attach).raises(ArgumentError.new("no runbooks"))
+    Slack::WorkspaceAdapter.any_instance.expects(:post_first_incident_walkthrough)
+      .with(has_entries(step: 1)).once.returns({ message_id: "1.2", channel_id: "C12345678" })
+
+    workflow = IncidentCreationWorkflow.start_inline!(@incident)
+
+    assert_equal "succeeded", workflow.state
+    assert workflow.steps.find_by!(name: "invite_declarer").failed?
+    assert workflow.steps.find_by!(name: "attach_runbooks").failed?
+    assert workflow.steps.find_by!(name: "post_first_incident_walkthrough").succeeded?
+    assert_not IncidentCreationWorkflow.opening?(@incident)
+  end
+
+  test "the guide waits on a step that is still to retry, and so does every other caller" do
+    stub_successful_slack_workflow
+    workflow = IncidentCreationWorkflow.start!(@incident)
+    workflow.steps.where.not(name: %w[invite_declarer post_first_incident_walkthrough]).update_all(status: :succeeded)
+    workflow.steps.find_by!(name: "invite_declarer").update!(attempts: 1, run_at: 1.minute.from_now)
+
+    assert_not workflow.steps.find_by!(name: "post_first_incident_walkthrough").ready_to_run?(workflow.steps.reload.to_a)
+    assert IncidentCreationWorkflow.opening?(@incident)
+  end
+
+  test "a run that fails before the channel is set up lets other callers post the guide" do
+    stub_successful_slack_workflow
+    Slack::WorkspaceAdapter.any_instance.stubs(:post_incident_quick_actions).raises(AdapterError::RestrictedAction.new("restricted_action"))
+
+    workflow = IncidentCreationWorkflow.start_inline!(@incident)
+
+    assert_equal "failed", workflow.state
+    assert workflow.steps.find_by!(name: "post_first_incident_walkthrough").cancelled?
+    assert_not IncidentCreationWorkflow.opening?(@incident)
   end
 
   test "the guide is the run's to post until it reaches its walkthrough step" do

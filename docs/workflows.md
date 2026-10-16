@@ -30,6 +30,7 @@ end
 
 - `step :name, depends_on: [...]` — declares a step with dependency ordering
 - `step :name, retry_config: { max_attempts:, backoff: }` — per-step retry override
+- `step :name, on_failure: SolidWorkflow::Definition::ON_FAILURE_CONTINUE` — once the step has failed for good (no retries left, or a terminal error) the steps that depend on it run anyway and the run does not fail with it, as a defined step set to `continue` does. The default is `stop`, which fails the run and cancels what has not run. A class step has no edges, so `error_route` is refused at start
 - Steps without dependencies run in parallel automatically
 - Step methods receive `workflow:` (AR record, access `workflow.subject` and `workflow.context`), `step:` (AR record), `input:` (hash of dependency outputs keyed by step name)
 - Return value becomes the step's `output` hash

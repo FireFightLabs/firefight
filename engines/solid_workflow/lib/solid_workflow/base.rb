@@ -25,12 +25,15 @@ module SolidWorkflow
         @workflow_config || {}
       end
 
-      def step(name, depends_on: [], retry_config: nil, queue: nil)
+      # on_failure: continue lets the steps that depend on this one run once it has failed for good, and the run
+      # carries on past the failure, as a defined step's does.
+      def step(name, depends_on: [], retry_config: nil, queue: nil, on_failure: SolidWorkflow::Definition::ON_FAILURE_STOP)
         steps << {
           name: name.to_s,
           depends_on: Array(depends_on).map(&:to_s),
           retry_config: retry_config,
-          queue: queue&.to_s
+          queue: queue&.to_s,
+          on_failure: on_failure.to_s
         }
       end
 
@@ -148,6 +151,7 @@ module SolidWorkflow
           {
             name: step_def[:name],
             depends_on: step_def[:depends_on],
+            on_failure: step_def[:on_failure],
             retry_config: merged_retry,
             max_attempts: step_def.dig(:retry_config, :max_attempts) || SolidWorkflow.max_default_attempts
           }
@@ -167,6 +171,12 @@ module SolidWorkflow
         raise ArgumentError, "#{name} defines duplicate step names: #{duplicates.join(', ')}" if duplicates.any?
 
         steps.each do |step_def|
+          # A class step has no edges, so there is no error route to take.
+          allowed = [ SolidWorkflow::Definition::ON_FAILURE_STOP, SolidWorkflow::Definition::ON_FAILURE_CONTINUE ]
+          unless allowed.include?(step_def[:on_failure])
+            raise ArgumentError, "#{name} step '#{step_def[:name]}' has on_failure '#{step_def[:on_failure]}', which is not one of #{allowed.join(', ')}"
+          end
+
           unknown = step_def[:depends_on] - names
           raise ArgumentError, "#{name} step '#{step_def[:name]}' depends on unknown step(s): #{unknown.join(', ')}" if unknown.any?
         end
