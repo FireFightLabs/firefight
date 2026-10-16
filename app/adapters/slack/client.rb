@@ -150,6 +150,11 @@ module Slack
       )
     end
 
+    # The app's direct message channel with a person, opened if it was not (conversations.open, im:write).
+    def self.open_direct_channel(workspace:, user:)
+      api_post(workspace: workspace, endpoint: "conversations.open", payload: { users: user }).dig(:channel, :id)
+    end
+
     def self.create_channel(workspace:, name:, is_private: false)
       api_post(
         workspace: workspace,

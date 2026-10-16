@@ -23,6 +23,7 @@ class PersonConfirmedActionsTest < ActiveSupport::TestCase
     assert Mcp::Tools::UpsertOutboundWebhook.asks_a_person?
     assert Mcp::Tools::ApproveApproval.asks_a_person?
     assert_not Mcp::Tools::ListAbilities.asks_a_person?
+    assert_not Mcp::Tools::TestOutboundWebhook.asks_a_person?, "a test delivery changes nothing"
   end
 
   test "Halon always asks before such a change, even when the chat allowed the tool or a plan approved it ahead" do
@@ -30,9 +31,11 @@ class PersonConfirmedActionsTest < ActiveSupport::TestCase
     grant = Ability::Action.system!("permissions.create")
     turn = Conversation::Turn.new(conversation, asker: @admin)
 
-    assert turn.confirms?(grant, allowed: true, tool_name: Mcp::Tools::GRANT_ABILITY)
+    assert turn.confirms?(grant, allowed: true, tool_name: Mcp::Tools::GRANT_ABILITY, asks_a_person: true)
     turn.instance_variable_set(:@approved_tools, [ Mcp::Tools::GRANT_ABILITY ])
-    assert turn.confirms?(grant, tool_name: Mcp::Tools::GRANT_ABILITY)
+    assert turn.confirms?(grant, tool_name: Mcp::Tools::GRANT_ABILITY, asks_a_person: true)
+    tool = Chat::Tools::Firefight.new(turn, Mcp::Tools::GrantAbility, grant)
+    assert tool.requires_approval?, "Halon's own tool asks"
     assert_not turn.confirms?(Ability::Action.system!("catalog.create"), allowed: true, tool_name: "upsert_catalog_entry")
   end
 

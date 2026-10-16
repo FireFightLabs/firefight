@@ -206,7 +206,8 @@ export const DATA_WRITE_KINDS = {
 
 export const SECRET_ENTRY_KINDS = {
   "ENTER": "enter",
-  "REVEAL": "reveal"
+  "REVEAL": "reveal",
+  "TOKEN": "token"
 } as const
 
 export const RUNBOOK_CHOICE_PROPS = {

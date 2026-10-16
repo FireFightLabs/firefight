@@ -102,9 +102,9 @@ class Conversation::Turn
   # nothing read from outside has reached it since (Chat::Tools::Provenance). A tool a scheduled plan named when the
   # person approved it stops asking too. Neither applies where an approval rule does, since that rule wants each call
   # signed off. A change to permissions, a credential, an approval or a webhook always waits, whatever was allowed.
-  def confirms?(action, allowed: false, tool_name: nil, declared_destructive: false, **)
+  def confirms?(action, allowed: false, tool_name: nil, declared_destructive: false, asks_a_person: false, **)
     return false unless asker
-    return true if action&.asks_a_person?
+    return true if asks_a_person
     return true if action && self_approvable?(action)
     return false if allowed || @approved_tools.include?(tool_name.to_s)
 

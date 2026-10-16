@@ -10,6 +10,9 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
     _, @admin_token = ApiKey.create_with_token!(
       workspace: @workspace, created_by: @membership, on_behalf_of: @membership, name: "Admin"
     )
+    # A token minted over MCP is shown to its person in Slack alone, never in the answer the agent reads.
+    @shown = []
+    Slack::WorkspaceAdapter.any_instance.stubs(:post_token_once).with { |token:, **| @shown << token }.returns({ success: true })
   end
 
   # A machine cannot mint another machine, whatever anyone tries to grant it.
@@ -28,33 +31,34 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
     assert_nil @workspace.agents.find_by(slug: "nope")
   end
 
-  test "creating an agent hands back its token once and nothing it can do yet" do
+  test "creating an agent shows its token once to the person in Slack, never to the agent, and it can do nothing yet" do
     content, is_error = call_tool(Mcp::Tools::UPSERT_AGENT, {
       name: "Support agent", description: "Triages tickets"
     })
 
     assert_not is_error, content.inspect
     agent = @workspace.agents.find_by!(slug: "support_agent")
-    assert_match(/\Aff_/, content["token"])
+    assert_match(/\Aff_/, @shown.sole)
+    assert_match "Shown once to Alice Smith in Slack", content["token"]
     assert_equal 1, content["live_tokens"]
     assert_equal 0, content["granted_abilities"]
     assert_equal @membership, agent.api_keys.sole.created_by
   end
 
   test "the token authenticates as the agent, not as whoever minted it" do
-    content, = call_tool(Mcp::Tools::UPSERT_AGENT, { name: "Support agent" })
+    call_tool(Mcp::Tools::UPSERT_AGENT, { name: "Support agent" })
     agent = @workspace.agents.find_by!(slug: "support_agent")
 
-    assert_equal agent, ApiKey.authenticate(content["token"]).principal
+    assert_equal agent, ApiKey.authenticate(@shown.sole).principal
   end
 
   test "rotating leaves the old token working and a listing names both" do
-    first, = call_tool(Mcp::Tools::UPSERT_AGENT, { name: "Rotator" })
+    call_tool(Mcp::Tools::UPSERT_AGENT, { name: "Rotator" })
     second, is_error = call_tool(Mcp::Tools::ROTATE_AGENT_TOKEN, { slug: "rotator" })
 
     assert_not is_error, second.inspect
-    assert_not_equal first["token"], second["token"]
-    assert_not_nil ApiKey.authenticate(first["token"])
+    assert_equal 2, @shown.uniq.size
+    assert_not_nil ApiKey.authenticate(@shown.first)
     assert_equal 2, second["live_tokens"]
 
     listed, = call_tool(Mcp::Tools::LIST_AGENTS)
@@ -63,24 +67,24 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "revoking one token by prefix leaves the agent running on the other" do
-    first, = call_tool(Mcp::Tools::UPSERT_AGENT, { name: "Rotator" })
+    call_tool(Mcp::Tools::UPSERT_AGENT, { name: "Rotator" })
     call_tool(Mcp::Tools::ROTATE_AGENT_TOKEN, { slug: "rotator" })
-    prefix = ApiKey.authenticate(first["token"]).token_prefix
+    prefix = ApiKey.authenticate(@shown.first).token_prefix
 
     content, is_error = call_tool(Mcp::Tools::REVOKE_AGENT_TOKEN, { slug: "rotator", token_prefix: prefix })
 
     assert_not is_error, content.inspect
-    assert_nil ApiKey.authenticate(first["token"])
+    assert_nil ApiKey.authenticate(@shown.first)
     assert_equal 1, content["live_tokens"]
   end
 
   test "deleting an agent takes its tokens with it" do
-    content, = call_tool(Mcp::Tools::UPSERT_AGENT, { name: "Doomed" })
+    call_tool(Mcp::Tools::UPSERT_AGENT, { name: "Doomed" })
 
     _, is_error = call_tool(Mcp::Tools::DELETE_AGENT, { slug: "doomed" })
 
     assert_not is_error
-    assert_nil ApiKey.authenticate(content["token"])
+    assert_nil ApiKey.authenticate(@shown.sole)
     assert_nil @workspace.agents.find_by(slug: "doomed")
   end
 
@@ -90,8 +94,8 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
     })
 
     assert_not is_error, content.inspect
-    assert_match(/\Aff_/, content["token"])
-    key = ApiKey.authenticate(content["token"])
+    assert_no_match(/ff_/, content["token"])
+    key = ApiKey.authenticate(@shown.sole)
     assert_equal({ "incidents" => %w[read create] }, key.granted_permissions)
     assert key.service?
   end
@@ -257,8 +261,15 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
     JSON.parse(response.body)
   end
 
+  # A change to a credential, a permission or a webhook waits over MCP for a person, so it is approved here as an admin
+  # would and made again.
   def call_tool(name, arguments = {}, token: @admin_token)
     result = rpc("tools/call", { name: name, arguments: arguments }, token: token).fetch("result")
+    held = result.dig("content", 0, "text").to_s.match(PersonApprovalHelper::HELD)
+    if held
+      Ability::Approval.find(held[:id]).update!(status: Ability::Approval::STATUS_APPROVED, resolved_at: Time.current)
+      result = rpc("tools/call", { name: name, arguments: arguments.merge(approval_id: held[:id]) }, token: token).fetch("result")
+    end
     [ result["structuredContent"] || {}, result["isError"], result.dig("content", 0, "text") ]
   end
 end

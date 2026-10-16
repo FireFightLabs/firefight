@@ -211,6 +211,13 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Shows one person a Firefight token minted for them, seen by them alone and gone once they reload, so the platform
+  # keeps no copy either. title names what the token is for.
+  # @return [Hash] { success: true }
+  def post_token_once(user_id:, title:, token:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Tells one person why Halon will not do what they asked: in the thread they asked in, seen by them alone, and in their
   # direct messages, where it stays once they reload.
   # @return [Hash] { success: true }

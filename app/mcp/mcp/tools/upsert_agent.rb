@@ -4,8 +4,8 @@ module Mcp
       tool_name UPSERT_AGENT
       description "Create or change an agent, which is an AI that takes part in incidents under " \
                   "its own name. Pass slug to change an existing one, or leave it out to create. " \
-                  "Creating one returns its token once and never again, so hand it over " \
-                  "immediately. A new agent holds no abilities at all: grant it what it needs with " \
+                  "Creating one shows its token once to the person the call runs as, never in " \
+                  "this answer. A new agent holds no abilities at all: grant it what it needs with " \
                   "grant_ability. Authorizes as permissions, which is admin-only and cannot be " \
                   "granted to a machine, so an agent can never create another agent. " \
                   "Docs: #{Docs::PERMISSIONS}"
@@ -21,6 +21,8 @@ module Mcp
         required: []
       )
       upserts Ability::Action::RESOURCE_PERMISSIONS, scope: ->(workspace) { workspace.agents.standalone }
+
+      def self.mints_token?(_workspace, args) = args[:slug].blank?
 
       def self.perform_with_principal(workspace:, principal:, args:)
         agent = upsert_target(workspace, args)

@@ -167,6 +167,10 @@ module Mcp
           @authorization || raise(NotImplementedError, "#{name} declares no authorization")
         end
 
+        # Whether this call mints a Firefight token, whose answer carries it under :token. It is never handed to a
+        # model: Mcp::ToolDispatcher and Halon's chat hand it to the person the call runs as (TokenHandoff).
+        def mints_token?(_workspace, _args) = false
+
         # Whether a call changes permissions, a credential, an approval or a webhook, which only a person's say lets
         # through (Ability::Action::PERSON_CONFIRMED_RESOURCES). An upsert changes whichever way it goes.
         def asks_a_person?

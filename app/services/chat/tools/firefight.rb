@@ -9,7 +9,10 @@ class Chat::Tools::Firefight < RubyLLM::Tool
 
   # RubyLLM pauses the turn before a call that needs the person's decision. A tool that declares
   # itself destructive asks too, since a workspace wide change under an ordinary update verb is one.
-  def requires_approval? = @agent_run.confirms?(@action, allowed: Chat::Tools::Provenance.allowed?(@agent_run, name), tool_name: name, declared_destructive: destructive_by_declaration?)
+  def requires_approval?
+    @agent_run.confirms?(@action, allowed: Chat::Tools::Provenance.allowed?(@agent_run, name), tool_name: name, declared_destructive: destructive_by_declaration?,
+                                  asks_a_person: @tool_class.asks_a_person?)
+  end
 
   def destructive_by_declaration?
     @agent_run.acting_principal.present? && @tool_class.annotations_value&.destructive_hint == true
@@ -87,7 +90,8 @@ class Chat::Tools::Firefight < RubyLLM::Tool
       asks_a_person: @tool_class.asks_a_person?, **{ approval_id: approval_id }.compact
     ) do |authorization|
       response = Mcp::ToolDispatcher.run(
-        tool: @tool_class, workspace: @agent_run.workspace, principal: @agent_run.acting_principal, args: arguments, by_halon: by_halon?
+        tool: @tool_class, workspace: @agent_run.workspace, principal: @agent_run.acting_principal, args: arguments, by_halon: by_halon?,
+        hand_token: token_card(tool_call_id)
       )
       if response.error?
         Chat::Tools.mark_failed(@agent_run, tool_call_id)
@@ -109,6 +113,16 @@ class Chat::Tools::Firefight < RubyLLM::Tool
     Chat::Tools.waiting_for_approval(action_key, held: held)
   rescue *Mcp::ToolDispatcher::TOOL_ERRORS => error
     failed(tool_call_id, text_of(Mcp::ToolDispatcher.tool_error_response(error)))
+  end
+
+  # A token the call mints waits on a card for the person the chat runs as. Outside a person's chat there is nobody to
+  # show it to.
+  def token_card(tool_call_id)
+    chat = @agent_run.try(:chat)
+    person = @agent_run.acting_principal
+    return nil unless chat && person.is_a?(WorkspaceMembership)
+
+    ->(token) { TokenHandoff.to_card!(token, chat: chat, tool_call_id: tool_call_id, requester: person) }
   end
 
   # A workflow's step posts as the workflow, which is not Halon writing for someone.

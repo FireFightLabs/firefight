@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_170000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_171000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -976,7 +976,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_170000) do
     t.uuid "chat_id", null: false
     t.string "tool_call_id"
     t.string "kind", null: false
-    t.uuid "integration_tool_id", null: false
+    t.uuid "integration_tool_id"
     t.uuid "catalog_entry_id"
     t.uuid "requester_id", null: false
     t.string "title", null: false
@@ -990,6 +990,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_170000) do
     t.string "message_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.uuid "api_key_id"
+    t.index ["api_key_id"], name: "index_chat_secret_entries_on_api_key_id"
     t.index ["chat_id", "created_at"], name: "index_chat_secret_entries_on_chat_id_and_created_at"
     t.index ["done_by_id"], name: "index_chat_secret_entries_on_done_by_id"
     t.index ["integration_tool_id"], name: "index_chat_secret_entries_on_integration_tool_id"
@@ -3688,6 +3690,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_170000) do
   add_foreign_key "chat_saved_results", "workflow_runs", on_delete: :cascade
   add_foreign_key "chat_screenshots", "chats"
   add_foreign_key "chat_screenshots", "investigation_remediation_steps", column: "remediation_step_id", on_delete: :nullify
+  add_foreign_key "chat_secret_entries", "api_keys", on_delete: :cascade
   add_foreign_key "chat_secret_entries", "chats", on_delete: :cascade
   add_foreign_key "chat_secret_entries", "integration_tools", on_delete: :cascade
   add_foreign_key "chat_secret_entries", "workspace_memberships", column: "done_by_id", on_delete: :nullify
