@@ -337,6 +337,20 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_equal "5", watch.reload.direct_card_message_id
   end
 
+  test "a worker whose claim lapsed on a slow post and lost to another takes its own card back, so the place keeps one" do
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+    Slack::Client.expects(:post_message).once.with do |**|
+      Chat::Watch.where(id: watch.id).update_all(direct_card_channel_id: "D1", direct_card_message_id: "1")
+      true
+    end.returns(ts: "2", channel: "D1")
+    Slack::Client.expects(:delete_message).with { |channel:, ts:, **| [ channel, ts ] == [ "D1", "2" ] }.once
+
+    Conversation::Watches.tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "Release run #46 started.")
+
+    assert_equal [ "D1", "1" ], watch.reload.card_in(Chat::Watch::PLACE_DIRECT)
+  end
+
   test "the verdict on a good end is drawn from what each step showed, and the card says it in a line" do
     start_release_watch
     watch = @conversation.chat.watches.sole

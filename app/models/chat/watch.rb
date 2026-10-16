@@ -56,8 +56,8 @@ class Chat::Watch < ApplicationRecord
     PLACE_THREAD => %i[thread_card_channel_id thread_card_message_id thread_card_claimed_at],
     PLACE_DIRECT => %i[direct_card_channel_id direct_card_message_id direct_card_claimed_at]
   }.freeze
-  # A claim on posting a card that never got its message belonged to a worker that died.
-  CARD_CLAIM_LAPSES = 2.minutes
+  # A claim on posting a card that never got its message belonged to a worker that died. A post takes seconds.
+  CARD_CLAIM_LAPSES = 5.minutes
 
   # The keys of a start_watch request, which a runbook's watch is saved as and the runbook editor writes.
   SPEC_KEYS = {
@@ -179,10 +179,13 @@ class Chat::Watch < ApplicationRecord
     taken == 1
   end
 
+  # Keeps the card a place posted. False when another worker kept one first, such as after this claim lapsed on a slow
+  # post, so the caller takes its own back.
   def card_posted!(place, channel_id:, message_id:)
     channel, message, = CARD_COLUMNS.fetch(place)
-    self.class.where(id: id).update_all(channel => channel_id, message => message_id)
+    kept = self.class.where(id: id, message => nil).update_all(channel => channel_id, message => message_id)
     reload
+    kept == 1
   end
 
   # Lets go of a claim whose post failed, so the next thing the watch says tries again.

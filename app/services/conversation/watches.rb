@@ -1398,7 +1398,9 @@ module Conversation::Watches
     posted = adapter.post_watch_card(channel_id: place.channel_id, thread_id: place.thread_id, card: card(watch, update, direct: place.direct?))
     return watch.card_unclaimed!(place.key) unless posted.is_a?(Hash) && posted[:message_id]
 
-    watch.card_posted!(place.key, channel_id: posted[:channel_id], message_id: posted[:message_id])
+    unless watch.card_posted!(place.key, channel_id: posted[:channel_id], message_id: posted[:message_id])
+      return adapter.delete_message(channel_id: posted[:channel_id], message_id: posted[:message_id])
+    end
     # What another worker said while this one posted found no card to edit, so it is drawn now.
     adapter.update_watch_card(channel_id: posted[:channel_id], message_id: posted[:message_id], card: card(watch, update, direct: place.direct?)) if watch.status != drawn
   rescue AdapterError => error
