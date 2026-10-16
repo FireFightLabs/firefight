@@ -66,10 +66,11 @@ module Integrations
       def region = REGION
 
       # A box from from, a prepared copy's named snapshot, or from the image's own copy when there is one ready, so the
-      # image is pulled only by the first box of each version. A box that pulled the image saves the copy for the next
-      # one unless another box is saving it already.
+      # image is pulled only by the first box of each version. Of the boxes that pulled it, only the one that claims the
+      # save (SandboxImageCopy) saves the copy for the next.
       def start(name:, owner: nil, from: nil, fail_fast: false)
         image_copy = from ? nil : image_copy_status
+        SandboxImageCopy.ready!(SandboxProviders::BOAT, image_copy_name) if image_copy == READY
         source = from || (image_copy_name if image_copy == READY)
         created = @api.create({ type: size, ttlSeconds: TTL.to_i, noEnv: true, failFast: fail_fast, from: source }.compact, idempotency_key: SecureRandom.uuid)
         ref = created.dig("sandbox", "id") || created["id"]
@@ -151,8 +152,9 @@ module Integrations
       end
 
       # Deletes boxes archived for DELETE_AFTER, prepared copies no row names, and copies of an image that is no longer
-      # run or was made more than IMAGE_KEPT_FOR ago.
+      # run or was made more than IMAGE_KEPT_FOR ago, with the claims on saving the ones no longer run.
       def tidy(kept_refs:)
+        SandboxImageCopy.forget_others!(SandboxProviders::BOAT, image_copy_name)
         @api.sandboxes.each do |sandbox|
           next unless sandbox["name"].to_s.start_with?(NAME_PREFIX) && sandbox["state"] == "archived"
           next unless older_than?(sandbox["updatedAt"], DELETE_AFTER)
@@ -198,13 +200,16 @@ module Integrations
         nil
       end
 
-      # Only a head start for the next box, so a box that is up stays up when the copy cannot be saved, such as when
-      # another box started at the same time saves it first (409 save_in_progress). A failed copy is deleted first,
-      # since it holds the name.
+      # Saved only by the box that claims it, and only a head start for the next box, so a box that is up stays up when
+      # the copy cannot be saved, and its claim is let go of for a later box. A failed copy is deleted first, since it
+      # holds the name.
       def save_image_copy(ref, replacing:)
+        return unless SandboxImageCopy.claim!(SandboxProviders::BOAT, image_copy_name, ref)
+
         discard(image_copy_name) if replacing
         @api.save_snapshot(ref, image_copy_name)
-      rescue BoatApi::Error => error
+      rescue BoatApi::Error, ActiveRecord::ActiveRecordError => error
+        SandboxImageCopy.failed!(SandboxProviders::BOAT, image_copy_name, ref) unless error.is_a?(ActiveRecord::ActiveRecordError)
         Rails.logger.warn({ event: "code_box.image_copy_failed", provider: SandboxProviders::BOAT, box_ref: ref, error: error.message }.to_json)
       end
 
