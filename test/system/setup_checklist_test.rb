@@ -177,7 +177,7 @@ class SetupChecklistTest < ApplicationSystemTestCase
     sign_in(owner.user, owner.workspace)
 
     visit onboarding_checklist_path
-    assert_no_text "Use the AI keys this Firefight runs on"
+    assert_no_text "Use this server's AI keys"
     find("label", text: "Use Firefight credits").click
 
     assert_text "$0.00 left"

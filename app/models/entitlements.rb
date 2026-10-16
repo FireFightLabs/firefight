@@ -53,6 +53,10 @@ module Entitlements
     backend.firefight_pays_for_ai?(workspace)
   end
 
+  # The AI a hosted build runs Halon on for a workspace without a key of its own, as an Entitlements::HouseAi, which
+  # setup's AI step offers in its words. Nil where the build does not say, and setup then uses its own.
+  def self.house_ai(workspace) = backend.try(:house_ai, workspace)
+
   # The workspace's Firefight credit balance on a hosted build, responding to spendable? (it can pay for a call), used?
   # (it held credit and has none left), summary ({ title:, detail:, action: { label:, href: } } for the row under the
   # workspace's own AI accounts, action optional) and top_up (who can buy more and where, for the out of credit
