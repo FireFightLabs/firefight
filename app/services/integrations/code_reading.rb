@@ -444,6 +444,9 @@ module Integrations
       env = { "GIT_TERMINAL_PROMPT" => "0", "GIT_CONFIG_NOSYSTEM" => "1", "HOME" => dir }
       _output, errors, status = Open3.capture3(env, "git", *prefix, *arguments)
       raise Error, "git #{arguments.first} failed: #{redacted(errors).strip.lines.last}" unless status.success?
+    rescue SystemCallError => error
+      # A server without git, or one that cannot start it, fails the read that needed it, never the whole run.
+      raise Error, "git could not run on this server (#{error.class.name.demodulize}), so the repository was not copied to the sandbox."
     end
 
     def credential
