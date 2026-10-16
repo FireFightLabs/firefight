@@ -235,6 +235,8 @@ module TypescriptConstants
         "TURNED_OFF" => IntegrationProvider::STATE_TURNED_OFF, "NOT_CONNECTED" => IntegrationProvider::STATE_NOT_CONNECTED
       }, nil),
       Export.new("AGENT_CHANNEL", ConversationChannel.name, nil),
+      Export.new("INCIDENT_CHANNEL", IncidentChannel.name, nil),
+      Export.new("INCIDENT_LIVE_PARTS", Incident::LiveSignal::PARTS, nil),
       Export.new("AGENT_CHAT_PROPS", AgentChatsController::PROPS, nil),
       Export.new("AGENT_CHAT_HEAD_PROPS", AgentChatsController::HEAD_PROPS, nil),
       Export.new("AGENT_CHAT_THREAD_PROPS", AgentChatsController::THREAD_PROPS, nil),
