@@ -1,8 +1,8 @@
 # Steps and conditions are only touched when sent, so changing a summary
 # does not silently clear the procedure.
 #
-# With workflows on, a step list without a tool step changes only the checklist, so writing back what get_runbook read
-# never clears what the linked workflow runs.
+# A step list without a tool step changes only the checklist, so writing back what get_runbook read never clears what
+# the linked workflow runs.
 class Runbook::Upsert
   RUNNABLE = %i[inputs watch].freeze
 
@@ -10,7 +10,6 @@ class Runbook::Upsert
 
   def initialize(workspace)
     @workspace = workspace
-    @workflows = FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS)
   end
 
   def call(existing, args, by: nil)
@@ -25,7 +24,7 @@ class Runbook::Upsert
 
       runbook.sync_steps!(step_params(args)) if args.key?(:steps)
       runbook.sync_conditions!(condition_params(args)) if args.key?(:conditions)
-      @workflow_written = runbook.write_runnable_parts!(runnable_params(args), by: by) if @workflows && runnable?(args)
+      @workflow_written = runbook.write_runnable_parts!(runnable_params(args), by: by) if runnable?(args)
     end
 
     runbook
@@ -35,16 +34,16 @@ class Runbook::Upsert
 
   private
 
-  # inputs, aliases and watch are what makes a runbook one Halon can run, and each is touched only when sent.
+  # Aliases are touched only when sent.
   def runbook_attributes(args)
     { name: args[:name], summary: args[:summary], content: args[:content],
-      external_url: args[:external_url] }.compact.merge(args.to_h.symbolize_keys.slice(:aliases, *(@workflows ? [] : RUNNABLE)))
+      external_url: args[:external_url] }.compact.merge(args.to_h.symbolize_keys.slice(:aliases))
   end
 
   def step_params(args)
     Array(args[:steps]).map do |step|
       step = step.to_h.with_indifferent_access
-      { title: step[:title], instruction: step[:instruction], **(@workflows ? {} : step.slice(:tool, :arguments).symbolize_keys) }
+      { title: step[:title], instruction: step[:instruction] }
     end
   end
 

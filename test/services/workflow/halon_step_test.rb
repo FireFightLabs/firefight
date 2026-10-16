@@ -6,7 +6,6 @@ class Workflow::HalonStepTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     Investigation.stubs(:unavailable_reason).returns(nil)
     workflow = Workflow.create!(workspace: @workspace, name: "Probe", created_by: @alice)
     workflow.open_draft!(by: @alice).update!(steps: [ { "id" => "pause", "name" => "pause", "kind" => "delay", "config" => { "minutes" => 5 } } ])
@@ -71,7 +70,6 @@ class Workflow::HalonStepTest < ActiveSupport::TestCase
   end
 
   test "a skill the workspace switched off is not followed, and the step says so" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
     skill = Chat::CustomSkill.create_with!(workspace: @workspace, name: "game_day", by: @alice,
                                            content: { "when" => "A drill", "tools" => [ "get_form" ], "steps" => "1. Read `get_form`." })
     skill.switch!(on: false)

@@ -48,8 +48,6 @@ class RunbookTest < ActiveSupport::TestCase
                 "new_deploy" => { "commit" => "{{commit}}", "environment" => "production" } }
     runbook = @workspace.runbooks.new(name: "Ship", inputs: [ { "key" => "commit", "question" => "Which commit?" } ], watch: { "title" => "web", "steps" => [ rollout ] })
     assert runbook.valid?, runbook.errors.full_messages.to_sentence
-    runbook.save!
-    assert_equal({ "commit" => "f23b4dc", "environment" => "production" }, runbook.filled_watch("commit" => "f23b4dc")["steps"].sole["new_deploy"])
 
     runbook.watch = { "title" => "web", "steps" => [ rollout.merge("new_deploy" => "the latest") ] }
     assert_equal [ "Watch 'Web rollout': needs the new deploy it waits for as words, such as a commit, a tag or a branch" ], runbook.tap(&:validate).errors[:watch]
@@ -78,28 +76,11 @@ class RunbookTest < ActiveSupport::TestCase
                                       watch: { "title" => "Release", "steps" => [ newest ] })
 
     assert runbook.valid?, runbook.errors.full_messages.to_sentence
-    runbook.save!
-    assert_equal "workflow release's newest run, started for v2, finished", runbook.filled_watch("version" => "v2")["steps"].sole["goal"]
 
     runbook.watch = { "title" => "Release", "steps" => [ newest.merge("tool" => "not a tool!") ] }
     assert_equal [ "Watch 'Release workflow': needs the read tool's name as Halon calls it" ], runbook.tap(&:validate).errors[:watch]
     runbook.watch = { "title" => "Release", "steps" => [ newest.except("goal") ] }
     assert_match "needs what counts as done", runbook.tap(&:validate).errors[:watch].join
-  end
-
-  test "a watch item's name is optional, and one left without is named after what it reads when the runbook runs" do
-    unnamed = { "capability" => "run_history", "resource" => "firefight" }
-    named = { "label" => "Web", "capability" => "resource_status", "resource" => "web", "goal" => "web runs {{version}}" }
-    tool = { "tool" => "api_request", "capability" => "resource_status", "resource" => "web", "goal" => "done" }
-    runbook = @workspace.runbooks.create!(name: "Deploy", inputs: [ { "key" => "version", "question" => "Which version?" } ],
-                                          watch: { "title" => "release", "steps" => [ unnamed, named, tool ] })
-
-    assert_nil runbook.reload.watch["steps"].first["label"]
-    steps = runbook.filled_watch("version" => "v2")["steps"]
-    assert_equal [ "Run history", "Web", "api_request" ], steps.map { |step| step["label"] }
-    assert_equal "web runs v2", steps.second["goal"]
-    titled = runbook.filled_watch("version" => "v2") { |tool| Chat::Tools.title_for(tool, @workspace) }["steps"]
-    assert_equal "Api request", titled.third["label"]
   end
 
   test "a watch step that follows a run needs nothing more, and one that reads a status saves with a goal" do

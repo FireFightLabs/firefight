@@ -3,8 +3,6 @@
 class WorkflowPublishRequestsController < InertiaController
   authorizes Ability::Action::RESOURCE_WORKFLOWS, update: %i[publish dismiss]
 
-  include RequiresWorkflows
-
   before_action :set_request
 
   def publish

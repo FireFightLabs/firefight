@@ -5,7 +5,6 @@ class WorkflowPublishServiceTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
     @bob = workspace_memberships(:bob_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @adapter = WorkspaceAdapter.for(@workspace).class
   end
 

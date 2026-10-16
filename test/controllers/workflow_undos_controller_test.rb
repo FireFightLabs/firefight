@@ -4,7 +4,6 @@ class WorkflowUndosControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @workflow = Workflow.create!(workspace: @workspace, name: "Probe check")
   end
 

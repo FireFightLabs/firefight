@@ -98,7 +98,7 @@ class ApiKey < ApplicationRecord
   # order, resources then actions, so the same grants always read the same way.
   def granted_permissions
     held = ability_grants.includes(:action).filter_map { |grant| grant.action&.key }.to_set
-    (Ability::Action.grantable_keys - Ability::Action.hidden_keys(workspace)).select { |key| held.include?(key) }.each_with_object({}) do |key, matrix|
+    Ability::Action.grantable_keys.select { |key| held.include?(key) }.each_with_object({}) do |key, matrix|
       resource, action = key.split(".")
       (matrix[resource] ||= []) << action
     end

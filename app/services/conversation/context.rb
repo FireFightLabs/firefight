@@ -61,7 +61,7 @@ class Conversation::Context
   # A chat started beside a workflow's canvas is about that workflow, which the person sees change as Halon proposes.
   def workflow_line
     workflow = @conversation.workflow
-    return nil unless workflow && FeatureFlags.enabled?(@conversation.workspace, FeatureFlags::WORKFLOWS)
+    return nil unless workflow
 
     "You are beside the canvas of the workflow #{workflow.name} (#{workflow.slug}), which the person has open. Read it with " \
       "#{Chat::Tools::GetWorkflow::NAME} and change it with #{Chat::Tools::ProposeWorkflowEdit::NAME}, and they see each change on the canvas."

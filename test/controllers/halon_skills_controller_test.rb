@@ -5,7 +5,6 @@ class HalonSkillsControllerTest < ActionDispatch::IntegrationTest
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
     Entitlements.stubs(:allows?).returns(true)
-    FeatureFlags.enable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
     sign_in(users(:alice), @workspace)
   end
 
@@ -196,22 +195,5 @@ class HalonSkillsControllerTest < ActionDispatch::IntegrationTest
     patch enable_halon_skill_path(skill)
     assert_equal "game_day is on. Halon loads it again.", flash[:notice]
     assert skill.reload.enabled?
-  end
-
-  test "the page follows the custom skills flag whatever the workflows flag says" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
-
-    get halon_skills_path
-
-    assert_response :not_found
-  end
-
-  test "without the custom skills flag the page does not exist" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
-
-    get halon_skills_path
-
-    assert_response :not_found
   end
 end

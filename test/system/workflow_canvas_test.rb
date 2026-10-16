@@ -7,7 +7,6 @@ class WorkflowCanvasTest < ApplicationSystemTestCase
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
     @bob = workspace_memberships(:bob_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @workflow = Workflow.create!(workspace: @workspace, name: "Weekday probe check")
     WorkspaceAdapter.stubs(:for).returns(stub(post_workflow_publish_request_to_user: { channel_id: "D1", message_id: "1.1" },
                                               update_workflow_publish_request: { success: true },

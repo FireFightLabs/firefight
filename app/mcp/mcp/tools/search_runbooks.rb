@@ -6,7 +6,7 @@ module Mcp
       description "Search this workspace's incident response runbooks: documented procedures " \
                   "for handling incidents (e.g. how to fail over a database, roll back a deploy). " \
                   "Matches name, summary and other names. runnable says Halon can run it with run_runbook, and workflow names the " \
-                  "workflow it runs where the workspace has workflows. " \
+                  "workflow it runs. " \
                   "Use get_runbook for the full step-by-step content. " \
                   "Docs: #{Docs::RUNBOOKS}"
       annotations(**READ_ONLY)

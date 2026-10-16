@@ -5,7 +5,6 @@ class WorkflowToolChoiceSerializerTest < ActiveSupport::TestCase
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @workflow = Workflow.create!(workspace: @workspace, name: "Look around")
   end
 

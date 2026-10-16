@@ -1,7 +1,7 @@
 require "test_helper"
 
-# Run it in Slack: on the runbook's message in the incident channel and in its detail view, only where the workspace has
-# workflows and the runbook links one. It asks the run's questions and starts the workflow as the workflow's own identity.
+# Run it in Slack: on the runbook's message in the incident channel and in its detail view, only where the runbook links
+# a workflow. It asks the run's questions and starts the workflow as the workflow's own identity.
 class Interactions::RunbookRunHandlersTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -11,15 +11,11 @@ class Interactions::RunbookRunHandlersTest < ActiveSupport::TestCase
     @runbook = @workspace.runbooks.create!(name: "Release Firefight", inputs: [ { key: "bump", question: "Which version bump?", default: "patch" },
                                                                                 { key: "note", question: "Anything to say?" } ])
     @runbook.sync_steps!([ { title: "Look for past releases", tool: "search_incidents", arguments: { "query" => "{{bump}}" } }, { title: "Tell the team" } ])
+    @runbook.reload.move_runnable_parts!
     @incident_runbook = @incident.incident_runbooks.create!(runbook: @runbook, workspace: @workspace)
   end
 
-  test "without workflows neither the message nor the detail view offers Run it" do
-    assert_not_includes action_ids(Slack::Messages::Runbook.attached(@incident_runbook)), Identifiers::RUN_RUNBOOK
-    assert_not_includes action_ids(Slack::Modals::RunbookDetail.build(@incident_runbook)[:blocks]), Identifiers::RUN_RUNBOOK
-  end
-
-  test "with workflows on, a runbook that links a workflow offers Run it on its message and in its detail view" do
+  test "a runbook that links a workflow offers Run it on its message and in its detail view" do
     workflow = publish_workflow
 
     assert_includes action_ids(Slack::Messages::Runbook.attached(@incident_runbook.reload)), Identifiers::RUN_RUNBOOK
@@ -50,7 +46,6 @@ class Interactions::RunbookRunHandlersTest < ActiveSupport::TestCase
   end
 
   test "Run it on a draft says privately why it cannot run, and opens nothing" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     Slack::Client.expects(:open_modal).never
     Slack::Client.expects(:post_ephemeral).with { |**args| args[:text] == "Release Firefight has no published version to run." }.returns({ ok: true })
 
@@ -86,7 +81,6 @@ class Interactions::RunbookRunHandlersTest < ActiveSupport::TestCase
   private
 
   def publish_workflow
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     workflow = @runbook.reload.workflow
     result = WorkflowPublishService.new(workflow).publish!(workflow.draft, by: @admin)
     assert result.ok, result.words

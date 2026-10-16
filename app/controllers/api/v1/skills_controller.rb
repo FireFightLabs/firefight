@@ -1,7 +1,5 @@
-# The workspace's own skills, written through the same Chat::CustomSkillService as the Skills page and MCP. Without the
-# custom skills flag the endpoints answer as ones that do not exist.
+# The workspace's own skills, written through the same Chat::CustomSkillService as the Skills page and MCP.
 class Api::V1::SkillsController < Api::V1::ApiController
-  before_action :require_custom_skills
   before_action :set_skill, only: %i[show update destroy]
   rescue_from Chat::CustomSkillService::Refused, with: :refused
 
@@ -68,10 +66,6 @@ class Api::V1::SkillsController < Api::V1::ApiController
 
   def set_skill
     @skill = skills.with_usage_counts.includes(:live_version).find(params[:id])
-  end
-
-  def require_custom_skills
-    not_found(nil) unless Chat::CustomSkill.enabled_for?(current_workspace)
   end
 
   def refused(exception)

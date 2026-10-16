@@ -10,7 +10,6 @@ class HalonWorkflowsTest < ApplicationSystemTestCase
     Entitlements.stubs(:allows?).returns(true)
     Investigation.stubs(:available_for?).returns(true)
     Investigation.stubs(:start_refusal).returns(nil)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     adapter = WorkspaceAdapter.for(@workspace).class.any_instance
     adapter.stubs(:post_workflow_publish_request_to_user).returns({ channel_id: "D1", message_id: "1.1" })
     adapter.stubs(:update_workflow_publish_request).returns({ success: true })
@@ -32,6 +31,24 @@ class HalonWorkflowsTest < ApplicationSystemTestCase
     workflow = drafted(name, **options)
     WorkflowPublishService.new(workflow).publish!(workflow.draft, by: @alice)
     workflow.reload
+  end
+
+  test "a workspace with no workflows reaches Workflows and Skills from the sidebar, with their empty states, and makes its first from the library" do
+    sign_in(users(:alice), @workspace)
+    visit halon_monitoring_path
+
+    click_link "Skills"
+    assert_text "No skills of your own yet"
+
+    click_link "Workflows"
+    assert_text "No workflows yet"
+
+    click_button "New from the library"
+    find("[role='menuitem']", text: "Look for probing in the logs").click
+    click_button "Make draft"
+
+    assert_toast "Look for probing in the logs was made as a draft."
+    assert_no_text "No workflows yet"
   end
 
   test "the Workflows page lists workflows under Halon, and a draft is made from the library" do
@@ -64,15 +81,6 @@ class HalonWorkflowsTest < ApplicationSystemTestCase
 
     assert_text "Look around"
     assert_no_button "New from the library"
-  end
-
-  test "without the workflows flag the nav item is not there" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-    sign_in(users(:alice), @workspace)
-    visit halon_monitoring_path
-
-    assert_text "Monitoring"
-    assert_no_link "Workflows"
   end
 
   test "running by hand asks the trigger's questions, says so and opens the run, which can be pinned" do

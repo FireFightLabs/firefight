@@ -10,25 +10,12 @@ module Mcp
         @workspace = workspaces(:slack_workspace_one)
         @admin = workspace_memberships(:alice_workspace_one)
         @member = workspace_memberships(:bob_workspace_one)
-        FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
         WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:post_workflow_publish_request_to_user).returns({ channel_id: "D1", message_id: "1.1" })
       end
 
       def call(tool, principal, args) = ToolDispatcher.call(tool: tool, server_context: { workspace: @workspace, principal: principal }, args: args)
 
       def spec = { name: "Look around", steps: [ { name: "look", kind: "call_tool", config: { tool: SEARCH_INCIDENTS, arguments: {} } } ] }
-
-      test "nothing about workflows is listed, offered to Halon or run without the flag" do
-        FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-
-        listed = Mcp::Tools.for_workspace(@workspace).map(&:name_value)
-        [ LIST_WORKFLOWS, CREATE_WORKFLOW, RUN_WORKFLOW, UPDATE_WORKFLOW_SETTINGS, UPDATE_WORKFLOW ].each { |name| assert_not_includes listed, name }
-        offered = Chat::Tools.firefight_entries(Conversation::Turn.new(Conversation.start_personal!(workspace: @workspace, member: @admin), asker: @admin)).map { |entry| entry.name.to_s }
-        assert_not_includes offered, UPDATE_WORKFLOW_SETTINGS
-        answer = call(ListWorkflows, @admin, {})
-        assert answer.error?
-        assert_match "There is no tool called list_workflows", answer.content.first[:text]
-      end
 
       test "an admin makes one live, and a member's waits as a draft with the admins asked" do
         made = call(CreateWorkflow, @admin, spec)

@@ -66,7 +66,7 @@ class Chat::PracticesTest < ActiveSupport::TestCase
 
   test "following, saving and starting work is said by the tools that do it" do
     assert_match "is yours to follow: start a watch on it in the same turn", Conversation::Tools::StartWatch.new(@turn).description
-    assert_match "offer to save it as a runbook", Conversation::Tools::RunRunbook.new(@turn).description
+    assert_match "offer to save it as a workflow", Conversation::Tools::RunRunbook.new(@turn).description
     assert_match "offer to run it again and start it yourself once the person agrees", Conversation::Tools::StartInvestigation.new(@turn).description
     assert_match "Keep for yourself anything that changes something", Chat::Tools::Helpers.new(@turn, share: nil).description
   end

@@ -1,5 +1,4 @@
 import { IconExternalLink } from "@tabler/icons-react"
-import { usePage } from "@inertiajs/react"
 
 import type {
   IncidentSeveritySettings,
@@ -8,10 +7,9 @@ import type {
   RunbookSettings,
 } from "@/types/serializers"
 import { conditionSummary } from "@/pages/settings/lib/runbook-conditions"
-import { stepCall, watchedSummary } from "@/pages/settings/lib/runbook-procedure"
+import { stepCall } from "@/pages/settings/lib/runbook-procedure"
 import { MarkdownText } from "@/components/markdown-text"
 import { RunbookWorkflowSummary } from "@/components/runbooks/runbook-workflow-summary"
-import type { SharedProps } from "@/types"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -41,8 +39,6 @@ export function RunbookDetailSheet({
   onOpenChange: (open: boolean) => void
   onRun: (runbook: RunbookSettings) => void
 }) {
-  const { workflowsEnabled } = usePage<SharedProps>().props
-
   if (!runbook) {
     return null
   }
@@ -74,31 +70,15 @@ export function RunbookDetailSheet({
             <p className="text-sm">{conditions ?? "Always shown"}</p>
           </div>
 
-          {workflowsEnabled && (
-            <div className="space-y-2">
-              <h3 className="text-xs font-medium uppercase text-muted-foreground">Workflow</h3>
-              {runbook.workflow ? (
-                <RunbookWorkflowSummary workflow={runbook.workflow} onRun={run} />
-              ) : (
-                <p className="text-sm text-muted-foreground">No workflow is linked, so people follow it by hand. Link one when you edit it.</p>
-              )}
-              {runbook.aliases.length > 0 && <p className="text-sm">Also called {runbook.aliases.join(", ")}</p>}
-            </div>
-          )}
-
-          {!workflowsEnabled && runbook.runnable && (
-            <div className="space-y-2">
-              <h3 className="text-xs font-medium uppercase text-muted-foreground">Run by Halon</h3>
-              {runbook.aliases.length > 0 && <p className="text-sm">Also called {runbook.aliases.join(", ")}</p>}
-              {runbook.inputs.map((input) => (
-                <p key={input.key} className="text-sm text-muted-foreground">
-                  <span className="font-mono text-xs text-foreground">{input.key}</span> {input.question}
-                  {input.default && ` (default ${input.default})`}
-                </p>
-              ))}
-              {runbook.watch && <p className="text-sm">Then watches {watchedSummary(runbook.watch)}</p>}
-            </div>
-          )}
+          <div className="space-y-2">
+            <h3 className="text-xs font-medium uppercase text-muted-foreground">Workflow</h3>
+            {runbook.workflow ? (
+              <RunbookWorkflowSummary workflow={runbook.workflow} onRun={run} />
+            ) : (
+              <p className="text-sm text-muted-foreground">No workflow is linked, so people follow it by hand. Link one when you edit it.</p>
+            )}
+            {runbook.aliases.length > 0 && <p className="text-sm">Also called {runbook.aliases.join(", ")}</p>}
+          </div>
 
           {runbook.externalUrl && (
             <a

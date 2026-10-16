@@ -6,7 +6,6 @@ class HalonWorkflowLibraryTest < ApplicationSystemTestCase
     @alice = workspace_memberships(:alice_workspace_one)
     Entitlements.stubs(:allows?).returns(true)
     Investigation.stubs(:available_for?).returns(true)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     sign_in(users(:alice), @workspace)
   end
 

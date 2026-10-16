@@ -6,7 +6,6 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     FirefightAi::WorkflowRepair.any_instance.stubs(:suggest).returns(nil)
     WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:post_workflow_failure).returns({})
   end
@@ -442,7 +441,6 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
   end
 
   test "a workflow cannot be published with a skill step whose skill the workspace switched off" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
     skill = Chat::CustomSkill.create_with!(workspace: @workspace, name: "game_day", by: @alice,
                                            content: { "when" => "A drill", "tools" => [ "get_form" ], "steps" => "1. Read `get_form`." })
     skill.switch!(on: false)

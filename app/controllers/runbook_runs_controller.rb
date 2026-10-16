@@ -1,7 +1,5 @@
 # Run it on a runbook, from its page or from an incident it is attached to.
 class RunbookRunsController < InertiaController
-  include RequiresWorkflows
-
   authorizes Ability::Action::RESOURCE_WORKFLOWS, create: :create
 
   def create

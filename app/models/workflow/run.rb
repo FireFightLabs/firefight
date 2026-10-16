@@ -128,9 +128,6 @@ class Workflow::Run < ApplicationRecord
     [ workflow.runs.find_by!(start_key: start_key), false ]
   end
 
-  # Whether the engine may move it now. Without the workflows flag nothing starts, waits out its time or carries on.
-  def may_move? = FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS)
-
   def move!(to:, from:, **columns)
     moved = self.class.where(id: id, status: from).update_all(columns.merge(status: to, updated_at: Time.current)) == 1
     reload if moved

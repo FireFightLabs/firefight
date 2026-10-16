@@ -1,7 +1,6 @@
-# A runbook Halon can run. Its steps may each name a tool, by the name Halon calls it, with the arguments to call it with,
-# and any of those values may hold an input such as {{bump}}, asked of the person when it runs or taken from its default.
-# The watch is what to follow once every step went through, a start_watch request with the same inputs filled in. A
-# runbook without any of this is a plain incident runbook and behaves exactly as one.
+# What a runbook ran before it linked a workflow: steps that name a tool, inputs such as {{bump}} and a watch. Each moves
+# into the linked workflow (Runbook::LinkedWorkflow), so a runbook keeps them only when moving them was refused, and they
+# stay well formed until then. Its other names are how a person asks for it.
 module Runbook::Procedure
   extend ActiveSupport::Concern
 
@@ -29,38 +28,9 @@ module Runbook::Procedure
 
     # Every input a value names, in the order they first appear.
     def placeholders_in(value) = Placeholders.references_in(value, PLACEHOLDER)
-
-    # The value with each input put in its place. A value that is only one input keeps the input's own type.
-    def filled(value, inputs) = Placeholders.fill(value, PLACEHOLDER) { |key| inputs.fetch(key) { Placeholders::MISSING } }
   end
-
-  # Whether Halon can run it, because a step names a tool or there is something to watch.
-  def procedure? = runbook_steps.any?(&:tool?) || watch.present?
 
   def input_keys = inputs.map { |input| input["key"] }
-
-  # What the person gave, with each input they left out taken from its default. missing names those with neither.
-  Resolved = Data.define(:values, :missing)
-
-  def resolve_inputs(given)
-    given = given.to_h.stringify_keys.transform_values { |value| value.is_a?(String) ? value.strip : value }
-    values = inputs.to_h { |input| [ input["key"], given[input["key"]].presence || input["default"].presence ] }
-    Resolved.new(values: values.compact, missing: inputs.reject { |input| values[input["key"]].present? })
-  end
-
-  # The watch to start, with its inputs filled in and each item with no name named after what it reads. A read tool is
-  # named as tool_title calls it.
-  def filled_watch(values, &tool_title)
-    return if watch.blank?
-
-    filled = self.class.filled(watch, values)
-    label = Chat::Watch::SPEC_KEYS[:label]
-    steps = Array(filled["steps"]).map do |step|
-      named = step[label].to_s.strip.present? ? nil : Chat::Watch::Step.default_label(step, &tool_title)
-      named ? step.merge(label => named) : step
-    end
-    filled.merge("steps" => steps)
-  end
 
   private
 

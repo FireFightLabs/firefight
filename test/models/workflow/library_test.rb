@@ -47,7 +47,6 @@ class Workflow::LibraryTest < ActiveSupport::TestCase
   end
 
   test "a check from the library is published with what it needs granted and runs on the runtime, raising a notice when it finds a problem" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:post_monitoring_notice).returns({ channel_id: "C1", message_id: "1.1" })
     Workflow::HalonStep.any_instance.stubs(:follow!).returns({ "verdict" => "problem", "summary" => "The db volume fills on Friday.", "severity" => "medium",
                                                                 "findings" => [ "db-data is 91 percent full." ],
@@ -88,7 +87,6 @@ class Workflow::LibraryTest < ActiveSupport::TestCase
   end
 
   test "a check from the library raises one notice per problem it found, each said once and again only when worse" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @workspace.update!(halon_monitoring_channel: "C_MONITORING")
     said = []
     WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:post_monitoring_notice).with { |notice:, **| said << notice.topic }.returns({ channel_id: "C_MONITORING", message_id: "1.1" })

@@ -4,7 +4,6 @@ class WorkflowTriggerSweepJobTest < ActiveJob::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
   end
 
   def scheduled(name, trigger)
@@ -166,13 +165,9 @@ class WorkflowTriggerSweepJobTest < ActiveJob::TestCase
     end
   end
 
-  test "nothing starts for a workspace without the workflows flag, and a switched off workflow has no next time" do
+  test "a switched off workflow has no next time" do
     travel_to Time.zone.parse("2026-10-13 06:58 UTC") do
       workflow = scheduled("Quiet", { "kind" => "schedule", "repeat" => "minutes", "every" => 5, "time_zone" => "UTC", "inputs" => [] })
-      FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-      travel 3.minutes
-      WorkflowTriggerSweepJob.perform_now
-      assert_empty workflow.runs
 
       WorkflowPublishService.new(workflow).switch!(on: false)
       assert_nil workflow.reload.next_run_at

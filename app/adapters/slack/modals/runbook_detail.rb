@@ -9,7 +9,7 @@ module Slack
         steps = runbook.runbook_steps.to_a
         actions = incident_runbook.actions_by_step
         blocks = blocks(runbook, steps, actions)
-        blocks.insert(1, { type: "actions", elements: [ Slack::Messages::Runbook.run_button(incident_runbook) ] }) if runbook.runnable_workflow
+        blocks.insert(1, { type: "actions", elements: [ Slack::Messages::Runbook.run_button(incident_runbook) ] }) if runbook.workflow
 
         {
           type: "modal",

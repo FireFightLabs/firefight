@@ -3,16 +3,10 @@ module FeatureFlags
 
   # Sign in with ChatGPT as a workspace's AI account, until OpenAI approves its use here.
   CHATGPT_SIGN_IN = :chatgpt_sign_in
-  # Workflows a workspace builds and runs, until the whole feature ships. No run of one starts, waits out its time or
-  # carries on without it, and every page, Halon tool and MCP tool for them asks it too.
-  WORKFLOWS = :workflows
-  # A workspace's own skills, which Halon loads beside Firefight's, with their page, Halon's proposals and their tools.
-  # A workflow that runs one still needs WORKFLOWS for the workflow side.
-  CUSTOM_SKILLS = :custom_skills
   # Google and email on the sign-in page. Global, since nobody signing in has a workspace yet.
   SELF_SERVE_SIGNUP = :self_serve_signup
 
-  WORKSPACE = [ CHATGPT_SIGN_IN, WORKFLOWS, CUSTOM_SKILLS ].freeze
+  WORKSPACE = [ CHATGPT_SIGN_IN ].freeze
   GLOBAL = [ SELF_SERVE_SIGNUP ].freeze
   ALL = (WORKSPACE + GLOBAL).freeze
 
@@ -20,11 +14,8 @@ module FeatureFlags
     Flipper.enabled?(known!(flag, WORKSPACE), workspace)
   end
 
-  # Turning workflows on moves what each runbook runs into a workflow, so nothing runs two ways at once.
   def self.enable!(workspace, flag)
-    name = known!(flag, WORKSPACE)
-    Flipper.enable_actor(name, workspace)
-    Runbook.move_runnable_parts!(workspace) if name == WORKFLOWS
+    Flipper.enable_actor(known!(flag, WORKSPACE), workspace)
   end
 
   def self.disable!(workspace, flag)

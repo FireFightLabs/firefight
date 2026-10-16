@@ -1,6 +1,6 @@
 # Runs a workspace's workflows, each from the snapshot of the version its run started on. The engine runs the control
-# steps, and this says how a reference is filled, what step data is kept, how a sub workflow starts and when a run may
-# move: never for a workspace without the workflows flag. Every move the engine makes is written onto the run's own
+# steps, and this says how a reference is filled, what step data is kept, how a sub workflow starts and that a run may
+# move only while its record is there. Every move the engine makes is written onto the run's own
 # record (Workflow::Run), which outlives the engine's cleanup.
 class DefinedWorkflow < SolidWorkflow::Interpreter
   workflow_name "workflow.defined.v1"
@@ -154,7 +154,7 @@ class DefinedWorkflow < SolidWorkflow::Interpreter
       engine.present? && engine.cancel!(reason: "cancelled_by_person", by: by&.actor_display_name)
     end
 
-    def runnable?(workflow) = run_of(workflow)&.may_move? || false
+    def runnable?(workflow) = run_of(workflow).present?
 
     def resolve(value, scope, workflow:, step:) = Workflow::Version.filled(value, scope)
 

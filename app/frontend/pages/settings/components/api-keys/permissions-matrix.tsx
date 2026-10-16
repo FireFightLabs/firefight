@@ -3,11 +3,7 @@ import {
   ABILITY_GRANTABLE_RESOURCES,
   ABILITY_RESOURCE_ACTIONS,
   ABILITY_RESOURCE_LABELS,
-  SKILLS_RESOURCE,
-  WORKFLOWS_RESOURCE,
 } from "@/lib/generated/constants"
-import { usePage } from "@inertiajs/react"
-import type { SharedProps } from "@/types"
 import { Switch } from "@/components/ui/switch"
 import {
   Table,
@@ -32,11 +28,6 @@ export function PermissionsMatrix({
   perms: Record<string, Set<string>>
   onToggle: (resource: string, action: string) => void
 }) {
-  const { workflowsEnabled, customSkillsEnabled } = usePage<SharedProps>().props
-  // Workflows and the workspace's own skills are offered only where the workspace has them.
-  const hidden: string[] = [ ...(workflowsEnabled ? [] : [ WORKFLOWS_RESOURCE ]), ...(customSkillsEnabled ? [] : [ SKILLS_RESOURCE ]) ]
-  const resources = apiResources.filter((resource) => !hidden.includes(resource.key))
-
   return (
     <div className="rounded-lg border overflow-hidden">
       <Table>
@@ -51,7 +42,7 @@ export function PermissionsMatrix({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {resources.map((resource) => (
+          {apiResources.map((resource) => (
             <TableRow key={resource.key}>
               <TableCell className="font-medium">{resource.label}</TableCell>
               {apiActions.map((action) => (

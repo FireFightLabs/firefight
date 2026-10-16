@@ -78,7 +78,6 @@ class WorkflowPublishService
   # Publish pressed on a member's request, from the platform or the Workflows page. The draft is published as it was
   # when the admins were asked, never one changed since that nobody looked at.
   def publish_requested!(request, by:)
-    return Result.new(ok: false, words: "Workflows are not switched on for this workspace.") unless FeatureFlags.enabled?(@workspace, FeatureFlags::WORKFLOWS)
     return Result.new(ok: false, words: "This request was already answered.") unless request.waiting?
 
     draft = @workflow.draft

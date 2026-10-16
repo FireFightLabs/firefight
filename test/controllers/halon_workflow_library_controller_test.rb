@@ -5,7 +5,6 @@ class HalonWorkflowLibraryControllerTest < ActionDispatch::IntegrationTest
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
     Entitlements.stubs(:allows?).returns(true)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     sign_in(users(:alice), @workspace)
   end
 
@@ -105,14 +104,5 @@ class HalonWorkflowLibraryControllerTest < ActionDispatch::IntegrationTest
 
     post import_halon_workflow_path, params: { file: Rack::Test::UploadedFile.new(StringIO.new("nope"), "application/json", original_filename: "x.json") }
     assert_equal [ "The file is not readable JSON." ], session["inertia_errors"][:file]
-  end
-
-  test "without the workflows flag the page does not exist" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-
-    get halon_workflow_library_path
-    assert_response :not_found
-    get halon_workflows_path(tab: WorkflowsController::TAB_LIBRARY)
-    assert_response :not_found
   end
 end

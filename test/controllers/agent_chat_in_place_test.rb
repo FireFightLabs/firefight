@@ -44,7 +44,6 @@ class AgentChatInPlaceTest < ActionDispatch::IntegrationTest
   end
 
   test "asking beside a workflow's canvas reads back only the chat, never the canvas" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     workflow = Workflow.create!(workspace: @workspace, name: "Release check")
     headers = inertia_partial_headers("halon/workflow", WorkflowCanvasController::CHAT_PROPS)
     post workflow_chat_url(workflow), params: { question: "What does it do?" }, headers: headers

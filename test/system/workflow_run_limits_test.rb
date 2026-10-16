@@ -8,7 +8,6 @@ class WorkflowRunLimitsTest < ApplicationSystemTestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:post_workflow_failure).returns({})
     @workflow = Workflow.create!(workspace: @workspace, name: "Restart web", created_by: @alice)
   end

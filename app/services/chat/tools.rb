@@ -730,8 +730,7 @@ module Chat::Tools
     lambda do
       workspace = agent_run.workspace
       principal = agent_run.acting_principal
-      [ workspace.reach_version(principal), (granted(agent_run) if principal), Mcp::Tools.available_in(workspace).map(&:name_value),
-        Chat::CustomSkill.enabled_for?(workspace) ]
+      [ workspace.reach_version(principal), (granted(agent_run) if principal), Mcp::Tools.available_in(workspace).map(&:name_value) ]
     end
   end
 
