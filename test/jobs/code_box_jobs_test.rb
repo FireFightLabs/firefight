@@ -14,9 +14,9 @@ class CodeBoxJobsTest < ActiveJob::TestCase
   end
 
   test "preparing the image copy hands over to the provider's one place for it" do
-    Integrations::CodeReading.expects(:prepare_image!).with(SandboxProviders::BOAT)
+    Integrations::CodeReading.expects(:prepare_image!).with(Integrations::Sandboxes::Boat::KEY)
 
-    SandboxImageCopyJob.perform_now(SandboxProviders::BOAT)
+    SandboxImageCopyJob.perform_now(Integrations::Sandboxes::Boat::KEY)
   end
 
   test "a chat answer that read code schedules its box's idle check, and one that did not schedules nothing" do

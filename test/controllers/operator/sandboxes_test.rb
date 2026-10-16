@@ -6,7 +6,7 @@ class Operator::SandboxesTest < ActionDispatch::IntegrationTest
     @previous = ENV[Operator::Credential::OPERATOR_IDS_ENV]
     ENV[Operator::Credential::OPERATOR_IDS_ENV] = @operator.id
     @workspace = workspaces(:slack_workspace_one)
-    SandboxProviderRead.read!(SandboxProviders::BOAT)
+    SandboxProviderRead.read!(Integrations::Sandboxes::Boat::KEY)
     @investigation = Investigation.where(workspace: @workspace).first
   end
 
@@ -35,7 +35,7 @@ class Operator::SandboxesTest < ActionDispatch::IntegrationTest
     seen("bx_stuck", phase: ProviderSandbox::PHASE_STARTING, state: "provisioning", first_seen_at: 1.hour.ago)
     record("bx_idle", last_used_at: 3.hours.ago).tap { seen("bx_idle") }
     record("bx_vanished", created_at: 1.hour.ago)
-    SandboxProviderRead.read!(SandboxProviders::BOAT)
+    SandboxProviderRead.read!(Integrations::Sandboxes::Boat::KEY)
 
     get operator_sandboxes_path, headers: inertia_headers
 
@@ -60,10 +60,10 @@ class Operator::SandboxesTest < ActionDispatch::IntegrationTest
 
   test "a kept copy with no row and one past the free ten are shown with what they cost" do
     as_operator
-    ProviderSandbox.create!(provider: SandboxProviders::BOAT, kind: ProviderSandbox::KIND_SNAPSHOT, ref: "halon-kept-lost", purpose: ProviderSandbox::PURPOSE_PREPARED,
+    ProviderSandbox.create!(provider: Integrations::Sandboxes::Boat::KEY, kind: ProviderSandbox::KIND_SNAPSHOT, ref: "halon-kept-lost", purpose: ProviderSandbox::PURPOSE_PREPARED,
                             phase: ProviderSandbox::PHASE_READY, monthly_micros: 1_700_000, first_seen_at: 2.hours.ago, last_seen_at: Time.current)
-    PreparedCopy.kept!(SandboxProviders::BOAT, @workspace, "acme/app", "key-1", kept_ref: "halon-kept-known", commit: "abc")
-    ProviderSandbox.create!(provider: SandboxProviders::BOAT, kind: ProviderSandbox::KIND_SNAPSHOT, ref: "halon-kept-known", purpose: ProviderSandbox::PURPOSE_PREPARED,
+    PreparedCopy.kept!(Integrations::Sandboxes::Boat::KEY, @workspace, "acme/app", "key-1", kept_ref: "halon-kept-known", commit: "abc")
+    ProviderSandbox.create!(provider: Integrations::Sandboxes::Boat::KEY, kind: ProviderSandbox::KIND_SNAPSHOT, ref: "halon-kept-known", purpose: ProviderSandbox::PURPOSE_PREPARED,
                             phase: ProviderSandbox::PHASE_READY, monthly_micros: 0, first_seen_at: 2.hours.ago, last_seen_at: Time.current)
 
     get operator_sandboxes_path, headers: inertia_headers
@@ -78,12 +78,12 @@ class Operator::SandboxesTest < ActionDispatch::IntegrationTest
     record("bx_live")
     seen("bx_live")
     seen("bx_rogue", first_seen_at: 1.hour.ago)
-    Integrations::SandboxInventory.expects(:stop!).with(SandboxProviders::BOAT, "bx_live")
-    Integrations::SandboxInventory.expects(:delete!).with(SandboxProviders::BOAT, ProviderSandbox::KIND_BOX, "bx_rogue").twice
+    Integrations::SandboxInventory.expects(:stop!).with(Integrations::Sandboxes::Boat::KEY, "bx_live")
+    Integrations::SandboxInventory.expects(:delete!).with(Integrations::Sandboxes::Boat::KEY, ProviderSandbox::KIND_BOX, "bx_rogue").twice
 
-    post stop_operator_sandboxes_path, params: { provider: SandboxProviders::BOAT, ref: "bx_live" }
+    post stop_operator_sandboxes_path, params: { provider: Integrations::Sandboxes::Boat::KEY, ref: "bx_live" }
     assert_equal "Stopping halon-box-bx_live.", flash[:notice]
-    post delete_operator_sandboxes_path, params: { provider: SandboxProviders::BOAT, ref: "bx_rogue", kind: ProviderSandbox::KIND_BOX }
+    post delete_operator_sandboxes_path, params: { provider: Integrations::Sandboxes::Boat::KEY, ref: "bx_rogue", kind: ProviderSandbox::KIND_BOX }
     assert_equal "Deleted bx_rogue for good.", flash[:notice]
     post clean_up_operator_sandboxes_path
     assert_match "Deleted 1 rogue", flash[:notice]
@@ -98,11 +98,11 @@ class Operator::SandboxesTest < ActionDispatch::IntegrationTest
     seen("bx_stopped", phase: ProviderSandbox::PHASE_STOPPED, state: "archived")
     seen("bx_running", first_seen_at: 1.hour.ago)
 
-    post stop_operator_sandboxes_path, params: { provider: SandboxProviders::BOAT, ref: "bx_stopped" }
+    post stop_operator_sandboxes_path, params: { provider: Integrations::Sandboxes::Boat::KEY, ref: "bx_stopped" }
     assert_equal "This box is not running.", flash[:alert]
 
     Integrations::SandboxInventory.stubs(:delete!).raises(Integrations::BoatApi::Forbidden, "boat.dev answered 403: Not allowed. (forbidden)")
-    post delete_operator_sandboxes_path, params: { provider: SandboxProviders::BOAT, ref: "bx_running", kind: ProviderSandbox::KIND_BOX }
+    post delete_operator_sandboxes_path, params: { provider: Integrations::Sandboxes::Boat::KEY, ref: "bx_running", kind: ProviderSandbox::KIND_BOX }
     assert_equal "boat.dev answered 403: Not allowed. (forbidden)", flash[:alert]
     assert_equal "boat.dev answered 403: Not allowed. (forbidden)", Operator::SandboxAction.find_by!(ref: "bx_running").outcome
   end
@@ -114,18 +114,18 @@ class Operator::SandboxesTest < ActionDispatch::IntegrationTest
     seen("bx_lost", first_seen_at: started, owner: [ @workspace.id, key ])
     provider = Integrations::Sandboxes::Boat.new(api: Integrations::BoatApi.new)
     provider.expects(:reclaim).with("bx_lost").returns(Integrations::Sandboxes::Box.new(ref: "bx_lost", address: "https://lost.on.boat.dev?_token=gate", key: "k-new"))
-    Integrations::Sandboxes.stubs(:provider).with(SandboxProviders::BOAT).returns(provider)
+    Integrations::Sandboxes.stubs(:provider).with(Integrations::Sandboxes::Boat::KEY).returns(provider)
 
     get operator_sandboxes_path, headers: inertia_headers
     box = inertia_props["boxes"].find { |each| each["ref"] == "bx_lost" }
     assert_equal [ [ "rogue" ], @workspace.name, nil ], box.values_at("flags", "workspaceName", "adoptBlockedReason")
     assert_equal "Investigation", box.dig("origin", "label")
 
-    post adopt_operator_sandboxes_path, params: { provider: SandboxProviders::BOAT, ref: "bx_lost" }
+    post adopt_operator_sandboxes_path, params: { provider: Integrations::Sandboxes::Boat::KEY, ref: "bx_lost" }
 
     assert_equal "Adopted halon-box-bx_lost for #{@workspace.name}. It stops once nothing uses it for 1 hour.", flash[:notice]
     adopted = CodeBox.live.find_by!(key: key)
-    assert_equal [ @workspace, SandboxProviders::BOAT, "bx_lost", "k-new", "https://lost.on.boat.dev?_token=gate", "default", 36_000 ],
+    assert_equal [ @workspace, Integrations::Sandboxes::Boat::KEY, "bx_lost", "k-new", "https://lost.on.boat.dev?_token=gate", "default", 36_000 ],
                  [ adopted.workspace, adopted.provider, adopted.box_ref, adopted.secret, adopted.reach_address, adopted.size, adopted.hourly_micros ]
     assert_in_delta started, adopted.box_started_at, 1
     assert_equal [ "adopt", "bx_lost", "#{@operator.email} (operator)" ], Operator::SandboxAction.find_by!(ref: "bx_lost").then { |action| [ action.action, action.ref, action.operator ] }
@@ -144,7 +144,7 @@ class Operator::SandboxesTest < ActionDispatch::IntegrationTest
     provider.stubs(:reclaim).returns(Integrations::Sandboxes::Box.new(ref: "bx_unstopped", address: "https://b", key: "k-new"))
     Integrations::Sandboxes.stubs(:provider).returns(provider)
 
-    post adopt_operator_sandboxes_path, params: { provider: SandboxProviders::BOAT, ref: "bx_unstopped" }
+    post adopt_operator_sandboxes_path, params: { provider: Integrations::Sandboxes::Boat::KEY, ref: "bx_unstopped" }
 
     adopted = CodeBox.live.find_by!(key: stopped.key)
     assert_not_equal stopped.id, adopted.id
@@ -170,9 +170,9 @@ class Operator::SandboxesTest < ActionDispatch::IntegrationTest
     assert_equal "The run this box was started for has another box now, so this one can only be stopped or deleted.", reasons["bx_second"]
     assert_equal "Firefight already has a record of this box.", reasons["bx_current"]
 
-    post adopt_operator_sandboxes_path, params: { provider: SandboxProviders::BOAT, ref: "bx_nameless" }
+    post adopt_operator_sandboxes_path, params: { provider: Integrations::Sandboxes::Boat::KEY, ref: "bx_nameless" }
     assert_equal reasons["bx_nameless"], flash[:alert]
-    post adopt_operator_sandboxes_path, params: { provider: SandboxProviders::BOAT, ref: "bx_second" }
+    post adopt_operator_sandboxes_path, params: { provider: Integrations::Sandboxes::Boat::KEY, ref: "bx_second" }
     assert_equal reasons["bx_second"], flash[:alert]
     assert_not Operator::SandboxAction.exists?(action: Operator::SandboxAction::ADOPT)
   end
@@ -185,7 +185,7 @@ class Operator::SandboxesTest < ActionDispatch::IntegrationTest
     provider.stubs(:reclaim).raises(Integrations::BoatApi::NotFound, "boat.dev answered 404: Sandbox not found. (not_found)")
     Integrations::Sandboxes.stubs(:provider).returns(provider)
 
-    post adopt_operator_sandboxes_path, params: { provider: SandboxProviders::BOAT, ref: "bx_lost" }
+    post adopt_operator_sandboxes_path, params: { provider: Integrations::Sandboxes::Boat::KEY, ref: "bx_lost" }
 
     assert_equal "boat.dev answered 404: Sandbox not found. (not_found)", flash[:alert]
     assert_not CodeBox.exists?(key: key)
@@ -200,13 +200,13 @@ class Operator::SandboxesTest < ActionDispatch::IntegrationTest
   end
 
   def seen(ref, phase: ProviderSandbox::PHASE_RUNNING, state: "idle", first_seen_at: 30.minutes.ago, owner: nil)
-    ProviderSandbox.create!(provider: SandboxProviders::BOAT, kind: ProviderSandbox::KIND_BOX, ref: ref, name: "halon-box-#{ref}", purpose: ProviderSandbox::PURPOSE_RUN,
+    ProviderSandbox.create!(provider: Integrations::Sandboxes::Boat::KEY, kind: ProviderSandbox::KIND_BOX, ref: ref, name: "halon-box-#{ref}", purpose: ProviderSandbox::PURPOSE_RUN,
                             phase: phase, state: state, size: "default", started_at: first_seen_at, provider_updated_at: first_seen_at,
                             first_seen_at: first_seen_at, last_seen_at: Time.current, owner_workspace_id: owner&.first, owner_key: owner&.last)
   end
 
   def record(ref, key: "conversation-#{SecureRandom.uuid}", last_used_at: Time.current, created_at: 30.minutes.ago)
-    CodeBox.create!(workspace: @workspace, key: key, provider: SandboxProviders::BOAT, box_ref: ref, address: "https://a", secret: "k",
+    CodeBox.create!(workspace: @workspace, key: key, provider: Integrations::Sandboxes::Boat::KEY, box_ref: ref, address: "https://a", secret: "k",
                     last_used_at: last_used_at, created_at: created_at, box_started_at: created_at, size: "default", hourly_micros: 36_000)
   end
 end

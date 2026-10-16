@@ -8,8 +8,8 @@ module Interactions
       incident = workspace.incidents.find(interaction.metadata.incident_id)
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
 
-      relationship_type = interaction.values.dig(Identifiers::RELATIONSHIP_TYPE_BLOCK, Identifiers::RELATIONSHIP_TYPE_SELECT, "selected_option", "value")
-      target_id = interaction.values.dig(Identifiers::TARGET_INCIDENT_BLOCK, Identifiers::TARGET_INCIDENT_SELECT, "selected_option", "value")
+      relationship_type = workspace.adapter.submitted_value(values: interaction.values, block_id: Identifiers::RELATIONSHIP_TYPE_BLOCK, input_id: Identifiers::RELATIONSHIP_TYPE_SELECT, kind: PlatformAdapter::Input::OPTION)
+      target_id = workspace.adapter.submitted_value(values: interaction.values, block_id: Identifiers::TARGET_INCIDENT_BLOCK, input_id: Identifiers::TARGET_INCIDENT_SELECT, kind: PlatformAdapter::Input::OPTION)
       target = workspace.incidents.find(target_id)
 
       service = IncidentRelationshipService.new(workspace)

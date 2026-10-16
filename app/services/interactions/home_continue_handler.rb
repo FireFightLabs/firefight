@@ -4,12 +4,7 @@ module Interactions
     authorize_as Ability::Action::RESOURCE_INCIDENTS
 
     def self.execute(interaction)
-      selected = interaction.values.dig(
-        Identifiers::HOME_ACTION_SELECT_BLOCK,
-        Identifiers::HOME_ACTION_SELECT,
-        "selected_option",
-        "value"
-      )
+      selected = interaction.workspace.adapter.submitted_value(values: interaction.values, block_id: Identifiers::HOME_ACTION_SELECT_BLOCK, input_id: Identifiers::HOME_ACTION_SELECT, kind: PlatformAdapter::Input::OPTION)
       return nil if selected.blank?
 
       channel_id = interaction.metadata.channel_id

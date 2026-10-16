@@ -402,7 +402,12 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
 
     assert conversation.reload.archived?
     assert_redirected_to agent_chats_url
-    assert_equal "Chat archived.", flash[:notice]
+    assert_equal "Chat was archived.", flash[:notice]
+
+    patch agent_chat_url(conversation), params: { archived: false }, headers: { "Referer" => agent_chats_url }
+
+    assert_not conversation.reload.archived?
+    assert_equal "Chat was restored.", flash[:notice]
   end
 
   test "an archived chat is still listed, so the page can offer it under its own filter" do

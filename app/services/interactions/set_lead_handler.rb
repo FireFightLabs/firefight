@@ -11,7 +11,7 @@ module Interactions
       blocked_reason = incident.lead_assignment_blocked_reason
       return workspace.adapter.modal_errors_response({ Identifiers::LEAD_BLOCK => blocked_reason }) if blocked_reason
 
-      selected_user_id = interaction.values.dig(Identifiers::LEAD_BLOCK, Identifiers::LEAD_SELECT, "selected_user")
+      selected_user_id = workspace.adapter.submitted_value(values: interaction.values, block_id: Identifiers::LEAD_BLOCK, input_id: Identifiers::LEAD_SELECT, kind: PlatformAdapter::Input::USER)
       selected_member = WorkspaceMemberProvisioner.find_or_provision!(
         workspace: workspace,
         platform_user_id: selected_user_id,

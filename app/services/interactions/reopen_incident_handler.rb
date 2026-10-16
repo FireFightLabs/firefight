@@ -11,7 +11,7 @@ module Interactions
 
       return already_active_error(workspace) unless incident.terminal?
 
-      reason = interaction.values.dig(Identifiers::REASON_BLOCK, Identifiers::REASON_INPUT, "value")
+      reason = workspace.adapter.submitted_value(values: interaction.values, block_id: Identifiers::REASON_BLOCK, input_id: Identifiers::REASON_INPUT, kind: PlatformAdapter::Input::TEXT)
 
       IncidentLifecycleService.new(workspace).change_status(
         incident,

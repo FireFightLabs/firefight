@@ -1,0 +1,11 @@
+# The hosts this deployment can run code boxes on, each answered by its class in app/adapters/integrations/sandboxes/.
+# key is what SANDBOX_PROVIDER, a workspace and a box name it by, name is how a page says it, and runs_images says its
+# boxes run Docker, so a repository's setup can start the services its CI names from their own images.
+providers:
+  - key: docker
+    name: Docker
+  - key: northflank
+    name: Northflank
+  - key: boat
+    name: boat.dev
+    runs_images: true

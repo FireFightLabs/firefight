@@ -8,7 +8,7 @@ module Interactions
       metadata = interaction.metadata
       incident = workspace.incidents.find(metadata.incident_id)
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
-      slug = interaction.values.dig(Identifiers::RUNBOOK_BLOCK, Identifiers::RUNBOOK_SELECT, "selected_option", "value")
+      slug = workspace.adapter.submitted_value(values: interaction.values, block_id: Identifiers::RUNBOOK_BLOCK, input_id: Identifiers::RUNBOOK_SELECT, kind: PlatformAdapter::Input::OPTION)
 
       RunbookAttachmentService.new(workspace).attach_by_slug(
         incident: incident, slug: slug, attached_by: member

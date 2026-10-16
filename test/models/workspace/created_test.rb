@@ -57,7 +57,8 @@ class Workspace::CreatedTest < ActiveSupport::TestCase
   private
 
   def install_slack(auth_hash)
-    Workspace.process_slack_installation(auth_hash, install: SlackAuthenticationService.install_from(auth_hash))
+    Workspace.process_chat_installation(install: SlackAuthenticationService.install_from(auth_hash),
+                                        installer: SlackAuthenticationService.installer_from(auth_hash))
   end
 
   def new_user = User.create!(email: "starter-#{SecureRandom.hex(4)}@example.com", name: "Sam Starter")

@@ -116,6 +116,15 @@ class PlatformAdapter
     HOME = :home
   end
 
+  # What kind of answer one input of a submitted modal holds, for submitted_value.
+  module Input
+    TEXT = :text
+    OPTION = :option
+    USER = :user
+    USERS = :users
+    CONVERSATIONS = :conversations
+  end
+
   # Positional arguments are the domain objects the modal shows. `metadata:` is
   # an encoded ModalState handed back on submission.
   # @return [Object] an opaque view for open_modal, push_modal, update_modal
@@ -139,6 +148,12 @@ class PlatformAdapter
   # Replaces the open modal with another view.
   # @return [Hash]
   def form_update_response(view)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # What a person gave in one input of a submitted modal, found by its Identifiers block and input ids. kind is an Input.
+  # @return [String, Array<String>, nil] text, a choice's value or a person's id, a list for several, nil when left empty
+  def submitted_value(values:, block_id:, input_id:, kind:)
     raise NotImplemented.new(__method__, self.class)
   end
 

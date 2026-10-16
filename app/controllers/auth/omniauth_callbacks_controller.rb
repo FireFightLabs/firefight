@@ -4,6 +4,9 @@ module Auth
 
     SIGN_IN_FAILED = "Sign-in did not finish. Sign in again to continue.".freeze
     CONNECT_FAILED = "Slack could not be connected. Press Connect Slack to try again.".freeze
+    INSTALL_FAILED = "Adding Firefight to Slack did not finish. Start again to add it.".freeze
+    SESSION_EXPIRED = "The sign-in expired before it finished. Start again to continue.".freeze
+    AUTH_FAILED = "Sign-in did not finish. Start again to continue.".freeze
     UNAVAILABLE_MESSAGE = "That way of signing in is not available.".freeze
     SLACK_INSTALL_STRATEGY = "slack".freeze
     GOOGLE_UNVERIFIED_MESSAGE = "Google has not verified the email on that account. Verify it with Google, then sign in again.".freeze
@@ -41,7 +44,7 @@ module Auth
       apply_outcome(outcome)
     rescue => e
       log_auth_failure(:slack_install_failed, e)
-      redirect_to login_path, alert: "Installation failed. Please try again."
+      redirect_to login_path, alert: INSTALL_FAILED
     end
 
     # A person with no workspace yet goes on to name one.
@@ -78,14 +81,14 @@ module Auth
     def failure_message
       case params[:message]
       when "csrf_detected"
-        "Authentication session expired. Please try again."
+        SESSION_EXPIRED
       when "access_denied"
         label = UserIdentity.label_for_strategy(params[:strategy])
-        label ? "You denied access to your #{label} account." : "Authentication failed. Please try again."
+        label ? "You denied access to your #{label} account." : AUTH_FAILED
       when "invalid_credentials"
         "Invalid credentials. Please contact support."
       else
-        "Authentication failed. Please try again."
+        AUTH_FAILED
       end
     end
 

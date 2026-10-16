@@ -8,7 +8,7 @@ module Interactions
       metadata = interaction.metadata
       incident = workspace.incidents.find(metadata.incident_id)
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
-      new_summary = interaction.values.dig(Identifiers::SUMMARY_BLOCK, Identifiers::SUMMARY_INPUT, "value")
+      new_summary = workspace.adapter.submitted_value(values: interaction.values, block_id: Identifiers::SUMMARY_BLOCK, input_id: Identifiers::SUMMARY_INPUT, kind: PlatformAdapter::Input::TEXT)
 
       incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: member) do
         incident.update!(summary: new_summary)

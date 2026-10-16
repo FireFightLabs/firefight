@@ -8,12 +8,12 @@ class User < ApplicationRecord
   validates :email, presence: true, uniqueness: true
   validates :name, presence: true
 
-  def self.find_or_create_from_omniauth!(auth_hash)
-    user = find_or_initialize_by(email: auth_hash.info.email)
+  def self.find_or_create_from_identity!(email:, name:, avatar_url:)
+    user = find_or_initialize_by(email: email)
 
     user.assign_attributes(
-      name: auth_hash.info.name,
-      avatar_url: auth_hash.info.image
+      name: name,
+      avatar_url: avatar_url
     )
 
     user.save!

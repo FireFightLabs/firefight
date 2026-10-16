@@ -42,10 +42,12 @@ module Interactions
     end
 
     def self.submitted_selections(interaction)
-      interaction.values.each_with_object({}) do |(block_id, actions), selections|
+      adapter = interaction.workspace.adapter
+      interaction.values.each_key.with_object({}) do |block_id, selections|
         next unless block_id.start_with?(Identifiers::ROLE_BLOCK_PREFIX)
 
-        selections[Identifiers.role_id_from_block(block_id)] = actions.dig(Identifiers::ROLE_SELECT, "selected_user")
+        selections[Identifiers.role_id_from_block(block_id)] =
+          adapter.submitted_value(values: interaction.values, block_id: block_id, input_id: Identifiers::ROLE_SELECT, kind: PlatformAdapter::Input::USER)
       end
     end
     private_class_method :submitted_selections

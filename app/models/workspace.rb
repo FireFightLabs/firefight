@@ -252,17 +252,17 @@ class Workspace < ApplicationRecord
   end
 
   # user comes from the prior OIDC sign-in. The bot install's users.info fetch
-  # is brittle, so identity is never derived from auth_hash when user is given.
-  # workspace is one that started without Slack, which this install connects.
-  def self.process_slack_installation(auth_hash, install:, user: nil, workspace: nil)
+  # is brittle, so identity is never derived from installer when user is given.
+  # workspace is one that started without a chat platform, which this install connects.
+  def self.process_chat_installation(install:, installer:, user: nil, workspace: nil)
     transaction do
       if workspace
         workspace.connect_chat!(install)
       else
         workspace = find_or_create_from_chat_install!(install, created_by: user)
       end
-      user ||= User.find_or_create_from_omniauth!(auth_hash)
-      membership = WorkspaceMembership.find_or_create_from_omniauth!(user, workspace, auth_hash)
+      user ||= User.find_or_create_from_identity!(**installer.slice(:email, :name, :avatar_url))
+      membership = WorkspaceMembership.find_or_create_for_platform_user!(user, workspace, **installer.slice(:platform_user_id, :platform_data))
 
       if workspace.previously_new_record?
         workspace.setup_incident_configuration!

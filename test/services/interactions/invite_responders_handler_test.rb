@@ -24,6 +24,9 @@ class Interactions::InviteRespondersHandlerTest < ActiveSupport::TestCase
 
     adapter = mock("workspace_adapter")
     WorkspaceAdapter.expects(:for).with(@workspace).returns(adapter)
+    adapter.expects(:submitted_value).with(has_entries(block_id: Identifiers::INVITE_USERS_BLOCK, input_id: Identifiers::INVITE_USERS_SELECT,
+                                                       kind: PlatformAdapter::Input::USERS))
+           .returns([ "U11111111", "U22222222" ])
     adapter.expects(:post_invite_summary).with(
       channel_id: @incident.channel_id, user_id: @member.platform_user_id, result: result
     )

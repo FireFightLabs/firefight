@@ -38,6 +38,17 @@ module Slack::WorkspaceAdapter::IncidentModals
     { response_action: "update", view: view }
   end
 
+  # Where each kind of input keeps its answer in a submission's state values.
+  SUBMITTED_PATHS = {
+    PlatformAdapter::Input::TEXT => [ "value" ],
+    PlatformAdapter::Input::OPTION => [ "selected_option", "value" ],
+    PlatformAdapter::Input::USER => [ "selected_user" ],
+    PlatformAdapter::Input::USERS => [ "selected_users" ],
+    PlatformAdapter::Input::CONVERSATIONS => [ "selected_conversations" ]
+  }.freeze
+
+  def submitted_value(values:, block_id:, input_id:, kind:) = values.dig(block_id, input_id, *SUBMITTED_PATHS.fetch(kind))
+
   def modal_errors_response(errors) = { response_action: "errors", errors: errors }
 
   def modal_close_response = { response_action: "clear" }

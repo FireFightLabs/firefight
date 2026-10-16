@@ -7,11 +7,7 @@ module Interactions
       workspace = interaction.workspace
       adapter = workspace.adapter
 
-      selected_conversations = interaction.values.dig(
-        Identifiers::SHARE_TARGET_BLOCK,
-        Identifiers::SHARE_TARGET_SELECT,
-        "selected_conversations"
-      ) || []
+      selected_conversations = adapter.submitted_value(values: interaction.values, block_id: Identifiers::SHARE_TARGET_BLOCK, input_id: Identifiers::SHARE_TARGET_SELECT, kind: PlatformAdapter::Input::CONVERSATIONS) || []
 
       if selected_conversations.empty?
         Rails.logger.warn({

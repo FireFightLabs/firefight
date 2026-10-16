@@ -595,7 +595,7 @@ class AgentChatsController < InertiaController
     archived = ActiveModel::Type::Boolean.new.cast(params[:archived])
     conversation.archive!(archived)
 
-    redirect_back_or_to agent_chat_path(conversation), notice: archived ? "Chat archived." : "Chat back in the list."
+    redirect_back_or_to agent_chat_path(conversation), notice: archived ? "Chat was archived." : "Chat was restored."
   end
 
   # The list already read the open chat when it is on the page shown, with its chat and previews, so it is not read twice.

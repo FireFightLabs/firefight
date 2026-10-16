@@ -29,6 +29,14 @@ class SlackAuthenticationService
     }
   end
 
+# What the install's auth hash says about the person installing, as their user and membership store it. Read only when
+# the install makes the user, since the bot install's profile fetch is brittle.
+def self.installer_from(auth_hash)
+  info = auth_hash.info
+  { email: info&.email, name: info&.name, avatar_url: info&.image, platform_user_id: auth_hash.uid,
+    platform_data: auth_hash.extra&.user_info }
+end
+
   # Invite gating applies only to new workspace installs and only when
   # InviteCode.required? is true. Members of an existing workspace always auto-provision.
   def handle_openid_signin(auth_hash)
@@ -90,7 +98,7 @@ class SlackAuthenticationService
 
     result = ActiveRecord::Base.transaction do
       invite_code.redeem!(user) if existing_workspace.nil? && InviteCode.required?
-      Workspace.process_slack_installation(auth_hash, install: self.class.install_from(auth_hash), user: user)
+      Workspace.process_chat_installation(install: self.class.install_from(auth_hash), installer: self.class.installer_from(auth_hash), user: user)
     end
 
     trigger_workspace_setup(result[:workspace], auth_hash.uid) if result[:first_install]
@@ -126,7 +134,7 @@ class SlackAuthenticationService
 
   # Kept for backward compatibility, older callers still expect a Hash.
   def process_oauth_callback(auth_hash)
-    result = Workspace.process_slack_installation(auth_hash, install: self.class.install_from(auth_hash))
+    result = Workspace.process_chat_installation(install: self.class.install_from(auth_hash), installer: self.class.installer_from(auth_hash))
     trigger_workspace_setup(result[:workspace], auth_hash.uid) if result[:first_install]
     result
   end
@@ -142,7 +150,7 @@ class SlackAuthenticationService
     return AuthOutcome.refused(message: CONNECT_FAILED_MESSAGE) unless membership
     return AuthOutcome.refused(message: TEAM_TAKEN_MESSAGE) if Workspace.where.not(id: workspace.id).exists?(platform: Platforms::SLACK, platform_id: team_id)
 
-    result = Workspace.process_slack_installation(auth_hash, install: self.class.install_from(auth_hash), user: user, workspace: workspace)
+    result = Workspace.process_chat_installation(install: self.class.install_from(auth_hash), installer: self.class.installer_from(auth_hash), user: user, workspace: workspace)
     trigger_workspace_setup(result[:workspace], auth_hash.uid)
     unless signed_up_with_team
       SignupNotificationService.announce(SignupNotificationService::CHAT_CONNECTED, result[:workspace], result[:membership])

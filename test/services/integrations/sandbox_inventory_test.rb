@@ -28,7 +28,7 @@ module Integrations
       @workspace = workspaces(:slack_workspace_one)
       @provider = HoldingProvider.new
       Sandboxes.stubs(:provider).returns(@provider)
-      SandboxProviders.stubs(:in_use).returns([ SandboxProviders::BOAT ])
+      SandboxProviders.stubs(:in_use).returns([ Integrations::Sandboxes::Boat::KEY ])
     end
 
     test "what a provider holds is recorded on every reading, and what it stopped holding is marked gone" do
@@ -41,7 +41,7 @@ module Integrations
       kept = ProviderSandbox.find_by!(ref: "bx_2")
       assert_nil kept.gone_at
       assert_equal [ "archived", ProviderSandbox::PHASE_STOPPED ], [ kept.state, kept.phase ]
-      assert_nil SandboxProviderRead.find_by!(provider: SandboxProviders::BOAT).error
+      assert_nil SandboxProviderRead.find_by!(provider: Integrations::Sandboxes::Boat::KEY).error
     end
 
     test "a provider that cannot be read keeps what it last held and says why" do
@@ -52,16 +52,16 @@ module Integrations
       SandboxInventory.record!
 
       assert_nil ProviderSandbox.find_by!(ref: "bx_1").gone_at
-      assert_equal "boat.dev answered 401: Provide a valid bearer token. (unauthorized)", SandboxProviderRead.find_by!(provider: SandboxProviders::BOAT).error
+      assert_equal "boat.dev answered 401: Provide a valid bearer token. (unauthorized)", SandboxProviderRead.find_by!(provider: Integrations::Sandboxes::Boat::KEY).error
     end
 
     test "stopping or deleting a box a run holds closes its row first, and deleting a copy removes its row" do
-      box = CodeBox.create!(workspace: @workspace, key: "investigation-1", provider: SandboxProviders::BOAT, box_ref: "bx_1", address: "https://a",
+      box = CodeBox.create!(workspace: @workspace, key: "investigation-1", provider: Integrations::Sandboxes::Boat::KEY, box_ref: "bx_1", address: "https://a",
                             secret: "k", last_used_at: Time.current)
-      kept = PreparedCopy.kept!(SandboxProviders::BOAT, @workspace, "acme/app", "key-1", kept_ref: "halon-kept-1", commit: "abc").first
+      kept = PreparedCopy.kept!(Integrations::Sandboxes::Boat::KEY, @workspace, "acme/app", "key-1", kept_ref: "halon-kept-1", commit: "abc").first
 
-      SandboxInventory.stop!(SandboxProviders::BOAT, "bx_1")
-      SandboxInventory.delete!(SandboxProviders::BOAT, ProviderSandbox::KIND_SNAPSHOT, "halon-kept-1")
+      SandboxInventory.stop!(Integrations::Sandboxes::Boat::KEY, "bx_1")
+      SandboxInventory.delete!(Integrations::Sandboxes::Boat::KEY, ProviderSandbox::KIND_SNAPSHOT, "halon-kept-1")
 
       assert box.reload.stopped_at
       assert_equal [ "bx_1" ], @provider.stopped

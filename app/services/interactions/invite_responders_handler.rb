@@ -9,7 +9,7 @@ module Interactions
       incident = workspace.incidents.find(metadata.incident_id)
 
       adapter = workspace.adapter
-      user_ids = interaction.values.dig(Identifiers::INVITE_USERS_BLOCK, Identifiers::INVITE_USERS_SELECT, "selected_users") || []
+      user_ids = adapter.submitted_value(values: interaction.values, block_id: Identifiers::INVITE_USERS_BLOCK, input_id: Identifiers::INVITE_USERS_SELECT, kind: PlatformAdapter::Input::USERS) || []
       if user_ids.empty?
         return adapter.modal_errors_response({ Identifiers::INVITE_USERS_BLOCK => "Please select at least one responder" })
       end

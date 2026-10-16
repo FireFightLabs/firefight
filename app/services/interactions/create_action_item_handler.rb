@@ -11,8 +11,8 @@ module Interactions
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
       kind = Identifiers::ACTION_ITEMS_FORM_KINDS[interaction.callback_id]
 
-      description = interaction.values.dig(Identifiers::ACTION_ITEM_DESCRIPTION_BLOCK, Identifiers::ACTION_ITEM_DESCRIPTION_INPUT, "value")
-      assignee_user_id = interaction.values.dig(Identifiers::ACTION_ITEM_ASSIGNEE_BLOCK, Identifiers::ACTION_ITEM_ASSIGNEE_SELECT, "selected_user")
+      description = workspace.adapter.submitted_value(values: interaction.values, block_id: Identifiers::ACTION_ITEM_DESCRIPTION_BLOCK, input_id: Identifiers::ACTION_ITEM_DESCRIPTION_INPUT, kind: PlatformAdapter::Input::TEXT)
+      assignee_user_id = workspace.adapter.submitted_value(values: interaction.values, block_id: Identifiers::ACTION_ITEM_ASSIGNEE_BLOCK, input_id: Identifiers::ACTION_ITEM_ASSIGNEE_SELECT, kind: PlatformAdapter::Input::USER)
       if assignee_user_id
         assignee = WorkspaceMemberProvisioner.find_or_provision!(
           workspace: workspace,
