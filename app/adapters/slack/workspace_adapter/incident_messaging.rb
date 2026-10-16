@@ -492,12 +492,13 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     end
   end
 
-  # A workspace without the agent features still gets the answer, just posted in one go at the end.
+  # A workspace without the agent features still gets the answer, just posted in one go at the end. Its refusal is
+  # remembered, so it is not asked again for every answer.
   def start_agent_answer(channel_id:, thread_id:, user_id:)
+    return { answer_id: nil } unless agent_sessions?
+
+    open_agent_session(channel_id: channel_id, thread_id: thread_id)
     translate_errors do
-      Slack::Client.set_agent_session_status(
-        workspace: @workspace, channel: channel_id, thread_ts: thread_id, status: "processing"
-      )
       stream = Slack::Client.start_stream(
         workspace: @workspace, channel: channel_id, thread_ts: thread_id,
         recipient_user_id: user_id, recipient_team_id: @workspace.platform_id
@@ -961,6 +962,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
 
   # Slack holds the spinner for an hour unless the session is set back to active.
   def clear_agent_session(channel_id:, thread_id:)
+    return unless agent_sessions?
+
     Slack::Client.set_agent_session_status(
       workspace: @workspace, channel: channel_id, thread_ts: thread_id, status: "active"
     )
@@ -1063,16 +1066,41 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     yield(false)
   end
 
-  def rich_blocks?
-    refused = @workspace.platform_data.to_h[RICH_BLOCKS_REFUSED_AT]
-    refused.blank? || Time.zone.parse(refused.to_s) < RETRY_RICH_BLOCKS_AFTER.ago
+  def rich_blocks? = !refused_since?(RICH_BLOCKS_REFUSED_AT, RETRY_RICH_BLOCKS_AFTER)
+
+  def rich_blocks_refused! = remember_refusal!(RICH_BLOCKS_REFUSED_AT)
+
+  # Where the workspace's Slack refused an agent session, for want of the agent features or of the app being declared
+  # one, remembered the same way, so answers are posted whole without asking again for a day.
+  AGENT_SESSIONS_REFUSED_AT = "agent_sessions_refused_at".freeze
+  RETRY_AGENT_SESSIONS_AFTER = 1.day
+  # Slack's answers that are about the workspace or the app, never one channel or one moment, so only these are remembered.
+  WORKSPACE_REFUSALS = %w[not_authorized feature_disabled not_allowed_token_type missing_scope].freeze
+
+  def agent_sessions? = !refused_since?(AGENT_SESSIONS_REFUSED_AT, RETRY_AGENT_SESSIONS_AFTER)
+
+  def open_agent_session(channel_id:, thread_id:)
+    translate_errors do
+      Slack::Client.set_agent_session_status(workspace: @workspace, channel: channel_id, thread_ts: thread_id, status: "processing")
+    end
+  rescue AdapterError => error
+    if WORKSPACE_REFUSALS.include?(error.message[/error: ([a-z_]+)/, 1])
+      Rails.logger.info({ event: "slack.agent_sessions_refused", workspace_id: @workspace.id, error: error.message }.to_json)
+      remember_refusal!(AGENT_SESSIONS_REFUSED_AT)
+    end
+    raise
   end
 
-  def rich_blocks_refused!
+  def refused_since?(key, retry_after)
+    refused = @workspace.platform_data.to_h[key]
+    refused.present? && Time.zone.parse(refused.to_s) >= retry_after.ago
+  end
+
+  def remember_refusal!(key)
     now = Time.current.iso8601
     Workspace.where(id: @workspace.id)
-             .update_all([ "platform_data = COALESCE(platform_data, '{}'::jsonb) || jsonb_build_object(?::text, ?::text)", RICH_BLOCKS_REFUSED_AT, now ])
-    @workspace.platform_data = @workspace.platform_data.to_h.merge(RICH_BLOCKS_REFUSED_AT => now)
+             .update_all([ "platform_data = COALESCE(platform_data, '{}'::jsonb) || jsonb_build_object(?::text, ?::text)", key, now ])
+    @workspace.platform_data = @workspace.platform_data.to_h.merge(key => now)
   end
 
   # Stops the stream that showed the run's steps in its thread, keeping them, and clears the working state. A stream that

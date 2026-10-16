@@ -40,6 +40,7 @@ module Operator
       when Operator::Attention::TARGET_RUN then routes.operator_halon_run_path(item.target_id)
       when Operator::Attention::TARGET_WORKSPACE then routes.operator_workspace_path(item.target_id)
       when Operator::Attention::TARGET_SANDBOXES then routes.operator_sandboxes_path
+      when Operator::Attention::TARGET_PLATFORM_FAILURE then routes.operator_platform_failure_path(item.target_id)
       when Operator::Attention::TARGET_FAILED_JOBS then "#{routes.operator_jobs_path}/jobs?state=failed"
       when Operator::Attention::TARGET_QUEUES then "#{routes.operator_jobs_path}/queues"
       end
