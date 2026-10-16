@@ -1184,6 +1184,16 @@ export const INTEGRATION_CARD_STATES = {
 
 export const AGENT_CHANNEL = "ConversationChannel" as const
 
+export const INCIDENT_CHANNEL = "IncidentChannel" as const
+
+export const INCIDENT_LIVE_PARTS = {
+  "INCIDENT": "incident",
+  "TIMELINE": "timeline",
+  "ACTIONS": "actions",
+  "POSTMORTEM": "postmortem",
+  "INVESTIGATION": "investigation"
+} as const
+
 export const AGENT_CHAT_PROPS = {
   "CONVERSATIONS": "conversations",
   "ARCHIVED_COUNT": "archivedCount",
