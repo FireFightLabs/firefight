@@ -165,8 +165,6 @@ cp .env.selfhost.example .env
 # Generate the secrets for .env
 docker run --rm ghcr.io/firefightlabs/firefight:latest bin/rails secret
 docker run --rm ghcr.io/firefightlabs/firefight:latest bin/rails db:encryption:init
-
-docker compose up -d
 ```
 
 1. **Create the Slack app.** Replace the seven `<base-url>` entries in [`config/slack_manifests/template.yml`](config/slack_manifests/template.yml) with your address, then create an app **From a manifest** at [api.slack.com/apps](https://api.slack.com/apps).
@@ -218,7 +216,7 @@ Your instance talks to Slack, to Postgres, to the AI providers you configure and
 
 ### How quality is measured
 
-Halon has a bench of 42 recorded scenarios in [`config/halon_bench`](config/halon_bench). Every tool call is answered from the scenario's world, so nothing outside Firefight is reached, and a judge model scores each answer. CI replays the bench on every pull request that touches Halon's prompt, tools or loop, and fails when the score drops by more than the noise. Run it yourself:
+Halon has a bench of 42 recorded scenarios in [`config/halon_bench`](config/halon_bench). Every tool call is answered from the scenario's world, so nothing outside Firefight is reached, and a judge model scores each answer. CI replays the bench on every pull request from a branch of this repository that touches Halon's prompt, tools or loop, and fails when the score drops by more than the noise. A pull request from a fork gets no model keys, so it is benched once its branch is here. Run it yourself:
 
 ```sh
 bin/rails "halon:chat_bench[MODEL,PROVIDER]"
