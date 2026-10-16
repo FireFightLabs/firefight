@@ -180,6 +180,20 @@ class ApiKeyTest < ActiveSupport::TestCase
     assert_nil ApiKey.authenticate("ff_test_deleted_token_1234567890")
   end
 
+  test "a disabled or deleted agent's token stops authenticating, even once it is cached" do
+    workspace = workspaces(:slack_workspace_one)
+    agent = workspace.agents.create!(name: "Deploy bot", slug: "deploy_bot_#{SecureRandom.hex(3)}")
+    _, raw_token = ApiKey.create_with_token!(workspace: workspace, created_by: workspace_memberships(:alice_workspace_one),
+                                             agent: agent, name: "Deploy bot token")
+    assert ApiKey.authenticate(raw_token)
+
+    agent.update!(enabled: false)
+    assert_nil ApiKey.authenticate(raw_token)
+
+    agent.update!(enabled: true, deleted_at: Time.current)
+    assert_nil ApiKey.authenticate(raw_token)
+  end
+
   test "has_permission? returns true for granted permission" do
     key = api_keys(:full_access_key)
     assert key.has_permission?("incidents", "read")
