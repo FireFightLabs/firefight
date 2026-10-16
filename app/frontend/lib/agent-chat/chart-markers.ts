@@ -42,6 +42,9 @@ export function chartsOfTurn(pieces: TurnPiece[], charts: ChatChart[], window: T
 }
 
 function drawnWithin(chart: ChatChart, window: TurnWindow): boolean {
+  if (!chart.createdAt) {
+    return true
+  }
   const drawn = Date.parse(chart.createdAt)
   const afterStart = window.from === null || drawn >= Date.parse(window.from)
   const beforeNext = window.to === null || drawn < Date.parse(window.to)

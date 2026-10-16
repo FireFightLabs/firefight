@@ -33,8 +33,9 @@ class ChatChartSerializer < BaseSerializer
   def range_end = chart.range_end.utc.iso8601
 
   # When the tool answered with it, which places it in the turn that drew it, since a call id repeats across turns.
-  type :string
-  def created_at = chart.created_at.utc.iso8601(6)
+  # A chart a check draws on the map is no chat's, so it has none.
+  type :string, optional: true
+  def created_at = (chart.created_at.utc.iso8601(6) if chart.respond_to?(:created_at))
 
   # Each line with its [time, value] points, time as ISO 8601.
   type "{ label: string; points: [string, number][] }[]"

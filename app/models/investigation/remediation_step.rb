@@ -186,7 +186,8 @@ class Investigation::RemediationStep < ApplicationRecord
   end
 
   # A step only a person can do, said as theirs, such as "Your step: Invite Uros Nikolic to #inc-003. Then press Done."
-  def your_step_line = "Your step: #{(title.presence || description).delete_suffix('.')}. Then press Done."
+  # A step written before steps had names says only that it is theirs, since its instructions are not for a checklist.
+  def your_step_line = title.present? ? "Your step: #{title.delete_suffix('.')}. Then press Done." : "This step is yours. Press Done once it is done."
 
   # An approved step waits on whoever runs it, such as "Ana Lee approved it. Waiting for Uros Nikolic to run it."
   def run_wait_line
