@@ -69,6 +69,42 @@ class Conversation::Confirming
     redraw_latest(conversation, tool_call_id, progress: progress)
   end
 
+  ANSWERED_WORDS = { Chat::APPROVAL_APPROVED => "approved", Chat::APPROVAL_OWNER_ASKED => "approved", Chat::APPROVAL_DENIED => "cancelled" }.freeze
+  NOT_ANSWERED = "These changes were already answered.".freeze
+
+  # What the person is told once they answered on the dashboard, a sentence per change in how it now stands, such as
+  # "Delete set_1 is approved." nil when none of them was answered.
+  def self.answered_words(conversation, tool_call_ids)
+    calls = conversation.chat.tool_calls.where(tool_call_id: tool_call_ids).order(:created_at)
+    said = calls.filter_map do |call|
+      words = ANSWERED_WORDS[call.approval]
+      "#{Chat::Tools.confirmation(call).action.upcase_first} is #{words}." if words
+    end
+    said.join(" ").presence
+  end
+
+  # A call the person approved whose turn was lost never answers, so it ends as interrupted and its message says it
+  # failed, rather than working forever. decided_before keeps a call approved since, whose turn may be running, out of it.
+  def self.interrupted!(conversation, decided_before:)
+    chat = conversation.chat
+    return unless chat
+
+    closed = chat.close_approved_calls!(decided_before: decided_before)
+    redraw_latest(conversation, closed.first.tool_call_id) if closed.any?
+  end
+
+  # From the recovery sweep. A turn past the reply ceiling is no longer swept, so a call approved before then that still
+  # never answered, in a chat whose turn nobody holds, is ended here.
+  def self.recover!
+    decided_before = Conversation::REPLY_CEILING.ago
+    Chat.where(id: Chat::Message.where(id: Chat.stale_approved_calls(decided_before).select(:message_id)).select(:chat_id)).find_each do |chat|
+      conversation = chat.owner
+      next unless conversation.is_a?(Conversation) && !conversation.answer_owed?
+
+      interrupted!(conversation, decided_before: decided_before)
+    end
+  end
+
   # Redraws the message the answered call was asked in, with every call asked alongside it.
   def self.redraw(conversation, tool_call_id, channel_id:, message_id:, progress: nil)
     return if message_id.blank?

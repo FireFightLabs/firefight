@@ -31,6 +31,29 @@ module Chat::UnfinishedCalls
     closed
   end
 
+  # Calls the person approved that never answered, because the turn that was to run them was lost. They end as
+  # interrupted, failed, so whoever approved one is told it may not have gone through rather than left watching it work.
+  # Only for a turn nobody holds: one the sweep ended, or one past the reply ceiling. decided_before limits it to calls
+  # approved before then. Under the row lock and guarded on the call having no result, so a second close adds nothing.
+  # The other calls asked alongside one are closed with it, as when the person moves on, since a provider refuses a
+  # message with any call left open.
+  def close_approved_calls!(decided_before:)
+    closed = with_lock do
+      stale = Chat.stale_approved_calls(decided_before).where(message_id: messages.select(:id)).distinct.pluck(:message_id)
+      next [] if stale.empty?
+
+      sent = sent_messages.reload.includes(:ruby_llm_tool_calls).to_a
+      sent.each_with_index.flat_map do |message, index|
+        next [] unless stale.include?(message.id)
+
+        results = sent.drop(index + 1).take_while { |follower| follower.role == Chat::Message::ROLE_TOOL }
+        close_calls_of(message, after: results.last || message, moved_on: true, before: nil)
+      end
+    end
+    reload if closed.any?
+    closed
+  end
+
   private
 
   # Calls waiting on someone's answer, withdrawn rather than marked failed when the person moves on.

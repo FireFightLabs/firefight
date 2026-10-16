@@ -32,6 +32,7 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
       click_button "Approve"
     end
 
+    assert_toast "Delete set_1 is approved."
     assert_decided [ Chat::APPROVAL_APPROVED ]
     assert_no_selector CARD
     assert_stayed_in_place(only: AgentChatsController::DECIDED_PROPS)

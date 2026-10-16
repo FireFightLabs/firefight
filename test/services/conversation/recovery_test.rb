@@ -121,6 +121,44 @@ class Conversation::RecoveryTest < ActiveSupport::TestCase
     assert_nil thread.reload.answer_message_id
   end
 
+  test "a change approved in a thread whose turn was lost ends its request as failed, never working forever" do
+    thread = lost_thread_turn(shown: false)
+    Slack::Client.stubs(:delete_message).returns({ ok: true })
+    approved = thread.chat.add_message(role: :assistant, content: "")
+    approved.ruby_llm_tool_calls.create!(tool_call_id: "call_change", name: "delete_permission_set", arguments: { "short_title" => "Delete set_1" })
+    thread.chat.request_decisions!([ "call_change" ])
+    thread.chat.decide!("call_change", approved: true, by: @member)
+    thread.confirmation_posted!("1700000000.000200")
+    drawn = []
+    Slack::Client.stubs(:update_message).with { |arguments| arguments[:ts] == "1700000000.000200" && drawn << arguments[:blocks] }.returns({ ok: true })
+
+    travel(1.second) { Conversation::Recovery.sweep!(jobs: FakeJobs.new) }
+
+    call = thread.chat.tool_calls.find_by!(tool_call_id: "call_change")
+    assert call.failed
+    assert_equal Chat::UnfinishedCalls::INTERRUPTED, call.result.content
+    assert_includes drawn.last.to_json, "Failed: Interrupted before it finished, so this call did not complete"
+  end
+
+  test "a change approved before the reply ceiling that never answered is ended by the sweep, once its turn is nobody's" do
+    @conversation.reply_delivered!
+    call = call!("delete_permission_set")
+    @conversation.chat.request_decisions!([ call.tool_call_id ])
+    @conversation.chat.decide!(call.tool_call_id, approved: true, by: @member)
+
+    Conversation::Confirming.recover!
+    assert_nil call.reload.result_id, "a call approved a moment ago may still be running"
+
+    travel(Conversation::REPLY_CEILING + 1.minute) do
+      Conversation::Confirming.recover!
+      Conversation::Confirming.recover!
+    end
+
+    assert call.reload.failed
+    assert_equal Chat::UnfinishedCalls::INTERRUPTED, call.result.content
+    assert_equal 1, @conversation.chat.messages.where(role: Chat::Message::ROLE_TOOL).count, "a second sweep adds nothing"
+  end
+
   test "a question asked a moment ago, or one the page stopped waiting on, is left alone" do
     @conversation.update!(answer_owed_since: 10.seconds.ago)
     Conversation::Recovery.sweep!(jobs: FakeJobs.new)

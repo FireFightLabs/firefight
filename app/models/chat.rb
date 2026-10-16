@@ -224,6 +224,12 @@ class Chat < ApplicationRecord
 
   def awaiting_decision = tool_calls.where(approval: APPROVAL_REQUESTED).order(:created_at)
 
+  # Calls approved before then that never answered, in any chat, for the recovery sweep.
+  def self.stale_approved_calls(decided_before)
+    RubyLLM::ActiveRecord::ToolCall.where(message_type: Chat::Message.polymorphic_name, approval: APPROVAL_APPROVED, result_id: nil,
+                                          updated_at: ...decided_before)
+  end
+
   # Calls the turn still waits on, the person's answer or an owner's.
   def undecided = tool_calls.where(approval: [ APPROVAL_REQUESTED, APPROVAL_OWNER_ASKED ])
 
