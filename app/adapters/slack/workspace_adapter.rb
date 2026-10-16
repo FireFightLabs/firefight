@@ -180,8 +180,9 @@ module Slack
 
     # Each step on its own, so a message whose first mark is already gone still gets the second.
     def mark_done(channel_id:, message_id:)
-      unmark_working(channel_id: channel_id, message_id: message_id)
-      quietly(:mark_done) { add_reaction(channel_id: channel_id, message_id: message_id, name: Slack::Emoji::REACTION_DONE) }
+      removed = unmark_working(channel_id: channel_id, message_id: message_id)
+      added = quietly(:mark_done) { add_reaction(channel_id: channel_id, message_id: message_id, name: Slack::Emoji::REACTION_DONE) }
+      { success: removed[:success] && added[:success], retry: removed[:retry] || added[:retry] }
     end
 
     def unmark_working(channel_id:, message_id:)
@@ -553,6 +554,8 @@ module Slack
       text.match?(CHANNEL_ID) ? [ text, nil ] : nil
     end
 
+    MAY_PASS_LATER = [ AdapterError::ServerError, AdapterError::Unavailable, AdapterError::RateLimited ].freeze
+
     def translate_errors
       yield
     rescue AdapterError::AuthRevoked => e
@@ -560,12 +563,13 @@ module Slack
       raise
     end
 
-    # Something that only helps, such as a reaction already gone, never stops the work it goes with.
+    # Something that only helps, such as a reaction already gone, never stops the work it goes with. Only a failure of
+    # Slack itself may pass if tried again. A message, channel or permission Slack refused stays refused.
     def quietly(what)
       yield
     rescue AdapterError => e
       Rails.logger.info({ event: "slack.best_effort_skipped", what: what, error: e.message }.to_json)
-      { success: false }
+      { success: false, retry: MAY_PASS_LATER.any? { |kind| e.is_a?(kind) } }
     end
   end
 end

@@ -192,16 +192,21 @@ class IncidentsController < InertiaController
   # asked for there started with.
   def timeline_events(incident)
     events = incident.timeline_events
-    TimelineEventSerializer.many(events, quotes: quotes_as_markdown(events), started_questions: started_questions(events), answers: answers(events))
+    TimelineEventSerializer.many(events, quotes: quotes_as_markdown(events), started_questions: started_questions(incident, events),
+                                         answers: answers(incident, events))
+  end
+
+  # Only the incident's own runs, so an event naming another run never shows that run's words here.
+  def timeline_runs(incident, events)
+    incident.investigations.where(id: events.filter_map { |event| event.metadata.to_h["investigation_id"] })
   end
 
   # Each run's answer on the timeline, to the finding it noted, read in one query.
-  def answers(events)
+  def answers(incident, events)
     answered = events.select { |event| event.event_type == IncidentEvent::INVESTIGATION_ANSWERED }
-    ids = answered.filter_map { |event| event.metadata.to_h["investigation_id"] }
-    return {} if ids.empty?
+    return {} if answered.empty?
 
-    findings = Investigation::Finding.where(investigation: current_workspace.investigations.where(id: ids))
+    findings = Investigation::Finding.where(investigation: timeline_runs(incident, answered))
                                      .includes(:remediation_plan).index_by(&:investigation_id)
     answered.each_with_object({}) do |event, found|
       finding = findings[event.metadata.to_h["investigation_id"]]
@@ -210,10 +215,9 @@ class IncidentsController < InertiaController
   end
 
   # Each start of a run asked for in the platform, to its question as the platform shows it.
-  def started_questions(events)
+  def started_questions(incident, events)
     started = events.select { |event| event.event_type == IncidentEvent::INVESTIGATION_STARTED }
-    ids = started.filter_map { |event| event.metadata.to_h["investigation_id"] }
-    asked = current_workspace.investigations.where(id: ids).select(&:question_in_platform_markup?).index_by(&:id)
+    asked = timeline_runs(incident, started).select(&:question_in_platform_markup?).index_by(&:id)
     shown = platform_texts(asked.values.map(&:question))
     started.each_with_object({}) do |event, questions|
       run = asked[event.metadata.to_h["investigation_id"]]

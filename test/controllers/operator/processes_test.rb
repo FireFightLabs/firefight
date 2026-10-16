@@ -54,6 +54,9 @@ class Operator::ProcessesTest < ActionDispatch::IntegrationTest
     get operator_platform_failure_path(latest), headers: inertia_headers
     assert_equal [ "conversations.invite", "not_in_channel", workspace.name, 2 ],
                  [ inertia_props.dig("failure", "operation"), inertia_props.dig("failure", "reason"), inertia_props.dig("failure", "workspace"), inertia_props["total"] ]
+    assert_equal({ "platform" => "Slack", "workspaceId" => workspace.id, "channel" => @incident.channel_id, "notes" => [],
+                   "firstAt" => older.created_at.utc.iso8601 },
+                 inertia_props["failure"].slice("platform", "workspaceId", "channel", "notes", "firstAt"))
     assert_equal [ latest.id, older.id ], inertia_props["occurrences"].map { |occurrence| occurrence["id"] }
     assert_equal [ @incident.identifier, message ], inertia_props["occurrences"].first.values_at("incident", "message")
   end

@@ -57,6 +57,25 @@ class CodeAgentPauseServiceTest < ActionDispatch::IntegrationTest
     assert_nil second.pause
   end
 
+  test "a decided pause is kept on its call's work even when the call reported work before the change was opened" do
+    chat = @conversation.chat_record
+    chat.step_progresses.delete_all
+    travel_to 10.minutes.ago do
+      chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "").ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: "fix_code", arguments: {})
+    end
+    early = travel_to(9.minutes.ago) { Chat::StepProgress.keep!(chat, "call_1", Chat::CodeFixProgress.start, since: 1.hour.ago) }
+    @pause.session.update_columns(created_at: 8.minutes.ago)
+    travel 1.minute
+    chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "").ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: "fix_code", arguments: {})
+    later = Chat::StepProgress.keep!(chat, "call_1", Chat::CodeFixProgress.start, since: Time.current)
+    @pause.update_columns(status: CodeAgentSession::Pause::STATUS_CONTINUING)
+
+    CodeAgentPauseService.keep_on_step!(@pause.reload)
+
+    assert_equal CodeAgentSession::Pause::STATUS_CONTINUING, early.reload.work.pause["status"]
+    assert_nil later.reload.work.pause
+  end
+
   test "Continue from the dashboard carries the change on in a turn as the person, and anyone else is told who can decide" do
     sign_in(@alice.user, @workspace)
     post code_agent_pause_continue_path(@pause)

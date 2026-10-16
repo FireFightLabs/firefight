@@ -6,13 +6,10 @@ module Operator
       alike = PlatformFailures.alike(failure)
       occurrences = alike.includes(:workspace).limit(PlatformFailures::OCCURRENCES_LIMIT).to_a
       incidents = PlatformFailures.incidents_for(occurrences)
-      reason = PlatformFailures.reason(failure)
+      detail = PlatformFailureDetailSerializer::Detail.new(failure, PlatformFailures.reason(failure), alike.minimum(:created_at))
 
       render inertia: "operator/platform-failures/show", props: {
-        failure: {
-          platform: failure.platform.titleize, operation: failure.operation, workspace: failure.workspace.name, workspaceId: failure.workspace_id,
-          channel: failure.channel_id, reason: reason.code, notes: reason.notes, firstAt: alike.minimum(:created_at).utc.iso8601
-        },
+        failure: PlatformFailureDetailSerializer.one(detail),
         total: alike.count,
         occurrences: PlatformFailureSerializer.many(occurrences.map { |occurrence| PlatformFailureSerializer::Row.new(occurrence, incidents[[ occurrence.workspace_id, occurrence.channel_id ]]) })
       }
