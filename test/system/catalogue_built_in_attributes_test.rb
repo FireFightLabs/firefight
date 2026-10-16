@@ -24,6 +24,8 @@ class CatalogueBuiltInAttributesTest < ApplicationSystemTestCase
     click_on "Edit Type"
     within("[role='dialog']") do
       assert_no_selector "button:has(svg.tabler-icon-trash)[disabled]"
+      find("input[value='Tier']").ancestor("div.rounded-md").find("button:has(svg.tabler-icon-trash)").click
+      assert_no_selector "input[value='Tier']"
     end
   end
 end

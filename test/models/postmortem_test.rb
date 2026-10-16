@@ -77,7 +77,7 @@ class PostmortemTest < ActiveSupport::TestCase
     postmortem.update_content!(
       task_list +
         '<ul data-type="taskList" onclick="alert(1)"><li data-type="taskItem" data-checked="true" onmouseover="alert(2)">' \
-        '<label><input type="checkbox" onfocus="alert(3)" autofocus><span></span></label><div><p>Hostile</p></div></li></ul>' \
+        '<label><input type="checkbox" onfocus="alert(3)" autofocus class="hidden" title="Done"><span></span></label><div><p>Hostile</p></div></li></ul>' \
         '<ul><li data-type="<script>"><input type="text" value="x"><input type="checkbox"> plain</li></ul>' \
         '<ol data-type="taskList" type="a"><li>ordered</li></ol><script>alert(4)</script>',
       by: member
@@ -90,6 +90,7 @@ class PostmortemTest < ActiveSupport::TestCase
     assert_equal %w[true false true], items.map { |item| item["data-checked"] }
     assert_equal [ true, false, false ], items.map { |item| item.at_css('label > input[type="checkbox"]').key?("checked") }
     assert_equal 3, document.css("input").size
+    assert document.css("input").all? { |input| (input.attributes.keys - %w[type checked]).empty? }
     assert_empty document.at_css("ol").attributes
     assert_equal "plain", document.css("ul:not([data-type]) > li").sole.text.strip
     assert_empty document.css("ul:not([data-type]) li").sole.attributes

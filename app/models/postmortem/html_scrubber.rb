@@ -8,10 +8,11 @@ class Postmortem::HtmlScrubber < Rails::HTML::PermitScrubber
     label input
   ].freeze
   ATTRIBUTES = %w[href title class colspan rowspan target rel].freeze
+  CHECKBOX_TAG = "input"
   TASK_LIST_ATTRIBUTES = {
     "ul" => { "data-type" => %w[taskList] },
     "li" => { "data-type" => %w[taskItem], "data-checked" => %w[true false] },
-    "input" => { "type" => %w[checkbox], "checked" => [ "", "checked" ] }
+    CHECKBOX_TAG => { "type" => %w[checkbox], "checked" => [ "", "checked" ] }
   }.freeze
   TASK_LIST_ATTRIBUTE_NAMES = TASK_LIST_ATTRIBUTES.values.flat_map(&:keys).uniq.freeze
 
@@ -24,12 +25,13 @@ class Postmortem::HtmlScrubber < Rails::HTML::PermitScrubber
   protected
 
   def allowed_node?(node)
-    super && (node.name != "input" || task_checkbox?(node))
+    super && (node.name != CHECKBOX_TAG || task_checkbox?(node))
   end
 
+  # A checkbox keeps its type and tick and nothing else.
   def scrub_attributes(node)
     node.attribute_nodes.each do |attribute|
-      next unless TASK_LIST_ATTRIBUTE_NAMES.include?(attribute.name)
+      next unless node.name == CHECKBOX_TAG || TASK_LIST_ATTRIBUTE_NAMES.include?(attribute.name)
 
       attribute.remove unless TASK_LIST_ATTRIBUTES.dig(node.name, attribute.name)&.include?(attribute.value)
     end
