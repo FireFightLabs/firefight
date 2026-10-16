@@ -97,6 +97,8 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_equal "Release run #46 failed after 6 minutes, so I stopped the watch \"release run #46\". The user model test failed: expected 2 got 3. " \
                  "https://github.com/acme/firefight/actions/runs/46", watch.outcome
     assert_equal [ Chat::Watch::Update::KIND_ENDED ], watch.updates.map(&:kind)
+    assert_equal "Release run #46 failed after 6 minutes. The user model test failed: expected 2 got 3. https://github.com/acme/firefight/actions/runs/46",
+                 Chat::Watch::Shown.why(watch), "the card says why it failed"
     assert Ability::Invocation.where(workspace: @workspace, action_key: "github.job_log").exists?
   end
 

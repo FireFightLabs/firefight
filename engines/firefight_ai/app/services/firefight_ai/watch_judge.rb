@@ -92,8 +92,9 @@ module FirefightAi
     WHY_PROMPT = <<~PROMPT.freeze
       Something a person was waiting on failed in a production system. You get what failed and what was read about it, such as the end of a build or job log. Say why it failed in one or two short plain sentences, naming the step, error or test that the evidence shows.
 
-      - Use only the evidence. Quote an error message briefly when it says it best.
+      - Use only the evidence.
       - When the evidence does not show why, answer exactly: #{UNKNOWN}
+      - #{Copy::PLAIN}
       - #{Copy::RULE}
     PROMPT
 

@@ -416,7 +416,7 @@ A watch Halon keeps is **one card per place it reports**, edited in place as it 
 the chat's thread and one in the asker's direct messages, each kept on the watch (`thread_card_*`, `direct_card_*`). The
 first thing the watch says in a place claims posting the card with a guarded update, so two workers never post it
 twice, and everything after redraws it from how the watch stands now. A milestone never posts a message of its own:
-milestones, progress and why a step failed stay in the chat and on the run's page.
+milestones and progress stay in the chat and on the run's page.
 
 The card is three things in plain words, and nothing in it is code (no pod ids, class names or error strings):
 

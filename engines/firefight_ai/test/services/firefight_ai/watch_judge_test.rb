@@ -54,7 +54,8 @@ class FirefightAi::WatchJudgeTest < ActiveSupport::TestCase
   end
 
   test "what a watch says is asked in plain words, with no ids, class names or quoted errors" do
-    [ FirefightAi::WatchJudge::READING_PROMPT, FirefightAi::WatchJudge::STANDING_PROMPT, FirefightAi::WatchJudge::SETTLED_PROMPT ].each do |prompt|
+    [ FirefightAi::WatchJudge::READING_PROMPT, FirefightAi::WatchJudge::WHY_PROMPT, FirefightAi::WatchJudge::STANDING_PROMPT,
+      FirefightAi::WatchJudge::SETTLED_PROMPT ].each do |prompt|
       assert_includes prompt, FirefightAi::Copy::PLAIN
     end
     assert_match "leave out pod, container and instance ids, class and function names and error text quoted from a log", FirefightAi::Copy::PLAIN

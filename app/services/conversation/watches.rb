@@ -1160,15 +1160,15 @@ module Conversation::Watches
   end
 
   # Ends it failed on this step. A step skipped because of this one is named after it, since what the person wanted
-  # waited on it too. The card's line names the step and where that leaves the goal, and the step's own words on why
-  # stay in the chat.
+  # waited on it too. The card's line names the step, why it failed in the plain words its reason was asked in, and where
+  # that leaves the goal.
   def self.fail_on!(watch, step, **guards)
     took = step.seconds_taken && " after #{Integrations::Capabilities::History.duration(step.seconds_taken)}"
     skipped = skipped_after(watch, step)
     skips = skipped.any? ? " #{skipped.map(&:label).to_sentence} #{skipped.size > 1 ? 'were' : 'was'} skipped, since #{skipped.size > 1 ? 'they wait' : 'it waits'} for it." : ""
     happened = "#{step.label} failed#{took}, so I stopped #{Chat::Watch::Shown.named(watch)}. #{step.reason.presence || 'It did not say why.'}#{skips}"
     said = verdict(watch, happened)
-    finish!(watch, Chat::Watch::STATUS_FAILED, with_standing(watch, happened, said), end_reason: [ "#{step.label} failed#{took}.", said ].compact.join(" "), **guards)
+    finish!(watch, Chat::Watch::STATUS_FAILED, with_standing(watch, happened, said), end_reason: [ "#{step.label} failed#{took}.", step.reason.presence, said ].compact.join(" "), **guards)
   end
 
   # Skips what waits for a step that failed or could not be followed, down the chain, each said on the card once.
