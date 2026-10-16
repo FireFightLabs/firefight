@@ -138,16 +138,26 @@ module Integrations
     end
 
     test "reads a step runs at once share the run's one box, each waiting for the first to start it" do
+      asking = Concurrent::AtomicFixnum.new
+      locked = CodeReading.method(:locked)
+      CodeReading.define_singleton_method(:locked) do |name, &block|
+        asking.increment if name == "investigation-together"
+        locked.call(name, &block)
+      end
       @provider.define_singleton_method(:start) do |**options|
-        sleep 0.2
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
+        sleep 0.01 until asking.value >= 3 || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
         super(**options)
       end
 
       reads = Array.new(3) { Thread.new { reading("investigation-together").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT) } }
 
       assert_equal [ "ok" ] * 3, reads.map { |read| read.value["stdout"] }
+      assert_equal 3, asking.value, "every read asked for the box's lock while the first was starting the box"
       assert_equal 1, @provider.started.size
       assert_equal 1, @pushed.size
+    ensure
+      CodeReading.define_singleton_method(:locked, locked) if locked
     end
 
     test "two runs read in two boxes" do

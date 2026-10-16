@@ -104,7 +104,12 @@ module Integrations
         services.select { |service| service["name"].to_s.start_with?(NAME_PREFIX) }
       end
 
-      def storage = Integer(ENV["NORTHFLANK_SANDBOX_STORAGE"].presence || DEFAULT_STORAGE)
+      # Refused as a Sandboxes::Error, so a value that is not a number of MiB fails over like any other refusal.
+      def storage
+        Integer((ENV["NORTHFLANK_SANDBOX_STORAGE"].presence || DEFAULT_STORAGE).to_s, 10)
+      rescue ArgumentError
+        raise Error, "NORTHFLANK_SANDBOX_STORAGE is #{ENV['NORTHFLANK_SANDBOX_STORAGE'].inspect}, but it takes a whole number of MiB, such as #{DEFAULT_STORAGE}."
+      end
 
       def project = ENV["NORTHFLANK_SANDBOX_PROJECT"].presence || raise(Error, "NORTHFLANK_SANDBOX_PROJECT is not set.")
 

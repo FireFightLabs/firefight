@@ -95,6 +95,14 @@ module Integrations
         assert_operator Northflank.new.ready_within, :>, Client::READY_TIMEOUT
       end
 
+      test "a storage setting that is not a number of MiB is refused as the provider's own error, so a backup is tried" do
+        ENV.stubs(:[]).with("NORTHFLANK_SANDBOX_STORAGE").returns("2GB")
+        Http.expects(:request).never
+
+        error = assert_raises(Error) { Northflank.new.start(name: "halon-box-1") }
+        assert_equal 'NORTHFLANK_SANDBOX_STORAGE is "2GB", but it takes a whole number of MiB, such as 2048.', error.message
+      end
+
       test "storage past the project's allowance says which setting to change" do
         ENV.stubs(:[]).with("NORTHFLANK_SANDBOX_STORAGE").returns("16384")
         Http.stubs(:request).returns(response(400, { "error" => { "message" => "Configured runtime ephemeral storage exceeds your project resource allowance" } }))
