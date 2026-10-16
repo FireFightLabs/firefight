@@ -146,7 +146,7 @@ class Postmortem < ApplicationRecord
       generation_error: nil,
       model_id: draft.model,
       generation_prompt: draft.prompt.presence && Chat::SecretFree.redacted(draft.prompt),
-      content: { "html" => html }
+      content: { "html" => sanitized_html(html) }
     }
 
     postmortem = incident.postmortem
@@ -188,8 +188,10 @@ class Postmortem < ApplicationRecord
   validates :content, presence: true
   validates :status, inclusion: { in: STATUSES }
 
+  # Sanitized as it is read too, for a postmortem stored before generated drafts were.
   def html_content
-    content["html"].presence || legacy_sections_to_html
+    html = content["html"].presence || legacy_sections_to_html
+    html && self.class.sanitized_html(html)
   end
 
   def completed? = status == STATUS_COMPLETED

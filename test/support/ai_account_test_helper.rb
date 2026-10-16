@@ -19,8 +19,8 @@ module AiAccountTestHelper
   PACK_CENTS = [ 2500, 5000, 10_000, 25_000 ].freeze
 
   # spendable: it can pay for a call now. used: it held credit and has none left. starter_micros: the starter credit
-  # the workspace was given. balance: what the row says is left.
-  Credit = Struct.new(:spendable, :used, :starter_micros, :balance) do
+  # the workspace was given. balance: what the row says is left. included_micros: the AI the plan includes every month.
+  Credit = Struct.new(:spendable, :used, :starter_micros, :balance, :included_micros) do
     def spendable? = spendable
     def used? = used
     def summary = { title: "Firefight credits", detail: "#{balance || '$12.40'} left", action: { label: "Buy credits", href: "/app/settings/billing#credits" } }
@@ -32,7 +32,8 @@ module AiAccountTestHelper
         markupPercent: 20,
         blockedReason: nil,
         checkoutPath: "#{CHECKOUT_PATH}?#{{ return_to: return_to }.to_query}",
-        starterMicros: starter_micros
+        starterMicros: starter_micros,
+        includedMicros: included_micros
       }
     end
   end

@@ -43,7 +43,7 @@ module AiProviders
 
     # The first main model the registry holds for this provider with a price and a size, so its cost shows and the loop
     # can make room in it. Falls back to the last, which the catalog RubyLLM ships always holds.
-    def main_model = main_models.find { |model| loop_ready?(model) } || main_models.last
+    def main_model = first_ready(main_models, fallback: main_models.last) { |model| loop_ready?(model) }
 
     # The quick model, the first of fast_models_ready. A quick model needs only a price.
     def fast_model = fast_models_ready.first
@@ -52,14 +52,23 @@ module AiProviders
     # read like main_models: the first the registry prices, else the last, which the catalog RubyLLM ships holds.
     def fast_models_ready = fast_models.map { |entry| resolve_fast(entry) }.uniq
 
-    def resolve_fast(entry) = Array(entry).find { |model| FirefightAi.priced_for?(model, slug) } || Array(entry).last
+    def resolve_fast(entry) = first_ready(Array(entry), fallback: Array(entry).last) { |model| FirefightAi.priced_for?(model, slug) }
 
     # The backups the loop tries in turn. Each is a model, or several read like main_models, and counts while the registry
     # can price and size it. A provider with no backup of its own carries on with its main model, since what failed was
     # another provider or another model.
     def backup_models_ready
-      ready = backup_models.filter_map { |entry| Array(entry).find { |model| loop_ready?(model) } }.uniq
+      ready = backup_models.filter_map { |entry| first_ready(Array(entry)) { |model| loop_ready?(model) } }.uniq
       ready.presence || [ main_model ].compact.select { |model| loop_ready?(model) }
+    end
+
+    # The first of models that ready accepts, else fallback. A model listed ahead of the one used was passed over, and
+    # AiProviders.passed_over says so, so a newer model the registry does not hold yet never gives way to an older one
+    # unseen.
+    def first_ready(models, fallback: nil, &ready)
+      chosen = models.find(&ready) || fallback
+      AiProviders.passed_over(slug, models, chosen)
+      chosen
     end
 
     def loop_ready?(model) = FirefightAi.priced_for?(model, slug) && FirefightAi.context_window(model, provider: slug).present?
@@ -109,7 +118,26 @@ module AiProviders
     def configured? = [ client_id, authorize_url, token_url, api_base ].all?(&:present?)
   end
 
+  # How long a passed over model is not named again, and no refresh asked for again, for one provider.
+  PASSED_OVER_QUIET = 1.hour
+
   def self.all = offered.values
+
+  # Names the models listed ahead of used that the registry could not offer for the provider, at most once in
+  # PASSED_OVER_QUIET for each, and asks for the registry to be refreshed, at most once in PASSED_OVER_QUIET in all. A new
+  # database gets here, since RubyLLM fills an empty registry table from the catalog its gem shipped with, which can be
+  # older than the models listed here, and until a refresh brings the newer ones in the older ones are used.
+  def self.passed_over(slug, models, used)
+    wanted = models.take_while { |model| model != used }
+    return if wanted.empty?
+    return unless quiet_once("ai_providers/passed_over/#{slug}/#{wanted.join(',')}")
+
+    Rails.logger.warn({ event: "ai.model_passed_over", provider: slug, wanted: wanted, used: used }.to_json)
+    RefreshModelRegistryJob.perform_later if quiet_once("ai_providers/registry_refresh_asked")
+  end
+
+  def self.quiet_once(key) = Rails.cache.write(key, true, expires_in: PASSED_OVER_QUIET, unless_exist: true)
+  private_class_method :quiet_once
 
   def self.offered
     @offered ||= registry.except(*SECTIONS).to_h do |slug, entry|
@@ -186,8 +214,10 @@ module AiProviders
   def self.deployment_choice(role, prefer: nil, config: RubyLLM.config)
     candidates = all.partition { |provider| provider.slug == prefer.to_s }.flatten
     candidates.each do |provider|
+      next unless provider.configured?(config)
+
       model = provider.ready(role)
-      return FirefightAi::ModelChoice.new(model: model, provider: provider.slug) if model && provider.configured?(config)
+      return FirefightAi::ModelChoice.new(model: model, provider: provider.slug) if model
     end
     nil
   end
