@@ -49,7 +49,7 @@ class Chat::SkillTest < ActiveSupport::TestCase
   }.freeze
 
   test "every tool one of Firefight's skills names exists and is offered to Halon" do
-    offered = Mcp::Tools.all.map { |tool_class| tool_class.name_value.to_s } - Chat::Tools::Groups::NOT_FOR_HALON +
+    offered = FirefightTools.all.map { |tool_class| tool_class.name_value.to_s } - Chat::Tools::Groups::NOT_FOR_HALON +
               Integrations::Capabilities::SPECS.values.map(&:tool_name) + OWN_READS.keys
 
     Chat::Skill.all.select(&:firefight?).each do |skill|
@@ -58,7 +58,7 @@ class Chat::SkillTest < ActiveSupport::TestCase
   end
 
   test "every name one of Firefight's skills sets in code is one of its tools, their parameters, a form or a form field" do
-    tool_classes = Mcp::Tools.all.index_by { |tool_class| tool_class.name_value.to_s }
+    tool_classes = FirefightTools.all.index_by { |tool_class| tool_class.name_value.to_s }
     capabilities = Integrations::Capabilities::SPECS.values.index_by(&:tool_name)
     known_everywhere = IncidentForm::SLUGS + IncidentSystemField.constants.grep(/\AKEY_/).map { |key| IncidentSystemField.const_get(key) }
 

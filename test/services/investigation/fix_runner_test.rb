@@ -275,7 +275,7 @@ class Investigation::FixRunnerTest < ActiveSupport::TestCase
   end
 
   def invite_step
-    { "kind" => "action", "title" => "Invite Bob to the channel", "description" => "Invite the lead", "tool" => Mcp::Tools::INVITE_RESPONDERS,
+    { "kind" => "action", "title" => "Invite Bob to the channel", "description" => "Invite the lead", "tool" => FirefightTools::INVITE_RESPONDERS,
       "arguments" => { "incident" => incidents(:active_critical_ws1).identifier, "members" => [ @bob.platform_user_id ] } }
   end
 
@@ -311,7 +311,7 @@ class Investigation::FixRunnerTest < ActiveSupport::TestCase
   test "a role already held is never asked for again: the fix is sent back while it is written, and a step finds it at run time" do
     incident = incidents(:active_critical_ws1)
     role = @workspace.incident_roles.active.first
-    step = { "kind" => "action", "title" => "Make Bob the lead", "description" => "Assign the role", "tool" => Mcp::Tools::ASSIGN_INCIDENT_ROLE,
+    step = { "kind" => "action", "title" => "Make Bob the lead", "description" => "Assign the role", "tool" => FirefightTools::ASSIGN_INCIDENT_ROLE,
              "arguments" => { "incident" => incident.identifier, "role" => role.slug, "member" => @bob.platform_user_id } }
     plan = own_tool_plan([ step ])
     incident.incident_role_assignments.where(incident_role: role).delete_all

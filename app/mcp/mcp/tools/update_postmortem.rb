@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class UpdatePostmortem < Base
-      tool_name UPDATE_POSTMORTEM
+      tool_name FirefightTools::UPDATE_POSTMORTEM
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Rewrite the body of a postmortem. Send the whole document as HTML, since this " \
                   "replaces what was there rather than appending, so read the current one with " \

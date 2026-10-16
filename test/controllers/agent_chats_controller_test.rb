@@ -211,7 +211,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     conversation = start_chat
     conversation.ask!("declare it")
     reply = conversation.chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
-    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Mcp::Tools::DECLARE_INCIDENT, arguments: { "answers" => { "name" => "x" } })
+    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: FirefightTools::DECLARE_INCIDENT, arguments: { "answers" => { "name" => "x" } })
     conversation.chat.add_message(role: :tool, content: "Not found in this workspace.", tool_call_id: "call_1")
     conversation.chat.mark_failed!("call_1")
 
@@ -233,7 +233,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     ])
     own = Chat.open!(owner: logs, workspace: @workspace, model_choice: FirefightAi::ModelChoice.new(model: "gpt-4o-mini"))
     read = own.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
-    read.ruby_llm_tool_calls.create!(tool_call_id: "h_1", name: Mcp::Tools::SEARCH_INCIDENTS, arguments: { "query" => "checkout" })
+    read.ruby_llm_tool_calls.create!(tool_call_id: "h_1", name: FirefightTools::SEARCH_INCIDENTS, arguments: { "query" => "checkout" })
     own.add_message(role: :tool, content: "INC-7 checkout slow", tool_call_id: "h_1")
     logs.finish!(Chat::Helper::STATUS_REPORTED, report: "web logs show 40 timeouts to the orders database since 14:02.")
 
@@ -254,7 +254,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     conversation = start_chat
     conversation.ask!("what can we connect for logs")
     reply = conversation.chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
-    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Mcp::Tools::LIST_INTEGRATIONS, arguments: { "category" => "Observability" })
+    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: FirefightTools::LIST_INTEGRATIONS, arguments: { "category" => "Observability" })
     conversation.chat.add_message(role: :tool, content: "{}", tool_call_id: "call_1")
 
     get agent_chat_url(conversation), headers: chat_page_headers
@@ -351,7 +351,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     patch agent_chat_url(conversation), params: { title: "Checkout latency" }
 
     assert_equal "Checkout latency", conversation.reload.title
-    assert_equal "Chat renamed.", flash[:notice]
+    assert_equal "Chat was renamed.", flash[:notice]
   end
 
   test "a chat cannot be renamed to nothing" do
@@ -373,7 +373,13 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     patch agent_chat_url(older), params: { pinned: true }
 
     assert older.reload.pinned?
+    assert_equal "Chat was pinned.", flash[:notice]
     assert_equal [ older.id, newer.id ], @workspace.conversations.personal.in_reading_order.map(&:id)
+
+    patch agent_chat_url(older), params: { pinned: false }
+
+    assert_not older.reload.pinned?
+    assert_equal "Chat was unpinned.", flash[:notice]
   end
 
   test "renaming, pinning or archiving a chat does not move the others" do
@@ -420,7 +426,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
 
     assert_nil Conversation.find_by(id: conversation.id)
     assert_redirected_to agent_chats_path
-    assert_equal "Chat deleted.", flash[:notice]
+    assert_equal "Chat was deleted.", flash[:notice]
   end
 
   test "deleting a chat whose code fix paused at its spending limit keeps the pause and lets the chat go" do
@@ -470,7 +476,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     delete agent_chat_url(other), headers: { "Referer" => agent_chat_url(open_chat) }
 
     assert_redirected_to agent_chat_url(open_chat)
-    assert_equal "Chat deleted.", flash[:notice]
+    assert_equal "Chat was deleted.", flash[:notice]
   end
 
   test "deleting the open chat goes back to a new one" do

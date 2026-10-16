@@ -29,7 +29,7 @@ class DefinedWorkflow::Steps::PageOnCall < DefinedWorkflow::Steps::FirefightTool
   class << self
     def paging?(config, workspace) = workspace.paging_connection(config[KEY_TOOL]).present?
 
-    def tool_for(config, workspace) = paging?(config, workspace) ? Mcp::Tools::PAGE_ON_CALL : Mcp::Tools::ESCALATE_INCIDENT
+    def tool_for(config, workspace) = paging?(config, workspace) ? FirefightTools::PAGE_ON_CALL : FirefightTools::ESCALATE_INCIDENT
 
     def arguments_for(config, workspace)
       incident = { KEY_INCIDENT => config[KEY_INCIDENT].to_s, KEY_REASON => config[KEY_REASON].to_s }

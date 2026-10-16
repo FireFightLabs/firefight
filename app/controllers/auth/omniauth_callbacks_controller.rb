@@ -2,6 +2,8 @@ module Auth
   class OmniauthCallbacksController < ApplicationController
     include SignInSession
 
+    SIGN_IN_FAILED = "Sign-in did not finish. Sign in again to continue.".freeze
+    CONNECT_FAILED = "Slack could not be connected. Press Connect Slack to try again.".freeze
     UNAVAILABLE_MESSAGE = "That way of signing in is not available.".freeze
     SLACK_INSTALL_STRATEGY = "slack".freeze
     GOOGLE_UNVERIFIED_MESSAGE = "Google has not verified the email on that account. Verify it with Google, then sign in again.".freeze
@@ -15,7 +17,7 @@ module Auth
       apply_outcome(outcome)
     rescue => e
       log_auth_failure(:slack_openid_failed, e)
-      redirect_to login_path, alert: "Sign-in failed. Please try again."
+      redirect_to login_path, alert: SIGN_IN_FAILED
     end
 
     # Bot install, creating the workspace and owner membership. The installer's identity comes
@@ -61,7 +63,7 @@ module Auth
       finish_self_serve_sign_in(result)
     rescue => e
       log_auth_failure(:google_failed, e)
-      redirect_to login_path, alert: "Sign-in failed. Please try again."
+      redirect_to login_path, alert: SIGN_IN_FAILED
     end
 
     def failure
@@ -127,7 +129,7 @@ module Auth
     # The person stays signed in to the workspace they were connecting, whatever happened.
     def apply_connect_outcome(outcome)
       clear_pending_session_keys
-      return redirect_to(dashboard_path, alert: outcome.message || "Slack could not be connected. Please try again.") unless outcome.signed_in?
+      return redirect_to(dashboard_path, alert: outcome.message || CONNECT_FAILED) unless outcome.signed_in?
 
       redirect_to dashboard_path, notice: outcome.message
     end

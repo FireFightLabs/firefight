@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class DeleteCatalogType < Base
-      tool_name DELETE_CATALOG_TYPE
+      tool_name FirefightTools::DELETE_CATALOG_TYPE
       authorize_as Ability::Action::RESOURCE_CATALOG, Ability::Action::ACTION_DELETE
       description "Remove a kind of thing from the catalog, along with the entries under it. " \
                   "Built-in types cannot be removed, and neither can one that another type's " \

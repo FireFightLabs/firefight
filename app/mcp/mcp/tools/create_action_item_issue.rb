@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class CreateActionItemIssue < Base
-      tool_name CREATE_ACTION_ITEM_ISSUE
+      tool_name FirefightTools::CREATE_ACTION_ITEM_ISSUE
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Open an issue for an action item in the workspace's issue tracker, the same as a person pressing " \
                   "\"Create issue\" on the item, or try again after its issue failed. The issue carries the item's title, " \

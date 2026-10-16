@@ -16,7 +16,7 @@ class WorkflowRunLimitsTest < ApplicationSystemTestCase
   def restart = { "id" => "restart", "name" => "restart", "kind" => "call_tool",
                   "config" => { "tool" => "restart", "arguments" => { "resource" => "web" }, "undo" => "Roll web back." } }
 
-  def look = { "id" => "look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => {} } }
+  def look = { "id" => "look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => {} } }
 
   def drafted!
     @workflow.open_draft!(by: @alice).update!(steps: [ restart, look ], edges: [ { "from" => "restart", "to" => "look" } ])

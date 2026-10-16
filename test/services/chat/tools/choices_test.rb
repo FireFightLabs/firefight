@@ -31,12 +31,12 @@ class Chat::Tools::ChoicesTest < ActiveSupport::TestCase
 
     choices = Chat::Tools::Choices.tools(@workspace).index_by(&:name)
 
-    assert_equal "Running an incident", choices.fetch(Mcp::Tools::DECLARE_INCIDENT).group
+    assert_equal "Running an incident", choices.fetch(FirefightTools::DECLARE_INCIDENT).group
     assert_equal Chat::Tools::Choices::GROUP_RESOURCES, choices.fetch("run_history").group
     assert_equal Chat::Tools::Choices::KIND_RESOURCE, choices.fetch("run_history").fields.find { |field| field.key == "resource" }.kind
     rerun = choices.fetch("github_rerun_workflow")
     assert_equal [ "GitHub", true ], [ rerun.group, rerun.fields.find { |field| field.key == "run_id" }.required ]
-    assert_not choices.key?(Mcp::Tools::ASK_HALON)
+    assert_not choices.key?(FirefightTools::ASK_HALON)
   end
 
   test "a watch reads with run history first, and only with reads" do

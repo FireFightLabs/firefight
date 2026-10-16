@@ -134,7 +134,7 @@ models.cannot_call :render, :redirect_to, :params, :session, :cookies, :flash, r
 services.cannot_call :render, :redirect_to, :session, :cookies, :flash, receiver: :none
 
 # Commit hooks enqueueing jobs are the event-bus pattern, so jobs stay allowed.
-models.cannot_use :controllers, :api_controllers, :dispatchers, :handlers, :serializers, :adapters
+models.cannot_use :controllers, :api_controllers, :dispatchers, :handlers, :serializers, :adapters, :mcp
 models.cannot_use :services
 # A model says what happened (Incident::LiveSignal) and a service tells the pages, so models never broadcast.
 models.cannot_use :channels

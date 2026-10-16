@@ -3,7 +3,7 @@ module Mcp
     class GetIncident < Base
       TIMELINE_LIMIT = 50
 
-      tool_name GET_INCIDENT
+      tool_name FirefightTools::GET_INCIDENT
       authorize_as Ability::Action::RESOURCE_INCIDENTS
       description "Fetch one incident in full by id or identifier (e.g. INC-42): details, " \
                   "timeline events, postmortem status, the alerts attached to it, and its pages in on-call tools. " \

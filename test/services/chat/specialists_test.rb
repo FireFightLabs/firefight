@@ -111,7 +111,7 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     deferred = presented.deferred.map { |tool| tool.name.to_s }
 
     assert presented.specialists
-    assert_includes loaded, Mcp::Tools::SEARCH_INCIDENTS
+    assert_includes loaded, FirefightTools::SEARCH_INCIDENTS
     assert_not_includes loaded + deferred, "planetscale_get_insights"
     assert_not_includes loaded + deferred, "linear_list_issues"
     assert_includes deferred, "planetscale_create_branch"
@@ -126,7 +126,7 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     held = presented.loaded.map { |tool| tool.name.to_s }
 
     assert presented.held
-    assert_includes held, Mcp::Tools::RESOLVE_INCIDENT
+    assert_includes held, FirefightTools::RESOLVE_INCIDENT
     assert_includes held, "custom_mcp_team_read"
     assert_not_includes held, "planetscale_get_insights"
     assert_not_includes held, "planetscale_create_branch"
@@ -150,8 +150,8 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
     FirefightAi.configuration.stubs(:held_tools_budget).returns(12_000)
     held = Chat::Tools.presented(@turn, FirefightAi::ModelChoice.new(model: "gpt-4o")).loaded.map { |tool| tool.name.to_s }
 
-    assert_includes held, Mcp::Tools::SEARCH_INCIDENTS
-    assert_not_includes held, Mcp::Tools::RESOLVE_INCIDENT
+    assert_includes held, FirefightTools::SEARCH_INCIDENTS
+    assert_not_includes held, FirefightTools::RESOLVE_INCIDENT
     assert_not_includes held, "custom_mcp_team_read"
     assert_not_includes held, "planetscale_get_insights"
   end

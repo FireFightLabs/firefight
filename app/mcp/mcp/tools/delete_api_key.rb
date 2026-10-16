@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class DeleteApiKey < Base
-      tool_name DELETE_API_KEY
+      tool_name FirefightTools::DELETE_API_KEY
       description "Delete a service key by prefix. Anything presenting it stops working " \
                   "immediately. Setting active to false with upsert_api_key is the reversible " \
                   "move. Authorizes as api_keys, which is admin-only. Docs: #{Docs::MCP_SERVER}"

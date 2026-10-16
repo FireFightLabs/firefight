@@ -21,7 +21,7 @@ module Chat::Specialists
   end
 
   # Where a resource runs and which account and repository hold it, which every kind of question starts from.
-  MAP_READS = [ Mcp::Tools::GET_RESOURCE_MAP, Mcp::Tools::SEARCH_MAP, Mcp::Tools::FIND_RESOURCES, Mcp::Tools::GET_RESOURCE, Mcp::Tools::GET_RESOURCE_LINKS ].freeze
+  MAP_READS = [ FirefightTools::GET_RESOURCE_MAP, FirefightTools::SEARCH_MAP, FirefightTools::FIND_RESOURCES, FirefightTools::GET_RESOURCE, FirefightTools::GET_RESOURCE_LINKS ].freeze
 
   def self.capability(key) = Integrations::Capabilities.spec(key).tool_name
 
@@ -73,14 +73,14 @@ module Chat::Specialists
       covers: "issues, tickets and follow-up work, the team's knowledge pages, runbooks and the handbook",
       practice: "Quote the ticket or page you rely on, with its link. Say how old a page is when that matters.",
       playbook: nil, capabilities: [],
-      firefight_reads: [ Mcp::Tools::SEARCH_RUNBOOKS, Mcp::Tools::GET_RUNBOOK, Mcp::Tools::LIST_HANDBOOK_PAGES, Mcp::Tools::GET_HANDBOOK_PAGE ]
+      firefight_reads: [ FirefightTools::SEARCH_RUNBOOKS, FirefightTools::GET_RUNBOOK, FirefightTools::LIST_HANDBOOK_PAGES, FirefightTools::GET_HANDBOOK_PAGE ]
     ),
     Domain.new(
       key: ON_CALL, title: "On-call and alerts",
       covers: "who is on call, schedules, pages and acknowledgements, and the alerts behind them",
       practice: "Say who was paged, when, by which alert, and whether they acknowledged.",
       playbook: "incident_command", capabilities: [],
-      firefight_reads: [ Mcp::Tools::SEARCH_ALERTS, Mcp::Tools::GET_INCIDENT, Mcp::Tools::SEARCH_INCIDENTS ]
+      firefight_reads: [ FirefightTools::SEARCH_ALERTS, FirefightTools::GET_INCIDENT, FirefightTools::SEARCH_INCIDENTS ]
     )
   ].freeze
   KEYS = DOMAINS.map(&:key).freeze

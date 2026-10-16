@@ -83,7 +83,7 @@ class AgentStepOutcomesTest < ApplicationSystemTestCase
     conversation = Conversation.start_personal!(workspace: @workspace, member: member)
     conversation.ask!("why does ember.dev answer 404")
     reply = conversation.chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
-    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Mcp::Tools::START_INVESTIGATION, arguments: { "symptom" => "ember.dev answers 404" })
+    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: FirefightTools::START_INVESTIGATION, arguments: { "symptom" => "ember.dev answers 404" })
     conversation.chat.add_message(role: :tool, content: "Started.", tool_call_id: "call_1")
     conversation.note!("It is running. Its answer will come back here.")
     conversation.reply_delivered!

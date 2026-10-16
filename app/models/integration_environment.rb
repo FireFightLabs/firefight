@@ -50,6 +50,15 @@ class IntegrationEnvironment < ApplicationRecord
   scope :map_events_webhook_due, ->(within) { where.not(map_events_webhook_id: nil).where(map_events_expires_at: ..within.from_now) }
   scope :issue_webhook_due, ->(within) { where.not(issue_webhook_id: nil).where(issue_webhook_expires_at: ..within.from_now) }
 
+  # Adds a gap the map could not read, once, in one statement, so two workers each adding one keep both.
+  def add_map_gap!(gap)
+    added = [ gap ].to_json
+    self.class.where(id: id).where.not("map_gaps @> ?::jsonb", added)
+        .update_all([ "map_gaps = map_gaps || ?::jsonb, updated_at = ?", added, Time.current ])
+    self.map_gaps = self.class.where(id: id).pick(:map_gaps)
+    clear_attribute_changes([ :map_gaps ])
+  end
+
   # What the gateway checks a call through this row against, its environment when it has one.
   def ability_scope = catalog_entry_id ? { Ability::Scope::DIMENSION_ENVIRONMENT => catalog_entry_id } : {}
 

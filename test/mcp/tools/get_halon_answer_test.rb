@@ -28,7 +28,7 @@ class Mcp::Tools::GetHalonAnswerTest < ActiveSupport::TestCase
       chat = conversation.chat_record
       chat.add_message(RubyLLM::Message.new(
         role: :assistant, content: "",
-        tool_calls: { "c1" => RubyLLM::ToolCall.new(id: "c1", name: Mcp::Tools::DELETE_SEVERITY, arguments: { "slug" => "sev-4" }) }
+        tool_calls: { "c1" => RubyLLM::ToolCall.new(id: "c1", name: FirefightTools::DELETE_SEVERITY, arguments: { "slug" => "sev-4" }) }
       ))
       chat.request_decisions!([ "c1" ])
     end

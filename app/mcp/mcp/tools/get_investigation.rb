@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class GetInvestigation < Base
-      tool_name GET_INVESTIGATION
+      tool_name FirefightTools::GET_INVESTIGATION
       authorize_as Ability::Action::RESOURCE_INVESTIGATIONS
       description "Read one of Halon's investigations: its status, each theory with where it stands and the " \
                   "steps behind it, every step it took, and the finding with each claim and what it rests " \

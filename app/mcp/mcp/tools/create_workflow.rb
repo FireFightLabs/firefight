@@ -4,7 +4,7 @@ module Mcp
     # what its steps need, gets it live. A member who may not gets a draft and the workspace admins are asked to publish
     # it, and anyone else, such as an agent, leaves it a draft for an admin.
     class CreateWorkflow < Base
-      tool_name CREATE_WORKFLOW
+      tool_name FirefightTools::CREATE_WORKFLOW
       authorize_as Ability::Action::RESOURCE_WORKFLOWS, Ability::Action::ACTION_CREATE
       behind_flag FeatureFlags::WORKFLOWS
       description "Make a workflow: something that runs later, on a schedule or by hand, as its own identity with only what an admin " \

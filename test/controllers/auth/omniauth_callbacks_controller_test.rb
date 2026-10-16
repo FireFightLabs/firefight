@@ -186,7 +186,7 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     get "/auth/slack_openid/callback"
 
     assert_redirected_to login_path
-    assert_equal "Sign-in failed. Please try again.", flash[:alert]
+    assert_equal "Sign-in did not finish. Sign in again to continue.", flash[:alert]
     assert_nil session[:user_id]
   end
 

@@ -19,9 +19,9 @@ module Mcp
         {
           name: "Release Firefight", aliases: [ "ship it" ],
           inputs: [ { key: "bump", question: "Which version bump?", default: "patch" } ],
-          steps: [ { title: "Look for past releases", tool: SEARCH_INCIDENTS, arguments: { query: "release {{bump}}" } },
+          steps: [ { title: "Look for past releases", tool: FirefightTools::SEARCH_INCIDENTS, arguments: { query: "release {{bump}}" } },
                    { title: "Tell the team", instruction: "In #releases." } ],
-          watch: { title: "release", steps: [ { label: "Incidents", tool: SEARCH_INCIDENTS, arguments: { query: "{{bump}}" }, goal: "none open" } ] }
+          watch: { title: "release", steps: [ { label: "Incidents", tool: FirefightTools::SEARCH_INCIDENTS, arguments: { query: "{{bump}}" }, goal: "none open" } ] }
         }
       end
 
@@ -61,7 +61,7 @@ module Mcp
       end
 
       test "a step that changes something waits as a draft until it says how to undo it" do
-        args = release_args.merge(steps: [ { title: "Note it", tool: CREATE_ACTION_ITEM, arguments: { incident: "INC-1", description: "Release" } } ])
+        args = release_args.merge(steps: [ { title: "Note it", tool: FirefightTools::CREATE_ACTION_ITEM, arguments: { incident: "INC-1", description: "Release" } } ])
 
         answer = call(UpsertRunbook, @admin, args)
 
@@ -82,7 +82,7 @@ module Mcp
         assert_equal [ { position: 1, title: "Look for past releases" }, { position: 2, title: "Tell the team", instruction: "In #releases." } ], got[:steps]
         assert_equal [ { "key" => "bump", "question" => "Which version bump?", "default" => "patch" } ], got[:inputs]
         assert_equal "{{bump}}", got[:watch]["steps"].first.dig("arguments", "query")
-        assert_equal [ { "title" => "look_for_past_releases", "tool" => SEARCH_INCIDENTS, "arguments" => { "query" => "release {{bump}}" } } ], got.dig(:workflow, :steps)
+        assert_equal [ { "title" => "look_for_past_releases", "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => { "query" => "release {{bump}}" } } ], got.dig(:workflow, :steps)
         assert_equal Workflow::Links.page(@workspace.workflows.find_by!(slug: "release_firefight")), got.dig(:workflow, :page)
       end
 

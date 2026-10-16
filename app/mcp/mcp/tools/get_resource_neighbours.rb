@@ -6,7 +6,7 @@ module Mcp
 
       LIMIT = 200
 
-      tool_name GET_RESOURCE_NEIGHBOURS
+      tool_name FirefightTools::GET_RESOURCE_NEIGHBOURS
       authorize_as Ability::Action::RESOURCE_MAP
       description "The resources one link away from a resource on the resource map, both ways: what it depends on and " \
                   "what depends on it, grouped by relation, each as a row with its id, status and how many depend on it. " \

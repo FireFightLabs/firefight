@@ -104,7 +104,7 @@ class AgentChatsController < InertiaController
   MENTIONABLE = 20
   NOTHING_ASKED = "Say something first."
   SECRET_GONE = "That secret is no longer in this chat."
-  CHAT_DELETED = "Chat deleted."
+  CHAT_DELETED = "Chat was deleted."
 
   include ServesChatAttachment
   include PlatformText
@@ -581,14 +581,14 @@ class AgentChatsController < InertiaController
     return redirect_back_or_to(agent_chat_path(conversation), alert: "A chat needs a name.") if title.blank?
 
     conversation.rename!(title)
-    redirect_back_or_to agent_chat_path(conversation), notice: "Chat renamed."
+    redirect_back_or_to agent_chat_path(conversation), notice: "Chat was renamed."
   end
 
   def pin
     pinned = ActiveModel::Type::Boolean.new.cast(params[:pinned])
     conversation.pin!(pinned)
 
-    redirect_back_or_to agent_chat_path(conversation), notice: pinned ? "Chat pinned." : "Chat unpinned."
+    redirect_back_or_to agent_chat_path(conversation), notice: pinned ? "Chat was pinned." : "Chat was unpinned."
   end
 
   def archive

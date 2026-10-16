@@ -23,7 +23,7 @@ class DefinedWorkflow::Steps::PostIncidentUpdate < DefinedWorkflow::Steps::Firef
   KEY_INCIDENT = DefinedWorkflow::Steps::FirefightTool::KEY_INCIDENT
 
   class << self
-    def tool_for(_config, _workspace) = Mcp::Tools::POST_INCIDENT_UPDATE
+    def tool_for(_config, _workspace) = FirefightTools::POST_INCIDENT_UPDATE
 
     def arguments_for(config, _workspace) = { KEY_INCIDENT => config[KEY_INCIDENT].to_s, "answers" => { KEY_MESSAGE => config[KEY_MESSAGE].to_s } }
 

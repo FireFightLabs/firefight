@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class DismissTimelineNote < Base
-      tool_name DISMISS_TIMELINE_NOTE
+      tool_name FirefightTools::DISMISS_TIMELINE_NOTE
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Dismiss one AI-noted milestone from an incident's timeline, for when the note " \
                   "reads a joke as a decision or credits the wrong person. The note is kept and " \

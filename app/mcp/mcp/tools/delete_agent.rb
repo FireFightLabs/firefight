@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class DeleteAgent < Base
-      tool_name DELETE_AGENT
+      tool_name FirefightTools::DELETE_AGENT
       description "Delete an agent by slug. Its tokens stop working immediately and its abilities " \
                   "are revoked, while everything it did stays on the timelines it touched. " \
                   "Disabling it with upsert_agent is the reversible move. Authorizes as " \

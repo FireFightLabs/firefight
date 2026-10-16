@@ -3,7 +3,7 @@ module Mcp
     # Connecting happens in the connect dialog, where OAuth and keys belong, so this only says what exists and
     # where each stands. In the dashboard chat a category's answer is drawn as a table with a Connect button per row.
     class ListIntegrations < Base
-      tool_name LIST_INTEGRATIONS
+      tool_name FirefightTools::LIST_INTEGRATIONS
       authorize_as Ability::Action::RESOURCE_INTEGRATIONS
       description "What can be connected to Firefight and what already is, by category. Without a category, " \
                   "one line per category saying what is connected in it, so you can ask the person which they want. " \

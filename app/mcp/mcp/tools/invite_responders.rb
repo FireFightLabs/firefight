@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class InviteResponders < Base
-      tool_name INVITE_RESPONDERS
+      tool_name FirefightTools::INVITE_RESPONDERS
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Pull people into the incident channel so they can see what is happening and " \
                   "join in, the same as a person running /ff invite. Inviting someone does not " \

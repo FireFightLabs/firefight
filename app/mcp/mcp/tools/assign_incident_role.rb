@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class AssignIncidentRole < Base
-      tool_name ASSIGN_INCIDENT_ROLE
+      tool_name FirefightTools::ASSIGN_INCIDENT_ROLE
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Assign an incident role to one person, or clear it. A role names who is " \
                   "accountable, so each role has a single holder and assigning replaces whoever " \

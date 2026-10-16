@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class GetPostmortem < Base
-      tool_name GET_POSTMORTEM
+      tool_name FirefightTools::GET_POSTMORTEM
       authorize_as Ability::Action::RESOURCE_INCIDENTS
       description "The postmortem written for an incident, as HTML, along with its status and who " \
                   "wrote it. An incident with no postmortem yet comes back as not found, and " \

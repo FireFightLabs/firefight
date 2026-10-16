@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class ClaimRunbookStep < Base
-      tool_name CLAIM_RUNBOOK_STEP
+      tool_name FirefightTools::CLAIM_RUNBOOK_STEP
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Take one step of a runbook attached to an incident, which creates the action " \
                   "item behind it, or hands over the one that already exists. Leave member out to " \

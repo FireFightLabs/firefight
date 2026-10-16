@@ -4,14 +4,14 @@ module Mcp
     # agent's token as the agent, a service key as itself. The chat is kept, so questions carry on.
     # The turn runs in the background like any other chat, and the call waits on it a while (HalonAnswer).
     class AskHalon < Base
-      tool_name ASK_HALON
+      tool_name FirefightTools::ASK_HALON
       # The same permission as asking in the dashboard, since a question spends money.
       authorize_as Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE
       description "Ask Halon, Firefight's agent, a question. It answers from incidents, alerts, the catalog, runbooks " \
                   "and the connected tools, and can act in Firefight with exactly the permissions of whoever this key " \
                   "belongs to. Name an incident to ask about it. Most answers take ten seconds to a minute, and this " \
                   "call waits up to #{HalonAnswer::WAIT.inspect} for one. If Halon is still working, the status is " \
-                  "#{HalonAnswer::STATUS_WORKING}, and #{GET_HALON_ANSWER} with the conversation_id waits for the " \
+                  "#{HalonAnswer::STATUS_WORKING}, and #{FirefightTools::GET_HALON_ANSWER} with the conversation_id waits for the " \
                   "answer. A change that needs confirming is not made, and the answer says what is waiting and on " \
                   "whom. Docs: #{Docs::MCP_SERVER}"
       annotations(**WRITE)
@@ -40,7 +40,7 @@ module Mcp
 
       # A question saved mid turn would land between a tool call and its result, which a model provider refuses.
       def self.still_answering(conversation)
-        "Halon is still answering your last question in this chat. Call #{GET_HALON_ANSWER} with conversation_id " \
+        "Halon is still answering your last question in this chat. Call #{FirefightTools::GET_HALON_ANSWER} with conversation_id " \
           "#{conversation.id} to wait for it, then ask again."
       end
       private_class_method :still_answering

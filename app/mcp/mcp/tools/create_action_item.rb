@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class CreateActionItem < Base
-      tool_name CREATE_ACTION_ITEM
+      tool_name FirefightTools::CREATE_ACTION_ITEM
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Add a piece of work to an incident and post it to the channel, the same as a " \
                   "person running /ff action. kind \"action\" is work during the incident, " \

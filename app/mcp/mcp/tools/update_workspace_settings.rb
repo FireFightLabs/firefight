@@ -14,7 +14,7 @@ module Mcp
         "#{entry.name}: #{fields.map { |field| "#{field.key} (#{field.hint.delete_suffix('.')})" }.join(', ')}" if fields.any?
       end.join(". ")
 
-      tool_name UPDATE_WORKSPACE_SETTINGS
+      tool_name FirefightTools::UPDATE_WORKSPACE_SETTINGS
       authorize_as Ability::Action::RESOURCE_WORKSPACE, Ability::Action::ACTION_UPDATE
       write_only(*Workspace::Settings::WRITE_ONLY)
       description "Change the workspace's own settings: whether incident transcripts may be read at all, " \

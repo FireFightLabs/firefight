@@ -22,15 +22,15 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
   test "every incident-write tool is offered as a write, not a read" do
     tools = rpc("tools/list").dig("result", "tools").index_by { |tool| tool["name"] }
 
-    [ Mcp::Tools::DECLARE_INCIDENT, Mcp::Tools::POST_INCIDENT_UPDATE, Mcp::Tools::RESOLVE_INCIDENT,
-      Mcp::Tools::CANCEL_INCIDENT, Mcp::Tools::REOPEN_INCIDENT ].each do |name|
+    [ FirefightTools::DECLARE_INCIDENT, FirefightTools::POST_INCIDENT_UPDATE, FirefightTools::RESOLVE_INCIDENT,
+      FirefightTools::CANCEL_INCIDENT, FirefightTools::REOPEN_INCIDENT ].each do |name|
       assert tools[name], "#{name} should be offered"
       assert_not tools[name].dig("annotations", "readOnlyHint"), "#{name} should not be read-only"
     end
   end
 
   test "an agent declares an incident and is recorded as having declared it" do
-    content, is_error = call_tool(Mcp::Tools::DECLARE_INCIDENT, {
+    content, is_error = call_tool(FirefightTools::DECLARE_INCIDENT, {
       answers: { name: "Checkout failing for EU", severity: severity_slug }
     })
 
@@ -49,7 +49,7 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
       permissions: { "incidents" => %w[read create update] }
     )
 
-    call_tool(Mcp::Tools::DECLARE_INCIDENT, {
+    call_tool(FirefightTools::DECLARE_INCIDENT, {
       answers: { name: "Raised by a machine", severity: severity_slug }
     }, token: token)
 
@@ -65,7 +65,7 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
       permissions: { Ability::Action::RESOURCE_INCIDENTS => %w[read create] }
     )
 
-    _, is_error = call_tool(Mcp::Tools::DECLARE_INCIDENT, {
+    _, is_error = call_tool(FirefightTools::DECLARE_INCIDENT, {
       answers: { name: "Raised from a support ticket", severity: severity_slug }
     }, token: token)
 
@@ -83,7 +83,7 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
     )
 
     _, is_error = call_tool(
-      Mcp::Tools::CANCEL_INCIDENT, { incident: @incident.identifier, answers: {} }, token: token
+      FirefightTools::CANCEL_INCIDENT, { incident: @incident.identifier, answers: {} }, token: token
     )
 
     assert is_error
@@ -95,7 +95,7 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
       workspace: @workspace, created_by: @membership, name: "Ungranted", slug: "ungranted"
     )
 
-    _, is_error = call_tool(Mcp::Tools::DECLARE_INCIDENT, {
+    _, is_error = call_tool(FirefightTools::DECLARE_INCIDENT, {
       answers: { name: "Should never exist", severity: severity_slug }
     }, token: token)
 
@@ -113,7 +113,7 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
       workspace: @workspace, created_by: @membership, agent: agent, name: "Rotator token 2"
     )
 
-    _, is_error = call_tool(Mcp::Tools::DECLARE_INCIDENT, {
+    _, is_error = call_tool(FirefightTools::DECLARE_INCIDENT, {
       answers: { name: "After the rotation", severity: severity_slug }
     }, token: rotated)
 
@@ -122,7 +122,7 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "declaring says what the workspace asks for rather than failing silently" do
-    _, is_error, text = call_tool(Mcp::Tools::DECLARE_INCIDENT, { answers: { name: "No severity" } })
+    _, is_error, text = call_tool(FirefightTools::DECLARE_INCIDENT, { answers: { name: "No severity" } })
 
     assert is_error
     assert_match(/required\. Call get_form/i, text)
@@ -131,7 +131,7 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "an agent posts an update and the channel gets the message" do
-    _, is_error = call_tool(Mcp::Tools::POST_INCIDENT_UPDATE, {
+    _, is_error = call_tool(FirefightTools::POST_INCIDENT_UPDATE, {
       incident: @incident.identifier,
       answers: {
         message: "Connection pool exhausted on replica 2, draining now",
@@ -146,7 +146,7 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "an agent resolves an incident and the timeline names the agent" do
-    _, is_error = call_tool(Mcp::Tools::RESOLVE_INCIDENT, {
+    _, is_error = call_tool(FirefightTools::RESOLVE_INCIDENT, {
       incident: @incident.identifier,
       answers: { severity: @incident.incident_severity.slug, summary: "Pool limit raised" }
     })
@@ -162,7 +162,7 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
   test "a required answer left out keeps what the incident already has" do
     severity = @incident.incident_severity
 
-    _, is_error, text = call_tool(Mcp::Tools::RESOLVE_INCIDENT, {
+    _, is_error, text = call_tool(FirefightTools::RESOLVE_INCIDENT, {
       incident: @incident.identifier, answers: { summary: "Pool limit raised" }
     })
 
@@ -172,7 +172,7 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "an agent cancels an incident that was not one" do
-    _, is_error = call_tool(Mcp::Tools::CANCEL_INCIDENT, { incident: @incident.identifier, answers: {} })
+    _, is_error = call_tool(FirefightTools::CANCEL_INCIDENT, { incident: @incident.identifier, answers: {} })
 
     assert_not is_error
     assert @incident.reload.canceled?
@@ -183,7 +183,7 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
       @incident, { incident_status: @workspace.incident_statuses.closed.active.first }, changed_by: @membership
     )
 
-    _, is_error = call_tool(Mcp::Tools::REOPEN_INCIDENT, {
+    _, is_error = call_tool(FirefightTools::REOPEN_INCIDENT, {
       incident: @incident.identifier, reason: "Error rate climbing again"
     })
 
@@ -192,7 +192,7 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "reopening something already active says so rather than doing nothing" do
-    _, is_error, text = call_tool(Mcp::Tools::REOPEN_INCIDENT, { incident: @incident.identifier })
+    _, is_error, text = call_tool(FirefightTools::REOPEN_INCIDENT, { incident: @incident.identifier })
 
     assert is_error
     assert_match(/already active/, text)
@@ -200,7 +200,7 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
 
   # The resolver is the same one Slack and the dashboard read.
   test "an answer the form never asked for is refused" do
-    _, is_error, text = call_tool(Mcp::Tools::POST_INCIDENT_UPDATE, {
+    _, is_error, text = call_tool(FirefightTools::POST_INCIDENT_UPDATE, {
       incident: @incident.identifier,
       answers: {
         message: "Fine", status: @incident.incident_status.slug,
@@ -214,7 +214,7 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
 
   test "a read-only token cannot move an incident" do
     _, is_error = call_tool(
-      Mcp::Tools::CANCEL_INCIDENT, { incident: @incident.identifier, answers: {} },
+      FirefightTools::CANCEL_INCIDENT, { incident: @incident.identifier, answers: {} },
       token: "ff_test_read_only_token_12345678"
     )
 
@@ -226,7 +226,7 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
   test "another workspace's incident is not reachable" do
     other = incidents(:active_p0_ws2)
 
-    _, is_error = call_tool(Mcp::Tools::RESOLVE_INCIDENT, { incident: other.id })
+    _, is_error = call_tool(FirefightTools::RESOLVE_INCIDENT, { incident: other.id })
 
     assert is_error
     assert_not other.reload.closed?

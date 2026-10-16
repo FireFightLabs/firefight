@@ -316,7 +316,7 @@ module Integrations
       test "a resource in another subscription is never reached" do
         AzureApi.any_instance.expects(:post).never
 
-        error = assert_raises(Integrations::Error) { call(:restart_resource, "resource" => "/subscriptions/99999999-2222-3333-4444-555555555555/resourceGroups/x/providers/Microsoft.Web/sites/web") }
+        error = assert_raises(Integrations::PolicyRefusal) { call(:restart_resource, "resource" => "/subscriptions/99999999-2222-3333-4444-555555555555/resourceGroups/x/providers/Microsoft.Web/sites/web") }
         assert_match "and this connection reaches #{SUBSCRIPTION}", error.message
       end
 

@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class ListApiKeys < Base
-      tool_name LIST_API_KEYS
+      tool_name FirefightTools::LIST_API_KEYS
       description "Every service key in this workspace, with the abilities it holds and when it was " \
                   "last used. Personal tokens are left out: they belong to the person who minted " \
                   "them, not to the workspace. Authorizes as api_keys, which is admin-only and " \

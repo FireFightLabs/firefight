@@ -129,17 +129,17 @@ class Chat::Tools::LookFirstTest < ActiveSupport::TestCase
 
   test "resolving, cancelling, deleting or revoking in Firefight needs a read, its small writes and its reads never do, and only a chat asks it" do
     asked!("resolve it")
-    resolve = tool(Mcp::Tools::RESOLVE_INCIDENT)
-    call = change!("call_resolve", Mcp::Tools::RESOLVE_INCIDENT, "incident" => "INC-1")
+    resolve = tool(FirefightTools::RESOLVE_INCIDENT)
+    call = change!("call_resolve", FirefightTools::RESOLVE_INCIDENT, "incident" => "INC-1")
 
     assert_includes resolve.parameters_schema.deep_stringify_keys["required"], Chat::Tools::LookFirst::BECAUSE
     assert_equal BOUNCED, resolve.call(tool_call: call, "incident" => "INC-1")
-    assert_includes tool(Mcp::Tools::DELETE_CATALOG_ENTRY).parameters_schema.deep_stringify_keys["required"], Chat::Tools::LookFirst::BECAUSE
-    [ Mcp::Tools::COMPLETE_ACTION_ITEM, Mcp::Tools::POST_INCIDENT_UPDATE ].each do |name|
+    assert_includes tool(FirefightTools::DELETE_CATALOG_ENTRY).parameters_schema.deep_stringify_keys["required"], Chat::Tools::LookFirst::BECAUSE
+    [ FirefightTools::COMPLETE_ACTION_ITEM, FirefightTools::POST_INCIDENT_UPDATE ].each do |name|
       assert_not tool(name).parameters_schema.to_h.deep_stringify_keys.fetch("properties", {}).key?(Chat::Tools::LookFirst::BECAUSE), name
     end
-    assert_nil tool(Mcp::Tools::COMPLETE_ACTION_ITEM).send(:unsupported, { "action_item" => "AI-1" }, nil)
-    assert_not tool(Mcp::Tools::GET_INCIDENT).parameters_schema.to_h.deep_stringify_keys.fetch("properties", {}).key?(Chat::Tools::LookFirst::BECAUSE)
+    assert_nil tool(FirefightTools::COMPLETE_ACTION_ITEM).send(:unsupported, { "action_item" => "AI-1" }, nil)
+    assert_not tool(FirefightTools::GET_INCIDENT).parameters_schema.to_h.deep_stringify_keys.fetch("properties", {}).key?(Chat::Tools::LookFirst::BECAUSE)
     assert_not tool("search_logs").parameters_schema["properties"].key?(Chat::Tools::LookFirst::BECAUSE)
     assert_includes tool("restart").parameters_schema["required"], Chat::Tools::LookFirst::BECAUSE
 

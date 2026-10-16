@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class AttachRunbook < Base
-      tool_name ATTACH_RUNBOOK
+      tool_name FirefightTools::ATTACH_RUNBOOK
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Attach a runbook to an incident, posting its steps in the incident channel " \
                   "for responders to claim. Runbooks whose conditions match attach on their " \

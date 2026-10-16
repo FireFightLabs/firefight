@@ -8,7 +8,7 @@ class AgentChatHelperSerializerTest < ActiveSupport::TestCase
                                   checks: [ Chat::Helpers::Check.new(title: "Logs", brief: "Read the logs", deep: false) ]).sole
     own = Chat.open!(owner: @helper, workspace: @workspace, model_choice: FirefightAi::ModelChoice.new(model: "gpt-4o-mini"))
     asked = own.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
-    asked.ruby_llm_tool_calls.create!(tool_call_id: "h_1", name: Mcp::Tools::SEARCH_INCIDENTS, arguments: { "query" => "checkout" })
+    asked.ruby_llm_tool_calls.create!(tool_call_id: "h_1", name: FirefightTools::SEARCH_INCIDENTS, arguments: { "query" => "checkout" })
   end
 
   test "a step left open by a helper that has ended reads as cancelled, never as still running" do

@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class DeleteCatalogEntry < Base
-      tool_name DELETE_CATALOG_ENTRY
+      tool_name FirefightTools::DELETE_CATALOG_ENTRY
       description "Soft-delete a service catalog entry by slug. If the call requires approval, " \
                   "retry the identical call with approval_id once approved. Docs: #{Docs::CATALOG}"
       annotations(**DESTRUCTIVE)

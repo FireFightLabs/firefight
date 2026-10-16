@@ -826,7 +826,7 @@ module Integrations
         target = Target.parse(wanted) || named(environment_row, wanted)
         fail!("Nothing called #{wanted} in this subscription. list_resources shows what there is.") unless target
         unless target.subscription.casecmp?(subscription_of(environment_row))
-          fail!("#{wanted} is in subscription #{target.subscription}, and this connection reaches #{subscription_of(environment_row)}.")
+          fail_policy!("#{wanted} is in subscription #{target.subscription}, and this connection reaches #{subscription_of(environment_row)}.")
         end
 
         target
