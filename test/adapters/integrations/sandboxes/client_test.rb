@@ -49,6 +49,21 @@ module Integrations
         assert heard.all? { |text| text.bytesize <= ::Sandbox::Runs::CHUNK }, "no read hands back more than a chunk"
       end
 
+      test "a box is waited for as long as its provider says, and one that never answers says why its last check failed" do
+        slow = Client.new(Box.new(ref: "box", address: "http://127.0.0.1:9", key: "k"))
+        slow.stubs(:pause).with { travel(40.seconds) || true }
+        not_yet = Error.new("could not reach 127.0.0.1 (Errno::ECONNREFUSED)")
+        slow.stubs(:send_json).raises(not_yet).then.raises(not_yet).then.raises(not_yet).then.raises(not_yet).then.raises(not_yet)
+            .then.raises(not_yet).then.raises(not_yet).then.returns({ "ok" => true })
+
+        error = assert_raises(Error) { slow.wait_until_ready!(within: Client::READY_TIMEOUT) }
+        assert_equal "The code sandbox did not come up within 180 seconds: could not reach 127.0.0.1 (Errno::ECONNREFUSED).", error.message
+
+        slow.stubs(:send_json).raises(not_yet).then.raises(not_yet).then.raises(not_yet).then.raises(not_yet).then.raises(not_yet)
+            .then.raises(not_yet).then.raises(not_yet).then.returns({ "ok" => true })
+        assert_nothing_raised { slow.wait_until_ready!(within: 15.minutes.to_i) }
+      end
+
       test "a command that fails to start answers its refusal" do
         replace(::Sandbox::Handler, :exec) { |_request, **| raise ::Sandbox::Refused, "acme__api has no commit nope" }
 

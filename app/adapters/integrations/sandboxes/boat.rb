@@ -67,25 +67,34 @@ module Integrations
 
       # A box from from, a prepared copy's named snapshot, or from the image's own copy when there is one ready, so the
       # image is pulled only by the first box of each version. Of the boxes that pulled it, only the one that claims the
-      # save (SandboxImageCopy) saves the copy for the next.
+      # save (SandboxImageCopy) saves the copy for the next. The pull is followed here, within START_TIMEOUT, so the box
+      # handed back is already running the image and the client's wait for its health check is only for it to answer.
       def start(name:, owner: nil, from: nil, fail_fast: false)
         image_copy = from ? nil : image_copy_status
         SandboxImageCopy.ready!(SandboxProviders::BOAT, image_copy_name) if image_copy == READY
         source = from || (image_copy_name if image_copy == READY)
-        created = @api.create({ type: size, ttlSeconds: TTL.to_i, noEnv: true, failFast: fail_fast, from: source }.compact, idempotency_key: SecureRandom.uuid)
-        ref = created.dig("sandbox", "id") || created["id"]
-        raise Error, "boat.dev created no sandbox." if ref.blank?
+        ref, box = bring_up(owned_name(name, owner), from: source, fail_fast: fail_fast)
+        save_image_copy(ref, ref, replacing: image_copy == FAILED) if source.nil? && image_copy != SAVING && claimed?(ref)
+        box
+      end
+
+      # Starts a box only to save the image copy, when boat has none ready or saving and this call wins the claim, and
+      # archives it once the save is asked for, which boat lets finish. A run's box that later finds no copy pulls the
+      # image itself and leaves the save to this one.
+      def prepare_image!
+        image_copy = image_copy_status
+        return if [ READY, SAVING ].include?(image_copy)
+
+        claimant = "prepare-#{SecureRandom.hex(8)}"
+        return unless claimed?(claimant)
 
         begin
-          @api.rename(ref, owned_name(name, owner))
-          wait_until_up(ref)
-          box = run_image(ref)
-        rescue StandardError
-          forget(ref)
-          raise
+          ref, _box = bring_up(Sandboxes.box_name, from: nil, fail_fast: false)
+        rescue Sandboxes::Error => error
+          return let_go(claimant, error)
         end
-        save_image_copy(ref, replacing: image_copy == FAILED) unless source || image_copy == SAVING
-        box
+        save_image_copy(ref, claimant, replacing: image_copy == FAILED)
+        stop(ref)
       end
 
       # boat keeps no variable the app could read the box's key back from, so the container is started again with a new
@@ -200,17 +209,45 @@ module Integrations
         nil
       end
 
-      # Saved only by the box that claims it, and only a head start for the next box, so a box that is up stays up when
-      # the copy cannot be saved, and its claim is let go of for a later box. A failed copy is deleted first, since it
-      # holds the name.
-      def save_image_copy(ref, replacing:)
-        return unless SandboxImageCopy.claim!(SandboxProviders::BOAT, image_copy_name, ref)
+      # Creates a box, names it, waits for boat to have it ready and runs the image in it, answering its ref and how to
+      # reach it. A box that does not get that far is deleted.
+      def bring_up(name, from:, fail_fast:)
+        created = @api.create({ type: size, ttlSeconds: TTL.to_i, noEnv: true, failFast: fail_fast, from: from }.compact, idempotency_key: SecureRandom.uuid)
+        ref = created.dig("sandbox", "id") || created["id"]
+        raise Error, "boat.dev created no sandbox." if ref.blank?
 
+        @api.rename(ref, name)
+        wait_until_up(ref)
+        [ ref, run_image(ref) ]
+      rescue StandardError
+        forget(ref) if ref.present?
+        raise
+      end
+
+      # Whether claimant won the save of the image copy. The copy is only a head start for the next box, so a claim
+      # that cannot be read is simply not won.
+      def claimed?(claimant)
+        SandboxImageCopy.claim!(SandboxProviders::BOAT, image_copy_name, claimant)
+      rescue ActiveRecord::ActiveRecordError => error
+        let_go(nil, error)
+        false
+      end
+
+      # Saved only by the claim's winner from a box that is up. A box stays up when the copy cannot be saved, and the
+      # claim is let go of for a later box. A failed copy is deleted first, since it holds the name.
+      def save_image_copy(ref, claimant, replacing:)
         discard(image_copy_name) if replacing
         @api.save_snapshot(ref, image_copy_name)
-      rescue BoatApi::Error, ActiveRecord::ActiveRecordError => error
-        SandboxImageCopy.failed!(SandboxProviders::BOAT, image_copy_name, ref) unless error.is_a?(ActiveRecord::ActiveRecordError)
-        Rails.logger.warn({ event: "code_box.image_copy_failed", provider: SandboxProviders::BOAT, box_ref: ref, error: error.message }.to_json)
+      rescue BoatApi::Error => error
+        let_go(claimant, error)
+      end
+
+      # A claim that cannot be let go of here runs out after SandboxImageCopy::ABANDONED_AFTER.
+      def let_go(claimant, error)
+        Rails.logger.warn({ event: "code_box.image_copy_failed", provider: SandboxProviders::BOAT, claimant: claimant, error: error.message }.to_json)
+        SandboxImageCopy.failed!(SandboxProviders::BOAT, image_copy_name, claimant) if claimant
+      rescue ActiveRecord::ActiveRecordError
+        nil
       end
 
       def wait_until_up(ref)

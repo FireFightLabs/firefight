@@ -449,11 +449,20 @@ module Integrations
       old.update_columns(last_used_at: (PreparedCopy::KEPT_UNUSED_FOR + 1.day).ago)
 
       CodeReading.sweep_prepared!
-      CodeReading.sweep!
+      assert_enqueued_with(job: SandboxImageCopyJob, args: [ SandboxProviders::DOCKER ]) { CodeReading.sweep! }
 
       assert_equal [ "kept-old" ], keeping.discarded
       assert_not PreparedCopy.exists?(old.id)
       assert_equal Set[fresh.kept_ref], keeping.tidied
+    end
+
+    test "a provider that keeps no copies is not asked to prepare one, and a box is waited for as long as its provider says" do
+      assert_no_enqueued_jobs(only: SandboxImageCopyJob) { CodeReading.sweep! }
+
+      @provider.define_singleton_method(:ready_within) { 900 }
+      Sandboxes::Client.any_instance.expects(:wait_until_ready!).with(within: 900)
+
+      reading("investigation-slow").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
     end
 
     private

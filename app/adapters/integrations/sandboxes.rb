@@ -82,6 +82,14 @@ module Integrations
 
       def keeps_copies? = false
 
+      # How long a box start answered may take to answer its health check, in seconds. A provider whose start returns
+      # before the image is pulled says how long a pull may take.
+      def ready_within = Client::READY_TIMEOUT
+
+      # Makes the provider's copy of the image the deployment runs, ahead of any run, so nobody waits for the first pull
+      # of a new version. A provider that keeps no copies has none to make.
+      def prepare_image! = nil
+
       # Where its boxes run. A provider that cannot tell, such as the Docker daemon on whatever machine runs Firefight,
       # takes the region the deployment names in SANDBOX_REGION.
       def region = ENV["SANDBOX_REGION"].presence

@@ -64,7 +64,51 @@ module Integrations
         assert_equal 5, boxes.map(&:ref).uniq.size
         assert_equal 1, saved.size
         claim = SandboxImageCopy.find_by!(provider: SandboxProviders::BOAT, name: image_copy_name)
-        assert_equal [ SandboxImageCopy::STATUS_SAVING, saved.pop ], [ claim.status, claim.box_ref ]
+        assert_equal [ SandboxImageCopy::STATUS_SAVING, saved.pop ], [ claim.status, claim.claimed_by ]
+      end
+
+      test "a first pull that takes minutes is followed to the end, the box comes up and its copy is saved, and the client then waits only for it to answer" do
+        no_copy!
+        seconds = 0
+        @boat.define_singleton_method(:clock) { seconds += 60 }
+        @api.stubs(:command_status).returns(*Array.new(6) { { "status" => "running" } }, { "status" => "exited", "exitCode" => 0 })
+        @api.stubs(:create).returns({ "sandbox" => { "id" => "bx_slow" } })
+        @api.expects(:save_snapshot).with("bx_slow", image_copy_name).returns({ "status" => "saving" })
+        @api.expects(:delete).never
+
+        assert_equal "bx_slow", @boat.start(name: "halon-box-1").ref
+        assert_operator seconds, :>, Client::READY_TIMEOUT
+        assert_equal Client::READY_TIMEOUT, @boat.ready_within
+      end
+
+      test "the image copy is prepared ahead of need by one claimant per version, in a box archived once the save is asked for" do
+        no_copy!
+        @api.expects(:create).once.returns({ "sandbox" => { "id" => "bx_prepare" } })
+        @api.expects(:save_snapshot).once.with("bx_prepare", image_copy_name).returns({ "status" => "saving" })
+        @api.expects(:stop).once.with("bx_prepare")
+
+        2.times { @boat.prepare_image! }
+
+        assert_match(/\Aprepare-/, SandboxImageCopy.find_by!(provider: SandboxProviders::BOAT, name: image_copy_name).claimed_by)
+      end
+
+      test "a copy boat already has, or is saving, is not prepared again, and a prepare that fails lets the claim go" do
+        @api.stubs(:snapshot).returns({ "name" => image_copy_name, "status" => "ready" })
+        @api.expects(:create).never
+        @boat.prepare_image!
+        @api.stubs(:snapshot).returns({ "name" => image_copy_name, "status" => "saving" })
+        @boat.prepare_image!
+
+        no_copy!
+        @api.unstub(:create)
+        @api.stubs(:create).returns({ "sandbox" => { "id" => "bx_prepare" } })
+        @api.stubs(:sandbox).returns({ "id" => "bx_prepare", "state" => "error", "error" => "Provisioning failed." })
+        @api.expects(:delete).with("bx_prepare")
+        Rails.logger.stubs(:warn)
+
+        @boat.prepare_image!
+
+        assert_equal SandboxImageCopy::STATUS_FAILED, SandboxImageCopy.find_by!(provider: SandboxProviders::BOAT, name: image_copy_name).status
       end
 
       test "a refused save leaves the box running, is logged, and lets a later box claim the save again" do
@@ -87,7 +131,7 @@ module Integrations
         no_copy!
         @api.stubs(:create).returns({ "sandbox" => { "id" => "bx_new" } })
         claim = SandboxImageCopy.create!(provider: SandboxProviders::BOAT, name: image_copy_name, status: SandboxImageCopy::STATUS_SAVING,
-                                         box_ref: "bx_other", claimed_at: 1.minute.ago)
+                                         claimed_by: "bx_other", claimed_at: 1.minute.ago)
         @api.expects(:save_snapshot).never
         @boat.start(name: "halon-box-1")
 
@@ -95,14 +139,14 @@ module Integrations
         @api.expects(:save_snapshot).with("bx_new", image_copy_name).returns({ "status" => "saving" })
         @boat.start(name: "halon-box-2")
 
-        assert_equal "bx_new", claim.reload.box_ref
+        assert_equal "bx_new", claim.reload.claimed_by
       end
 
       test "a copy boat has ready is marked ready, and claimed again once boat no longer holds it" do
         @api.stubs(:snapshot).returns({ "name" => image_copy_name, "status" => "ready" })
         @api.stubs(:create).returns({ "sandbox" => { "id" => "bx_23456789" } })
         SandboxImageCopy.create!(provider: SandboxProviders::BOAT, name: image_copy_name, status: SandboxImageCopy::STATUS_SAVING,
-                                 box_ref: "bx_other", claimed_at: 1.minute.ago)
+                                 claimed_by: "bx_other", claimed_at: 1.minute.ago)
         @boat.start(name: "halon-box-1")
         assert_equal SandboxImageCopy::STATUS_READY, SandboxImageCopy.find_by!(provider: SandboxProviders::BOAT, name: image_copy_name).status
 

@@ -30,13 +30,15 @@ module Integrations
         @box = box
       end
 
-      # Boxes take a few seconds to boot, and a provider can report one started before its service listens. A stop ends
-      # the wait (StopSignal).
-      def wait_until_ready!
-        deadline = READY_TIMEOUT.seconds.from_now
+      # Boxes take a few seconds to boot, and a provider can report one started before its service listens, or before it
+      # has even pulled the image, so the provider says how long its box may take (Provider#ready_within). A box that
+      # never answers is reported with why its last health check failed. A stop ends the wait (StopSignal).
+      def wait_until_ready!(within: READY_TIMEOUT)
+        deadline = within.seconds.from_now
         loop do
-          return if alive?
-          raise Error, "The code sandbox did not come up within #{READY_TIMEOUT} seconds." if Time.current > deadline
+          failure = health_failure
+          return if failure.nil?
+          raise Error, Sentence.join("The code sandbox did not come up within #{within.to_i} seconds", failure) if Time.current > deadline
 
           pause(1)
         end
@@ -167,10 +169,13 @@ module Integrations
         send_json(Net::HTTP::Post, "/services", payload: { services: names }, read_timeout: 120)
       end
 
-      def alive?
-        send_json(Net::HTTP::Get, "/health", read_timeout: 5)["ok"] == true
-      rescue Error
-        false
+      def alive? = health_failure.nil?
+
+      # Why the box's health check did not answer ok, or nil when it did.
+      def health_failure
+        send_json(Net::HTTP::Get, "/health", read_timeout: 5)["ok"] == true ? nil : "its health check did not answer ok"
+      rescue Error => error
+        error.message
       end
 
       def lsp(repository:, method:, ref: nil, path: nil, line: nil, column: nil, language: nil, query: nil)

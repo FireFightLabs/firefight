@@ -16,6 +16,9 @@ module Integrations
       # project resource allowance".
       STORAGE_REFUSED = /ephemeral storage/i
       DESCRIPTION = "Firefight code sandbox".freeze
+      # A service is made at once and Northflank pulls the image after, which for a version new to the cluster can take
+      # minutes.
+      READY_WITHIN = 15.minutes
 
       def start(name:, owner: nil, **)
         suffix = host_suffix
@@ -72,6 +75,8 @@ module Integrations
       end
 
       def size = ENV["NORTHFLANK_SANDBOX_PLAN"].presence || DEFAULT_PLAN
+
+      def ready_within = READY_WITHIN.to_i
 
       # The plan's amountPerHour from Northflank's GET /v1/plans. A price that cannot be read leaves the box unpriced
       # rather than stopping it.

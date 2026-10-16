@@ -90,6 +90,11 @@ module Integrations
         assert_equal [ 2_048, 16_384 ], sizes
       end
 
+      test "a box is waited for long enough for Northflank to pull the image after the service is made" do
+        assert_equal 15.minutes.to_i, Northflank.new.ready_within
+        assert_operator Northflank.new.ready_within, :>, Client::READY_TIMEOUT
+      end
+
       test "storage past the project's allowance says which setting to change" do
         ENV.stubs(:[]).with("NORTHFLANK_SANDBOX_STORAGE").returns("16384")
         Http.stubs(:request).returns(response(400, { "error" => { "message" => "Configured runtime ephemeral storage exceeds your project resource allowance" } }))

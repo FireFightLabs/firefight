@@ -5,7 +5,7 @@ class CreateSandboxImageCopies < ActiveRecord::Migration[8.1]
       t.string :provider, null: false
       t.string :name, null: false
       t.string :status, null: false, default: "unclaimed"
-      t.string :box_ref
+      t.string :claimed_by
       t.datetime :claimed_at
       t.timestamps
       t.index [ :provider, :name ], unique: true
