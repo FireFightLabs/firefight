@@ -167,7 +167,10 @@ class Chat::CodeFixProgress
     works = works.compact
     questions = CodeAgentQuestion.where(id: works.filter_map { |work| work.question&.dig("id") }, workspace_id: workspace_id).to_a
     pauses = CodeAgentSession::Pause.where(id: works.filter_map { |work| work.pause&.dig("id") }, workspace_id: workspace_id).to_a
-    ActiveRecord::Associations::Preloader.new(records: questions + pauses, associations: :session).call
+    # One read for the sessions of both, rather than one per kind of record, so the count never rests on the query cache.
+    sessions = CodeAgentSession.where(id: questions.map(&:code_agent_session_id) | pauses.map(&:session_id)).index_by(&:id)
+    questions.each { |question| question.association(:session).target = sessions[question.code_agent_session_id] }
+    pauses.each { |pause| pause.association(:session).target = sessions[pause.session_id] }
     works.each { |work| work.records_read(workspace_id, questions.index_by { |row| row.id.to_s }, pauses.index_by { |row| row.id.to_s }) }
   end
 
