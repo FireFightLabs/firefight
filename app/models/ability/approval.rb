@@ -369,7 +369,14 @@ module Ability
 
       now = Time.current
       run_by = (now + RUN_WINDOW if held_for_run? && new_status == STATUS_APPROVED)
-      update!(status: new_status, approver: principal, resolved_at: now, run_expires_at: run_by)
+      # One guarded statement, so an approve and a deny landing together cannot both win.
+      decided = self.class.where(id: id, status: STATUS_PENDING).update_all(
+        status: new_status, approver_type: principal.class.polymorphic_name, approver_id: principal.id,
+        resolved_at: now, run_expires_at: run_by, updated_at: now
+      )
+      raise NotAllowed, "approval is no longer pending" if decided.zero?
+
+      reload
       resume_parked_request
     end
   end
