@@ -31,7 +31,7 @@ class SlackAuthenticationService
     membership = workspace.workspace_memberships.find_by(user: user)
     return AuthOutcome.signed_in(membership: membership.link_platform_user!(auth_hash.uid)) if membership
 
-    membership = WorkspaceMemberProvisioner.find_or_provision!(
+    membership = WorkspaceMemberProvisioner.admit!(
       workspace:        workspace,
       platform_user_id: auth_hash.uid,
       adapter:          workspace.adapter,
@@ -39,6 +39,8 @@ class SlackAuthenticationService
       user_profile:     auth_hash.info
     )
     AuthOutcome.signed_in(membership: membership, message: "Welcome to #{workspace.name}.")
+  rescue WorkspaceMemberProvisioner::Refused => e
+    AuthOutcome.refused(message: e.message)
   end
 
   # user comes from the prior OIDC sign-in, never the install auth_hash. pending_team_id must

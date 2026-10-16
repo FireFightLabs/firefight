@@ -1154,8 +1154,17 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # @return [Hash] { user_id:, display_name:, real_name:, avatar_url:, email:, timezone: }
+  # email_confirmed says the platform confirmed the person holds the email.
+  # @return [Hash] { user_id:, display_name:, real_name:, avatar_url:, email:, email_confirmed:, timezone: }
   def get_user_info(user_id:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Why a person the platform describes may not act through Firefight, such as a guest or someone from another
+  # organisation, in words for them, or nil for one of the workspace's own. profile is what get_user_info answered, or
+  # the same saved.
+  # @return [String, nil]
+  def member_refusal(profile:)
     raise NotImplemented.new(__method__, self.class)
   end
 

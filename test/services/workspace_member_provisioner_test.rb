@@ -6,9 +6,10 @@ class WorkspaceMemberProvisionerTest < ActiveSupport::TestCase
     @adapter   = mock("adapter")
   end
 
-  test "returns existing membership without hitting the adapter" do
+  test "returns existing membership without asking the platform again" do
     existing = workspace_memberships(:alice_workspace_one)
 
+    @adapter.stubs(:member_refusal).returns(nil)
     @adapter.expects(:get_user_info).never
 
     membership = WorkspaceMemberProvisioner.find_or_provision!(
@@ -21,13 +22,15 @@ class WorkspaceMemberProvisionerTest < ActiveSupport::TestCase
   end
 
   test "provisions a member via adapter.get_user_info when no membership exists" do
+    @adapter.stubs(:member_refusal).returns(nil)
     @adapter.expects(:get_user_info).with(user_id: "U_ADAPTER_PATH").returns(
       {
         user_id: "U_ADAPTER_PATH",
         display_name: "Real Name",
         real_name: "Real Name",
         avatar_url: "https://example.com/avatar.jpg",
-        email: "real@example.com"
+        email: "real@example.com",
+        email_confirmed: true
       }
     )
 
@@ -45,8 +48,9 @@ class WorkspaceMemberProvisionerTest < ActiveSupport::TestCase
     end
   end
 
-  test "skips adapter when user_profile is provided (OIDC path)" do
-    @adapter.expects(:get_user_info).never
+  test "a sign-in's own profile names the person, and the platform is still asked whether they are a member (OIDC path)" do
+    @adapter.stubs(:member_refusal).returns(nil)
+    @adapter.expects(:get_user_info).with(user_id: "U_OIDC_PATH").returns({ real_name: "From Slack", email: "oidc@example.com", email_confirmed: true })
 
     profile = OmniAuth::AuthHash::InfoHash.new(
       name: "Skip Adapter",
@@ -80,7 +84,8 @@ class WorkspaceMemberProvisionerTest < ActiveSupport::TestCase
     )
 
     @workspace.workspace_memberships.stubs(:find_by).returns(nil).then.returns(existing)
-    @adapter.stubs(:get_user_info).returns({ real_name: "Racer", email: "racer@example.com" })
+    @adapter.stubs(:member_refusal).returns(nil)
+    @adapter.stubs(:get_user_info).returns({ real_name: "Racer", email: "racer@example.com", email_confirmed: true })
 
     membership = nil
     assert_no_difference -> { @workspace.workspace_memberships.where(platform_user_id: "U_RACE").count } do
@@ -113,8 +118,9 @@ class WorkspaceMemberProvisionerTest < ActiveSupport::TestCase
   test "a teammate who joined by email is matched by who they are and gains their platform id" do
     teammate = User.create!(email: "joined-by-email@example.com", name: "Email Joiner")
     seat = @workspace.workspace_memberships.create!(user: teammate, role: :member, joined_at: Time.current)
+    @adapter.stubs(:member_refusal).returns(nil)
     @adapter.expects(:get_user_info).with(user_id: "U_EMAIL_JOINER").returns(
-      { real_name: "Email Joiner", email: "Joined-By-Email@example.com" }
+      { real_name: "Email Joiner", email: "Joined-By-Email@example.com", email_confirmed: true }
     )
 
     membership = assert_no_difference -> { @workspace.workspace_memberships.count } do
@@ -136,6 +142,51 @@ class WorkspaceMemberProvisionerTest < ActiveSupport::TestCase
 
     assert_equal seat, membership
     assert_equal "U_KNOWN", seat.reload.platform_user_id
+  end
+
+  test "an email the platform has not confirmed never reaches the person who holds it" do
+    holder = User.create!(email: "unconfirmed@example.com", name: "Holder")
+    @adapter.stubs(:member_refusal).returns(nil)
+    @adapter.stubs(:get_user_info).with(user_id: "U_UNCONFIRMED").returns({ real_name: "Claimant", email: "unconfirmed@example.com", email_confirmed: false })
+
+    membership = WorkspaceMemberProvisioner.find_or_provision!(workspace: @workspace, platform_user_id: "U_UNCONFIRMED", adapter: @adapter)
+
+    assert_not_equal holder, membership.user
+    assert_equal "Holder", holder.reload.name
+    assert_not_equal "unconfirmed@example.com", membership.user.email
+  end
+
+  test "a guest or someone from another organisation is refused with the platform's sentence and given no seat" do
+    profile = { real_name: "Guest", email: "guest@example.com", email_confirmed: true }
+    @adapter.stubs(:get_user_info).with(user_id: "U_GUEST").returns(profile)
+    @adapter.stubs(:member_refusal).with(profile: profile).returns("Guests of this Slack workspace can't use Firefight.")
+
+    assert_no_difference -> { @workspace.workspace_memberships.count } do
+      error = assert_raises(WorkspaceMemberProvisioner::Refused) do
+        WorkspaceMemberProvisioner.admit!(workspace: @workspace, platform_user_id: "U_GUEST", adapter: @adapter)
+      end
+      assert_equal "Guests of this Slack workspace can't use Firefight.", error.message
+      assert_nil WorkspaceMemberProvisioner.find_or_provision!(workspace: @workspace, platform_user_id: "U_GUEST", adapter: @adapter)
+      assert_equal "Guests of this Slack workspace can't use Firefight.",
+                   WorkspaceMemberProvisioner.refusal(workspace: @workspace, platform_user_id: "U_GUEST", adapter: @adapter)
+    end
+    assert_not User.exists?(email: "guest@example.com")
+  end
+
+  test "a member whose saved profile says they are a guest is asked about again, refused while they still are and let in once they are not" do
+    seat = workspace_memberships(:alice_workspace_one)
+    seat.update!(platform_data: { "raw" => { "is_restricted" => true } })
+    stored = seat.platform_data
+    @adapter.stubs(:member_refusal).with(profile: stored).returns("Guests can't.")
+    @adapter.stubs(:get_user_info).with(user_id: seat.platform_user_id).returns({ raw: { is_restricted: true } }).then.returns({ raw: { is_restricted: false } })
+    @adapter.stubs(:member_refusal).with(profile: { raw: { is_restricted: true } }).returns("Guests can't.")
+    @adapter.stubs(:member_refusal).with(profile: { raw: { is_restricted: false } }).returns(nil)
+
+    assert_raises(WorkspaceMemberProvisioner::Refused) do
+      WorkspaceMemberProvisioner.admit!(workspace: @workspace, platform_user_id: seat.platform_user_id, adapter: @adapter)
+    end
+    assert_equal seat, WorkspaceMemberProvisioner.admit!(workspace: @workspace, platform_user_id: seat.platform_user_id, adapter: @adapter)
+    assert_equal false, seat.reload.platform_data.dig("raw", "is_restricted"), "the refreshed profile is kept, so it is not asked again"
   end
 
   test "a member's platform id, once known, is never replaced by another account" do

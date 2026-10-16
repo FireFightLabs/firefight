@@ -123,6 +123,7 @@ module SlackClientStubHelper
         user: {
           id: "U_NEW_USER",
           name: "newuser",
+          is_email_confirmed: true,
           profile: {
             real_name: "New User",
             display_name: "newuser",

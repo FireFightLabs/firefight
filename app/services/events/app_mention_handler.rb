@@ -14,6 +14,9 @@ module Events
       # Outside an incident's channel Halon only takes an investigation, which answers in that channel.
       return unless incident || investigate?(user_text)
 
+      refusal = WorkspaceMemberProvisioner.refusal(workspace: workspace, platform_user_id: event["user"], adapter: workspace.adapter)
+      return notify_blocked(workspace, channel_id, event, refusal) if refusal
+
       gate = Entitlements.check(workspace, Entitlements::AI)
       return notify_blocked(workspace, channel_id, event, gate.message) if gate.blocked?
 

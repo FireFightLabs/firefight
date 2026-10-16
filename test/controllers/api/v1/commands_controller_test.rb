@@ -105,7 +105,7 @@ class Api::V1::CommandsControllerTest < ActionDispatch::IntegrationTest
   test "a first-time user is provisioned exactly once, on the way through the dispatcher" do
     stub_get_user_info
     stub_open_modal
-    WorkspaceMemberProvisioner.expects(:find_or_provision!).once.returns(nil)
+    WorkspaceMemberProvisioner.expects(:admit!).once.returns(nil)
 
     request_data = slack_command_request(
       team_id: @workspace.platform_id,
@@ -118,13 +118,35 @@ class Api::V1::CommandsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "a user whose profile cannot be read is refused with a message rather than dropped" do
-    WorkspaceMemberProvisioner.stubs(:find_or_provision!).raises(StandardError.new("API down"))
+    WorkspaceMemberProvisioner.stubs(:admit!).raises(StandardError.new("API down"))
 
     request_data = slack_command_request(team_id: @workspace.platform_id, text: Identifiers::SUBCOMMAND_NEW)
     post api_v1_commands_url, params: request_data[:body], headers: request_data[:headers]
 
     assert_response :success
     assert_equal AuthorizedDispatch::UNRESOLVED_MESSAGE, JSON.parse(response.body)["text"]
+  end
+
+  test "a guest of the Slack workspace is told in plain words that they cannot use Firefight, and gets no seat" do
+    Slack::Client.stubs(:get_user_info).returns({ user: { id: "U_GUEST", team_id: @workspace.platform_id, is_restricted: true, profile: { real_name: "Guest" } } })
+
+    request_data = slack_command_request(team_id: @workspace.platform_id, user_id: "U_GUEST", text: Identifiers::SUBCOMMAND_NEW)
+    assert_no_difference -> { @workspace.workspace_memberships.count } do
+      post api_v1_commands_url, params: request_data[:body], headers: request_data[:headers]
+    end
+
+    assert_response :success
+    assert_equal Slack::WorkspaceAdapter::GUEST_REFUSAL, JSON.parse(response.body)["text"]
+  end
+
+  test "someone from another organisation in a shared channel is refused" do
+    Slack::Client.stubs(:get_user_info).returns({ user: { id: "U_OUTSIDE", team_id: "T0ELSEWHERE", profile: { real_name: "Outsider" } } })
+
+    request_data = slack_command_request(team_id: @workspace.platform_id, user_id: "U_OUTSIDE", text: Identifiers::SUBCOMMAND_NEW)
+    post api_v1_commands_url, params: request_data[:body], headers: request_data[:headers]
+
+    assert_equal Slack::WorkspaceAdapter::OUTSIDER_REFUSAL, JSON.parse(response.body)["text"]
+    assert_not @workspace.workspace_memberships.exists?(platform_user_id: "U_OUTSIDE")
   end
 
   test "should reject request without signature" do

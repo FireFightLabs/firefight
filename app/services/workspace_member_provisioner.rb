@@ -1,21 +1,46 @@
 class WorkspaceMemberProvisioner
-  # user and user_profile skip the email lookup and the adapter fetch when the caller already
-  # has them. user_profile takes the OIDC info shape or Slack's users.info shape. Returns nil on AdapterError.
-  # A person who joined by email before using the platform here is matched by who they are, and keeps their seat.
-  def self.find_or_provision!(workspace:, platform_user_id:, adapter:, user: nil, user_profile: nil)
+  # The platform says this person is not one of the workspace's own, such as a guest or someone from another
+  # organisation reached through a shared channel. The message is the platform's sentence for them.
+  class Refused < StandardError; end
+
+  # Everyone who only needs to know whether someone is a member asks this. A person the platform refuses is nil, as an
+  # unreadable profile is.
+  def self.find_or_provision!(**)
+    admit!(**)
+  rescue Refused
+    nil
+  end
+
+  # The sentence a person is refused with, or nil once they are a member, provisioned on the way. For a way in that
+  # tells the person why.
+  def self.refusal(**)
+    admit!(**)
+    nil
+  rescue Refused => e
+    e.message
+  end
+
+  # user skips the email lookup when the caller already knows who signed in, and user_profile names them. The platform
+  # is still asked whether the person belongs to the workspace. A person who joined by email before using the platform
+  # here is matched by who they are, and by email only when the platform confirmed it. Returns nil on AdapterError.
+  def self.admit!(workspace:, platform_user_id:, adapter:, user: nil, user_profile: nil)
     existing = workspace.workspace_memberships.find_by(platform_user_id: platform_user_id)
-    return existing if existing
+    return still_admitted!(existing, adapter) if existing
 
     joined = user && workspace.workspace_memberships.find_by(user: user)
     return joined.link_platform_user!(platform_user_id, plain(user_profile)) if joined
 
-    profile = user_profile || fetch_profile(adapter, platform_user_id)
+    profile = fetch_profile(adapter, platform_user_id)
+    refused = adapter.member_refusal(profile: profile)
+    raise Refused, refused if refused
 
-    name = pick(profile, :real_name, :name).presence ||
-           pick(profile, :display_name).presence ||
+    named = user_profile || profile
+    name = pick(named, :real_name, :name).presence ||
+           pick(named, :display_name).presence ||
            platform_user_id
 
-    email = pick(profile, :email).presence ||
+    confirmed = pick(profile, :email_confirmed) == true
+    email = (pick(profile, :email).presence if confirmed) ||
             "#{platform_user_id}@users.slack.#{workspace.platform_id}"
 
     user ||= begin
@@ -26,13 +51,13 @@ class WorkspaceMemberProvisioner
     end
 
     joined = workspace.workspace_memberships.find_by(user: user)
-    return joined.link_platform_user!(platform_user_id, plain(profile)) if joined
+    return joined.link_platform_user!(platform_user_id, plain(user_profile || profile)) if joined
 
     workspace.workspace_memberships.create!(
       user: user,
       platform_user_id: platform_user_id,
       role: :member,
-      platform_data: plain(profile),
+      platform_data: plain(user_profile || profile),
       joined_at: Time.current
     )
   rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
@@ -50,6 +75,30 @@ class WorkspaceMemberProvisioner
     nil
   end
 
+  # A member whose saved profile says they would be refused today is asked about again, so a guest made a full member
+  # gets in and one who still is a guest stays out. Everyone else is let in without asking the platform.
+  def self.still_admitted!(membership, adapter)
+    return membership unless refused_when_saved?(membership, adapter)
+
+    profile = fetch_profile(adapter, membership.platform_user_id)
+    membership.update!(platform_data: plain(profile))
+    refused = adapter.member_refusal(profile: profile)
+    raise Refused, refused if refused
+
+    membership
+  end
+  private_class_method :still_admitted!
+
+  # A workspace whose platform is gone cannot say, and its members keep their seats.
+  def self.refused_when_saved?(membership, adapter)
+    return false if membership.platform_data.blank?
+
+    adapter.member_refusal(profile: membership.platform_data).present?
+  rescue AdapterError
+    false
+  end
+  private_class_method :refused_when_saved?
+
   def self.plain(profile)
     profile.is_a?(Hash) ? profile : {}
   end
@@ -64,8 +113,8 @@ class WorkspaceMemberProvisioner
   def self.pick(profile, *keys)
     keys.each do |key|
       value = profile.respond_to?(key) ? profile.public_send(key) :
-              profile.is_a?(Hash) ? (profile[key] || profile[key.to_s]) : nil
-      return value if value.present?
+              profile.is_a?(Hash) ? (profile[key].nil? ? profile[key.to_s] : profile[key]) : nil
+      return value unless value.nil? || value == ""
     end
     nil
   end

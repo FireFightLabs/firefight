@@ -58,6 +58,18 @@ class Events::AppMentionHandlerTest < ActiveSupport::TestCase
     end
   end
 
+  test "a guest who mentions Halon is told, to them alone, that guests cannot use Firefight, and nothing is asked" do
+    Slack::Client.stubs(:get_user_info).returns({ user: { id: "U_GUEST", team_id: @workspace.platform_id, is_restricted: true } })
+    Slack::WorkspaceAdapter.any_instance.expects(:post_refusal)
+      .with(channel_id: @incident.channel_id, thread_id: nil, user_id: "U_GUEST", text: Slack::WorkspaceAdapter::GUEST_REFUSAL).returns({ success: true })
+
+    assert_no_enqueued_jobs do
+      Events::AppMentionHandler.execute(@workspace, payload(user: "U_GUEST"))
+    end
+    assert_not @workspace.workspace_memberships.exists?(platform_user_id: "U_GUEST")
+    assert_equal 0, @workspace.conversations.count
+  end
+
   test "skips when text is empty after stripping mention" do
     assert_no_enqueued_jobs do
       Events::AppMentionHandler.execute(@workspace, payload(text: "<@U99999999>"))
@@ -111,13 +123,13 @@ class Events::AppMentionHandlerTest < ActiveSupport::TestCase
   private
 
   # Slack names the app's own user in every event's authorizations.
-  def payload(team_id: nil, channel: nil, text: nil, app_user_id: "U99999999", thread: nil)
+  def payload(team_id: nil, channel: nil, text: nil, app_user_id: "U99999999", thread: nil, user: nil)
     {
       "team_id" => team_id || @workspace.platform_id,
       "authorizations" => ([ { "user_id" => app_user_id, "is_bot" => true } ] if app_user_id),
       "event" => {
         "type" => "app_mention",
-        "user" => @member.platform_user_id,
+        "user" => user || @member.platform_user_id,
         "text" => text || "<@U99999999> what's happening with this incident?",
         "ts" => "1234567890.123456",
         "thread_ts" => thread,
