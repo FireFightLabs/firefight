@@ -335,7 +335,7 @@ class Investigation::FixRunnerTest < ActiveSupport::TestCase
     assert_equal "Step 1 is for a person, but Firefight does that with invite_responders. Make it an action step with invite_responders, " \
                  "or say in missing why invite_responders cannot do it here.", refused.message
 
-    [ "invite_responders", " invite_responders. ", "`invite_responders`" ].each do |bare|
+    [ "invite_responders", " invite_responders. ", "`invite_responders`", "invite_responders, invite_responders" ].each do |bare|
       named_only = assert_raises(Investigation::RemediationPlan::Refused, "#{bare.inspect} names the tool without saying why it cannot") do
         Investigation::RemediationPlan.check!(@workspace, { "summary" => "Lead", "steps" => [ by_hand.merge("missing" => bare) ] }, principal: @alice)
       end

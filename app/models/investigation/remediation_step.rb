@@ -607,7 +607,7 @@ class Investigation::RemediationStep < ApplicationRecord
     words = "#{step.title} #{step.description}"
     doer = Mcp::Tools.for_fixes(workspace).find { |tool_class| tool_class.by_hand_words&.match?(words) }&.name_value&.to_s
     missing = step.missing.to_s
-    return if doer.nil? || (missing.include?(doer) && missing.sub(doer, "").match?(/\p{Alpha}/))
+    return if doer.nil? || (missing.include?(doer) && missing.gsub(doer, "").match?(/\p{Alpha}/))
 
     refuse(step.position, "is for a person, but Firefight does that with #{doer}. Make it an action step with #{doer}, " \
                           "or say in missing why #{doer} cannot do it here")
