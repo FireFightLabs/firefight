@@ -280,6 +280,41 @@ module FirefightAi
     RubyLLM.models.refresh.all.size
   end
 
+  # How often, in seconds, a process asks whether the models table changed since it read it (keep_registry_current).
+  REGISTRY_CHECK_SECONDS = 60
+  REGISTRY_LOCK = Mutex.new
+
+  # A process reads the models table once and keeps what it read, and a refresh runs in one job, which changes only that
+  # process's copy. So every process asks at most once a minute, before a request or a job, and reads the table again
+  # once it changed, and a model a refresh brought in is used everywhere from then on rather than after the next deploy.
+  def keep_registry_current
+    now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    return if @registry_checked_at && now - @registry_checked_at < REGISTRY_CHECK_SECONDS
+
+    REGISTRY_LOCK.synchronize do
+      return if @registry_checked_at && now - @registry_checked_at < REGISTRY_CHECK_SECONDS
+
+      @registry_checked_at = now
+      reload_registry_if_changed!
+    end
+  end
+
+  # Reads the models table again when it holds rows and is not what this process last read, which is always so the first
+  # time. How many rows it holds and when the newest changed tell, since a refresh adds, removes or updates rows. An
+  # empty table is left alone, so RubyLLM keeps the catalog its gem shipped with until a chat or a refresh fills it.
+  def reload_registry_if_changed!
+    store = RubyLLM.config.model_registry_store
+    return unless store.respond_to?(:pick)
+
+    stamp = store.pick(Arel.sql("COUNT(*)"), Arel.sql("MAX(updated_at)"))
+    return if stamp.first.to_i.zero? || stamp == @registry_stamp
+
+    RubyLLM.models.load_from_store
+    @registry_stamp = stamp
+  rescue ActiveRecord::ActiveRecordError => e
+    Rails.logger.warn({ event: "ai.model_registry_unread", error: e.class.name, message: e.message }.to_json)
+  end
+
   # A model whose price the registry does not know is billed at zero, so nothing stops a run that uses it.
   def priced?(model_id)
     priced_model?(RubyLLM.models.all.find { |candidate| candidate.id == model_id.to_s })
