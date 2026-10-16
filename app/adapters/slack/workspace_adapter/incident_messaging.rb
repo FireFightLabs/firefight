@@ -742,20 +742,22 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     open_modal(trigger_id: trigger_id, view: Slack::Modals::HeldCallDetails.build(held_call))
   end
 
-  def post_watch_update(channel_id:, thread_id:, update:)
-    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
-                          text: Slack::Messages::WatchUpdate.fallback(update), blocks: Slack::Messages::WatchUpdate.build(update))
+  def post_watch_card(channel_id:, thread_id:, card:)
+    with_rich_blocks do |rich|
+      post_where(channel_id, thread_id, text: Slack::Messages::WatchCard.fallback(card), blocks: Slack::Messages::WatchCard.build(card, rich: rich))
+    end
   end
 
-  def post_watch_update_to_user(user_id:, update:, conversation_id: nil)
-    post_message(channel_id: user_id, text: Slack::Messages::WatchUpdate.fallback(update),
-                 blocks: Slack::Messages::WatchUpdate.build(update, direct: true, conversation_id: conversation_id))
-  end
-
-  def update_watch_update(channel_id:, message_id:, update:, direct: false, conversation_id: nil)
-    update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::WatchUpdate.fallback(update),
-                   blocks: Slack::Messages::WatchUpdate.build(update, direct: direct, conversation_id: conversation_id))
+  def update_watch_card(channel_id:, message_id:, card:)
+    with_rich_blocks do |rich|
+      update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::WatchCard.fallback(card),
+                     blocks: Slack::Messages::WatchCard.build(card, rich: rich))
+    end
     { success: true }
+  end
+
+  def post_watch_end(channel_id:, thread_id:, card:)
+    post_where(channel_id, thread_id, text: Slack::Messages::WatchCard.fallback(card), blocks: Slack::Messages::WatchCard.ended(card))
   end
 
   def post_chat_plan(channel_id:, thread_id:, plan:)
@@ -1033,6 +1035,13 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   private
+
+  # In a thread when there is one, otherwise a message of its own, such as to a person's direct messages by their user id.
+  def post_where(channel_id, thread_id, text:, blocks:)
+    return post_message(channel_id: channel_id, text: text, blocks: blocks) if thread_id.blank?
+
+    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id, text: text, blocks: blocks)
+  end
 
   # Where the workspace's Slack refused one of the newer blocks (plan, card), remembered on the workspace, so its messages
   # go as plain blocks without asking again until RETRY_RICH_BLOCKS_AFTER has passed, in case the workspace changed plans.
