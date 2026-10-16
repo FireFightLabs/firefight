@@ -34,6 +34,18 @@ class Interactions::FixStepDecisionHandlerTest < ActiveSupport::TestCase
     assert_equal Investigation::RemediationStep::STATUS_SKIPPED, @step.reload.status
   end
 
+  test "Try again on a failed step proposes it again and hands the fix to its job, and a second press is told why not, privately" do
+    @step.update_columns(status: Investigation::RemediationStep::STATUS_FAILED, approval_id: nil, failure: Investigation::RemediationStep::FAILURE_TOOL_SAID)
+    @plan.update_columns(status: Investigation::RemediationPlan::STATUS_PARTLY_APPLIED)
+
+    assert_enqueued_with(job: InvestigationFixJob, args: [ @plan.id ]) { Interactions::FixStepDecisionHandler.execute(press(Identifiers::FIX_STEP_RETRY)) }
+    assert_equal [ Investigation::RemediationStep::STATUS_PROPOSED, nil ], [ @step.reload.status, @step.failure ]
+    assert_equal Investigation::RemediationPlan::STATUS_APPLYING, @plan.reload.status
+
+    Slack::Client.expects(:post_ephemeral).with { |arguments| arguments[:text] == "Step 1 is not started, so there is nothing to try again." }.returns({ ok: true })
+    assert_no_enqueued_jobs(only: InvestigationFixJob) { Interactions::FixStepDecisionHandler.execute(press(Identifiers::FIX_STEP_RETRY)) }
+  end
+
   private
 
   def press(action_id)

@@ -219,6 +219,8 @@ Sentence case for titles: "Incident canceled", not "Incident Canceled".
 
 ## Messages that are edited in place
 
+An investigation's checklist and a fix's are edited in place the same way, see An investigation in a channel.
+
 `Welcome` is the onboarding checklist in `#incidents`, rebuilt from
 `WorkspaceOnboarding#stage` and updated through `update_welcome_message`
 as the first incident moves. It is the one message where an edit is the right
@@ -233,6 +235,52 @@ incident earns it (declared, lead set, first message, resolved, postmortem),
 with the last posted step kept on the onboarding row so nothing posts twice. `Resolution` carries the postmortem button and a
 context line naming what the draft is built from, and drops both when the
 incident already has a write-up.
+
+## An investigation in a channel
+
+A Halon run is followed from the channel and worked in the thread. Only what everyone in the channel should see is
+also sent to the channel (`post_threaded_message(broadcast: true)`, Slack's "Also send to channel"): the answer, a fix
+starting, and how a fix ended. Nothing else is broadcast, a stop included, which the checklist says.
+
+- **The run's first message is its checklist** (`InvestigationRun.checklist`), the thread's parent, redrawn in place
+  with `chat.update` as the run moves (`update_investigation_progress`). It is Slack's `plan` block, one task per kind
+  of system Halon read (`Investigation::Progress`, read from the run's own steps, so a resumed run and a redraw say
+  the same thing), at most five plus "Ran other checks", then the answer as the last task. Under it a context line
+  says who started it and an Open in Firefight button. `Investigation::Delivery` redraws it at most once every
+  `agent_step_update_interval` seconds and never with the same content twice, and always draws the last word.
+- **A plan block takes a new `block_id` on every redraw**, which Slack asks for, so `Checklist.plan` derives it from
+  what the plan says.
+- **The steps themselves stream in the thread** as before (`report_agent_step`). The answer stops the stream without
+  adding to it (`end_agent_steps`), so the steps stay where they were read.
+- **The answer is short and plain** (`InvestigationRun.answer`), from the plain fields the agent concludes with
+  (`Investigation::Finding#headline`, `sureness`, `what_is_wrong_line`, `short_evidence`, `suggested_fix_line`,
+  `not_checked`): a title with the kind of answer and how sure, a divider, at most five lines (what is wrong, up to
+  three facts, the suggested fix), the buttons, and what could not be checked as one italic context line. Nothing in
+  it is code, so `plain` drops backticks and cuts each line short.
+- **The full answer is the next thread reply** (`InvestigationRun.answer_detail`), never broadcast: the summary as the
+  agent wrote it, every claim with its sources, the fix step by step with what it sends, the gaps in full and "Was this
+  answer right?".
+- **A fix is the same kind of checklist** (`FixProgress.build`), posted once in the thread and the channel and redrawn
+  in place. Each step is its short name (`RemediationStep#shown_title`), never the instructions, with how it stands. A
+  failed or declined step says why in plain words (`failure_line`, "Couldn't open a pull request with the change: the
+  code sandbox didn't start."), never the tool's own error, which stays on the run page. Under the plan come the rows
+  someone can act on (Mark done, Run and Dismiss, Try again), then a footer and Undo fix, Cancel fix and Open in
+  Firefight. Its end is posted once each time the fix ends (`FixProgress.ended`, claimed with `ending_told_at`).
+
+```
+:hammer_and_wrench:  plan "Fix stopped: 1 of 2 steps failed"
+  ✓ 1. Roll back checkout
+  ✗ 2. Open a pull request with the change   Couldn't open a pull request with the change: the code sandbox didn't start.
+Couldn't open a pull request with the change: the code sandbox didn't start.        [Try again]
+Applied by @Dana  ·  1 of 2 steps done
+[Undo fix] [Open in Firefight]
+```
+
+**A workspace whose Slack does not show plan blocks** gets the same checklist as plain blocks: a title, a divider and
+one line per task marked by status. Slack answers a refused plan block with `invalid_blocks`, which the client raises
+as `AdapterError::Unrenderable`. `with_plan_blocks` then posts the plain version at once and remembers the refusal on
+the workspace (`platform_data["plan_blocks_refused_at"]`), so later checklists go plain without asking, and tries the
+plan block again after a week in case the workspace changed plans.
 
 ## Asking for a pack
 

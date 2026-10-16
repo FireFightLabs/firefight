@@ -13,6 +13,19 @@ class Investigation::Finding < ApplicationRecord
   # How a person rating an answer reads each outcome.
   OUTCOME_WORDS = { OUTCOME_CONFIRMED => "right", OUTCOME_PARTIAL => "partly right", OUTCOME_WRONG => "wrong" }.freeze
 
+  # What kind of answer it is, as the agent judged it when it concluded.
+  KIND_ROOT_CAUSE = "root_cause".freeze
+  KIND_LIKELY_CAUSE = "likely_cause".freeze
+  KIND_NO_CAUSE = "no_cause".freeze
+  KINDS = [ KIND_ROOT_CAUSE, KIND_LIKELY_CAUSE, KIND_NO_CAUSE ].freeze
+  HEADLINES = { KIND_ROOT_CAUSE => "Root cause found", KIND_LIKELY_CAUSE => "Likely cause", KIND_NO_CAUSE => "No cause found yet" }.freeze
+  # A root cause is said to be found only when the agent is this sure of it. Below, it is a likely cause.
+  FOUND_AT = 0.7
+  # How sure the agent is, from the most sure down, in the words a responder reads.
+  SURENESS = [ [ 0.85, "Very sure" ], [ 0.6, "Fairly sure" ], [ 0.35, "Not very sure" ], [ 0, "A guess" ] ].freeze
+  # The short answer cites this many claims at most, and the rest are in the full answer.
+  SHORT_EVIDENCE = 3
+
   belongs_to :investigation
   belongs_to :winning_hypothesis, class_name: "Investigation::Hypothesis", optional: true
   belongs_to :outcome_by, polymorphic: true, optional: true
@@ -42,6 +55,31 @@ class Investigation::Finding < ApplicationRecord
 
   validates :published_state, inclusion: { in: STATES }
   validates :outcome, inclusion: { in: OUTCOMES }, allow_nil: true
+  validates :answer_kind, inclusion: { in: KINDS }, allow_nil: true
+
+  # The kind the short answer leads with. A root cause the agent is not sure of reads as a likely one, and an answer
+  # written before kinds were asked for is read from whether it named a cause.
+  def shown_kind
+    kind = answer_kind || (winning_hypothesis_id ? KIND_LIKELY_CAUSE : KIND_NO_CAUSE)
+    kind == KIND_ROOT_CAUSE && confidence && confidence < FOUND_AT ? KIND_LIKELY_CAUSE : kind
+  end
+
+  def headline = HEADLINES.fetch(shown_kind)
+
+  # How sure the agent is, in words, or nil for an answer with no cause or no confidence given.
+  def sureness
+    return nil if confidence.nil? || shown_kind == KIND_NO_CAUSE
+
+    SURENESS.find { |floor, _words| confidence >= floor }&.last
+  end
+
+  # What is wrong in one plain sentence. An answer written before it was asked for gives its summary's first sentence.
+  def what_is_wrong_line = what_is_wrong.presence || summary.to_s.split(/(?<=[.!?])\s/).first.to_s.strip
+
+  # The claims the short answer cites, each in plain words where the agent gave them.
+  def short_evidence = evidence_items.first(SHORT_EVIDENCE).map { |item| item.plain.presence || item.claim }
+
+  def suggested_fix_line = suggested_fix.presence || remediation_plan&.summary
 
   # Answers the team stood by or marked wrong, in workspaces that let Firefight test Halon on them. Only a run that
   # finished can be replayed, since a replay answers every call from what the run read.
@@ -86,8 +124,8 @@ class Investigation::Finding < ApplicationRecord
     won == 1
   end
 
-  def add_evidence!(claim:, sources:, position:)
-    item = evidence_items.create!(claim: claim, position: position)
+  def add_evidence!(claim:, sources:, position:, plain: nil)
+    item = evidence_items.create!(claim: claim, plain: plain, position: position)
     sources.each { |source| item.citations.create!(source: source) }
     item
   end

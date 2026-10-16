@@ -15,6 +15,8 @@ class AdapterError < StandardError
   # The workspace has not granted the app a permission the call needs, such as uploading files.
   class MissingPermission < AdapterError; end
   class UnsafeDownloadHost < AdapterError; end
+  # The platform refused how a message was laid out, such as a kind of block the workspace's plan does not show.
+  class Unrenderable < AdapterError; end
 
   # The workspace has no chat platform yet, so there is nobody to reach.
   class NotConnected < AdapterError

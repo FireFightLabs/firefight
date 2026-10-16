@@ -65,8 +65,9 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # broadcast also shows the reply in the channel itself, for what everyone there should see.
   # @return [Hash] { message_id: ..., channel_id: ... }
-  def post_threaded_message(channel_id:, parent_message_id:, text:, blocks: nil)
+  def post_threaded_message(channel_id:, parent_message_id:, text:, blocks: nil, broadcast: false)
     raise NotImplemented.new(__method__, self.class)
   end
 
@@ -488,11 +489,19 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Says an investigation has started, and opens the thread the rest of it goes in. incident is nil for a question
-  # nobody has declared an incident for, which is then named by the question. Where the app cannot post, it goes to
-  # fallback_user_id directly when one is given, and channel_id says where it went.
+  # Says an investigation has started with its checklist, and opens the thread the rest of it goes in. incident is nil
+  # for a question nobody has declared an incident for, which is then named by the question. Where the app cannot post,
+  # it goes to fallback_user_id directly when one is given, and channel_id says where it went.
+  # @param progress [Investigation::Progress]
   # @return [Hash] { message_id:, channel_id: }
-  def post_investigation_started(channel_id:, incident:, started_by:, question: nil, fallback_user_id: nil)
+  def post_investigation_started(channel_id:, incident:, started_by:, progress:, question: nil, fallback_user_id: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws the message that started the run, in place, with its checklist as it stands. Nobody is notified.
+  # @param progress [Investigation::Progress]
+  # @return [Hash] { success: true }
+  def update_investigation_progress(channel_id:, message_id:, incident:, started_by:, progress:, question: nil)
     raise NotImplemented.new(__method__, self.class)
   end
 
@@ -509,13 +518,15 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # An answer given before its incident existed, posted in the channel of the incident declared from it.
+  # An answer given before its incident existed, posted in the channel of the incident declared from it, with the full
+  # answer under it.
   # @return [Hash] { message_id:, channel_id: }
   def post_investigation_carried_over(channel_id:, finding:)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # The answer, and the end of the working state.
+  # The answer, and the end of the working state: the short answer in the thread and where the whole channel sees it,
+  # then the full answer in the thread only. message_id is the short answer's.
   # @return [Hash] { message_id:, channel_id: }
   def post_investigation_answer(channel_id:, thread_id:, answer_id:, finding:)
     raise NotImplemented.new(__method__, self.class)
@@ -552,9 +563,16 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # A run's fix as it is applied, in the run's thread, with Mark done on each step a person does.
+  # A run's fix as it is applied, in the run's thread and where the whole channel sees it, with Mark done on each step a
+  # person does and Try again on each that failed.
   # @return [Hash] { message_id:, channel_id: }
   def post_fix_progress(channel_id:, thread_id:, plan:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # How a fix ended, applied, stopped with what failed, or cancelled, in the run's thread and the channel.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_fix_ended(channel_id:, thread_id:, plan:)
     raise NotImplemented.new(__method__, self.class)
   end
 

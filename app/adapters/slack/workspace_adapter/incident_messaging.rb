@@ -431,15 +431,25 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   }.freeze
 
   # A bot posts to any public channel, but not to a private one it is not in. Posting to a person opens their DM with it.
-  def post_investigation_started(channel_id:, incident:, started_by:, question: nil, fallback_user_id: nil)
-    blocks = Slack::Messages::InvestigationRun.started(incident: incident, question: question, started_by: started_by)
+  def post_investigation_started(channel_id:, incident:, started_by:, progress:, question: nil, fallback_user_id: nil)
     text = Slack::Messages::InvestigationRun.started_text(incident: incident, question: question)
-    begin
-      post_message(channel_id: channel_id, text: text, blocks: blocks)
-    rescue AdapterError::NotInChannel, AdapterError::NotFound
-      raise if fallback_user_id.blank?
+    with_plan_blocks do |rich|
+      blocks = Slack::Messages::InvestigationRun.checklist(progress: progress, incident: incident, question: question, started_by: started_by, rich: rich)
+      begin
+        post_message(channel_id: channel_id, text: text, blocks: blocks)
+      rescue AdapterError::NotInChannel, AdapterError::NotFound
+        raise if fallback_user_id.blank?
 
-      post_message(channel_id: fallback_user_id, text: text, blocks: blocks)
+        post_message(channel_id: fallback_user_id, text: text, blocks: blocks)
+      end
+    end
+  end
+
+  def update_investigation_progress(channel_id:, message_id:, incident:, started_by:, progress:, question: nil)
+    text = Slack::Messages::InvestigationRun.checklist_title(progress, incident, question)
+    with_plan_blocks do |rich|
+      blocks = Slack::Messages::InvestigationRun.checklist(progress: progress, incident: incident, question: question, started_by: started_by, rich: rich)
+      update_message(channel_id: channel_id, message_id: message_id, text: text, blocks: blocks)
     end
   end
 
@@ -499,17 +509,24 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     run = finding.investigation
     question = run.question
     question = messages_as_text(texts: [ question ])[question] if question.present? && run.question_in_platform_markup?
-    post_message(
-      channel_id: channel_id, text: finding.summary.to_s,
+    posted = post_message(
+      channel_id: channel_id, text: Slack::Messages::InvestigationRun.answer_text(finding),
       blocks: Slack::Messages::InvestigationRun.carried_over(finding: finding, question: question)
     )
+    post_answer_detail(channel_id, posted[:message_id], finding)
+    posted
   end
 
+  # The working state ends with the steps the thread already shows. The short answer then goes to the thread and the
+  # channel, and the full answer follows it in the thread.
   def post_investigation_answer(channel_id:, thread_id:, answer_id:, finding:)
-    finish_agent_answer(
-      channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,
-      text: finding.summary.to_s, blocks: Slack::Messages::InvestigationRun.finding(finding: finding)
+    end_agent_steps(channel_id: channel_id, thread_id: thread_id, answer_id: answer_id)
+    posted = post_threaded_message(
+      channel_id: channel_id, parent_message_id: thread_id, text: Slack::Messages::InvestigationRun.answer_text(finding),
+      blocks: Slack::Messages::InvestigationRun.answer(finding: finding), broadcast: true
     )
+    post_answer_detail(channel_id, thread_id, finding)
+    posted
   end
 
   def post_investigation_stopped(channel_id:, thread_id:, answer_id:, reason:, where_it_stopped: nil, rerun: nil, rerun_question: nil,
@@ -553,8 +570,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def update_investigation_answer(channel_id:, message_id:, finding:)
-    update_message(channel_id: channel_id, message_id: message_id, text: finding.summary.to_s,
-                   blocks: Slack::Messages::InvestigationRun.finding(finding: finding))
+    update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::InvestigationRun.answer_text(finding),
+                   blocks: Slack::Messages::InvestigationRun.answer(finding: finding))
     { success: true }
   end
 
@@ -564,14 +581,23 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_fix_progress(channel_id:, thread_id:, plan:)
-    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
-                          text: Slack::Messages::FixProgress.fallback(plan), blocks: Slack::Messages::FixProgress.build(plan))
+    with_plan_blocks do |rich|
+      post_threaded_message(channel_id: channel_id, parent_message_id: thread_id, broadcast: true,
+                            text: Slack::Messages::FixProgress.fallback(plan), blocks: Slack::Messages::FixProgress.build(plan, rich: rich))
+    end
   end
 
   def update_fix_progress(channel_id:, message_id:, plan:)
-    update_message(channel_id: channel_id, message_id: message_id,
-                   text: Slack::Messages::FixProgress.fallback(plan), blocks: Slack::Messages::FixProgress.build(plan))
+    with_plan_blocks do |rich|
+      update_message(channel_id: channel_id, message_id: message_id,
+                     text: Slack::Messages::FixProgress.fallback(plan), blocks: Slack::Messages::FixProgress.build(plan, rich: rich))
+    end
     { success: true }
+  end
+
+  def post_fix_ended(channel_id:, thread_id:, plan:)
+    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id, broadcast: true,
+                          text: Slack::Messages::FixProgress.ended_text(plan), blocks: Slack::Messages::FixProgress.ended(plan))
   end
 
   def post_unattended_note(channel_id:, thread_id:, note:)
@@ -936,6 +962,58 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   private
+
+  # Where the workspace's Slack refused a plan block, remembered on the workspace, so its checklists go as plain text
+  # without asking again until RETRY_PLAN_BLOCKS_AFTER has passed, in case the workspace changed plans.
+  PLAN_BLOCKS_REFUSED_AT = "plan_blocks_refused_at".freeze
+  RETRY_PLAN_BLOCKS_AFTER = 7.days
+
+  # Yields whether to draw plan blocks, and draws the same message plainly when Slack refuses them, so a checklist is
+  # never lost to how it looks.
+  def with_plan_blocks
+    if plan_blocks?
+      begin
+        return yield(true)
+      rescue AdapterError::Unrenderable => error
+        Rails.logger.info({ event: "slack.plan_blocks_refused", workspace_id: @workspace.id, error: error.message }.to_json)
+        plan_blocks_refused!
+      end
+    end
+    yield(false)
+  end
+
+  def plan_blocks?
+    refused = @workspace.platform_data.to_h[PLAN_BLOCKS_REFUSED_AT]
+    refused.blank? || Time.zone.parse(refused.to_s) < RETRY_PLAN_BLOCKS_AFTER.ago
+  end
+
+  def plan_blocks_refused!
+    now = Time.current.iso8601
+    Workspace.where(id: @workspace.id)
+             .update_all([ "platform_data = COALESCE(platform_data, '{}'::jsonb) || jsonb_build_object(?::text, ?::text)", PLAN_BLOCKS_REFUSED_AT, now ])
+    @workspace.platform_data = @workspace.platform_data.to_h.merge(PLAN_BLOCKS_REFUSED_AT => now)
+  end
+
+  # Stops the stream that showed the run's steps in its thread, keeping them, and clears the working state. A stream that
+  # already ended is left as it was, since the answer follows it either way.
+  def end_agent_steps(channel_id:, thread_id:, answer_id:)
+    if answer_id.present?
+      begin
+        Slack::Client.stop_stream(workspace: @workspace, channel: channel_id, ts: answer_id)
+      rescue AdapterError => error
+        Rails.logger.info("slack.agent_steps.not_stopped error=#{error.class.name} message=#{error.message}")
+      end
+    end
+    clear_agent_session(channel_id: channel_id, thread_id: thread_id)
+  end
+
+  # The short answer is already posted, so a full answer that cannot be is logged rather than failing the run.
+  def post_answer_detail(channel_id, thread_id, finding)
+    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id, text: Slack::Messages::InvestigationRun.answer_detail_text(finding),
+                          blocks: Slack::Messages::InvestigationRun.answer_detail(finding: finding))
+  rescue AdapterError => error
+    Rails.logger.warn({ event: "slack.answer_detail_not_posted", finding_id: finding.id, error: error.message }.to_json)
+  end
 
   # The caption goes as the upload's comment. A note with no image, or a workspace that has not granted file uploads,
   # gets the caption as a plain message instead.

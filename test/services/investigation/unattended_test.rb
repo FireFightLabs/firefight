@@ -6,7 +6,7 @@ class Investigation::UnattendedTest < ActiveSupport::TestCase
 
   setup do
     alert_run_with_restart_fix
-    @adapter = stub(post_fix_progress: { message_id: "1.2", channel_id: "C1" }, update_fix_progress: { success: true },
+    @adapter = stub(post_fix_progress: { message_id: "1.2", channel_id: "C1" }, post_fix_ended: { message_id: "1.3", channel_id: "C1" }, update_fix_progress: { success: true },
                     update_investigation_answer: { success: true })
     WorkspaceAdapter.stubs(:for).returns(@adapter)
   end

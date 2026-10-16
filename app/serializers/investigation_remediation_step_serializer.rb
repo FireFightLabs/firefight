@@ -76,6 +76,17 @@ class InvestigationRemediationStepSerializer < BaseSerializer
   type :string, optional: true
   def mark_done_blocked_reason = step.mark_done_blocked_reason
 
+  # Whether a failed step offers Try again, and why whoever is looking cannot press it, or nil.
+  type :boolean
+  def retry_offered = step.retry_offered?
+
+  type :string, optional: true
+  def retry_blocked_reason = (step.retry_blocked_reason(Current.principal) if retry_offered)
+
+  # Why a failed or declined step did not go through, in the plain words Slack's checklist uses.
+  type :string, optional: true
+  def failure_line = step.failure_line
+
   # Once approved, who approved it and how things stand now, as Halon read them before anyone runs it.
   type :string, optional: true
   def approved_by = (step.approval&.approver&.actor_display_name if step.approved?)

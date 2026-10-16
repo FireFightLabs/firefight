@@ -182,7 +182,7 @@ class Investigation::FixRunner
   # A step waiting on one that failed, was declined or was itself held back never runs.
   # A step left running by a worker that died is ended, saying so, rather than holding the fix forever.
   def give_up_on_stale!
-    @plan.steps.reload.select(&:stale?).each { |step| step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: LOST_TRACK) }
+    @plan.steps.reload.select(&:stale?).each { |step| lost_track!(step) }
   end
 
   # A step the cut off run had started may or may not have gone through, so it ends saying to check, at once rather than
@@ -193,7 +193,7 @@ class Investigation::FixRunner
     @plan.steps.reload.select do |step|
       step.status == Investigation::RemediationStep::STATUS_RUNNING &&
         (step.id == step_id || (step.approval_id.nil? && step.started_at.present? && step.started_at >= interrupted_at))
-    end.each { |step| step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: LOST_TRACK) }
+    end.each { |step| lost_track!(step) }
   end
 
   def hold_back!
@@ -207,8 +207,8 @@ class Investigation::FixRunner
   def resume(step, approval_id)
     approval = workspace.ability_approvals.find_by(id: approval_id)
     if approval&.denied?
-      told!(step) if step.finish!(Investigation::RemediationStep::STATUS_DECLINED,
-                                  result: "#{approval.approver&.actor_display_name || 'The approver'} declined it.")
+      approver = approval.approver&.actor_display_name || "The approver"
+      told!(step) if step.finish!(Investigation::RemediationStep::STATUS_DECLINED, result: "#{approver} declined it.", failure: "#{approver} declined it")
     elsif step.status == Investigation::RemediationStep::STATUS_RUNNING && approval&.usable?
       call(step, approval_id: approval_id)
     elsif @plan.reload.cancelled?
@@ -227,11 +227,14 @@ class Investigation::FixRunner
   end
 
   def call(step, approval_id: nil)
-    return step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: APPLIER_GONE) unless @plan.acting_principal
+    return step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: APPLIER_GONE, failure: Investigation::RemediationStep::FAILURE_APPLIER_GONE) unless @plan.acting_principal
     return check_page(step) if step.page_check?
 
     tool = step.tool_to_run(workspace)
-    return step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: "#{step.tool_name || 'The coding tool'} is no longer switched on.") unless tool
+    unless tool
+      return step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: "#{step.tool_name || 'The coding tool'} is no longer switched on.",
+                                                                          failure: Investigation::RemediationStep::FAILURE_TOOL_OFF)
+    end
 
     integration = tool.integration
     environment_entry = step.environment_entry(tool)
@@ -243,10 +246,11 @@ class Investigation::FixRunner
                                 request: (step.code_agent_request(@plan.approved_by) if step.pull_request?))
     end
   rescue Integration::UnknownEnvironment => error
-    step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: error.message)
+    step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: error.message, failure: Investigation::RemediationStep::FAILURE_ENVIRONMENT)
   rescue AbilityGateway::Denied
     step.finish!(Investigation::RemediationStep::STATUS_FAILED,
-                 result: "#{@plan.applier_name} may not run #{step.tool_name} here, or its connection is not set up for this environment.")
+                 result: "#{@plan.applier_name} may not run #{step.tool_name} here, or its connection is not set up for this environment.",
+                 failure: "#{@plan.applier_name || 'whoever applied the fix'} may not run it here")
   rescue AbilityGateway::PendingApproval => pending
     step.move!(from: Investigation::RemediationStep::STATUS_RUNNING, to: Investigation::RemediationStep::STATUS_WAITING_APPROVAL, approval_id: pending.approval.id)
     ApprovalResumption.park_fix_step!(pending.approval, step)
@@ -254,7 +258,7 @@ class Investigation::FixRunner
     self.class.stop(step) if @plan.reload.cancelled?
   rescue StandardError => error
     Rails.logger.warn({ event: "fix.step_not_started", step_id: step.id, error: error.class.name }.to_json)
-    step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: COULD_NOT_FINISH)
+    step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: COULD_NOT_FINISH, failure: Investigation::RemediationStep::FAILURE_BROKE)
   end
 
   # Opens the page in Halon's browser in the run's sandbox. It passes when the page loaded and every step of its path
@@ -263,7 +267,7 @@ class Investigation::FixRunner
   def check_page(step)
     check = step.page_check
     blocked = workspace.browser_pages_blocked_reason(check.planned_pages)
-    return step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: blocked) if blocked
+    return step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: blocked, failure: Investigation::RemediationStep::FAILURE_PAGE_BLOCKED) if blocked
 
     investigation = @plan.finding.investigation
     authorization = step.authorize_page_check!(check)
@@ -277,11 +281,12 @@ class Investigation::FixRunner
       authorization.finalize_answered!
       step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: answer.trouble.join("
 ").truncate(Investigation::RemediationStep::RESULT_LIMIT),
-                                                                  invocation_id: authorization.invocation_id)
+                                                                  invocation_id: authorization.invocation_id, failure: Investigation::RemediationStep::FAILURE_PAGE)
     end
   rescue Chat::BrowserCheck::Refused, Integrations::Error => error
     authorization&.finalize_error!(error)
-    step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: error.message, invocation_id: authorization&.invocation_id)
+    step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: error.message, invocation_id: authorization&.invocation_id,
+                                                                failure: failure_of(error, step))
   end
 
   # A tool that runs long, such as a coding agent writing a change, says how it is going. The step shows it and the
@@ -312,24 +317,57 @@ class Investigation::FixRunner
     if result["isError"] == true
       authorization.answer_failed!(text)
       authorization.finalize_answered!
-      step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: text.presence || "#{step.tool_name} said it failed.", invocation_id: authorization.invocation_id)
+      step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: text.presence || "#{step.tool_name} said it failed.", invocation_id: authorization.invocation_id,
+                                                                  failure: Investigation::RemediationStep::FAILURE_TOOL_SAID)
     else
       authorization.finalize_success!
       step.finish!(Investigation::RemediationStep::STATUS_DONE, result: text.presence, invocation_id: authorization.invocation_id)
     end
   rescue Integrations::Error => error
     authorization.finalize_error!(error)
-    step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: error.message, invocation_id: authorization.invocation_id)
+    step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: error.message, invocation_id: authorization.invocation_id, failure: failure_of(error, step))
   rescue StandardError => error
     authorization.finalize_error!(error)
     Rails.logger.warn({ event: "fix.step_failed", step_id: step.id, error: error.class.name }.to_json)
-    step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: COULD_NOT_FINISH, invocation_id: authorization.invocation_id)
+    step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: COULD_NOT_FINISH, invocation_id: authorization.invocation_id,
+                                                                failure: Investigation::RemediationStep::FAILURE_BROKE)
+  end
+
+  # Why a call failed in plain words, from what kind of failure it was. The tool's own words stay in the step's result.
+  def failure_of(error, step)
+    case error
+    when Integrations::PolicyRefusal then Investigation::RemediationStep::FAILURE_POLICY
+    when Integrations::Unavailable
+      step.pull_request? || step.page_check? ? Investigation::RemediationStep::FAILURE_SANDBOX : Investigation::RemediationStep::FAILURE_UNAVAILABLE
+    when Integrations::RateLimited then Investigation::RemediationStep::FAILURE_RATE_LIMITED
+    when Integrations::NotFound then Investigation::RemediationStep::FAILURE_NOT_FOUND
+    when Integrations::TimedOut then Investigation::RemediationStep::FAILURE_TIMED_OUT
+    else Investigation::RemediationStep::FAILURE_TOOL_SAID
+    end
+  end
+
+  def lost_track!(step)
+    step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: LOST_TRACK, failure: Investigation::RemediationStep::FAILURE_LOST_TRACK)
   end
 
   public
 
+  TRYING_AGAIN = "Trying the step again.".freeze
+
+  # Someone pressed Try again on a step that failed. It runs again as whoever applied the fix, and what waited on it goes
+  # on once it is done. A second press finds it no longer failed and changes nothing. Returns why not, or nil.
+  def self.retry!(step, by:)
+    blocked = step.retry_blocked_reason(by)
+    return blocked if blocked
+    return step.reload.retry_blocked_reason(by) || "Step #{step.position} is already being tried again." unless step.plan.retry_step!(step)
+
+    InvestigationFixJob.perform_later(step.plan_id)
+    nil
+  end
+
   # One message in the run's thread, posted when the fix is applied and redrawn after, and the answer redrawn once
-  # without its Apply fix. A fix nobody applied has no message, its steps are marked done on the run page.
+  # without its Apply fix. Starting it and how it ended are said where the whole channel sees them, the ending once each
+  # time the fix ends. A fix nobody applied has no message, its steps are marked done on the run page.
   def publish!
     @plan.reload
     investigation = @plan.finding.investigation
@@ -340,12 +378,15 @@ class Investigation::FixRunner
       adapter.update_fix_progress(channel_id: @plan.progress_channel_id, message_id: @plan.progress_message_id, plan: @plan)
     else
       posted = adapter.post_fix_progress(channel_id: investigation.channel_id, thread_id: investigation.thread_id, plan: @plan)
-      return redraw_answer(adapter, investigation) if @plan.claim_progress_message!(channel_id: posted[:channel_id], message_id: posted[:message_id])
-
-      # Another worker posted first, so this message goes and the one the thread keeps is brought up to date.
-      adapter.delete_message(channel_id: posted[:channel_id], message_id: posted[:message_id])
-      adapter.update_fix_progress(channel_id: @plan.progress_channel_id, message_id: @plan.progress_message_id, plan: @plan)
+      if @plan.claim_progress_message!(channel_id: posted[:channel_id], message_id: posted[:message_id])
+        redraw_answer(adapter, investigation)
+      else
+        # Another worker posted first, so this message goes and the one the thread keeps is brought up to date.
+        adapter.delete_message(channel_id: posted[:channel_id], message_id: posted[:message_id])
+        adapter.update_fix_progress(channel_id: @plan.progress_channel_id, message_id: @plan.progress_message_id, plan: @plan)
+      end
     end
+    tell_ending(adapter, investigation)
   rescue AdapterError => error
     Rails.logger.warn({ event: "fix.progress_not_posted", plan_id: @plan.id, error: error.class.name }.to_json)
   end
@@ -363,6 +404,16 @@ class Investigation::FixRunner
   end
 
   private
+
+  # A post that fails lets the ending be told on the next redraw rather than never.
+  def tell_ending(adapter, investigation)
+    return unless @plan.ended? && @plan.claim_ending_told!
+
+    adapter.post_fix_ended(channel_id: investigation.channel_id, thread_id: investigation.thread_id, plan: @plan)
+  rescue AdapterError
+    @plan.release_ending_told!
+    raise
+  end
 
   def redraw_answer(adapter, investigation)
     return if investigation.answer_message_id.blank?

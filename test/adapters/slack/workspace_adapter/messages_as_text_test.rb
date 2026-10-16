@@ -26,9 +26,10 @@ class Slack::WorkspaceAdapter::MessagesAsTextTest < ActiveSupport::TestCase
                                        source: Investigation::Brief::SOURCE_COMMAND)
     )
     finding = run.create_finding!(summary: "The cache did it")
+    Slack::Client.expects(:post_message).with { |arguments| arguments[:thread_ts] == "1.2" }.returns({ ok: true, ts: "1.3", channel: "C1" })
     Slack::Client.expects(:post_message).with do |arguments|
       arguments[:blocks].first.dig(:text, :text).include?("into \"@here @#{@bob.display_name} says it is slow &amp; 🔥\"")
-    end.returns({ "ok" => true, "ts" => "1.2", "channel" => "C1" })
+    end.returns({ ok: true, ts: "1.2", channel: "C1" })
 
     WorkspaceAdapter.for(@workspace).post_investigation_carried_over(channel_id: "C1", finding: finding)
   end

@@ -6,7 +6,7 @@ class InvestigationsController < InertiaController
   include ServesChatAttachment
   include PlatformText
 
-  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, read: %i[show file screenshot rate], create: %i[start add_note stop apply_fix mark_fix_step_done undo_fix cancel_fix run_fix_step dismiss_fix_step ask_fix_step_again]
+  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, read: %i[show file screenshot rate], create: %i[start add_note stop apply_fix mark_fix_step_done undo_fix cancel_fix run_fix_step dismiss_fix_step ask_fix_step_again retry_fix_step]
 
   def show
     investigation = current_workspace.investigations.seen.find(params[:id])
@@ -135,6 +135,11 @@ class InvestigationsController < InertiaController
 
   def ask_fix_step_again
     decide_fix_step("Asked for approval again.") { |step| Investigation::FixRunner.ask_again!(step, by: current_membership) }
+  end
+
+  # A step that failed runs again as whoever applied the fix, the same as Try again in Slack.
+  def retry_fix_step
+    decide_fix_step(Investigation::FixRunner::TRYING_AGAIN) { |step| Investigation::FixRunner.retry!(step, by: current_membership) }
   end
 
   private

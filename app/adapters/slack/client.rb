@@ -17,6 +17,8 @@ module Slack
       "cant_invite_self"   => AdapterError::AlreadyInChannel,
       "restricted_action"  => AdapterError::RestrictedAction,
       "missing_scope"      => AdapterError::MissingPermission,
+      "invalid_blocks"     => AdapterError::Unrenderable,
+      "invalid_blocks_format" => AdapterError::Unrenderable,
       "token_revoked"      => AdapterError::AuthRevoked,
       "account_inactive"   => AdapterError::AuthRevoked,
       "invalid_auth"       => AdapterError::AuthRevoked,
@@ -69,7 +71,8 @@ module Slack
       )
     end
 
-    def self.post_message(workspace:, channel:, text:, blocks: nil, thread_ts: nil)
+    # reply_broadcast also shows a thread reply in the channel, as Slack's "Also send to channel" does.
+    def self.post_message(workspace:, channel:, text:, blocks: nil, thread_ts: nil, reply_broadcast: nil)
       api_post(
         workspace: workspace,
         endpoint: "chat.postMessage",
@@ -77,7 +80,8 @@ module Slack
           channel: channel,
           text: text,
           blocks: blocks,
-          thread_ts: thread_ts
+          thread_ts: thread_ts,
+          reply_broadcast: (true if reply_broadcast && thread_ts)
         }.compact
       )
     end

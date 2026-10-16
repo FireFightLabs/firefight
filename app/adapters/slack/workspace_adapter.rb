@@ -361,15 +361,12 @@ module Slack
       end
     end
 
-    def post_threaded_message(channel_id:, parent_message_id:, text:, blocks: nil)
+    # broadcast also shows the reply in the channel itself.
+    def post_threaded_message(channel_id:, parent_message_id:, text:, blocks: nil, broadcast: false)
       translate_errors do
-        result = Slack::Client.post_message(
-          workspace: @workspace,
-          channel: channel_id,
-          text: text,
-          blocks: blocks,
-          thread_ts: parent_message_id
-        )
+        posting = { workspace: @workspace, channel: channel_id, text: text, blocks: blocks, thread_ts: parent_message_id }
+        posting[:reply_broadcast] = true if broadcast
+        result = Slack::Client.post_message(**posting)
 
         { message_id: result[:ts], channel_id: result[:channel] || channel_id }
       end

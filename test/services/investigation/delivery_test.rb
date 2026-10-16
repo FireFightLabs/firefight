@@ -11,6 +11,7 @@ class Investigation::DeliveryTest < ActiveSupport::TestCase
     )
     stub_post_message
     stub_agent_session
+    stub_update_message
   end
 
   test "starting a run says so in the channel and remembers the thread it opened" do
@@ -64,14 +65,88 @@ class Investigation::DeliveryTest < ActiveSupport::TestCase
     assert_equal [ [ "complete", "Not found" ], [ "error", "Failed" ], [ "complete", nil ] ], reported.map { |chunk| chunk.values_at(:status, :output) }
   end
 
-  test "an answer is posted and the working state is cleared" do
+  test "an answer ends the steps in the thread, clears the working state, and goes to the thread and the channel with the full answer after it" do
     delivery = Investigation::Delivery.new(@investigation)
     delivery.start!
-    finding = @investigation.conclude!(summary: "The 14:02 deploy did it", gaps: "logs")
-    Slack::Client.expects(:stop_stream).with { |arguments| arguments[:blocks].present? }.returns({ ok: true, ts: "1" })
+    finding = @investigation.conclude!(summary: "The 14:02 deploy did it", gaps: "logs", short: { answer_kind: Investigation::Finding::KIND_NO_CAUSE,
+                                                                                                  what_is_wrong: "Checkout fails since the deploy." })
+    Slack::Client.expects(:stop_stream).with { |arguments| arguments[:blocks].nil? }.returns({ ok: true, ts: "1" })
     Slack::Client.expects(:set_agent_session_status).with { |arguments| arguments[:status] == "active" }.returns({ ok: true })
+    posted = []
+    Slack::Client.stubs(:post_message).with { |arguments| posted << arguments }.returns({ ok: true, ts: "2", channel: @incident.channel_id })
 
     delivery.answered!(finding)
+
+    short, full = posted
+    assert_equal [ true, nil ], [ short[:reply_broadcast], full[:reply_broadcast] ]
+    assert_equal [ "1234567890.123456" ] * 2, [ short[:thread_ts], full[:thread_ts] ]
+    assert_equal "No cause found yet: Checkout fails since the deploy.", short[:text]
+    assert_equal ":page_facing_up:  *The full answer*", full[:blocks].first.dig(:text, :text)
+    assert_equal "2", @investigation.reload.answer_message_id
+  end
+
+  test "the message that started the run is its checklist, and the answer redraws it finished, in place" do
+    started = nil
+    Slack::Client.stubs(:post_message).with { |arguments| started ||= arguments }.returns({ ok: true, ts: "1234567890.123456", channel: @incident.channel_id })
+    delivery = Investigation::Delivery.new(@investigation)
+    delivery.start!
+
+    plan = started[:blocks].first
+    assert_equal [ "plan", "Investigating #{@incident.identifier}" ], plan.values_at(:type, :title)
+    assert_equal [ [ "Gathered what Firefight knows", "complete" ], [ "Find the cause", "pending" ] ], plan[:tasks].map { |task| task.values_at(:title, :status) }
+
+    finding = @investigation.conclude!(summary: "The 14:02 deploy did it", short: { answer_kind: Investigation::Finding::KIND_NO_CAUSE,
+                                                                                   what_is_wrong: "Checkout fails since the deploy." })
+    Slack::Client.expects(:update_message).with do |arguments|
+      redrawn = arguments[:blocks].first
+      arguments[:ts] == "1234567890.123456" && redrawn[:title] == "Investigated #{@incident.identifier}" &&
+        redrawn[:tasks].last.values_at(:title, :status) == [ "No cause found yet", "complete" ]
+    end.returns({ ok: true })
+
+    delivery.answered!(finding)
+  end
+
+  test "the checklist follows the run's steps, grouped by what they read, redrawn no more often than Slack allows" do
+    delivery = Investigation::Delivery.new(@investigation)
+    delivery.start!
+    @investigation.steps.create!(position: 1, tool_name: "search_logs", action_key: "grafana.search_logs", status: Investigation::Step::STATUS_RUNNING)
+    redrawn = []
+    Slack::Client.stubs(:update_message).with { |arguments| redrawn << arguments[:blocks].first }.returns({ ok: true })
+
+    delivery.step(key: "call_1", title: "Search logs", status: :running)
+    @investigation.steps.create!(position: 2, tool_name: "what_changed", action_key: "map.read", status: Investigation::Step::STATUS_SUCCEEDED)
+    delivery.step(key: "call_2", title: "What changed", status: :done)
+
+    assert_equal 1, redrawn.size
+    assert_equal [ "Gathered what Firefight knows", "Read the logs and metrics", "Find the cause" ], redrawn.sole[:tasks].pluck(:title)
+    assert_equal "in_progress", redrawn.sole[:tasks].second[:status]
+  end
+
+  test "a run that stops redraws its checklist saying so, in the thread only" do
+    delivery = Investigation::Delivery.new(@investigation)
+    delivery.start!
+    Slack::Client.expects(:update_message).with do |arguments|
+      arguments[:blocks].first[:tasks].last.values_at(:title, :status) == [ "Stopped without an answer", "error" ]
+    end.returns({ ok: true })
+    Slack::Client.expects(:post_message).never
+
+    delivery.stopped!(Investigation::BUDGET_SPENT)
+  end
+
+  test "a workspace whose Slack refuses plan blocks gets the same checklist as text, remembered so it is not asked again" do
+    posted = []
+    Slack::Client.stubs(:post_message).with { |arguments| posted << arguments }.returns({ ok: true, ts: "1234567890.123456", channel: "C1" })
+    Slack::Client.stubs(:post_message).with { |arguments| arguments[:blocks]&.first&.dig(:type) == "plan" }.raises(AdapterError::Unrenderable, "invalid_blocks")
+
+    Investigation::Delivery.new(@investigation).start!
+
+    assert_includes posted.last[:blocks].first.dig(:text, :text), "Investigating #{@incident.identifier}"
+    assert_includes posted.last[:blocks].third.dig(:text, :text), ":white_check_mark: Gathered what Firefight knows"
+    assert @workspace.reload.platform_data["plan_blocks_refused_at"].present?
+
+    Slack::Client.expects(:update_message).with { |arguments| arguments[:blocks].first[:type] == "section" }.returns({ ok: true })
+    @investigation.conclude!(summary: "No cause yet")
+    Investigation::Delivery.new(@investigation.reload).send(:show_progress, Investigation::Progress.new(@investigation))
   end
 
   test "the charts a run drew are posted in its thread after the answer" do
@@ -125,7 +200,7 @@ class Investigation::DeliveryTest < ActiveSupport::TestCase
     delivery.start!
     finding = @investigation.conclude!(summary: "The 14:02 deploy did it")
 
-    Slack::Client.expects(:post_message).with { |arguments| arguments[:thread_ts].present? }.returns({ ok: true, ts: "2" })
+    Slack::Client.expects(:post_message).with { |arguments| arguments[:thread_ts].present? }.twice.returns({ ok: true, ts: "2" })
 
     delivery.answered!(finding)
   end
@@ -150,7 +225,7 @@ class Investigation::DeliveryTest < ActiveSupport::TestCase
   test "a question asked in a channel is announced there by its own words" do
     question = question_run(channel_id: "C0GENERAL")
     Slack::Client.expects(:post_message).with do |arguments|
-      arguments[:channel] == "C0GENERAL" && arguments[:blocks].first.dig(:text, :text).include?("checkout is slow")
+      arguments[:channel] == "C0GENERAL" && arguments[:blocks].first[:title] == "Investigating \"checkout is slow\""
     end.returns({ ok: true, ts: "1234567890.123456" })
 
     Investigation::Delivery.new(question).start!
