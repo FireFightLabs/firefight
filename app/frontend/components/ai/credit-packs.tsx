@@ -14,8 +14,8 @@ export interface CreditPurchase {
   markupPercent: number
   blockedReason: string | null
   checkoutPath: string
-  starterNote: string | null
-  starterEstimate: string | null
+  note: string | null
+  estimate: string | null
 }
 
 // The billing page's own words for what a call costs.

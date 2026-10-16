@@ -21,6 +21,17 @@ class AiCreditPayersTest < ActiveSupport::TestCase
                  "An admin can buy more under Settings, Billing.", AiCredit.cannot(@workspace, "write this postmortem")
   end
 
+  test "a backend whose plan includes AI says what ran out and when it comes back in its own words" do
+    credit = Class.new(AiAccountTestHelper::Credit) do
+      def used_up = "this month's included AI is used up"
+      def top_up = "An admin can top up under Settings, Billing. The included AI renews on November 1, 2026"
+    end
+    on_firefights_cloud!(credit: credit.new(false, true))
+
+    assert_equal "Halon cannot answer right now because this month's included AI is used up. " \
+                 "An admin can top up under Settings, Billing. The included AI renews on November 1, 2026.", AiCredit.cannot(@workspace)
+  end
+
   test "credits that ran out on a backend that does not say where to buy more point at the AI accounts" do
     credit = Class.new do
       def spendable? = false
