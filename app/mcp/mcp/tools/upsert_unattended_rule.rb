@@ -21,6 +21,11 @@ module Mcp
         required: []
       )
 
+      # It authorizes as permissions either way, which only a person's say lets through.
+      def self.asks_a_person? = true
+
+      def self.token_refusal(_workspace, _args) = Ability::UnattendedRule.change_blocked_reason(AbilityGateway::SOURCE_MCP)
+
       def self.authorization(workspace, args)
         action = existing_rule(workspace, args) ? Ability::Action::ACTION_UPDATE : Ability::Action::ACTION_CREATE
         [ Ability::Action::RESOURCE_PERMISSIONS, action ]

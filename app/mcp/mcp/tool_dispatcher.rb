@@ -17,6 +17,8 @@ module Mcp
 
       resource, crud_action = tool.authorization(workspace, args)
       principal = server_context[:principal]
+      refusal = tool.token_refusal(workspace, args)
+      return error_response(refusal) if refusal
       if tool.mints_token?(workspace, args) && !TokenHandoff.reachable?(principal, workspace)
         return error_response(TokenHandoff::UNREACHABLE)
       end

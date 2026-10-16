@@ -26,7 +26,7 @@ class Api::V1::ApprovalsController < Api::V1::ApiController
   def resolve(decision)
     authorize!(Ability::Action::RESOURCE_APPROVALS, Ability::Action::ACTION_UPDATE)
     @approval = current_workspace.ability_approvals.find(params[:id])
-    decision == :approve ? @approval.approve!(by: Current.principal) : @approval.deny!(by: Current.principal)
+    decision == :approve ? @approval.approve!(by: Current.principal, with_token: true) : @approval.deny!(by: Current.principal)
     ApprovalNotificationService.mark_resolved!(@approval)
     render :show
   end

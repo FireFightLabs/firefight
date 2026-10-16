@@ -18,6 +18,11 @@ module Ability
 
     class NotAllowed < StandardError; end
 
+    # A request a token or a machine made is approved by a person in a session of their own, so no token approves what a
+    # token asked for.
+    APPROVE_WITH_TOKEN = "A request made with a token is approved only by a person in Firefight or Slack, never with a token.".freeze
+    MACHINE_REQUESTERS = %w[Agent ApiKey SystemAgent].freeze
+
     # What deciding a request is authorized as, and the scope key that names the request decided.
     DECIDE_KEY = Ability::Action.system_key(Ability::Action::RESOURCE_APPROVALS, Ability::Action::ACTION_UPDATE)
     SCOPE_APPROVAL = "approval"
@@ -73,8 +78,9 @@ module Ability
       end
     end
 
-    def approve!(by:)
-      resolve!(STATUS_APPROVED, by)
+    # with_token is a decision sent with a token, over the API or MCP, rather than by a person in a session.
+    def approve!(by:, with_token: false)
+      resolve!(STATUS_APPROVED, by, with_token: with_token)
     end
 
     def deny!(by:)
@@ -198,6 +204,14 @@ module Ability
 
       nil
     end
+
+    # A request a token or a machine made, which a token could otherwise approve for itself or for another token.
+    def made_with_token?
+      AbilityGateway::TOKEN_SOURCES.include?(source) || MACHINE_REQUESTERS.include?(principal_type)
+    end
+
+    # Why approving this request with a token is refused, or nil.
+    def approve_with_token_blocked_reason = (APPROVE_WITH_TOKEN if made_with_token?)
 
     def matches_request?(action_key, params, scope)
       request_digest == self.class.digest(action_key, params, scope)
@@ -358,10 +372,10 @@ module Ability
 
     # Self-approval is allowed by default, the human confirming their own agent's proposal
     # is the safety mechanism. Policies opt into four-eyes with require.self_approval: false.
-    def resolve!(new_status, principal)
+    def resolve!(new_status, principal, with_token: false)
       raise NotAllowed, "approval is no longer pending" unless pending?
       raise NotAllowed, approver_requirement_message unless approver?(principal)
-      blocked = approve_blocked_reason if new_status == STATUS_APPROVED
+      blocked = (with_token && approve_with_token_blocked_reason) || approve_blocked_reason if new_status == STATUS_APPROVED
       raise NotAllowed, blocked if blocked
       if requester?(principal) && !self_approvable?
         raise NotAllowed, "this policy requires approval by someone other than the requester"

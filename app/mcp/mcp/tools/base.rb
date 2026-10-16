@@ -167,6 +167,10 @@ module Mcp
           @authorization || raise(NotImplementedError, "#{name} declares no authorization")
         end
 
+        # Why this call is refused when it comes with a token over MCP, by a rule of the model it changes, or nil. Halon's
+        # chat runs the same tool for a person, who confirms it there.
+        def token_refusal(_workspace, _args) = nil
+
         # Whether this call mints a Firefight token, whose answer carries it under :token. It is never handed to a
         # model: Mcp::ToolDispatcher and Halon's chat hand it to the person the call runs as (TokenHandoff).
         def mints_token?(_workspace, _args) = false

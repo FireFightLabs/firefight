@@ -116,48 +116,25 @@ class Api::V1::GatewayApiTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-  test "approval rules are managed by id and reordered" do
-    post_json api_v1_approval_rules_url, {
-      abilities: [ "runbooks.update" ], environments: [ @environment.slug ],
-      approvers: [ @bob.id ], notify: "both", self_approval: false
-    }
-    assert_response :created
-    first = json_response
-    assert_equal [ "runbooks.update" ], first["abilities"]
-    assert_equal [ @environment.slug ], first["environments"]
-    assert_equal [ { "kind" => "user", "id" => @bob.id } ], first["approvers"]
-    assert_equal "both", first["notify"]
-    assert_equal false, first["self_approval"]
-    assert_equal "admin", first["approver_role"]
-
-    post_json api_v1_approval_rules_url, { risk_levels: [ "destructive" ] }
-    second = json_response
-    assert_equal 2, second["priority"]
-    assert_equal PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT, second["notify"], "a rule that names nowhere starts on Default"
-
-    patch_json api_v1_approval_rule_url(second["id"]), { enabled: false }
-    assert_equal false, json_response["enabled"]
-    assert_equal [ "destructive" ], json_response["risk_levels"]
-
-    patch_json api_v1_approval_rule_url(first["id"]), { approvers: [] }
-    assert_equal [], json_response["approvers"]
-    assert_equal [ "runbooks.update" ], json_response["abilities"]
-
-    post move_up_api_v1_approval_rule_url(second["id"]), headers: api_headers(token: @admin_token)
-    assert_equal 1, json_response["priority"]
+  test "approval rules are read with a token and never changed with one" do
+    rule = @workspace.find_or_create_approval_policy!.append_rule!(
+      PolicyRule::ApprovalRuleChanges.attributes(workspace: @workspace, existing: nil, changes: { "abilities" => [ "runbooks.update" ] })
+    )
 
     get api_v1_approval_rules_url, headers: api_headers(token: @admin_token)
-    assert_equal [ second["id"], first["id"] ], json_response["approval_rules"].map { |row| row["id"] }
+    assert_equal [ rule.id ], json_response["approval_rules"].map { |row| row["id"] }
 
-    delete api_v1_approval_rule_url(first["id"]), headers: api_headers(token: @admin_token)
-    assert_response :no_content
-    assert_equal 1, @workspace.approval_rules.count
-  end
-
-  test "an approval rule with an approver from another workspace is rejected" do
-    post_json api_v1_approval_rules_url, { approvers: [ workspace_memberships(:alice_workspace_two).id ] }
+    post_json api_v1_approval_rules_url, { risk_levels: [ "destructive" ] }
     assert_response :unprocessable_entity
-    assert_match "of this workspace", json_response["error"]["errors"].first["message"]
+    assert_equal PolicyRule::TOKEN_CHANGE_REFUSAL, json_response.dig("error", "message")
+
+    patch_json api_v1_approval_rule_url(rule), { enabled: false }
+    assert_response :unprocessable_entity
+    post move_up_api_v1_approval_rule_url(rule), headers: api_headers(token: @admin_token)
+    assert_response :unprocessable_entity
+    delete api_v1_approval_rule_url(rule), headers: api_headers(token: @admin_token)
+    assert_response :unprocessable_entity
+    assert rule.reload.enabled?
   end
 
   test "approvals are decided by a person, or by an agent a rule named" do

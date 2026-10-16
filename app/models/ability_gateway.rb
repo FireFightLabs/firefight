@@ -29,6 +29,8 @@ class AbilityGateway
               SOURCE_WORKFLOW ].freeze
   # Where a human acts directly rather than through a key or an agent.
   HUMAN_SOURCES = [ SOURCE_SLACK, SOURCE_WEB ].freeze
+  # A call made with a token, an API key, a personal token, an OAuth connection or an agent's.
+  TOKEN_SOURCES = [ SOURCE_API, SOURCE_MCP ].freeze
 
   class Denied < StandardError
     attr_reader :action_key

@@ -11,7 +11,8 @@ module Mcp
         @context = { workspace: @workspace, principal: @admin }
       end
 
-      def call(tool, args) = call_approved_by_a_person(tool: tool, server_context: @context, args: args)
+      # Over MCP a token is refused, so these run as Halon's chat runs them for a person who confirmed.
+      def call(tool, args) = ToolDispatcher.run(tool: tool, workspace: @workspace, principal: @admin, args: args)
 
       test "they sit with permissions, authorize as permissions and read, write and delete as the screen does" do
         group = Chat::Tools::Groups::FIREFIGHT.find { |each| each.tools.include?(UPSERT_UNATTENDED_RULE) }
