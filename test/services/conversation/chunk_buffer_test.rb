@@ -1,6 +1,16 @@
 require "test_helper"
 
 class Conversation::ChunkBufferTest < ActiveSupport::TestCase
+  test "a space already found inside an open link is not tried again as more text arrives" do
+    buffer = Conversation::ChunkBuffer.new(interval: 0, max_chars: 1, whole_markup: true) { |_text| nil }
+    buffer.add("[the pull request that")
+    tried = []
+    buffer.define_singleton_method(:closed?) { |text| tried << text.length && false }
+    buffer.add(" fixes")
+
+    assert_equal [ "[the pull request that ".length ], tried
+  end
+
   test "a link is never cut across two pieces, and the words before it go as soon as they are due" do
     sent = []
     buffer = Conversation::ChunkBuffer.new(interval: 1.hour, max_chars: 10, whole_markup: true) { |text| sent << text }

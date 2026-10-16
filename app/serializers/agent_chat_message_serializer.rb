@@ -63,9 +63,17 @@ class AgentChatMessageSerializer < BaseSerializer
       end
     end
 
+    # Every message in the page's chats that made a call by one of the page's ids, read from the chat rather than the page,
+    # so a page of one message still knows a later call by the same id.
     def callers
-      @callers ||= @messages.flat_map { |message| message.ruby_llm_tool_calls.map { |call| [ [ message.chat_id, call.tool_call_id ], message.created_at ] } }
-                            .group_by(&:first).transform_values { |pairs| pairs.map(&:last).sort }
+      @callers ||= if keys.empty?
+        {}
+      else
+        calls = RubyLLM::ActiveRecord::ToolCall
+        Chat::Message.where(chat_id: chat_ids).joins(:ruby_llm_tool_calls).merge(calls.where(tool_call_id: keys))
+                     .pluck(:chat_id, "#{calls.table_name}.tool_call_id", :created_at)
+                                       .group_by { |chat_id, key, _at| [ chat_id, key ] }.transform_values { |rows| rows.map(&:last).uniq.sort }
+      end
     end
 
     # The first message to make a call by an id takes what was kept before it too, so nothing kept a moment early is lost.

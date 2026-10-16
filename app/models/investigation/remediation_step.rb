@@ -137,11 +137,12 @@ class Investigation::RemediationStep < ApplicationRecord
 
   def action? = kind == KIND_ACTION
 
-  # An action through one of Firefight's own tools rather than a connection's, such as invite_responders.
-  def firefight_tool? = action? && Mcp::Tools.all.any? { |tool_class| tool_class.name_value.to_s == tool_name.to_s }
+  # An action through one of Firefight's own tools rather than a connection's, such as invite_responders, marked when it
+  # was written so a connection's tool of the same name is never taken for it.
+  def firefight_tool? = action? && self[:firefight_tool]
 
   # The tool while this workspace still offers it to a fix.
-  def firefight_tool(workspace)
+  def own_tool_to_run(workspace)
     tool_class = Mcp::Tools.for_fix(workspace, tool_name)
     tool_class && FirefightTool.new(tool_class: tool_class, action_key: action_key, workspace: workspace)
   end
@@ -224,7 +225,7 @@ class Investigation::RemediationStep < ApplicationRecord
   # by the code host's coding tool on the connection that sees its repository.
   def tool_to_run(workspace = plan.finding.investigation.workspace)
     return code_tool(workspace) if pull_request?
-    return firefight_tool(workspace) if firefight_tool?
+    return own_tool_to_run(workspace) if firefight_tool?
 
     read_for, tool = @action_tool
     return tool if read_for == workspace.id
@@ -593,7 +594,8 @@ class Investigation::RemediationStep < ApplicationRecord
     held = tool_class.already_holds(workspace: workspace, principal: principal, args: given)
     refuse(position, "would change nothing, since #{held}. Leave it out of the fix") if held
 
-    { tool_name: tool_class.name_value.to_s, action_key: Ability::Action.system_key(resource, action), arguments: arguments.to_h.stringify_keys }
+    { tool_name: tool_class.name_value.to_s, action_key: Ability::Action.system_key(resource, action), arguments: arguments.to_h.stringify_keys,
+      firefight_tool: true }
   rescue ActiveRecord::RecordNotFound, ArgumentError => error
     refuse(position, "names #{tool_class.name_value} with arguments it cannot use: #{error.message.delete_suffix('.')}")
   end

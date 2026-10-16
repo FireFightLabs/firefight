@@ -2284,6 +2284,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_130000) do
     t.string "already_done_reason"
     t.string "outcome_label"
     t.string "outcome_url"
+    t.boolean "firefight_tool", default: false, null: false
     t.index ["applied_under_rule_id"], name: "index_investigation_remediation_steps_on_applied_under_rule_id"
     t.index ["approval_id"], name: "index_investigation_remediation_steps_on_approval_id"
     t.index ["done_by_id"], name: "index_investigation_remediation_steps_on_done_by_id"

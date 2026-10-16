@@ -17,6 +17,7 @@ class Conversation::ChunkBuffer
     @send_text = send_text
     @held = +""
     @sent_at = Time.current
+    @open_through = 0
   end
 
   def add(text)
@@ -37,14 +38,16 @@ class Conversation::ChunkBuffer
     return send_held(cut) if cut
     return flush! if @held.length > LONG_HELD
 
+    @open_through = @held.length
     nil
   end
 
-  # Just past the last space or line break that closes everything opened before it, or nil.
+  # Just past the last space or line break that closes everything opened before it, or nil. A space already found open
+  # stays open, since the text before it does not change, so only the spaces added since are tried.
   def last_safe_cut
     spaces = []
     @held.scan(/\s/) { spaces << Regexp.last_match.end(0) }
-    spaces.reverse_each.find { |cut| closed?(@held[0, cut]) }
+    spaces.reverse_each.take_while { |cut| cut > @open_through }.find { |cut| closed?(@held[0, cut]) }
   end
 
   def closed?(text)
@@ -60,6 +63,7 @@ class Conversation::ChunkBuffer
 
     text = @held[0, length]
     @held = @held[length..]
+    @open_through = 0
     @sent_at = Time.current
     @send_text.call(text)
   end

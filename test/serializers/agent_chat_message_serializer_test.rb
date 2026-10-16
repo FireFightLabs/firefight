@@ -32,6 +32,17 @@ class AgentChatMessageSerializerTest < ActiveSupport::TestCase
     assert_not pages.charted?(later.reload, "call_7")
   end
 
+  test "a page of one message still knows a later call by the same id, so the later call's chart is never the earlier one's" do
+    travel 1.minute
+    later = @chat.add_message(role: :assistant, content: "")
+    RubyLLM::ActiveRecord::ToolCall.create!(message: later, tool_call_id: "call_7", name: "northflank_query_metrics", arguments: {})
+    travel 1.minute
+    Chat::Chart.record!(@chat, "call_7", [ { "title" => "Memory of web", "from" => "2026-09-25T14:00:00Z", "to" => "2026-09-25T15:00:00Z", "series" => [] } ])
+
+    assert_not AgentChatMessageSerializer::Page.new([ @asking.reload ]).charted?(@asking, "call_7")
+    assert AgentChatMessageSerializer::Page.new([ later.reload ]).charted?(later, "call_7")
+  end
+
   test "a coding agent's work under a call id an earlier question used stays with each call, and neither overwrites the other" do
     first = Chat::CodeFixProgress.start
     first.add("Edited the checkout retry")
