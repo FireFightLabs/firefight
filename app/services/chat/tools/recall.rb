@@ -9,6 +9,9 @@ class Chat::Tools::Recall < RubyLLM::Tool
 
   def name = self.class.tool_name
 
+  # Only reads, so it runs beside the step's other reads (FirefightAi::AgentLoop::ToolsTogether).
+  def concurrent_read? = true
+
   def description
     "Read what this workspace remembers about a resource, a catalog entry, or a topic. Each memory says whether a " \
       "person confirmed it. Treat it as a hunch to check against live results, never proof."

@@ -41,8 +41,8 @@ class FirefightAi::AgentLoopMemoryTest < ActiveSupport::TestCase
     def before_tool_call(&) = nil
     def after_message(&) = nil
 
-    def with_tool_options(choice:)
-      @tool_choices << choice
+    def with_tool_options(**options)
+      @tool_choices << options[:choice] if options.key?(:choice)
       self
     end
 

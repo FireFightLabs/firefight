@@ -76,11 +76,14 @@ class Investigation::ToolCall
   private_class_method :failure_kind
 
   # The number is read and then written, so two calls at once could pick the same one. The unique
-  # index refuses the second, which takes the next number.
+  # index refuses the second, which takes the next number. Calls of one step running together number in the order
+  # they were asked (CallOrder).
   def self.numbered_step(investigation, **attributes)
-    investigation.steps.create!(position: investigation.next_step_position, **attributes)
-  rescue ActiveRecord::RecordNotUnique
-    retry
+    CallOrder.in_turn(:investigation_step) do
+      investigation.steps.create!(position: investigation.next_step_position, **attributes)
+    rescue ActiveRecord::RecordNotUnique
+      retry
+    end
   end
   private_class_method :numbered_step
 end

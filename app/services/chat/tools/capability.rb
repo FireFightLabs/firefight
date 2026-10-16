@@ -13,6 +13,9 @@ class Chat::Tools::Capability < RubyLLM::Tool
 
   def name = @spec.tool_name
 
+  # A read runs beside the step's other reads (FirefightAi::AgentLoop::ToolsTogether).
+  def concurrent_read? = !@spec.writes
+
   def description = @spec.description
 
   def parameters_schema

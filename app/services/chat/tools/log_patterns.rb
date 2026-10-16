@@ -13,6 +13,9 @@ class Chat::Tools::LogPatterns < RubyLLM::Tool
 
   def name = NAME
 
+  # Only reads, so it runs beside the step's other reads (FirefightAi::AgentLoop::ToolsTogether).
+  def concurrent_read? = true
+
   def description = ResourceMap::LogTemplate::DESCRIPTION
 
   # The same schema an outside agent is handed over MCP.

@@ -17,6 +17,9 @@ class Chat::Tools::Web < RubyLLM::Tool
 
   def name = @kind
 
+  # Only reads, so it runs beside the step's other reads (FirefightAi::AgentLoop::ToolsTogether).
+  def concurrent_read? = true
+
   def description
     if @kind == SEARCH
       "Search the public web, such as a library's documentation for the version in use, an error message, or a " \

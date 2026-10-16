@@ -40,12 +40,15 @@ class Chat::HeldCall < ApplicationRecord
   # Where its card sits in a chat, when it last had news (AgentChatHeldCallSerializer#at), for a query joined to its approval.
   def self.placed_at = Arel::Nodes::NamedFunction.new("COALESCE", [ Ability::Approval.arel_table[:resolved_at], arel_table[:created_at] ])
 
-  # Keeps the call with its chat and points the approval at it, so approving or denying it reaches this chat.
+  # Keeps the call with its chat and points the approval at it, so approving or denying it reaches this chat. Calls of
+  # one step running together are held in the order they were asked (CallOrder).
   def self.hold!(chat:, approval:, tool_name:, tool_call_id:, target:)
-    transaction do
-      held = create!(chat: chat, approval: approval, tool_name: tool_name.to_s, tool_call_id: tool_call_id, target: target)
-      approval.update!(held_for_run: true, resume_payload: { kind: RESUME_KIND, held_call_id: held.id })
-      held
+    CallOrder.after_earlier_calls do
+      transaction do
+        held = create!(chat: chat, approval: approval, tool_name: tool_name.to_s, tool_call_id: tool_call_id, target: target)
+        approval.update!(held_for_run: true, resume_payload: { kind: RESUME_KIND, held_call_id: held.id })
+        held
+      end
     end
   end
 

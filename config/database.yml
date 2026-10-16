@@ -109,6 +109,12 @@ staging:
     database: <%= ENV["FIREFIGHT_DATABASE"] %>
     username: <%= ENV["FIREFIGHT_DATABASE_USERNAME"] %>
     password: <%= ENV["FIREFIGHT_DATABASE_PASSWORD"] %>
+    # Every round trip to the database costs milliseconds, so a process keeps its connections, and the statements
+    # each one prepared, between requests rather than reconnecting after five idle minutes (idle_timeout 0). The
+    # keepalive (600 seconds by default) still pings an idle one, and each is replaced within six hours (max_age), since
+    # PlanetScale may end a connection held for more than a day.
+    idle_timeout: 0
+    max_age: 21600
   cache:
     <<: *primary_staging
     migrations_paths: db/cache_migrate
@@ -159,6 +165,12 @@ production:
     # here). Override per distro: Alpine /etc/ssl/cert.pem, RHEL
     # /etc/pki/tls/certs/ca-bundle.crt.
     sslrootcert: <%= ENV.fetch("FIREFIGHT_DATABASE_SSLROOTCERT", "/etc/ssl/certs/ca-certificates.crt") %>
+    # Every round trip to the database costs milliseconds, so a process keeps its connections, and the statements
+    # each one prepared, between requests rather than reconnecting after five idle minutes (idle_timeout 0). The
+    # keepalive (600 seconds by default) still pings an idle one, and each is replaced within six hours (max_age), since
+    # PlanetScale may end a connection held for more than a day.
+    idle_timeout: 0
+    max_age: 21600
   cache:
     <<: *primary_production
     database: <%= ENV["FIREFIGHT_DATABASE_CACHE"] %>
