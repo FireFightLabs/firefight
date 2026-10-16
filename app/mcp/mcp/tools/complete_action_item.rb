@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class CompleteActionItem < Base
-      tool_name COMPLETE_ACTION_ITEM
+      tool_name FirefightTools::COMPLETE_ACTION_ITEM
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Mark a piece of work done. The channel message is struck through and the " \
                   "completion is announced, the same as a person pressing \"Mark as done\". Get " \

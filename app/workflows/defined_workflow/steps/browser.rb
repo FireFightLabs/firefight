@@ -1,9 +1,9 @@
 # Opens a page in Halon's browser in the run's sandbox, on desktop and phone, follows a short path (go to, click, fill,
 # press, wait for or expect text), and hands on how it went: status, title, timings, console errors, failed requests,
 # its text and the trouble found, with a screenshot of each screen size kept on the run. It only reads. A step that
-# names a send step sends what the page sends at that step, which is a change: never in a run nobody pressed, only
-# after the same path stopped just before it and showed what it would send, sent exactly that, through the gateway as
-# browser.update so a grant and approval rules decide it, and pretended in a test run. A page that sends anything else
+# names a send step sends what the page sends at that step, which is a change. It never sends in a run nobody pressed,
+# only after the same path stopped just before it and showed what it would send, and then sends exactly that, through
+# the gateway as browser.update so a grant and approval rules decide it. A test run pretends. A page that sends anything else
 # by then, another query or body included, is not sent and fails the step saying what it sends now.
 class DefinedWorkflow::Steps::Browser < DefinedWorkflow::Steps::CallTool
   kind "browser"

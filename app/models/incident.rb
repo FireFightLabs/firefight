@@ -114,6 +114,12 @@ class Incident < ApplicationRecord
     )
   }
 
+  # An incident named by its id or its identifier (INC-042), within the current scope.
+  def self.find_by_reference(reference)
+    reference = reference.to_s
+    reference.match?(/\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/) ? find_by(id: reference) : find_by(identifier: reference)
+  end
+
   # The declarer is polymorphic, so includes cannot preload its user. This
   # loads them in one query instead of one per incident.
   def self.preload_declarers(incidents)

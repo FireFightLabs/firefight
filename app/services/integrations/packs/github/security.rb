@@ -228,7 +228,7 @@ module Integrations
             "#{"  #{instance.dig('message', 'text').to_s.squish.truncate(200)}" if instance.dig('message', 'text').present?}  #{alert['html_url']}"
         end
 
-        # What the alert is about, never what the secret is: GitHub's secret field is not read.
+        # What the alert is about, never what the secret is, so GitHub's secret field is not read.
         def secret_line(alert)
           facts = [ ("still works" if alert["validity"] == "active"), ("no longer works" if alert["validity"] == "inactive"),
                     ("leaked publicly" if alert["publicly_leaked"]), ("also in other repositories" if alert["multi_repo"]),

@@ -1,5 +1,5 @@
-# A code change paused at its spending limit: told where it came from, and decided by the person it runs as. Continue
-# gives it another budget of the same size and carries it on at the start of a turn in the chat, through the very tool a
+# A code change paused at its spending limit. It says where it came from, and the person it runs as decides. Continue
+# gives it another budget of the same size and carries it on at the start of a turn in the chat, through the same tool a
 # chat offers them, so grants, approval rules and the ledger apply. Stop deletes the saved branch and closes the box.
 class CodeAgentPauseService
   GONE = "This paused change is gone.".freeze
@@ -38,7 +38,7 @@ class CodeAgentPauseService
     nil
   end
 
-  # Stop, pressed by the person the change runs as: the saved branch is deleted and the box closed. Answers why not, or nil.
+  # Stop, pressed by the person the change runs as, deletes the saved branch and closes the box. Answers why not, or nil.
   def self.stop!(pause, by:)
     blocked = pause.decide_blocked_reason(by)
     return blocked if blocked

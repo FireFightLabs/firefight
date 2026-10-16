@@ -55,14 +55,14 @@ else
   json.fix_step nil
 end
 
-if event.event_type == IncidentEvent::INVESTIGATION_ANSWERED && event.metadata.to_h["headline"].present?
-  metadata = event.metadata.to_h
+answer = event.investigation_answer
+if answer
   json.answer do
-    json.headline metadata["headline"]
-    json.sureness metadata["sureness"]
-    json.what_is_wrong metadata["what_is_wrong"]
-    json.suggested_fix metadata["suggested_fix"]
-    json.full metadata["message"]
+    json.headline answer.headline
+    json.sureness answer.sureness
+    json.what_is_wrong answer.what_is_wrong
+    json.suggested_fix answer.suggested_fix
+    json.full answer.full
   end
 else
   json.answer nil

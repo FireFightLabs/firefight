@@ -61,7 +61,7 @@ class Workflow::PublishRequest < ApplicationRecord
 
   def waiting? = requested_at.present? && published_at.nil? && dismissed_at.nil?
 
-  # Why Publish on this request cannot publish the draft as it is now: it changed since the admins were asked.
+  # Why Publish on this request cannot publish the draft as it is now, because it changed since the admins were asked.
   def stale_reason(draft)
     return if draft.id == version_id && draft.revision == revision
 

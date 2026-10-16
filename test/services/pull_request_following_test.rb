@@ -1,6 +1,6 @@
 require "test_helper"
 
-# Halon owns the pull requests it opens: it follows each through the code host, says once when one conflicts, fails its
+# Halon owns the pull requests it opens. It follows each through the code host, says once when one conflicts, fails its
 # checks or is asked for changes, offers Fix it, and changes nothing on the branch until the person who asked presses it.
 class PullRequestFollowingTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper

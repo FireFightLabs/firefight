@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class UpsertRunbook < Base
-      tool_name UPSERT_RUNBOOK
+      tool_name FirefightTools::UPSERT_RUNBOOK
       description "Create or update an incident response runbook. Pass slug to update an " \
                   "existing runbook (steps/conditions replace the current set when given); an unknown slug is an error, not a create; " \
                   "omit it to create one (name required). Attach conditions auto-attach the " \

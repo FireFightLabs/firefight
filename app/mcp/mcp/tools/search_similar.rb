@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class SearchSimilar < Base
-      tool_name SEARCH_SIMILAR
+      tool_name FirefightTools::SEARCH_SIMILAR
       authorize_as Ability::Action::RESOURCE_INCIDENTS
       description "Find past incidents, findings and postmortems that read like the situation you " \
                   "describe, by meaning rather than by words. Say what is happening in a sentence " \

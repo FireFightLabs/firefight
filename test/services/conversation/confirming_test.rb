@@ -162,7 +162,7 @@ class Conversation::ConfirmingTest < ActiveSupport::TestCase
   end
 
   test "Firefight's own settings and Halon's memory are not outside content" do
-    read!("call_config", Mcp::Tools::GET_WORKSPACE_CONFIG, {}, "severities")
+    read!("call_config", FirefightTools::GET_WORKSPACE_CONFIG, {}, "severities")
     read!("call_recall", Chat::Tools::Recall.tool_name, {}, "nothing remembered")
 
     assert_not Chat::Tools::Provenance.read_outside?(@chat)

@@ -1,5 +1,5 @@
 # What every kind of step shares. The class side describes the kind, which publishing, the pages and Halon read. An
-# instance runs one step of one run: it is handed the run's record, the engine's step and the step's config already
+# instance runs one step of one run. It is handed the run's record, the engine's step and the step's config already
 # filled from the run's data, and answers the step's output, or parks the step while something it asked for happens.
 #
 # A step that changes something goes through the same rules wherever it runs: a test run only pretends unless the
@@ -34,8 +34,10 @@ class DefinedWorkflow::Steps::Base
   CHECKPOINT_DELIVERED = "delivered".freeze
   # How long a step waits for work it handed off, such as Halon reading, when the step sets no time limit of its own.
   HANDED_OFF_LIMIT = 30.minutes
-  # What a step that checks a change is still needed hands off under.
+  # What a step that checks a change is still needed hands off under, and the keys its report comes back with.
   STATE_CHECK = "state_check".freeze
+  REPORT_VERDICT = "verdict".freeze
+  REPORT_STATE = "state".freeze
   # The engine's events for a step tried again, after a failure or by hand.
   RETRIED = [ SolidWorkflow::Events::Step::RETRY_SCHEDULED, SolidWorkflow::Events::Step::MANUAL_RETRY ].freeze
   TRY_SEPARATOR = "#try".freeze
@@ -156,12 +158,12 @@ class DefinedWorkflow::Steps::Base
     report = await(key) { |name| WorkflowStateCheckJob.perform_later(@run.id, record&.id, @step.id, name, named, asked) }
     return report if report.is_a?(SolidWorkflow::Park)
 
-    case report["verdict"]
+    case report[REPORT_VERDICT]
     when Workflow::NeedCheck::STILL_NEEDED then nil
     when Workflow::NeedCheck::CLEARED
-      said = [ CLEARED, report["state"].presence ].compact.join(" ")
+      said = [ CLEARED, report[REPORT_STATE].presence ].compact.join(" ")
       SolidWorkflow::Skipped.new(reason: said, output: { OUTPUT_SKIPPED => said })
-    else raise Refused, [ NOT_CHECKED, report["state"].presence ].compact.join(" ")
+    else raise Refused, [ NOT_CHECKED, report[REPORT_STATE].presence ].compact.join(" ")
     end
   end
 

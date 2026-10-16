@@ -2,7 +2,7 @@ module Mcp
   module Tools
     module IncidentWrite
       def self.find!(workspace, reference)
-        incident = GetIncident.find_by_reference(workspace.incidents.where(deleted_at: nil), reference.to_s)
+        incident = workspace.incidents.where(deleted_at: nil).find_by_reference(reference.to_s)
         raise ActiveRecord::RecordNotFound unless incident
 
         incident

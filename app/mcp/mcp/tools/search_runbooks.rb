@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class SearchRunbooks < Base
-      tool_name SEARCH_RUNBOOKS
+      tool_name FirefightTools::SEARCH_RUNBOOKS
       authorize_as Ability::Action::RESOURCE_RUNBOOKS
       description "Search this workspace's incident response runbooks: documented procedures " \
                   "for handling incidents (e.g. how to fail over a database, roll back a deploy). " \

@@ -152,7 +152,7 @@ class Chat::HelpersTest < ActiveSupport::TestCase
     helper = Chat::Helper.start!(chat: @chat, tool_call_id: "call_1", checks: checks("Logs of checkout"), since: 1.minute.ago).sole
     own = Chat.open!(owner: helper, workspace: @workspace, model_choice: @side)
     asked = own.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
-    asked.ruby_llm_tool_calls.create!(tool_call_id: "h_1", name: Mcp::Tools::SEARCH_INCIDENTS, arguments: {})
+    asked.ruby_llm_tool_calls.create!(tool_call_id: "h_1", name: FirefightTools::SEARCH_INCIDENTS, arguments: {})
     asked.ruby_llm_tool_calls.create!(tool_call_id: "h_2", name: Chat::Tools::Open.tool_name, arguments: {})
     lines = []
     delivery = Object.new

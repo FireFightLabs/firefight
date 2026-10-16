@@ -150,15 +150,11 @@ class TimelineEventSerializer < BaseSerializer
   type "{ headline: string; sureness: string | null; whatIsWrong: string | null; suggestedFix: string | null; full: string | null }",
        optional: true
   def answer
-    return nil unless event.event_type == IncidentEvent::INVESTIGATION_ANSWERED
+    answer = event.investigation_answer(options.fetch(:answers, {})[event.id])
+    return nil unless answer
 
-    meta = event.metadata.to_h
-    finding = options.fetch(:answers, {})[event.id]
-    short = finding ? Investigation::Timeline.short_answer(finding).stringify_keys : meta
-    return nil if short["headline"].blank?
-
-    { headline: short["headline"], sureness: short["sureness"], whatIsWrong: short["what_is_wrong"],
-      suggestedFix: short["suggested_fix"], full: (finding&.summary || meta["message"]).presence }
+    { headline: answer.headline, sureness: answer.sureness, whatIsWrong: answer.what_is_wrong,
+      suggestedFix: answer.suggested_fix, full: answer.full.presence }
   end
 
   type :string, optional: true

@@ -2,7 +2,7 @@ module Mcp
   module Tools
     # Runs a published workflow by its name, as its own identity, the same way Run on its page does.
     class RunWorkflow < Base
-      tool_name RUN_WORKFLOW
+      tool_name FirefightTools::RUN_WORKFLOW
       authorize_as Ability::Action::RESOURCE_WORKFLOWS, Ability::Action::ACTION_CREATE
       behind_flag FeatureFlags::WORKFLOWS
       description "Run a published workflow by its name, slug or another name it goes by, with a value for each input it asks " \

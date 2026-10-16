@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class AssignIncidentRole < Base
-      tool_name ASSIGN_INCIDENT_ROLE
+      tool_name FirefightTools::ASSIGN_INCIDENT_ROLE
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Assign an incident role to one person, or clear it. A role names who is " \
                   "accountable, so each role has a single holder and assigning replaces whoever " \
@@ -25,7 +25,7 @@ module Mcp
       by_hand_words(/\b(assign|make|set)\b.+\b(role|lead|commander|scribe)\b/i)
 
       def self.already_holds(workspace:, principal:, args:)
-        incident = GetIncident.find_by_reference(workspace.incidents.where(deleted_at: nil), args[:incident].to_s)
+        incident = workspace.incidents.where(deleted_at: nil).find_by_reference(args[:incident].to_s)
         role = incident && workspace.incident_roles.active.find_by(slug: args[:role].to_s)
         return nil unless role && args[:member].present?
 
@@ -35,7 +35,7 @@ module Mcp
       end
 
       def self.perform_with_principal(workspace:, principal:, args:)
-        incident = GetIncident.find_by_reference(workspace.incidents.where(deleted_at: nil), args[:incident].to_s)
+        incident = workspace.incidents.where(deleted_at: nil).find_by_reference(args[:incident].to_s)
         raise ActiveRecord::RecordNotFound unless incident
 
         role = workspace.incident_roles.active.find_by(slug: args[:role].to_s)

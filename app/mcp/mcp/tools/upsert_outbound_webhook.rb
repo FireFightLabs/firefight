@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class UpsertOutboundWebhook < Base
-      tool_name UPSERT_OUTBOUND_WEBHOOK
+      tool_name FirefightTools::UPSERT_OUTBOUND_WEBHOOK
       description "Create or change a Firefight outbound webhook, which posts this workspace's " \
                   "incident events to a URL you own. It is Firefight's own, never a provider's " \
                   "webhook such as a deploy or workflow trigger, which that provider's tools reach. " \

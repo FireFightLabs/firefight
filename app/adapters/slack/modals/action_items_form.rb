@@ -23,7 +23,7 @@ module Slack
 
         description_element = {
           type: "plain_text_input",
-          action_id: "description_input",
+          action_id: Identifiers::ACTION_ITEM_DESCRIPTION_INPUT,
           multiline: true,
           placeholder: { type: "plain_text", text: "Write something" },
           max_length: DESCRIPTION_LIMIT
@@ -40,16 +40,16 @@ module Slack
           blocks: [
             {
               type: "input",
-              block_id: "description_block",
+              block_id: Identifiers::ACTION_ITEM_DESCRIPTION_BLOCK,
               element: description_element,
               label: { type: "plain_text", text: "Description" }
             },
             {
               type: "input",
-              block_id: "assignee_block",
+              block_id: Identifiers::ACTION_ITEM_ASSIGNEE_BLOCK,
               element: {
                 type: "users_select",
-                action_id: "assignee_select",
+                action_id: Identifiers::ACTION_ITEM_ASSIGNEE_SELECT,
                 placeholder: { type: "plain_text", text: "Pick an option" }
               },
               label: { type: "plain_text", text: "Who's picking it up?" },

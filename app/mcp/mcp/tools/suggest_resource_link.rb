@@ -3,7 +3,7 @@ module Mcp
     # How two resources depend on each other, as the agent read it from evidence. It is shown dashed on the map and is
     # not a fact until a person confirms it, so it never changes what the sweeps report.
     class SuggestResourceLink < Base
-      tool_name SUGGEST_RESOURCE_LINK
+      tool_name FirefightTools::SUGGEST_RESOURCE_LINK
       authorize_as Ability::Action::RESOURCE_CATALOG, Ability::Action::ACTION_UPDATE
       description "Suggest a link between two resources on the map that no provider declares, such as a service that " \
                   "uses a database, from evidence you read (a connection host in its logs, requests between them). It " \

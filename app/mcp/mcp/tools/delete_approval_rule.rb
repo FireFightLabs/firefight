@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class DeleteApprovalRule < Base
-      tool_name DELETE_APPROVAL_RULE
+      tool_name FirefightTools::DELETE_APPROVAL_RULE
       description "Delete an approval rule by id. Calls it used to hold run without waiting " \
                   "from then on. Docs: #{Docs::APPROVALS}"
       annotations(**DESTRUCTIVE)

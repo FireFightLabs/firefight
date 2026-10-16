@@ -34,9 +34,7 @@ module Integrations
     def rows_for_installation(provider_key, installation)
       return IntegrationEnvironment.none if installation.blank?
 
-      IntegrationEnvironment.reachable.where(integrations: { provider: provider_key.to_s })
-                            .where("integration_environments.base_config ->> :key = :installation", key: IntegrationEnvironment::INSTALLATION_KEY,
-                                                                                                    installation: installation.to_s)
+      IntegrationEnvironment.reachable.where(integrations: { provider: provider_key.to_s }).installed_through(installation)
     end
 
     # Keeps each event once per connection and queues a re-read of each scope a new one names. Answers how many were new.
@@ -155,7 +153,7 @@ module Integrations
 
     def slowed!(environment_row)
       gap = format(SLOWED, name: environment_row.integration.name)
-      environment_row.update!(map_gaps: (environment_row.map_gaps + [ gap ]).uniq)
+      environment_row.add_map_gap!(gap)
     end
 
     # Reads the provider's change log after where it was last read, keeping the new cursor only once its events are kept.
@@ -169,7 +167,7 @@ module Integrations
       receive!(environment_row, polled.events)
       environment_row.update!(map_events_cursor: polled.cursor, map_events_error: nil, map_events_refused_at: nil)
       # One scope's change log that could not be read leaves live updates on for the rest, and is said with the map's gaps.
-      environment_row.update!(map_gaps: (environment_row.map_gaps + [ polled.error ]).uniq) if polled.error
+      environment_row.add_map_gap!(polled.error) if polled.error
     rescue RateLimited
       nil
     rescue MapEventSource::Refused => error

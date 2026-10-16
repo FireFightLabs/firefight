@@ -1,4 +1,4 @@
-# Where a workflow whose trigger is an inbound webhook is started from outside: a POST to its own address, with a JSON
+# Where a workflow whose trigger is an inbound webhook is started from outside, by a POST to its own address, with a JSON
 # object as the body, signed with the workflow's secret as Firefight signs its outbound webhooks (Workflow::Hook). The
 # address names the workflow and the signature is the only proof of who sent it, so it inherits neither BaseController
 # nor ApiController. The body is read as it came, never as parameters. A workspace without workflows, a workflow

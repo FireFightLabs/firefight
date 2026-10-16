@@ -7,7 +7,6 @@ class MitigationSweepJob < ApplicationJob
   def perform
     Chat::Mitigation.remind_due.find_each { |mitigation| Conversation::Mitigations.remind!(mitigation) }
     Chat::Mitigation.expiry_due.pluck(:id).each { |id| MitigationExpiryJob.perform_later(id) }
-    Chat::Mitigation.where(status: Chat::Mitigation::STATUS_UNDOING, claimed_at: ...Chat::Mitigation::CLAIM_LAPSES.ago)
-                    .find_each { |mitigation| Conversation::Mitigations.give_up!(mitigation) }
+    Chat::Mitigation.undo_lapsed.find_each { |mitigation| Conversation::Mitigations.give_up!(mitigation) }
   end
 end

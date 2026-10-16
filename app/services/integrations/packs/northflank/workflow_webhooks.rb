@@ -68,7 +68,7 @@ module Integrations
         def secret_value(environment_row:, path:)
           project, workflow_id, ref = path.to_s.split("/", 3)
           fail!("That reference names no workflow webhook.") unless [ project, workflow_id, ref ].all?(&:present?)
-          fail!("This connection no longer reaches project #{project}.") unless ConnectionSettings.of(environment_row).scopes.include?(project)
+          fail_policy!("This connection no longer reaches project #{project}.") unless ConnectionSettings.of(environment_row).scopes.include?(project)
 
           trigger = Array(workflow_of(environment_row, project, workflow_id)["triggers"]).find { |each| each["kind"] == WEBHOOK_KIND && each["ref"] == ref }
           token = trigger&.dig("spec", "token")

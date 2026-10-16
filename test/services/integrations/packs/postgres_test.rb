@@ -68,6 +68,14 @@ module Integrations
         assert_match "1 rows.", call(:run_query, "sql" => "SELECT count(*) FROM pg_stat_activity WHERE query NOT LIKE 'x'")
       end
 
+      test "a function that runs SQL handed to it as text is refused, since the text can spell a refused name in pieces" do
+        [ "SELECT query_to_xml('select pg_termin' || 'ate_backend(1) where false', true, false, '')",
+          "SELECT * FROM ts_stat('select to_tsvector(''x'')')", "SELECT pg_drop_replication_slot('x') WHERE false",
+          "SELECT pg_notify('channel', 'x')", "SELECT pg_stat_statements_reset()" ].each do |sql|
+          assert_raises(PolicyRefusal, sql) { call(:run_query, "sql" => sql) }
+        end
+      end
+
       test "a catalog holding passwords, or a function reading a file, is refused by name, in a query and in a plan" do
         [ "SELECT rolpassword FROM pg_authid", "SELECT * FROM pg_catalog.pg_shadow", "SELECT umoptions FROM pg_user_mappings",
           "SELECT subconninfo FROM \"pg_subscription\"", "SELECT srvoptions FROM pg_foreign_server",

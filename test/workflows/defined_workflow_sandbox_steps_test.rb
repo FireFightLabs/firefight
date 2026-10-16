@@ -60,7 +60,7 @@ class DefinedWorkflowSandboxStepsTest < ActiveSupport::TestCase
   # The run's box started and ten seconds passing while its command runs.
   def ten_seconds_in_the_box(workflow)
     proc do |*|
-      CodeBox.create!(workspace: @workspace, key: workflow.runs.sole.code_box_key, provider: SandboxProviders::BOAT, box_ref: "bx_9", address: "https://box.example.com",
+      CodeBox.create!(workspace: @workspace, key: workflow.runs.sole.code_box_key, provider: Integrations::Sandboxes::Boat::KEY, box_ref: "bx_9", address: "https://box.example.com",
                       secret: "k", last_used_at: Time.current, box_started_at: Time.current, hourly_micros: 360_000)
       travel 10.seconds
       true

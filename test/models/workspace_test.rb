@@ -21,10 +21,11 @@ class WorkspaceTest < ActiveSupport::TestCase
     assert_includes duplicate.errors[:platform_id], "has already been taken"
   end
 
-  test "process_slack_installation creates workspace, user, and membership" do
+  test "process_chat_installation creates workspace, user, and membership" do
     auth_hash = mock_slack_auth_hash
+    person = installer
 
-    result = Workspace.process_slack_installation(auth_hash)
+    result = install_slack(auth_hash, user: person)
 
     assert result[:workspace].present?
     assert result[:user].present?
@@ -38,8 +39,7 @@ class WorkspaceTest < ActiveSupport::TestCase
     assert_equal "Test Workspace", workspace.name
 
     user = result[:user]
-    assert user.persisted?
-    assert_equal "test@example.com", user.email
+    assert_equal person, user
 
     membership = result[:membership]
     assert membership.persisted?
@@ -52,7 +52,7 @@ class WorkspaceTest < ActiveSupport::TestCase
   end
 
   test "a new workspace grants Firefight's investigator the map in every environment, saving to memory, reading what it raised and reading the handbook, as ordinary grants" do
-    workspace = Workspace.process_slack_installation(mock_slack_auth_hash)[:workspace]
+    workspace = install_slack(mock_slack_auth_hash, user: installer)[:workspace]
 
     grants = workspace.ability_grants.where(principal: SystemAgent.investigator).includes(:action)
     assert_equal [ Ability::Action::MAP_READ, Ability::Action::HANDBOOK_READ, "memory.create", "memory.update", "monitoring.read" ].sort,
@@ -63,11 +63,12 @@ class WorkspaceTest < ActiveSupport::TestCase
 
   test "the first joiner owns the workspace and the next one does not" do
     team_id = "T#{SecureRandom.hex(8)}"
-    first = Workspace.process_slack_installation(auth_hash_for(team_id))
+    first = install_slack(auth_hash_for(team_id), user: installer)
     workspace = first[:workspace]
 
-    second = Workspace.process_slack_installation(
-      auth_hash_for(team_id, uid: "U_SECOND", info: { name: "Second", email: "second@example.com" })
+    second = install_slack(
+      auth_hash_for(team_id, uid: "U_SECOND", info: { name: "Second", email: "second@example.com" }),
+      user: installer("second")
     )
 
     assert_equal "owner", first[:membership].role
@@ -83,10 +84,10 @@ class WorkspaceTest < ActiveSupport::TestCase
     relation.expects(:find).at_least_once.returns(nil)
     Workspace.expects(:lock).at_least_once.returns(relation)
 
-    Workspace.process_slack_installation(mock_slack_auth_hash)
+    install_slack(mock_slack_auth_hash, user: installer)
   end
 
-  test "process_slack_installation returns existing workspace for reinstall" do
+  test "process_chat_installation returns existing workspace for reinstall" do
     team_id = "T#{SecureRandom.hex(8)}"
     existing = Workspace.create!(
     platform: "slack",
@@ -101,13 +102,13 @@ class WorkspaceTest < ActiveSupport::TestCase
     extra: { team_info: { "id" => team_id, "name" => "Test Workspace" } }
     )
 
-    result = Workspace.process_slack_installation(auth_hash)
+    result = install_slack(auth_hash, user: installer)
 
     assert_equal existing.id, result[:workspace].id
     assert_not result[:first_install]
   end
 
-  test "process_slack_installation treats workspace without channel as first install" do
+  test "process_chat_installation treats workspace without channel as first install" do
     team_id = "T#{SecureRandom.hex(8)}"
     existing = Workspace.create!(
     platform: "slack",
@@ -122,30 +123,31 @@ class WorkspaceTest < ActiveSupport::TestCase
     extra: { team_info: { "id" => team_id, "name" => "Test Workspace" } }
     )
 
-    result = Workspace.process_slack_installation(auth_hash)
+    result = install_slack(auth_hash, user: installer)
 
     assert_equal existing.id, result[:workspace].id
     assert result[:first_install], "Should be first install if incidents_channel_id is nil"
   end
 
-  test "process_slack_installation wraps everything in transaction" do
+  test "process_chat_installation wraps everything in transaction" do
     auth_hash = mock_slack_auth_hash
     expected_platform_id = auth_hash.extra.team_info["id"]
 
-    User.stubs(:find_or_create_from_omniauth!).raises(
-      ActiveRecord::RecordInvalid.new(User.new)
+    user = installer
+    WorkspaceMembership.stubs(:find_or_create_for_platform_user!).raises(
+      ActiveRecord::RecordInvalid.new(WorkspaceMembership.new)
     )
 
-    assert_no_difference [ "Workspace.count", "User.count", "WorkspaceMembership.count" ] do
+    assert_no_difference [ "Workspace.count", "WorkspaceMembership.count" ] do
       assert_raises(ActiveRecord::RecordInvalid) do
-        Workspace.process_slack_installation(auth_hash)
+        install_slack(auth_hash, user: user)
       end
     end
 
     assert_nil Workspace.find_by(platform: "slack", platform_id: expected_platform_id)
   end
 
-  test "process_slack_installation updates existing user and workspace" do
+  test "process_chat_installation updates the existing workspace" do
     team_id = "T#{SecureRandom.hex(8)}"
     existing_workspace = Workspace.create!(
     platform: "slack",
@@ -178,17 +180,14 @@ class WorkspaceTest < ActiveSupport::TestCase
     }
     )
 
-    result = Workspace.process_slack_installation(auth_hash)
+    install_slack(auth_hash, user: existing_user)
 
     existing_workspace.reload
     assert_equal "Updated Workspace", existing_workspace.name
     assert_equal "new-token", existing_workspace.access_token
-
-    existing_user.reload
-    assert_equal "Updated User", existing_user.name
   end
 
-  test "process_slack_installation creates membership for existing workspace and user" do
+  test "process_chat_installation creates membership for existing workspace and user" do
     team_id = "T#{SecureRandom.hex(8)}"
     existing_workspace = Workspace.create!(
     platform: "slack",
@@ -207,14 +206,14 @@ class WorkspaceTest < ActiveSupport::TestCase
     extra: { team_info: { "id" => team_id, "name" => "Test Workspace" } }
     )
 
-    result = Workspace.process_slack_installation(auth_hash)
+    result = install_slack(auth_hash, user: existing_user)
 
     assert result[:membership].persisted?
     assert_equal existing_workspace.id, result[:membership].workspace_id
     assert_equal existing_user.id, result[:membership].user_id
   end
 
-  test "process_slack_installation sets first_install false if channel exists" do
+  test "process_chat_installation sets first_install false if channel exists" do
     team_id = "T#{SecureRandom.hex(8)}"
     existing = Workspace.create!(
     platform: "slack",
@@ -229,13 +228,22 @@ class WorkspaceTest < ActiveSupport::TestCase
     extra: { team_info: { "id" => team_id, "name" => "Test Workspace" } }
     )
 
-    result = Workspace.process_slack_installation(auth_hash)
+    result = install_slack(auth_hash, user: installer)
 
     assert_not result[:first_install]
     assert_equal existing.id, result[:workspace].id
   end
 
   private
+
+  def install_slack(auth_hash, user:, workspace: nil)
+    Workspace.process_chat_installation(install: SlackAuthenticationService.install_from(auth_hash),
+                                        member: SlackAuthenticationService.platform_member_from(auth_hash), user: user, workspace: workspace)
+  end
+
+  def installer(name = "installer")
+    User.create!(email: "#{name}-#{SecureRandom.hex(4)}@example.com", name: name.capitalize)
+  end
 
   def auth_hash_for(team_id, overrides = {})
     mock_slack_auth_hash(overrides.merge(extra: { team_info: { "id" => team_id, "name" => "Test Workspace" } }))

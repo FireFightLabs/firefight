@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class UpdateRoutingConfig < Base
-      tool_name UPDATE_ROUTING_CONFIG
+      tool_name FirefightTools::UPDATE_ROUTING_CONFIG
       description "Update alert grouping config on the routing policy: the grouping window " \
                   "and which alert fields must match for alerts to group into one incident. " \
                   "Omitted knobs are left untouched; an empty content_match_fields list reverts " \

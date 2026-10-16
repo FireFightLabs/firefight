@@ -3,7 +3,7 @@ module Mcp
     # One search across resources on the map, catalog entries and their owners, and memories people confirmed, ranked
     # together, so a name, an id, a fragment of one or what a service does finds it wherever it lives.
     class SearchMap < Base
-      tool_name SEARCH_MAP
+      tool_name FirefightTools::SEARCH_MAP
       authorize_as Ability::Action::RESOURCE_MAP
       description "Search the resource map, the catalog and confirmed memories at once, by a name, a provider id or " \
                   "part of one, a tag, an owning team, or what a service does. Results are ranked together, an exact " \

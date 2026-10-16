@@ -38,8 +38,9 @@ class Workspace::CreatedTest < ActiveSupport::TestCase
 
   test "a Slack install that creates the workspace tells once, and installing into it again tells nothing" do
     team_id = "T#{SecureRandom.hex(8)}"
-    first = Workspace.process_slack_installation(slack_auth_hash(team_id))
-    Workspace.process_slack_installation(slack_auth_hash(team_id, uid: "U_SECOND", info: { name: "Second", email: "second-#{SecureRandom.hex(3)}@example.com" }))
+    first = install_slack(slack_auth_hash(team_id), user: new_user)
+    install_slack(slack_auth_hash(team_id, uid: "U_SECOND", info: { name: "Second", email: "second-#{SecureRandom.hex(3)}@example.com" }),
+                                         user: new_user)
 
     assert_equal [ first[:workspace].id ], @backend.created
   end
@@ -55,6 +56,11 @@ class Workspace::CreatedTest < ActiveSupport::TestCase
   end
 
   private
+
+  def install_slack(auth_hash, user:, workspace: nil)
+    Workspace.process_chat_installation(install: SlackAuthenticationService.install_from(auth_hash),
+                                        member: SlackAuthenticationService.platform_member_from(auth_hash), user: user, workspace: workspace)
+  end
 
   def new_user = User.create!(email: "starter-#{SecureRandom.hex(4)}@example.com", name: "Sam Starter")
 

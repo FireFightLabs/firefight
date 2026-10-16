@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class ApproveApproval < Base
-      tool_name APPROVE_APPROVAL
+      tool_name FirefightTools::APPROVE_APPROVAL
       description "Approve a pending ability approval by id, as the connected human. Only " \
                   "personal tokens and OAuth connections can resolve approvals — the approver " \
                   "is re-validated (role now, requester rules) at this moment. The requester " \

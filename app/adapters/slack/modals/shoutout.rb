@@ -12,20 +12,20 @@ module Slack
           blocks: [
             {
               type: "input",
-              block_id: "recipient_block",
+              block_id: Identifiers::SHOUTOUT_RECIPIENT_BLOCK,
               element: {
                 type: "users_select",
-                action_id: "recipient_select",
+                action_id: Identifiers::SHOUTOUT_RECIPIENT_SELECT,
                 placeholder: { type: "plain_text", text: "Who deserves recognition?" }
               },
               label: { type: "plain_text", text: "Shoutout to" }
             },
             {
               type: "input",
-              block_id: "message_block",
+              block_id: Identifiers::SHOUTOUT_MESSAGE_BLOCK,
               element: {
                 type: "plain_text_input",
-                action_id: "message_input",
+                action_id: Identifiers::SHOUTOUT_MESSAGE_INPUT,
                 multiline: true,
                 placeholder: { type: "plain_text", text: "What did they do that was awesome?" },
                 max_length: 500

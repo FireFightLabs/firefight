@@ -9,7 +9,7 @@ class Api::V1::WorkflowHooksControllerTest < ActionDispatch::IntegrationTest
     FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @workflow = Workflow.create!(workspace: @workspace, name: "Deploy hook", created_by: @alice)
     draft = @workflow.open_draft!(by: @alice)
-    step = { "id" => "look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => { "query" => "{{trigger.body.service}}" } } }
+    step = { "id" => "look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => { "query" => "{{trigger.body.service}}" } } }
     draft.update!(trigger: { "kind" => Workflow::Trigger::KIND_INBOUND_WEBHOOK, "inputs" => [],
                              "conditions" => [ { "field" => "body.service", "operator" => PolicyRule::OPERATOR_IS_ONE_OF, "value" => [ "web", "api" ] } ] },
                   steps: [ step ], edges: [])

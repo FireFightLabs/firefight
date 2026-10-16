@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class GetForm < Base
-      tool_name GET_FORM
+      tool_name FirefightTools::GET_FORM
       description "Fetch one lifecycle form and every field on it, hidden ones included, with " \
                   "each field's key, type, whether it is visible, required, locked, and any " \
                   "conditions gating it. A field with asked: false is not on the form right now " \

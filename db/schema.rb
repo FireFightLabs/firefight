@@ -1314,6 +1314,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_180000) do
     t.string "push_token_digest"
     t.datetime "push_open_until"
     t.integer "questions_asked", default: 0, null: false
+    t.string "push_commit"
     t.jsonb "tool_result_clearing", default: {}, null: false
     t.index ["integration_environment_id"], name: "index_code_agent_sessions_following", where: "((pull_request_state)::text = 'open'::text)"
     t.index ["push_token_digest"], name: "index_code_agent_sessions_on_push_token_digest", unique: true, where: "(push_token_digest IS NOT NULL)"

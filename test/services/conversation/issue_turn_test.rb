@@ -1,6 +1,6 @@
 require "test_helper"
 
-# A turn of a chat someone started in a tracker's issue: it acts as Firefight's agent, and what it says is posted in the
+# A turn of a chat someone started in a tracker's issue. It acts as Firefight's agent, and what it says is posted in the
 # issue's session, each tool as an action and the answer as the response.
 class Conversation::IssueTurnTest < ActiveSupport::TestCase
   class FakeResponder

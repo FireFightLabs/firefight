@@ -18,6 +18,8 @@ module Integrations
         # A pipeline in one of these has ended, so there is nothing left to cancel. GitLab answers 200 to a cancel whatever
         # the pipeline's state (doc/api/pipelines.md, cancel), so this is checked first.
         FINISHED_STATUSES = %w[success failed canceled skipped].freeze
+        # GitLab marks a log's collapsible sections with lines such as section_start:1700000000:build_script, which say nothing.
+        SECTION_MARK = /\A\s*section_(start|end):\d+:[\w.\-]+(\[[^\]]*\])?/
         # What every change here needs (doc/ci/pipelines, pipeline security on protected branches).
         WRITE_NEEDS = "Running, retrying or canceling a pipeline needs a token with the api scope, from someone who may run " \
                       "pipelines in the project, and on a protected branch someone allowed to merge or push to it".freeze
@@ -169,7 +171,7 @@ module Integrations
           rescue GitlabApi::NotFound
             ""
           end
-          kept, matched = build_log_lines(raw, arguments)
+          kept, matched = build_log_lines(raw, arguments, marks: SECTION_MARK)
           reason = job["failure_reason"].present? ? ", #{job['failure_reason'].tr('_', ' ')}" : ""
           heading = "Job #{job['id']} #{job['stage']}/#{job['name']} in #{repo}, #{job['status']}#{reason}, on #{job['ref']} " \
                     "at #{job.dig('commit', 'short_id') || job.dig('pipeline', 'sha').to_s[0, 8]}, finished #{job['finished_at'] || 'not yet'}."

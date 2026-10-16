@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class UpsertAlertSource < Base
-      tool_name UPSERT_ALERT_SOURCE
+      tool_name FirefightTools::UPSERT_ALERT_SOURCE
       description "Create or change an alert source, which is the endpoint a monitoring tool posts " \
                   "alerts to. Pass slug to change an existing one, or leave it out to create. The " \
                   "slug is the endpoint path, fixed once the source exists so whatever is already " \

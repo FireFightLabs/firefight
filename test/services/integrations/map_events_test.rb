@@ -109,6 +109,18 @@ module Integrations
       assert_includes @row.reload.map_gaps, "Live test asked Firefight to slow down, so a change it reported is read at the next sweep."
     end
 
+    test "a gap is added once, and a copy of the row that missed another worker's gap keeps both" do
+      stale = IntegrationEnvironment.find(@row.id)
+      @row.add_map_gap!("first gap")
+      stale.add_map_gap!("second gap")
+      stale.add_map_gap!("second gap")
+
+      gaps = @row.reload.map_gaps
+      assert_equal 1, gaps.count("first gap")
+      assert_equal 1, gaps.count("second gap")
+      assert_includes stale.map_gaps, "first gap"
+    end
+
     test "the hourly sweep still takes away what a missed event would have" do
       LiveTestPack.world.delete([ @worker.kind, "worker" ])
 

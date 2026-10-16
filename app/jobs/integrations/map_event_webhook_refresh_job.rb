@@ -4,9 +4,7 @@ module Integrations
     queue_as :background
 
     def perform
-      IntegrationEnvironment.reachable.where.not(map_events_webhook_id: nil)
-                            .where(integration_environments: { map_events_expires_at: ..MapEvents::REFRESH_WITHIN.from_now })
-                            .includes(:integration).find_each { |row| MapEvents.refresh!(row) }
+      IntegrationEnvironment.reachable.map_events_webhook_due(MapEvents::REFRESH_WITHIN).includes(:integration).find_each { |row| MapEvents.refresh!(row) }
     end
   end
 end

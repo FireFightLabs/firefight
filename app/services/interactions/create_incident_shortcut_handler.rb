@@ -23,10 +23,7 @@ module Interactions
         trigger_id: interaction.trigger_id
       })
 
-      {
-        response_action: "errors",
-        errors: { base: "This shortcut has expired. Please try again." }
-      }
+      adapter.modal_errors_response({ base: "This shortcut has expired. Please try again." })
     end
   end
 end

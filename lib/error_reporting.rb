@@ -1,6 +1,6 @@
 # Sentry error reporting for a deployment that asks for it. SENTRY_DSN turns it on for the app and its jobs, and
 # SENTRY_FRONTEND_DSN for the browser. Without them the gems are never loaded and the page gets no settings.
-# Errors only: traces go out through OpenTelemetry, so nothing here samples a transaction, profiles or counts sessions.
+# Errors only, since traces go out through OpenTelemetry, so nothing here samples a transaction, profiles or counts sessions.
 module ErrorReporting
   # Only these request headers keep their values. Every other header, Authorization, cookies and webhook tokens
   # included, reaches an event as [Filtered].

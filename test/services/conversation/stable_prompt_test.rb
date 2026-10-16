@@ -305,7 +305,7 @@ class Conversation::StablePromptTest < ActiveSupport::TestCase
     blocks.filter_map { |block| block["cache_control"] if block.is_a?(Hash) }
   end
 
-  # What a provider caches of messages sent through OpenRouter, as seen on Anthropic's models: the marks are not part of
+  # What a provider caches of messages sent through OpenRouter, as seen on Anthropic's models. The marks are not part of
   # it, and a run of user messages reaches the model as one, plain texts joined into one text and anything sent as blocks
   # kept apart, so a message turned into a block by its mark changes how the run before it is sent.
   def as_cached(messages)

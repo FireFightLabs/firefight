@@ -1,6 +1,6 @@
 require "test_helper"
 
-# A repair Halon proposes through PlanetScale's server: the rows it touches are counted and shown before Alice is asked,
+# A repair Halon proposes through PlanetScale's server. The rows it touches are counted and shown before Alice is asked,
 # counted again and copied right before it runs, and the check Halon gave is counted after.
 class Chat::DataRepairsTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
@@ -219,7 +219,7 @@ class Chat::DataRepairsTest < ActiveSupport::TestCase
     @chat.tool_calls.find_by!(tool_call_id: "call_1")
   end
 
-  # A database behind the provider's server: it answers each read by what it asks, keeps every read and write it was
+  # A database behind the provider's server. It answers each read by what it asks, keeps every read and write it was
   # sent, and answers the write itself when given.
   class FakeDatabase
     attr_accessor :touched, :wrong, :write

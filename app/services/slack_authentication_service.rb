@@ -14,6 +14,25 @@ class SlackAuthenticationService
   # A Slack user id is only unique inside its team, so the team is part of the identity.
   def self.identity_uid(team_id, user_id) = "#{team_id}/#{user_id}"
 
+  # What the install's auth hash says about the team, as the attributes a workspace stores.
+  def self.install_from(auth_hash)
+    team_info = auth_hash.extra.team_info
+    credentials = auth_hash.credentials
+    {
+      platform: Platforms::SLACK,
+      platform_id: team_info["id"],
+      name: team_info["name"],
+      platform_data: team_info,
+      access_token: credentials.token,
+      refresh_token: credentials.refresh_token,
+      token_expires_at: credentials.expires_at ? Time.at(credentials.expires_at) : nil
+    }
+  end
+
+  # What the install's auth hash says about the installer's place in the platform, as their membership stores it. Who
+  # the person is comes from installer_from, never from here.
+  def self.platform_member_from(auth_hash) = { platform_user_id: auth_hash.uid, platform_data: auth_hash.extra&.user_info }
+
   # Invite gating applies only to new workspace installs and only when
   # InviteCode.required? is true. Members of an existing workspace always auto-provision.
   def handle_openid_signin(auth_hash)
@@ -74,9 +93,14 @@ class SlackAuthenticationService
     end
 
     result = ActiveRecord::Base.transaction do
-      invite_code.redeem!(user) if existing_workspace.nil? && InviteCode.required?
-      Workspace.process_slack_installation(auth_hash, user: user)
+      installer = user || installer_from(auth_hash)
+      raise ActiveRecord::Rollback unless installer
+
+      invite_code.redeem!(installer) if existing_workspace.nil? && InviteCode.required?
+      Workspace.process_chat_installation(install: self.class.install_from(auth_hash), member: self.class.platform_member_from(auth_hash),
+                                          user: installer)
     end
+    return AuthOutcome.refused(message: UNVERIFIED_EMAIL_MESSAGE) unless result
 
     trigger_workspace_setup(result[:workspace], auth_hash.uid) if result[:first_install]
     if result[:created]
@@ -105,13 +129,17 @@ class SlackAuthenticationService
       return AuthOutcome.refused(message: "Slack was not reinstalled, because you chose a different Slack workspace. Choose #{workspace.chat_team_name} and try again.")
     end
 
-    workspace.reinstall_slack!(auth_hash)
+    workspace.reinstall_chat!(self.class.install_from(auth_hash))
     AuthOutcome.signed_in(membership: membership, message: REINSTALLED_MESSAGE)
   end
 
   # Kept for backward compatibility, older callers still expect a Hash.
   def process_oauth_callback(auth_hash)
-    result = Workspace.process_slack_installation(auth_hash)
+    result = ActiveRecord::Base.transaction do
+      installer = installer_from(auth_hash) or raise ActiveRecord::RecordInvalid, User.new
+      Workspace.process_chat_installation(install: self.class.install_from(auth_hash), member: self.class.platform_member_from(auth_hash),
+                                          user: installer)
+    end
     trigger_workspace_setup(result[:workspace], auth_hash.uid) if result[:first_install]
     result
   end
@@ -127,7 +155,8 @@ class SlackAuthenticationService
     return AuthOutcome.refused(message: CONNECT_FAILED_MESSAGE) unless membership
     return AuthOutcome.refused(message: TEAM_TAKEN_MESSAGE) if Workspace.where.not(id: workspace.id).exists?(platform: Platforms::SLACK, platform_id: team_id)
 
-    result = Workspace.process_slack_installation(auth_hash, user: user, workspace: workspace)
+    result = Workspace.process_chat_installation(install: self.class.install_from(auth_hash), member: self.class.platform_member_from(auth_hash),
+                                                user: user, workspace: workspace)
     trigger_workspace_setup(result[:workspace], auth_hash.uid)
     unless signed_up_with_team
       SignupNotificationService.announce(SignupNotificationService::CHAT_CONNECTED, result[:workspace], result[:membership])
@@ -140,11 +169,18 @@ class SlackAuthenticationService
     AuthOutcome.refused(message: ALREADY_CONNECTED_MESSAGE)
   end
 
-  def claims_from(auth_hash)
+  # An install nobody signed in before reaches a person the way a sign-in does, by their Slack account first and then
+  # only by an email Slack has confirmed, so an address set on an account in another team never reaches someone else.
+  def installer_from(auth_hash)
+    claims = claims_from(auth_hash, team_id: auth_hash.extra.team_info["id"])
+    AuthenticationService.new.sign_in_with(claims, create_user: true, refresh_profile: true).user
+  end
+
+  def claims_from(auth_hash, team_id: auth_hash.info.team_id)
     info = auth_hash.info
     AuthenticationService::Claims.new(
       provider: UserIdentity::SLACK,
-      uid: self.class.identity_uid(info.team_id, auth_hash.uid),
+      uid: self.class.identity_uid(team_id, auth_hash.uid),
       email: info.email,
       email_verified: info.email_verified,
       name: info.name,

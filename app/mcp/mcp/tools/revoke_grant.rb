@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class RevokeGrant < Base
-      tool_name REVOKE_GRANT
+      tool_name FirefightTools::REVOKE_GRANT
       description "Revoke a grant by its id, from list_principals. Takes effect immediately. " \
                   "Docs: #{Docs::PERMISSIONS}"
       annotations(**DESTRUCTIVE)
