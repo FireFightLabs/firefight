@@ -1,0 +1,17 @@
+# The tools of Turso's hosted MCP server that Turso names by their identifiers, from claude-code/skills/turso/SKILL.md of
+# tursodatabase/turso-mcp at commit a5060cb8d9d2682eb67dd33f12f83f5f6249747c, one per line. docs.turso.tech/integrations/mcp also describes
+# organization, group and recovery tools (list and restore deleted databases and groups) without naming them, so they are not here.
+# read_database is documented there as read-only SQL that cannot write.
+# Each line is a tool as its server names it and whether it only reads or changes something.
+list_databases read
+get_database read
+set_database_config change
+create_database change
+create_branch change
+list_branches read
+delete_database change
+database_analytics read
+read_database read
+write_database change
+delete_from_database change
+evolve_schema change

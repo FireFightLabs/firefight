@@ -160,7 +160,7 @@ class Integrations::Capabilities::GrafanaTest < ActiveSupport::TestCase
   # Grafana's server is run by each team, so its skills are held to the tools the server documents, in its tools reference
   # table, and to the capabilities Grafana answers. So are the tools Firefight itself calls.
   test "every tool a Grafana skill or Firefight's own Grafana reads name is one Grafana's server documents" do
-    documented = file_fixture("grafana_mcp_tools.txt").readlines(chomp: true).reject { |line| line.start_with?("#") }
+    documented = file_fixture("grafana_mcp_tools.txt").readlines(chomp: true).reject { |line| line.start_with?("#") }.map { |line| line.split.first }
     adapter = Integrations::Capabilities::Grafana
     capabilities = adapter.capabilities.map { |key| Integrations::Capabilities.spec(key).tool_name }
 

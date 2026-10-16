@@ -31,7 +31,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
   test "create connects, discovers tools, and records health" do
     Integrations::McpClient.any_instance.stubs(:tools_list).returns([
-      { "name" => "issues.search", "annotations" => { "readOnlyHint" => true } }
+      { "name" => "search_issues", "annotations" => { "readOnlyHint" => true } }
     ])
     Integrations::McpClient.any_instance.stubs(:ping).returns(true)
 
@@ -44,7 +44,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Sentry is connected.", flash[:notice]
     integration = @workspace.integrations.find_by!(provider: "sentry")
     assert_equal "Bearer key", integration.integration_environments.first.credentials_hash["authorization"]
-    tool = integration.tools.find_by!(name: "issues.search")
+    tool = integration.tools.find_by!(name: "search_issues")
     assert tool.enabled?, "discovered tools arrive switched on"
     assert_equal [ "Sentry: read", "Sentry: changes", "Sentry: everything" ], integration.permission_packs.order(:created_at).map(&:name)
     assert_includes integration.permission_packs.find_by!(pack: Ability::Role::PACK_READ).actions, tool.ability_action

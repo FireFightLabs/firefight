@@ -1,0 +1,16 @@
+# The tools CircleCI's hosted MCP server documents in the Supported tools table of circleci.com/docs/guides/toolkit/circleci-mcp-overview/
+# (last_updated 2026-09-28), one per line. CircleCI-Public/mcp-server-circleci is the deprecated local server and not this one.
+# Each line is a tool as its server names it and whether it only reads or changes something.
+hello read
+list_runs read
+get_run read
+list_workflows read
+get_workflow read
+rerun_workflow change
+cancel_workflow change
+list_jobs read
+get_job read
+get_job_logs read
+list_artifacts read
+list_job_tests read
+download_usage_data change

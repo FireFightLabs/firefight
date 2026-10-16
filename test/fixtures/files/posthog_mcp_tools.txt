@@ -1,1083 +1,1120 @@
-access-control-default-objects-list
-access-control-default-properties-list
-access-control-default-rule-set-execute
-access-control-default-rule-set-prepare
-access-control-defaults-get
-access-control-member-objects-list
-access-control-member-properties-list
-access-control-member-rule-set-execute
-access-control-member-rule-set-prepare
-access-control-members-list
-access-control-role-objects-list
-access-control-role-properties-list
-access-control-role-rule-set-execute
-access-control-role-rule-set-prepare
-access-control-roles-list
-account-relationship-definitions-create
-account-relationship-definitions-destroy
-account-relationship-definitions-list
-account-relationship-definitions-partial-update
-account-relationship-definitions-retrieve
-accounts-create
-accounts-custom-property-values-create
-accounts-custom-property-values-list
-accounts-destroy
-accounts-list
-accounts-meetings-list
-accounts-notebooks-create
-accounts-notebooks-destroy
-accounts-notebooks-list
-accounts-notebooks-retrieve
-accounts-partial-update
-accounts-relationships-create
-accounts-relationships-end-create
-accounts-relationships-list
-accounts-retrieve
-accounts-summaries-list
-action-create
-action-delete
-action-get
-action-update
-actions-get-all
-advanced-activity-logs-filters
-advanced-activity-logs-list
-agent-feedback
-alert-create
-alert-delete
-alert-destinations-create
-alert-destinations-delete
-alert-get
-alert-simulate
-alert-update
-alerts-list
-annotation-create
-annotation-delete
-annotation-retrieve
-annotations-list
-annotations-partial-update
-announcements-channels-list
-announcements-create-execute
-announcements-create-prepare
-announcements-list
-announcements-retrieve
-apm-attribute-breakdown
-apm-attribute-values-list
-apm-attributes-list
-apm-services-list
-apm-spans-aggregate
-apm-spans-count
-apm-spans-duration-histogram
-apm-spans-latency-heatmap
-apm-spans-sparkline
-apm-spans-tree
-apm-trace-get
-approval-policies-list
-approval-policy-get
-autoresearch-create
-autoresearch-list
-autoresearch-materialize-features
-autoresearch-models-list
-autoresearch-models-retrieve
-autoresearch-resolve-template-create
-autoresearch-retrieve
-autoresearch-runs-list
-autoresearch-score-create
-autoresearch-suggestions-create
-autoresearch-suggestions-list
-autoresearch-suggestions-respond
-autoresearch-train-create
-autoresearch-training-runs-artifacts-get-create
-autoresearch-training-runs-artifacts-retrieve
-autoresearch-training-runs-artifacts-upload-create
-autoresearch-training-runs-complete-create
-autoresearch-training-runs-create
-autoresearch-training-runs-history
-autoresearch-training-runs-iterations-create
-autoresearch-training-runs-list
-autoresearch-validate-create
-batch-export-create
-batch-export-delete
-batch-export-get
-batch-export-update
-batch-exports-list
-billing-alert-create
-billing-alert-update
-billing-features-get
-billing-forecast-get
-billing-limits-get
-billing-overview-get
-billing-product-get
-billing-products-summary-get
-billing-projects-list
-billing-spend-get
-billing-spend-summary-get
-billing-spend-timeseries-get
-billing-subscription-get
-billing-usage-get
-billing-usage-status-get
-billing-usage-summary-get
-billing-usage-timeseries-get
-broadcasts-create
-business-knowledge-document-window-retrieve
-business-knowledge-documents-search
-business-knowledge-repositories-file-retrieve
-business-knowledge-repositories-search
-business-knowledge-sources-list
-business-knowledge-sources-partial-update
-business-knowledge-sources-retrieve
-business-knowledge-sources-text-create
-business-knowledge-sources-url-create
-canvas-builds-retrieve
-canvas-comments-list
-canvas-comments-retrieve
-canvas-connectors-retrieve
-canvas-create
-canvas-draft-create
-canvas-drafts-retrieve
-canvas-edit-create
-canvas-layout-get
-canvas-layout-patch
-canvas-layout-publish
-canvas-list
-canvas-move
-canvas-promote-create
-canvas-publish-create
-canvas-publish-current-version
-canvas-source-retrieve
-canvas-state-retrieve
-canvas-state-set
-canvas-state-value-retrieve
-canvas-validate-create
-cdp-function-templates-list
-cdp-function-templates-retrieve
-cdp-functions-create
-cdp-functions-delete
-cdp-functions-discard-draft
-cdp-functions-get-revision
-cdp-functions-invocations-create
-cdp-functions-list
-cdp-functions-list-revisions
-cdp-functions-logs-retrieve
-cdp-functions-metrics-retrieve
-cdp-functions-partial-update
-cdp-functions-publish
-cdp-functions-rearrange-partial-update
-cdp-functions-restore-revision
-cdp-functions-retrieve
-change-request-get
-change-requests-approve-execute
-change-requests-approve-prepare
-change-requests-list
-change-requests-reject-execute
-change-requests-reject-prepare
-channel-create
-channel-instructions-retrieve
-channel-instructions-update
-channel-list
-channel-retrieve
-characterize-metric-anomaly
-cohorts-add-persons-to-static-cohort-partial-update
-cohorts-create
-cohorts-list
-cohorts-partial-update
-cohorts-retrieve
-cohorts-rm-person-from-static-cohort-partial-update
-comment-count
-comment-get
-comment-thread
-comments-create
-comments-list
-context-wiki-channel-resolve
-context-wiki-page-retrieve
-context-wiki-page-update
-conversations-list
-conversations-retrieve
-conversations-tickets-list
-conversations-tickets-messages-retrieve
-conversations-tickets-notes-destroy
-conversations-tickets-notes-partial-update
-conversations-tickets-reply-create
-conversations-tickets-retrieve
-conversations-tickets-update
-conversations-views-create
-conversations-views-list
-conversations-views-retrieve
-conversations-views-update
-create-feature-flag
-custom-property-definitions-create
-custom-property-definitions-destroy
-custom-property-definitions-list
-custom-property-definitions-partial-update
-custom-property-definitions-retrieve
-custom-property-sources-backfill
-custom-property-sources-create
-custom-property-sources-destroy
-custom-property-sources-list
-custom-property-sources-partial-update
-custom-property-sources-retrieve
-custom-property-sources-runs-list
-custom-property-sources-sync
-customer-tasks-activities-list
-customer-tasks-archive-create
-customer-tasks-create
-customer-tasks-list
-customer-tasks-partial-update
-customer-tasks-restore-create
-customer-tasks-retrieve
-dashboard-create
-dashboard-create-tile
-dashboard-delete
-dashboard-delete-tile
-dashboard-get
-dashboard-insights-run
-dashboard-reorder-tiles
-dashboard-templates-list
-dashboard-templates-retrieve
-dashboard-tile-copy
-dashboard-transfer-tile
-dashboard-update
-dashboard-update-text-tile
-dashboard-widget-catalog-list
-dashboard-widgets-batch-add
-dashboard-widgets-batch-update
-dashboard-widgets-run
-dashboards-get-all
-data-catalog-certification-certify-execute
-data-catalog-certification-certify-prepare
-data-catalog-certification-deprecate-execute
-data-catalog-certification-deprecate-prepare
-data-catalog-certification-propose
-data-catalog-metric-approve-execute
-data-catalog-metric-approve-prepare
-data-catalog-metric-create
-data-catalog-metric-delete-execute
-data-catalog-metric-delete-prepare
-data-catalog-metric-run
-data-catalog-metric-update
-data-catalog-metrics-refresh-from-insight-create
-data-catalog-relationship-accept-execute
-data-catalog-relationship-accept-prepare
-data-catalog-relationship-propose
-data-catalog-relationship-reject-execute
-data-catalog-relationship-reject-prepare
-data-quality-check-create
-data-quality-check-delete
-data-quality-check-results
-data-quality-check-run
-data-quality-check-schedule
-data-quality-check-types
-data-quality-check-update
-data-quality-subjects
-data-warehouse-source-connect-link
-data-warehouse-source-setup
-data-warehouse-stored-credentials-list
-debug-mcp-ui-apps
-delete-feature-flag
-docs-search
-early-access-feature-create
-early-access-feature-destroy
-early-access-feature-list
-early-access-feature-partial-update
-early-access-feature-retrieve
-elements-stats-retrieve
-endpoint-create
-endpoint-delete
-endpoint-get
-endpoint-logs
-endpoint-materialization-conditions
-endpoint-materialization-status
-endpoint-materialization-suggestion
-endpoint-openapi-spec
-endpoint-run
-endpoint-update
-endpoint-versions
-endpoints-get-all
-endpoints-last-execution-times
-endpoints-materialization-preview
-engineering-analytics-broken-tests
-engineering-analytics-ci-failure-logs
-engineering-analytics-flaky-tests
-engineering-analytics-pr-cost
-engineering-analytics-run-failure-logs
-engineering-analytics-sources
-engineering-analytics-team-ci-health
-engineering-analytics-workflow-jobs
-engineering-analytics-workflow-runner-costs
-error-tracking-alerts-create
-error-tracking-alerts-delete
-error-tracking-alerts-list
-error-tracking-alerts-partial-update
-error-tracking-assignment-rules-create
-error-tracking-assignment-rules-list
-error-tracking-bypass-rules-create
-error-tracking-bypass-rules-list
-error-tracking-bypass-rules-update
-error-tracking-external-references-create
-error-tracking-grouping-rules-create
-error-tracking-grouping-rules-list
-error-tracking-grouping-rules-update
-error-tracking-issues-assign-partial-update
-error-tracking-issues-merge-create
-error-tracking-issues-partial-update
-error-tracking-issues-split-create
-error-tracking-recommendations-list
-error-tracking-settings-get
-error-tracking-settings-update
-error-tracking-severity-rules-create
-error-tracking-severity-rules-list
-error-tracking-severity-rules-update
-error-tracking-suppression-rules-create
-error-tracking-suppression-rules-list
-error-tracking-suppression-rules-update
-error-tracking-symbol-sets-download-retrieve
-error-tracking-symbol-sets-list
-error-tracking-symbol-sets-retrieve
-event-definition-create
-event-definition-update
-event-streams-add-account
-event-streams-create
-event-streams-destroy
-event-streams-list
-event-streams-partial-update
-event-streams-remove-account
-event-streams-send-test-message
-execute-sql
-experiment-activity
-experiment-archive
-experiment-calculate-running-time
-experiment-cleanup-task
-experiment-copy-to-project
-experiment-create
-experiment-create-from-prompt
-experiment-delete
-experiment-duplicate
-experiment-end
-experiment-freeze-exposure
-experiment-get
-experiment-get-by-flag-key
-experiment-holdouts-create
-experiment-holdouts-destroy
-experiment-holdouts-list
-experiment-holdouts-partial-update
-experiment-holdouts-retrieve
-experiment-launch
-experiment-list
-experiment-metrics-recalculation-create
-experiment-metrics-recalculation-latest-retrieve
-experiment-metrics-recalculation-retrieve
-experiment-migrate
-experiment-pause
-experiment-prompt-templates
-experiment-reset
-experiment-results-get
-experiment-resume
-experiment-saved-metrics-create
-experiment-saved-metrics-destroy
-experiment-saved-metrics-list
-experiment-saved-metrics-partial-update
-experiment-saved-metrics-retrieve
-experiment-setup-context
-experiment-ship-variant
-experiment-stats
-experiment-timeseries-results
-experiment-unarchive
-experiment-unfreeze-exposure
-experiment-update
-experiments-bulk-update-tags-create
-experiments-session-event-deltas-create
-external-data-destinations-list
-external-data-destinations-retrieve
-external-data-schemas-cancel
-external-data-schemas-delete-data
-external-data-schemas-destinations-retrieve
-external-data-schemas-incremental-fields-create
-external-data-schemas-list
-external-data-schemas-partial-update
-external-data-schemas-reload
-external-data-schemas-resync
-external-data-schemas-retrieve
-external-data-sources-bulk-update-schemas
-external-data-sources-check-cdc-prerequisites-create
-external-data-sources-connections-list
-external-data-sources-create
-external-data-sources-create-webhook-create
-external-data-sources-db-schema
-external-data-sources-delete-webhook-create
-external-data-sources-destinations-retrieve
-external-data-sources-destroy
-external-data-sources-jobs
-external-data-sources-list
-external-data-sources-partial-update
-external-data-sources-preview-resource
-external-data-sources-refresh-schemas
-external-data-sources-reload
-external-data-sources-repair-cdc-create
-external-data-sources-retrieve
-external-data-sources-update-webhook-inputs-create
-external-data-sources-webhook-info-retrieve
-external-data-sources-wizard
-external-data-sync-logs
-feature-flag-archive
-feature-flag-disable
-feature-flag-enable
-feature-flag-get-all
-feature-flag-get-definition
-feature-flag-get-definition-by-key
-feature-flag-roll-out-to-everyone
-feature-flag-set-release-condition-rollout
-feature-flag-unarchive
-feature-flags-activity-retrieve
-feature-flags-bulk-delete-create
-feature-flags-bulk-keys-retrieve
-feature-flags-bulk-update-tags-create
-feature-flags-copy-dependencies-check
-feature-flags-copy-flags-create
-feature-flags-dependent-flags-retrieve
-feature-flags-evaluation-reasons-retrieve
-feature-flags-my-flags-retrieve
-feature-flags-status-retrieve
-feature-flags-test-evaluation-create
-feature-flags-user-blast-radius-create
-feature-request-product-areas-create
-feature-request-product-areas-list
-feature-request-product-areas-partial-update
-feature-requests-add-account-create
-feature-requests-add-evidence-create
-feature-requests-archive-create
-feature-requests-create
-feature-requests-history-list
-feature-requests-list
-feature-requests-partial-update
-feature-requests-remove-evidence-create
-feature-requests-restore-create
-feature-requests-retrieve
-feature-requests-status-history-list
-feature-requests-update-evidence-create
-field-notes-get
-field-notes-list
-field-notes-partial-update
-file-download-batch-exports-cancel-create
-file-download-batch-exports-count-rows-create
-file-download-batch-exports-create
-file-download-batch-exports-retrieve
-generate-app-url
-get-llm-total-costs-for-project
-health-issues-get
-health-issues-list
-health-issues-summary
-heatmaps-events
-heatmaps-list
-heatmaps-saved-create
-heatmaps-saved-get
-heatmaps-saved-list
-heatmaps-saved-regenerate
-heatmaps-saved-update
-inbox-report-artefacts-create
-inbox-report-artefacts-delete
-inbox-report-artefacts-list
-inbox-report-artefacts-retrieve
-inbox-report-artefacts-update
-inbox-report-checks-create
-inbox-report-checks-list
-inbox-report-checks-replace
-inbox-report-checks-retrieve
-inbox-reports-bulk-set-state
-inbox-reports-claim
-inbox-reports-list
-inbox-reports-merge
-inbox-reports-retrieve
-inbox-reports-set-state
-inbox-reports-update
-inbox-source-configs-create
-inbox-source-configs-list
-inbox-source-configs-partial-update
-inbox-source-configs-retrieve
-inbox-source-configs-update
-insight-create
-insight-delete
-insight-get
-insight-query
-insight-update
-insights-activity-retrieve
-insights-all-activity-retrieve
-insights-list
-insights-trending-retrieve
-integration-delete
-integration-get
-integrations-channels-retrieve
-integrations-github-repos-retrieve
-integrations-jira-projects-retrieve
-integrations-linear-teams-retrieve
-integrations-list
-integrations-users-retrieve
-llma-clustering-config-get
-llma-clustering-config-set-event-filters
-llma-clustering-job-create
-llma-clustering-job-delete
-llma-clustering-job-get
-llma-clustering-job-list
-llma-clustering-job-update
-llma-dataset-archive
-llma-dataset-create
-llma-dataset-get
-llma-dataset-item-archive
-llma-dataset-item-create
-llma-dataset-item-get
-llma-dataset-item-list
-llma-dataset-item-restore
-llma-dataset-item-update
-llma-dataset-item-version-list
-llma-dataset-list
-llma-dataset-restore
-llma-dataset-revision-list
-llma-dataset-update
-llma-evaluation-backfill-cancel
-llma-evaluation-backfill-create
-llma-evaluation-backfill-estimate
-llma-evaluation-backfill-get
-llma-evaluation-backfill-list
-llma-evaluation-config-get
-llma-evaluation-config-set-active-key
-llma-evaluation-create
-llma-evaluation-delete
-llma-evaluation-directory-create
-llma-evaluation-directory-delete
-llma-evaluation-directory-get
-llma-evaluation-directory-list
-llma-evaluation-directory-update
-llma-evaluation-get
-llma-evaluation-judge-models
-llma-evaluation-list
-llma-evaluation-report-create
-llma-evaluation-report-generate
-llma-evaluation-report-get
-llma-evaluation-report-list
-llma-evaluation-report-run-list
-llma-evaluation-report-update
-llma-evaluation-run
-llma-evaluation-test-hog
-llma-evaluation-update
-llma-parser-recipe-create
-llma-parser-recipe-reference
-llma-personal-spend
-llma-prompt-create
-llma-prompt-duplicate
-llma-prompt-get
-llma-prompt-label-delete
-llma-prompt-label-set
-llma-prompt-list
-llma-prompt-update
-llma-provider-key-get
-llma-provider-key-list
-llma-review-queue-create
-llma-review-queue-delete
-llma-review-queue-get
-llma-review-queue-item-create
-llma-review-queue-item-delete
-llma-review-queue-item-get
-llma-review-queue-item-list
-llma-review-queue-item-update
-llma-review-queue-list
-llma-review-queue-update
-llma-score-definition-create
-llma-score-definition-get
-llma-score-definition-list
-llma-score-definition-new-version
-llma-score-definition-update
-llma-skill-archive
-llma-skill-create
-llma-skill-duplicate
-llma-skill-file-create
-llma-skill-file-delete
-llma-skill-file-get
-llma-skill-file-rename
-llma-skill-get
-llma-skill-list
-llma-skill-update
-llma-summarization-create
-llma-tagger-create
-llma-tagger-list
-llma-tagger-test-hog
-llma-trace-review-create
-llma-trace-review-delete
-llma-trace-review-get
-llma-trace-review-list
-llma-trace-review-update
-logs-alerts-create
-logs-alerts-destinations-create
-logs-alerts-destinations-delete-create
-logs-alerts-destroy
-logs-alerts-events-list
-logs-alerts-list
-logs-alerts-partial-update
-logs-alerts-retrieve
-logs-alerts-simulate-create
-logs-anomalies-scan
-logs-anomalies-series-bands
-logs-attribute-values-list
-logs-attributes-list
-logs-count
-logs-count-ranges
-logs-facet-values-create
-logs-patterns
-logs-patterns-diff
-logs-services-create
-logs-sparkline-query
-loop-channel-instructions-retrieve
-loop-channel-instructions-update
-loop-context-wiki-channel-resolve
-loop-context-wiki-page-retrieve
-loop-context-wiki-page-update
-loops-create-execute
-loops-create-prepare
-loops-destroy
-loops-list
-loops-partial-update
-loops-preview-create
-loops-retrieve
-loops-review
-loops-run-create
-loops-runs-retrieve
-managed-migrations-support-get
-managed-migrations-support-list
-managed-warehouse-metric-history-get
-managed-warehouse-monitoring-get
-marketing-analytics-conversion-goals
-marketing-analytics-create-conversion-goal
-marketing-analytics-data-sources
-marketing-analytics-delete-conversion-goal
-marketing-analytics-diagnose
-marketing-analytics-explain-conversion-goal
-marketing-analytics-suggest-conversion-goals
-marketing-analytics-suggest-utm-mappings
-marketing-analytics-update-conversion-goal
-marketing-analytics-utm-audit
-mcp-analytics-intent-clusters-recompute
-mcp-analytics-intent-clusters-retrieve
-mcp-analytics-sessions-generate-intent
-mcp-analytics-sessions-list
-mcp-analytics-sessions-tool-calls
-mcp-connection-tools-list
-mcp-connections-list
-mcp-missing-capability-report
-mcp-registry-discover
-mcp-registry-server-get
-media-image-upload-complete
-media-image-upload-start
-media-images-list
-metric-describe
-metric-list
-metric-names-list
-notebook-edit
-notebooks-add-cell
-notebooks-compute-options
-notebooks-configure-compute
-notebooks-create
-notebooks-create-markdown
-notebooks-delete-cell
-notebooks-destroy
-notebooks-get
-notebooks-list
-notebooks-list-frames
-notebooks-partial-update
-notebooks-retrieve
-notebooks-run
-notebooks-run-cell-interrupt
-notebooks-run-cell-result
-notebooks-run-status
-notebooks-set-variables
-notebooks-update-cell
-notebooks-widget-attach
-notebooks-widget-cancel
-notebooks-widget-generate
-notebooks-widget-status
-opt-outs-add
-opt-outs-list
-opt-outs-remove
-org-member-get-github-login
-org-members-list
-organization-enforce-2fa-execute
-organization-enforce-2fa-prepare
-organization-get
-organizations-get
-organizations-list
-path-cleaning-rules-update
-persons-bulk-delete
-persons-cohorts-retrieve
-persons-list
-persons-property-delete
-persons-property-set
-persons-retrieve
-persons-values-retrieve
-posthog-connection-call
-posthog-connection-forward
-pr-lifecycle
-products-enable
-project-create
-project-get
-project-settings-update
-projects-get
-property-definition-update
-proxy-create
-proxy-delete
-proxy-diagnose
-proxy-get
-proxy-list
-proxy-retry
-pull-requests
-query-apm-spans
-query-error-tracking-issue
-query-error-tracking-issue-events
-query-error-tracking-issues-list
-query-funnel
-query-funnel-actors
-query-lifecycle
-query-lifecycle-actors
-query-llm-trace
-query-llm-traces-list
-query-logs
-query-mcp-harness-breakdown
-query-mcp-missing-capabilities
-query-mcp-tool-daily-stats
-query-mcp-tool-descriptions
-query-mcp-tool-failure-occurrences
-query-mcp-tool-failures
-query-mcp-tool-neighbors
-query-mcp-tool-sample-intents
-query-mcp-tool-stats
-query-mcp-tool-top-users
-query-metrics
-query-paths
-query-paths-actors
-query-retention
-query-retention-actors
-query-session-recordings-list
-query-stickiness
-query-stickiness-actors
-query-trends
-query-trends-actors
-query-web-overview
-query-web-stats
-query-web-vitals
-read-data-schema
-reminder-create
-reminder-delete
-reminder-get
-reminder-update
-reminders-list
-reusable-widgets-list
-reusable-widgets-retrieve
-review-hog-reviews-get
-review-hog-reviews-list
-review-hog-reviews-trigger
-role-get
-role-members-list
-roles-list
-saved-query-column-annotations-create
-saved-query-column-annotations-list
-scheduled-changes-create
-scheduled-changes-delete
-scheduled-changes-get
-scheduled-changes-list
-scheduled-changes-update
-scout-check-record-result
-scout-config-create
-scout-config-delete
-scout-config-list
-scout-config-sync
-scout-config-update
-scout-create
-scout-edit-report
-scout-emit-report
-scout-emit-signal
-scout-lighthouse-audit
-scout-members-list
-scout-metadata-get
-scout-notes-create
-scout-notes-delete
-scout-notes-list
-scout-project-profile-get
-scout-record-output
-scout-report-check-cancel
-scout-report-check-create
-scout-report-check-list
-scout-report-checks-list
-scout-run-now
-scout-runs-emission-reports
-scout-runs-emissions-list
-scout-runs-list
-scout-runs-recent-emissions
-scout-runs-retrieve
-scout-scratchpad-forget
-scout-scratchpad-remember
-scout-scratchpad-search
-session-recording-bulk-delete
-session-recording-delete
-session-recording-get
-session-recording-playlist-create
-session-recording-playlist-get
-session-recording-playlist-update
-session-recording-playlists-list
-signals-scout-config-create
-signals-scout-config-delete
-signals-scout-config-list
-signals-scout-config-sync
-signals-scout-config-update
-signals-scout-edit-report
-signals-scout-emit-report
-signals-scout-emit-signal
-signals-scout-members-list
-signals-scout-project-profile-get
-signals-scout-run-now
-signals-scout-runs-emission-reports
-signals-scout-runs-emissions-list
-signals-scout-runs-list
-signals-scout-runs-recent-emissions
-signals-scout-runs-retrieve
-signals-scout-scratchpad-forget
-signals-scout-scratchpad-remember
-signals-scout-scratchpad-search
-skill-archive
-skill-create
-skill-duplicate
-skill-file-create
-skill-file-delete
-skill-file-get
-skill-file-rename
-skill-get
-skill-list
-skill-rename
-skill-store-install-command
-skill-update
-sql-variables-create
-sql-variables-delete
-sql-variables-update
-stamphog-digest-runs-list
-stamphog-pull-requests-get
-stamphog-pull-requests-list
-stamphog-repo-configs-delete
-stamphog-repo-configs-get
-stamphog-repo-configs-list
-stamphog-review-runs-create
-stamphog-review-runs-get
-stamphog-review-runs-list
-streamlit-apps-create
-streamlit-apps-delete
-streamlit-apps-get
-streamlit-apps-list
-streamlit-apps-set-source
-streamlit-apps-start
-streamlit-apps-status
-streamlit-apps-stop
-streamlit-apps-update
-streamlit-apps-versions
-subscriptions-create
-subscriptions-delete
-subscriptions-deliveries-list
-subscriptions-deliveries-retrieve
-subscriptions-list
-subscriptions-partial-update
-subscriptions-retrieve
-subscriptions-test-delivery-create
-survey-create
-survey-delete
-survey-get
-survey-launch
-survey-stats
-survey-stop
-survey-update
-surveys-get-all
-surveys-global-stats
-surveys-responses-list
-surveys-summarize-responses-create
-switch-organization
-switch-project
-task-context-wiki-channel-resolve
-task-context-wiki-page-propose
-task-context-wiki-page-retrieve
-task-context-wiki-page-update
-tasks-artifacts-list
-tasks-comments-list
-tasks-comments-retrieve
-tasks-config-agent-instructions-create
-tasks-config-create
-tasks-config-list
-tasks-create
-tasks-create-and-run
-tasks-list
-tasks-me-config-agent-instructions-create
-tasks-me-config-create
-tasks-me-config-list
-tasks-models-retrieve
-tasks-retrieve
-tasks-run-create
-tasks-runs-list
-tasks-runs-retrieve
-tasks-runs-session-logs-retrieve
-today-briefing-get
-today-candidates-list
-update-feature-flag
-usage-metrics-create
-usage-metrics-destroy
-usage-metrics-list
-usage-metrics-partial-update
-usage-metrics-retrieve
-user-get
-user-home-settings-get
-user-home-settings-update
-user-interview-topics-add-interviewee
-user-interview-topics-create
-user-interview-topics-generate-links
-user-interview-topics-interviewees-bulk-create
-user-interview-topics-interviewees-create
-user-interview-topics-interviewees-destroy
-user-interview-topics-interviewees-list
-user-interview-topics-interviewees-partial-update
-user-interview-topics-links-csv
-user-interview-topics-list
-user-interview-topics-partial-update
-user-interview-topics-preview-invite
-user-interview-topics-remove-interviewee
-user-interview-topics-retrieve
-user-interview-topics-send-invites
-user-interviews-list
-user-interviews-partial-update
-user-interviews-retrieve
-user-interviews-search
-user-settings-update
-view-create
-view-delete
-view-get
-view-list
-view-materialize
-view-run
-view-run-history
-view-unmaterialize
-view-update
-vision-alerts-create
-vision-alerts-delete
-vision-alerts-destinations-create
-vision-alerts-destinations-delete
-vision-alerts-events-list
-vision-alerts-get
-vision-alerts-list
-vision-alerts-reset
-vision-alerts-update
-vision-observations-create-task
-vision-observations-get
-vision-observations-label-create
-vision-observations-label-delete
-vision-observations-label-destroy
-vision-observations-list
-vision-observations-retrieve
-vision-observations-retry
-vision-observations-search
-vision-observations-signal-reports-list
-vision-quota-get
-vision-quota-retrieve
-vision-quota-spend-series-get
-vision-scanners-affected-cohort-create
-vision-scanners-backfills-cancel
-vision-scanners-backfills-create
-vision-scanners-backfills-estimate
-vision-scanners-backfills-get
-vision-scanners-backfills-list
-vision-scanners-backfills-resume
-vision-scanners-counts
-vision-scanners-create
-vision-scanners-delete
-vision-scanners-draft
-vision-scanners-duplicate
-vision-scanners-estimate
-vision-scanners-estimate-create
-vision-scanners-get
-vision-scanners-impact-get
-vision-scanners-impact-retrieve
-vision-scanners-inline-scan
-vision-scanners-inline-scan-create
-vision-scanners-list
-vision-scanners-observations-get
-vision-scanners-observations-list
-vision-scanners-observations-stats
-vision-scanners-prompt-suggestions-apply
-vision-scanners-prompt-suggestions-current
-vision-scanners-prompt-suggestions-dismiss
-vision-scanners-prompt-suggestions-generate
-vision-scanners-scan-session
-vision-scanners-scan-sessions
-vision-scanners-scout-reports-get
-vision-scanners-scout-reports-list
-vision-scanners-scouts-create
-vision-scanners-self-driving-stats
-vision-scanners-suggest-tags
-vision-scanners-update
-vision-scanners-watch-feed
-visual-review-repos-flakiness-retrieve
-visual-review-repos-list
-visual-review-repos-partial-update
-visual-review-repos-quarantine-create
-visual-review-repos-quarantine-expire-create
-visual-review-repos-quarantine-list
-visual-review-repos-retrieve
-visual-review-repos-runs-counts-retrieve
-visual-review-repos-runs-list
-visual-review-repos-toleration-pileups-retrieve
-visual-review-runs-approve-create
-visual-review-runs-counts-retrieve
-visual-review-runs-finalize-create
-visual-review-runs-lift-on-merge-create
-visual-review-runs-list
-visual-review-runs-quarantine-lifts-cancel-create
-visual-review-runs-quarantine-lifts-list
-visual-review-runs-recompute-create
-visual-review-runs-retrieve
-visual-review-runs-snapshot-history-list
-visual-review-runs-snapshots-list
-visual-review-runs-tolerate-create
-visual-review-runs-tolerated-hashes-list
-warehouse-column-annotations-create
-warehouse-column-annotations-list
-warehouse-column-annotations-partial-update
-warehouse-tables-create
-warehouse-tables-refresh-schema-create
-web-analytics-bot-rules-create
-web-analytics-bot-rules-destroy
-web-analytics-bot-rules-list
-web-analytics-path-cleaning-suggestions-apply
-web-analytics-path-cleaning-suggestions-generate
-web-analytics-weekly-digest
-workflow-health
-workflows-archive
-workflows-blast-radius
-workflows-create
-workflows-create-email-template
-workflows-discard-draft
-workflows-enable
-workflows-get
-workflows-get-email-template
-workflows-get-invocation
-workflows-get-revision
-workflows-global-stats
-workflows-list
-workflows-list-batch-jobs
-workflows-list-email-templates
-workflows-list-invocations
-workflows-list-proposals
-workflows-list-revisions
-workflows-list-versions
-workflows-logs
-workflows-patch-action-email
-workflows-patch-email-template
-workflows-patch-graph
-workflows-publish
-workflows-restore-revision
-workflows-run-batch
-workflows-schedule-create
-workflows-show-email-template
-workflows-stats
-workflows-suggest
-workflows-test-run
-workflows-update
-workflows-update-email-template
-workflows-update-schedule
-workflows-version-stats
+# The tools PostHog's MCP server lists in tools mode (?mode=tools), from services/mcp/schema/tool-definitions-all.json of PostHog/posthog
+# at commit b4338252d520be623a5f26a544bc0f8225faa03f, its full tool catalog (some are listed only to a project with the tool's feature flag on), one per line.
+# Each line is a tool as its server names it and whether it only reads or changes something.
+access-control-default-objects-list read
+access-control-default-properties-list read
+access-control-default-rule-set-execute change
+access-control-default-rule-set-prepare change
+access-control-defaults-get read
+access-control-member-objects-list read
+access-control-member-properties-list read
+access-control-member-rule-set-execute change
+access-control-member-rule-set-prepare change
+access-control-members-list read
+access-control-role-objects-list read
+access-control-role-properties-list read
+access-control-role-rule-set-execute change
+access-control-role-rule-set-prepare change
+access-control-roles-list read
+account-relationship-definitions-create change
+account-relationship-definitions-destroy change
+account-relationship-definitions-list read
+account-relationship-definitions-partial-update change
+account-relationship-definitions-retrieve read
+accounts-create change
+accounts-custom-property-values-create change
+accounts-custom-property-values-list read
+accounts-destroy change
+accounts-list read
+accounts-meetings-list read
+accounts-notebooks-create change
+accounts-notebooks-destroy change
+accounts-notebooks-list read
+accounts-notebooks-retrieve read
+accounts-partial-update change
+accounts-relationships-create change
+accounts-relationships-end-create change
+accounts-relationships-list read
+accounts-retrieve read
+accounts-summaries-list read
+action-create change
+action-delete change
+action-get read
+action-update change
+actions-get-all read
+advanced-activity-logs-filters read
+advanced-activity-logs-list read
+agent-feedback change
+alert-create change
+alert-delete change
+alert-destinations-create change
+alert-destinations-delete change
+alert-get read
+alert-simulate change
+alert-update change
+alerts-list read
+annotation-create change
+annotation-delete change
+annotation-retrieve read
+annotations-list read
+annotations-partial-update change
+announcements-channels-list read
+announcements-create-execute change
+announcements-create-prepare change
+announcements-list read
+announcements-retrieve read
+apm-attribute-breakdown read
+apm-attribute-values-list read
+apm-attributes-list read
+apm-services-list read
+apm-spans-aggregate read
+apm-spans-count read
+apm-spans-duration-histogram read
+apm-spans-latency-heatmap read
+apm-spans-sparkline read
+apm-spans-tree read
+apm-trace-get read
+approval-policies-list read
+approval-policy-get read
+autoresearch-create change
+autoresearch-list read
+autoresearch-materialize-features change
+autoresearch-models-list read
+autoresearch-models-retrieve read
+autoresearch-online-performance-retrieve read
+autoresearch-partial-update change
+autoresearch-resolve-template-create read
+autoresearch-retrieve read
+autoresearch-runs-list read
+autoresearch-score-create change
+autoresearch-suggestions-create change
+autoresearch-suggestions-list read
+autoresearch-suggestions-respond change
+autoresearch-train-create change
+autoresearch-training-runs-artifacts-get-create read
+autoresearch-training-runs-artifacts-retrieve read
+autoresearch-training-runs-artifacts-upload-create change
+autoresearch-training-runs-complete-create change
+autoresearch-training-runs-create change
+autoresearch-training-runs-history read
+autoresearch-training-runs-iterations-create change
+autoresearch-training-runs-list read
+autoresearch-validate-create read
+batch-export-create change
+batch-export-delete change
+batch-export-get read
+batch-export-update change
+batch-exports-list read
+billing-features-get read
+billing-forecast-get read
+billing-limits-get read
+billing-overview-get read
+billing-product-get read
+billing-products-summary-get read
+billing-projects-list read
+billing-spend-get read
+billing-spend-summary-get read
+billing-spend-timeseries-get read
+billing-subscription-get read
+billing-usage-get read
+billing-usage-status-get read
+billing-usage-summary-get read
+billing-usage-timeseries-get read
+broadcasts-create change
+business-knowledge-document-window-retrieve read
+business-knowledge-documents-search read
+business-knowledge-libraries-create change
+business-knowledge-libraries-destroy change
+business-knowledge-libraries-list read
+business-knowledge-libraries-partial-update change
+business-knowledge-libraries-retrieve read
+business-knowledge-repositories-file-retrieve read
+business-knowledge-repositories-search read
+business-knowledge-sources-list read
+business-knowledge-sources-partial-update change
+business-knowledge-sources-retrieve read
+business-knowledge-sources-text-create change
+business-knowledge-sources-url-create change
+canvas-builds-retrieve read
+canvas-comments-list read
+canvas-comments-retrieve read
+canvas-connectors-retrieve read
+canvas-create change
+canvas-draft-create change
+canvas-drafts-retrieve read
+canvas-edit-create change
+canvas-layout-get read
+canvas-layout-patch change
+canvas-layout-publish change
+canvas-list read
+canvas-move change
+canvas-promote-create change
+canvas-publish-create change
+canvas-publish-current-version change
+canvas-source-retrieve read
+canvas-state-retrieve read
+canvas-state-set change
+canvas-state-value-retrieve read
+canvas-validate-create read
+cdp-function-templates-list read
+cdp-function-templates-retrieve read
+cdp-functions-create change
+cdp-functions-delete change
+cdp-functions-discard-draft change
+cdp-functions-get-revision read
+cdp-functions-invocations-create change
+cdp-functions-list read
+cdp-functions-list-revisions read
+cdp-functions-logs-retrieve read
+cdp-functions-metrics-retrieve read
+cdp-functions-partial-update change
+cdp-functions-publish change
+cdp-functions-rearrange-partial-update change
+cdp-functions-restore-revision change
+cdp-functions-retrieve read
+change-feed-list read
+change-request-get read
+change-requests-approve-execute change
+change-requests-approve-prepare change
+change-requests-list read
+change-requests-reject-execute change
+change-requests-reject-prepare change
+channel-create change
+channel-instructions-retrieve read
+channel-instructions-update change
+channel-list read
+channel-retrieve read
+characterize-metric-anomaly read
+cohorts-add-persons-to-static-cohort-partial-update change
+cohorts-create change
+cohorts-list read
+cohorts-partial-update change
+cohorts-retrieve read
+cohorts-rm-person-from-static-cohort-partial-update change
+comment-count read
+comment-get read
+comment-thread read
+comments-create change
+comments-list read
+context-wiki-channel-resolve read
+context-wiki-page-retrieve read
+context-wiki-page-update change
+conversations-list read
+conversations-retrieve read
+conversations-tickets-compose-create change
+conversations-tickets-list read
+conversations-tickets-messages-retrieve read
+conversations-tickets-notes-create change
+conversations-tickets-notes-destroy change
+conversations-tickets-notes-partial-update change
+conversations-tickets-reply-create change
+conversations-tickets-retrieve read
+conversations-tickets-update change
+conversations-views-create change
+conversations-views-list read
+conversations-views-retrieve read
+conversations-views-update change
+create-feature-flag change
+cross-project-dashboard-tiles-list read
+cross-project-dashboards-get read
+cross-project-dashboards-list read
+custom-property-definitions-create change
+custom-property-definitions-destroy change
+custom-property-definitions-list read
+custom-property-definitions-partial-update change
+custom-property-definitions-retrieve read
+custom-property-sources-backfill change
+custom-property-sources-create change
+custom-property-sources-destroy change
+custom-property-sources-list read
+custom-property-sources-partial-update change
+custom-property-sources-retrieve read
+custom-property-sources-runs-list read
+custom-property-sources-sync change
+customer-tasks-activities-list read
+customer-tasks-archive-create change
+customer-tasks-create change
+customer-tasks-list read
+customer-tasks-partial-update change
+customer-tasks-restore-create change
+customer-tasks-retrieve read
+dashboard-create change
+dashboard-create-tile change
+dashboard-delete change
+dashboard-delete-tile change
+dashboard-get read
+dashboard-insights-run read
+dashboard-reorder-tiles change
+dashboard-templates-list read
+dashboard-templates-retrieve read
+dashboard-tile-copy change
+dashboard-transfer-tile change
+dashboard-update change
+dashboard-update-text-tile change
+dashboard-widget-catalog-list read
+dashboard-widgets-batch-add change
+dashboard-widgets-batch-update change
+dashboard-widgets-run read
+dashboards-bulk-delete change
+dashboards-get-all read
+data-catalog-certification-certify-execute change
+data-catalog-certification-certify-prepare change
+data-catalog-certification-deprecate-execute change
+data-catalog-certification-deprecate-prepare change
+data-catalog-certification-propose change
+data-catalog-metric-approve-execute change
+data-catalog-metric-approve-prepare change
+data-catalog-metric-create change
+data-catalog-metric-delete-execute change
+data-catalog-metric-delete-prepare change
+data-catalog-metric-run read
+data-catalog-metric-update change
+data-catalog-metrics-refresh-from-insight-create change
+data-catalog-relationship-accept-execute change
+data-catalog-relationship-accept-prepare change
+data-catalog-relationship-propose change
+data-catalog-relationship-reject-execute change
+data-catalog-relationship-reject-prepare change
+data-quality-check-create change
+data-quality-check-delete change
+data-quality-check-results read
+data-quality-check-run change
+data-quality-check-schedule change
+data-quality-check-types read
+data-quality-check-update change
+data-quality-subjects read
+data-warehouse-source-connect-link change
+data-warehouse-source-setup change
+data-warehouse-stored-credentials-list read
+debug-mcp-ui-apps read
+delete-feature-flag change
+docs-search read
+domains-list read
+early-access-feature-create change
+early-access-feature-destroy change
+early-access-feature-list read
+early-access-feature-partial-update change
+early-access-feature-retrieve read
+elements-stats-retrieve read
+endpoint-create change
+endpoint-delete change
+endpoint-get read
+endpoint-logs read
+endpoint-materialization-conditions read
+endpoint-materialization-status read
+endpoint-materialization-suggestion read
+endpoint-openapi-spec read
+endpoint-run read
+endpoint-update change
+endpoint-versions read
+endpoints-get-all read
+endpoints-last-execution-times read
+endpoints-materialization-preview read
+engineering-analytics-broken-tests read
+engineering-analytics-ci-failure-logs read
+engineering-analytics-flaky-tests read
+engineering-analytics-pr-cost read
+engineering-analytics-run-failure-logs read
+engineering-analytics-sources read
+engineering-analytics-team-ci-health read
+engineering-analytics-workflow-jobs read
+engineering-analytics-workflow-runner-costs read
+error-tracking-alerts-create change
+error-tracking-alerts-delete change
+error-tracking-alerts-list read
+error-tracking-alerts-partial-update change
+error-tracking-assignment-rules-create change
+error-tracking-assignment-rules-list read
+error-tracking-bypass-rules-create change
+error-tracking-bypass-rules-list read
+error-tracking-bypass-rules-update change
+error-tracking-external-references-create change
+error-tracking-grouping-rules-create change
+error-tracking-grouping-rules-list read
+error-tracking-grouping-rules-update change
+error-tracking-issues-assign-partial-update change
+error-tracking-issues-merge-create change
+error-tracking-issues-partial-update change
+error-tracking-issues-split-create change
+error-tracking-recommendations-list read
+error-tracking-settings-get read
+error-tracking-settings-update change
+error-tracking-severity-rules-create change
+error-tracking-severity-rules-list read
+error-tracking-severity-rules-update change
+error-tracking-suppression-rules-create change
+error-tracking-suppression-rules-list read
+error-tracking-suppression-rules-update change
+error-tracking-symbol-sets-download-retrieve read
+error-tracking-symbol-sets-list read
+error-tracking-symbol-sets-retrieve read
+event-definition-create change
+event-definition-update change
+event-streams-add-account change
+event-streams-create change
+event-streams-destroy change
+event-streams-list read
+event-streams-partial-update change
+event-streams-remove-account change
+event-streams-send-test-message change
+execute-sql read
+experiment-activity read
+experiment-archive change
+experiment-calculate-running-time read
+experiment-cleanup-task read
+experiment-copy-to-project change
+experiment-create change
+experiment-create-from-prompt change
+experiment-delete change
+experiment-duplicate change
+experiment-end change
+experiment-freeze-exposure change
+experiment-get read
+experiment-get-by-flag-key read
+experiment-holdouts-create change
+experiment-holdouts-destroy change
+experiment-holdouts-list read
+experiment-holdouts-partial-update change
+experiment-holdouts-retrieve read
+experiment-launch change
+experiment-list read
+experiment-metrics-recalculation-create change
+experiment-metrics-recalculation-latest-retrieve read
+experiment-metrics-recalculation-retrieve read
+experiment-migrate change
+experiment-pause change
+experiment-prompt-templates read
+experiment-reset change
+experiment-results-get read
+experiment-resume change
+experiment-saved-metrics-create change
+experiment-saved-metrics-destroy change
+experiment-saved-metrics-list read
+experiment-saved-metrics-partial-update change
+experiment-saved-metrics-retrieve read
+experiment-setup-context read
+experiment-ship-variant change
+experiment-stats read
+experiment-timeseries-results read
+experiment-unarchive change
+experiment-unfreeze-exposure change
+experiment-update change
+experiments-bulk-update-tags-create change
+experiments-session-event-deltas-create read
+external-data-destinations-list read
+external-data-destinations-retrieve read
+external-data-schemas-cancel change
+external-data-schemas-delete-data change
+external-data-schemas-destinations-retrieve read
+external-data-schemas-incremental-fields-create change
+external-data-schemas-list read
+external-data-schemas-partial-update change
+external-data-schemas-reload change
+external-data-schemas-resync change
+external-data-schemas-retrieve read
+external-data-sources-bulk-update-schemas change
+external-data-sources-check-cdc-prerequisites-create read
+external-data-sources-connections-list read
+external-data-sources-create change
+external-data-sources-create-webhook-create change
+external-data-sources-db-schema read
+external-data-sources-delete-webhook-create change
+external-data-sources-destinations-retrieve read
+external-data-sources-destroy change
+external-data-sources-jobs read
+external-data-sources-list read
+external-data-sources-partial-update change
+external-data-sources-preview-resource change
+external-data-sources-refresh-schemas change
+external-data-sources-reload change
+external-data-sources-repair-cdc-create change
+external-data-sources-retrieve read
+external-data-sources-update-webhook-inputs-create change
+external-data-sources-webhook-info-retrieve read
+external-data-sources-wizard read
+external-data-sync-logs read
+feature-flag-archive change
+feature-flag-disable change
+feature-flag-enable change
+feature-flag-get-all read
+feature-flag-get-definition read
+feature-flag-get-definition-by-key read
+feature-flag-roll-out-to-everyone change
+feature-flag-set-release-condition-rollout change
+feature-flag-unarchive change
+feature-flags-activity-retrieve read
+feature-flags-bulk-delete-create change
+feature-flags-bulk-keys-retrieve read
+feature-flags-bulk-update-tags-create change
+feature-flags-copy-dependencies-check read
+feature-flags-copy-flags-create change
+feature-flags-dependent-flags-retrieve read
+feature-flags-evaluation-reasons-retrieve read
+feature-flags-my-flags-retrieve read
+feature-flags-status-retrieve read
+feature-flags-test-evaluation-create read
+feature-flags-user-blast-radius-create read
+feature-request-product-areas-create change
+feature-request-product-areas-list read
+feature-request-product-areas-partial-update change
+feature-requests-add-account-create change
+feature-requests-add-evidence-create change
+feature-requests-archive-create change
+feature-requests-create change
+feature-requests-history-list read
+feature-requests-list read
+feature-requests-partial-update change
+feature-requests-remove-evidence-create change
+feature-requests-restore-create change
+feature-requests-retrieve read
+feature-requests-status-history-list read
+feature-requests-update-evidence-create change
+field-notes-get read
+field-notes-list read
+field-notes-partial-update change
+file-download-batch-exports-cancel-create change
+file-download-batch-exports-count-rows-create read
+file-download-batch-exports-create change
+file-download-batch-exports-retrieve read
+generate-app-url read
+get-llm-total-costs-for-project read
+health-issues-get read
+health-issues-list read
+health-issues-summary read
+heatmaps-events read
+heatmaps-list read
+heatmaps-saved-create change
+heatmaps-saved-get read
+heatmaps-saved-list read
+heatmaps-saved-regenerate change
+heatmaps-saved-update change
+identity-provider-configs-create-execute change
+identity-provider-configs-create-prepare change
+identity-provider-configs-destroy-execute change
+identity-provider-configs-destroy-prepare change
+identity-provider-configs-list read
+identity-provider-configs-partial-update-execute change
+identity-provider-configs-partial-update-prepare change
+identity-provider-configs-retrieve read
+identity-provider-configs-scim-token-create-execute change
+identity-provider-configs-scim-token-create-prepare change
+inbox-report-artefacts-create change
+inbox-report-artefacts-delete change
+inbox-report-artefacts-list read
+inbox-report-artefacts-retrieve read
+inbox-report-artefacts-update change
+inbox-report-checks-create change
+inbox-report-checks-list read
+inbox-report-checks-replace change
+inbox-report-checks-retrieve read
+inbox-reports-bulk-set-state change
+inbox-reports-claim change
+inbox-reports-feedback-create change
+inbox-reports-leave-reviewers change
+inbox-reports-list read
+inbox-reports-merge change
+inbox-reports-retrieve read
+inbox-reports-set-state change
+inbox-reports-update change
+inbox-source-configs-create change
+inbox-source-configs-list read
+inbox-source-configs-partial-update change
+inbox-source-configs-retrieve read
+inbox-source-configs-update change
+inbox-steering-instructions-get read
+inbox-steering-instructions-update change
+insight-create change
+insight-delete change
+insight-get read
+insight-query read
+insight-update change
+insights-activity-retrieve read
+insights-all-activity-retrieve read
+insights-list read
+insights-trending-retrieve read
+integration-delete change
+integration-get read
+integrations-channels-retrieve read
+integrations-github-repos-retrieve read
+integrations-jira-projects-retrieve read
+integrations-linear-teams-retrieve read
+integrations-list read
+integrations-users-retrieve read
+llma-clustering-config-get read
+llma-clustering-config-set-event-filters change
+llma-clustering-job-create change
+llma-clustering-job-delete change
+llma-clustering-job-get read
+llma-clustering-job-list read
+llma-clustering-job-update change
+llma-dataset-archive change
+llma-dataset-create change
+llma-dataset-get read
+llma-dataset-item-archive change
+llma-dataset-item-create change
+llma-dataset-item-get read
+llma-dataset-item-list read
+llma-dataset-item-restore change
+llma-dataset-item-update change
+llma-dataset-item-version-list read
+llma-dataset-list read
+llma-dataset-restore change
+llma-dataset-revision-list read
+llma-dataset-update change
+llma-evaluation-backfill-cancel change
+llma-evaluation-backfill-create change
+llma-evaluation-backfill-estimate read
+llma-evaluation-backfill-get read
+llma-evaluation-backfill-list read
+llma-evaluation-config-get read
+llma-evaluation-config-set-active-key change
+llma-evaluation-create change
+llma-evaluation-delete change
+llma-evaluation-directory-create change
+llma-evaluation-directory-delete change
+llma-evaluation-directory-get read
+llma-evaluation-directory-list read
+llma-evaluation-directory-update change
+llma-evaluation-get read
+llma-evaluation-judge-models read
+llma-evaluation-list read
+llma-evaluation-report-create change
+llma-evaluation-report-generate change
+llma-evaluation-report-get read
+llma-evaluation-report-list read
+llma-evaluation-report-run-list read
+llma-evaluation-report-update change
+llma-evaluation-run change
+llma-evaluation-test-hog change
+llma-evaluation-update change
+llma-offline-experiment-complete change
+llma-offline-experiment-create change
+llma-offline-experiment-fail change
+llma-offline-experiment-get read
+llma-offline-experiment-item-get read
+llma-offline-experiment-item-list read
+llma-offline-experiment-item-payload-get read
+llma-offline-experiment-item-result-list read
+llma-offline-experiment-list read
+llma-offline-experiment-result-cells read
+llma-offline-experiment-result-payload-get read
+llma-offline-experiment-scorer-summary-list read
+llma-offline-experiment-upload change
+llma-offline-scorer-history read
+llma-parser-recipe-create change
+llma-parser-recipe-reference read
+llma-personal-spend read
+llma-prompt-create change
+llma-prompt-duplicate change
+llma-prompt-get read
+llma-prompt-label-delete change
+llma-prompt-label-set change
+llma-prompt-list read
+llma-prompt-update change
+llma-provider-key-get read
+llma-provider-key-list read
+llma-review-queue-create change
+llma-review-queue-delete change
+llma-review-queue-get read
+llma-review-queue-item-create change
+llma-review-queue-item-delete change
+llma-review-queue-item-get read
+llma-review-queue-item-list read
+llma-review-queue-item-update change
+llma-review-queue-list read
+llma-review-queue-update change
+llma-score-definition-create change
+llma-score-definition-get read
+llma-score-definition-list read
+llma-score-definition-new-version change
+llma-score-definition-update change
+llma-score-definition-version-get read
+llma-score-definition-version-list read
+llma-skill-archive change
+llma-skill-create change
+llma-skill-duplicate change
+llma-skill-file-create change
+llma-skill-file-delete change
+llma-skill-file-get read
+llma-skill-file-rename change
+llma-skill-get read
+llma-skill-list read
+llma-skill-update change
+llma-summarization-create change
+llma-tagger-create change
+llma-tagger-list read
+llma-tagger-test-hog read
+llma-trace-review-create change
+llma-trace-review-delete change
+llma-trace-review-get read
+llma-trace-review-list read
+llma-trace-review-update change
+logs-alerts-create change
+logs-alerts-destinations-create change
+logs-alerts-destinations-delete-create change
+logs-alerts-destroy change
+logs-alerts-events-list read
+logs-alerts-list read
+logs-alerts-partial-update change
+logs-alerts-retrieve read
+logs-alerts-simulate-create read
+logs-anomalies-scan read
+logs-anomalies-series-bands read
+logs-attribute-values-list read
+logs-attributes-list read
+logs-count read
+logs-count-ranges read
+logs-facet-values-create read
+logs-patterns read
+logs-patterns-diff read
+logs-services-create read
+logs-sparkline-query read
+managed-migrations-support-get read
+managed-migrations-support-list read
+managed-warehouse-metric-history-get read
+managed-warehouse-monitoring-get read
+managed-warehouse-trino-metric-history-get read
+managed-warehouse-trino-monitoring-get read
+marketing-analytics-conversion-goals read
+marketing-analytics-create-conversion-goal change
+marketing-analytics-data-sources read
+marketing-analytics-delete-conversion-goal change
+marketing-analytics-diagnose read
+marketing-analytics-explain-conversion-goal read
+marketing-analytics-setup-plan read
+marketing-analytics-suggest-conversion-goals read
+marketing-analytics-suggest-utm-mappings read
+marketing-analytics-update-conversion-goal change
+marketing-analytics-utm-audit read
+mcp-analytics-intent-clusters-recompute change
+mcp-analytics-intent-clusters-retrieve read
+mcp-analytics-sessions-generate-intent change
+mcp-analytics-sessions-list read
+mcp-analytics-sessions-tool-calls read
+mcp-connection-tools-list read
+mcp-connections-list read
+mcp-missing-capability-report change
+mcp-registry-discover read
+mcp-registry-server-get read
+media-image-upload-complete change
+media-image-upload-start change
+media-images-list read
+metric-attribute-values-list read
+metric-attributes-list read
+metric-describe read
+metric-list read
+metric-names-list read
+metrics-dashboard-panels-validate read
+notebook-edit change
+notebooks-add-cell change
+notebooks-compute-options read
+notebooks-configure-compute change
+notebooks-create change
+notebooks-create-markdown change
+notebooks-delete-cell change
+notebooks-destroy change
+notebooks-get read
+notebooks-list read
+notebooks-list-frames read
+notebooks-partial-update change
+notebooks-retrieve read
+notebooks-run change
+notebooks-run-cell change
+notebooks-run-cell-interrupt change
+notebooks-run-cell-result read
+notebooks-run-status change
+notebooks-set-variables change
+notebooks-update-cell change
+notebooks-widget-attach change
+notebooks-widget-cancel change
+notebooks-widget-generate change
+notebooks-widget-status read
+opt-outs-add change
+opt-outs-list read
+opt-outs-remove change
+org-member-get-github-login read
+org-members-list read
+organization-enforce-2fa-execute change
+organization-enforce-2fa-prepare change
+organization-get read
+organizations-get read
+organizations-list read
+path-cleaning-rules-update change
+persons-bulk-delete change
+persons-cohorts-retrieve read
+persons-list read
+persons-property-delete change
+persons-property-set change
+persons-retrieve read
+persons-values-retrieve read
+posthog-connection-call change
+posthog-connection-forward change
+pr-lifecycle read
+products-enable change
+project-create change
+project-get read
+project-settings-update change
+projects-get read
+property-definition-update change
+proxy-create change
+proxy-delete change
+proxy-diagnose read
+proxy-get read
+proxy-list read
+proxy-retry change
+pull-requests read
+query-apm-spans read
+query-error-tracking-issue read
+query-error-tracking-issue-events read
+query-error-tracking-issues-list read
+query-funnel read
+query-funnel-actors read
+query-lifecycle read
+query-lifecycle-actors read
+query-llm-trace read
+query-llm-traces-list read
+query-logs read
+query-mcp-harness-breakdown read
+query-mcp-missing-capabilities read
+query-mcp-tool-daily-stats read
+query-mcp-tool-descriptions read
+query-mcp-tool-failure-occurrences read
+query-mcp-tool-failures read
+query-mcp-tool-neighbors read
+query-mcp-tool-sample-intents read
+query-mcp-tool-stats read
+query-mcp-tool-top-users read
+query-metrics read
+query-paths read
+query-paths-actors read
+query-retention read
+query-retention-actors read
+query-session-recordings-list read
+query-stickiness read
+query-stickiness-actors read
+query-trends read
+query-trends-actors read
+query-web-overview read
+query-web-stats read
+query-web-vitals read
+read-data-schema read
+reminder-create change
+reminder-delete change
+reminder-get read
+reminder-update change
+reminders-list read
+reusable-widgets-list read
+reusable-widgets-retrieve read
+review-hog-reviews-get read
+review-hog-reviews-list read
+review-hog-reviews-pr-status read
+review-hog-reviews-trigger change
+role-get read
+role-members-list read
+roles-list read
+saved-query-column-annotations-create change
+saved-query-column-annotations-list read
+scheduled-changes-create change
+scheduled-changes-delete change
+scheduled-changes-get read
+scheduled-changes-list read
+scheduled-changes-update change
+scout-check-record-result change
+scout-config-create change
+scout-config-delete change
+scout-config-list read
+scout-config-precheck-test read
+scout-config-sync change
+scout-config-update change
+scout-create change
+scout-edit-report change
+scout-emit-report change
+scout-emit-signal change
+scout-lighthouse-audit change
+scout-members-list read
+scout-metadata-get read
+scout-notes-create change
+scout-notes-delete change
+scout-notes-list read
+scout-project-profile-get read
+scout-record-output change
+scout-report-check-cancel change
+scout-report-check-create change
+scout-report-check-list read
+scout-report-checks-list read
+scout-rubric-generate change
+scout-rubric-get read
+scout-rubric-save change
+scout-run-now change
+scout-runs-emission-reports read
+scout-runs-emissions-list read
+scout-runs-list read
+scout-runs-recent-emissions read
+scout-runs-retrieve read
+scout-scratchpad-forget change
+scout-scratchpad-remember change
+scout-scratchpad-search read
+scout-trial-archive change
+scout-trial-create change
+scout-trial-get read
+scout-trial-list read
+scout-trial-report read
+scout-trial-resume change
+scout-trial-setup read
+scout-trial-start change
+session-recording-bulk-delete change
+session-recording-delete change
+session-recording-get read
+session-recording-playlist-create change
+session-recording-playlist-get read
+session-recording-playlist-update change
+session-recording-playlists-list read
+signals-scout-config-create change
+signals-scout-config-delete change
+signals-scout-config-list read
+signals-scout-config-sync change
+signals-scout-config-update change
+signals-scout-edit-report change
+signals-scout-emit-report change
+signals-scout-emit-signal change
+signals-scout-members-list read
+signals-scout-project-profile-get read
+signals-scout-run-now change
+signals-scout-runs-emission-reports read
+signals-scout-runs-emissions-list read
+signals-scout-runs-list read
+signals-scout-runs-recent-emissions read
+signals-scout-runs-retrieve read
+signals-scout-scratchpad-forget change
+signals-scout-scratchpad-remember change
+signals-scout-scratchpad-search read
+skill-archive change
+skill-create change
+skill-duplicate change
+skill-file-create change
+skill-file-delete change
+skill-file-get read
+skill-file-rename change
+skill-get read
+skill-list read
+skill-rename change
+skill-store-install-command change
+skill-update change
+sql-variables-create change
+sql-variables-delete change
+sql-variables-update change
+stamphog-digest-runs-list read
+stamphog-pull-requests-get read
+stamphog-pull-requests-list read
+stamphog-repo-configs-delete change
+stamphog-repo-configs-get read
+stamphog-repo-configs-list read
+stamphog-review-runs-create change
+stamphog-review-runs-get read
+stamphog-review-runs-list read
+streamlit-apps-create change
+streamlit-apps-delete change
+streamlit-apps-edit-source change
+streamlit-apps-get read
+streamlit-apps-get-source read
+streamlit-apps-list read
+streamlit-apps-set-source change
+streamlit-apps-start change
+streamlit-apps-status read
+streamlit-apps-stop change
+streamlit-apps-update change
+streamlit-apps-versions read
+subscriptions-create change
+subscriptions-delete change
+subscriptions-deliveries-list read
+subscriptions-deliveries-retrieve read
+subscriptions-list read
+subscriptions-partial-update change
+subscriptions-retrieve read
+subscriptions-summaries-list read
+subscriptions-test-delivery-create change
+survey-create change
+survey-delete change
+survey-get read
+survey-launch change
+survey-stats read
+survey-stop change
+survey-update change
+surveys-get-all read
+surveys-global-stats read
+surveys-responses-list read
+surveys-summarize-responses-create change
+switch-organization change
+switch-project change
+task-context-wiki-channel-resolve read
+task-context-wiki-page-propose change
+task-context-wiki-page-retrieve read
+task-context-wiki-page-update change
+tasks-artifacts-list read
+tasks-comments-list read
+tasks-comments-retrieve read
+tasks-config-agent-instructions-create change
+tasks-config-create change
+tasks-config-list read
+tasks-create change
+tasks-create-and-run change
+tasks-list read
+tasks-me-config-agent-instructions-create change
+tasks-me-config-create change
+tasks-me-config-list read
+tasks-models-retrieve read
+tasks-retrieve read
+tasks-run-create change
+tasks-runs-list read
+tasks-runs-retrieve read
+tasks-runs-session-logs-retrieve read
+update-feature-flag change
+usage-metrics-create change
+usage-metrics-destroy change
+usage-metrics-list read
+usage-metrics-partial-update change
+usage-metrics-retrieve read
+user-get read
+user-home-settings-get read
+user-home-settings-update change
+user-settings-update change
+view-create change
+view-delete change
+view-get read
+view-list read
+view-materialize change
+view-run change
+view-run-history read
+view-unmaterialize change
+view-update change
+vision-alerts-create change
+vision-alerts-delete change
+vision-alerts-destinations-create change
+vision-alerts-destinations-delete change
+vision-alerts-events-list read
+vision-alerts-get read
+vision-alerts-list read
+vision-alerts-reset change
+vision-alerts-update change
+vision-observations-create-task change
+vision-observations-get read
+vision-observations-label-create change
+vision-observations-label-delete change
+vision-observations-list read
+vision-observations-retry change
+vision-observations-search read
+vision-observations-signal-reports-list read
+vision-quota-get read
+vision-quota-spend-series-get read
+vision-requests-create change
+vision-requests-get read
+vision-scanners-affected-cohort-create change
+vision-scanners-backfills-cancel change
+vision-scanners-backfills-create change
+vision-scanners-backfills-estimate change
+vision-scanners-backfills-get read
+vision-scanners-backfills-list read
+vision-scanners-backfills-resume change
+vision-scanners-counts read
+vision-scanners-create change
+vision-scanners-dashboard-create change
+vision-scanners-delete change
+vision-scanners-draft change
+vision-scanners-duplicate change
+vision-scanners-estimate read
+vision-scanners-get read
+vision-scanners-impact-get read
+vision-scanners-inline-scan change
+vision-scanners-list read
+vision-scanners-observations-get read
+vision-scanners-observations-list read
+vision-scanners-observations-stats read
+vision-scanners-scan-session change
+vision-scanners-scan-sessions change
+vision-scanners-scout-reports-get read
+vision-scanners-scout-reports-list read
+vision-scanners-scouts-create change
+vision-scanners-self-driving-stats read
+vision-scanners-suggest-tags read
+vision-scanners-update change
+vision-scanners-variants-list read
+vision-scanners-watch-feed read
+visual-review-repos-flakiness-retrieve read
+visual-review-repos-list read
+visual-review-repos-partial-update change
+visual-review-repos-quarantine-create change
+visual-review-repos-quarantine-expire-create change
+visual-review-repos-quarantine-list read
+visual-review-repos-retrieve read
+visual-review-repos-runs-counts-retrieve read
+visual-review-repos-runs-list read
+visual-review-repos-toleration-pileups-retrieve read
+visual-review-runs-approve-create change
+visual-review-runs-counts-retrieve read
+visual-review-runs-finalize-create change
+visual-review-runs-lift-on-merge-create change
+visual-review-runs-list read
+visual-review-runs-quarantine-lifts-cancel-create change
+visual-review-runs-quarantine-lifts-list read
+visual-review-runs-recompute-create change
+visual-review-runs-retrieve read
+visual-review-runs-snapshot-history-list read
+visual-review-runs-snapshots-list read
+visual-review-runs-tolerate-create change
+visual-review-runs-tolerated-hashes-list read
+warehouse-column-annotations-create change
+warehouse-column-annotations-list read
+warehouse-column-annotations-partial-update change
+warehouse-suggestions-accept-execute change
+warehouse-suggestions-accept-prepare change
+warehouse-suggestions-dismiss change
+warehouse-suggestions-get read
+warehouse-suggestions-list read
+warehouse-suggestions-resume change
+warehouse-suggestions-status read
+warehouse-tables-create change
+warehouse-tables-refresh-schema-create change
+web-analytics-bot-rules-create change
+web-analytics-bot-rules-destroy change
+web-analytics-bot-rules-list read
+web-analytics-path-cleaning-suggestions-apply change
+web-analytics-path-cleaning-suggestions-generate change
+web-analytics-weekly-digest read
+workflow-health read
+workflows-archive change
+workflows-blast-radius read
+workflows-create change
+workflows-create-email-template change
+workflows-data-suggestions-create change
+workflows-data-suggestions-get read
+workflows-data-suggestions-list change
+workflows-discard-draft change
+workflows-enable change
+workflows-get read
+workflows-get-email-template read
+workflows-get-invocation read
+workflows-get-revision read
+workflows-global-stats read
+workflows-list read
+workflows-list-batch-jobs read
+workflows-list-email-templates read
+workflows-list-invocations read
+workflows-list-proposals read
+workflows-list-revisions read
+workflows-list-versions read
+workflows-logs read
+workflows-patch-action-email change
+workflows-patch-email-template change
+workflows-patch-graph change
+workflows-publish change
+workflows-restore-revision change
+workflows-run-batch change
+workflows-schedule-create change
+workflows-show-email-template read
+workflows-stats read
+workflows-suggest change
+workflows-test-run change
+workflows-update change
+workflows-update-email-template change
+workflows-update-schedule change
+workflows-version-stats read

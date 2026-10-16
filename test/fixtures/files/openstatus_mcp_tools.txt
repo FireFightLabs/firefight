@@ -1,0 +1,43 @@
+# The tools openstatus's MCP server documents at openstatus.dev/docs/reference/mcp-server, as defined with their read or write scope in
+# packages/services/src/agent-tools of openstatusHQ/openstatus at commit 0eb7c8baed4530f33a3dbfeee9bd6eb60420b66f, one per line.
+# Incident tools are listed only with incident management on, audit tools only on plans with the audit log.
+# Each line is a tool as its server names it and whether it only reads or changes something.
+list_notifications read
+list_page_components read
+list_monitors read
+get_monitor read
+get_monitor_status read
+get_monitor_summary read
+list_response_logs read
+get_response_log read
+list_status_pages read
+list_private_locations read
+search_docs read
+get_doc_page read
+list_maintenances read
+create_maintenance change
+add_maintenance_update change
+update_maintenance_update change
+delete_maintenance_update change
+list_incidents read
+get_incident read
+declare_incident change
+update_incident change
+resolve_incident change
+set_incident_status change
+add_incident_note change
+get_postmortem read
+draft_postmortem change
+approve_postmortem change
+list_status_reports read
+get_status_report read
+create_status_report change
+add_status_report_update change
+update_status_report change
+resolve_status_report change
+update_status_report_update change
+delete_status_report_update change
+list_audit_logs read
+get_audit_log read
+search_content read
+get_content_page read

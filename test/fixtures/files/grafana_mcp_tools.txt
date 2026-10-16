@@ -1,108 +1,132 @@
-# The tools grafana/mcp-grafana documents in docs/sources/reference/mcp-tools-table.md, one per line, kept so the Grafana
-# skills are held to them without reading the web.
-list_teams
-list_users_by_org
-list_all_roles
-get_role_details
-get_role_assignments
-list_user_roles
-list_team_roles
-get_resource_permissions
-get_resource_description
-user_info
-search_dashboards
-search_folders
-get_dashboard_by_uid
-list_dashboard_versions
-update_dashboard
-get_dashboard_panel_queries
-run_panel_query
-get_dashboard_property
-get_dashboard_summary
-create_folder
-list_datasources
-get_datasource
-get_query_examples
-query_prometheus
-list_prometheus_metric_metadata
-list_prometheus_metric_names
-list_prometheus_label_names
-list_prometheus_label_values
-query_prometheus_histogram
-list_incidents
-create_incident
-add_activity_to_incident
-update_incident
-get_incident
-list_incident_custom_fields
-query_loki_logs
-list_loki_label_names
-list_loki_label_values
-query_loki_stats
-query_loki_patterns
-query_influxdb
-list_sql_databases
-list_sql_tables
-describe_sql_table
-query_sql
-list_cloudwatch_namespaces
-list_cloudwatch_metrics
-list_cloudwatch_dimensions
-list_cloudwatch_dimension_values
-query_cloudwatch
-list_cloud_logging_projects
-list_cloud_logging_buckets
-list_cloud_logging_views
-query_cloud_logging
-query_elasticsearch
-query_quickwit
-alerting_rules_read
-alerting_rules_write
-alerting_manage_routing
-alerting_routing_write
-alerting_silences_read
-alerting_silences_write
-list_oncall_schedules
-get_oncall_shift
-get_current_oncall_users
-list_oncall_teams
-list_oncall_users
-list_alert_groups
-get_alert_group
-update_alert_group
-list_pyroscope_label_names
-list_pyroscope_label_values
-list_pyroscope_profile_types
-query_pyroscope
-search_tempo_traces
-query_tempo_metrics
-get_tempo_trace
-diff_tempo_traces
-list_tempo_attribute_names
-list_tempo_attribute_values
-get_tempo_traceql_docs
-get_assertions
-agento11y_manage_conversations
-agento11y_manage_generations
-agento11y_manage_agents
-agento11y_manage_evaluators
-agento11y_manage_eval_rules
-agento11y_manage_eval_collections
-agento11y_manage_experiments
-agento11y_manage_test_suites
-ask_assistant
-generate_deeplink
-get_annotations
-create_annotation
-update_annotation
-delete_annotation
-get_annotation_tags
-list_snapshots
-get_snapshot
-create_snapshot
-delete_snapshot
-get_panel_image
-list_provisioning_repositories
-validate_provisioning_file
-search_docs
-get_doc
+# The tools Grafana's MCP server documents in docs/sources/reference/mcp-tools-table.md of grafana/mcp-grafana at commit
+# 5ea0cc34678cdd6fcd2f5c731b6619a8433bcb20, one per line. The last nine are Grafana Cloud Assistant tools that mcp.grafana.com
+# also lists (seen in its tools/list on 2026-10-12) and that no published page or repository names.
+# Each line is a tool as its server names it and whether it only reads or changes something.
+list_teams read
+list_users_by_org read
+list_all_roles read
+get_role_details read
+get_role_assignments read
+list_user_roles read
+list_team_roles read
+get_resource_permissions read
+get_resource_description read
+user_info read
+search_dashboards read
+search_folders read
+get_dashboard_by_uid read
+list_dashboard_versions read
+update_dashboard change
+get_dashboard_panel_queries read
+run_panel_query read
+get_dashboard_property read
+get_dashboard_summary read
+create_folder change
+list_datasources read
+get_datasource read
+check_datasources_health read
+create_datasource change
+update_datasource change
+get_query_examples read
+query_prometheus read
+list_prometheus_metric_metadata read
+list_prometheus_metric_names read
+list_prometheus_label_names read
+list_prometheus_label_values read
+query_prometheus_histogram read
+list_incidents read
+create_incident change
+add_activity_to_incident change
+update_incident change
+get_incident read
+list_incident_custom_fields read
+query_loki_logs read
+list_loki_label_names read
+list_loki_label_values read
+query_loki_stats read
+query_loki_patterns read
+analyze_loki_labels read
+suggest_loki_alloy_label_config read
+query_influxdb change
+query_graphite read
+list_graphite_metrics read
+list_graphite_tags read
+query_graphite_density read
+list_sql_databases read
+list_sql_tables read
+describe_sql_table read
+query_sql change
+list_cloudwatch_namespaces read
+list_cloudwatch_metrics read
+list_cloudwatch_dimensions read
+list_cloudwatch_dimension_values read
+query_cloudwatch read
+list_cloud_logging_projects read
+list_cloud_logging_buckets read
+list_cloud_logging_views read
+query_cloud_logging read
+query_elasticsearch read
+query_quickwit read
+alerting_rules_read read
+alerting_rules_write change
+alerting_manage_routing read
+alerting_routing_write change
+alerting_silences_read read
+alerting_silences_write change
+list_oncall_schedules read
+get_oncall_shift read
+get_current_oncall_users read
+list_oncall_teams read
+list_oncall_users read
+list_alert_groups read
+get_alert_group read
+update_alert_group change
+list_pyroscope_label_names read
+list_pyroscope_label_values read
+list_pyroscope_profile_types read
+query_pyroscope read
+search_tempo_traces read
+query_tempo_metrics read
+get_tempo_trace read
+diff_tempo_traces read
+list_tempo_attribute_names read
+list_tempo_attribute_values read
+get_tempo_traceql_docs read
+get_assertions read
+agento11y_manage_conversations read
+agento11y_manage_generations read
+agento11y_manage_agents read
+agento11y_manage_evaluators change
+agento11y_manage_eval_rules change
+agento11y_manage_eval_collections change
+agento11y_manage_experiments change
+agento11y_manage_test_suites change
+ask_assistant change
+generate_deeplink change
+get_annotations read
+create_annotation change
+update_annotation change
+delete_annotation change
+get_annotation_tags read
+list_snapshots read
+get_snapshot read
+create_snapshot change
+delete_snapshot change
+get_panel_image read
+list_provisioning_repositories read
+validate_provisioning_file read
+search_docs read
+get_doc read
+get_plugin read
+search_plugin_information read
+install_plugin change
+grafana_api_request change
+assistant_search read
+get_assistant_conversation read
+list_investigations read
+get_investigation read
+get_investigation_report read
+get_investigation_thread read
+list_investigation_evidence read
+list_investigation_profiles read
+wait_for_investigation read
