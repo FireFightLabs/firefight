@@ -42,4 +42,6 @@ export interface SetupPageProps extends SharedProps {
   memberAccess: MemberAccess
   firstQuestion: string
   walkthrough: WalkthroughStep[]
+  // What the test incident's Declare dialog starts with, keyed by the form's field keys.
+  testIncidentAnswers: Record<string, string>
 }

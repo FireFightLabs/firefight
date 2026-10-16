@@ -54,6 +54,9 @@ module WorkspaceOnboarding::Checklist
   QUESTION_NAMES = 3
   # Said after a reason Halon cannot answer that the workspace fixes by choosing its AI again.
   FIX_IN_AI_STEP = "Change it under Choose Halon's AI.".freeze
+  TEST_INCIDENT_NAME = "Test incident: checkout is slow".freeze
+  TEST_INCIDENT_SUMMARY = "This is a test incident from setup. Nothing is broken. Use it to see how Firefight runs an incident in Slack, " \
+                          "then resolve it.".freeze
 
   Step = Data.define(:key, :state, :note) do
     def finished? = FINISHED_STATES.include?(state)
@@ -197,6 +200,19 @@ module WorkspaceOnboarding::Checklist
   end
 
   def skip_chat! = stamp_once!(:chat_skipped_at)
+
+  # What the test incident step's Declare dialog starts with, so it declares in one click and every field stays
+  # editable. Only fields the workspace's declare form asks are filled, since the form refuses an answer it never asked.
+  def test_incident_answers
+    severity = workspace.incident_severities.least_severe
+    answers = {
+      IncidentSystemField::KEY_NAME => TEST_INCIDENT_NAME,
+      IncidentSystemField::KEY_SEVERITY => severity&.slug,
+      IncidentSystemField::KEY_SUMMARY => TEST_INCIDENT_SUMMARY
+    }.compact
+    asked = IncidentFormPrompt.new(workspace, incident: nil, form_slug: IncidentForm::SLUG_DECLARE, answers: answers).fields.map(&:key)
+    answers.slice(*asked)
+  end
 
   private
 

@@ -12,6 +12,16 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     assert_includes severity.errors[:name], "can't be blank"
   end
 
+  test "the least severe is the last one the pickers list, and never a deleted one" do
+    workspace = workspaces(:slack_workspace_one)
+    listed = workspace.incident_severities.active.by_rank.to_a
+
+    assert_equal listed.last, workspace.incident_severities.least_severe
+
+    listed.last.update!(deleted_at: Time.current)
+    assert_equal listed[-2], workspace.incident_severities.least_severe
+  end
+
   test "derives the slug from the name" do
     severity = IncidentSeverity.new(
       workspace: workspaces(:slack_workspace_one),

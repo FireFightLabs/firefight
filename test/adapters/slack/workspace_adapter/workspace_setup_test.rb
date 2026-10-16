@@ -80,10 +80,10 @@ class Slack::WorkspaceAdapter::WorkspaceSetupTest < ActiveSupport::TestCase
 
   test "update_welcome_message redraws the same message in place" do
     Slack::Client.expects(:update_message).with do |**args|
-      args[:ts] == "123.456" && args[:channel] == "C12345678" && args[:blocks].is_a?(Array)
+      args[:ts] == "123.456" && args[:channel] == "C12345678" && args[:blocks] == Slack::Messages::Welcome.build(WorkspaceOnboarding::STAGE_DECLARED)
     end.returns({ ok: true, ts: "123.456" })
 
-    @adapter.update_welcome_message(channel_id: "C12345678", message_id: "123.456", stage: WorkspaceOnboarding::STAGE_NONE)
+    @adapter.update_welcome_message(channel_id: "C12345678", message_id: "123.456", stage: WorkspaceOnboarding::STAGE_DECLARED)
   end
 
   test "post_preview_announcement posts ephemeral message" do

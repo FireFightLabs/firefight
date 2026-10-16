@@ -187,6 +187,7 @@ export function LifecycleFormDialog({
   test = false,
   fromInvestigationId = null,
   suggestedName = null,
+  initialAnswers = null,
   updateVisit = { preserveScroll: true },
 }: {
   // Null while declaring.
@@ -200,10 +201,12 @@ export function LifecycleFormDialog({
   fromInvestigationId?: string | null
   // What the name starts as, which the person can change. Declare form only.
   suggestedName?: string | null
+  // What the form starts with, keyed by field key, which the person can change. Declare form only.
+  initialAnswers?: Answers | null
   // How the page that owns the incident reloads after an update, so it can keep its deferred props.
   updateVisit?: VisitOptions
 }) {
-  const seed: Answers = suggestedName ? { [INCIDENT_NAME_FIELD_KEY]: suggestedName } : {}
+  const seed: Answers = { ...initialAnswers, ...(suggestedName ? { [INCIDENT_NAME_FIELD_KEY]: suggestedName } : {}) }
   const { fields, answers, setAnswers, resolve } = useResolvedForm(incidentId, form, open, seed)
   const [saving, setSaving] = useState(false)
   const copy = TITLES[form]

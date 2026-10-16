@@ -39,7 +39,8 @@ class SetupController < InertiaController
       environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries),
       memberAccess: MemberAccessSerializer.one(Ability::Role.member_access_of(current_workspace)),
       firstQuestion: @onboarding.first_question(cards),
-      walkthrough: WorkspaceOnboarding::STEPS
+      walkthrough: WorkspaceOnboarding::STEPS,
+      testIncidentAnswers: @onboarding.test_incident_answers
     }
   end
 

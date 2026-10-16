@@ -10,7 +10,7 @@ import type { OnboardingStep } from "@/types/serializers"
 
 // The same test incident the dashboard offers, which runs in Slack. Without Slack the button says why it waits.
 export function TestIncidentStep({ step }: { step: OnboardingStep }) {
-  const { walkthrough } = usePage<SetupPageProps>().props
+  const { walkthrough, testIncidentAnswers } = usePage<SetupPageProps>().props
   const [ declaring, setDeclaring ] = useState(false)
   const blockedReason = step.state === SETUP_STEP_STATES.CURRENT ? undefined : step.note
 
@@ -45,7 +45,7 @@ export function TestIncidentStep({ step }: { step: OnboardingStep }) {
         </Blocked>
       </div>
 
-      <LifecycleFormDialog incidentId={null} form="declare" open={declaring} onOpenChange={setDeclaring} test />
+      <LifecycleFormDialog incidentId={null} form="declare" open={declaring} onOpenChange={setDeclaring} test initialAnswers={testIncidentAnswers} />
     </div>
   )
 }

@@ -11,7 +11,11 @@ class DashboardDeclareTest < ApplicationSystemTestCase
 
     within("header") { click_on "Declare incident" }
 
-    assert_selector "[role='dialog']"
+    within("[role='dialog']") do
+      assert_field placeholder: "Write something", with: ""
+      assert_button "Select severity"
+      assert_no_text WorkspaceOnboarding::TEST_INCIDENT_SUMMARY
+    end
     page.save_screenshot(Rails.root.join("tmp/screenshots/dashboard-declare-in-header.png"))
   end
 end
