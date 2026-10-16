@@ -167,9 +167,17 @@ module Mcp
           @authorization || raise(NotImplementedError, "#{name} declares no authorization")
         end
 
+        # Whether a call changes permissions, a credential, an approval or a webhook, which only a person's say lets
+        # through (Ability::Action::PERSON_CONFIRMED_RESOURCES). An upsert changes whichever way it goes.
+        def asks_a_person?
+          resource, crud_action = @authorization || [ @upserted_resource, Ability::Action::ACTION_UPDATE ]
+          resource.present? && Ability::Action.asks_a_person?(resource, crud_action)
+        end
+
         # A key that resolves to nothing is an error rather than a silent duplicate under a fresh slug.
         # key is what the agent passes, column is where a list stores it when the names differ.
         def upserts(resource, scope:, key: :slug, column: key)
+          @upserted_resource = resource
           define_singleton_method(:upsert_target) do |workspace, args|
             value = args[key]
             next nil if value.blank?

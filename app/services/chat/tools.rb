@@ -92,6 +92,14 @@ module Chat::Tools
     @firefight_reading_names ||= Mcp::Tools.all.filter_map { |tool_class| tool_class.name_value.to_s if tool_class.annotations_value&.read_only_hint }.to_set
   end
 
+  # A tool that changes permissions, a credential, an approval or a webhook is asked about every time, so Allow for the
+  # rest of this chat never covers it.
+  def self.asks_a_person?(tool_name) = person_confirmed_names.include?(tool_name.to_s)
+
+  def self.person_confirmed_names
+    @person_confirmed_names ||= Mcp::Tools.all.filter_map { |tool_class| tool_class.name_value.to_s if tool_class.asks_a_person? }.to_set
+  end
+
   # target is what the call reaches, worked out from the tool when it was asked (Chat::Tools::Target), and call what the
   # tool does, such as "Api request". Both are nil for Firefight's own tools and for calls asked before targets were kept.
   # short_title is the agent's few words naming the change, such as "Pause dev-web", nil on calls asked before it was.
@@ -415,7 +423,7 @@ module Chat::Tools
       intent: intent_of(tool_call.arguments), asked: (step&.asked || []) + planned(tool_call), status: CONFIRMATION_STATUSES.fetch(tool_call.approval, :awaiting),
       target: target, call: call, read: Provenance.stored(tool_call),
       safeguards: [ *repair&.confirmation_rows, owner&.confirmation_row, *page&.would_send_rows ].compact,
-      expires: expiries(mitigation), for_chat: repair.nil? && !Browser.sends?(tool_call.arguments),
+      expires: expiries(mitigation), for_chat: repair.nil? && !Browser.sends?(tool_call.arguments) && !asks_a_person?(tool_call.name),
       waiting_on: (owner.owner_name if tool_call.approval == Chat::APPROVAL_OWNER_ASKED && owner),
       support: workspace ? LookFirst.support(chat, tool_call, workspace) : [], page: page,
       short_title: short_title_of(tool_call.arguments), chosen_expiry: chosen_expiry(mitigation), undo_words: undo_words(workspace, mitigation),

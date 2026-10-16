@@ -11,7 +11,7 @@ module Mcp
         @context = { workspace: @workspace, principal: @admin }
       end
 
-      def call(tool, args) = ToolDispatcher.call(tool: tool, server_context: @context, args: args)
+      def call(tool, args) = call_approved_by_a_person(tool: tool, server_context: @context, args: args)
 
       test "they sit with permissions, authorize as permissions and read, write and delete as the screen does" do
         group = Chat::Tools::Groups::FIREFIGHT.find { |each| each.tools.include?(UPSERT_UNATTENDED_RULE) }

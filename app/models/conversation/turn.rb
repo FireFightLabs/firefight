@@ -101,9 +101,10 @@ class Conversation::Turn
   # tool that declares itself destructive. allowed is whether the person allowed the tool for the rest of the chat and
   # nothing read from outside has reached it since (Chat::Tools::Provenance). A tool a scheduled plan named when the
   # person approved it stops asking too. Neither applies where an approval rule does, since that rule wants each call
-  # signed off.
+  # signed off. A change to permissions, a credential, an approval or a webhook always waits, whatever was allowed.
   def confirms?(action, allowed: false, tool_name: nil, declared_destructive: false, **)
     return false unless asker
+    return true if action&.asks_a_person?
     return true if action && self_approvable?(action)
     return false if allowed || @approved_tools.include?(tool_name.to_s)
 

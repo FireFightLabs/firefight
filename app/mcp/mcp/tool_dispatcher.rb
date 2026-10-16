@@ -24,8 +24,8 @@ module Mcp
         action_key: Ability::Action.system_key(resource, crud_action),
         workspace: workspace,
         params: tool.ledger_params(args.except(APPROVAL_ID_ARG)),
-        context: { source: AbilityGateway::SOURCE_MCP, approval_id: args[APPROVAL_ID_ARG] },
-        holdable: tool.holdable?
+        context: { source: AbilityGateway::SOURCE_MCP, approval_id: args[APPROVAL_ID_ARG], asks_a_person: tool.asks_a_person? },
+        holdable: tool.holdable? || tool.asks_a_person?
       ) do |authorization|
         answered = run(tool: tool, workspace: workspace, principal: server_context[:principal], args: args)
         authorization.answer_failed!(text_of(answered)) if answered.error?
