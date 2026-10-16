@@ -13,6 +13,8 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
 
     def to_llm = self
 
+    def caching = nil
+
     def with_tool_options(**) = self
 
     def awaiting_approval? = @awaiting_approval || false

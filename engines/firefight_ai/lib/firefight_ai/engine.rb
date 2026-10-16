@@ -16,5 +16,9 @@ module FirefightAi
         FirefightAi::Tracing.enable! if FirefightAi.configuration.trace_calls
       end
     end
+
+    initializer "firefight_ai.keep_registry_current" do |app|
+      app.executor.to_run { FirefightAi.keep_registry_current }
+    end
   end
 end
