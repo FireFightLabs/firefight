@@ -1,7 +1,7 @@
 # Tells open incident pages which part of them changed (Incident::LiveSignal), over IncidentChannel. An alert storm or a
 # busy run can change one part many times a second, so each incident and part is said at most once per WINDOW. A change
 # inside the window is never lost: the first one held back books a single trailing say (IncidentPageSignalJob) for after
-# the window, which covers every change made before it runs.
+# the window, which covers every change made before it runs and books another if the gate is still held.
 class Incident::LiveDelivery
   WINDOW = 1.second
 
@@ -12,7 +12,13 @@ class Incident::LiveDelivery
     IncidentPageSignalJob.set(wait: WINDOW).perform_later(incident_id, part)
   end
 
-  # Said whatever the gate, since it is what a held back change was waiting for.
+  # The trailing say goes through the gate too, so a change said directly just before it does not make two in one window.
+  # Its own booking is cleared first, so if the gate holds it back it books the next one rather than being lost.
+  def self.trailing(incident_id:, part:)
+    Rails.cache.delete(trailing_key(incident_id, part))
+    changed(incident_id: incident_id, part: part)
+  end
+
   def self.say(incident_id, part)
     ActionCable.server.broadcast(IncidentChannel.stream_name(incident_id), { part: part })
   end

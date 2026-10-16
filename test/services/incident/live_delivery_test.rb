@@ -19,9 +19,33 @@ class Incident::LiveDeliveryTest < ActiveSupport::TestCase
     end
     assert_broadcasts @stream, 1
 
-    perform_enqueued_jobs(only: IncidentPageSignalJob)
+    travel Incident::LiveDelivery::WINDOW * 2 do
+      perform_enqueued_jobs(only: IncidentPageSignalJob)
+    end
 
     assert_broadcasts @stream, 2
+  end
+
+  test "a trailing say that finds the window taken again waits for the next one instead of saying twice in a window" do
+    Incident::LiveDelivery.changed(incident_id: @incident.id, part: PART)
+    Incident::LiveDelivery.changed(incident_id: @incident.id, part: PART)
+    # The booking is run by hand below, at the time it matters.
+    clear_enqueued_jobs
+
+    travel Incident::LiveDelivery::WINDOW * 2 do
+      Incident::LiveDelivery.changed(incident_id: @incident.id, part: PART)
+      assert_broadcasts @stream, 2
+
+      assert_enqueued_jobs 1, only: IncidentPageSignalJob do
+        IncidentPageSignalJob.perform_now(@incident.id, PART)
+      end
+      assert_broadcasts @stream, 2
+    end
+
+    travel Incident::LiveDelivery::WINDOW * 4 do
+      IncidentPageSignalJob.perform_now(@incident.id, PART)
+      assert_broadcasts @stream, 3
+    end
   end
 
   test "a change held back is said by the trailing job even after the window has passed" do
@@ -32,8 +56,11 @@ class Incident::LiveDeliveryTest < ActiveSupport::TestCase
       perform_enqueued_jobs(only: IncidentPageSignalJob)
       assert_broadcasts @stream, 2
 
-      Incident::LiveDelivery.changed(incident_id: @incident.id, part: PART)
-      assert_broadcasts @stream, 3
+      # The trailing say took this window, so a change now waits for the next one.
+      assert_enqueued_jobs 1, only: IncidentPageSignalJob do
+        Incident::LiveDelivery.changed(incident_id: @incident.id, part: PART)
+      end
+      assert_broadcasts @stream, 2
     end
   end
 

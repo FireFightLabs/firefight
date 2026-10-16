@@ -1,12 +1,15 @@
 require "application_system_test_case"
 
 class IncidentLiveUpdatesTest < ApplicationSystemTestCase
-  # Counts the reads the live connection asks for, which are partial reloads of the page's own address.
+  # Counts the reads the live connection asks for once each has been answered. They are GETs of the page's own address,
+  # which a change posted from the page never opens, since the browser follows its redirect inside the same request.
   LIVE_READS = <<~JS.freeze
     window.liveReads = 0;
     const openRequest = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-      if (String(method).toLowerCase() === "get" && String(url).includes(window.location.pathname)) { window.liveReads += 1; }
+      if (String(method).toLowerCase() === "get" && String(url).includes(window.location.pathname)) {
+        this.addEventListener("loadend", () => { window.liveReads += 1; });
+      }
       return openRequest.call(this, method, url, ...rest);
     };
   JS
