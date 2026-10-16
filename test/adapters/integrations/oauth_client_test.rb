@@ -9,10 +9,10 @@ module Integrations
     # authorization server, whose authorization endpoint carries the stack in its query.
     def stub_stack_metadata
       OauthClient.stubs(:get_json).returns(nil)
-      OauthClient.stubs(:get_json).with("https://mcp.grafana.com/.well-known/oauth-protected-resource/mcp/mystack.grafana.net").returns(
+      OauthClient.stubs(:get_json).with("https://mcp.grafana.com/.well-known/oauth-protected-resource/mcp/mystack.grafana.net", provider_key: nil).returns(
         "resource" => "https://mcp.grafana.com/mcp", "authorization_servers" => [ STACK_SERVER ], "scopes_supported" => SCOPES
       )
-      OauthClient.stubs(:get_json).with("https://mcp.grafana.com/.well-known/oauth-authorization-server/mcp/mystack.grafana.net").returns(
+      OauthClient.stubs(:get_json).with("https://mcp.grafana.com/.well-known/oauth-authorization-server/mcp/mystack.grafana.net", provider_key: nil).returns(
         "issuer" => STACK_SERVER,
         "authorization_endpoint" => "https://mcp.grafana.com/mcp/oauth/authorize?grafana_url=https%3A%2F%2Fmystack.grafana.net",
         "token_endpoint" => "https://mcp.grafana.com/mcp/oauth/token", "registration_endpoint" => "https://mcp.grafana.com/mcp/oauth/register"
@@ -20,6 +20,7 @@ module Integrations
     end
 
     def token_response(code, body)
+      PublicAddress.stubs(:check!).returns(PublicAddress::Checked.new(ip: IPAddr.new("93.184.216.34"), private: false))
       Http.stubs(:request).returns(stub(code: code.to_s, body: body.to_json))
     end
 
@@ -41,8 +42,8 @@ module Integrations
       assert_equal "the server no longer offers grafana:admin", error.message
 
       OauthClient.stubs(:get_json).returns(nil)
-      OauthClient.stubs(:get_json).with("https://mcp.example/.well-known/oauth-protected-resource/mcp").returns("authorization_servers" => [ "https://auth.example" ])
-      OauthClient.stubs(:get_json).with("https://auth.example/.well-known/oauth-authorization-server").returns(
+      OauthClient.stubs(:get_json).with("https://mcp.example/.well-known/oauth-protected-resource/mcp", provider_key: nil).returns("authorization_servers" => [ "https://auth.example" ])
+      OauthClient.stubs(:get_json).with("https://auth.example/.well-known/oauth-authorization-server", provider_key: nil).returns(
         "authorization_endpoint" => "https://auth.example/authorize", "token_endpoint" => "https://auth.example/token"
       )
       assert_nil OauthClient.discover("https://mcp.example/mcp", {}, [ "read" ])[:scope]
@@ -75,6 +76,27 @@ module Integrations
       token_response(500, { error: "server_error" })
       error = assert_raises(OauthClient::Error) { OauthClient.refresh(credentials) }
       assert_not_kind_of OauthClient::SignInEnded, error
+    end
+
+    test "discovery never reaches a private address, whether the workspace typed it or the server it named answered it" do
+      PublicAddress.stubs(:resolve).with("10.0.0.5").returns(IPAddr.new("10.0.0.5"))
+      Http.expects(:request).never
+
+      error = assert_raises(OauthClient::Error) { OauthClient.discover("https://10.0.0.5/mcp") }
+      assert_equal "10.0.0.5 is on a private network, which Firefight does not connect to.", error.message
+
+      PublicAddress.stubs(:resolve).with("mcp.example").returns(IPAddr.new("93.184.216.34"))
+      PublicAddress.stubs(:resolve).with("metadata.internal").returns(IPAddr.new("169.254.169.254"))
+      metadata = { registration_endpoint: "http://metadata.internal/latest/meta-data" }
+      assert_raises(OauthClient::Error) { OauthClient.send(:register, metadata, "https://ff.example/cb") }
+    end
+
+    test "a token request goes to the address that was checked" do
+      PublicAddress.stubs(:resolve).with("auth.example").returns(IPAddr.new("93.184.216.34"))
+      Http.expects(:request).with { |_uri, _request, ipaddr:, **| ipaddr == "93.184.216.34" }
+          .returns(stub(code: "200", body: { access_token: "new" }.to_json))
+
+      OauthClient.refresh({ "refresh_token" => "rt", "token_endpoint" => "https://auth.example/token", "client_id" => "cid" })
     end
 
     test "a refresh keeps the new tokens and the expiry the server gave" do
