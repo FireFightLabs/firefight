@@ -1,10 +1,6 @@
-# An open incident page, told which part of it changed (Incident::LiveSignal) so it reads that part again. The signal
+# An open incident page, told which part of it changed (Incident::LiveDelivery) so it reads that part again. The signal
 # carries no incident data, the page reads it through the same authorized request as always.
 class IncidentChannel < ApplicationCable::Channel
-  def self.changed(incident_id, part)
-    ActionCable.server.broadcast(stream_name(incident_id), { part: part })
-  end
-
   def self.stream_name(incident_id) = "incident:#{incident_id}"
 
   def subscribed

@@ -86,7 +86,7 @@ class IncidentLiveUpdatesTest < ApplicationSystemTestCase
   def open_live_connection
     @incident.update_column(:summary, "Customers see a spinner at checkout")
     50.times do
-      IncidentChannel.changed(@incident.id, Incident::LiveSignal::PART_INCIDENT)
+      Incident::LiveDelivery.say(@incident.id, Incident::LiveSignal::PART_INCIDENT)
       return if page.has_text?("Customers see a spinner at checkout", wait: 0.2)
     end
 

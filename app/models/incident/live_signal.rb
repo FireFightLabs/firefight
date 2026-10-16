@@ -1,7 +1,8 @@
-# Tells an open incident page which part of it changed, once the change commits, so the page reads that part again.
+# Says which part of an incident's page changed, once the change commits, so an open page reads that part again.
 # Every record the page shows includes it and names its part, so a change from Slack, the API, MCP, Halon, a workflow,
-# a job or the page itself reaches the page the same way. A write that skips callbacks (a guarded update_all) calls
-# signal_incident_page itself once it wins.
+# a job or the page itself is said the same way. A write that skips callbacks (a guarded update_all) calls
+# signal_incident_page itself once it wins. The model only says it happened, as an EVENT notification, and
+# Incident::LiveDelivery is what tells the pages.
 module Incident::LiveSignal
   extend ActiveSupport::Concern
 
@@ -14,6 +15,7 @@ module Incident::LiveSignal
     "INCIDENT" => PART_INCIDENT, "TIMELINE" => PART_TIMELINE, "ACTIONS" => PART_ACTIONS,
     "POSTMORTEM" => PART_POSTMORTEM, "INVESTIGATION" => PART_INVESTIGATION
   }.freeze
+  EVENT = "changed.incident_page"
 
   class_methods do
     # if narrows which commits count, for a record that is written far more often than the page changes.
@@ -29,7 +31,7 @@ module Incident::LiveSignal
     return if ids.empty?
 
     ActiveRecord.after_all_transactions_commit do
-      ids.each { |id| IncidentChannel.changed(id, part) }
+      ids.each { |id| ActiveSupport::Notifications.instrument(EVENT, incident_id: id, part: part) }
     end
   end
 
