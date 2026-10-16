@@ -86,6 +86,21 @@ module Integrations
       assert_equal "k1", box.secret
     end
 
+    test "a server without git fails the read with a reason, never the whole run with a system error" do
+      Open3.stubs(:capture3).raises(Errno::ENOENT, "git")
+
+      error = assert_raises(Integrations::Error) do
+        reading("investigation-no-git").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
+      end
+      assert_match "git could not run on this server", error.message
+    end
+
+    test "the app image installs every program the app runs itself" do
+      runtime = File.read(Rails.root.join("Dockerfile")).split(/^FROM /).find { |stage| stage.lines.first.match?(/ AS base$/) }
+
+      assert_match(/apt-get install[^\n]*\bgit\b/, runtime, "code reading copies repositories with git, so the image the app runs in needs it")
+    end
+
     test "a box is started for its workspace and run, so a box the app loses its row for can still be told whose it is" do
       @provider.expects(:start).with { |owner:, **| owner == Sandboxes::Owner.new(workspace_id: @workspace.id, key: "investigation-owned") }
                .returns(Sandboxes::Box.new(ref: "box-1", address: "http://127.0.0.1:9", key: "k1"))

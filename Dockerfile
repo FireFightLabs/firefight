@@ -21,7 +21,7 @@ WORKDIR /rails
 
 # Install base packages including Node.js for Vite
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y ca-certificates curl libjemalloc2 libsodium23 libvips fonts-dejavu-core postgresql-client && \
+    apt-get install --no-install-recommends -y ca-certificates curl git libjemalloc2 libsodium23 libvips fonts-dejavu-core postgresql-client && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
