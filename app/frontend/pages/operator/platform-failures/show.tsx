@@ -9,19 +9,10 @@ import { SectionCard } from "@/pages/operator/components/section-card"
 import { Stat } from "@/pages/operator/components/stat"
 import { since } from "@/pages/operator/lib/format"
 import type { OperatorPageProps } from "@/pages/operator/types"
-import type { OperatorPlatformFailure } from "@/types/serializers"
+import type { OperatorPlatformFailure, OperatorPlatformFailureDetail } from "@/types/serializers"
 
 interface PlatformFailureProps extends OperatorPageProps {
-  failure: {
-    platform: string
-    operation: string
-    workspace: string
-    workspaceId: string
-    channel: string | null
-    reason: string
-    notes: string[]
-    firstAt: string
-  }
+  failure: OperatorPlatformFailureDetail
   total: number
   occurrences: OperatorPlatformFailure[]
 }

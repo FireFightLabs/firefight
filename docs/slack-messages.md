@@ -338,7 +338,7 @@ one step per message, posted by `OnboardingWalkthroughService#advance!` as the
 incident earns it (declared, lead set, first message, resolved, postmortem),
 with the last posted step kept on the onboarding row so nothing posts twice. The first step is the last thing
 `IncidentCreationWorkflow` puts in the channel: its step waits on the pinned quick actions and on every other step that
-speaks in or fills the channel (the invites, runbooks, a carried over answer, an alert investigation's start). Those
+speaks in or fills the channel (the invites, runbooks, a carried-over answer, an alert investigation's start). Those
 steps are `on_failure: continue`, so one that fails for good still lets the guide post. Every other caller skips while
 that step is still to run (`IncidentCreationWorkflow.opening?`), so the `incident.created` progress job cannot post it
 above the quick actions. `Resolution` carries the postmortem button and a
@@ -486,7 +486,10 @@ old wording, with who decided in a context line. See docs/ai.md, Halon proposes 
 
 - **Halon shows it is working and when it is done.** A person's mention or direct message gets :eyes:
   (`mark_working`) and the conversation remembers it (`Conversation#acknowledged!`). When the turn answers, or asks to
-  confirm, each remembered message loses :eyes: and gets :heavy_check_mark: (`mark_done`), once. A refused message just
+  confirm, each remembered message loses :eyes: and gets :heavy_check_mark: (`mark_done`), once. When Slack itself fails
+  (a server error, an outage or a rate limit) the message is kept for the next answer, at most
+  `Conversation::MARK_ATTEMPTS` tries in all (`mark_again!`, counted in `mark_attempts`). A message or channel Slack
+  refused for good (gone, archived, not joined) is settled and never tried again. A refused message just
   loses :eyes: (`unmark_working`). A mention added to a live investigation keeps :eyes: until the run's own answer.
 - **A step line is plain words** (`Chat::Tools::Step#shown_line`): the words the agent wrote for the call, or the kind
   of system it read as an investigation's checklist names it ("Read the code", "Checked recent deploys"), never a tool's

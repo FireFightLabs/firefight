@@ -75,9 +75,7 @@ class CodeAgentPauseService
     chat = session.place.try(:chat) if session.place.is_a?(Conversation)
     return unless chat && session.tool_call_id
 
-    # The session started with its call, so the call's work is the first kept since, never an earlier or a later call
-    # by the same id.
-    kept = chat.step_progresses.of_call(session.tool_call_id, since: session.created_at).first
+    kept = Chat::StepProgress.of_call_made_by(chat, session.tool_call_id, session.created_at)
     work = kept&.work
     return unless work
 

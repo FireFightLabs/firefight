@@ -275,6 +275,8 @@ class PlatformAdapter
   end
 
   # Shows on a message Halon was working on that the answer is in, replacing mark_working. Best effort.
+  # @return [Hash] { success:, retry: } success false when either mark did not change, and retry true only when the
+  #   platform may still take it, so a message or channel it refused for good is never tried again
   def mark_done(channel_id:, message_id:)
     raise NotImplemented.new(__method__, self.class)
   end
