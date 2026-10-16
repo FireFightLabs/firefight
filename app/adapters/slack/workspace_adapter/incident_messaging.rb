@@ -1065,9 +1065,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   # one, remembered the same way, so answers are posted whole without asking again for a day.
   AGENT_SESSIONS_REFUSED_AT = "agent_sessions_refused_at".freeze
   RETRY_AGENT_SESSIONS_AFTER = 1.day
-  # Failures that say nothing about whether the workspace has agent sessions, so the next answer asks again. A revoked
-  # install is handled where every call meets it.
-  PASSING_FAILURES = [ AdapterError::RateLimited, AdapterError::ServerError, AdapterError::Unavailable, AdapterError::AuthRevoked ].freeze
+  # Slack's answers that are about the workspace or the app, never one channel or one moment, so only these are remembered.
+  WORKSPACE_REFUSALS = %w[not_authorized feature_disabled not_allowed_token_type missing_scope].freeze
 
   def agent_sessions? = !refused_since?(AGENT_SESSIONS_REFUSED_AT, RETRY_AGENT_SESSIONS_AFTER)
 
@@ -1075,11 +1074,11 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     translate_errors do
       Slack::Client.set_agent_session_status(workspace: @workspace, channel: channel_id, thread_ts: thread_id, status: "processing")
     end
-  rescue *PASSING_FAILURES
-    raise
   rescue AdapterError => error
-    Rails.logger.info({ event: "slack.agent_sessions_refused", workspace_id: @workspace.id, error: error.message }.to_json)
-    remember_refusal!(AGENT_SESSIONS_REFUSED_AT)
+    if WORKSPACE_REFUSALS.include?(error.message[/error: ([a-z_]+)/, 1])
+      Rails.logger.info({ event: "slack.agent_sessions_refused", workspace_id: @workspace.id, error: error.message }.to_json)
+      remember_refusal!(AGENT_SESSIONS_REFUSED_AT)
+    end
     raise
   end
 

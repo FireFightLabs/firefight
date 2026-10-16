@@ -16,6 +16,18 @@ class Operator::PlatformFailuresTest < ActiveSupport::TestCase
     assert_equal "invalid_arguments: missing required field: channel, missing required field: message_ts", reason.line
   end
 
+  test "a warning the platform added is not a reason, whole or cut short" do
+    whole = 'Slack API error: invalid_blocks (details: {"error":"invalid_blocks","response_metadata":{"messages":["[ERROR] must provide an object","[WARN] missing_charset"]}})'
+    cut = 'Slack API error: invalid_blocks (details: {"error":"invalid_blocks","response_metadata":{"messages":["[ERROR] must provide an object","[WARN] missing_charset"],"x'
+
+    assert_equal [ "must provide an object" ], Operator::PlatformFailures.reason(failure!(message: whole)).notes
+    assert_equal [ "must provide an object" ], Operator::PlatformFailures.reason(failure!(message: cut)).notes
+  end
+
+  test "a revoked install keeps the platform's own code" do
+    assert_equal "token_revoked", Operator::PlatformFailures.reason(failure!(message: "Platform auth revoked: token_revoked", error_class: "AdapterError::AuthRevoked")).line
+  end
+
   test "a code with nothing more to say is the whole reason" do
     reason = Operator::PlatformFailures.reason(failure!(message: 'Slack API error: not_authorized (details: {"error":"not_authorized","response_metadata":{"warnings":["missing_charset"]}})'))
 

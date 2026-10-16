@@ -32,10 +32,13 @@ class Slack::WorkspaceAdapter::AgentSessionsTest < ActiveSupport::TestCase
     end
   end
 
-  test "a refusal that may pass, such as a rate limit, is not remembered" do
-    Slack::Client.stubs(:set_agent_session_status).raises(AdapterError::RateLimited.new(3))
+  test "a failure about one channel or one moment, such as a missing channel or a rate limit, is not remembered" do
+    [ AdapterError::RateLimited.new(3), AdapterError::NotFound.new("Slack API error: channel_not_found"),
+      AdapterError.new("Slack API error: thread_ts_required") ].each do |failure|
+      Slack::Client.expects(:set_agent_session_status).with { |arguments| arguments[:status] == "processing" }.raises(failure)
 
-    @adapter.start_agent_answer(channel_id: "C1", thread_id: "1.2", user_id: "U1")
+      assert_nil @adapter.start_agent_answer(channel_id: "C1", thread_id: "1.2", user_id: "U1")[:answer_id]
+    end
 
     assert_nil @workspace.reload.platform_data.to_h["agent_sessions_refused_at"]
   end

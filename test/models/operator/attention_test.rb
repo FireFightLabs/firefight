@@ -44,15 +44,16 @@ class Operator::AttentionTest < ActiveSupport::TestCase
   end
 
   test "failed calls with different reasons are separate items, and one in no channel still opens its occurrences" do
-    2.times do |index|
+    failures = %w[not_authorized feature_disabled].index_with do |code|
       PlatformCallFailure.create!(workspace: @workspace, platform: Platforms::SLACK, operation: "agents.sessions.setStatus", error_class: "AdapterError",
-                                  message: "Slack API error: #{index.zero? ? 'not_authorized' : 'feature_disabled'}")
+                                  message: "Slack API error: #{code}")
     end
 
     platform = items.select { |item| item.kind == Operator::Attention::KIND_PLATFORM_FAILED && item.subject == "agents.sessions.setStatus" }
 
     assert_equal [ "1 time · feature_disabled", "1 time · not_authorized" ], platform.map(&:detail).sort
-    assert platform.all? { |item| item.target == Operator::Attention::TARGET_PLATFORM_FAILURE && item.target_id.present? }
+    assert platform.all? { |item| item.target == Operator::Attention::TARGET_PLATFORM_FAILURE }
+    failures.each { |code, failure| assert_equal failure.id, platform.find { |item| item.detail.end_with?(code) }.target_id }
   end
 
   test "a failed webhook delivery opens the incident it was about" do
