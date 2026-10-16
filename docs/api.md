@@ -111,7 +111,7 @@ DELETE /api/v1/handbook/pages/:id     # the page and its history
 
 A synced page is read here and changed only at its source, so a write to one answers 422 `page_synced` with why. A personal token writes as its member, which the page's history names, and a service key as nobody.
 
-**Skill endpoints**: the workspace's own skills, authorized as `skills` (members read them, writing needs a grant), through the same `Chat::CustomSkillService` the Skills page and MCP write through. Without the `CUSTOM_SKILLS` flag they answer 404.
+**Skill endpoints**: the workspace's own skills, authorized as `skills` (members read them, writing needs a grant), through the same `Chat::CustomSkillService` the Skills page and MCP write through.
 
 ```
 GET    /api/v1/skills          # every skill, without its steps
@@ -121,7 +121,7 @@ PATCH  /api/v1/skills/:id      # name, when, tools, steps, reason and enabled (t
 DELETE /api/v1/skills/:id      # the skill and its versions, 422 skill_refused while a workflow runs it
 ```
 
-**Workflow settings endpoint**: one workflow's settings by its id or slug, authorized as `workflows.update` (a grant, as on the page), changed through `Workflow#update_settings!` (`Workflow::Settings`), the one path the Settings page and MCP's `update_workflow` take, so the same validation applies. Without the `WORKFLOWS` flag it answers 404.
+**Workflow settings endpoint**: one workflow's settings by its id or slug, authorized as `workflows.update` (a grant, as on the page), changed through `Workflow#update_settings!` (`Workflow::Settings`), the one path the Settings page and MCP's `update_workflow` take, so the same validation applies.
 
 ```
 PATCH  /api/v1/workflows/:id   # name, description, owner_team_id, cost_cap_cents, runs_per_hour, subject_key, freeze_behaviour, all_clear. Only what is sent changes, null clears cost_cap_cents, owner_team_id or subject_key. Answers { workflow: every setting and its page }, 422 validation_error naming the field

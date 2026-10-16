@@ -12,7 +12,6 @@ class DefinedWorkflowSandboxStepsTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     FirefightAi::WorkflowRepair.any_instance.stubs(:suggest).returns(nil)
     WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:post_workflow_failure).returns({})
     Integrations::Terminal.stubs(:available?).returns(true)

@@ -105,7 +105,6 @@ class Api::V1::AppEventsAgentSessionsTest < ActionDispatch::IntegrationTest
   end
 
   test "a label added to an issue starts the workflows waiting for that label, once, and an assignment still starts every one of them" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     labelled_one = published("Labelled", Workflow::Listening::KEY_LABEL => "firefight")
     other_label = published("Other label", Workflow::Listening::KEY_LABEL => "Triage")
     assigned_only = published("Assigned only", {})
@@ -130,7 +129,6 @@ class Api::V1::AppEventsAgentSessionsTest < ActionDispatch::IntegrationTest
   end
 
   test "a label added in an organization no connection was made through starts nothing" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     workflow = published("Labelled", Workflow::Listening::KEY_LABEL => "Firefight")
 
     perform_enqueued_jobs(only: WorkflowEventJob) { deliver(labelled([ "Firefight" ], organization: "org-elsewhere")) }

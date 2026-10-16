@@ -8,7 +8,6 @@ class AgentWorkflowCardTest < ApplicationSystemTestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     Entitlements.stubs(:allows?).returns(true)
     Investigation.stubs(:unavailable_reason).returns(nil)
     sign_in(users(:alice), @workspace)
@@ -82,14 +81,5 @@ class AgentWorkflowCardTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/blocked-tap-phone.png").to_s)
   ensure
     page.driver.browser.manage.window.resize_to(1400, 1400)
-  end
-
-  test "a workspace without workflows shows no card" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-
-    visit agent_chat_path(@conversation)
-
-    assert_text "I made Check web."
-    assert_no_selector "section[aria-label=Workflow]"
   end
 end

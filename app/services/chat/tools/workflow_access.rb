@@ -1,6 +1,6 @@
-# What get_workflow and propose_workflow_edit share, both offered with the other workflow tools only where workflows are
-# switched on (Conversation::Tools.workflows): the workflow named or the one the chat was started beside, and a refusal
-# that marks the call failed.
+# What get_workflow and propose_workflow_edit share, both offered with the other workflow tools
+# (Conversation::Tools.workflows): the workflow named or the one the chat was started beside, and a refusal that marks
+# the call failed.
 module Chat::Tools::WorkflowAccess
   extend ActiveSupport::Concern
 

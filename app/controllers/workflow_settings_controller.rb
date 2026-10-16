@@ -3,8 +3,6 @@
 class WorkflowSettingsController < InertiaController
   authorizes Ability::Action::RESOURCE_WORKSPACE, update: %i[update]
 
-  include RequiresWorkflows
-
   def update
     current_workspace.update!(workflow_run_retention_days: params[:workflow_run_retention_days])
     days = current_workspace.workflow_run_retention_days

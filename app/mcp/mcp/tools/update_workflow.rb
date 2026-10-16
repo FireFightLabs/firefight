@@ -6,7 +6,6 @@ module Mcp
     class UpdateWorkflow < Base
       tool_name FirefightTools::UPDATE_WORKFLOW
       authorize_as Ability::Action::RESOURCE_WORKFLOWS, Ability::Action::ACTION_UPDATE
-      behind_flag FeatureFlags::WORKFLOWS
       description "Change one workflow's settings, the ones its Settings page holds: its name and description, owning team, spending ceiling " \
                   "per run (AI and sandbox time together), most runs per hour, one live run per subject, what a change does in a freeze " \
                   "window and the all clear. Only what you give changes, and null clears the spending ceiling, the owning team or the " \

@@ -7,7 +7,6 @@ class WorkflowChatsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @bob = workspace_memberships(:bob_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @workflow = Workflow.create!(workspace: @workspace, name: "Release check")
     sign_in(users(:bob), @workspace)
   end
@@ -88,13 +87,5 @@ class WorkflowChatsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to workflow_path(@workflow)
     assert_equal Conversation::STOPPING, flash[:notice]
-  end
-
-  test "without the workflows flag there is no chat to ask" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-
-    post workflow_chat_url(@workflow), params: { question: "What does it do?" }
-
-    assert_response :not_found
   end
 end

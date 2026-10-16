@@ -7,7 +7,6 @@ class Workflow::NeedCheckTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     Investigation.stubs(:unavailable_reason).returns(nil)
     @workflow = Workflow.create!(workspace: @workspace, name: "Restart web", created_by: @alice)
     @workflow.open_draft!(by: @alice).update!(steps: [ { "id" => "pause", "name" => "pause", "kind" => "delay", "config" => { "minutes" => 5 } } ])

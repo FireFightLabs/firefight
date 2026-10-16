@@ -12,8 +12,7 @@ class WorkspaceSettingsController < InertiaController
     render inertia: "settings/workspace", props: {
       settings: WorkspaceSettingsSerializer.one(current_workspace),
       issueWebhookUrl: current_workspace.issue_webhook_token && api_v1_issue_events_url(current_workspace.issue_webhook_token),
-      # Only where workflows are switched on, so the card is not there without them.
-      workflowRunRetentionDays: (current_workspace.workflow_run_retention_days if FeatureFlags.enabled?(current_workspace, FeatureFlags::WORKFLOWS)),
+      workflowRunRetentionDays: current_workspace.workflow_run_retention_days,
       **ai_account_props
     }
   end

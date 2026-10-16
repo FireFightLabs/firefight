@@ -45,7 +45,7 @@ class Api::V1::RunbooksController < Api::V1::ApiController
   def upsert(target)
     given = runbook_params
     upsert = Runbook::Upsert.new(current_workspace)
-    return upsert.call(target, given, by: member_principal) unless FeatureFlags.enabled?(current_workspace, FeatureFlags::WORKFLOWS) && upsert.runnable?(given)
+    return upsert.call(target, given, by: member_principal) unless upsert.runnable?(given)
 
     runbook = AbilityGateway.authorize!(principal: Current.principal, action_key: Workflow::CREATE_KEY, workspace: current_workspace,
                                         params: request_binding_params, context: { source: AbilityGateway::SOURCE_API }) do

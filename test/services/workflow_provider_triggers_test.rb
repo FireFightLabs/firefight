@@ -6,7 +6,6 @@ class WorkflowProviderTriggersTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @github = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
     @row = @github.integration_environments.create!
   end

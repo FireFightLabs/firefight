@@ -58,13 +58,17 @@ class Conversation::PlansTest < ActiveSupport::TestCase
     assert_empty @chat.plans
   end
 
-  test "a time with no zone is read in the person's own, and a time in a dashboard chat goes to their direct messages once approved" do
-    travel_to Time.zone.parse("2026-10-10 12:00 UTC")
+  test "a later time is a workflow, so make_plan refuses it and makes nothing" do
+    Chat::Tools.expects(:mark_failed).with(@turn, nil)
+
     said = call(Conversation::Tools::MakePlan, goal: "Release main", steps: STEPS, run_at: "2026-10-17T06:00")
 
-    plan = @chat.plans.sole
-    assert_equal [ Chat::Plan::STATUS_PROPOSED, Time.zone.parse("2026-10-17 04:00 UTC"), "Europe/Berlin" ], [ plan.status, plan.run_at, plan.time_zone ]
-    assert_match "Proposed for Saturday 17 October at 06:00 CEST", said
+    assert_equal "Not made. #{Conversation::Tools::MakePlan::LATER_IS_A_WORKFLOW}", said
+    assert_empty @chat.plans
+  end
+
+  test "a scheduled plan in a dashboard chat goes to the approver's direct messages once approved" do
+    plan = make(run_at: 2.days.from_now, time_zone: "UTC")
     assert_not Conversation::Plans.posted?(plan)
 
     assert_nil Conversation::Plans.approve!(plan, by: @alice)
@@ -75,33 +79,6 @@ class Conversation::PlansTest < ActiveSupport::TestCase
 
     @adapter.expects(:update_chat_plan).with(channel_id: "D1", message_id: "2.2", plan: plan, direct: true, conversation_id: @conversation.id)
     Conversation::Plans.tell!(plan)
-  end
-
-  test "a scheduled change names a tool the person may call that changes something, since that is what they approve" do
-    steps = [ STEPS[0], STEPS[1].merge("tool" => "aws_delete_stack"), STEPS[2] ]
-
-    said = call(Conversation::Tools::MakePlan, goal: "Release main", steps: steps, run_at: 2.days.from_now.strftime("%Y-%m-%dT06:00"))
-
-    assert_match "aws_delete_stack is not a tool Alice Smith may call that changes something", said
-    assert_empty @chat.plans
-  end
-
-  test "without a known time zone Halon is told to ask" do
-    @adapter.stubs(:get_user_info).returns(timezone: nil)
-
-    said = call(Conversation::Tools::MakePlan, goal: "Release main", steps: STEPS, run_at: "2026-10-17T06:00")
-
-    assert_match "Ask the person which time zone they mean", said
-  end
-
-  test "an outside agent's chat cannot schedule, since nobody there can approve it" do
-    mcp = Conversation.for_mcp!(workspace: @workspace, principal: @alice)
-    mcp.chat_record
-    @turn = Conversation::Turn.new(mcp, asker: @alice)
-
-    said = call(Conversation::Tools::MakePlan, goal: "Release main", steps: STEPS, run_at: 2.days.from_now.iso8601)
-
-    assert_match "nobody in this chat can", said
   end
 
   test "a chat in a thread shows its plan there from the start" do

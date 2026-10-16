@@ -43,11 +43,8 @@ class WorkflowTest < ActiveSupport::TestCase
     assert Workflow.new(workspace: @workspace, name: "Capped", cost_cap_cents: 500).valid?
   end
 
-  test "a run cannot start without the workflows flag, when off, or with nothing published" do
+  test "a run cannot start when off or with nothing published" do
     workflow = Workflow.create!(workspace: @workspace, name: "Check")
-    assert_equal "Workflows are not switched on for this workspace.", workflow.start_blocked_reason
-
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     assert_equal "Check has no published version to run.", workflow.start_blocked_reason
 
     draft = workflow.open_draft!(by: @alice)

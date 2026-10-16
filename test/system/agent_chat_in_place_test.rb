@@ -97,7 +97,6 @@ class AgentChatInPlaceTest < ApplicationSystemTestCase
   end
 
   test "asking Halon beside a workflow's canvas shows the question at once and reads back only the chat" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     workflow = Workflow.create!(workspace: @workspace, name: "Release check")
     visit workflow_path(workflow)
     click_button "Ask Halon"

@@ -1,7 +1,7 @@
 require "test_helper"
 
 # The dashboard's side of a runbook that links a workflow: linking and unlinking it in the editor, Run it on the runbook
-# and in an incident, and everything about it only where the workspace has workflows.
+# and in an incident.
 class RunbookWorkflowsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -9,17 +9,7 @@ class RunbookWorkflowsControllerTest < ActionDispatch::IntegrationTest
     sign_in(users(:alice), @workspace)
     @runbook = @workspace.runbooks.create!(name: "Release Firefight", inputs: [ { key: "bump", question: "Which version bump?", default: "patch" } ])
     @runbook.sync_steps!([ { title: "Look for past releases", tool: "search_incidents", arguments: { "query" => "{{bump}}" } } ])
-  end
-
-  test "without workflows Run it answers not found, the editor offers no workflows and the page ships none" do
-    post runbook_runs_url(@runbook), params: { inputs: { bump: "minor" } }
-    assert_response :not_found
-
-    get settings_runbooks_url, headers: inertia_partial_headers("settings/runbooks", SettingsController::RUNBOOK_WORKFLOWS)
-    assert_equal [], inertia_props[SettingsController::RUNBOOK_WORKFLOWS]
-
-    get settings_runbooks_url, headers: inertia_headers
-    assert_nil inertia_props["runbooks"].find { |runbook| runbook["id"] == @runbook.id }["workflow"]
+    @runbook.reload.move_runnable_parts!
   end
 
   test "the page ships the workflow a runbook links with its questions, and the editor the workflows it can link" do
@@ -58,8 +48,6 @@ class RunbookWorkflowsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "Run it on a workflow nobody published yet says why and starts nothing" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
-
     post runbook_runs_url(@runbook), params: { inputs: { bump: "minor" } }, headers: { "HTTP_REFERER" => settings_runbooks_url }
 
     assert_equal "Release Firefight has no published version to run.", flash[:alert]
@@ -67,7 +55,6 @@ class RunbookWorkflowsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "the editor links a workflow and unlinks it, each said in a toast" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     other = Workflow.create!(workspace: @workspace, name: "Rollback")
 
     patch runbook_url(@runbook), params: { name: "Release Firefight", workflow_id: other.id }
@@ -80,7 +67,6 @@ class RunbookWorkflowsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "a workflow from another workspace cannot be linked" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     elsewhere = Workflow.create!(workspace: workspaces(:slack_workspace_two), name: "Elsewhere")
 
     patch runbook_url(@runbook), params: { name: "Release Firefight", workflow_id: elsewhere.id }
@@ -89,9 +75,7 @@ class RunbookWorkflowsControllerTest < ActionDispatch::IntegrationTest
     assert_not_equal elsewhere, @runbook.reload.workflow
   end
 
-  test "with workflows on, a form still sending steps that run is told they belong to the workflow, and nothing changes" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
-
+  test "a form still sending steps that run is told they belong to the workflow, and nothing changes" do
     patch runbook_url(@runbook), params: { name: "Renamed", steps: [ { title: "Restart", tool: "restart" } ] }, headers: { "HTTP_REFERER" => settings_runbooks_url }
 
     assert_equal "Release Firefight", @runbook.reload.name
@@ -114,7 +98,6 @@ class RunbookWorkflowsControllerTest < ActionDispatch::IntegrationTest
   private
 
   def published_workflow
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     workflow = @runbook.reload.workflow
     assert WorkflowPublishService.new(workflow).publish!(workflow.draft, by: @admin).ok
     workflow.reload

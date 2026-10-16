@@ -6,7 +6,6 @@ class AbilityGatewayWorkflowRunTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     workflow = Workflow.create!(workspace: @workspace, name: "Release check")
     version = workflow.open_draft!(by: @alice)
     @run = workflow.runs.create!(workspace: @workspace, version: version, status: Workflow::Run::STATUS_RUNNING, trigger_kind: Workflow::Trigger::KIND_MANUAL,

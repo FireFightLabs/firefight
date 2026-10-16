@@ -77,7 +77,7 @@ module Slack
       def self.footer(incident_runbook, steps)
         elements = []
 
-        if incident_runbook.runbook.runnable_workflow
+        if incident_runbook.runbook.workflow
           elements << run_button(incident_runbook)
         end
 

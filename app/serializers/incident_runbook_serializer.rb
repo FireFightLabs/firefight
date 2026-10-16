@@ -54,9 +54,9 @@ class IncidentRunbookSerializer < BaseSerializer
     end
   end
 
-  # The workflow its Run it button starts, where the workspace has workflows.
+  # The workflow its Run it button starts.
   has_one :workflow, serializer: RunbookWorkflowSerializer, optional: true do
-    incident_runbook.runbook.runnable_workflow
+    incident_runbook.runbook.workflow
   end
 
   type :number

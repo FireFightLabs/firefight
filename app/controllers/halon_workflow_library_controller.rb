@@ -4,7 +4,6 @@
 # or leave. Any workflow exports as a file, and a file imports as a new one. Each action here answers back to that tab.
 class HalonWorkflowLibraryController < InertiaController
   include RequiresAgent
-  include RequiresWorkflows
 
   before_action :require_agent!
 

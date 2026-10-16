@@ -6,21 +6,18 @@ import {
   IconX,
 } from "@tabler/icons-react"
 
-import { SearchableSelect, type SearchableSelectOption } from "@/components/searchable-select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { StepToolFields } from "@/pages/settings/components/runbooks/step-tool-fields"
 import { emptyArguments, type ArgumentsState } from "@/lib/tool-fields"
-import type { RunbookToolChoice } from "@/types/serializers"
 
 export interface EditableStep {
   key: string
   id?: string
   title: string
   instruction: string
-  // The tool Halon runs the step with, by the name Halon calls it, or empty for a step a person does.
+  // A tool the step was saved with, sent back as it was so saving never drops it.
   tool: string
   args: ArgumentsState
 }
@@ -30,32 +27,11 @@ const BY_HAND = ""
 
 interface RunbookStepsEditorProps {
   steps: EditableStep[]
-  // With workflows on, what runs is the linked workflow's.
-  withTools?: boolean
-  // What is wrong with each step's fields, by the step's key and then the field's.
-  stepErrors: Record<string, Record<string, string>>
-  // null while the editor's choices load.
-  tools: RunbookToolChoice[] | null
-  placeholders: SearchableSelectOption[]
-  places: SearchableSelectOption[]
   onChange: (steps: EditableStep[]) => void
 }
 
-export function RunbookStepsEditor({ steps, stepErrors, withTools = true, tools, placeholders, places, onChange }: RunbookStepsEditorProps) {
-  const toolOptions: SearchableSelectOption[] = [
-    { value: BY_HAND, label: "None, a person does this step" },
-    ...(tools ?? []).map((tool) => ({ value: tool.name, label: tool.name, group: tool.group })),
-  ]
-
-  // Picking the tool already chosen keeps what was typed for it.
-  function chooseTool(index: number, tool: string | null) {
-    const next = tool ?? BY_HAND
-    if (next === steps[index].tool) {
-      return
-    }
-    update(index, { tool: next, args: emptyArguments() })
-  }
-
+// What a runbook runs is its linked workflow's, so each step here is one a person does.
+export function RunbookStepsEditor({ steps, onChange }: RunbookStepsEditorProps) {
   function update(index: number, patch: Partial<EditableStep>) {
     onChange(steps.map((step, position) => (position === index ? { ...step, ...patch } : step)))
   }
@@ -90,9 +66,7 @@ export function RunbookStepsEditor({ steps, stepErrors, withTools = true, tools,
 
       {steps.length === 0 ? (
         <p className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-          {withTools
-            ? "No steps yet. Add ordered actions responders should take, or name a tool for Halon to run a step with."
-            : "No steps yet. Add ordered actions responders should take."}
+          No steps yet. Add ordered actions responders should take.
         </p>
       ) : (
         <div className="space-y-2">
@@ -131,32 +105,6 @@ export function RunbookStepsEditor({ steps, stepErrors, withTools = true, tools,
                   onChange={(event) => update(index, { instruction: event.target.value })}
                   placeholder="Instruction (optional)"
                 />
-                {withTools && (
-                  <div className="space-y-1">
-                    <Label className="text-xs">Tool Halon runs it with</Label>
-                    <SearchableSelect
-                      value={step.tool}
-                      onValueChange={(tool) => chooseTool(index, tool)}
-                      options={withSavedTool(toolOptions, step.tool)}
-                      placeholder={tools ? "None, a person does this step" : "Loading tools"}
-                      searchPlaceholder="Search tools"
-                      emptyText="No tool by that name"
-                      renderSelected={renderTool}
-                    />
-                  </div>
-                )}
-                {withTools && step.tool !== BY_HAND && (
-                  <StepToolFields
-                    stepKey={step.key}
-                    tool={step.tool}
-                    tools={tools}
-                    args={step.args}
-                    errors={stepErrors[step.key] ?? {}}
-                    placeholders={placeholders}
-                    places={places}
-                    onChange={(args) => update(index, { args })}
-                  />
-                )}
               </div>
               <button
                 type="button"
@@ -171,16 +119,4 @@ export function RunbookStepsEditor({ steps, stepErrors, withTools = true, tools,
       )}
     </div>
   )
-}
-
-// A tool a step was saved with that is not among the choices, such as one this person cannot see, still shows by name.
-function withSavedTool(options: SearchableSelectOption[], tool: string): SearchableSelectOption[] {
-  if (tool === BY_HAND || options.some((option) => option.value === tool)) {
-    return options
-  }
-  return [ { value: tool, label: tool }, ...options ]
-}
-
-function renderTool(option: SearchableSelectOption) {
-  return <span className="font-mono text-xs">{option.label}</span>
 }

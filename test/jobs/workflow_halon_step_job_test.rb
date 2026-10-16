@@ -4,7 +4,6 @@ class WorkflowHalonStepJobTest < ActiveJob::TestCase
   test "an error nobody expected is handed to the step in words, so the run does not wait out its time" do
     workspace = workspaces(:slack_workspace_one)
     alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(workspace, FeatureFlags::WORKFLOWS)
     workflow = Workflow.create!(workspace: workspace, name: "Judge", created_by: alice)
     workflow.open_draft!(by: alice).update!(steps: [ { "id" => "judge", "name" => "judge", "kind" => "ask_halon", "config" => { "question" => "Fine?", "data" => "ok" } } ])
     WorkflowPublishService.new(workflow).publish!(workflow.draft, by: alice)

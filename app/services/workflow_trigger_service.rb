@@ -1,6 +1,6 @@
 # Starts a run of every workflow something that happened matches (Workflow::Listening), each as its own identity with
-# what happened as its trigger data. Every start goes through WorkflowRunService, so the workflows flag, a workflow's
-# most runs an hour and one live run per subject all apply. One event starts a workflow once however often it is heard,
+# what happened as its trigger data. Every start goes through WorkflowRunService, so a workflow's most runs an hour and
+# one live run per subject both apply. One event starts a workflow once however often it is heard,
 # since its key is the run's start key. A start past the hour's limit is counted as skipped on the workflow, any other
 # start the limits refuse is kept on it for its page, as a scheduled start's is, and neither stops the workflows after
 # it.
@@ -11,8 +11,6 @@ class WorkflowTriggerService
 
   # Answers the runs it started.
   def heard!(kind, key:, subject:, details: {}, actor: nil)
-    return [] unless FeatureFlags.enabled?(@workspace, FeatureFlags::WORKFLOWS)
-
     listening = Workflow.listening(@workspace, kind).includes(:live_version).to_a
     return [] if listening.empty?
 
