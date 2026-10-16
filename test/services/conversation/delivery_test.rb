@@ -128,6 +128,33 @@ class Conversation::DeliveryTest < ActiveSupport::TestCase
     Conversation::Delivery.for(@conversation).answered!("Done again.")
 
     assert_empty @conversation.reload.acknowledged_message_ids
+    assert_empty @conversation.mark_attempts
+  end
+
+  test "a mark the platform can never take is settled, never tried again" do
+    [ AdapterError::NotFound.new("channel_not_found"), AdapterError::IsArchived.new("is_archived"), AdapterError::NotInChannel.new("not_in_channel"),
+      AdapterError.new("Slack API error: message_not_found") ].each do |never|
+      @conversation.acknowledged!("1.21")
+      Slack::Client.stubs(:remove_reaction).raises(never)
+      Slack::Client.stubs(:add_reaction).raises(never)
+
+      Conversation::Delivery.for(@conversation).answered!("Done.")
+
+      assert_empty @conversation.reload.acknowledged_message_ids, "#{never.class.name} is settled"
+    end
+  end
+
+  test "a mark that keeps failing for a while is tried at most a few times in all" do
+    @conversation.acknowledged!("1.21")
+    tries = 0
+    Slack::Client.stubs(:remove_reaction).with { tries += 1 }.raises(AdapterError::ServerError.new("internal_error"))
+    Slack::Client.stubs(:add_reaction).returns({ ok: true })
+
+    (Conversation::MARK_ATTEMPTS + 2).times { Conversation::Delivery.for(@conversation.reload).answered!("Done.") }
+
+    assert_equal Conversation::MARK_ATTEMPTS, tries
+    assert_empty @conversation.reload.acknowledged_message_ids
+    assert_empty @conversation.mark_attempts
   end
 
   test "a message whose done mark could not go on is kept for the next answer" do

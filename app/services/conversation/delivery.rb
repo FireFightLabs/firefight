@@ -196,12 +196,16 @@ class Conversation::Delivery
 
   def cards = @cards ||= []
 
-  # The messages this turn answered stop showing that Halon is working on them. One the platform would not mark is kept,
-  # so the next answer tries it again.
+  # The messages this turn answered stop showing that Halon is working on them. One the platform could not mark just now
+  # is kept for the next answer, a few times at most, and one it refused for good is settled.
   def mark_answered
     @conversation.take_acknowledged!.each do |message_id|
       marked = adapter.mark_done(channel_id: @conversation.channel_id, message_id: message_id)
-      @conversation.acknowledged!(message_id) unless marked[:success]
+      if marked[:retry]
+        @conversation.mark_again!(message_id)
+      elsif @conversation.mark_attempts.key?(message_id)
+        @conversation.mark_settled!(message_id)
+      end
     end
   end
 

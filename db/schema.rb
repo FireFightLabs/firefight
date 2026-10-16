@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_180000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1441,6 +1441,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_180000) do
     t.string "confirmation_message_id"
     t.datetime "created_at", null: false
     t.string "kind", null: false
+    t.jsonb "mark_attempts", default: {}, null: false
     t.integer "max_spend_cents", null: false
     t.integer "max_turns", null: false
     t.datetime "pinned_at"
