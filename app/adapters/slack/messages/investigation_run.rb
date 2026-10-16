@@ -105,9 +105,10 @@ module Slack
 
       def self.answer_detail_text(finding) = "The full answer: #{finding.summary.to_s.truncate(200)}"
 
-      # The agent's words for a channel, escaped, on one line, with no code formatting, cut at limit.
+      # The agent's words for a channel, escaped, on one line, with no code formatting, cut at limit. A link it wrote is
+      # one the channel can follow.
       def self.plain(text, limit)
-        Mrkdwn.escape(text.to_s.squish.delete("`").truncate(limit))
+        Formatting.escaped_with_links(text.to_s.squish.delete("`").truncate(limit))
       end
 
       # The button is offered only when running it again could end differently.

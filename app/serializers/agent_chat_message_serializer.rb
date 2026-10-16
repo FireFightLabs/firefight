@@ -28,9 +28,14 @@ class AgentChatMessageSerializer < BaseSerializer
       @messages = messages.to_a
     end
 
-    def charted?(message, key) = charted.include?([ message.chat_id, key ])
+    # A call id repeats across a chat's messages with some models, so a chart, or a coding agent's work, is this
+    # message's only when it was kept after the message and before a later one made a call by the same id.
+    def charted?(message, key) = charted.fetch([ message.chat_id, key ], []).any? { |at| made_by?(message, key, at) }
 
-    def work(message, key) = works[[ message.chat_id, key ]]
+    def work(message, key)
+      _at, work = works.fetch([ message.chat_id, key ], []).select { |at, _work| made_by?(message, key, at) }.max_by(&:first)
+      work
+    end
 
     def sources(message) = sources_by_reply.fetch(message.id, [])
 
@@ -50,7 +55,32 @@ class AgentChatMessageSerializer < BaseSerializer
     def chat_ids = @messages.map(&:chat_id).uniq
 
     def charted
-      @charted ||= keys.empty? ? Set.new : Chat::Chart.where(chat_id: chat_ids, tool_call_id: keys).distinct.pluck(:chat_id, :tool_call_id).to_set
+      @charted ||= if keys.empty?
+        {}
+      else
+        Chat::Chart.where(chat_id: chat_ids, tool_call_id: keys).pluck(:chat_id, :tool_call_id, :created_at)
+                   .group_by { |chat_id, key, _at| [ chat_id, key ] }.transform_values { |rows| rows.map(&:last) }
+      end
+    end
+
+    # Every message in the page's chats that made a call by one of the page's ids, read from the chat rather than the page,
+    # so a page of one message still knows a later call by the same id.
+    def callers
+      @callers ||= if keys.empty?
+        {}
+      else
+        calls = RubyLLM::ActiveRecord::ToolCall
+        Chat::Message.where(chat_id: chat_ids).joins(:ruby_llm_tool_calls).merge(calls.where(tool_call_id: keys))
+                     .pluck(:chat_id, "#{calls.table_name}.tool_call_id", :created_at)
+                                       .group_by { |chat_id, key, _at| [ chat_id, key ] }.transform_values { |rows| rows.map(&:last).uniq.sort }
+      end
+    end
+
+    # The first message to make a call by an id takes what was kept before it too, so nothing kept a moment early is lost.
+    def made_by?(message, key, at)
+      times = callers.fetch([ message.chat_id, key ], [])
+      later = times.find { |time| time > message.created_at }
+      (at >= message.created_at || times.first == message.created_at) && (later.nil? || at < later)
     end
 
     def works
@@ -58,11 +88,12 @@ class AgentChatMessageSerializer < BaseSerializer
         {}
       else
         workspace_of = @messages.to_h { |message| [ message.chat_id, message.chat.workspace_id ] }
-        read = Chat::StepProgress.where(chat_id: chat_ids, tool_call_id: keys).to_h { |kept| [ [ kept.chat_id, kept.tool_call_id ], kept.work ] }
-        read.group_by { |(chat_id, _key), _work| workspace_of[chat_id] }.each do |workspace_id, works|
-          Chat::CodeFixProgress.preload_records(works.map(&:last), workspace_id)
+        read = Chat::StepProgress.where(chat_id: chat_ids, tool_call_id: keys).map { |kept| [ kept.chat_id, kept.tool_call_id, kept.created_at, kept.work ] }
+        read.group_by(&:first).each do |chat_id, rows|
+          Chat::CodeFixProgress.preload_records(rows.map(&:last), workspace_of[chat_id])
         end
-        read.to_h { |(chat_id, key), work| [ [ chat_id, key ], work&.with_current_question(workspace_of[chat_id]) ] }
+        read.group_by { |chat_id, key, _at, _work| [ chat_id, key ] }
+            .transform_values { |rows| rows.map { |chat_id, _key, at, work| [ at, work&.with_current_question(workspace_of[chat_id]) ] } }
       end
     end
 

@@ -29,7 +29,7 @@ class Investigation::FixRunnerTest < ActiveSupport::TestCase
     )
     @investigation.update!(thread_id: "1.1")
     @plan = finding.remediation_plan
-    @adapter = stub(post_fix_progress: { message_id: "1.2", channel_id: "C1" }, post_fix_ended: { message_id: "1.3", channel_id: "C1" }, update_fix_progress: { success: true })
+    @adapter = stub(post_fix_progress: { message_id: "1.2", channel_id: "C1" }, update_fix_progress: { success: true })
     WorkspaceAdapter.stubs(:for).returns(@adapter)
   end
 
@@ -220,9 +220,10 @@ class Investigation::FixRunnerTest < ActiveSupport::TestCase
     assert_equal "Couldn't make the change through a connected tool: its tool is no longer switched on.", @plan.steps.first.failure_line
   end
 
-  test "a failed step is said in plain words, the fix's start and end go to the channel, and its end is told once" do
+  test "a failed step is said in plain words, and the fix is one checklist broadcast once and redrawn with its ending, never a second post" do
     Integrations::McpExecutor.stubs(:call).raises(Integrations::Unavailable, "docker exited 125")
-    @adapter.expects(:post_fix_ended).with { |thread_id:, plan:, **| thread_id == "1.1" && plan == @plan }.once.returns(message_id: "1.3", channel_id: "C1")
+    @adapter.expects(:post_fix_progress).with { |thread_id:, plan:, **| thread_id == "1.1" && plan == @plan }.once.returns(message_id: "1.2", channel_id: "C1")
+    @adapter.expects(:post_fix_ended).never
 
     perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { Investigation::FixRunner.apply!(@plan, by: @alice, from: AbilityGateway::SOURCE_SLACK) }
     Investigation::FixRunner.new(@plan).publish!
@@ -265,5 +266,78 @@ class Investigation::FixRunnerTest < ActiveSupport::TestCase
     @plan.cancel!(by: @alice)
     assert_equal "The fix was cancelled, so its steps do not run again.", step.reload.retry_blocked_reason(@alice)
     assert_not @plan.retry_step!(step)
+  end
+
+  def own_tool_plan(steps)
+    finding = @plan.finding
+    @plan.destroy!
+    Investigation::RemediationPlan.propose!(finding.reload, { "summary" => "Bring the lead in", "steps" => steps })
+  end
+
+  def invite_step
+    { "kind" => "action", "title" => "Invite Bob to the channel", "description" => "Invite the lead", "tool" => Mcp::Tools::INVITE_RESPONDERS,
+      "arguments" => { "incident" => incidents(:active_critical_ws1).identifier, "members" => [ @bob.platform_user_id ] } }
+  end
+
+  test "a step one of Firefight's own tools can do is an action step that runs through the gateway as whoever applied the fix" do
+    plan = own_tool_plan([ invite_step ])
+    invite = plan.steps.first
+    assert_equal [ Investigation::RemediationStep::KIND_ACTION, "incidents.update" ], [ invite.kind, invite.action_key ]
+    assert invite.firefight_tool?
+    assert_nil plan.apply_blocked_reason(@alice)
+    IncidentInviteService.any_instance.expects(:invite!).with { |incident:, people:| incident == incidents(:active_critical_ws1) && people == [ @bob ] }
+                         .returns(IncidentInviteService::Result.new(invited: [ @bob ], already_in_channel: [], failed: []))
+    AbilityGateway.expects(:authorize!).with { |principal:, action_key:, **| principal == @alice && action_key == "incidents.update" }
+                  .returns(AbilityGateway::Authorization.new(nil))
+
+    perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { assert_nil Investigation::FixRunner.apply!(plan, by: @alice, from: AbilityGateway::SOURCE_SLACK) }
+
+    invite.reload
+    assert_equal [ "done", nil ], [ invite.status, invite.already_done_reason ]
+    assert_equal Investigation::RemediationPlan::STATUS_APPLIED, plan.reload.status
+  end
+
+  test "a step whose outcome already held when it ran is marked already done, saying why" do
+    plan = own_tool_plan([ invite_step ])
+    IncidentInviteService.any_instance.stubs(:invite!).returns(IncidentInviteService::Result.new(invited: [], already_in_channel: [ @bob ], failed: []))
+
+    perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { Investigation::FixRunner.apply!(plan, by: @alice, from: AbilityGateway::SOURCE_SLACK) }
+
+    invite = plan.steps.first.reload
+    assert_equal "done", invite.status
+    assert_equal "Already done: #{@bob.display_name} is already in ##{incidents(:active_critical_ws1).channel_name}", invite.result_line
+  end
+
+  test "a role already held is never asked for again: the fix is sent back while it is written, and a step finds it at run time" do
+    incident = incidents(:active_critical_ws1)
+    role = @workspace.incident_roles.active.first
+    step = { "kind" => "action", "title" => "Make Bob the lead", "description" => "Assign the role", "tool" => Mcp::Tools::ASSIGN_INCIDENT_ROLE,
+             "arguments" => { "incident" => incident.identifier, "role" => role.slug, "member" => @bob.platform_user_id } }
+    plan = own_tool_plan([ step ])
+    incident.incident_role_assignments.where(incident_role: role).delete_all
+    incident.incident_role_assignments.create!(incident_role: role, workspace_membership: @bob, assigned_at: Time.current)
+
+    fix = { "summary" => "Lead", "steps" => [ step ] }
+    refused = assert_raises(Investigation::RemediationPlan::Refused) { Investigation::RemediationPlan.check!(@workspace, fix, principal: @alice) }
+    assert_includes refused.message, "#{@bob.display_name} is already the #{role.name}"
+
+    perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { Investigation::FixRunner.apply!(plan, by: @alice, from: AbilityGateway::SOURCE_SLACK) }
+    assigned = plan.steps.first.reload
+    assert_equal [ "done", "#{@bob.display_name} is already the #{role.name}", nil ], [ assigned.status, assigned.already_done_reason, assigned.invocation_id ]
+  end
+
+  test "a step for a person that Firefight's own tool does is sent back to be that tool's step, unless it says why the tool cannot" do
+    by_hand = { "kind" => "manual", "title" => "Invite the current lead by hand", "description" => "Invite the lead to the incident channel" }
+
+    refused = assert_raises(Investigation::RemediationPlan::Refused) do
+      Investigation::RemediationPlan.check!(@workspace, { "summary" => "Lead", "steps" => [ by_hand ] }, principal: @alice)
+    end
+    assert_equal "Step 1 is for a person, but Firefight does that with invite_responders. Make it an action step with invite_responders, " \
+                 "or say in missing why invite_responders cannot do it here.", refused.message
+
+    explained = by_hand.merge("missing" => "invite_responders cannot reach a guest account")
+    assert Investigation::RemediationPlan.check!(@workspace, { "summary" => "Lead", "steps" => [ explained ] }, principal: @alice)
+    status_page = { "kind" => "manual", "description" => "Check the status page" }
+    assert Investigation::RemediationPlan.check!(@workspace, { "summary" => "Status", "steps" => [ status_page ] }, principal: @alice)
   end
 end

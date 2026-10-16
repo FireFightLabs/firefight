@@ -92,7 +92,7 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
     work = running_work
     work.asked!(question.to_h)
     work.add("Edited .github/workflows/release.yml")
-    Chat::StepProgress.keep!(chat, "call_1", work)
+    Chat::StepProgress.keep!(chat, "call_1", work, since: 1.hour.ago)
 
     visit agent_chat_path(conversation)
     trace = find("button[aria-expanded]", text: /Working|Worked for/)
@@ -186,7 +186,7 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
                      "unverified" => [ "That the deploy webhook reads the tag from the ref field, which its docs did not say." ],
                      "summary" => "Sends the tag", "sentBack" => true })
     work.opened!(files: { ".github/workflows/release.yml" => [ 3, 1 ] }, pull_request: "https://github.com/acme/api/pull/7")
-    Chat::StepProgress.keep!(chat, "call_1", work)
+    Chat::StepProgress.keep!(chat, "call_1", work, since: 1.hour.ago)
     conversation.note!("I opened https://github.com/acme/api/pull/7.")
     conversation.reply_delivered!
 
@@ -388,7 +388,7 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
     )
     work = running_work
     work.paused!(pause.to_h)
-    Chat::StepProgress.keep!(chat, "call_1", work)
+    Chat::StepProgress.keep!(chat, "call_1", work, since: 1.hour.ago)
     return [ conversation, pause ] unless answered
 
     conversation.note!("It reached its spending limit, so I paused it. Press Continue on the card to carry on.")

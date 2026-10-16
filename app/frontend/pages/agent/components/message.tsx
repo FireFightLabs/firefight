@@ -27,7 +27,7 @@ export function Message({ turn, live = false, onOpenImage }: MessageProps) {
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <TurnStory pieces={turn.pieces} live={live} reloads={CODE_AGENT_RELOADS} />
+      <TurnStory pieces={turn.pieces} live={live} reloads={CODE_AGENT_RELOADS} window={turn.window} />
       {!live && turn.sources.length > 0 && <AnswerSources sources={turn.sources} />}
       {cards.map((step) => step.card && <AgentCard key={step.key} card={step.card} stepKey={step.key} />)}
       {!live && turn.models.length > 0 && <AnsweredBy models={turn.models} />}

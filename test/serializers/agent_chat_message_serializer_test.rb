@@ -19,6 +19,48 @@ class AgentChatMessageSerializerTest < ActiveSupport::TestCase
     assert_equal Chat::Tools::CARD_CHART, tools.sole.dig("card", "kind")
   end
 
+  test "a chart an earlier question's call drew under the same id never marks a later call as charted" do
+    Chat::Chart.record!(@chat, "call_7", [ { "title" => "Memory of web", "from" => "2026-09-25T14:00:00Z", "to" => "2026-09-25T15:00:00Z", "series" => [] } ])
+    travel 1.minute
+    @chat.add_message(role: :user, content: "Did the pull request open?")
+    later = @chat.add_message(role: :assistant, content: "")
+    answer = @chat.add_message(role: :tool, content: "PR #856 is open")
+    RubyLLM::ActiveRecord::ToolCall.create!(message: later, tool_call_id: "call_7", name: "github_pr_lookup", arguments: {}, result: answer)
+
+    pages = AgentChatMessageSerializer::Page.new([ @asking, later ])
+    assert pages.charted?(@asking.reload, "call_7")
+    assert_not pages.charted?(later.reload, "call_7")
+  end
+
+  test "a page of one message still knows a later call by the same id, so the later call's chart is never the earlier one's" do
+    travel 1.minute
+    later = @chat.add_message(role: :assistant, content: "")
+    RubyLLM::ActiveRecord::ToolCall.create!(message: later, tool_call_id: "call_7", name: "northflank_query_metrics", arguments: {})
+    travel 1.minute
+    Chat::Chart.record!(@chat, "call_7", [ { "title" => "Memory of web", "from" => "2026-09-25T14:00:00Z", "to" => "2026-09-25T15:00:00Z", "series" => [] } ])
+
+    assert_not AgentChatMessageSerializer::Page.new([ @asking.reload ]).charted?(@asking, "call_7")
+    assert AgentChatMessageSerializer::Page.new([ later.reload ]).charted?(later, "call_7")
+  end
+
+  test "a coding agent's work under a call id an earlier question used stays with each call, and neither overwrites the other" do
+    first = Chat::CodeFixProgress.start
+    first.add("Edited the checkout retry")
+    Chat::StepProgress.keep!(@chat, "call_7", first, since: @asking.created_at)
+    travel 1.minute
+    @chat.add_message(role: :user, content: "Fix the pull request too")
+    later = @chat.add_message(role: :assistant, content: "")
+    RubyLLM::ActiveRecord::ToolCall.create!(message: later, tool_call_id: "call_7", name: "github_fix_code", arguments: {})
+    second = Chat::CodeFixProgress.start
+    second.add("Edited the review comments")
+    Chat::StepProgress.keep!(@chat, "call_7", second, since: later.created_at)
+
+    pages = AgentChatMessageSerializer::Page.new([ @asking.reload, later.reload ])
+    assert_equal 2, @chat.step_progresses.where(tool_call_id: "call_7").count
+    assert_equal [ "Edited the checkout retry" ], pages.work(@asking, "call_7").lines.map(&:text)
+    assert_equal [ "Edited the review comments" ], pages.work(later, "call_7").lines.map(&:text)
+  end
+
   test "a finished step carries what it got back, and a call the provider answered not found shows as not found" do
     assert_equal [ Conversation::LiveDelivery::STATUS_DONE, Chat::StepOutcome::KIND_ANSWERED, [ "web-1: max 42" ] ],
                  [ tools.sole["status"], tools.sole.dig("outcome", "kind"), tools.sole.dig("outcome", "lines") ]

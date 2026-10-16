@@ -76,6 +76,19 @@ module Mcp
           to_h.merge(inputSchema: schema_for(workspace))
         end
 
+        # Why this call would change nothing because its outcome already holds, as a plain sentence, or nil. Read from
+        # Firefight's own records only, so a fix step can be checked before it runs and while it is written.
+        def already_holds(workspace:, principal:, args:) = nil
+
+        # The same from what a call answered, for a tool that only learns it by trying, such as an invite.
+        def already_held_in(workspace:, args:, answer:) = nil
+
+        # Words a step for a person uses when this tool would do it, so a fix never hands a person what Firefight can do.
+        def by_hand_words(pattern = nil)
+          @by_hand_words = pattern if pattern
+          @by_hand_words
+        end
+
         private
 
         def listed(records)

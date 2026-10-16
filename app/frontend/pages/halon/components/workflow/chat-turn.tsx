@@ -27,7 +27,7 @@ export function ChatTurn({ turn, live = false, fullChatUrl, onOpenImage }: ChatT
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <TurnStory pieces={turn.pieces} live={live} reloads={CHAT_VISIT.only} />
+      <TurnStory pieces={turn.pieces} live={live} reloads={CHAT_VISIT.only} window={turn.window} />
       {!live && turn.sources.length > 0 && <AnswerSources sources={turn.sources} />}
       {!live && drewCards && fullChatUrl && (
         <a href={fullChatUrl} className="text-[12px] text-ink-3 underline-offset-2 hover:underline">

@@ -88,7 +88,7 @@ class AgentHeldCallCardTest < ApplicationSystemTestCase
 
     visit investigation_path(plan.finding.investigation)
 
-    assert_text "Bob Jones approved it. Run it now?"
+    assert_text "Bob Jones approved it. Run this step?"
     assert_text "The rule still blocks /checkout."
     assert_text "Expires in 52 minutes"
     find("button", text: "Run", exact_text: true).scroll_to(:center)

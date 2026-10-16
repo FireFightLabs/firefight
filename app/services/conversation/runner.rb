@@ -56,7 +56,7 @@ class Conversation::Runner
   end
 
   def run
-    @marked = Time.current
+    @marked = @turn_started_at = Time.current
     @turn.hold_catalog!
     @conversation.workspace.hold_reads!
     chat, purse, presented, suspects = timed_phase(PHASE_SETUP) do
@@ -165,7 +165,7 @@ class Conversation::Runner
 
   private
 
-  def delivery = @delivery ||= Conversation::Delivery.for(@conversation)
+  def delivery = @delivery ||= Conversation::Delivery.for(@conversation, turn_started_at: @turn_started_at || Time.current)
 
   # Who a model call is ledgered under. A chat in an issue acts as Firefight's own agent, which is no member.
   def member = (@turn.asker unless @conversation.issue?)
@@ -482,7 +482,7 @@ class Conversation::Runner
     return unless update.is_a?(Chat::CodeFixProgress) && shown
 
     works[key] = update
-    Chat::StepProgress.keep!(@conversation.chat, key, update) if saving_pace.due?(key, update)
+    Chat::StepProgress.keep!(@conversation.chat, key, update, since: @turn_started_at || Time.current) if saving_pace.due?(key, update)
     delivery.progress(key: key, step: shown, kind: kinds[key], progress: update)
   rescue StandardError => error
     Rails.logger.warn({ event: "conversation.progress_not_kept", conversation_id: @conversation.id, error: error.class.name }.to_json)
@@ -506,7 +506,7 @@ class Conversation::Runner
   def works = @works ||= {}
 
   # The wrapper kept the call's charts as the tool answered, before the loop reports the step done.
-  def charted?(key) = @conversation.chat.charts.exists?(tool_call_id: key)
+  def charted?(key) = @conversation.chat.charts.drawn_by(key, since: @turn_started_at || Time.current).exists?
 
   # Counted from the end of the last step, so the model's own time between calls counts as thinking.
   def seconds_since_last_step

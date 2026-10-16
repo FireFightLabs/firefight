@@ -155,7 +155,7 @@ class AgentCodeFixProgressTest < ApplicationSystemTestCase
     work.changed!("config/database.yml")
     yield work
     work.instance_variable_set(:@finished_at, Time.current)
-    Chat::StepProgress.keep!(chat, "call_1", work)
+    Chat::StepProgress.keep!(chat, "call_1", work, since: 1.hour.ago)
     conversation.note!(failed ? "The coding agent ran out of budget before it finished." : "I opened https://github.com/acme/api/pull/7.")
     conversation.reply_delivered!
     conversation

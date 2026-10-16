@@ -131,6 +131,15 @@ module Mcp
     # Every tool the workspace has, leaving out one behind a flag it does not have.
     def self.available_in(workspace) = all.select { |tool_class| tool_class.offered_in?(workspace) }
 
+    # Firefight's own tools a fix's step may run: offered here, changes something, and one Halon may call.
+    def self.for_fixes(workspace)
+      available_in(workspace).reject do |tool_class|
+        tool_class.annotations_value&.read_only_hint == true || Chat::Tools::Groups::NOT_FOR_HALON.include?(tool_class.name_value.to_s)
+      end
+    end
+
+    def self.for_fix(workspace, name) = for_fixes(workspace).find { |tool_class| tool_class.name_value.to_s == name.to_s }
+
     def self.all
       [ SearchIncidents, SearchSimilar, GetIncident, SearchAlerts, SearchCatalog, EvaluateRouting,
         SearchRunbooks, GetRunbook, UpsertCatalogEntry, DeleteCatalogEntry,

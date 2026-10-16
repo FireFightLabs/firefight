@@ -4,6 +4,8 @@
 # person (approved_by), through their own permissions. The one exception is a change a team allowed ahead with an
 # unattended rule, which Halon applies on its own in a run an alert started, and whose steps run as Halon.
 class Investigation::RemediationPlan < ApplicationRecord
+  include Investigation::RemediationPlan::Timeline
+
   self.table_name = "investigation_remediation_plans"
 
   STATUS_PROPOSED = "proposed".freeze
@@ -141,6 +143,7 @@ class Investigation::RemediationPlan < ApplicationRecord
       claimed
     end
     reload
+    record_fix_applied! if won == 1
     won == 1
   end
 
@@ -149,6 +152,7 @@ class Investigation::RemediationPlan < ApplicationRecord
     won = self.class.where(id: id, status: STATUS_PROPOSED)
                     .update_all(status: STATUS_APPLYING, approved_by_id: by.id, approved_at: Time.current, applied_from: from, updated_at: Time.current)
     reload
+    record_fix_applied! if won == 1
     won == 1
   end
 
@@ -207,6 +211,7 @@ class Investigation::RemediationPlan < ApplicationRecord
                 .update_all(status: STATUS_CANCELLED, cancelled_by_id: by.id, cancelled_at: Time.current, updated_at: Time.current)
     end
     reload
+    record_fix_cancelled! if won == 1
     won == 1
   end
 
@@ -235,7 +240,7 @@ class Investigation::RemediationPlan < ApplicationRecord
       plan = self.class.create!(finding: finding, undoes: self, summary: checked.summary, verify: checked.verify)
       checked.steps.each { |step| step.update!(plan: plan) }
       plan
-    end
+    end.tap(&:record_undo_written!)
   end
 
   # Applied, stopped partway, or cancelled with nothing left running, so how it ended can be told.
@@ -252,7 +257,6 @@ class Investigation::RemediationPlan < ApplicationRecord
     won == 1
   end
 
-  def release_ending_told! = update_columns(ending_told_at: nil)
 
   # Runs a failed step again, in one go with the fix taken back up: the step is cleared, the steps that were held back
   # behind a failure are proposed again, and the fix is being applied once more. False when the step had moved on or the

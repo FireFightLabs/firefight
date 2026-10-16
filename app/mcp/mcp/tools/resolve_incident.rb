@@ -10,6 +10,7 @@ module Mcp
                   "when it turned out not to be an incident. If the call requires approval, retry the " \
                   "identical call with approval_id once approved. Docs: #{Docs::INCIDENTS}"
       annotations(**WRITE)
+      by_hand_words(/\bresolve\b.+\bincident\b/i)
       ends_something
       input_schema(
         properties: {

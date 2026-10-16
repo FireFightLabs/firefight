@@ -193,6 +193,18 @@ entire workspace.
 Text a responder typed into one of our own modals is trusted, because they
 could have typed it into the channel anyway.
 
+**Every link Halon writes reaches Slack as one people can follow.**
+`Formatting.markdown_to_mrkdwn` turns markdown links (an address may hold one
+level of parentheses) into `<url|label>`, keeps addresses out of the bold
+conversion, and keeps a label free of `|` and `>`. Text escaped before
+conversion keeps its escaped links escaped, which is how outside text is kept
+from faking one. The short answer's plain lines use
+`Formatting.escaped_with_links`, which escapes everything except the links the
+agent wrote. A streamed answer is markdown, so `append_agent_text` writes
+Slack's own `<url|label>` as `[label](url)`, and `Conversation::ChunkBuffer`
+with `whole_markup` (Slack's cadence) never cuts a link, bold or code across
+two appends.
+
 ## Naming people
 
 A person is never written as `<@#{id}>` by hand. Someone who joined by email,
@@ -244,8 +256,8 @@ incident already has a write-up.
 ## An investigation in a channel
 
 A Halon run is followed from the channel and worked in the thread. Only what everyone in the channel should see is
-also sent to the channel (`post_threaded_message(broadcast: true)`, Slack's "Also send to channel"): the answer, a fix
-starting, and how a fix ended. Nothing else is broadcast, a stop included, which the checklist says.
+also sent to the channel (`post_threaded_message(broadcast: true)`, Slack's "Also send to channel"): the answer and a
+fix starting. Nothing else is broadcast, a stop or a fix ending included, which the checklists say as they redraw.
 
 - **The run's first message is its checklist** (`InvestigationRun.checklist`), the thread's parent, redrawn in place
   with `chat.update` as the run moves (`update_investigation_progress`). It is Slack's `plan` block, one task per kind
@@ -265,27 +277,54 @@ starting, and how a fix ended. Nothing else is broadcast, a stop included, which
 - **The full answer is the next thread reply** (`InvestigationRun.answer_detail`), never broadcast: the summary as the
   agent wrote it, every claim with its sources, the fix step by step with what it sends, the gaps in full and "Was this
   answer right?".
-- **A fix is the same kind of checklist** (`FixProgress.build`), posted once in the thread and the channel and redrawn
-  in place. Each step is its short name (`RemediationStep#shown_title`), never the instructions, with how it stands. A
-  failed or declined step says why in plain words (`failure_line`, "Couldn't open a pull request with the change: the
-  code sandbox didn't start."), never the tool's own error, which stays on the run page. Under the plan come the rows
-  someone can act on (Mark done, Run and Dismiss, Try again), then a footer and Undo fix, Cancel fix and Open in
-  Firefight. Its end is posted once each time the fix ends (`FixProgress.ended`, claimed with `ending_told_at`).
+- **A fix is the same kind of checklist** (`FixProgress.build`), named for its incident ("Fix for INC-003", "Undo for
+  INC-003"), posted once in the thread and the channel when it is applied and redrawn in place. The redraw is the
+  record: how the fix stands is the line under the checklist ("Applying the fix · 1 of 2 steps done", "Fix applied · 2
+  of 2 steps done", "Fix stopped: 1 of 2 steps failed · 1 of 2 steps done"), never a second post, and Try again
+  redraws the same message back to applying. Each step is its short name (`RemediationStep#shown_title`), never the
+  instructions, with how it stands:
+  - A step that went through shows what it produced as a link (`RemediationStep::Outcome`, kept in `outcome_label` and
+    `outcome_url` when the step ends): "Opened a pull request: PR #856", where PR #856 is a `link` element in the plan
+    block and `<url|PR #856>` in mrkdwn.
+  - A step whose outcome already held when it ran says so (`already_done_reason`): "Already done: Uros Nikolic is
+    already in #inc-003".
+  - A step waiting on a person is pending, never in progress, so it never looks like work under way, and its line says
+    who it waits on: who was asked to approve it ("Waiting for Ana Lee or Uros Nikolic to approve it before it runs.")
+    or, once approved, who runs it ("Ana Lee approved it. Waiting for Uros Nikolic to run it.").
+  - A failed or declined step says why in plain words (`failure_line`, "Couldn't open a pull request with the change:
+    the code sandbox didn't start."), never the tool's own error, which stays on the run page.
+  - A step only a person can do says it is theirs, naming who and where: "Your step: Invite Uros Nikolic to #inc-003.
+    Then press Done." (`your_step_line`).
+
+  Slack can show a plan block folded to its title alone, so a context line under it repeats each step, how it went
+  and its link (`Checklist.blocks(summary: true)`), and the message reads in full folded. Then comes how the fix
+  stands (`Slack::Blocks::Alert`), a card for each step someone can act on now (`Slack::Blocks::Card`: a failed step
+  with Try again, a person's step with Done, an approved step asking "Run this step?" with how things stand now, Run
+  and Dismiss), and a last card with who applied it and Undo fix, Cancel fix and Open in Firefight.
 
 ```
-:hammer_and_wrench:  plan "Fix stopped: 1 of 2 steps failed"
-  ✓ 1. Roll back checkout
-  ✗ 2. Open a pull request with the change   Couldn't open a pull request with the change: the code sandbox didn't start.
-Couldn't open a pull request with the change: the code sandbox didn't start.        [Try again]
-Applied by @Dana  ·  1 of 2 steps done
-[Undo fix] [Open in Firefight]
+:hammer_and_wrench:  plan "Fix for INC-003"
+  ✓ 1. Open a pull request with the change   Opened a pull request: PR #856
+  ✗ 2. Roll back checkout   Couldn't roll back checkout: the tool reported an error.
+✓ 1. Open a pull request with the change  Opened a pull request: PR #856   (context line, readable folded)
+✗ 2. Roll back checkout  Couldn't roll back checkout: the tool reported an error.
+:x:  Fix stopped: 1 of 2 steps failed  ·  1 of 2 steps done
+card  :x: Couldn't roll back checkout: the tool reported an error.   Step 2   [Try again]
+card  Applied by @Dana                                      [Undo fix] [Open in Firefight]
 ```
 
-**A workspace whose Slack does not show plan blocks** gets the same checklist as plain blocks: a title, a divider and
-one line per task marked by status. Slack answers a refused plan block with `invalid_blocks`, which the client raises
-as `AdapterError::Unrenderable`. `with_plan_blocks` then posts the plain version at once and remembers the refusal on
-the workspace (`platform_data["plan_blocks_refused_at"]`), so later checklists go plain without asking, and tries the
-plan block again after a week in case the workspace changed plans.
+**Cards and alerts go through `Slack::Blocks`.** `Card.new(title:, subtitle:, body:, actions:, icon:)` and
+`Alert.new(level:, text:)` each answer `to_blocks(rich:)`, cut to Slack's limits (a card's title 150 characters, its
+body 200, three buttons). Slack draws the alert block only in modals and refuses it in a message, so in a message an
+alert is always a section led by its level's emoji, and `to_blocks(rich: true, modal: true)` asks for the alert block
+in a modal.
+
+**A workspace whose Slack does not show the newer blocks** (plan, card) gets the same content as plain blocks: a
+title, a divider and one line per task marked by status, and each card as a section, a context line and its buttons.
+Slack answers a refused block with `invalid_blocks`, which the client raises as `AdapterError::Unrenderable`.
+`with_rich_blocks` then posts the plain version at once and remembers the refusal on the workspace
+(`platform_data["plan_blocks_refused_at"]`, the name it had when plan blocks were the only ones), so later messages go
+plain without asking, and tries the newer blocks again after a week in case the workspace changed plans.
 
 ## Asking for a pack
 

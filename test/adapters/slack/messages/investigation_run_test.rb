@@ -148,6 +148,14 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
     %w[config/database.yml checkout_job.rb CheckoutJob pg-primary-1 `].each { |code| assert_not_includes text, code }
   end
 
+  test "a link in the short answer's plain words is a link the channel can follow, whichever way the agent wrote it" do
+    @finding.update!(suggested_fix: "Merge [PR #856](https://github.com/acme/app/pull/856), which <https://example.com/a|this page> explains.")
+
+    fix_line = Slack::Messages::InvestigationRun.answer(finding: @finding).third.dig(:text, :text).lines.last
+
+    assert_equal "*Suggested fix:* Merge <https://github.com/acme/app/pull/856|PR #856>, which <https://example.com/a|this page> explains.", fix_line
+  end
+
   test "a root cause the agent is not sure of reads as a likely one, and an answer with no cause says so without how sure" do
     @finding.update!(answer_kind: Investigation::Finding::KIND_ROOT_CAUSE, confidence: 0.5)
     assert_equal ":mag:  *Likely cause*  ·  Not very sure", Slack::Messages::InvestigationRun.answer(finding: @finding).first.dig(:text, :text)

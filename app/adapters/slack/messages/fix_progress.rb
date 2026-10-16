@@ -1,13 +1,15 @@
 module Slack
   module Messages
-    # A run's fix as it is applied, in its thread and the channel, redrawn as each step moves: a checklist with each step
-    # by its short name and how it stands, then what a person can do now. A step a person does carries Mark done, an
-    # approved one Run and Dismiss, and a failed one Try again. The steps' full instructions are in the answer's thread
-    # reply and on the run page.
+    # A run's fix as it is applied, in its thread and the channel, redrawn as each step moves: a checklist named for the
+    # incident with each step by its short name, how it stands and what it produced, then how the fix stands as one line,
+    # then a card for each step someone can act on now and a last card with who applied it and the fix's buttons. A step a
+    # person does is a card saying it is theirs with Done, an approved one Run and Dismiss, and a failed one Try again. It
+    # is posted where the channel sees it once, when the fix starts, and the redraw carries how it ended, so nothing else
+    # is posted. The steps' full instructions are in the answer's thread reply and on the run page.
     module FixProgress
       RESULT_SHOWN = 300
-      # Slack takes 50 blocks. The checklist is one, a step a person can act on takes up to three, and the rest of the
-      # room is kept for the footer, the count of steps left out and the buttons.
+      # Slack takes 50 blocks. The checklist, its summary and the fix's state are three, a step a person can act on takes
+      # up to three, and the rest of the room is kept for the last card.
       STEP_BLOCKS = 45
       HEADINGS = {
         Investigation::RemediationPlan::STATUS_PROPOSED => "Fix in progress",
@@ -21,117 +23,133 @@ module Slack
         Investigation::RemediationPlan::STATUS_APPLIED => "Fix undone",
         Investigation::RemediationPlan::STATUS_CANCELLED => "Undo cancelled"
       }.freeze
-      ENDED_EMOJI = {
-        Investigation::RemediationPlan::STATUS_APPLIED => ":white_check_mark:", Investigation::RemediationPlan::STATUS_PARTLY_APPLIED => ":warning:",
-        Investigation::RemediationPlan::STATUS_CANCELLED => ":no_entry_sign:"
-      }.freeze
       STOPPED = [ Investigation::RemediationStep::STATUS_FAILED, Investigation::RemediationStep::STATUS_DECLINED ].freeze
 
       def self.build(plan, rich: true)
         steps = plan.steps.includes(:done_by, approval: :approver).to_a
-        blocks = Checklist.blocks(title: heading(plan, steps), items: steps.map { |step| item(step) }, rich: rich, emoji: ":hammer_and_wrench:")
+        blocks = Checklist.blocks(title: title(plan), items: steps.map { |step| item(step) }, rich: rich, emoji: ":hammer_and_wrench:", summary: true)
+        blocks.concat(state(plan, steps).to_blocks(rich: rich))
         acting = steps.select { |step| acts_on?(step, steps) }
         shown = 0
         acting.each do |step|
-          rows = step_blocks(step, steps, plan)
+          rows = step_card(step, steps, plan).to_blocks(rich: rich)
           break if blocks.size + rows.size > STEP_BLOCKS
 
           blocks.concat(rows)
           shown += 1
         end
-        hidden = acting.size - shown
-        blocks << { type: "context", elements: [ { type: "mrkdwn", text: footer(plan, steps, hidden) } ] }
         controls = [ (undo_button(plan) if plan.undo_blocked_reason.nil?), (cancel_button(plan) if plan.cancel_blocked_reason.nil?),
                      InvestigationRun.open_button(plan.finding.investigation) ].compact
-        blocks << { type: "actions", elements: controls } if controls.any?
-        blocks
+        said = footer(plan, acting.size - shown)
+        return blocks if said.nil? && controls.empty?
+
+        blocks.concat(Slack::Blocks::Card.new(title: nil, body: said, actions: controls).to_blocks(rich: rich))
+      end
+
+      # The checklist is named for what it fixes, such as "Fix for INC-003", and how the fix stands is the line under it.
+      def self.title(plan)
+        what = plan.undo? ? "Undo" : "Fix"
+        incident = plan.finding.investigation.incident
+        incident ? "#{what} for #{incident.identifier}" : what
+      end
+
+      STATE_LEVELS = {
+        Investigation::RemediationPlan::STATUS_PROPOSED => Slack::Blocks::Alert::LEVEL_DEFAULT,
+        Investigation::RemediationPlan::STATUS_APPLYING => Slack::Blocks::Alert::LEVEL_INFO,
+        Investigation::RemediationPlan::STATUS_APPLIED => Slack::Blocks::Alert::LEVEL_SUCCESS,
+        Investigation::RemediationPlan::STATUS_CANCELLED => Slack::Blocks::Alert::LEVEL_WARNING
+      }.freeze
+
+      # How the fix stands, such as "Fix applied · 2 of 2 steps done". One that stopped with a failure is an error, and one
+      # that stopped with steps declined or held back a warning.
+      def self.state(plan, steps)
+        level = STATE_LEVELS[plan.status]
+        level ||= steps.any? { |step| STOPPED.include?(step.status) } ? Slack::Blocks::Alert::LEVEL_ERROR : Slack::Blocks::Alert::LEVEL_WARNING
+        Slack::Blocks::Alert.new(level: level, text: "#{heading(plan, steps)}  ·  #{steps.count(&:done?)} of #{steps.size} steps done")
       end
 
       CHECKLIST_STATUSES = {
         Investigation::RemediationStep::STATUS_PROPOSED => Checklist::PENDING, Investigation::RemediationStep::STATUS_SKIPPED => Checklist::PENDING,
         Investigation::RemediationStep::STATUS_RUNNING => Checklist::IN_PROGRESS,
-        Investigation::RemediationStep::STATUS_WAITING_APPROVAL => Checklist::IN_PROGRESS,
-        Investigation::RemediationStep::STATUS_APPROVED => Checklist::IN_PROGRESS, Investigation::RemediationStep::STATUS_DONE => Checklist::COMPLETE,
+        # Waiting on a person, so it never looks like work under way. Its line says who it waits on.
+        Investigation::RemediationStep::STATUS_WAITING_APPROVAL => Checklist::PENDING,
+        Investigation::RemediationStep::STATUS_APPROVED => Checklist::PENDING, Investigation::RemediationStep::STATUS_DONE => Checklist::COMPLETE,
         Investigation::RemediationStep::STATUS_FAILED => Checklist::ERROR, Investigation::RemediationStep::STATUS_DECLINED => Checklist::ERROR
       }.freeze
 
       # A step by its short name, never the instructions the agent wrote for it, with how it stands in plain words. A
       # skipped step says why in Firefight's own words. A coding agent at work says how far it got in counts, since its
-      # latest line names files and commands.
+      # latest line names files and commands. A step that went through says what it produced, linked, or why it was
+      # already done.
       def self.item(step)
+        link = (Checklist::Link.new(text: step.outcome_label, url: step.outcome_url) if step.done? && step.already_done_reason.blank? && step.outcome_url.present?)
         detail = case step.status
         when *STOPPED then step.failure_line
         when Investigation::RemediationStep::STATUS_SKIPPED then step.result.presence || step.status_label
         when Investigation::RemediationStep::STATUS_RUNNING then step.work&.counts_line
-        when Investigation::RemediationStep::STATUS_DONE then (step.status_label if step.done_by)
+        when Investigation::RemediationStep::STATUS_WAITING_APPROVAL then step.approval_wait_line
+        when Investigation::RemediationStep::STATUS_APPROVED then step.lapsed? ? step.lapsed_reason : step.run_wait_line
+        when Investigation::RemediationStep::STATUS_DONE then done_detail(step, link)
+        when Investigation::RemediationStep::STATUS_PROPOSED then ("Your step. Press Done once it is done." if persons_step?(step))
         else step.status_label
         end
-        Checklist::Item.new(id: step.id, title: "#{step.position}. #{step.shown_title}", status: CHECKLIST_STATUSES.fetch(step.status), detail: detail)
+        Checklist::Item.new(id: step.id, title: "#{step.position}. #{step.shown_title}", status: CHECKLIST_STATUSES.fetch(step.status), detail: detail, link: link)
       end
 
-      # A step someone can do something with now: mark it done, run or dismiss it once approved, or try it again.
+      # Who did a person's step, and what a step produced, which its link follows.
+      def self.done_detail(step, link)
+        said = link ? "#{step.result_lead}: " : step.result_line
+        [ (step.status_label if step.done_by), said ].compact.join(". ").presence
+      end
+
+      def self.persons_step?(step) = step.plan.applying? && step.mark_done_blocked_reason.nil?
+
+      # A step someone can do something with now: say it is done, run or dismiss it once approved, or try it again.
       def self.acts_on?(step, steps)
         step.mark_done_blocked_reason(steps).nil? || step.approved? || step.retry_offered?
       end
 
-      # An approved step asks to be run, with how things stand now, and carries Run and Dismiss, or Ask again once its
+      # A card for a step someone can act on now. A failed step says why with Try again, a person's step says it is theirs
+      # with Done, and an approved step asks to be run, with how things stand now, Run and Dismiss, or Ask again once its
       # approval expired. Approving it never ran it.
-      def self.step_blocks(step, steps, plan)
-        return [ retry_block(step, plan) ] if step.retry_offered?
+      def self.step_card(step, steps, plan)
+        return retry_card(step, plan) if step.retry_offered?
 
-        name = "*#{step.position}.* #{Mrkdwn.escape(step.shown_title)}"
-        block = { type: "section", text: { type: "mrkdwn", text: name } }
         if step.mark_done_blocked_reason(steps).nil?
-          block[:accessory] = { type: "button", text: { type: "plain_text", text: "Mark done" }, action_id: Identifiers::MARK_FIX_STEP_DONE, value: step.id }
+          your_step = Mrkdwn.escape(step.your_step_line).sub(/\AYour step:/, "*Your step:*")
+          return Slack::Blocks::Card.new(title: nil, subtitle: "Step #{step.position}", body: your_step, actions: [ done_button(step) ])
         end
-        return [ block ] unless step.approved?
 
-        [ block, { type: "context", elements: [ { type: "mrkdwn", text: approved_text(step).truncate(Formatting::SECTION_TEXT_LIMIT) } ] }, approved_actions(step) ]
+        headline, *rest = approved_text(step).split("\n")
+        Slack::Blocks::Card.new(title: "#{step.position}. #{Mrkdwn.escape(step.shown_title)}", subtitle: headline, body: rest.join("\n").presence,
+                                actions: approved_actions(step))
+      end
+
+      def self.done_button(step)
+        { type: "button", style: "primary", text: { type: "plain_text", text: "Done" }, action_id: Identifiers::MARK_FIX_STEP_DONE, value: step.id }
       end
 
       # Runs the step again as whoever applied the fix, so it asks first, saying so.
-      def self.retry_block(step, plan)
+      def self.retry_card(step, plan)
         runs_as = plan.applier_name || "whoever applied the #{plan.undo? ? 'undo' : 'fix'}"
-        {
-          type: "section", text: { type: "mrkdwn", text: "*#{step.position}.* #{Mrkdwn.escape(step.shown_title)}" },
-          accessory: {
-            type: "button", text: { type: "plain_text", text: "Try again" }, action_id: Identifiers::FIX_STEP_RETRY, value: step.id,
-            confirm: {
-              title: { type: "plain_text", text: "Try step #{step.position} again?" },
-              text: { type: "plain_text", text: "It runs again as #{runs_as}, and the steps waiting on it go on once it is done." },
-              confirm: { type: "plain_text", text: "Try again" }, deny: { type: "plain_text", text: "Cancel" }
-            }
+        button = {
+          type: "button", text: { type: "plain_text", text: "Try again" }, action_id: Identifiers::FIX_STEP_RETRY, value: step.id,
+          confirm: {
+            title: { type: "plain_text", text: "Try step #{step.position} again?" },
+            text: { type: "plain_text", text: "It runs again as #{runs_as}, and the steps waiting on it go on once it is done." },
+            confirm: { type: "plain_text", text: "Try again" }, deny: { type: "plain_text", text: "Cancel" }
           }
         }
+        Slack::Blocks::Card.new(title: Mrkdwn.escape(step.failure_line), subtitle: "Step #{step.position}", icon: Slack::Blocks::Alert::EMOJI.fetch(Slack::Blocks::Alert::LEVEL_ERROR),
+                                actions: [ button ])
       end
 
-      def self.footer(plan, steps, hidden)
+      def self.footer(plan, hidden)
         name = plan.cancelled? ? plan.cancelled_by&.display_name : plan.applier_name
         parts = [ ("#{plan.cancelled? ? 'Cancelled' : 'Applied'} by #{Mrkdwn.escape(name)}" if name),
-                  "#{steps.count(&:done?)} of #{steps.size} steps done",
                   ("#{hidden} more #{'step'.pluralize(hidden)} to act on, on the run page" if hidden.positive?) ]
-        parts.compact.join("  ·  ")
+        parts.compact.join("  ·  ").presence
       end
-
-      # Said once each time the fix ends, in the thread and the channel: applied, stopped with what failed and why, or
-      # cancelled.
-      def self.ended(plan)
-        steps = plan.steps.to_a
-        stopped = steps.select { |step| STOPPED.include?(step.status) }
-        body = if plan.status == Investigation::RemediationPlan::STATUS_PARTLY_APPLIED
-          [ *stopped.map { |step| Mrkdwn.escape(step.failure_line) }, ("Try again from the fix's checklist." if stopped.any?(&:failed?)) ].compact
-        else
-          [ "#{steps.count(&:done?)} of #{steps.size} steps done." ]
-        end
-        [
-          { type: "section", text: { type: "mrkdwn", text: "#{ENDED_EMOJI.fetch(plan.status)}  *#{heading(plan, steps)}*" } },
-          { type: "divider" },
-          { type: "section", text: { type: "mrkdwn", text: body.join("\n").truncate(Formatting::SECTION_TEXT_LIMIT) } },
-          { type: "context", elements: [ { type: "mrkdwn", text: footer(plan, steps, 0) } ] }
-        ]
-      end
-
-      def self.ended_text(plan) = "#{heading(plan, plan.steps.to_a)}."
 
       # The same words the run page's dialog uses.
       def self.cancel_text(plan)
@@ -186,7 +204,7 @@ module Slack
         return "#{approver} approved it. Halon is checking how things stand now, and Run waits until it has." if step.checking?
 
         report = step.report
-        lines = [ "#{approver} approved it. Run it now?" ]
+        lines = [ "#{approver} approved it. Run this step?" ]
         lines << "*Now:* #{Mrkdwn.escape(report.state)}" if report&.state
         lines << ":warning: #{Mrkdwn.escape(report.warning)}" if report&.warning
         expires = step.approval&.run_expires_at
@@ -204,11 +222,10 @@ module Slack
       def self.approved_actions(step)
         offers = step.offers
         offers -= [ Chat::CurrentState::ACTION_RUN ] if step.checking?
-        elements = offers.map do |offer|
+        offers.map do |offer|
           text, action_id, style = STEP_BUTTONS.fetch(offer)
           { type: "button", text: { type: "plain_text", text: text }, action_id: action_id, value: step.id, style: style }.compact
         end
-        { type: "actions", elements: elements }
       end
 
       STEP_NEWS_TITLES = {
@@ -230,7 +247,7 @@ module Slack
         return "#{approver} declined step #{step.position} of the fix. It did not run." unless step.approved?
         return "The approval for step #{step.position} of the fix expired before anyone ran it." if step.lapsed?
 
-        "#{approver} approved step #{step.position} of the fix. Run it now?"
+        "#{approver} approved step #{step.position} of the fix. Run this step?"
       end
 
       # A tool's result is another system's words, so it is escaped and cut short. The run page has it whole. While a

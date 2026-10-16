@@ -26,18 +26,20 @@ class Conversation::Delivery
     [ text, Chat::StoppedNote.since_last_answer(conversation.chat) ].compact.join("\n\n")
   end
 
-  def self.for(conversation)
+  # turn_started_at is when the turn began, which a chart of one of its calls was drawn after.
+  def self.for(conversation, turn_started_at: Time.current)
     return Conversation::QuietDelivery.new(conversation) if conversation.mcp?
     return Conversation::IssueDelivery.new(conversation) if conversation.issue?
-    conversation.personal? ? Conversation::LiveDelivery.new(conversation) : new(conversation)
+    conversation.personal? ? Conversation::LiveDelivery.new(conversation) : new(conversation, turn_started_at: turn_started_at)
   end
 
-  def initialize(conversation)
+  def initialize(conversation, turn_started_at: Time.current)
     @conversation = conversation
+    @turn_started_at = turn_started_at
     @sent_text = false
     @lost_text = false
     cadence = adapter.agent_stream_cadence
-    @text = Conversation::ChunkBuffer.new(interval: cadence[:interval], max_chars: cadence[:max_chars]) do |text|
+    @text = Conversation::ChunkBuffer.new(interval: cadence[:interval], max_chars: cadence[:max_chars], whole_markup: cadence[:whole_markup] == true) do |text|
       append(text)
     end
     # A thread has no chart to put where Halon placed one, so it reads the words without the markers.
@@ -211,7 +213,7 @@ class Conversation::Delivery
   def post_charts
     return if charted.empty?
 
-    charts = @conversation.chat.charts.where(tool_call_id: charted.uniq)
+    charts = @conversation.chat.charts.drawn_by(charted.uniq, since: @turn_started_at)
     Chat::Chart.posted_under_answer(charts) do |posts|
       adapter.post_charts(channel_id: @conversation.channel_id, thread_id: @conversation.thread_id, charts: posts)
     end

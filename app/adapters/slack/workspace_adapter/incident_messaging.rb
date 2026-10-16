@@ -396,7 +396,12 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   AI_STREAM_OUTPUT_STYLE = <<~STYLE
     Use markdown: **bold**, _italic_, bullet points, and `code` where appropriate.
     Do not use markdown headers (#). Use **bold text** instead.
+    Write a link as [what it is](https://the.full/address), such as [PR #856](https://github.com/acme/app/pull/856).
   STYLE
+
+  # Slack allows about one append a second. Markdown cut across two appends, a link among it, can show as its raw
+  # characters, so an append never cuts a link, bold or code in two (Conversation::ChunkBuffer).
+  AGENT_STREAM_CADENCE = { interval: 1.second, max_chars: 256, whole_markup: true }.freeze
 
   def ai_output_style
     AI_OUTPUT_STYLE
@@ -405,9 +410,6 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   def ai_stream_output_style
     AI_STREAM_OUTPUT_STYLE
   end
-
-  # Slack allows about one append a second.
-  AGENT_STREAM_CADENCE = { interval: 1.second, max_chars: 256 }.freeze
 
   def agent_stream_cadence
     AGENT_STREAM_CADENCE
@@ -438,7 +440,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   # A bot posts to any public channel, but not to a private one it is not in. Posting to a person opens their DM with it.
   def post_investigation_started(channel_id:, incident:, started_by:, progress:, question: nil, fallback_user_id: nil)
     text = Slack::Messages::InvestigationRun.started_text(incident: incident, question: question)
-    with_plan_blocks do |rich|
+    with_rich_blocks do |rich|
       blocks = Slack::Messages::InvestigationRun.checklist(progress: progress, incident: incident, question: question, started_by: started_by, rich: rich)
       begin
         post_message(channel_id: channel_id, text: text, blocks: blocks)
@@ -452,7 +454,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
 
   def update_investigation_progress(channel_id:, message_id:, incident:, started_by:, progress:, question: nil)
     text = Slack::Messages::InvestigationRun.checklist_title(progress, incident, question)
-    with_plan_blocks do |rich|
+    with_rich_blocks do |rich|
       blocks = Slack::Messages::InvestigationRun.checklist(progress: progress, incident: incident, question: question, started_by: started_by, rich: rich)
       update_message(channel_id: channel_id, message_id: message_id, text: text, blocks: blocks)
     end
@@ -494,13 +496,14 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   # A stopped or timed out stream refuses appends, so the caller falls back to posting the whole answer.
+  # Slack reads streamed text as markdown, which shows nothing of its own <url|label>, so such a link goes as markdown's.
   def append_agent_text(channel_id:, answer_id:, text:)
     return { streaming: false } if answer_id.blank?
 
     translate_errors do
       Slack::Client.append_stream(
         workspace: @workspace, channel: channel_id, ts: answer_id,
-        chunks: [ { type: "markdown_text", text: text } ]
+        chunks: [ { type: "markdown_text", text: Slack::Messages::Formatting.mrkdwn_links_to_markdown(text) } ]
       )
       { streaming: true }
     end
@@ -586,23 +589,18 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_fix_progress(channel_id:, thread_id:, plan:)
-    with_plan_blocks do |rich|
+    with_rich_blocks do |rich|
       post_threaded_message(channel_id: channel_id, parent_message_id: thread_id, broadcast: true,
                             text: Slack::Messages::FixProgress.fallback(plan), blocks: Slack::Messages::FixProgress.build(plan, rich: rich))
     end
   end
 
   def update_fix_progress(channel_id:, message_id:, plan:)
-    with_plan_blocks do |rich|
+    with_rich_blocks do |rich|
       update_message(channel_id: channel_id, message_id: message_id,
                      text: Slack::Messages::FixProgress.fallback(plan), blocks: Slack::Messages::FixProgress.build(plan, rich: rich))
     end
     { success: true }
-  end
-
-  def post_fix_ended(channel_id:, thread_id:, plan:)
-    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id, broadcast: true,
-                          text: Slack::Messages::FixProgress.ended_text(plan), blocks: Slack::Messages::FixProgress.ended(plan))
   end
 
   def post_unattended_note(channel_id:, thread_id:, note:)
@@ -968,35 +966,36 @@ module Slack::WorkspaceAdapter::IncidentMessaging
 
   private
 
-  # Where the workspace's Slack refused a plan block, remembered on the workspace, so its checklists go as plain text
-  # without asking again until RETRY_PLAN_BLOCKS_AFTER has passed, in case the workspace changed plans.
-  PLAN_BLOCKS_REFUSED_AT = "plan_blocks_refused_at".freeze
-  RETRY_PLAN_BLOCKS_AFTER = 7.days
+  # Where the workspace's Slack refused one of the newer blocks (plan, card), remembered on the workspace, so its messages
+  # go as plain blocks without asking again until RETRY_RICH_BLOCKS_AFTER has passed, in case the workspace changed plans.
+  # The key keeps the name it had when plan blocks were the only ones, so a refusal already remembered still counts.
+  RICH_BLOCKS_REFUSED_AT = "plan_blocks_refused_at".freeze
+  RETRY_RICH_BLOCKS_AFTER = 7.days
 
-  # Yields whether to draw plan blocks, and draws the same message plainly when Slack refuses them, so a checklist is
-  # never lost to how it looks.
-  def with_plan_blocks
-    if plan_blocks?
+  # Yields whether to draw the newer blocks, and draws the same message plainly when Slack refuses them, so nothing is
+  # lost to how it looks.
+  def with_rich_blocks
+    if rich_blocks?
       begin
         return yield(true)
       rescue AdapterError::Unrenderable => error
-        Rails.logger.info({ event: "slack.plan_blocks_refused", workspace_id: @workspace.id, error: error.message }.to_json)
-        plan_blocks_refused!
+        Rails.logger.info({ event: "slack.rich_blocks_refused", workspace_id: @workspace.id, error: error.message }.to_json)
+        rich_blocks_refused!
       end
     end
     yield(false)
   end
 
-  def plan_blocks?
-    refused = @workspace.platform_data.to_h[PLAN_BLOCKS_REFUSED_AT]
-    refused.blank? || Time.zone.parse(refused.to_s) < RETRY_PLAN_BLOCKS_AFTER.ago
+  def rich_blocks?
+    refused = @workspace.platform_data.to_h[RICH_BLOCKS_REFUSED_AT]
+    refused.blank? || Time.zone.parse(refused.to_s) < RETRY_RICH_BLOCKS_AFTER.ago
   end
 
-  def plan_blocks_refused!
+  def rich_blocks_refused!
     now = Time.current.iso8601
     Workspace.where(id: @workspace.id)
-             .update_all([ "platform_data = COALESCE(platform_data, '{}'::jsonb) || jsonb_build_object(?::text, ?::text)", PLAN_BLOCKS_REFUSED_AT, now ])
-    @workspace.platform_data = @workspace.platform_data.to_h.merge(PLAN_BLOCKS_REFUSED_AT => now)
+             .update_all([ "platform_data = COALESCE(platform_data, '{}'::jsonb) || jsonb_build_object(?::text, ?::text)", RICH_BLOCKS_REFUSED_AT, now ])
+    @workspace.platform_data = @workspace.platform_data.to_h.merge(RICH_BLOCKS_REFUSED_AT => now)
   end
 
   # Stops the stream that showed the run's steps in its thread, keeping them, and clears the working state. A stream that

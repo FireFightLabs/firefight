@@ -75,12 +75,14 @@ class CodeAgentPauseService
     chat = session.place.try(:chat) if session.place.is_a?(Conversation)
     return unless chat && session.tool_call_id
 
-    kept = chat.step_progresses.find_by(tool_call_id: session.tool_call_id)
+    # The session started with its call, so the call's work is the first kept since, never an earlier or a later call
+    # by the same id.
+    kept = chat.step_progresses.of_call(session.tool_call_id, since: session.created_at).first
     work = kept&.work
     return unless work
 
     work.pause_moved!(pause.to_h)
-    Chat::StepProgress.keep!(chat, session.tool_call_id, work)
+    kept.update!(progress: work.to_json)
   end
 
   # A run's change that was not started from a chat carries on in its thread's own chat. A run with no thread was asked

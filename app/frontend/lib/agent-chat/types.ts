@@ -45,7 +45,15 @@ export type AnswerSource = AgentChatMessage["sources"][number]
 
 export type ChatTurn =
   | { kind: typeof TURN_KINDS.PERSON; id: string; body: string; attachments: AgentChatAttachment[] }
-  | { kind: typeof TURN_KINDS.AGENT; id: string; pieces: TurnPiece[]; models: string[]; sources: AnswerSource[] }
+  | { kind: typeof TURN_KINDS.AGENT; id: string; pieces: TurnPiece[]; models: string[]; sources: AnswerSource[]; window: TurnWindow }
+
+// When a turn began and when the next question was asked, null for no bound, which places what the turn made in it.
+export interface TurnWindow {
+  from: string | null
+  to: string | null
+}
+
+export const OPEN_WINDOW: TurnWindow = { from: null, to: null }
 
 export interface AgentStream {
   // The agent is working on an answer and has not said it is done.

@@ -478,7 +478,8 @@ class PlatformAdapter
   end
 
   # How often streamed text may be sent, since each platform has its own rate limit.
-  # @return [Hash] { interval: ActiveSupport::Duration, max_chars: Integer }
+  # whole_markup never cuts a link, bold or code across two pieces, for a platform that renders each piece's markup on its own.
+  # @return [Hash] { interval: ActiveSupport::Duration, max_chars: Integer, whole_markup: Boolean }
   def agent_stream_cadence
     raise NotImplemented.new(__method__, self.class)
   end
@@ -563,16 +564,11 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # A run's fix as it is applied, in the run's thread and where the whole channel sees it, with Mark done on each step a
-  # person does and Try again on each that failed.
+  # A run's fix as it is applied, in the run's thread and where the whole channel sees it, with Done on each step a
+  # person does and Try again on each that failed. Posted once, and redrawn with how the fix ended rather than followed
+  # by a second post.
   # @return [Hash] { message_id:, channel_id: }
   def post_fix_progress(channel_id:, thread_id:, plan:)
-    raise NotImplemented.new(__method__, self.class)
-  end
-
-  # How a fix ended, applied, stopped with what failed, or cancelled, in the run's thread and the channel.
-  # @return [Hash] { message_id:, channel_id: }
-  def post_fix_ended(channel_id:, thread_id:, plan:)
     raise NotImplemented.new(__method__, self.class)
   end
 

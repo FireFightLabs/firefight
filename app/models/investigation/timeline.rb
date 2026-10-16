@@ -8,8 +8,15 @@ module Investigation::Timeline
     note!(IncidentEvent::INVESTIGATION_STARTED, at: created_at, message: brief&.dig(Investigation::Brief::KEY_SYMPTOM))
   end
 
+  # The short answer goes with the full one, so a reader of the timeline gets what a channel reads first.
   def note_answered!(finding)
-    note!(IncidentEvent::INVESTIGATION_ANSWERED, at: finding.created_at || Time.current, message: finding.summary)
+    note!(IncidentEvent::INVESTIGATION_ANSWERED, at: finding.created_at || Time.current, message: finding.summary,
+                                                 **Investigation::Timeline.short_answer(finding))
+  end
+
+  def self.short_answer(finding)
+    { headline: finding.headline, sureness: finding.sureness, what_is_wrong: finding.what_is_wrong_line.presence,
+      suggested_fix: finding.suggested_fix_line.presence }.compact
   end
 
   def note_stopped!(reason)

@@ -29,6 +29,13 @@ module Slack
       IncidentEvent::INVESTIGATION_STARTED => { emoji: ":mag:", title: "Investigation started" },
       IncidentEvent::INVESTIGATION_ANSWERED => { emoji: ":mag:", title: "Investigation answered" },
       IncidentEvent::INVESTIGATION_STOPPED => { emoji: ":mag:", title: "Investigation stopped" },
+      IncidentEvent::FIX_APPLIED => { emoji: ":hammer_and_wrench:", title: "Fix applied" },
+      IncidentEvent::FIX_STEP_DONE => { emoji: ":white_check_mark:", title: "Fix step done" },
+      IncidentEvent::FIX_STEP_FAILED => { emoji: ":x:", title: "Fix step failed" },
+      IncidentEvent::FIX_STEP_MARKED_DONE => { emoji: ":white_check_mark:", title: "Fix step marked done" },
+      IncidentEvent::FIX_CANCELLED => { emoji: ":no_entry_sign:", title: "Fix cancelled" },
+      IncidentEvent::FIX_ENDED => { emoji: ":hammer_and_wrench:", title: "Fix finished" },
+      IncidentEvent::FIX_UNDO_WRITTEN => { emoji: ":leftwards_arrow_with_hook:", title: "Undo written" },
       IncidentEvent::PAGE_RAISED => { emoji: ":rotating_light:", title: "Paged" },
       IncidentEvent::PAGE_FAILED => { emoji: ":warning:", title: "Page not raised" },
       IncidentEvent::PAGE_ACKNOWLEDGED => { emoji: ":white_check_mark:", title: "Page acknowledged" },
@@ -117,6 +124,10 @@ module Slack
         "to #{Mrkdwn.person(details['escalated_to_platform_user_id'], details['escalated_to_name'])}"
       when IncidentEvent::INVESTIGATION_ANSWERED
         details["message"]
+      when *IncidentEvent::FIX_STEP_EVENTS
+        fix_step_details(event.fix_step)
+      when *IncidentEvent::FIX_EVENTS
+        details["message"].presence && Mrkdwn.escape(details["message"])
       when *IncidentEvent::PAGE_EVENTS
         subject = Mrkdwn.escape(details["subject"].to_s)
         subject = "<#{Mrkdwn.escape(details['url'])}|#{subject}>" if details["url"].to_s.start_with?("https://") && subject.present?
@@ -136,6 +147,18 @@ module Slack
       end
     end
     private_class_method :details_for
+
+    # The step by its name, then what it produced, with the link where the words name it.
+    def self.fix_step_details(step)
+      link = step.link
+      result = if link
+        "#{Mrkdwn.escape(link.before)}<#{link.href}|#{Mrkdwn.escape(link.label)}>#{Mrkdwn.escape(link.after)}"
+      else
+        step.result && Mrkdwn.escape(step.result)
+      end
+      [ Mrkdwn.escape(step.title).presence, result ].compact.join("\n")
+    end
+    private_class_method :fix_step_details
 
     # The reason a person gave, quoted as the channel showed it.
     def self.quoted_reason(details)

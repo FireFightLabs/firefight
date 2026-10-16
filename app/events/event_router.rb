@@ -17,6 +17,8 @@ class EventRouter
     IncidentEvent::ACTION_REOPENED,
     IncidentEvent::ACTION_UNASSIGNED,
     *IncidentEvent::INVESTIGATION_EVENTS,
+    # A run's fix as it is applied, kept with the run's own events. Outbound webhooks offer none of them yet.
+    *IncidentEvent::FIX_EVENTS,
     # What happens to a page in an on-call tool. Outbound webhooks offer none of them yet.
     *IncidentEvent::PAGE_EVENTS
   ].freeze
