@@ -1555,11 +1555,14 @@ export const IMPLICIT_AUTHORITIES = {
 } as const
 
 export const APPROVAL_NOTIFY_OPTIONS = [
+  "default",
   "channel",
   "dm",
   "both"
 ] as const
 export type ApprovalNotifyOption = (typeof APPROVAL_NOTIFY_OPTIONS)[number]
+
+export const APPROVAL_NOTIFY_DEFAULT = "default" as const
 
 export const APPROVER_ROLES = [
   "owner",

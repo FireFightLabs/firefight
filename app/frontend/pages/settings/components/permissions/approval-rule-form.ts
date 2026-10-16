@@ -1,5 +1,6 @@
 import type { AbilityActionOption, ApprovalRule, EnvironmentOption, Principal } from "@/types/serializers"
 import {
+  APPROVAL_NOTIFY_DEFAULT,
   APPROVAL_NOTIFY_OPTIONS,
   APPROVER_ROLES,
   PRINCIPAL_KINDS,
@@ -38,6 +39,7 @@ export const APPROVER_CHOICE_LABELS: Record<ApproverChoice, string> = {
 }
 
 export const NOTIFY_LABELS: Record<ApprovalNotifyOption, string> = {
+  default: "Default (the chat's thread and approvers' DMs)",
   channel: "Incidents channel",
   dm: "Direct message to each approver",
   both: "Both",
@@ -75,7 +77,7 @@ export function approvalRuleFormData(rule: ApprovalRule | null): ApprovalRuleFor
     approvers: rule?.approvers ?? [],
     agentsMayApprove: rule?.agentsMayApprove ?? false,
     onCall: rule?.onCall ?? false,
-    notify: rule?.notify ?? "channel",
+    notify: rule?.notify ?? APPROVAL_NOTIFY_DEFAULT,
     selfApproval: rule?.selfApproval ?? true,
   }
 }

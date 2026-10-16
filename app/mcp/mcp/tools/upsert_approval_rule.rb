@@ -22,7 +22,9 @@ module Mcp
           },
           agents_may_approve: { type: "boolean", description: "Let a named agent or service key decide this rule (default false)" },
           on_call: { type: "boolean", description: "Let whoever is on call for the incident decide too, meaning the members it was escalated to, and ask them when none of the approvers is working the incident (default false)" },
-          notify: { type: "string", description: "channel, dm or both" },
+          notify: { type: "string", enum: PolicyRule::ApprovalOutcome::NOTIFY_OPTIONS,
+                    description: "Where a request is asked. default (a new rule's): a Halon chat's request in its thread and by direct message to each approver, " \
+                                 "anything else in the incidents channel. channel, dm or both name it outright" },
           self_approval: { type: "boolean", description: "Whether the requester may approve their own request (default true)" },
           enabled: { type: "boolean", description: "Switch the rule off without deleting it" },
           approval_id: { type: "string", description: "Approval id when retrying an approved call" }

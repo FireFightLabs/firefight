@@ -68,8 +68,8 @@ class ApprovalNotificationServiceTest < ActiveSupport::TestCase
     assert_equal [ "C0INCIDENTS" ], channels
   end
 
-  test "a change Halon asked for in a chat whose rule names nowhere asks its approvers directly, never the incidents channel" do
-    @approval.update!(source: AbilityGateway::SOURCE_CONVERSATION, approver_ids: [ @bob.id ])
+  test "a change Halon asked for in a chat on Default asks its approvers directly, never the incidents channel" do
+    @approval.update!(source: AbilityGateway::SOURCE_CONVERSATION, approver_ids: [ @bob.id ], notify: PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT)
     channels = []
     Slack::Client.stubs(:post_message).with { |args| channels << args[:channel] }.returns({ ok: true, ts: "5.5", channel: "D0BOB" })
 
@@ -79,11 +79,31 @@ class ApprovalNotificationServiceTest < ActiveSupport::TestCase
   end
 
   test "a chat's change nobody can be asked directly about is asked in the channel rather than nowhere" do
-    @approval.update!(source: AbilityGateway::SOURCE_CONVERSATION)
+    @approval.update!(source: AbilityGateway::SOURCE_CONVERSATION, notify: PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT)
     WorkspaceMembership.where(workspace: @workspace).update_all(platform_user_id: nil)
     Slack::Client.expects(:post_message).once.with { |args| args[:channel] == "C0INCIDENTS" }.returns({ ok: true, ts: "6.6", channel: "C0INCIDENTS" })
 
     ApprovalNotificationService.post!(@approval)
+  end
+
+  test "where each choice asks, for a chat's change and for anyone else's" do
+    @approval.update!(approver_ids: [ @bob.id ])
+    asked = lambda do |source, notify|
+      @approval.update!(source: source, notify: notify, notifications: [], asked_member_ids: [])
+      channels = []
+      Slack::Client.stubs(:post_message).with { |args| channels << args[:channel] }.returns({ ok: true, ts: "8.8", channel: "X" })
+      ApprovalNotificationService.post!(@approval)
+      channels.map { |channel| channel == "C0INCIDENTS" ? :channel : :dm }.sort
+    end
+    chat = AbilityGateway::SOURCE_CONVERSATION
+    api = AbilityGateway::SOURCE_API
+
+    assert_equal [ :dm ], asked.call(chat, PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT)
+    assert_equal [ :channel ], asked.call(api, PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT), "anyone else's keeps the channel on Default"
+    assert_equal [ :channel ], asked.call(chat, PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL)
+    assert_equal [ :dm ], asked.call(chat, PolicyRule::ApprovalOutcome::NOTIFY_DM)
+    assert_equal [ :channel, :dm ], asked.call(chat, PolicyRule::ApprovalOutcome::NOTIFY_BOTH)
+    assert_equal [ :channel ], asked.call(chat, nil), "a rule that stored nothing asks where it always did"
   end
 
   test "the request says in plain words who wants to do what, with the call itself under Details" do

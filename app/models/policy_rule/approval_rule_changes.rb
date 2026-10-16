@@ -22,7 +22,8 @@ module PolicyRule::ApprovalRuleChanges
       attrs[:outcome] = PolicyRule::ApprovalOutcome.build(
         role: changes.fetch(:approver_role, requirement["role"] || WorkspaceMembership.roles[:admin]),
         self_approval: changes.fetch(:self_approval, requirement.fetch("self_approval", true)),
-        notify: changes.fetch(:notify, requirement["notify"]),
+        # A rule kept from before Default existed keeps asking where it did.
+        notify: changes.fetch(:notify, existing ? requirement["notify"] || PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL : nil),
         approvers: changes.key?(:approvers) ? changes[:approvers] : requirement["approvers"],
         agents_may_approve: changes.fetch(:agents_may_approve, requirement.fetch("agents_may_approve", false)),
         on_call: changes.fetch(:on_call, requirement.fetch(PolicyRule::ApprovalOutcome::ON_CALL, false))

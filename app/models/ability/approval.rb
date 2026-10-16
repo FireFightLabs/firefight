@@ -286,16 +286,18 @@ module Ability
     end
 
     # A change Halon asked for in a chat is always asked in the chat's thread (Conversation::HeldCalls). Where else is
-    # the rule's to say: a rule naming the channel, direct messages or both is followed as it is for anyone. A rule that
-    # names nowhere asks its approvers directly rather than in the shared incidents channel, and the channel only when
-    # nobody could be asked directly (ApprovalNotificationService.post!).
+    # the rule's to say: a rule naming the channel, direct messages or both is followed as it is for anyone. A rule on
+    # Default asks a chat's request of its approvers directly rather than in the shared incidents channel, and the
+    # channel only when nobody could be asked directly (ApprovalNotificationService.post!). Any other request on Default
+    # is asked in the channel, as it was before Default existed, and so is one whose rule stored nothing.
     def from_chat? = source == AbilityGateway::SOURCE_CONVERSATION
 
-    # A chat's request whose rule names nowhere to ask.
-    def chat_default? = from_chat? && notify.nil?
+    # A chat's request whose rule is on Default.
+    def chat_default? = from_chat? && notify == PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT
 
     def notify_channel?
-      !chat_default? && [ nil, PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL, PolicyRule::ApprovalOutcome::NOTIFY_BOTH ].include?(notify)
+      !chat_default? && [ nil, PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT, PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL,
+                          PolicyRule::ApprovalOutcome::NOTIFY_BOTH ].include?(notify)
     end
 
     def notify_dm?

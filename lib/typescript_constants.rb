@@ -309,6 +309,7 @@ module TypescriptConstants
         "ADMIN" => Principal::IMPLICIT_ADMIN.to_s, "MEMBER" => Principal::IMPLICIT_MEMBER.to_s, "NONE" => Principal::IMPLICIT_NONE.to_s
       }, nil),
       Export.new("APPROVAL_NOTIFY_OPTIONS", PolicyRule::ApprovalOutcome::NOTIFY_OPTIONS, "ApprovalNotifyOption"),
+      Export.new("APPROVAL_NOTIFY_DEFAULT", PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT, nil),
       Export.new("APPROVER_ROLES", [ WorkspaceMembership.roles[:owner], WorkspaceMembership.roles[:admin] ], "ApproverRole"),
       Export.new("SANDBOX_SERVICES", CodeBox::SERVICES, "SandboxService"),
       Export.new("WORKFLOWS_RESOURCE", Ability::Action::RESOURCE_WORKFLOWS, nil),

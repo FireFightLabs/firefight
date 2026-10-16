@@ -14,7 +14,7 @@ class ApprovalNotificationService
     shown = shown(approval)
     channel_id = approval.request_channel_id
     asked = (approval.notify_dm? ? approval.human_approvers : []) | approval.on_call_to_ask
-    # A chat's request whose rule names nowhere is asked of its approvers, and in the channel only when nobody can be.
+    # A chat's request on Default is asked of its approvers, and in the channel only when nobody can be.
     in_channel = channel_id && (approval.notify_channel? || (approval.chat_default? && asked.none? { |member| member.platform_user_id.present? }))
     deliver(approval) { adapter.post_approval_request(approval: approval, channel_id: channel_id, shown: shown) } if in_channel
 
