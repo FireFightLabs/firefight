@@ -2,6 +2,8 @@ require "test_helper"
 
 # Both authorize as admin-only resources, so an admin's personal token reaches them and no machine ever can.
 class Api::V1::CredentialsApiTest < ActionDispatch::IntegrationTest
+  include ApprovesHeldApiCalls
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @membership = workspace_memberships(:alice_workspace_one)

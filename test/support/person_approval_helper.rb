@@ -12,3 +12,18 @@ module PersonApprovalHelper
     Mcp::ToolDispatcher.call(tool: tool, server_context: server_context, args: args.merge(approval_id: held[:id]))
   end
 end
+
+# The same over the REST API, for a test class about what such a call does. A request answered 202 approval_required is
+# approved here as an admin would in the dashboard and sent again with its X-Approval-Id.
+module ApprovesHeldApiCalls
+  %i[post patch put delete].each do |verb|
+    define_method(verb) do |path, **args|
+      super(path, **args)
+      return status unless status == 202 && response.parsed_body.dig("error", "type") == "approval_required"
+
+      approval = Ability::Approval.find(response.parsed_body["approval_id"])
+      approval.update!(status: Ability::Approval::STATUS_APPROVED, resolved_at: Time.current)
+      super(path, **args, headers: (args[:headers] || {}).merge("X-Approval-Id" => approval.id))
+    end
+  end
+end

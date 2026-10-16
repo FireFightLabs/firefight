@@ -22,14 +22,15 @@ module ApiAuthentication
   end
 
   # Personal tokens resolve to their human, service keys to their own grants. Write-risk
-  # actions get a write-ahead ledger row, finalized by the around_action.
+  # actions get a write-ahead ledger row, finalized by the around_action. A change to permissions, keys, approvals or
+  # webhooks waits for an admin, as it does over MCP (AbilityGateway.person_must_approve?).
   def authorize!(resource, action)
     @ability_authorization = AbilityGateway.authorize!(
       principal: Current.principal,
       action_key: Ability::Action.system_key(resource, action),
       workspace: Current.workspace,
       params: request_binding_params,
-      context: { source: AbilityGateway::SOURCE_API, approval_id: request.headers["X-Approval-Id"] }
+      context: { source: AbilityGateway::SOURCE_API, approval_id: request.headers["X-Approval-Id"], asks_a_person: true }
     )
   rescue AbilityGateway::Denied
     raise ForbiddenError, "API key lacks '#{action}' permission on '#{resource}'"

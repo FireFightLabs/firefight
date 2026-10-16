@@ -290,7 +290,7 @@ class AbilityGateway
 
   # A person in Firefight or Slack, or in a chat with Halon, which asks them on its card first.
   PERSON_SOURCES = [ SOURCE_WEB, SOURCE_SLACK, SOURCE_CONVERSATION ].freeze
-  # A tool call that changes permissions, a credential, an approval or a webhook (Ability::Action#asks_a_person?), made
+  # A call that changes permissions, a credential, an approval or a webhook (Ability::Action#asks_a_person?), made
   # with a token or by a machine, waits for an admin to approve it, whatever its grants or the approval rules say.
   PERSON_REQUIREMENT = { "role" => WorkspaceMembership.roles[:admin], "count" => 1, "self_approval" => true }.freeze
 

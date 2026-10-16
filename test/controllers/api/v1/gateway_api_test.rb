@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Api::V1::GatewayApiTest < ActionDispatch::IntegrationTest
+  include ApprovesHeldApiCalls
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @admin = workspace_memberships(:alice_workspace_one)

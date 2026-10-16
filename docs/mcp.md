@@ -262,7 +262,8 @@ permissions, principals, approvals, tokens or webhooks
 which `test_outbound_webhook` overrides since a test delivery changes nothing)
 waits over MCP for an admin to approve it, whoever holds the token, even though
 approvals and permissions are exempt from approval rules
-(`AbilityGateway.person_must_approve?`, `PERSON_REQUIREMENT`). A request made
+(`AbilityGateway.person_must_approve?`, `PERSON_REQUIREMENT`), and the REST API
+holds the same changes the same way (docs/api.md). A request made
 with a token, or by an agent, is approved only by a person in a session of their
 own, never with a token (`Ability::Approval#approve_with_token_blocked_reason`),
 and approval rules and unattended rules are never changed with a token

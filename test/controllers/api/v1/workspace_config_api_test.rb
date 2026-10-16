@@ -3,6 +3,8 @@ require "test_helper"
 # The option lists share one concern, so severities stand in for the shape and the others are
 # checked where they differ.
 class Api::V1::WorkspaceConfigApiTest < ActionDispatch::IntegrationTest
+  include ApprovesHeldApiCalls
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @membership = workspace_memberships(:alice_workspace_one)

@@ -3,6 +3,8 @@ require "test_helper"
 # A token never decides what a token asked for, and never changes the rules that hold calls: those are a person's, in a
 # session of their own.
 class TokenDecisionsTest < ActionDispatch::IntegrationTest
+  include ApprovesHeldApiCalls
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @admin = workspace_memberships(:alice_workspace_one)
