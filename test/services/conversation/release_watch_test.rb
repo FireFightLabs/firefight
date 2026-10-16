@@ -28,6 +28,7 @@ class Conversation::ReleaseWatchTest < ActiveSupport::TestCase
     NorthflankApi.any_instance.stubs(:addons).returns(Integrations::Pages::Read.new(items: [], complete: true))
     NorthflankApi.any_instance.stubs(:jobs).returns(Integrations::Pages::Read.new(items: [ { "id" => "migrate", "name" => "migrate", "jobType" => "manual" } ], complete: true))
     stub_post_message
+    stub_update_message
     @started = 30.seconds.ago.change(usec: 0)
   end
 

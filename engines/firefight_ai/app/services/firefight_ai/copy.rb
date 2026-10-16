@@ -14,6 +14,10 @@ module FirefightAi
     # which read as if the change had not been made.
     NOT_RUN = "A check or test that could not run, such as tests that need a database or an extension the sandbox lacks, " \
               "goes under #{NOT_RUN_HEADING} with why. Blocked is only for something that stopped the work itself.".freeze
+    # For what a person reads at a glance, such as how a watch ended. Seen in a real chat, a watch's end quoted pod ids, a
+    # class name and an error string.
+    PLAIN = "Say what happened in plain words for a person, and leave out pod, container and instance ids, class and " \
+            "function names and error text quoted from a log. A version or short commit that names what runs is fine.".freeze
     # How every prompt that writes for a person writes.
     WRITING = [ PUNCTUATION, PEOPLE, QUOTING ].join(" ").freeze
     # For a prompt that may also report on checks, such as a code change's write-up or a review.

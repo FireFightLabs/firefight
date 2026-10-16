@@ -97,7 +97,7 @@ Done  ·  github.com/FireFightLabs/firefight/pull/856  ·  approved by @Dana    
 
 | | Use |
 |---|---|
-| card | the announcement (`Announcement`), an incident update or cancellation (`StatusUpdate`), a subscriber's update |
+| card | the announcement (`Announcement`), an incident update or cancellation (`StatusUpdate`), a subscriber's update, a watch (`WatchCard`) |
 | alert | resolved (`Resolution`), reopened (`Reopen`), escalated (`Escalation`) |
 | bold `section` | everything else, and the plain form of both |
 
@@ -314,7 +314,8 @@ means, and a button to the page that fixes it.
 
 ## Messages that are edited in place
 
-An investigation's checklist and a fix's are edited in place the same way, see An investigation in a channel.
+An investigation's checklist and a fix's are edited in place the same way, see An investigation in a channel. So is a
+watch's card, see A watch in Slack.
 
 `Welcome` is the onboarding checklist in `#incidents`, rebuilt from
 `WorkspaceOnboarding#stage` and updated through `update_welcome_message`
@@ -409,6 +410,44 @@ Slack answers a refused block with `invalid_blocks`, which the client raises as 
 (`platform_data["plan_blocks_refused_at"]`, the name it had when plan blocks were the only ones), so later messages go
 plain without asking, and tries the newer blocks again after a week in case the workspace changed plans.
 
+## A watch in Slack
+
+A watch Halon keeps is **one card per place it reports**, edited in place as it moves (`Messages::WatchCard`): one in
+the chat's thread and one in the asker's direct messages, each kept on the watch (`thread_card_*`, `direct_card_*`). The
+first thing the watch says in a place claims posting the card with a guarded update, so two workers never post it
+twice, and everything after redraws it from how the watch stands now. A milestone never posts a message of its own:
+milestones, progress and why a step failed stay in the chat and on the run's page.
+
+The card is three things in plain words, and nothing in it is code (no pod ids, class names or error strings):
+
+- The title is what the watch is for, the person's purpose or else its title, unquoted and led by the state's emoji
+  (`:eyes:` watching, `:white_check_mark:` done, `:x:` failed, `:hourglass:` timed out, `:octagonal_sign:` stopped).
+- The subtitle is the state in a word, Watching, Done, Failed, Timed out or Stopped (`Chat::Watch::Shown.state_word`).
+- The body is one short line on why (`Shown.why`), the step it is on while it goes and the watch's `end_reason` once it
+  ended.
+
+While it goes it offers Stop, Open the run (when the provider gave the run's page) and, in direct messages, Open the
+chat for a dashboard chat. Stop asks first ("Halon stops watching this and says so here. It will not report on it
+again.") and never quotes the title. Once ended it offers only Open the run and Open the chat.
+
+**Editing a message notifies nobody**, so when the watch ends (done, failed, timed out, or stopped by anyone but the
+person who asked) it also posts one short line of its own beside each card, a `Blocks::Alert` led by the same emoji.
+The fallback text of both is the state, what it is for and why, so a notification reads the same as the card.
+
+```
+card  :eyes:  Ship main                                        (while it goes)
+      Watching
+      1 of 2 steps done. Web deploy is running.          [Stop] [Open the run] [Open the chat]
+                         ... when it ends, the same card ...
+card  :white_check_mark:  Ship main
+      Done
+      Took 7 minutes. web is serving 7676c83.                  [Open the run] [Open the chat]
+:white_check_mark:  *Done: Ship main.* Took 7 minutes. web is serving 7676c83.   (a new line, which notifies)
+```
+
+The card goes through `with_rich_blocks`, so a workspace whose Slack does not show cards gets the same words as a
+section, a context line and the buttons. See docs/ai.md, What it says, and where.
+
 ## Asking for a pack
 
 `PackRefusal` is posted in a chat's thread when Halon was refused a change for want of a pack. It names the pack and
@@ -455,7 +494,7 @@ old wording, with who decided in a context line. See docs/ai.md, Halon proposes 
 
 When a person writes to Halon in the app's direct messages, the answer is a reply under their message, streamed like a
 thread chat's (`Conversation::Delivery`), because Slack streams only into a thread. Everything the chat posts after
-that (requests to approve a change, plans, watch updates, handbook proposals) goes in the thread the person last wrote in,
+that (requests to approve a change, plans, watch cards, handbook proposals) goes in the thread the person last wrote in,
 never as a new top-level DM. A reply under one of Firefight's own DMs is answered in that thread too, by the person's
 chat. A refusal is one plain line in the same thread. See docs/ai.md, Direct messages.
 

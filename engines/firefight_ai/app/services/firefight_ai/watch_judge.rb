@@ -60,12 +60,14 @@ module FirefightAi
     end
 
     # Where what happened leaves the goal the person had, with the next step offered as a question when offer is true,
-    # or nil when nothing useful can be said. Progress and a good end offer nothing.
-    def standing(purpose:, happened:, offer: true)
+    # or nil when nothing useful can be said. Progress and a good end offer nothing. evidence is a line for each step that
+    # ended, saying what its reading showed, which the answer is judged against.
+    def standing(purpose:, happened:, offer: true, evidence: [])
       prompt = offer ? STANDING_PROMPT : SETTLED_PROMPT
+      shown = evidence.map { |line| "- #{line}" }.join("\n").presence || "(no step has ended yet)"
       response, = FirefightAi.generate(model_choice, purpose: AiPurpose::SUMMARY, inference: inference_context(prompt)) do |chat|
         chat.with_instructions(prompt)
-        chat.ask("## What the person wanted\n#{purpose}\n\n## What just happened\n#{happened}")
+        chat.ask("## What the person wanted\n#{purpose}\n\n## What just happened\n#{happened}\n\n## What each step showed\n#{shown}")
       end
       said = response.content.to_s.strip
       said.presence unless said.casecmp?(UNKNOWN)
@@ -83,6 +85,7 @@ module FirefightAi
       - A condition that names a time, such as healthy for ten minutes, is met only once the reading has stayed that way that long.
       - Queued or pending is not_started, not nothing. Use nothing only when the reading could not show the thing however it stood.
       - When unsure, keep where it was so far.
+      - #{Copy::PLAIN}
       - #{Copy::RULE}
     PROMPT
 
@@ -97,24 +100,29 @@ module FirefightAi
     # Seen in a real chat, a manual deploy was reported as a success when what the person wanted was the webhook path
     # fixed, and later nobody could say why it had been run.
     STANDING_PROMPT = <<~PROMPT.freeze
-      A person asked Halon to follow something in a production system for a goal of theirs. You get the goal in their words and what just happened. Say in one short sentence where this leaves the goal, then offer the most useful next step as a question, such as "The manual run worked, but the release from the code host is still broken. Next I would read the webhook's error, shall I?"
+      A person asked Halon to follow something in a production system for a goal of theirs. You get the goal in their words, what just happened and what each step showed when it ended. Say in one short sentence where this leaves the goal, then offer the most useful next step as a question, such as "The manual run worked, but the release from the code host is still broken. Next I would read the webhook's error, shall I?"
 
-      - Use only what happened. Never say the goal is reached unless what happened shows it.
+      - Use only what happened and what each step showed. Never say the goal is reached unless they show it.
       - Never offer a fix that what happened does not show the cause of. When the cause is unknown, offer the check that would show it.
       - Offer to do it. Never say it was done.
-      - At most two sentences, plain words, no preamble.
+      - At most two sentences, no preamble.
       - When nothing useful can be said, answer exactly: #{UNKNOWN}
+      - #{Copy::PLAIN}
       - #{Copy::RULE}
     PROMPT
 
-    # The same, for progress and a good end, where nothing is left for the person to decide.
+    # The same, for progress and a good end, where nothing is left for the person to decide. Seen in a real chat, a watch
+    # that saw every instance run the new version ended with "the evidence proves nothing", since all it was told was how
+    # long it took.
     SETTLED_PROMPT = <<~PROMPT.freeze
-      A person asked Halon to follow something in a production system for a goal of theirs. You get the goal in their words and what just happened. Say in one short sentence what this shows about the goal, naming what the evidence shows, such as "web is serving 7676c83."
+      A person asked Halon to follow something in a production system for a goal of theirs. You get the goal in their words, what just happened and what each step showed when it ended. Say in one short sentence what this shows about the goal, naming what the steps showed, such as "web is serving 7676c83."
 
-      - Use only what happened. Never say the goal is reached unless what happened shows it.
+      - Use only what happened and what each step showed. Never say the goal is reached unless they show it.
+      - What each step showed is the evidence. Say what it shows, never that there is none when a step showed something.
       - Offer nothing and ask nothing. State it.
-      - One short sentence, plain words, no preamble.
+      - One short sentence, no preamble.
       - When nothing useful can be said, answer exactly: #{UNKNOWN}
+      - #{Copy::PLAIN}
       - #{Copy::RULE}
     PROMPT
 

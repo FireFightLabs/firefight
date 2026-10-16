@@ -16,6 +16,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     @repository = place!(@github, ResourceMap::KIND_REPOSITORY, "firefight", "acme/firefight")
     @service = place!(@render, ResourceMap::KIND_SERVICE, "web", "srv-web")
     stub_post_message
+    stub_update_message
   end
 
   test "the time limit is learned from the run history of whichever provider runs it, twice the usual" do
@@ -70,7 +71,8 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_equal [ "Release run #46 started." ], watch.updates.reload.map(&:text)
 
     answers("ci_runs" => History.result([ run_of("46", History::SUCCEEDED, started, finished: started + 17.minutes) ], what: "repo"))
-    Slack::Client.expects(:post_message).twice.returns(ts: "2", channel: "D1")
+    Slack::Client.expects(:update_message).with { |channel:, ts:, **| channel == "D1" && ts == "1" }.twice
+    Slack::Client.expects(:post_message).with { |channel:, thread_ts: nil, **| channel == @alice.platform_user_id && thread_ts.nil? }.once.returns(ts: "2", channel: "D1")
     2.times { check!(watch) }
 
     assert_equal "Release run #46 succeeded after 17 minutes.", watch.updates.reload.second.text
@@ -255,21 +257,103 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
                  .returns(ts: "2", channel: "D1")
     Conversation::Watches.tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "Release run #46 started.")
 
+    other = @conversation.chat.watches.create!(workspace: @workspace, asker: @alice, title: "another", expires_at: 1.hour.from_now,
+                                               limit_basis: Chat::Watch::BASIS_DEFAULT)
     @conversation.update!(channel_id: "D42")
     Slack::Client.expects(:post_message).with { |channel:, **| channel == "D42" }.once.returns(ts: "3", channel: "D42")
-    Conversation::Watches.tell!(watch.reload, Chat::Watch::Update::KIND_MILESTONE, "Release run #46 succeeded.")
+    Conversation::Watches.tell!(other, Chat::Watch::Update::KIND_MILESTONE, "Release run #46 succeeded.")
   end
 
-  test "a dashboard chat's direct message offers to open the chat" do
+  test "a dashboard chat's direct message offers to open the chat, and a reply to it there is known to be about the watch" do
     Slack::DashboardUrl.stubs(:agent_chat).with(@conversation.id).returns("https://firefight.test/app/agent/#{@conversation.id}")
     start_release_watch
     watch = @conversation.chat.watches.sole
-    Slack::Client.expects(:post_message).with { |channel:, blocks:, **| channel == @alice.platform_user_id && blocks.last[:type] == "actions" }
+    Slack::Client.expects(:post_message).with { |channel:, blocks:, **| channel == @alice.platform_user_id && blocks.sole[:actions].last[:url].include?(@conversation.id) }
                  .returns(ts: "1", channel: "D1")
 
-    update = Conversation::Watches.tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "Release run #46 started.")
+    Conversation::Watches.tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "Release run #46 started.")
 
-    assert_equal [ "D1", "1" ], update.reload.values_at(:message_channel_id, :message_id)
+    assert_equal [ "D1", "1" ], watch.reload.values_at(:direct_card_channel_id, :direct_card_message_id)
+    assert_match '"title": "release run #46"', Conversation::RepliedTo.context(@workspace, channel_id: "D1", message_id: "1", text: "is it done?")
+  end
+
+  test "each place gets one card, edited in place as the watch moves, and its end is also said in a short line of its own" do
+    @conversation.update!(kind: Conversation::KIND_CHANNEL, channel_id: "C1", thread_id: "111.1")
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+    watch.update!(purpose: "Ship main")
+    Slack::Client.expects(:post_message).with { |channel:, thread_ts: nil, **| channel == "C1" && thread_ts == "111.1" }.once.returns(ts: "1", channel: "C1")
+    Slack::Client.expects(:post_message).with { |channel:, thread_ts: nil, **| channel == @alice.platform_user_id && thread_ts.nil? }.once.returns(ts: "2", channel: "D1")
+    Conversation::Watches.tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "Release run #46 started.")
+    assert_equal [ "C1", "1", "D1", "2" ], watch.reload.values_at(:thread_card_channel_id, :thread_card_message_id, :direct_card_channel_id, :direct_card_message_id)
+
+    drawn = []
+    Slack::Client.expects(:update_message).times(4).with { |channel:, ts:, blocks:, **| drawn << [ channel, ts, blocks.sole ] }
+    Conversation::Watches.tell!(watch, Chat::Watch::Update::KIND_PROGRESS, "Release run: tag passed.")
+    assert_equal [ [ "C1", "1" ], [ "D1", "2" ] ], drawn.map { |channel, ts, _| [ channel, ts ] }
+    assert_equal [ ":eyes:  Ship main", "Watching", "Waiting for Release run #46 to start." ],
+                 [ drawn.first.last.dig(:title, :text), drawn.first.last.dig(:subtitle, :text), drawn.first.last.dig(:body, :text) ]
+
+    bob = workspace_memberships(:bob_workspace_one)
+    ended = []
+    Slack::Client.expects(:post_message).twice.with { |channel:, text:, thread_ts: nil, **| ended << [ channel, thread_ts, text ] }.returns(ts: "9", channel: "C1")
+    assert_nil Conversation::Watches.stop!(watch.reload, by: bob)
+
+    assert_equal [ "Stopped", "Stopped" ], drawn.last(2).map { |_, _, card| card.dig(:subtitle, :text) }
+    assert(drawn.last(2).all? { |_, _, card| card[:actions].to_a.none? { |button| button[:action_id] == Identifiers::WATCH_STOP } })
+    told = "Stopped: Ship main. Stopped by #{bob.display_name}."
+    assert_equal [ [ "C1", "111.1", told ], [ @alice.platform_user_id, nil, told ] ], ended
+  end
+
+  test "a watch its asker stopped redraws its card and posts nothing new, since they know" do
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+    Slack::Client.expects(:post_message).once.returns(ts: "1", channel: "D1")
+    Conversation::Watches.tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "Release run #46 started.")
+
+    Slack::Client.expects(:update_message).with { |blocks:, **| blocks.sole.dig(:subtitle, :text) == "Stopped" }.once
+    assert_nil Conversation::Watches.stop!(watch.reload, by: @alice)
+  end
+
+  test "a card is claimed before it is posted, so two workers never post it twice, and a post that failed is tried again" do
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+
+    assert watch.claim_card!(Chat::Watch::PLACE_DIRECT)
+    assert_not Chat::Watch.find(watch.id).claim_card!(Chat::Watch::PLACE_DIRECT)
+    Slack::Client.expects(:post_message).never
+    Slack::Client.expects(:update_message).never
+    Conversation::Watches.tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "Release run #46 started.")
+
+    watch.card_unclaimed!(Chat::Watch::PLACE_DIRECT)
+    Slack::Client.unstub(:post_message)
+    Slack::Client.expects(:post_message).raises(AdapterError, "channel_not_found")
+    Conversation::Watches.tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "Release run #46 is running.")
+    assert_nil watch.reload.direct_card_claimed_at
+
+    Slack::Client.unstub(:post_message)
+    Slack::Client.expects(:post_message).once.returns(ts: "5", channel: "D1")
+    Conversation::Watches.tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "Release run #46 succeeded.")
+    assert_equal "5", watch.reload.direct_card_message_id
+  end
+
+  test "the verdict on a good end is drawn from what each step showed, and the card says it in a line" do
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+    watch.update!(purpose: "ship main")
+    Investigation.stubs(:unavailable_reason).returns(nil)
+    watch.steps.sole.finished!(Chat::Watch::Step::STATUS_SUCCEEDED, reason: "Every instance of web runs 7676c83.")
+    FirefightAi::WatchJudge.any_instance.expects(:standing)
+                           .with { |happened:, offer:, evidence:, **| happened.start_with?("Done in") && !offer && evidence.join.include?("Every instance of web runs 7676c83.") }
+                           .returns("web is serving 7676c83.")
+
+    Conversation::Watches.conclude!(watch)
+
+    watch.reload
+    assert_equal Chat::Watch::STATUS_SUCCEEDED, watch.status
+    assert_match(/\ADone in .+ web is serving 7676c83\.\z/, watch.outcome)
+    assert_match(/\ATook .+ web is serving 7676c83\.\z/, watch.end_reason)
+    assert_equal watch.end_reason, Chat::Watch::Shown.why(watch)
   end
 
   test "a live update from a connection wakes the watches that read through it" do
@@ -376,7 +460,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
                            .with { |what:, evidence:| what.include?("trigger-northflank") && evidence.include?("fails to match the required pattern") }
                            .returns("Northflank refused the webhook because the name v0.0.14 has dots it does not take.")
     FirefightAi::WatchJudge.any_instance.expects(:standing).once
-                           .with { |purpose:, happened:, offer:| purpose.include?("Northflank webhook") && happened.include?("trigger-northflank failed") && offer }
+                           .with { |purpose:, happened:, offer:, **| purpose.include?("Northflank webhook") && happened.include?("trigger-northflank failed") && offer }
                            .returns("The GitHub path is still broken. Next I would change the name the release sends, shall I?")
 
     2.times { check!(watch) }
@@ -1120,8 +1204,10 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     Conversation::Watches.start(@turn, watch_of([ release_step(report_start: report_start) ]))
   end
 
-  # The buttons on a message, by action id or by address for a link.
-  def actions_of(blocks) = blocks.select { |block| block[:type] == "actions" }.flat_map { |block| block[:elements].map { |button| button[:action_id] || button[:url] } }
+  # The buttons on a message, in an actions block or a card, by action id or by address for a link.
+  def actions_of(blocks)
+    blocks.flat_map { |block| block[:type] == "actions" ? block[:elements] : block[:actions].to_a }.map { |button| button[:action_id] || button[:url] }
+  end
 
   def check!(watch)
     Chat::Watch.where(id: watch.id).update_all(check_claimed_at: nil, checked_at: nil)

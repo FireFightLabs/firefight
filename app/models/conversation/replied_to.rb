@@ -5,8 +5,14 @@ class Conversation::RepliedTo
   FRAME = "replied_to".freeze
   INTRO = "The person is replying in your direct messages to this message you sent them. Answer about it, and act on what " \
           "it belongs to if they ask.".freeze
-  # The records Halon posts to someone's direct messages and keeps the message of.
-  SOURCES = [ Chat::Watch::Update, Chat::HeldCall, Chat::Plan, Chat::OwnerAsk, Chat::Mitigation, CodeAgentSession::Notice ].freeze
+  # The records Halon posts to someone's direct messages and keeps the message of, by the columns that keep it. A watch
+  # keeps its one card there. A watch's line kept its own message before watches kept a card, so a reply under one sent
+  # then is still known.
+  MESSAGE_COLUMNS = %i[message_channel_id message_id].freeze
+  SOURCES = {
+    Chat::Watch => %i[direct_card_channel_id direct_card_message_id], Chat::Watch::Update => MESSAGE_COLUMNS, Chat::HeldCall => MESSAGE_COLUMNS,
+    Chat::Plan => MESSAGE_COLUMNS, Chat::OwnerAsk => MESSAGE_COLUMNS, Chat::Mitigation => MESSAGE_COLUMNS, CodeAgentSession::Notice => MESSAGE_COLUMNS
+  }.freeze
   RESULT_LIMIT = 500
 
   def self.context(workspace, channel_id:, message_id:, text:)
@@ -18,8 +24,8 @@ class Conversation::RepliedTo
   end
 
   def self.find(workspace, channel_id, message_id)
-    SOURCES.each do |source|
-      record = source.find_by(message_channel_id: channel_id, message_id: message_id)
+    SOURCES.each do |source, (channel_column, message_column)|
+      record = source.find_by(channel_column => channel_id, message_column => message_id)
       return record if record && workspace_of(record) == workspace.id
     end
     nil
@@ -37,6 +43,7 @@ class Conversation::RepliedTo
 
   def self.describe(record)
     case record
+    when Chat::Watch then { watch: Chat::Watch::Shown.summary(record) }
     when Chat::Watch::Update then { watch: Chat::Watch::Shown.summary(record.watch) }
     when Chat::HeldCall
       { held_call: { tool: record.tool_name, target: record.target, status: record.shown_status, result: record.result.to_s.truncate(RESULT_LIMIT).presence }.compact }

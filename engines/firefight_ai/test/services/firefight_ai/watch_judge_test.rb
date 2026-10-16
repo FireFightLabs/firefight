@@ -40,6 +40,26 @@ class FirefightAi::WatchJudgeTest < ActiveSupport::TestCase
     assert_no_match(/shall I|\?/, FirefightAi::WatchJudge::SETTLED_PROMPT.lines.first)
   end
 
+  test "a good end is judged against what each step showed, not only how long it took" do
+    stub_model(content: "web is serving 7676c83.")
+    chat = RubyLLM.chat
+    chat.expects(:ask).with { |text| text.include?("Done in 8 seconds.") && text.include?("Web rollout: Succeeded after 8 seconds. Every instance of web runs 7676c83.") }
+        .returns(llm_reply(content: "web is serving 7676c83.", input: 100, output: 20, cost: 0.0001))
+
+    said = @judge.standing(purpose: "ship main", happened: "Done in 8 seconds.", offer: false,
+                           evidence: [ "Web rollout: Succeeded after 8 seconds. Every instance of web runs 7676c83." ])
+
+    assert_equal "web is serving 7676c83.", said
+    assert_match "what each step showed", FirefightAi::WatchJudge::SETTLED_PROMPT
+  end
+
+  test "what a watch says is asked in plain words, with no ids, class names or quoted errors" do
+    [ FirefightAi::WatchJudge::READING_PROMPT, FirefightAi::WatchJudge::STANDING_PROMPT, FirefightAi::WatchJudge::SETTLED_PROMPT ].each do |prompt|
+      assert_includes prompt, FirefightAi::Copy::PLAIN
+    end
+    assert_match "leave out pod, container and instance ids, class and function names and error text quoted from a log", FirefightAi::Copy::PLAIN
+  end
+
   test "why something failed is said from the evidence, and nothing when the evidence does not show it" do
     stub_model(content: "The user model test failed.")
     assert_equal "The user model test failed.", @judge.why_failed(what: "Release run #46", evidence: "FAILED test/models/user_test.rb")
@@ -62,7 +82,7 @@ class FirefightAi::WatchJudgeTest < ActiveSupport::TestCase
 
   test "the standing prompt never claims a goal met or a fix without what happened showing it" do
     prompt = FirefightAi::WatchJudge::STANDING_PROMPT
-    assert_match "Never say the goal is reached unless what happened shows it", prompt
+    assert_match "Never say the goal is reached unless they show it", prompt
     assert_match "offer the check that would show it", prompt
     assert_match "shall I?", prompt
   end
