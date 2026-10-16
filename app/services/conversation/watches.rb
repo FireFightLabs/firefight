@@ -1394,15 +1394,16 @@ module Conversation::Watches
     end
     return unless watch.claim_card!(place.key)
 
-    drawn = watch.status
-    posted = adapter.post_watch_card(channel_id: place.channel_id, thread_id: place.thread_id, card: card(watch, update, direct: place.direct?))
+    drawn = card(watch, update, direct: place.direct?)
+    posted = adapter.post_watch_card(channel_id: place.channel_id, thread_id: place.thread_id, card: drawn)
     return watch.card_unclaimed!(place.key) unless posted.is_a?(Hash) && posted[:message_id]
 
     unless watch.card_posted!(place.key, channel_id: posted[:channel_id], message_id: posted[:message_id])
       return adapter.delete_message(channel_id: posted[:channel_id], message_id: posted[:message_id])
     end
-    # What another worker said while this one posted found no card to edit, so it is drawn now.
-    adapter.update_watch_card(channel_id: posted[:channel_id], message_id: posted[:message_id], card: card(watch, update, direct: place.direct?)) if watch.status != drawn
+    # What another worker said while this one posted found no card to edit, so the card is drawn again when it moved.
+    now = card(watch, update, direct: place.direct?)
+    adapter.update_watch_card(channel_id: posted[:channel_id], message_id: posted[:message_id], card: now) if now != drawn
   rescue AdapterError => error
     watch.card_unclaimed!(place.key) unless at
     Rails.logger.warn({ event: "watch.untold", watch_id: watch.id, update_id: update.id, error: error.class.name }.to_json)
