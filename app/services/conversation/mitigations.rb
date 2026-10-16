@@ -223,7 +223,8 @@ module Conversation::Mitigations
   private_class_method :run_step
 
   def self.outcome_words(mitigation, outcome, step, _by)
-    return "Undoing #{mitigation.title} needs an approval, so it waits in the chat for someone to approve it and then for Run." if outcome == :held
+    # A held call runs as soon as it is approved (Conversation::HeldCalls.approved!), so there is no Run to wait for.
+    return "Undoing #{mitigation.title} needs an approval, so it waits in the chat until someone approves it, and then it runs." if outcome == :held
 
     "Firefight could not undo #{mitigation.title} at the step \"#{step['description']}\": #{outcome.last}. Undo it by hand."
   end

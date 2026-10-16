@@ -639,6 +639,7 @@ Rails.application.routes.draw do
     resources :webhook_deliveries, only: [] do
       member { post :redeliver }
     end
+    resources :platform_failures, only: :show
     get "find", to: "find#show", as: :find
     resources :sandboxes, only: :index do
       collection do
