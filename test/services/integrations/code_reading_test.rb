@@ -137,6 +137,39 @@ module Integrations
       first&.join
     end
 
+    test "reads a step runs at once share the run's one box, each waiting for the first to start it" do
+      asking = Concurrent::AtomicFixnum.new
+      locked = CodeReading.method(:locked)
+      CodeReading.define_singleton_method(:locked) do |name, &block|
+        asking.increment if name == "investigation-together"
+        locked.call(name, &block)
+      end
+      @provider.define_singleton_method(:start) do |**options|
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
+        sleep 0.01 until asking.value >= 3 || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        super(**options)
+      end
+
+      reads = Array.new(3) { Thread.new { reading("investigation-together").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT) } }
+
+      assert_equal [ "ok" ] * 3, reads.map { |read| read.value["stdout"] }
+      assert_equal 3, asking.value, "every read asked for the box's lock while the first was starting the box"
+      assert_equal 1, @provider.started.size
+      assert_equal 1, @pushed.size
+    ensure
+      CodeReading.define_singleton_method(:locked, locked) if locked
+    end
+
+    test "a box is reached as its provider says, so a boat box read back from its row sends its token as a cookie" do
+      row = CodeBox.create!(workspace: @workspace, key: "investigation-boat", provider: SandboxProviders::BOAT, box_ref: "bx_1",
+                            **CodeBox.address_columns("https://swift-otter-8080.on.boat.dev?_token=gate"), secret: "k1", last_used_at: Time.current)
+      Sandboxes.stubs(:provider).with(SandboxProviders::BOAT).returns(Sandboxes::Boat.new(api: stub))
+
+      box = CodeReading.box_of(row)
+
+      assert_equal [ "https://swift-otter-8080.on.boat.dev?_token=gate", { "_token" => "_port_auth" }, true ], [ box.address, box.cookies, box.relayed ]
+    end
+
     test "two runs read in two boxes" do
       reading("investigation-1").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
       reading("conversation-2").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
@@ -436,11 +469,20 @@ module Integrations
       old.update_columns(last_used_at: (PreparedCopy::KEPT_UNUSED_FOR + 1.day).ago)
 
       CodeReading.sweep_prepared!
-      CodeReading.sweep!
+      assert_enqueued_with(job: SandboxImageCopyJob, args: [ SandboxProviders::DOCKER ]) { CodeReading.sweep! }
 
       assert_equal [ "kept-old" ], keeping.discarded
       assert_not PreparedCopy.exists?(old.id)
       assert_equal Set[fresh.kept_ref], keeping.tidied
+    end
+
+    test "a provider that keeps no copies is not asked to prepare one, and a box is waited for as long as its provider says" do
+      assert_no_enqueued_jobs(only: SandboxImageCopyJob) { CodeReading.sweep! }
+
+      @provider.define_singleton_method(:ready_within) { 900 }
+      Sandboxes::Client.any_instance.expects(:wait_until_ready!).with(within: 900)
+
+      reading("investigation-slow").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
     end
 
     private

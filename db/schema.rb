@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_14_900000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -2969,6 +2969,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_900000) do
     t.index ["workflow_id"], name: "index_runbooks_on_workflow_id"
     t.index ["workspace_id", "slug"], name: "index_runbooks_on_workspace_id_and_slug_active", unique: true, where: "(deleted_at IS NULL)"
     t.index ["workspace_id"], name: "index_runbooks_on_workspace_id"
+  end
+
+  create_table "sandbox_image_copies", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "provider", null: false
+    t.string "name", null: false
+    t.string "status", default: "unclaimed", null: false
+    t.string "claimed_by"
+    t.datetime "claimed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["provider", "name"], name: "index_sandbox_image_copies_on_provider_and_name", unique: true
   end
 
   create_table "sandbox_provider_reads", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

@@ -30,13 +30,15 @@ module Integrations
         @box = box
       end
 
-      # Boxes take a few seconds to boot, and a provider can report one started before its service listens. A stop ends
-      # the wait (StopSignal).
-      def wait_until_ready!
-        deadline = READY_TIMEOUT.seconds.from_now
+      # Boxes take a few seconds to boot, and a provider can report one started before its service listens, or before it
+      # has even pulled the image, so the provider says how long its box may take (Provider#ready_within). A box that
+      # never answers is reported with why its last health check failed. A stop ends the wait (StopSignal).
+      def wait_until_ready!(within: READY_TIMEOUT)
+        deadline = within.seconds.from_now
         loop do
-          return if alive?
-          raise Error, "The code sandbox did not come up within #{READY_TIMEOUT} seconds." if Time.current > deadline
+          failure = health_failure
+          return if failure.nil?
+          raise Error, Sentence.join("The code sandbox did not come up within #{within.to_i} seconds", failure) if Time.current > deadline
 
           pause(1)
         end
@@ -95,8 +97,9 @@ module Integrations
       def download_archive(repository:, ref:, path:, limit:)
         uri = address_of("/prepare/archive?#{{ repo: repository, ref: ref }.to_query}")
         request = Net::HTTP::Get.new(uri)
-        request["Authorization"] = "Bearer #{@box.key}"
+        signed(request)
         Http.request(uri, request, error_class: Error, read_timeout: ARCHIVE_TIMEOUT) do |response|
+          refuse_redirect!(response)
           raise Error, "The code sandbox could not pack the prepared copy: #{response.body}" unless response.code.to_i == 200
           raise Error, "The prepared copy is larger than #{limit / 1.megabyte} MB, so it is not kept." if response["content-length"].to_i > limit
 
@@ -114,12 +117,13 @@ module Integrations
       def upload_archive(repository:, ref:, path:)
         uri = address_of("/prepare/archive?#{{ repo: repository, ref: ref }.to_query}")
         request = Net::HTTP::Put.new(uri)
-        request["Authorization"] = "Bearer #{@box.key}"
+        signed(request)
         request["Content-Type"] = "application/gzip"
         File.open(path, "rb") do |file|
           request["Content-Length"] = file.size.to_s
           request.body_stream = file
           response = Http.request(uri, request, error_class: Error, read_timeout: ARCHIVE_TIMEOUT)
+          refuse_redirect!(response)
           parsed = JSON.parse(response.body.to_s)
           raise Error, parsed["error"].to_s if response.code.to_i != 200
 
@@ -167,10 +171,13 @@ module Integrations
         send_json(Net::HTTP::Post, "/services", payload: { services: names }, read_timeout: 120)
       end
 
-      def alive?
-        send_json(Net::HTTP::Get, "/health", read_timeout: 5)["ok"] == true
-      rescue Error
-        false
+      def alive? = health_failure.nil?
+
+      # Why the box's health check did not answer ok, or nil when it did.
+      def health_failure
+        send_json(Net::HTTP::Get, "/health", read_timeout: 5)["ok"] == true ? nil : "its health check did not answer ok"
+      rescue Error => error
+        error.message
       end
 
       def lsp(repository:, method:, ref: nil, path: nil, line: nil, column: nil, language: nil, query: nil)
@@ -194,14 +201,37 @@ module Integrations
       end
 
       # The box's address with path on it. An address can carry a query of its own, such as the token a proxy in front
-      # of the box asks for, which every request keeps.
+      # of the box asks for, which every request keeps, apart from the parameters the box sends as cookies.
       def address_of(path)
         base = URI.parse(@box.address)
         target = URI.parse(path)
+        kept = address_parameters.reject { |name, _value| @box.cookies.key?(name) }
         base.dup.tap do |uri|
           uri.path = "#{base.path.to_s.chomp('/')}#{target.path}"
-          uri.query = [ base.query, target.query ].compact_blank.join("&").presence
+          uri.query = [ (URI.encode_www_form(kept) if kept.any?), target.query ].compact_blank.join("&").presence
         end
+      end
+
+      def address_parameters = URI.decode_www_form(URI.parse(@box.address).query.to_s)
+
+      # The box's own key, and the parameters of its address it sends as cookies.
+      def signed(request)
+        request["Authorization"] = "Bearer #{@box.key}"
+        given = address_parameters.to_h
+        cookies = @box.cookies.filter_map { |parameter, cookie| "#{cookie}=#{given[parameter]}" if given[parameter].present? }
+        request["Cookie"] = cookies.join("; ") if cookies.any?
+      end
+
+      # A box answers itself, so a redirect is something in front of it asking for what the request does not carry. It
+      # is named by its host and path only, since its query can hold a token.
+      def refuse_redirect!(response)
+        return unless response.code.to_i.between?(300, 399)
+
+        location = URI.parse(response["location"].to_s)
+        to = "#{location.host}#{location.path}".presence
+        raise Error, "The code sandbox's address answered #{response.code}, a redirect#{" to #{to}" if to}, rather than the sandbox itself."
+      rescue URI::InvalidURIError
+        raise Error, "The code sandbox's address answered #{response.code}, a redirect, rather than the sandbox itself."
       end
 
       # A stop (StopSignal) ends the command in the box and stops following it.
@@ -255,12 +285,13 @@ module Integrations
       def send_json(verb, path, payload: nil, body: nil, content_type: "application/json", read_timeout: 30)
         uri = address_of(path)
         request = verb.new(uri)
-        request["Authorization"] = "Bearer #{@box.key}"
+        signed(request)
         if payload || body
           request["Content-Type"] = content_type
           request.body = body || payload.to_json
         end
         response = Http.request(uri, request, error_class: Error, read_timeout: read_timeout)
+        refuse_redirect!(response)
         parsed = JSON.parse(response.body.to_s)
         raise Error, parsed["error"].to_s if response.code.to_i != 200
 
