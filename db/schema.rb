@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1145,8 +1145,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_150000) do
     t.datetime "ceiling_told_at"
     t.datetime "steps_added_at"
     t.boolean "reads_per_hour_asked", default: false, null: false
+    t.string "thread_card_channel_id"
+    t.string "thread_card_message_id"
+    t.datetime "thread_card_claimed_at"
+    t.string "direct_card_channel_id"
+    t.string "direct_card_message_id"
+    t.datetime "direct_card_claimed_at"
+    t.text "end_reason"
     t.index ["asker_type", "asker_id"], name: "index_chat_watches_on_asker"
     t.index ["chat_id"], name: "index_chat_watches_on_chat_id"
+    t.index ["direct_card_channel_id", "direct_card_message_id"], name: "index_chat_watches_on_direct_card"
     t.index ["stopped_by_id"], name: "index_chat_watches_on_stopped_by_id"
     t.index ["workspace_id", "status"], name: "index_chat_watches_on_workspace_id_and_status"
     t.index ["workspace_id"], name: "index_chat_watches_on_workspace_id"

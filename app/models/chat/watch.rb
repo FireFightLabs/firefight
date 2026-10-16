@@ -48,6 +48,17 @@ class Chat::Watch < ApplicationRecord
   MOST_READS = 720
   HOUR = 1.hour
 
+  # Where a watch keeps its one card on the platform, edited in place as it moves: the chat's thread, and the asker's
+  # direct messages. Each place keeps the channel and message of its card, and when posting it was claimed.
+  PLACE_THREAD = "thread".freeze
+  PLACE_DIRECT = "direct".freeze
+  CARD_COLUMNS = {
+    PLACE_THREAD => %i[thread_card_channel_id thread_card_message_id thread_card_claimed_at],
+    PLACE_DIRECT => %i[direct_card_channel_id direct_card_message_id direct_card_claimed_at]
+  }.freeze
+  # A claim on posting a card that never got its message belonged to a worker that died. A post takes seconds.
+  CARD_CLAIM_LAPSES = 5.minutes
+
   # The keys of a start_watch request, which a runbook's watch is saved as and the runbook editor writes.
   SPEC_KEYS = {
     title: "title", minutes: "minutes", steps: "steps", label: "label", capability: "capability", resource: "resource",
@@ -152,17 +163,50 @@ class Chat::Watch < ApplicationRecord
     self.class.where(id: id).update_all(check_claimed_at: nil, checked_at: now)
   end
 
+  # The channel and message of its card in a place, or nil before one is posted.
+  def card_in(place)
+    channel, message, = CARD_COLUMNS.fetch(place)
+    [ self[channel], self[message] ] if self[message].present?
+  end
+
+  def card_at?(channel_id, message_id) = CARD_COLUMNS.keys.any? { |place| card_in(place) == [ channel_id, message_id ] }
+
+  # Takes posting its card in a place, so two workers never post it twice. False when it is posted or another holds it.
+  def claim_card!(place, now = Time.current)
+    _, message, claimed = CARD_COLUMNS.fetch(place)
+    column = self.class.arel_table[claimed]
+    taken = self.class.where(id: id, message => nil).where(column.eq(nil).or(column.lt(now - CARD_CLAIM_LAPSES))).update_all(claimed => now)
+    taken == 1
+  end
+
+  # Keeps the card a place posted. False when another worker kept one first, such as after this claim lapsed on a slow
+  # post, so the caller takes its own back.
+  def card_posted!(place, channel_id:, message_id:)
+    channel, message, = CARD_COLUMNS.fetch(place)
+    kept = self.class.where(id: id, message => nil).update_all(channel => channel_id, message => message_id)
+    reload
+    kept == 1
+  end
+
+  # Lets go of a claim whose post failed, so the next thing the watch says tries again.
+  def card_unclaimed!(place)
+    _, message, claimed = CARD_COLUMNS.fetch(place)
+    self.class.where(id: id, message => nil).update_all(claimed => nil)
+    reload
+  end
+
   ANY_ADDED = Object.new.freeze
 
   # Ends it once, from active, so the outcome is said once however many workers reach it. False when it had ended.
   # steps_added_at is when steps were last added as the caller read them, so an end decided over the old steps never
   # lands once more were added. expired_by ends it only while its limit is still past, which adding steps can move.
-  def finish!(status, outcome:, stopped_by: nil, steps_added_at: ANY_ADDED, expired_by: nil)
+  # end_reason is the short plain line its card shows on why it ended.
+  def finish!(status, outcome:, end_reason: nil, stopped_by: nil, steps_added_at: ANY_ADDED, expired_by: nil)
     scope = self.class.where(id: id, status: STATUS_ACTIVE)
     scope = scope.where(steps_added_at: steps_added_at) unless steps_added_at == ANY_ADDED
     scope = scope.where(expires_at: ..expired_by) if expired_by
-    moved = scope.update_all(status: status, outcome: outcome.to_s.truncate(OUTCOME_LIMIT), finished_at: Time.current,
-                             stopped_by_id: stopped_by&.id, updated_at: Time.current)
+    moved = scope.update_all(status: status, outcome: outcome.to_s.truncate(OUTCOME_LIMIT), end_reason: end_reason&.truncate(OUTCOME_LIMIT),
+                             finished_at: Time.current, stopped_by_id: stopped_by&.id, updated_at: Time.current)
     reload
     moved == 1
   end
@@ -173,7 +217,7 @@ class Chat::Watch < ApplicationRecord
 
   def reopen!(until_at, now: Time.current)
     moved = self.class.where(id: id, status: REOPENABLE).update_all(
-      status: STATUS_ACTIVE, outcome: nil, finished_at: nil, told_at: nil, expires_at: until_at, check_claimed_at: nil, next_check_at: nil, updated_at: now
+      status: STATUS_ACTIVE, outcome: nil, end_reason: nil, finished_at: nil, told_at: nil, expires_at: until_at, check_claimed_at: nil, next_check_at: nil, updated_at: now
     )
     reload
     moved == 1

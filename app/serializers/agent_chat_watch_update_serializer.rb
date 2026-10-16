@@ -31,7 +31,7 @@ class AgentChatWatchUpdateSerializer < BaseSerializer
   # How it went, for the mark beside the line: a milestone, slow, done, failed, timed out or stopped.
   type Conversation::Watches::TONES.map(&:inspect).join(" | ")
   def tone
-    Conversation::Watches.said(update.watch, update).tone
+    Conversation::Watches.tone(update.watch, update)
   end
 
   type :string
