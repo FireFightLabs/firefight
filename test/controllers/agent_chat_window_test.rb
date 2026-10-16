@@ -159,7 +159,7 @@ class AgentChatWindowTest < ActionDispatch::IntegrationTest
   end
 
   def step_on(message, key)
-    message.ruby_llm_tool_calls.create!(tool_call_id: key, name: Mcp::Tools::SEARCH_INCIDENTS, arguments: { "query" => "checkout" })
+    message.ruby_llm_tool_calls.create!(tool_call_id: key, name: FirefightTools::SEARCH_INCIDENTS, arguments: { "query" => "checkout" })
   end
 
   # One of each thing the chat places by time or under a step, made at a time or under a step.

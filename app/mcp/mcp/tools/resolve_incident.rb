@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class ResolveIncident < Base
-      tool_name RESOLVE_INCIDENT
+      tool_name FirefightTools::RESOLVE_INCIDENT
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Resolve an incident, meaning the response is over and this was a real incident. " \
                   "Closing it is what makes a postmortem available. Call get_form with " \

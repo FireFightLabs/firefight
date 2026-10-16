@@ -52,10 +52,10 @@ module Slack
           },
           {
             type: "input",
-            block_id: "share_target_block",
+            block_id: Identifiers::SHARE_TARGET_BLOCK,
             element: {
               type: "multi_conversations_select",
-              action_id: "share_target_select",
+              action_id: Identifiers::SHARE_TARGET_SELECT,
               placeholder: {
                 type: "plain_text",
                 text: "Select channels or people"

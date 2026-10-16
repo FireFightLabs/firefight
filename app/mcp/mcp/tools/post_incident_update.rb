@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class PostIncidentUpdate < Base
-      tool_name POST_INCIDENT_UPDATE
+      tool_name FirefightTools::POST_INCIDENT_UPDATE
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Post an update on an incident: what you have found, what you are doing, and where " \
                   "the incident stands now. This is how you tell the responders in the channel what " \

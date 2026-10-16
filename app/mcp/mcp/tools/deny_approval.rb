@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class DenyApproval < Base
-      tool_name DENY_APPROVAL
+      tool_name FirefightTools::DENY_APPROVAL
       description "Deny a pending ability approval by id, as the connected human. Only " \
                   "personal tokens and OAuth connections can resolve approvals. Docs: #{Docs::MCP_SERVER}"
       annotations(**WRITE)

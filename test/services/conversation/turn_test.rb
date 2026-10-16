@@ -107,7 +107,7 @@ class Conversation::TurnTest < ActiveSupport::TestCase
   end
 
   def firefight_tool(turn, name)
-    tool_class = Mcp::Tools.all.find { |candidate| candidate.name_value == name }
+    tool_class = FirefightTools.all.find { |candidate| candidate.name_value == name }
     Chat::Tools::Firefight.new(turn, tool_class, action_for(tool_class))
   end
 

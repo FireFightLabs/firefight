@@ -21,7 +21,8 @@ module Integrations
     def self.refreshed(environment_row)
       environment_row.with_lock do
         current = environment_row.oauth
-        OauthClient.stale?(current) ? environment_row.rotate_oauth!(OauthClient.refresh(current)) : current
+        refreshed = OauthClient.stale?(current) && OauthClient.refresh(current, provider_key: environment_row.integration.provider)
+        refreshed ? environment_row.rotate_oauth!(refreshed) : current
       end
     rescue OauthClient::SignInEnded
       name = environment_row.integration.name

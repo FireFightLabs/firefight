@@ -31,7 +31,6 @@ module Integrations
       # another for some kinds of resource.
       def tool_for(key) = Array(self::TOOLS[key]).first
 
-      # Every tool a capability may run as.
       def tools_for(key) = Array(self::TOOLS[key])
 
       # Whether it can take what was asked. A platform takes everything its route does. An observability tool that

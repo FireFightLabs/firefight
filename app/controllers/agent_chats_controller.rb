@@ -104,7 +104,7 @@ class AgentChatsController < InertiaController
   MENTIONABLE = 20
   NOTHING_ASKED = "Say something first."
   SECRET_GONE = "That secret is no longer in this chat."
-  CHAT_DELETED = "Chat deleted."
+  CHAT_DELETED = "Chat was deleted."
 
   include ServesChatAttachment
   include PlatformText
@@ -286,7 +286,6 @@ class AgentChatsController < InertiaController
     redirect_to agent_chat_path(conversation), notice: %(Stopped watching "#{watch.title}".)
   end
 
-  # Schedule on a plan waiting for its time. It runs then, as whoever approved it, once a fresh reading says nothing moved.
   # Run now or Cancel on a workflow Halon made in this chat.
   def press_workflow
     workflow = chat_workflows.find_by(id: params[:workflow_id])
@@ -296,6 +295,7 @@ class AgentChatsController < InertiaController
     redirect_to agent_chat_path(conversation), (result.ok ? :notice : :alert) => result.words
   end
 
+  # Schedule on a plan waiting for its time. It runs then, as whoever approved it, once a fresh reading says nothing moved.
   def schedule_plan
     decide_plan { |plan| [ Conversation::Plans.approve!(plan, by: current_membership), "Plan scheduled for #{plan.reload.run_at_words}." ] }
   end
@@ -341,7 +341,7 @@ class AgentChatsController < InertiaController
     send_data copy.text, filename: copy.filename, type: "text/plain", disposition: "attachment"
   end
 
-  # Fix it on a pull request Halon opened from this chat: the code change runs on its branch as whoever asked for it.
+  # Fix it on a pull request Halon opened from this chat. The code change runs on its branch as whoever asked for it.
   def fix_pull_request
     notice = conversation.pull_request_notices.find_by(id: params[:notice_id])
     return redirect_to(agent_chat_path(conversation), alert: "That pull request is no longer in this chat.") unless notice
@@ -575,21 +575,21 @@ class AgentChatsController < InertiaController
     return redirect_back_or_to(agent_chat_path(conversation), alert: "A chat needs a name.") if title.blank?
 
     conversation.rename!(title)
-    redirect_back_or_to agent_chat_path(conversation), notice: "Chat renamed."
+    redirect_back_or_to agent_chat_path(conversation), notice: "Chat was renamed."
   end
 
   def pin
     pinned = ActiveModel::Type::Boolean.new.cast(params[:pinned])
     conversation.pin!(pinned)
 
-    redirect_back_or_to agent_chat_path(conversation), notice: pinned ? "Chat pinned." : "Chat unpinned."
+    redirect_back_or_to agent_chat_path(conversation), notice: pinned ? "Chat was pinned." : "Chat was unpinned."
   end
 
   def archive
     archived = ActiveModel::Type::Boolean.new.cast(params[:archived])
     conversation.archive!(archived)
 
-    redirect_back_or_to agent_chat_path(conversation), notice: archived ? "Chat archived." : "Chat back in the list."
+    redirect_back_or_to agent_chat_path(conversation), notice: archived ? "Chat was archived." : "Chat was restored."
   end
 
   # The list already read the open chat when it is on the page shown, with its chat and previews, so it is not read twice.

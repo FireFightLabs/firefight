@@ -17,7 +17,7 @@ class Operator::WorkspacesTest < ActionDispatch::IntegrationTest
 
     get operator_workspace_path(@workspace)
     assert_response :not_found
-    post sandbox_operator_workspace_path(@workspace), params: { placement: SandboxProviders::NORTHFLANK }
+    post sandbox_operator_workspace_path(@workspace), params: { placement: Integrations::Sandboxes::Northflank::KEY }
     assert_response :not_found
     assert_nil @workspace.reload.sandbox_provider
   end
@@ -25,8 +25,8 @@ class Operator::WorkspacesTest < ActionDispatch::IntegrationTest
   test "an operator holds a workspace to one provider and lets it follow the deployment again, each with a toast" do
     as_operator
 
-    post sandbox_operator_workspace_path(@workspace), params: { placement: SandboxProviders::NORTHFLANK }
-    assert_equal SandboxProviders::NORTHFLANK, @workspace.reload.sandbox_provider
+    post sandbox_operator_workspace_path(@workspace), params: { placement: Integrations::Sandboxes::Northflank::KEY }
+    assert_equal Integrations::Sandboxes::Northflank::KEY, @workspace.reload.sandbox_provider
     assert_equal "#{@workspace.name}'s code sandboxes now run only on Northflank.", flash[:notice]
 
     post sandbox_operator_workspace_path(@workspace), params: { placement: Operator::WorkspaceSandbox::FOLLOW_DEPLOYMENT }
@@ -43,9 +43,9 @@ class Operator::WorkspacesTest < ActionDispatch::IntegrationTest
     session = CodeAgentSession.create!(workspace: @workspace, provider: "anthropic", model: "claude", repository: "acme/api", budget_micros: 2_000_000,
                                        spent_micros: 420_000, expires_at: 30.minutes.from_now, token_digest: "digest-1", box_key: "investigation-9",
                                        created_at: 20.minutes.ago)
-    CodeBox.create!(workspace: @workspace, key: "investigation-9", provider: SandboxProviders::NORTHFLANK, box_ref: "box-1", address: "http://box",
+    CodeBox.create!(workspace: @workspace, key: "investigation-9", provider: Integrations::Sandboxes::Northflank::KEY, box_ref: "box-1", address: "http://box",
                     secret: "k", last_used_at: Time.current, created_at: 25.minutes.ago, box_started_at: 25.minutes.ago, stopped_at: 5.minutes.ago,
-                    running_seconds: 1_200, size: "nf-compute-400", hourly_micros: 133_000, failed_over_from: SandboxProviders::BOAT,
+                    running_seconds: 1_200, size: "nf-compute-400", hourly_micros: 133_000, failed_over_from: Integrations::Sandboxes::Boat::KEY,
                     failover_reason: "boat.dev answered 503: No machine of this type is ready. (no_ready_machine)")
 
     get operator_workspace_path(@workspace), headers: inertia_headers
@@ -63,7 +63,7 @@ class Operator::WorkspacesTest < ActionDispatch::IntegrationTest
 
   test "workspaces are listed with where their boxes run and what they cost" do
     as_operator
-    @workspace.update!(sandbox_provider: SandboxProviders::NORTHFLANK)
+    @workspace.update!(sandbox_provider: Integrations::Sandboxes::Northflank::KEY)
 
     get operator_workspaces_path, headers: inertia_headers
 

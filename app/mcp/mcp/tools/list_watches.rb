@@ -2,7 +2,7 @@ module Mcp
   module Tools
     # The watches Halon keeps for whoever this key belongs to, started from ask_halon or anywhere else they asked.
     class ListWatches < Base
-      tool_name LIST_WATCHES
+      tool_name FirefightTools::LIST_WATCHES
       authorize_as Ability::Action::RESOURCE_INVESTIGATIONS
       description "List the watches Halon keeps for you: what each follows, its time limit and why, each step as it " \
                   "stands, everything it said, and how it ended. Ask Halon (ask_halon) to be told when something finishes " \

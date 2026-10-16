@@ -181,7 +181,7 @@ class SetupChecklistTest < ApplicationSystemTestCase
     find("label", text: "Use Firefight credits").click
 
     assert_text "$0.00 left"
-    assert_text "Each call costs the model's list price plus 20%."
+    assert_no_text "list price"
     assert_text "Packs are charged with tax added on top."
     assert_no_text "Includes"
     assert_no_link "Buy credits"
@@ -228,7 +228,7 @@ class SetupChecklistTest < ApplicationSystemTestCase
 
     assert_text "$10.00 left"
     assert_text "Includes $10 to get started. Buy more any time."
-    assert_text "Each call costs the model's list price plus 20%."
+    assert_no_text "list price"
     assert_text "As a rough guide, $10 is about 90 questions to Halon."
     assert_text "Buy more"
     %w[$25 $50 $100 $250].each { |price| assert_button "Buy #{price}" }

@@ -25,6 +25,7 @@ class IntegrationEnvironment < ApplicationRecord
 
   validates :health_status, inclusion: { in: HEALTH_STATUSES }
   validates :catalog_entry_id, uniqueness: { scope: :integration_id }
+  validate :environment_in_same_workspace
 
   # The resources it reports are found by the environment it is wired to.
   after_update_commit :index_reported_resources, if: :saved_change_to_catalog_entry_id?
@@ -41,6 +42,23 @@ class IntegrationEnvironment < ApplicationRecord
     enabled.where(installation_state: nil).joins(:integration).left_joins(:environment).where(integrations: { disabled_at: nil, deleted_at: nil })
            .merge(where(catalog_entry_id: nil).or(where(catalog_entries: { deleted_at: nil })))
   }
+
+  scope :installed_through, ->(installation) {
+    where("integration_environments.base_config ->> :key = :installation", key: INSTALLATION_KEY, installation: installation.to_s)
+  }
+
+  # Rows whose webhook for map changes or for issues lapses within the given time.
+  scope :map_events_webhook_due, ->(within) { where.not(map_events_webhook_id: nil).where(map_events_expires_at: ..within.from_now) }
+  scope :issue_webhook_due, ->(within) { where.not(issue_webhook_id: nil).where(issue_webhook_expires_at: ..within.from_now) }
+
+  # Adds a gap the map could not read, once, in one statement, so two workers each adding one keep both.
+  def add_map_gap!(gap)
+    added = [ gap ].to_json
+    self.class.where(id: id).where.not("map_gaps @> ?::jsonb", added)
+        .update_all([ "map_gaps = map_gaps || ?::jsonb, updated_at = ?", added, Time.current ])
+    self.map_gaps = self.class.where(id: id).pick(:map_gaps)
+    clear_attribute_changes([ :map_gaps ])
+  end
 
   # What the gateway checks a call through this row against, its environment when it has one.
   def ability_scope = catalog_entry_id ? { Ability::Scope::DIMENSION_ENVIRONMENT => catalog_entry_id } : {}
@@ -145,6 +163,12 @@ class IntegrationEnvironment < ApplicationRecord
   end
 
   private
+
+  def environment_in_same_workspace
+    return if environment.nil? || integration.nil? || environment.workspace_id == integration.workspace_id
+
+    errors.add(:environment, "is not an environment of this workspace")
+  end
 
   # Found again, since a connection removed with its rows has no tools left to count.
   def recount_tool_definitions = Integration.find_by(id: integration_id)&.recount_tool_definitions!

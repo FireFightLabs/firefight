@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class ListAgents < Base
-      tool_name LIST_AGENTS
+      tool_name FirefightTools::LIST_AGENTS
       description "Every agent in this workspace, with how many live tokens and granted abilities " \
                   "each holds, and the prefix of each token so one can be revoked by name. An " \
                   "agent with no live token cannot act, and one with no abilities can authenticate " \

@@ -64,7 +64,7 @@ module Integrations
 
         assert_equal 5, boxes.map(&:ref).uniq.size
         assert_equal 1, saved.size
-        claim = SandboxImageCopy.find_by!(provider: SandboxProviders::BOAT, name: image_copy_name)
+        claim = SandboxImageCopy.find_by!(provider: Integrations::Sandboxes::Boat::KEY, name: image_copy_name)
         assert_equal [ SandboxImageCopy::STATUS_SAVING, saved.pop ], [ claim.status, claim.claimed_by ]
       end
 
@@ -90,7 +90,7 @@ module Integrations
 
         2.times { @boat.prepare_image! }
 
-        assert_match(/\Aprepare-/, SandboxImageCopy.find_by!(provider: SandboxProviders::BOAT, name: image_copy_name).claimed_by)
+        assert_match(/\Aprepare-/, SandboxImageCopy.find_by!(provider: Integrations::Sandboxes::Boat::KEY, name: image_copy_name).claimed_by)
       end
 
       test "a copy boat already has, or is saving, is not prepared again, and a prepare that fails lets the claim go" do
@@ -109,7 +109,7 @@ module Integrations
 
         @boat.prepare_image!
 
-        assert_equal SandboxImageCopy::STATUS_FAILED, SandboxImageCopy.find_by!(provider: SandboxProviders::BOAT, name: image_copy_name).status
+        assert_equal SandboxImageCopy::STATUS_FAILED, SandboxImageCopy.find_by!(provider: Integrations::Sandboxes::Boat::KEY, name: image_copy_name).status
       end
 
       test "a refused save leaves the box running, is logged, and lets a later box claim the save again" do
@@ -122,7 +122,7 @@ module Integrations
         Rails.logger.expects(:warn).with { |line| line.include?("code_box.image_copy_failed") && line.include?("save_in_progress") }
 
         assert_equal "bx_first", @boat.start(name: "halon-box-1").ref
-        assert_equal SandboxImageCopy::STATUS_FAILED, SandboxImageCopy.find_by!(provider: SandboxProviders::BOAT, name: image_copy_name).status
+        assert_equal SandboxImageCopy::STATUS_FAILED, SandboxImageCopy.find_by!(provider: Integrations::Sandboxes::Boat::KEY, name: image_copy_name).status
 
         @api.expects(:save_snapshot).with("bx_later", image_copy_name).returns({ "status" => "saving" })
         @boat.start(name: "halon-box-2")
@@ -131,7 +131,7 @@ module Integrations
       test "a claim held by a box still saving is left to it, and one abandoned is taken over" do
         no_copy!
         @api.stubs(:create).returns({ "sandbox" => { "id" => "bx_new" } })
-        claim = SandboxImageCopy.create!(provider: SandboxProviders::BOAT, name: image_copy_name, status: SandboxImageCopy::STATUS_SAVING,
+        claim = SandboxImageCopy.create!(provider: Integrations::Sandboxes::Boat::KEY, name: image_copy_name, status: SandboxImageCopy::STATUS_SAVING,
                                          claimed_by: "bx_other", claimed_at: 1.minute.ago)
         @api.expects(:save_snapshot).never
         @boat.start(name: "halon-box-1")
@@ -146,10 +146,10 @@ module Integrations
       test "a copy boat has ready is marked ready, and claimed again once boat no longer holds it" do
         @api.stubs(:snapshot).returns({ "name" => image_copy_name, "status" => "ready" })
         @api.stubs(:create).returns({ "sandbox" => { "id" => "bx_23456789" } })
-        SandboxImageCopy.create!(provider: SandboxProviders::BOAT, name: image_copy_name, status: SandboxImageCopy::STATUS_SAVING,
+        SandboxImageCopy.create!(provider: Integrations::Sandboxes::Boat::KEY, name: image_copy_name, status: SandboxImageCopy::STATUS_SAVING,
                                  claimed_by: "bx_other", claimed_at: 1.minute.ago)
         @boat.start(name: "halon-box-1")
-        assert_equal SandboxImageCopy::STATUS_READY, SandboxImageCopy.find_by!(provider: SandboxProviders::BOAT, name: image_copy_name).status
+        assert_equal SandboxImageCopy::STATUS_READY, SandboxImageCopy.find_by!(provider: Integrations::Sandboxes::Boat::KEY, name: image_copy_name).status
 
         no_copy!
         @api.expects(:save_snapshot).with("bx_23456789", image_copy_name).returns({ "status" => "saving" })
@@ -213,12 +213,12 @@ module Integrations
         @api.expects(:delete_snapshot).with("halon-kept-lost").once
         @api.expects(:delete_snapshot).with("halon-image-0000000000000000").once
 
-        SandboxImageCopy.create!(provider: SandboxProviders::BOAT, name: "halon-image-0000000000000000", status: SandboxImageCopy::STATUS_READY)
-        SandboxImageCopy.create!(provider: SandboxProviders::BOAT, name: image_copy_name, status: SandboxImageCopy::STATUS_READY)
+        SandboxImageCopy.create!(provider: Integrations::Sandboxes::Boat::KEY, name: "halon-image-0000000000000000", status: SandboxImageCopy::STATUS_READY)
+        SandboxImageCopy.create!(provider: Integrations::Sandboxes::Boat::KEY, name: image_copy_name, status: SandboxImageCopy::STATUS_READY)
 
         @boat.tidy(kept_refs: Set["halon-kept-known"])
 
-        assert_equal [ image_copy_name ], SandboxImageCopy.where(provider: SandboxProviders::BOAT).pluck(:name), "only the claim on the image run now is kept"
+        assert_equal [ image_copy_name ], SandboxImageCopy.where(provider: Integrations::Sandboxes::Boat::KEY).pluck(:name), "only the claim on the image run now is kept"
       end
 
       test "only running boxes named like a box are listed, so the sweep never touches the account's own" do

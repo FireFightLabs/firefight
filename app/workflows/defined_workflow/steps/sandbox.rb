@@ -21,7 +21,7 @@ class DefinedWorkflow::Steps::Sandbox < DefinedWorkflow::Steps::Base
   NO_ADDRESS = Chat::Terminal::NO_ADDRESS
 
   class << self
-    # A command that says it changes something is a change: its step needs its undo and a check after it, a test run
+    # A command that says it changes something is a change. Its step needs its undo and a check after it, a test run
     # only shows it, and the check that it is still needed in a run nobody pressed, approval rules and freeze windows
     # apply.
     def changes?(config, _workspace) = ActiveModel::Type::Boolean.new.cast(config[KEY_CHANGES]) == true

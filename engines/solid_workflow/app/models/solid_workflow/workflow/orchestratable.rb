@@ -95,12 +95,12 @@ module SolidWorkflow
       def update_workflow_state(all_steps)
         reload
 
-        if all_steps.all? { |s| s.succeeded? || s.skipped? || s.bypassed? || s.failure_tolerated? }
+        if all_steps.all? { |step| step.succeeded? || step.skipped? || step.bypassed? || step.failure_tolerated? }
           if transition!(:succeeded, from: %i[pending running waiting], result: workflow_klass.result_of(self))
             record_event(SolidWorkflow::Events::Workflow::SUCCEEDED)
           end
 
-        elsif all_steps.any? { |s| s.failed? && !s.failure_tolerated? }
+        elsif all_steps.any? { |step| step.failed? && !step.failure_tolerated? }
           if transition!(:failed, from: %i[pending running waiting])
             SolidWorkflow::Step.where(workflow_id: id, status: %i[pending waiting]).update_all(
               status: :cancelled,

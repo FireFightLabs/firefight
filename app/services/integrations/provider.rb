@@ -78,7 +78,6 @@ module Integrations
       key.match?(KEY_FORMAT) && Providers.const_defined?(name, false) ? Providers.const_get(name, false) : new(key: key)
     end
 
-    # Every provider in the registry, as its definition.
     def self.all = IntegrationProvider.all.map { |entry| self.for(entry.key) }
   end
 end

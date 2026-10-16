@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class UpsertAgent < Base
-      tool_name UPSERT_AGENT
+      tool_name FirefightTools::UPSERT_AGENT
       description "Create or change an agent, which is an AI that takes part in incidents under " \
                   "its own name. Pass slug to change an existing one, or leave it out to create. " \
                   "Creating one returns its token once and never again, so hand it over " \

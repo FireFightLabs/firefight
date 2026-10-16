@@ -16,7 +16,7 @@ class WorkflowsControllerTest < ActionDispatch::IntegrationTest
   def drafted(name = "Look around", by: @bob)
     workflow = Workflow.create!(workspace: @workspace, name: name, created_by: by)
     workflow.open_draft!(by: by).update!(steps: [ { "id" => "look", "name" => "look", "kind" => "call_tool",
-                                                    "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => {} } } ],
+                                                    "config" => { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => {} } } ],
                                          trigger: { "kind" => "manual", "inputs" => [ { "key" => "query", "question" => "What to look for?", "default" => "db" } ] })
     workflow
   end

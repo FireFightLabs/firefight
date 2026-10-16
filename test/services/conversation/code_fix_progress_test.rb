@@ -5,7 +5,7 @@ require "test_helper"
 class Conversation::CodeFixProgressTest < ActiveSupport::TestCase
   include ActionCable::TestHelper
 
-  # Stands in for the engine: the call is saved, reported running, works through the turn's listener, then ends.
+  # Stands in for the engine. The call is saved, reported running, works through the turn's listener, then ends.
   class FakeResponder
     def initialize(chat, during)
       @chat = chat

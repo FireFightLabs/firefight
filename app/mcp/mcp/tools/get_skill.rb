@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class GetSkill < Base
-      tool_name GET_SKILL
+      tool_name FirefightTools::GET_SKILL
       authorize_as Ability::Action::RESOURCE_SKILLS
       description "Read one of this workspace's skills whole, by its name or id: when Halon uses it, the tools it names, its " \
                   "steps, whether it is on, and version_id, which upsert_skill takes to refuse a change made over someone " \

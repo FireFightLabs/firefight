@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class RenameActionItem < Base
-      tool_name RENAME_ACTION_ITEM
+      tool_name FirefightTools::RENAME_ACTION_ITEM
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Change what a piece of work says needs doing. Its channel message shows the new title, and its issue " \
                   "takes it when the item is kept in step with one. Get the item's id from get_incident. If the call " \

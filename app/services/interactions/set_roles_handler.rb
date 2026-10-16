@@ -29,12 +29,12 @@ module Interactions
           platform_user_id: selected_user_id,
           adapter: workspace.adapter
         )
-        return provision_error(Identifiers.role_block_id(role)) unless member
+        return provision_error(workspace, Identifiers.role_block_id(role)) unless member
 
         assignments[role] = member
       end
 
-      return { response_action: "errors", errors: errors } if errors.any?
+      return workspace.adapter.modal_errors_response(errors) if errors.any?
 
       IncidentLifecycleService.new(workspace).assign_roles(incident, assignments, changed_by: acting_member)
 
@@ -42,10 +42,12 @@ module Interactions
     end
 
     def self.submitted_selections(interaction)
-      interaction.values.each_with_object({}) do |(block_id, actions), selections|
+      adapter = interaction.workspace.adapter
+      interaction.values.each_key.with_object({}) do |block_id, selections|
         next unless block_id.start_with?(Identifiers::ROLE_BLOCK_PREFIX)
 
-        selections[Identifiers.role_id_from_block(block_id)] = actions.dig(Identifiers::ROLE_SELECT, "selected_user")
+        selections[Identifiers.role_id_from_block(block_id)] =
+          adapter.submitted_value(values: interaction.values, block_id: block_id, input_id: Identifiers::ROLE_SELECT, kind: PlatformAdapter::Input::USER)
       end
     end
     private_class_method :submitted_selections
@@ -56,8 +58,8 @@ module Interactions
     end
     private_class_method :clearing_blocked?
 
-    def self.provision_error(block_id)
-      { response_action: "errors", errors: { block_id => "Couldn't load that user's profile from Slack. Please try again in a moment." } }
+    def self.provision_error(workspace, block_id)
+      workspace.adapter.modal_errors_response({ block_id => "Couldn't load that user's profile from Slack. Please try again in a moment." })
     end
     private_class_method :provision_error
   end

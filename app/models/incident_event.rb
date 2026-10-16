@@ -328,6 +328,21 @@ class IncidentEvent < ApplicationRecord
     FixStep.new(title: meta["step_title"].to_s, result: meta["result"].presence, link: fix_link(meta))
   end
 
+  InvestigationAnswer = Data.define(:headline, :sureness, :what_is_wrong, :suggested_fix, :full)
+
+  # The short answer an investigation_answered event noted, or the finding's own when it is handed in, since an answer
+  # noted before the short one was kept still has one. nil for any other event or an answer with no headline.
+  def investigation_answer(finding = nil)
+    return nil unless event_type == INVESTIGATION_ANSWERED
+
+    meta = metadata.to_h
+    short = finding ? Investigation::Timeline.short_answer(finding).stringify_keys : meta
+    return nil if short["headline"].blank?
+
+    InvestigationAnswer.new(headline: short["headline"], sureness: short["sureness"], what_is_wrong: short["what_is_wrong"],
+                            suggested_fix: short["suggested_fix"], full: finding&.summary || meta["message"])
+  end
+
   QUOTING_EVENTS = [ MILESTONE_NOTED, MESSAGE_PINNED, MESSAGE_UNPINNED ].freeze
 
   # A chat message the event quotes, as the platform wrote it.

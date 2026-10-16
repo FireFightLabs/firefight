@@ -26,7 +26,7 @@ class WorkflowsQueriesTest < ActionDispatch::IntegrationTest
     count.times do
       workflow = Workflow.create!(workspace: @workspace, name: "Look around #{SecureRandom.hex(3)}", created_by: @alice)
       workflow.open_draft!(by: @alice).update!(steps: [ { "id" => "look", "name" => "look", "kind" => "call_tool",
-                                                          "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => {} } } ],
+                                                          "config" => { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => {} } } ],
                                                trigger: { "kind" => "manual" })
       WorkflowPublishService.new(workflow).publish!(workflow.draft, by: @alice)
       runs.times { WorkflowRunService.new(workflow.reload).start!(started_by_kind: Workflow::Run::STARTED_BY_PERSON, started_by: @alice) }

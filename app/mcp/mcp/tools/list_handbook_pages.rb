@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class ListHandbookPages < Base
-      tool_name LIST_HANDBOOK_PAGES
+      tool_name FirefightTools::LIST_HANDBOOK_PAGES
       authorize_as Ability::Action::RESOURCE_HANDBOOK
       description "List this workspace's handbook pages in order: how the workspace works as its people wrote it, such as how " \
                   "it releases, who owns what and when changes are frozen. Each page has its id, title, kind (written, " \

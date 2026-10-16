@@ -54,7 +54,7 @@ class Mcp::Tools::UpdateProtectedPathsTest < ActiveSupport::TestCase
     assert Mcp::Tools::UpdateProtectedPaths.annotations_value.destructive_hint
     action = Ability::Action.find_by!(key: "integrations.update")
     conversation = @workspace.conversations.create!(kind: Conversation::KIND_PERSONAL, started_by: @admin, max_turns: 10, max_spend_cents: 40)
-    assert Conversation::Turn.new(conversation, asker: @admin).confirms?(action, tool_name: Mcp::Tools::UPDATE_PROTECTED_PATHS, declared_destructive: true)
+    assert Conversation::Turn.new(conversation, asker: @admin).confirms?(action, tool_name: FirefightTools::UPDATE_PROTECTED_PATHS, declared_destructive: true)
   end
 
   test "list_integrations shows each code host connection's paths" do

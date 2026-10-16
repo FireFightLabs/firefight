@@ -1,6 +1,6 @@
 # What a version's steps are, as their kinds say (DefinedWorkflow::Steps): what each must hold to be published, which of
 # them change something, and what the workflow's own identity needs granted to run them all. A change carries its undo
-# and ends with a check, as a plan's does: some step that reads runs after it, such as reading the resource's status,
+# and ends with a check, as a plan's does, so some step that reads runs after it, such as reading the resource's status,
 # watching it or asking Halon whether it held.
 module Workflow::Version::Steps
   extend ActiveSupport::Concern

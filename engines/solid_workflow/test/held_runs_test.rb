@@ -1,6 +1,6 @@
 require_relative "test_helper"
 
-# A host can hold a run back, such as one whose record is gone. A held run keeps its place: nothing is
+# A host can hold a run back, such as one whose record is gone. A held run keeps its place. Nothing is
 # claimed, enqueued, woken or swept, and it carries on once let.
 class SolidWorkflow::HeldRunsTest < ActiveSupport::TestCase
   include DefinedWorkflowTestHelper

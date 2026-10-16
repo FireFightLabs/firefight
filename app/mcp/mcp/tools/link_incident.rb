@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class LinkIncident < Base
-      tool_name LINK_INCIDENT
+      tool_name FirefightTools::LINK_INCIDENT
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Connect two incidents. relationship \"related\" records the link on both " \
                   "timelines and changes nothing else. relationship \"duplicate\" also cancels " \

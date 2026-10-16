@@ -17,7 +17,7 @@ class DefinedWorkflowIncidentStepsTest < ActiveSupport::TestCase
   def edge(from, to, route = nil) = { "from" => from, "to" => to, "route" => route }.compact
 
   # The read a change ends with.
-  def check = step("check", "call_tool", { "tool" => Mcp::Tools::GET_INCIDENT, "arguments" => { "incident" => "INC-001" } })
+  def check = step("check", "call_tool", { "tool" => FirefightTools::GET_INCIDENT, "arguments" => { "incident" => "INC-001" } })
 
   def published(name, steps:, edges: [])
     workflow = Workflow.create!(workspace: @workspace, name: name, created_by: @alice)
@@ -141,7 +141,7 @@ class DefinedWorkflowIncidentStepsTest < ActiveSupport::TestCase
   end
 
   test "status page update only calls a tool of a connected status page that changes something" do
-    problems = DefinedWorkflow::Steps::StatusPageUpdate.problems(step("page", "status_page_update", { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "undo" => "x" }), @workspace)
+    problems = DefinedWorkflow::Steps::StatusPageUpdate.problems(step("page", "status_page_update", { "tool" => FirefightTools::SEARCH_INCIDENTS, "undo" => "x" }), @workspace)
 
     assert_includes problems, "page calls search_incidents, which is not a tool of a connected status page that changes something."
   end

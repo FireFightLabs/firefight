@@ -1,6 +1,6 @@
 require "application_system_test_case"
 
-# A runbook is a guide: its editor links the workflow Run it starts instead of building
+# A runbook is a guide. Its editor links the workflow Run it starts instead of building
 # steps that run, its page shows that workflow with Run it, and so does an incident it is attached to.
 class RunbookWorkflowTest < ApplicationSystemTestCase
   setup do

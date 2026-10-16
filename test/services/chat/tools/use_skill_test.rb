@@ -127,7 +127,7 @@ class Chat::Tools::UseSkillTest < ActiveSupport::TestCase
     answer = Chat::Tools::UseSkill.new(turn, offer: ->(tools) { @offered << tools }).call("skill" => "cloudflare_dns")
 
     assert answer.start_with?("Start from the zone on the resource map. `get_resource_map`")
-    assert_includes @offered.flatten.map(&:name), Mcp::Tools::GET_RESOURCE_MAP
+    assert_includes @offered.flatten.map(&:name), FirefightTools::GET_RESOURCE_MAP
   end
 
   test "a run holds use_skill and reads a provider's skill and guides as the investigator, offering only what it was granted" do

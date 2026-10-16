@@ -21,8 +21,8 @@ class Investigation::RemediationStepOutcomeTest < ActiveSupport::TestCase
   end
 
   test "a step is Firefight's own tool only when it was written as one, never by a connection's tool sharing its name" do
-    assert_not Investigation::RemediationStep.new(kind: Investigation::RemediationStep::KIND_ACTION, tool_name: Mcp::Tools::INVITE_RESPONDERS).firefight_tool?
-    assert Investigation::RemediationStep.new(kind: Investigation::RemediationStep::KIND_ACTION, tool_name: Mcp::Tools::INVITE_RESPONDERS, firefight_tool: true).firefight_tool?
+    assert_not Investigation::RemediationStep.new(kind: Investigation::RemediationStep::KIND_ACTION, tool_name: FirefightTools::INVITE_RESPONDERS).firefight_tool?
+    assert Investigation::RemediationStep.new(kind: Investigation::RemediationStep::KIND_ACTION, tool_name: FirefightTools::INVITE_RESPONDERS, firefight_tool: true).firefight_tool?
   end
 
   test "a step's line says what it produced or why it was already done" do

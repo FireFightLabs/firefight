@@ -67,6 +67,7 @@ class Chat::Plan < ApplicationRecord
   validates :state_change, inclusion: { in: Chat::CurrentState::CHANGES }, allow_nil: true
 
   scope :open, -> { where(status: OPEN) }
+  scope :run_due, ->(now = Time.current) { where(status: STATUS_SCHEDULED, run_at: ..now) }
 
   # Where its card sits in a chat, where it last moved (AgentChatPlanSerializer#at).
   def self.placed_at = arel_table[:moved_at]

@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class UpsertSkill < Base
-      tool_name UPSERT_SKILL
+      tool_name FirefightTools::UPSERT_SKILL
       description "Add one of this workspace's own skills, or change one by its name or id. Halon loads a skill when a " \
                   "question fits, and the tools it names become callable as far as the asker may use them. To change a skill, " \
                   "pass skill and only what changes, with version_id from get_skill so a change made over someone else's is " \

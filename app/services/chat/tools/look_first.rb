@@ -51,7 +51,7 @@ module Chat::Tools::LookFirst
   def self.firefight_change?(name)
     named = name.to_s
     Integrations::Capabilities::SPECS.values.any? { |spec| spec.writes && spec.tool_name == named } ||
-      Mcp::Tools.all.any? { |tool_class| tool_class.ends_something? && tool_class.name_value.to_s == named }
+      FirefightTools.all.any? { |tool_class| tool_class.ends_something? && tool_class.name_value.to_s == named }
   end
 
   def self.named(given) = Array(given.to_h.stringify_keys[BECAUSE]).map { |entry| entry.to_s.strip }.reject(&:empty?)

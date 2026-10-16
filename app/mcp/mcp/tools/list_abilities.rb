@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class ListAbilities < Base
-      tool_name LIST_ABILITIES
+      tool_name FirefightTools::LIST_ABILITIES
       description "Every ability that can be granted in this workspace: Firefight's own settings " \
                   "plus the capabilities enabled on connected tools, with risk level and whether an " \
                   "approval rule can hold it. Use the key with grant_ability and upsert_approval_rule. " \

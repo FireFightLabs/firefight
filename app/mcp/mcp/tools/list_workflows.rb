@@ -2,7 +2,7 @@ module Mcp
   module Tools
     # The workspace's workflows, the same list Halon reads in a chat.
     class ListWorkflows < Base
-      tool_name LIST_WORKFLOWS
+      tool_name FirefightTools::LIST_WORKFLOWS
       authorize_as Ability::Action::RESOURCE_WORKFLOWS
       description "List the workspace's workflows: each one's name and other names, what starts it (by hand, on a schedule or once at a " \
                   "time), whether it is live, when it runs next, how its last run went, its steps and the inputs a run asks. " \

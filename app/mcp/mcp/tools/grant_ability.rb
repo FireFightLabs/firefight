@@ -3,7 +3,7 @@ module Mcp
     class GrantAbility < Base
       extend GatewayPayloads
 
-      tool_name GRANT_ABILITY
+      tool_name FirefightTools::GRANT_ABILITY
       description "Grant one ability or one permission set to a person, agent or service key, " \
                   "optionally limited to environments and with an expiry. Granting the same " \
                   "target again replaces its environments and expiry. Find principals with " \

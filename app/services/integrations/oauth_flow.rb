@@ -8,7 +8,8 @@ module Integrations
       endpoints = provider.region(region).to_h.slice(:authorization_endpoint, :token_endpoint).compact
       OauthClient.begin_flow(
         server_url: server_url, redirect_uri: redirect_uri,
-        client_id: IntegrationProvider.oauth_client(provider.key)[:client_id], endpoints: endpoints, scopes: provider.oauth_scopes
+        client_id: IntegrationProvider.oauth_client(provider.key)[:client_id], endpoints: endpoints, scopes: provider.oauth_scopes,
+        provider_key: provider.key
       )
     end
 
@@ -26,7 +27,7 @@ module Integrations
       OauthClient.exchange(
         token_endpoint: pending["token_endpoint"], code: code, verifier: pending["verifier"], client_id: pending["client_id"],
         client_secret: IntegrationProvider.app_client(provider.key)[:client_secret], redirect_uri: redirect_uri, resource: nil,
-        json: provider.app.json_token?
+        json: provider.app.json_token?, provider_key: provider.key
       )
     end
 
@@ -35,7 +36,7 @@ module Integrations
         token_endpoint: pending["token_endpoint"], code: code,
         verifier: pending["verifier"], client_id: pending["client_id"],
         client_secret: IntegrationProvider.oauth_client(provider.key)[:client_secret],
-        redirect_uri: redirect_uri, resource: pending["server_url"].presence || provider.server_url
+        redirect_uri: redirect_uri, resource: pending["server_url"].presence || provider.server_url, provider_key: provider.key
       )
     end
   end

@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class UpsertUnattendedRule < Base
-      tool_name UPSERT_UNATTENDED_RULE
+      tool_name FirefightTools::UPSERT_UNATTENDED_RULE
       description "Create or update an unattended rule, a change Halon may make on its own when an alert started its " \
                   "investigation, its fix proposes exactly that change and a fresh reading of the metric is above the threshold. " \
                   "The rule grants nothing, Halon also needs a grant of the tool the change runs through. Pass id to update, and " \

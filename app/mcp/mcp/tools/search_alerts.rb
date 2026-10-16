@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class SearchAlerts < Base
-      tool_name SEARCH_ALERTS
+      tool_name FirefightTools::SEARCH_ALERTS
       authorize_as Ability::Action::RESOURCE_ALERTS
       description "Search this workspace's ingested alerts: what fired, how each routed " \
                   "(routed/unmatched/pending/failed), which rule matched, and the incident it " \

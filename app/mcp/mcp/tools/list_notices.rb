@@ -3,7 +3,7 @@ module Mcp
     # What Halon raised on its own, from the checks it runs on a schedule and the security events that start it, newest
     # first, with when it was said and why one is still waiting to be said.
     class ListNotices < Base
-      tool_name LIST_NOTICES
+      tool_name FirefightTools::LIST_NOTICES
       authorize_as Ability::Action::RESOURCE_MONITORING
       description "List the problems Halon raised on its own, from scheduled checks (disk space, certificates, error budget, " \
                   "cost) and security events such as a leaked secret, newest first: what each is about, how urgent, the day it " \

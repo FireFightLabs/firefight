@@ -31,7 +31,7 @@ module Slack
             {
               type: "input",
               dispatch_action: true,
-              block_id: "action_select_block",
+              block_id: Identifiers::HOME_ACTION_SELECT_BLOCK,
               element: {
                 type: "static_select",
                 action_id: Identifiers::HOME_ACTION_SELECT,

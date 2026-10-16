@@ -1,6 +1,6 @@
 # Publishing a workflow, and a member asking an admin to. Publishing makes the draft live, grants the workflow's own
 # identity exactly what its steps need (as the admin publishing), and sets when it runs next. The caller authorized it
-# as workflows.update, and permissions.create when anything is to be granted. A member asks instead: every admin gets a
+# as workflows.update, and permissions.create when anything is to be granted. A member asks instead, and every admin gets a
 # direct message with Publish, at most once a day for the same member and workflow, and the Workflows page lists what
 # waits. However it is published, each request for it is settled and its member told.
 class WorkflowPublishService

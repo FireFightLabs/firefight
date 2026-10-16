@@ -1,4 +1,4 @@
-# A change made on a page stays on it: the page is never visited whole, and what the change reads back is only the props
+# A change made on a page stays on it. The page is never visited whole, and what the change reads back is only the props
 # it named. watch_page marks the page and records each request Inertia sends with the props it asks for, and
 # assert_stayed_in_place checks the mark survived and every change sent since asked for exactly those props.
 module InPlaceHelper

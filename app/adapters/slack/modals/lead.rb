@@ -4,7 +4,7 @@ module Slack
       def self.build(incident)
         element = {
           type: "users_select",
-          action_id: "lead_select",
+          action_id: Identifiers::LEAD_SELECT,
           placeholder: { type: "plain_text", text: "Select a person" }
         }
         element[:initial_user] = incident.lead.platform_user_id if incident.lead&.platform_user_id
@@ -23,7 +23,7 @@ module Slack
             },
             {
               type: "input",
-              block_id: "lead_block",
+              block_id: Identifiers::LEAD_BLOCK,
               element: element,
               label: { type: "plain_text", text: "Incident Lead" },
               hint: { type: "plain_text", text: "The lead coordinates the incident response and provides regular updates." }

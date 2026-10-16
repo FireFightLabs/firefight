@@ -41,7 +41,7 @@ class WorkflowRunService
     run
   end
 
-  # Starts a run again from one of its steps, on the same inputs and trigger: each step before it that succeeded stands
+  # Starts a run again from one of its steps, on the same inputs and trigger. Each step before it that succeeded stands
   # in with what it gave, and that step and every one after it runs again. A test run starts again as a test run of the
   # draft, a real one as a real run of the live version, so a fix published since is what runs.
   def self.rerun_from!(source, step_key:, by:)

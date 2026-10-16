@@ -93,7 +93,7 @@ class AgentChatQueriesTest < ActionDispatch::IntegrationTest
       chat.messages.create!(role: Chat::Message::ROLE_USER, content: "And now, #{round}?") if round.positive?
       asking = chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
       2.times do |read|
-        call = asking.ruby_llm_tool_calls.create!(tool_call_id: "call_#{round}_#{read}", name: Mcp::Tools::SEARCH_INCIDENTS, arguments: { "query" => "checkout" })
+        call = asking.ruby_llm_tool_calls.create!(tool_call_id: "call_#{round}_#{read}", name: FirefightTools::SEARCH_INCIDENTS, arguments: { "query" => "checkout" })
         call.update!(result: chat.messages.create!(role: Chat::Message::ROLE_TOOL, content: answer(chat, round, read)))
       end
       chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "Checkout is fine, #{round}.")
@@ -106,7 +106,7 @@ class AgentChatQueriesTest < ActionDispatch::IntegrationTest
   def answer(chat, round, read)
     return "INC-#{round}#{read} https://example.com/incidents/#{round}#{read}" if read.zero?
 
-    kept = chat.saved_results.keep!(tool_name: Mcp::Tools::SEARCH_INCIDENTS, text: "INC-#{round}#{read}\n" * 50)
+    kept = chat.saved_results.keep!(tool_name: FirefightTools::SEARCH_INCIDENTS, text: "INC-#{round}#{read}\n" * 50)
     "[Too large to hand over, saved as #{kept.handle}. Read it with read_result.]"
   end
 

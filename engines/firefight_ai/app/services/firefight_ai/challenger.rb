@@ -2,7 +2,7 @@ module FirefightAi
   # A second look at a root cause Halon named, by a separate quick call that only looks for evidence against it among
   # what was read and the facts, and names at most two reads that would settle a doubt. It runs only when a cause is
   # named, never on every answer, since a check after every answer once did more harm than good. It changes nothing and
-  # reads nothing itself: the app sends the turn back to Halon once with what it found.
+  # reads nothing itself. The app sends the turn back to Halon once with what it found.
   class Challenger
     FEATURE = "challenger".freeze
     MAX_CHECKS = 2

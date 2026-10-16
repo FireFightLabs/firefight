@@ -353,6 +353,24 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_equal [ "D1", "1" ], watch.reload.card_in(Chat::Watch::PLACE_DIRECT)
   end
 
+  test "a step that moved while the card was first posted is drawn on it at once, and a card that did not move is left alone" do
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+    Slack::Client.expects(:post_message).once.with do |**|
+      Chat::Watch::Step.where(watch_id: watch.id).update_all(status: Chat::Watch::Step::STATUS_RUNNING)
+      true
+    end.returns(ts: "1", channel: "D1")
+    Slack::Client.expects(:update_message).once.with { |ts:, blocks:, **| ts == "1" && blocks.sole.dig(:body, :text) == "Release run #46 is running." }
+
+    Conversation::Watches.tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "Release run #46 started.")
+
+    other = @conversation.chat.watches.create!(workspace: @workspace, asker: @alice, title: "another", expires_at: 1.hour.from_now,
+                                               limit_basis: Chat::Watch::BASIS_DEFAULT)
+    Slack::Client.expects(:post_message).once.returns(ts: "2", channel: "D1")
+    Slack::Client.expects(:update_message).never
+    Conversation::Watches.tell!(other, Chat::Watch::Update::KIND_MILESTONE, "Another started.")
+  end
+
   test "the verdict on a good end is drawn from what each step showed, and the card says it in a line" do
     start_release_watch
     watch = @conversation.chat.watches.sole

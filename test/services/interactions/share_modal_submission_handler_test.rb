@@ -28,8 +28,8 @@ class Interactions::ShareModalSubmissionHandlerTest < ActiveSupport::TestCase
     )
 
     assert_equal "errors", result[:response_action]
-    assert result[:errors][:share_target_block].present?
-    assert_includes result[:errors][:share_target_block], "at least one"
+    assert result[:errors][Identifiers::SHARE_TARGET_BLOCK].present?
+    assert_includes result[:errors][Identifiers::SHARE_TARGET_BLOCK], "at least one"
   end
 
   test "handles multiple targets" do

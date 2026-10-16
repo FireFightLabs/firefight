@@ -11,16 +11,10 @@ export interface CreditPackOption {
 // What setup offers to buy with Firefight credits. Only Firefight's cloud sells them, so elsewhere there is none.
 export interface CreditPurchase {
   packs: CreditPackOption[]
-  markupPercent: number
   blockedReason: string | null
   checkoutPath: string
   note: string | null
   estimate: string | null
-}
-
-// The billing page's own words for what a call costs.
-export function creditPriceNote(markupPercent: number) {
-  return `Each call costs the model's list price plus ${markupPercent}%.`
 }
 
 // The packs Firefight's cloud sells, each opening its checkout. Where the checkout brings the buyer back to is in the

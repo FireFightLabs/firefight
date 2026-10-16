@@ -29,4 +29,22 @@ module AiAccountAlert
     AiAccountAlertJob.perform_later(provider.to_s, kind, *details)
     true
   end
+
+  # What is posted, or nil once a call has answered again since, so a refilled account is not reported out.
+  def words(provider, kind, remaining = nil, usage = nil)
+    return low_balance_words(provider, remaining, usage) if kind == LOW_BALANCE
+
+    account = AiAccount.out_of_credit.find_by(provider: provider)
+    return unless account
+
+    "The #{provider} AI account ran out of credit at #{account.out_of_credit_since.utc.strftime('%H:%M UTC on %-d %B')}. " \
+      "Halon cannot answer in any workspace that uses it until credit is added. It is listed under Needs attention in the operator console."
+  end
+
+  def low_balance_words(provider, remaining, usage)
+    "The #{provider} AI account is running low. It has #{dollars(remaining)} of credit left, and has spent #{dollars(usage)} in all. " \
+      "Alerts start below #{dollars(Rails.configuration.x.ai_low_balance_usd)}. Add credit before Halon stops answering."
+  end
+
+  def dollars(amount) = format("$%.2f", amount.to_f)
 end

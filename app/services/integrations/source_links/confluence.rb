@@ -28,7 +28,7 @@ module Integrations
         webui = links.is_a?(Hash) ? links["webui"].to_s : ""
         return unless webui.start_with?("/")
 
-        base = links["base"].to_s.presence || Jira.site_of(cloud_id)&.then { |site| "https://#{site}#{WIKI}" }
+        base = links["base"].to_s.presence || AtlassianSite.of(cloud_id)&.then { |site| "https://#{site}#{WIKI}" }
         url = "#{base.to_s.chomp('/')}#{webui}"
         url if url.match?(ADDRESS)
       end

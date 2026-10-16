@@ -4,6 +4,6 @@ class ChatPlanSweepJob < ApplicationJob
   queue_as :background
 
   def perform(now = Time.current)
-    Chat::Plan.where(status: Chat::Plan::STATUS_SCHEDULED, run_at: ..now).pluck(:id).each { |id| ChatPlanRunJob.perform_later(id) }
+    Chat::Plan.run_due(now).pluck(:id).each { |id| ChatPlanRunJob.perform_later(id) }
   end
 end

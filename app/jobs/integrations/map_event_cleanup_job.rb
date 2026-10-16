@@ -4,7 +4,7 @@ module Integrations
     queue_as :background
 
     def perform
-      ResourceMap::ReceivedEvent.where(received_at: ...ResourceMap::ReceivedEvent::KEPT_FOR.ago).in_batches.delete_all
+      ResourceMap::ReceivedEvent.expired.in_batches.delete_all
     end
   end
 end

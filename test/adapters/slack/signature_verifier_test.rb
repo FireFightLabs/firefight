@@ -17,6 +17,13 @@ class Slack::SignatureVerifierTest < ActiveSupport::TestCase
     assert Slack::SignatureVerifier.verify!(request)
   end
 
+  test "verify! refuses a signed request stamped far in the future, which could otherwise be replayed for as long" do
+    future = Time.now.to_i + 1.hour.to_i
+    request = mock_request(body: @valid_body, timestamp: future, signature: generate_valid_signature(@valid_body, future))
+
+    assert_raises(Slack::SignatureVerifier::ReplayAttackError) { Slack::SignatureVerifier.verify!(request) }
+  end
+
   test "verify! raises InvalidSignatureError when signature is missing" do
     request = mock_request(
     body: @valid_body,

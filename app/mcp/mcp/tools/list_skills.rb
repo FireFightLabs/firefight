@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class ListSkills < Base
-      tool_name LIST_SKILLS
+      tool_name FirefightTools::LIST_SKILLS
       authorize_as Ability::Action::RESOURCE_SKILLS
       description "List this workspace's own skills: recipes Halon loads beside Firefight's, each with its name, when Halon " \
                   "uses it, whether it is on, its version, the Firefight skill it is a copy of, and how many workflows run it. " \

@@ -33,14 +33,14 @@ class McpIncidentRoleToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "tools/list includes assign_incident_role as a write tool" do
-    tool = rpc("tools/list").dig("result", "tools").find { |t| t["name"] == Mcp::Tools::ASSIGN_INCIDENT_ROLE }
+    tool = rpc("tools/list").dig("result", "tools").find { |t| t["name"] == FirefightTools::ASSIGN_INCIDENT_ROLE }
 
     assert tool
     assert_not tool.dig("annotations", "readOnlyHint")
   end
 
   test "assigns a custom role by email" do
-    content, is_error = call_tool(Mcp::Tools::ASSIGN_INCIDENT_ROLE, {
+    content, is_error = call_tool(FirefightTools::ASSIGN_INCIDENT_ROLE, {
       incident: @incident.identifier, role: @comms_role.slug, member: @membership.email
     })
 
@@ -51,7 +51,7 @@ class McpIncidentRoleToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "assigns a custom role by platform user id" do
-    _, is_error = call_tool(Mcp::Tools::ASSIGN_INCIDENT_ROLE, {
+    _, is_error = call_tool(FirefightTools::ASSIGN_INCIDENT_ROLE, {
       incident: @incident.identifier, role: @comms_role.slug, member: @membership.platform_user_id
     })
 
@@ -62,7 +62,7 @@ class McpIncidentRoleToolsTest < ActionDispatch::IntegrationTest
   test "assigning replaces the current holder" do
     assert_equal @bob, @incident.role_holder(@comms_role)
 
-    call_tool(Mcp::Tools::ASSIGN_INCIDENT_ROLE, {
+    call_tool(FirefightTools::ASSIGN_INCIDENT_ROLE, {
       incident: @incident.identifier, role: @comms_role.slug, member: @membership.email
     })
 
@@ -71,7 +71,7 @@ class McpIncidentRoleToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "omitting member clears a custom role" do
-    content, is_error = call_tool(Mcp::Tools::ASSIGN_INCIDENT_ROLE, {
+    content, is_error = call_tool(FirefightTools::ASSIGN_INCIDENT_ROLE, {
       incident: @incident.identifier, role: @comms_role.slug
     })
 
@@ -81,7 +81,7 @@ class McpIncidentRoleToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "assigning the lead routes through the lead path" do
-    _, is_error = call_tool(Mcp::Tools::ASSIGN_INCIDENT_ROLE, {
+    _, is_error = call_tool(FirefightTools::ASSIGN_INCIDENT_ROLE, {
       incident: @incident.identifier, role: @lead_role.slug, member: @bob.email
     })
 
@@ -93,7 +93,7 @@ class McpIncidentRoleToolsTest < ActionDispatch::IntegrationTest
   test "refuses to assign the lead once the incident is over" do
     @incident.update!(incident_status: incident_statuses(:resolved_ws1))
 
-    _, is_error, text = call_tool(Mcp::Tools::ASSIGN_INCIDENT_ROLE, {
+    _, is_error, text = call_tool(FirefightTools::ASSIGN_INCIDENT_ROLE, {
       incident: @incident.identifier, role: @lead_role.slug, member: @bob.email
     })
 
@@ -105,7 +105,7 @@ class McpIncidentRoleToolsTest < ActionDispatch::IntegrationTest
   test "refuses any role once the incident is over" do
     @incident.update!(incident_status: incident_statuses(:resolved_ws1))
 
-    _, is_error, text = call_tool(Mcp::Tools::ASSIGN_INCIDENT_ROLE, {
+    _, is_error, text = call_tool(FirefightTools::ASSIGN_INCIDENT_ROLE, {
       incident: @incident.identifier, role: @comms_role.slug, member: @membership.email
     })
 
@@ -116,7 +116,7 @@ class McpIncidentRoleToolsTest < ActionDispatch::IntegrationTest
   test "refuses to clear the lead" do
     @incident.assign_role!(@lead_role, @bob)
 
-    _, is_error, text = call_tool(Mcp::Tools::ASSIGN_INCIDENT_ROLE, {
+    _, is_error, text = call_tool(FirefightTools::ASSIGN_INCIDENT_ROLE, {
       incident: @incident.identifier, role: @lead_role.slug
     })
 
@@ -126,7 +126,7 @@ class McpIncidentRoleToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "an unknown role lists the ones that exist" do
-    _, is_error, text = call_tool(Mcp::Tools::ASSIGN_INCIDENT_ROLE, {
+    _, is_error, text = call_tool(FirefightTools::ASSIGN_INCIDENT_ROLE, {
       incident: @incident.identifier, role: "not_a_role", member: @membership.email
     })
 
@@ -135,7 +135,7 @@ class McpIncidentRoleToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "an unknown member is named in the error" do
-    _, is_error, text = call_tool(Mcp::Tools::ASSIGN_INCIDENT_ROLE, {
+    _, is_error, text = call_tool(FirefightTools::ASSIGN_INCIDENT_ROLE, {
       incident: @incident.identifier, role: @comms_role.slug, member: "nobody@example.com"
     })
 
@@ -145,7 +145,7 @@ class McpIncidentRoleToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "get_incident reports every role and who holds it" do
-    content, is_error = call_tool(Mcp::Tools::GET_INCIDENT, { incident: @incident.identifier })
+    content, is_error = call_tool(FirefightTools::GET_INCIDENT, { incident: @incident.identifier })
 
     assert_not is_error
     comms = content["roles"].find { |role| role["slug"] == @comms_role.slug }

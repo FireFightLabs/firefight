@@ -1,4 +1,4 @@
-# A member's request to publish a workflow, answered from the Workflows page or the canvas: Publish makes the draft
+# A member's request to publish a workflow, answered from the Workflows page or the canvas. Publish makes the draft
 # live and grants the workflow's own identity what it needs, and Dismiss leaves it a draft. Either way the member is told.
 class WorkflowPublishRequestsController < InertiaController
   authorizes Ability::Action::RESOURCE_WORKFLOWS, update: %i[publish dismiss]
