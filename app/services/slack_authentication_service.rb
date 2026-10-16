@@ -74,9 +74,13 @@ class SlackAuthenticationService
     end
 
     result = ActiveRecord::Base.transaction do
-      invite_code.redeem!(user) if existing_workspace.nil? && InviteCode.required?
-      Workspace.process_slack_installation(auth_hash, user: user)
+      installer = user || installer_from(auth_hash)
+      raise ActiveRecord::Rollback unless installer
+
+      invite_code.redeem!(installer) if existing_workspace.nil? && InviteCode.required?
+      Workspace.process_slack_installation(auth_hash, user: installer)
     end
+    return AuthOutcome.refused(message: UNVERIFIED_EMAIL_MESSAGE) unless result
 
     trigger_workspace_setup(result[:workspace], auth_hash.uid) if result[:first_install]
     if result[:created]
@@ -111,7 +115,10 @@ class SlackAuthenticationService
 
   # Kept for backward compatibility, older callers still expect a Hash.
   def process_oauth_callback(auth_hash)
-    result = Workspace.process_slack_installation(auth_hash)
+    result = ActiveRecord::Base.transaction do
+      installer = installer_from(auth_hash) or raise ActiveRecord::RecordInvalid, User.new
+      Workspace.process_slack_installation(auth_hash, user: installer)
+    end
     trigger_workspace_setup(result[:workspace], auth_hash.uid) if result[:first_install]
     result
   end
@@ -140,11 +147,18 @@ class SlackAuthenticationService
     AuthOutcome.refused(message: ALREADY_CONNECTED_MESSAGE)
   end
 
-  def claims_from(auth_hash)
+  # An install nobody signed in before reaches a person the way a sign-in does, by their Slack account first and then
+  # only by an email Slack has confirmed, so an address set on an account in another team never reaches someone else.
+  def installer_from(auth_hash)
+    claims = claims_from(auth_hash, team_id: auth_hash.extra.team_info["id"])
+    AuthenticationService.new.sign_in_with(claims, create_user: true, refresh_profile: true).user
+  end
+
+  def claims_from(auth_hash, team_id: auth_hash.info.team_id)
     info = auth_hash.info
     AuthenticationService::Claims.new(
       provider: UserIdentity::SLACK,
-      uid: self.class.identity_uid(info.team_id, auth_hash.uid),
+      uid: self.class.identity_uid(team_id, auth_hash.uid),
       email: info.email,
       email_verified: info.email_verified,
       name: info.name,
