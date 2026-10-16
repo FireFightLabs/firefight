@@ -64,6 +64,29 @@ module Integrations
         assert_nothing_raised { slow.wait_until_ready!(within: 15.minutes.to_i) }
       end
 
+      test "a parameter of the address the provider names as a cookie is sent as that cookie and left off the address" do
+        box = Box.new(ref: "box", address: "https://swift-otter-8080.on.boat.dev?_token=gate&region=eu", key: "k", cookies: { "_token" => "_port_auth" })
+        sent = nil
+        Http.expects(:request).with { |uri, request, **| sent = [ uri, request ] }.returns(stub(code: "200", body: { "ok" => true }.to_json))
+
+        assert Client.new(box).alive?
+
+        uri, request = sent
+        assert_equal "https://swift-otter-8080.on.boat.dev/health?region=eu", uri.to_s
+        assert_equal "_port_auth=gate", request["Cookie"]
+        assert_equal "Bearer k", request["Authorization"]
+      end
+
+      test "a redirect in front of a box is said as one, without the token its address may carry" do
+        box = Box.new(ref: "box", address: "https://swift-otter-8080.on.boat.dev?_token=gate", key: "k")
+        Http.stubs(:request).returns(stub(code: "302", body: "", :[] => "https://swift-otter-8080.on.boat.dev/?_token=gate"))
+
+        failure = Client.new(box).health_failure
+
+        assert_equal "The code sandbox's address answered 302, a redirect to swift-otter-8080.on.boat.dev/, rather than the sandbox itself.", failure
+        assert_not_includes failure, "gate"
+      end
+
       test "a command that fails to start answers its refusal" do
         replace(::Sandbox::Handler, :exec) { |_request, **| raise ::Sandbox::Refused, "acme__api has no commit nope" }
 

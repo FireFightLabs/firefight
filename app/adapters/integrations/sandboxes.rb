@@ -6,9 +6,11 @@ module Integrations
     class Error < Integrations::Error; end
 
     # relayed is true when the address reaches the box through a proxy that may end a request that runs long, so the
-    # client follows a long command in the background rather than holding one request open for it.
-    Box = Data.define(:ref, :address, :key, :relayed) do
-      def initialize(relayed: false, **) = super
+    # client follows a long command in the background rather than holding one request open for it. address is kept as
+    # the provider gave it, and cookies names each parameter of its query that a request sends as a cookie instead, by
+    # the cookie's name, for a proxy that answers the parameter with a redirect.
+    Box = Data.define(:ref, :address, :key, :relayed, :cookies) do
+      def initialize(relayed: false, cookies: {}, **) = super
     end
     Running = Data.define(:ref, :started_at)
     # Something a provider holds for Firefight, a box or a kept copy (ProviderSandbox::KINDS), in the provider's own
@@ -69,6 +71,9 @@ module Integrations
     # reclaim(ref) hands back a box the provider holds with a key the app knows, for a box adopted after its row was lost.
     class Provider
       def relayed? = false
+
+      # How to reach a box at address, as the provider gave it, with key.
+      def box(ref:, address:, key:) = Box.new(ref: ref, address: address, key: key, relayed: relayed?)
 
       # The box's size in the provider's own words, such as a plan's name.
       def size = nil

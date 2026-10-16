@@ -160,6 +160,16 @@ module Integrations
       CodeReading.define_singleton_method(:locked, locked) if locked
     end
 
+    test "a box is reached as its provider says, so a boat box read back from its row sends its token as a cookie" do
+      row = CodeBox.create!(workspace: @workspace, key: "investigation-boat", provider: SandboxProviders::BOAT, box_ref: "bx_1",
+                            **CodeBox.address_columns("https://swift-otter-8080.on.boat.dev?_token=gate"), secret: "k1", last_used_at: Time.current)
+      Sandboxes.stubs(:provider).with(SandboxProviders::BOAT).returns(Sandboxes::Boat.new(api: stub))
+
+      box = CodeReading.box_of(row)
+
+      assert_equal [ "https://swift-otter-8080.on.boat.dev?_token=gate", { "_token" => "_port_auth" }, true ], [ box.address, box.cookies, box.relayed ]
+    end
+
     test "two runs read in two boxes" do
       reading("investigation-1").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
       reading("conversation-2").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)

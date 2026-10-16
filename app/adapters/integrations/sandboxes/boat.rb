@@ -49,12 +49,18 @@ module Integrations
       NOT_YET = /sandbox_restoring|sandbox_starting/
       # boat cuts a sandbox's name at this length, and its name is the only place a sandbox carries who it is for.
       NAME_LIMIT = 120
+      TOKEN_PARAMETER = "_token".freeze
+      TOKEN_COOKIE = "_port_auth".freeze
 
       def initialize(api: BoatApi.new)
         @api = api
       end
 
       def relayed? = true
+
+      # boat's address carries the port's access token as _token, which boat answers with a redirect that sets the
+      # _port_auth cookie, so a client that follows no redirects sends the token as that cookie (docs.boat.dev/hosting).
+      def box(ref:, address:, key:) = Box.new(ref: ref, address: address, key: key, relayed: true, cookies: { TOKEN_PARAMETER => TOKEN_COOKIE })
 
       def size = ENV["BOAT_SANDBOX_TYPE"].presence || DEFAULT_SIZE
 
@@ -195,7 +201,7 @@ module Integrations
         address = @api.host(ref, PORT, title: "Firefight sandbox")
         raise Error, "boat.dev gave no address for the sandbox's port." if address.blank?
 
-        Box.new(ref: ref, address: address, key: key, relayed: true)
+        box(ref: ref, address: address, key: key)
       end
 
       # One named snapshot per image, named by a digest of it, since a snapshot name takes only lower case letters,

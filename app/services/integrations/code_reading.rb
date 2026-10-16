@@ -130,7 +130,10 @@ module Integrations
 
       # How the client reaches the box a row names.
       def box_of(row)
-        Sandboxes::Box.new(ref: row.box_ref, address: row.reach_address, key: row.secret, relayed: Sandboxes.provider(row.provider)&.relayed? || false)
+        provider = Sandboxes.provider(row.provider)
+        return Sandboxes::Box.new(ref: row.box_ref, address: row.reach_address, key: row.secret) unless provider
+
+        provider.box(ref: row.box_ref, address: row.reach_address, key: row.secret)
       end
 
       # In process memory, since one run's reads happen in the job that holds it. An entry past its time is dropped

@@ -31,6 +31,7 @@ module Integrations
         assert_equal({ type: "default", ttlSeconds: Boat::TTL.to_i, noEnv: true, failFast: true }, created)
         assert_equal "https://swift-otter-9021-8080.on.boat.dev?_token=gate", box.address
         assert box.relayed
+        assert_equal({ "_token" => "_port_auth" }, box.cookies, "boat answers _token with a redirect, so it travels as the cookie that redirect would set")
         assert_includes script, "-e SANDBOX_KEY=#{box.key}"
         assert_includes script, "-v /var/run/docker.sock:/var/run/docker.sock"
         assert_includes script, "-v halon-runs:/runs"
