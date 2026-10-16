@@ -7,7 +7,8 @@ class Api::V1::EventsController < Api::V1::BaseController
       return
     end
 
-    ProcessEventJob.perform_later(Platforms::SLACK, payload)
+    # The Slack verification token must not reach job arguments because job arguments are logged.
+    ProcessEventJob.perform_later(Platforms::SLACK, payload.except("token"))
     head :ok
   end
 
