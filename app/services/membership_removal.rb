@@ -8,9 +8,11 @@ class MembershipRemoval
   def self.remove!(membership, by:)
     reason = membership.removal_blocked_reason(by)
     raise Blocked, reason if reason
-    return false unless membership.mark_removed!
 
-    revoke_access!(membership)
+    # One transaction, so a removal whose revoking fails leaves the member in place for the next try.
+    removed = WorkspaceMembership.transaction { membership.mark_removed! && revoke_access!(membership) }
+    return false unless removed
+
     ActionCable.server.remote_connections.where(current_user: membership.user, current_workspace_id: membership.workspace_id).disconnect
     true
   end
@@ -28,6 +30,7 @@ class MembershipRemoval
     membership.personal_api_keys.where(deleted_at: nil).find_each(&:soft_delete!)
     membership.oauth_access_tokens.where(revoked_at: nil).update_all(revoked_at: now)
     membership.oauth_access_grants.where(revoked_at: nil).update_all(revoked_at: now)
+    true
   end
   private_class_method :revoke_access!
 end

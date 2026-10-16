@@ -66,10 +66,21 @@ module Mcp
       return answered if token.blank?
       return error_response(TokenHandoff.discard!(token)) unless hand_token
 
-      token_withheld(answered, hand_token.call(token))
+      token_withheld(answered, handed(token, hand_token))
     rescue TokenHandoff::Undelivered => e
       error_response(e.message)
     end
+
+    # A handoff that breaks before the person has the token switches it off, so no token nobody saw stays live.
+    def self.handed(token, hand_token)
+      hand_token.call(token)
+    rescue TokenHandoff::Undelivered
+      raise
+    rescue StandardError
+      TokenHandoff.discard!(token)
+      raise
+    end
+    private_class_method :handed
 
     def self.token_withheld(answered, words)
       payload = answered.structured_content.merge(token: words)

@@ -1257,7 +1257,6 @@ providers:
       scope_separator: ","
       params: { prompt: consent, actor: app }
       pkce: true
-    # The reads Linear names in public (linear.app/changelog). Its MCP page lists no tools, so its others are marked as its server says.
     # The tools its server's published list marks as reads (test/fixtures/files/linear_mcp_tools.txt says where it came from).
     read_only_tools: [extract_images, get_agent_skill, get_attachment, get_diff, get_diff_threads, get_document, get_issue, get_issue_status,
                       get_milestone, get_notifications, get_project, get_release, get_release_note, get_status_updates, get_team, get_template,

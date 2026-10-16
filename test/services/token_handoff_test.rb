@@ -76,4 +76,25 @@ class TokenHandoffTest < ActiveSupport::TestCase
     assert_match "revoked", Mcp::ToolDispatcher.text_of(response)
     assert_empty agent.reload.live_api_keys
   end
+
+  test "a token whose handoff breaks for any reason is revoked, so no unseen token stays live" do
+    agent = @workspace.agents.create!(name: "Deployer", slug: "deployer")
+    broken = ->(_token) { raise ActiveRecord::RecordInvalid }
+
+    assert_raises(ActiveRecord::RecordInvalid) do
+      Mcp::ToolDispatcher.run(tool: Mcp::Tools::RotateAgentToken, workspace: @workspace, principal: @admin, args: { slug: "deployer" }, hand_token: broken)
+    end
+    assert_empty agent.reload.live_api_keys
+  end
+
+  test "a card whose token could not be minted stays ready for another try" do
+    conversation = Conversation.start_personal!(workspace: @workspace, member: @admin)
+    agent = @workspace.agents.create!(name: "Deployer", slug: "deployer")
+    key, = ApiKey.create_with_token!(workspace: @workspace, created_by: @admin, agent: agent, name: "Deployer token")
+    entry = Chat::SecretEntry.record_token!(chat: conversation.chat_record, tool_call_id: "call_1", api_key: key, requester: @admin)
+    ApiKey.any_instance.stubs(:reissue_token!).raises(ActiveRecord::StatementInvalid)
+
+    assert_raises(ActiveRecord::StatementInvalid) { SecretEntryService.reveal(entry, by: @admin) }
+    assert_equal Chat::SecretEntry::STATUS_READY, entry.reload.status
+  end
 end

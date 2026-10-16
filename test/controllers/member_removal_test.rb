@@ -99,4 +99,11 @@ class MemberRemovalTest < ActionDispatch::IntegrationTest
     assert_match "You don't have permission", flash[:alert]
     assert_not @alice.reload.removed?
   end
+
+  test "a removal whose revoking fails leaves the member in place, so the next try revokes everything" do
+    ApiKey.any_instance.stubs(:soft_delete!).raises(ActiveRecord::StatementInvalid)
+
+    assert_raises(ActiveRecord::StatementInvalid) { MembershipRemoval.remove!(@bob, by: workspace_memberships(:alice_workspace_one)) }
+    assert_not @bob.reload.removed?
+  end
 end

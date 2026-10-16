@@ -57,9 +57,10 @@ class SecretEntryService
   # Minted now, for the one opening that wins, and never kept.
   def self.token(entry, by)
     return Revealed.new(value: nil, words: "This key was deleted, so it has no token to show.") unless entry.api_key&.live?
-    return Revealed.new(value: nil, words: entry.reveal_blocked_reason(by) || "This token was already shown.") unless entry.take_token!(by)
+    # One transaction, so a token that could not be minted leaves the card ready for another try.
+    value = ApiKey.transaction { entry.api_key.reissue_token! if entry.take_token!(by) }
+    return Revealed.new(value: nil, words: entry.reveal_blocked_reason(by) || "This token was already shown.") unless value
 
-    value = entry.api_key.reissue_token!
     moved!(entry)
     Revealed.new(value: value, words: nil)
   end

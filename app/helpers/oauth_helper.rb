@@ -10,6 +10,8 @@ module OauthHelper
   # Where the browser goes once the person decides, so a client that registered someone else's address shows it here.
   def oauth_destination(pre_auth)
     uri = URI.parse(pre_auth.redirect_uri.to_s)
+    return pre_auth.redirect_uri.to_s if uri.host.blank?
+
     host = uri.port && uri.port != uri.default_port ? "#{uri.host}:#{uri.port}" : uri.host.to_s
     return "an app on this computer (#{host})" if LOOPBACK_HOSTS.include?(uri.hostname)
 
