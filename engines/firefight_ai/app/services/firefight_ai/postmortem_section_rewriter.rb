@@ -24,7 +24,7 @@ module FirefightAi
         chat.ask(build_prompt(context, summary, selected_html, instruction))
       end
 
-      sanitize_html(response.content)
+      ::Postmortem.sanitized_html(response.content)
     end
 
     private
@@ -84,14 +84,6 @@ module FirefightAi
       parts << instruction
 
       parts.join("\n")
-    end
-
-    def sanitize_html(html)
-      Rails::Html::SafeListSanitizer.new.sanitize(
-        html.to_s,
-        tags: ::Postmortem::Snapshots::ALLOWED_TAGS,
-        attributes: ::Postmortem::Snapshots::ALLOWED_ATTRIBUTES
-      )
     end
   end
 end

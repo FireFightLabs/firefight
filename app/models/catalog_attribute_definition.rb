@@ -77,6 +77,11 @@ class CatalogAttributeDefinition < ApplicationRecord
     config["options"]
   end
 
+  # A built-in type keeps every attribute it has, the ones it shipped with and any a workspace added.
+  def removal_blocked_reason
+    "#{catalog_type.name} is a built-in type, so its attributes cannot be removed." if catalog_type.system?
+  end
+
   private
 
   def slug_immutable
