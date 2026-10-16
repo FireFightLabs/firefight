@@ -1,6 +1,6 @@
 require "test_helper"
 
-# The safeguards hold inside a plan: a scheduled plan's approved write is still counted, copied and checked, its stop
+# The safeguards hold inside a plan. A scheduled plan's approved write is still counted, copied and checked, its stop
 # still asks the owner, and a temporary change one of its steps made is put back once, by Firefight or by the plan.
 class Chat::SafeguardsWithPlansTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper

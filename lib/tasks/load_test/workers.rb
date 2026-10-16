@@ -26,7 +26,7 @@ module LoadTest
       end
     end
 
-    # One worker to measure, such as threads:3 (what main runs) or fibers:25.
+    # One worker to measure, such as threads:3 or fibers:25.
     Config = Data.define(:kind, :size) do
       def self.parse(text)
         kind, size = text.strip.split(":")
@@ -213,7 +213,7 @@ module LoadTest
       end
 
       # The worker runs in a process of its own, as bin/jobs runs it. The run on threads keeps Rails' state per thread,
-      # as main does, so it measures the configuration this branch replaces.
+      # as the app did before its workers ran on fibers, so it measures the configuration fibers replaced.
       def start_supervisor(config)
         fork do
           ENV["PGAPPNAME"] = APP_NAME

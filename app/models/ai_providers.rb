@@ -22,6 +22,10 @@ module AiProviders
   # A setting whose value is an address the server will call.
   ADDRESS_SETTING = "api_base".freeze
 
+  # Settings a provider writes into the host it calls, such as Bedrock's region, so each must be a plain name.
+  HOST_NAME_SETTINGS = %w[region location].freeze
+  HOST_NAME = /\A[a-z0-9-]+\z/i
+
   # The registry's sections that are not providers.
   SECTIONS = %w[settings chat_models].freeze
 

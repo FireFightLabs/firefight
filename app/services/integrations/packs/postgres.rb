@@ -16,10 +16,13 @@ module Integrations
       QUALIFIED_NAME = /\A(?:(?<schema>[A-Za-z_][\w$]*)\.)?(?<table>[A-Za-z_][\w$]*)\z/
       # Functions a read-only transaction allows that act on the server, which signal or end sessions, reload or rotate its
       # files, move the WAL or promote it, take advisory locks, reset its statistics, change a setting such as the
-      # statement timeout, or reach another connection or a file. A quoted name counts, and so does an escaped one.
+      # statement timeout, or reach another connection or a file. A quoted name counts, and so does an escaped one. So do
+      # replication slots, notifications and the statement statistics, and any function that runs SQL handed to it as
+      # text, since that text can spell a refused name in pieces this check never sees whole.
       ACTS = /\b(pg_terminate_backend|pg_cancel_backend|pg_reload_conf|pg_rotate_logfile|pg_switch_wal|pg_create_restore_point|pg_promote|
               pg_wal_replay_\w+|pg_log_backend_memory_contexts|pg_advisory\w*lock\w*|pg_stat_reset\w*|dblink\w*|lo_import|lo_export|lo_unlink|
-              set_config|pg_read_file|pg_read_binary_file|pg_ls_dir)"?\s*\(/ix
+              set_config|pg_read_file|pg_read_binary_file|pg_ls_dir|pg_\w*replication_slot\w*|pg_replication_origin_\w+|pg_notify|
+              pg_logical_emit_message|pg_stat_statements_reset|pg_file_\w+|query_to_xml\w*|query_to_xmlschema|ts_stat)"?\s*\(/ix
       ESCAPED_NAME = /\bU&"/i
       # Catalogs that hold passwords, as role hashes or as the options of a connection to another server, which a query
       # never reads whatever the user in the URL may see.

@@ -52,7 +52,7 @@ class WorkflowTriggerSweepJobTest < ActiveJob::TestCase
 
       gave_up = workflow.runs.sole
       assert_equal [ Workflow::Run::STATUS_FAILED, "trigger:2026-10-13T07:00:00Z", Workflow::Run::STARTED_BY_TRIGGER ], gave_up.values_at(:status, :start_key, :started_by_kind)
-      assert_equal WorkflowTriggerSweepJob::GAVE_UP, gave_up.error
+      assert_equal Workflow::ScheduleSweep::GAVE_UP, gave_up.error
       assert_equal [ gave_up ], told
       assert_equal Time.zone.parse("2026-10-14 07:00 UTC"), workflow.reload.next_run_at
 
@@ -88,9 +88,9 @@ class WorkflowTriggerSweepJobTest < ActiveJob::TestCase
       perform_enqueued_jobs { WorkflowTriggerSweepJob.perform_now }
 
       gave_up = workflow.runs.sole
-      assert_equal [ Workflow::Run::STATUS_FAILED, "trigger:2026-10-13T07:00:00Z", WorkflowTriggerSweepJob::GAVE_UP ], gave_up.values_at(:status, :start_key, :error)
+      assert_equal [ Workflow::Run::STATUS_FAILED, "trigger:2026-10-13T07:00:00Z", Workflow::ScheduleSweep::GAVE_UP ], gave_up.values_at(:status, :start_key, :error)
       assert_equal [ gave_up ], told
-      assert_equal WorkflowTriggerSweepJob::GAVE_UP, workflow.reload.trigger_refusal
+      assert_equal Workflow::ScheduleSweep::GAVE_UP, workflow.reload.trigger_refusal
       assert_equal Time.zone.parse("2026-10-14 07:00 UTC"), workflow.next_run_at
 
       perform_enqueued_jobs { WorkflowTriggerSweepJob.perform_now }

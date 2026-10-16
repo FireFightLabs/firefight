@@ -3,7 +3,7 @@ module Mcp
     # An agent needs the slugs before it can name anything, and separate list
     # tools would be several calls to answer one question.
     class GetWorkspaceConfig < Base
-      tool_name GET_WORKSPACE_CONFIG
+      tool_name FirefightTools::GET_WORKSPACE_CONFIG
       authorize_as Ability::Action::RESOURCE_INCIDENTS
       description "Everything about how this workspace is configured, in one call: its severities, " \
                   "statuses with their lifecycle stage, incident types, incident roles, alert " \

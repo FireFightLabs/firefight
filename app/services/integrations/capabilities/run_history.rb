@@ -32,7 +32,6 @@ module Integrations
         kept && Telemetry::Link.new(provider: kept[PROVIDER], url: kept[URL])
       end
 
-      # A time from a provider's answer, or nil.
       def time(value)
         return value if value.is_a?(Time) || value.is_a?(ActiveSupport::TimeWithZone)
         return Time.zone.at(value) if value.is_a?(Numeric)

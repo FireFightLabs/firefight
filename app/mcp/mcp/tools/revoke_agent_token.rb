@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class RevokeAgentToken < Base
-      tool_name REVOKE_AGENT_TOKEN
+      tool_name FirefightTools::REVOKE_AGENT_TOKEN
       description "Revoke one of an agent's tokens, named by the prefix get_workspace_config and " \
                   "the rotate call report. It stops working immediately, and the agent keeps its " \
                   "name, its abilities and its history because those belong to the agent rather " \

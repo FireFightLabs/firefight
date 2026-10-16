@@ -3,8 +3,8 @@ module FirefightAi
   # a tool handed over deferred stays out of the model's context until the model searches for it. Anywhere else RubyLLM
   # sends a deferred tool as an ordinary one, so a long list would land in the context whole.
   #
-  # RubyLLM says it only in the request it would send: a chat holding one deferred tool gains the provider's own search
-  # tool. That request is rendered here, never sent, and the answer is kept per provider and model.
+  # RubyLLM says it only in the request it would send, where a chat holding one deferred tool gains the provider's own
+  # search tool. That request is rendered here, never sent, and the answer is kept per provider and model.
   module ToolSearch
     class Probe < RubyLLM::Tool
       description "Stands in for a deferred tool while the request is rendered."

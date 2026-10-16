@@ -76,9 +76,7 @@ module Integrations
     def rows_for(provider_key, installation)
       return IntegrationEnvironment.none if installation.blank?
 
-      IntegrationEnvironment.joins(:integration).where(integrations: { provider: provider_key.to_s, deleted_at: nil })
-                            .where("integration_environments.base_config ->> :key = :installation", key: IntegrationEnvironment::INSTALLATION_KEY,
-                                                                                                    installation: installation.to_s)
+      IntegrationEnvironment.joins(:integration).where(integrations: { provider: provider_key.to_s, deleted_at: nil }).installed_through(installation)
     end
 
     # Reads the installation at the provider and keeps what it said on the row.

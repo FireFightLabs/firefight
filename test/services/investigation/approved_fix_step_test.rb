@@ -1,6 +1,6 @@
 require "test_helper"
 
-# A fix's step that an approval rule held, once approved. Approving it never runs it: Halon reads how things stand now,
+# A fix's step that an approval rule held, once approved. Approving it never runs it. Halon reads how things stand now,
 # whoever applied the fix is told, and the step runs only when someone presses Run, within the hour.
 class Investigation::ApprovedFixStepTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper

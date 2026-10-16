@@ -36,8 +36,8 @@ class Mcp::Tools::ActionItemEditsTest < ActiveSupport::TestCase
 
   test "the agent in a chat is offered them with the other item tools" do
     tools = Chat::Tools::Groups::FIREFIGHT.find { |group| group.key == Chat::Tools::Groups::FOLLOW_UPS }.tools
-    assert_includes tools, Mcp::Tools::RENAME_ACTION_ITEM
-    assert_includes tools, Mcp::Tools::REOPEN_ACTION_ITEM
-    assert_includes tools, Mcp::Tools::UNASSIGN_ACTION_ITEM
+    assert_includes tools, FirefightTools::RENAME_ACTION_ITEM
+    assert_includes tools, FirefightTools::REOPEN_ACTION_ITEM
+    assert_includes tools, FirefightTools::UNASSIGN_ACTION_ITEM
   end
 end

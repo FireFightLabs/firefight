@@ -8,7 +8,7 @@ module Mcp
       MAX_HOPS = 10
       TOP_SHOWN = 25
 
-      tool_name BLAST_RADIUS
+      tool_name FirefightTools::BLAST_RADIUS
       authorize_as Ability::Action::RESOURCE_MAP
       description "What fails with a resource on the resource map: every resource with a path of confirmed links into " \
                   "it, up to #{MAX_HOPS} links away, counted by kind, provider and environment, the catalog services they " \

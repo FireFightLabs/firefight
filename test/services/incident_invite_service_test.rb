@@ -17,6 +17,17 @@ class IncidentInviteServiceTest < ActiveSupport::TestCase
     assert_equal [ member ], result.invited
   end
 
+  test "a member who has not used Firefight in chat yet has no account to invite, so the platform is never asked" do
+    member = workspace_memberships(:bob_workspace_one)
+    member.update!(platform_user_id: nil)
+    Slack::Client.expects(:invite_to_channel).never
+
+    result = @service.invite!(incident: @incident, people: [ member ])
+
+    assert_equal [ member ], result.failed.map(&:person)
+    assert_equal "#{member.actor_display_name} has not used Firefight in chat yet, so there is no account to invite.", result.failed.sole.error
+  end
+
   test "invites each user once" do
     Slack::Client.expects(:invite_to_channel).times(2).returns({ ok: true })
 

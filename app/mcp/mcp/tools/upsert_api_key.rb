@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class UpsertApiKey < Base
-      tool_name UPSERT_API_KEY
+      tool_name FirefightTools::UPSERT_API_KEY
       description "Create or change a service key, which is a credential for automation with " \
                   "nothing to say on a timeline. Use upsert_agent instead for an AI that takes " \
                   "part in incidents under its own name. Pass prefix to change an existing key, or " \

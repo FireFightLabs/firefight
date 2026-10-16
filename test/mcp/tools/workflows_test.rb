@@ -16,15 +16,15 @@ module Mcp
 
       def call(tool, principal, args) = ToolDispatcher.call(tool: tool, server_context: { workspace: @workspace, principal: principal }, args: args)
 
-      def spec = { name: "Look around", steps: [ { name: "look", kind: "call_tool", config: { tool: SEARCH_INCIDENTS, arguments: {} } } ] }
+      def spec = { name: "Look around", steps: [ { name: "look", kind: "call_tool", config: { tool: FirefightTools::SEARCH_INCIDENTS, arguments: {} } } ] }
 
       test "nothing about workflows is listed, offered to Halon or run without the flag" do
         FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
 
         listed = Mcp::Tools.for_workspace(@workspace).map(&:name_value)
-        [ LIST_WORKFLOWS, CREATE_WORKFLOW, RUN_WORKFLOW, UPDATE_WORKFLOW_SETTINGS, UPDATE_WORKFLOW ].each { |name| assert_not_includes listed, name }
+        [ FirefightTools::LIST_WORKFLOWS, FirefightTools::CREATE_WORKFLOW, FirefightTools::RUN_WORKFLOW, FirefightTools::UPDATE_WORKFLOW_SETTINGS, FirefightTools::UPDATE_WORKFLOW ].each { |name| assert_not_includes listed, name }
         offered = Chat::Tools.firefight_entries(Conversation::Turn.new(Conversation.start_personal!(workspace: @workspace, member: @admin), asker: @admin)).map { |entry| entry.name.to_s }
-        assert_not_includes offered, UPDATE_WORKFLOW_SETTINGS
+        assert_not_includes offered, FirefightTools::UPDATE_WORKFLOW_SETTINGS
         answer = call(ListWorkflows, @admin, {})
         assert answer.error?
         assert_match "There is no tool called list_workflows", answer.content.first[:text]
@@ -124,7 +124,7 @@ module Mcp
       end
 
       test "Halon may change a workflow's settings when asked, only once the person confirms it in the chat" do
-        tool = halon_tool(@admin, UPDATE_WORKFLOW)
+        tool = halon_tool(@admin, FirefightTools::UPDATE_WORKFLOW)
 
         assert tool, "Halon is offered update_workflow"
         assert tool.requires_approval?, "the change waits for the person's confirmation, never made silently"
@@ -135,9 +135,9 @@ module Mcp
         call(CreateWorkflow, @admin, spec)
         workflow = @workspace.workflows.find_by!(name: "Look around")
 
-        assert_nil halon_tool(@member, UPDATE_WORKFLOW)
+        assert_nil halon_tool(@member, FirefightTools::UPDATE_WORKFLOW)
 
-        halon_tool(@admin, UPDATE_WORKFLOW).call(workflow: "Look around", runs_per_hour: 5)
+        halon_tool(@admin, FirefightTools::UPDATE_WORKFLOW).call(workflow: "Look around", runs_per_hour: 5)
         assert_equal 5, workflow.reload.runs_per_hour
         assert Ability::Invocation.exists?(workspace: @workspace, action_key: Workflow::PUBLISH_KEY, source: AbilityGateway::SOURCE_CONVERSATION)
       end

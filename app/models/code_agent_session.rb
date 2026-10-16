@@ -157,17 +157,18 @@ class CodeAgentSession < ApplicationRecord
   # What the change's tool calls are logged as in Activity.
   def triggered_by_label = "Coding agent for #{repository}"
 
-  # Opens the gate to one push for this long, and answers the token that push signs in with, or nil once the session
-  # closed. Opening again replaces the token, so only the newest push gets through.
-  def open_push!(within)
+  # Opens the gate to one push of commit, the one that was reviewed, for this long, and answers the token that push signs
+  # in with, or nil once the session closed. Opening again replaces the token, so only the newest push gets through.
+  def open_push!(within, commit:)
     token = SecureRandom.urlsafe_base64(TOKEN_BYTES)
     opened = self.class.where(id: id, closed_at: nil)
-                 .update_all(push_token_digest: self.class.digest(token), push_open_until: within.from_now, updated_at: Time.current) == 1
+                 .update_all(push_token_digest: self.class.digest(token), push_open_until: within.from_now, push_commit: commit,
+                             updated_at: Time.current) == 1
     token if opened
   end
 
   def close_push!
-    self.class.where(id: id).update_all(push_token_digest: nil, push_open_until: nil, updated_at: Time.current)
+    self.class.where(id: id).update_all(push_token_digest: nil, push_open_until: nil, push_commit: nil, updated_at: Time.current)
   end
 
   def pushing? = push_open_until.present? && push_open_until.future?

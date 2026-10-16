@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class ListUnattendedRules < Base
-      tool_name LIST_UNATTENDED_RULES
+      tool_name FirefightTools::LIST_UNATTENDED_RULES
       description "Every unattended rule in this workspace: a change Halon may make on its own (a rollback or restart of one " \
                   "resource on the map) when an alert started its investigation and a fresh reading of a metric is above a " \
                   "threshold. Each says why it cannot act yet, when it cannot, and how many times Halon acted under it. " \

@@ -6,7 +6,8 @@ class LeadAssignmentWorkflow < SolidWorkflow::Base
   step :update_announcement
   # A lead outside the channel sees nothing of the incident, so a failure here leaves the rest of the steps to carry on.
   step :invite_lead, on_failure: SolidWorkflow::Definition::ON_FAILURE_CONTINUE
-  # Slack refuses an ephemeral to someone outside the channel, and that refusal must not cancel the announcement.
+  # The platform may refuse a message only the lead sees while they are outside the channel, and that refusal must not
+  # cancel the announcement.
   step :post_lead_expectations, depends_on: [ :update_channel_topic, :invite_lead ], on_failure: SolidWorkflow::Definition::ON_FAILURE_CONTINUE
   step :post_lead_announcement, depends_on: [ :update_channel_topic, :invite_lead ]
 

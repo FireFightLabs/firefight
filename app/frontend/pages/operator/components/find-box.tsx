@@ -5,7 +5,7 @@ import { useState, type ChangeEvent, type FormEvent } from "react"
 import { Input } from "@/components/ui/input"
 import { operatorFindPath } from "@/lib/routes"
 
-// Find box. Submits a pasted id or incident number to the find page, which opens a single match.
+// Submits a pasted id or incident number to the find page, which opens a single match.
 export function FindBox() {
   const [query, setQuery] = useState("")
 

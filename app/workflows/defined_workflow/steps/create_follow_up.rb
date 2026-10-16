@@ -15,7 +15,7 @@ class DefinedWorkflow::Steps::CreateFollowUp < DefinedWorkflow::Steps::Firefight
   KEY_OPEN_ISSUE = "open_issue".freeze
   OUTPUT_FOLLOW_UP = "follow_up".freeze
   OUTPUT_ISSUE = "issue".freeze
-  ISSUE_TOOL = Mcp::Tools::CREATE_ACTION_ITEM_ISSUE
+  ISSUE_TOOL = FirefightTools::CREATE_ACTION_ITEM_ISSUE
 
   # Read by the class's own methods, which do not see what the classes it extends define.
   OUTPUT_ANSWER = DefinedWorkflow::Steps::CallTool::OUTPUT_ANSWER
@@ -23,7 +23,7 @@ class DefinedWorkflow::Steps::CreateFollowUp < DefinedWorkflow::Steps::Firefight
   KEY_INCIDENT = DefinedWorkflow::Steps::FirefightTool::KEY_INCIDENT
 
   class << self
-    def tool_for(_config, _workspace) = Mcp::Tools::CREATE_ACTION_ITEM
+    def tool_for(_config, _workspace) = FirefightTools::CREATE_ACTION_ITEM
 
     def arguments_for(config, _workspace)
       { KEY_INCIDENT => config[KEY_INCIDENT].to_s, KEY_DESCRIPTION => config[KEY_DESCRIPTION].to_s,

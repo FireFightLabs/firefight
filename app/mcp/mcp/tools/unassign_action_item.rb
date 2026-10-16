@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class UnassignActionItem < Base
-      tool_name UNASSIGN_ACTION_ITEM
+      tool_name FirefightTools::UNASSIGN_ACTION_ITEM
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Let go of a piece of work, so nobody holds it and it is open again for someone to take. Its issue is " \
                   "unassigned when the item is kept in step with one. Get the item's id from get_incident. If the call " \

@@ -1,6 +1,6 @@
 # Wakes whoever is on call for an incident. With an on-call tool connected it reads who is on call there first, as the
 # workflow's own identity, then raises a page through it (page_on_call), kept in step with the incident as any page is.
-# Without one it escalates to the member the step names (escalate_incident), who is asked in Slack and chased until they
+# Without one it escalates to the member the step names (escalate_incident), who is asked in chat and chased until they
 # acknowledge. A page once raised has reached a person and cannot be taken back, so it carries no undo.
 class DefinedWorkflow::Steps::PageOnCall < DefinedWorkflow::Steps::FirefightTool
   kind "page_on_call"
@@ -29,7 +29,7 @@ class DefinedWorkflow::Steps::PageOnCall < DefinedWorkflow::Steps::FirefightTool
   class << self
     def paging?(config, workspace) = workspace.paging_connection(config[KEY_TOOL]).present?
 
-    def tool_for(config, workspace) = paging?(config, workspace) ? Mcp::Tools::PAGE_ON_CALL : Mcp::Tools::ESCALATE_INCIDENT
+    def tool_for(config, workspace) = paging?(config, workspace) ? FirefightTools::PAGE_ON_CALL : FirefightTools::ESCALATE_INCIDENT
 
     def arguments_for(config, workspace)
       incident = { KEY_INCIDENT => config[KEY_INCIDENT].to_s, KEY_REASON => config[KEY_REASON].to_s }

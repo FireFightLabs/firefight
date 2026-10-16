@@ -31,6 +31,7 @@ class WorkspaceAiAccount < ApplicationRecord
   validate :settings_complete
   validate :models_known
   validate :address_allowed
+  validate :host_names_plain
 
   scope :enabled, -> { where(enabled: true) }
   # Out of credit or refused accounts wait for a check that shows they work again, so a call never waits on them.
@@ -282,6 +283,16 @@ class WorkspaceAiAccount < ApplicationRecord
       next if role == FAST || FirefightAi.context_window(model, provider: provider)
 
       errors.add(:"models.#{role}", "is a model Firefight does not know the size of, so Halon cannot run on it. Choose another, or ask whoever runs Firefight to add it to the model registry")
+    end
+  end
+
+  def host_names_plain
+    provider_definition&.fields&.each do |field|
+      value = settings.to_h[field.key]
+      next unless AiProviders::HOST_NAME_SETTINGS.include?(field.key)
+      next if value.blank? || value.to_s.match?(AiProviders::HOST_NAME)
+
+      errors.add(:base, "#{field.label} should be a name such as us-east-1")
     end
   end
 

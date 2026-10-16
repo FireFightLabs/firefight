@@ -6,8 +6,8 @@ namespace :feature_flags do
     puts "Turned #{args[:flag]} on for #{workspace.name} (#{workspace.id})."
   rescue ActiveRecord::RecordNotFound
     abort "No workspace with id #{args[:workspace_id].inspect}."
-  rescue FeatureFlags::UnknownFlag => e
-    abort "#{e.message}. Known flags: #{FeatureFlags::ALL.join(', ')}."
+  rescue FeatureFlags::UnknownFlag => error
+    abort "#{error.message}. Known flags: #{FeatureFlags::ALL.join(', ')}."
   end
 
   desc "Turn a feature flag off for one workspace: rake 'feature_flags:disable[FLAG,WORKSPACE_ID]'"
@@ -17,24 +17,24 @@ namespace :feature_flags do
     puts "Turned #{args[:flag]} off for #{workspace.name} (#{workspace.id})."
   rescue ActiveRecord::RecordNotFound
     abort "No workspace with id #{args[:workspace_id].inspect}."
-  rescue FeatureFlags::UnknownFlag => e
-    abort "#{e.message}. Known flags: #{FeatureFlags::ALL.join(', ')}."
+  rescue FeatureFlags::UnknownFlag => error
+    abort "#{error.message}. Known flags: #{FeatureFlags::ALL.join(', ')}."
   end
 
   desc "Turn a global feature flag on for everyone: rake 'feature_flags:enable_globally[FLAG]'"
   task :enable_globally, [ :flag ] => :environment do |_, args|
     FeatureFlags.enable_globally!(args[:flag])
     puts "Turned #{args[:flag]} on for everyone."
-  rescue FeatureFlags::UnknownFlag => e
-    abort "#{e.message}. Global flags: #{FeatureFlags::GLOBAL.join(', ')}."
+  rescue FeatureFlags::UnknownFlag => error
+    abort "#{error.message}. Global flags: #{FeatureFlags::GLOBAL.join(', ')}."
   end
 
   desc "Turn a global feature flag off for everyone: rake 'feature_flags:disable_globally[FLAG]'"
   task :disable_globally, [ :flag ] => :environment do |_, args|
     FeatureFlags.disable_globally!(args[:flag])
     puts "Turned #{args[:flag]} off for everyone."
-  rescue FeatureFlags::UnknownFlag => e
-    abort "#{e.message}. Global flags: #{FeatureFlags::GLOBAL.join(', ')}."
+  rescue FeatureFlags::UnknownFlag => error
+    abort "#{error.message}. Global flags: #{FeatureFlags::GLOBAL.join(', ')}."
   end
 
   desc "List every feature flag and where it is on"

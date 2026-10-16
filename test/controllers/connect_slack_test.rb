@@ -96,6 +96,16 @@ class ConnectSlackTest < ActionDispatch::IntegrationTest
     assert_no_enqueued_jobs only: SignupNotificationJob
   end
 
+  test "a connect that fails without a reason says so and how to try again" do
+    SlackAuthenticationService.any_instance.stubs(:handle_install).returns(AuthOutcome.refused(message: nil))
+    post onboarding_connect_slack_path
+
+    slack_install(team_id: "T_NEW_TEAM", uid: "U_OLIVE")
+
+    assert_redirected_to dashboard_path
+    assert_equal "Slack could not be connected. Press Connect Slack to try again.", flash[:alert]
+  end
+
   test "a Slack team already on another Firefight workspace is refused, never merged" do
     taken = workspaces(:slack_workspace_one)
     SlackWorkspaceSetupWorkflow.expects(:start!).never
@@ -127,7 +137,7 @@ class ConnectSlackTest < ActionDispatch::IntegrationTest
   end
 
   test "a workspace already connected is not connected again" do
-    @workspace.connect_slack!(mock_slack_auth_hash(extra: { team_info: { "id" => "T_ALREADY", "name" => "x" } }))
+    @workspace.connect_chat!(SlackAuthenticationService.install_from(mock_slack_auth_hash(extra: { team_info: { "id" => "T_ALREADY", "name" => "x" } })))
 
     post onboarding_connect_slack_path
 

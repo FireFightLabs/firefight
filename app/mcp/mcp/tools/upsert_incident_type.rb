@@ -3,7 +3,7 @@ module Mcp
     class UpsertIncidentType < Base
       include ConfiguresOption
 
-      tool_name UPSERT_INCIDENT_TYPE
+      tool_name FirefightTools::UPSERT_INCIDENT_TYPE
       configures_option IncidentType,
         resource: Ability::Action::RESOURCE_INCIDENT_TYPES
 

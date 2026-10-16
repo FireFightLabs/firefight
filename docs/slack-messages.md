@@ -206,6 +206,12 @@ The shared button only ever subscribes.
   `chat.postMessage` fails. Build the elements first and drop the block when
   the list comes back empty, rather than posting an empty one. `QuickActions`
   does this.
+- **An empty slot in any list is rejected too** ("must provide an object"), so
+  a button a builder left out as `nil` or `false` fails the whole message.
+  `Slack::Client` passes every message's and modal's blocks through
+  `Slack::Blocks.compact` on the way out, which drops those slots and any
+  `actions` or `context` block left with no elements. Builders should still
+  leave nothing out that way, but none can fail a post over it.
 - `plain_text` option labels truncate at **75 characters**, a select holds at
   most **100 options**, a `header` at **150 characters**, and a section's text
   at **3000**.

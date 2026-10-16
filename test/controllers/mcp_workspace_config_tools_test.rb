@@ -14,14 +14,14 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
   test "the config tools are offered, and only the deletes are destructive" do
     tools = rpc("tools/list").dig("result", "tools").index_by { |tool| tool["name"] }
 
-    [ Mcp::Tools::UPSERT_SEVERITY, Mcp::Tools::UPSERT_STATUS,
-      Mcp::Tools::UPSERT_INCIDENT_TYPE, Mcp::Tools::UPSERT_INCIDENT_ROLE ].each do |name|
+    [ FirefightTools::UPSERT_SEVERITY, FirefightTools::UPSERT_STATUS,
+      FirefightTools::UPSERT_INCIDENT_TYPE, FirefightTools::UPSERT_INCIDENT_ROLE ].each do |name|
       assert tools[name], "#{name} should be offered"
       assert_not tools[name].dig("annotations", "destructiveHint"), "#{name} is not destructive"
     end
 
-    [ Mcp::Tools::DELETE_SEVERITY, Mcp::Tools::DELETE_STATUS,
-      Mcp::Tools::DELETE_INCIDENT_TYPE, Mcp::Tools::DELETE_INCIDENT_ROLE ].each do |name|
+    [ FirefightTools::DELETE_SEVERITY, FirefightTools::DELETE_STATUS,
+      FirefightTools::DELETE_INCIDENT_TYPE, FirefightTools::DELETE_INCIDENT_ROLE ].each do |name|
       assert tools[name].dig("annotations", "destructiveHint"), "#{name} is destructive"
     end
   end
@@ -31,19 +31,19 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
     tools = rpc("tools/list").dig("result", "tools").index_by { |tool| tool["name"] }
     properties = ->(name) { tools[name].dig("inputSchema", "properties").keys }
 
-    assert_includes properties.call(Mcp::Tools::UPSERT_SEVERITY), "position"
-    assert_not_includes properties.call(Mcp::Tools::UPSERT_SEVERITY), "rank"
-    assert_not_includes properties.call(Mcp::Tools::UPSERT_SEVERITY), "lifecycle_stage"
+    assert_includes properties.call(FirefightTools::UPSERT_SEVERITY), "position"
+    assert_not_includes properties.call(FirefightTools::UPSERT_SEVERITY), "rank"
+    assert_not_includes properties.call(FirefightTools::UPSERT_SEVERITY), "lifecycle_stage"
 
-    assert_includes properties.call(Mcp::Tools::UPSERT_STATUS), "lifecycle_stage"
-    assert_includes properties.call(Mcp::Tools::UPSERT_STATUS), "position"
+    assert_includes properties.call(FirefightTools::UPSERT_STATUS), "lifecycle_stage"
+    assert_includes properties.call(FirefightTools::UPSERT_STATUS), "position"
 
-    assert_not_includes properties.call(Mcp::Tools::UPSERT_INCIDENT_ROLE), "color"
-    assert_not_includes properties.call(Mcp::Tools::UPSERT_INCIDENT_ROLE), "default"
+    assert_not_includes properties.call(FirefightTools::UPSERT_INCIDENT_ROLE), "color"
+    assert_not_includes properties.call(FirefightTools::UPSERT_INCIDENT_ROLE), "default"
   end
 
   test "one call names everything the workspace is configured with" do
-    content, is_error = call_tool(Mcp::Tools::GET_WORKSPACE_CONFIG)
+    content, is_error = call_tool(FirefightTools::GET_WORKSPACE_CONFIG)
 
     assert_not is_error, content.inspect
     assert_equal @workspace.incident_severities.count, content["severities"].size
@@ -54,14 +54,14 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
 
   # The settings page is admin only, so the same values are not handed to a key that may only read incidents.
   test "the workspace settings are shown only to a caller who may read the workspace" do
-    content, = call_tool(Mcp::Tools::GET_WORKSPACE_CONFIG)
+    content, = call_tool(FirefightTools::GET_WORKSPACE_CONFIG)
     assert content.key?("settings"), "an admin's key sees the settings"
 
     _, reader_token = create_agent(
       workspace: @workspace, created_by: @membership, name: "Reader", slug: "reader",
       permissions: { Ability::Action::RESOURCE_INCIDENTS => %w[read] }
     )
-    content, is_error = call_tool(Mcp::Tools::GET_WORKSPACE_CONFIG, {}, token: reader_token)
+    content, is_error = call_tool(FirefightTools::GET_WORKSPACE_CONFIG, {}, token: reader_token)
 
     assert_not is_error
     assert_not content.key?("settings")
@@ -69,7 +69,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "creating a severity without a position puts it at the end of the list, as the least severe" do
-    content, is_error = call_tool(Mcp::Tools::UPSERT_SEVERITY, {
+    content, is_error = call_tool(FirefightTools::UPSERT_SEVERITY, {
       name: "Cosmetic", description: "Nobody noticed", color: "#e5484d"
     }, token: @admin_token)
 
@@ -84,7 +84,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
   test "position 1 puts a new severity at the top and every rank follows" do
     before = @workspace.incident_severities.ordered.pluck(:slug)
 
-    content, is_error = call_tool(Mcp::Tools::UPSERT_SEVERITY, {
+    content, is_error = call_tool(FirefightTools::UPSERT_SEVERITY, {
       name: "SEV0", description: "Everything is on fire", position: 1, color: "#e5484d"
     }, token: @admin_token)
 
@@ -101,7 +101,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
     last = @workspace.incident_severities.ordered.last
     total = @workspace.incident_severities.count
 
-    content, is_error = call_tool(Mcp::Tools::UPSERT_SEVERITY, {
+    content, is_error = call_tool(FirefightTools::UPSERT_SEVERITY, {
       slug: last.slug, position: 1
     }, token: @admin_token)
 
@@ -115,7 +115,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
   test "a position past the end lands on the end" do
     first = @workspace.incident_severities.ordered.first
 
-    content, is_error = call_tool(Mcp::Tools::UPSERT_SEVERITY, {
+    content, is_error = call_tool(FirefightTools::UPSERT_SEVERITY, {
       slug: first.slug, position: 99
     }, token: @admin_token)
 
@@ -127,7 +127,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
   test "rank is reported, never taken" do
     severity = @workspace.incident_severities.ordered.first
 
-    content, is_error = call_tool(Mcp::Tools::UPSERT_SEVERITY, {
+    content, is_error = call_tool(FirefightTools::UPSERT_SEVERITY, {
       slug: severity.slug, rank: 1
     }, token: @admin_token)
 
@@ -137,7 +137,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "position works the same on the other lists" do
-    content, is_error = call_tool(Mcp::Tools::UPSERT_INCIDENT_TYPE, {
+    content, is_error = call_tool(FirefightTools::UPSERT_INCIDENT_TYPE, {
       name: "Outage", position: 1
     }, token: @admin_token)
 
@@ -149,7 +149,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
 
   # The model owns the rule, so every surface reports the same sentence.
   test "creating without a name reports what the model refused" do
-    _, is_error, text = call_tool(Mcp::Tools::UPSERT_SEVERITY, { position: 1 }, token: @admin_token)
+    _, is_error, text = call_tool(FirefightTools::UPSERT_SEVERITY, { position: 1 }, token: @admin_token)
 
     assert is_error
     assert_match(/Name can't be blank/, text)
@@ -159,7 +159,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
   test "renaming keeps the slug" do
     severity = @workspace.incident_severities.active.first
 
-    content, is_error = call_tool(Mcp::Tools::UPSERT_SEVERITY, {
+    content, is_error = call_tool(FirefightTools::UPSERT_SEVERITY, {
       slug: severity.slug, name: "Renamed"
     }, token: @admin_token)
 
@@ -170,7 +170,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
 
   test "a slug that resolves to nothing is an error, not a second one under a fresh slug" do
     assert_no_difference -> { @workspace.incident_severities.count } do
-      _, is_error, text = call_tool(Mcp::Tools::UPSERT_SEVERITY, {
+      _, is_error, text = call_tool(FirefightTools::UPSERT_SEVERITY, {
         slug: "not_a_severity", name: "Ghost"
       }, token: @admin_token)
 
@@ -180,7 +180,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "a status is created into the lifecycle stage it names" do
-    content, is_error = call_tool(Mcp::Tools::UPSERT_STATUS, {
+    content, is_error = call_tool(FirefightTools::UPSERT_STATUS, {
       name: "Mitigating", lifecycle_stage: IncidentLifecycleStage::ACTIVE
     }, token: @admin_token)
 
@@ -193,7 +193,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
   test "disabling retires an option without deleting it" do
     type = @workspace.incident_types.active.first
 
-    _, is_error = call_tool(Mcp::Tools::UPSERT_INCIDENT_TYPE, {
+    _, is_error = call_tool(FirefightTools::UPSERT_INCIDENT_TYPE, {
       slug: type.slug, enabled: false
     }, token: @admin_token)
 
@@ -206,7 +206,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
     severity = @workspace.incident_severities.find_by(is_default: true)
     skip "no default severity in this workspace" unless severity
 
-    _, is_error, text = call_tool(Mcp::Tools::UPSERT_SEVERITY, {
+    _, is_error, text = call_tool(FirefightTools::UPSERT_SEVERITY, {
       slug: severity.slug, enabled: false
     }, token: @admin_token)
 
@@ -218,7 +218,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
   test "deleting is refused while incidents still point at it" do
     severity = incidents(:active_critical_ws1).incident_severity
 
-    _, is_error, text = call_tool(Mcp::Tools::DELETE_SEVERITY, {
+    _, is_error, text = call_tool(FirefightTools::DELETE_SEVERITY, {
       slug: severity.slug
     }, token: @admin_token)
 
@@ -230,7 +230,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
   test "deleting one nothing points at closes the gap it leaves" do
     type = @workspace.incident_types.create_in_list!(@workspace, { name: "Throwaway" })
 
-    _, is_error = call_tool(Mcp::Tools::DELETE_INCIDENT_TYPE, { slug: type.slug }, token: @admin_token)
+    _, is_error = call_tool(FirefightTools::DELETE_INCIDENT_TYPE, { slug: type.slug }, token: @admin_token)
 
     assert_not is_error
     assert_not @workspace.incident_types.exists?(type.id)
@@ -244,7 +244,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
       permissions: { Ability::Action::RESOURCE_INCIDENTS => %w[read] }
     )
 
-    _, is_error = call_tool(Mcp::Tools::UPSERT_SEVERITY, { name: "Sneaky" }, token: token)
+    _, is_error = call_tool(FirefightTools::UPSERT_SEVERITY, { name: "Sneaky" }, token: token)
 
     assert is_error
     assert_nil @workspace.incident_severities.find_by(slug: "sneaky")
@@ -257,7 +257,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
       permissions: { Ability::Action::RESOURCE_SEVERITIES => %w[create update] }
     )
 
-    _, is_error = call_tool(Mcp::Tools::UPSERT_SEVERITY, { name: "SEV4" }, token: token)
+    _, is_error = call_tool(FirefightTools::UPSERT_SEVERITY, { name: "SEV4" }, token: token)
 
     assert_not is_error
     assert @workspace.incident_severities.exists?(slug: "sev4")
@@ -266,7 +266,7 @@ class McpWorkspaceConfigToolsTest < ActionDispatch::IntegrationTest
   test "another workspace's severity is not reachable" do
     other = workspaces(:slack_workspace_two).incident_severities.first
 
-    _, is_error = call_tool(Mcp::Tools::UPSERT_SEVERITY, { slug: other.slug, name: "Nope" }, token: @admin_token)
+    _, is_error = call_tool(FirefightTools::UPSERT_SEVERITY, { slug: other.slug, name: "Nope" }, token: @admin_token)
 
     assert is_error
   end

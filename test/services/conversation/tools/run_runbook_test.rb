@@ -12,7 +12,7 @@ class Conversation::Tools::RunRunbookTest < ActiveSupport::TestCase
   end
 
   test "a runbook Halon can run is saved from a chat with its tool steps, inputs, other names and watch" do
-    upsert = Chat::Tools.catalog(turn(@admin)).find { |entry| entry.name.to_s == Mcp::Tools::UPSERT_RUNBOOK }.tool
+    upsert = Chat::Tools.catalog(turn(@admin)).find { |entry| entry.name.to_s == FirefightTools::UPSERT_RUNBOOK }.tool
 
     upsert.call(
       name: "Release Firefight", aliases: [ "release firefight", "ship it" ],
@@ -92,7 +92,7 @@ class Conversation::Tools::RunRunbookTest < ActiveSupport::TestCase
   test "a change the person may not make stops the run with the reason, and nothing after it runs or is watched" do
     runbook = release_runbook
     runbook.sync_steps!([
-      { title: "Give the bot access", tool: Mcp::Tools::GRANT_ABILITY, arguments: { "principal_kind" => "user", "principal_id" => @member.id, "ability" => "alerts.update" } },
+      { title: "Give the bot access", tool: FirefightTools::GRANT_ABILITY, arguments: { "principal_kind" => "user", "principal_id" => @member.id, "ability" => "alerts.update" } },
       { title: "Look for past releases", tool: "search_incidents", arguments: { "query" => "release" } }
     ])
     Conversation::Watches.expects(:start).never

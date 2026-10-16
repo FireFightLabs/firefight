@@ -59,7 +59,7 @@ module Chat::Tools::TrackedIssues
     named = report.key || "the issue"
     kind = kind_for(incident, asked)
     params = { "incident" => incident.identifier, "kind" => kind, "link" => report.url }
-    agent_run.tool_call(action_key: UPDATE_ACTION_KEY, params: params, tool_name: Mcp::Tools::CREATE_ACTION_ITEM, label: "Recording #{named} as #{KIND_WORDS[kind]}") do
+    agent_run.tool_call(action_key: UPDATE_ACTION_KEY, params: params, tool_name: FirefightTools::CREATE_ACTION_ITEM, label: "Recording #{named} as #{KIND_WORDS[kind]}") do
       IncidentActionService.new(agent_run.workspace).create_action(
         incident: incident, created_by: agent_run.acting_principal, action_type: kind,
         description: report.title || named, external_key: report.key, external_url: report.url, issue_integration: integration
@@ -79,7 +79,7 @@ module Chat::Tools::TrackedIssues
     named = report.key || "the issue"
     completed = open.filter_map do |action|
       params = { "incident" => action.incident.identifier, "action_item" => action.id }
-      agent_run.tool_call(action_key: UPDATE_ACTION_KEY, params: params, tool_name: Mcp::Tools::COMPLETE_ACTION_ITEM, label: "Completing the item for #{named}") do
+      agent_run.tool_call(action_key: UPDATE_ACTION_KEY, params: params, tool_name: FirefightTools::COMPLETE_ACTION_ITEM, label: "Completing the item for #{named}") do
         IncidentActionService.new(agent_run.workspace).complete_action(action: action, completed_by: agent_run.acting_principal, tracked: false)
       end
       "#{KIND_WORDS[action.action_type].split.last} on #{action.incident.identifier}"

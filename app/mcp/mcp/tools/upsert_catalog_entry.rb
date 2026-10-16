@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class UpsertCatalogEntry < Base
-      tool_name UPSERT_CATALOG_ENTRY
+      tool_name FirefightTools::UPSERT_CATALOG_ENTRY
       description "Create or update a service catalog entry. Pass slug to update an existing " \
                   "entry; omit it to create one (name required). Attributes must match the " \
                   "type's attribute definitions. If the call requires approval, retry the " \

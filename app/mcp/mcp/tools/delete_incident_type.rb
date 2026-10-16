@@ -3,7 +3,7 @@ module Mcp
     class DeleteIncidentType < Base
       include ConfiguresOption
 
-      tool_name DELETE_INCIDENT_TYPE
+      tool_name FirefightTools::DELETE_INCIDENT_TYPE
       deletes_option IncidentType, resource: Ability::Action::RESOURCE_INCIDENT_TYPES
 
       def self.perform(workspace:, args:)

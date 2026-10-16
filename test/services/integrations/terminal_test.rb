@@ -25,7 +25,7 @@ module Integrations
       @workspace = workspaces(:slack_workspace_one)
       @provider = FakeProvider.new(region: "europe-west")
       Sandboxes.stubs(:provider).returns(@provider)
-      SandboxProviders.stubs(:order_for).returns([ SandboxProviders::DOCKER ])
+      SandboxProviders.stubs(:order_for).returns([ Integrations::Sandboxes::Docker::KEY ])
       Sandboxes::Client.any_instance.stubs(:wait_until_ready!)
       Sandboxes::Client.any_instance.stubs(:terminal?).returns(true)
     end
@@ -161,10 +161,10 @@ module Integrations
 
       given = ENV.fetch("SANDBOX_REGION", nil)
       ENV["SANDBOX_REGION"] = "eu-west (Frankfurt)"
-      assert_equal "eu-west (Frankfurt)", Sandboxes.region(SandboxProviders::DOCKER)
+      assert_equal "eu-west (Frankfurt)", Sandboxes.region(Integrations::Sandboxes::Docker::KEY)
 
       ENV.delete("SANDBOX_REGION")
-      assert_nil Sandboxes.region(SandboxProviders::DOCKER)
+      assert_nil Sandboxes.region(Integrations::Sandboxes::Docker::KEY)
       assert_nil Sandboxes.region(nil)
     ensure
       ENV["SANDBOX_REGION"] = given

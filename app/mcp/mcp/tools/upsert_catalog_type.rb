@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class UpsertCatalogType < Base
-      tool_name UPSERT_CATALOG_TYPE
+      tool_name FirefightTools::UPSERT_CATALOG_TYPE
       authorize_as Ability::Action::RESOURCE_CATALOG, Ability::Action::ACTION_UPDATE
       description "Create a kind of thing the catalog holds, such as Service or Datastore, or " \
                   "change the attributes entries under it carry. Pass slug to change the one that " \

@@ -3,7 +3,7 @@ module Mcp
     class ListMemberAccess < Base
       extend GatewayPayloads
 
-      tool_name LIST_MEMBER_ACCESS
+      tool_name FirefightTools::LIST_MEMBER_ACCESS
       description "What members can read and change in each connected tool, as the Who can do what rows on the Permissions " \
                   "screen show it. Each row has a read and a change choice: everyone (every member, including people who " \
                   "join later), nobody, or chosen (the people listed). left_out are members kept from a read everyone has, " \

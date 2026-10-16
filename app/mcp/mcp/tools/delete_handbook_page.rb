@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class DeleteHandbookPage < Base
-      tool_name DELETE_HANDBOOK_PAGE
+      tool_name FirefightTools::DELETE_HANDBOOK_PAGE
       description "Delete a handbook page by its id or title, with its history. Halon stops following it at once. A synced page " \
                   "is removed by stopping its sync on the Handbook page. If the call requires approval, retry the identical " \
                   "call with approval_id once approved. Docs: #{Docs::HANDBOOK}"

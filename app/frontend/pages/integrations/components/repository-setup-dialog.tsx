@@ -86,7 +86,7 @@ function sentOf(draft: Draft) {
   }
 }
 
-// Owns both setting a repository up and changing its setup. A new one starts from its name: Halon reads the rest from
+// Owns both setting a repository up and changing its setup. A new one starts from its name. Halon reads the rest from
 // its CI, or the admin chooses to set it up by hand. A refusal stays beside what was typed.
 export function RepositorySetupDialog({
   integrationId,

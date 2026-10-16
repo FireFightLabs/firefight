@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class StartPostmortem < Base
-      tool_name START_POSTMORTEM
+      tool_name FirefightTools::START_POSTMORTEM
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Start the postmortem for an incident that has been resolved. Leave generate out " \
                   "to open an empty one you write yourself with update_postmortem. Pass generate " \

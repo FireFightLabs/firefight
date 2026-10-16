@@ -65,7 +65,7 @@ class DefinedWorkflow::Steps::Investigate < DefinedWorkflow::Steps::Base
     reference = @config[KEY_INCIDENT].to_s
     return nil if reference.blank?
 
-    found = Mcp::Tools::GetIncident.find_by_reference(workspace.incidents.where(deleted_at: nil), reference)
+    found = workspace.incidents.where(deleted_at: nil).find_by_reference(reference)
     raise Refused, "No incident is #{reference}." unless found
 
     found

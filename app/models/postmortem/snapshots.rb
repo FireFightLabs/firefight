@@ -18,18 +18,11 @@ module Postmortem::Snapshots
     }
   end
 
-  ALLOWED_TAGS = %w[
-    p br hr h1 h2 h3 h4 h5 h6 strong em u s del code pre blockquote
-    ul ol li a span div
-    table thead tbody tr th td
-  ].freeze
-  ALLOWED_ATTRIBUTES = %w[href title class colspan rowspan target rel].freeze
-
   class_methods do
     # Every way HTML reaches a postmortem, the editor, a generated draft or an older snapshot, is kept to the same tags,
     # so text a person or the model wrote never becomes markup the dashboard runs.
     def sanitized_html(html)
-      Rails::Html::SafeListSanitizer.new.sanitize(html.to_s, tags: ALLOWED_TAGS, attributes: ALLOWED_ATTRIBUTES)
+      Rails::Html::SafeListSanitizer.new.sanitize(html.to_s, scrubber: Postmortem::HtmlScrubber.new)
     end
   end
 
@@ -49,11 +42,22 @@ module Postmortem::Snapshots
   end
 
   # A completed postmortem is a considered account, so the learning job reads it against what the incident taught. It is
-  # queued once the change is recorded, since the job credits whoever marked it completed.
+  # queued once the change is recorded, since the job credits whoever marked it completed. Completing is claimed in one
+  # statement, so two people completing it at once queue the job once, and only the one who won is on record as completing it.
   def update_status!(new_status, by:)
-    completing = new_status == Postmortem::STATUS_COMPLETED && status != Postmortem::STATUS_COMPLETED
-    record_change!(IncidentEvent::POSTMORTEM_EDITED, by: by) do
-      update!(status: new_status)
+    completing = transaction do
+      to_complete = new_status == Postmortem::STATUS_COMPLETED
+      claimed = to_complete &&
+                self.class.where(id: id).where.not(status: Postmortem::STATUS_COMPLETED).update_all(status: new_status, updated_at: Time.current) == 1
+      if to_complete && !claimed && status != Postmortem::STATUS_COMPLETED
+        reload
+        next false
+      end
+
+      record_change!(IncidentEvent::POSTMORTEM_EDITED, by: by) do
+        update!(status: new_status)
+      end
+      claimed
     end
     IncidentLearningJob.perform_later(incident_id, true) if completing && defined?(FirefightAi)
   end

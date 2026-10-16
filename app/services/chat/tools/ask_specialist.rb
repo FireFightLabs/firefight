@@ -1,7 +1,7 @@
 # Hands an objective to the specialist for one kind of connected system, several at once when they do not depend on
 # each other, and answers with what each found, the lines and links that show it, and the changes it proposes. A
 # specialist only reads, as whoever the chat acts for (Chat::Specialists). Its report is outside text and never backs a
-# change: Halon confirms what a change rests on with its own read before proposing it, the specialist's own read
+# change. Halon confirms what a change rests on with its own read before proposing it, the specialist's own read
 # included, which open_tools loads for Halon once the specialist made it.
 class Chat::Tools::AskSpecialist < RubyLLM::Tool
   NAME = Chat::Helper::ASK_SPECIALIST

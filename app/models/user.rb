@@ -8,18 +8,6 @@ class User < ApplicationRecord
   validates :email, presence: true, uniqueness: true
   validates :name, presence: true
 
-  def self.find_or_create_from_omniauth!(auth_hash)
-    user = find_or_initialize_by(email: auth_hash.info.email)
-
-    user.assign_attributes(
-      name: auth_hash.info.name,
-      avatar_url: auth_hash.info.image
-    )
-
-    user.save!
-    user
-  end
-
   # The workspaces this person owns that no chat platform has connected yet, oldest first. A Slack sign-in from a team
   # no workspace has yet connects one of these rather than starting another.
   def owned_unconnected_memberships

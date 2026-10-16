@@ -28,16 +28,32 @@ class Operator::AttentionTest < ActiveSupport::TestCase
     assert_nil item_for(Operator::Attention::KIND_HALON_NOT_POSTED, posted)
   end
 
-  test "repeats of one failed Slack call are one item, opening the incident whose channel it was in" do
-    2.times do
-      PlatformCallFailure.create!(workspace: @workspace, platform: Platforms::SLACK, operation: "chat.postMessage",
-                                  error_class: "AdapterError::NotInChannel", channel_id: @incident.channel_id)
+  test "repeats of one failed Slack call are one item, saying why and naming the incident whose channel it was in" do
+    failures = Array.new(2) do
+      PlatformCallFailure.create!(workspace: @workspace, platform: Platforms::SLACK, operation: "chat.postMessage", error_class: "AdapterError::NotInChannel",
+                                  message: 'Slack API error: not_in_channel (details: {"error":"not_in_channel","response_metadata":{"warnings":["missing_charset"]}})',
+                                  channel_id: @incident.channel_id)
     end
 
-    platform = items.select { |item| item.kind == Operator::Attention::KIND_PLATFORM_FAILED && item.target_id == @incident.id }
+    platform = items.select { |item| item.kind == Operator::Attention::KIND_PLATFORM_FAILED && item.subject.include?(@incident.identifier) }
 
     assert_equal 1, platform.size
-    assert_match "2 times", platform.sole.detail
+    assert_equal "2 times · not_in_channel", platform.sole.detail
+    assert_equal Operator::Attention::TARGET_PLATFORM_FAILURE, platform.sole.target
+    assert_includes failures.map(&:id), platform.sole.target_id
+  end
+
+  test "failed calls with different reasons are separate items, and one in no channel still opens its occurrences" do
+    failures = %w[not_authorized feature_disabled].index_with do |code|
+      PlatformCallFailure.create!(workspace: @workspace, platform: Platforms::SLACK, operation: "agents.sessions.setStatus", error_class: "AdapterError",
+                                  message: "Slack API error: #{code}")
+    end
+
+    platform = items.select { |item| item.kind == Operator::Attention::KIND_PLATFORM_FAILED && item.subject == "agents.sessions.setStatus" }
+
+    assert_equal [ "1 time · feature_disabled", "1 time · not_authorized" ], platform.map(&:detail).sort
+    assert platform.all? { |item| item.target == Operator::Attention::TARGET_PLATFORM_FAILURE }
+    failures.each { |code, failure| assert_equal failure.id, platform.find { |item| item.detail.end_with?(code) }.target_id }
   end
 
   test "a failed webhook delivery opens the incident it was about" do

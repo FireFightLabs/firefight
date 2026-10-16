@@ -97,7 +97,7 @@ class Api::V1::AppEventsAgentSessionsTest < ActionDispatch::IntegrationTest
     alice = workspace_memberships(:alice_workspace_one)
     workflow = Workflow.create!(workspace: @workspace, name: name, created_by: alice)
     draft = workflow.open_draft!(by: alice)
-    look = { "id" => "look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => { "query" => "{{trigger.issue.title}}" } } }
+    look = { "id" => "look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => { "query" => "{{trigger.issue.title}}" } } }
     draft.update!(trigger: { "kind" => Workflow::Trigger::KIND_ISSUE_ASSIGNED, "inputs" => [] }.merge(trigger), steps: [ look ], edges: [])
     assert_empty draft.problems
     assert WorkflowPublishService.new(workflow).publish!(draft.reload, by: alice).ok

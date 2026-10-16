@@ -4,7 +4,7 @@
 class Chat::Tools::UseSkill < RubyLLM::Tool
   CODE = /`([^`]+)`/
   # Firefight's own map, which a provider's skill may name too, since finding one of the provider's resources starts there.
-  MAP = Mcp::Tools::GET_RESOURCE_MAP
+  MAP = FirefightTools::GET_RESOURCE_MAP
   # A guide is the provider's documentation, read from the web into the docs store with no review, so it is handed over
   # framed as evidence like any tool result and never as instructions.
   GUIDE_NOTE = "#{Chat::Tools::Docs::NOTE} Only the tools you hold can run, so a command or tool it mentions that you do " \

@@ -4,6 +4,7 @@ class Integration < ApplicationRecord
   include Sluggable
   include CodeChanges
   include RepositorySetups
+  include Connecting
 
   KIND_MCP = "mcp"
   KIND_HTTP = "http"

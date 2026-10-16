@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class DeletePermissionSet < Base
-      tool_name DELETE_PERMISSION_SET
+      tool_name FirefightTools::DELETE_PERMISSION_SET
       description "Delete a permission set by slug. Everyone holding it loses it at once. Built-in packs cannot be deleted. " \
                   "Docs: #{Docs::PERMISSIONS}"
       annotations(**DESTRUCTIVE)

@@ -6,6 +6,10 @@
 class Investigation::RemediationStep < ApplicationRecord
   include Chat::SecretFree
 
+  # Firefight's own tools a step may run, handed in at boot (config/initializers/firefight_tools.rb), so the model never
+  # names the layer that lists them.
+  class_attribute :own_tools, instance_accessor: false
+
   self.table_name = "investigation_remediation_steps"
 
   # Its coding agent's steps can quote the model, so they are kept encrypted like a chat's messages.
@@ -107,7 +111,7 @@ class Investigation::RemediationStep < ApplicationRecord
       step.repository = asked["repository"].to_s.strip.presence || refuse(position, "names no repository. Give the repository the change goes in")
     when KIND_ACTION
       refuse(position, "has its arguments as something other than an object") unless asked["arguments"].nil? || asked["arguments"].is_a?(Hash)
-      own = Mcp::Tools.for_fix(workspace, asked["tool"])
+      own = own_tools.for_fix(workspace, asked["tool"])
       if own
         step.assign_attributes(own_action_of(workspace, own, asked["arguments"] || {}, position, principal))
       else
@@ -143,7 +147,7 @@ class Investigation::RemediationStep < ApplicationRecord
 
   # The tool while this workspace still offers it to a fix.
   def own_tool_to_run(workspace)
-    tool_class = Mcp::Tools.for_fix(workspace, tool_name)
+    tool_class = self.class.own_tools.for_fix(workspace, tool_name)
     tool_class && FirefightTool.new(tool_class: tool_class, action_key: action_key, workspace: workspace)
   end
 
@@ -605,7 +609,7 @@ class Investigation::RemediationStep < ApplicationRecord
   # missing says why the tool cannot do it here.
   def self.refuse_by_hand!(workspace, step)
     words = "#{step.title} #{step.description}"
-    doer = Mcp::Tools.for_fixes(workspace).find { |tool_class| tool_class.by_hand_words&.match?(words) }&.name_value&.to_s
+    doer = own_tools.for_fixes(workspace).find { |tool_class| tool_class.by_hand_words&.match?(words) }&.name_value&.to_s
     return unless doer && !step.missing.to_s.include?(doer)
 
     refuse(step.position, "is for a person, but Firefight does that with #{doer}. Make it an action step with #{doer}, " \

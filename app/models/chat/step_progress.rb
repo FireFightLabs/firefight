@@ -1,7 +1,7 @@
 # A coding agent's work on a chat step, kept by tool call so a reload sees what arrived live. Its lines can quote the
 # model, so they are encrypted like the chat's messages.
 # A call id is unique only within its message, and some models start numbering again in each, so a call is its id and
-# when it was made: a row is the call's when it was kept since then (since).
+# when it was made. A row is the call's when it was kept since then (since).
 class Chat::StepProgress < ApplicationRecord
   belongs_to :chat
 

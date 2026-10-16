@@ -5,7 +5,7 @@ Machine-generated entry into incidents. A monitoring tool POSTs JSON, a routing 
 Two halves that must not be conflated:
 
 - **Ingestion** (`Alert`, `AlertSource`, `AlertGroup`, `AlertIngestService`) is alert-specific.
-- **PolicyRouter** (`Policy`, `PolicyRule`, `Policy::Evaluation`) is a generic rules primitive that alert routing is merely the first consumer of. Auto-investigate and the Ability Gateway's approval policies are meant to reuse it unchanged, and a workflow trigger's conditions match through the same `Policy::Conditions`. Never add alert vocabulary to the engine.
+- **PolicyRouter** (`Policy`, `PolicyRule`, `Policy::Evaluation`) is a generic rules engine, and alert routing is only its first consumer. Auto-investigate and the Ability Gateway's approval policies are meant to reuse it unchanged, and a workflow trigger's conditions match through the same `Policy::Conditions`. Never add alert vocabulary to the engine.
 
 ## The pipeline
 

@@ -791,7 +791,7 @@ module Integrations
         fail! "#{asked} is not a namespace name." unless asked.match?(NAMESPACE_FORMAT)
         return asked if namespaces.include?(ALL_NAMESPACES) || namespaces.include?(asked)
 
-        fail! "This connection reaches only #{namespaces.join(', ')}, not #{asked}."
+        fail_policy! "This connection reaches only #{namespaces.join(', ')}, not #{asked}."
       end
 
       def segment(value) = self.class.segment(value)

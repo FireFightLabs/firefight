@@ -171,6 +171,27 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     assert_match "Alice Smith undid", mitigation.outcome
   end
 
+  test "an undo an approval rule holds says it runs once approved, and approving it runs it with no Run to press" do
+    Ability::Grant.create!(workspace: @workspace, principal: @bob, action: @enable.reload.ability_action)
+    @workspace.find_or_create_approval_policy!.policy_rules.create!(priority: 1, conditions: [], outcome: { "require" => { "role" => "admin", "count" => 1 } })
+    conversation = Conversation.start_personal!(workspace: @workspace, member: @bob)
+    mitigation = ready!(expires_at: 1.minute.ago)
+    mitigation.update_columns(chat_id: conversation.chat_record.id, asker_id: @bob.id, status: Chat::Mitigation::STATUS_UNDOING)
+    Slack::WorkspaceAdapter.any_instance.stubs(:post_held_call_to_user).returns({ channel_id: "D1", message_id: "9.1" })
+
+    Conversation::Mitigations.undo!(mitigation.reload, by: nil)
+
+    assert_equal Chat::Mitigation::STATUS_UNDO_HELD, mitigation.reload.status
+    assert_equal "Undoing Turn new-checkout off needs an approval, so it waits in the chat until someone approves it, and then it runs.",
+      mitigation.outcome
+    held = conversation.chat.held_calls.sole
+    assert_enqueued_with(job: ConversationReplyJob, args: [ conversation.id, @bob.id, held.id ]) do
+      perform_enqueued_jobs(only: AbilityApprovalResumptionJob) { held.approval.approve!(by: @alice) }
+    end
+    assert_equal Chat::HeldCall::STATUS_RUNNING, held.reload.status
+    assert_empty held.offers
+  end
+
   test "an undo a worker died in the middle of is ended saying it may or may not have gone through" do
     mitigation = ready!(expires_at: 1.hour.ago)
     mitigation.update_columns(status: Chat::Mitigation::STATUS_UNDOING, claimed_at: 1.hour.ago)

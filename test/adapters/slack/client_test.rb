@@ -277,6 +277,69 @@ class Slack::ClientTest < ActiveSupport::TestCase
     assert_includes captured_request.path, "user=U123"
   end
 
+  # Slack takes JSON only for write methods, and reads a JSON body to a read method as no arguments at all.
+  test "a read method sends its arguments in the query string, never as a JSON body" do
+    requests = []
+    pool = mock_pool
+    pool.stubs(:request).with { |_uri, req| requests << req; true }
+      .returns(http_response(200, { ok: true, permalink: "https://x.slack.com/archives/C1/p1", messages: [], channels: [], members: [] }.to_json))
+
+    Slack::Client.get_permalink(workspace: @workspace, channel: "C123", message_ts: "1.2")
+    Slack::Client.get_message(workspace: @workspace, channel: "C123", ts: "1.2")
+    Slack::Client.list_conversations(workspace: @workspace)
+    Slack::Client.list_users(workspace: @workspace)
+
+    assert_equal 4, requests.size
+    requests.each { |request| assert_instance_of Net::HTTP::Get, request }
+    assert_includes requests[0].path, "channel=C123"
+    assert_includes requests[0].path, "message_ts=1.2"
+    assert_includes requests[1].path, "latest=1.2"
+    assert_includes requests[2].path, "exclude_archived=true"
+    assert_includes requests[3].path, "limit=200"
+  end
+
+  test "a permalink is never asked for without both the channel and the message" do
+    Slack::Client.expects(:get_permalink).never
+    adapter = Slack::WorkspaceAdapter.new(@workspace)
+
+    assert_nil adapter.get_message_permalink(channel_id: nil, message_id: "1.2")[:permalink]
+    assert_nil adapter.get_message_permalink(channel_id: "C1", message_id: "")[:permalink]
+  end
+
+  test "a reaction already there is the outcome asked for, so it is neither raised nor kept as a failure" do
+    stub_ok_false_response("already_reacted")
+
+    Slack::Client.add_reaction(workspace: @workspace, channel: "C1", timestamp: "1.2", name: "eyes")
+
+    assert_not PlatformCallFailure.exists?(workspace: @workspace)
+  end
+
+  test "a failed call naming its conversation as channel_id keeps that channel" do
+    stub_ok_false_response("not_authorized")
+
+    assert_raises(AdapterError) do
+      Slack::Client.set_agent_session_status(workspace: @workspace, channel: "C0INCIDENT", thread_ts: "1.2", status: "processing")
+    end
+
+    assert_equal "C0INCIDENT", PlatformCallFailure.find_by!(workspace: @workspace).channel_id
+  end
+
+  test "an empty slot in a block's list never reaches Slack" do
+    sent = nil
+    pool = mock_pool
+    pool.expects(:request).with { |_uri, req| sent = JSON.parse(req.body); true }.returns(http_response(200, { ok: true }.to_json))
+    button = { type: "button", text: { type: "plain_text", text: "Stop" }, action_id: "stop" }
+
+    Slack::Client.post_message(workspace: @workspace, channel: "C1", text: "hi", blocks: [
+      { type: "section", text: { type: "mrkdwn", text: "hi" } }, nil,
+      { type: "actions", elements: [ button, nil, false ] },
+      { type: "actions", elements: [ nil ] }
+    ])
+
+    assert_equal [ "section", "actions" ], sent["blocks"].map { |block| block["type"] }
+    assert_equal [ "Stop" ], sent["blocks"].last["elements"].map { |element| element.dig("text", "text") }
+  end
+
   test "get_user_info raises AdapterError on a Slack error response" do
     stub_ok_false_response("user_not_found")
     assert_raises(AdapterError) do

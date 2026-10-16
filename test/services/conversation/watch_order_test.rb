@@ -3,7 +3,7 @@ require "test_helper"
 # A watch's steps can wait for others. A step with nothing to wait for is read at once, so independent steps go in
 # parallel. One whose prerequisites have not all succeeded is not read at all, and once they have it counts only what
 # came after them. One whose prerequisite failed is skipped, and the watch ends on the real failure. Only the providers'
-# answers are stubbed: the gateway, the capability routing and the watch run as they do in production.
+# answers are stubbed. The gateway, the capability routing and the watch run as they do in production.
 class Conversation::WatchOrderTest < ActiveSupport::TestCase
   include SlackClientStubHelper
   include ActiveJob::TestHelper

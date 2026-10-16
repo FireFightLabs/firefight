@@ -3,7 +3,7 @@ module Mcp
     # The paths Halon may not change in a code host connection's repositories, the list under Code changes on the
     # connection's page. Any file may change while it is empty, since every change arrives as a pull request for review.
     class UpdateProtectedPaths < Base
-      tool_name UPDATE_PROTECTED_PATHS
+      tool_name FirefightTools::UPDATE_PROTECTED_PATHS
       authorize_as Ability::Action::RESOURCE_INTEGRATIONS, Ability::Action::ACTION_UPDATE
       description "Add or remove paths Halon may not change in the repositories of a code host connection, the list under " \
                   "Code changes on the connection's page. A code change touching one is refused, and a connected coding agent, " \
