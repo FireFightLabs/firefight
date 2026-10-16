@@ -69,7 +69,7 @@ class IncidentsControllerTest < ActionDispatch::IntegrationTest
     )
     Postmortem.start_generation!(incident, by: member).mark_generation_failed!("TerminalError")
 
-    assert_enqueued_with(job: PostmortemGenerationJob, args: [ incident.id ]) do
+    assert_enqueued_with(job: PostmortemGenerationJob, args: ->(args) { args == [ incident.id, incident.reload.postmortem.generation_attempt ] }) do
       post incident_postmortem_generate_path(incident_id: incident.id)
     end
     assert_redirected_to incident_postmortem_path(incident)

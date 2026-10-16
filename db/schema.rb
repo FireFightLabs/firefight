@@ -2543,6 +2543,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_130000) do
     t.datetime "created_at", null: false
     t.uuid "generated_by_id", null: false
     t.string "generated_by_type", null: false
+    t.uuid "generation_attempt"
     t.string "generation_error"
     t.text "generation_prompt"
     t.string "generation_state"
