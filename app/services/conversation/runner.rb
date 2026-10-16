@@ -307,7 +307,7 @@ class Conversation::Runner
       next unless update.is_a?(Chat::CodeFixProgress)
 
       shown = shown_pace.due?(@held_call.tool_call_id, update)
-      Chat::StepProgress.keep!(chat, @held_call.tool_call_id, update) if saving_pace.due?(@held_call.tool_call_id, update) || shown
+      Chat::StepProgress.keep!(chat, @held_call.tool_call_id, update, since: @held_call.created_at) if saving_pace.due?(@held_call.tool_call_id, update) || shown
       Conversation::HeldCalls.moved!(@held_call, progress: update) if shown
     rescue StandardError => error
       Rails.logger.warn({ event: "held_call.progress_not_shown", held_call_id: @held_call.id, error: error.class.name }.to_json)

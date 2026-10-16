@@ -14,12 +14,12 @@ class ApprovalNotificationService
     shown = shown(approval)
     channel_id = approval.request_channel_id
     asked = (approval.notify_dm? ? approval.human_approvers : []) | approval.on_call_to_ask
-    # A chat's request on Default is asked of its approvers, and in the channel only when nobody can be.
-    in_channel = channel_id && (approval.notify_channel? || (approval.chat_default? && asked.none? { |member| member.platform_user_id.present? }))
-    deliver(approval) { adapter.post_approval_request(approval: approval, channel_id: channel_id, shown: shown) } if in_channel
-
     # Nobody working the incident can decide, so whoever is on call for it is asked directly too.
-    asked.each { |member| ask_directly(approval, member, adapter, shown) }
+    reached = asked.count { |member| ask_directly(approval, member, adapter, shown) }
+    # A chat's request on Default is asked of its approvers, and in the channel only when no direct message reached
+    # anyone, whether nobody could be messaged or Slack refused every one.
+    in_channel = channel_id && (approval.notify_channel? || (approval.chat_default? && reached.zero?))
+    deliver(approval) { adapter.post_approval_request(approval: approval, channel_id: channel_id, shown: shown) } if in_channel
     # Asked nowhere, so it waits on the Approvals page alone.
     return unless asked.empty? && !in_channel
 
@@ -35,11 +35,14 @@ class ApprovalNotificationService
     end
   end
 
-  # Each member is asked directly once per request, whichever way they came to be asked.
+  # Each member is asked directly once per request, whichever way they came to be asked. A message Slack refused gives
+  # the claim back, so a later ask can reach them. Returns whether they were reached.
   def self.ask_directly(approval, member, adapter, shown)
-    return if member.platform_user_id.blank? || !approval.claim_ask!(member)
+    return false if member.platform_user_id.blank? || !approval.claim_ask!(member)
+    return true if deliver(approval) { adapter.post_approval_request_to_user(approval: approval, user_id: member.platform_user_id, shown: shown) }
 
-    deliver(approval) { adapter.post_approval_request_to_user(approval: approval, user_id: member.platform_user_id, shown: shown) }
+    approval.release_ask!(member)
+    false
   end
   private_class_method :ask_directly
 
@@ -84,11 +87,14 @@ class ApprovalNotificationService
     [ OUTCOME_FAILED, run.error_summary ]
   end
 
+  # Whether the message went out.
   def self.deliver(approval)
     result = yield
     approval.add_notification!(channel_id: result[:channel_id], message_id: result[:message_id])
+    true
   rescue AdapterError => e
     Rails.logger.warn({ event: "approval.notification_failed", approval_id: approval.id, error: e.class.name }.to_json)
+    false
   end
   private_class_method :deliver
 end

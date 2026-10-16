@@ -86,6 +86,18 @@ class ApprovalNotificationServiceTest < ActiveSupport::TestCase
     ApprovalNotificationService.post!(@approval)
   end
 
+  test "a chat's change whose direct messages Slack refused is asked in the channel, and the approver can still be asked later" do
+    @approval.update!(source: AbilityGateway::SOURCE_CONVERSATION, approver_ids: [ @bob.id ], notify: PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT)
+    Slack::Client.stubs(:post_message).with { |args| args[:channel] == @bob.platform_user_id }.raises(AdapterError::NotInChannel, "cannot_dm_bot")
+    Slack::Client.expects(:post_message).with { |args| args[:channel] == "C0INCIDENTS" }.returns({ ok: true, ts: "9.9", channel: "C0INCIDENTS" })
+
+    ApprovalNotificationService.post!(@approval)
+
+    assert_equal [ { "channel_id" => "C0INCIDENTS", "message_id" => "9.9" } ], @approval.reload.notifications
+    assert_empty @approval.asked_member_ids, "a refused message never counts as asked"
+    assert @approval.claim_ask!(@bob)
+  end
+
   test "where each choice asks, for a chat's change and for anyone else's" do
     @approval.update!(approver_ids: [ @bob.id ])
     asked = lambda do |source, notify|

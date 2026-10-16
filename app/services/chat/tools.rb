@@ -428,7 +428,7 @@ module Chat::Tools
   def self.ran(chat, tool_call)
     return {} unless tool_call.approval == Chat::APPROVAL_APPROVED
 
-    { outcome: Chat::StepOutcome.for_call(tool_call, chat), progress: chat && Chat::StepProgress.find_by(chat: chat, tool_call_id: tool_call.tool_call_id)&.work }
+    { outcome: Chat::StepOutcome.for_call(tool_call, chat), progress: chat && chat.step_progresses.of_call(tool_call.tool_call_id, since: tool_call.created_at).last&.work }
   end
 
   def self.decided_by(tool_call)

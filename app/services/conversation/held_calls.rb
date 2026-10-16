@@ -213,7 +213,7 @@ module Conversation::HeldCalls
     status = held.shown_status
     report = (Chat::CurrentState::Report.new(state: held.checked_state, change: held.state_change, checked_at: held.state_checked_at) if held.state_change)
     action = action_of(held)
-    work = progress || Chat::StepProgress.find_by(chat_id: held.chat_id, tool_call_id: held.tool_call_id)&.work
+    work = progress || Chat::StepProgress.where(chat_id: held.chat_id).of_call(held.tool_call_id, since: held.created_at).last&.work
     approved_by = (approver_name(approval) if approval.approver)
     Shown.new(
       id: held.id, conversation_id: held.chat.owner_id, status: status, headline: headline(action, status), call: call_name(held),

@@ -95,7 +95,7 @@ class AgentHeldCallCardTest < ApplicationSystemTestCase
     held.update_columns(status: Chat::HeldCall::STATUS_RUNNING, decided_by_id: @bob.id)
     work = Chat::CodeFixProgress.start
     work.changed!("app/a.rb")
-    Chat::StepProgress.keep!(@chat, "call_1", work)
+    Chat::StepProgress.keep!(@chat, "call_1", work, since: held.created_at)
     visit agent_chat_path(@conversation)
 
     assert_text "Approved by Bob Jones, working on it."
@@ -106,7 +106,7 @@ class AgentHeldCallCardTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/held_call_running.png").to_s)
 
     work.opened!(files: { "app/a.rb" => [ 1, 1 ] }, pull_request: "https://github.com/acme/shop/pull/856")
-    Chat::StepProgress.keep!(@chat, "call_1", work)
+    Chat::StepProgress.keep!(@chat, "call_1", work, since: held.created_at)
     held.update_columns(status: Chat::HeldCall::STATUS_RAN)
     visit agent_chat_path(@conversation)
 

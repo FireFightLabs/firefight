@@ -268,6 +268,12 @@ module Ability
       incident.on_call_members
     end
 
+    # Gives back a claim whose message never reached the member, so they can be asked again.
+    def release_ask!(member)
+      self.class.where(id: id).update_all([ "asked_member_ids = asked_member_ids - ?::text, updated_at = ?", member.id.to_s, Time.current ])
+      reload
+    end
+
     # Claims asking one member directly, in one statement, so a request is never sent to the same person twice.
     def claim_ask!(member)
       asked = [ member.id ].to_json
