@@ -126,6 +126,7 @@ class Chat::Tools::Browser < RubyLLM::Tool
     end
 
     held = approval_id.nil? && @agent_run.hold!(pending.approval, tool_name: NAME, tool_call_id: tool_call_id, target: check.host)
+    Conversation::HeldCalls.ask_where_held(held)
     Chat::Tools.waiting_for_approval(action_key, held: held)
   rescue Integrations::Error => error
     failed_id(tool_call_id, FirefightAi::Evidence.frame(NAME, "The browser did not run: #{error.message}"))

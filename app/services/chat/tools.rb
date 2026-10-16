@@ -208,8 +208,8 @@ module Chat::Tools
   CAUTION = "It read text from %<places>s that other people wrote. Check this is what you want.".freeze
   ACTION_LIMIT = 120
   LINE_LIMIT = 160
-  # A commit, a review or a comment named by its id says nothing to the person approving, so the card leaves them out. A
-  # number short enough to be a pull request's or an issue's stays.
+  # A commit, a review or a comment named by its id says nothing to the person approving, so the card leaves them out,
+  # with the brackets around them. A number short enough to be a pull request's or an issue's stays.
   RAW_ID = /\b(?:(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}|\d{6,})\b/i
   CODE = /`+/
 
@@ -220,7 +220,7 @@ module Chat::Tools
 
   # Words the agent wrote, without code marks or raw ids, on one line and cut short.
   def self.plain(text, limit)
-    text.to_s.gsub(CODE, "").gsub(RAW_ID, "").gsub(/\(\s*\)/, "").squish.gsub(/\s+([,.;:!?)])/, '\1').truncate(limit)
+    text.to_s.gsub(CODE, "").gsub(/\s*\([^()]*#{RAW_ID.source}[^()]*\)/i, "").gsub(RAW_ID, "").gsub(/\(\s*\)/, "").squish.gsub(/\s+([,.;:!?)])/, '\1').truncate(limit)
   end
 
   # "Pause dev-web" reads "pause dev-web" after "Halon wants to:", while a name such as PR, GitHub or iOS keeps its case.

@@ -110,13 +110,12 @@ class Conversation::Turn
     declared_destructive || (action.present? && (action.risk_level == Ability::Action::RISK_DESTRUCTIVE || !action.reversible))
   end
 
-  # A call an approval rule held for someone else's approval is kept with the chat, so once approved the person who asked
-  # is asked here whether to run it. An outside agent's chat has nobody to ask, so its calls are not kept.
+  # A call an approval rule held for someone else's approval is kept with the chat, so it is asked for there and runs once
+  # approved. An outside agent's chat has nobody to ask, so its calls are not kept. Returns the held call, or false.
   def hold!(approval, tool_name:, tool_call_id:, target: nil)
     return false if conversation.mcp? || chat.nil?
 
     Chat::HeldCall.hold!(chat: chat, approval: approval, tool_name: tool_name, tool_call_id: tool_call_id, target: target)
-    true
   end
 
   # A change to memory in a chat is the asker's, so it goes through the gateway and the ledger like any tool call. No

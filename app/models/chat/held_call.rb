@@ -48,7 +48,6 @@ class Chat::HeldCall < ApplicationRecord
       transaction do
         held = create!(chat: chat, approval: approval, tool_name: tool_name.to_s, tool_call_id: tool_call_id, target: target)
         approval.update!(held_for_run: true, resume_payload: { kind: RESUME_KIND, held_call_id: held.id })
-        ActiveRecord.after_all_transactions_commit { HeldCallPostJob.perform_later(held.id) }
         held
       end
     end

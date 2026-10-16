@@ -29,7 +29,7 @@ module Slack
         card = blocks.first
         assert_equal "card", card[:type]
         assert_equal ":raised_hand:  Halon wants to: add a commit to PR #856", card.dig(:title, :text)
-        assert_equal "Address the review comments on PR #856 (commit, comment) as you asked.", card.dig(:body, :text)
+        assert_equal "Address the review comments on PR #856 as you asked.", card.dig(:body, :text)
         assert_equal [ [ "Approve", Identifiers::AGENT_CONFIRM, "primary" ], [ "Cancel", Identifiers::AGENT_CANCEL, nil ], [ "Details", Identifiers::AGENT_CONFIRMATION_DETAILS, nil ] ],
                      card[:actions].map { |button| [ button.dig(:text, :text), button[:action_id], button[:style] ] }
         assert_equal [ "conv:call_2" ], card[:actions].map { |button| button[:value] }.uniq
@@ -77,7 +77,7 @@ module Slack
       test "a workspace whose Slack refuses cards gets the same words as plain blocks" do
         blocks = build(FIX, rich: false)
 
-        assert_equal "*:raised_hand:  Halon wants to: add a commit to PR #856*\nAddress the review comments on PR #856 (commit, comment) as you asked.", blocks.first.dig(:text, :text)
+        assert_equal "*:raised_hand:  Halon wants to: add a commit to PR #856*\nAddress the review comments on PR #856 as you asked.", blocks.first.dig(:text, :text)
         assert_equal [ Identifiers::AGENT_CONFIRM, Identifiers::AGENT_CANCEL, Identifiers::AGENT_CONFIRMATION_DETAILS ], blocks.second[:elements].map { |button| button[:action_id] }
       end
 

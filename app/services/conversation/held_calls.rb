@@ -36,7 +36,12 @@ module Conversation::HeldCalls
     tell!(held, news: true)
   end
 
-  # Held, so it is asked in the chat's thread at once (HeldCallPostJob).
+  # Held, so it is asked in the chat's thread, after the turn's own writes (HeldCallPostJob). held is false when nothing
+  # was kept, as in an outside agent's chat.
+  def self.ask_where_held(held)
+    HeldCallPostJob.perform_later(held.id) if held.is_a?(Chat::HeldCall)
+  end
+
   def self.held!(held) = tell!(held)
 
   def self.denied!(approval)
@@ -98,6 +103,7 @@ module Conversation::HeldCalls
     case held.ask_again!
     when Chat::HeldCall::ASKED_AGAIN
       tell!(held)
+      ask_where_held(held.chat.held_calls.where(status: Chat::HeldCall::STATUS_WAITING, tool_call_id: held.tool_call_id).order(:created_at).last)
       # An approval that lapsed only now, in asking again, says so where it was asked.
       ApprovalNotificationService.mark_resolved!(lapsing) if still_approved && lapsing.reload.expired?
       nil
