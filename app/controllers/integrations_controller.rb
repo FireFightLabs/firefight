@@ -403,6 +403,9 @@ class IntegrationsController < InertiaController
     if params[:installation_id].blank?
       return redirect_to integrations_path, alert: "The installation did not complete. Try again."
     end
+    refusal = Integrations::Credentials.installation_refusal(provider.key, params[:installation_id].to_s, code: params[:code].to_s,
+                                                                                                        redirect_uri: oauth_callback_integrations_url)
+    return redirect_to integrations_path, alert: refusal if refusal
 
     environment_row = connect!(provider, pending["name"], pending["environment_id"])
     Integrations::Installations.connected!(environment_row, params[:installation_id])

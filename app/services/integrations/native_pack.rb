@@ -31,6 +31,13 @@ module Integrations
         nil
       end
 
+      # Why an installation the provider sent back cannot be connected, or nil once the person who came back is shown to
+      # manage it. An installation id arrives in the address, so a pack with an install flow must check it, and one that
+      # does not refuses.
+      def installation_refusal(_installation_id, code:, redirect_uri:)
+        "Firefight could not confirm this installation is yours, so nothing was connected."
+      end
+
       def fetch!(integration, box_key: nil, progress: nil, request: nil, relayed: false)
         pack_class = self.for(integration.provider)
         raise Error, "No native pack registered for '#{integration.provider}'" unless pack_class

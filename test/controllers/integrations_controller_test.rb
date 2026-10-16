@@ -574,10 +574,11 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
       "permissions" => { "contents" => "read", "metadata" => "read" }, "suspended_at" => nil
     )
     Integrations::GithubApp.stubs(:get).with("/installation/repositories?per_page=1", token: "ghs_token").returns("total_count" => 3)
+    Integrations::GithubApp.expects(:user_installation_ids).with(code: "user-code", redirect_uri: oauth_callback_integrations_url).returns([ "111", "98765" ])
     get oauth_start_integrations_url(provider: "github")
     state = Rack::Utils.parse_query(URI.parse(response.location).query)["state"]
 
-    get oauth_callback_integrations_url(state: state, installation_id: "98765")
+    get oauth_callback_integrations_url(state: state, installation_id: "98765", code: "user-code")
 
     assert_redirected_to integrations_path
     integration = @workspace.integrations.find_by!(provider: "github")
@@ -602,6 +603,50 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to integrations_path
     assert_match(/did not complete/, flash[:alert])
+    assert_not @workspace.integrations.exists?(provider: "github")
+  end
+
+  test "an installation the person who came back cannot manage is refused and connects nothing" do
+    IntegrationProvider.stubs(:oauth_client).with("github").returns(app_slug: "firefight", client_id: "Iv1.abc")
+    Integrations::GithubApp.stubs(:user_installation_ids).returns([ "111" ])
+    Integrations::GithubApp.expects(:installation).never
+    get oauth_start_integrations_url(provider: "github")
+    state = Rack::Utils.parse_query(URI.parse(response.location).query)["state"]
+
+    get oauth_callback_integrations_url(state: state, installation_id: "98765", code: "user-code")
+
+    assert_redirected_to integrations_path
+    assert_equal "That GitHub installation is not one your GitHub account can manage, so nothing was connected. Install the app on an account you manage, then connect again.",
+                 flash[:alert]
+    assert_not @workspace.integrations.exists?(provider: "github")
+  end
+
+  test "an install callback GitHub sent without signing the person in connects nothing and says what to turn on" do
+    IntegrationProvider.stubs(:oauth_client).with("github").returns(app_slug: "firefight", client_id: "Iv1.abc")
+    Integrations::GithubApp.expects(:user_installation_ids).never
+    get oauth_start_integrations_url(provider: "github")
+    state = Rack::Utils.parse_query(URI.parse(response.location).query)["state"]
+
+    get oauth_callback_integrations_url(state: state, installation_id: "98765")
+
+    assert_redirected_to integrations_path
+    assert_equal "GitHub did not say who installed the app, so Firefight could not check the installation is yours and connected nothing. " \
+                 "Whoever runs this Firefight needs to turn on Request user authorization (OAuth) during installation in the GitHub App's settings, then connect again.",
+                 flash[:alert]
+    assert_not @workspace.integrations.exists?(provider: "github")
+  end
+
+  test "a sign-in GitHub would not confirm is refused with GitHub's words and connects nothing" do
+    IntegrationProvider.stubs(:oauth_client).with("github").returns(app_slug: "firefight", client_id: "Iv1.abc")
+    Integrations::GithubApp.stubs(:user_installation_ids).raises(Integrations::GithubApp::Error, "GitHub did not accept the sign-in: The code passed is incorrect or expired.")
+    get oauth_start_integrations_url(provider: "github")
+    state = Rack::Utils.parse_query(URI.parse(response.location).query)["state"]
+
+    get oauth_callback_integrations_url(state: state, installation_id: "98765", code: "stale")
+
+    assert_redirected_to integrations_path
+    assert_equal "GitHub could not confirm the installation is yours, so nothing was connected. GitHub did not accept the sign-in: The code passed is incorrect or expired. Try again.",
+                 flash[:alert]
     assert_not @workspace.integrations.exists?(provider: "github")
   end
 

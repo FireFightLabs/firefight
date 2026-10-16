@@ -189,6 +189,22 @@ module Integrations
         GithubApp.install_url(state: state)
       end
 
+      NO_USER_CODE = "GitHub did not say who installed the app, so Firefight could not check the installation is yours and connected nothing. " \
+                     "Whoever runs this Firefight needs to turn on Request user authorization (OAuth) during installation in the GitHub App's settings, then connect again.".freeze
+      NOT_YOURS = "That GitHub installation is not one your GitHub account can manage, so nothing was connected. " \
+                  "Install the app on an account you manage, then connect again.".freeze
+
+      # GitHub sends a code beside the installation id when the App asks for user authorization during installation, and
+      # the installation is accepted only when the person that code signs in may manage it.
+      def self.installation_refusal(installation_id, code:, redirect_uri:)
+        return NO_USER_CODE if code.blank?
+        return nil if GithubApp.user_installation_ids(code: code, redirect_uri: redirect_uri).include?(installation_id.to_s)
+
+        NOT_YOURS
+      rescue GithubApp::Error => error
+        "GitHub could not confirm the installation is yours, so nothing was connected. #{Sentence.clean(error)}. Try again."
+      end
+
       READ = "read".freeze
       WRITE = "write".freeze
       # A permission held at a level covers every lower one.
