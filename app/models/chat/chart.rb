@@ -13,6 +13,8 @@ class Chat::Chart < ApplicationRecord
   validates :tool_call_id, :title, :range_start, :range_end, presence: true
 
   scope :in_order, -> { order(:created_at, :position) }
+  # A call id is unique only within its message, so the charts of a turn's calls are the ones drawn since it started.
+  scope :drawn_by, ->(tool_call_ids, since:) { where(tool_call_id: tool_call_ids, created_at: since..) }
 
   # A thread gets at most this many charts under one answer, the first ones the agent drew.
   POSTED_LIMIT = 6

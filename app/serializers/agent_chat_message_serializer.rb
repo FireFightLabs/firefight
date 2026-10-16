@@ -28,7 +28,13 @@ class AgentChatMessageSerializer < BaseSerializer
       @messages = messages.to_a
     end
 
-    def charted?(message, key) = charted.include?([ message.chat_id, key ])
+    # A call id repeats across a chat's messages with some models, so a chart is this message's only when it was drawn
+    # after the message and before a later one made a call by the same id.
+    def charted?(message, key)
+      drawn = charted.fetch([ message.chat_id, key ], [])
+      later = callers.fetch([ message.chat_id, key ], []).select { |at| at > message.created_at }.min
+      drawn.any? { |at| at >= message.created_at && (later.nil? || at < later) }
+    end
 
     def work(message, key) = works[[ message.chat_id, key ]]
 
@@ -50,7 +56,17 @@ class AgentChatMessageSerializer < BaseSerializer
     def chat_ids = @messages.map(&:chat_id).uniq
 
     def charted
-      @charted ||= keys.empty? ? Set.new : Chat::Chart.where(chat_id: chat_ids, tool_call_id: keys).distinct.pluck(:chat_id, :tool_call_id).to_set
+      @charted ||= if keys.empty?
+        {}
+      else
+        Chat::Chart.where(chat_id: chat_ids, tool_call_id: keys).pluck(:chat_id, :tool_call_id, :created_at)
+                   .group_by { |chat_id, key, _at| [ chat_id, key ] }.transform_values { |rows| rows.map(&:last) }
+      end
+    end
+
+    def callers
+      @callers ||= @messages.flat_map { |message| message.ruby_llm_tool_calls.map { |call| [ [ message.chat_id, call.tool_call_id ], message.created_at ] } }
+                            .group_by(&:first).transform_values { |pairs| pairs.map(&:last) }
     end
 
     def works

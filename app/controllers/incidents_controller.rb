@@ -192,7 +192,21 @@ class IncidentsController < InertiaController
   # asked for there started with.
   def timeline_events(incident)
     events = incident.timeline_events
-    TimelineEventSerializer.many(events, quotes: quotes_as_markdown(events), started_questions: started_questions(events))
+    TimelineEventSerializer.many(events, quotes: quotes_as_markdown(events), started_questions: started_questions(events), answers: answers(events))
+  end
+
+  # Each run's answer on the timeline, to the finding it noted, read in one query.
+  def answers(events)
+    answered = events.select { |event| event.event_type == IncidentEvent::INVESTIGATION_ANSWERED }
+    ids = answered.filter_map { |event| event.metadata.to_h["investigation_id"] }
+    return {} if ids.empty?
+
+    findings = Investigation::Finding.where(investigation: current_workspace.investigations.where(id: ids))
+                                     .includes(:remediation_plan).index_by(&:investigation_id)
+    answered.each_with_object({}) do |event, found|
+      finding = findings[event.metadata.to_h["investigation_id"]]
+      found[event.id] = finding if finding
+    end
   end
 
   # Each start of a run asked for in the platform, to its question as the platform shows it.

@@ -28,6 +28,7 @@ import {
   IconPinnedOff,
   IconRobot,
   IconSparkles,
+  IconTool,
   IconUserCheck,
   IconUserX,
   type Icon,
@@ -38,7 +39,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { TimelineEvent } from "@/pages/incidents/types"
 import { ActorChip } from "@/components/actor-chip"
 import { MarkdownText } from "@/components/markdown-text"
-import { INVESTIGATION_EVENT_TYPES, OPEN_INVESTIGATION_PROP, PRINCIPAL_KINDS } from "@/lib/generated/constants"
+import { FIX_EVENT_TYPES, INVESTIGATION_EVENT_TYPES, OPEN_INVESTIGATION_PROP, PRINCIPAL_KINDS } from "@/lib/generated/constants"
 import {
   DismissNoteAction,
   NoteQuote,
@@ -53,7 +54,8 @@ import { initialsOf } from "@/lib/initials"
 
 type EventType = TimelineEvent["eventType"]
 
-const INVESTIGATION_EVENTS: readonly string[] = INVESTIGATION_EVENT_TYPES
+// A run and its fix both open the run over this page.
+const RUN_EVENTS: readonly string[] = [...INVESTIGATION_EVENT_TYPES, ...FIX_EVENT_TYPES]
 
 const eventIcons: Record<EventType, typeof IconFlame> = {
   "incident.created": IconFlame,
@@ -92,6 +94,13 @@ const eventIcons: Record<EventType, typeof IconFlame> = {
   "investigation.started": IconListSearch,
   "investigation.answered": IconListSearch,
   "investigation.stopped": IconListSearch,
+  "fix.applied": IconTool,
+  "fix.step_done": IconCircleCheck,
+  "fix.step_failed": IconCircleX,
+  "fix.step_marked_done": IconCircleCheck,
+  "fix.cancelled": IconCircleX,
+  "fix.ended": IconTool,
+  "fix.undo_written": IconArrowBackUp,
   "page.raised": IconBellRinging,
   "page.failed": IconAlertTriangle,
   "page.acknowledged": IconBellCheck,
@@ -119,6 +128,13 @@ const eventAccent: Partial<Record<EventType, DotAccent>> = {
   "investigation.started": "brand",
   "investigation.answered": "success",
   "investigation.stopped": "warning",
+  "fix.applied": "brand",
+  "fix.step_done": "success",
+  "fix.step_failed": "error",
+  "fix.step_marked_done": "success",
+  "fix.cancelled": "warning",
+  "fix.ended": "success",
+  "fix.undo_written": "brand",
   "page.raised": "error",
   "page.failed": "warning",
   "page.acknowledged": "success",
@@ -241,7 +257,7 @@ function EventSubject({ event }: { event: TimelineEvent }) {
     return null
   }
   // A run opens over this page, so only the run is loaded and the timeline stays where it is.
-  if (event.subject.href && INVESTIGATION_EVENTS.includes(event.eventType)) {
+  if (event.subject.href && RUN_EVENTS.includes(event.eventType)) {
     return (
       <Link
         href={event.subject.href}
@@ -325,6 +341,75 @@ function PinCard({ pin, withDivider }: { pin: NonNullable<TimelineEvent["pin"]>;
   )
 }
 
+// What a fix step did, with the link to what it produced where the sentence names it.
+function FixStepCard({ fixStep }: { fixStep: NonNullable<TimelineEvent["fixStep"]> }) {
+  return (
+    <div className="flex flex-col gap-1 text-sm leading-relaxed">
+      {fixStep.title && <span className="text-fg-primary">{fixStep.title}</span>}
+      {fixStep.link ? (
+        <span className="text-muted-foreground">
+          {fixStep.link.before}
+          <a
+            href={fixStep.link.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 font-medium text-fg-primary hover:underline"
+          >
+            {fixStep.link.label}
+            <IconExternalLink className="size-3.5 text-fg-muted" />
+          </a>
+          {fixStep.link.after}
+        </span>
+      ) : (
+        fixStep.result && <span className="text-muted-foreground">{fixStep.result}</span>
+      )}
+    </div>
+  )
+}
+
+// The short answer a channel reads first, with the full answer behind a toggle.
+function AnswerCard({ answer }: { answer: NonNullable<TimelineEvent["answer"]> }) {
+  const [expanded, setExpanded] = useState(false)
+
+  function toggle() {
+    setExpanded(!expanded)
+  }
+
+  const Chevron = expanded ? IconChevronDown : IconChevronRight
+
+  return (
+    <div className="flex flex-col gap-1.5 text-sm leading-relaxed">
+      <span className="font-medium text-fg-primary">
+        {answer.headline}
+        {answer.sureness && <span className="font-normal text-muted-foreground"> · {answer.sureness}</span>}
+      </span>
+      {answer.whatIsWrong && <span className="text-fg-body">{answer.whatIsWrong}</span>}
+      {answer.suggestedFix && (
+        <span className="text-muted-foreground">
+          <span className="font-medium text-fg-body">Fix: </span>
+          {answer.suggestedFix}
+        </span>
+      )}
+      {answer.full && (
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={expanded}
+          className="inline-flex w-fit items-center gap-1.5 text-xs text-fg-muted transition-colors hover:text-fg-primary"
+        >
+          <Chevron className="size-3.5" />
+          {expanded ? "Hide the full answer" : "Show the full answer"}
+        </button>
+      )}
+      {answer.full && expanded && (
+        <div className="border-t border-border pt-2">
+          <MarkdownText text={answer.full} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 function EventCard({ event }: { event: TimelineEvent }) {
   const hasChanges = Boolean(event.changes && event.changes.length > 0)
   const hasAction = Boolean(event.action)
@@ -333,13 +418,17 @@ function EventCard({ event }: { event: TimelineEvent }) {
   const hasMessage = Boolean(event.updateMessage)
   const hasDetails = Boolean(event.details)
   const hasFile = Boolean(event.file)
+  const hasFixStep = Boolean(event.fixStep)
+  const hasAnswer = Boolean(event.answer)
 
-  if (!hasChanges && !hasAction && !hasPin && !hasNote && !hasMessage && !hasDetails && !hasFile) {
+  if (!hasChanges && !hasAction && !hasPin && !hasNote && !hasMessage && !hasDetails && !hasFile && !hasFixStep && !hasAnswer) {
     return null
   }
 
   return (
     <div className="ml-[44px] mt-2.5 rounded-lg border border-border bg-card px-3.5 py-2.5">
+      {event.fixStep && <FixStepCard fixStep={event.fixStep} />}
+      {event.answer && <AnswerCard answer={event.answer} />}
       {event.changes && hasChanges && <TimelineChangeList changes={event.changes} />}
       {event.action && <ActionCard action={event.action} />}
       {event.pin && hasPin && <PinCard pin={event.pin} withDivider={hasChanges || hasAction} />}

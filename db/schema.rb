@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -2281,6 +2281,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_110000) do
     t.uuid "applied_under_rule_id"
     t.string "title"
     t.string "failure"
+    t.string "already_done_reason"
+    t.string "outcome_label"
+    t.string "outcome_url"
     t.index ["applied_under_rule_id"], name: "index_investigation_remediation_steps_on_applied_under_rule_id"
     t.index ["approval_id"], name: "index_investigation_remediation_steps_on_approval_id"
     t.index ["done_by_id"], name: "index_investigation_remediation_steps_on_done_by_id"

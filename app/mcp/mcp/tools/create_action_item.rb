@@ -10,6 +10,7 @@ module Mcp
                   "open. If the call requires approval, retry the identical call with approval_id " \
                   "once approved. Docs: #{Docs::INCIDENTS}"
       annotations(**WRITE)
+      by_hand_words(/\b(create|add|open)\b.+\b(action item|follow[- ]up)\b/i)
       input_schema(
         properties: {
           incident: { type: "string", description: "Incident UUID or identifier like INC-42" },

@@ -12,7 +12,7 @@ function approvedHeadline(step: InvestigationRemediationStep, expired: boolean):
   if ((step.lapsed || expired) && step.lapsedReason) {
     return step.lapsedReason
   }
-  return `${step.approvedBy ?? "An approver"} approved it. Run it now?`
+  return `${step.approvedBy ?? "An approver"} approved it. Run this step?`
 }
 
 // A step an approval rule held, once approved. Approving it never ran it, so it asks to be run, under how things stand

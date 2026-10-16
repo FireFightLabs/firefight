@@ -146,7 +146,8 @@ class IncidentEventTest < ActiveSupport::TestCase
       "runbook.attached", "runbook.applied",
       "milestone.noted",
       "investigation.started", "investigation.answered", "investigation.stopped",
-      "page.raised", "page.failed", "page.acknowledged", "page.escalated", "page.noted", "page.resolved", "page.sync_failed"
+      "page.raised", "page.failed", "page.acknowledged", "page.escalated", "page.noted", "page.resolved", "page.sync_failed",
+      "fix.applied", "fix.step_done", "fix.step_failed", "fix.step_marked_done", "fix.cancelled", "fix.ended", "fix.undo_written"
     ]
     assert_equal expected_types.sort, IncidentEvent::EVENT_TYPES.sort
   end

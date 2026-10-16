@@ -136,9 +136,35 @@ class TimelineEventSerializer < BaseSerializer
     event.update_message
   end
 
+  # What a fix step did, with the link to what it produced split out where the sentence names it.
+  type "{ title: string; result: string | null; link: { before: string; label: string; href: string; after: string } | null }", optional: true
+  def fix_step
+    step = event.fix_step
+    return nil unless step
+
+    { title: step.title, result: step.result, link: step.link&.to_h }
+  end
+
+  # The short answer a channel reads first, with the full answer behind it. The run's answer is read from the run when
+  # the page handed it in, so an answer noted before the short one was kept still shows it.
+  type "{ headline: string; sureness: string | null; whatIsWrong: string | null; suggestedFix: string | null; full: string | null }",
+       optional: true
+  def answer
+    return nil unless event.event_type == IncidentEvent::INVESTIGATION_ANSWERED
+
+    meta = event.metadata.to_h
+    finding = options.fetch(:answers, {})[event.id]
+    short = finding ? Investigation::Timeline.short_answer(finding).stringify_keys : meta
+    return nil if short["headline"].blank?
+
+    { headline: short["headline"], sureness: short["sureness"], whatIsWrong: short["what_is_wrong"],
+      suggestedFix: short["suggested_fix"], full: (finding&.summary || meta["message"]).presence }
+  end
+
   type :string, optional: true
   def details
     return nil if update_message
+    return nil if fix_step || answer
 
     eventable = event.eventable
     return eventable.message if eventable.respond_to?(:message) && eventable.message.present?
@@ -232,7 +258,7 @@ class TimelineEventSerializer < BaseSerializer
     when IncidentEvent::MERGED_INTO
       canonical = references.incident(meta[:canonical_incident_id])
       canonical && url_helpers.incident_path(canonical)
-    when *IncidentEvent::INVESTIGATION_EVENTS
+    when *IncidentEvent::INVESTIGATION_EVENTS, *IncidentEvent::FIX_EVENTS
       url_helpers.incident_path(event.incident_id, Investigation::QUERY_PARAM => meta[:investigation_id])
     end
   end

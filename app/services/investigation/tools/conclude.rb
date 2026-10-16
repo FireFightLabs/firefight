@@ -51,7 +51,12 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
           "description" => "How to fix what you found. Required when you name a cause. Give it even when nothing here can apply it, " \
                            "so a person has the steps. When what you would change is defined as code, such as Terraform, " \
                            "Pulumi, Helm or a manifest (the map says where a resource is managed in code), the fix is a " \
-                           "pull_request to that code, since the next apply would undo a direct change",
+                           "pull_request to that code, since the next apply would undo a direct change. Each step is " \
+                           "Firefight's work wherever a tool can do it: whatever a tool you can call does, Firefight's own " \
+                           "included (inviting people, assigning a role, paging, posting an update), is an action step " \
+                           "through that tool, and a person gets only what no tool can do. Look first at how things stand " \
+                           "where a read is cheap, such as get_incident for who holds each role, and leave out a step " \
+                           "whose outcome already holds",
           "properties" => {
             "summary" => { "type" => "string", "description" => "What the fix changes and why it fixes the cause, in a sentence or two" },
             "verify" => { "type" => "string", "description" => "How to tell it worked: the signal to watch and the level it should return to, " \
@@ -63,21 +68,25 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
                 "properties" => {
                   "kind" => { "type" => "string", "enum" => Investigation::RemediationStep::KINDS,
                               "description" => "pull_request for a code change in one repository, action for a change through one of the " \
-                                               "workspace's tools (acting on a pull request or an issue without changing code, such as " \
-                                               "closing one or rerunning a workflow, is an action through the code host's own tool), " \
-                                               "manual for anything Firefight cannot do, page_check (optional, last) to confirm in " \
-                                               "Halon's browser that a page people use works once the steps before it ran" },
+                                               "workspace's tools or one of Firefight's own, such as invite_responders (acting on a pull " \
+                                               "request or an issue without changing code, such as closing one or rerunning a workflow, " \
+                                               "is an action through the code host's own tool), manual only for what no tool can do, " \
+                                               "page_check (optional, last) to confirm in Halon's browser that a page people use works " \
+                                               "once the steps before it ran" },
                   "title" => { "type" => "string", "description" => "The step in a few plain words, as a responder follows it on a checklist, " \
-                                                                     "such as Open a pull request with the change or Roll back checkout" },
+                                                                     "such as Open a pull request with the change or Roll back checkout. " \
+                                                                     "A manual step names who does what and where, such as Approve the " \
+                                                                     "change in the Cloudflare dashboard" },
                   "description" => { "type" => "string", "description" => "What this step changes, in a sentence. For a change to another " \
                                                                           "system's interface, such as a webhook, an API, a config format or a " \
                                                                           "CI trigger, cite its documented contract and its live setup as you " \
                                                                           "read them, and say what you could not verify" },
                   "repository" => { "type" => "string", "description" => "For pull_request: the repository, as owner/name" },
-                  "tool" => { "type" => "string", "description" => "For action: the tool's name, as you call it" },
+                  "tool" => { "type" => "string", "description" => "For action: the tool's name, as you call it, a connection's or Firefight's own" },
                   "arguments" => { "type" => "object", "description" => "For action: the arguments to call it with. For page_check: url, " \
                                                                          "and optionally steps and viewports, as #{Chat::BrowserCheck::TOOL_NAME} takes them" },
-                  "missing" => { "type" => "string", "description" => "For manual: what Firefight would need to do it, such as a tool to switch on" },
+                  "missing" => { "type" => "string", "description" => "For manual: what Firefight would need to do it, such as a tool to switch on. " \
+                                                                       "When a tool you have seems to do it but cannot here, name the tool and why" },
                   "undo" => { "type" => "string", "description" => "How to put it back if it makes things worse" },
                   "depends_on" => { "type" => "array", "items" => { "type" => "integer" }, "description" => "Earlier step numbers that must finish first" }
                 },

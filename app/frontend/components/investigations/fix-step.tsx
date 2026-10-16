@@ -6,6 +6,7 @@ import { FixStepStatus } from "@/components/investigations/fix-step-status"
 import { REMEDIATION_STEP_ARGUMENTS_LABELS, REMEDIATION_STEP_LABELS, receiptLine } from "@/components/investigations/labels"
 import { MarkDone } from "@/components/investigations/mark-done"
 import { PageScreenshots } from "@/components/investigations/page-screenshots"
+import { StepOutcome } from "@/components/investigations/step-outcome"
 import { TryAgain } from "@/components/investigations/try-again"
 import { REMEDIATION_STEP_STATUS_RUNNING } from "@/lib/generated/constants"
 import type { ChatScreenshot, InvestigationRemediationStep } from "@/types/serializers"
@@ -63,6 +64,7 @@ export function FixStep({ investigationId, step, screenshots }: { investigationI
         )}
         {status && <FixStepStatus status={step.status} label={status} />}
         {step.failureLine && <span className="text-xs text-fg-body">{step.failureLine}</span>}
+        <StepOutcome step={step} />
         {step.progress && (
           <CodeFixWorkView
             work={step.progress}
@@ -80,7 +82,12 @@ export function FixStep({ investigationId, step, screenshots }: { investigationI
         <PageScreenshots screenshots={screenshots} />
         {step.offers.length > 0 && <ApprovedStep investigationId={investigationId} step={step} />}
         {receipt(step) && <span className="text-xs text-fg-muted">{receipt(step)}</span>}
-        {step.markDoneBlockedReason == null && <MarkDone investigationId={investigationId} step={step} />}
+        {step.markDoneBlockedReason == null && (
+          <>
+            <span className="text-sm font-medium text-fg-primary">{step.yourStepLine}</span>
+            <MarkDone investigationId={investigationId} step={step} />
+          </>
+        )}
         {step.retryOffered && <TryAgain investigationId={investigationId} step={step} />}
       </div>
     </li>

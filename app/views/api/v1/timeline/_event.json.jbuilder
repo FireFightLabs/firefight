@@ -41,3 +41,29 @@ if event.milestone?
 else
   json.milestone nil
 end
+
+fix_step = event.fix_step
+if fix_step
+  json.fix_step do
+    json.position event.metadata.to_h["position"]
+    json.title fix_step.title
+    json.result fix_step.result
+    json.link_label fix_step.link&.label
+    json.link_url fix_step.link&.href
+  end
+else
+  json.fix_step nil
+end
+
+if event.event_type == IncidentEvent::INVESTIGATION_ANSWERED && event.metadata.to_h["headline"].present?
+  metadata = event.metadata.to_h
+  json.answer do
+    json.headline metadata["headline"]
+    json.sureness metadata["sureness"]
+    json.what_is_wrong metadata["what_is_wrong"]
+    json.suggested_fix metadata["suggested_fix"]
+    json.full metadata["message"]
+  end
+else
+  json.answer nil
+end

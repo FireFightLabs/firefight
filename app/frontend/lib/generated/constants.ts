@@ -1352,6 +1352,16 @@ export const INVESTIGATION_EVENT_TYPES = [
   "investigation.stopped"
 ] as const
 
+export const FIX_EVENT_TYPES = [
+  "fix.applied",
+  "fix.step_done",
+  "fix.step_failed",
+  "fix.step_marked_done",
+  "fix.cancelled",
+  "fix.ended",
+  "fix.undo_written"
+] as const
+
 export const INVESTIGATION_PROP = "investigation" as const
 
 export const OPEN_INVESTIGATION_PROP = "openInvestigation" as const

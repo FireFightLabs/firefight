@@ -16,6 +16,8 @@ class Investigation::FixRunner
   LOST_TRACK = "Firefight lost track of this step while it ran. Check whether it went through, then do it by hand if it did not.".freeze
   APPLIER_GONE = "Whoever applied the fix is no longer a member of this workspace, so it cannot run as them.".freeze
   PAGE_WORKS = "The page loaded and every step went through, with no console errors.".freeze
+  # Where a call of one of Firefight's own tools says its outcome held already, beside the tool's answer.
+  ALREADY_HELD = "alreadyHeld".freeze
 
   # Claims the fix for this person and starts it. Returns why it could not, or nil.
   def self.apply!(plan, by:, from:)
@@ -235,6 +237,7 @@ class Investigation::FixRunner
       return step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: "#{step.tool_name || 'The coding tool'} is no longer switched on.",
                                                                           failure: Investigation::RemediationStep::FAILURE_TOOL_OFF)
     end
+    return call_firefight(step, tool, approval_id) if step.firefight_tool?
 
     integration = tool.integration
     environment_entry = step.environment_entry(tool)
@@ -259,6 +262,27 @@ class Investigation::FixRunner
   rescue StandardError => error
     Rails.logger.warn({ event: "fix.step_not_started", step_id: step.id, error: error.class.name }.to_json)
     step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: COULD_NOT_FINISH, failure: Investigation::RemediationStep::FAILURE_BROKE)
+  end
+
+  # One of Firefight's own tools, run as whoever applied the fix the way Halon's chat runs it. How things stand is read
+  # first, so a change already made is marked done without asking anyone, and an answer can still say so after.
+  def call_firefight(step, tool, approval_id)
+    principal = @plan.acting_principal
+    arguments = step.arguments.to_h.symbolize_keys
+    held = tool.tool_class.already_holds(workspace: workspace, principal: principal, args: arguments)
+    return step.finish!(Investigation::RemediationStep::STATUS_DONE, result: "#{held}.", already_done: held) if held
+
+    authorization = step.authorize_call!(tool, scope: {}, arguments: step.call_arguments, approval_id: approval_id)
+    finish_call(step, authorization) do
+      response = begin
+        Mcp::ToolDispatcher.run(tool: tool.tool_class, workspace: workspace, principal: principal, args: arguments)
+      rescue *Mcp::ToolDispatcher::TOOL_ERRORS => error
+        Mcp::ToolDispatcher.tool_error_response(error)
+      end
+      answer = response.structured_content.to_h
+      already = tool.tool_class.already_held_in(workspace: workspace, args: arguments, answer: answer) unless response.error?
+      { "content" => Array(response.content).map { |part| part.to_h.stringify_keys }, "isError" => response.error?, ALREADY_HELD => already }
+    end
   end
 
   # Opens the page in Halon's browser in the run's sandbox. It passes when the page loaded and every step of its path
@@ -321,7 +345,8 @@ class Investigation::FixRunner
                                                                   failure: Investigation::RemediationStep::FAILURE_TOOL_SAID)
     else
       authorization.finalize_success!
-      step.finish!(Investigation::RemediationStep::STATUS_DONE, result: text.presence, invocation_id: authorization.invocation_id)
+      step.finish!(Investigation::RemediationStep::STATUS_DONE, result: text.presence, invocation_id: authorization.invocation_id,
+                                                              already_done: result[ALREADY_HELD])
     end
   rescue Integrations::Error => error
     authorization.finalize_error!(error)
@@ -370,6 +395,7 @@ class Investigation::FixRunner
   # time the fix ends. A fix nobody applied has no message, its steps are marked done on the run page.
   def publish!
     @plan.reload
+    tell_ending
     investigation = @plan.finding.investigation
     return if investigation.thread_id.blank? || (@plan.approved_by_id.nil? && !@plan.unattended?)
 
@@ -386,7 +412,6 @@ class Investigation::FixRunner
         adapter.update_fix_progress(channel_id: @plan.progress_channel_id, message_id: @plan.progress_message_id, plan: @plan)
       end
     end
-    tell_ending(adapter, investigation)
   rescue AdapterError => error
     Rails.logger.warn({ event: "fix.progress_not_posted", plan_id: @plan.id, error: error.class.name }.to_json)
   end
@@ -405,14 +430,10 @@ class Investigation::FixRunner
 
   private
 
-  # A post that fails lets the ending be told on the next redraw rather than never.
-  def tell_ending(adapter, investigation)
-    return unless @plan.ended? && @plan.claim_ending_told!
-
-    adapter.post_fix_ended(channel_id: investigation.channel_id, thread_id: investigation.thread_id, plan: @plan)
-  rescue AdapterError
-    @plan.release_ending_told!
-    raise
+  # The checklist posted where the channel sees it is redrawn with how the fix ended, so the ending posts nothing more.
+  # It goes on the incident's timeline once each time the fix ends.
+  def tell_ending
+    @plan.record_fix_ended! if @plan.ended? && @plan.claim_ending_told!
   end
 
   def redraw_answer(adapter, investigation)

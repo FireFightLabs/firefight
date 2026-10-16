@@ -45,6 +45,16 @@ class IncidentEvent < ApplicationRecord
   INVESTIGATION_ANSWERED = "investigation.answered"
   INVESTIGATION_STOPPED = "investigation.stopped"
   INVESTIGATION_EVENTS = [ INVESTIGATION_STARTED, INVESTIGATION_ANSWERED, INVESTIGATION_STOPPED ].freeze
+  # A run's fix as it is applied (Investigation::RemediationPlan::Timeline). An undo is a fix too, and says so in its metadata.
+  FIX_APPLIED = "fix.applied"
+  FIX_STEP_DONE = "fix.step_done"
+  FIX_STEP_FAILED = "fix.step_failed"
+  FIX_STEP_MARKED_DONE = "fix.step_marked_done"
+  FIX_CANCELLED = "fix.cancelled"
+  FIX_ENDED = "fix.ended"
+  FIX_UNDO_WRITTEN = "fix.undo_written"
+  FIX_EVENTS = [ FIX_APPLIED, FIX_STEP_DONE, FIX_STEP_FAILED, FIX_STEP_MARKED_DONE, FIX_CANCELLED, FIX_ENDED, FIX_UNDO_WRITTEN ].freeze
+  FIX_STEP_EVENTS = [ FIX_STEP_DONE, FIX_STEP_FAILED, FIX_STEP_MARKED_DONE ].freeze
   # A page in an on-call tool (Incident::Page): raised from here, what its people did to it there, and a change from
   # here the tool did not take.
   PAGE_RAISED = "page.raised"
@@ -85,6 +95,7 @@ class IncidentEvent < ApplicationRecord
     RUNBOOK_ATTACHED, RUNBOOK_APPLIED,
     MILESTONE_NOTED,
     *INVESTIGATION_EVENTS,
+    *FIX_EVENTS,
     *PAGE_EVENTS
   ].freeze
 
@@ -125,6 +136,13 @@ class IncidentEvent < ApplicationRecord
     INVESTIGATION_STARTED => "started",
     INVESTIGATION_ANSWERED => "found",
     INVESTIGATION_STOPPED => "stopped",
+    FIX_APPLIED => "applied",
+    FIX_STEP_DONE => "ran",
+    FIX_STEP_FAILED => "could not run",
+    FIX_STEP_MARKED_DONE => "marked done",
+    FIX_CANCELLED => "cancelled",
+    FIX_ENDED => "finished applying",
+    FIX_UNDO_WRITTEN => "wrote",
     PAGE_RAISED => "paged",
     PAGE_FAILED => "could not page",
     PAGE_ACKNOWLEDGED => "acknowledged",
@@ -288,8 +306,26 @@ class IncidentEvent < ApplicationRecord
     when INVESTIGATION_STARTED then "an investigation"
     when INVESTIGATION_ANSWERED then "an answer"
     when INVESTIGATION_STOPPED then "the investigation"
+    when FIX_UNDO_WRITTEN then "the undo of the fix"
+    when *FIX_STEP_EVENTS then "step #{meta['position']} of the #{fix_word}"
+    when *FIX_EVENTS then "the #{fix_word}"
     when *PAGE_EVENTS then meta["subject"]
     end
+  end
+
+  # A fix event's own word for what it acts on, since an undo is applied the same way as the fix it undoes.
+  def fix_word = metadata.to_h["undo"] ? "undo" : "fix"
+
+  # What a fix step produced, such as "Opened a pull request: PR #856", with the link to it split out of the sentence,
+  # so every surface can show the link where the words name it. nil for an event that is not a fix step.
+  FixStep = Data.define(:title, :result, :link)
+  FixLink = Data.define(:before, :label, :href, :after)
+
+  def fix_step
+    return nil unless FIX_STEP_EVENTS.include?(event_type)
+
+    meta = metadata.to_h
+    FixStep.new(title: meta["step_title"].to_s, result: meta["result"].presence, link: fix_link(meta))
   end
 
   QUOTING_EVENTS = [ MILESTONE_NOTED, MESSAGE_PINNED, MESSAGE_UNPINNED ].freeze
@@ -350,6 +386,19 @@ class IncidentEvent < ApplicationRecord
   end
 
   private
+
+  # Only an https address is linked. A label the sentence does not name is added at its end.
+  def fix_link(meta)
+    url = meta["link_url"].to_s
+    label = meta["link_label"].presence || url
+    return nil unless url.start_with?("https://")
+
+    result = meta["result"].to_s
+    at = result.index(label)
+    return FixLink.new(before: result.present? ? "#{result} " : "", label: label, href: url, after: "") unless at
+
+    FixLink.new(before: result[0...at], label: label, href: url, after: result[(at + label.length)..])
+  end
 
   def eventable_matches_event_type
     return if event_type.blank?

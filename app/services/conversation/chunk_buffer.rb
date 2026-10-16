@@ -1,11 +1,19 @@
 # Sends text in pieces, since a call per token would flood the socket and the platform's rate limit.
+# whole_markup cuts a piece only at a space with no link, bold or code left open before it, for a platform that renders
+# each piece's markup on its own, so a link cut in two never shows as raw characters. Text with no such space yet waits,
+# unless it grew past LONG_HELD, when it goes as it is.
 class Conversation::ChunkBuffer
   INTERVAL = 0.25.seconds
   MAX_CHARS = 200
+  LONG_HELD = 2_000
+  CODE_FENCE = /^[ \t]*```/
+  # A link, an angle bracket link or a link's address still open at the end of the text.
+  OPEN_LINK = /(?:\[[^\]\n]*|\]\([^)\s]*|<[^>\s]*)\z/
 
-  def initialize(interval: INTERVAL, max_chars: MAX_CHARS, &send_text)
+  def initialize(interval: INTERVAL, max_chars: MAX_CHARS, whole_markup: false, &send_text)
     @interval = interval
     @max_chars = max_chars
+    @whole_markup = whole_markup
     @send_text = send_text
     @held = +""
     @sent_at = Time.current
@@ -13,14 +21,45 @@ class Conversation::ChunkBuffer
 
   def add(text)
     @held << text
-    flush! if @held.length >= @max_chars || Time.current - @sent_at >= @interval
+    return unless @held.length >= @max_chars || Time.current - @sent_at >= @interval
+
+    @whole_markup ? flush_whole_markup! : flush!
   end
 
   def flush!
-    return if @held.empty?
+    send_held(@held.length)
+  end
 
-    text = @held
-    @held = +""
+  private
+
+  def flush_whole_markup!
+    cut = last_safe_cut
+    return send_held(cut) if cut
+    return flush! if @held.length > LONG_HELD
+
+    nil
+  end
+
+  # Just past the last space or line break that closes everything opened before it, or nil.
+  def last_safe_cut
+    spaces = []
+    @held.scan(/\s/) { spaces << Regexp.last_match.end(0) }
+    spaces.reverse_each.find { |cut| closed?(@held[0, cut]) }
+  end
+
+  def closed?(text)
+    fences = text.each_line.count { |line| line.match?(CODE_FENCE) }
+    return false if fences.odd?
+
+    outside_code = text.gsub(/```.*?```/m, "")
+    outside_code.count("`").even? && outside_code.scan("**").size.even? && !outside_code.rstrip.match?(OPEN_LINK)
+  end
+
+  def send_held(length)
+    return if length.zero?
+
+    text = @held[0, length]
+    @held = @held[length..]
     @sent_at = Time.current
     @send_text.call(text)
   end

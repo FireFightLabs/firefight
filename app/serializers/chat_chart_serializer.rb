@@ -32,6 +32,10 @@ class ChatChartSerializer < BaseSerializer
   type :string
   def range_end = chart.range_end.utc.iso8601
 
+  # When the tool answered with it, which places it in the turn that drew it, since a call id repeats across turns.
+  type :string
+  def created_at = chart.created_at.utc.iso8601(6)
+
   # Each line with its [time, value] points, time as ISO 8601.
   type "{ label: string; points: [string, number][] }[]"
   def series = Array(chart.series)

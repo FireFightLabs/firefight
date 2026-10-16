@@ -10,6 +10,7 @@ module Mcp
                   "you. Use escalate_incident instead when no on-call tool is connected. An incident that is over cannot " \
                   "be paged for. Docs: #{Docs::INCIDENTS}"
       annotations(**WRITE)
+      by_hand_words(/\bpage\s+(the\s+)?(on[- ]?call|whoever is on call)\b/i)
       input_schema(
         properties: {
           incident: { type: "string", description: "Incident UUID or identifier like INC-42" },

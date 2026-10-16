@@ -97,17 +97,72 @@ module Slack
         ":fire:"
       end
 
+      # A markdown link, whose address may hold one level of parentheses, as a page's name often does, and may carry a title.
+      MARKDOWN_LINK = %r{\[(?<label>(?:[^\[\]\n]|\[[^\[\]\n]*\])+)\]\(\s*<?(?<url>https?://(?:[^()\s<>]|\([^()\s<>]*\))+)>?(?:\s+"[^"\n]*")?\s*\)}
+      # Slack's own link, as the model may write it. One already escaped by Mrkdwn.escape stays escaped, since that is how
+      # outside text is kept from faking a link.
+      SLACK_LINK = %r{<(?<url>https?://[^\s|<>]+)(?:\|(?<label>[^<>\n]*))?>}
+      # Never ending on punctuation or a bold marker that closes the sentence around it.
+      BARE_URL = %r{https?://[^\s<>|]*[^\s<>|*_.,;:!?)\]]}
+      LINKS = Regexp.union(MARKDOWN_LINK, SLACK_LINK, BARE_URL)
+      WRITTEN_LINKS = [ MARKDOWN_LINK, SLACK_LINK ].freeze
+      # Stands in for a link while the rest is converted, so nothing in an address is ever read as bold.
+      HELD_LINK = "\u0000%d\u0000".freeze
+      HELD_LINK_PATTERN = /\u0000(\d+)\u0000/
+
       # Single-asterisk italic is left alone because it collides with mrkdwn
       # bold. The model is asked to use underscores instead.
+      # Every link becomes Slack's own, whichever form it was written in, and is set aside while the rest is converted.
       def self.markdown_to_mrkdwn(text)
         return "" if text.nil?
 
-        out = text.dup
-        out.gsub!(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/, "<\\2|\\1>")
+        links = []
+        out = text.gsub(LINKS) do
+          links << slack_link(Regexp.last_match.to_s)
+          format(HELD_LINK, links.size - 1)
+        end
         out.gsub!(/^\#{1,6}\s+(.+)$/, "*\\1*")
         out.gsub!(/\*\*(.+?)\*\*/m, "*\\1*")
         out.gsub!(/__(.+?)__/m, "*\\1*")
-        out
+        out.gsub(HELD_LINK_PATTERN) { links[Regexp.last_match(1).to_i] }
+      end
+
+      # The agent's words escaped like any outside text, except the links it wrote, which become Slack's own so they can
+      # be followed.
+      def self.escaped_with_links(text)
+        text = text.to_s
+        shown = +""
+        last = 0
+        text.to_enum(:scan, LINKS).each do
+          match = Regexp.last_match
+          shown << Mrkdwn.escape(text[last...match.begin(0)]) << slack_link(match.to_s, escaped: true)
+          last = match.end(0)
+        end
+        shown << Mrkdwn.escape(text[last..])
+      end
+
+      # A label never carries | or an unescaped angle bracket, either of which ends a Slack link early. escaped is for words
+      # escaped around the link, so its address and label are escaped too. A bare address stays as it was.
+      def self.slack_link(found, escaped: false)
+        written = WRITTEN_LINKS.lazy.map { |pattern| pattern.match(found) }.find { |match| match && match[0] == found }
+        return escaped ? Mrkdwn.escape(found) : found unless written
+
+        url = escaped ? Mrkdwn.escape(written[:url]) : written[:url]
+        label = written[:label].to_s.tr("|", "/")
+        label = escaped ? Mrkdwn.escape(label) : label.gsub("<", "&lt;").gsub(">", "&gt;")
+        label.strip.empty? ? "<#{url}>" : "<#{url}|#{label.strip}>"
+      end
+
+      # Text Slack reads as markdown, such as a streamed answer, does not read Slack's own <url|label>, so it is written
+      # as a markdown link. A bare <url> is a link in both.
+      def self.mrkdwn_links_to_markdown(text)
+        text.to_s.gsub(SLACK_LINK) do
+          match = Regexp.last_match
+          next match.to_s if match[:label].blank?
+
+          label = match[:label].gsub(/[\[\]]/) { |bracket| "\\#{bracket}" }
+          "[#{label}](#{match[:url].gsub('(', '%28').gsub(')', '%29')})"
+        end
       end
 
       # What a person typed, as a message's body, quoted line by line and split before Slack's section limit.

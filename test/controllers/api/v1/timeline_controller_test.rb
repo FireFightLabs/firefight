@@ -59,6 +59,24 @@ class Api::V1::TimelineControllerTest < ActionDispatch::IntegrationTest
     assert_nil other["milestone"]
   end
 
+  test "a fix step carries what it produced and its link, and other events a null fix_step" do
+    @incident.incident_events.create!(
+      event_type: IncidentEvent::FIX_STEP_DONE, actor: @member,
+      metadata: { position: 1, step_title: "Open a pull request with the change", result: "Opened a pull request: PR #856",
+                  link_label: "PR #856", link_url: "https://github.com/FireFightLabs/firefight/pull/856" }
+    )
+
+    get api_v1_incident_timeline_index_url(@incident), headers: api_headers, as: :json
+
+    step = json_response["events"].find { |event| event["event_type"] == IncidentEvent::FIX_STEP_DONE }
+    assert_equal "ran step 1 of the fix", step["description"]
+    assert_equal({ "position" => 1, "title" => "Open a pull request with the change", "result" => "Opened a pull request: PR #856",
+                   "link_label" => "PR #856", "link_url" => "https://github.com/FireFightLabs/firefight/pull/856" }, step["fix_step"])
+    note = json_response["events"].find { |event| event["event_type"] == IncidentEvent::MILESTONE_NOTED }
+    assert_nil note["fix_step"]
+    assert_nil note["answer"]
+  end
+
   test "a read-only key cannot dismiss a note" do
     patch dismiss_api_v1_incident_timeline_url(@incident, @note),
           headers: api_headers(token: "ff_test_read_only_token_12345678"), as: :json

@@ -107,10 +107,16 @@ class Investigation::RemediationStep < ApplicationRecord
       step.repository = asked["repository"].to_s.strip.presence || refuse(position, "names no repository. Give the repository the change goes in")
     when KIND_ACTION
       refuse(position, "has its arguments as something other than an object") unless asked["arguments"].nil? || asked["arguments"].is_a?(Hash)
-      tool, arguments, resource = action_of(workspace, asked["tool"].to_s, asked["arguments"] || {}, position, principal)
-      step.assign_attributes(tool_name: asked["tool"], action_key: tool.action_key, arguments: arguments, resource: resource)
+      own = Mcp::Tools.for_fix(workspace, asked["tool"])
+      if own
+        step.assign_attributes(own_action_of(workspace, own, asked["arguments"] || {}, position, principal))
+      else
+        tool, arguments, resource = action_of(workspace, asked["tool"].to_s, asked["arguments"] || {}, position, principal)
+        step.assign_attributes(tool_name: asked["tool"], action_key: tool.action_key, arguments: arguments, resource: resource)
+      end
     when KIND_MANUAL
       step.missing = asked["missing"].presence
+      refuse_by_hand!(workspace, step)
     when KIND_PAGE_CHECK
       step.assign_attributes(page_check_of(asked["arguments"], position))
       step.depends_on = (1...position).to_a if step.depends_on.empty?
@@ -130,6 +136,15 @@ class Investigation::RemediationStep < ApplicationRecord
   end
 
   def action? = kind == KIND_ACTION
+
+  # An action through one of Firefight's own tools rather than a connection's, such as invite_responders.
+  def firefight_tool? = action? && Mcp::Tools.all.any? { |tool_class| tool_class.name_value.to_s == tool_name.to_s }
+
+  # The tool while this workspace still offers it to a fix.
+  def firefight_tool(workspace)
+    tool_class = Mcp::Tools.for_fix(workspace, tool_name)
+    tool_class && FirefightTool.new(tool_class: tool_class, action_key: action_key, workspace: workspace)
+  end
 
   def page_check? = kind == KIND_PAGE_CHECK
 
@@ -170,6 +185,26 @@ class Investigation::RemediationStep < ApplicationRecord
     "Couldn't #{shown_title.downcase_first}: #{failure.presence || 'it did not go through'}."
   end
 
+  # A step only a person can do, said as theirs, such as "Your step: Invite Uros Nikolic to #inc-003. Then press Done."
+  def your_step_line = "Your step: #{(title.presence || description).delete_suffix('.')}. Then press Done."
+
+  # An approved step waits on whoever runs it, such as "Ana Lee approved it. Waiting for Uros Nikolic to run it."
+  def run_wait_line
+    approver = approval&.approver&.actor_display_name || "An approver"
+    "#{approver} approved it. Waiting for #{plan.applier_name || 'whoever applied the fix'} to run it."
+  end
+
+  APPROVERS_NAMED = 3
+
+  # Who was asked to approve a step a rule holds, such as "Waiting for Ana Lee or Uros Nikolic to approve it before it runs."
+  def approval_wait_line
+    names = approval&.approvers.to_a.map(&:actor_display_name)
+    return "Waiting for approval before it runs." if names.empty?
+
+    shown = names.size > APPROVERS_NAMED ? [ *names.first(APPROVERS_NAMED), "#{names.size - APPROVERS_NAMED} more" ] : names
+    "Waiting for #{shown.to_sentence(two_words_connector: ' or ', last_word_connector: ' or ')} to approve it before it runs."
+  end
+
   # Whether a failed step offers Try again at all. Whoever presses it is checked then (retry_blocked_reason).
   def retry_offered? = failed? && !plan.cancelled? && !plan.unattended?
 
@@ -188,6 +223,7 @@ class Investigation::RemediationStep < ApplicationRecord
   # by the code host's coding tool on the connection that sees its repository.
   def tool_to_run(workspace = plan.finding.investigation.workspace)
     return code_tool(workspace) if pull_request?
+    return firefight_tool(workspace) if firefight_tool?
 
     read_for, tool = @action_tool
     return tool if read_for == workspace.id
@@ -318,6 +354,8 @@ class Investigation::RemediationStep < ApplicationRecord
   def call_arguments = arguments.except(Integration::Tool::ENVIRONMENT_ARG)
 
   def call_scope(tool = tool_to_run)
+    return {} if firefight_tool?
+
     entry = tool && environment_entry(tool)
     entry ? { Ability::Scope::DIMENSION_ENVIRONMENT => entry.id } : {}
   end
@@ -427,7 +465,9 @@ class Investigation::RemediationStep < ApplicationRecord
 
   def shown_work = defined?(@shown_work) ? @shown_work : work&.with_current_question(workspace_id)
 
-  def mark_done!(by:) = move!(from: STATUS_PROPOSED, to: STATUS_DONE, done_by_id: by.id, finished_at: Time.current)
+  def mark_done!(by:)
+    move!(from: STATUS_PROPOSED, to: STATUS_DONE, done_by_id: by.id, finished_at: Time.current).tap { |moved| plan.record_step_marked_done!(self) if moved }
+  end
 
   # What a long running step has done so far, such as where its coding agent is working, shown while it runs. Only a
   # running step takes it, so a late report never overwrites how the step ended.
@@ -438,10 +478,26 @@ class Investigation::RemediationStep < ApplicationRecord
 
   # A tool's words are kept to be read, never a credential it handed back, which is redacted before it is stored.
   # failure is why it did not go through in plain words (FAILURE_*), beside the tool's own in result.
-  def finish!(status, result: nil, invocation_id: nil, failure: nil)
-    move!(from: [ STATUS_RUNNING, STATUS_WAITING_APPROVAL ], to: status, result: self.class.redacted(result)&.truncate(RESULT_LIMIT),
-          invocation_id: invocation_id || self.invocation_id, finished_at: Time.current, failure: failure)
+  # A step that went through keeps what it produced, such as the pull request it opened, and already_done says the
+  # outcome held before it ran, in plain words.
+  def finish!(status, result: nil, invocation_id: nil, failure: nil, already_done: nil)
+    kept = self.class.redacted(result)&.truncate(RESULT_LIMIT)
+    label, url = (Outcome.of(kept, work) if status == STATUS_DONE && already_done.nil?)
+    move!(from: [ STATUS_RUNNING, STATUS_WAITING_APPROVAL ], to: status, result: kept,
+          invocation_id: invocation_id || self.invocation_id, finished_at: Time.current, failure: failure,
+          already_done_reason: already_done, outcome_label: label, outcome_url: url)
+      .tap { |moved| plan.record_step_ended!(self) if moved }
   end
+
+  # What a step that went through shows on its line: what it produced, or why it was already done.
+  def result_line
+    return "Already done: #{already_done_reason}" if already_done_reason.present?
+
+    "#{result_lead}: #{outcome_label}" if outcome_label.present?
+  end
+
+  # The words before the link a step produced, such as Opened a pull request.
+  def result_lead = Outcome.lead(self)
 
   def self.redacted(text) = text && Chat::SecretFree.redacted(text)
 
@@ -527,6 +583,32 @@ class Investigation::RemediationStep < ApplicationRecord
     refuse(position, "names #{name}, which cannot run here: #{error.message.delete_suffix('.')}. Make it a manual step and say so")
   end
   private_class_method :action_of
+
+  # A step through one of Firefight's own tools, authorized as the action its arguments make. One whose outcome already
+  # holds is sent back, so a fix never asks anyone for a change that is already made.
+  def self.own_action_of(workspace, tool_class, arguments, position, principal)
+    given = arguments.to_h.symbolize_keys
+    resource, action = tool_class.authorization(workspace, given)
+    held = tool_class.already_holds(workspace: workspace, principal: principal, args: given)
+    refuse(position, "would change nothing, since #{held}. Leave it out of the fix") if held
+
+    { tool_name: tool_class.name_value.to_s, action_key: Ability::Action.system_key(resource, action), arguments: arguments.to_h.stringify_keys }
+  rescue ActiveRecord::RecordNotFound, ArgumentError => error
+    refuse(position, "names #{tool_class.name_value} with arguments it cannot use: #{error.message.delete_suffix('.')}")
+  end
+  private_class_method :own_action_of
+
+  # A step for a person that one of Firefight's own tools does is sent back to be that tool's action step, unless its
+  # missing says why the tool cannot do it here.
+  def self.refuse_by_hand!(workspace, step)
+    words = "#{step.title} #{step.description}"
+    doer = Mcp::Tools.for_fixes(workspace).find { |tool_class| tool_class.by_hand_words&.match?(words) }&.name_value&.to_s
+    return unless doer && !step.missing.to_s.include?(doer)
+
+    refuse(step.position, "is for a person, but Firefight does that with #{doer}. Make it an action step with #{doer}, " \
+                          "or say in missing why #{doer} cannot do it here")
+  end
+  private_class_method :refuse_by_hand!
 
   def self.runnable_tool(workspace, name, position)
     tool = workspace.switched_on_tools.find { |each| each.model_facing_name == name }
