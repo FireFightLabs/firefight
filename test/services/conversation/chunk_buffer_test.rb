@@ -45,6 +45,17 @@ class Conversation::ChunkBufferTest < ActiveSupport::TestCase
     assert_equal [ "See ", "<https://example.com/pr|the pull request for it> and ", "[the docs](https://example.com/docs \"the setup page\") ", "now" ], sent
   end
 
+  test "a label with a bracket nested in it stays open until the outer label closes" do
+    sent = []
+    buffer = Conversation::ChunkBuffer.new(interval: 1.hour, max_chars: 5, whole_markup: true) { |text| sent << text }
+
+    buffer.add("Read [the [quick] ")
+    buffer.add("guide](https://example.com) now")
+    buffer.flush!
+
+    assert_equal [ "Read ", "[the [quick] guide](https://example.com) ", "now" ], sent
+  end
+
   test "markers inside inline code and a lone angle bracket in prose open nothing" do
     sent = []
     buffer = Conversation::ChunkBuffer.new(interval: 1.hour, max_chars: 5, whole_markup: true) { |text| sent << text }

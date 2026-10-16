@@ -7,9 +7,10 @@ class Conversation::ChunkBuffer
   MAX_CHARS = 200
   LONG_HELD = 2_000
   CODE_FENCE = /^[ \t]*```/
-  # A link, an angle bracket link or a link's address still open at the end of the text, a label with spaces included,
-  # until its closing delimiter. A lone < in prose opens nothing, so only one that starts a Slack link counts.
-  OPEN_LINK = /(?:\[[^\]\n]*|\]\([^)\n]*|<(?:https?:|mailto:|[@#!])[^>\n]*)\z/
+  # A link's address or an angle bracket link still open at the end of the text, a title or label with spaces included,
+  # until its closing delimiter. A lone < in prose opens nothing, so only one that starts a Slack link counts. A label
+  # still open is found by counting brackets (open_label?).
+  OPEN_LINK = /(?:\]\([^)\n]*|<(?:https?:|mailto:|[@#!])[^>\n]*)\z/
   INLINE_CODE = /`[^`\n]*`/
 
   def initialize(interval: INTERVAL, max_chars: MAX_CHARS, whole_markup: false, &send_text)
@@ -61,7 +62,13 @@ class Conversation::ChunkBuffer
 
     # Markers inside a closed inline code span are literal, so they open no bold and no link.
     prose = outside_code.gsub(INLINE_CODE, "")
-    prose.scan("**").size.even? && !prose.rstrip.match?(OPEN_LINK)
+    prose.scan("**").size.even? && !prose.rstrip.match?(OPEN_LINK) && !open_label?(prose)
+  end
+
+  # A link's label still open on the last line, counting brackets so one nested in the label never reads as its close.
+  def open_label?(prose)
+    line = prose.split("\n", -1).last.to_s
+    line.count("[") > line.count("]")
   end
 
   def send_held(length)
