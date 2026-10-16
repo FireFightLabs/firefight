@@ -34,7 +34,7 @@ class CodeAgent::AnswerChangeTest < ActionDispatch::IntegrationTest
     assert_equal "Only Bob Jones can answer, since the change runs as them.", @question.change_answer_blocked_reason(nil)
     assert @question.to_h["changeable"], "Change answer is offered to everyone, and disabled with the reason for anyone but Bob"
 
-    @session.open_push!(5.minutes)
+    @session.open_push!(5.minutes, commit: "b" * 40)
     assert_equal "The change this question was for has finished, so its answer can no longer change.", @question.reload.change_answer_blocked_reason(@bob)
     @session.close_push!
     assert_nil @question.reload.change_answer_blocked_reason(@bob)

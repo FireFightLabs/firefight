@@ -45,7 +45,7 @@ class Integrations::GitGate
     raise Refused, "A push must not be compressed, so its commands can be read." if headers["Content-Encoding"].present?
 
     commands, taken = self.class.commands(body)
-    refusal = self.class.refusal(commands, @session.git_branch)
+    refusal = self.class.refusal(commands, @session.git_branch, @session.push_commit)
     raise Refused, refusal if refusal
 
     Rails.logger.info({ event: "code_agent.git_push", code_agent_session_id: @session.id, refs: commands.map(&:ref) }.to_json)
@@ -80,15 +80,18 @@ class Integrations::GitGate
   end
   private_class_method :command
 
-  # Why a push is refused, or nil: every ref it updates must be the session's own branch, and none may be deleted.
-  def self.refusal(commands, branch)
+  # Why a push is refused, or nil: every ref it updates must be the session's own branch, none may be deleted, and each
+  # must move it to commit, the one that was reviewed, so nothing left running in the box can push anything else.
+  def self.refusal(commands, branch, commit)
     return "This code change has no branch it may push to." if branch.blank?
+    return "This code change has no reviewed commit to push." if commit.blank?
     return "The push updates nothing." if commands.empty?
 
     commands.each do |command|
       return "A code change never deletes a branch or a tag (#{command.ref})." if command.new.match?(ZERO)
       return "A code change never pushes tags (#{command.ref})." if command.ref.start_with?("refs/tags/")
       return "A code change pushes only to its own branch, #{branch}, never #{command.ref.delete_prefix(BRANCHES)}." unless command.ref == "#{BRANCHES}#{branch}"
+      return "A code change pushes only the commit that was reviewed, #{commit[0, 12]}, never #{command.new[0, 12]}." unless command.new == commit
     end
     nil
   end
