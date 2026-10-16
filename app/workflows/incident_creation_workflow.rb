@@ -4,14 +4,27 @@ class IncidentCreationWorkflow < SolidWorkflow::Base
   step :create_slack_channel
   step :set_channel_metadata, depends_on: [ :create_slack_channel ]
   step :post_quick_actions_message, depends_on: [ :set_channel_metadata ]
-  step :post_first_incident_walkthrough, depends_on: [ :post_quick_actions_message ]
+  # Last in the channel, once everything else that speaks in or fills it has finished, whether it worked or not.
+  step :post_first_incident_walkthrough, depends_on: [
+    :post_quick_actions_message, :invite_declarer, :invite_responders, :attach_runbooks, :post_carried_over_investigation,
+    :start_alert_investigation
+  ]
   step :post_announcement, depends_on: [ :create_slack_channel ]
-  step :invite_declarer, depends_on: [ :post_quick_actions_message ]
-  step :invite_responders, depends_on: [ :create_slack_channel ]
-  step :attach_runbooks, depends_on: [ :post_quick_actions_message ]
-  step :post_carried_over_investigation, depends_on: [ :post_quick_actions_message ]
-  step :start_alert_investigation, depends_on: [ :post_quick_actions_message ]
+  # A failure in any of these leaves the rest of the setup and the guide to carry on.
+  step :invite_declarer, depends_on: [ :post_quick_actions_message ], on_failure: SolidWorkflow::Definition::ON_FAILURE_CONTINUE
+  step :invite_responders, depends_on: [ :create_slack_channel ], on_failure: SolidWorkflow::Definition::ON_FAILURE_CONTINUE
+  step :attach_runbooks, depends_on: [ :post_quick_actions_message ], on_failure: SolidWorkflow::Definition::ON_FAILURE_CONTINUE
+  step :post_carried_over_investigation, depends_on: [ :post_quick_actions_message ], on_failure: SolidWorkflow::Definition::ON_FAILURE_CONTINUE
+  step :start_alert_investigation, depends_on: [ :post_quick_actions_message ], on_failure: SolidWorkflow::Definition::ON_FAILURE_CONTINUE
   step :create_incident_event
+
+  # The run has not yet reached its walkthrough step, so the guide is still this run's to post.
+  def self.opening?(incident)
+    SolidWorkflow::Step.pending.where(
+      name: "post_first_incident_walkthrough",
+      workflow: SolidWorkflow::Workflow.live.where(subject: incident, workflow_class: name)
+    ).exists?
+  end
 
   def create_slack_channel(workflow:, step:, input:)
     service(workflow).create_channel(workflow.subject)

@@ -1,4 +1,9 @@
 class Alert < ApplicationRecord
+  include Incident::LiveSignal
+
+  # Most alerts never join an incident, and routing writes them often.
+  shown_on_incident_page Incident::LiveSignal::PART_INCIDENT, if: -> { incident_id.present? || saved_change_to_incident_id? }
+
   STATUS_FIRING = "firing"
   STATUS_RESOLVED = "resolved"
   STATUSES = [ STATUS_FIRING, STATUS_RESOLVED ].freeze
@@ -62,6 +67,7 @@ class Alert < ApplicationRecord
       now, STATUS_FIRING, Time.current
     ])
     reload
+    signal_incident_page if incident_id
   end
 
   def resolve!(now = Time.current)

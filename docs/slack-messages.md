@@ -232,7 +232,12 @@ number, so progress reads without a row of empty circles. Its buttons share one
 incident exists, with the `/ff new` hint as a context line under it. `FirstIncidentWalkthrough` is the coach in the first test incident's channel:
 one step per message, posted by `OnboardingWalkthroughService#advance!` as the
 incident earns it (declared, lead set, first message, resolved, postmortem),
-with the last posted step kept on the onboarding row so nothing posts twice. `Resolution` carries the postmortem button and a
+with the last posted step kept on the onboarding row so nothing posts twice. The first step is the last thing
+`IncidentCreationWorkflow` puts in the channel: its step waits on the pinned quick actions and on every other step that
+speaks in or fills the channel (the invites, runbooks, a carried over answer, an alert investigation's start). Those
+steps are `on_failure: continue`, so one that fails for good still lets the guide post. Every other caller skips while
+that step is still to run (`IncidentCreationWorkflow.opening?`), so the `incident.created` progress job cannot post it
+above the quick actions. `Resolution` carries the postmortem button and a
 context line naming what the draft is built from, and drops both when the
 incident already has a write-up.
 

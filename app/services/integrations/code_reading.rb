@@ -102,10 +102,18 @@ module Integrations
             provider.stop(running.ref)
           end
           provider.tidy(kept_refs: PreparedCopy.where(kept_in: key).pluck(:kept_ref).to_set)
+          SandboxImageCopyJob.perform_later(key) if provider.keeps_copies?
         rescue Sandboxes::Error => error
           Rails.logger.warn({ event: "code_box.sweep_failed", provider: key, error: error.message }.to_json)
         end
         SandboxInventory.record!
+      end
+
+      # The provider's copy of the image this deployment runs, made ahead of any run (Sandboxes::Provider#prepare_image!).
+      def prepare_image!(provider_key)
+        Sandboxes.provider(provider_key)&.prepare_image!
+      rescue Sandboxes::Error => error
+        Rails.logger.warn({ event: "code_box.image_copy_failed", provider: provider_key, error: error.message }.to_json)
       end
 
       # Prepared copies nobody used for PreparedCopy::KEPT_UNUSED_FOR. A copy a provider keeps is let go of there first,
@@ -122,7 +130,10 @@ module Integrations
 
       # How the client reaches the box a row names.
       def box_of(row)
-        Sandboxes::Box.new(ref: row.box_ref, address: row.reach_address, key: row.secret, relayed: Sandboxes.provider(row.provider)&.relayed? || false)
+        provider = Sandboxes.provider(row.provider)
+        return Sandboxes::Box.new(ref: row.box_ref, address: row.reach_address, key: row.secret) unless provider
+
+        provider.box(ref: row.box_ref, address: row.reach_address, key: row.secret)
       end
 
       # In process memory, since one run's reads happen in the job that holds it. An entry past its time is dropped
@@ -250,7 +261,7 @@ module Integrations
       return unless kept&.commit.present? && keeper.kept_ready?(kept.kept_ref)
 
       started = keeper.start(name: Sandboxes.box_name, owner: owner, from: kept.kept_ref)
-      Sandboxes::Client.new(started).wait_until_ready!
+      Sandboxes::Client.new(started).wait_until_ready!(within: keeper.ready_within)
       left = box.box_ref
       return keeper.stop(started.ref) unless box.moved_to!(started, hourly_micros: keeper.hourly_micros)
 
@@ -398,7 +409,7 @@ module Integrations
     def start_on(provider_key, fail_fast:, refused:)
       provider = Sandboxes.provider(provider_key)
       started = provider.start(name: Sandboxes.box_name, owner: owner, fail_fast: fail_fast)
-      Sandboxes::Client.new(started).wait_until_ready!
+      Sandboxes::Client.new(started).wait_until_ready!(within: provider.ready_within)
       CodeBox.create!(
         workspace: @workspace, key: @key, provider: provider_key, box_ref: started.ref, **CodeBox.address_columns(started.address), secret: started.key,
         last_used_at: Time.current, box_started_at: Time.current, size: provider.size, hourly_micros: provider.hourly_micros,

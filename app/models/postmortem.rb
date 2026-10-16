@@ -1,6 +1,11 @@
 class Postmortem < ApplicationRecord
   include Postmortem::Snapshots
   include Postmortem::Searchable
+  include Incident::LiveSignal
+
+  # Its words are saved every few seconds while someone writes, which the incident page does not show.
+  shown_on_incident_page Incident::LiveSignal::PART_POSTMORTEM,
+                         if: -> { previously_new_record? || saved_change_to_status? || saved_change_to_generation_state? }
 
   class StaleContent < StandardError; end
 
@@ -91,7 +96,7 @@ class Postmortem < ApplicationRecord
     else
       moved = where(id: existing.id, generation_state: [ nil, GENERATION_FAILED ])
         .update_all(generation_state: GENERATION_GENERATING, generation_error: nil, updated_at: Time.current) > 0
-      moved ? existing.reload : nil
+      moved ? existing.reload.tap(&:signal_incident_page) : nil
     end
   rescue ActiveRecord::RecordNotUnique
     nil
@@ -101,9 +106,11 @@ class Postmortem < ApplicationRecord
 
   # Once, so the sweep and a job giving up never both tell the author. True for whichever did it.
   def give_up_generation!
-    self.class.where(id: id, generation_state: GENERATION_GENERATING).update_all(
+    gave_up = self.class.where(id: id, generation_state: GENERATION_GENERATING).update_all(
       generation_state: GENERATION_FAILED, generation_error: GENERATION_INTERRUPTED, updated_at: Time.current
     ) > 0
+    signal_incident_page if gave_up
+    gave_up
   end
 
   def mark_generation_failed!(reason)

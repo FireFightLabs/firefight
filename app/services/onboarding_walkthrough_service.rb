@@ -5,9 +5,11 @@ class OnboardingWalkthroughService
 
   # Callers can overlap (close workflow and resolve event), so the step is
   # claimed with a conditional update before posting and released if the post fails.
+  # While the channel is still being set up the creation workflow posts the guide itself, once its people are in.
   def advance!(incident)
     onboarding = WorkspaceOnboarding.find_by(workspace: @workspace)
     return { skipped: true } unless onboarding&.tracks?(incident) && incident.channel_id.present? && !incident.canceled?
+    return { skipped: true } if IncidentCreationWorkflow.opening?(incident)
 
     seen = onboarding.walkthrough_step
     target = onboarding.stage_of(incident)

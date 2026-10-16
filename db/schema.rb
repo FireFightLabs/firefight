@@ -2979,6 +2979,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_100000) do
     t.index ["workspace_id"], name: "index_runbooks_on_workspace_id"
   end
 
+  create_table "sandbox_image_copies", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "provider", null: false
+    t.string "name", null: false
+    t.string "status", default: "unclaimed", null: false
+    t.string "claimed_by"
+    t.datetime "claimed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["provider", "name"], name: "index_sandbox_image_copies_on_provider_and_name", unique: true
+  end
+
   create_table "sandbox_provider_reads", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "provider", null: false
     t.datetime "read_at", null: false
