@@ -4,6 +4,7 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
   include FixPlanTestHelper
   setup do
     @incident = incidents(:active_critical_ws1)
+    @incident.workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub", slug: "github")
     investigation = @incident.workspace.investigations.create!(
       subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400
     )
@@ -17,11 +18,54 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
     )
   end
 
-  test "a question with no incident is announced by its own words, escaped" do
-    text = Slack::Messages::InvestigationRun.started(incident: nil, question: "is <checkout> slow", started_by: "Alice").sole.dig(:text, :text)
+  test "a question with no incident is named by its own words, plain in a plan's title and escaped where it is markup" do
+    run = @incident.workspace.investigations.create!(trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400,
+                                                     brief: { Investigation::Brief::KEY_SYMPTOM => "is <checkout> slow" })
+    progress = Investigation::Progress.new(run)
 
-    assert_match "is &lt;checkout&gt; slow", text
+    rich = Slack::Messages::InvestigationRun.checklist(progress: progress, incident: nil, question: "is <checkout> slow", started_by: "Alice")
+    plain = Slack::Messages::InvestigationRun.checklist(progress: progress, incident: nil, question: "is <checkout> slow", started_by: "Alice", rich: false)
+
+    assert_equal "Investigating \"is <checkout> slow\"", rich.first[:title]
+    assert_match "is &lt;checkout&gt; slow", plain.first.dig(:text, :text)
   end
+
+  test "the checklist marks each task by Slack's status, says who started it and links to the run" do
+    with_app_host do
+      run = @finding.investigation
+      run.steps.create!(position: 2, tool_name: "search_logs", action_key: "grafana.search_logs", status: Investigation::Step::STATUS_RUNNING)
+      run.steps.create!(position: 3, tool_name: "query_metrics", action_key: "grafana.query_metrics", status: Investigation::Step::STATUS_FAILED,
+                        failure_kind: Chat::StepOutcome::FAILURE_ERROR)
+      live = Investigation::Progress.new(run)
+      live.define_singleton_method(:finding) { nil }
+
+      blocks = Slack::Messages::InvestigationRun.checklist(progress: live, incident: @incident, started_by: "Alice")
+
+      assert_equal [ [ "Gathered what Firefight knows", "complete" ], [ "Read the code", "complete" ], [ "Read the logs and metrics", "in_progress" ],
+                     [ "Find the cause", "pending" ] ], blocks.first[:tasks].map { |task| task.values_at(:title, :status) }
+      assert_equal "Started by Alice  ·  Halon is working in the thread", blocks.second.dig(:elements, 0, :text)
+      assert_equal "https://app.example.com/app/investigations/#{run.id}", blocks.third.dig(:elements, 0, :url)
+
+      stopped = Slack::Messages::InvestigationRun.checklist(progress: Investigation::Progress.new(run.tap { |each| each.finding.destroy! }.reload, stop_reason: Investigation::BUDGET_SPENT),
+                                                            incident: @incident, started_by: "Alice")
+      assert_equal "Investigation of #{@incident.identifier} stopped", stopped.first[:title]
+      assert_equal [ "error", "complete" ], stopped.first[:tasks].values_at(-1, -3).pluck(:status)
+      assert_equal "Budget spent before it could answer", stopped.first[:tasks].last.dig(:output, :elements, 0, :elements, 0, :text)
+    end
+  end
+
+  test "a run reading many kinds of system keeps its checklist to a handful, the rest counted as other checks" do
+    run = @finding.investigation
+    %w[search_logs recent_deploys check_in_browser get_resource_map].each_with_index do |tool, index|
+      run.steps.create!(position: index + 2, tool_name: tool, action_key: (tool == "get_resource_map" ? "map.read" : "x.#{tool}"),
+                        status: Investigation::Step::STATUS_SUCCEEDED)
+    end
+    run.steps.create!(position: 9, tool_name: "unknown_tool", action_key: "nowhere.unknown_tool", status: Investigation::Step::STATUS_SUCCEEDED)
+
+    titles = Investigation::Progress.new(run).tasks.map(&:title)
+
+    assert_equal [ "Gathered what Firefight knows", "Read the code", "Read the logs and metrics", "Checked recent deploys",
+                   "Checked the page in a browser", "Ran other checks", @finding.headline ], titles  end
 
   test "an answer that says users are hurt now, with no incident, offers to declare one" do
     run = @incident.workspace.investigations.create!(
@@ -30,7 +74,7 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
     )
     finding = run.conclude!(summary: "Checkout writes time out", suggest_incident: true)
 
-    buttons = Slack::Messages::InvestigationRun.finding(finding: finding).select { |block| block[:type] == "actions" }.flat_map { |block| block[:elements] }
+    buttons = Slack::Messages::InvestigationRun.answer(finding: finding).select { |block| block[:type] == "actions" }.flat_map { |block| block[:elements] }
 
     declare = buttons.find { |button| button[:action_id] == Identifiers::DECLARE_INCIDENT_FROM_INVESTIGATION }
     assert_equal run.id, declare[:value]
@@ -42,7 +86,7 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
     )
     finding = run.conclude!(summary: "Checkout writes time out", suggest_incident: true)
 
-    buttons = Slack::Messages::InvestigationRun.finding(finding: finding).select { |block| block[:type] == "actions" }.flat_map { |block| block[:elements] }
+    buttons = Slack::Messages::InvestigationRun.answer(finding: finding).select { |block| block[:type] == "actions" }.flat_map { |block| block[:elements] }
 
     assert_nil buttons.find { |button| button[:action_id] == Identifiers::DECLARE_INCIDENT_FROM_INVESTIGATION }
     assert_not finding.suggests_incident
@@ -73,19 +117,52 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
     assert_match "checkout is slow", text
   end
 
-  test "the opening message names the incident and who asked" do
-    text = Slack::Messages::InvestigationRun.started(incident: @incident, started_by: "Alice").sole.dig(:text, :text)
+  test "the short answer is a handful of plain lines: the kind and how sure, what is wrong, three facts, the fix and what was not checked" do
+    run = @incident.workspace.investigations.create!(subject: incidents(:active_major_ws1), trigger_source: Investigation::TRIGGER_COMMAND,
+                                                     max_turns: 10, max_spend_cents: 400)
+    run.steps.create!(position: 1, tool_name: "search_logs", action_key: "grafana.search_logs", status: Investigation::Step::STATUS_SUCCEEDED)
+    run.record_hypothesis!(assertion: "The pool is too small", status: Investigation::Hypothesis::STATUS_SUPPORTED, steps: [ 1 ])
+    finding = run.conclude!(
+      summary: "`config/database.yml` sets `pool: 5` and `CheckoutJob#perform` holds a connection per item",
+      hypothesis_assertion: "The pool is too small",
+      evidence: (1..4).map { |index| { claim: "`app/jobs/checkout_job.rb:#{index}` holds a connection", plain: "Fact #{index} in plain words", steps: [ 1 ] } },
+      gaps: "The database's own logs at `pg-primary-1`, since the read was refused, and the replica, since nothing reaches it",
+      fix: { "summary" => "Raise `pool` to 20 in config/database.yml", "steps" => [ { "kind" => "manual", "description" => "Edit config/database.yml" } ] },
+      short: { answer_kind: Investigation::Finding::KIND_ROOT_CAUSE, confidence: 0.9, what_is_wrong: "Checkout runs out of database connections.",
+               suggested_fix: "Give checkout more database connections.", not_checked: "the database's own logs" }
+    )
 
-    assert_match @incident.identifier, text
-    assert_match "Started by Alice", text
+    blocks = Slack::Messages::InvestigationRun.answer(finding: finding)
+    text = blocks.to_json
+
+    assert_equal ":dart:  *Root cause found*  ·  Very sure", blocks.first.dig(:text, :text)
+    assert_equal "divider", blocks.second[:type]
+    assert_equal "Checkout runs out of database connections.
+• Fact 1 in plain words
+• Fact 2 in plain words
+• Fact 3 in plain words
+" \
+                 "*Suggested fix:* Give checkout more database connections.", blocks.third.dig(:text, :text)
+    assert_equal "_Could not check: the database's own logs_", blocks.last.dig(:elements, 0, :text)
+    assert_operator blocks.third.dig(:text, :text).lines.size, :<=, 6
+    %w[config/database.yml checkout_job.rb CheckoutJob pg-primary-1 `].each { |code| assert_not_includes text, code }
   end
 
-  test "an answer carries the evidence, the gaps and a right, partly right or wrong rating" do
-    blocks = Slack::Messages::InvestigationRun.finding(finding: @finding)
+  test "a root cause the agent is not sure of reads as a likely one, and an answer with no cause says so without how sure" do
+    @finding.update!(answer_kind: Investigation::Finding::KIND_ROOT_CAUSE, confidence: 0.5)
+    assert_equal ":mag:  *Likely cause*  ·  Not very sure", Slack::Messages::InvestigationRun.answer(finding: @finding).first.dig(:text, :text)
 
-    assert_equal "*14:02 deploy* raised the pool size", blocks.first.dig(:text, :text).split("The ").last
-    assert_match "• The commit raised the pool size _(Commit lookup abc123)_", blocks.second.dig(:text, :text)
-    assert_match "production logs", blocks.third[:elements].sole[:text]
+    @finding.update!(answer_kind: Investigation::Finding::KIND_NO_CAUSE)
+    assert_equal ":grey_question:  *No cause found yet*", Slack::Messages::InvestigationRun.answer(finding: @finding).first.dig(:text, :text)
+  end
+
+  test "the full answer in the thread carries the reasoning, the evidence with its sources, the gaps and a right, partly right or wrong rating" do
+    blocks = Slack::Messages::InvestigationRun.answer_detail(finding: @finding)
+
+    assert_equal [ ":page_facing_up:  *The full answer*", "divider" ], [ blocks.first.dig(:text, :text), blocks.second[:type] ]
+    assert_equal "*14:02 deploy* raised the pool size", blocks.third.dig(:text, :text).split("The ").last
+    assert_match "• The commit raised the pool size _(Commit lookup abc123)_", blocks.fourth.dig(:text, :text)
+    assert_match "production logs", blocks.fifth[:elements].sole[:text]
 
     assert_equal "Was this answer right?", blocks[-2][:elements].sole[:text]
     buttons = blocks.last[:elements]
@@ -101,7 +178,7 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
                                                         "steps" => [ { "kind" => "pull_request", "description" => "Revert the pool size", "repository" => "acme/api" },
                                                                      { "kind" => "manual", "description" => "Restart the workers" } ] })
 
-    text = Slack::Messages::InvestigationRun.finding(finding: @finding.reload).map { |block| block.dig(:text, :text) }.compact.find { |each| each.start_with?("*How to fix it*") }
+    text = Slack::Messages::InvestigationRun.answer_detail(finding: @finding.reload).map { |block| block.dig(:text, :text) }.compact.find { |each| each.start_with?("*How to fix it*") }
 
     assert_equal "*How to fix it*\nRoll back the *14:02 deploy*\n1. _Code change in `acme/api`_ Revert the pool size\n2. _For a person_ Restart the workers\n" \
                  "_How to tell it worked:_ Pool waits back under 50ms", text
@@ -110,7 +187,7 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
   test "an answer and a stop both link to the run in Firefight, where every step and receipt is" do
     with_app_host do
       investigation = @finding.investigation
-      answer_link = Slack::Messages::InvestigationRun.finding(finding: @finding).find { |block| block[:type] == "actions" }
+      answer_link = Slack::Messages::InvestigationRun.answer(finding: @finding).find { |block| block[:type] == "actions" }
       stop_link = Slack::Messages::InvestigationRun.stopped(reason: "Budget spent before it could answer", investigation: investigation).last
 
       expected = "https://app.example.com/app/investigations/#{investigation.id}"
@@ -147,10 +224,12 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
     finding.evidence_items.destroy_all
     finding.update!(gaps: nil)
 
-    blocks = Slack::Messages::InvestigationRun.finding(finding: finding)
+    detail = Slack::Messages::InvestigationRun.answer_detail(finding: finding)
+    short = Slack::Messages::InvestigationRun.answer(finding: finding)
 
-    assert_equal [ "section", "context", "actions" ], blocks.map { |block| block[:type] }
-    assert_equal Identifiers::RATE_INVESTIGATION_RIGHT, blocks.last[:elements].first[:action_id]
+    assert_equal %w[section divider section context actions], detail.map { |block| block[:type] }
+    assert_equal Identifiers::RATE_INVESTIGATION_RIGHT, detail.last[:elements].first[:action_id]
+    assert_equal "The **14:02 deploy** raised the pool size", short.third.dig(:text, :text)
   end
 
   test "an answer whose fix runs through a connection offers Apply fix, which asks first, and one already applied does not" do
@@ -168,7 +247,7 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
   private
 
   def apply_button(plan)
-    Slack::Messages::InvestigationRun.finding(finding: plan.finding).select { |block| block[:type] == "actions" }
+    Slack::Messages::InvestigationRun.answer(finding: plan.finding).select { |block| block[:type] == "actions" }
                                      .flat_map { |block| block[:elements] }.find { |element| element[:action_id] == Identifiers::APPLY_FIX }
   end
 

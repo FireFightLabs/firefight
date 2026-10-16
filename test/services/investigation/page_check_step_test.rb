@@ -18,7 +18,7 @@ class Investigation::PageCheckStepTest < ActiveSupport::TestCase
     cloudflare.integration_environments.create!
     cloudflare.tools.create!(name: "execute", description: "Call the API", params_schema: {}, enabled: true, read_only: false)
     @investigation.record_hypothesis!(assertion: "A WAF rule blocks checkout", status: Investigation::Hypothesis::STATUS_SUPPORTED, steps: [ 1 ])
-    WorkspaceAdapter.stubs(:for).returns(stub(post_fix_progress: { message_id: "1.2", channel_id: "C1" }, update_fix_progress: { success: true }))
+    WorkspaceAdapter.stubs(:for).returns(stub(post_fix_progress: { message_id: "1.2", channel_id: "C1" }, post_fix_ended: { message_id: "1.3", channel_id: "C1" }, update_fix_progress: { success: true }))
     Integrations::McpExecutor.stubs(:call).returns("content" => [ { "type" => "text", "text" => "Rule deleted" } ])
   end
 

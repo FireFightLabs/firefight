@@ -393,6 +393,7 @@ Rails.application.routes.draw do
     post "/investigations/:id/fix/steps/:step_id/run", to: "investigations#run_fix_step", as: :investigation_fix_step_run
     post "/investigations/:id/fix/steps/:step_id/dismiss", to: "investigations#dismiss_fix_step", as: :investigation_fix_step_dismiss
     post "/investigations/:id/fix/steps/:step_id/ask_again", to: "investigations#ask_fix_step_again", as: :investigation_fix_step_ask_again
+    post "/investigations/:id/fix/steps/:step_id/retry", to: "investigations#retry_fix_step", as: :investigation_fix_step_retry
     post "/investigations/:id/fix/undo", to: "investigations#undo_fix", as: :investigation_fix_undo
     post "/investigations/:id/fix/cancel", to: "investigations#cancel_fix", as: :investigation_fix_cancel
     post "/code-agent-questions/:id/answer", to: "code_agent_questions#answer", as: :code_agent_question_answer

@@ -5,53 +5,109 @@ class Slack::Messages::FixProgressTest < ActiveSupport::TestCase
 
   setup do
     @plan = build_fix_plan(workspaces(:slack_workspace_one))
+    @alice = workspace_memberships(:alice_workspace_one)
   end
 
-  test "each step says how it went, a tool's words are escaped and cut short, and only a person's step offers Mark done" do
-    @plan.apply!(by: workspace_memberships(:alice_workspace_one), from: AbilityGateway::SOURCE_SLACK)
-    delete, tell, code = @plan.steps.to_a
+  test "the fix is a checklist of its steps by their short names, each with how it stands, and never the instructions or a tool's words" do
+    @plan.apply!(by: @alice, from: AbilityGateway::SOURCE_SLACK)
+    delete, = @plan.steps.to_a
+    delete.update_columns(title: "Delete the WAF rule")
     delete.move!(from: Investigation::RemediationStep::STATUS_PROPOSED, to: Investigation::RemediationStep::STATUS_RUNNING)
-    delete.finish!(Investigation::RemediationStep::STATUS_DONE, result: "<!channel> deleted #{'x' * 400}")
+    delete.finish!(Investigation::RemediationStep::STATUS_DONE, result: "<!channel> deleted rule 123 from zone abc")
 
-    blocks = Slack::Messages::FixProgress.build(@plan)
+    plan_block = Slack::Messages::FixProgress.build(@plan.reload).first
 
-    assert_equal "*Applying the fix* by Alice Smith. 1 of 3 steps done.", blocks.first.dig(:text, :text)
-    first = blocks.second.dig(:text, :text)
-    assert_includes first, "_Done_\n>&lt;!channel&gt; deleted"
-    assert_operator first.length, :<, 400
-    assert_nil blocks.second[:accessory]
-    assert_equal [ Identifiers::MARK_FIX_STEP_DONE, tell.id ], [ blocks.third.dig(:accessory, :action_id), blocks.third.dig(:accessory, :value) ]
-    assert_equal code.id, blocks.fourth.dig(:accessory, :value)
+    assert_equal [ "plan", "Applying the fix" ], plan_block.values_at(:type, :title)
+    assert_equal [ [ "1. Delete the WAF rule", "complete" ], [ "2. A step for a person", "pending" ], [ "3. Open a pull request with the change", "pending" ] ],
+                 plan_block[:tasks].map { |task| task.values_at(:title, :status) }
+    assert_not_includes plan_block.to_json, "deleted rule 123"
+    assert_not_includes plan_block.to_json, "dns.tf"
     assert_equal "Applying the fix: 1 of 3 steps done", Slack::Messages::FixProgress.fallback(@plan)
   end
 
-  test "each step's status is in the run page's words, the same as the step serializer ships, and a step not started says none" do
-    @plan.apply!(by: workspace_memberships(:alice_workspace_one), from: AbilityGateway::SOURCE_SLACK)
-    waiting, done, proposed = @plan.steps.to_a
+  test "each status reads as Slack's task status: waiting is in progress, done complete, declined an error, not started pending" do
+    @plan.apply!(by: @alice, from: AbilityGateway::SOURCE_SLACK)
+    waiting, done, declined = @plan.steps.to_a
     waiting.update_columns(status: Investigation::RemediationStep::STATUS_WAITING_APPROVAL)
-    done.update_columns(status: Investigation::RemediationStep::STATUS_DONE, done_by_id: workspace_memberships(:alice_workspace_one).id)
+    done.update_columns(status: Investigation::RemediationStep::STATUS_DONE, done_by_id: @alice.id)
+    declined.update_columns(status: Investigation::RemediationStep::STATUS_DECLINED, failure: "Bob declined it")
 
-    texts = Slack::Messages::FixProgress.build(@plan.reload).select { |block| block[:type] == "section" }.drop(1).map { |block| block.dig(:text, :text) }
+    tasks = Slack::Messages::FixProgress.build(@plan.reload).first[:tasks]
 
-    @plan.steps.each_with_index do |step, index|
-      label = InvestigationRemediationStepSerializer.one(step)[:statusLabel]
-      label ? assert_includes(texts[index], "_#{label}_") : assert_not_includes(texts[index], "\n_")
-    end
-    assert_equal [ "Waiting for approval", "Done by Alice Smith", nil ], [ waiting, done, proposed ].map { |step| step.reload.status_label }
+    assert_equal %w[in_progress complete error], tasks.pluck(:status)
+    assert_equal [ "Waiting for approval", "Done by Alice Smith", "Couldn't open a pull request with the change: Bob declined it." ],
+                 tasks.map { |task| (task[:details] || task[:output]).dig(:elements, 0, :elements, 0, :text) }
   end
 
-  test "words the agent wrote are escaped, and a fix longer than Slack takes sends the rest to the run page" do
-    @plan.steps.first.update_columns(description: "Tell <!channel> about <https://evil.example|this>")
-    50.times { |index| @plan.steps.create!(position: index + 4, kind: Investigation::RemediationStep::KIND_MANUAL, description: "Check #{index}") }
+  test "a failed step says why in plain words and offers Try again, which asks first and names who it runs as" do
+    @plan.apply!(by: @alice, from: AbilityGateway::SOURCE_SLACK)
+    code = @plan.steps.third
+    code.update_columns(status: Investigation::RemediationStep::STATUS_FAILED, result: "Integrations::Unavailable: docker exited 125",
+                        failure: Investigation::RemediationStep::FAILURE_SANDBOX)
+    @plan.update_columns(status: Investigation::RemediationPlan::STATUS_PARTLY_APPLIED)
 
     blocks = Slack::Messages::FixProgress.build(@plan.reload)
 
-    assert_includes blocks.second.dig(:text, :text), "Tell &lt;!channel&gt; about &lt;https://evil.example|this&gt;"
-    assert_operator blocks.size, :<=, 50
-    assert_equal "8 more steps on the run page.", blocks.last.dig(:elements, 0, :text)
+    assert_equal "Fix stopped: 1 of 3 steps failed", blocks.first[:title]
+    retry_row = blocks.find { |block| block.dig(:accessory, :action_id) == Identifiers::FIX_STEP_RETRY }
+    assert_equal "*3.* Open a pull request with the change", retry_row.dig(:text, :text)
+    assert_equal "Couldn't open a pull request with the change: the code sandbox didn't start.", blocks.first[:tasks].third.dig(:output, :elements, 0, :elements, 0, :text)
+    assert_equal [ code.id, "Try step 3 again?" ], [ retry_row.dig(:accessory, :value), retry_row.dig(:accessory, :confirm, :title, :text) ]
+    assert_includes retry_row.dig(:accessory, :confirm, :text, :text), "as Alice Smith"
+    assert_not_includes blocks.to_json, "docker exited"
   end
 
-  test "approved steps take three blocks each, and the message still fits in Slack's fifty" do
+  test "a cancelled fix and one Halon applied under a rule offer no Try again" do
+    @plan.apply!(by: @alice, from: AbilityGateway::SOURCE_SLACK)
+    @plan.steps.first.update_columns(status: Investigation::RemediationStep::STATUS_FAILED, failure: Investigation::RemediationStep::FAILURE_TOOL_SAID)
+    @plan.cancel!(by: workspace_memberships(:bob_workspace_one))
+
+    assert_nil retry_button(@plan.reload)
+
+    @plan.update_columns(status: Investigation::RemediationPlan::STATUS_PARTLY_APPLIED, applied_from: AbilityGateway::SOURCE_INVESTIGATION)
+    assert_nil retry_button(@plan.reload)
+  end
+
+  test "a code change at work says how far it got in counts, never the files or commands its agent named" do
+    @plan.apply!(by: @alice, from: AbilityGateway::SOURCE_SLACK)
+    code = @plan.steps.third
+    work = Chat::CodeFixProgress.start
+    work.add("Edited app/models/rule.rb")
+    work.changed!("app/models/rule.rb")
+    code.update!(status: Investigation::RemediationStep::STATUS_RUNNING, progress: work.to_json)
+
+    task = Slack::Messages::FixProgress.build(@plan.reload).first[:tasks].third
+
+    assert_equal [ "in_progress", "Writing the change: 1 step, 1 file changed so far" ], [ task[:status], task.dig(:details, :elements, 0, :elements, 0, :text) ]
+    assert_not_includes task.to_json, "rule.rb"
+  end
+
+  test "a person's step offers Mark done under the checklist, by its short name" do
+    @plan.apply!(by: @alice, from: AbilityGateway::SOURCE_SLACK)
+    delete, tell, = @plan.steps.to_a
+    delete.update_columns(status: Investigation::RemediationStep::STATUS_DONE)
+    tell.update_columns(title: "Tell <!channel> security")
+
+    row = Slack::Messages::FixProgress.build(@plan.reload).find { |block| block.dig(:accessory, :action_id) == Identifiers::MARK_FIX_STEP_DONE }
+
+    assert_equal "*2.* Tell &lt;!channel&gt; security", row.dig(:text, :text)
+    assert_equal tell.id, row.dig(:accessory, :value)
+  end
+
+  test "a workspace without plan blocks gets the same checklist as text, marked by status" do
+    @plan.apply!(by: @alice, from: AbilityGateway::SOURCE_SLACK)
+    @plan.steps.first.update_columns(status: Investigation::RemediationStep::STATUS_FAILED, failure: Investigation::RemediationStep::FAILURE_TOOL_SAID)
+
+    blocks = Slack::Messages::FixProgress.build(@plan.reload, rich: false)
+
+    assert_equal [ ":hammer_and_wrench:  *Applying the fix*", "divider" ], [ blocks.first.dig(:text, :text), blocks.second[:type] ]
+    assert_equal ":x: 1. Make the change through a connected tool  _Couldn't make the change through a connected tool: the tool reported an error._\n" \
+                 ":white_circle: 2. A step for a person\n:white_circle: 3. Open a pull request with the change", blocks.third.dig(:text, :text)
+  end
+
+  test "a fix with more steps to act on than Slack takes sends the rest to the run page and stays inside fifty blocks" do
+    @plan.apply!(by: @alice, from: AbilityGateway::SOURCE_SLACK)
+    @plan.steps.first.update_columns(status: Investigation::RemediationStep::STATUS_DONE)
     30.times do |index|
       @plan.steps.create!(position: index + 4, kind: Investigation::RemediationStep::KIND_MANUAL, description: "Check #{index}",
                           status: Investigation::RemediationStep::STATUS_APPROVED)
@@ -60,12 +116,11 @@ class Slack::Messages::FixProgressTest < ActiveSupport::TestCase
     blocks = Slack::Messages::FixProgress.build(@plan.reload)
 
     assert_operator blocks.size, :<=, 50
-    shown = blocks.count { |block| block[:type] == "section" } - 1
-    assert_equal "#{33 - shown} more steps on the run page.", blocks.find { |block| block[:type] == "context" && block.dig(:elements, 0, :text).include?("run page") }.dig(:elements, 0, :text)
+    assert_match(/more steps to act on, on the run page/, blocks.find { |block| block[:type] == "context" && block.dig(:elements, 0, :text).include?("run page") }.dig(:elements, 0, :text))
   end
 
   test "a fix that ended offers Undo fix, which asks first, and one still applying or already undone does not" do
-    @plan.apply!(by: workspace_memberships(:alice_workspace_one), from: AbilityGateway::SOURCE_SLACK)
+    @plan.apply!(by: @alice, from: AbilityGateway::SOURCE_SLACK)
     assert_nil undo_button(@plan)
 
     @plan.update_columns(status: Investigation::RemediationPlan::STATUS_PARTLY_APPLIED)
@@ -75,39 +130,46 @@ class Slack::Messages::FixProgressTest < ActiveSupport::TestCase
     button = undo_button(@plan.reload)
     assert_equal [ Identifiers::UNDO_FIX, @plan.id, "Write the undo?" ], [ button[:action_id], button[:value], button.dig(:confirm, :title, :text) ]
 
-    undo = @plan.propose_undo!("summary" => "Put it back", "steps" => [ { "kind" => "manual", "description" => "Re-add the rule" } ])
+    undo = @plan.propose_undo!("summary" => "Put it back", "steps" => [ { "kind" => "manual", "title" => "Re-add the rule", "description" => "Re-add the rule" } ])
     assert_nil undo_button(@plan.reload)
     written = Slack::Messages::InvestigationRun.undo(plan: undo)
     assert_equal [ ":leftwards_arrow_with_hook:  *How to undo it*", "divider" ], [ written.first.dig(:text, :text), written.second[:type] ]
-    assert_not written.third.dig(:text, :text).include?("How to undo it"), "the title is not repeated in the body"
-    assert_equal "Apply undo", Slack::Messages::InvestigationRun.undo(plan: undo).last.dig(:elements, 0, :text, :text) if undo.apply_blocked_reason.nil?
-    undo.apply!(by: workspace_memberships(:alice_workspace_one), from: AbilityGateway::SOURCE_SLACK)
-    assert Slack::Messages::FixProgress.build(undo.reload).first.dig(:text, :text).start_with?("*Undoing the fix*")
+    undo.apply!(by: @alice, from: AbilityGateway::SOURCE_SLACK)
+    assert_equal "Undoing the fix", Slack::Messages::FixProgress.build(undo.reload).first[:title]
   end
 
   test "a fix being applied offers Cancel, which asks first, and a cancelled one says who stopped it" do
-    @plan.apply!(by: workspace_memberships(:alice_workspace_one), from: AbilityGateway::SOURCE_SLACK)
-    cancel = Slack::Messages::FixProgress.build(@plan).flat_map { |block| block[:elements] || [] }.find { |element| element[:action_id] == Identifiers::CANCEL_FIX }
+    @plan.apply!(by: @alice, from: AbilityGateway::SOURCE_SLACK)
+    cancel = buttons(@plan).find { |element| element[:action_id] == Identifiers::CANCEL_FIX }
     assert_equal [ "Cancel fix", "Cancel this fix?" ], [ cancel.dig(:text, :text), cancel.dig(:confirm, :title, :text) ]
 
     @plan.cancel!(by: workspace_memberships(:bob_workspace_one))
-    assert Slack::Messages::FixProgress.build(@plan).first.dig(:text, :text).start_with?("*Fix cancelled* by Bob")
+    blocks = Slack::Messages::FixProgress.build(@plan)
+    assert_equal "Fix cancelled", blocks.first[:title]
+    assert blocks.find { |block| block[:type] == "context" }.dig(:elements, 0, :text).start_with?("Cancelled by Bob")
   end
 
-  private
+  test "how a fix ended is said plainly: applied, stopped with each failure, or cancelled" do
+    @plan.apply!(by: @alice, from: AbilityGateway::SOURCE_SLACK)
+    @plan.steps.each { |step| step.update_columns(status: Investigation::RemediationStep::STATUS_DONE) }
+    @plan.update_columns(status: Investigation::RemediationPlan::STATUS_APPLIED)
+    applied = Slack::Messages::FixProgress.ended(@plan.reload)
+    assert_equal [ ":white_check_mark:  *Fix applied*", "3 of 3 steps done." ], [ applied.first.dig(:text, :text), applied.third.dig(:text, :text) ]
 
-  def undo_button(plan)
-    Slack::Messages::FixProgress.build(plan).select { |block| block[:type] == "actions" }.flat_map { |block| block[:elements] }
-                                .find { |element| element[:action_id] == Identifiers::UNDO_FIX }
+    @plan.steps.third.update_columns(status: Investigation::RemediationStep::STATUS_FAILED, failure: Investigation::RemediationStep::FAILURE_SANDBOX)
+    @plan.update_columns(status: Investigation::RemediationPlan::STATUS_PARTLY_APPLIED)
+    stopped = Slack::Messages::FixProgress.ended(@plan.reload)
+    assert_equal ":warning:  *Fix stopped: 1 of 3 steps failed*", stopped.first.dig(:text, :text)
+    assert_equal "Couldn't open a pull request with the change: the code sandbox didn't start.\nTry again from the fix's checklist.", stopped.third.dig(:text, :text)
+    assert_equal "Fix stopped: 1 of 3 steps failed.", Slack::Messages::FixProgress.ended_text(@plan)
   end
 
   test "an approved step asks to be run, with how things stand now, Run and Dismiss, and Ask again once its approval expired" do
-    alice = workspace_memberships(:alice_workspace_one)
-    @plan.apply!(by: alice, from: AbilityGateway::SOURCE_SLACK)
+    @plan.apply!(by: @alice, from: AbilityGateway::SOURCE_SLACK)
     delete = @plan.steps.first
     approval = @plan.finding.investigation.workspace.ability_approvals.create!(
-      principal: alice, principal_label: "Alice", action_key: "cloudflare.execute", request_digest: "d", required_role: "admin",
-      status: Ability::Approval::STATUS_APPROVED, approver: alice, held_for_run: true, run_expires_at: 1.hour.from_now
+      principal: @alice, principal_label: "Alice", action_key: "cloudflare.execute", request_digest: "d", required_role: "admin",
+      status: Ability::Approval::STATUS_APPROVED, approver: @alice, held_for_run: true, run_expires_at: 1.hour.from_now
     )
     delete.update_columns(status: Investigation::RemediationStep::STATUS_APPROVED, approval_id: approval.id)
 
@@ -117,7 +179,7 @@ class Slack::Messages::FixProgressTest < ActiveSupport::TestCase
 
     delete.reload.checked!(Chat::CurrentState::Report.new(state: "The rule is gone already.", change: Chat::CurrentState::DONE_ALREADY))
     ready = Slack::Messages::FixProgress.build(@plan.reload)
-    assert_includes ready.second.dig(:text, :text), "_Approved, waiting for someone to run it_"
+    assert_equal "Approved, waiting for someone to run it", ready.first[:tasks].first.dig(:details, :elements, 0, :elements, 0, :text)
     assert_includes ready.third.dig(:elements, 0, :text), "Alice Smith approved it. Run it now?\n*Now:* The rule is gone already.\n:warning: This looks done already."
     assert_equal [ Identifiers::FIX_STEP_RUN, Identifiers::FIX_STEP_DISMISS ], ready.fourth[:elements].map { |button| button[:action_id] }
 
@@ -125,5 +187,17 @@ class Slack::Messages::FixProgressTest < ActiveSupport::TestCase
     expired = Slack::Messages::FixProgress.build(@plan.reload)
     assert_includes expired.third.dig(:elements, 0, :text), "nobody ran it within the hour"
     assert_equal [ Identifiers::FIX_STEP_ASK_AGAIN, Identifiers::FIX_STEP_DISMISS ], expired.fourth[:elements].map { |button| button[:action_id] }
+  end
+
+  private
+
+  def buttons(plan)
+    Slack::Messages::FixProgress.build(plan).select { |block| block[:type] == "actions" }.flat_map { |block| block[:elements] }
+  end
+
+  def undo_button(plan) = buttons(plan).find { |element| element[:action_id] == Identifiers::UNDO_FIX }
+
+  def retry_button(plan)
+    Slack::Messages::FixProgress.build(plan).find { |block| block.dig(:accessory, :action_id) == Identifiers::FIX_STEP_RETRY }
   end
 end

@@ -17,6 +17,16 @@ class IntegrationProvider
   # These say why in source_links_note, since neither is Firefight's own code.
   SOURCE_LINKS_EXPLAINED = [ SOURCE_LINKS_SERVER, SOURCE_LINKS_NONE ].freeze
 
+  # The kinds of question a provider's tools answer, its specialist in config/integration_providers.yml. Halon's
+  # specialists (Chat::Specialists) and a run's checklist (Investigation::Progress) both read them.
+  SPECIALIST_CODE = "code".freeze
+  SPECIALIST_DEPLOYS = "deploys".freeze
+  SPECIALIST_OBSERVABILITY = "observability".freeze
+  SPECIALIST_DATABASES = "databases".freeze
+  SPECIALIST_CLOUD = "cloud".freeze
+  SPECIALIST_TICKETS = "tickets".freeze
+  SPECIALIST_ON_CALL = "on_call".freeze
+
   # Whether what a provider holds is on the resource map. config/integration_providers.yml says what each value means.
   MAP_FIREFIGHT = "firefight".freeze
   MAP_NONE = "none".freeze

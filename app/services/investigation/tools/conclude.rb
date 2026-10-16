@@ -20,6 +20,16 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
     {
       "type" => "object",
       "properties" => {
+        "answer" => { "type" => "string", "enum" => Investigation::Finding::KINDS,
+                      "description" => "root_cause when the evidence shows what caused it, likely_cause when it points at a cause you have not proved, " \
+                                       "no_cause when it shows none yet" },
+        "confidence" => { "type" => "number", "description" => "Between 0 and 1, how sure the evidence makes you of the cause. Leave out with no_cause" },
+        "what_is_wrong" => { "type" => "string", "description" => "What is wrong, in one short sentence anyone on the team can follow, such as " \
+                                                                  "Checkout runs out of database connections since the 14:02 deploy. With no_cause, what you saw" },
+        "suggested_fix" => { "type" => "string", "description" => "The fix in one short sentence anyone on the team can follow, such as Roll back " \
+                                                                  "the 14:02 deploy. Leave out when there is no fix" },
+        "not_checked" => { "type" => "string", "description" => "What you could not check, in one short line, such as the database's own logs. " \
+                                                                "gaps holds the detail. Leave out when you checked everything that mattered" },
         "summary" => { "type" => "string", "description" => "What happened and why, in a few sentences, using only what the evidence shows. A chart's marker goes on a line of its own after the sentence about what it shows" },
         "hypothesis" => { "type" => "string", "description" => "The assertion of the theory the evidence supports, exactly as recorded, or leave out when none holds" },
         "evidence" => {
@@ -28,6 +38,8 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
             "type" => "object",
             "properties" => {
               "claim" => { "type" => "string", "description" => "One thing the evidence shows, in a sentence" },
+              "plain" => { "type" => "string", "description" => "The same claim in a few plain words anyone on the team can follow, such as " \
+                                                                 "Errors started two minutes after the deploy" },
               "steps" => { "type" => "array", "items" => { "type" => "integer" }, "description" => "The step numbers of the tool results that show it" }
             },
             "required" => %w[claim steps]
@@ -55,6 +67,8 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
                                                "closing one or rerunning a workflow, is an action through the code host's own tool), " \
                                                "manual for anything Firefight cannot do, page_check (optional, last) to confirm in " \
                                                "Halon's browser that a page people use works once the steps before it ran" },
+                  "title" => { "type" => "string", "description" => "The step in a few plain words, as a responder follows it on a checklist, " \
+                                                                     "such as Open a pull request with the change or Roll back checkout" },
                   "description" => { "type" => "string", "description" => "What this step changes, in a sentence. For a change to another " \
                                                                           "system's interface, such as a webhook, an API, a config format or a " \
                                                                           "CI trigger, cite its documented contract and its live setup as you " \
@@ -90,7 +104,7 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
           "required" => %w[person steps]
         }
       },
-      "required" => [ "summary" ]
+      "required" => %w[answer what_is_wrong summary]
     }
   end
 
@@ -110,7 +124,7 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
 
     @investigation.conclude!(
       summary: asked[:summary], hypothesis_assertion: asked[:hypothesis], evidence: reread.kept, gaps: asked[:gaps],
-      suggest_incident: asked[:suggest_incident] == true, fix: asked[:fix], page: page
+      suggest_incident: asked[:suggest_incident] == true, fix: asked[:fix], page: page, short: short(asked)
     )
     "Answer recorded. The run is over."
   rescue Investigation::Evidence::Refused, Investigation::RemediationPlan::Refused, Investigation::PageRefused => refused
@@ -124,6 +138,15 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
                   "the summary and gaps that they are still open and what would settle them.".freeze
 
   private
+
+  # The answer in plain words, as the finding keeps it. A kind the schema does not name is refused by the finding.
+  def short(asked)
+    {
+      answer_kind: asked[:answer].presence, confidence: (asked[:confidence] if asked[:confidence].is_a?(Numeric)),
+      what_is_wrong: asked[:what_is_wrong].to_s.strip.presence, suggested_fix: asked[:suggested_fix].to_s.strip.presence,
+      not_checked: asked[:not_checked].to_s.strip.presence
+    }
+  end
 
   def critique
     open = @investigation.hypotheses.where(status: Investigation::Hypothesis::STATUS_OPEN).pluck(:assertion)

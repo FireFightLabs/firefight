@@ -238,6 +238,46 @@ class Investigation::RemediationPlan < ApplicationRecord
     end
   end
 
+  # Applied, stopped partway, or cancelled with nothing left running, so how it ended can be told.
+  def ended?
+    return steps.none? { |step| step.status == Investigation::RemediationStep::STATUS_RUNNING } if cancelled?
+
+    [ STATUS_APPLIED, STATUS_PARTLY_APPLIED ].include?(status)
+  end
+
+  # Claims telling how the fix ended, so two workers tell it once. A step tried again lets it be told again.
+  def claim_ending_told!
+    won = self.class.where(id: id, ending_told_at: nil).update_all(ending_told_at: Time.current, updated_at: Time.current)
+    reload
+    won == 1
+  end
+
+  def release_ending_told! = update_columns(ending_told_at: nil)
+
+  # Runs a failed step again, in one go with the fix taken back up: the step is cleared, the steps that were held back
+  # behind a failure are proposed again, and the fix is being applied once more. False when the step had moved on or the
+  # fix had been cancelled, so a second press changes nothing. Steps still held back by another failure are skipped
+  # again when the fix next runs (FixRunner#hold_back!).
+  def retry_step!(step)
+    now = Time.current
+    won = transaction do
+      cleared = Investigation::RemediationStep.where(id: step.id, plan_id: id, status: Investigation::RemediationStep::STATUS_FAILED)
+        .update_all(status: Investigation::RemediationStep::STATUS_PROPOSED, result: nil, failure: nil, invocation_id: nil, approval_id: nil,
+                    started_at: nil, finished_at: nil, progress: nil, checked_state: nil, state_change: nil, state_checked_at: nil, updated_at: now)
+      raise ActiveRecord::Rollback unless cleared == 1
+
+      reopened = self.class.where(id: id, status: [ STATUS_APPLYING, STATUS_PARTLY_APPLIED ])
+                           .update_all(status: STATUS_APPLYING, ending_told_at: nil, updated_at: now)
+      raise ActiveRecord::Rollback unless reopened == 1
+
+      steps.where(status: Investigation::RemediationStep::STATUS_SKIPPED, result: nil)
+           .update_all(status: Investigation::RemediationStep::STATUS_PROPOSED, updated_at: now)
+      true
+    end
+    reload
+    won == true
+  end
+
   # Claims the one progress message, so two workers never post two. False when one is already there.
   def claim_progress_message!(channel_id:, message_id:)
     won = self.class.where(id: id, progress_message_id: nil).update_all(progress_channel_id: channel_id, progress_message_id: message_id, updated_at: Time.current)

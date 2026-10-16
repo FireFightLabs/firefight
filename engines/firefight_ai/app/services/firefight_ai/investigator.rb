@@ -20,6 +20,7 @@ module FirefightAi
       - Every tool result carries a step number, which is how you cite what you saw.
       - Record each theory with record_hypothesis as you form it, and settle it with the steps that showed it.
       - conclude ends the run, and its description says what it takes. A wrong answer costs the team more than an honest "the evidence does not show a cause yet".
+      - Your answer is read first in a busy channel by people who may not read code, so give it the way you would tell the whole team: what kind of answer it is and how sure you are, what is wrong in one plain sentence, a few short facts behind it, and the fix in a sentence. The summary, each claim and the fix's steps carry the detail, the code and the names, for whoever reads on.
     TEXT
 
     # model is a ModelChoice for a run told to use one, such as a rehearsal comparing models. nil means the workspace's.

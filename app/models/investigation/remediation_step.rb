@@ -44,6 +44,29 @@ class Investigation::RemediationStep < ApplicationRecord
     STATUS_APPROVED => "approved and waiting to be run",
     STATUS_DONE => "done", STATUS_FAILED => "failed", STATUS_DECLINED => "declined", STATUS_SKIPPED => "skipped"
   }.freeze
+  # A step's name on a checklist, cut to what one line holds.
+  TITLE_LIMIT = 80
+  # A step's name when the agent gave none, by how it gets done.
+  KIND_TITLES = {
+    KIND_PULL_REQUEST => "Open a pull request with the change", KIND_ACTION => "Make the change through a connected tool",
+    KIND_MANUAL => "A step for a person", KIND_PAGE_CHECK => "Check the page works"
+  }.freeze
+  # Why a step did not go through, in plain words that follow "Couldn't <its name>:". The tool's own words stay in result.
+  FAILURE_APPLIER_GONE = "whoever applied the fix is no longer a member of this workspace".freeze
+  FAILURE_TOOL_OFF = "its tool is no longer switched on".freeze
+  FAILURE_ENVIRONMENT = "the environment it runs in is no longer set up".freeze
+  FAILURE_LOST_TRACK = "Firefight lost track of it while it ran, so check whether it went through".freeze
+  FAILURE_BROKE = "something went wrong on Firefight's side, so check whether it went through".freeze
+  FAILURE_TOOL_SAID = "the tool reported an error".freeze
+  FAILURE_SANDBOX = "the code sandbox didn't start".freeze
+  FAILURE_UNAVAILABLE = "it can't run on this install right now".freeze
+  FAILURE_POLICY = "one of Firefight's rules refused it".freeze
+  FAILURE_RATE_LIMITED = "the tool was asked too often, so wait a moment".freeze
+  FAILURE_NOT_FOUND = "what it acts on was not found".freeze
+  FAILURE_TIMED_OUT = "the tool didn't answer in time".freeze
+  FAILURE_PAGE = "the page did not work for people".freeze
+  FAILURE_PAGE_BLOCKED = "Halon's browser may not open that page".freeze
+
   # Where a step has got to, as the run page and Slack both say it. A step not started yet says nothing.
   STATUS_LABELS = {
     STATUS_RUNNING => "Running", STATUS_WAITING_APPROVAL => "Waiting for approval", STATUS_APPROVED => "Approved, waiting for someone to run it",
@@ -78,7 +101,7 @@ class Investigation::RemediationStep < ApplicationRecord
 
     refuse(position, "has its depends_on as something other than a list of step numbers") unless asked["depends_on"].nil? || asked["depends_on"].is_a?(Array)
     step = new(position: position, kind: kind, description: asked["description"].to_s.strip, undo: asked["undo"].presence,
-               depends_on: Array(asked["depends_on"]).map(&:to_i))
+               depends_on: Array(asked["depends_on"]).map(&:to_i), title: asked["title"].to_s.strip.presence&.truncate(TITLE_LIMIT))
     case kind
     when KIND_PULL_REQUEST
       step.repository = asked["repository"].to_s.strip.presence || refuse(position, "names no repository. Give the repository the change goes in")
@@ -133,6 +156,33 @@ class Investigation::RemediationStep < ApplicationRecord
   end
 
   def ended? = ENDED.include?(status)
+
+  def failed? = status == STATUS_FAILED
+
+  # The step as a checklist names it, never the instructions the agent wrote for it.
+  def shown_title = title.presence || KIND_TITLES.fetch(kind)
+
+  # What a failed or declined step says, such as "Couldn't open a pull request with the change: the code sandbox didn't
+  # start.", or nil for a step that did not fail.
+  def failure_line
+    return nil unless failed? || status == STATUS_DECLINED
+
+    "Couldn't #{shown_title.downcase_first}: #{failure.presence || 'it did not go through'}."
+  end
+
+  # Whether a failed step offers Try again at all. Whoever presses it is checked then (retry_blocked_reason).
+  def retry_offered? = failed? && !plan.cancelled? && !plan.unattended?
+
+  # Why member cannot run a failed step again, or nil. It runs as whoever applied the fix, as Run does on an approved step,
+  # so the same people may press it. A fix Halon applied under a rule ran as Halon, which no click here stands in for.
+  def retry_blocked_reason(member)
+    return "Step #{position} is #{STATUS_WORDS.fetch(status)}, so there is nothing to try again." unless failed?
+    return "The #{plan.undo? ? 'undo' : 'fix'} was cancelled, so its steps do not run again." if plan.cancelled?
+    return "Halon applied this fix on its own under an unattended rule, so its steps are not run again from here." if plan.unattended?
+    return "Only #{plan.applier_name || 'whoever applied the fix'} or someone who may run #{tool_name || 'its tool'} can try it again." unless may_run?(member)
+
+    nil
+  end
 
   # The tool this step runs, while it is still switched on, offered and changes something. A code change is written
   # by the code host's coding tool on the connection that sees its repository.
@@ -387,9 +437,10 @@ class Investigation::RemediationStep < ApplicationRecord
   end
 
   # A tool's words are kept to be read, never a credential it handed back, which is redacted before it is stored.
-  def finish!(status, result: nil, invocation_id: nil)
+  # failure is why it did not go through in plain words (FAILURE_*), beside the tool's own in result.
+  def finish!(status, result: nil, invocation_id: nil, failure: nil)
     move!(from: [ STATUS_RUNNING, STATUS_WAITING_APPROVAL ], to: status, result: self.class.redacted(result)&.truncate(RESULT_LIMIT),
-          invocation_id: invocation_id || self.invocation_id, finished_at: Time.current)
+          invocation_id: invocation_id || self.invocation_id, finished_at: Time.current, failure: failure)
   end
 
   def self.redacted(text) = text && Chat::SecretFree.redacted(text)

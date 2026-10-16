@@ -4,13 +4,13 @@
 # (IntegrationProvider.specialist_for), so nothing here names a provider. Only a chat asks them, when its runner decides
 # the turn should (ask?), and FirefightAi::Configuration#specialists can force it on or off.
 module Chat::Specialists
-  CODE = "code".freeze
-  DEPLOYS = "deploys".freeze
-  OBSERVABILITY = "observability".freeze
-  DATABASES = "databases".freeze
-  CLOUD = "cloud".freeze
-  TICKETS = "tickets".freeze
-  ON_CALL = "on_call".freeze
+  CODE = IntegrationProvider::SPECIALIST_CODE
+  DEPLOYS = IntegrationProvider::SPECIALIST_DEPLOYS
+  OBSERVABILITY = IntegrationProvider::SPECIALIST_OBSERVABILITY
+  DATABASES = IntegrationProvider::SPECIALIST_DATABASES
+  CLOUD = IntegrationProvider::SPECIALIST_CLOUD
+  TICKETS = IntegrationProvider::SPECIALIST_TICKETS
+  ON_CALL = IntegrationProvider::SPECIALIST_ON_CALL
 
   # One kind of question a specialist answers. covers is what Halon reads when choosing one, practice how it reads,
   # playbook the name of Halon's playbook for the same work, capabilities the capabilities and general reads it holds

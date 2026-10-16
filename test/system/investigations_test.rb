@@ -230,6 +230,25 @@ class InvestigationsTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/investigation-rated-partly-right.png"))
   end
 
+  test "a failed step of a fix says why in plain words and is tried again from the panel" do
+    plan = @investigation.finding.remediation_plan
+    plan.apply!(by: workspace_memberships(:alice_workspace_one), from: AbilityGateway::SOURCE_WEB)
+    plan.update_columns(status: Investigation::RemediationPlan::STATUS_PARTLY_APPLIED)
+    plan.steps.first.update_columns(status: Investigation::RemediationStep::STATUS_FAILED, result: "docker exited 125",
+                                    failure: Investigation::RemediationStep::FAILURE_SANDBOX)
+    Investigation::RemediationStep.any_instance.stubs(:may_run?).returns(true)
+
+    visit incident_path(@incident, Investigation::QUERY_PARAM => @investigation.id)
+
+    within("[role=dialog]") do
+      assert_text "Couldn't open a pull request with the change: the code sandbox didn't start."
+      page.save_screenshot(Rails.root.join("tmp/screenshots/investigation-fix-try-again.png"))
+      click_button "Try again"
+    end
+    assert_toast Investigation::FixRunner::TRYING_AGAIN
+    assert_equal Investigation::RemediationStep::STATUS_PROPOSED, plan.steps.first.reload.status
+  end
+
   private
 
   def assert_toasts_shown(count)

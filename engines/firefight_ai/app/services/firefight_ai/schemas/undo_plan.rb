@@ -10,6 +10,7 @@ module FirefightAi
       array :steps do
         object do
           string :kind, enum: %w[pull_request action manual], description: "pull_request for a code change, action for a tool call, manual for a person"
+          string :title, description: "The step in a few plain words, as a responder follows it on a checklist, such as Close the pull request"
           string :description, description: "What the step puts back, in one plain sentence"
           string :repository, description: "For a pull_request, the repository in owner/name form, otherwise empty"
           string :tool, description: "For an action, the tool to call, copied from the list given, otherwise empty"

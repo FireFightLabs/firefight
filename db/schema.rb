@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -2106,6 +2106,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_100000) do
     t.uuid "finding_id", null: false
     t.integer "position", null: false
     t.datetime "updated_at", null: false
+    t.text "plain"
     t.index ["finding_id"], name: "index_investigation_evidence_on_finding_id"
   end
 
@@ -2131,6 +2132,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_100000) do
     t.string "page_email"
     t.string "page_target"
     t.uuid "page_integration_id"
+    t.string "answer_kind"
+    t.text "what_is_wrong"
+    t.text "suggested_fix"
+    t.text "not_checked"
     t.index ["investigation_id"], name: "index_investigation_findings_on_investigation_id", unique: true
     t.index ["outcome_by_type", "outcome_by_id"], name: "index_investigation_findings_on_outcome_by"
     t.index ["page_integration_id"], name: "index_investigation_findings_on_page_integration_id"
@@ -2238,6 +2243,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_100000) do
     t.text "verify"
     t.text "unattended_reading"
     t.datetime "unattended_checked_at"
+    t.datetime "ending_told_at"
     t.index ["approved_by_id"], name: "index_investigation_remediation_plans_on_approved_by_id"
     t.index ["cancelled_by_id"], name: "index_investigation_remediation_plans_on_cancelled_by_id"
     t.index ["finding_id"], name: "index_investigation_remediation_plans_on_finding_id"
@@ -2273,6 +2279,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_100000) do
     t.text "progress"
     t.uuid "resource_id"
     t.uuid "applied_under_rule_id"
+    t.string "title"
+    t.string "failure"
     t.index ["applied_under_rule_id"], name: "index_investigation_remediation_steps_on_applied_under_rule_id"
     t.index ["approval_id"], name: "index_investigation_remediation_steps_on_approval_id"
     t.index ["done_by_id"], name: "index_investigation_remediation_steps_on_done_by_id"

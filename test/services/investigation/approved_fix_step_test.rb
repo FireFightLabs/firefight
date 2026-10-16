@@ -11,7 +11,7 @@ class Investigation::ApprovedFixStepTest < ActiveSupport::TestCase
     @alice = workspace_memberships(:alice_workspace_one)
     @workspace.find_or_create_approval_policy!.policy_rules.create!(priority: 1, conditions: [], outcome: { "require" => { "role" => "admin", "count" => 1 } })
     @plan = build_fix_plan(@workspace)
-    @adapter = stub(post_fix_progress: { message_id: "1.2", channel_id: "C1" }, update_fix_progress: { success: true }, update_investigation_answer: { success: true })
+    @adapter = stub(post_fix_progress: { message_id: "1.2", channel_id: "C1" }, post_fix_ended: { message_id: "1.3", channel_id: "C1" }, update_fix_progress: { success: true }, update_investigation_answer: { success: true })
     WorkspaceAdapter.stubs(:for).returns(@adapter)
     perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { Investigation::FixRunner.apply!(@plan, by: @alice, from: AbilityGateway::SOURCE_WEB) }
     @step = @plan.steps.first

@@ -27,7 +27,7 @@ module FirefightAi
 
     def step(row)
       {
-        "kind" => row[:kind].to_s, "description" => row[:description].to_s, "repository" => row[:repository].presence,
+        "kind" => row[:kind].to_s, "title" => row[:title].presence, "description" => row[:description].to_s, "repository" => row[:repository].presence,
         "tool" => row[:tool].presence, "arguments" => arguments(row[:arguments]), "missing" => row[:missing].presence,
         "depends_on" => Array(row[:depends_on]).map(&:to_i)
       }.compact

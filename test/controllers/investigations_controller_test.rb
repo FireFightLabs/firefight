@@ -409,6 +409,27 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Step 1 is running.", flash[:alert]
   end
 
+  test "a failed step is tried again from the run page, with what the page shows about it, and a second press is refused" do
+    plan = build_fix_plan(@workspace)
+    alice = workspace_memberships(:alice_workspace_one)
+    plan.apply!(by: alice, from: AbilityGateway::SOURCE_WEB)
+    plan.update_columns(status: Investigation::RemediationPlan::STATUS_PARTLY_APPLIED)
+    investigation = plan.finding.investigation
+    step = plan.steps.first
+    step.update_columns(status: Investigation::RemediationStep::STATUS_FAILED, failure: Investigation::RemediationStep::FAILURE_TOOL_SAID)
+
+    Current.principal = alice
+    shown = InvestigationRemediationStepSerializer.one_as_hash(step.reload).stringify_keys
+    assert_equal [ true, nil, "Couldn't make the change through a connected tool: the tool reported an error." ],
+                 shown.values_at("retryOffered", "retryBlockedReason", "failureLine")
+    Current.reset
+
+    assert_enqueued_with(job: InvestigationFixJob, args: [ plan.id ]) { post investigation_fix_step_retry_url(investigation, step) }
+    assert_equal Investigation::FixRunner::TRYING_AGAIN, flash[:notice]
+    post investigation_fix_step_retry_url(investigation, step)
+    assert_equal "Step 1 is not started, so there is nothing to try again.", flash[:alert]
+  end
+
   test "an applied fix's undo is asked for from the run page, shown under the fix, and applied by its own address" do
     plan = build_fix_plan(@workspace)
     plan.update_columns(status: Investigation::RemediationPlan::STATUS_APPLIED)

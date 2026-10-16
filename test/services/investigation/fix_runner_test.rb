@@ -29,7 +29,7 @@ class Investigation::FixRunnerTest < ActiveSupport::TestCase
     )
     @investigation.update!(thread_id: "1.1")
     @plan = finding.remediation_plan
-    @adapter = stub(post_fix_progress: { message_id: "1.2", channel_id: "C1" }, update_fix_progress: { success: true })
+    @adapter = stub(post_fix_progress: { message_id: "1.2", channel_id: "C1" }, post_fix_ended: { message_id: "1.3", channel_id: "C1" }, update_fix_progress: { success: true })
     WorkspaceAdapter.stubs(:for).returns(@adapter)
   end
 
@@ -217,5 +217,53 @@ class Investigation::FixRunnerTest < ActiveSupport::TestCase
     perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current)
 
     assert_equal [ "failed", "cloudflare_execute is no longer switched on." ], [ @plan.steps.first.reload.status, @plan.steps.first.result ]
+    assert_equal "Couldn't make the change through a connected tool: its tool is no longer switched on.", @plan.steps.first.failure_line
+  end
+
+  test "a failed step is said in plain words, the fix's start and end go to the channel, and its end is told once" do
+    Integrations::McpExecutor.stubs(:call).raises(Integrations::Unavailable, "docker exited 125")
+    @adapter.expects(:post_fix_ended).with { |thread_id:, plan:, **| thread_id == "1.1" && plan == @plan }.once.returns(message_id: "1.3", channel_id: "C1")
+
+    perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { Investigation::FixRunner.apply!(@plan, by: @alice, from: AbilityGateway::SOURCE_SLACK) }
+    Investigation::FixRunner.new(@plan).publish!
+
+    delete = @plan.steps.first.reload
+    assert_equal [ "docker exited 125", Investigation::RemediationStep::FAILURE_UNAVAILABLE ], [ delete.result, delete.failure ]
+    assert_equal Investigation::RemediationPlan::STATUS_PARTLY_APPLIED, @plan.reload.status
+  end
+
+  test "Try again runs a failed step again as whoever applied the fix, lets what waited on it go on, tells the new ending, and a second press changes nothing" do
+    Integrations::McpExecutor.stubs(:call).with { |arguments:, **| arguments == { "code" => "delete" } }
+                             .returns({ "content" => [ { "type" => "text", "text" => "boom" } ], "isError" => true }).then.returns({ "content" => [] })
+    Integrations::McpExecutor.stubs(:call).with { |arguments:, **| arguments != { "code" => "delete" } }.returns("content" => [])
+    perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { Investigation::FixRunner.apply!(@plan, by: @alice, from: AbilityGateway::SOURCE_SLACK) }
+    delete, tell, purge = @plan.steps.reload.to_a
+    assert_equal [ "failed", "skipped", "skipped" ], [ delete.status, tell.status, purge.status ]
+    assert @plan.reload.ending_told_at
+
+    perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { assert_nil Investigation::FixRunner.retry!(delete, by: @alice) }
+    assert_equal "Step 1 is done, so there is nothing to try again.", Investigation::FixRunner.retry!(delete.reload, by: @bob)
+
+    assert_equal [ "done", "proposed", "proposed" ], [ delete.status, tell.reload.status, purge.reload.status ]
+    assert_equal [ @alice, Investigation::RemediationPlan::STATUS_APPLYING ], [ delete.invocation.principal, @plan.reload.status ]
+    assert_nil delete.failure
+
+    perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { assert_nil Investigation::FixRunner.mark_done!(tell, by: @bob) }
+    assert_equal Investigation::RemediationPlan::STATUS_APPLIED, @plan.reload.status
+  end
+
+  test "only whoever applied the fix or someone who may run its tool can try a step again, never on a cancelled fix" do
+    @plan.apply!(by: @alice, from: AbilityGateway::SOURCE_WEB)
+    step = @plan.steps.first
+    step.update_columns(status: Investigation::RemediationStep::STATUS_FAILED)
+    stranger = workspace_memberships(:bob_workspace_one)
+    Integration::Tool.any_instance.stubs(:callable_by?).returns(false)
+
+    assert_equal "Only Alice Smith or someone who may run cloudflare_execute can try it again.", step.retry_blocked_reason(stranger)
+    assert_nil step.retry_blocked_reason(@alice)
+
+    @plan.cancel!(by: @alice)
+    assert_equal "The fix was cancelled, so its steps do not run again.", step.reload.retry_blocked_reason(@alice)
+    assert_not @plan.retry_step!(step)
   end
 end

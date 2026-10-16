@@ -14,41 +14,100 @@ module Slack
         Investigation::RemediationStep::KIND_PAGE_CHECK => "Page check"
       }.freeze
 
-      # A question with no incident is named by its own words, which came from a person and are escaped.
-      def self.started(incident:, started_by:, question: nil)
-        title = incident ? incident.identifier : "\"#{Mrkdwn.escape(question.to_s.truncate(200))}\""
-        [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: ":mag: *Investigating #{title}*\n" \
-                    "#{started_by.present? ? "Started by #{Mrkdwn.escape(started_by)}. " : ''}I will post what I find in this thread."
-            }
-          }
-        ]
+      # How the run's checklist marks each of its tasks.
+      TASK_STATUSES = {
+        Investigation::Progress::PENDING => Checklist::PENDING, Investigation::Progress::RUNNING => Checklist::IN_PROGRESS,
+        Investigation::Progress::DONE => Checklist::COMPLETE, Investigation::Progress::FAILED => Checklist::ERROR
+      }.freeze
+      # Each kind of answer leads with its own emoji, so a channel tells them apart at a glance.
+      ANSWER_EMOJI = {
+        Investigation::Finding::KIND_ROOT_CAUSE => ":dart:", Investigation::Finding::KIND_LIKELY_CAUSE => ":mag:",
+        Investigation::Finding::KIND_NO_CAUSE => ":grey_question:"
+      }.freeze
+      QUESTION_SHOWN = 100
+      WRONG_SHOWN = 300
+      EVIDENCE_SHOWN = 160
+      FIX_SHOWN = 250
+      NOT_CHECKED_SHOWN = 160
+
+      # The message that opens the run's thread, redrawn in place as the run moves: what Halon looked at so far and the
+      # answer as the last task. rich is whether the workspace's Slack shows plan blocks. A question with no incident is
+      # named by its own words, which came from a person and are escaped where they are read as markup.
+      def self.checklist(progress:, incident:, started_by:, question: nil, rich: true)
+        blocks = Checklist.blocks(
+          title: checklist_title(progress, incident, question), rich: rich, emoji: ":mag:",
+          items: progress.tasks.map { |task| Checklist::Item.new(id: task.key, title: task.title, status: TASK_STATUSES.fetch(task.status), detail: task.detail) }
+        )
+        where = progress.finished? ? "Halon's work is in the thread" : "Halon is working in the thread"
+        footer = [ ("Started by #{Mrkdwn.escape(started_by)}" if started_by.present?), where ].compact.join("  ·  ")
+        blocks << { type: "context", elements: [ { type: "mrkdwn", text: footer } ] }
+        link = open_block(progress.investigation)
+        blocks << link if link
+        blocks
+      end
+
+      def self.checklist_title(progress, incident, question)
+        named = incident ? incident.identifier : "\"#{question.to_s.truncate(QUESTION_SHOWN)}\""
+        return "Investigated #{named}" if progress.answered?
+        return "Investigation of #{named} stopped" if progress.stopped?
+
+        "Investigating #{named}"
       end
 
       def self.started_text(incident:, question:)
         incident ? "Investigating #{incident.identifier}" : "Investigating: #{question.to_s.truncate(200)}"
       end
 
-      # The answer that led someone to declare this incident, so whoever joins the channel starts from it.
+      # The answer that led someone to declare this incident, so whoever joins the channel starts from it. Its full
+      # reasoning follows in the thread, as it did where it was first answered.
       def self.carried_over(finding:, question: finding.investigation.question)
         intro = ":mag: *Declared from an investigation*" \
                 "#{question.present? ? " into \"#{Mrkdwn.escape(question.to_s.truncate(200))}\"" : ''}. This is what it found."
-        [ { type: "section", text: { type: "mrkdwn", text: intro } }, *finding(finding: finding) ]
+        [ { type: "section", text: { type: "mrkdwn", text: intro } }, *answer(finding: finding) ]
       end
 
-      def self.finding(finding:)
-        blocks = [ { type: "section", text: { type: "mrkdwn", text: summary_text(finding) } } ]
+      # The short answer, posted in the thread and to the whole channel: what kind of answer it is and how sure, what is
+      # wrong, up to three facts behind it, the fix, and what could not be checked, each in the plain words the agent gave
+      # for a channel. The full reasoning, with the code it read, is the thread reply after it (answer_detail).
+      def self.answer(finding:)
+        title = [ "#{ANSWER_EMOJI.fetch(finding.shown_kind)}  *#{finding.headline}*", finding.sureness ].compact.join("  ·  ")
+        lines = [ plain(finding.what_is_wrong_line, WRONG_SHOWN) ]
+        lines.concat(finding.short_evidence.map { |claim| "• #{plain(claim, EVIDENCE_SHOWN)}" })
+        fix = finding.suggested_fix_line
+        lines << "*Suggested fix:* #{plain(fix, FIX_SHOWN)}" if fix.present?
+        blocks = [
+          { type: "section", text: { type: "mrkdwn", text: title } }, { type: "divider" },
+          { type: "section", text: { type: "mrkdwn", text: lines.join("\n").truncate(Formatting::SECTION_TEXT_LIMIT) } }
+        ]
+        actions = action_block(finding)
+        blocks << actions if actions
+        if finding.not_checked.present?
+          blocks << { type: "context", elements: [ { type: "mrkdwn", text: "_Could not check: #{plain(finding.not_checked, NOT_CHECKED_SHOWN)}_" } ] }
+        end
+        blocks
+      end
+
+      # What a notification or a client without blocks shows of the answer.
+      def self.answer_text(finding) = "#{finding.headline}: #{finding.what_is_wrong_line}"
+
+      # The full answer, in the thread only: the reasoning as the agent wrote it, every claim with what it rests on, the
+      # fix step by step, what could not be checked and why, and the rating.
+      def self.answer_detail(finding:)
+        blocks = [
+          { type: "section", text: { type: "mrkdwn", text: ":page_facing_up:  *The full answer*" } }, { type: "divider" },
+          { type: "section", text: { type: "mrkdwn", text: summary_text(finding) } }
+        ]
         blocks << evidence_block(finding) if finding.evidence_items.any?
         blocks << fix_block(finding.remediation_plan) if finding.remediation_plan
         blocks << gaps_block(finding) if finding.gaps.present?
-        actions = action_block(finding)
-        blocks << actions if actions
         blocks.concat(feedback_blocks(finding))
-        blocks
+      end
+
+      def self.answer_detail_text(finding) = "The full answer: #{finding.summary.to_s.truncate(200)}"
+
+      # The agent's words for a channel, escaped, on one line, with no code formatting, cut at limit.
+      def self.plain(text, limit)
+        Mrkdwn.escape(text.to_s.squish.delete("`").truncate(limit))
       end
 
       # The button is offered only when running it again could end differently.

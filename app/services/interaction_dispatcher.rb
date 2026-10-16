@@ -103,6 +103,7 @@ class InteractionDispatcher
     Identifiers::FIX_STEP_RUN => Interactions::FixStepDecisionHandler,
     Identifiers::FIX_STEP_DISMISS => Interactions::FixStepDecisionHandler,
     Identifiers::FIX_STEP_ASK_AGAIN => Interactions::FixStepDecisionHandler,
+    Identifiers::FIX_STEP_RETRY => Interactions::FixStepDecisionHandler,
     Identifiers::MEMORY_CONFIRM => Interactions::MemoryDecisionHandler,
     Identifiers::MEMORY_REJECT => Interactions::MemoryDecisionHandler,
     Identifiers::MEMORY_CORRECT => Interactions::OpenMemoryCorrectionHandler,

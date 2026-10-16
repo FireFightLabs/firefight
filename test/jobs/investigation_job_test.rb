@@ -11,6 +11,7 @@ class InvestigationJobTest < ActiveSupport::TestCase
       max_turns: 10, max_spend_cents: 400
     )
     stub_post_message
+    stub_update_message
   end
 
   def stub_runner(status: Investigation::STATUS_SUCCEEDED, error_summary: nil)

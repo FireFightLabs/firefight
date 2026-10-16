@@ -1,9 +1,13 @@
 # Everything a run says while it works. The platform decides how it looks. A run on an incident speaks in the
 # incident's channel, a question asked in a channel is answered there, and a question from a dashboard chat is
 # answered by that chat's card, which is told to look again whenever the run moves.
+# The message that opens the run's thread is its checklist (Investigation::Progress), redrawn in place as the run moves
+# and no more often than the platform allows, so the channel follows along without a word posted. The run works in the
+# thread, and only its answer is also posted where the whole channel sees it.
 class Investigation::Delivery
   def initialize(investigation)
     @investigation = investigation
+    @progress_lock = Mutex.new
   end
 
   # A rehearsal says nothing, and a scheduled check says only the problems it found that are news.
@@ -21,10 +25,12 @@ class Investigation::Delivery
     return unless channel_id
     return if thread_id
 
+    progress = Investigation::Progress.new(@investigation)
     started = adapter.post_investigation_started(
       channel_id: channel_id, incident: @investigation.incident, question: shown_question, started_by: started_by,
-      fallback_user_id: (platform_user_id unless @investigation.incident)
+      fallback_user_id: (platform_user_id unless @investigation.incident), progress: progress
     )
+    @shown_progress = progress.signature
     # A question may have been answered somewhere else than asked, directly to whoever asked.
     answered_in = started[:channel_id].presence || channel_id
     @investigation.update!(thread_id: started[:message_id], channel_id: (answered_in unless @investigation.incident))
@@ -40,6 +46,7 @@ class Investigation::Delivery
     adapter.report_agent_step(
       channel_id: channel_id, answer_id: @answer_id, key: key, title: title, status: status, outcome: outcome&.kind
     )
+    show_progress
   end
 
   # Each helper a run_helpers step started, as a line of its own right under that step, redrawn in place as it reads and
@@ -55,6 +62,7 @@ class Investigation::Delivery
         outcome: line.outcome, details: line.details
       )
     end
+    show_progress
   end
 
   def answered!(finding)
@@ -62,6 +70,7 @@ class Investigation::Delivery
     tell_chat
     return unless thread_id
 
+    show_progress(Investigation::Progress.new(@investigation))
     answer = adapter.post_investigation_answer(
       channel_id: channel_id, thread_id: thread_id, answer_id: @answer_id, finding: finding
     )
@@ -77,6 +86,7 @@ class Investigation::Delivery
     tell_chat
     return unless thread_id
 
+    show_progress(Investigation::Progress.new(@investigation, stop_reason: reason))
     adapter.post_investigation_stopped(
       channel_id: channel_id, thread_id: thread_id, answer_id: @answer_id, reason: reason, where_it_stopped: where_it_stopped,
       rerun: (@investigation.incident if rerunnable),
@@ -88,6 +98,28 @@ class Investigation::Delivery
   end
 
   private
+
+  # The checklist redrawn when it says something new. While the run works that is at most once an interval, and the
+  # last word, a finished checklist, always goes. A redraw the platform refuses is logged, since the run goes on.
+  def show_progress(progress = nil)
+    @progress_lock.synchronize do
+      now = Time.current.to_f
+      return if progress.nil? && @progress_shown_at && now - @progress_shown_at < adapter.agent_step_update_interval
+
+      progress ||= Investigation::Progress.new(@investigation)
+      return if progress.signature == @shown_progress
+
+      adapter.update_investigation_progress(
+        channel_id: channel_id, message_id: thread_id, incident: @investigation.incident, question: shown_question, started_by: started_by,
+        progress: progress
+      )
+      # Noted only once the platform took it, so a refused redraw, the last one too, is tried again.
+      @progress_shown_at = now
+      @shown_progress = progress.signature
+    end
+  rescue AdapterError => error
+    Rails.logger.warn({ event: "investigation.progress_not_shown", investigation_id: @investigation.id, error: error.message }.to_json)
+  end
 
   # Only after the platform took it, so a run whose last post failed is one an operator can find.
   def posted!(message_id = nil)
@@ -141,6 +173,12 @@ class Investigation::Delivery
 
   # Posted back as the platform shows it, so a mention or a broadcast in it never notifies anyone again.
   def shown_question
+    return @shown_question if defined?(@shown_question)
+
+    @shown_question = platform_question
+  end
+
+  def platform_question
     question = @investigation.question
     return question unless question.present? && @investigation.question_in_platform_markup?
 

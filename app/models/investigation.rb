@@ -462,18 +462,23 @@ class Investigation < ApplicationRecord
   # refused and nothing is written, so the agent fixes it before the run can end.
   # A run with no incident may say one is due, which its answer then offers to declare. A run on an incident has one.
   # A cause comes with how to fix it, whether or not anything here can apply it.
-  def conclude!(summary:, hypothesis_assertion: nil, evidence: [], gaps: nil, suggest_incident: false, fix: nil, page: nil)
+  # short is the answer in plain words for a channel (Investigation::Finding: answer_kind, confidence, what_is_wrong,
+  # suggested_fix, not_checked), beside the full summary and gaps. Each evidence item may carry its claim in plain words.
+  def conclude!(summary:, hypothesis_assertion: nil, evidence: [], gaps: nil, suggest_incident: false, fix: nil, page: nil, short: {})
     winner = hypotheses.find_by(assertion: hypothesis_assertion) if hypothesis_assertion.present?
     items = Array(evidence).map(&:to_h).map(&:symbolize_keys)
     raise Investigation::Evidence::Refused, "Naming a cause needs evidence behind it. Give each claim and the steps it rests on." if winner && items.empty?
     raise Investigation::RemediationPlan::Refused, "Naming a cause needs a fix. Say how to fix it, step by step." if winner && fix.blank?
 
-    cited = items.each_with_index.map { |item, index| [ item[:claim].to_s, cited_steps!(item[:steps], what: "Evidence #{index + 1}") ] }
+    cited = items.each_with_index.map do |item, index|
+      [ item[:claim].to_s, item[:plain].presence, cited_steps!(item[:steps], what: "Evidence #{index + 1}") ]
+    end
 
     transaction do
       finding = create_finding!(summary: summary, winning_hypothesis: winner, gaps: gaps, suggests_incident: subject.nil? && suggest_incident == true,
-                                page_member: page&.member, page_email: page&.email, page_integration: page&.integration, page_target: page&.target)
-      cited.each_with_index { |(claim, sources), index| finding.add_evidence!(claim: claim, sources: sources, position: index + 1) }
+                                page_member: page&.member, page_email: page&.email, page_integration: page&.integration, page_target: page&.target,
+                                **short.to_h.symbolize_keys.slice(:answer_kind, :confidence, :what_is_wrong, :suggested_fix, :not_checked))
+      cited.each_with_index { |(claim, plain, sources), index| finding.add_evidence!(claim: claim, plain: plain, sources: sources, position: index + 1) }
       Investigation::RemediationPlan.propose!(finding, fix) if fix.present?
       finding
     end

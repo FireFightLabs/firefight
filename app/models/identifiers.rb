@@ -186,6 +186,8 @@ module Identifiers
   FIX_STEP_RUN = "fix_step_run"
   FIX_STEP_DISMISS = "fix_step_dismiss"
   FIX_STEP_ASK_AGAIN = "fix_step_ask_again"
+  # On a step of a fix that failed, to run it again as whoever applied the fix.
+  FIX_STEP_RETRY = "fix_step_retry"
   # An admin publishing a workflow a member asked them to, from the direct message.
   WORKFLOW_PUBLISH_REQUEST_PUBLISH = "workflow_publish_request_publish"
   # On a workflow Halon made from a chat in a thread: run it now, or cancel it (turn it off when it repeats).
