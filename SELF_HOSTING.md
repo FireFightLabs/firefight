@@ -46,6 +46,8 @@ cp .env.selfhost.example .env
 
 Fill in `.env` with your hostname, a Postgres password of your choosing, the secrets from step 2, and the three Slack values from step 1. Leave `ANTHROPIC_API_KEY` empty if you do not want the AI features, and leave `SLACK_TEAM_ID` empty unless you want to lock sign-in to one workspace.
 
+Compose hands the container only the settings `docker-compose.yml` names. For any other setting in this guide, such as the email, Google sign-in or operator ones, add it to `.env` and also list it under the `firefight` service's `environment:`, the same way `SENTRY_DSN: ${SENTRY_DSN:-}` is.
+
 Faylee bug reports are optional and off by default. To enable them, set `FAYLEE_VERIFICATION_TOKEN` and `FAYLEE_SITE_ID` in `.env` with values from Faylee. The verification token is served at `/.well-known/faylee-verification.txt`, and the widget is added to every page inside a workspace when the site ID is set. Sign-in pages never load it.
 
 ```sh
@@ -60,6 +62,15 @@ The first boot creates four Postgres databases and runs the migrations, so give 
 Sign in with Slack from that page. Firefight walks you through installing the bot into your workspace, and once that finishes it creates your workspace with a default set of severities, statuses, incident types and roles.
 
 Run `/ff new` in any channel to declare your first incident.
+
+## AI keys and models
+
+Halon and the other AI features need a model provider. There are two ways to give them one, and they can be combined.
+
+- **Each workspace brings its own.** An admin adds an AI account under Settings, Workspace, with a key for Anthropic, OpenAI, Google Gemini, Vertex AI, Amazon Bedrock, Azure AI Foundry, OpenRouter, DeepSeek, Mistral or xAI, or a local Ollama or GPUStack server.
+- **The install has its own keys.** Set `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY` or another provider's `<PROVIDER>_API_KEY`, and list it under the `firefight` service's `environment:`.
+
+Firefight picks a recommended model for each provider. To choose your own, set `INVESTIGATION_AI_MODEL` for Halon's investigations and chats, `FIREFIGHT_AI_QUICK_MODEL` for quick side jobs, `FIREFIGHT_AI_BACKUP_MODEL` for when the main model stops answering, and `EMBEDDING_AI_MODEL` for search. Add a matching `_PROVIDER` setting, such as `INVESTIGATION_AI_PROVIDER=openrouter`, for a model the registry cannot place. [`.env.example`](.env.example) describes the rest.
 
 ## Upgrading
 
@@ -144,7 +155,7 @@ Slack sign-in works out of the box. Google and email links are optional and stay
 
 1. For email links, set `SMTP_ADDRESS`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD` and `MAIL_FROM` in `.env`, with `APP_HOST` set to your dashboard's host. Firefight also emails a person whenever a new way to sign in is added to their account.
 2. For Google, create an OAuth client of type Web application in Google Cloud with the redirect URI `https://<your-host>/auth/google_oauth2/callback`, and set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
-3. `docker compose up -d`, then `docker compose exec web bin/rails 'feature_flags:enable_globally[self_serve_signup]'`.
+3. `docker compose up -d`, then `docker compose exec firefight bin/rails 'feature_flags:enable_globally[self_serve_signup]'`.
 
 With the flag on, someone who signs in and belongs to no workspace names a new one, and can connect Slack to it then or later from the banner on every page. Until Slack is connected, incidents cannot be declared. Admins invite teammates by email from Members, which needs the email settings above. Each person sees and removes their sign-in methods under Profile.
 
@@ -171,11 +182,11 @@ Set either or both in `.env`, then `docker compose up -d`. Only errors are sent,
 
 `/operator` shows your install's background jobs: what is waiting, what failed and why, with retry. Only people you name can open it. Everyone else sees a not found page.
 
-1. Sign in to Firefight once, then find your user id with `docker compose exec web bin/rails runner 'puts User.find_by(email: "you@example.com").id'`.
+1. Sign in to Firefight once, then find your user id with `docker compose exec firefight bin/rails runner 'puts User.find_by(email: "you@example.com").id'`.
 2. Add `OPERATOR_USER_IDS=<that id>` to `.env` (comma separated for more than one), then `docker compose up -d`.
 3. Open `/operator`. The first time, scan the QR code with any authenticator app and save the recovery codes it shows. After that it asks for a code every 12 hours.
 
-Lost your phone and your recovery codes: `docker compose exec web bin/rails 'operator:reset_authenticator[USER_ID]'`, then set it up again.
+Lost your phone and your recovery codes: `docker compose exec firefight bin/rails 'operator:reset_authenticator[USER_ID]'`, then set it up again.
 
 ## When something is wrong
 
