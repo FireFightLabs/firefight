@@ -256,7 +256,7 @@ export function LifecycleFormDialog({
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
 
-          <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto py-4">
+          <div className="-mx-1 flex max-h-[60vh] flex-col gap-4 overflow-y-auto px-1 py-4">
             {fields === null ? (
               <>
                 <Skeleton className="h-16 w-full" />
