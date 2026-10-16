@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { router, usePage } from "@inertiajs/react"
 
+import { AuthPostForm } from "@/components/auth/auth-post-form"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { onboardingConnectSlackPath, reinstallSlackPath } from "@/lib/routes"
@@ -23,20 +24,15 @@ function slackDescription(teamName: string | null | undefined, connected: boolea
   return `Firefight is connected to ${teamName} in Slack. Reinstall to give Firefight new Slack permissions after an update, without disconnecting. Channels, incidents and settings stay as they are.`
 }
 
-// Pressing Reinstall leaves for Slack, so the button stays busy unless the server answers here instead.
+// Pressing Reinstall leaves for Slack through a form posted with the page's token, so the button stays busy while it goes.
 export function SlackCard({ teamName }: SlackCardProps) {
   const { currentWorkspace } = usePage().props
   const [leaving, setLeaving] = useState(false)
   const connected = currentWorkspace?.chatConnected ?? false
   const disconnected = currentWorkspace?.disconnected ?? false
 
-  function stayHere() {
-    setLeaving(false)
-  }
-
-  function reinstall() {
+  function markLeaving() {
     setLeaving(true)
-    router.post(reinstallSlackPath(), {}, { onSuccess: stayHere, onError: stayHere })
   }
 
   return (
@@ -50,9 +46,11 @@ export function SlackCard({ teamName }: SlackCardProps) {
 
       <CardContent>
         {connected ? (
-          <Button variant="outline" onClick={reinstall} disabled={leaving}>
-            Reinstall Slack
-          </Button>
+          <AuthPostForm action={reinstallSlackPath()} onSubmit={markLeaving}>
+            <Button type="submit" variant="outline" disabled={leaving}>
+              Reinstall Slack
+            </Button>
+          </AuthPostForm>
         ) : (
           <Button variant="outline" onClick={connectSlack}>
             Connect Slack
