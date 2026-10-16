@@ -16,6 +16,11 @@ class IncidentSeverity < ApplicationRecord
   scope :by_rank, -> { order(rank: :desc) } # Highest severity first
   scope :default_severity, -> { active.find_by(is_default: true) }
 
+  # The least urgent severity a picker offers, last in the order it lists them.
+  def self.least_severe
+    active.by_rank.last
+  end
+
   # One rule so pickers cannot invent their own fallback.
   def self.preselected(severities)
     severities.find(&:is_default?) || severities.last

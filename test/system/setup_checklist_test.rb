@@ -281,16 +281,57 @@ class SetupChecklistTest < ApplicationSystemTestCase
     assert_text "Declare an incident."
     screenshot("test-incident")
     click_button "Declare a test incident"
+    least = workspace.incident_severities.least_severe
     within("[role=dialog]") do
       assert_text "A test incident works like a real one and is not counted in your metrics."
-      find("input[placeholder='Write something']").fill_in(with: "Trying Firefight")
-      click_button "Select severity"
+      assert_field placeholder: "Write something", with: WorkspaceOnboarding::TEST_INCIDENT_NAME
+      assert_selector "button[role=combobox]", text: least.name
+      assert_field with: WorkspaceOnboarding::TEST_INCIDENT_SUMMARY
+      screenshot("test-incident-dialog")
+      click_button "Declare"
     end
-    page.document.find("[cmdk-item]", text: workspace.incident_severities.order(:position).first.name, exact_text: true).click
-    within("[role=dialog]") { click_button "Declare" }
+
+    assert_text WorkspaceOnboarding::TEST_INCIDENT_NAME
+    incident = workspace.incidents.find_by!(name: WorkspaceOnboarding::TEST_INCIDENT_NAME)
+    assert incident.is_test
+    assert_equal least, incident.incident_severity
+    assert_equal WorkspaceOnboarding::TEST_INCIDENT_SUMMARY, incident.summary
+    assert workspace.onboarding.reload.checklist_completed_at
+  end
+
+  test "the prefilled test incident can be edited, and a required field of the workspace's own still has to be filled" do
+    stub_successful_slack_workflow
+    owner = signed_up_owner
+    workspace = owner.workspace
+    workspace.update!(platform: Platforms::SLACK, platform_id: "T#{SecureRandom.hex(5)}", access_token: "xoxb-test", installed_at: Time.current,
+                      incidents_channel_id: "C_INCIDENTS")
+    workspace.onboarding.update!(ai_choice: WorkspaceOnboarding::AI_HOUSE, ai_chosen_at: Time.current, stack_done_at: Time.current,
+                                 permissions_reviewed_at: Time.current, halon_answered_at: Time.current)
+    definition = workspace.incident_field_definitions.create!(
+      name: "Affected team", slug: "affected_team",
+      field_type: IncidentFieldDefinition::TYPE_TEXT,
+      option_source: IncidentFieldDefinition::OPTION_SOURCE_NONE,
+      position: workspace.incident_field_definitions.maximum(:position).to_i + 1
+    )
+    service = IncidentFormService.new(workspace)
+    field = service.add_custom_field(workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE), definition)
+    service.update_field(field, visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE, required_mode: IncidentFormField::REQUIRED_MODE_REQUIRED)
+    sign_in(owner.user, workspace)
+
+    visit onboarding_checklist_path
+    click_button "Declare a test incident"
+    within("[role=dialog]") do
+      assert_field placeholder: "Write something", with: WorkspaceOnboarding::TEST_INCIDENT_NAME
+      assert_button "Declare", disabled: true
+      assert_text "Fill in every field not marked optional to continue."
+      find("input[placeholder='Write something']").fill_in(with: "Trying Firefight")
+      find("label", text: "Affected team").find(:xpath, "..").find("input").fill_in(with: "Payments")
+      click_button "Declare"
+    end
 
     assert_text "Trying Firefight"
-    assert workspace.onboarding.reload.checklist_completed_at
+    incident = workspace.incidents.find_by!(name: "Trying Firefight")
+    assert_equal "Payments", incident.custom_fields["affected_team"]
   end
 
   test "the test incident waits for Slack and says why" do

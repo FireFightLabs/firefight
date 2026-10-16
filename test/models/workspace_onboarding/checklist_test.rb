@@ -9,6 +9,37 @@ class WorkspaceOnboarding::ChecklistTest < ActiveSupport::TestCase
     @onboarding = @workspace.onboarding
   end
 
+  test "the test incident starts named, summarized and on the least urgent severity" do
+    least = @workspace.incident_severities.active.order(:rank).first
+
+    answers = @onboarding.test_incident_answers
+
+    assert_equal({
+      IncidentSystemField::KEY_NAME => WorkspaceOnboarding::TEST_INCIDENT_NAME,
+      IncidentSystemField::KEY_SEVERITY => least.slug,
+      IncidentSystemField::KEY_SUMMARY => WorkspaceOnboarding::TEST_INCIDENT_SUMMARY
+    }, answers)
+  end
+
+  test "the test incident leaves severity unpicked when the workspace has none" do
+    @workspace.incident_severities.update_all(deleted_at: Time.current)
+
+    assert_not_includes @onboarding.test_incident_answers.keys, IncidentSystemField::KEY_SEVERITY
+  end
+
+  test "the test incident fills only the fields the declare form asks" do
+    form = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
+    service = IncidentFormService.new(@workspace)
+    service.update_field(service.ensure_system_field!(form, IncidentSystemField::KEY_SUMMARY),
+      visibility_mode: IncidentFormField::VISIBILITY_MODE_HIDDEN,
+      required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL)
+
+    answers = @onboarding.test_incident_answers
+
+    assert_not_includes answers.keys, IncidentSystemField::KEY_SUMMARY
+    assert_equal WorkspaceOnboarding::TEST_INCIDENT_NAME, answers[IncidentSystemField::KEY_NAME]
+  end
+
   test "a new workspace starts on choosing Halon's AI, with the account already done" do
     steps = @onboarding.steps
 
