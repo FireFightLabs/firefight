@@ -13,12 +13,31 @@ class McpGatewayToolsTest < ActionDispatch::IntegrationTest
     )
   end
 
+  # A change to who may do what waits over MCP for a person, so it is approved here as an admin would and made again.
   def call_tool(name, arguments = {}, token: @admin_token)
+    result = rpc_call(name, arguments, token)
+    held = result["content"].first["text"].to_s.match(PersonApprovalHelper::HELD)
+    if held
+      Ability::Approval.find(held[:id]).update!(status: Ability::Approval::STATUS_APPROVED, resolved_at: Time.current)
+      result = rpc_call(name, arguments.merge(approval_id: held[:id]), token)
+    end
+    [ result["structuredContent"] || {}, result["isError"], result["content"].first["text"] ]
+  end
+
+  def rpc_call(name, arguments, token)
     post mcp_path,
       params: { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: name, arguments: arguments } }.to_json,
       headers: { "Content-Type" => "application/json", "Authorization" => "Bearer #{token}" }
-    result = JSON.parse(response.body).fetch("result")
-    [ result["structuredContent"] || {}, result["isError"], result["content"].first["text"] ]
+    JSON.parse(response.body).fetch("result")
+  end
+
+  # Approval rules change only for a person, so the tools are run here as Halon's chat runs them for one who confirmed.
+  def as_person(name, arguments)
+    tool = FirefightTools.all.find { |tool_class| tool_class.name_value == name }
+    response = Mcp::ToolDispatcher.run(tool: tool, workspace: @workspace, principal: @workspace.workspace_memberships.find_by!(role: :owner), args: arguments)
+    [ response.structured_content.deep_stringify_keys, response.error?, Mcp::ToolDispatcher.text_of(response) ]
+  rescue *Mcp::ToolDispatcher::TOOL_ERRORS => e
+    [ {}, true, Mcp::ToolDispatcher.text_of(Mcp::ToolDispatcher.tool_error_response(e)) ]
   end
 
   test "a member cannot reach the gateway tools" do
@@ -65,8 +84,8 @@ class McpGatewayToolsTest < ActionDispatch::IntegrationTest
     assert_nil @workspace.ability_roles.find_by(slug: "runbook_editors")
   end
 
-  test "approval rules are created, changed in part, and deleted" do
-    payload, error, text = call_tool(FirefightTools::UPSERT_APPROVAL_RULE, {
+  test "approval rules are created, changed in part, and deleted for a person, and never with a token" do
+    payload, error, text = as_person(FirefightTools::UPSERT_APPROVAL_RULE, {
       risk_levels: [ "destructive" ], approvers: [ { kind: "user", id: @bob.id } ], notify: "dm", self_approval: false
     })
     assert_not error, text
@@ -74,16 +93,20 @@ class McpGatewayToolsTest < ActionDispatch::IntegrationTest
     assert_equal "dm", payload["notify"]
     id = payload["id"]
 
-    payload, = call_tool(FirefightTools::UPSERT_APPROVAL_RULE, { id: id, enabled: false })
+    payload, = as_person(FirefightTools::UPSERT_APPROVAL_RULE, { id: id, enabled: false })
     assert_equal false, payload["enabled"]
     assert_equal [ "destructive" ], payload["risk_levels"]
     assert_equal [ { "kind" => "user", "id" => @bob.id } ], payload["approvers"]
 
-    _, error, text = call_tool(FirefightTools::UPSERT_APPROVAL_RULE, { id: SecureRandom.uuid, enabled: true })
+    _, error, text = as_person(FirefightTools::UPSERT_APPROVAL_RULE, { id: SecureRandom.uuid, enabled: true })
     assert error
     assert_includes text, "Not found"
 
-    payload, = call_tool(FirefightTools::DELETE_APPROVAL_RULE, { id: id })
+    _, error, text = call_tool(FirefightTools::DELETE_APPROVAL_RULE, { id: id })
+    assert error, "never with a token"
+    assert_includes text, PolicyRule::TOKEN_CHANGE_REFUSAL
+
+    payload, = as_person(FirefightTools::DELETE_APPROVAL_RULE, { id: id })
     assert payload["deleted"]
     assert_equal 0, @workspace.approval_rules.count
   end

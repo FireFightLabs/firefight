@@ -19,6 +19,8 @@ module IncidentTranscriptMessage::Scrubbing
     huggingface_token:  /\bhf_[A-Za-z0-9]{32,}\b/,
     github_pat:         /\bgithub_pat_[A-Za-z0-9_]{22,}\b/,
     supabase_secret:    /\bsb_secret_[A-Za-z0-9_-]{16,}/,
+    # Firefight's own API keys and agent tokens (ApiKey.generate_token).
+    firefight_token:    /\bff_[1-9A-HJ-NP-Za-km-z]{36}\b/,
     slack_webhook:      %r{\bhooks\.slack\.com/services/[A-Za-z0-9/]+},
     bearer_token:       %r{\bBearer\s+[A-Za-z0-9._~+/-]{16,}=*},
     password_setting:   /\bpassword=[^\s&;'"]+/i,

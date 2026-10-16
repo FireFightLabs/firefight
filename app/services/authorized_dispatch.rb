@@ -1,10 +1,13 @@
 # Slack's single gate into the Ability Gateway, the role Mcp::ToolDispatcher
 # plays for tools and the API controllers play for REST.
 module AuthorizedDispatch
-  # The dispatchers refuse a call with no identity rather than running it unattributed.
-  class PrincipalUnresolved < StandardError; end
-
   UNRESOLVED_MESSAGE = "Firefight couldn't verify your workspace account. Please try again in a moment."
+
+  # The dispatchers refuse a call with no identity rather than running it unattributed, saying why when the platform
+  # refused the person.
+  class PrincipalUnresolved < StandardError
+    def initialize(message = UNRESOLVED_MESSAGE) = super
+  end
 
   def self.call(handler, subject, context: {})
     authorization = handler.authorization
@@ -26,9 +29,11 @@ module AuthorizedDispatch
 
   # Provisioned on demand so a first-time caller is a principal like anyone else.
   def self.resolve_principal(subject)
-    WorkspaceMemberProvisioner.find_or_provision!(
+    WorkspaceMemberProvisioner.admit!(
       workspace: subject.workspace, platform_user_id: subject.user_id, adapter: subject.workspace.adapter
     )
+  rescue WorkspaceMemberProvisioner::Refused => e
+    raise PrincipalUnresolved, e.message
   rescue StandardError => e
     Rails.logger.warn({ event: "dispatch.principal_unresolved", user_id: subject.user_id, error: e.message }.to_json)
     nil

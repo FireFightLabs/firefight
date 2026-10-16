@@ -27,6 +27,9 @@ module Mcp
       )
       authorize_as Ability::Action::RESOURCE_WEBHOOKS, Ability::Action::ACTION_UPDATE
 
+      # A test delivery sends a sample to the address already set and changes nothing, so it needs no person's say.
+      def self.asks_a_person? = false
+
       def self.perform(workspace:, args:)
         webhook = workspace.webhooks.find(args[:id].to_s)
         delivery = webhook.queue_test_delivery!

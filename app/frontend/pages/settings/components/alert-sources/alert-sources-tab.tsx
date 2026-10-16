@@ -225,6 +225,7 @@ export function AlertSourcesTab({
                           <RowActions
                             onEdit={() => setEditingSource(source)}
                             onDelete={() => setDeletingSource(source)}
+                            deleteDisabledReason={source.deletionBlockedReason ?? undefined}
                           />
                         )}
                       </div>
@@ -256,7 +257,7 @@ export function AlertSourcesTab({
         <ConfirmDeleteDialog
           open={Boolean(deletingSource)}
           title={`Delete ${deletingSource?.name ?? "this source"}?`}
-          description="Its ingest URL and token stop working immediately: anything still sending alerts here will be rejected. Its alerts and routing rules are deleted too."
+          description="It has received no alerts. Its ingest URL and token stop working at once, so anything still sending here will be rejected, and its routing rules are deleted too."
           onConfirm={confirmDelete}
           onCancel={() => setDeletingSource(null)}
         />

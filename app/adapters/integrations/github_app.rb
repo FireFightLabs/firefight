@@ -24,6 +24,11 @@ module Integrations
     end
 
     API_ROOT = "https://api.github.com".freeze
+    USER_TOKEN_URL = "https://github.com/login/oauth/access_token".freeze
+    # GitHub lists at most 100 installations a page (docs.github.com, REST API, List app installations accessible to the
+    # user access token). Ten pages is more than any one person manages.
+    USER_INSTALLATIONS_PAGE = 100
+    USER_INSTALLATIONS_PAGES = 10
     PROVIDER_KEY = "github".freeze
     TOKEN_CACHE_KEY = "github_app_token".freeze
     JWT_LIFETIME = 9.minutes
@@ -104,6 +109,20 @@ module Integrations
         return nil if slug.blank?
 
         "https://github.com/apps/#{slug}/installations/new?" + { state: state }.to_query
+      end
+
+      # The installations the person who came back from the install screen may manage, from the code GitHub sends when
+      # the App asks for user authorization during installation (docs.github.com, Generating a user access token for a
+      # GitHub App). The person's token is used for this one read and revoked, never kept.
+      def user_installation_ids(code:, redirect_uri:)
+        token = user_token(code, redirect_uri)
+        (1..USER_INSTALLATIONS_PAGES).each_with_object([]) do |page, ids|
+          listed = Array(get("/user/installations?per_page=#{USER_INSTALLATIONS_PAGE}&page=#{page}", token: token)["installations"])
+          ids.concat(listed.map { |installation| installation["id"].to_s })
+          break ids if listed.size < USER_INSTALLATIONS_PAGE
+        end
+      ensure
+        revoke_user_token(token) if token
       end
 
       def installation_token(environment_row)
@@ -275,6 +294,37 @@ module Integrations
         raise unless token.respond_to?(:refresh!) && token.refresh!
 
         yield token.to_s
+      end
+
+      def user_token(code, redirect_uri)
+        oauth = IntegrationProvider.oauth_client(PROVIDER_KEY)
+        raise Error, "GitHub App credentials are not configured on this install." if oauth[:client_id].blank? || oauth[:client_secret].blank?
+
+        uri = URI.parse(USER_TOKEN_URL)
+        request = Net::HTTP::Post.new(uri)
+        request["Accept"] = "application/json"
+        request.set_form_data(client_id: oauth[:client_id], client_secret: oauth[:client_secret], code: code, redirect_uri: redirect_uri)
+        body = begin
+          JSON.parse(Http.request(uri, request, error_class: Error).body.to_s)
+        rescue JSON::ParserError
+          {}
+        end
+        body = {} unless body.is_a?(Hash)
+        body["access_token"].presence ||
+          raise(Error, "GitHub did not accept the sign-in: #{body['error_description'].presence || body['error'].presence || 'no token came back.'}")
+      end
+
+      # Revoking only tidies up, so a failure is logged and the connect goes on.
+      def revoke_user_token(token)
+        oauth = IntegrationProvider.oauth_client(PROVIDER_KEY)
+        uri = URI.parse("#{API_ROOT}/applications/#{oauth[:client_id]}/token")
+        request = Net::HTTP::Delete.new(uri)
+        request.basic_auth(oauth[:client_id], oauth[:client_secret])
+        apply_api_headers(request)
+        request.body = { access_token: token }.to_json
+        Http.request(uri, request, error_class: Error)
+      rescue Error => error
+        Rails.logger.warn("github_app.user_token_not_revoked error=#{error.message}")
       end
 
       def installation_id!(environment_row)

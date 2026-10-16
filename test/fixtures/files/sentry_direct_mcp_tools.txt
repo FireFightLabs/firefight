@@ -1,0 +1,18 @@
+# The tools Sentry's MCP server (getsentry/sentry-mcp) lists directly (surface direct), from packages/mcp-core/src/toolDefinitions.json
+# at commit f0b5795ea9a5a73045aa38f9d2cfe4d817777abd, one per line. Catalog tools run only through execute_sentry_tool and are not here.
+# Each line is a tool as its server names it and whether it only reads or changes something.
+analyze_issue_with_seer change
+execute_sentry_tool change
+find_dropped_events read
+find_organizations read
+find_projects read
+get_sentry_resource read
+search_errors read
+search_issues read
+search_logs read
+search_metrics read
+search_profiles read
+search_replays read
+search_sentry_tools read
+search_traces read
+update_issue change

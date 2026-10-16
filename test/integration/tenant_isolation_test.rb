@@ -12,9 +12,10 @@ class TenantIsolationTest < ActionDispatch::IntegrationTest
     get incident_path(incidents(:active_p0_ws2))
     assert_response :not_found
 
-    get signing_secret_webhook_path(webhooks(:workspace_two_webhook))
+    secret = webhooks(:workspace_two_webhook).signing_secret
+    post rotate_signing_secret_webhook_path(webhooks(:workspace_two_webhook))
     assert_response :not_found
-    assert_no_match webhooks(:workspace_two_webhook).signing_secret, response.body
+    assert_equal secret, webhooks(:workspace_two_webhook).reload.signing_secret
   end
 
   test "another workspace's approval cannot be decided" do

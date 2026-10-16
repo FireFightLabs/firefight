@@ -1,0 +1,47 @@
+# The tools SigNoz's MCP server registers in internal/handler/tools (RegisterAllToolHandlers) of SigNoz/signoz-mcp-server at commit
+# a7c3c0295964d67e2e6b3b0c91cd3290980efa2f, the server its README gives for SigNoz Cloud (mcp.<region>.signoz.cloud), one per line.
+# signoz_execute_builder_query takes ClickHouse SQL, which SigNoz refuses unless it is a single SELECT (SigNoz/signoz, pkg/clickhousesql/statement.go).
+# Each line is a tool as its server names it and whether it only reads or changes something.
+signoz_check_metric_usage read
+signoz_get_top_metrics read
+signoz_list_metrics read
+signoz_query_metrics read
+signoz_list_services read
+signoz_get_service_top_operations read
+signoz_execute_builder_query read
+signoz_get_org_overview read
+signoz_check_metric_cardinality read
+signoz_get_field_keys read
+signoz_get_field_values read
+signoz_aggregate_logs read
+signoz_search_logs read
+signoz_aggregate_traces read
+signoz_search_traces read
+signoz_get_trace_details read
+signoz_list_views read
+signoz_get_view read
+signoz_create_view change
+signoz_update_view change
+signoz_delete_view change
+signoz_list_notification_channels read
+signoz_create_notification_channel change
+signoz_update_notification_channel change
+signoz_get_notification_channel read
+signoz_delete_notification_channel change
+signoz_list_alerts read
+signoz_list_alert_rules read
+signoz_get_alert read
+signoz_get_alert_history read
+signoz_create_alert change
+signoz_update_alert change
+signoz_delete_alert change
+signoz_search_docs read
+signoz_fetch_doc read
+signoz_list_dashboards read
+signoz_get_dashboard read
+signoz_create_dashboard change
+signoz_update_dashboard change
+signoz_patch_dashboard change
+signoz_delete_dashboard change
+signoz_import_dashboard change
+signoz_list_dashboard_templates read

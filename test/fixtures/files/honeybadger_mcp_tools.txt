@@ -1,0 +1,43 @@
+# The tools Honeybadger's MCP server registers in internal/hbmcp of honeybadger-io/honeybadger-mcp-server at commit
+# e2c2c7ba48d6c288f13daa3774b290536d4e15c1 (the server behind mcp.honeybadger.io, whose README lists the same tools), one per line.
+# A token without the write scope is shown only the reads.
+# Each line is a tool as its server names it and whether it only reads or changes something.
+list_fault_comments read
+get_fault_comment read
+create_fault_comment change
+update_fault_comment change
+delete_fault_comment change
+list_dashboards read
+get_dashboard read
+create_dashboard change
+update_dashboard change
+delete_dashboard change
+list_faults read
+get_fault read
+update_fault change
+list_fault_notices read
+list_fault_affected_users read
+get_fault_counts read
+query_insights read
+list_streams read
+get_reference read
+list_alarms read
+get_alarm read
+create_alarm change
+update_alarm change
+delete_alarm change
+get_alarm_history read
+list_projects read
+get_project read
+create_project change
+update_project change
+delete_project change
+get_project_occurrence_counts read
+get_project_integrations read
+get_project_report read
+list_check_ins read
+get_check_in read
+create_check_in change
+update_check_in change
+delete_check_in change
+search_tools read

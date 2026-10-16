@@ -198,6 +198,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
       uid: "U_NEW_MEMBER",
       info: { email: "newbie@example.com", team_id: workspace.platform_id, team_name: workspace.name }
     )
+    stub_get_user_info
 
     assert_difference -> { workspace.workspace_memberships.count }, 1 do
       outcome = @service.handle_openid_signin(auth_hash)
@@ -207,6 +208,22 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
       assert_equal "U_NEW_MEMBER", outcome.membership.platform_user_id
       assert_equal "member", outcome.membership.role
       assert_equal "Welcome to #{workspace.name}.", outcome.message
+    end
+  end
+
+  test "handle_openid_signin refuses a guest of the Slack workspace with Slack's sentence and gives them no seat" do
+    workspace = workspaces(:slack_workspace_one)
+    auth_hash = mock_slack_openid_auth_hash(
+      uid: "U_GUEST_SIGNIN",
+      info: { email: "guest-signin@example.com", team_id: workspace.platform_id, team_name: workspace.name }
+    )
+    Slack::Client.stubs(:get_user_info).returns({ user: { id: "U_GUEST_SIGNIN", team_id: workspace.platform_id, is_restricted: true } })
+
+    assert_no_difference -> { workspace.workspace_memberships.count } do
+      outcome = @service.handle_openid_signin(auth_hash)
+
+      assert outcome.refused?
+      assert_equal Slack::WorkspaceAdapter::GUEST_REFUSAL, outcome.message
     end
   end
 

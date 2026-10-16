@@ -65,6 +65,16 @@ class ApiKey < ApplicationRecord
     [ api_key, raw_token ]
   end
 
+  # A token shown to a person later, from a card in a chat, is minted at the moment they open it, so no token waits
+  # anywhere to be shown and the one minted with the key stops working.
+  def reissue_token!
+    raw_token = self.class.generate_token
+    retired = token_digest
+    update!(token_digest: self.class.digest_token(raw_token), token_prefix: raw_token.first(12))
+    Rails.cache.delete("#{CACHE_PREFIX}#{retired}")
+    raw_token
+  end
+
   def live?
     active? && !deleted? && !expired?
   end

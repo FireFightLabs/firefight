@@ -58,6 +58,6 @@ class Mcp::Tools::MemberAccessToolsTest < ActiveSupport::TestCase
   private
 
   def call(tool, principal, **args)
-    Mcp::ToolDispatcher.call(tool: tool, server_context: { workspace: @workspace, principal: principal }, args: args)
+    call_approved_by_a_person(tool: tool, server_context: { workspace: @workspace, principal: principal }, args: args)
   end
 end

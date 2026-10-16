@@ -3,7 +3,10 @@ require "test_helper"
 # Each hosted server's tools are held to the list its provider publishes, as test/fixtures/files/<key>_mcp_tools.txt
 # copies it with where it came from: each tool as the server names it and whether it only reads or changes something.
 class IntegrationProvider::PublishedToolsTest < ActiveSupport::TestCase
-  PUBLISHED = %w[datadog newrelic honeycomb axiom betterstack logfire notion linear].freeze
+  PUBLISHED = %w[datadog newrelic honeycomb axiom betterstack logfire notion linear grafana circleci posthog openstatus honeybadger signoz
+                 neon supabase planetscale clickhouse turso upstash sentry_direct].freeze
+  # The fixture's name where it is not the provider's key.
+  KEYS = { "sentry_direct" => "sentry", "atlassian" => "jira" }.freeze
 
   def published(file)
     file_fixture("#{file}_mcp_tools.txt").readlines.reject { |line| line.start_with?("#") }.to_h do |line|
@@ -15,8 +18,9 @@ class IntegrationProvider::PublishedToolsTest < ActiveSupport::TestCase
   def reads(file) = published(file).select { |_name, kind| kind == "read" }.keys
 
   test "a provider counts every read its published list names, and nothing that list says changes something" do
-    PUBLISHED.each do |key|
-      assert_equal reads(key).sort, IntegrationProvider.find(key).read_only_tools.sort, "#{key}'s reads are the ones it publishes"
+    PUBLISHED.each do |file|
+      key = KEYS.fetch(file, file)
+      assert_equal reads(file).sort, IntegrationProvider.find(key).read_only_tools.sort, "#{key}'s reads are the ones it publishes"
     end
   end
 
@@ -33,7 +37,7 @@ class IntegrationProvider::PublishedToolsTest < ActiveSupport::TestCase
   test "a tool a provider's list publishes as a change is never one it counts as a read" do
     (PUBLISHED + %w[atlassian]).each do |file|
       changes = published(file).select { |_name, kind| kind == "change" }.keys
-      key = file == "atlassian" ? "jira" : file
+      key = KEYS.fetch(file, file)
       assert_empty changes & IntegrationProvider.find(key).read_only_tools, "#{file} counts a change as a read"
     end
   end
@@ -59,12 +63,19 @@ class IntegrationProvider::PublishedToolsTest < ActiveSupport::TestCase
   end
 
   test "PostHog's tools that its server marks read only but that send or stage a change are counted as changes" do
-    posthog = file_fixture("posthog_mcp_tools.txt").read.split.map { |name| Integrations::McpExecutor.local_name(name) }
+    posthog = published("posthog").keys
     entry = IntegrationProvider.find("posthog")
 
     assert_empty posthog.grep(/_prepare\z/) - entry.write_tools, "every -prepare tool the fixture holds is a change"
     entry.write_tools.each { |tool| assert_match(/\A(agent_feedback|.+_prepare)\z/, tool) }
     assert_not entry.reads?("agent_feedback", declared: true)
-    assert entry.reads?("query_run", declared: true)
+    assert entry.reads?("insight_get", declared: false)
+  end
+
+  test "every remote server Firefight knows has a published list of its reads, or an admin marks them" do
+    remote = IntegrationProvider.all.select { |provider| provider.kind == Integration::KIND_MCP && !provider.admin_marks_reads }
+    unlisted = remote.reject { |provider| provider.read_only_tools.any? }.map(&:key)
+
+    assert_empty unlisted, "a remote server's tools count as changes unless the registry lists its reads"
   end
 end

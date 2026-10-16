@@ -68,6 +68,11 @@ module Integrations
     # Where to send a person to install a provider's app, for a provider that gates access behind one, or nil.
     def self.install_url(provider_key, state:) = NativePack.for(provider_key)&.install_url(state: state)
 
+    # Why the installation an install flow came back with cannot be connected, or nil when the person manages it.
+    def self.installation_refusal(provider_key, installation_id, code:, redirect_uri:)
+      pack!(provider_key).installation_refusal(installation_id, code: code, redirect_uri: redirect_uri)
+    end
+
     def self.pack!(provider_key)
       NativePack.for(provider_key) || raise(NativePack::Error, "#{provider_key} has no native pack, so it does not connect this way")
     end

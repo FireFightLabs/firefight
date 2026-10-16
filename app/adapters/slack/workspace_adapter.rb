@@ -422,11 +422,38 @@ module Slack
           real_name: profile[:real_name] || profile["real_name"],
           avatar_url: profile[:image_192] || profile["image_192"] || profile[:image_48] || profile["image_48"],
           email: profile[:email] || profile["email"],
+          email_confirmed: (user[:is_email_confirmed] || user["is_email_confirmed"]) == true,
           timezone: user[:tz] || user["tz"],
           raw: user
         }
       end
     end
+
+    GUEST_REFUSAL = "Guests of this Slack workspace can't use Firefight. Ask a workspace admin if you need it.".freeze
+    OUTSIDER_REFUSAL = "Firefight only works for people in this Slack workspace, so it can't do this for you.".freeze
+
+    # Slack Connect brings people from another organisation into shared channels, and a workspace can hold guests.
+    # Neither belongs to this workspace. Someone from a sibling workspace of an organisation wide install lists this
+    # workspace among their teams, so they are not taken for an outsider.
+    def member_refusal(profile:)
+      user = profile.to_h.with_indifferent_access[:raw]
+      return if user.blank?
+
+      user = user.to_h.with_indifferent_access
+      return OUTSIDER_REFUSAL if outsider?(user)
+
+      GUEST_REFUSAL if user[:is_restricted] || user[:is_ultra_restricted]
+    end
+
+    def outsider?(user)
+      return true if user[:is_stranger]
+
+      team = user[:team_id].presence
+      return false if team.nil? || team == @workspace.platform_id
+
+      Array(user.dig(:enterprise_user, :teams)).exclude?(@workspace.platform_id)
+    end
+    private :outsider?
 
     # broadcast also shows the reply in the channel itself.
     def post_threaded_message(channel_id:, parent_message_id:, text:, blocks: nil, broadcast: false)
@@ -478,6 +505,21 @@ module Slack
 
     def resolve_people(text)
       Slack::HandleResolver.new(@workspace).resolve(text)
+    end
+
+    # Ephemeral in the app's direct messages, so Slack keeps it for this person alone and drops it when they reload.
+    def post_token_once(user_id:, title:, token:)
+      translate_errors do
+        channel = Slack::Client.open_direct_channel(workspace: @workspace, user: user_id)
+        words = "Here is the token for #{title}. Copy it now. Only you can see this message, it disappears when Slack reloads, " \
+                "and Firefight keeps no copy."
+        Slack::Client.post_ephemeral(
+          workspace: @workspace, channel: channel, user: user_id, text: words,
+          blocks: [ { type: "section", text: { type: "mrkdwn", text: Slack::Mrkdwn.escape(words) } },
+                    { type: "section", text: { type: "mrkdwn", text: "```#{token}```" } } ]
+        )
+        { success: true }
+      end
     end
 
     # A user id as channel opens or reuses the DM with them.

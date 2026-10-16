@@ -16,6 +16,12 @@ module Mcp
       return error_response("There is no tool called #{tool_name} in this workspace.") unless tool.offered_in?(workspace)
 
       resource, crud_action = tool.authorization(workspace, args)
+      principal = server_context[:principal]
+      refusal = tool.token_refusal(workspace, args)
+      return error_response(refusal) if refusal
+      if tool.mints_token?(workspace, args) && !TokenHandoff.reachable?(principal, workspace)
+        return error_response(TokenHandoff::UNREACHABLE)
+      end
 
       OpenTelemetry::Trace.current_span.add_attributes({ "firefight.mcp.tool" => tool_name })
       started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
@@ -24,10 +30,11 @@ module Mcp
         action_key: Ability::Action.system_key(resource, crud_action),
         workspace: workspace,
         params: tool.ledger_params(args.except(APPROVAL_ID_ARG)),
-        context: { source: AbilityGateway::SOURCE_MCP, approval_id: args[APPROVAL_ID_ARG] },
-        holdable: tool.holdable?
+        context: { source: AbilityGateway::SOURCE_MCP, approval_id: args[APPROVAL_ID_ARG], asks_a_person: tool.asks_a_person? },
+        holdable: tool.holdable? || tool.asks_a_person?
       ) do |authorization|
-        answered = run(tool: tool, workspace: workspace, principal: server_context[:principal], args: args)
+        answered = run(tool: tool, workspace: workspace, principal: principal, args: args,
+                       hand_token: ->(token) { TokenHandoff.to_person!(token, principal: principal, workspace: workspace) })
         authorization.answer_failed!(text_of(answered)) if answered.error?
         answered
       end
@@ -45,14 +52,41 @@ module Mcp
 
     # Shared with the agent's chat, so a tool behaves the same over MCP and in chat. by_halon is true only from Halon's
     # chat, for a tool whose post names who wrote it.
-    def self.run(tool:, workspace:, principal:, args:, by_halon: false)
-      if tool.respond_to?(:perform_with_principal)
-        named = tool.respond_to?(:names_halon?) && tool.names_halon? ? { by_halon: by_halon } : {}
-        tool.perform_with_principal(workspace: workspace, principal: principal, args: args, **named)
-      else
-        tool.perform(workspace: workspace, args: args)
-      end
+    # hand_token takes a token the tool minted and answers what is said in its place, since a token never reaches a model.
+    # Without one nobody can be shown it, so it is switched off.
+    def self.run(tool:, workspace:, principal:, args:, hand_token: nil, by_halon: false)
+      answered =
+        if tool.respond_to?(:perform_with_principal)
+          named = tool.respond_to?(:names_halon?) && tool.names_halon? ? { by_halon: by_halon } : {}
+          tool.perform_with_principal(workspace: workspace, principal: principal, args: args, **named)
+        else
+          tool.perform(workspace: workspace, args: args)
+        end
+      token = answered.structured_content.is_a?(Hash) && answered.structured_content[:token]
+      return answered if token.blank?
+      return error_response(TokenHandoff.discard!(token)) unless hand_token
+
+      token_withheld(answered, handed(token, hand_token))
+    rescue TokenHandoff::Undelivered => e
+      error_response(e.message)
     end
+
+    # A handoff that breaks before the person has the token switches it off, so no token nobody saw stays live.
+    def self.handed(token, hand_token)
+      hand_token.call(token)
+    rescue TokenHandoff::Undelivered
+      raise
+    rescue StandardError
+      TokenHandoff.discard!(token)
+      raise
+    end
+    private_class_method :handed
+
+    def self.token_withheld(answered, words)
+      payload = answered.structured_content.merge(token: words)
+      ::MCP::Tool::Response.new([ { type: "text", text: JSON.pretty_generate(payload) } ], structured_content: payload)
+    end
+    private_class_method :token_withheld
 
     def self.tool_error_response(error)
       case error

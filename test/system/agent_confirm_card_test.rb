@@ -112,7 +112,7 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
   end
 
   test "allowing a tool for the rest of the chat answers every question about it" do
-    pause_on("delete_permission_set", "delete_permission_set")
+    pause_on("delete_catalog_entry", "delete_catalog_entry")
     visit agent_chat_path(@conversation)
 
     question("set_1") do
@@ -121,7 +121,18 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
     end
 
     assert_decided [ Chat::APPROVAL_APPROVED ] * 2
-    assert @chat.reload.allows_tool?("delete_permission_set")
+    assert @chat.reload.allows_tool?("delete_catalog_entry")
+  end
+
+  test "a change to who may do what is asked about every time, so its card never offers to allow it for the chat" do
+    pause_on("delete_permission_set")
+    visit agent_chat_path(@conversation)
+
+    question("set_1") do
+      assert_button "Approve"
+      assert_no_text "Allow for the rest of this chat"
+    end
+    page.save_screenshot(Rails.root.join("tmp/screenshots/confirm-card-permission-change.png"))
   end
 
   test "a call through a connection keeps what the tool reaches and its arguments under Details" do

@@ -19,7 +19,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   def call_tool(name, arguments = {}, token: @personal_token)
     body = rpc("tools/call", { name: name, arguments: arguments }, token: token)
     result = body.fetch("result")
-    [ result["structuredContent"] || {}, result["isError"] ]
+    [ result["structuredContent"] || {}, result["isError"], result.dig("content", 0, "text") ]
   end
 
   test "requires a bearer token and advertises how to authenticate" do
@@ -349,7 +349,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     assert @workspace.catalog_entries.exists?(name: "Gated")
   end
 
-  test "approvals resolve over MCP for humans, never for service keys" do
+  test "a request made over MCP is approved by a person in Firefight, never with a token" do
     policy = @workspace.policies.create!(domain: Policy::DOMAIN_APPROVALS, name: "Approvals")
     policy.policy_rules.create!(
       priority: 1,
@@ -371,9 +371,12 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     assert is_error
     assert approval.reload.pending?
 
-    content, is_error = call_tool(FirefightTools::APPROVE_APPROVAL, { id: approval.id })
-    assert_not is_error
-    assert_equal Ability::Approval::STATUS_APPROVED, content["status"]
+    _, is_error, text = call_tool(FirefightTools::APPROVE_APPROVAL, { id: approval.id })
+    assert is_error, "an admin's own token cannot approve what a token asked for"
+    assert_match Ability::Approval::APPROVE_WITH_TOKEN, text
+    assert approval.reload.pending?
+
+    approval.approve!(by: @membership)
 
     content, is_error = call_tool(FirefightTools::UPSERT_CATALOG_ENTRY,
                                   { type: "service", name: "Gated", approval_id: approval.id })

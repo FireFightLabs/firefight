@@ -20,6 +20,12 @@ class PolicyRule < ApplicationRecord
 
   belongs_to :policy
 
+  # Approval rules decide which calls wait for a person, so a token never changes them.
+  TOKEN_CHANGE_REFUSAL = "Approval rules are changed only by a person in Firefight, never with a token, so no token can loosen the rules that hold its own calls.".freeze
+
+  # Why changing an approval rule from this source is refused, or nil.
+  def self.approval_change_blocked_reason(source) = (TOKEN_CHANGE_REFUSAL if AbilityGateway::TOKEN_SOURCES.include?(source))
+
   # Domains without a contract accept any object.
   OUTCOME_VALIDATORS = {
     Policy::DOMAIN_ALERT_ROUTING => PolicyRule::AlertRoutingOutcome,

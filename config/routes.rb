@@ -573,7 +573,7 @@ Rails.application.routes.draw do
         post :test
         post :activate
         post :deactivate
-        get :signing_secret
+        post :rotate_signing_secret
       end
       get :sample_payload, on: :collection
       resources :deliveries, only: [], controller: "webhook_deliveries" do
@@ -587,6 +587,8 @@ Rails.application.routes.draw do
     post "/settings/members/invitations", to: "workspace_invitations#create", as: :workspace_invitations
     post "/settings/members/invitations/:id/resend", to: "workspace_invitations#resend", as: :resend_workspace_invitation
     delete "/settings/members/invitations/:id", to: "workspace_invitations#destroy", as: :workspace_invitation
+    delete "/settings/members/:id", to: "workspace_memberships#destroy", as: :workspace_membership
+    post "/settings/members/:id/restore", to: "workspace_memberships#restore", as: :restore_workspace_membership
 
     # The gateway and developer screens used to live under /settings, the redirects keep old links working.
     get "/settings/workspace", to: "workspace_settings#show", as: :settings_workspace

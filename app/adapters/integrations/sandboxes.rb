@@ -92,9 +92,9 @@ module Integrations
       # before the image is pulled says how long a pull may take.
       def ready_within = Client::READY_TIMEOUT
 
-      # Makes the provider's copy of the image the deployment runs, ahead of any run, so nobody waits for the first pull
-      # of a new version. A provider that keeps no copies has none to make.
-      def prepare_image! = nil
+      # Makes the provider's copy of the image the deployment runs for one workspace, ahead of any run, so nobody waits
+      # for the first pull of a new version. A provider that keeps no copies has none to make.
+      def prepare_image!(_workspace_id) = nil
 
       # Where its boxes run. A provider that cannot tell, such as the Docker daemon on whatever machine runs Firefight,
       # takes the region the deployment names in SANDBOX_REGION.

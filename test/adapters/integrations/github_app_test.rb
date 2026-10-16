@@ -26,6 +26,36 @@ module Integrations
       assert_nil GithubApp.install_url(state: "st-1")
     end
 
+    test "the installations a person may manage are read with the code GitHub sent, and the sign-in is let go of" do
+      IntegrationProvider.stubs(:oauth_client).with("github").returns(client_id: "Iv1.abc", client_secret: "shh", app_slug: "firefight")
+      sent = []
+      Http.stubs(:request).with { |uri, request, **| sent << [ uri.to_s, request ] }.returns(
+        stub(code: "200", body: { access_token: "ghu_person" }.to_json),
+        stub(code: "200", body: { total_count: 2, installations: [ { id: 111 }, { id: 98_765 } ] }.to_json),
+        stub(code: "204", body: "")
+      )
+
+      assert_equal [ "111", "98765" ], GithubApp.user_installation_ids(code: "user-code", redirect_uri: "https://ff.example/integrations/oauth/callback")
+
+      exchange, listing, revoke = sent
+      assert_equal "https://github.com/login/oauth/access_token", exchange.first
+      assert_equal({ "client_id" => "Iv1.abc", "client_secret" => "shh", "code" => "user-code", "redirect_uri" => "https://ff.example/integrations/oauth/callback" },
+                   Rack::Utils.parse_query(exchange.last.body))
+      assert_equal "https://api.github.com/user/installations?per_page=100&page=1", listing.first
+      assert_equal "Bearer ghu_person", listing.last["Authorization"]
+      assert_equal "https://api.github.com/applications/Iv1.abc/token", revoke.first
+      assert_kind_of Net::HTTP::Delete, revoke.last
+      assert_equal({ "access_token" => "ghu_person" }, JSON.parse(revoke.last.body))
+    end
+
+    test "a code GitHub does not accept raises with GitHub's words" do
+      IntegrationProvider.stubs(:oauth_client).with("github").returns(client_id: "Iv1.abc", client_secret: "shh", app_slug: "firefight")
+      Http.stubs(:request).returns(stub(code: "200", body: { error: "bad_verification_code", error_description: "The code passed is incorrect or expired." }.to_json))
+
+      error = assert_raises(GithubApp::Error) { GithubApp.user_installation_ids(code: "stale", redirect_uri: "https://ff.example/cb") }
+      assert_equal "GitHub did not accept the sign-in: The code passed is incorrect or expired.", error.message
+    end
+
     test "the app JWT is RS256 signed with the client id as issuer" do
       token = GithubApp.send(:app_jwt)
       payload, header = JWT.decode(token, @key.public_key, true, algorithm: "RS256")

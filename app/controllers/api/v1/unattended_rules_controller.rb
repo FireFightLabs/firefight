@@ -2,6 +2,7 @@
 # approval rules.
 class Api::V1::UnattendedRulesController < Api::V1::ApiController
   before_action :set_rule, only: [ :update, :destroy ]
+  before_action :refuse_token_changes, except: :index
 
   def index
     authorize!(Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_READ)
@@ -31,6 +32,11 @@ class Api::V1::UnattendedRulesController < Api::V1::ApiController
   end
 
   private
+
+  def refuse_token_changes
+    refusal = Ability::UnattendedRule.change_blocked_reason(AbilityGateway::SOURCE_API)
+    render json: error_response("token_refused", refusal), status: :unprocessable_entity if refusal
+  end
 
   def set_rule
     @rule = current_workspace.unattended_rules.find(params[:id])

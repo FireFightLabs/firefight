@@ -25,10 +25,10 @@ class ReinstallSlackTest < ActionDispatch::IntegrationTest
     @workspace.mark_disconnected!(Workspace::Connection::DISCONNECTED_TOKEN_REVOKED)
     SlackWorkspaceSetupWorkflow.expects(:start!).never
 
-    post reinstall_slack_path, headers: inertia_headers
+    post reinstall_slack_path
 
-    assert_response :conflict
-    assert_equal install_slack_app_path, response.headers["X-Inertia-Location"]
+    assert_response :success
+    assert_select "form#continue[action=?][method=post]", install_slack_app_path
     assert_equal @workspace.id, session[:reinstalling_workspace_id]
     assert_equal @workspace.platform_id, session[:pending_team_id]
 
@@ -49,7 +49,7 @@ class ReinstallSlackTest < ActionDispatch::IntegrationTest
   test "choosing a different Slack workspace reinstalls nothing and creates nothing" do
     post reinstall_slack_path
 
-    assert_redirected_to install_slack_app_path
+    assert_select "form#continue[action=?]", install_slack_app_path
     assert_no_changes -> { @workspace.reload.updated_at } do
       assert_no_difference -> { Workspace.count } do
         install(team_id: "T_SOMEONE_ELSE", name: "Someone Else", token: "xoxb-other")

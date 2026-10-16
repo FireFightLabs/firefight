@@ -151,6 +151,27 @@ class McpOauthFlowTest < ActionDispatch::IntegrationTest
     assert_select "select[name=workspace_id]", false
   end
 
+  test "the consent screen says where it sends you back and what the client will be able to do" do
+    post oauth_register_path, params: { client_name: "Remote agent", redirect_uris: [ "https://agent.example.com/oauth/callback" ] }, as: :json
+    client_id = JSON.parse(response.body).fetch("client_id")
+    sign_in(workspace_memberships(:bob_workspace_one))
+
+    get oauth_authorization_path(authorize_params(client_id).merge(redirect_uri: "https://agent.example.com/oauth/callback"))
+
+    assert_response :success
+    assert_select "p.destination", text: "After you authorize, your browser goes back to agent.example.com."
+    assert_select "ul.scopes li", text: OauthHelper::SCOPE_WORDS.fetch("mcp:read")
+  end
+
+  test "a client on this computer is named as one" do
+    client_id = register_client
+    sign_in(workspace_memberships(:bob_workspace_one))
+
+    get oauth_authorization_path(authorize_params(client_id))
+
+    assert_select "p.destination", text: "After you authorize, your browser goes back to an app on this computer (localhost:33418)."
+  end
+
   test "a member of several workspaces picks which one the agent reaches" do
     client_id = register_client
     sign_in_alice

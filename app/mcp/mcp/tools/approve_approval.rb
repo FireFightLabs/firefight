@@ -8,6 +8,8 @@ module Mcp
                   "then retries their parked call with approval_id. Docs: #{Docs::MCP_SERVER}"
       annotations(**WRITE)
       authorize_as Ability::Action::RESOURCE_APPROVALS, Ability::Action::ACTION_UPDATE
+
+      def self.token_refusal(workspace, args) = workspace.ability_approvals.find_by(id: args[:id].to_s)&.approve_with_token_blocked_reason
       input_schema(
         properties: {
           id: { type: "string", description: "Approval id" }

@@ -165,6 +165,31 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
     assert_equal "New User", result[:real_name]
   end
 
+  test "get_user_info says whether Slack confirmed the person's email" do
+    stub_get_user_info
+    assert_equal true, @adapter.get_user_info(user_id: "U_NEW_USER")[:email_confirmed]
+
+    Slack::Client.stubs(:get_user_info).returns({ user: { id: "U_NEW_USER", profile: { email: "x@example.com" } } })
+    assert_equal false, @adapter.get_user_info(user_id: "U_NEW_USER")[:email_confirmed]
+  end
+
+  test "guests and people from another organisation are refused, members and people from the same organisation are not" do
+    member = { raw: { id: "U1", team_id: @workspace.platform_id } }
+    guest = { raw: { id: "U2", team_id: @workspace.platform_id, is_restricted: true } }
+    single_channel_guest = { "raw" => { "id" => "U3", "team_id" => @workspace.platform_id, "is_ultra_restricted" => true } }
+    outsider = { raw: { id: "U4", team_id: "T_ELSEWHERE" } }
+    stranger = { raw: { id: "U5", is_stranger: true } }
+    same_organisation = { raw: { id: "U6", team_id: "T_SIBLING", enterprise_user: { enterprise_id: "E1", teams: [ "T_SIBLING", @workspace.platform_id ] } } }
+
+    assert_nil @adapter.member_refusal(profile: member)
+    assert_nil @adapter.member_refusal(profile: same_organisation)
+    assert_nil @adapter.member_refusal(profile: {}), "a profile Slack did not give says nothing"
+    assert_equal Slack::WorkspaceAdapter::GUEST_REFUSAL, @adapter.member_refusal(profile: guest)
+    assert_equal Slack::WorkspaceAdapter::GUEST_REFUSAL, @adapter.member_refusal(profile: single_channel_guest)
+    assert_equal Slack::WorkspaceAdapter::OUTSIDER_REFUSAL, @adapter.member_refusal(profile: outsider)
+    assert_equal Slack::WorkspaceAdapter::OUTSIDER_REFUSAL, @adapter.member_refusal(profile: stranger)
+  end
+
   test "get_user_info translates ApiError to AdapterError" do
     stub_get_user_info(raises: AdapterError.new("user_not_found"))
     assert_raises(AdapterError) do

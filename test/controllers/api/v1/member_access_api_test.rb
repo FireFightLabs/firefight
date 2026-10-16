@@ -2,6 +2,8 @@ require "test_helper"
 
 # GET and PATCH /api/v1/member_access read and set the Who can do what rows through the same model call as the dashboard.
 class Api::V1::MemberAccessApiTest < ActionDispatch::IntegrationTest
+  include ApprovesHeldApiCalls
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @admin = workspace_memberships(:alice_workspace_one)

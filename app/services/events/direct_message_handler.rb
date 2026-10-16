@@ -18,6 +18,9 @@ module Events
       thread_id = event["thread_ts"] || event["ts"]
       return tell(workspace, channel_id, thread_id, NOT_A_MEMBER) if workspace.adapter.sender_from_another_organisation?(payload: payload)
 
+      refusal = WorkspaceMemberProvisioner.refusal(workspace: workspace, platform_user_id: event["user"], adapter: workspace.adapter)
+      return tell(workspace, channel_id, thread_id, refusal) if refusal
+
       sender = Conversation::Opener.member(workspace, event["user"])
       return tell(workspace, channel_id, thread_id, AuthorizedDispatch::UNRESOLVED_MESSAGE) unless sender
 

@@ -182,6 +182,64 @@ class WorkspaceMembership < ApplicationRecord
   def read_packs = @read_packs ||= self.class.read_packs_of(workspace)
   private :read_packs
 
+  # Said to a removed person wherever they reach Firefight, so being removed is never undone by using the chat.
+  REMOVED_REFUSAL = "An admin removed you from this Firefight workspace. Ask an admin if you should be added back.".freeze
+
+  scope :current_members, -> { where(removed_at: nil) }
+  scope :removed, -> { where.not(removed_at: nil) }
+
+  def removed? = removed_at.present?
+
+  # Why by cannot remove this member, or nil.
+  def removal_blocked_reason(by)
+    return "#{display_name} was already removed." if removed?
+    return "You can't remove yourself. Ask another admin." if by && by.id == id
+    return "Only an owner can remove an owner." if owner_role? && !by&.owner_role?
+
+    "#{display_name} is the only owner, so they can't be removed." if owner_role? && owner_count == 1
+  end
+
+  def restore_blocked_reason = ("#{display_name} is already a member." unless removed?)
+
+  # One guarded write, so two admins removing at once remove once.
+  def mark_removed!
+    won = self.class.where(id: id, removed_at: nil).update_all(removed_at: Time.current, updated_at: Time.current) == 1
+    reload
+    won
+  end
+
+  def restore!
+    won = self.class.where(id: id).where.not(removed_at: nil).update_all(removed_at: nil, updated_at: Time.current) == 1
+    reload
+    won
+  end
+
+  # What removing each member would take away, in one subquery each for the whole list.
+  scope :with_access_counts, lambda {
+    select(
+      "workspace_memberships.*",
+      "(SELECT COUNT(*) FROM api_keys WHERE api_keys.workspace_membership_id = workspace_memberships.id " \
+      "AND api_keys.deleted_at IS NULL AND api_keys.active) AS personal_token_count",
+      "(SELECT COUNT(DISTINCT application_id) FROM oauth_access_tokens WHERE oauth_access_tokens.resource_owner_id = " \
+      "workspace_memberships.id AND oauth_access_tokens.revoked_at IS NULL) AS connected_agent_count",
+      sanitize_sql_array([ "(SELECT COUNT(*) FROM workspace_memberships owners WHERE owners.workspace_id = " \
+                           "workspace_memberships.workspace_id AND owners.role = ? AND owners.removed_at IS NULL) AS owner_count",
+                           roles[:owner] ])
+    )
+  }
+
+  def live_personal_token_count
+    has_attribute?(:personal_token_count) ? self[:personal_token_count].to_i : personal_api_keys.where(deleted_at: nil, active: true).count
+  end
+
+  def owner_count
+    has_attribute?(:owner_count) ? self[:owner_count].to_i : workspace.workspace_memberships.owner_role.count
+  end
+
+  def connected_agent_count
+    has_attribute?(:connected_agent_count) ? self[:connected_agent_count].to_i : oauth_access_tokens.where(revoked_at: nil).distinct.count(:application_id)
+  end
+
   scope :by_role, ->(role) { where(role: role) }
   scope :owners, -> { where(role: :owner) }
   scope :admins, -> { where(role: :admin) }

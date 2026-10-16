@@ -69,7 +69,10 @@ class Workspace < ApplicationRecord
   has_many :api_keys, dependent: :destroy
   has_one :onboarding, class_name: "WorkspaceOnboarding", dependent: :destroy
   has_many :invitations, class_name: "WorkspaceInvitation", dependent: :delete_all
-  has_many :workspace_memberships, dependent: :destroy
+  has_many :all_workspace_memberships, class_name: "WorkspaceMembership", dependent: :destroy, inverse_of: :workspace
+  # Its members now. One an admin removed keeps its row for the history that names it (removed_memberships).
+  has_many :workspace_memberships, -> { where(removed_at: nil) }, inverse_of: :workspace
+  has_many :removed_memberships, -> { where.not(removed_at: nil) }, class_name: "WorkspaceMembership", inverse_of: :workspace
   has_many :users, through: :workspace_memberships
   belongs_to :created_by, class_name: "User", optional: true
 

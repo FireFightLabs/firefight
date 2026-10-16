@@ -7,6 +7,8 @@ module Mcp
       annotations(**DESTRUCTIVE)
       ends_something
       authorize_as Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_DELETE
+
+      def self.token_refusal(_workspace, _args) = PolicyRule.approval_change_blocked_reason(AbilityGateway::SOURCE_MCP)
       input_schema(
         properties: {
           id: { type: "string", description: "Id of the rule to delete" },

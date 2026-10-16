@@ -80,6 +80,7 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
       uid: "U_BRAND_NEW",
       info: { email: "brand.new@example.com", team_id: workspace.platform_id, team_name: workspace.name }
     )
+    stub_get_user_info
 
     assert_difference -> { workspace.workspace_memberships.count }, 1 do
       get "/auth/slack_openid/callback"

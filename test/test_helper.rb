@@ -42,6 +42,7 @@ module ActiveSupport
     include ProviderDocsHelper
     include HandbookTestHelper
     include QueryCountHelper
+    include PersonApprovalHelper
 
     # Whether a provider searches tools is kept for the whole process, so what one test's stubbed keys allowed is forgotten
     # before the next.

@@ -59,11 +59,11 @@ class Workflow::AgentRun
   # A workflow's identity asks nobody for a pack. Its page says what it needs and an admin grants it there.
   def pack_refused!(_action_key, _tool_call_id) = nil
 
-  def tool_call(action_key:, params: {}, scope: {}, approval_id: nil, holdable: true, **, &block)
+  def tool_call(action_key:, params: {}, scope: {}, approval_id: nil, holdable: true, asks_a_person: false, **, &block)
     value = Chat::ToolCall.run!(
       workspace: @workspace, principal: acting_principal, action_key: action_key, params: params, scope: scope, holdable: holdable,
       context: { source: AbilityGateway::SOURCE_WORKFLOW, triggered_by_label: @run.ledger_label, approval_id: approval_id || @approval_id,
-                 **Workflow::Run::Step.ledger_context(@run, @record) }.compact
+                 asks_a_person: (true if asks_a_person), **Workflow::Run::Step.ledger_context(@run, @record) }.compact
     ) do |authorization|
       @raw = block.call(authorization)
     end

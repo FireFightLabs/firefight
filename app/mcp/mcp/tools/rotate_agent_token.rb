@@ -4,8 +4,8 @@ module Mcp
       tool_name FirefightTools::ROTATE_AGENT_TOKEN
       description "Issue a new token for an agent. The old one keeps working, so the agent stays up " \
                   "while its configuration is updated, and revoking the old one is a separate " \
-                  "deliberate step with revoke_agent_token. The new token is returned once and " \
-                  "never again. Authorizes as permissions, which is admin-only. " \
+                  "deliberate step with revoke_agent_token. The new token is shown once to the person the call runs as and " \
+                  "never in this answer. Authorizes as permissions, which is admin-only. " \
                   "Docs: #{Docs::PERMISSIONS}"
       annotations(**WRITE)
       input_schema(
@@ -16,6 +16,8 @@ module Mcp
         required: [ "slug" ]
       )
       authorize_as Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_UPDATE
+
+      def self.mints_token?(_workspace, _args) = true
 
       def self.perform_with_principal(workspace:, principal:, args:)
         agent = workspace.agents.standalone.find_by!(slug: args[:slug].to_s)

@@ -30,8 +30,10 @@ class Api::V1::AlertSourcesController < Api::V1::ApiController
   def destroy
     authorize!(Ability::Action::RESOURCE_ALERTS, Ability::Action::ACTION_DELETE)
 
-    @alert_source.destroy!
+    @alert_source.destroy_guarded!
     head :no_content
+  rescue OptionGuards::Blocked => e
+    render json: error_response("alert_source_in_use", e.message), status: :unprocessable_entity
   end
 
   private

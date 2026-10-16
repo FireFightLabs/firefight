@@ -6,6 +6,7 @@ export type FlashData = {
   alert?: string
   // Custom flash keys sent via `flash.inertia[:key]` on the server.
   api_key_token?: string
+  webhook_signing_secret?: string
   // Pages elsewhere the toast points to, such as a provider's settings for what Firefight left there.
   links?: FlashLink[]
 }

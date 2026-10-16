@@ -244,6 +244,13 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Shows one person a Firefight token minted for them, seen by them alone and gone once they reload, so the platform
+  # keeps no copy either. title names what the token is for.
+  # @return [Hash] { success: true }
+  def post_token_once(user_id:, title:, token:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Tells one person why Halon will not do what they asked: in the thread they asked in, seen by them alone, and in their
   # direct messages, where it stays once they reload.
   # @return [Hash] { success: true }
@@ -1245,8 +1252,17 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # @return [Hash] { user_id:, display_name:, real_name:, avatar_url:, email:, timezone: }
+  # email_confirmed says the platform confirmed the person holds the email.
+  # @return [Hash] { user_id:, display_name:, real_name:, avatar_url:, email:, email_confirmed:, timezone: }
   def get_user_info(user_id:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Why a person the platform describes may not act through Firefight, such as a guest or someone from another
+  # organisation, in words for them, or nil for one of the workspace's own. profile is what get_user_info answered, or
+  # the same saved.
+  # @return [String, nil]
+  def member_refusal(profile:)
     raise NotImplemented.new(__method__, self.class)
   end
 

@@ -23,7 +23,8 @@ class AiAccountSignInTest < ActiveSupport::TestCase
     flow = AiAccountSignIn.new(@workspace).begin(redirect_uri: "https://ff.example.com/callback")
     query = Rack::Utils.parse_query(URI.parse(flow[:url]).query)
     assert_equal [ "firefight-client", "S256", "openid email" ], query.values_at("client_id", "code_challenge_method", "scope")
-    assert_equal %w[provider state verifier], flow[:pending].keys.sort
+    assert_equal %w[provider state verifier workspace_id], flow[:pending].keys.sort
+    assert_equal @workspace.id, flow[:pending]["workspace_id"]
 
     id_token = "x.#{Base64.urlsafe_encode64({ email: 'ana@acme.test' }.to_json, padding: false)}.y"
     token = Net::HTTPOK.new("1.1", "200", "OK")
@@ -40,6 +41,20 @@ class AiAccountSignInTest < ActiveSupport::TestCase
     assert_equal [ AiProviders::KIND_OAUTH, "Signed in as ana@acme.test." ], [ account.kind, account.credential_summary ]
     config = account.llm_context.config
     assert_equal [ "chatgpt-access", "https://api.example.com/v1" ], [ config.openai_api_key, config.openai_api_base ]
+  end
+
+  test "a sign in started for one workspace is refused when it comes back to another, and nothing is added" do
+    FeatureFlags.enable!(@workspace, FeatureFlags::CHATGPT_SIGN_IN)
+    other = workspaces(:slack_workspace_two)
+    FeatureFlags.enable!(other, FeatureFlags::CHATGPT_SIGN_IN)
+    flow = AiAccountSignIn.new(@workspace).begin(redirect_uri: "https://ff.example.com/callback")
+    Net::HTTP.expects(:start).never
+
+    error = assert_raises(AiAccountSignIn::Failed) do
+      AiAccountSignIn.new(other).finish!(flow[:pending], code: "the-code", state: flow[:pending]["state"], redirect_uri: "https://ff.example.com/callback")
+    end
+    assert_equal AiAccountSignIn::OTHER_WORKSPACE, error.message
+    assert_empty other.workspace_ai_accounts
   end
 
   test "a callback whose state does not match is refused" do

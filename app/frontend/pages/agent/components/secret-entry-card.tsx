@@ -13,11 +13,12 @@ interface SecretEntryCardProps {
 }
 
 // A secret a tool call handed to the person who asked. An entry opens a field where they type a value Halon never sees,
-// and a reveal shows a credential the tool made, read from the provider each time. The server says who may act and why
-// not, so the card decides nothing.
+// a reveal shows a credential the tool made, read from the provider each time, and a token is a Firefight token shown
+// once. The server says who may act and why not, so the card decides nothing.
 export function SecretEntryCard({ conversationId, entry }: SecretEntryCardProps) {
   const [ open, setOpen ] = useState(false)
   const entering = entry.kind === SECRET_ENTRY_KINDS.ENTER
+  const revealLabel = entry.kind === SECRET_ENTRY_KINDS.TOKEN ? "Show token" : "Reveal"
 
   function openDialog() {
     setOpen(true)
@@ -39,7 +40,7 @@ export function SecretEntryCard({ conversationId, entry }: SecretEntryCardProps)
       {entry.open ? (
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="primary" disabled={entry.blockedReason != null} onClick={openDialog}>
-            {entering ? "Enter value" : "Reveal"}
+            {entering ? "Enter value" : revealLabel}
           </Button>
           <span className="text-[12.5px] text-ink-3">{entry.blockedReason ?? entry.statusLine}</span>
         </div>
