@@ -19,6 +19,17 @@ module Chat::Watch::Shown
     Chat::Watch::STATUS_STOPPED => "%s: stopped"
   }.freeze
 
+  # How a watch stands in a word, on its card on the platform.
+  STATE_WORDS = {
+    Chat::Watch::STATUS_ACTIVE => "Watching", Chat::Watch::STATUS_SUCCEEDED => "Done", Chat::Watch::STATUS_FAILED => "Failed",
+    Chat::Watch::STATUS_TIMED_OUT => "Timed out", Chat::Watch::STATUS_STOPPED => "Stopped"
+  }.freeze
+  # The step a watch going is on, on its card.
+  STEP_NOW = {
+    Chat::Watch::Step::STATUS_WAITING => "Waiting for %s to start.", Chat::Watch::Step::STATUS_RUNNING => "%s is running.",
+    Chat::Watch::Step::STATUS_REPAIRING => "Finding a better way to follow %s."
+  }.freeze
+
   module_function
 
   # Such as Watch "Deploy finished", which starts a line.
@@ -104,6 +115,25 @@ module Chat::Watch::Shown
 
     now = "#{current.label}: #{current.running? && current.summary.present? ? current.summary : STEP_PHRASES.fetch(current.status)}"
     steps.size > 1 ? "#{steps.count(&:over?)} of #{steps.size} done. #{now}" : now
+  end
+
+  def state_word(watch) = STATE_WORDS.fetch(watch.status)
+
+  # What the watch is for, as its card names it. That is the person's purpose, or its title when it has none.
+  def what(watch) = (watch.purpose.presence || watch.title).to_s.squish.sub(/[.!?]+\z/, "").upcase_first
+
+  # One short line in plain words on why it stands where it does. That is the step it is on while it goes, and why it
+  # ended once it has. A watch that ended before the line was kept says how it ended.
+  def why(watch)
+    return watch.end_reason.presence || watch.outcome.to_s unless watch.active?
+
+    steps = watch.steps.to_a
+    current = steps.find { |step| !step.over? && step.ready? } || steps.find { |step| !step.over? }
+    now = if current.nil? then "Every step is over."
+    elsif current.ready? then format(STEP_NOW.fetch(current.status), current.label)
+    else current.prerequisites_words
+    end
+    steps.size > 1 ? "#{steps.count(&:over?)} of #{steps.size} steps done. #{now}" : now
   end
 
   # Its summary says which deploy it waits for, such as "Waiting for a new deploy of web to start (live now: cf0bcbe since 15:40 UTC)."

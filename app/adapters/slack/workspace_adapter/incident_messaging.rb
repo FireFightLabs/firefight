@@ -492,12 +492,13 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     end
   end
 
-  # A workspace without the agent features still gets the answer, just posted in one go at the end.
+  # A workspace without the agent features still gets the answer, just posted in one go at the end. Its refusal is
+  # remembered, so it is not asked again for every answer.
   def start_agent_answer(channel_id:, thread_id:, user_id:)
+    return { answer_id: nil } unless agent_sessions?
+
+    open_agent_session(channel_id: channel_id, thread_id: thread_id)
     translate_errors do
-      Slack::Client.set_agent_session_status(
-        workspace: @workspace, channel: channel_id, thread_ts: thread_id, status: "processing"
-      )
       stream = Slack::Client.start_stream(
         workspace: @workspace, channel: channel_id, thread_ts: thread_id,
         recipient_user_id: user_id, recipient_team_id: @workspace.platform_id
@@ -742,20 +743,22 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     open_modal(trigger_id: trigger_id, view: Slack::Modals::HeldCallDetails.build(held_call))
   end
 
-  def post_watch_update(channel_id:, thread_id:, update:)
-    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
-                          text: Slack::Messages::WatchUpdate.fallback(update), blocks: Slack::Messages::WatchUpdate.build(update))
+  def post_watch_card(channel_id:, thread_id:, card:)
+    with_rich_blocks do |rich|
+      post_where(channel_id, thread_id, text: Slack::Messages::WatchCard.fallback(card), blocks: Slack::Messages::WatchCard.build(card, rich: rich))
+    end
   end
 
-  def post_watch_update_to_user(user_id:, update:, conversation_id: nil)
-    post_message(channel_id: user_id, text: Slack::Messages::WatchUpdate.fallback(update),
-                 blocks: Slack::Messages::WatchUpdate.build(update, direct: true, conversation_id: conversation_id))
-  end
-
-  def update_watch_update(channel_id:, message_id:, update:, direct: false, conversation_id: nil)
-    update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::WatchUpdate.fallback(update),
-                   blocks: Slack::Messages::WatchUpdate.build(update, direct: direct, conversation_id: conversation_id))
+  def update_watch_card(channel_id:, message_id:, card:)
+    with_rich_blocks do |rich|
+      update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::WatchCard.fallback(card),
+                     blocks: Slack::Messages::WatchCard.build(card, rich: rich))
+    end
     { success: true }
+  end
+
+  def post_watch_end(channel_id:, thread_id:, card:)
+    post_where(channel_id, thread_id, text: Slack::Messages::WatchCard.fallback(card), blocks: Slack::Messages::WatchCard.ended(card))
   end
 
   def post_chat_plan(channel_id:, thread_id:, plan:)
@@ -959,6 +962,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
 
   # Slack holds the spinner for an hour unless the session is set back to active.
   def clear_agent_session(channel_id:, thread_id:)
+    return unless agent_sessions?
+
     Slack::Client.set_agent_session_status(
       workspace: @workspace, channel: channel_id, thread_ts: thread_id, status: "active"
     )
@@ -1034,6 +1039,13 @@ module Slack::WorkspaceAdapter::IncidentMessaging
 
   private
 
+  # In a thread when there is one, otherwise a message of its own, such as to a person's direct messages by their user id.
+  def post_where(channel_id, thread_id, text:, blocks:)
+    return post_message(channel_id: channel_id, text: text, blocks: blocks) if thread_id.blank?
+
+    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id, text: text, blocks: blocks)
+  end
+
   # Where the workspace's Slack refused one of the newer blocks (plan, card), remembered on the workspace, so its messages
   # go as plain blocks without asking again until RETRY_RICH_BLOCKS_AFTER has passed, in case the workspace changed plans.
   # The key keeps the name it had when plan blocks were the only ones, so a refusal already remembered still counts.
@@ -1054,12 +1066,37 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     yield(false)
   end
 
-  def rich_blocks?
-    refused = @workspace.platform_data.to_h[RICH_BLOCKS_REFUSED_AT]
-    refused.blank? || Time.zone.parse(refused.to_s) < RETRY_RICH_BLOCKS_AFTER.ago
+  def rich_blocks? = !refused_since?(RICH_BLOCKS_REFUSED_AT, RETRY_RICH_BLOCKS_AFTER)
+
+  def rich_blocks_refused! = remember_refusal!(RICH_BLOCKS_REFUSED_AT)
+
+  # Where the workspace's Slack refused an agent session, for want of the agent features or of the app being declared
+  # one, remembered the same way, so answers are posted whole without asking again for a day.
+  AGENT_SESSIONS_REFUSED_AT = "agent_sessions_refused_at".freeze
+  RETRY_AGENT_SESSIONS_AFTER = 1.day
+  # Slack's answers that are about the workspace or the app, never one channel or one moment, so only these are remembered.
+  WORKSPACE_REFUSALS = %w[not_authorized feature_disabled not_allowed_token_type missing_scope].freeze
+
+  def agent_sessions? = !refused_since?(AGENT_SESSIONS_REFUSED_AT, RETRY_AGENT_SESSIONS_AFTER)
+
+  def open_agent_session(channel_id:, thread_id:)
+    translate_errors do
+      Slack::Client.set_agent_session_status(workspace: @workspace, channel: channel_id, thread_ts: thread_id, status: "processing")
+    end
+  rescue AdapterError => error
+    if WORKSPACE_REFUSALS.include?(error.message[/error: ([a-z_]+)/, 1])
+      Rails.logger.info({ event: "slack.agent_sessions_refused", workspace_id: @workspace.id, error: error.message }.to_json)
+      remember_refusal!(AGENT_SESSIONS_REFUSED_AT)
+    end
+    raise
   end
 
-  def rich_blocks_refused! = @workspace.remember_platform_data!(RICH_BLOCKS_REFUSED_AT, Time.current.iso8601)
+  def refused_since?(key, retry_after)
+    refused = @workspace.platform_data.to_h[key]
+    refused.present? && Time.zone.parse(refused.to_s) >= retry_after.ago
+  end
+
+  def remember_refusal!(key) = @workspace.remember_platform_data!(key, Time.current.iso8601)
 
   # Stops the stream that showed the run's steps in its thread, keeping them, and clears the working state. A stream that
   # already ended is left as it was, since the answer follows it either way.

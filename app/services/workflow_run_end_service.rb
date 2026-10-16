@@ -74,7 +74,7 @@ class WorkflowRunEndService
 
   def stop_watches!
     Chat::Watch.active.joins(:chat).where(chats: { owner_type: Workflow::Run::Step.name, owner_id: @run.steps.select(:id) }).find_each do |watch|
-      Conversation::Watches.finish!(watch, Chat::Watch::STATUS_STOPPED, "Stopped, since the run it was for ended.")
+      Conversation::Watches.finish!(watch, Chat::Watch::STATUS_STOPPED, "Stopped, since the run it was for ended.", end_reason: "The run it was for ended.")
     end
   end
 
