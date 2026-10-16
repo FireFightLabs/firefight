@@ -13,9 +13,11 @@ class CodeBoxJobsTest < ActiveJob::TestCase
     CodeBoxSweepJob.perform_now
   end
 
-  test "preparing the image copy hands over to the provider's one place for it" do
-    Integrations::CodeReading.expects(:prepare_image!).with(SandboxProviders::BOAT)
+  test "preparing a workspace's image copy hands over to the provider's one place for it, and a job naming no workspace does nothing" do
+    workspace_id = workspaces(:slack_workspace_one).id
+    Integrations::CodeReading.expects(:prepare_image!).once.with(SandboxProviders::BOAT, workspace_id)
 
+    SandboxImageCopyJob.perform_now(SandboxProviders::BOAT, workspace_id)
     SandboxImageCopyJob.perform_now(SandboxProviders::BOAT)
   end
 

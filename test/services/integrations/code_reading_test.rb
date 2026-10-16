@@ -497,8 +497,10 @@ module Integrations
       fresh = PreparedCopy.kept!(SandboxProviders::DOCKER, @workspace, "acme/web", "key-1", kept_ref: "kept-fresh", commit: "abc").first
       old.update_columns(last_used_at: (PreparedCopy::KEPT_UNUSED_FOR + 1.day).ago)
 
+      CodeBox.create!(workspace: @workspace, key: "investigation-old", provider: SandboxProviders::DOCKER, box_ref: "box-old", address: "http://box",
+                      secret: "s", last_used_at: Time.current, stopped_at: Time.current)
       CodeReading.sweep_prepared!
-      assert_enqueued_with(job: SandboxImageCopyJob, args: [ SandboxProviders::DOCKER ]) { CodeReading.sweep! }
+      assert_enqueued_with(job: SandboxImageCopyJob, args: [ SandboxProviders::DOCKER, @workspace.id ]) { CodeReading.sweep! }
 
       assert_equal [ "kept-old" ], keeping.discarded
       assert_not PreparedCopy.exists?(old.id)
