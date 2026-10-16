@@ -26,7 +26,7 @@ class Slack::Messages::LifecycleReasonsTest < ActiveSupport::TestCase
   test "escalation shows the reason as the body before who it went to, in the channel and the direct message" do
     channel = Slack::Messages::Escalation.build(@incident, escalated_by: @member, escalated_to: @target, reason: REASON, rich: true)
     assert_body_after_divider(channel)
-    assert_equal "alert", channel.first[:type]
+    assert_equal "section", channel.first[:type]
     assert_match "Escalated to #{Slack::Mrkdwn.mention(@target)} by #{Slack::Mrkdwn.mention(@member)}", channel.first.dig(:text, :text)
 
     direct = Slack::Messages::Escalation.direct_message(@incident, escalated_by: @member, escalation_event_id: "event", reason: REASON)

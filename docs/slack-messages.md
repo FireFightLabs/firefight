@@ -35,35 +35,26 @@ footer     Updated by @user · Next …       context block, small grey text
 
 ## Cards and alerts
 
-Slack's card and alert blocks are how a message says "this is one thing" and "this is how it ended". Both are built
-with the shared builders in `app/adapters/slack/blocks/`, never by hand, and each draws itself rich or plain:
+Slack's card block is how a message says "this is one thing", and an alert line how it ended. Both are built with the
+shared builders in `app/adapters/slack/blocks/` (see An investigation in a channel for their limits and fallback),
+never by hand:
 
 ```ruby
-card = Slack::Blocks::Card.new(title: "INC-003 · Checkout is slow", subtitle: "Minor · Investigating · Lead <@U1>",
-                               body: summary, quoted: true, actions: [ join, subscribe, open ], icon: Slack::Emoji::DECLARED)
-card.to_blocks(rich: rich)
+Slack::Messages::WholeCard.build(rich: rich, title: "INC-003 · Checkout is slow", subtitle: "Minor · Investigating · Lead <@U1>",
+                                 body: summary, quoted: true, actions: [ join, subscribe, open ], icon: Slack::Emoji::DECLARED)
 
-alert = Slack::Blocks::Alert.new(level: Slack::Blocks::Alert::SUCCESS, text: "Resolved by <@U1> after 1h 12m",
-                                 emoji: Slack::Emoji::RESOLVED)
-alert.to_blocks(rich: rich)
+Slack::Blocks::Alert.new(level: Slack::Blocks::Alert::LEVEL_SUCCESS, text: "Resolved by <@U1> after 1h 12m",
+                         emoji: Slack::Emoji::RESOLVED).to_blocks(rich: rich)
 ```
 
-- **A card** is a title, an optional subtitle and body, and at most three buttons (Slack's limit, an `ArgumentError`
-  past it). The announcement, an incident update and a subscriber's direct message are cards. Plain, a card is the
-  anatomy below: a bold title opening with its emoji, the subtitle as a context line, a divider, the body and the
-  buttons.
-- **An alert** is one line saying how something ended or changed, at a level (`default`, `info`, `warning`, `error`,
-  `success`). Resolved (success), reopened and escalated (warning) are alerts. Plain, an alert is the bold section title.
-- **Nothing is cut to fit.** A card's title and subtitle hold 150 characters and its body 200, an alert 200. A title or
-  alert past its limit draws plain, and a body past its limit is drawn whole in sections under the card. `quoted: true`
-  marks a body a person wrote, quoted line by line wherever it is drawn as sections.
-- **Rich is decided per workspace and per kind** by `WorkspaceAdapter::RichBlocks#with_rich_blocks(kind)`, which yields
-  whether to draw rich and posts the same message plain at once when Slack answers `invalid_blocks`
-  (`AdapterError::Unrenderable`). The refusal is remembered for that kind alone
-  (`platform_data["card_blocks_refused_at"]`, `"alert_blocks_refused_at"`, `"plan_blocks_refused_at"`), so a refused
-  alert never takes cards with it, and is tried again after a week. A message that uses a kind posts inside
-  `with_rich_blocks` for it. Slack's reference lists the alert block for modals only, so a workspace whose Slack refuses
-  it in messages pays one refused call a week and reads the plain title otherwise.
+- **The announcement, an incident update and a subscriber's direct message are cards.** Their body is what a person
+  wrote, so they go through `WholeCard`, which never cuts it: a body that fits Slack's card goes inside, a longer one
+  (and every body when the card is drawn plain) follows as sections, quoted line by line with `quoted: true`.
+- **Resolved, reopened and escalated are alert lines**, `Blocks::Alert` at success or warning. Slack refuses the alert
+  block in messages, so in a message it is always a section led by its emoji. `emoji:` gives it the concept's own
+  (`Slack::Emoji::REOPENED`) in place of the level's, so a reopen and an escalation never look alike.
+- **Every post or update of a card goes inside `with_rich_blocks`**, which posts the plain version at once when the
+  workspace's Slack refuses the newer blocks.
 
 ## The divider is not decoration
 
@@ -243,6 +234,18 @@ entire workspace.
 Text a responder typed into one of our own modals is trusted, because they
 could have typed it into the channel anyway.
 
+**Every link Halon writes reaches Slack as one people can follow.**
+`Formatting.markdown_to_mrkdwn` turns markdown links (an address may hold one
+level of parentheses) into `<url|label>`, keeps addresses out of the bold
+conversion, and keeps a label free of `|` and `>`. Text escaped before
+conversion keeps its escaped links escaped, which is how outside text is kept
+from faking one. The short answer's plain lines use
+`Formatting.escaped_with_links`, which escapes everything except the links the
+agent wrote. A streamed answer is markdown, so `append_agent_text` writes
+Slack's own `<url|label>` as `[label](url)`, and `Conversation::ChunkBuffer`
+with `whole_markup` (Slack's cadence) never cuts a link, bold or code across
+two appends.
+
 ## Naming people
 
 A person is never written as `<@#{id}>` by hand. Someone who joined by email,
@@ -311,8 +314,8 @@ incident already has a write-up.
 ## An investigation in a channel
 
 A Halon run is followed from the channel and worked in the thread. Only what everyone in the channel should see is
-also sent to the channel (`post_threaded_message(broadcast: true)`, Slack's "Also send to channel"): the answer, a fix
-starting, and how a fix ended. Nothing else is broadcast, a stop included, which the checklist says.
+also sent to the channel (`post_threaded_message(broadcast: true)`, Slack's "Also send to channel"): the answer and a
+fix starting. Nothing else is broadcast, a stop or a fix ending included, which the checklists say as they redraw.
 
 - **The run's first message is its checklist** (`InvestigationRun.checklist`), the thread's parent, redrawn in place
   with `chat.update` as the run moves (`update_investigation_progress`). It is Slack's `plan` block, one task per kind
@@ -332,25 +335,54 @@ starting, and how a fix ended. Nothing else is broadcast, a stop included, which
 - **The full answer is the next thread reply** (`InvestigationRun.answer_detail`), never broadcast: the summary as the
   agent wrote it, every claim with its sources, the fix step by step with what it sends, the gaps in full and "Was this
   answer right?".
-- **A fix is the same kind of checklist** (`FixProgress.build`), posted once in the thread and the channel and redrawn
-  in place. Each step is its short name (`RemediationStep#shown_title`), never the instructions, with how it stands. A
-  failed or declined step says why in plain words (`failure_line`, "Couldn't open a pull request with the change: the
-  code sandbox didn't start."), never the tool's own error, which stays on the run page. Under the plan come the rows
-  someone can act on (Mark done, Run and Dismiss, Try again), then a footer and Undo fix, Cancel fix and Open in
-  Firefight. Its end is posted once each time the fix ends (`FixProgress.ended`, claimed with `ending_told_at`).
+- **A fix is the same kind of checklist** (`FixProgress.build`), named for its incident ("Fix for INC-003", "Undo for
+  INC-003"), posted once in the thread and the channel when it is applied and redrawn in place. The redraw is the
+  record: how the fix stands is the line under the checklist ("Applying the fix · 1 of 2 steps done", "Fix applied · 2
+  of 2 steps done", "Fix stopped: 1 of 2 steps failed · 1 of 2 steps done"), never a second post, and Try again
+  redraws the same message back to applying. Each step is its short name (`RemediationStep#shown_title`), never the
+  instructions, with how it stands:
+  - A step that went through shows what it produced as a link (`RemediationStep::Outcome`, kept in `outcome_label` and
+    `outcome_url` when the step ends): "Opened a pull request: PR #856", where PR #856 is a `link` element in the plan
+    block and `<url|PR #856>` in mrkdwn.
+  - A step whose outcome already held when it ran says so (`already_done_reason`): "Already done: Uros Nikolic is
+    already in #inc-003".
+  - A step waiting on a person is pending, never in progress, so it never looks like work under way, and its line says
+    who it waits on: who was asked to approve it ("Waiting for Ana Lee or Uros Nikolic to approve it before it runs.")
+    or, once approved, who runs it ("Ana Lee approved it. Waiting for Uros Nikolic to run it.").
+  - A failed or declined step says why in plain words (`failure_line`, "Couldn't open a pull request with the change:
+    the code sandbox didn't start."), never the tool's own error, which stays on the run page.
+  - A step only a person can do says it is theirs, naming who and where: "Your step: Invite Uros Nikolic to #inc-003.
+    Then press Done." (`your_step_line`).
+
+  Slack can show a plan block folded to its title alone, so a context line under it repeats each step, how it went
+  and its link (`Checklist.blocks(summary: true)`), and the message reads in full folded. Then comes how the fix
+  stands (`Slack::Blocks::Alert`), a card for each step someone can act on now (`Slack::Blocks::Card`: a failed step
+  with Try again, a person's step with Done, an approved step asking "Run this step?" with how things stand now, Run
+  and Dismiss), and a last card with who applied it and Undo fix, Cancel fix and Open in Firefight.
 
 ```
-:hammer_and_wrench:  plan "Fix stopped: 1 of 2 steps failed"
-  ✓ 1. Roll back checkout
-  ✗ 2. Open a pull request with the change   Couldn't open a pull request with the change: the code sandbox didn't start.
-Couldn't open a pull request with the change: the code sandbox didn't start.        [Try again]
-Applied by @Dana  ·  1 of 2 steps done
-[Undo fix] [Open in Firefight]
+:hammer_and_wrench:  plan "Fix for INC-003"
+  ✓ 1. Open a pull request with the change   Opened a pull request: PR #856
+  ✗ 2. Roll back checkout   Couldn't roll back checkout: the tool reported an error.
+✓ 1. Open a pull request with the change  Opened a pull request: PR #856   (context line, readable folded)
+✗ 2. Roll back checkout  Couldn't roll back checkout: the tool reported an error.
+:x:  Fix stopped: 1 of 2 steps failed  ·  1 of 2 steps done
+card  :x: Couldn't roll back checkout: the tool reported an error.   Step 2   [Try again]
+card  Applied by @Dana                                      [Undo fix] [Open in Firefight]
 ```
 
-**A workspace whose Slack does not show plan blocks** gets the same checklist as plain blocks: a title, a divider and
-one line per task marked by status. `with_plan_blocks` is `with_rich_blocks(Slack::Blocks::PLAN)`, see Cards and
-alerts.
+**Cards and alerts go through `Slack::Blocks`.** `Card.new(title:, subtitle:, body:, actions:, icon:)` and
+`Alert.new(level:, text:, emoji:)` each answer `to_blocks(rich:)`, cut to Slack's limits (a card's title 150 characters, its
+body 200, three buttons). Slack draws the alert block only in modals and refuses it in a message, so in a message an
+alert is always a section led by its level's emoji, and `to_blocks(rich: true, modal: true)` asks for the alert block
+in a modal.
+
+**A workspace whose Slack does not show the newer blocks** (plan, card) gets the same content as plain blocks: a
+title, a divider and one line per task marked by status, and each card as a section, a context line and its buttons.
+Slack answers a refused block with `invalid_blocks`, which the client raises as `AdapterError::Unrenderable`.
+`with_rich_blocks` then posts the plain version at once and remembers the refusal on the workspace
+(`platform_data["plan_blocks_refused_at"]`, the name it had when plan blocks were the only ones), so later messages go
+plain without asking, and tries the newer blocks again after a week in case the workspace changed plans.
 
 ## Asking for a pack
 

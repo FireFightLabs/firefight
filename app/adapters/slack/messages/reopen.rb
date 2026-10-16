@@ -3,7 +3,7 @@ module Slack
     # An incident reopened, as an alert saying who reopened it, then why and the status it is back in.
     module Reopen
       def self.build(incident, reopened_by_platform_user_id:, rich:, reopened_by_name: nil, reason: nil)
-        alert = Slack::Blocks::Alert.new(level: Slack::Blocks::Alert::WARNING, text: headline(reopened_by_platform_user_id, reopened_by_name),
+        alert = Slack::Blocks::Alert.new(level: Slack::Blocks::Alert::LEVEL_WARNING, text: headline(reopened_by_platform_user_id, reopened_by_name),
                                          emoji: Slack::Emoji::REOPENED)
         blocks = alert.to_blocks(rich: rich)
         body = Formatting.quoted_blocks(reason)

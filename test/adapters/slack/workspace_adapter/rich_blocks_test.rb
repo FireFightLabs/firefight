@@ -13,7 +13,7 @@ class Slack::WorkspaceAdapter::RichBlocksTest < ActiveSupport::TestCase
     @adapter.post_incident_announcement(channel_id: "C1", incident: @incident)
   end
 
-  test "a refused card is posted plain at once, remembered for cards alone, and tried again after a week" do
+  test "a refused card is posted plain at once, remembered, and tried again after a week" do
     posted = []
     Slack::Client.stubs(:post_message).with do |blocks:, **|
       posted << blocks.first[:type]
@@ -26,8 +26,7 @@ class Slack::WorkspaceAdapter::RichBlocksTest < ActiveSupport::TestCase
     @adapter.post_incident_announcement(channel_id: "C1", incident: @incident)
 
     assert_equal %w[card section section], posted
-    assert @workspace.reload.platform_data["card_blocks_refused_at"].present?
-    assert_nil @workspace.platform_data["alert_blocks_refused_at"], "a refused card never takes alerts with it"
+    assert @workspace.reload.platform_data["plan_blocks_refused_at"].present?
 
     travel 8.days do
       posted.clear
@@ -36,14 +35,13 @@ class Slack::WorkspaceAdapter::RichBlocksTest < ActiveSupport::TestCase
     end
   end
 
-  test "a refused alert falls back to the bold title, and the resolution still posts" do
-    Slack::Client.stubs(:post_message).with { |blocks:, **| blocks.first[:type] == "alert" }.raises(AdapterError::Unrenderable, "invalid_blocks")
-    Slack::Client.expects(:post_message).with { |blocks:, **| blocks.first[:type] == "section" && blocks.first.dig(:text, :text).include?("Resolved by") }
+  test "a resolution never sends an alert block in a message, since Slack refuses it outside modals" do
+    Slack::Client.expects(:post_message).with { |blocks:, **| blocks.none? { |block| block[:type] == "alert" } && blocks.first.dig(:text, :text).include?("Resolved by") }
                  .returns({ ok: true, ts: "1.1", channel: "C1" })
 
     @adapter.post_resolution_message(channel_id: "C1", incident: @incident, resolved_by_platform_user_id: "U1")
 
-    assert @workspace.reload.platform_data["alert_blocks_refused_at"].present?
+    assert_nil @workspace.reload.platform_data["plan_blocks_refused_at"]
   end
 
   test "a long reply is never cut: it runs on into sections and messages, and every word arrives" do

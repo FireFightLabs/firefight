@@ -11,7 +11,7 @@ class Investigation::CodeFixStepTest < ActiveSupport::TestCase
     @github = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub", slug: "github")
     @github_row = @github.integration_environments.create!(base_config: { "installation_id" => "1" })
     @fix_code = @github.tools.create!(name: "fix_code", description: "Writes code", params_schema: {}, enabled: true, read_only: false)
-    WorkspaceAdapter.stubs(:for).returns(stub(post_fix_progress: { message_id: "1.2", channel_id: "C1" }, post_fix_ended: { message_id: "1.3", channel_id: "C1" }, update_fix_progress: { success: true },
+    WorkspaceAdapter.stubs(:for).returns(stub(post_fix_progress: { message_id: "1.2", channel_id: "C1" }, update_fix_progress: { success: true },
                                               update_investigation_answer: { success: true }))
   end
 
@@ -101,7 +101,7 @@ class Investigation::CodeFixStepTest < ActiveSupport::TestCase
 
   test "Firefight's own coding agent's steps are kept on the step as they happen, and the thread is redrawn no faster than Slack allows" do
     redrawn = 0
-    adapter = stub(post_fix_progress: { message_id: "1.2", channel_id: "C1" }, post_fix_ended: { message_id: "1.3", channel_id: "C1" }, update_investigation_answer: { success: true },
+    adapter = stub(post_fix_progress: { message_id: "1.2", channel_id: "C1" }, update_investigation_answer: { success: true },
                    agent_step_update_interval: 5)
     adapter.stubs(:update_fix_progress).with { redrawn += 1 }.returns(success: true)
     WorkspaceAdapter.stubs(:for).returns(adapter)

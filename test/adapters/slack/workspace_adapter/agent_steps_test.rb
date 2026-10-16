@@ -15,4 +15,11 @@ class Slack::WorkspaceAdapter::AgentStepsTest < ActiveSupport::TestCase
 
     assert_equal [ [ "complete", "Refused" ], [ "error", "Failed" ] ], @sent.map { |task| task.values_at(:status, :output) }
   end
+
+  # Slack reads a streamed answer as markdown, where its own <url|label> shows nothing of the link.
+  test "a link the agent wrote in Slack's own form is streamed as a markdown link" do
+    @adapter.append_agent_text(channel_id: "C1", answer_id: "1.2", text: "Opened <https://github.com/acme/app/pull/856|PR #856>.\n")
+
+    assert_equal [ { type: "markdown_text", text: "Opened [PR #856](https://github.com/acme/app/pull/856).\n" } ], @sent
+  end
 end

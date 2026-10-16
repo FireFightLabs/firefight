@@ -24,7 +24,7 @@ class Slack::Messages::SubscriptionTest < ActiveSupport::TestCase
     card = blocks.sole
 
     assert_equal "card", card[:type]
-    assert_equal "#{Slack::Emoji::RESOLVED} #{@incident.identifier} · #{@incident.name}", card.dig(:title, :text)
+    assert_equal "#{Slack::Emoji::RESOLVED}  #{@incident.identifier} · #{@incident.name}", card.dig(:title, :text)
     assert_equal "Resolved by <@U1> after 5m", card.dig(:subtitle, :text)
     assert_equal "Rolled back the deploy", card.dig(:body, :text)
     assert_equal [ Identifiers::OPEN_INCIDENT_CHANNEL, Identifiers::INCIDENT_HOMEPAGE, Identifiers::UNSUBSCRIBE_INCIDENT ], card[:actions].pluck(:action_id)
@@ -36,7 +36,7 @@ class Slack::Messages::SubscriptionTest < ActiveSupport::TestCase
     blocks = digest(rich: false)
 
     assert_equal %w[section context divider section actions], blocks.pluck(:type)
-    assert_equal "> Rolled back the deploy", blocks.fourth.dig(:text, :text)
+    assert_equal "> Rolled back the deploy", blocks.fourth.dig(:text, :text), "a body is never folded into the title, so it stays quoted"
   end
 
   test "without a dashboard host the homepage button is left out rather than dead" do

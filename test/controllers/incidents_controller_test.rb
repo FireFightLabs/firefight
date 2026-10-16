@@ -110,6 +110,23 @@ class IncidentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal text, note.reload.metadata["message_text"]
   end
 
+  test "the timeline shows a run's short answer, even one noted before the short answer was kept" do
+    incident = incidents(:active_critical_ws1)
+    run = incident.workspace.investigations.create!(subject: incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400)
+    run.create_finding!(summary: "PgBouncer pool_size dropped to 20.", answer_kind: Investigation::Finding::KIND_ROOT_CAUSE, confidence: 0.9,
+                        what_is_wrong: "Checkout runs out of connections.", suggested_fix: "Roll back the 14:02 deploy.")
+    answered = incident.incident_events.create!(event_type: IncidentEvent::INVESTIGATION_ANSWERED,
+                                                metadata: { investigation_id: run.id, message: "PgBouncer pool_size dropped to 20." })
+
+    get incident_path(incident), headers: inertia_headers.merge(
+      "X-Inertia-Partial-Data" => "timelineEvents", "X-Inertia-Partial-Component" => "incidents/index"
+    )
+
+    answer = inertia_props["timelineEvents"].find { |event| event["id"] == answered.id }["answer"]
+    assert_equal [ "Root cause found", "Checkout runs out of connections.", "Roll back the 14:02 deploy.", "PgBouncer pool_size dropped to 20." ],
+                 answer.values_at("headline", "whatIsWrong", "suggestedFix", "full")
+  end
+
   private
 
   def sign_in(user, workspace)

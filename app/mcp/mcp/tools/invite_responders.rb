@@ -23,6 +23,16 @@ module Mcp
       )
 
       person :members
+      by_hand_words(/\binvite\b|\b(bring|pull|add)\b.+\binto?\s+(the\s+)?(incident\s+)?channel\b/i)
+
+      # Slack says who was in the channel already only when asked to invite them, so this is read from the answer.
+      def self.already_held_in(workspace:, args:, answer:)
+        here = Array(answer[:already_here] || answer["already_here"])
+        return nil if here.empty? || Array(answer[:invited] || answer["invited"]).any? || Array(answer[:failed] || answer["failed"]).any?
+
+        channel = IncidentWrite.find!(workspace, args[:incident]).channel_name
+        "#{here.to_sentence} #{here.one? ? 'is' : 'are'} already in #{channel.present? ? "##{channel}" : 'the incident channel'}"
+      end
 
       def self.perform_with_principal(workspace:, principal:, args:)
         incident = IncidentWrite.find!(workspace, args[:incident])

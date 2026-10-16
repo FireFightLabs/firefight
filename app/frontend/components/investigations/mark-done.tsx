@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { investigationFixStepDonePath } from "@/lib/routes"
 import type { InvestigationRemediationStep } from "@/types/serializers"
 
-// A step a person does rather than Firefight, done once they say so.
+// A step a person does rather than Firefight, done once they press Done.
 export function MarkDone({ investigationId, step }: { investigationId: string; step: InvestigationRemediationStep }) {
   const [ marking, setMarking ] = useState(false)
 
@@ -18,7 +18,7 @@ export function MarkDone({ investigationId, step }: { investigationId: string; s
   return (
     <Button type="button" size="sm" variant="outline" className="w-fit" disabled={marking} onClick={markDone}>
       {marking && <IconLoader2 className="motion-safe:animate-spin" />}
-      {marking ? "Marking done" : "Mark done"}
+      {marking ? "Marking done" : "Done"}
     </Button>
   )
 }

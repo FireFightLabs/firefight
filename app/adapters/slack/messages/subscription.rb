@@ -13,11 +13,11 @@ module Slack
       # its subtitle and the words of the update as its body, with Open channel, Open in Firefight and Unsubscribe. The
       # announcement thread's reply itself is never copied, a direct message sits under nothing and is read in one glance.
       def self.digest(incident, headline:, body:, icon:, homepage_url:, rich:)
-        Slack::Blocks::Card.new(
-          title: Slack::Mrkdwn.escape(IncidentDetail.title_for(incident)), subtitle: headline,
+        WholeCard.build(
+          rich: rich, title: Slack::Mrkdwn.escape(IncidentDetail.title_for(incident)), subtitle: headline,
           body: (Formatting.markdown_to_mrkdwn(body) if body.present?), quoted: true,
           actions: digest_buttons(incident, homepage_url: homepage_url), icon: icon
-        ).to_blocks(rich: rich)
+        )
       end
 
       def self.digest_buttons(incident, homepage_url:)

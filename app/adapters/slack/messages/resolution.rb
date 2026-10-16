@@ -20,7 +20,7 @@ module Slack
       end
 
       def self.common(incident, resolved_by_platform_user_id, resolved_by_name, rich)
-        alert = Slack::Blocks::Alert.new(level: Slack::Blocks::Alert::SUCCESS, text: headline(incident, resolved_by_platform_user_id, resolved_by_name),
+        alert = Slack::Blocks::Alert.new(level: Slack::Blocks::Alert::LEVEL_SUCCESS, text: headline(incident, resolved_by_platform_user_id, resolved_by_name),
                                          emoji: Slack::Emoji::RESOLVED)
         [
           *alert.to_blocks(rich: rich),

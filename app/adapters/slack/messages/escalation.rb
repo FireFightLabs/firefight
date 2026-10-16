@@ -3,7 +3,7 @@ module Slack
     module Escalation
       # An alert naming who was pulled in and by whom, then the reason when one was given.
       def self.build(_incident, escalated_by:, escalated_to:, rich:, reason: nil)
-        alert = Slack::Blocks::Alert.new(level: Slack::Blocks::Alert::WARNING, text: headline(escalated_by, escalated_to), emoji: Slack::Emoji::ESCALATED)
+        alert = Slack::Blocks::Alert.new(level: Slack::Blocks::Alert::LEVEL_WARNING, text: headline(escalated_by, escalated_to), emoji: Slack::Emoji::ESCALATED)
         body = Formatting.quoted_blocks(reason)
         [ *alert.to_blocks(rich: rich), *([ { type: "divider" } ] if body.any?), *body ]
       end

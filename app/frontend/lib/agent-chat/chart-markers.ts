@@ -1,5 +1,5 @@
 import { stepsOf } from "@/lib/agent-chat/group-turns"
-import type { TurnPiece } from "@/lib/agent-chat/types"
+import { OPEN_WINDOW, type TurnPiece, type TurnWindow } from "@/lib/agent-chat/types"
 import { CHART_MARKER_ARRIVING_PATTERN, CHART_MARKER_PATTERN } from "@/lib/generated/constants"
 import type { ChatChart } from "@/types/serializers"
 
@@ -34,10 +34,21 @@ function markers(): RegExp {
 }
 
 // The charts a turn's own steps drew, a helper's under the step that handed it the check, so a chart is only ever drawn
-// in the turn that made it.
-export function chartsOfTurn(pieces: TurnPiece[], charts: ChatChart[]): ChatChart[] {
+// in the turn that made it. A call id repeats across turns with some models, so a chart also has to have been drawn
+// between the question the turn answers and the next one.
+export function chartsOfTurn(pieces: TurnPiece[], charts: ChatChart[], window: TurnWindow = OPEN_WINDOW): ChatChart[] {
   const keys = new Set(stepsOf(pieces).map((step) => step.key))
-  return charts.filter((chart) => keys.has(chart.toolCallId))
+  return charts.filter((chart) => keys.has(chart.toolCallId) && drawnWithin(chart, window))
+}
+
+function drawnWithin(chart: ChatChart, window: TurnWindow): boolean {
+  if (!chart.createdAt) {
+    return true
+  }
+  const drawn = Date.parse(chart.createdAt)
+  const afterStart = window.from === null || drawn >= Date.parse(window.from)
+  const beforeNext = window.to === null || drawn < Date.parse(window.to)
+  return afterStart && beforeNext
 }
 
 // Sets each of the turn's charts in at the first marker naming it, across all its texts in order. A marker naming no

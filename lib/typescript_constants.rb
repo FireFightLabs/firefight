@@ -261,6 +261,7 @@ module TypescriptConstants
       Export.new("INVESTIGATION_QUERY_PARAM", Investigation::QUERY_PARAM, nil),
       Export.new("INCIDENT_NAME_FIELD_KEY", IncidentSystemField::KEY_NAME, nil),
       Export.new("INVESTIGATION_EVENT_TYPES", IncidentEvent::INVESTIGATION_EVENTS, nil),
+      Export.new("FIX_EVENT_TYPES", IncidentEvent::FIX_EVENTS, nil),
       Export.new("INVESTIGATION_PROP", InvestigationsController::PROP_INVESTIGATION, nil),
       Export.new("OPEN_INVESTIGATION_PROP", IncidentsController::PROP_OPEN_INVESTIGATION, nil),
       Export.new("INVESTIGATION_START_PROP", IncidentsController::PROP_INVESTIGATION_START, nil),

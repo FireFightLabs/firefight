@@ -1,7 +1,7 @@
 import { withNewerQuestion } from "@/lib/code-fix-work"
 import { formatTime } from "@/lib/formatters"
 import { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_TEXT_ROLES, CHAT_MESSAGE_ROLES } from "@/lib/generated/constants"
-import { type AgentStep, type AgentStream, type ChatTurn, PIECE_KINDS, type TextRole, TURN_KINDS, type TurnPiece } from "@/lib/agent-chat/types"
+import { type AgentStep, type AgentStream, type ChatTurn, OPEN_WINDOW, PIECE_KINDS, type TextRole, TURN_KINDS, type TurnPiece } from "@/lib/agent-chat/types"
 import type { AgentChatMessage, ChatCompaction } from "@/types/serializers"
 
 const LIVE_TURN_ID = "live"
@@ -47,6 +47,10 @@ export function groupedTurns(messages: AgentChatMessage[], compactions: ChatComp
 
   messages.forEach((message) => {
     if (message.role === CHAT_MESSAGE_ROLES.USER) {
+      const answering = turns[turns.length - 1]
+      if (answering?.kind === TURN_KINDS.AGENT) {
+        answering.window = { ...answering.window, to: message.createdAt }
+      }
       turns.push({ kind: TURN_KINDS.PERSON, id: message.id, body: message.body, attachments: message.attachments })
       return
     }
@@ -63,7 +67,8 @@ export function groupedTurns(messages: AgentChatMessage[], compactions: ChatComp
       return
     }
 
-    turns.push({ kind: TURN_KINDS.AGENT, id: message.id, pieces, models, sources: message.sources })
+    const asked = turns[turns.length - 1]
+    turns.push({ kind: TURN_KINDS.AGENT, id: message.id, pieces, models, sources: message.sources, window: { from: asked ? startOf(asked, messages) : null, to: null } })
   })
 
   // Room made after the last reply belongs to the turn still being written. When a question comes last, that turn is
@@ -73,12 +78,17 @@ export function groupedTurns(messages: AgentChatMessage[], compactions: ChatComp
   if (madeSince.length > 0 && last?.kind === TURN_KINDS.AGENT) {
     last.pieces.push(...madeSince)
   } else if (madeSince.length > 0 && turns.length === 0) {
-    turns.push({ kind: TURN_KINDS.AGENT, id: unplaced[0].key, pieces: madeSince, models: [], sources: [] })
+    turns.push({ kind: TURN_KINDS.AGENT, id: unplaced[0].key, pieces: madeSince, models: [], sources: [], window: OPEN_WINDOW })
   }
 
   return turns
     .filter((turn) => turn.kind === TURN_KINDS.PERSON || turn.pieces.length > 0)
     .map((turn) => (turn.kind === TURN_KINDS.AGENT ? { ...turn, pieces: settledRoles(turn.pieces) } : turn))
+}
+
+// A turn begins when the question it answers was asked.
+function startOf(turn: ChatTurn, messages: AgentChatMessage[]): string | null {
+  return messages.find((message) => message.id === turn.id)?.createdAt ?? null
 }
 
 // While an answer is owed, whatever is saved after the last question is the turn in progress, and it is drawn live
@@ -121,7 +131,7 @@ export function liveTurn(stream: AgentStream, messages: AgentChatMessage[], comp
     return null
   }
 
-  return { kind: TURN_KINDS.AGENT, id: LIVE_TURN_ID, pieces, models: [], sources: [] }
+  return { kind: TURN_KINDS.AGENT, id: LIVE_TURN_ID, pieces, models: [], sources: [], window: { from: asked?.createdAt ?? null, to: null } }
 }
 
 // Halon is writing words the socket sent and nothing has followed yet, which read as the turn's result while they come

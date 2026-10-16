@@ -8,14 +8,15 @@ module Slack
         noun = canceled ? "Incident canceled" : "Incident updated"
         title = scope == :inline ? "#{incident.identifier}#{IncidentDetail::SEPARATOR}#{noun}" : noun
 
-        card = Slack::Blocks::Card.new(
+        card = WholeCard.build(
+          rich: rich,
           title: title,
           subtitle: change_line(incident, previous_status_name, previous_severity_name, previous_type_name),
           body: (Formatting.markdown_to_mrkdwn(message) if message.present?),
           icon: canceled ? Slack::Emoji::CANCELED : Slack::Emoji::UPDATED,
           quoted: true
         )
-        card.to_blocks(rich: rich) << Slack::Blocks.context(context_text(incident, updated_by_platform_user_id, updated_by_name))
+        card << Slack::Blocks.context(context_text(incident, updated_by_platform_user_id, updated_by_name))
       end
 
       def self.change_line(incident, previous_status_name, previous_severity_name, previous_type_name)

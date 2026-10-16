@@ -29,4 +29,14 @@ class Investigation::TimelineTest < ActiveSupport::TestCase
     assert_equal Investigation::BUDGET_SPENT,
                  @incident.incident_events.find_by!(event_type: IncidentEvent::INVESTIGATION_STOPPED).metadata["reason"]
   end
+
+  test "the answer keeps its short form beside the full one, for every reader of the timeline" do
+    finding = Investigation::Finding.new(summary: "PgBouncer pool_size dropped to 20.", answer_kind: Investigation::Finding::KIND_LIKELY_CAUSE,
+                                         confidence: 0.65, what_is_wrong: "Checkout runs out of connections.", suggested_fix: "Roll back.")
+    @investigation.note_answered!(finding)
+
+    metadata = @incident.incident_events.find_by!(event_type: IncidentEvent::INVESTIGATION_ANSWERED).metadata
+    assert_equal [ "Likely cause", "Fairly sure", "Checkout runs out of connections.", "Roll back.", "PgBouncer pool_size dropped to 20." ],
+                 metadata.values_at("headline", "sureness", "what_is_wrong", "suggested_fix", "message")
+  end
 end

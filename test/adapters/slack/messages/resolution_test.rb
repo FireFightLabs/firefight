@@ -53,25 +53,27 @@ class Slack::Messages::ResolutionTest < ActiveSupport::TestCase
     blocks = Slack::Messages::Resolution.announcement_thread(@incident, resolved_by_platform_user_id: @member.platform_user_id, rich: true)
 
     assert_nil blocks.find { |block| block[:type] == "actions" }
-    assert_equal "alert", blocks.first[:type]
+    assert_equal "section", blocks.first[:type]
   end
 
-  test "a resolution is a success alert in sentence case saying who and how long, in the channel and the thread" do
+  test "a resolution is one line in sentence case saying who and how long, in the channel and the thread, never an alert block in a message" do
     @incident.update!(declared_at: 72.minutes.ago, resolved_at: Time.current)
-    expected = "#{Slack::Emoji::RESOLVED} Resolved by <@#{@member.platform_user_id}> after 1h 12m"
+    expected = "#{Slack::Emoji::RESOLVED}  Resolved by <@#{@member.platform_user_id}> after 1h 12m"
 
     [ Slack::Messages::Resolution.build(@incident, resolved_by_platform_user_id: @member.platform_user_id, rich: true),
-      Slack::Messages::Resolution.announcement_thread(@incident, resolved_by_platform_user_id: @member.platform_user_id, rich: true) ].each do |blocks|
-      assert_equal({ type: "alert", level: Slack::Blocks::Alert::SUCCESS, text: { type: "mrkdwn", text: expected } }, blocks.first)
+      Slack::Messages::Resolution.announcement_thread(@incident, resolved_by_platform_user_id: @member.platform_user_id, rich: true),
+      Slack::Messages::Resolution.announcement_thread(@incident, resolved_by_platform_user_id: @member.platform_user_id, rich: false) ].each do |blocks|
+      assert_equal({ type: "section", text: { type: "mrkdwn", text: expected } }, blocks.first)
       assert_not blocks.to_s.include?("Incident Resolved")
+      assert_not blocks.to_s.include?("|  ")
     end
   end
 
-  test "a workspace that does not draw alerts gets the same line as a bold title" do
-    blocks = Slack::Messages::Resolution.announcement_thread(@incident, resolved_by_platform_user_id: @member.platform_user_id, rich: false)
+  test "a reopen and an escalation each lead with their own emoji, never the warning they share a level with" do
+    reopened = Slack::Messages::Reopen.build(@incident, reopened_by_platform_user_id: @member.platform_user_id, rich: true)
+    escalated = Slack::Messages::Escalation.build(@incident, escalated_by: @member, escalated_to: workspace_memberships(:bob_workspace_one), rich: true)
 
-    assert_equal "section", blocks.first[:type]
-    assert blocks.first.dig(:text, :text).start_with?("#{Slack::Emoji::RESOLVED}  *Resolved by <@#{@member.platform_user_id}>")
-    assert_not blocks.to_s.include?("|  ")
+    assert reopened.first.dig(:text, :text).start_with?("#{Slack::Emoji::REOPENED}  Reopened by")
+    assert escalated.first.dig(:text, :text).start_with?("#{Slack::Emoji::ESCALATED}  Escalated to")
   end
 end

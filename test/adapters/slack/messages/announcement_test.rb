@@ -10,7 +10,7 @@ class Slack::Messages::AnnouncementTest < ActiveSupport::TestCase
     card = Slack::Messages::Announcement.build(@incident, rich: true).first
 
     assert_equal "card", card[:type]
-    assert_equal "#{Slack::Emoji::DECLARED} #{@incident.identifier} · #{@incident.name}", card.dig(:title, :text)
+    assert_equal "#{Slack::Emoji::DECLARED}  #{@incident.identifier} · #{@incident.name}", card.dig(:title, :text)
     assert_equal "#{@incident.incident_severity.name} · #{@incident.incident_status.name}", card.dig(:subtitle, :text)
     assert_equal [ Identifiers::OPEN_INCIDENT_CHANNEL, Identifiers::SUBSCRIBE_INCIDENT, Identifiers::INCIDENT_HOMEPAGE ],
                  card[:actions].map { |button| button[:action_id] }
@@ -29,7 +29,7 @@ class Slack::Messages::AnnouncementTest < ActiveSupport::TestCase
     blocks = Slack::Messages::Announcement.build(@incident, rich: false)
 
     assert_not blocks.any? { |block| block[:type] == "card" }
-    assert_equal "#{Slack::Emoji::DECLARED}  *#{@incident.identifier} · #{@incident.name}*", blocks.first.dig(:text, :text)
+    assert_equal "*#{Slack::Emoji::DECLARED}  #{@incident.identifier} · #{@incident.name}*", blocks.first.dig(:text, :text)
     assert_equal "context", blocks.second[:type]
     assert_equal [ Identifiers::OPEN_INCIDENT_CHANNEL, Identifiers::SUBSCRIBE_INCIDENT, Identifiers::INCIDENT_HOMEPAGE ],
                  blocks.find { |block| block[:type] == "actions" }[:elements].map { |button| button[:action_id] }

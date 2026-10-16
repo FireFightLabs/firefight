@@ -22,6 +22,17 @@ module Mcp
 
       choice :role, from: ->(workspace) { workspace.incident_roles.active.ordered }
       person :member
+      by_hand_words(/\b(assign|make|set)\b.+\b(role|lead|commander|scribe)\b/i)
+
+      def self.already_holds(workspace:, principal:, args:)
+        incident = GetIncident.find_by_reference(workspace.incidents.where(deleted_at: nil), args[:incident].to_s)
+        role = incident && workspace.incident_roles.active.find_by(slug: args[:role].to_s)
+        return nil unless role && args[:member].present?
+
+        member = find_member(workspace, args[:member].to_s, principal)
+        holder = incident.incident_role_assignments.find_by(incident_role: role)&.workspace_membership
+        "#{member.display_name} is already the #{role.name}" if member && holder == member
+      end
 
       def self.perform_with_principal(workspace:, principal:, args:)
         incident = GetIncident.find_by_reference(workspace.incidents.where(deleted_at: nil), args[:incident].to_s)

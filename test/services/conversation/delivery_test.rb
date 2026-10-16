@@ -8,8 +8,6 @@ class Conversation::DeliveryTest < ActiveSupport::TestCase
       kind: Conversation::KIND_CHANNEL, channel_id: "C1", thread_id: "1.2", max_turns: limits.max_turns, max_spend_cents: limits.max_spend_cents
     )
     @chat = @workspace.chats.create!(owner: @conversation, model: "claude-sonnet-4-5", provider: :anthropic)
-    Chat::Chart.record!(@chat, "call_7", [ { "title" => "CPU of web", "unit" => "vCPU", "from" => "2026-09-25T14:00:00Z", "to" => "2026-09-25T15:00:00Z",
-                                             "summary" => "web-1: max 0.8", "series" => [ { "label" => "web-1", "points" => [ [ "2026-09-25T14:05:00Z", 0.8 ] ] } ] } ])
     @adapter = Slack::WorkspaceAdapter.new(@workspace)
     WorkspaceAdapter.stubs(:for).returns(@adapter)
     @adapter.stubs(:post_agent_reply).returns({ message_id: "1.3", channel_id: "C1" })
@@ -17,6 +15,7 @@ class Conversation::DeliveryTest < ActiveSupport::TestCase
 
   test "the charts of a step that drew them are posted in the thread after the answer, drawn as images" do
     delivery = Conversation::Delivery.for(@conversation)
+    draw("call_7", "CPU of web")
     @adapter.stubs(:report_agent_step)
     delivery.step(key: "call_7", step: Chat::Tools::Step.new(title: "Query metrics", headline: "", asked: [], card: Chat::Tools.chart_card),
                   status: FirefightAi::AgentLoop::STEP_DONE)
@@ -28,9 +27,9 @@ class Conversation::DeliveryTest < ActiveSupport::TestCase
   end
 
   test "a thread never shows a chart's marker, streamed in pieces or posted whole, and the chart still follows the answer" do
-    marker = "{{chart:#{@chat.charts.sole.handle}}}"
     @adapter.stubs(:start_agent_answer).returns({ answer_id: "1.25" })
     delivery = Conversation::Delivery.for(@conversation)
+    marker = "{{chart:#{draw('call_7', 'CPU of web').sole.handle}}}"
     delivery.thinking!
     appended = +""
     @adapter.stubs(:append_agent_text).with { |text:, **| appended << text }.returns({ streaming: true })
@@ -59,6 +58,20 @@ class Conversation::DeliveryTest < ActiveSupport::TestCase
 
     delivery.confirm!([])
     delivery.answered!("Checkout loads.")
+  end
+
+  # A provider numbers its calls afresh in each message, so an earlier question's call can share this one's id.
+  test "a chart an earlier question drew under the same call id never follows this answer" do
+    draw("call_7", "Memory of web")
+    travel 1.minute
+    delivery = Conversation::Delivery.for(@conversation)
+    draw("call_7", "Pull requests of firefight")
+    @adapter.stubs(:report_agent_step)
+    delivery.step(key: "call_7", step: Chat::Tools::Step.new(title: "Pull requests", headline: "", asked: [], card: Chat::Tools.chart_card),
+                  status: FirefightAi::AgentLoop::STEP_DONE)
+    @adapter.expects(:post_charts).with { |charts:, **| charts.map(&:title) == [ "Pull requests of firefight" ] }.returns([])
+
+    delivery.answered!("The pull request is open.")
   end
 
   test "an answer whose steps drew nothing posts no charts" do
@@ -105,5 +118,12 @@ class Conversation::DeliveryTest < ActiveSupport::TestCase
     step = Chat::Tools::Step.new(title: "Github fix code · acme", headline: "", asked: [], card: nil, line: "Read the code")
 
     Conversation::Delivery.for(@conversation).step(key: "call_1", step: step, status: FirefightAi::AgentLoop::STEP_RUNNING)
+  end
+
+  private
+
+  def draw(tool_call_id, title)
+    Chat::Chart.record!(@chat, tool_call_id, [ { "title" => title, "unit" => "vCPU", "from" => "2026-09-25T14:00:00Z", "to" => "2026-09-25T15:00:00Z",
+                                                 "summary" => "web-1: max 0.8", "series" => [ { "label" => "web-1", "points" => [ [ "2026-09-25T14:05:00Z", 0.8 ] ] } ] } ])
   end
 end

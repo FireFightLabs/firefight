@@ -50,7 +50,7 @@ module Slack::WorkspaceAdapter::WorkspaceSetup
   end
 
   def post_preview_announcement(channel_id:, user_id:)
-    with_rich_blocks(Slack::Blocks::CARD) do |rich|
+    with_rich_blocks do |rich|
       translate_errors do
         Slack::Client.post_ephemeral(
           workspace: @workspace,

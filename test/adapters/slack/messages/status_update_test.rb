@@ -10,7 +10,7 @@ class Slack::Messages::StatusUpdateTest < ActiveSupport::TestCase
     card = blocks.first
 
     assert_equal "card", card[:type]
-    assert_equal "#{Slack::Emoji::UPDATED} #{@incident.identifier} · Incident updated", card.dig(:title, :text)
+    assert_equal "#{Slack::Emoji::UPDATED}  #{@incident.identifier} · Incident updated", card.dig(:title, :text)
     assert_equal "Severity: *#{@incident.incident_severity.name}* · Status: ~Identified~ → *#{@incident.incident_status.name}*", card.dig(:subtitle, :text)
     assert_equal "Rolling back the <https://ci.example.com/run/1|deploy>", card.dig(:body, :text)
     assert_equal "context", blocks.last[:type]
@@ -21,14 +21,14 @@ class Slack::Messages::StatusUpdateTest < ActiveSupport::TestCase
     blocks = build(scope: :inline, message: "Rolling back the deploy")
 
     assert_equal %w[section context divider section context], blocks.pluck(:type)
-    assert_equal "#{Slack::Emoji::UPDATED}  *#{@incident.identifier} · Incident updated*", blocks.first.dig(:text, :text)
+    assert_equal "*#{Slack::Emoji::UPDATED}  #{@incident.identifier} · Incident updated*", blocks.first.dig(:text, :text)
     assert_equal "> Rolling back the deploy", blocks.fourth.dig(:text, :text)
   end
 
   test "a cancellation never reads as an update" do
     cancel!
 
-    assert_equal "#{Slack::Emoji::CANCELED} Incident canceled", build(scope: :announcement, rich: true).first.dig(:title, :text)
+    assert_equal "#{Slack::Emoji::CANCELED}  Incident canceled", build(scope: :announcement, rich: true).first.dig(:title, :text)
     assert_match "#{@incident.identifier} · Incident canceled", build(scope: :inline).first.dig(:text, :text)
   end
 

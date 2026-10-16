@@ -17,9 +17,14 @@ class InvestigationRemediationStepSerializer < BaseSerializer
   type :string, optional: true
   def repository = step.repository
 
-  # The tool an action runs, as the workspace knows it, such as cloudflare.execute, or the address a page check opens.
+  # The tool an action runs, as the workspace knows it, such as cloudflare.execute or invite_responders, or the address a
+  # page check opens.
   type :string, optional: true
-  def action = step.page_check? ? step.arguments.to_h["url"] : step.action_key
+  def action
+    return step.arguments.to_h["url"] if step.page_check?
+
+    step.firefight_tool? ? step.tool_name : step.action_key
+  end
 
   type :string, optional: true
   def missing = step.missing
@@ -75,6 +80,22 @@ class InvestigationRemediationStepSerializer < BaseSerializer
 
   type :string, optional: true
   def mark_done_blocked_reason = step.mark_done_blocked_reason
+
+  # A step only a person can do, said as theirs, the same words Slack's checklist uses.
+  type :string
+  def your_step_line = step.your_step_line
+
+  # Why a step that went through was already done, such as "Already done: Uros Nikolic is already in #inc-003", or nil.
+  type :string, optional: true
+  def already_done_line = (step.result_line if step.already_done_reason.present?)
+
+  # What a step that went through produced, as words and the link they lead to, such as "Opened a pull request" and PR #856.
+  type "{ lead: string, label: string, url: string } | null"
+  def outcome
+    return nil if step.already_done_reason.present? || step.outcome_url.blank?
+
+    { lead: step.result_lead, label: step.outcome_label, url: step.outcome_url }
+  end
 
   # Whether a failed step offers Try again, and why whoever is looking cannot press it, or nil.
   type :boolean
