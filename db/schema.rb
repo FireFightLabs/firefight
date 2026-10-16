@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -2914,6 +2914,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_140000) do
     t.jsonb "provenance"
     t.jsonb "mcp_state"
     t.jsonb "mcp_result"
+    t.uuid "decided_by_id"
+    t.index ["decided_by_id"], name: "index_ruby_llm_tool_calls_on_decided_by_id"
     t.index ["message_type", "message_id", "tool_call_id"], name: "index_ruby_llm_tool_calls_on_message_and_tool_call_id", unique: true
     t.index ["name"], name: "index_ruby_llm_tool_calls_on_name"
     t.index ["result_type", "result_id"], name: "index_ruby_llm_tool_calls_on_result_type_and_result_id"
@@ -3878,6 +3880,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_140000) do
   add_foreign_key "resource_map_uses", "integration_environments", on_delete: :cascade
   add_foreign_key "resource_map_uses", "resource_map_resources", column: "resource_id", on_delete: :cascade
   add_foreign_key "resource_map_uses", "workspaces"
+  add_foreign_key "ruby_llm_tool_calls", "workspace_memberships", column: "decided_by_id", on_delete: :nullify
   add_foreign_key "runbook_steps", "runbooks"
   add_foreign_key "runbooks", "workflows", on_delete: :nullify
   add_foreign_key "runbooks", "workspaces"

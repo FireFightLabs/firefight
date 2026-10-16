@@ -104,11 +104,14 @@ module Chat::Tools
   # nothing was read from outside and for_chat holds. support is the reads from the call's turn that Halon named as
   # showing the change will help (Chat::Tools::LookFirst). page is the screenshot of the page a browser send would go
   # from, taken when the check stopped before it, and its would_send_rows say what it sends. plan_undo is how the plan
-  # step the call carries out says to put it back.
+  # step the call carries out says to put it back. effect is what the call changes in plain words, worked out from its
+  # action rather than Halon's words (Chat::Tools.effect), nil when nothing more than "a change" is known. decided_by is
+  # the member who answered it, outcome how it went once it ran (Chat::StepOutcome), and progress how far a code change
+  # got while it runs (Chat::CodeFixProgress).
   Confirmation = Data.define(:tool_call_id, :question, :intent, :asked, :status, :target, :call, :read, :safeguards, :expires, :for_chat, :waiting_on,
-                             :support, :page, :short_title, :chosen_expiry, :undo_words, :plan_undo, :tool_name) do
+                             :support, :page, :short_title, :chosen_expiry, :undo_words, :plan_undo, :tool_name, :effect, :decided_by, :outcome, :progress) do
     def initialize(read: nil, safeguards: [], expires: [], for_chat: true, waiting_on: nil, support: [], page: nil, short_title: nil,
-                   chosen_expiry: nil, undo_words: nil, plan_undo: nil, tool_name: nil, **) = super
+                   chosen_expiry: nil, undo_words: nil, plan_undo: nil, tool_name: nil, effect: nil, decided_by: nil, outcome: nil, progress: nil, **) = super
 
     # The question as a label, which names the tool when the agent's words lead.
     def tool_label = question.delete_suffix("?")
@@ -129,8 +132,34 @@ module Chat::Tools
       [ said, put_back ].compact.join(" ").presence
     end
 
-    # The button that approves it, named for the change when the agent named it.
-    def confirm_label = short_title&.truncate(CONFIRM_LABEL_LIMIT) || CONFIRM
+    # What Halon asks to do, as the end of "Halon wants to: ...", such as "pause dev-web".
+    def action = Chat::Tools.lowercase_lead(Chat::Tools.plain(title, ACTION_LIMIT))
+
+    # The request itself, the title of the card in every place it is asked.
+    def heading = "#{WANTS_TO} #{action}"
+
+    # The one line under the heading. What the call changes when its action says something worth stopping for, else why
+    # Halon asks when it said more than the title, else what it changes as far as its action says. Free of code and ids,
+    # so it reads plainly. The rest is under Details.
+    def line = effect || reason || plain_change
+
+    # Halon's own sentence, when it says more than the title does.
+    def reason
+      return unless short_title && intent
+
+      Chat::Tools.sentence(Chat::Tools.plain(intent, LINE_LIMIT))
+    end
+
+    def plain_change = (Chat::Tools.changes_in(Chat::Tools.place_of(target)) if target)
+
+    # Said with the line when outside text holding the change's own values was read before asking, so the person checks
+    # the request is theirs. Where it came from in a word, the full list under Details.
+    def caution
+      places = holding_sources.map { |source| Chat::Tools::Provenance.place(source.from) }.uniq
+      format(CAUTION, places: places.to_sentence) if places.any?
+    end
+
+    def holding_sources = read&.sources&.select { |source| source.found.any? } || []
 
     # What the undo choice is labelled, present only when the call offers one.
     def undo_label = ((undo_words || UNDO_AUTOMATICALLY) if expires.any?)
@@ -140,8 +169,8 @@ module Chat::Tools
     # One sentence naming where outside text holding the change's own values came from, in the words both the dashboard
     # and Slack show. Absent when what was read holds none of them, so the warning appears only when it means something.
     def read_lead
-      holding = read&.sources&.select { |source| source.found.any? }
-      return if holding.blank?
+      holding = holding_sources
+      return if holding.empty?
 
       "Halon read #{holding.map { |source| source.from || OUTSIDE_TEXT }.uniq.to_sentence} before asking. Check the reason above is yours."
     end
@@ -172,14 +201,35 @@ module Chat::Tools
   # Where outside text came from, for a call asked before each read kept it.
   OUTSIDE_TEXT = "text from outside Firefight".freeze
   PUT_BACK = "To put it back:".freeze
-  CONFIRM = "Confirm".freeze
-  CONFIRM_LABEL_LIMIT = 48
+  # The button that approves a change. The heading already says what it is.
+  APPROVE = "Approve".freeze
   UNDO_AUTOMATICALLY = "Undo automatically".freeze
+  WANTS_TO = "Halon wants to:".freeze
+  CAUTION = "It read text from %<places>s that other people wrote. Check this is what you want.".freeze
+  ACTION_LIMIT = 120
+  LINE_LIMIT = 160
+  # A commit, a review or a comment named by its id says nothing to the person approving, so the card leaves them out,
+  # with the brackets around them. A number short enough to be a pull request's or an issue's stays.
+  RAW_ID = /\b(?:(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}|\d{6,})\b/i
+  CODE = /`+/
 
   def self.sentence(text)
     text = text.to_s.strip
     text.match?(/[.!?]\z/) ? text : "#{text}."
   end
+
+  # Words the agent wrote, without code marks or raw ids, on one line and cut short.
+  def self.plain(text, limit)
+    text.to_s.gsub(CODE, "").gsub(/\s*\([^()]*#{RAW_ID.source}[^()]*\)/i, "").gsub(RAW_ID, "").gsub(/\(\s*\)/, "").squish.gsub(/\s+([,.;:!?)])/, '\1').truncate(limit)
+  end
+
+  # "Pause dev-web" reads "pause dev-web" after "Halon wants to:", while a name such as PR, GitHub or iOS keeps its case.
+  def self.lowercase_lead(text)
+    first = text[/\A\S+/].to_s
+    first.match?(/\A[A-Z][a-z]*\z/) ? text.sub(first, first.downcase) : text
+  end
+
+  def self.changes_in(place) = "Changes something in #{place}."
 
   # One time a change customers feel may be undone after: value is what the answer sends back, minutes or keep.
   Expiry = Data.define(:value, :label)
@@ -369,9 +419,44 @@ module Chat::Tools
       waiting_on: (owner.owner_name if tool_call.approval == Chat::APPROVAL_OWNER_ASKED && owner),
       support: workspace ? LookFirst.support(chat, tool_call, workspace) : [], page: page,
       short_title: short_title_of(tool_call.arguments), chosen_expiry: chosen_expiry(mitigation), undo_words: undo_words(workspace, mitigation),
-      plan_undo: plan_undo(chat, tool_call), tool_name: tool_call.name.to_s
+      plan_undo: plan_undo(chat, tool_call), tool_name: tool_call.name.to_s, effect: effect(workspace, tool_call.name, target),
+      decided_by: decided_by(tool_call), **ran(chat, tool_call)
     )
   end
+
+  # How an approved call went, and how far a code change got, once it was approved. Nothing for a call still asked.
+  def self.ran(chat, tool_call)
+    return {} unless tool_call.approval == Chat::APPROVAL_APPROVED
+
+    { outcome: Chat::StepOutcome.for_call(tool_call, chat), progress: chat && chat.step_progresses.of_call(tool_call.tool_call_id, since: tool_call.created_at).last&.work }
+  end
+
+  def self.decided_by(tool_call)
+    id = tool_call.try(:decided_by_id)
+    id && WorkspaceMembership.find_by(id: id)
+  end
+
+  # What a call through a connection's tool changes that is worth stopping for, in plain words, from what its action
+  # declares rather than from Halon's words: what it does beyond a plain change (Ability::Action::EFFECTS). A tool's
+  # action is never known to be reversible, so that is not claimed either way. nil for a plain change, and for a call
+  # that is not a connection's tool.
+  def self.effect(workspace, tool_name, target)
+    tool = workspace && Target.label(workspace, tool_name)
+    action = tool && Ability::Action.lookup("#{tool.integration.slug}.#{tool.name}", workspace)
+    return unless action
+
+    place = target ? place_of(target) : tool.integration.display_name
+    declared = EFFECT_LINES.keys.find { |effect| action.effect?(effect) }
+    format(EFFECT_LINES.fetch(declared), place: place) if declared
+  end
+
+  # The connection a target names, without the account or project it reaches, such as "GitHub".
+  def self.place_of(target) = target.split(",").first.strip
+  EFFECT_LINES = {
+    Ability::Action::EFFECT_STOPS => "Stops or removes something in %<place>s.",
+    Ability::Action::EFFECT_MITIGATION => "Changes what customers get from %<place>s until it is undone.",
+    Ability::Action::EFFECT_DATA_WRITE => "Changes rows in %<place>s."
+  }.freeze
 
   # What undoing a change customers feel means, when its provider says, such as starting a paused service again.
   def self.undo_words(workspace, mitigation)

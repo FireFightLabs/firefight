@@ -44,7 +44,7 @@ module Conversation::OwnerAsks
   def self.ask!(chat, tool_call_id, by:, plan: nil)
     ask = Chat::OwnerAsk.for_call(chat, tool_call_id)
     return false unless ask&.pending?
-    return false unless chat.await_owner!(tool_call_id)
+    return false unless chat.await_owner!(tool_call_id, by: by)
 
     ask.move!(from: Chat::OwnerAsk::STATUS_PENDING, to: Chat::OwnerAsk::STATUS_ASKED, confirmed_by_id: by&.id, asked_at: Time.current, plan_id: plan&.id)
     OwnerAskJob.perform_later(ask.id)
@@ -101,6 +101,7 @@ module Conversation::OwnerAsks
       chat.owner_answered!(ask.tool_call_id) && chat.undecided.none?
     end
     Conversation::LiveDelivery.safeguard_moved(conversation)
+    Conversation::Confirming.redraw_latest(conversation, ask.tool_call_id)
     return unless resumed && ask.confirmed_by
 
     conversation.expect_reply!

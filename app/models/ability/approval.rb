@@ -174,6 +174,14 @@ module Ability
       workspace.incidents_channel_id.presence
     end
 
+    # The call this approval let through, as the gateway ledgered it, the latest when it was tried more than once. nil
+    # until it is approved and runs.
+    def run
+      return unless approved?
+
+      Ability::Invocation.where(approval_id: id, decision: Ability::Invocation::DECISION_ALLOW).order(:created_at).last
+    end
+
     def pending? = status == STATUS_PENDING
     def approved? = status == STATUS_APPROVED
     def denied? = status == STATUS_DENIED
@@ -260,6 +268,12 @@ module Ability
       incident.on_call_members
     end
 
+    # Gives back a claim whose message never reached the member, so they can be asked again.
+    def release_ask!(member)
+      self.class.where(id: id).update_all([ "asked_member_ids = asked_member_ids - ?::text, updated_at = ?", member.id.to_s, Time.current ])
+      reload
+    end
+
     # Claims asking one member directly, in one statement, so a request is never sent to the same person twice.
     def claim_ask!(member)
       asked = [ member.id ].to_json
@@ -277,12 +291,23 @@ module Ability
       approver_ids.filter_map { |ref| Ability::Principal.find_reference(workspace, Ability::Principal.reference(ref)) }
     end
 
+    # A change Halon asked for in a chat is always asked in the chat's thread (Conversation::HeldCalls). Where else is
+    # the rule's to say: a rule naming the channel, direct messages or both is followed as it is for anyone. A rule on
+    # Default asks a chat's request of its approvers directly rather than in the shared incidents channel, and the
+    # channel only when nobody could be asked directly (ApprovalNotificationService.post!). Any other request on Default
+    # is asked in the channel, as it was before Default existed, and so is one whose rule stored nothing.
+    def from_chat? = source == AbilityGateway::SOURCE_CONVERSATION
+
+    # A chat's request whose rule is on Default.
+    def chat_default? = from_chat? && notify == PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT
+
     def notify_channel?
-      [ nil, PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL, PolicyRule::ApprovalOutcome::NOTIFY_BOTH ].include?(notify)
+      !chat_default? && [ nil, PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT, PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL,
+                          PolicyRule::ApprovalOutcome::NOTIFY_BOTH ].include?(notify)
     end
 
     def notify_dm?
-      [ PolicyRule::ApprovalOutcome::NOTIFY_DM, PolicyRule::ApprovalOutcome::NOTIFY_BOTH ].include?(notify)
+      chat_default? || [ PolicyRule::ApprovalOutcome::NOTIFY_DM, PolicyRule::ApprovalOutcome::NOTIFY_BOTH ].include?(notify)
     end
 
     def add_notification!(channel_id:, message_id:)

@@ -8,6 +8,7 @@ class InterruptedWork
     # A run nobody holds holds its subject's only slot. A second job for one run is harmless, the claim decides.
     Investigation.abandoned.find_each { |investigation| InvestigationJob.perform_later(investigation.id) }
     Conversation::HeldCalls.recover!
+    Conversation::Confirming.recover!
     Postmortem.generation_stalled.find_each { |postmortem| PostmortemGenerationJob.give_up_interrupted!(postmortem) }
     IssueSyncService.give_up_lost_openings!
     WebhookDelivery.give_up_interrupted!

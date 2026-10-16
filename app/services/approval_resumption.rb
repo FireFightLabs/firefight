@@ -55,7 +55,7 @@ class ApprovalResumption
     when KIND_WORKFLOW_STEP then approval.workflow_question? ? "Its run goes on." : "Its run goes on and makes the call."
     when KIND_WORKFLOW_PUBLISH then publish_words(approval, payload)
     when KIND_FIX_STEP then "#{fix_applier(payload)} can run it now."
-    when Chat::HeldCall::RESUME_KIND then Conversation::HeldCalls.runs_when_approved?(approval) ? RUNS_NOW : ASKER_RUNS
+    when Chat::HeldCall::RESUME_KIND then RUNS_NOW
     when KIND_INTERACTION, KIND_COMMAND, KIND_WEB, KIND_ISSUE_SYNC, KIND_PAGING then RUNS_NOW
     else ASKER_RUNS
     end

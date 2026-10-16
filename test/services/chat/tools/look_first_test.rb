@@ -94,7 +94,7 @@ class Chat::Tools::LookFirstTest < ActiveSupport::TestCase
     label = Chat::Tools.label("search_logs", { "resource" => "web" }, workspace: @workspace)
     assert_equal Chat::Tools::SUPPORT_LEAD, confirmation.support_lead
     assert_equal [ Chat::Tools::SupportPoint.new(text: "500s since 14:02, right after the deploy", source: label) ], confirmation.support_points
-    text = Slack::Messages::AgentConfirmation.build(conversation_id: @conversation.id, confirmations: [ confirmation ]).to_json
+    text = Slack::Modals::AgentConfirmationDetails.build(confirmation).to_json
     assert_includes text, Chat::Tools::SUPPORT_LEAD
     assert_includes text, "500s since 14:02, right after the deploy"
     assert_equal [ { text: "500s since 14:02, right after the deploy", source: label } ],

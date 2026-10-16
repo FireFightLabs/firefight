@@ -26,6 +26,7 @@ class Conversation::Recovery
       conversation.chat&.discard_interrupted_reply!(before: checked_at)
       said = Conversation::Delivery.with_where_it_stopped(conversation, INTERRUPTED)
       conversation.chat&.close_unfinished_calls!(before: checked_at)
+      Conversation::Confirming.interrupted!(conversation, decided_before: checked_at)
       conversation.note!(said)
       delivery = Conversation::Delivery.for(conversation)
       delivery.cut_off!

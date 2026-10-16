@@ -159,6 +159,13 @@ export const HELD_CALL_STATUSES = {
   "ASKED_AGAIN": "asked_again"
 } as const
 
+export const CHANGE_STAGE_STATUSES = {
+  "PENDING": "pending",
+  "RUNNING": "running",
+  "DONE": "done",
+  "FAILED": "failed"
+} as const
+
 export const WATCH_STATUSES = {
   "ACTIVE": "active",
   "SUCCEEDED": "succeeded",
@@ -1548,11 +1555,14 @@ export const IMPLICIT_AUTHORITIES = {
 } as const
 
 export const APPROVAL_NOTIFY_OPTIONS = [
+  "default",
   "channel",
   "dm",
   "both"
 ] as const
 export type ApprovalNotifyOption = (typeof APPROVAL_NOTIFY_OPTIONS)[number]
+
+export const APPROVAL_NOTIFY_DEFAULT = "default" as const
 
 export const APPROVER_ROLES = [
   "owner",

@@ -121,9 +121,24 @@ module Chat::Tools::Provenance
     return skill_from(arguments) if name == Chat::Tools::UseSkill.tool_name
 
     tool = workspace && Chat::Tools::Target.label(workspace, name)
-    return "an answer from #{tool.integration.display_name}" if tool
+    return "#{ANSWER_FROM}#{tool.integration.display_name}" if tool
 
-    "the result of #{Chat::Tools.title_for(name, nil).downcase_first}"
+    "#{RESULT_OF}#{Chat::Tools.title_for(name, nil).downcase_first}"
+  end
+
+  ANSWER_FROM = "an answer from ".freeze
+  RESULT_OF = "the result of ".freeze
+  FIREFIGHT = "Firefight".freeze
+  OUTSIDE = "outside Firefight".freeze
+
+  # Where outside text came from in a word or two, such as "GitHub" for an answer from a GitHub connection or "Firefight"
+  # for one of its own tools, for the one line a request shows. from is a source's from, nil on a call asked before it was kept.
+  def self.place(from)
+    return OUTSIDE if from.blank?
+    return from.delete_prefix(ANSWER_FROM) if from.start_with?(ANSWER_FROM)
+    return FIREFIGHT if from.start_with?(RESULT_OF)
+
+    from
   end
 
   def self.skill_from(arguments)

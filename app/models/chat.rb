@@ -224,12 +224,19 @@ class Chat < ApplicationRecord
 
   def awaiting_decision = tool_calls.where(approval: APPROVAL_REQUESTED).order(:created_at)
 
+  # Calls approved before then that never answered, in any chat, for the recovery sweep.
+  def self.stale_approved_calls(decided_before)
+    RubyLLM::ActiveRecord::ToolCall.where(message_type: Chat::Message.polymorphic_name, approval: APPROVAL_APPROVED, result_id: nil,
+                                          updated_at: ...decided_before)
+  end
+
   # Calls the turn still waits on, the person's answer or an owner's.
   def undecided = tool_calls.where(approval: [ APPROVAL_REQUESTED, APPROVAL_OWNER_ASKED ])
 
-  # Confirmed, and now waiting for its owner. One guarded update, so a second click loses.
-  def await_owner!(tool_call_id)
-    tool_calls.where(tool_call_id: tool_call_id, approval: APPROVAL_REQUESTED).update_all(approval: APPROVAL_OWNER_ASKED, updated_at: Time.current) > 0
+  # Confirmed, and now waiting for its owner. One guarded update, so a second click loses. by is who confirmed it.
+  def await_owner!(tool_call_id, by: nil)
+    tool_calls.where(tool_call_id: tool_call_id, approval: APPROVAL_REQUESTED)
+              .update_all(approval: APPROVAL_OWNER_ASKED, decided_by_id: by&.id, updated_at: Time.current) > 0
   end
 
   # The owner answered, so the call goes on. A no is the call's own refusal when it runs (Chat::Safeguards).
@@ -244,10 +251,12 @@ class Chat < ApplicationRecord
   # One guarded update, so a second click on the same question loses rather than deciding it twice.
   # Allowing a call for the rest of the chat approves it and stops later calls to the same tool from asking. A call
   # asked after something was read from outside (Chat::Tools::Provenance) is only ever confirmed one at a time, so
-  # allowing it approves just that call, as an old Slack button could still ask.
-  def decide!(tool_call_id, approved:, for_chat: false)
+  # allowing it approves just that call, as an old Slack button could still ask. by is who answered, kept so its message
+  # says so whenever it is redrawn.
+  def decide!(tool_call_id, approved:, for_chat: false, by: nil)
     decision = approved ? APPROVAL_APPROVED : APPROVAL_DENIED
-    decided = tool_calls.where(tool_call_id: tool_call_id, approval: APPROVAL_REQUESTED).update_all(approval: decision, updated_at: Time.current) > 0
+    decided = tool_calls.where(tool_call_id: tool_call_id, approval: APPROVAL_REQUESTED)
+                        .update_all(approval: decision, decided_by_id: by&.id, updated_at: Time.current) > 0
     name, provenance = tool_calls.where(tool_call_id: tool_call_id).pick(:name, :provenance)
     allow_tool!(name) if decided && approved && for_chat && provenance.nil?
     decided

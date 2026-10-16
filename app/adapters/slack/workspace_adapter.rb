@@ -68,26 +68,34 @@ module Slack
       end
     end
 
-    def post_approval_request(approval:, channel_id:)
-      post_message(
-        channel_id: channel_id,
-        text: Slack::Messages::Approval.request_fallback(approval),
-        blocks: Slack::Messages::Approval.build_request(approval, params: params_shown(approval))
-      )
+    def post_approval_request(approval:, channel_id:, shown:)
+      with_rich_blocks do |rich|
+        post_message(
+          channel_id: channel_id,
+          text: Slack::Messages::Approval.request_fallback(approval, shown: shown),
+          blocks: Slack::Messages::Approval.build_request(approval, shown: shown, rich: rich)
+        )
+      end
     end
 
     # A user id as channel opens or reuses the DM with them.
-    def post_approval_request_to_user(approval:, user_id:)
-      post_approval_request(approval: approval, channel_id: user_id)
+    def post_approval_request_to_user(approval:, user_id:, shown:)
+      post_approval_request(approval: approval, channel_id: user_id, shown: shown)
     end
 
-    def mark_approval_resolved(approval:, channel_id:, message_id:)
-      update_message(
-        channel_id: channel_id,
-        message_id: message_id,
-        text: Slack::Messages::Approval.resolved_fallback(approval),
-        blocks: Slack::Messages::Approval.build_resolved(approval, params: params_shown(approval))
-      )
+    def mark_approval_resolved(approval:, channel_id:, message_id:, shown:)
+      with_rich_blocks do |rich|
+        update_message(
+          channel_id: channel_id,
+          message_id: message_id,
+          text: Slack::Messages::Approval.resolved_fallback(approval, shown: shown),
+          blocks: Slack::Messages::Approval.build_resolved(approval, shown: shown, rich: rich)
+        )
+      end
+    end
+
+    def open_approval_details(trigger_id:, approval:)
+      open_modal(trigger_id: trigger_id, view: Slack::Modals::ApprovalDetails.build(approval, params: params_shown(approval)))
     end
 
     # A command typed in Slack is quoted as Slack shows it, so a mention or a broadcast in it never notifies again.

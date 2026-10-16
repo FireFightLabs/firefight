@@ -1,6 +1,8 @@
 require "test_helper"
 
 class ApprovalNotificationServiceTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @workspace.update!(incidents_channel_id: "C0INCIDENTS")
@@ -54,6 +56,106 @@ class ApprovalNotificationServiceTest < ActiveSupport::TestCase
     ApprovalNotificationService.post!(@approval)
 
     assert_equal 1, @approval.reload.notifications.size
+  end
+
+  test "a chat's change whose rule names the incidents channel is asked there, as the admin set it" do
+    @approval.update!(source: AbilityGateway::SOURCE_CONVERSATION, notify: PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL)
+    channels = []
+    Slack::Client.stubs(:post_message).with { |args| channels << args[:channel] }.returns({ ok: true, ts: "7.7", channel: "C0INCIDENTS" })
+
+    ApprovalNotificationService.post!(@approval)
+
+    assert_equal [ "C0INCIDENTS" ], channels
+  end
+
+  test "a change Halon asked for in a chat on Default asks its approvers directly, never the incidents channel" do
+    @approval.update!(source: AbilityGateway::SOURCE_CONVERSATION, approver_ids: [ @bob.id ], notify: PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT)
+    channels = []
+    Slack::Client.stubs(:post_message).with { |args| channels << args[:channel] }.returns({ ok: true, ts: "5.5", channel: "D0BOB" })
+
+    ApprovalNotificationService.post!(@approval)
+
+    assert_equal [ @bob.platform_user_id ], channels
+  end
+
+  test "a chat's change nobody can be asked directly about is asked in the channel rather than nowhere" do
+    @approval.update!(source: AbilityGateway::SOURCE_CONVERSATION, notify: PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT)
+    WorkspaceMembership.where(workspace: @workspace).update_all(platform_user_id: nil)
+    Slack::Client.expects(:post_message).once.with { |args| args[:channel] == "C0INCIDENTS" }.returns({ ok: true, ts: "6.6", channel: "C0INCIDENTS" })
+
+    ApprovalNotificationService.post!(@approval)
+  end
+
+  test "a chat's change whose direct messages Slack refused is asked in the channel, and the approver can still be asked later" do
+    @approval.update!(source: AbilityGateway::SOURCE_CONVERSATION, approver_ids: [ @bob.id ], notify: PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT)
+    Slack::Client.stubs(:post_message).with { |args| args[:channel] == @bob.platform_user_id }.raises(AdapterError::NotInChannel, "cannot_dm_bot")
+    Slack::Client.expects(:post_message).with { |args| args[:channel] == "C0INCIDENTS" }.returns({ ok: true, ts: "9.9", channel: "C0INCIDENTS" })
+
+    ApprovalNotificationService.post!(@approval)
+
+    assert_equal [ { "channel_id" => "C0INCIDENTS", "message_id" => "9.9" } ], @approval.reload.notifications
+    assert_empty @approval.asked_member_ids, "a refused message never counts as asked"
+    assert @approval.claim_ask!(@bob)
+  end
+
+  test "where each choice asks, for a chat's change and for anyone else's" do
+    @approval.update!(approver_ids: [ @bob.id ])
+    asked = lambda do |source, notify|
+      @approval.update!(source: source, notify: notify, notifications: [], asked_member_ids: [])
+      channels = []
+      Slack::Client.stubs(:post_message).with { |args| channels << args[:channel] }.returns({ ok: true, ts: "8.8", channel: "X" })
+      ApprovalNotificationService.post!(@approval)
+      channels.map { |channel| channel == "C0INCIDENTS" ? :channel : :dm }.sort
+    end
+    chat = AbilityGateway::SOURCE_CONVERSATION
+    api = AbilityGateway::SOURCE_API
+
+    assert_equal [ :dm ], asked.call(chat, PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT)
+    assert_equal [ :channel ], asked.call(api, PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT), "anyone else's keeps the channel on Default"
+    assert_equal [ :channel ], asked.call(chat, PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL)
+    assert_equal [ :dm ], asked.call(chat, PolicyRule::ApprovalOutcome::NOTIFY_DM)
+    assert_equal [ :channel, :dm ], asked.call(chat, PolicyRule::ApprovalOutcome::NOTIFY_BOTH)
+    assert_equal [ :channel ], asked.call(chat, nil), "a rule that stored nothing asks where it always did"
+  end
+
+  test "the request says in plain words who wants to do what, with the call itself under Details" do
+    blocks = Slack::Messages::Approval.build_request(@approval, shown: ApprovalNotificationService.shown(@approval), rich: true)
+
+    card = blocks.sole
+    assert_equal ":raised_hand:  #{@approval.principal_label} wants to: delete catalogue", card.dig(:title, :text)
+    assert_equal "Needs a workspace admin", card.dig(:body, :text)
+    assert_equal [ Identifiers::APPROVE_ABILITY, Identifiers::DENY_ABILITY, Identifiers::APPROVAL_DETAILS ], card[:actions].map { |button| button[:action_id] }
+    assert_not_includes blocks.to_json, "catalog.delete"
+  end
+
+  test "once approved the request says who approved it, then how the call it let through went" do
+    @approval.approve!(by: @admin)
+    resolved = ->(approval) { Slack::Messages::Approval.build_resolved(approval, shown: ApprovalNotificationService.shown(approval), rich: true).sole }
+    assert_equal "Approved by *#{@admin.display_name}*", resolved.call(@approval).dig(:body, :text)
+
+    ran = Ability::Invocation.create!(workspace: @workspace, principal: api_keys(:full_access_key), principal_label: "key", action_key: "catalog.delete",
+                                      idempotency_key: SecureRandom.uuid, decision: Ability::Invocation::DECISION_ALLOW, approval: @approval)
+    assert_equal "Approved by *#{@admin.display_name}*  ·  working…", resolved.call(@approval).dig(:body, :text)
+
+    ran.finalize!(outcome: Ability::Invocation::OUTCOME_SUCCESS)
+    done = resolved.call(@approval)
+    assert_equal [ ":white_check_mark:  #{@approval.principal_label} wants to: delete catalogue", "Approved by *#{@admin.display_name}*  ·  Done" ],
+                 [ done.dig(:title, :text), done.dig(:body, :text) ]
+
+    ran.update_columns(outcome: Ability::Invocation::OUTCOME_ERROR, error_summary: "The entry is still in use")
+    failed = resolved.call(@approval)
+    assert_equal [ ":x:  #{@approval.principal_label} wants to: delete catalogue", "Approved by *#{@admin.display_name}*  ·  Failed: The entry is still in use" ],
+                 [ failed.dig(:title, :text), failed.dig(:body, :text) ]
+  end
+
+  test "a call an approval let through redraws the messages that asked once it ends" do
+    @approval.approve!(by: @admin)
+    @approval.update!(notifications: [ { "channel_id" => "D0BOB", "message_id" => "2.2" } ])
+    Slack::Client.expects(:update_message).with { |args| args[:ts] == "2.2" && args[:blocks].to_json.include?("Done") }.returns({ ok: true })
+    invocation = Ability::Invocation.create!(workspace: @workspace, principal: api_keys(:full_access_key), principal_label: "key", action_key: "catalog.delete",
+                                             idempotency_key: SecureRandom.uuid, decision: Ability::Invocation::DECISION_ALLOW, approval: @approval)
+
+    perform_enqueued_jobs(only: ApprovalOutcomeJob) { AbilityGateway::Authorization.new(invocation).finalize_success! }
   end
 
   test "resolution rewrites every message that was posted" do

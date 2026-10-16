@@ -100,10 +100,10 @@ class Conversation::ConfirmingTest < ActiveSupport::TestCase
     assert @chat.reload.allows_tool?("delete_permission_set")
   end
 
-  test "a Slack button answers the question and redraws the message with the answer" do
+  test "a Slack button answers the question and redraws the message with who approved it and that it is working" do
     ask_about("call_1")
     Slack::Client.expects(:update_message).with do |arguments|
-      arguments[:ts] == "1700000000.000200" && arguments[:blocks].to_json.include?("Confirmed")
+      arguments[:ts] == "1700000000.000200" && arguments[:blocks].first.dig(:body, :text) == "Approved by <@#{@member.platform_user_id}>  ·  working…"
     end.returns({ ok: true })
 
     Interactions::AgentConfirmationHandler.execute(Interaction.new(
@@ -179,17 +179,53 @@ class Conversation::ConfirmingTest < ActiveSupport::TestCase
     assert_equal Chat::APPROVAL_REQUESTED, @chat.tool_calls.find_by!(tool_call_id: "call_2").approval
   end
 
-  test "a question asked after an outside read offers no Allow for this chat in Slack and says what was read" do
+  test "a question asked after an outside read offers no Allow for this chat in Slack, and its Details say what was read" do
     read!("call_read", "github_issue_lookup", { "query" => "deploy error" }, "text")
     ask_about("call_1")
     Chat::Tools::Provenance.record!(Conversation::Turn.new(@conversation, asker: @member), @chat.awaiting_decision.to_a)
 
-    blocks = Slack::Messages::AgentConfirmation.build(
-      conversation_id: @conversation.id, confirmations: [ Chat::Tools.confirmation(@chat.tool_calls.find_by!(tool_call_id: "call_1")) ]
-    ).to_json
+    confirmation = Chat::Tools.confirmation(@chat.tool_calls.find_by!(tool_call_id: "call_1"))
+    blocks = Slack::Messages::AgentConfirmation.build(conversation_id: @conversation.id, confirmations: [ confirmation ]).to_json
 
     assert_not_includes blocks, Identifiers::AGENT_ALLOW_FOR_CHAT
-    assert_includes blocks, "Github issue lookup deploy error"
+    assert_not_includes blocks, "Github issue lookup deploy error"
+    assert_includes Slack::Modals::AgentConfirmationDetails.build(confirmation).to_json, "Github issue lookup deploy error"
+  end
+
+  test "whoever answered is kept with the call, so every redraw names them" do
+    ask_about("call_1", "call_2")
+
+    Conversation::Confirming.decide(@conversation, [ { tool_call_id: "call_1", approved: true }, { tool_call_id: "call_2", approved: false } ], by: @member)
+
+    assert_equal [ @member, @member ], %w[call_1 call_2].map { |id| Chat::Tools.confirmation(@chat.tool_calls.find_by!(tool_call_id: id)).decided_by }
+  end
+
+  test "an approved call's message is redrawn as its code change moves and once it answered, wherever it was approved" do
+    ask_about("call_1")
+    @conversation.confirmation_posted!("1700000000.000200")
+    Conversation::Confirming.decide(@conversation, [ { tool_call_id: "call_1", approved: true } ], by: @member)
+    work = Chat::CodeFixProgress.start
+    work.changed!("app/a.rb")
+    drawn = []
+    Slack::Client.stubs(:update_message).with { |arguments| drawn << arguments[:blocks] }.returns({ ok: true })
+
+    Conversation::Confirming.moved(@conversation, "call_1", progress: work)
+    call = @chat.tool_calls.find_by!(tool_call_id: "call_1")
+    call.update!(result: @chat.messages.create!(role: Chat::Message::ROLE_TOOL, content: "Deleted chat_test"))
+    Conversation::Confirming.moved(@conversation, "call_1")
+
+    assert_equal "plan", drawn.first.first[:type]
+    assert_equal "1 file changed", drawn.first.first.dig(:tasks, 0, :details, :elements, 0, :elements, 0, :text)
+    assert_match(/\ADone  ·  approved by <@#{@member.platform_user_id}>\z/, drawn.last.first.dig(:body, :text))
+  end
+
+  test "a call asked in an earlier message is never drawn into the latest one" do
+    ask_about("call_1")
+    ask_about("call_2")
+    @conversation.confirmation_posted!("1700000000.000300")
+    Slack::Client.expects(:update_message).never
+
+    Conversation::Confirming.redraw_latest(@conversation, "call_1")
   end
 
   private

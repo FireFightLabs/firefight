@@ -274,6 +274,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     @waiting = true
     held = approval_id.nil? &&
            @agent_run.hold!(pending.approval, tool_name: shown_as, tool_call_id: tool_call_id, target: target || target_of(environment_entry))
+    Conversation::HeldCalls.ask_where_held(held)
     Chat::Tools.waiting_for_approval(@tool.action_key, held: held)
   rescue Integrations::Error => error
     # The provider's own words, so they are framed like anything else it said.

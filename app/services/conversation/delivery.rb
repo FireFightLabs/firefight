@@ -86,6 +86,7 @@ class Conversation::Delivery
       details: progress&.thread_line
     )
     shown!
+    Conversation::Confirming.moved(@conversation, key) if status == FirefightAi::AgentLoop::STEP_DONE
   end
 
   # A coding agent's work, as the step's one line of details, redrawn in place no more often than the platform allows.
@@ -97,6 +98,7 @@ class Conversation::Delivery
       channel_id: @conversation.channel_id, answer_id: @answer_id, key: key, title: step.shown_line,
       status: FirefightAi::AgentLoop::STEP_RUNNING, details: progress.thread_line
     )
+    Conversation::Confirming.moved(@conversation, key, progress: progress)
   end
 
   # What a long tool says about how far it got is the dashboard's to show. A thread redrawn on every report would be

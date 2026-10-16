@@ -104,6 +104,7 @@ class Chat::Tools::Firefight < RubyLLM::Tool
     end
 
     held = approval_id.nil? && @agent_run.hold!(pending.approval, tool_name: name, tool_call_id: tool_call_id)
+    Conversation::HeldCalls.ask_where_held(held)
     Chat::Tools.waiting_for_approval(action_key, held: held)
   rescue *Mcp::ToolDispatcher::TOOL_ERRORS => error
     failed(tool_call_id, text_of(Mcp::ToolDispatcher.tool_error_response(error)))

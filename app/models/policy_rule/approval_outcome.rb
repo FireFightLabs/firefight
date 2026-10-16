@@ -3,10 +3,14 @@ module PolicyRule::ApprovalOutcome
   REQUIRE_KEY = "require"
   SUPPORTED_COUNT = 1
 
+  # Where a request is asked. Default, what a new rule starts on, asks a Halon chat's request in the chat's thread and
+  # of its approvers directly, and any other request in the incidents channel as before. The incidents channel is then a
+  # choice an admin makes. A rule saved without any, from before Default existed, reads as the channel.
+  NOTIFY_DEFAULT = "default"
   NOTIFY_CHANNEL = "channel"
   NOTIFY_DM = "dm"
   NOTIFY_BOTH = "both"
-  NOTIFY_OPTIONS = [ NOTIFY_CHANNEL, NOTIFY_DM, NOTIFY_BOTH ].freeze
+  NOTIFY_OPTIONS = [ NOTIFY_DEFAULT, NOTIFY_CHANNEL, NOTIFY_DM, NOTIFY_BOTH ].freeze
   # Whoever is on call for the incident may decide too, and is asked when nobody working it can.
   ON_CALL = "on_call".freeze
 
@@ -16,7 +20,7 @@ module PolicyRule::ApprovalOutcome
         "role" => role.to_s,
         "count" => SUPPORTED_COUNT,
         "self_approval" => ActiveModel::Type::Boolean.new.cast(self_approval),
-        "notify" => notify.presence || NOTIFY_CHANNEL,
+        "notify" => notify.presence || NOTIFY_DEFAULT,
         "approvers" => Ability::Principal.references(approvers),
         "agents_may_approve" => ActiveModel::Type::Boolean.new.cast(agents_may_approve),
         ON_CALL => ActiveModel::Type::Boolean.new.cast(on_call) || false

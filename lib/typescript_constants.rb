@@ -52,6 +52,10 @@ module TypescriptConstants
         "DISMISSED" => Chat::HeldCall::STATUS_DISMISSED, "EXPIRED" => Chat::HeldCall::STATUS_EXPIRED, "DENIED" => Chat::HeldCall::STATUS_DENIED,
         "ASKED_AGAIN" => Chat::HeldCall::STATUS_ASKED_AGAIN
       }, nil),
+      Export.new("CHANGE_STAGE_STATUSES", {
+        "PENDING" => Chat::CodeFixProgress::STAGE_PENDING, "RUNNING" => Chat::CodeFixProgress::STAGE_RUNNING,
+        "DONE" => Chat::CodeFixProgress::STAGE_DONE, "FAILED" => Chat::CodeFixProgress::STAGE_FAILED
+      }, nil),
       Export.new("WATCH_STATUSES", Chat::Watch::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
       Export.new("MITIGATION_STATUSES", Chat::Mitigation::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
       Export.new("OWNER_ASK_STATUSES", Chat::OwnerAsk::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
@@ -305,6 +309,7 @@ module TypescriptConstants
         "ADMIN" => Principal::IMPLICIT_ADMIN.to_s, "MEMBER" => Principal::IMPLICIT_MEMBER.to_s, "NONE" => Principal::IMPLICIT_NONE.to_s
       }, nil),
       Export.new("APPROVAL_NOTIFY_OPTIONS", PolicyRule::ApprovalOutcome::NOTIFY_OPTIONS, "ApprovalNotifyOption"),
+      Export.new("APPROVAL_NOTIFY_DEFAULT", PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT, nil),
       Export.new("APPROVER_ROLES", [ WorkspaceMembership.roles[:owner], WorkspaceMembership.roles[:admin] ], "ApproverRole"),
       Export.new("SANDBOX_SERVICES", CodeBox::SERVICES, "SandboxService"),
       Export.new("WORKFLOWS_RESOURCE", Ability::Action::RESOURCE_WORKFLOWS, nil),

@@ -165,9 +165,14 @@ class Chat::CodeFixProgress
   # question and pause answer from. Their sessions are read together, since a question and a pause often share one.
   def self.preload_records(works, workspace_id)
     works = works.compact
-    questions = CodeAgentQuestion.where(id: works.filter_map { |work| work.question&.dig("id") }, workspace_id: workspace_id).to_a
-    pauses = CodeAgentSession::Pause.where(id: works.filter_map { |work| work.pause&.dig("id") }, workspace_id: workspace_id).to_a
-    ActiveRecord::Associations::Preloader.new(records: questions + pauses, associations: :session).call
+    questions = CodeAgentQuestion.where(id: works.filter_map { |work| work.question&.dig("id") }, workspace_id: workspace_id).order(:created_at).to_a
+    pauses = CodeAgentSession::Pause.where(id: works.filter_map { |work| work.pause&.dig("id") }, workspace_id: workspace_id).order(:created_at).to_a
+    # One read for the sessions of both, listed in the order their pauses were made, which is how the page's pause cards
+    # read the same sessions. The two reads are then one statement the query cache answers once, rather than the same
+    # rows in whatever order the database returned the questions.
+    sessions = CodeAgentSession.where(id: pauses.map(&:session_id) | questions.map(&:code_agent_session_id)).index_by(&:id)
+    questions.each { |question| question.association(:session).target = sessions[question.code_agent_session_id] }
+    pauses.each { |pause| pause.association(:session).target = sessions[pause.session_id] }
     works.each { |work| work.records_read(workspace_id, questions.index_by { |row| row.id.to_s }, pauses.index_by { |row| row.id.to_s }) }
   end
 
@@ -221,6 +226,28 @@ class Chat::CodeFixProgress
     [ lead, *counts ].compact.join(" · ").truncate(HEADLINE_LIMIT)
   end
 
+  STAGE_PENDING = "pending".freeze
+  STAGE_RUNNING = "running".freeze
+  STAGE_DONE = "done".freeze
+  STAGE_FAILED = "failed".freeze
+  STAGES = [ STAGE_PENDING, STAGE_RUNNING, STAGE_DONE, STAGE_FAILED ].freeze
+  # One part of the change a person follows while it runs, with a line on how it stands and the page it made, if any.
+  Stage = Data.define(:key, :title, :status, :detail, :link)
+
+  # The change as three parts, writing it, checking it and handing it over, for a checklist redrawn as it moves. Counts
+  # only, never the files or commands, since it is read in a channel.
+  def stages
+    checked = checks.any? || tests.any?
+    written = checked || finished?
+    shown = [
+      Stage.new(key: "write", title: "Write the change", status: stage_status(written, !written), detail: written_words, link: nil),
+      Stage.new(key: "check", title: "Check the change", status: check_status(checked, written), detail: (checked_words if checked), link: nil),
+      Stage.new(key: "hand_over", title: hand_over_title, status: hand_over_status(written), detail: (finished_words if WROTE.include?(outcome)),
+                link: pull_request.presence)
+    ]
+    shown.map { |stage| stage.status == STAGE_FAILED && outcome == OUTCOME_FAILED ? stage.with(detail: finished_words) : stage }
+  end
+
   # How far it got in counts alone, for a channel, where the latest thing it did would name files and commands.
   def counts_line
     lead = waiting_for_answer? ? "Waiting for an answer" : "Writing the change"
@@ -258,6 +285,50 @@ class Chat::CodeFixProgress
   def to_json(*) = to_h.to_json(*)
 
   private
+
+  WROTE = [ OUTCOME_OPENED, OUTCOME_PUSHED ].freeze
+
+  def stopped? = [ OUTCOME_FAILED, OUTCOME_PAUSED ].include?(outcome)
+
+  # A part done, the one under way, or the one a stop ended on.
+  def stage_status(done, current)
+    return STAGE_DONE if done
+    return (outcome == OUTCOME_FAILED ? STAGE_FAILED : STAGE_RUNNING) if current
+
+    STAGE_PENDING
+  end
+
+  def check_status(checked, written)
+    return (checks_failed? ? STAGE_FAILED : STAGE_DONE) if checked
+    return STAGE_FAILED if written && outcome == OUTCOME_FAILED
+
+    STAGE_PENDING
+  end
+
+  def checks_failed? = checks.any? ? checks.any? { |check| check.status == Integrations::CodeChecks::FAILED } : tests.last&.passed == false
+
+  def hand_over_status(written)
+    return STAGE_DONE if WROTE.include?(outcome)
+    return STAGE_RUNNING if written && !stopped?
+
+    STAGE_PENDING
+  end
+
+  def hand_over_title
+    return "Push to the pull request" if outcome == OUTCOME_PUSHED && pull_request
+    return "Push to the branch" if outcome == OUTCOME_PUSHED
+
+    "Open a pull request"
+  end
+
+  def written_words
+    return waiting_words if waiting_for_answer?
+    return "#{changed.size} #{'file'.pluralize(changed.size)} changed" if changed.any?
+
+    "#{total} #{'step'.pluralize(total)} so far" if total.positive?
+  end
+
+  def checked_words = checks.any? ? lines.reverse.find { |line| line.text.start_with?("Checked the change") }&.text : tests_words
 
   def waited_words(seconds)
     seconds < 60 ? "#{seconds.round}s" : "#{(seconds / 60).floor}m"

@@ -133,7 +133,7 @@ class Api::V1::GatewayApiTest < ActionDispatch::IntegrationTest
     post_json api_v1_approval_rules_url, { risk_levels: [ "destructive" ] }
     second = json_response
     assert_equal 2, second["priority"]
-    assert_equal "channel", second["notify"]
+    assert_equal PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT, second["notify"], "a rule that names nowhere starts on Default"
 
     patch_json api_v1_approval_rule_url(second["id"]), { enabled: false }
     assert_equal false, json_response["enabled"]

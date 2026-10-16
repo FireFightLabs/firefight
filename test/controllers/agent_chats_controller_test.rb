@@ -603,6 +603,22 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
       post agent_chat_confirm_url(conversation), params: { decisions: [ { tool_call_id: "call_1", approved: "true" } ] }
     end
     assert_empty conversation.chat.awaiting_decision
+    assert_equal "Delete permission set is approved.", flash[:notice]
+
+    post agent_chat_confirm_url(conversation), params: { decisions: [ { tool_call_id: "call_unknown", approved: "true" } ] }
+    assert_equal Conversation::Confirming::NOT_ANSWERED, flash[:alert]
+  end
+
+  test "cancelling a paused change says so" do
+    conversation = start_chat
+    conversation.ask!("delete the test permission set")
+    message = conversation.chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    message.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: "delete_permission_set", arguments: { "slug" => "test", "short_title" => "Delete test" })
+    conversation.chat.request_decisions!([ "call_1" ])
+
+    post agent_chat_confirm_url(conversation), params: { decisions: [ { tool_call_id: "call_1", approved: "false" } ] }
+
+    assert_equal "Delete test is cancelled.", flash[:notice]
   end
 
   test "allowing a call for the rest of the chat keeps its tool from asking again" do
@@ -754,8 +770,8 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     get agent_chat_url(conversation), headers: chat_page_headers
 
     shown = inertia_props[AgentChatsController::PROP_HELD_CALLS].sole
-    assert_equal [ held.id, "Bob Jones approved: Resolve incident. Run it now?", "This looks done already.", "INC-1 is already resolved." ],
-                 shown.values_at("id", "headline", "warning", "state")
+    assert_equal [ held.id, "Halon wants to: resolve incident", "Approved by Bob Jones. Run it now?", "This looks done already.", "INC-1 is already resolved." ],
+                 shown.values_at("id", "headline", "line", "warning", "state")
     assert_equal [ [ "run", "dismiss" ], nil ], shown.values_at("offers", "runBlockedReason")
     assert shown["expiresAt"]
   end

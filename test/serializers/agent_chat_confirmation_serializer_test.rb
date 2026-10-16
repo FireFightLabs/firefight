@@ -1,7 +1,7 @@
 require "test_helper"
 
-# A change Halon paused on, as the dashboard card draws it: what will happen first, where quieter under it, what it does,
-# when it is undone and the button named for it, with the call itself kept for Details.
+# A change Halon paused on, as the dashboard card draws it: what Halon wants to do, one plain line, when it is undone and
+# the buttons, with where it runs, what Halon said and the call itself kept for Details.
 class AgentChatConfirmationSerializerTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -19,10 +19,12 @@ class AgentChatConfirmationSerializerTest < ActiveSupport::TestCase
   test "a change leads with the agent's few words, with what the tool reaches under them and its sentence after" do
     shown = shown(ask!(PAUSE))
 
+    assert_equal "Halon wants to: pause dev-web", shown[:heading]
+    assert_equal "Pause the dev-web service so it stops running and stops billing, as you asked.", shown[:line]
+    assert_nil shown[:caution]
     assert_equal "Pause dev-web", shown[:title]
     assert_equal "Faylee (Northflank), project faylee", shown[:label]
     assert_equal "Pause the dev-web service so it stops running and stops billing, as you asked.", shown[:summary]
-    assert_equal "Pause dev-web", shown[:confirmLabel]
     assert_equal [ %w[method POST], %w[path services/dev-web/pause] ], shown[:asked].sort, "the agent's words for the person never show as arguments"
     assert_equal @tool.model_facing_name, shown[:tool]
     assert shown[:allowable]
@@ -30,12 +32,13 @@ class AgentChatConfirmationSerializerTest < ActiveSupport::TestCase
     assert_empty shown[:expires]
   end
 
-  test "a call asked before short titles leads with the agent's sentence and approves with Confirm" do
+  test "a call asked before short titles leads with the agent's sentence, and says only what its action does under it" do
     shown = shown(ask!(PAUSE.except("short_title")))
 
+    assert_equal "Halon wants to: pause the dev-web service so it stops running and stops billing, as you asked", shown[:heading]
     assert_equal "Pause the dev-web service so it stops running and stops billing, as you asked", shown[:title]
+    assert_equal "Changes something in Faylee (Northflank).", shown[:line]
     assert_nil shown[:summary]
-    assert_equal Chat::Tools::CONFIRM, shown[:confirmLabel]
 
     without_words = shown(ask!(PAUSE.except("short_title", "intent"), id: "call_2"))
     assert_equal "Api request", without_words[:title]

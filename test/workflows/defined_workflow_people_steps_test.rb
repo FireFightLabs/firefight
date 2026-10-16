@@ -258,9 +258,12 @@ class DefinedWorkflowPeopleStepsTest < ActiveSupport::TestCase
     run = start(approval_flow("details" => "Build 412 passed."))
     approval = requested(run)
 
-    text = Slack::Messages::Approval.build_request(approval)[1].dig(:text, :text)
-    assert_equal "*#{approval.principal_label}* asks: *Release checkout?*\n> Build 412 passed.\n*Approvers:* <@#{@alice.platform_user_id}>", text
-    assert_equal "Approval required: #{approval.principal_label} asks Release checkout?", Slack::Messages::Approval.request_fallback(approval)
+    shown = ApprovalNotificationService.shown(approval)
+    blocks = Slack::Messages::Approval.build_request(approval, shown: shown)
+    assert_equal "*:raised_hand:  #{approval.principal_label} asks: Release checkout?*\nApprovers: <@#{@alice.platform_user_id}>", blocks.first.dig(:text, :text)
+    assert_equal [ Identifiers::APPROVE_ABILITY, Identifiers::DENY_ABILITY ], blocks.second[:elements].map { |button| button[:action_id] }
+    assert_equal "> Build 412 passed.", blocks.third.dig(:text, :text)
+    assert_equal "#{approval.principal_label} asks: Release checkout?", Slack::Messages::Approval.request_fallback(approval, shown: shown)
   end
 
   test "approval denied takes the denied route" do
@@ -353,19 +356,20 @@ class DefinedWorkflowPeopleStepsTest < ActiveSupport::TestCase
     run = start(approval_flow("wait_minutes" => 30))
     approval = requested(run)
     @adapter.any_instance.expects(:mark_approval_resolved)
-            .with { |approval:, channel_id:, message_id:| channel_id == "C-OPS" && approval.withdrawn_reason == "Nobody decided within 30 minutes." }
+            .with { |approval:, channel_id:, message_id:, **| channel_id == "C-OPS" && approval.withdrawn_reason == "Nobody decided within 30 minutes." }
             .returns({ success: true })
 
     sweep(31.minutes)
 
     assert_equal "withdrawn", row(run.reload, "approve").route
     assert_equal "Nobody decided within 30 minutes.", row(run, "approve").output["reason"]
-    assert_match "*Withdrawn*. Nobody decided within 30 minutes.", Slack::Messages::Approval.build_resolved(approval.reload).last.dig(:text, :text)
+    resolved = Slack::Messages::Approval.build_resolved(approval.reload, shown: ApprovalNotificationService.shown(approval))
+    assert_match "Withdrawn. Nobody decided within 30 minutes.", resolved.first.dig(:text, :text)
   end
 
   test "an approval a role decides is asked in a channel and messages nobody directly" do
     @adapter.any_instance.expects(:post_approval_request_to_user).never
-    @adapter.any_instance.expects(:post_approval_request).with { |approval:, channel_id:| channel_id == @incident.channel_id }.returns({ channel_id: @incident.channel_id, message_id: "3.3" })
+    @adapter.any_instance.expects(:post_approval_request).with { |approval:, channel_id:, **| channel_id == @incident.channel_id }.returns({ channel_id: @incident.channel_id, message_id: "3.3" })
 
     run = start(approval_flow("who" => "role", "role" => "admin", "approvers" => [], "incident" => @incident.identifier))
 
@@ -385,8 +389,8 @@ class DefinedWorkflowPeopleStepsTest < ActiveSupport::TestCase
   end
 
   test "an approval naming people messages only them, beside its channel, which is the owning team's without an incident" do
-    @adapter.any_instance.expects(:post_approval_request_to_user).once.with { |approval:, user_id:| user_id == @bob.platform_user_id }.returns({ channel_id: "D-BOB", message_id: "4.4" })
-    @adapter.any_instance.expects(:post_approval_request).with { |approval:, channel_id:| channel_id == "C0PLATFORM" }.returns({ channel_id: "C0PLATFORM", message_id: "5.5" })
+    @adapter.any_instance.expects(:post_approval_request_to_user).once.with { |approval:, user_id:, **| user_id == @bob.platform_user_id }.returns({ channel_id: "D-BOB", message_id: "4.4" })
+    @adapter.any_instance.expects(:post_approval_request).with { |approval:, channel_id:, **| channel_id == "C0PLATFORM" }.returns({ channel_id: "C0PLATFORM", message_id: "5.5" })
     CatalogEntry.any_instance.stubs(:role_value).with(CatalogAttributeDefinition::ROLE_NOTIFICATION_CHANNEL).returns("C0PLATFORM")
     workflow = approval_flow("approvers" => [ "bob@example.com" ])
     workflow.update!(owner_team: catalog_entries(:platform_team))
@@ -399,7 +403,7 @@ class DefinedWorkflowPeopleStepsTest < ActiveSupport::TestCase
   test "an approval whose run is stopped says so where it was asked" do
     run = start(approval_flow)
     @adapter.any_instance.expects(:mark_approval_resolved)
-            .with { |approval:, channel_id:, message_id:| approval.withdrawn_reason == "The run was stopped before anyone decided." }.returns({ success: true })
+            .with { |approval:, channel_id:, message_id:, **| approval.withdrawn_reason == "The run was stopped before anyone decided." }.returns({ success: true })
 
     perform_enqueued_jobs(except: QUIET) { run.cancel!(by: @alice) }
 

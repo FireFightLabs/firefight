@@ -66,17 +66,19 @@ class IssueChatApprovalsTest < ActionDispatch::IntegrationTest
     assert_equal [ Integrations::AgentSessions::RESPONSE, "Web is scaled down to zero." ], [ @said.last.kind, @said.last.body ]
   end
 
-  test "a call held in any other chat still waits for someone to press Run once approved" do
-    personal = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one))
+  test "a call held in any other chat runs once approved too, with nothing else pressed, and the turn carries on as whoever asked" do
+    bob = workspace_memberships(:bob_workspace_one)
+    personal = Conversation.start_personal!(workspace: @workspace, member: bob)
     @held.chat.update_columns(owner_id: personal.id)
-    Chat::StateCheck.stubs(:run).returns(Chat::CurrentState::Report.new(state: nil, change: nil, checked_at: nil))
+    @held.approval.update_columns(principal_type: bob.class.polymorphic_name, principal_id: bob.id)
+    Slack::WorkspaceAdapter.any_instance.stubs(:post_held_call_to_user).returns(channel_id: "D1", message_id: "9.1")
     sign_in(users(:alice), @workspace)
 
     post approve_approval_url(@held.approval)
 
-    assert_match "They can run it now.", flash[:notice]
-    assert_no_enqueued_jobs(only: ConversationReplyJob) { perform_enqueued_jobs(only: AbilityApprovalResumptionJob) }
-    assert_equal Chat::HeldCall::STATUS_CHECKING, @held.reload.status
+    assert_match "It runs now.", flash[:notice]
+    assert_enqueued_with(job: ConversationReplyJob, args: [ personal.id, bob.id, @held.id ]) { perform_enqueued_jobs(only: AbilityApprovalResumptionJob) }
+    assert_equal [ Chat::HeldCall::STATUS_RUNNING, workspace_memberships(:alice_workspace_one) ], [ @held.reload.status, @held.decided_by ]
   end
 
   test "a denied call never runs" do

@@ -17,13 +17,14 @@ interface ConfirmCardProps {
 type Answer = Omit<ConfirmationAnswer, "toolCallId">
 
 const ALLOW_FOR_CHAT = "Allow for the rest of this chat"
+const APPROVE = "Approve"
 const CANCELLED: Answer = { approved: false, forChat: false, expires: null }
 
 function answerWords(answer: Answer): string {
   if (!answer.approved) {
     return "Cancelled"
   }
-  return answer.forChat ? "Confirmed and allowed for the rest of this chat" : "Confirmed"
+  return answer.forChat ? "Approved and allowed for the rest of this chat" : "Approved"
 }
 
 // Every change Halon paused on, each with what will happen first and the raw call under Details. Nothing is sent until
@@ -117,9 +118,9 @@ interface ConfirmQuestionProps {
   onReopen: (confirmation: AgentChatConfirmation) => void
 }
 
-// One change: what will happen and where, what it does, why Halon proposes it, a warning when outside text holds this
-// change's own values, when it is undone, and the buttons. The tool, what it was given and every read from outside sit
-// under Details.
+// One change, asked plainly: what Halon wants to do, one line on what it changes or why with a caution folded in when
+// outside text holds this change's own values, when it is undone, and the buttons. Where it runs, Halon's reasons, what
+// it touches, the tool, what it was given and every read from outside sit under Details.
 function ConfirmQuestion({ confirmation, answer, onAnswer, onReopen }: ConfirmQuestionProps) {
   const [ expiry, setExpiry ] = useState<string | null>(confirmation.chosenExpiry ?? null)
   const [ forChat, setForChat ] = useState(false)
@@ -168,36 +169,21 @@ function ConfirmQuestion({ confirmation, answer, onAnswer, onReopen }: ConfirmQu
 
   return (
     <div className="flex flex-col gap-3 border-line px-4 py-3.5 not-first:border-t">
-      <div className="flex flex-col gap-0.5 pr-7">
-        <h3 className="text-[15px] font-semibold leading-snug text-ink [overflow-wrap:anywhere]">{confirmation.title}</h3>
-        {confirmation.label && <p className="text-[12.5px] text-ink-3 [overflow-wrap:anywhere]">{confirmation.label}</p>}
+      <div className="flex flex-col gap-1 pr-7">
+        <h3 className="text-[15px] font-semibold leading-snug text-ink [overflow-wrap:anywhere]">{confirmation.heading}</h3>
+        {(confirmation.line || confirmation.caution) && (
+          <p className="text-[13px] leading-relaxed text-ink-2 [overflow-wrap:anywhere]">
+            {confirmation.line}
+            {confirmation.line && confirmation.caution && " "}
+            {confirmation.caution && (
+              <span className="italic text-warning">
+                <IconAlertTriangle className="mr-1 inline size-3.5 align-[-2px]" />
+                {confirmation.caution}
+              </span>
+            )}
+          </p>
+        )}
       </div>
-      {confirmation.summary && <p className="text-[13px] leading-relaxed text-ink-2 [overflow-wrap:anywhere]">{confirmation.summary}</p>}
-      {safeguards.length > 0 && <DetailList details={safeguards} />}
-      {confirmation.pagePath && (
-        <a href={confirmation.pagePath} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-control border border-line">
-          <img src={confirmation.pagePath} alt={confirmation.pageCaption ?? confirmation.title} className="block max-h-64 w-full object-cover object-top" />
-        </a>
-      )}
-      {confirmation.supportLead && (
-        <div className="flex flex-col gap-1">
-          <h4 className="text-[12.5px] font-medium text-ink-2">{confirmation.supportLead}</h4>
-          <ul className="flex list-disc flex-col gap-1 pl-4 text-[13px] leading-snug text-ink marker:text-ink-3">
-            {confirmation.supportPoints.map((point, index) => (
-              <li key={`${point.text}:${index}`} className="[overflow-wrap:anywhere]">
-                {point.text}
-                {point.source && <span className="text-ink-3"> ({point.source})</span>}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {confirmation.readLead && (
-        <p className="flex items-start gap-1.5 text-[13px] font-medium text-warning">
-          <IconAlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-          {confirmation.readLead}
-        </p>
-      )}
       {confirmation.undoLabel && (
         <div className="flex flex-col gap-1.5">
           <span id={`undo-${confirmation.toolCallId}`} className="text-[12.5px] font-medium text-ink-2">{confirmation.undoLabel}</span>
@@ -225,8 +211,8 @@ function ConfirmQuestion({ confirmation, answer, onAnswer, onReopen }: ConfirmQu
         </label>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="primary" onClick={confirm} className="max-w-full">
-          <span className="truncate">{confirmation.confirmLabel}</span>
+        <Button size="sm" variant="primary" onClick={confirm}>
+          {APPROVE}
         </Button>
         <Button size="sm" variant="secondary" onClick={cancel}>
           Cancel
@@ -243,6 +229,34 @@ function ConfirmQuestion({ confirmation, answer, onAnswer, onReopen }: ConfirmQu
       </div>
       {detailsOpen && (
         <div className="flex flex-col gap-2.5 border-t border-line pt-3">
+          <p className="text-[13px] font-medium text-ink [overflow-wrap:anywhere]">{confirmation.title}</p>
+          {confirmation.label && <p className="text-[12.5px] text-ink-3 [overflow-wrap:anywhere]">{confirmation.label}</p>}
+          {confirmation.summary && <p className="text-[13px] leading-relaxed text-ink-2 [overflow-wrap:anywhere]">{confirmation.summary}</p>}
+          {safeguards.length > 0 && <DetailList details={safeguards} />}
+          {confirmation.pagePath && (
+            <a href={confirmation.pagePath} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-control border border-line">
+              <img src={confirmation.pagePath} alt={confirmation.pageCaption ?? confirmation.title} className="block max-h-64 w-full object-cover object-top" />
+            </a>
+          )}
+          {confirmation.supportLead && (
+            <div className="flex flex-col gap-1">
+              <h4 className="text-[12.5px] font-medium text-ink-2">{confirmation.supportLead}</h4>
+              <ul className="flex list-disc flex-col gap-1 pl-4 text-[13px] leading-snug text-ink marker:text-ink-3">
+                {confirmation.supportPoints.map((point, index) => (
+                  <li key={`${point.text}:${index}`} className="[overflow-wrap:anywhere]">
+                    {point.text}
+                    {point.source && <span className="text-ink-3"> ({point.source})</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {confirmation.readLead && (
+            <p className="flex items-start gap-1.5 text-[12.5px] text-warning">
+              <IconAlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+              {confirmation.readLead}
+            </p>
+          )}
           <DetailList details={called} />
           {confirmation.readHeading && <p className="text-[12.5px] text-ink-3">{confirmation.readHeading}</p>}
           {reads.length > 0 && <DetailList details={reads} />}

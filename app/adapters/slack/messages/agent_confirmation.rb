@@ -1,115 +1,146 @@
 module Slack
   module Messages
-    # The calls the agent paused on in a thread, each with its buttons until someone answers.
+    # The calls the agent paused on in a thread. Each is a card asking in plain words what Halon wants to do, one line on
+    # what it changes or why, and Approve, Cancel and Details, with everything else under Details
+    # (Modals::AgentConfirmationDetails). Once answered, the same message is redrawn to how it stands: a checklist while
+    # an approved change runs (ChangeProgress), then one line saying it is done, failed or cancelled.
     module AgentConfirmation
-      TITLE = ":raised_hand:  *Confirm before I go ahead*".freeze
-      STATUS_LINES = {
-        confirmed: ":white_check_mark: Confirmed", cancelled: ":no_entry_sign: Cancelled",
-        withdrawn: ":heavy_minus_sign: Withdrawn. Something else was asked first, so this was not run."
+      EMOJI = {
+        awaiting: ":raised_hand:", owner_asked: ":hourglass:", done: ":white_check_mark:", failed: ":x:", stopped: ":heavy_minus_sign:",
+        cancelled: ":no_entry_sign:", withdrawn: ":heavy_minus_sign:"
       }.freeze
+      WITHDRAWN = "Withdrawn. Something else was asked first, so this was not run.".freeze
+      STOPPED = "Stopped before it finished.".freeze
+      DID_NOT_GO_THROUGH = "It did not go through.".freeze
       ALLOW_FOR_CHAT = "Allow for this chat".freeze
-      # Slack takes 50 blocks. The title and divider take two, and past that each question drops its quiet lines.
+      DETAILS = "Details".freeze
+      CANCEL = "Cancel".freeze
+      # Slack takes 50 blocks in a message.
       MAX_BLOCKS = 50
-      BUTTON_LIMIT = 75
-      TOOL = "tool".freeze
+      REASON_LIMIT = 200
+      LINK_TEXT_LIMIT = 60
 
-      # A browser send is asked about under the screenshot of the page it sends from, posted just before.
-      PAGE_ABOVE = "The page this sends from is in the screenshot above, as Halon's browser saw it before stopping.".freeze
+      # rich is whether the workspace's Slack shows card and plan blocks. Plain, questions are kept apart by a divider,
+      # which many at once drop, then put each question's buttons in one row, then drop their lines, so every one keeps its
+      # buttons under Slack's limit.
+      def self.build(conversation_id:, confirmations:, rich: false)
+        questions = confirmations.map { |confirmation| question_blocks(conversation_id, confirmation, rich: rich) }
+        divided = rich ? questions.flatten : questions.each_with_index.flat_map { |blocks, index| index.positive? ? [ { type: "divider" }, *blocks ] : blocks }
+        return divided if divided.size <= MAX_BLOCKS
 
-      def self.build(conversation_id:, confirmations:)
-        head = [ { type: "section", text: { type: "mrkdwn", text: TITLE } }, { type: "divider" } ]
-        full = confirmations.flat_map { |confirmation| question_blocks(conversation_id, confirmation) }
-        return head + full if head.size + full.size <= MAX_BLOCKS
+        joined = questions.flat_map { |blocks| join_actions(blocks) }
+        joined.size <= MAX_BLOCKS ? joined : joined.reject { |block| block[:type] == "context" }
+      end
 
-        head + confirmations.flat_map { |confirmation| question_blocks(conversation_id, confirmation, compact: true) }
+      # A question's buttons in one row, where the plain form put Allow for this chat in a row of its own.
+      def self.join_actions(blocks)
+        blocks.each_with_object([]) do |block, joined|
+          next joined << block unless block[:type] == "actions" && joined.last&.dig(:type) == "actions"
+
+          joined[-1] = joined.last.merge(elements: joined.last[:elements] + block[:elements])
+        end
       end
 
       def self.fallback(confirmations)
-        "Waiting for you to confirm: #{confirmations.map(&:title).join(', ')}"
+        return confirmations.map { |confirmation| plain_state(confirmation) }.join(" ") if confirmations.none? { |confirmation| confirmation.status == :awaiting }
+
+        "#{Chat::Tools::WANTS_TO} #{confirmations.map(&:action).join(', ')}"
       end
 
-      # In the dashboard's order: what will happen, where, what it does, what it touches, why Halon proposes it, the
-      # warning when outside text holds this change's own values, when it is undone, the buttons, and the call itself
-      # with every read from outside last. Everything here came from the model or other systems, so it is escaped. A
-      # compact question folds the sentence into the title and leaves out where it happens and the call itself.
-      def self.question_blocks(conversation_id, confirmation, compact: false)
-        blocks = heading_blocks(confirmation, compact: compact)
-        guarded = confirmation.safeguards.map { |name, value| "*#{Slack::Mrkdwn.escape(name)}:* #{Slack::Mrkdwn.escape(value)}" }
-        if guarded.any?
-          blocks << { type: "section", text: { type: "mrkdwn", text: guarded.join("\n").truncate(Formatting::SECTION_TEXT_LIMIT) } }
-        end
-        blocks << { type: "context", elements: [ { type: "mrkdwn", text: PAGE_ABOVE } ] } if confirmation.page
-        blocks.concat(support_blocks(confirmation))
-        blocks << { type: "context", elements: [ { type: "mrkdwn", text: ":warning: #{Slack::Mrkdwn.escape(confirmation.read_lead)}" } ] } if confirmation.read_lead
-        blocks.concat(answer_blocks(conversation_id, confirmation))
-        blocks.concat(detail_blocks(confirmation)) unless compact
-        blocks
-      end
-
-      def self.heading_blocks(confirmation, compact:)
-        title = "*#{Slack::Mrkdwn.escape(confirmation.title)}*"
-        summary = (Slack::Mrkdwn.escape(confirmation.summary) if confirmation.summary)
-        return [ { type: "section", text: { type: "mrkdwn", text: [ title, summary ].compact.join("\n").truncate(Formatting::SECTION_TEXT_LIMIT) } } ] if compact
-
-        blocks = [ { type: "section", text: { type: "mrkdwn", text: title.truncate(Formatting::SECTION_TEXT_LIMIT) } } ]
-        blocks << { type: "context", elements: [ { type: "mrkdwn", text: Slack::Mrkdwn.escape(confirmation.label) } ] } if confirmation.label
-        blocks << { type: "section", text: { type: "mrkdwn", text: summary.truncate(Formatting::SECTION_TEXT_LIMIT) } } if summary
-        blocks
-      end
-
-      # The reads from this turn Halon named as showing the change will help, as points in normal text, so the person
-      # approves the reasoning too.
-      def self.support_blocks(confirmation)
-        return [] unless confirmation.support_lead
-
-        points = confirmation.support_points.map do |point|
-          [ "• #{Slack::Mrkdwn.escape(point.text)}", (" _(#{Slack::Mrkdwn.escape(point.source)})_" if point.source) ].join
-        end
-        [ { type: "section", text: { type: "mrkdwn", text: "*#{confirmation.support_lead}*\n#{points.join("\n")}".truncate(Formatting::SECTION_TEXT_LIMIT) } } ]
-      end
-
-      # When a change customers feel is undone, chosen before it is confirmed and kept as soon as it is picked, then the
-      # buttons. Allow for the rest of the chat is offered only where it may be (Confirmation#allowable?). Once answered,
-      # a line says how.
-      def self.answer_blocks(conversation_id, confirmation)
-        if confirmation.status == :owner_asked
-          return [ { type: "context", elements: [ { type: "mrkdwn", text: ":hourglass: Confirmed. Waiting for #{Slack::Mrkdwn.escape(confirmation.waiting_on)} to agree." } ] } ]
-        end
-        status_line = STATUS_LINES[confirmation.status]
-        return [ { type: "context", elements: [ { type: "mrkdwn", text: status_line } ] } ] if status_line
-
+      def self.question_blocks(conversation_id, confirmation, rich:)
         value = "#{conversation_id}:#{confirmation.tool_call_id}"
-        elements = [
-          { type: "button", style: "primary", action_id: Identifiers::AGENT_CONFIRM,
-            text: { type: "plain_text", text: confirmation.confirm_label.truncate(BUTTON_LIMIT) }, value: value },
-          ({ type: "button", action_id: Identifiers::AGENT_ALLOW_FOR_CHAT,
-             text: { type: "plain_text", text: ALLOW_FOR_CHAT }, value: value } if confirmation.allowable?),
-          { type: "button", action_id: Identifiers::AGENT_CANCEL,
-            text: { type: "plain_text", text: "Cancel" }, value: value }
-        ].compact
-        [ expiry_block(value, confirmation), { type: "actions", elements: elements } ].compact
+        case state(confirmation)
+        when :awaiting then request_blocks(value, confirmation, rich: rich)
+        when :working
+          footer = [ "Approved by #{Mrkdwn.mention(confirmation.decided_by)}", (started(confirmation.progress) if confirmation.progress) ].compact.join("  ·  ")
+          ChangeProgress.blocks(title: confirmation.action.upcase_first, work: confirmation.progress, footer: footer, details: details_button(value), rich: rich)
+        else
+          Blocks::Card.new(icon: EMOJI.fetch(state(confirmation)), title: Mrkdwn.escape(confirmation.action.upcase_first), body: state_words(confirmation),
+                           actions: [ details_button(value) ]).to_blocks(rich: rich)
+        end
+      end
+
+      # The card, then what a card cannot hold: allowing it for the rest of the chat where it may be
+      # (Confirmation#allowable?), and when a change customers feel is undone, kept as soon as it is picked.
+      def self.request_blocks(value, confirmation, rich:)
+        actions = [
+          { type: "button", style: "primary", action_id: Identifiers::AGENT_CONFIRM, text: { type: "plain_text", text: Chat::Tools::APPROVE }, value: value },
+          { type: "button", action_id: Identifiers::AGENT_CANCEL, text: { type: "plain_text", text: CANCEL }, value: value },
+          details_button(value)
+        ]
+        card = Blocks::Card.new(icon: EMOJI[:awaiting], title: Mrkdwn.escape(confirmation.heading), body: line_text(confirmation), actions: actions)
+        allow = ({ type: "actions", elements: [ { type: "button", action_id: Identifiers::AGENT_ALLOW_FOR_CHAT, text: { type: "plain_text", text: ALLOW_FOR_CHAT }, value: value } ] } if confirmation.allowable?)
+        [ *card.to_blocks(rich: rich), (expiry_block(value, confirmation) if confirmation.expires.any?), allow ].compact
+      end
+
+      # The one line, with the caution folded in when outside text holding the change's own values was read. A card's
+      # body holds 200 characters, so the line gives way to the caution.
+      def self.line_text(confirmation)
+        caution = (":warning: _#{Mrkdwn.escape(confirmation.caution)}_" if confirmation.caution)
+        room = Blocks::Card::BODY_LIMIT - (caution ? caution.length + 2 : 0)
+        line = (Mrkdwn.escape(confirmation.line).truncate([ room, 40 ].max) if confirmation.line)
+        [ line, caution ].compact.join("  ").presence
+      end
+
+      def self.details_button(value)
+        { type: "button", action_id: Identifiers::AGENT_CONFIRMATION_DETAILS, text: { type: "plain_text", text: DETAILS }, value: value }
       end
 
       def self.expiry_block(value, confirmation)
-        return if confirmation.expires.empty?
-
         options = confirmation.expires.map { |expiry| { text: { type: "plain_text", text: expiry.label }, value: "#{value}:#{expiry.value}" } }
         chosen = options.find { |option| option[:value] == "#{value}:#{confirmation.chosen_expiry}" } || options.first
         { type: "section", text: { type: "mrkdwn", text: confirmation.undo_label },
           accessory: { type: "static_select", action_id: Identifiers::AGENT_EXPIRY, initial_option: chosen, options: options } }
       end
 
-      # The call as the tool is given it, then every read from outside before it was asked, quiet at the foot.
-      def self.detail_blocks(confirmation)
-        called = [ ([ TOOL, confirmation.tool_name ] if confirmation.tool_name), *confirmation.asked ].compact
-        lines = [ called.map { |name, value| "#{Slack::Mrkdwn.escape(name)}: #{Formatting.local_moments(Slack::Mrkdwn.escape(value))}" }.join("  ·  ").presence ].compact
-        if confirmation.read_heading
-          lines << confirmation.read_heading
-          lines.concat(confirmation.read_rows.map { |label, said| "• #{Slack::Mrkdwn.escape(label)}: #{Slack::Mrkdwn.escape(said)}" })
-        end
-        return [] if lines.empty?
+      def self.started(work) = "started #{Formatting.slack_time(work.started_at)}"
 
-        [ { type: "context", elements: [ { type: "mrkdwn", text: lines.join("\n").truncate(Formatting::SECTION_TEXT_LIMIT) } ] } ]
+      def self.state(confirmation)
+        return confirmation.status unless confirmation.status == :confirmed
+
+        outcome = confirmation.outcome
+        return :working unless outcome
+        return :done if outcome.kind == Chat::StepOutcome::KIND_ANSWERED
+        return :stopped if outcome.kind == Chat::StepOutcome::KIND_STOPPED
+
+        :failed
+      end
+
+      def self.state_words(confirmation)
+        by = Mrkdwn.mention(confirmation.decided_by)
+        case state(confirmation)
+        when :owner_asked then "Approved by #{by}  ·  waiting for #{Mrkdwn.escape(confirmation.waiting_on)} to agree"
+        when :done then [ "Done", link(confirmation.outcome&.link || pull_request(confirmation)), "approved by #{by}" ].compact.join("  ·  ")
+        when :failed then "Failed: #{Mrkdwn.escape(failure(confirmation))}"
+        when :stopped then STOPPED
+        when :cancelled then "Cancelled by #{by}"
+        else WITHDRAWN
+        end
+      end
+
+      def self.pull_request(confirmation)
+        url = confirmation.progress&.pull_request
+        Chat::StepOutcome::Link.new(provider: nil, url: url) if url.present?
+      end
+
+      # The page the result came from, with its address as the words, so where it went is visible before it is opened.
+      def self.link(cited)
+        return unless cited&.url.present?
+
+        shown = cited.url.sub(%r{\Ahttps?://}, "").delete_suffix("/").truncate(LINK_TEXT_LIMIT)
+        "<#{cited.url}|#{Mrkdwn.escape(shown)}>"
+      end
+
+      def self.failure(confirmation)
+        said = confirmation.progress&.reason.presence || confirmation.outcome&.said
+        said.present? ? Chat::Tools.plain(said, REASON_LIMIT) : DID_NOT_GO_THROUGH
+      end
+
+      # The same state in words for the notification text, which has no formatting.
+      def self.plain_state(confirmation)
+        words = { working: "approved, working on it", owner_asked: "approved", done: "done", failed: "failed", stopped: "stopped",
+                  cancelled: "cancelled" }.fetch(state(confirmation), "withdrawn")
+        "#{confirmation.action.upcase_first}: #{words}."
       end
     end
   end

@@ -98,6 +98,9 @@ class AbilityGateway
 
       duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - @started_at) * 1000).round
       @invocation.finalize!(outcome: outcome, error_summary: error_summary, duration_ms: duration_ms)
+      # A call an approval let through ended, so every message that asked its approvers says how it went.
+      approval_id = @invocation.approval_id
+      ActiveRecord.after_all_transactions_commit { ApprovalOutcomeJob.perform_later(approval_id) } if approval_id
     end
   end
 

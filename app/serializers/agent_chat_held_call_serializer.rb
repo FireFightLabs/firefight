@@ -13,10 +13,29 @@ class AgentChatHeldCallSerializer < BaseSerializer
     shown.status
   end
 
-  # Such as "Ana approved: Api request on Production (Acme Cloud), project shop. Run it now?"
+  # Such as "Halon wants to: pause dev-web" while it waits, then "Done: pause dev-web" once it ran.
   type :string
   def headline
     shown.headline
+  end
+
+  # The one line under it, such as "Waiting for a workspace admin to approve it." or why it failed.
+  type :string
+  def line
+    shown.line
+  end
+
+  # A code change's parts while it runs and after, each with how it stands. Empty for any other call.
+  STAGE_TYPE = "{ key: string; title: string; status: #{Chat::CodeFixProgress::STAGES.map(&:inspect).join(" | ")}; detail: string | null; link: string | null }[]".freeze
+  type STAGE_TYPE
+  def stages
+    shown.progress&.stages&.map { |stage| stage.to_h.transform_keys(&:to_s) } || []
+  end
+
+  # The page a finished change made, such as its pull request. Absent when it made none.
+  type :string, optional: true
+  def link
+    shown.link
   end
 
   type :string

@@ -255,7 +255,11 @@ class AgentChatsController < InertiaController
         for_chat: ActiveModel::Type::Boolean.new.cast(decision[:for_chat]), expires: decision[:expires].presence&.to_s }
     end
     Conversation::Confirming.decide(conversation, decisions, by: current_membership)
-    redirect_to agent_chat_path(conversation)
+    Conversation::Confirming.redraw_latest(conversation, decisions.first[:tool_call_id]) if decisions.any?
+    said = Conversation::Confirming.answered_words(conversation, decisions.pluck(:tool_call_id))
+    return redirect_to(agent_chat_path(conversation), notice: said) if said
+
+    redirect_to agent_chat_path(conversation), alert: Conversation::Confirming::NOT_ANSWERED
   end
 
   # Approval unlocked the call, and only this runs it, once, as whoever asked. Halon then says how it went.

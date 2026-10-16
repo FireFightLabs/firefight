@@ -37,6 +37,22 @@ class ApprovalRulesControllerTest < ActionDispatch::IntegrationTest
     assert inertia_props["principals"].any? { |principal| principal["id"] == @bob.id }
   end
 
+  test "a new rule saved without choosing where to ask is on Default, and a rule kept from before keeps where it asked" do
+    post approval_rules_url, params: { rule: rule_params.except(:notify) }
+    assert_equal "Approval rule was created.", flash[:notice]
+    assert_equal PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT, @workspace.approval_rules.sole.outcome.dig("require", "notify")
+
+    older = @workspace.approval_rules.sole
+    older.update_columns(outcome: { "require" => older.outcome["require"].except("notify") })
+    patch approval_rule_url(older), params: { rule: { self_approval: true } }
+    assert_equal "Approval rule was updated.", flash[:notice]
+    assert_equal PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL, older.reload.outcome.dig("require", "notify")
+
+    older.update_columns(outcome: older.outcome.deep_merge("require" => { "notify" => PolicyRule::ApprovalOutcome::NOTIFY_DM }))
+    patch approval_rule_url(older), params: { rule: { self_approval: false } }
+    assert_equal PolicyRule::ApprovalOutcome::NOTIFY_DM, older.reload.outcome.dig("require", "notify")
+  end
+
   test "approvers must belong to the workspace" do
     post approval_rules_url, params: { rule: rule_params(approvers: [ { kind: "user", id: workspace_memberships(:alice_workspace_two).id } ]) }, headers: inertia_headers
 

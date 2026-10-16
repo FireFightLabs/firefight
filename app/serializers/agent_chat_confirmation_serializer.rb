@@ -14,28 +14,40 @@ class AgentChatConfirmationSerializer < BaseSerializer
     tool_call.name
   end
 
-  # What will happen, in plain words, such as "Pause dev-web".
+  # The request, such as "Halon wants to: pause dev-web", the card's title.
+  type :string
+  def heading
+    confirmation.heading
+  end
+
+  # The one line under it: what the call changes or why Halon asks, free of code and ids. Absent when nothing is known.
+  type :string, optional: true
+  def line
+    confirmation.line
+  end
+
+  # Said with the line when outside text holding the change's own values was read before asking. Absent otherwise.
+  type :string, optional: true
+  def caution
+    confirmation.caution
+  end
+
+  # What will happen, in plain words, such as "Pause dev-web", under Details and once answered.
   type :string
   def title
     confirmation.title
   end
 
-  # Where it happens, quieter under the title, such as "Northflank, project firefight". Absent when the title says it.
+  # Where it happens, such as "Northflank, project firefight", under Details. Absent when the title says it.
   type :string, optional: true
   def label
     confirmation.label
   end
 
-  # What it does and how to put it back when that is known. Absent when the agent wrote nothing beyond the title.
+  # What it does and how to put it back when that is known, under Details. Absent when the agent wrote nothing beyond the title.
   type :string, optional: true
   def summary
     confirmation.summary
-  end
-
-  # The button that approves it, named for the change when the agent named it.
-  type :string
-  def confirm_label
-    confirmation.confirm_label
   end
 
   # What the tool was given, shown under Details.

@@ -41,6 +41,10 @@ module Ability
       said ? Chat::SecretFree.redacted(said).truncate(SUMMARY_LIMIT) : ANSWERED_ERROR
     end
 
+    def finished? = completed_at.present?
+
+    def succeeded? = outcome == OUTCOME_SUCCESS
+
     def finalize!(outcome:, error_summary: nil, duration_ms: nil)
       raise AlreadyFinalized, "invocation #{id} is already finalized" if completed_at.present?
 
