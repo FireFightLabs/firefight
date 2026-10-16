@@ -43,6 +43,20 @@ class CodeAgentPauseServiceTest < ActionDispatch::IntegrationTest
     assert(texts.none? { |text| text.include?("$") || text.include?("—") || text.include?(";") }, "no dollars and no dashes")
   end
 
+  test "a decided pause stays on its own call when a later call reused the id before anyone decided" do
+    travel 1.minute
+    later = Chat::CodeFixProgress.start
+    later.add("A later change")
+    Chat::StepProgress.keep!(@conversation.chat_record, "call_1", later, since: Time.current)
+    @pause.update_columns(status: CodeAgentSession::Pause::STATUS_CONTINUING)
+
+    CodeAgentPauseService.keep_on_step!(@pause.reload)
+
+    first, second = @conversation.chat_record.step_progresses.where(tool_call_id: "call_1").order(:created_at).map(&:work)
+    assert_equal CodeAgentSession::Pause::STATUS_CONTINUING, first.pause["status"]
+    assert_nil second.pause
+  end
+
   test "Continue from the dashboard carries the change on in a turn as the person, and anyone else is told who can decide" do
     sign_in(@alice.user, @workspace)
     post code_agent_pause_continue_path(@pause)
