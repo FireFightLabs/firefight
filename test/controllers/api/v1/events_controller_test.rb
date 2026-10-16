@@ -31,6 +31,26 @@ class Api::V1::EventsControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
+  test "does not enqueue the Slack verification token in job arguments" do
+    payload = {
+      token: "legacy-verification-token",
+      type: "event_callback",
+      team_id: "T12345",
+      event: { type: "reaction_added", user: "U12345", reaction: "boom" }
+    }
+
+    assert_enqueued_with(job: ProcessEventJob) do
+      post api_v1_events_path, params: payload, as: :json
+    end
+
+    platform, enqueued_payload = enqueued_jobs.last["arguments"]
+    assert_equal Platforms::SLACK, platform
+    assert_not enqueued_payload.key?("token")
+    assert_equal "T12345", enqueued_payload["team_id"]
+    assert_equal "reaction_added", enqueued_payload["event"]["type"]
+    assert_response :ok
+  end
+
   test "returns ok for unknown event types" do
     payload = {
       type: "event_callback",
