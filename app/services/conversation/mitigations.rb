@@ -23,13 +23,15 @@ module Conversation::Mitigations
   end
 
   # Kept at the pause, so the person sees and can change when it is undone. A call that runs without a pause, such as
-  # one allowed for the rest of the chat, is kept as it runs, with the default time.
+  # one allowed for the rest of the chat, is kept as it runs, with the default time. A call that puts another change
+  # back starts on Never, since putting something back should not itself be undone unless the person picks a time.
   def self.propose!(agent_run, call_id:, tool:, environment_entry:, arguments:, tool_name:, target: nil, intent: nil)
     chat = agent_run.chat
+    puts_back = chat.tool_calls.find_by(tool_call_id: call_id.to_s)&.arguments.to_h[Chat::Tools::PUTS_BACK_ARG].present?
     Chat::Mitigation.for_call(chat, call_id) || Chat::Mitigation.create!(
       chat: chat, workspace: agent_run.workspace, asker: agent_run.acting_principal, tool_call_id: call_id.to_s, tool_name: tool_name,
       action_key: tool.action_key, environment_id: environment_entry&.id, arguments: arguments.to_h, target: target, intent: intent,
-      duration_minutes: Chat::Mitigation::DEFAULT_MINUTES
+      duration_minutes: (Chat::Mitigation::DEFAULT_MINUTES unless puts_back)
     )
   rescue ActiveRecord::RecordNotUnique
     Chat::Mitigation.for_call(chat, call_id)

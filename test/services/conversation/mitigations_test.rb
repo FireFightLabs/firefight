@@ -111,14 +111,17 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     assert_empty @sent
   end
 
-  test "the call Halon makes to put it back is its undo, counted as undone only once it runs, and is counted down itself when customers feel it" do
+  test "the call Halon makes to put it back is its undo, counted as undone only once it runs, and is kept as a change of its own, starting on Never" do
     mitigation = in_chat!(expires_at: 1.minute.ago)
     Conversation::Mitigations.expire!(mitigation)
     schema = Chat::Tools::Connection.new(@turn, @enable).parameters_schema
     assert_equal [ mitigation.id ], schema.dig("properties", Chat::Tools::PUTS_BACK_ARG, "enum"), "Halon is offered the change to name"
     back = undo_call!("call_back", puts_back: mitigation.id)
     Chat::Safeguards.prepare!(@turn, [ back ])
-    assert Chat::Mitigation.for_call(@chat, "call_back"), "turning a flag back on is a change customers feel, counted down like any"
+    putting_back = Chat::Mitigation.for_call(@chat, "call_back")
+    assert putting_back, "turning a flag back on is a change customers feel, kept like any"
+    assert_nil putting_back.duration_minutes, "putting something back is never itself undone unless the person picks a time"
+    assert_equal Chat::Mitigation::KEEP, Chat::Tools.confirmation(back.reload).chosen_expiry
     assert_equal Chat::Mitigation::STATUS_UNDO_ASKED, mitigation.reload.status
 
     said = run_enable!("call_back")
@@ -126,7 +129,7 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     assert_equal [ "feature_flag_enable", ARGUMENTS ], @sent.last, "the provider never sees which change it puts back"
     assert_equal Chat::Mitigation::STATUS_UNDONE, mitigation.reload.status
     assert_equal "Halon put Turn new-checkout off back.", mitigation.outcome
-    assert_equal Chat::Mitigation::STATUS_ACTIVE, Chat::Mitigation.for_call(@chat, "call_back").status
+    assert_equal Chat::Mitigation::STATUS_KEPT, Chat::Mitigation.for_call(@chat, "call_back").status
     assert_match "This put back Turn new-checkout off", said
   end
 

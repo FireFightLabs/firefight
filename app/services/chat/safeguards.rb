@@ -3,7 +3,7 @@
 # (Chat::DataRepairs), a change customers feel starts its time once it ran (Conversation::Mitigations), and a call
 # whose owner said no is not run (Conversation::OwnerAsks). A call Halon makes to put back a change it was asked to in
 # the chat, which names that change and reaches what it reached, is that change's undo, so the change is undone once it
-# runs. The call is a change of its own, counted down when customers feel it. call_id is the call the person confirmed.
+# runs. The call is a change of its own, kept when customers feel it, starting on Never. call_id is the call the person confirmed.
 class Chat::Safeguards
   # The safeguards a call has, or nil when it has none. A mitigation through a tool whose action is one is kept here
   # when it ran without a pause, such as one allowed for the rest of the chat.
