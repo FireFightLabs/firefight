@@ -72,6 +72,29 @@ Halon and the other AI features need a model provider. There are two ways to giv
 
 Firefight picks a recommended model for each provider. To choose your own, set `INVESTIGATION_AI_MODEL` for Halon's investigations and chats, `FIREFIGHT_AI_QUICK_MODEL` for quick side jobs, `FIREFIGHT_AI_BACKUP_MODEL` for when the main model stops answering, and `EMBEDDING_AI_MODEL` for search. Add a matching `_PROVIDER` setting, such as `INVESTIGATION_AI_PROVIDER=openrouter`, for a model the registry cannot place. [`.env.example`](.env.example) describes the rest.
 
+## Settings at a glance
+
+[`.env.example`](.env.example) describes every setting. These are the ones you need, and the ones that change what Halon can do.
+
+| Setting | What it is |
+|---|---|
+| `FIREFIGHT_HOST` | The hostname Firefight answers on. Caddy gets its certificate for it |
+| `POSTGRES_PASSWORD` | The password for the bundled Postgres |
+| `SECRET_KEY_BASE` | From `bin/rails secret` |
+| `ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY`, `_DETERMINISTIC_KEY`, `_KEY_DERIVATION_SALT` | From `bin/rails db:encryption:init`. Without them, encrypted data cannot be read |
+| `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_SIGNING_SECRET` | From your Slack app's Basic Information page |
+| `<PROVIDER>_API_KEY` | The install's own AI keys, such as `ANTHROPIC_API_KEY`. Leave them empty and each workspace adds its own AI account |
+| `INVESTIGATION_AI_MODEL`, `FIREFIGHT_AI_QUICK_MODEL`, `FIREFIGHT_AI_BACKUP_MODEL`, `EMBEDDING_AI_MODEL` | The models for investigations and chats, quick side jobs, the fallback, and search |
+| `SANDBOX_PROVIDER`, `SANDBOX_BACKUP_PROVIDER` | Where Halon reads and changes code: `docker`, `northflank` or `boat`. Left blank, code reading is off |
+| `APP_HOST` | The dashboard's host, for the links Firefight posts to Slack |
+| `SLACK_TEAM_ID` | Locks sign-in to one Slack workspace |
+| `INTEGRATION_GITHUB_CLIENT_ID`, `INTEGRATION_GITHUB_CLIENT_SECRET`, `INTEGRATION_GITHUB_APP_SLUG` | Your GitHub App, for connecting GitHub and opening pull requests |
+| `SMTP_ADDRESS`, `MAIL_FROM`, `GOOGLE_CLIENT_ID` | Email link and Google sign-in |
+| `OPERATOR_USER_IDS` | Who may open the operator console at `/operator` |
+| `SENTRY_DSN` | Sends the install's own errors to your Sentry |
+
+Your instance talks to Slack, to Postgres, to the AI providers you configure and to the tools you connect. It sends us nothing.
+
 ## Upgrading
 
 Each [release](https://github.com/FireFightLabs/firefight/releases) carries its own notes. Read them before upgrading, since some releases need a migration you should know about.

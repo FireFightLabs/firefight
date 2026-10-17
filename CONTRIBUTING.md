@@ -16,7 +16,7 @@ Install libvips with `brew install vips` on macOS, or `apt install libvips` on D
 
 ## PostgreSQL via Docker
 
-Production runs PostgreSQL 18.3, so we run the same version locally to keep dev/prod parity. Start it with:
+Firefight needs PostgreSQL 18 with the `vector` extension, the same `pgvector/pgvector:pg18` image CI and the Compose file use. Start it with:
 
 ```sh
 docker run -d \
@@ -25,7 +25,7 @@ docker run -d \
   -e POSTGRES_PASSWORD=postgres \
   -p 5432:5432 \
   -v firefight-postgres-data:/var/lib/postgresql \
-  postgres:18.3
+  pgvector/pgvector:pg18
 ```
 
 Stop and start it later with `docker stop firefight-postgres` and `docker start firefight-postgres`. The named volume `firefight-postgres-data` keeps your data across restarts.
@@ -120,7 +120,15 @@ npm run typecheck            # TypeScript strict check
 npm run lint                 # ESLint
 ```
 
-All of these must pass before a PR is ready for review. Fork PRs run the full CI suite — no secrets are required.
+All of these must pass before a PR is ready for review.
+
+### Measuring Halon
+
+Halon has a bench of 42 recorded scenarios in [`config/halon_bench`](config/halon_bench). Every tool call is answered from the scenario's own recorded world, so nothing outside Firefight is reached, and a judge model scores each answer. CI replays the bench on pull requests from branches of this repository that touch Halon's prompt, tools or loop, and fails when the score drops by more than the noise. A pull request from a fork gets no model keys, so it is benched once its branch is here. To run it yourself:
+
+```sh
+bin/rails "halon:chat_bench[MODEL,PROVIDER]"
+``` Fork PRs run the full CI suite — no secrets are required.
 
 ## Conventions
 
