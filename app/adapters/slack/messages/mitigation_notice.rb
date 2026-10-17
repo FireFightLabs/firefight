@@ -39,7 +39,7 @@ module Slack
       end
 
       PUTS_BACK = "Firefight puts back what this changed, as the person who asked for it, and says how it went here.".freeze
-      ASKS_HALON = "Halon is asked in the chat to put back what this changed, and that call asks first like any change.".freeze
+      ASKS_HALON = "Halon is asked in the chat to put back what this changed, and its call always asks first.".freeze
 
       def self.undo_button(value, asks_halon)
         {

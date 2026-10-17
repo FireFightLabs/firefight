@@ -261,6 +261,8 @@ class AbilityGateway
                                 context: context, requirement: requirement)
     return confirmed if confirmed
 
+    return nil if requirement.equal?(PERSON_REQUIREMENT)
+
     rule = context[:unattended_rule_id] && workspace.unattended_rules.find_by(id: context[:unattended_rule_id])
     return nil unless rule&.admits?(principal: principal, action_key: action_key, scope: scope, params: params)
 
@@ -295,7 +297,7 @@ class AbilityGateway
   # A read never waits on an approval rule, whatever rule names it: a tool that only reads, one of Firefight's own reads,
   # or a call shown to read through a tool that can also change things. Every change keeps every rule.
   def self.approval_requirement(workspace, action, action_key, scope, context, params: nil, principal: nil)
-    return PERSON_REQUIREMENT if principal && person_must_approve?(principal, action, context)
+    return PERSON_REQUIREMENT if principal && person_must_approve?(principal, action, context, params)
     return nil if Ability::Action.approval_exempt?(action_key)
     return nil if action.risk_of(params) == Ability::Action::RISK_READ
 
@@ -318,14 +320,25 @@ class AbilityGateway
   # with a token or by a machine, waits for an admin to approve it, whatever its grants or the approval rules say. A
   # connection's access or secret tool is known from its action alone, so no path that reaches it can leave it out.
   # Firefight's own actions say so in context[:asks_a_person], since a tool such as a webhook's test delivery
-  # authorizes as a change it does not make.
+  # authorizes as a change it does not make. A write through a tool that reaches a whole API can change anything there,
+  # so it counts the same, unless Firefight built the call for a capability (context[:capability], a restart, a scale or
+  # a rollback), whose request is Firefight's own and changes nothing else. Its reads are reads.
   PERSON_REQUIREMENT = { "role" => WorkspaceMembership.roles[:admin], "count" => 1, "self_approval" => true }.freeze
 
-  def self.person_must_approve?(principal, action, context)
-    return false unless action&.asks_a_person? && (action.tool? || context[:asks_a_person])
+  def self.person_must_approve?(principal, action, context, params = nil)
+    return false unless asks_a_person?(action, context, params)
 
     !(principal.is_a?(WorkspaceMembership) && PERSON_SOURCES.include?(context[:source]))
   end
+
+  def self.asks_a_person?(action, context, params)
+    return false unless action
+    return true if action.asks_a_person? && (action.tool? || context[:asks_a_person])
+
+    action.tool? && context[:capability].blank? && action.source.respond_to?(:whole_api?) && action.source.whole_api? &&
+      action.risk_of(params) != Ability::Action::RISK_READ
+  end
+  private_class_method :asks_a_person?
 
   # Anything that leaves Firefight is recorded, reads included. Reads of our own data are
   # covered by the request log, and a person's incident participation by record_change!.
