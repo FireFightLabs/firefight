@@ -133,6 +133,8 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     assert_equal [ Chat::Mitigation::STATUS_UNDO_ASKED, Chat::Mitigation::UNDO_IN_CHAT ], [ mitigation.reload.status, mitigation.undo_state ]
 
     MitigationUndoJob.perform_now(mitigation.id)
+    assert_nil Conversation::Mitigations.mark_back!(mitigation.reload, by: @alice), "one an older process left due by hand is marked back like any"
+    assert_equal Chat::Mitigation::STATUS_UNDONE, mitigation.reload.status
   end
   test "a ready undo a model wrote is put back by Halon, and the card and Slack say so" do
     mitigation = active!

@@ -45,6 +45,8 @@ class Chat::Mitigation < ApplicationRecord
   UNDO_BY_HAND = "by_hand"
   STATUS_DUE_BY_HAND = "due_by_hand"
   OLD_UNDO_STATES = [ UNDO_WRITING, UNDO_BY_HAND ].freeze
+  # How a change waiting for Halon to put it back can be stored, which a guarded move from it names.
+  ASKED_AS_STORED = [ STATUS_UNDO_ASKED, STATUS_DUE_BY_HAND ].freeze
 
   DEFAULT_MINUTES = 60
   # What the person may choose when they confirm it, in minutes. Keeping it is nil.

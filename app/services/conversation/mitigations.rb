@@ -186,7 +186,7 @@ module Conversation::Mitigations
     blocked = mitigation.undo_blocked_reason(by)
     return blocked if blocked
     return "This was just changed by someone else." unless mitigation.move!(from: [ Chat::Mitigation::STATUS_ACTIVE, Chat::Mitigation::STATUS_KEPT, Chat::Mitigation::STATUS_MADE,
-                                                                                   Chat::Mitigation::STATUS_UNDO_ASKED ],
+                                                                                   *Chat::Mitigation::ASKED_AS_STORED ],
                                                                              to: Chat::Mitigation::STATUS_UNDOING, claimed_at: Time.current, ended_by_id: by&.id)
 
     MitigationUndoRunJob.perform_later(mitigation.id)
@@ -279,7 +279,7 @@ module Conversation::Mitigations
   def self.mark_back!(mitigation, by:)
     blocked = mitigation.back_blocked_reason(by)
     return blocked if blocked
-    return "This was just changed by someone else." unless mitigation.move!(from: Chat::Mitigation::STATUS_UNDO_ASKED, to: Chat::Mitigation::STATUS_UNDONE,
+    return "This was just changed by someone else." unless mitigation.move!(from: Chat::Mitigation::ASKED_AS_STORED, to: Chat::Mitigation::STATUS_UNDONE,
                                                                              ended_at: Time.current, ended_by_id: by.id, told_at: nil,
                                                                              outcome: "#{by.display_name} marked #{mitigation.title} as put back.")
 
