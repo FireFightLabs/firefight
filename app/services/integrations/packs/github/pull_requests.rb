@@ -93,6 +93,17 @@ module Integrations
                     }, %w[repo number comment_id body]),
                     read_only: false
 
+          pack.tool :delete_pull_request_comment,
+                    description: "Delete a comment Firefight posted on a pull request, in its conversation as comment_on_pull_request " \
+                                 "said it or on its code as reply_to_review_comment said it. A comment anyone else wrote is refused, " \
+                                 "and a person deletes it on GitHub",
+                    params_schema: Code.object_schema({
+                      "repo" => REPO,
+                      "comment_id" => { "type" => "integer", "description" => "The comment's id" },
+                      "review" => { "type" => "boolean", "description" => "Whether it is a review comment on the code (optional, a comment in the conversation)" }
+                    }, %w[repo comment_id]),
+                    read_only: false
+
           pack.tool :review_pull_request,
                     description: "Submit a review of a pull request on its current head commit: approve it, request changes or comment, " \
                                  "with comments on lines of its diff if given",
@@ -239,6 +250,13 @@ module Integrations
             reply = GithubApp.write(:post, "/repos/#{repo}/pulls/#{number}/comments/#{comment_id}/replies", { body: body }, token: token)
             linked("Replied to review comment #{comment_id} on PR ##{number} in #{repo}#{" on #{reply['path']}" if reply['path']}#{", as review comment #{reply['id']}" if reply['id']}.", reply["html_url"])
           end
+        end
+
+        def delete_pull_request_comment(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          id = number_argument(arguments, "comment_id")
+          path = boolean_argument(arguments, "review") ? "/repos/#{repo}/pulls/comments/#{id}" : "/repos/#{repo}/issues/comments/#{id}"
+          delete_own_comment("delete_pull_request_comment", repo, id, path, GithubApp.installation_token(environment_row))
         end
 
         def review_pull_request(environment_row:, arguments:)

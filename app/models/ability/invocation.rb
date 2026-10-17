@@ -38,6 +38,8 @@ module Ability
     validates :source, inclusion: { in: AbilityGateway::SOURCES }, allow_nil: true
 
     scope :pending_outcome, -> { where(decision: DECISION_ALLOW, completed_at: nil) }
+    # With what each row needs to say why it ran without asking (#unasked_because), read for a whole page at once.
+    scope :with_allowances, -> { includes(allowance: [ :environment, :integration, { action: :source } ]) }
 
     # Why a change ran without the person's yes, in the words the activity log and the change's card both show, or nil.
     def self.unasked_words(reason, allowance)

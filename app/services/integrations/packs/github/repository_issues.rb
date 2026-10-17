@@ -51,15 +51,11 @@ module Integrations
                                                       %w[repo number body]),
                     read_only: false
 
-          pack.tool :delete_comment,
-                    description: "Delete a comment Firefight posted on an issue or a pull request, by the comment's id as the call that " \
-                                 "posted it said. A comment anyone else wrote is refused, and a person deletes it on GitHub",
-                    params_schema: Code.object_schema({
-                      "repo" => REPO,
-                      "comment_id" => { "type" => "integer", "description" => "The comment's id" },
-                      "review" => { "type" => "boolean", "description" => "Whether it is a review comment on a pull request's code, as " \
-                                                                           "reply_to_review_comment posts (optional, a comment in the conversation)" }
-                    }, %w[repo comment_id]),
+          pack.tool :delete_issue_comment,
+                    description: "Delete a comment Firefight posted on an issue, by the comment's id as comment_on_issue said it. A " \
+                                 "comment anyone else wrote is refused, and a person deletes it on GitHub",
+                    params_schema: Code.object_schema({ "repo" => REPO, "comment_id" => { "type" => "integer", "description" => "The comment's id" } },
+                                                      %w[repo comment_id]),
                     read_only: false
 
           pack.tool :update_issue,
@@ -160,22 +156,10 @@ module Integrations
           end
         end
 
-        # Only a comment Firefight's App posted, so an undo never takes away what a person wrote.
-        def delete_comment(environment_row:, arguments:)
+        def delete_issue_comment(environment_row:, arguments:)
           repo = repo_argument(arguments)
           id = number_argument(arguments, "comment_id")
-          path = boolean_argument(arguments, "review") ? "/repos/#{repo}/pulls/comments/#{id}" : "/repos/#{repo}/issues/comments/#{id}"
-          token = GithubApp.installation_token(environment_row)
-          asking("delete_comment", "GitHub has no comment #{id} in #{repo}") do
-            comment = GithubApp.get(path, token: token)
-            author = comment.dig("user", "login").to_s
-            unless GithubApp.bot_login.present? && author.casecmp?(GithubApp.bot_login)
-              fail_policy! "Only a comment Firefight posted is deleted, and comment #{id} is #{author.presence || 'someone else'}'s. A person deletes it on GitHub."
-            end
-
-            GithubApp.write(:delete, path, token: token)
-            linked("Deleted comment #{id} in #{repo}.", comment["html_url"])
-          end
+          delete_own_comment("delete_issue_comment", repo, id, "/repos/#{repo}/issues/comments/#{id}", GithubApp.installation_token(environment_row))
         end
 
         def update_issue(environment_row:, arguments:)
@@ -247,6 +231,21 @@ module Integrations
         end
 
         private
+
+        # Only a comment Firefight's App posted, so an undo never takes away what a person wrote.
+        def delete_own_comment(tool, repo, id, path, token)
+          asking(tool, "GitHub has no comment #{id} in #{repo}") do
+            comment = GithubApp.get(path, token: token)
+            author = comment.dig("user", "login").to_s
+            own = GithubApp.bot_login
+            unless own.present? && author.casecmp?(own)
+              fail_policy! "Only a comment Firefight posted is deleted, and comment #{id} is #{author.presence || 'someone else'}'s. A person deletes it on GitHub."
+            end
+
+            GithubApp.write(:delete, path, token: token)
+            linked("Deleted comment #{id} in #{repo}.", comment["html_url"])
+          end
+        end
 
         def issue_target(arguments, environment_row)
           [ repo_argument(arguments), number_argument(arguments), GithubApp.installation_token(environment_row) ]

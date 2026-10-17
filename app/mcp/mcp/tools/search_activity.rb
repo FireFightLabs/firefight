@@ -18,7 +18,7 @@ module Mcp
 
       # A tool's call also names the connection it ran through, as a person tells it apart, and its provider.
       def self.perform(workspace:, args:)
-        scope = workspace.ability_invocations.order(created_at: :desc)
+        scope = workspace.ability_invocations.with_allowances.order(created_at: :desc)
         scope = scope.where(decision: args[:decision].to_s) if args[:decision].present?
         scope = scope.where(action_key: args[:ability].to_s) if args[:ability].present?
         invocations, truncated = capped(scope, args)

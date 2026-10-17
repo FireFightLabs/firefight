@@ -104,10 +104,17 @@ module Integrations
     GRAPHQL
 
     class << self
-      # The login the App's own comments and reviews carry on GitHub, or nil before the App is registered.
+      # The login the App's own comments and reviews carry on GitHub, from its configured slug or else from GitHub's own
+      # answer for the App, read once. nil when neither says.
       def bot_login
-        slug = IntegrationProvider.oauth_client(PROVIDER_KEY)[:app_slug]
-        slug.present? ? "#{slug}[bot]" : nil
+        slug = IntegrationProvider.oauth_client(PROVIDER_KEY)[:app_slug].presence || own_slug
+        slug && "#{slug}[bot]"
+      end
+
+      def own_slug
+        @own_slug ||= get("/app", token: app_jwt)["slug"].presence
+      rescue Error
+        nil
       end
 
       def install_url(state:)
