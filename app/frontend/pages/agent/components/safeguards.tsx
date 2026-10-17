@@ -10,6 +10,8 @@ import { extendMitigation, keepMitigation, undoMitigation } from "@/pages/agent/
 import type { AgentChatDataRepair, AgentChatMitigation, AgentChatOwnerAsk } from "@/types/serializers"
 
 const CARD_CLASS = "flex w-full max-w-160 flex-col gap-3 rounded-card bg-surface px-4 py-3.5 shadow-card"
+const PUTS_BACK = "Firefight puts back what this changed, as the person who asked for it, and says how it went here."
+const ASKS_HALON = "Halon is asked in this chat to put back what this changed, and that call asks first like any change."
 
 interface SafeguardsProps {
   conversationId: string
@@ -73,10 +75,16 @@ function DataRepairCard({ conversationId, repair }: { conversationId: string; re
 
 function mitigationState(mitigation: AgentChatMitigation): string {
   if (mitigation.status === MITIGATION_STATUSES.ACTIVE && mitigation.expiresAt) {
-    return `Firefight undoes this at ${formatTime(mitigation.expiresAt)} unless someone keeps it.`
+    const at = formatTime(mitigation.expiresAt)
+    return mitigation.asksHalon
+      ? `Halon asks in this chat to put it back at ${at} unless someone keeps it.`
+      : `Firefight undoes this at ${at} unless someone keeps it.`
   }
   if (mitigation.status === MITIGATION_STATUSES.KEPT) {
-    return "Kept. Firefight will not undo it."
+    return "Kept, so it is not put back."
+  }
+  if (mitigation.status === MITIGATION_STATUSES.UNDO_ASKED) {
+    return "Halon was asked in this chat to put it back. It stays in place until that call runs."
   }
   if (mitigation.status === MITIGATION_STATUSES.MADE) {
     return mitigation.unaskedWords ?? ""
@@ -92,14 +100,16 @@ function unaskedLine(mitigation: AgentChatMitigation): string | null {
   return mitigation.status === MITIGATION_STATUSES.MADE ? null : mitigation.unaskedWords ?? null
 }
 
-// A change customers feel, such as a feature flag turned off. While it is in place it says when Firefight undoes it and
-// offers Keep it, One more hour and Undo now, each blocked with why when this viewer may not. Undo now asks first. A
-// change Halon made without asking says why and offers Undo now alone, or nothing when nothing puts it back.
+// A change customers feel, such as a feature flag turned off. While it is in place it says when it is put back, by
+// Firefight or by Halon asked in the chat, and offers Keep it, One more hour and Undo now, each blocked with why when
+// this viewer may not. Undo now asks first. Once Halon was asked to put it back it offers Undo now alone, to ask again.
+// A change Halon made without asking says why and offers Undo now alone, or nothing when nothing puts it back.
 function MitigationCard({ conversationId, mitigation }: { conversationId: string; mitigation: AgentChatMitigation }) {
   const [ sending, setSending ] = useState<string | null>(null)
   const [ confirming, setConfirming ] = useState(false)
   const made = mitigation.status === MITIGATION_STATUSES.MADE
-  const live = mitigation.status === MITIGATION_STATUSES.ACTIVE || mitigation.status === MITIGATION_STATUSES.KEPT || made
+  const live = mitigation.status === MITIGATION_STATUSES.ACTIVE || mitigation.status === MITIGATION_STATUSES.KEPT ||
+    mitigation.status === MITIGATION_STATUSES.UNDO_ASKED || made
   const active = mitigation.status === MITIGATION_STATUSES.ACTIVE
   const undoable = mitigation.undoState !== MITIGATION_UNDO_STATES.NO_INVERSE
   const blocked = undoable ? mitigation.undoBlockedReason ?? (active ? mitigation.keepBlockedReason : null) : null
@@ -173,7 +183,7 @@ function MitigationCard({ conversationId, mitigation }: { conversationId: string
       <ConfirmDeleteDialog
         open={confirming}
         title="Undo it now?"
-        description={`Firefight puts back what this changed, as the person who asked for it, and says how it went here. ${mitigation.undoNote ?? ""}`.trim()}
+        description={mitigation.asksHalon ? ASKS_HALON : `${PUTS_BACK} ${mitigation.undoNote ?? ""}`.trim()}
         confirmLabel="Undo now"
         onConfirm={undo}
         onCancel={cancelUndo}

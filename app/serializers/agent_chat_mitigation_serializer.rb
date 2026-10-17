@@ -1,4 +1,4 @@
-# A change customers feel that Halon made in this chat, with what it changed, when Firefight undoes it, how, and how it
+# A change customers feel that Halon made in this chat, with what it changed, when it is put back, how, and how it
 # ended. Whether the viewer may keep, extend or undo it ships as blocked reasons, so the card decides nothing.
 class AgentChatMitigationSerializer < BaseSerializer
   object_as :mitigation
@@ -33,6 +33,10 @@ class AgentChatMitigationSerializer < BaseSerializer
   def undo_state
     mitigation.undo_state
   end
+
+  # Whether Halon is asked in the chat to put it back, since no fixed call does, rather than Firefight running one.
+  type :boolean
+  def asks_halon = !mitigation.undone_by_firefight?
 
   # How it is undone, or what a person has to do by hand.
   type :string, optional: true

@@ -21,6 +21,7 @@ class Chat::Tools::Capability < RubyLLM::Tool
   def parameters_schema
     schema = Integrations::Capabilities.schema(@spec, Integrations::Capabilities.connection_choices(@agent_run.workspace, @spec, @tools))
     schema = Chat::Tools::LookFirst.with_because(schema, required: true) if looks_first?
+    schema = Chat::Tools.with_putting_back(schema, Conversation::Mitigations.waiting_undo_ids(@agent_run.chat, @tools)) if @spec.writes
     requires_approval? ? Chat::Tools.with_intent(schema) : schema
   end
 

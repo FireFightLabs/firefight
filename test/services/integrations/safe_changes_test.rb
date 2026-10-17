@@ -12,7 +12,7 @@ class Integrations::SafeChangesTest < ActiveSupport::TestCase
     integration.tools.create!(name: name, description: name, enabled: true, read_only: read_only, params_schema: {})
   end
 
-  test "a label, a comment and running CI again are safe, and a restart named by its own tool is risky" do
+  test "a label and running the tests are safe, and running CI again or a restart named by its own tool is risky" do
     label = tool(@github, "label_issue")
     tests = tool(@github, "run_tests")
     fly = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "fly", name: "Fly", slug: "fly")
@@ -21,6 +21,20 @@ class Integrations::SafeChangesTest < ActiveSupport::TestCase
     assert Integrations::SafeChanges.tool?(tests)
     assert_equal Ability::Action::CHANGE_SAFE, label.ability_action.change_class
     assert_not Integrations::SafeChanges.tool?(tool(fly, "restart_app")), "a Fly app can be a Postgres cluster"
+    assert_not Integrations::SafeChanges.tool?(tool(@github, "rerun_workflow"))
+  end
+
+  test "anything whose words or effect outside text could steer is safe only before outside text arrives, and assigning or asking for a review always is" do
+    opsgenie = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "opsgenie", name: "Opsgenie", slug: "opsgenie")
+    gitlab = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "gitlab", name: "GitLab", slug: "gitlab")
+    steered = [ tool(@github, "label_issue"), tool(@github, "label_pull_request"), tool(@github, "run_tests"), tool(@github, "comment_on_issue"),
+                tool(opsgenie, "add_alert_note"), tool(gitlab, "run_tests") ]
+
+    steered.each { |found| assert Integrations::SafeChanges.until_outside?(found), "#{found.name} on #{found.integration.provider}" }
+    [ tool(@github, "assign_issue"), tool(@github, "request_reviewers") ].each do |found|
+      assert Integrations::SafeChanges.tool?(found)
+      assert_not Integrations::SafeChanges.until_outside?(found), found.name
+    end
   end
 
   test "merging, deploying and setting a secret are risky, and a secret is an access change" do
@@ -64,8 +78,8 @@ class Integrations::SafeChangesTest < ActiveSupport::TestCase
       assert pack, "#{entry.key} lists safe or access tools, which only a native pack's own tools may be"
       changes = pack.tool_definitions.reject(&:read_only).map { |definition| definition.name.to_s }
       (listed + entry.access_tools).each { |name| assert_includes changes, name, "#{entry.key}'s #{name} is a change its pack offers" }
+      assert_empty entry.safe_until_outside_tools - listed, "#{entry.key} lists a tool safe until outside text that is not safe"
       entry.undo_tools.each do |name, spec|
-        assert_includes listed, name, "#{entry.key} declares an undo only for a safe tool"
         assert_includes changes, spec["tool"], "#{entry.key}'s undo of #{name} is a change its pack offers"
         assert_empty [ spec["tool"] ] & (entry.access_tools + entry.mitigation_tools + entry.stopping_tools), "#{entry.key}'s undo of #{name} is plain"
       end

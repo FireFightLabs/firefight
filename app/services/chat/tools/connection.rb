@@ -65,6 +65,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     schema = Chat::Tools::TrackedIssues.with_kind(schema) if tracks_issues?
     schema = Chat::DataRepairs.with_check(schema) if data_writes?
     schema = Chat::Tools::LookFirst.with_because(schema, required: false) if changes_at_all?
+    schema = Chat::Tools.with_putting_back(schema, Conversation::Mitigations.waiting_undo_ids(@agent_run.chat, [ @tool ])) if changes_at_all?
     requires_approval? ? Chat::Tools.with_intent(schema) : schema
   end
 
@@ -169,9 +170,10 @@ class Chat::Tools::Connection < RubyLLM::Tool
     return true if held_for_others?(given)
 
     scope, params = call_scope(given)
-    @agent_run.unasked!(tool_call.id, @agent_run.unasked_for(@tool.ability_action, scope: scope, params: params, safe: @tool.safe_change?,
-                                                                                   tool_call_id: tool_call.id,
-                                                                                   outside: Chat::Tools::Provenance.outside_read(@agent_run)))
+    outside = Chat::Tools::Provenance.outside_read(@agent_run)
+    safe = @tool.safe_change? && !(Integrations::SafeChanges.until_outside?(@tool) && outside.call)
+    @agent_run.unasked!(tool_call.id, @agent_run.unasked_for(@tool.ability_action, scope: scope, params: params, safe: safe,
+                                                                                   tool_call_id: tool_call.id, outside: outside))
   rescue Integration::UnknownEnvironment
     false
   end

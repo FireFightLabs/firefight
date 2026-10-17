@@ -11,6 +11,35 @@ class Chat::Tools::ProvenanceTest < ActiveSupport::TestCase
     @turn = Conversation::Turn.new(@conversation, asker: @member)
   end
 
+  test "an incident's name, which an alert's title may have written, counts as outside, and so does how an investigation went" do
+    assert_not Chat::Tools::Provenance.read_anything_outside?(@chat)
+
+    incident = incidents(:active_critical_ws1)
+    on_incident = Conversation.create!(workspace: @workspace, kind: Conversation::KIND_PERSONAL, subject: incident, started_by: @member,
+                                       max_turns: 10, max_spend_cents: 100)
+    assert Chat::Tools::Provenance.read_anything_outside?(on_incident.chat_record)
+    chat = on_incident.chat_record
+    call = chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+               .ruby_llm_tool_calls.create!(tool_call_id: "call_note", name: "github_comment_on_issue", arguments: { "body" => incident.name })
+    Chat::Tools::Provenance.record_in!(chat, [ call ], @workspace)
+    confirmation = Chat::Tools.confirmation(call.reload)
+    assert_not confirmation.allowable?, "Allow for the rest of this chat is not offered when it would not be honoured"
+    assert_equal [ "The incident's name" ], Chat::Tools::Provenance.stored(call).sources.select { |source| source.found.any? }.map(&:label)
+
+    @workspace.investigations.create!(trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400, conversation: @conversation,
+                                      brief: { Investigation::Brief::KEY_SYMPTOM => "checkout is slow" })
+    assert Chat::Tools::Provenance.read_anything_outside?(@chat.reload)
+  end
+
+  test "Allow for the rest of this chat stops covering a change once anything from outside reached the chat, a nudge included" do
+    @chat.allow_tool!("github_label_issue")
+    @turn.chat.reload
+    assert Chat::Tools::Provenance.allowed?(@turn, "github_label_issue")
+
+    @chat.nudge!("The approvers said yes to the call you asked about.")
+    assert_not Chat::Tools::Provenance.allowed?(@turn, "github_label_issue")
+  end
+
   test "a request's method, a flag and a plain number are generic, any name is the change's own however short" do
     %w[GET POST delete true null none yes 200 8080 1.5 -12].each { |value| assert_not Chat::Tools::Provenance.specific?(value), value }
     %w[web job api dev-web pause nf-compute-100-4 srv_8a7cf66a https://shop.example.com 10.0.4.17].each do |value|

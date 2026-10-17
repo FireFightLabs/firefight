@@ -222,6 +222,8 @@ module Chat::Tools
   # The button that approves a change. The heading already says what it is.
   APPROVE = "Approve".freeze
   UNDO_AUTOMATICALLY = "Undo automatically".freeze
+  # The same choice for a change no fixed call puts back, which Halon is asked to put back in the chat when it is due.
+  ASK_HALON_TO_PUT_BACK = "Ask Halon to put it back".freeze
   WANTS_TO = "Halon wants to:".freeze
   CAUTION = "It read text from %<places>s that other people wrote. Check this is what you want.".freeze
   LISTED_BUT_READ = "It is on the list of what Halon may do without asking, and asks anyway, since Halon has read text from outside Firefight in this chat.".freeze
@@ -268,13 +270,28 @@ module Chat::Tools
     "description" => "The change in two to five words starting with a verb, for the title of the approval and its button, " \
                      "such as \"Pause dev-web\" or \"Purge the firefight.app cache\""
   }.freeze
-  # Every argument the agent writes for the person alone, which no tool is given.
-  FOR_PERSON = [ INTENT_ARG, SHORT_TITLE_ARG ].freeze
+  # Names the change Firefight asked Halon to put back that a call puts back, offered only while one waits on the call's
+  # connection (Conversation::Mitigations.undo_asked_in), so the change is undone by that call and no other.
+  PUTS_BACK_ARG = "puts_back".freeze
+  # Every argument the agent writes for the person or for Firefight, which no tool is given.
+  FOR_PERSON = [ INTENT_ARG, SHORT_TITLE_ARG, PUTS_BACK_ARG ].freeze
 
   def self.with_intent(schema)
     schema = schema.deep_dup
     schema["properties"] = (schema["properties"] || {}).merge(INTENT_ARG => INTENT, SHORT_TITLE_ARG => SHORT_TITLE)
-    schema["required"] = (Array(schema["required"]) + FOR_PERSON).uniq
+    schema["required"] = (Array(schema["required"]) + [ INTENT_ARG, SHORT_TITLE_ARG ]).uniq
+    schema
+  end
+
+  # ids are the changes waiting to be put back on the call's connection, and none adds nothing.
+  def self.with_putting_back(schema, ids)
+    return schema if ids.empty?
+
+    schema = schema.deep_dup
+    schema["properties"] = (schema["properties"] || {}).merge(PUTS_BACK_ARG => {
+      "type" => "string", "enum" => ids,
+      "description" => "Only when this call puts back a change Firefight asked you to put back: that change's id. Leave it out for any other call."
+    })
     schema
   end
 
@@ -437,7 +454,7 @@ module Chat::Tools
       expires: expiries(mitigation), for_chat: repair.nil? && !Browser.sends?(tool_call.arguments) && !asks_a_person?(tool_call.name, workspace),
       waiting_on: (owner.owner_name if tool_call.approval == Chat::APPROVAL_OWNER_ASKED && owner),
       support: workspace ? LookFirst.support(chat, tool_call, workspace) : [], page: page,
-      short_title: short_title_of(tool_call.arguments), chosen_expiry: chosen_expiry(mitigation), undo_words: undo_words(workspace, mitigation),
+      short_title: short_title_of(tool_call.arguments), chosen_expiry: chosen_expiry(mitigation), undo_words: undo_words(workspace, mitigation, tool_call.arguments),
       plan_undo: plan_undo(chat, tool_call), tool_name: tool_call.name.to_s, effect: effect(workspace, tool_call.name, target),
       decided_by: decided_by(tool_call), listed: tool_call.try(:allowance_id).present? && tool_call.try(:unasked_reason).blank?, **ran(chat, tool_call)
     )
@@ -477,10 +494,18 @@ module Chat::Tools
     Ability::Action::EFFECT_DATA_WRITE => "Changes rows in %<place>s."
   }.freeze
 
-  # What undoing a change customers feel means, when its provider says, such as starting a paused service again.
-  def self.undo_words(workspace, mitigation)
+  # What undoing a change customers feel means, such as starting a paused service again, when Firefight puts it back
+  # itself, and ASK_HALON_TO_PUT_BACK when no fixed call does and Halon is asked in the chat instead.
+  # given is the call as Halon made it, which names a plan by the capability's own argument.
+  def self.undo_words(workspace, mitigation, given = {})
     return unless workspace && mitigation&.proposed?
-    return Integrations::Mitigations::SCALES_BACK if mitigation.tool_name == Integrations::Capabilities.spec(Integrations::Capabilities::SCALE).tool_name
+
+    if mitigation.tool_name == Integrations::Capabilities.spec(Integrations::Capabilities::SCALE).tool_name
+      return given.to_h.stringify_keys[Integrations::Capabilities::PLAN_ARG].blank? ? Integrations::Mitigations::SCALES_BACK : ASK_HALON_TO_PUT_BACK
+    end
+
+    made_with = Integration::Tool.by_action_key(workspace, mitigation.action_key)
+    return ASK_HALON_TO_PUT_BACK unless mitigation.undo_steps.any? || (made_with && Integrations::SafeChanges.declares_undo?(made_with))
 
     tool = Target.label(workspace, mitigation.tool_name)
     tool && Integrations::Mitigations.undo_words(tool, mitigation.arguments)

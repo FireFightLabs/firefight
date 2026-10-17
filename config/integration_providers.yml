@@ -50,14 +50,19 @@
 # or remove something someone started, such as cancelling a run, so its pack asks whoever started it first. Neither
 # lists a general tool that reaches a whole API, since which call it makes is only known when it is called.
 # safe_tools are tools whose change is harmless or easy to put back, and changes no data, access, money or where
-# production traffic goes, such as a label, a comment or running CI again, so Halon makes it without asking when the
+# production traffic goes, such as assigning an issue or asking for a review, so Halon makes it without asking when the
 # workspace lets it and says what it did. Every other change is risky and asks. A tool on a remote server is listed only
 # where its own documentation makes that plain, and a restart, a scale or a rollback is never listed, since the
 # capability decides those call by call from a live count (Integrations::SafeChanges). undo_tools gives a safe tool the
 # one fixed call that puts it back, on the same connection: the tool, and each of its arguments taken from the call's
 # own argument of that name, from a value the tool's answer named (result.<name>), or as written (=<value>). Only a tool
-# here offers Undo, and no model ever writes one. access_tools change who can reach something or set a secret, so a
-# person is always asked and the list of what Halon may do without asking never holds one.
+# here offers Undo, and no model ever writes one. A temporary change, such as a flag turned off, is put back the same way
+# when its tool is here, and otherwise Halon is asked in the chat to put it back, where its call asks like any change.
+# safe_until_outside_tools are safe only while nothing from outside has reached the chat, since outside text could
+# steer their words or effect: a comment or a note, a label, and running a repository's tests, whose command reaches
+# the network from the sandbox. Running CI again is never safe, since a run can deploy. access_tools change who can
+# reach something or set a secret, so a person is always asked and the list of what Halon may do without asking never
+# holds one.
 # status_page is the provider's public status page and hosts the domains its API and apps answer on, read with the
 # outside systems in config/upstreams.yml, which says what each means. A provider that runs only where its customer runs
 # it, such as Kubernetes, has neither.
@@ -135,7 +140,8 @@ categories:
 
 providers:
   - key: github
-    safe_tools: [rerun_workflow, comment_on_issue, comment_on_pull_request, reply_to_review_comment, label_issue, label_pull_request, assign_issue, run_tests, request_reviewers]
+    safe_tools: [comment_on_issue, comment_on_pull_request, reply_to_review_comment, label_issue, label_pull_request, assign_issue, run_tests, request_reviewers]
+    safe_until_outside_tools: [comment_on_issue, comment_on_pull_request, reply_to_review_comment, label_issue, label_pull_request, run_tests]
     undo_tools:
       comment_on_issue: { tool: delete_issue_comment, arguments: { repo: repo, comment_id: result.comment_id } }
       comment_on_pull_request: { tool: delete_pull_request_comment, arguments: { repo: repo, comment_id: result.comment_id } }
@@ -163,7 +169,8 @@ providers:
     holds_code: true
     stopping_tools: [cancel_workflow]
   - key: gitlab
-    safe_tools: [retry_pipeline, run_tests]
+    safe_tools: [run_tests]
+    safe_until_outside_tools: [run_tests]
     name: GitLab
     category: Code
     mark: GL
@@ -194,7 +201,8 @@ providers:
     holds_code: true
     stopping_tools: [cancel_pipeline]
   - key: bitbucket
-    safe_tools: [rerun_pipeline, run_tests]
+    safe_tools: [run_tests]
+    safe_until_outside_tools: [run_tests]
     name: Bitbucket
     category: Code
     mark: BB
@@ -803,6 +811,7 @@ providers:
     map_note: "It pages people about what runs elsewhere and runs nothing of its own."
   - key: opsgenie
     safe_tools: [add_alert_note]
+    safe_until_outside_tools: [add_alert_note]
     name: Opsgenie
     category: Alerting and on-call
     mark: OG

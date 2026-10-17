@@ -185,7 +185,8 @@ export const MITIGATION_STATUSES = {
   "DUE_BY_HAND": "due_by_hand",
   "CANCELLED": "cancelled",
   "WITH_PLAN": "with_plan",
-  "MADE": "made"
+  "MADE": "made",
+  "UNDO_ASKED": "undo_asked"
 } as const
 
 export const MITIGATION_UNDO_STATES = {
@@ -193,7 +194,8 @@ export const MITIGATION_UNDO_STATES = {
   "WRITING": "writing",
   "READY": "ready",
   "BY_HAND": "by_hand",
-  "NO_INVERSE": "no_inverse"
+  "NO_INVERSE": "no_inverse",
+  "IN_CHAT": "in_chat"
 } as const
 
 export const OWNER_ASK_STATUSES = {

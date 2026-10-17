@@ -55,7 +55,7 @@ module Mcp
       result = AbilityGateway.authorize!(
         principal: server_context[:principal], action_key: tool.action_key,
         workspace: workspace, scope: scope, params: arguments,
-        context: { source: AbilityGateway::SOURCE_MCP, approval_id: args[APPROVAL_ID_ARG], asks_a_person: tool.access_change? }
+        context: { source: AbilityGateway::SOURCE_MCP, approval_id: args[APPROVAL_ID_ARG] }
       ) do |authorization|
         environment_row = tool.integration.resolve_environment(environment_entry&.id)
         principal = server_context[:principal]
