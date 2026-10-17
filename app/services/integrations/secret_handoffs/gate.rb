@@ -15,7 +15,7 @@ module Integrations::SecretHandoffs::Gate
       value
     end
   rescue AbilityGateway::Denied
-    raise Handoffs::Unresolved, "#{principal.try(:display_name) || 'This caller'} may not use #{tool.integration.display_name}'s " \
+    raise Handoffs::Unresolved, "#{principal.try(:actor_display_name) || 'This caller'} may not use #{tool.integration.display_name}'s " \
                                 "#{tool.name}, so what it made cannot be read for them."
   end
 

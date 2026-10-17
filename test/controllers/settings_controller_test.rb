@@ -76,4 +76,25 @@ class SettingsControllerTest < ActionDispatch::IntegrationTest
     get settings_runbooks_url, headers: inertia_headers
     assert_equal @workspace.ability_approvals.pending.count, inertia_props["pendingApprovalsCount"]
   end
+
+  test "the approvals and activity pages name who asked and who acted in plain words" do
+    investigator = SystemAgent.investigator
+    Ability::Approval.create!(
+      workspace: @workspace, principal: investigator, principal_label: investigator.principal_label, action_key: "catalog.delete",
+      request_digest: Ability::Approval.digest("catalog.delete", {}, {}), required_role: WorkspaceMembership.roles[:admin]
+    )
+    Ability::Invocation.create!(
+      workspace: @workspace, principal: investigator, principal_label: investigator.principal_label, action_key: "catalog.delete",
+      idempotency_key: SecureRandom.uuid, decision: Ability::Invocation::DECISION_ALLOW
+    )
+
+    get gateway_approvals_url, headers: inertia_headers
+    names = inertia_props["pendingApprovals"].map { |approval| approval["principalName"] }
+    assert_includes names, "Halon"
+    assert_not inertia_props["pendingApprovals"].any? { |approval| approval.key?("principalLabel") }
+
+    get gateway_activity_url, headers: inertia_headers
+    assert_includes inertia_props["invocations"].map { |invocation| invocation["principalName"] }, "Halon"
+    assert_not inertia_props["invocations"].any? { |invocation| invocation.key?("principalLabel") }
+  end
 end

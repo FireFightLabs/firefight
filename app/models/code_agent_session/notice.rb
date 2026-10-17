@@ -71,14 +71,14 @@ class CodeAgentSession::Notice < ApplicationRecord
     steps << "merge #{base} in and resolve the conflict" if kinds.include?(Integrations::PullRequests::PROBLEM_CONFLICT)
     steps << "fix what makes the failing checks fail" if kinds.include?(Integrations::PullRequests::PROBLEM_CHECKS)
     steps << "make the changes the reviewer asked for" if kinds.include?(Integrations::PullRequests::PROBLEM_REVIEW)
-    "Fix it has Halon #{steps.to_sentence} on the pull request's branch, as #{session.principal.try(:display_name) || 'the person who asked'}. Nothing changes until it is pressed."
+    "Fix it has Halon #{steps.to_sentence} on the pull request's branch, as #{session.principal.try(:actor_display_name) || 'the person who asked'}. Nothing changes until it is pressed."
   end
 
   # Fix it runs as whoever asked for the change, so only they can press it.
   def fix_blocked_reason(member)
     return "This was already taken care of." unless offered?
     return "#{session.pull_request_label} is no longer open." unless session.following?
-    return "Only #{session.principal.try(:display_name) || 'the person who asked'} can press Fix it, since the change runs as them." unless member && session.principal == member
+    return "Only #{session.principal.try(:actor_display_name) || 'the person who asked'} can press Fix it, since the change runs as them." unless member && session.principal == member
 
     nil
   end

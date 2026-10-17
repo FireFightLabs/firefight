@@ -10,7 +10,7 @@ module Mcp
           question: investigation.question,
           status: investigation.status,
           trigger: investigation.trigger_source,
-          started_by: investigation.triggered_by.try(:principal_label),
+          started_by: investigation.triggered_by.try(:actor_display_name),
           started_at: investigation.started_at&.utc&.iso8601,
           completed_at: investigation.completed_at&.utc&.iso8601,
           spent_cents: investigation.spent_cents,

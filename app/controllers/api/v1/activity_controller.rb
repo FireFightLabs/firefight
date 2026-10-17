@@ -4,6 +4,7 @@ class Api::V1::ActivityController < Api::V1::ApiController
     scope = current_workspace.ability_invocations.with_allowances.order(created_at: :desc)
     scope = scope.where(decision: params[:decision].to_s) if params[:decision].present?
     scope = scope.where(action_key: params[:ability].to_s) if params[:ability].present?
-    @invocations, @pagination = paginate(scope)
+    invocations, @pagination = paginate(scope)
+    @invocations = Ability::PrincipalNamed.with_principal_names(invocations)
   end
 end

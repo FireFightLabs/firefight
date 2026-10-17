@@ -3,7 +3,8 @@ class Api::V1::ApprovalsController < Api::V1::ApiController
     authorize!(Ability::Action::RESOURCE_APPROVALS, Ability::Action::ACTION_READ)
     scope = current_workspace.ability_approvals.order(created_at: :desc)
     scope = scope.where(status: params[:status].to_s) if params[:status].present?
-    @approvals, @pagination = paginate(scope)
+    approvals, @pagination = paginate(scope)
+    @approvals = Ability::PrincipalNamed.with_principal_names(approvals)
   end
 
   def show

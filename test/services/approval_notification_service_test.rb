@@ -122,7 +122,7 @@ class ApprovalNotificationServiceTest < ActiveSupport::TestCase
     blocks = Slack::Messages::Approval.build_request(@approval, shown: ApprovalNotificationService.shown(@approval), rich: true)
 
     card = blocks.sole
-    assert_equal ":raised_hand:  #{@approval.principal_label} wants to: delete catalogue", card.dig(:title, :text)
+    assert_equal ":raised_hand:  #{api_keys(:full_access_key).name} wants to: delete catalogue", card.dig(:title, :text)
     assert_equal "Needs a workspace admin", card.dig(:body, :text)
     assert_equal [ Identifiers::APPROVE_ABILITY, Identifiers::DENY_ABILITY, Identifiers::APPROVAL_DETAILS ], card[:actions].map { |button| button[:action_id] }
     assert_not_includes blocks.to_json, "catalog.delete"
@@ -139,12 +139,12 @@ class ApprovalNotificationServiceTest < ActiveSupport::TestCase
 
     ran.finalize!(outcome: Ability::Invocation::OUTCOME_SUCCESS)
     done = resolved.call(@approval)
-    assert_equal [ ":white_check_mark:  #{@approval.principal_label} wants to: delete catalogue", "Approved by *#{@admin.display_name}*  ·  Done" ],
+    assert_equal [ ":white_check_mark:  #{api_keys(:full_access_key).name} wants to: delete catalogue", "Approved by *#{@admin.display_name}*  ·  Done" ],
                  [ done.dig(:title, :text), done.dig(:body, :text) ]
 
     ran.update_columns(outcome: Ability::Invocation::OUTCOME_ERROR, error_summary: "The entry is still in use")
     failed = resolved.call(@approval)
-    assert_equal [ ":x:  #{@approval.principal_label} wants to: delete catalogue", "Approved by *#{@admin.display_name}*  ·  Failed: The entry is still in use" ],
+    assert_equal [ ":x:  #{api_keys(:full_access_key).name} wants to: delete catalogue", "Approved by *#{@admin.display_name}*  ·  Failed: The entry is still in use" ],
                  [ failed.dig(:title, :text), failed.dig(:body, :text) ]
   end
 

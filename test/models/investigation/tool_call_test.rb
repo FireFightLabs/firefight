@@ -44,7 +44,7 @@ class Investigation::ToolCallTest < ActiveSupport::TestCase
 
     assert_equal SystemAgent.investigator.id, invocation.principal_id
     assert_equal "SystemAgent", invocation.principal_type
-    assert_equal @member.principal_label, invocation.triggered_by_label,
+    assert_equal @member.actor_display_name, invocation.triggered_by_label,
                  "the ledger still names the person who asked"
   end
 
@@ -63,7 +63,7 @@ class Investigation::ToolCallTest < ActiveSupport::TestCase
     invocation = Ability::Invocation.find(step.invocation_id)
 
     assert_equal AbilityGateway::SOURCE_INVESTIGATION, invocation.source
-    assert_equal @member.principal_label, invocation.triggered_by_label
+    assert_equal @member.actor_display_name, invocation.triggered_by_label
   end
 
   test "a tool that raises records the reason on the step with its message, and only its class on the ledger row" do
