@@ -335,7 +335,7 @@ class ResourceMap::Timeline
     found = changes_through_firefight.select { |invocation| invocation.created_at.between?(@from, @to) }
     found = found.select { |invocation| about_subject?(invocation) } unless @subject.kind == SUBJECT_WORKSPACE
     link = AppUrl.absolute(Rails.application.routes.url_helpers.gateway_activity_path)
-    Ability::Invocation.with_connection_names(found).map do |invocation|
+    Ability::Invocation.with_connection_names(Ability::Invocation.with_principal_names(found)).map do |invocation|
       Entry.new(at: invocation.created_at, kind: KIND_FIREFIGHT, source: SOURCE_FIREFIGHT, what: firefight_words(invocation),
                 where: invocation.connection_name, by: invocation.principal_name, link: link)
     end
