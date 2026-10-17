@@ -48,6 +48,11 @@ module ActiveSupport
     # before the next.
     setup { FirefightAi::ToolSearch.forget! }
 
+    # A process reads the models table again at most once a minute, before whichever request or job comes next, so in a
+    # long worker it lands inside a test at random and adds its queries to what that test measured. A test that needs the
+    # registry read calls FirefightAi.reload_registry_if_changed! itself.
+    setup { FirefightAi.stubs(:keep_registry_current) }
+
     # The investigator is given each connection's read pack when the connection is made. A test of what it reaches without
     # a grant takes them back first.
     def revoke_investigator_packs!(workspace)
