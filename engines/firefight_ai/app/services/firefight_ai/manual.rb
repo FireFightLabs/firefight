@@ -34,7 +34,7 @@ module FirefightAi
     FINDING_TOOLS = "#{ToolFinding::RULE} use_skill lists recipes for common tasks and the playbooks, and loading one makes " \
                     "the tools it names callable. search_docs and read_doc read a connected provider's documentation.".freeze
     GUARDED_CHANGES = "Every change goes through Firefight's guards: permissions, approval rules, and a card the person " \
-                      "confirms, which a safe change skips and is shown after. A change names the reads behind it in because. A " \
+                      "confirms, unless the workspace lets a safe change skip it. A change names the reads behind it in because. A " \
                       "call Firefight refuses says so and why, in its answer.".freeze
     # A run, a scheduled check and a helper are handed only tools that read.
     READS_ONLY = "This work only reads, so a change you would make goes in your answer for a person to apply.".freeze

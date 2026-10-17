@@ -80,7 +80,9 @@ module Integrations
           assert_equal({ "issues" => Github::WRITE }, Github::NEEDS.fetch("delete_issue_comment"))
           assert_equal({ "pull_requests" => Github::WRITE }, Github::NEEDS.fetch("delete_pull_request_comment"))
           GithubApp.stubs(:bot_login).returns("firefight[bot]")
-          ours = { "id" => 41, "user" => { "login" => "firefight[bot]" }, "html_url" => "https://github.com/acme/web/issues/5#issuecomment-41" }
+          ours = { "id" => 41, "user" => { "login" => "firefight[bot]" }, "html_url" => "https://github.com/acme/web/issues/5#issuecomment-41",
+                   "issue_url" => "https://api.github.com/repos/acme/web/issues/5" }
+          GithubApp.stubs(:get).with("/repos/acme/web/issues/5", token: "ghs_token").returns(issue(5))
           GithubApp.stubs(:get).with("/repos/acme/web/issues/comments/41", token: "ghs_token").returns(ours)
           GithubApp.expects(:write).with(:delete, "/repos/acme/web/issues/comments/41", token: "ghs_token").returns({})
           assert_includes text_of(@pack.delete_issue_comment(environment_row: @row, arguments: { "repo" => "acme/web", "comment_id" => 41 })), "Deleted comment 41 in acme/web."
@@ -93,6 +95,15 @@ module Integrations
           GithubApp.expects(:write).with(:delete, "/repos/acme/web/issues/comments/43", token: "ghs_token").never
           refused = assert_raises(Integrations::PolicyRefusal) { @pack.delete_issue_comment(environment_row: @row, arguments: { "repo" => "acme/web", "comment_id" => 43 }) }
           assert_equal "Only a comment Firefight posted is deleted, and comment 43 is ada's. A person deletes it on GitHub.", refused.message
+
+          on_pull = ours.merge("id" => 44, "issue_url" => "https://api.github.com/repos/acme/web/issues/6")
+          GithubApp.stubs(:get).with("/repos/acme/web/issues/comments/44", token: "ghs_token").returns(on_pull)
+          GithubApp.stubs(:get).with("/repos/acme/web/issues/6", token: "ghs_token").returns(issue(6).merge("pull_request" => {}))
+          GithubApp.expects(:write).with(:delete, "/repos/acme/web/issues/comments/44", token: "ghs_token").never
+          crossed = assert_raises(Integrations::PolicyRefusal) { @pack.delete_issue_comment(environment_row: @row, arguments: { "repo" => "acme/web", "comment_id" => 44 }) }
+          assert_equal "Comment 44 is on a pull request, so delete_pull_request_comment deletes it.", crossed.message
+          GithubApp.expects(:write).with(:delete, "/repos/acme/web/issues/comments/44", token: "ghs_token").returns({})
+          @pack.delete_pull_request_comment(environment_row: @row, arguments: { "repo" => "acme/web", "comment_id" => 44 })
         end
 
         test "assigning says who GitHub would not assign" do

@@ -256,7 +256,8 @@ module Integrations
           repo = repo_argument(arguments)
           id = number_argument(arguments, "comment_id")
           path = boolean_argument(arguments, "review") ? "/repos/#{repo}/pulls/comments/#{id}" : "/repos/#{repo}/issues/comments/#{id}"
-          delete_own_comment("delete_pull_request_comment", repo, id, path, GithubApp.installation_token(environment_row))
+          delete_own_comment("delete_pull_request_comment", repo, id, path, GithubApp.installation_token(environment_row),
+                             on_pull_request: (true unless boolean_argument(arguments, "review")))
         end
 
         def review_pull_request(environment_row:, arguments:)
