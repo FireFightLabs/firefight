@@ -38,6 +38,14 @@ class Chat::Mitigation < ApplicationRecord
   UNDO_IN_CHAT = "in_chat"
   UNDO_STATES = [ UNDO_NONE, UNDO_READY, UNDO_NO_INVERSE, UNDO_IN_CHAT ].freeze
 
+  # States from before, which a process still running the last release can write during the rollout. They are read as
+  # the chat's, and `bin/rails mitigations:move_old_undo_states` rewrites them once the deploy is done. Remove these,
+  # the task and MitigationUndoJob in the release after.
+  UNDO_WRITING = "writing"
+  UNDO_BY_HAND = "by_hand"
+  STATUS_DUE_BY_HAND = "due_by_hand"
+  OLD_UNDO_STATES = [ UNDO_WRITING, UNDO_BY_HAND ].freeze
+
   DEFAULT_MINUTES = 60
   # What the person may choose when they confirm it, in minutes. Keeping it is nil.
   DURATIONS = [ 15, 60, 240, 1_440 ].freeze
@@ -57,8 +65,12 @@ class Chat::Mitigation < ApplicationRecord
   # The entry of what Halon may do without asking that let it run unasked.
   belongs_to :allowance, class_name: "Ability::Allowance", optional: true
 
-  validates :status, inclusion: { in: STATUSES }
-  validates :undo_state, inclusion: { in: UNDO_STATES }
+  validates :status, inclusion: { in: STATUSES + [ STATUS_DUE_BY_HAND ] }
+  validates :undo_state, inclusion: { in: UNDO_STATES + OLD_UNDO_STATES }
+
+  def status = super == STATUS_DUE_BY_HAND ? STATUS_UNDO_ASKED : super
+
+  def undo_state = OLD_UNDO_STATES.include?(super) ? UNDO_IN_CHAT : super
   validates :duration_minutes, inclusion: { in: DURATIONS }, allow_nil: true
 
   scope :shown, -> { where(status: SHOWN) }
@@ -182,9 +194,7 @@ class Chat::Mitigation < ApplicationRecord
 
   # Why this person may not mark it as put back now, or nil. Only once Halon was asked to put it back, by whoever may undo it.
   def back_blocked_reason(member)
-    return "Halon was not asked to put this back, so there is nothing to mark." unless undo_asked?
-
-    change_blocked_reason(member)
+    change_blocked_reason(member) || ("Halon was not asked to put this back, so there is nothing to mark." unless undo_asked?)
   end
 
   def extend_blocked_reason(member)

@@ -66,8 +66,7 @@ module Conversation::Mitigations
   # Undo was pressed on a plan, so a change its steps made that is still in place is put back by the plan's undo, and
   # Firefight stops counting it down, so nothing is undone twice.
   def self.handed_to_plan!(plan)
-    Chat::Mitigation.where(plan_step_id: plan.steps.select(:id),
-                           status: [ Chat::Mitigation::STATUS_ACTIVE, Chat::Mitigation::STATUS_KEPT, Chat::Mitigation::STATUS_UNDO_ASKED ])
+    Chat::Mitigation.where(plan_step_id: plan.steps.select(:id), status: [ Chat::Mitigation::STATUS_ACTIVE, Chat::Mitigation::STATUS_KEPT ])
                     .update_all(status: Chat::Mitigation::STATUS_WITH_PLAN, outcome: "Put back by the plan's undo instead.", ended_at: Time.current,
                                 told_at: Time.current, updated_at: Time.current)
     Conversation::LiveDelivery.safeguard_moved(plan.conversation)

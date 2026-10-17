@@ -864,7 +864,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal Chat::Mitigation::STATUS_UNDONE, mitigation.reload.status
 
     post agent_chat_mitigation_back_url(conversation, mitigation_id: mitigation.id)
-    assert_equal "Halon was not asked to put this back, so there is nothing to mark.", flash[:alert]
+    assert_equal "This is no longer running, so there is nothing to change.", flash[:alert]
   end
 
   test "an open chat arrives with its temporary changes and what each viewer may do with them" do

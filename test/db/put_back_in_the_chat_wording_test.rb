@@ -29,6 +29,8 @@ class PutBackInTheChatWordingTest < ActiveSupport::TestCase
     assert_equal [ Chat::Mitigation::STATUS_UNDO_ASKED, Chat::Mitigation::UNDO_IN_CHAT, Chat::Mitigation::IN_CHAT_NOTE ],
                  [ due.reload.status, due.undo_state, due.undo_note ]
     assert due.reminded_at, "it was already said to be due by hand, so it is not said again"
+    assert due.told_at, "Halon is not nudged to put back what may already be back by hand"
+    assert running.reload.told_at
     assert_equal [ Chat::Mitigation::STATUS_ACTIVE, Chat::Mitigation::UNDO_IN_CHAT ], [ running.reload.status, running.undo_state ]
   end
 

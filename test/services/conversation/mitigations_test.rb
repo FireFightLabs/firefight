@@ -111,7 +111,7 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     assert_empty @sent
   end
 
-  test "pressing Undo on a plan hands it a change Halon was asked to put back too" do
+  test "pressing Undo on a plan leaves a change Halon was asked to put back waiting for a person, since the plan proves nothing" do
     mitigation = in_chat!(expires_at: 1.minute.ago)
     Conversation::Mitigations.expire!(mitigation)
     steps = [ { "kind" => "change", "description" => "Turn new-checkout off", "tool" => @disable.model_facing_name, "undo" => "Turn new-checkout back on" },
@@ -121,9 +121,19 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
 
     Conversation::Mitigations.handed_to_plan!(plan)
 
-    assert_equal Chat::Mitigation::STATUS_WITH_PLAN, mitigation.reload.status
+    assert_equal Chat::Mitigation::STATUS_UNDO_ASKED, mitigation.reload.status
   end
 
+  test "a change left in a state from before is read as the chat's, until the move after the deploy rewrites it" do
+    mitigation = active!(expires_at: 1.hour.from_now)
+    mitigation.update_columns(undo_state: Chat::Mitigation::UNDO_WRITING)
+    assert mitigation.reload.valid?
+    assert_equal Chat::Mitigation::UNDO_IN_CHAT, mitigation.undo_state
+    mitigation.update_columns(status: Chat::Mitigation::STATUS_DUE_BY_HAND, undo_state: Chat::Mitigation::UNDO_BY_HAND)
+    assert_equal [ Chat::Mitigation::STATUS_UNDO_ASKED, Chat::Mitigation::UNDO_IN_CHAT ], [ mitigation.reload.status, mitigation.undo_state ]
+
+    MitigationUndoJob.perform_now(mitigation.id)
+  end
   test "a ready undo a model wrote is put back by Halon, and the card and Slack say so" do
     mitigation = active!
     mitigation.update!(undo_state: Chat::Mitigation::UNDO_READY, undo_steps: [ { "description" => "On", "action_key" => @enable.action_key, "arguments" => ARGUMENTS } ])
@@ -181,6 +191,7 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     assert_match "was not asked", Conversation::Mitigations.mark_back!(mitigation, by: @alice)
     mitigation.update_columns(status: Chat::Mitigation::STATUS_UNDO_ASKED)
     assert_match "Only", Conversation::Mitigations.mark_back!(mitigation.reload, by: @bob)
+    assert_match "no longer running", mitigation.dup.tap { |ended| ended.status = Chat::Mitigation::STATUS_UNDONE }.back_blocked_reason(@alice)
 
     assert_nil Conversation::Mitigations.mark_back!(mitigation, by: @alice)
     assert_equal [ Chat::Mitigation::STATUS_UNDONE, @alice.id ], [ mitigation.reload.status, mitigation.ended_by_id ]
