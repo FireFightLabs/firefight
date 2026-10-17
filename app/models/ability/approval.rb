@@ -3,6 +3,7 @@ module Ability
   # with these params, never the action in general. Consumed by exactly one execution.
   class Approval < ApplicationRecord
     include Ability::ConnectionNamed
+    include Ability::PrincipalNamed
 
     STATUS_PENDING = "pending"
     STATUS_APPROVED = "approved"

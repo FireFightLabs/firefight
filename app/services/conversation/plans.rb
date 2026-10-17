@@ -167,7 +167,7 @@ module Conversation::Plans
 
   # What Halon reads at the start of the turn a plan was handed to it for.
   def self.note(plan, move, by)
-    who = by.try(:display_name) || "The person"
+    who = by.try(:actor_display_name) || "The person"
     case move
     when MOVE_RUN
       tools = plan.approved_tools

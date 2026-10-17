@@ -45,7 +45,7 @@ class Conversation::Watches::Agent
   def mark_step_failed!(_position, _kind) = nil
   def pack_refused!(_action_key, _tool_call_id) = nil
 
-  def refusal(action_key) = "#{@asker.try(:display_name) || 'The person who asked'} may not use #{action_key}."
+  def refusal(action_key) = "#{@asker.try(:actor_display_name) || 'The person who asked'} may not use #{action_key}."
 
   def browser
     Chat::Tools::Browser.all(self).map do |tool|

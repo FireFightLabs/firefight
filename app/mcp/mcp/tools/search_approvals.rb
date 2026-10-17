@@ -22,7 +22,7 @@ module Mcp
         approvals, truncated = capped(scope, args)
 
         respond(
-          approvals: Ability::ConnectionNamed.with_connection_names(approvals).map { |approval| approval_payload(approval) },
+          approvals: Ability::PrincipalNamed.with_principal_names(Ability::ConnectionNamed.with_connection_names(approvals)).map { |approval| approval_payload(approval) },
           truncated: truncated
         )
       end
@@ -34,6 +34,7 @@ module Mcp
         {
           id: approval.id,
           principal: approval.principal_label,
+          principal_name: approval.principal_name,
           source: approval.source,
           source_label: Ability::Source.label(approval.source),
           action_key: approval.action_key,
