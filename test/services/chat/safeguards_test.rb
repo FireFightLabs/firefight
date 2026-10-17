@@ -35,6 +35,14 @@ class Chat::SafeguardsTest < ActiveSupport::TestCase
     assert_equal Integrations::Mitigations::SCALES_BACK, confirmation.undo_label
   end
 
+  test "a scale down that also changes the plan is not put back by a count, so the person is told Halon is asked instead" do
+    call = pause!("scale", { "resource" => @web.id, "instances" => 1, "plan" => "nf-compute-50" })
+
+    Chat::Safeguards.prepare!(@turn, [ call ])
+
+    assert_equal Chat::Tools::ASK_HALON_TO_PUT_BACK, Chat::Tools.confirmation(call).undo_label
+  end
+
   test "scaling up, or a resource whose count the map does not hold, is not taken for one" do
     up = pause!("scale", { "resource" => @web.id, "instances" => 5 })
     Chat::Safeguards.prepare!(@turn, [ up ])

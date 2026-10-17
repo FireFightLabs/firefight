@@ -185,7 +185,8 @@ export const MITIGATION_STATUSES = {
   "DUE_BY_HAND": "due_by_hand",
   "CANCELLED": "cancelled",
   "WITH_PLAN": "with_plan",
-  "MADE": "made"
+  "MADE": "made",
+  "UNDO_ASKED": "undo_asked"
 } as const
 
 export const MITIGATION_UNDO_STATES = {

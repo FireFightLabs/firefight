@@ -24,6 +24,19 @@ class Integrations::SafeChangesTest < ActiveSupport::TestCase
     assert_not Integrations::SafeChanges.tool?(tool(@github, "rerun_workflow"))
   end
 
+  test "anything whose words or effect outside text could steer is safe only before outside text arrives, and assigning or asking for a review always is" do
+    opsgenie = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "opsgenie", name: "Opsgenie", slug: "opsgenie")
+    gitlab = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "gitlab", name: "GitLab", slug: "gitlab")
+    steered = [ tool(@github, "label_issue"), tool(@github, "label_pull_request"), tool(@github, "run_tests"), tool(@github, "comment_on_issue"),
+                tool(opsgenie, "add_alert_note"), tool(gitlab, "run_tests") ]
+
+    steered.each { |found| assert Integrations::SafeChanges.until_outside?(found), "#{found.name} on #{found.integration.provider}" }
+    [ tool(@github, "assign_issue"), tool(@github, "request_reviewers") ].each do |found|
+      assert Integrations::SafeChanges.tool?(found)
+      assert_not Integrations::SafeChanges.until_outside?(found), found.name
+    end
+  end
+
   test "merging, deploying and setting a secret are risky, and a secret is an access change" do
     merge = tool(@github, "merge_pull_request")
     secret = tool(@github, "set_actions_secret")

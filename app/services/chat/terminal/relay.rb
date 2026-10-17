@@ -140,6 +140,8 @@ class Chat::Terminal::Relay
     return "#{called}, since a capability that changes something is confirmed with what it reaches." if capability?(entry)
 
     tool = connection_tool(entry)
+    return "#{called}, since it changes who can reach something or sets a secret, which a person always says yes to." if tool.access_change?
+
     run = self.class.agent_run_of(@session)
     environment_entry = tool.integration.environment_entry_for(given[Integration::Tool::ENVIRONMENT_ARG])
     arguments = Chat::DataRepairs.provider_arguments(tool, environment_entry, given)

@@ -1,7 +1,9 @@
 # What runs around a chat's call that changes something beyond its risk, by what its action does
 # (Ability::Action::EFFECTS): a statement that writes rows is counted and copied first and checked after
 # (Chat::DataRepairs), a change customers feel starts its time once it ran (Conversation::Mitigations), and a call
-# whose owner said no is not run (Conversation::OwnerAsks). call_id is the call the person confirmed.
+# whose owner said no is not run (Conversation::OwnerAsks). A call Halon makes to put back a change it was asked to in
+# the chat is that change's undo, so the change is undone once it runs and the call is never counted down itself.
+# call_id is the call the person confirmed.
 class Chat::Safeguards
   # The safeguards a call has, or nil when it has none. A mitigation through a tool whose action is one is kept here
   # when it ran without a pause, such as one allowed for the rest of the chat.
@@ -11,17 +13,21 @@ class Chat::Safeguards
 
     repair = (Chat::DataRepair.for_call(chat, call_id) if Chat::DataRepairs.applies?(agent_run, tool))
     ask = Chat::OwnerAsk.for_call(chat, call_id)
+    undoes = (Conversation::Mitigations.undo_asked_in(chat, tool, call_id) unless Integrations::ReadGuards.reads?(tool, arguments))
     mitigation = Chat::Mitigation.for_call(chat, call_id)
-    if mitigation.nil? && Integrations::Mitigations.call?(tool, arguments)
+    if undoes
+      mitigation&.move!(from: Chat::Mitigation::STATUS_PROPOSED, to: Chat::Mitigation::STATUS_CANCELLED)
+      mitigation = nil
+    elsif mitigation.nil? && Integrations::Mitigations.call?(tool, arguments)
       call = chat.tool_calls.find_by(tool_call_id: call_id)
       mitigation = Conversation::Mitigations.propose!(
         agent_run, call_id: call_id, tool: tool, environment_entry: environment_entry, arguments: arguments, tool_name: tool.model_facing_name,
         target: call&.target, intent: (Chat::Tools.intent_of(call.arguments) if call)
       )
     end
-    return unless repair || ask || mitigation
+    return unless repair || ask || mitigation || undoes
 
-    new(agent_run, tool, environment_entry, arguments, repair: repair, ask: ask, mitigation: mitigation)
+    new(agent_run, tool, environment_entry, arguments, repair: repair, ask: ask, mitigation: mitigation, undoes: undoes)
   end
 
   # Settled when Halon pauses on calls, so the confirmation can say what each will touch, who started what it stops,
@@ -41,6 +47,8 @@ class Chat::Safeguards
         end
       end
       next unless found.mitigation
+      # Putting back a change Halon was asked to put back is never counted down itself.
+      next if Conversation::Mitigations.undo_waiting?(agent_run.chat, found.tool)
 
       Conversation::Mitigations.propose!(agent_run, call_id: tool_call.tool_call_id, tool: found.tool, environment_entry: found.environment_entry,
                                                     arguments: found.arguments, tool_name: tool_call.name, target: tool_call.try(:target),
@@ -80,14 +88,19 @@ class Chat::Safeguards
 
     found = capability(call, given)
     return unless found.mitigation
+    return if Conversation::Mitigations.undo_waiting?(agent_run.chat, found.tool)
 
     record = agent_run.chat.tool_calls.find_by(tool_call_id: tool_call_id)
     mitigation = Conversation::Mitigations.propose!(agent_run, call_id: tool_call_id, tool: found.tool, environment_entry: found.environment_entry,
                                                                arguments: found.arguments, tool_name: record&.name || call.spec.tool_name, target: record&.target,
                                                                intent: Chat::Tools.intent_of(given))
-    back = Integrations::SafeChanges.scale_back(call, workspace: agent_run.workspace, principal: agent_run.acting_principal)
-    mitigation&.update_columns(undo_steps: [ Conversation::Mitigations.undo_step(back, found.environment_entry) ]) if back && mitigation&.proposed?
-    mitigation
+    # A scale that also changes the plan is not put back by a count alone, so Halon puts it back in the chat.
+    back = (Integrations::SafeChanges.scale_back(call, workspace: agent_run.workspace, principal: agent_run.acting_principal) if given.to_h.stringify_keys[Integrations::Capabilities::PLAN_ARG].blank?)
+    if back && mitigation
+      Chat::Mitigation.where(id: mitigation.id, status: Chat::Mitigation::STATUS_PROPOSED)
+                      .update_all(undo_steps: [ Conversation::Mitigations.undo_step(back, found.environment_entry) ], updated_at: Time.current)
+    end
+    mitigation&.reload
   end
 
   # Fewer instances than the map last read the resource running is a change customers feel, whichever provider runs
@@ -101,8 +114,9 @@ class Chat::Safeguards
   end
   private_class_method :scales_down?
 
-  def initialize(agent_run, tool, environment_entry, arguments, repair:, ask:, mitigation:)
+  def initialize(agent_run, tool, environment_entry, arguments, repair:, ask:, mitigation:, undoes: nil)
     @agent_run = agent_run
+    @undoes = undoes
     @tool = tool
     @environment_entry = environment_entry
     @arguments = arguments
@@ -123,6 +137,7 @@ class Chat::Safeguards
     notes = []
     notes << Chat::DataRepairs.after_write(@agent_run, @repair, @tool, @environment_entry, @arguments, ok: ok) if @repair
     notes << Conversation::Mitigations.ran!(@mitigation, ok: ok, result: result) if @mitigation&.proposed?
+    notes << Conversation::Mitigations.undo_ran!(@undoes, ok: ok) if @undoes
     notes.compact.join(" ").presence
   end
 end

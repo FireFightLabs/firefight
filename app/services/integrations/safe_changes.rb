@@ -28,9 +28,15 @@ module Integrations
       entry.present? && entry.access_tools.include?(tool.name)
     end
 
+    # Whether the registry declares a fixed undo for a tool, before its call ran.
+    def self.declares_undo?(tool)
+      entry = entry_of(tool)
+      entry.present? && entry.kind == tool.integration.kind && entry.undo_tools.to_h.key?(tool.name)
+    end
+
     # The undo the registry declares for a tool's call, built from the call's own arguments and the values its answer
     # named, or nil when it declares none or a value is missing. Never a tool that changes access, writes rows, stops
-    # something or changes what customers get, and always one of the same connection that is switched on.
+    # something or carries a read guard, and always one of the same connection that is switched on.
     def self.inverse(tool, arguments, result)
       entry = entry_of(tool)
       spec = (entry.undo_tools.to_h[tool.name] if entry && entry.kind == tool.integration.kind)

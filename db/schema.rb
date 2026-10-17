@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_17_100300) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_17_100500) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -832,6 +832,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_100300) do
     t.datetime "updated_at", null: false
     t.string "unasked_reason"
     t.uuid "allowance_id"
+    t.string "undo_tool_call_id"
     t.index ["allowance_id"], name: "index_chat_mitigations_on_allowance_id"
     t.index ["asker_type", "asker_id"], name: "index_chat_mitigations_on_asker"
     t.index ["chat_id", "tool_call_id"], name: "index_chat_mitigations_on_chat_id_and_tool_call_id", unique: true
