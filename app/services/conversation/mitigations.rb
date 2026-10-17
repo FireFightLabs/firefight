@@ -107,9 +107,14 @@ module Conversation::Mitigations
   end
   private_class_method :undo_of
 
+  # A step names the capability it was built for when Firefight built it, which is what lets it run through a tool that
+  # reaches a whole API (run_inverse).
+  CAPABILITY = "capability".freeze
+
   def self.undo_step(inverse, environment_entry)
     { "description" => "#{inverse.tool.name.to_s.tr('_', ' ').upcase_first} on #{inverse.tool.integration.display_name}",
-      "action_key" => inverse.tool.action_key, "arguments" => inverse.arguments, "environment_id" => environment_entry&.id, DECLARED => true }
+      "action_key" => inverse.tool.action_key, "arguments" => inverse.arguments, "environment_id" => environment_entry&.id, DECLARED => true,
+      **({ CAPABILITY => inverse.capability } if inverse.capability).to_h }
   end
 
   # The fixed call the registry declares to put a temporary change back, from what it was sent and answered, or nil.
@@ -166,11 +171,7 @@ module Conversation::Mitigations
     return unless mitigation.claim_reminder!
 
     left = Chat::Mitigation.duration_words(((mitigation.expires_at - Time.current) / 60).ceil.clamp(1, nil))
-    how = if mitigation.undo_state == Chat::Mitigation::UNDO_BY_HAND
-      "It is then due to be undone by hand. #{mitigation.undo_note}"
-    else
-      mitigation.undone_by_firefight? ? "Firefight then undoes it." : "Halon is then asked in this chat to put it back."
-    end
+    how = mitigation.undone_by_firefight? ? "Firefight then undoes it." : "Halon is then asked in this chat to put it back."
     tell!(mitigation, KIND_REMINDER, "#{mitigation.title} ends in about #{left}. #{how} Keep it or extend it if it is still needed.")
   end
 
@@ -220,15 +221,10 @@ module Conversation::Mitigations
   end
 
   # Claimed as undoing by whoever started it. Each fixed step runs in order as the asker, and the first that does not go
-  # through stops it, said with why. With no fixed step, a model's step from before, or one still waiting to be written,
-  # Halon is asked in the chat instead.
+  # through stops it, said with why. Without fixed steps only, such as a step a model wrote before, Halon is asked in the
+  # chat instead.
   def self.undo!(mitigation, by:)
-    return in_chat!(mitigation, by: by) if in_chat?(mitigation)
-    if mitigation.undo_state != Chat::Mitigation::UNDO_READY
-      ending!(mitigation, Chat::Mitigation::STATUS_DUE_BY_HAND, "#{mitigation.title} is due to be undone, and Firefight cannot do it itself. " \
-                                                                 "#{mitigation.undo_note.presence || 'Its undo is not written yet.'}")
-      return
-    end
+    return in_chat!(mitigation, by: by) unless mitigation.undone_by_firefight?
 
     turn = Conversation::Turn.new(mitigation.conversation, asker: mitigation.asker)
     mitigation.undo_steps.each do |step|
@@ -252,14 +248,6 @@ module Conversation::Mitigations
 
   def self.undone_by(_mitigation, by) = by ? "#{by.display_name} undid" : "Time was up, so Firefight undid"
   private_class_method :undone_by
-
-  # Every undo Firefight runs itself is a fixed declared call (run_inverse). A step a model wrote before that is never
-  # run, and neither is one never written, so that change is put back in the chat instead.
-  def self.in_chat?(mitigation)
-    [ Chat::Mitigation::UNDO_IN_CHAT, Chat::Mitigation::UNDO_WRITING ].include?(mitigation.undo_state) ||
-      (mitigation.undo_state == Chat::Mitigation::UNDO_READY && !mitigation.undone_by_firefight?)
-  end
-  private_class_method :in_chat?
 
   # No fixed call puts it back, so Halon is asked in the chat to put it back, where its call goes through the resolver
   # and the card like any change, as whoever asked for the change. The change stays in place, with Undo now to ask again,
@@ -318,11 +306,14 @@ module Conversation::Mitigations
     made_on = Integration::Tool.by_action_key(mitigation.workspace, mitigation.action_key)
     return [ :failed, "the tool it runs with is switched off or gone" ] unless tool&.enabled? && made_on
     return [ :failed, "it would reach another connection" ] unless tool.integration_id == made_on.integration_id
-    return [ :failed, "#{tool.name} may not undo a change" ] unless Integrations::SafeChanges.inverse_allowed?(tool)
+    # A step Firefight built for a capability, such as a scale back, is its own request whatever the tool can reach.
+    capability = step[CAPABILITY].presence
+    return [ :failed, "#{tool.name} may not undo a change" ] unless capability || Integrations::SafeChanges.inverse_allowed?(tool)
 
     entry = (CatalogEntry.find_by(id: step["environment_id"], workspace_id: mitigation.workspace_id) if step["environment_id"])
     connection = Chat::Tools::Connection.new(turn, tool)
-    said = connection.run(step["arguments"].to_h, environment_entry: entry, tool_call_id: nil, shown_as: tool.model_facing_name, inverse: nil)
+    said = connection.run(step["arguments"].to_h, environment_entry: entry, tool_call_id: nil, shown_as: tool.model_facing_name, inverse: nil,
+                          capability: capability)
     return :held if connection.waiting?
     return [ :failed, said.to_s.lines.first.to_s.strip.truncate(300) ] if connection.failed?
 
@@ -339,9 +330,11 @@ module Conversation::Mitigations
   private_class_method :outcome_words
 
   # Halon was told of a change made without asking as it ran, so it hears again once that change is undone.
+  # Said only by whoever moved it, so an end another worker already settled is not said again.
   def self.ending!(mitigation, status, text)
     told = { told_at: nil } if mitigation.made_unasked?
-    mitigation.move!(from: Chat::Mitigation::STATUS_UNDOING, to: status, ended_at: Time.current, outcome: Chat::SecretFree.redacted(text), **told.to_h)
+    return unless mitigation.move!(from: Chat::Mitigation::STATUS_UNDOING, to: status, ended_at: Time.current, outcome: Chat::SecretFree.redacted(text), **told.to_h)
+
     tell!(mitigation, KIND_ENDED, text)
   end
   private_class_method :ending!
@@ -403,14 +396,25 @@ module Conversation::Mitigations
 
   # What Halon hears at its next turn about changes that were kept or undone since it last looked, once each.
   # A change Halon is to put back, asked while the person was being asked about another call, is asked here too.
+  # Each is claimed in one statement, so two turns never both tell it.
   def self.untold_note(chat)
-    ended = chat.mitigations.untold.to_a
-    asked = chat.mitigations.where(status: Chat::Mitigation::STATUS_UNDO_ASKED, told_at: nil).to_a
+    ended = claim_untold(chat.mitigations.untold)
+    asked = claim_untold(chat.mitigations.where(status: Chat::Mitigation::STATUS_UNDO_ASKED, told_at: nil))
     return nil if ended.empty? && asked.empty?
 
-    Chat::Mitigation.where(id: (ended + asked).map(&:id)).update_all(told_at: Time.current)
     lines = ended.map { |mitigation| "- #{mitigation.title}: #{mitigation.outcome.presence || 'kept, so it stays until someone changes it back.'}" }
     [ ("Changes you made earlier that Firefight keeps track of, temporary or made without asking, and what became of them since, already told to the person:\n#{lines.join("\n")}" if lines.any?),
       *asked.map { |mitigation| ask_to_put_back(mitigation, mitigation.ended_by) } ].compact.join("\n\n")
   end
+
+  # Marks the rows told and answers those this statement marked, oldest first.
+  def self.claim_untold(scope)
+    sql = ActiveRecord::Base.sanitize_sql_array([
+      "UPDATE chat_mitigations SET told_at = ?, updated_at = ? WHERE id IN (#{scope.select(:id).to_sql}) AND told_at IS NULL RETURNING id",
+      Time.current, Time.current
+    ])
+    ids = Chat::Mitigation.with_connection { |connection| connection.select_values(sql) }
+    Chat::Mitigation.where(id: ids).order(:created_at, :id).to_a
+  end
+  private_class_method :claim_untold
 end

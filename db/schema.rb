@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_17_110100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_17_120200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -842,6 +842,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_110100) do
     t.index ["workspace_id"], name: "index_chat_mitigations_on_workspace_id"
   end
 
+  create_table "chat_model_switches", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.datetime "created_at", null: false
+    t.string "backup_model", null: false
+    t.string "backup_provider"
+    t.string "cause", null: false
+    t.string "failed_model", null: false
+    t.string "failed_provider"
+    t.string "reason"
+    t.datetime "updated_at", null: false
+    t.index ["chat_id"], name: "index_chat_model_switches_on_chat_id"
+  end
+
   create_table "chat_owner_asks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "chat_id", null: false
     t.uuid "workspace_id", null: false
@@ -867,19 +880,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_110100) do
     t.index ["owner_id"], name: "index_chat_owner_asks_on_owner_id"
     t.index ["plan_id"], name: "index_chat_owner_asks_on_plan_id"
     t.index ["workspace_id"], name: "index_chat_owner_asks_on_workspace_id"
-  end
-
-  create_table "chat_model_switches", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.uuid "chat_id", null: false
-    t.datetime "created_at", null: false
-    t.string "backup_model", null: false
-    t.string "backup_provider"
-    t.string "cause", null: false
-    t.string "failed_model", null: false
-    t.string "failed_provider"
-    t.string "reason"
-    t.datetime "updated_at", null: false
-    t.index ["chat_id"], name: "index_chat_model_switches_on_chat_id"
   end
 
   create_table "chat_pack_refusals", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -3394,7 +3394,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_110100) do
     t.index ["version_id"], name: "index_workflow_runs_on_version_id"
     t.index ["workflow_id", "created_at"], name: "index_workflow_runs_on_workflow_id_and_created_at"
     t.index ["workflow_id", "start_key"], name: "index_workflow_runs_on_workflow_id_and_start_key", unique: true
-    t.index ["workflow_id", "subject_key"], name: "index_workflow_runs_one_live_per_subject", unique: true, where: "((subject_key IS NOT NULL) AND ((status)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying, 'waiting'::character varying, 'paused'::character varying])::text[])))"
+    t.index ["workflow_id", "subject_key"], name: "index_workflow_runs_one_live_per_subject", unique: true, where: "((subject_key IS NOT NULL) AND ((status)::text = ANY (ARRAY[('queued'::character varying)::text, ('running'::character varying)::text, ('waiting'::character varying)::text, ('paused'::character varying)::text])))"
     t.index ["workspace_id", "created_at"], name: "index_workflow_runs_on_workspace_id_and_created_at"
     t.index ["workspace_id", "finished_at"], name: "index_workflow_runs_awaiting_pruning", where: "((details_pruned_at IS NULL) AND (pinned = false))"
   end
@@ -3471,7 +3471,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_110100) do
     t.index ["agent_id"], name: "index_workflows_on_agent_id"
     t.index ["created_by_id"], name: "index_workflows_on_created_by_id"
     t.index ["hook_token"], name: "index_workflows_on_hook_token", unique: true
-
     t.index ["library_key", "follows_library"], name: "index_workflows_on_library_key_and_follows_library"
     t.index ["live_version_id"], name: "index_workflows_on_live_version_id"
     t.index ["next_run_at"], name: "index_workflows_on_next_run_at", where: "(next_run_at IS NOT NULL)"

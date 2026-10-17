@@ -15,7 +15,10 @@ module Integrations
     LIVE_FOR = 2.minutes
 
     # The fixed call that puts a change back: the tool on the same connection and the arguments it is sent.
-    Inverse = Data.define(:tool, :arguments)
+    # capability is the capability Firefight built it for, nil for one the registry declares.
+    Inverse = Data.define(:tool, :arguments, :capability) do
+      def initialize(capability: nil, **) = super
+    end
 
     def self.tool?(tool) = listed?(tool, :safe_tools)
 
@@ -89,7 +92,7 @@ module Integrations
 
       back = Capabilities.resolve(workspace, Capabilities::SCALE, given.except(Capabilities::PLAN_ARG).merge("instances" => live_instances(call).to_s),
                                   [ call.tool ], principal: principal)
-      Inverse.new(tool: call.tool, arguments: back.arguments)
+      Inverse.new(tool: call.tool, arguments: back.arguments, capability: Capabilities::SCALE)
     rescue Capabilities::Unroutable
       nil
     end
@@ -103,7 +106,7 @@ module Integrations
 
       back = Capabilities.resolve(workspace, Capabilities::SCALE, { "resource" => call.resource&.id.to_s, "instances" => before.to_s }, [ call.tool ],
                                   principal: principal)
-      Inverse.new(tool: call.tool, arguments: back.arguments)
+      Inverse.new(tool: call.tool, arguments: back.arguments, capability: Capabilities::SCALE)
     rescue Capabilities::Unroutable
       nil
     end

@@ -164,6 +164,30 @@ class Chat::Tools::ChangesWithoutAskingTest < ActiveSupport::TestCase
                  "a plan is not put back by a count, so Halon is asked in the chat instead"
   end
 
+  test "a Northflank scale down is put back by Firefight's own scale back when its time is up, through a tool that reaches the whole API" do
+    northflank = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Northflank", slug: "northflank")
+    row = northflank.integration_environments.create!(credentials: { token: "x" }.to_json)
+    row.store_fields!("project" => "shop")
+    api = northflank.tools.create!(name: "api_request", description: "API", read_only: false, enabled: true,
+                                   params_schema: { "type" => "object", "properties" => { "method" => {}, "path" => {}, "body" => {} } })
+    ResourceMap::Resource.create!(workspace: @workspace, provider: "northflank", account: "team/shop", kind: ResourceMap::KIND_SERVICE, external_id: "web",
+                                  name: "web", integration_environment: row, first_seen_at: Time.current, last_seen_at: Time.current, details: { "instances" => 3 })
+    turn = turn_for(@owner)
+    given = { "resource" => "web", "instances" => "1" }
+    change!(turn, "call_scale", nil, given, name: "scale")
+    found = Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::SCALE, given, [ api ], principal: @owner)
+    mitigation = Chat::Safeguards.capability_call!(turn, found, "call_scale", given)
+    Conversation::Mitigations.ran!(mitigation.reload, ok: true, result: "Scaled.")
+    mitigation.update_columns(expires_at: 1.minute.ago)
+    sent = []
+    Integrations::NativeExecutor.stubs(:call).with { |arguments:, **| sent << arguments }.returns({ "content" => [ { "type" => "text", "text" => "Scaled." } ] })
+
+    Conversation::Mitigations.expire!(mitigation.reload)
+
+    assert_equal Chat::Mitigation::STATUS_UNDONE, mitigation.reload.status, mitigation.outcome
+    assert_equal 3, sent.sole.dig("body", "instances")
+  end
+
   test "a nudge Firefight added and a memory nobody confirmed count as outside too" do
     entry = @workspace.allowances.create!(action: @merge.ability_action)
     nudged = turn_for(@owner)

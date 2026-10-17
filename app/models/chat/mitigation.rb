@@ -14,7 +14,6 @@ class Chat::Mitigation < ApplicationRecord
   STATUS_UNDONE = "undone"
   STATUS_UNDO_FAILED = "undo_failed"
   STATUS_UNDO_HELD = "undo_held"
-  STATUS_DUE_BY_HAND = "due_by_hand"
   STATUS_CANCELLED = "cancelled"
   # Ran as a step of a plan whose Undo was pressed, so the plan's undo puts it back and Firefight never undoes it again.
   STATUS_WITH_PLAN = "with_plan"
@@ -23,25 +22,21 @@ class Chat::Mitigation < ApplicationRecord
   # Halon was asked in the chat to put it back, so it counts as in place until a person marks it back.
   STATUS_UNDO_ASKED = "undo_asked"
   STATUSES = [
-    STATUS_PROPOSED, STATUS_ACTIVE, STATUS_KEPT, STATUS_UNDOING, STATUS_UNDONE, STATUS_UNDO_FAILED, STATUS_UNDO_HELD, STATUS_DUE_BY_HAND,
+    STATUS_PROPOSED, STATUS_ACTIVE, STATUS_KEPT, STATUS_UNDOING, STATUS_UNDONE, STATUS_UNDO_FAILED, STATUS_UNDO_HELD,
     STATUS_CANCELLED, STATUS_WITH_PLAN, STATUS_MADE, STATUS_UNDO_ASKED
   ].freeze
   # How it ended, which Halon hears once at its next turn.
-  TOLD = [ STATUS_KEPT, STATUS_UNDONE, STATUS_UNDO_FAILED, STATUS_UNDO_HELD, STATUS_DUE_BY_HAND ].freeze
+  TOLD = [ STATUS_KEPT, STATUS_UNDONE, STATUS_UNDO_FAILED, STATUS_UNDO_HELD ].freeze
   # Shown in the chat, from the moment it ran.
   SHOWN = STATUSES - [ STATUS_PROPOSED, STATUS_CANCELLED ]
 
   UNDO_NONE = "none"
-  # A model used to write the undo, which no longer happens. Kept for a change made before, which moves to UNDO_IN_CHAT.
-  UNDO_WRITING = "writing"
   UNDO_READY = "ready"
-  # Halon could not write an undo it can run itself, so a person does it, with undo_note saying what.
-  UNDO_BY_HAND = "by_hand"
   # Nothing puts it back as it was, such as a restart, so it offers no undo.
   UNDO_NO_INVERSE = "no_inverse"
   # No fixed call puts it back, so Halon is asked in the chat to put it back, where its call asks like any change.
   UNDO_IN_CHAT = "in_chat"
-  UNDO_STATES = [ UNDO_NONE, UNDO_WRITING, UNDO_READY, UNDO_BY_HAND, UNDO_NO_INVERSE, UNDO_IN_CHAT ].freeze
+  UNDO_STATES = [ UNDO_NONE, UNDO_READY, UNDO_NO_INVERSE, UNDO_IN_CHAT ].freeze
 
   DEFAULT_MINUTES = 60
   # What the person may choose when they confirm it, in minutes. Keeping it is nil.
@@ -160,7 +155,7 @@ class Chat::Mitigation < ApplicationRecord
           undo_note: (steps.any? ? "#{steps.first['description']}." : IN_CHAT_NOTE), told_at: (Time.current unless duration_minutes))
   end
 
-  IN_CHAT_NOTE = "Halon is asked in the chat to put it back, its call asks first, and it is marked back once it is.".freeze
+  IN_CHAT_NOTE = "Halon is asked in the chat to put it back. Its call asks first, and someone marks it once it's back.".freeze
   # Marks an undo step as the registry's fixed call, the only kind Firefight runs itself.
   DECLARED = "declared".freeze
   ASKED = "Halon was asked in the chat to put this back, so there is no time to keep or extend.".freeze
@@ -181,8 +176,6 @@ class Chat::Mitigation < ApplicationRecord
     blocked = change_blocked_reason(member)
     return blocked if blocked
     return "There is no Undo for this change." if undo_state == UNDO_NO_INVERSE
-    return "Halon is still writing how to undo this. Try again in a moment." if undo_state == UNDO_WRITING
-    return "Halon could not write an undo it can run itself. #{undo_note}" if undo_state == UNDO_BY_HAND
 
     nil
   end

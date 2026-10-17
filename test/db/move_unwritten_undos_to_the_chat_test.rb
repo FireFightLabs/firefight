@@ -9,14 +9,14 @@ class MoveUnwrittenUndosToTheChatTest < ActiveSupport::TestCase
     made = lambda do |call_id, undo_state|
       Chat::Mitigation.create!(chat: chat, workspace: workspace, asker: alice, tool_call_id: call_id, tool_name: "posthog_feature_flag_disable",
                                action_key: "posthog.feature_flag_disable", arguments: {}, duration_minutes: 60, status: Chat::Mitigation::STATUS_ACTIVE,
-                               started_at: Time.current, expires_at: 1.hour.from_now, undo_state: undo_state)
+                               started_at: Time.current, expires_at: 1.hour.from_now).tap { |row| row.update_columns(undo_state: undo_state) }
     end
-    waiting = made.call("call_waiting", Chat::Mitigation::UNDO_WRITING)
+    waiting = made.call("call_waiting", MoveUnwrittenUndosToTheChat::WRITING)
     ready = made.call("call_ready", Chat::Mitigation::UNDO_READY)
 
     ActiveRecord::Migration.suppress_messages { MoveUnwrittenUndosToTheChat.new.migrate(:up) }
 
-    assert_equal [ Chat::Mitigation::UNDO_IN_CHAT, Chat::Mitigation::IN_CHAT_NOTE ], [ waiting.reload.undo_state, waiting.undo_note ]
+    assert_equal [ Chat::Mitigation::UNDO_IN_CHAT, MoveUnwrittenUndosToTheChat::NOTE ], [ waiting.reload.undo_state, waiting.undo_note ]
     assert_equal Chat::Mitigation::UNDO_READY, ready.reload.undo_state
   end
 end

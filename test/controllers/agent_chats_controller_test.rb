@@ -876,7 +876,8 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     shown = inertia_props["mitigations"].sole
     assert_equal "active", shown["status"]
     assert_nil shown["keepBlockedReason"]
-    assert_equal "Halon is still writing how to undo this. Try again in a moment.", shown["undoBlockedReason"]
+    assert_nil shown["undoBlockedReason"]
+    assert shown["asksHalon"]
   end
 
   test "the rows a statement touched download for someone who may read that database, recorded in the activity log" do
@@ -946,6 +947,6 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     posthog.tools.create!(name: "feature_flag_disable", description: "Disable a flag", enabled: true, read_only: false, params_schema: {})
     Chat::Mitigation.create!(chat: conversation.chat_record, workspace: @workspace, asker: @member, tool_call_id: "call_1", tool_name: "posthog_feature_flag_disable",
                              action_key: "posthog.feature_flag_disable", target: "PostHog", duration_minutes: 60, status: status,
-                             expires_at: (30.minutes.from_now unless status == Chat::Mitigation::STATUS_PROPOSED), undo_state: Chat::Mitigation::UNDO_WRITING)
+                             expires_at: (30.minutes.from_now unless status == Chat::Mitigation::STATUS_PROPOSED), undo_state: Chat::Mitigation::UNDO_IN_CHAT)
   end
 end

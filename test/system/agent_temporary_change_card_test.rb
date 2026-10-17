@@ -49,6 +49,11 @@ class AgentTemporaryChangeCardTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/temporary-change-asked.png").to_s)
 
     within("[aria-label='Temporary change']") { click_button "It's back" }
+    within("[role=dialog]") do
+      assert_text "Mark Turn new-checkout off as back?"
+      assert_text "Firefight stops tracking it."
+      click_button "It's back"
+    end
     assert_toast "Feature flag disable is marked as back."
     assert_equal Chat::Mitigation::STATUS_UNDONE, mitigation.reload.status
   end

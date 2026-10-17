@@ -108,6 +108,7 @@ function unaskedLine(mitigation: AgentChatMitigation): string | null {
 function MitigationCard({ conversationId, mitigation }: { conversationId: string; mitigation: AgentChatMitigation }) {
   const [ sending, setSending ] = useState<string | null>(null)
   const [ confirming, setConfirming ] = useState(false)
+  const [ confirmingBack, setConfirmingBack ] = useState(false)
   const made = mitigation.status === MITIGATION_STATUSES.MADE
   const live = mitigation.status === MITIGATION_STATUSES.ACTIVE || mitigation.status === MITIGATION_STATUSES.KEPT ||
     mitigation.status === MITIGATION_STATUSES.UNDO_ASKED || made
@@ -132,7 +133,16 @@ function MitigationCard({ conversationId, mitigation }: { conversationId: string
     extendMitigation(conversationId, mitigation.id, { onFinish: doneSending })
   }
 
+  function askToMarkBack() {
+    setConfirmingBack(true)
+  }
+
+  function cancelMarkBack() {
+    setConfirmingBack(false)
+  }
+
   function markBack() {
+    setConfirmingBack(false)
     setSending("back")
     markMitigationBack(conversationId, mitigation.id, { onFinish: doneSending })
   }
@@ -179,7 +189,7 @@ function MitigationCard({ conversationId, mitigation }: { conversationId: string
             </Button>
           )}
           {asked && (
-            <Button size="sm" variant="secondary" disabled={mitigation.backBlockedReason != null || sending != null} onClick={markBack}>
+            <Button size="sm" variant="secondary" disabled={mitigation.backBlockedReason != null || sending != null} onClick={askToMarkBack}>
               {sending === "back" && <IconLoader2 className="size-3.5 motion-safe:animate-spin" />}
               It&apos;s back
             </Button>
@@ -200,6 +210,15 @@ function MitigationCard({ conversationId, mitigation }: { conversationId: string
         confirmLabel="Undo now"
         onConfirm={undo}
         onCancel={cancelUndo}
+      />
+      <ConfirmDeleteDialog
+        open={confirmingBack}
+        title={`Mark ${mitigation.title} as back?`}
+        description="Firefight stops tracking it."
+        confirmLabel="It's back"
+        confirmVariant="default"
+        onConfirm={markBack}
+        onCancel={cancelMarkBack}
       />
     </section>
   )

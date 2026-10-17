@@ -208,31 +208,6 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     assert_equal Chat::Mitigation::STATUS_UNDO_ASKED, mitigation.reload.status
     assert_match "Alice", @chat.messages.where(nudge: true).last.content
   end
-  test "a job queued for a model to write an undo puts the change back in the chat instead, and a model's step never runs" do
-    mitigation = active!
-    FirefightAi::UndoWriter.any_instance.expects(:write).never
-
-    MitigationUndoJob.perform_now(mitigation.id)
-    assert_equal Chat::Mitigation::UNDO_IN_CHAT, mitigation.reload.undo_state
-    mitigation.destroy!
-
-    written = active!(expires_at: 1.minute.ago).tap { |row| row.update!(undo_state: Chat::Mitigation::UNDO_READY,
-                                                                       undo_steps: [ { "description" => "On", "action_key" => @enable.action_key, "arguments" => ARGUMENTS } ]) }
-    assert_enqueued_with(job: ConversationReplyJob) { Conversation::Mitigations.expire!(written) }
-    assert_equal Chat::Mitigation::STATUS_UNDO_ASKED, written.reload.status, "a model's step goes to the chat, not to failed"
-    assert_empty @sent
-  end
-
-  test "a job left from before moves only a change still waiting for its undo, and the chat is redrawn" do
-    waiting = active!
-    Conversation::LiveDelivery.expects(:safeguard_moved).once
-
-    MitigationUndoJob.perform_now(waiting.id)
-    MitigationUndoJob.perform_now(waiting.id)
-
-    assert_equal [ Chat::Mitigation::UNDO_IN_CHAT, Chat::Mitigation::IN_CHAT_NOTE ], [ waiting.reload.undo_state, waiting.undo_note ]
-  end
-
   test "a declared undo runs in the environment the change ran in only when that environment is this workspace's" do
     github = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub", slug: "github")
     github.integration_environments.create!(credentials: { token: "x" }.to_json)
@@ -270,17 +245,25 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     assert_nil Conversation::Mitigations.untold_note(@chat), "an end is told once"
   end
 
-  test "one due by hand is said so when it runs out, and nothing is run" do
+  test "a change with no fixed undo is never left due by hand when its time is up, Halon is asked in the chat" do
     mitigation = active!(expires_at: 1.minute.ago)
-    mitigation.update!(undo_state: Chat::Mitigation::UNDO_BY_HAND, undo_note: "Undo it by hand: Turn the flag on in PostHog.")
+    mitigation.update_columns(undo_state: Chat::Mitigation::UNDO_NONE)
 
-    Conversation::Mitigations.expire!(mitigation)
+    assert_enqueued_with(job: ConversationReplyJob) { Conversation::Mitigations.expire!(mitigation) }
 
-    assert_equal Chat::Mitigation::STATUS_DUE_BY_HAND, mitigation.reload.status
-    assert_match "Turn the flag on in PostHog", mitigation.outcome
+    assert_equal Chat::Mitigation::STATUS_UNDO_ASKED, mitigation.reload.status
     assert_empty @sent
   end
 
+  test "an end another worker already settled tells nobody again" do
+    mitigation = ready!(expires_at: 1.hour.ago)
+    mitigation.update_columns(status: Chat::Mitigation::STATUS_UNDONE, outcome: "Undone.")
+    Slack::WorkspaceAdapter.any_instance.expects(:post_mitigation_notice_to_user).never
+
+    Conversation::Mitigations.give_up!(mitigation)
+
+    assert_equal [ Chat::Mitigation::STATUS_UNDONE, "Undone." ], [ mitigation.reload.status, mitigation.outcome ]
+  end
   test "keep, more time and undo now are for whoever asked in their own chat, and each says why not" do
     mitigation = ready!(expires_at: 30.minutes.from_now)
 
@@ -373,6 +356,8 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     assert_match "Temporary change: Turn new-checkout off", blocks.first.dig(:text, :text)
     back, undo = blocks.find { |block| block[:type] == "actions" }[:elements]
     assert_equal [ Identifiers::MITIGATION_BACK, Slack::Messages::MitigationNotice::BACK ], [ back[:action_id], back.dig(:text, :text) ]
+    assert_equal "Mark Turn new-checkout off as back?", back.dig(:confirm, :title, :text), "It's back cannot be taken back, so Slack asks first"
+    assert_equal "Firefight stops tracking it.", back.dig(:confirm, :text, :text)
     assert_equal Identifiers::MITIGATION_UNDO, undo[:action_id]
     assert_equal Slack::Messages::MitigationNotice::ASKS_HALON, undo.dig(:confirm, :text, :text)
   end
@@ -407,7 +392,7 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     Chat::Mitigation.create!(chat: @chat, workspace: @workspace, asker: @alice, tool_call_id: "call_1", tool_name: @disable.model_facing_name,
                              action_key: @disable.action_key, arguments: ARGUMENTS, intent: "Turn new-checkout off", duration_minutes: 60,
                              status: Chat::Mitigation::STATUS_ACTIVE, started_at: Time.current, expires_at: expires_at,
-                             result: "Flag 7 (new-checkout) is now off.", undo_state: Chat::Mitigation::UNDO_WRITING)
+                             result: "Flag 7 (new-checkout) is now off.", undo_state: Chat::Mitigation::UNDO_IN_CHAT)
   end
 
   def in_chat!(expires_at:)
