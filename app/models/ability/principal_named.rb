@@ -18,11 +18,17 @@ module Ability
     end
 
     # A call Halon made in a member's chat runs with the member's access, so it reads as Halon and names whose access it
-    # used, as the chat's request in Slack says Halon wants to.
+    # used, as the chat's request in Slack says Halon wants to. Asking Halon, in a chat or a tracker's issue, is the
+    # member's own act and reads as them.
     def principal_name
-      return "#{SystemAgent::HALON}, for #{principal_own_name}" if source == AbilityGateway::SOURCE_CONVERSATION && principal_type == WorkspaceMembership.name
+      return principal_own_name unless halon_for_member?
 
-      principal_own_name
+      "#{SystemAgent::HALON}, for #{principal_own_name}"
+    end
+
+    def halon_for_member?
+      source == AbilityGateway::SOURCE_CONVERSATION && principal_type == WorkspaceMembership.name &&
+        action_key != Ability::Action::INVESTIGATIONS_CREATE
     end
 
     # The principal's own name, the person whose access a chat's call used rather than Halon.

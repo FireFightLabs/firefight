@@ -81,6 +81,16 @@ class Ability::PrincipalNamedTest < ActiveSupport::TestCase
     assert_equal "Halon", approval_by(SystemAgent.investigator, source: AbilityGateway::SOURCE_CONVERSATION).principal_name
   end
 
+  test "a member asking Halon, such as answering it in a tracker's issue, reads as the member, not as Halon" do
+    member = workspace_memberships(:alice_workspace_one)
+    asked = Ability::Invocation.create!(
+      workspace: @workspace, principal: member, principal_label: member.principal_label, action_key: Ability::Action::INVESTIGATIONS_CREATE,
+      idempotency_key: SecureRandom.uuid, decision: Ability::Invocation::DECISION_ALLOW, source: AbilityGateway::SOURCE_CONVERSATION
+    )
+
+    assert_equal users(:alice).name, asked.principal_name
+  end
+
   test "a held call names whoever asked in plain words, a person or not" do
     assert_equal "Halon", Chat::HeldCall.new(approval: approval_by(SystemAgent.investigator)).asker_name
     assert_equal users(:alice).name, Chat::HeldCall.new(approval: approval_by(workspace_memberships(:alice_workspace_one))).asker_name
