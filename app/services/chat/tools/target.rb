@@ -131,6 +131,8 @@ module Chat::Tools::Target
     lambda do |tool_call|
       decided = agent_run.chat&.tool_calls&.where(tool_call_id: tool_call.id)&.pick(:approval)
       next false if decided == Chat::APPROVAL_DENIED
+      # A call naming a change it puts back always asks on its card, so only the person's yes runs it.
+      next(true if decided == Chat::APPROVAL_APPROVED) if tool_call.arguments.to_h.stringify_keys[Chat::Tools::PUTS_BACK_ARG].present?
       next true if yield(tool_call.arguments.to_h.stringify_keys, tool_call)
 
       true if decided == Chat::APPROVAL_APPROVED

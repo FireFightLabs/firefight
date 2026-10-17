@@ -121,8 +121,8 @@ class Chat::Mitigation < ApplicationRecord
   # Still in place, so it can be undone.
   def live? = active? || kept? || made? || undo_asked?
 
-  # Whether Firefight puts it back itself, with a fixed step, rather than asking Halon in the chat.
-  def undone_by_firefight? = undo_state == UNDO_READY
+  # Whether Firefight puts it back itself, with fixed steps only, rather than asking Halon in the chat.
+  def undone_by_firefight? = undo_state == UNDO_READY && undo_steps.any? && undo_steps.all? { |step| step[DECLARED] }
 
   def ended? = !(proposed? || live? || status == STATUS_UNDOING)
 
@@ -160,7 +160,9 @@ class Chat::Mitigation < ApplicationRecord
           undo_note: (steps.any? ? "#{steps.first['description']}." : IN_CHAT_NOTE), told_at: (Time.current unless duration_minutes))
   end
 
-  IN_CHAT_NOTE = "Halon is asked in the chat to put it back, and that call asks first like any change.".freeze
+  IN_CHAT_NOTE = "Halon is asked in the chat to put it back, and its call always asks first.".freeze
+  # Marks an undo step as the registry's fixed call, the only kind Firefight runs itself.
+  DECLARED = "declared".freeze
   ASKED = "Halon was asked in the chat to put this back, so there is no time to keep or extend.".freeze
 
   # The reminder is claimed once, so two sweeps never send two.
@@ -181,6 +183,7 @@ class Chat::Mitigation < ApplicationRecord
     return "There is no Undo for this change." if undo_state == UNDO_NO_INVERSE
     return "Halon is still writing how to undo this. Try again in a moment." if undo_state == UNDO_WRITING
     return "Halon could not write an undo it can run itself. #{undo_note}" if undo_state == UNDO_BY_HAND
+    return "Halon's call to put this back is waiting or running in the chat, so it is not asked for again." if undo_tool_call_id.present?
 
     nil
   end

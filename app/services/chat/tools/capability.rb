@@ -27,7 +27,10 @@ class Chat::Tools::Capability < RubyLLM::Tool
 
   # A read is written by Firefight and only ever reads, so it never waits for the person. A change asks whenever the
   # tool it could run as would.
-  def requires_approval?
+  def requires_approval? = asks_anyway? || (@spec.writes && Conversation::Mitigations.waiting_undo_ids(@agent_run.chat, @tools).any?)
+
+  # Whether a call asks the person whatever it names. One that names a change to put back always asks on its card.
+  def asks_anyway?
     return false unless @spec.writes
 
     allowed = Chat::Tools::Provenance.allowed?(@agent_run, name)
@@ -40,7 +43,7 @@ class Chat::Tools::Capability < RubyLLM::Tool
   # up, or one on the list of what Halon may do without asking, runs unasked (Conversation::Turn#unasked_for).
   def approval_resolver
     Chat::Tools::Target.resolver(@agent_run) do |given, tool_call|
-      misdirection(given).present? || unsupported(given, tool_call&.id).present? || undone(given, tool_call&.id).present? ||
+      !asks_anyway? || misdirection(given).present? || unsupported(given, tool_call&.id).present? || undone(given, tool_call&.id).present? ||
         without_person?(given, tool_call)
     end
   end
@@ -158,7 +161,7 @@ class Chat::Tools::Capability < RubyLLM::Tool
 
   def ask(found, tool_call, alone: true, asked: connection(found))
     text = asked.run(found.arguments, environment_entry: found.environment_entry, tool_call_id: tool_call&.id, shown_as: name, present: found.present,
-                                      alone: alone, target: target_of(found), inverse: inverse_of(found, tool_call))
+                                      alone: alone, target: target_of(found), inverse: inverse_of(found, tool_call), capability: @spec.key)
     @answered = Answered.new(call: found, result: asked.last_result) unless asked.failed? || asked.waiting?
     text
   end
@@ -172,7 +175,7 @@ class Chat::Tools::Capability < RubyLLM::Tool
 
       asked = connection(found)
       text = asked.run(found.arguments, environment_entry: found.environment_entry, tool_call_id: tool_call&.id, shown_as: name,
-                                        present: found.present, alone: false, target: target_of(found))
+                                        present: found.present, alone: false, target: target_of(found), capability: @spec.key)
       answered ||= !asked.failed?
       Integrations::Capabilities.headed(found.environment_row, text)
     end

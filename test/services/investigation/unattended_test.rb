@@ -136,8 +136,12 @@ class Investigation::UnattendedTest < ActiveSupport::TestCase
       AbilityGateway.authorize!(principal: workspace_memberships(:alice_workspace_one), action_key: @api.action_key, workspace: @workspace,
                                 params: arguments, context: { unattended_rule_id: rule.id })
     end
+    assert_raises(AbilityGateway::PendingApproval, "a write through the whole API that Firefight did not build for the capability waits for a person") do
+      AbilityGateway.authorize!(principal: SystemAgent.investigator, action_key: @api.action_key, workspace: @workspace, params: arguments,
+                                context: { unattended_rule_id: rule.id })
+    end
     assert AbilityGateway.authorize!(principal: SystemAgent.investigator, action_key: @api.action_key, workspace: @workspace, params: arguments,
-                                     context: { unattended_rule_id: rule.id })
+                                     context: { unattended_rule_id: rule.id, capability: true })
   end
 
   test "a change a chat would wrap in a safeguard is left for a person, since nobody is there to answer it" do

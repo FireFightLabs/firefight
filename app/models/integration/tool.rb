@@ -209,6 +209,10 @@ class Integration::Tool < ApplicationRecord
   # Whether its change reaches who can get at something or a secret, which a person is always asked about.
   def access_change? = !read_only? && Integrations::SafeChanges.access?(self)
 
+  # Whether it reaches a whole API, which its provider's read guard says (Integrations::ReadGuards), so a call that
+  # writes can change anything there, access and secrets included.
+  def whole_api? = !read_only? && Integrations::ReadGuards.for(self).present?
+
   # The tool its provider names as the one that writes a code change, which is handed who asked and what they said.
   def writes_code? = !read_only? && IntegrationProvider.find(integration.provider)&.code_fix_tool == name
 

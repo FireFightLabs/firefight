@@ -11,7 +11,7 @@ import type { AgentChatDataRepair, AgentChatMitigation, AgentChatOwnerAsk } from
 
 const CARD_CLASS = "flex w-full max-w-160 flex-col gap-3 rounded-card bg-surface px-4 py-3.5 shadow-card"
 const PUTS_BACK = "Firefight puts back what this changed, as the person who asked for it, and says how it went here."
-const ASKS_HALON = "Halon is asked in this chat to put back what this changed, and that call asks first like any change."
+const ASKS_HALON = "Halon is asked in this chat to put back what this changed, and its call always asks first."
 
 interface SafeguardsProps {
   conversationId: string

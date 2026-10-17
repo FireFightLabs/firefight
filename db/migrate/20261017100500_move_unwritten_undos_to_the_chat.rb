@@ -3,7 +3,7 @@
 class MoveUnwrittenUndosToTheChat < ActiveRecord::Migration[8.1]
   WRITING = "writing".freeze
   IN_CHAT = "in_chat".freeze
-  NOTE = "Halon is asked in the chat to put it back, and that call asks first like any change.".freeze
+  NOTE = "Halon is asked in the chat to put it back, and its call always asks first.".freeze
 
   def up
     execute ActiveRecord::Base.sanitize_sql_array([ "UPDATE chat_mitigations SET undo_state = ?, undo_note = ?, updated_at = now() WHERE undo_state = ?",

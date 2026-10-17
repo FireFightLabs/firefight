@@ -56,14 +56,24 @@ module Conversation::HeldCalls
 
   def self.denied!(approval)
     held = Chat::HeldCall.find_by(approval: approval)
-    tell!(held) if held&.move!(from: Chat::HeldCall::STATUS_WAITING, to: Chat::HeldCall::STATUS_DENIED)
+    return unless held&.move!(from: Chat::HeldCall::STATUS_WAITING, to: Chat::HeldCall::STATUS_DENIED)
+
+    let_go(held)
+    tell!(held)
   end
 
   # From ApprovedCallExpiryJob, once the approval lapsed unused.
   def self.expired!(approval)
     held = Chat::HeldCall.find_by(approval: approval)
-    tell!(held) if held&.move!(from: Chat::HeldCall::OPEN, to: Chat::HeldCall::STATUS_EXPIRED)
+    return unless held&.move!(from: Chat::HeldCall::OPEN, to: Chat::HeldCall::STATUS_EXPIRED)
+
+    let_go(held)
+    tell!(held)
   end
+
+  # A held call that will not run lets go of a change it was to put back, so Undo now can ask Halon again.
+  def self.let_go(held) = Conversation::Mitigations.release_undo!(held.chat, held.tool_call_id)
+  private_class_method :let_go
 
   # Halon reads how things stand now, as the person who asked and only through reads. A check that cannot run or finds
   # nothing still makes the call ready, saying plainly that nobody checked.
@@ -99,6 +109,7 @@ module Conversation::HeldCalls
     end
 
     held.approval.dismiss!
+    let_go(held)
     tell!(held)
     nil
   end
@@ -138,7 +149,10 @@ module Conversation::HeldCalls
 
   # The call may or may not have gone through, so whoever asked is told to look before asking again. Once, by the move.
   def self.give_up!(held)
-    tell!(held) if held.finish!(ok: false, result: COULD_NOT_FINISH)
+    return unless held.finish!(ok: false, result: COULD_NOT_FINISH)
+
+    let_go(held)
+    tell!(held)
   end
 
   # Runs the claimed call through the gateway with its approval, as whoever asked, from the chat's turn. Returns the text
