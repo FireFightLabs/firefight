@@ -161,6 +161,18 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     assert_nil Conversation::Mitigations.untold_note(@chat), "asked once"
   end
 
+  test "Undo now pressed while another question is open says who pressed it when Halon is asked at its next turn" do
+    open = pause!
+    open.update_columns(tool_call_id: "call_open")
+    mitigation = in_chat!(expires_at: 1.hour.from_now)
+    mitigation.update_columns(tool_call_id: "call_earlier")
+
+    assert_nil Conversation::Mitigations.undo_now!(mitigation, by: @alice)
+    perform_enqueued_jobs(only: MitigationUndoRunJob)
+
+    assert_match "#{@alice.display_name} pressed Undo now on Turn new-checkout off", Conversation::Mitigations.untold_note(@chat)
+  end
+
   test "an undo call that fails, or never runs, leaves the change in place, due by hand, and Undo now asks Halon again" do
     mitigation = in_chat!(expires_at: 1.minute.ago)
     Conversation::Mitigations.expire!(mitigation)

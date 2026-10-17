@@ -444,6 +444,6 @@ module Conversation::Mitigations
     Chat::Mitigation.where(id: (ended + asked).map(&:id)).update_all(told_at: Time.current)
     lines = ended.map { |mitigation| "- #{mitigation.title}: #{mitigation.outcome.presence || 'kept, so it stays until someone changes it back.'}" }
     [ ("Changes you made earlier that Firefight keeps track of, temporary or made without asking, and what became of them since, already told to the person:\n#{lines.join("\n")}" if lines.any?),
-      *asked.map { |mitigation| ask_to_put_back(mitigation, nil) } ].compact.join("\n\n")
+      *asked.map { |mitigation| ask_to_put_back(mitigation, mitigation.ended_by) } ].compact.join("\n\n")
   end
 end
