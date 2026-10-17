@@ -17,14 +17,16 @@ module QueryCountHelper
   end
   ActiveRecord::ConnectionAdapters::ConnectionPool.prepend(OwnQueryCache)
 
-  def self.counting? = @counting == true
+  COUNTS = Concurrent::AtomicFixnum.new
 
+  def self.counting? = COUNTS.value.positive?
+
+  # Once the last count ends every thread's cache is emptied, as Rails would have done for each write it held back.
   def self.counting
-    was = @counting
-    @counting = true
+    COUNTS.increment
     yield
   ensure
-    @counting = was
+    ActiveRecord::Base.connection_handler.each_connection_pool(&:clear_query_cache) if COUNTS.decrement.zero?
   end
 
   # The query cache outlives a request in a test, so it is emptied first, else a block repeating an earlier one sends
