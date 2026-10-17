@@ -832,7 +832,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_110100) do
     t.datetime "updated_at", null: false
     t.string "unasked_reason"
     t.uuid "allowance_id"
-    t.string "undo_tool_call_id"
     t.index ["allowance_id"], name: "index_chat_mitigations_on_allowance_id"
     t.index ["asker_type", "asker_id"], name: "index_chat_mitigations_on_asker"
     t.index ["chat_id", "tool_call_id"], name: "index_chat_mitigations_on_chat_id_and_tool_call_id", unique: true

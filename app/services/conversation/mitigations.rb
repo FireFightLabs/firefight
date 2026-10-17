@@ -2,9 +2,9 @@
 # reminder before it runs out, and put back when it does, unless someone kept it. Firefight puts it back itself only
 # with the fixed call the registry declares, or a scale back to the count it had, as whoever asked for the change,
 # through the same tools and the gateway, so grants, approval rules and the activity log apply as for any call. With
-# none, Halon is asked in the chat to put it back, its call names the change (Chat::Tools::PUTS_BACK_ARG) and asks like
-# any change, and the change counts as undone only once that call runs (undo_asked_in). A change Halon made without asking is kept the same way, as made, and said where
-# the chat is with Undo when something puts it back.
+# none, Halon is asked in the chat to put it back with a call that asks like any change, and the change counts as undone
+# only once a person marks it back on its card (mark_back!), since a model's call never says so. A change Halon made
+# without asking is kept the same way, as made, and said where the chat is with Undo when something puts it back.
 module Conversation::Mitigations
   KIND_REMINDER = "reminder".freeze
   KIND_ENDED = "ended".freeze
@@ -16,22 +16,20 @@ module Conversation::Mitigations
 
   # What a person or the platform is shown, the same on the dashboard and in Slack. keeps is whether Keep it and One
   # more hour are offered while it is in place, undoable whether Undo now is, asks_halon whether Undo now asks Halon
-  # in the chat rather than running a fixed call, and temporary whether it is a change customers feel rather than one
-  # made without asking.
-  Notice = Data.define(:id, :kind, :title, :text, :live, :conversation_id, :keeps, :undoable, :asks_halon, :temporary) do
-    def initialize(keeps: true, undoable: true, asks_halon: false, temporary: true, **) = super
+  # in the chat rather than running a fixed call, temporary whether it is a change customers feel rather than one made
+  # without asking, and marks_back whether It's back is offered, once Halon was asked to put it back.
+  Notice = Data.define(:id, :kind, :title, :text, :live, :conversation_id, :keeps, :undoable, :asks_halon, :temporary, :marks_back) do
+    def initialize(keeps: true, undoable: true, asks_halon: false, temporary: true, marks_back: false, **) = super
   end
 
   # Kept at the pause, so the person sees and can change when it is undone. A call that runs without a pause, such as
-  # one allowed for the rest of the chat, is kept as it runs, with the default time. A call that puts another change
-  # back starts on Never, since putting something back should not itself be undone unless the person picks a time.
+  # one allowed for the rest of the chat, is kept as it runs, with the default time.
   def self.propose!(agent_run, call_id:, tool:, environment_entry:, arguments:, tool_name:, target: nil, intent: nil)
     chat = agent_run.chat
-    puts_back = chat.tool_calls.find_by(tool_call_id: call_id.to_s)&.arguments.to_h[Chat::Tools::PUTS_BACK_ARG].present?
     Chat::Mitigation.for_call(chat, call_id) || Chat::Mitigation.create!(
       chat: chat, workspace: agent_run.workspace, asker: agent_run.acting_principal, tool_call_id: call_id.to_s, tool_name: tool_name,
       action_key: tool.action_key, environment_id: environment_entry&.id, arguments: arguments.to_h, target: target, intent: intent,
-      duration_minutes: (Chat::Mitigation::DEFAULT_MINUTES unless puts_back)
+      duration_minutes: Chat::Mitigation::DEFAULT_MINUTES
     )
   rescue ActiveRecord::RecordNotUnique
     Chat::Mitigation.for_call(chat, call_id)
@@ -265,93 +263,41 @@ module Conversation::Mitigations
 
   # No fixed call puts it back, so Halon is asked in the chat to put it back, where its call goes through the resolver
   # and the card like any change, as whoever asked for the change. The change stays in place, with Undo now to ask again,
-  # until that call runs (undo_ran!). While the person is asked about another call, a message after it would withdraw
+  # until a person marks it back (mark_back!). While the person is asked about another call, a message after it would withdraw
   # that question, so Halon is asked at its next turn instead (untold_note).
   def self.in_chat!(mitigation, by:)
     chat = mitigation.chat
     now = chat.calls_in_play.where(result_id: nil).none?
     return unless mitigation.move!(from: Chat::Mitigation::STATUS_UNDOING, to: Chat::Mitigation::STATUS_UNDO_ASKED, claimed_at: Time.current, reminded_at: nil,
-                                   undo_tool_call_id: nil, told_at: (Time.current if now))
+                                   told_at: (Time.current if now))
 
     if now
       chat.nudge!(ask_to_put_back(mitigation, by))
       ConversationReplyJob.perform_later(mitigation.conversation.id, (mitigation.asker.id if mitigation.asker.is_a?(WorkspaceMembership)))
     end
-    tell!(mitigation, KIND_UNDO_ASKED, "Halon is asked in the chat to put #{mitigation.title} back. It stays in place until that call runs.")
+    tell!(mitigation, KIND_UNDO_ASKED, "Halon was asked in the chat to put #{mitigation.title} back. Mark it once it's back.")
   end
   private_class_method :in_chat!
 
   def self.ask_to_put_back(mitigation, by)
     who = by ? "#{by.display_name} pressed Undo now on" : "Time is up for"
     "#{who} #{mitigation.title} (#{mitigation.label}), which no fixed call puts back. Put back only this change now, with one call to the tool " \
-      "that does, from what the call returned earlier in this chat, naming it in #{Chat::Tools::PUTS_BACK_ARG} as #{mitigation.id}. " \
-      "It always asks the person on its card, which says what it puts back."
+      "that does, from what the call returned earlier in this chat. It asks the person like any change. Once it went through, tell them, " \
+      "and that they mark it as back on its card, which only they can do."
   end
   private_class_method :ask_to_put_back
 
-  # The changes waiting to be put back on the connections of tools, which a call through one of them may name.
-  def self.waiting_undo_ids(chat, tools)
-    return [] if chat.nil? || tools.empty?
+  # It's back, pressed by a person once Halon put the change back in the chat. It is undone only then, since nothing
+  # Firefight runs shows that it is. Returns why not, or nil.
+  def self.mark_back!(mitigation, by:)
+    blocked = mitigation.back_blocked_reason(by)
+    return blocked if blocked
+    return "This was just changed by someone else." unless mitigation.move!(from: Chat::Mitigation::STATUS_UNDO_ASKED, to: Chat::Mitigation::STATUS_UNDONE,
+                                                                             ended_at: Time.current, ended_by_id: by.id, told_at: nil,
+                                                                             outcome: "#{by.display_name} marked #{mitigation.title} as put back.")
 
-    integration_ids = tools.map(&:integration_id).to_set
-    chat.undos_asked.select do |row|
-      integration_ids.include?(Integration::Tool.by_action_key(row.workspace, row.action_key)&.integration_id)
-    end.map(&:id)
-  end
-
-  # The change a call names as the one it puts back, while it waits, when the call reaches what the change reached: the
-  # same connection, the same target and the same environment. nil otherwise. named is the call's
-  # Chat::Tools::PUTS_BACK_ARG, target what the call reaches as a person reads it (Chat::Tools::Target.describe).
-  def self.undo_named(chat, tool, named, target:, environment_id:)
-    return nil if chat.nil? || named.blank? || tool.read_only?
-
-    mitigation = chat.mitigations.find_by(id: named.to_s, status: Chat::Mitigation::STATUS_UNDO_ASKED)
-    return nil unless mitigation && Integration::Tool.by_action_key(mitigation.workspace, mitigation.action_key)&.integration_id == tool.integration_id
-    return nil unless mitigation.target.blank? || mitigation.target == target
-    return nil unless mitigation.environment_id.blank? || mitigation.environment_id == environment_id
-
-    mitigation
-  end
-
-  # The call Halon makes to put back a change it was asked to in the chat, which names that change and reaches it: tied
-  # to it, so the change is undone when that call runs. nil for any other call.
-  def self.undo_asked_in(chat, tool, call_id, named, target:, environment_id:)
-    return nil if call_id.blank?
-
-    mitigation = undo_named(chat, tool, named, target: target, environment_id: environment_id)
-    return nil unless mitigation
-
-    tied = Chat::Mitigation.where(id: mitigation.id, status: Chat::Mitigation::STATUS_UNDO_ASKED, undo_tool_call_id: [ nil, call_id.to_s ])
-                           .update_all(undo_tool_call_id: call_id.to_s, updated_at: Time.current)
-    tied == 1 ? mitigation.reload : nil
-  end
-
-  # Halon's call to put it back ran. It is undone only once the call tied to it went through, and otherwise it stays in
-  # place, due by hand, with Undo now to ask again. Returns what Halon reads.
-  def self.undo_ran!(mitigation, ok:, call_id:)
-    if ok
-      won = Chat::Mitigation.where(id: mitigation.id, status: [ Chat::Mitigation::STATUS_UNDO_ASKED, Chat::Mitigation::STATUS_UNDOING ], undo_tool_call_id: call_id.to_s)
-                            .update_all(status: Chat::Mitigation::STATUS_UNDONE, ended_at: Time.current, told_at: Time.current,
-                                        outcome: "Halon put #{mitigation.title} back.", updated_at: Time.current)
-      return nil unless won == 1
-
-      tell!(mitigation.reload, KIND_ENDED, mitigation.outcome)
-      return "This put back #{mitigation.title}, which the person sees as undone."
-    end
-
-    return nil unless release_undo!(mitigation.chat, call_id).positive?
-
-    tell!(mitigation.reload, KIND_UNDO_ASKED, "Halon's call to put #{mitigation.title} back did not go through, so it is still in place. " \
-                                              "Undo it by hand, or press Undo now to ask Halon again.")
-    "This was to put back #{mitigation.title}, and it did not go through, so it is still in place. Say so."
-  end
-
-  # A call tied to a change it puts back that did not run, refused or failed, lets go of it, so Undo now asks again. Only
-  # that call's tie is let go. Answers how many it let go of.
-  def self.release_undo!(chat, call_id)
-    return 0 if chat.nil? || call_id.blank?
-
-    chat.mitigations.where(status: Chat::Mitigation::STATUS_UNDO_ASKED, undo_tool_call_id: call_id.to_s).update_all(undo_tool_call_id: nil, updated_at: Time.current)
+    tell!(mitigation, KIND_ENDED, mitigation.outcome)
+    nil
   end
 
   # Halon was asked to put it back a while ago and it is still in place, so the person is told it is due by hand, once.
@@ -360,8 +306,8 @@ module Conversation::Mitigations
                               .update_all(reminded_at: Time.current, updated_at: Time.current)
     return unless claimed == 1
 
-    tell!(mitigation.reload, KIND_REMINDER, "Halon has not put #{mitigation.title} back yet, so it is still in place. It is due to be undone by hand, " \
-                                            "or press Undo now to ask Halon again.")
+    tell!(mitigation.reload, KIND_REMINDER, "#{mitigation.title} is not marked as back yet, so it may still be in place. It is due to be undone " \
+                                            "by hand, or press Undo now to ask Halon again. Mark it once it's back.")
   end
 
   # The declared undo of a change made without asking, only ever through a tool that may be one (SafeChanges.inverse_allowed?)
@@ -423,6 +369,7 @@ module Conversation::Mitigations
   def self.notice(mitigation, kind, text)
     Notice.new(id: mitigation.id, kind: kind, title: mitigation.title, text: text, live: mitigation.live?, keeps: timed?(mitigation) && !mitigation.undo_asked?,
                undoable: mitigation.undo_state != Chat::Mitigation::UNDO_NO_INVERSE, asks_halon: !mitigation.undone_by_firefight?, temporary: timed?(mitigation),
+               marks_back: mitigation.undo_asked?,
                conversation_id: (mitigation.conversation.id if mitigation.conversation.personal?))
   end
 

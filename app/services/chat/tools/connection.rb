@@ -26,13 +26,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
   # RubyLLM pauses the turn before a call that needs the person's decision. A tool that writes rows or stops something is
   # always put through the resolver, which settles each call on its own whatever was allowed for the chat.
-  def requires_approval? = asks_anyway? || puts_back_offered?
-
-  # Whether a call asks the person whatever it names, which is how it asked before a change waited to be put back.
-  def asks_anyway? = confirms_as_usual? || data_writes? || stops?
-
-  # A call that names a change to put back always asks on its card, so the tool is offered the name only while one waits.
-  def puts_back_offered? = changes_at_all? && Conversation::Mitigations.waiting_undo_ids(@agent_run.chat, [ @tool ]).any?
+  def requires_approval? = confirms_as_usual? || data_writes? || stops?
 
   # A call shown to read runs without asking, since reads never wait. A call whose words name another connection is
   # refused rather than put to the person (Chat::Tools::Target), and so is a write Firefight cannot count first, and a
@@ -41,7 +35,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # (Conversation::Turn#unasked_for). A write that changes rows is never one of those, since each is counted for the person.
   def approval_resolver
     Chat::Tools::Target.resolver(@agent_run) do |given, tool_call|
-      !asks_anyway? || reads?(given) || misdirection(given, reached_row(given)).present? || unsupported(given, tool_call&.id).present? ||
+      reads?(given) || misdirection(given, reached_row(given)).present? || unsupported(given, tool_call&.id).present? ||
         (data_writes? && runs_unasked?(given, tool_call)) || (stops? && stops_unasked?(given, tool_call)) ||
         (!data_writes? && !stops? && without_person?(given, tool_call))
     end
@@ -71,7 +65,6 @@ class Chat::Tools::Connection < RubyLLM::Tool
     schema = Chat::Tools::TrackedIssues.with_kind(schema) if tracks_issues?
     schema = Chat::DataRepairs.with_check(schema) if data_writes?
     schema = Chat::Tools::LookFirst.with_because(schema, required: false) if changes_at_all?
-    schema = Chat::Tools.with_putting_back(schema, Conversation::Mitigations.waiting_undo_ids(@agent_run.chat, [ @tool ])) if puts_back_offered?
     requires_approval? ? Chat::Tools.with_intent(schema) : schema
   end
 
@@ -310,7 +303,6 @@ class Chat::Tools::Connection < RubyLLM::Tool
     reminder = Chat::Tools::SkillReminder.for(@agent_run, source: @tool.integration.provider, handle: @tool.name, tool_call_id: tool_call_id)
     [ Chat::Tools.hand_over(@agent_run, shown_as, said), charted, @failure_note, guarded.presence, made, tracked.presence, reminder ].compact.join("\n\n")
   rescue AbilityGateway::Denied
-    safeguards&.released!
     @agent_run.pack_refused!(@tool.action_key, tool_call_id)
     failed(tool_call_id, @agent_run.refusal(@tool.action_key) + Mcp::ConnectionToolFactory.environment_hint(@tool))
   rescue AbilityGateway::PendingApproval => pending
@@ -325,7 +317,6 @@ class Chat::Tools::Connection < RubyLLM::Tool
     Conversation::HeldCalls.ask_where_held(held)
     Chat::Tools.waiting_for_approval(@tool.action_key, held: held)
   rescue Integrations::Error => error
-    safeguards&.released!
     # The provider's own words, so they are framed like anything else it said.
     not_found = Integrations::Outcomes.not_found?(@tool, arguments, error: error)
     note = error.is_a?(Integrations::TimedOut) ? TIMED_OUT : failure_note(arguments, not_found)

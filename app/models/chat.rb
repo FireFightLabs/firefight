@@ -224,10 +224,6 @@ class Chat < ApplicationRecord
 
   def awaiting_decision = tool_calls.where(approval: APPROVAL_REQUESTED).order(:created_at)
 
-  # The changes Halon was asked to put back, read once for the turn whose tools offer them, so each step does not read
-  # them again. A change put back meanwhile is refused when named (Conversation::Mitigations.undo_named).
-  def undos_asked = @undos_asked ||= mitigations.where(status: Chat::Mitigation::STATUS_UNDO_ASKED).order(:claimed_at, :id).to_a
-
   # Calls approved before then that never answered, in any chat, for the recovery sweep.
   def self.stale_approved_calls(decided_before)
     RubyLLM::ActiveRecord::ToolCall.where(message_type: Chat::Message.polymorphic_name, approval: APPROVAL_APPROVED, result_id: nil,

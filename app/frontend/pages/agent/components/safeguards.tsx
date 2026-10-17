@@ -6,12 +6,12 @@ import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { formatDateTime, formatTime } from "@/lib/formatters"
 import { DATA_WRITE_KINDS, MITIGATION_STATUSES, MITIGATION_UNDO_STATES, OWNER_ASK_STATUSES } from "@/lib/generated/constants"
 import { agentChatDataRepairCopyPath } from "@/lib/routes"
-import { extendMitigation, keepMitigation, undoMitigation } from "@/pages/agent/lib/chat-updates"
+import { extendMitigation, keepMitigation, markMitigationBack, undoMitigation } from "@/pages/agent/lib/chat-updates"
 import type { AgentChatDataRepair, AgentChatMitigation, AgentChatOwnerAsk } from "@/types/serializers"
 
 const CARD_CLASS = "flex w-full max-w-160 flex-col gap-3 rounded-card bg-surface px-4 py-3.5 shadow-card"
 const PUTS_BACK = "Firefight puts back what this changed, as the person who asked for it, and says how it went here."
-const ASKS_HALON = "Halon is asked in this chat to put back what this changed, and its call always asks first."
+const ASKS_HALON = "Halon is asked in this chat to put back what this changed. Its call asks first, and you mark it once it's back."
 
 interface SafeguardsProps {
   conversationId: string
@@ -84,7 +84,7 @@ function mitigationState(mitigation: AgentChatMitigation): string {
     return "Kept, so it is not put back."
   }
   if (mitigation.status === MITIGATION_STATUSES.UNDO_ASKED) {
-    return "Halon was asked in this chat to put it back. It stays in place until that call runs."
+    return "Halon was asked to put this back. Mark it once it's back."
   }
   if (mitigation.status === MITIGATION_STATUSES.MADE) {
     return mitigation.unaskedWords ?? ""
@@ -102,7 +102,8 @@ function unaskedLine(mitigation: AgentChatMitigation): string | null {
 
 // A change customers feel, such as a feature flag turned off. While it is in place it says when it is put back, by
 // Firefight or by Halon asked in the chat, and offers Keep it, One more hour and Undo now, each blocked with why when
-// this viewer may not. Undo now asks first. Once Halon was asked to put it back it offers Undo now alone, to ask again.
+// this viewer may not. Undo now asks first. Once Halon was asked to put it back it offers It's back, which a person
+// presses once it is, and Undo now to ask again.
 // A change Halon made without asking says why and offers Undo now alone, or nothing when nothing puts it back.
 function MitigationCard({ conversationId, mitigation }: { conversationId: string; mitigation: AgentChatMitigation }) {
   const [ sending, setSending ] = useState<string | null>(null)
@@ -111,6 +112,7 @@ function MitigationCard({ conversationId, mitigation }: { conversationId: string
   const live = mitigation.status === MITIGATION_STATUSES.ACTIVE || mitigation.status === MITIGATION_STATUSES.KEPT ||
     mitigation.status === MITIGATION_STATUSES.UNDO_ASKED || made
   const active = mitigation.status === MITIGATION_STATUSES.ACTIVE
+  const asked = mitigation.status === MITIGATION_STATUSES.UNDO_ASKED
   const undoable = mitigation.undoState !== MITIGATION_UNDO_STATES.NO_INVERSE
   const blocked = undoable ? mitigation.undoBlockedReason ?? (active ? mitigation.keepBlockedReason : null) : null
   const because = unaskedLine(mitigation)
@@ -128,6 +130,11 @@ function MitigationCard({ conversationId, mitigation }: { conversationId: string
   function giveMoreTime() {
     setSending("extend")
     extendMitigation(conversationId, mitigation.id, { onFinish: doneSending })
+  }
+
+  function markBack() {
+    setSending("back")
+    markMitigationBack(conversationId, mitigation.id, { onFinish: doneSending })
   }
 
   function askToUndo() {
@@ -169,6 +176,12 @@ function MitigationCard({ conversationId, mitigation }: { conversationId: string
             <Button size="sm" variant="secondary" disabled={mitigation.extendBlockedReason != null || sending != null} onClick={giveMoreTime}>
               {sending === "extend" && <IconLoader2 className="size-3.5 motion-safe:animate-spin" />}
               One more hour
+            </Button>
+          )}
+          {asked && (
+            <Button size="sm" variant="secondary" disabled={mitigation.backBlockedReason != null || sending != null} onClick={markBack}>
+              {sending === "back" && <IconLoader2 className="size-3.5 motion-safe:animate-spin" />}
+              It&apos;s back
             </Button>
           )}
           {undoable && (

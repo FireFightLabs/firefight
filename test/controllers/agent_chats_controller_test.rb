@@ -853,6 +853,20 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Undoing Feature flag disable on PostHog.", flash[:notice]
   end
 
+  test "marking a change Halon was asked to put back as back says so, and a second press says why not" do
+    Slack::WorkspaceAdapter.any_instance.stubs(:post_mitigation_notice_to_user).returns({ channel_id: "D1", message_id: "1.1" })
+    conversation = start_chat
+    mitigation = temporary_change!(conversation)
+    mitigation.update_columns(status: Chat::Mitigation::STATUS_UNDO_ASKED)
+
+    post agent_chat_mitigation_back_url(conversation, mitigation_id: mitigation.id)
+    assert_equal "Feature flag disable on PostHog is marked as back.", flash[:notice]
+    assert_equal Chat::Mitigation::STATUS_UNDONE, mitigation.reload.status
+
+    post agent_chat_mitigation_back_url(conversation, mitigation_id: mitigation.id)
+    assert_equal "Halon was not asked to put this back, so there is nothing to mark.", flash[:alert]
+  end
+
   test "an open chat arrives with its temporary changes and what each viewer may do with them" do
     conversation = start_chat
     temporary_change!(conversation)
