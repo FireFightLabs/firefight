@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class StartInvestigation < Base
-      tool_name START_INVESTIGATION
+      tool_name FirefightTools::START_INVESTIGATION
       authorize_as Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE
       description "Start Halon investigating an incident, or a problem nobody has declared an incident for. It runs " \
                   "in the background for minutes, reads what Firefight and the connected tools know, records its " \

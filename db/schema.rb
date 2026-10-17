@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -976,7 +976,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_150000) do
     t.uuid "chat_id", null: false
     t.string "tool_call_id"
     t.string "kind", null: false
-    t.uuid "integration_tool_id", null: false
+    t.uuid "integration_tool_id"
     t.uuid "catalog_entry_id"
     t.uuid "requester_id", null: false
     t.string "title", null: false
@@ -990,6 +990,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_150000) do
     t.string "message_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.uuid "api_key_id"
+    t.index ["api_key_id"], name: "index_chat_secret_entries_on_api_key_id"
     t.index ["chat_id", "created_at"], name: "index_chat_secret_entries_on_chat_id_and_created_at"
     t.index ["done_by_id"], name: "index_chat_secret_entries_on_done_by_id"
     t.index ["integration_tool_id"], name: "index_chat_secret_entries_on_integration_tool_id"
@@ -1145,8 +1147,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_150000) do
     t.datetime "ceiling_told_at"
     t.datetime "steps_added_at"
     t.boolean "reads_per_hour_asked", default: false, null: false
+    t.string "thread_card_channel_id"
+    t.string "thread_card_message_id"
+    t.datetime "thread_card_claimed_at"
+    t.string "direct_card_channel_id"
+    t.string "direct_card_message_id"
+    t.datetime "direct_card_claimed_at"
+    t.text "end_reason"
     t.index ["asker_type", "asker_id"], name: "index_chat_watches_on_asker"
     t.index ["chat_id"], name: "index_chat_watches_on_chat_id"
+    t.index ["direct_card_channel_id", "direct_card_message_id"], name: "index_chat_watches_on_direct_card"
     t.index ["stopped_by_id"], name: "index_chat_watches_on_stopped_by_id"
     t.index ["workspace_id", "status"], name: "index_chat_watches_on_workspace_id_and_status"
     t.index ["workspace_id"], name: "index_chat_watches_on_workspace_id"
@@ -1306,6 +1316,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_150000) do
     t.string "push_token_digest"
     t.datetime "push_open_until"
     t.integer "questions_asked", default: 0, null: false
+    t.string "push_commit"
     t.jsonb "tool_result_clearing", default: {}, null: false
     t.index ["integration_environment_id"], name: "index_code_agent_sessions_following", where: "((pull_request_state)::text = 'open'::text)"
     t.index ["push_token_digest"], name: "index_code_agent_sessions_on_push_token_digest", unique: true, where: "(push_token_digest IS NOT NULL)"
@@ -1432,6 +1443,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_150000) do
     t.string "confirmation_message_id"
     t.datetime "created_at", null: false
     t.string "kind", null: false
+    t.jsonb "mark_attempts", default: {}, null: false
     t.integer "max_spend_cents", null: false
     t.integer "max_turns", null: false
     t.datetime "pinned_at"
@@ -3488,6 +3500,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_150000) do
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
     t.uuid "workspace_id", null: false
+    t.datetime "removed_at"
     t.index ["role"], name: "index_workspace_memberships_on_role"
     t.index ["user_id"], name: "index_workspace_memberships_on_user_id"
     t.index ["workspace_id", "platform_user_id"], name: "index_workspace_memberships_on_workspace_and_platform_user", unique: true
@@ -3688,6 +3701,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_150000) do
   add_foreign_key "chat_saved_results", "workflow_runs", on_delete: :cascade
   add_foreign_key "chat_screenshots", "chats"
   add_foreign_key "chat_screenshots", "investigation_remediation_steps", column: "remediation_step_id", on_delete: :nullify
+  add_foreign_key "chat_secret_entries", "api_keys", on_delete: :cascade
   add_foreign_key "chat_secret_entries", "chats", on_delete: :cascade
   add_foreign_key "chat_secret_entries", "integration_tools", on_delete: :cascade
   add_foreign_key "chat_secret_entries", "workspace_memberships", column: "done_by_id", on_delete: :nullify

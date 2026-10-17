@@ -6,12 +6,11 @@ class WorkflowProviderTriggersTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @github = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
     @row = @github.integration_environments.create!
   end
 
-  def look(query) = { "id" => "look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => { "query" => query } } }
+  def look(query) = { "id" => "look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => { "query" => query } } }
 
   def published(name, trigger, query: "{{trigger}}")
     workflow = Workflow.create!(workspace: @workspace, name: name, created_by: @alice)

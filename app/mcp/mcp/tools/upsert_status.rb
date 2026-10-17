@@ -3,7 +3,7 @@ module Mcp
     class UpsertStatus < Base
       include ConfiguresOption
 
-      tool_name UPSERT_STATUS
+      tool_name FirefightTools::UPSERT_STATUS
       configures_option IncidentStatus,
         resource: Ability::Action::RESOURCE_STATUSES,
         extra: { lifecycle_stage: { type: "string", enum: IncidentLifecycleStage::KEYS, description: "Which stage this status belongs to. Required when creating" } },

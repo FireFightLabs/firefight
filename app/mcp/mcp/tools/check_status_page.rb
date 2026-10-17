@@ -4,7 +4,7 @@ module Mcp
     # as timeouts calling a payment provider. Reading a public page reaches nothing of the workspace's, so it is a web
     # read, open to every caller and switched off with the workspace's web search.
     class CheckStatusPage < Base
-      tool_name CHECK_STATUS_PAGE
+      tool_name FirefightTools::CHECK_STATUS_PAGE
       authorize_as Ability::Action::RESOURCE_WEB
       description "Read an outside provider's public status page now: whether it reports an outage or degraded service, its " \
                   "open incidents with their latest update, and what is not fully working, with the page's address. Use it " \

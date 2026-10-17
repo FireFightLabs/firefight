@@ -19,6 +19,23 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
     InteractionDispatcher.dispatch(interaction)
   end
 
+  test "a guest's click is refused to them alone, in plain words, and runs nothing" do
+    workspace = workspaces(:slack_workspace_one)
+    incident = incidents(:active_critical_ws1)
+    Slack::Client.stubs(:get_user_info).returns({ user: { id: "U_GUEST", team_id: workspace.platform_id, is_ultra_restricted: true } })
+    view = Slack::Modals::Lead.build(incident)
+    interaction = Interaction.new(
+      type: Interaction::VIEW_SUBMISSION, callback_id: Identifiers::SET_LEAD_MODAL, platform: Platforms::SLACK,
+      team_id: workspace.platform_id, user_id: "U_GUEST", private_metadata: view[:private_metadata], values: {}
+    )
+    Interactions::SetLeadHandler.expects(:execute).never
+    Slack::WorkspaceAdapter.any_instance.expects(:post_ephemeral)
+      .with(channel_id: incident.channel_id, user_id: "U_GUEST", text: Slack::WorkspaceAdapter::GUEST_REFUSAL)
+      .returns({ success: true })
+
+    InteractionDispatcher.dispatch(interaction)
+  end
+
   test "routes share_incidents_channel_modal to ShareModalSubmissionHandler" do
     interaction = Interaction.new(type: Interaction::VIEW_SUBMISSION, callback_id: Identifiers::SHARE_INCIDENTS_CHANNEL_MODAL)
     assert_equal Interactions::ShareModalSubmissionHandler, InteractionDispatcher.find(interaction)
@@ -176,7 +193,10 @@ class InteractionDispatcherTest < ActiveSupport::TestCase
   end
 
   test "dispatch returns handler result for noop" do
-    interaction = Interaction.new(type: Interaction::BLOCK_ACTIONS, action_id: Identifiers::PREVIEW_HOMEPAGE_DISABLED)
+    workspace = Workspace.create!(platform: "slack", platform_id: "T#{SecureRandom.hex(8)}", name: "Test Workspace",
+                                  access_token: "xoxb-test-token", installed_at: Time.current)
+    interaction = Interaction.new(platform: Platforms::SLACK, type: Interaction::BLOCK_ACTIONS, team_id: workspace.platform_id,
+                                  action_id: Identifiers::PREVIEW_HOMEPAGE_DISABLED)
     result = InteractionDispatcher.dispatch(interaction)
     assert_equal "clear", result[:response_action]
   end

@@ -5,14 +5,13 @@ class WorkflowPublishServiceTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
     @bob = workspace_memberships(:bob_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @adapter = WorkspaceAdapter.for(@workspace).class
   end
 
   def drafted(name = "Look around")
     workflow = Workflow.create!(workspace: @workspace, name: name, created_by: @bob)
     workflow.open_draft!(by: @bob).update!(steps: [ { "id" => "look", "name" => "look", "kind" => "call_tool",
-                                                      "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => {} } } ])
+                                                      "config" => { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => {} } } ])
     workflow
   end
 

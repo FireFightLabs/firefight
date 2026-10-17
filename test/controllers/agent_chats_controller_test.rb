@@ -211,7 +211,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     conversation = start_chat
     conversation.ask!("declare it")
     reply = conversation.chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
-    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Mcp::Tools::DECLARE_INCIDENT, arguments: { "answers" => { "name" => "x" } })
+    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: FirefightTools::DECLARE_INCIDENT, arguments: { "answers" => { "name" => "x" } })
     conversation.chat.add_message(role: :tool, content: "Not found in this workspace.", tool_call_id: "call_1")
     conversation.chat.mark_failed!("call_1")
 
@@ -233,7 +233,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     ])
     own = Chat.open!(owner: logs, workspace: @workspace, model_choice: FirefightAi::ModelChoice.new(model: "gpt-4o-mini"))
     read = own.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
-    read.ruby_llm_tool_calls.create!(tool_call_id: "h_1", name: Mcp::Tools::SEARCH_INCIDENTS, arguments: { "query" => "checkout" })
+    read.ruby_llm_tool_calls.create!(tool_call_id: "h_1", name: FirefightTools::SEARCH_INCIDENTS, arguments: { "query" => "checkout" })
     own.add_message(role: :tool, content: "INC-7 checkout slow", tool_call_id: "h_1")
     logs.finish!(Chat::Helper::STATUS_REPORTED, report: "web logs show 40 timeouts to the orders database since 14:02.")
 
@@ -254,7 +254,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     conversation = start_chat
     conversation.ask!("what can we connect for logs")
     reply = conversation.chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
-    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Mcp::Tools::LIST_INTEGRATIONS, arguments: { "category" => "Observability" })
+    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: FirefightTools::LIST_INTEGRATIONS, arguments: { "category" => "Observability" })
     conversation.chat.add_message(role: :tool, content: "{}", tool_call_id: "call_1")
 
     get agent_chat_url(conversation), headers: chat_page_headers
@@ -351,7 +351,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     patch agent_chat_url(conversation), params: { title: "Checkout latency" }
 
     assert_equal "Checkout latency", conversation.reload.title
-    assert_equal "Chat renamed.", flash[:notice]
+    assert_equal "Chat was renamed.", flash[:notice]
   end
 
   test "a chat cannot be renamed to nothing" do
@@ -373,7 +373,13 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     patch agent_chat_url(older), params: { pinned: true }
 
     assert older.reload.pinned?
+    assert_equal "Chat was pinned.", flash[:notice]
     assert_equal [ older.id, newer.id ], @workspace.conversations.personal.in_reading_order.map(&:id)
+
+    patch agent_chat_url(older), params: { pinned: false }
+
+    assert_not older.reload.pinned?
+    assert_equal "Chat was unpinned.", flash[:notice]
   end
 
   test "renaming, pinning or archiving a chat does not move the others" do
@@ -396,7 +402,12 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
 
     assert conversation.reload.archived?
     assert_redirected_to agent_chats_url
-    assert_equal "Chat archived.", flash[:notice]
+    assert_equal "Chat was archived.", flash[:notice]
+
+    patch agent_chat_url(conversation), params: { archived: false }, headers: { "Referer" => agent_chats_url }
+
+    assert_not conversation.reload.archived?
+    assert_equal "Chat was restored.", flash[:notice]
   end
 
   test "an archived chat is still listed, so the page can offer it under its own filter" do
@@ -420,7 +431,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
 
     assert_nil Conversation.find_by(id: conversation.id)
     assert_redirected_to agent_chats_path
-    assert_equal "Chat deleted.", flash[:notice]
+    assert_equal "Chat was deleted.", flash[:notice]
   end
 
   test "deleting a chat whose code fix paused at its spending limit keeps the pause and lets the chat go" do
@@ -470,7 +481,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     delete agent_chat_url(other), headers: { "Referer" => agent_chat_url(open_chat) }
 
     assert_redirected_to agent_chat_url(open_chat)
-    assert_equal "Chat deleted.", flash[:notice]
+    assert_equal "Chat was deleted.", flash[:notice]
   end
 
   test "deleting the open chat goes back to a new one" do
@@ -609,6 +620,37 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal Conversation::Confirming::NOT_ANSWERED, flash[:alert]
   end
 
+  test "a token Halon minted is shown once from its card, to the person it was minted for" do
+    conversation = start_chat
+    agent = @workspace.agents.create!(name: "Deployer", slug: "deployer")
+    key, = ApiKey.create_with_token!(workspace: @workspace, created_by: @member, agent: agent, name: "Deployer token")
+    entry = Chat::SecretEntry.record_token!(chat: conversation.chat_record, tool_call_id: "call_1", api_key: key, requester: @member)
+
+    post agent_chat_secret_entry_reveal_url(conversation, entry), as: :json
+
+    assert_response :success
+    assert_equal agent, ApiKey.authenticate(response.parsed_body["value"]).principal
+    assert_equal "no-store", response.headers["Cache-Control"]
+
+    post agent_chat_secret_entry_reveal_url(conversation, entry), as: :json
+    assert_response :unprocessable_content
+    assert_match "already shown", response.parsed_body["error"]
+  end
+
+  test "a token card whose key was deleted says so and is not marked shown" do
+    conversation = start_chat
+    agent = @workspace.agents.create!(name: "Deployer", slug: "deployer")
+    key, = ApiKey.create_with_token!(workspace: @workspace, created_by: @member, agent: agent, name: "Deployer token")
+    entry = Chat::SecretEntry.record_token!(chat: conversation.chat_record, tool_call_id: "call_1", api_key: key, requester: @member)
+    key.soft_delete!
+
+    post agent_chat_secret_entry_reveal_url(conversation, entry), as: :json
+
+    assert_response :unprocessable_content
+    assert_equal "This key was deleted, so it has no token to show.", response.parsed_body["error"]
+    assert_equal Chat::SecretEntry::STATUS_READY, entry.reload.status
+  end
+
   test "cancelling a paused change says so" do
     conversation = start_chat
     conversation.ask!("delete the test permission set")
@@ -623,19 +665,19 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
 
   test "allowing a call for the rest of the chat keeps its tool from asking again" do
     conversation = start_chat
-    conversation.ask!("delete the test permission sets")
+    conversation.ask!("delete the test catalog entries")
     message = conversation.chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
-    %w[call_1 call_2].each { |id| message.ruby_llm_tool_calls.create!(tool_call_id: id, name: "delete_permission_set", arguments: { "slug" => id }) }
+    %w[call_1 call_2].each { |id| message.ruby_llm_tool_calls.create!(tool_call_id: id, name: "delete_catalog_entry", arguments: { "slug" => id }) }
     conversation.chat.request_decisions!(%w[call_1 call_2])
 
     get agent_chat_url(conversation), headers: chat_page_headers
-    assert_equal [ "delete_permission_set" ] * 2, inertia_props["confirmations"].map { |confirmation| confirmation["tool"] }
+    assert_equal [ "delete_catalog_entry" ] * 2, inertia_props["confirmations"].map { |confirmation| confirmation["tool"] }
 
     assert_enqueued_with(job: ConversationReplyJob) do
       post agent_chat_confirm_url(conversation), params: { decisions: [ { tool_call_id: "call_1", approved: "true", for_chat: "true" } ] }
     end
     assert_empty conversation.chat.awaiting_decision
-    assert conversation.chat.reload.allows_tool?("delete_permission_set")
+    assert conversation.chat.reload.allows_tool?("delete_catalog_entry")
   end
 
   test "a step says what it was about without the page choosing" do

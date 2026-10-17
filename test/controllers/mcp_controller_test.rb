@@ -19,7 +19,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   def call_tool(name, arguments = {}, token: @personal_token)
     body = rpc("tools/call", { name: name, arguments: arguments }, token: token)
     result = body.fetch("result")
-    [ result["structuredContent"] || {}, result["isError"] ]
+    [ result["structuredContent"] || {}, result["isError"], result.dig("content", 0, "text") ]
   end
 
   test "requires a bearer token and advertises how to authenticate" do
@@ -46,31 +46,31 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     tools = body.dig("result", "tools")
     # The registry is the wiring, so the server exposes exactly what it offers the workspace, and what_changed every caller is offered, rather than a
     # second list that drifts.
-    assert_equal (Mcp::Tools.available_in(@workspace).map(&:name_value) + [ ResourceMap::Timeline::TOOL_NAME ]).sort, tools.map { |tool| tool["name"] }.sort
+    assert_equal (FirefightTools.available_in(@workspace).map(&:name_value) + [ ResourceMap::Timeline::TOOL_NAME ]).sort, tools.map { |tool| tool["name"] }.sort
 
-    map_reads = [ Mcp::Tools::FIND_RESOURCES, Mcp::Tools::TRAVERSE_RESOURCE_MAP, Mcp::Tools::BLAST_RADIUS, Mcp::Tools::RESOURCE_MAP_STATS,
-                  Mcp::Tools::CHECK_STATUS_PAGE, Mcp::Tools::BLIND_SPOTS, ResourceMap::Timeline::TOOL_NAME ]
+    map_reads = [ FirefightTools::FIND_RESOURCES, FirefightTools::TRAVERSE_RESOURCE_MAP, FirefightTools::BLAST_RADIUS, FirefightTools::RESOURCE_MAP_STATS,
+                  FirefightTools::CHECK_STATUS_PAGE, FirefightTools::BLIND_SPOTS, ResourceMap::Timeline::TOOL_NAME ]
     read_tools, write_tools = tools.partition { |t| t["name"].start_with?("search", "get", "evaluate", "list") || map_reads.include?(t["name"]) }
     assert read_tools.all? { |t| t.dig("annotations", "readOnlyHint") }
     assert write_tools.all? { |t| t.dig("annotations", "readOnlyHint") == false }
   end
 
   test "search_incidents returns workspace incidents with filters and caps" do
-    content, is_error = call_tool(Mcp::Tools::SEARCH_INCIDENTS, { limit: 2 })
+    content, is_error = call_tool(FirefightTools::SEARCH_INCIDENTS, { limit: 2 })
 
     assert_not is_error
     assert_equal 2, content["incidents"].size
     assert content["truncated"]
     assert content["incidents"].first.key?("identifier")
 
-    content, _ = call_tool(Mcp::Tools::SEARCH_INCIDENTS, { query: incidents(:active_critical_ws1).identifier })
+    content, _ = call_tool(FirefightTools::SEARCH_INCIDENTS, { query: incidents(:active_critical_ws1).identifier })
     assert_equal [ incidents(:active_critical_ws1).identifier ], content["incidents"].map { |i| i["identifier"] }
   end
 
   test "get_incident resolves by identifier with timeline" do
     incident = incidents(:active_critical_ws1)
 
-    content, is_error = call_tool(Mcp::Tools::GET_INCIDENT, { incident: incident.identifier })
+    content, is_error = call_tool(FirefightTools::GET_INCIDENT, { incident: incident.identifier })
 
     assert_not is_error
     assert_equal incident.identifier, content["identifier"]
@@ -80,7 +80,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   test "cross-workspace incidents are invisible" do
     foreign = Incident.where(workspace: workspaces(:slack_workspace_two)).first
 
-    _, is_error = call_tool(Mcp::Tools::GET_INCIDENT, { incident: foreign.id })
+    _, is_error = call_tool(FirefightTools::GET_INCIDENT, { incident: foreign.id })
 
     assert is_error
   end
@@ -91,7 +91,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
                           fields: { "title" => "Disk full" }, routing_state: Alert::ROUTING_UNMATCHED,
                           received_at: Time.current, last_seen_at: Time.current)
 
-    content, is_error = call_tool(Mcp::Tools::SEARCH_ALERTS, { routing_state: Alert::ROUTING_UNMATCHED })
+    content, is_error = call_tool(FirefightTools::SEARCH_ALERTS, { routing_state: Alert::ROUTING_UNMATCHED })
 
     assert_not is_error
     assert_equal [ "Disk full" ], content["alerts"].map { |a| a["title"] }
@@ -99,7 +99,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "search_catalog returns entries with relationships" do
-    content, is_error = call_tool(Mcp::Tools::SEARCH_CATALOG, { slug: catalog_entries(:auth_service).slug })
+    content, is_error = call_tool(FirefightTools::SEARCH_CATALOG, { slug: catalog_entries(:auth_service).slug })
 
     assert_not is_error
     entry = content["entries"].first
@@ -119,7 +119,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     catalog_attribute_definitions(:team_members).update_column(:role, nil)
     catalog_attribute_definitions(:team_manager).update_column(:role, nil)
 
-    content, is_error = call_tool(Mcp::Tools::EVALUATE_ROUTING, { fields: { service: "checkout" } })
+    content, is_error = call_tool(FirefightTools::EVALUATE_ROUTING, { fields: { service: "checkout" } })
 
     assert_not is_error
     assert content["role_warnings"].any? { |sentence| sentence.include?("Members or Manager") }
@@ -133,7 +133,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
       outcome: { "action" => AlertIngestService::ACTION_AUTO_CREATE }
     )
 
-    content, is_error = call_tool(Mcp::Tools::EVALUATE_ROUTING, { fields: { service: "checkout" } })
+    content, is_error = call_tool(FirefightTools::EVALUATE_ROUTING, { fields: { service: "checkout" } })
 
     assert_not is_error
     assert content["matched"]
@@ -151,10 +151,10 @@ class McpControllerTest < ActionDispatch::IntegrationTest
       outcome: { "action" => AlertIngestService::ACTION_AUTO_CREATE }
     )
 
-    content, = call_tool(Mcp::Tools::EVALUATE_ROUTING, { source: source.name, fields: { service: "checkout" } })
+    content, = call_tool(FirefightTools::EVALUATE_ROUTING, { source: source.name, fields: { service: "checkout" } })
     assert content["matched"]
 
-    content, = call_tool(Mcp::Tools::EVALUATE_ROUTING, { fields: { service: "checkout" } })
+    content, = call_tool(FirefightTools::EVALUATE_ROUTING, { fields: { service: "checkout" } })
     assert_not content["matched"]
   end
 
@@ -184,12 +184,12 @@ class McpControllerTest < ActionDispatch::IntegrationTest
       outcome: { "action" => AlertIngestService::ACTION_AUTO_CREATE }
     )
 
-    content, is_error = call_tool(Mcp::Tools::EVALUATE_ROUTING, { fields: { service: "search" } })
+    content, is_error = call_tool(FirefightTools::EVALUATE_ROUTING, { fields: { service: "search" } })
     assert_not is_error
     assert_not content["matched"]
     assert_equal Mcp::Docs::ROUTING_RULES, content["docs_url"]
 
-    content, _ = call_tool(Mcp::Tools::EVALUATE_ROUTING, { fields: { service: "checkout" } })
+    content, _ = call_tool(FirefightTools::EVALUATE_ROUTING, { fields: { service: "checkout" } })
     assert content["matched"]
     assert_nil content["docs_url"]
   end
@@ -199,10 +199,10 @@ class McpControllerTest < ActionDispatch::IntegrationTest
       workspace: @workspace, created_by: @membership, name: "Alerts only",
       permissions: { Ability::Action::RESOURCE_ALERTS => [ Ability::Action::ACTION_READ ] }
     )
-    body = rpc("tools/call", { name: Mcp::Tools::SEARCH_INCIDENTS, arguments: {} }, token: alerts_token)
+    body = rpc("tools/call", { name: FirefightTools::SEARCH_INCIDENTS, arguments: {} }, token: alerts_token)
     assert_includes body.dig("result", "content").first["text"], Mcp::Docs::MCP_SERVER
 
-    body = rpc("tools/call", { name: Mcp::Tools::EVALUATE_ROUTING, arguments: { fields: { service: "x" } } })
+    body = rpc("tools/call", { name: FirefightTools::EVALUATE_ROUTING, arguments: { fields: { service: "x" } } })
     assert_includes body.dig("result", "content").first["text"], Mcp::Docs::ROUTING_RULES
   end
 
@@ -221,7 +221,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
       }
     )
 
-    content, is_error = call_tool(Mcp::Tools::EVALUATE_ROUTING, { fields: { service: "checkout" } })
+    content, is_error = call_tool(FirefightTools::EVALUATE_ROUTING, { fields: { service: "checkout" } })
 
     assert_not is_error
     assert_equal "Critical", content.dig("outcome", "severity_name")
@@ -235,7 +235,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     entry = catalog_entries(:platform_team)
     entry.update!(attributes: entry.attributes.merge("manager" => @membership.id))
 
-    content, is_error = call_tool(Mcp::Tools::SEARCH_CATALOG, { slug: entry.slug })
+    content, is_error = call_tool(FirefightTools::SEARCH_CATALOG, { slug: entry.slug })
 
     assert_not is_error
     manager = content["entries"].first.dig("attributes", "manager")
@@ -249,38 +249,38 @@ class McpControllerTest < ActionDispatch::IntegrationTest
       permissions: { Ability::Action::RESOURCE_ALERTS => [ Ability::Action::ACTION_READ ] }
     )
 
-    _, is_error = call_tool(Mcp::Tools::SEARCH_ALERTS, {}, token: alerts_token)
+    _, is_error = call_tool(FirefightTools::SEARCH_ALERTS, {}, token: alerts_token)
     assert_not is_error
 
-    result, is_error = call_tool(Mcp::Tools::SEARCH_INCIDENTS, {}, token: alerts_token)
+    result, is_error = call_tool(FirefightTools::SEARCH_INCIDENTS, {}, token: alerts_token)
     assert is_error
     assert_empty result
   end
 
   test "admin personal tokens can write config: catalog upsert, routing rule, runbook" do
-    content, is_error = call_tool(Mcp::Tools::UPSERT_CATALOG_ENTRY,
+    content, is_error = call_tool(FirefightTools::UPSERT_CATALOG_ENTRY,
                                   { type: "service", name: "Checkout", attributes: { description: "Payments front" } })
     assert_not is_error
     assert_equal "Checkout", content["name"]
     entry = @workspace.catalog_entries.find_by!(slug: content["slug"])
     assert_equal "Payments front", entry.attributes["description"]
 
-    content, is_error = call_tool(Mcp::Tools::UPSERT_CATALOG_ENTRY,
+    content, is_error = call_tool(FirefightTools::UPSERT_CATALOG_ENTRY,
                                   { type: "service", slug: content["slug"], attributes: { description: "Owns checkout" } })
     assert_not is_error
     assert_equal "Owns checkout", entry.reload.attributes["description"]
 
-    content, is_error = call_tool(Mcp::Tools::UPSERT_ROUTING_RULE, {
+    content, is_error = call_tool(FirefightTools::UPSERT_ROUTING_RULE, {
       conditions: [ { field: "service", operator: PolicyRule::OPERATOR_IS_ONE_OF, value: [ "checkout" ] } ],
       outcome: { action: AlertIngestService::ACTION_AUTO_CREATE }
     })
     assert_not is_error
     assert_equal 1, content["priority"]
 
-    evaluation, _ = call_tool(Mcp::Tools::EVALUATE_ROUTING, { fields: { service: "checkout" } })
+    evaluation, _ = call_tool(FirefightTools::EVALUATE_ROUTING, { fields: { service: "checkout" } })
     assert evaluation["matched"]
 
-    content, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+    content, is_error = call_tool(FirefightTools::UPSERT_RUNBOOK, {
       name: "DB failover", summary: "Fail the database over",
       steps: [ { title: "Check replica", instruction: "Confirm replica lag" } ],
       conditions: [ { condition_field: IncidentCondition::FIELD_SEVERITY, operator: IncidentCondition::OPERATOR_ONE_OF,
@@ -301,7 +301,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
       workspace: @workspace, created_by: bob, on_behalf_of: bob, name: "Bob's token"
     )
 
-    result, is_error = call_tool(Mcp::Tools::UPSERT_CATALOG_ENTRY,
+    result, is_error = call_tool(FirefightTools::UPSERT_CATALOG_ENTRY,
                                  { type: "service", name: "Nope" }, token: bob_token)
 
     assert is_error
@@ -309,17 +309,17 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "routing config and rule deletion round-trip" do
-    call_tool(Mcp::Tools::UPSERT_ROUTING_RULE, {
+    call_tool(FirefightTools::UPSERT_ROUTING_RULE, {
       conditions: [], outcome: { action: AlertIngestService::ACTION_DROP }
     })
 
-    content, is_error = call_tool(Mcp::Tools::UPDATE_ROUTING_CONFIG,
+    content, is_error = call_tool(FirefightTools::UPDATE_ROUTING_CONFIG,
                                   { grouping_window_minutes: 30, content_match_fields: [ "service", "title" ] })
     assert_not is_error
     assert_equal 30, content["grouping_window_minutes"]
     assert_equal [ "service", "title" ], content["content_match_fields"]
 
-    content, is_error = call_tool(Mcp::Tools::DELETE_ROUTING_RULE, { priority: 1 })
+    content, is_error = call_tool(FirefightTools::DELETE_ROUTING_RULE, { priority: 1 })
     assert_not is_error
     assert content["deleted"]
     assert_equal 0, @workspace.alert_routing_policy.policy_rules.count
@@ -333,7 +333,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
       outcome: { "require" => { "role" => WorkspaceMembership.roles[:admin], "count" => 1 } }
     )
 
-    body = rpc("tools/call", { name: Mcp::Tools::UPSERT_CATALOG_ENTRY,
+    body = rpc("tools/call", { name: FirefightTools::UPSERT_CATALOG_ENTRY,
                                arguments: { type: "service", name: "Gated" } })
     result = body.fetch("result")
     assert result["isError"]
@@ -343,23 +343,23 @@ class McpControllerTest < ActionDispatch::IntegrationTest
 
     approval.approve!(by: workspace_memberships(:bob_workspace_one).tap { |m| m.update!(role: :admin) })
 
-    content, is_error = call_tool(Mcp::Tools::UPSERT_CATALOG_ENTRY,
+    content, is_error = call_tool(FirefightTools::UPSERT_CATALOG_ENTRY,
                                   { type: "service", name: "Gated", approval_id: approval.id })
     assert_not is_error
     assert @workspace.catalog_entries.exists?(name: "Gated")
   end
 
-  test "approvals resolve over MCP for humans, never for service keys" do
+  test "a request made over MCP is approved by a person in Firefight, never with a token" do
     policy = @workspace.policies.create!(domain: Policy::DOMAIN_APPROVALS, name: "Approvals")
     policy.policy_rules.create!(
       priority: 1,
       conditions: [ { field: "risk_level", operator: PolicyRule::OPERATOR_IS_ONE_OF, value: [ "write" ] } ],
       outcome: { "require" => { "role" => WorkspaceMembership.roles[:admin], "count" => 1 } }
     )
-    call_tool(Mcp::Tools::UPSERT_CATALOG_ENTRY, { type: "service", name: "Gated" })
+    call_tool(FirefightTools::UPSERT_CATALOG_ENTRY, { type: "service", name: "Gated" })
     approval = @workspace.ability_approvals.pending.find_by!(action_key: "catalog.create")
 
-    content, is_error = call_tool(Mcp::Tools::SEARCH_APPROVALS, { status: "pending" })
+    content, is_error = call_tool(FirefightTools::SEARCH_APPROVALS, { status: "pending" })
     assert_not is_error
     assert_equal [ approval.id ], content["approvals"].map { |a| a["id"] }
 
@@ -367,15 +367,18 @@ class McpControllerTest < ActionDispatch::IntegrationTest
       workspace: @workspace, created_by: @membership, name: "Approver bot",
       permissions: { Ability::Action::RESOURCE_APPROVALS => [ Ability::Action::ACTION_READ, Ability::Action::ACTION_UPDATE ] }
     )
-    result, is_error = call_tool(Mcp::Tools::APPROVE_APPROVAL, { id: approval.id }, token: service_token)
+    result, is_error = call_tool(FirefightTools::APPROVE_APPROVAL, { id: approval.id }, token: service_token)
     assert is_error
     assert approval.reload.pending?
 
-    content, is_error = call_tool(Mcp::Tools::APPROVE_APPROVAL, { id: approval.id })
-    assert_not is_error
-    assert_equal Ability::Approval::STATUS_APPROVED, content["status"]
+    _, is_error, text = call_tool(FirefightTools::APPROVE_APPROVAL, { id: approval.id })
+    assert is_error, "an admin's own token cannot approve what a token asked for"
+    assert_match Ability::Approval::APPROVE_WITH_TOKEN, text
+    assert approval.reload.pending?
 
-    content, is_error = call_tool(Mcp::Tools::UPSERT_CATALOG_ENTRY,
+    approval.approve!(by: @membership)
+
+    content, is_error = call_tool(FirefightTools::UPSERT_CATALOG_ENTRY,
                                   { type: "service", name: "Gated", approval_id: approval.id })
     assert_not is_error
     assert @workspace.catalog_entries.exists?(name: "Gated")
@@ -433,14 +436,14 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     )
 
     assert_difference "Ability::Invocation.count", 1 do
-      call_tool(Mcp::Tools::SEARCH_INCIDENTS, {}, token: alerts_token)
+      call_tool(FirefightTools::SEARCH_INCIDENTS, {}, token: alerts_token)
     end
 
     invocation = Ability::Invocation.find_by!(principal_id: key.id, action_key: "incidents.read")
     assert_equal Ability::Invocation::DECISION_DENY, invocation.decision
 
     assert_no_difference "Ability::Invocation.count" do
-      call_tool(Mcp::Tools::SEARCH_ALERTS, {}, token: alerts_token)
+      call_tool(FirefightTools::SEARCH_ALERTS, {}, token: alerts_token)
     end
   end
 end

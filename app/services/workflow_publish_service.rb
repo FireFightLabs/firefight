@@ -1,6 +1,6 @@
 # Publishing a workflow, and a member asking an admin to. Publishing makes the draft live, grants the workflow's own
 # identity exactly what its steps need (as the admin publishing), and sets when it runs next. The caller authorized it
-# as workflows.update, and permissions.create when anything is to be granted. A member asks instead: every admin gets a
+# as workflows.update, and permissions.create when anything is to be granted. A member asks instead, and every admin gets a
 # direct message with Publish, at most once a day for the same member and workflow, and the Workflows page lists what
 # waits. However it is published, each request for it is settled and its member told.
 class WorkflowPublishService
@@ -78,7 +78,6 @@ class WorkflowPublishService
   # Publish pressed on a member's request, from the platform or the Workflows page. The draft is published as it was
   # when the admins were asked, never one changed since that nobody looked at.
   def publish_requested!(request, by:)
-    return Result.new(ok: false, words: "Workflows are not switched on for this workspace.") unless FeatureFlags.enabled?(@workspace, FeatureFlags::WORKFLOWS)
     return Result.new(ok: false, words: "This request was already answered.") unless request.waiting?
 
     draft = @workflow.draft

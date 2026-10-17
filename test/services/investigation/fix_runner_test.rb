@@ -275,7 +275,7 @@ class Investigation::FixRunnerTest < ActiveSupport::TestCase
   end
 
   def invite_step
-    { "kind" => "action", "title" => "Invite Bob to the channel", "description" => "Invite the lead", "tool" => Mcp::Tools::INVITE_RESPONDERS,
+    { "kind" => "action", "title" => "Invite Bob to the channel", "description" => "Invite the lead", "tool" => FirefightTools::INVITE_RESPONDERS,
       "arguments" => { "incident" => incidents(:active_critical_ws1).identifier, "members" => [ @bob.platform_user_id ] } }
   end
 
@@ -311,7 +311,7 @@ class Investigation::FixRunnerTest < ActiveSupport::TestCase
   test "a role already held is never asked for again: the fix is sent back while it is written, and a step finds it at run time" do
     incident = incidents(:active_critical_ws1)
     role = @workspace.incident_roles.active.first
-    step = { "kind" => "action", "title" => "Make Bob the lead", "description" => "Assign the role", "tool" => Mcp::Tools::ASSIGN_INCIDENT_ROLE,
+    step = { "kind" => "action", "title" => "Make Bob the lead", "description" => "Assign the role", "tool" => FirefightTools::ASSIGN_INCIDENT_ROLE,
              "arguments" => { "incident" => incident.identifier, "role" => role.slug, "member" => @bob.platform_user_id } }
     plan = own_tool_plan([ step ])
     incident.incident_role_assignments.where(incident_role: role).delete_all
@@ -334,6 +334,13 @@ class Investigation::FixRunnerTest < ActiveSupport::TestCase
     end
     assert_equal "Step 1 is for a person, but Firefight does that with invite_responders. Make it an action step with invite_responders, " \
                  "or say in missing why invite_responders cannot do it here.", refused.message
+
+    [ "invite_responders", " invite_responders. ", "`invite_responders`", "invite_responders, invite_responders" ].each do |bare|
+      named_only = assert_raises(Investigation::RemediationPlan::Refused, "#{bare.inspect} names the tool without saying why it cannot") do
+        Investigation::RemediationPlan.check!(@workspace, { "summary" => "Lead", "steps" => [ by_hand.merge("missing" => bare) ] }, principal: @alice)
+      end
+      assert_equal refused.message, named_only.message
+    end
 
     explained = by_hand.merge("missing" => "invite_responders cannot reach a guest account")
     assert Investigation::RemediationPlan.check!(@workspace, { "summary" => "Lead", "steps" => [ explained ] }, principal: @alice)

@@ -1,8 +1,8 @@
-# Where a workflow whose trigger is an inbound webhook is started from outside: a POST to its own address, with a JSON
+# Where a workflow whose trigger is an inbound webhook is started from outside, by a POST to its own address, with a JSON
 # object as the body, signed with the workflow's secret as Firefight signs its outbound webhooks (Workflow::Hook). The
 # address names the workflow and the signature is the only proof of who sent it, so it inherits neither BaseController
-# nor ApiController. The body is read as it came, never as parameters. A workspace without workflows, a workflow
-# switched off or one that starts some other way answers not found, as an address that never existed does.
+# nor ApiController. The body is read as it came, never as parameters. A workflow switched off or one that starts some
+# other way answers not found, as an address that never existed does.
 class Api::V1::WorkflowHooksController < ActionController::API
   MAX_BYTES = 100.kilobytes
 
@@ -10,7 +10,7 @@ class Api::V1::WorkflowHooksController < ActionController::API
 
   def create
     workflow = Workflow.includes(:live_version, :workspace).find_by(hook_token: request.path_parameters[:token].to_s)
-    return head :not_found unless workflow && FeatureFlags.enabled?(workflow.workspace, FeatureFlags::WORKFLOWS) && workflow.hooked?
+    return head :not_found unless workflow&.hooked?
 
     raw_body = request.raw_post
     return render json: { error: "The body is larger than #{MAX_BYTES / 1.kilobyte} KB." }, status: :content_too_large if raw_body.bytesize > MAX_BYTES

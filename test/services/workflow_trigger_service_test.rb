@@ -7,12 +7,11 @@ class WorkflowTriggerServiceTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
     @incident = incidents(:active_critical_ws1)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     FirefightAi::WorkflowRepair.any_instance.stubs(:suggest).returns(nil)
     WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:post_workflow_failure).returns({})
   end
 
-  def look = { "id" => "look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => { "query" => "{{trigger.incident.identifier}}" } } }
+  def look = { "id" => "look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => { "query" => "{{trigger.incident.identifier}}" } } }
 
   def published(name, trigger, steps: [ look ])
     workflow = Workflow.create!(workspace: @workspace, name: name, created_by: @alice)
@@ -132,20 +131,12 @@ class WorkflowTriggerServiceTest < ActiveSupport::TestCase
     assert_equal [ 2, 2 ], [ first.runs.count, second.runs.count ]
   end
 
-  test "nothing is heard without the workflows flag" do
-    workflow = published("Declared", { "kind" => Workflow::Trigger::KIND_INCIDENT_DECLARED })
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-
-    assert_no_enqueued_jobs(only: WorkflowEventJob) { Workflows::EventSubscriber.handle(domain_event(created_event)) }
-    assert_empty workflow.runs
-  end
-
   test "an alert starts a run once per group, so a storm starts one" do
     stub_successful_slack_workflow
     stub_post_message
     stub_update_message
     workflow = published("Alerts", { "kind" => Workflow::Trigger::KIND_ALERT_RECEIVED, "conditions" => [ condition("service", "checkout") ] },
-                         steps: [ look.merge("config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => { "query" => "{{trigger.alert.title}}" } }) ])
+                         steps: [ look.merge("config" => { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => { "query" => "{{trigger.alert.title}}" } }) ])
     source = AlertSource.create!(workspace: @workspace, name: "Monitoring", provider: AlertSource::PROVIDER_GENERIC)
     policy = @workspace.policies.create!(domain: Policy::DOMAIN_ALERT_ROUTING, name: "Routing")
     policy.policy_rules.create!(priority: 1, conditions: [], outcome: { "action" => AlertIngestService::ACTION_AUTO_CREATE })
@@ -192,7 +183,7 @@ class WorkflowTriggerServiceTest < ActiveSupport::TestCase
 
   test "a failed run starts the workflows listening for failures, never its own" do
     failing = published("Breaks", { "kind" => Workflow::Trigger::KIND_RUN_FAILED },
-                        steps: [ { "id" => "nope", "name" => "nope", "kind" => "call_tool", "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS } } ])
+                        steps: [ { "id" => "nope", "name" => "nope", "kind" => "call_tool", "config" => { "tool" => FirefightTools::SEARCH_INCIDENTS } } ])
     watcher = published("Watcher", { "kind" => Workflow::Trigger::KIND_RUN_FAILED, "conditions" => [ condition("workflow", failing.slug) ] })
     failing.agent.ability_grants.destroy_all
 

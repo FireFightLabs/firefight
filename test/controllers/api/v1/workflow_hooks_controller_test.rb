@@ -6,10 +6,9 @@ class Api::V1::WorkflowHooksControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @workflow = Workflow.create!(workspace: @workspace, name: "Deploy hook", created_by: @alice)
     draft = @workflow.open_draft!(by: @alice)
-    step = { "id" => "look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => { "query" => "{{trigger.body.service}}" } } }
+    step = { "id" => "look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => { "query" => "{{trigger.body.service}}" } } }
     draft.update!(trigger: { "kind" => Workflow::Trigger::KIND_INBOUND_WEBHOOK, "inputs" => [],
                              "conditions" => [ { "field" => "body.service", "operator" => PolicyRule::OPERATOR_IS_ONE_OF, "value" => [ "web", "api" ] } ] },
                   steps: [ step ], edges: [])
@@ -65,21 +64,6 @@ class Api::V1::WorkflowHooksControllerTest < ActionDispatch::IntegrationTest
     assert_empty @workflow.runs
   end
 
-  test "an address that starts nothing answers not found" do
-    body = { service: "web" }.to_json
-    deliver(body, token: "nothing-here")
-    assert_response :not_found
-
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-    deliver(body)
-    assert_response :not_found
-
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
-    @workflow.update!(enabled: false)
-    deliver(body)
-    assert_response :not_found
-  end
-
   test "a start past its most runs an hour says why and is counted as skipped on the workflow" do
     @workflow.update!(runs_per_hour: 1)
     deliver({ service: "web" }.to_json)
@@ -103,5 +87,15 @@ class Api::V1::WorkflowHooksControllerTest < ActionDispatch::IntegrationTest
     assert_response :unauthorized
     deliver(body, token: @workflow.reload.hook_token)
     assert_response :accepted
+  end
+
+  test "an address that starts nothing answers not found" do
+    body = { service: "web" }.to_json
+    deliver(body, token: "nothing-here")
+    assert_response :not_found
+
+    @workflow.update!(enabled: false)
+    deliver(body)
+    assert_response :not_found
   end
 end

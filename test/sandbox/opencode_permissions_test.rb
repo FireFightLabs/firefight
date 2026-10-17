@@ -109,7 +109,7 @@ class OpencodePermissionsTest < ActiveSupport::TestCase
 
   private
 
-  # What an agent would run to answer its own question: OpenCode's server is found by the command line of the shell's
+  # What an agent would run to answer its own question. OpenCode's server is found by the command line of the shell's
   # own ancestor, since other servers may run on the machine, its password in the shell's own environment, and the
   # first open question answered always. The path is built at run time, as a determined agent would, so OpenCode cannot
   # tell it reaches outside the copy.

@@ -16,6 +16,8 @@ module Integrations
     REFETCH_AFTER = 30.seconds
     # A box a provider started this recently may still be on its way into the table, so the sweep leaves it alone.
     ORPHAN_GRACE = 15.minutes
+    # A workspace whose last box is older than this gets no copy of a new image ahead of need.
+    COPIES_FOR = 7.days
     # A box replaced by a copy of a prepared repository is stopped this long after, so a call still reading in it ends.
     RETIRE_AFTER = 5.minutes
     # How often a call waiting for a box another call is starting asks for its lock again, in seconds.
@@ -102,16 +104,23 @@ module Integrations
             provider.stop(running.ref)
           end
           provider.tidy(kept_refs: PreparedCopy.where(kept_in: key).pluck(:kept_ref).to_set)
-          SandboxImageCopyJob.perform_later(key) if provider.keeps_copies?
+          prepare_copies(key) if provider.keeps_copies?
         rescue Sandboxes::Error => error
           Rails.logger.warn({ event: "code_box.sweep_failed", provider: key, error: error.message }.to_json)
         end
         SandboxInventory.record!
       end
 
-      # The provider's copy of the image this deployment runs, made ahead of any run (Sandboxes::Provider#prepare_image!).
-      def prepare_image!(provider_key)
-        Sandboxes.provider(provider_key)&.prepare_image!
+      # Each workspace that ran a box on the provider lately gets its own copy of the image, ahead of its next run.
+      def prepare_copies(provider_key)
+        CodeBox.where(provider: provider_key, created_at: COPIES_FOR.ago..).distinct.pluck(:workspace_id).each do |workspace_id|
+          SandboxImageCopyJob.perform_later(provider_key, workspace_id)
+        end
+      end
+
+      # A workspace's copy of the image this deployment runs, made ahead of any run (Sandboxes::Provider#prepare_image!).
+      def prepare_image!(provider_key, workspace_id)
+        Sandboxes.provider(provider_key)&.prepare_image!(workspace_id)
       rescue Sandboxes::Error => error
         Rails.logger.warn({ event: "code_box.image_copy_failed", provider: provider_key, error: error.message }.to_json)
       end
@@ -277,7 +286,7 @@ module Integrations
     end
 
     # Asks the provider to keep the box's disk as it is now, with the copy just prepared, and drops this repository's
-    # oldest copies past PreparedCopy::KEPT_PER_REPOSITORY. A copy that cannot be kept is simply not kept.
+    # oldest copies past PreparedCopy::KEPT_PER_REPOSITORY. A copy that cannot be kept is not kept.
     def keep_in_provider(keeper, repository, key, commit)
       return if PreparedCopy.kept_by(box.provider, @workspace, @remote.key(repository), key)
 
@@ -333,7 +342,7 @@ module Integrations
     end
 
     # What the copy installed, kept for the next copy with the same key. A copy too large to keep, or one the box could
-    # not pack, is simply not kept.
+    # not pack, is not kept.
     def keep_prepared(repository, name, ref, key)
       Dir.mktmpdir("prepared-copy") do |dir|
         path = File.join(dir, "prepared.tar.gz")

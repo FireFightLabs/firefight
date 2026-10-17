@@ -26,6 +26,22 @@ module Integrations
       assert_not @integration.tools.find_by!(name: "execute").read_only?
     end
 
+    test "a tool its server marks read only is a change, still switched on, unless the registry lists it as a read" do
+      McpClient.any_instance.stubs(:tools_list).returns([
+        { "name" => "drop_account", "annotations" => { "readOnlyHint" => true } },
+        { "name" => "get_entity", "annotations" => { "readOnlyHint" => false } }
+      ])
+
+      DiscoveryService.sync!(@integration)
+
+      claimed = @integration.tools.find_by!(name: "drop_account")
+      assert_not claimed.read_only?, "a server's own word never makes a tool a read"
+      assert_not claimed.declared_read?
+      assert claimed.enabled?, "only its classification changes, it still arrives switched on"
+      assert_equal Ability::Action::RISK_WRITE, claimed.ability_action.risk_level
+      assert @integration.tools.find_by!(name: "get_entity").read_only?, "a read the registry lists stays a read"
+    end
+
     test "a tool the server marks read only that the registry says sends something is a change" do
       @integration.update!(provider: "posthog", settings: { "server_url" => "https://mcp.posthog.com/mcp?mode=tools" })
       McpClient.any_instance.stubs(:tools_list).returns([
@@ -41,7 +57,7 @@ module Integrations
       assert @integration.tools.find_by!(name: "insight_get").read_only?
     end
 
-    test "a tool an admin marked as a read stays one through a refresh, and unmarking it leaves what its server says" do
+    test "a tool an admin marked as a read stays one through a refresh, and unmarking it makes it a change again" do
       @integration.update!(provider: "custom_mcp", settings: { "server_url" => "https://tools.acme.example/mcp" })
       McpClient.any_instance.stubs(:tools_list).returns([ { "name" => "query_logs" }, { "name" => "status", "annotations" => { "readOnlyHint" => true } } ])
       DiscoveryService.sync!(@integration)
@@ -56,22 +72,24 @@ module Integrations
       tool.mark_read!(false)
       assert_not tool.reload.read_only?
       assert_equal Ability::Action::RISK_WRITE, tool.ability_action.reload.risk_level
-      assert @integration.tools.find_by!(name: "status").declared_read?
+      status = @integration.tools.find_by!(name: "status")
+      assert_not status.read_only?, "the server's own mark is not a read"
+      assert status.read_markable?, "so an admin can mark it"
     end
 
     test "sync! upserts discovered tools switched on and marks vanished ones removed" do
       McpClient.any_instance.stubs(:tools_list).returns([
-        { "name" => "logs.query", "description" => "Query logs",
+        { "name" => "get_entity", "description" => "Query logs",
           "inputSchema" => { "type" => "object" }, "annotations" => { "readOnlyHint" => true } },
         { "name" => "Dashboards Write", "description" => "Edit dashboards" }
       ])
 
       DiscoveryService.sync!(@integration)
 
-      logs = @integration.tools.find_by!(name: "logs.query")
+      logs = @integration.tools.find_by!(name: "get_entity")
       assert logs.read_only?
       assert logs.enabled?, "a new tool arrives switched on"
-      assert_equal "logs.query", logs.remote_name
+      assert_equal "get_entity", logs.remote_name
 
       sanitized = @integration.tools.find_by!(name: "dashboards_write")
       assert_equal "Dashboards Write", sanitized.remote_name
@@ -84,9 +102,9 @@ module Integrations
       assert_not logs.available?, "vanished tools are marked removed, never deleted"
       assert logs.enabled?, "the admin's allowlist is not the provider's listing"
       assert_not logs.configured_for?({}), "a removed tool cannot be called"
-      assert Ability::Action.exists?(key: "new_relic.logs.query"), "action row survives"
+      assert Ability::Action.exists?(key: "new_relic.get_entity"), "action row survives"
 
-      McpClient.any_instance.stubs(:tools_list).returns([ { "name" => "logs.query", "description" => "Query logs" } ])
+      McpClient.any_instance.stubs(:tools_list).returns([ { "name" => "get_entity", "description" => "Query logs" } ])
       DiscoveryService.sync!(@integration)
       assert logs.reload.available?, "a tool that comes back is offered again with its earlier choice"
       assert logs.enabled?
@@ -122,19 +140,18 @@ module Integrations
       assert_not @integration.tools.find_by!(name: "logs").enabled?
     end
 
-    test "re-discovery that flips a tool to write updates the action's risk level" do
+    test "re-discovery that finds a tool is no longer a listed read updates the action's risk level" do
       McpClient.any_instance.stubs(:tools_list).returns([
-        { "name" => "logs.query", "description" => "Query logs",
-          "inputSchema" => { "type" => "object" }, "annotations" => { "readOnlyHint" => true } }
+        { "name" => "get_entity", "description" => "Read an entity", "inputSchema" => { "type" => "object" } }
       ])
       DiscoveryService.sync!(@integration)
 
-      tool = @integration.tools.find_by!(name: "logs.query")
-      tool.update!(enabled: true)
+      tool = @integration.tools.find_by!(name: "get_entity")
       assert_equal Ability::Action::RISK_READ, tool.ability_action.risk_level
 
+      IntegrationProvider::Entry.any_instance.stubs(:read_only_tools).returns([])
       McpClient.any_instance.stubs(:tools_list).returns([
-        { "name" => "logs.query", "description" => "Query and delete logs",
+        { "name" => "get_entity", "description" => "Read and delete an entity",
           "inputSchema" => { "type" => "object", "properties" => { "q" => { "type" => "string" } } } }
       ])
       DiscoveryService.sync!(@integration)

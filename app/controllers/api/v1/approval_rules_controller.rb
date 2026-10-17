@@ -1,5 +1,6 @@
 class Api::V1::ApprovalRulesController < Api::V1::ApiController
   before_action :set_rule, only: [ :update, :destroy, :move_up, :move_down ]
+  before_action :refuse_token_changes, except: :index
 
   def index
     authorize!(Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_READ)
@@ -37,6 +38,11 @@ class Api::V1::ApprovalRulesController < Api::V1::ApiController
   end
 
   private
+
+  def refuse_token_changes
+    refusal = PolicyRule.approval_change_blocked_reason(AbilityGateway::SOURCE_API)
+    render json: error_response("token_refused", refusal), status: :unprocessable_entity if refusal
+  end
 
   def set_rule
     @rule = current_workspace.approval_rules.find(params[:id])

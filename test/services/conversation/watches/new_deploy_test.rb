@@ -24,6 +24,7 @@ class Conversation::Watches::NewDeployTest < ActiveSupport::TestCase
     @old = Deploys::Deploy.new(id: "dep-old", commit: OLD, branch: "main", status: History::SUCCEEDED, live: true,
                                started_at: @began - 6.hours, finished_at: @began - 6.hours + 4.seconds)
     stub_post_message
+    stub_update_message
     status("Rollout: COMPLETED.")
     Investigation.stubs(:unavailable_reason).returns(nil)
     # The model is sure it is done on every reading, as it was on the old rollout's.

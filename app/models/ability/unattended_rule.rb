@@ -6,6 +6,12 @@ module Ability
   class UnattendedRule < ApplicationRecord
     self.table_name = "ability_unattended_rules"
 
+    # A rule approves ahead, as an approval rule's approver would, so a token never changes one either.
+    TOKEN_CHANGE_REFUSAL = "What Halon may change on its own is set only by a person in Firefight, never with a token.".freeze
+
+    # Why changing an unattended rule from this source is refused, or nil.
+    def self.change_blocked_reason(source) = (TOKEN_CHANGE_REFUSAL if AbilityGateway::TOKEN_SOURCES.include?(source))
+
     CAPABILITIES = [ Integrations::Capabilities::ROLLBACK, Integrations::Capabilities::RESTART ].freeze
     CAPABILITY_VERBS = {
       Integrations::Capabilities::ROLLBACK => "Roll back",

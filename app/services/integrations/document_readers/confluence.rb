@@ -23,7 +23,7 @@ module Integrations
         id = given[PAGE_PATH, 1] || given[PAGE_QUERY, 1] || given[BARE_ID]
         raise Integrations::Error, "Paste the Confluence page's link, such as https://acme.atlassian.net/wiki/spaces/ENG/pages/123456/Runbook." unless id
 
-        site = given.include?("://") ? SourceLinks::Jira.site_of(given) : only_site
+        site = given.include?("://") ? AtlassianSite.of(given) : only_site
         raise Integrations::Error, "#{given} is not a Confluence page's link." unless site
 
         result = call(CONTENT, { "cloudId" => site, "content_id" => id, "content_format" => MARKDOWN }, "the page #{id}")
@@ -46,7 +46,7 @@ module Integrations
         raise Integrations::Error, "getAccessibleAtlassianResources is switched off, so paste the page's link rather than its id." if result.nil?
 
         refused!(RESOURCES, result)
-        sites = Array(Capabilities::Answers.data(result)).filter_map { |site| SourceLinks::Jira.site_of(site["url"]) if site.is_a?(Hash) }.uniq
+        sites = Array(Capabilities::Answers.data(result)).filter_map { |site| AtlassianSite.of(site["url"]) if site.is_a?(Hash) }.uniq
         return sites.first if sites.one?
 
         raise Integrations::Error, "This connection reaches #{sites.size} Confluence sites, so paste the page's link rather than its id."

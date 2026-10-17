@@ -3,7 +3,7 @@ module Mcp
     # The outside systems the workspace's apps use that no connection reaches (Upstream::BlindSpots), with where each was
     # seen and how to connect it, so a question that needs one is answered by naming it rather than by guessing.
     class BlindSpots < Base
-      tool_name BLIND_SPOTS
+      tool_name FirefightTools::BLIND_SPOTS
       authorize_as Ability::Action::RESOURCE_MAP
       description "The outside systems this workspace's apps use that Firefight has no connection for, such as a sign-in, " \
                   "payment or email provider, each with where it was seen (a service's setting named for it or pointing at " \

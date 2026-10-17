@@ -18,6 +18,11 @@ module Ability
 
     class NotAllowed < StandardError; end
 
+    # A request a token or a machine made is approved by a person in a session of their own, so no token approves what a
+    # token asked for.
+    APPROVE_WITH_TOKEN = "A request made with a token is approved only by a person signed in to Firefight or answering in chat, never with a token.".freeze
+    MACHINE_REQUESTERS = [ Agent.name, ApiKey.name, SystemAgent.name ].freeze
+
     # What deciding a request is authorized as, and the scope key that names the request decided.
     DECIDE_KEY = Ability::Action.system_key(Ability::Action::RESOURCE_APPROVALS, Ability::Action::ACTION_UPDATE)
     SCOPE_APPROVAL = "approval"
@@ -73,8 +78,9 @@ module Ability
       end
     end
 
-    def approve!(by:)
-      resolve!(STATUS_APPROVED, by)
+    # with_token is a decision sent with a token, over the API or MCP, rather than by a person in a session.
+    def approve!(by:, with_token: false)
+      resolve!(STATUS_APPROVED, by, with_token: with_token)
     end
 
     def deny!(by:)
@@ -199,6 +205,14 @@ module Ability
       nil
     end
 
+    # A request a token or a machine made, which a token could otherwise approve for itself or for another token.
+    def made_with_token?
+      AbilityGateway::TOKEN_SOURCES.include?(source) || MACHINE_REQUESTERS.include?(principal_type)
+    end
+
+    # Why approving this request with a token is refused, or nil.
+    def approve_with_token_blocked_reason = (APPROVE_WITH_TOKEN if made_with_token?)
+
     def matches_request?(action_key, params, scope)
       request_digest == self.class.digest(action_key, params, scope)
     end
@@ -292,7 +306,7 @@ module Ability
     end
 
     # A change Halon asked for in a chat is always asked in the chat's thread (Conversation::HeldCalls). Where else is
-    # the rule's to say: a rule naming the channel, direct messages or both is followed as it is for anyone. A rule on
+    # the rule's to say. A rule naming the channel, direct messages or both is followed as it is for anyone. A rule on
     # Default asks a chat's request of its approvers directly rather than in the shared incidents channel, and the
     # channel only when nobody could be asked directly (ApprovalNotificationService.post!). Any other request on Default
     # is asked in the channel, as it was before Default existed, and so is one whose rule stored nothing.
@@ -348,6 +362,11 @@ module Ability
       Workflow.publish_approval_blocked_reason(self) if resume_payload.to_h["kind"] == Workflow::PUBLISH_APPROVAL_KIND
     end
 
+    # A call held for a run is scheduled to lapse by whoever holds it. Any other is scheduled here, after commit.
+    def expire_unheld_approval
+      ActiveRecord.after_all_transactions_commit { ApprovedCallExpiryJob.set(wait_until: run_expires_at).perform_later(id) }
+    end
+
     def resume_parked_request
       return if resume_payload.blank?
 
@@ -358,18 +377,28 @@ module Ability
 
     # Self-approval is allowed by default, the human confirming their own agent's proposal
     # is the safety mechanism. Policies opt into four-eyes with require.self_approval: false.
-    def resolve!(new_status, principal)
+    def resolve!(new_status, principal, with_token: false)
       raise NotAllowed, "approval is no longer pending" unless pending?
       raise NotAllowed, approver_requirement_message unless approver?(principal)
-      blocked = approve_blocked_reason if new_status == STATUS_APPROVED
+      blocked = (with_token && approve_with_token_blocked_reason) || approve_blocked_reason if new_status == STATUS_APPROVED
       raise NotAllowed, blocked if blocked
       if requester?(principal) && !self_approvable?
         raise NotAllowed, "this policy requires approval by someone other than the requester"
       end
 
       now = Time.current
-      run_by = (now + RUN_WINDOW if held_for_run? && new_status == STATUS_APPROVED)
-      update!(status: new_status, approver: principal, resolved_at: now, run_expires_at: run_by)
+      # Every approved call lapses unused after RUN_WINDOW, a caller that never comes back with it included. A workflow's
+      # question admits no call, so it has nothing to lapse.
+      run_by = (now + RUN_WINDOW if new_status == STATUS_APPROVED && !workflow_question?)
+      # One guarded statement, so an approve and a deny landing together cannot both win.
+      decided = self.class.where(id: id, status: STATUS_PENDING).update_all(
+        status: new_status, approver_type: principal.class.polymorphic_name, approver_id: principal.id,
+        resolved_at: now, run_expires_at: run_by, updated_at: now
+      )
+      raise NotAllowed, "approval is no longer pending" if decided.zero?
+
+      reload
+      expire_unheld_approval if run_by && !held_for_run? && resume_payload.blank?
       resume_parked_request
     end
   end

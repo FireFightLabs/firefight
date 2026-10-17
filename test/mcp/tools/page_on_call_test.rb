@@ -16,7 +16,7 @@ module Mcp
       def call(args) = ToolDispatcher.call(tool: PageOnCall, server_context: @context, args: args)
 
       test "a member raises a page through the connected tool, with Halon's chat offered it beside escalating" do
-        group = Chat::Tools::Groups::FIREFIGHT.find { |each| each.tools.include?(PAGE_ON_CALL) }
+        group = Chat::Tools::Groups::FIREFIGHT.find { |each| each.tools.include?(FirefightTools::PAGE_ON_CALL) }
         assert_equal Chat::Tools::Groups::INCIDENT_RESPONSE, group.key
         Integrations::PagerdutyApi.any_instance.stubs(:services).returns([ { "id" => "PF9KMXH", "name" => "Checkout" } ])
         Integrations::PagerdutyApi.any_instance.stubs(:create_incident).returns(pagerduty_incident)

@@ -21,6 +21,33 @@ class Chat::CodeFixProgressTest < ActiveSupport::TestCase
     assert_equal [ nil, nil ], [ again.files.last.added, again.files.last.removed ]
   end
 
+  test "the last part is named for where the change goes from the start, and an open pull request is linked while it runs" do
+    url = "https://github.com/acme/api/pull/868"
+    adding = Chat::CodeFixProgress.start(target: Chat::CodeFixProgress::TARGET_PULL_REQUEST, pull_request: url)
+    adding.add("Edited docs/ai.md")
+    branch = Chat::CodeFixProgress.start(target: Chat::CodeFixProgress::TARGET_BRANCH)
+    opening = Chat::CodeFixProgress.start
+
+    assert_equal [ "Push to the pull request", Chat::CodeFixProgress::STAGE_PENDING, url ], adding.stages.last.to_h.values_at(:title, :status, :link)
+    assert_equal "Push to the pull request", Chat::CodeFixProgress.from_json(adding.to_json).stages.last.title, "a reload reads the same"
+    assert_equal [ "Push to the branch", nil ], branch.stages.last.to_h.values_at(:title, :link)
+    assert_equal [ "Open a pull request", nil ], opening.stages.last.to_h.values_at(:title, :link)
+
+    adding.pushed!(files: { "docs/ai.md" => [ 1, 1 ] }, pull_request: url)
+    branch.pushed!(files: { "docs/ai.md" => [ 1, 1 ] }, pull_request: nil)
+    assert_equal [ "Push to the pull request", Chat::CodeFixProgress::STAGE_DONE, url ], adding.stages.last.to_h.values_at(:title, :status, :link)
+    assert_equal "Push to the branch", branch.stages.last.title
+  end
+
+  test "a change kept before it said where it goes is named by how it ended" do
+    kept = Chat::CodeFixProgress.start.to_h.except("target").merge("outcome" => Chat::CodeFixProgress::OUTCOME_PUSHED, "finishedAt" => Time.current.iso8601,
+                                                                   "pullRequest" => "https://github.com/acme/api/pull/7")
+
+    assert_equal "Push to the pull request", Chat::CodeFixProgress.from_h(kept).stages.last.title
+    assert_equal "Push to the branch", Chat::CodeFixProgress.from_h(kept.merge("pullRequest" => nil)).stages.last.title
+    assert_equal "Open a pull request", Chat::CodeFixProgress.from_h(Chat::CodeFixProgress.start.to_h.except("target")).stages.last.title
+  end
+
   test "only the newest lines are kept, every one is counted, and a line never carries a secret" do
     work = Chat::CodeFixProgress.start
     (Chat::CodeFixProgress::LINES_KEPT + 5).times { |number| work.add("Read file#{number}.rb") }

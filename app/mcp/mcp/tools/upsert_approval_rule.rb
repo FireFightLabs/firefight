@@ -3,7 +3,7 @@ module Mcp
     class UpsertApprovalRule < Base
       extend GatewayPayloads
 
-      tool_name UPSERT_APPROVAL_RULE
+      tool_name FirefightTools::UPSERT_APPROVAL_RULE
       description "Create or update an approval rule, which holds matching calls until an " \
                   "approver says yes. Pass id to update; omit it to append a new rule. Only the " \
                   "keys given change. Empty abilities, risk_levels or environments match " \
@@ -31,6 +31,11 @@ module Mcp
         },
         required: []
       )
+
+      # It authorizes as permissions either way, which only a person's say lets through.
+      def self.asks_a_person? = true
+
+      def self.token_refusal(_workspace, _args) = PolicyRule.approval_change_blocked_reason(AbilityGateway::SOURCE_MCP)
 
       def self.authorization(workspace, args)
         action = existing_rule(workspace, args) ? Ability::Action::ACTION_UPDATE : Ability::Action::ACTION_CREATE

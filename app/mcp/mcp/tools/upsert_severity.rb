@@ -3,7 +3,7 @@ module Mcp
     class UpsertSeverity < Base
       include ConfiguresOption
 
-      tool_name UPSERT_SEVERITY
+      tool_name FirefightTools::UPSERT_SEVERITY
       configures_option IncidentSeverity,
         resource: Ability::Action::RESOURCE_SEVERITIES,
         guidance: "Position is how severe it is, first being the most severe, so a new SEV0 takes " \

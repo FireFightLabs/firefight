@@ -216,6 +216,8 @@ providers:
     # Personal API tokens are the only tokens API v2 and the MCP server take
     # (circleci.com/docs/guides/toolkit/api-developers-guide, circleci.com/docs/guides/toolkit/connecting-to-the-circleci-mcp-server).
     token: { hint: "Use a personal API token. Make it as a dedicated user, such as Firefight, so changes do not show as a teammate and the connection keeps working when someone leaves." }
+    # The tools its server's published list marks as reads (test/fixtures/files/circleci_mcp_tools.txt says where it came from).
+    read_only_tools: [hello, list_runs, get_run, list_workflows, get_workflow, list_jobs, get_job, get_job_logs, list_artifacts, list_job_tests]
     source_links: firefight
     map: none
     history: none
@@ -331,6 +333,27 @@ providers:
     own_server:
       placeholder: https://mcp-grafana.example.com/mcp
       hint: For a Grafana you run yourself. Paste the address of the mcp-grafana server you run, and a Bearer header with a service account token if it asks for one.
+    # The tools its server's published list marks as reads (test/fixtures/files/grafana_mcp_tools.txt says where it came from).
+    read_only_tools: [list_teams, list_users_by_org, list_all_roles, get_role_details, get_role_assignments, list_user_roles, list_team_roles,
+                      get_resource_permissions, get_resource_description, user_info, search_dashboards, search_folders, get_dashboard_by_uid,
+                      list_dashboard_versions, get_dashboard_panel_queries, run_panel_query, get_dashboard_property, get_dashboard_summary,
+                      list_datasources, get_datasource, check_datasources_health, get_query_examples, query_prometheus,
+                      list_prometheus_metric_metadata, list_prometheus_metric_names, list_prometheus_label_names, list_prometheus_label_values,
+                      query_prometheus_histogram, list_incidents, get_incident, list_incident_custom_fields, query_loki_logs, list_loki_label_names,
+                      list_loki_label_values, query_loki_stats, query_loki_patterns, analyze_loki_labels, suggest_loki_alloy_label_config,
+                      query_graphite, list_graphite_metrics, list_graphite_tags, query_graphite_density, list_sql_databases, list_sql_tables,
+                      describe_sql_table, list_cloudwatch_namespaces, list_cloudwatch_metrics, list_cloudwatch_dimensions,
+                      list_cloudwatch_dimension_values, query_cloudwatch, list_cloud_logging_projects, list_cloud_logging_buckets,
+                      list_cloud_logging_views, query_cloud_logging, query_elasticsearch, query_quickwit, alerting_rules_read, alerting_manage_routing,
+                      alerting_silences_read, list_oncall_schedules, get_oncall_shift, get_current_oncall_users, list_oncall_teams, list_oncall_users,
+                      list_alert_groups, get_alert_group, list_pyroscope_label_names, list_pyroscope_label_values, list_pyroscope_profile_types,
+                      query_pyroscope, search_tempo_traces, query_tempo_metrics, get_tempo_trace, diff_tempo_traces, list_tempo_attribute_names,
+                      list_tempo_attribute_values, get_tempo_traceql_docs, get_assertions, agento11y_manage_conversations,
+                      agento11y_manage_generations, agento11y_manage_agents, get_annotations, get_annotation_tags, list_snapshots, get_snapshot,
+                      get_panel_image, list_provisioning_repositories, validate_provisioning_file, search_docs, get_doc, get_plugin,
+                      search_plugin_information, assistant_search, get_assistant_conversation, list_investigations, get_investigation,
+                      get_investigation_report, get_investigation_thread, list_investigation_evidence, list_investigation_profiles,
+                      wait_for_investigation]
     source_links: firefight
     # stack is part of the hosted server's address. The rest are chosen on the connection's details from the datasources
     # its health check found, when Grafana has several of a type.
@@ -724,6 +747,9 @@ providers:
         optional: true
         pattern: '(?![0-9]+\z)[a-z0-9_-]{1,50}'
         allowed: "lowercase letters, numbers, dashes and underscores, at most 50 characters, not only numbers"
+    # The tools its server's published list marks as reads (test/fixtures/files/sentry_direct_mcp_tools.txt says where it came from).
+    read_only_tools: [find_dropped_events, find_organizations, find_projects, get_sentry_resource, search_errors, search_issues, search_logs,
+                      search_metrics, search_profiles, search_replays, search_sentry_tools, search_traces]
     source_links: server
     source_links_note: "Its results carry the page of each issue, search, release and trace they name. A list of releases names each by its short version, which is not always the one its page is under, so a release's page comes from its details."
     map: none
@@ -830,6 +856,140 @@ providers:
     regions:
       - { key: us, label: US (us.posthog.com), server_url: "https://mcp.posthog.com/mcp?mode=tools", site: "https://us.posthog.com" }
       - { key: eu, label: EU (eu.posthog.com), server_url: "https://mcp-eu.posthog.com/mcp?mode=tools", site: "https://eu.posthog.com" }
+    # The tools its server's published list marks as reads (test/fixtures/files/posthog_mcp_tools.txt says where it came from).
+    read_only_tools: [access_control_default_objects_list, access_control_default_properties_list, access_control_defaults_get,
+                      access_control_member_objects_list, access_control_member_properties_list, access_control_members_list,
+                      access_control_role_objects_list, access_control_role_properties_list, access_control_roles_list,
+                      account_relationship_definitions_list, account_relationship_definitions_retrieve, accounts_custom_property_values_list,
+                      accounts_list, accounts_meetings_list, accounts_notebooks_list, accounts_notebooks_retrieve, accounts_relationships_list,
+                      accounts_retrieve, accounts_summaries_list, action_get, actions_get_all, advanced_activity_logs_filters,
+                      advanced_activity_logs_list, alert_get, alerts_list, annotation_retrieve, annotations_list, announcements_channels_list,
+                      announcements_list, announcements_retrieve, apm_attribute_breakdown, apm_attribute_values_list, apm_attributes_list,
+                      apm_services_list, apm_spans_aggregate, apm_spans_count, apm_spans_duration_histogram, apm_spans_latency_heatmap,
+                      apm_spans_sparkline, apm_spans_tree, apm_trace_get, approval_policies_list, approval_policy_get, autoresearch_list,
+                      autoresearch_models_list, autoresearch_models_retrieve, autoresearch_online_performance_retrieve,
+                      autoresearch_resolve_template_create, autoresearch_retrieve, autoresearch_runs_list, autoresearch_suggestions_list,
+                      autoresearch_training_runs_artifacts_get_create, autoresearch_training_runs_artifacts_retrieve,
+                      autoresearch_training_runs_history, autoresearch_training_runs_list, autoresearch_validate_create, batch_export_get,
+                      batch_exports_list, billing_features_get, billing_forecast_get, billing_limits_get, billing_overview_get, billing_product_get,
+                      billing_products_summary_get, billing_projects_list, billing_spend_get, billing_spend_summary_get, billing_spend_timeseries_get,
+                      billing_subscription_get, billing_usage_get, billing_usage_status_get, billing_usage_summary_get, billing_usage_timeseries_get,
+                      business_knowledge_document_window_retrieve, business_knowledge_documents_search, business_knowledge_libraries_list,
+                      business_knowledge_libraries_retrieve, business_knowledge_repositories_file_retrieve, business_knowledge_repositories_search,
+                      business_knowledge_sources_list, business_knowledge_sources_retrieve, canvas_builds_retrieve, canvas_comments_list,
+                      canvas_comments_retrieve, canvas_connectors_retrieve, canvas_drafts_retrieve, canvas_layout_get, canvas_list,
+                      canvas_source_retrieve, canvas_state_retrieve, canvas_state_value_retrieve, canvas_validate_create, cdp_function_templates_list,
+                      cdp_function_templates_retrieve, cdp_functions_get_revision, cdp_functions_list, cdp_functions_list_revisions,
+                      cdp_functions_logs_retrieve, cdp_functions_metrics_retrieve, cdp_functions_retrieve, change_feed_list, change_request_get,
+                      change_requests_list, channel_instructions_retrieve, channel_list, channel_retrieve, characterize_metric_anomaly, cohorts_list,
+                      cohorts_retrieve, comment_count, comment_get, comment_thread, comments_list, context_wiki_channel_resolve,
+                      context_wiki_page_retrieve, conversations_list, conversations_retrieve, conversations_tickets_list,
+                      conversations_tickets_messages_retrieve, conversations_tickets_retrieve, conversations_views_list, conversations_views_retrieve,
+                      cross_project_dashboard_tiles_list, cross_project_dashboards_get, cross_project_dashboards_list,
+                      custom_property_definitions_list, custom_property_definitions_retrieve, custom_property_sources_list,
+                      custom_property_sources_retrieve, custom_property_sources_runs_list, customer_tasks_activities_list, customer_tasks_list,
+                      customer_tasks_retrieve, dashboard_get, dashboard_insights_run, dashboard_templates_list, dashboard_templates_retrieve,
+                      dashboard_widget_catalog_list, dashboard_widgets_run, dashboards_get_all, data_catalog_metric_run, data_quality_check_results,
+                      data_quality_check_types, data_quality_subjects, data_warehouse_stored_credentials_list, debug_mcp_ui_apps, docs_search,
+                      domains_list, early_access_feature_list, early_access_feature_retrieve, elements_stats_retrieve, endpoint_get, endpoint_logs,
+                      endpoint_materialization_conditions, endpoint_materialization_status, endpoint_materialization_suggestion, endpoint_openapi_spec,
+                      endpoint_run, endpoint_versions, endpoints_get_all, endpoints_last_execution_times, endpoints_materialization_preview,
+                      engineering_analytics_broken_tests, engineering_analytics_ci_failure_logs, engineering_analytics_flaky_tests,
+                      engineering_analytics_pr_cost, engineering_analytics_run_failure_logs, engineering_analytics_sources,
+                      engineering_analytics_team_ci_health, engineering_analytics_workflow_jobs, engineering_analytics_workflow_runner_costs,
+                      error_tracking_alerts_list, error_tracking_assignment_rules_list, error_tracking_bypass_rules_list,
+                      error_tracking_grouping_rules_list, error_tracking_recommendations_list, error_tracking_settings_get,
+                      error_tracking_severity_rules_list, error_tracking_suppression_rules_list, error_tracking_symbol_sets_download_retrieve,
+                      error_tracking_symbol_sets_list, error_tracking_symbol_sets_retrieve, event_streams_list, execute_sql, experiment_activity,
+                      experiment_calculate_running_time, experiment_cleanup_task, experiment_get, experiment_get_by_flag_key, experiment_holdouts_list,
+                      experiment_holdouts_retrieve, experiment_list, experiment_metrics_recalculation_latest_retrieve,
+                      experiment_metrics_recalculation_retrieve, experiment_prompt_templates, experiment_results_get, experiment_saved_metrics_list,
+                      experiment_saved_metrics_retrieve, experiment_setup_context, experiment_stats, experiment_timeseries_results,
+                      experiments_session_event_deltas_create, external_data_destinations_list, external_data_destinations_retrieve,
+                      external_data_schemas_destinations_retrieve, external_data_schemas_list, external_data_schemas_retrieve,
+                      external_data_sources_check_cdc_prerequisites_create, external_data_sources_connections_list, external_data_sources_db_schema,
+                      external_data_sources_destinations_retrieve, external_data_sources_jobs, external_data_sources_list,
+                      external_data_sources_retrieve, external_data_sources_webhook_info_retrieve, external_data_sources_wizard,
+                      external_data_sync_logs, feature_flag_get_all, feature_flag_get_definition, feature_flag_get_definition_by_key,
+                      feature_flags_activity_retrieve, feature_flags_bulk_keys_retrieve, feature_flags_copy_dependencies_check,
+                      feature_flags_dependent_flags_retrieve, feature_flags_evaluation_reasons_retrieve, feature_flags_my_flags_retrieve,
+                      feature_flags_status_retrieve, feature_flags_test_evaluation_create, feature_flags_user_blast_radius_create,
+                      feature_request_product_areas_list, feature_requests_history_list, feature_requests_list, feature_requests_retrieve,
+                      feature_requests_status_history_list, field_notes_get, field_notes_list, file_download_batch_exports_count_rows_create,
+                      file_download_batch_exports_retrieve, generate_app_url, get_llm_total_costs_for_project, health_issues_get, health_issues_list,
+                      health_issues_summary, heatmaps_events, heatmaps_list, heatmaps_saved_get, heatmaps_saved_list, identity_provider_configs_list,
+                      identity_provider_configs_retrieve, inbox_report_artefacts_list, inbox_report_artefacts_retrieve, inbox_report_checks_list,
+                      inbox_report_checks_retrieve, inbox_reports_list, inbox_reports_retrieve, inbox_source_configs_list,
+                      inbox_source_configs_retrieve, inbox_steering_instructions_get, insight_get, insight_query, insights_activity_retrieve,
+                      insights_all_activity_retrieve, insights_list, insights_trending_retrieve, integration_get, integrations_channels_retrieve,
+                      integrations_github_repos_retrieve, integrations_jira_projects_retrieve, integrations_linear_teams_retrieve, integrations_list,
+                      integrations_users_retrieve, llma_clustering_config_get, llma_clustering_job_get, llma_clustering_job_list, llma_dataset_get,
+                      llma_dataset_item_get, llma_dataset_item_list, llma_dataset_item_version_list, llma_dataset_list, llma_dataset_revision_list,
+                      llma_evaluation_backfill_estimate, llma_evaluation_backfill_get, llma_evaluation_backfill_list, llma_evaluation_config_get,
+                      llma_evaluation_directory_get, llma_evaluation_directory_list, llma_evaluation_get, llma_evaluation_judge_models,
+                      llma_evaluation_list, llma_evaluation_report_get, llma_evaluation_report_list, llma_evaluation_report_run_list,
+                      llma_offline_experiment_get, llma_offline_experiment_item_get, llma_offline_experiment_item_list,
+                      llma_offline_experiment_item_payload_get, llma_offline_experiment_item_result_list, llma_offline_experiment_list,
+                      llma_offline_experiment_result_cells, llma_offline_experiment_result_payload_get, llma_offline_experiment_scorer_summary_list,
+                      llma_offline_scorer_history, llma_parser_recipe_reference, llma_personal_spend, llma_prompt_get, llma_prompt_list,
+                      llma_provider_key_get, llma_provider_key_list, llma_review_queue_get, llma_review_queue_item_get, llma_review_queue_item_list,
+                      llma_review_queue_list, llma_score_definition_get, llma_score_definition_list, llma_score_definition_version_get,
+                      llma_score_definition_version_list, llma_skill_file_get, llma_skill_get, llma_skill_list, llma_tagger_list, llma_tagger_test_hog,
+                      llma_trace_review_get, llma_trace_review_list, logs_alerts_events_list, logs_alerts_list, logs_alerts_retrieve,
+                      logs_alerts_simulate_create, logs_anomalies_scan, logs_anomalies_series_bands, logs_attribute_values_list, logs_attributes_list,
+                      logs_count, logs_count_ranges, logs_facet_values_create, logs_patterns, logs_patterns_diff, logs_services_create,
+                      logs_sparkline_query, managed_migrations_support_get, managed_migrations_support_list, managed_warehouse_metric_history_get,
+                      managed_warehouse_monitoring_get, managed_warehouse_trino_metric_history_get, managed_warehouse_trino_monitoring_get,
+                      marketing_analytics_conversion_goals, marketing_analytics_data_sources, marketing_analytics_diagnose,
+                      marketing_analytics_explain_conversion_goal, marketing_analytics_setup_plan, marketing_analytics_suggest_conversion_goals,
+                      marketing_analytics_suggest_utm_mappings, marketing_analytics_utm_audit, mcp_analytics_intent_clusters_retrieve,
+                      mcp_analytics_sessions_list, mcp_analytics_sessions_tool_calls, mcp_connection_tools_list, mcp_connections_list,
+                      mcp_registry_discover, mcp_registry_server_get, media_images_list, metric_attribute_values_list, metric_attributes_list,
+                      metric_describe, metric_list, metric_names_list, metrics_dashboard_panels_validate, notebooks_compute_options, notebooks_get,
+                      notebooks_list, notebooks_list_frames, notebooks_retrieve, notebooks_run_cell_result, notebooks_widget_status, opt_outs_list,
+                      org_member_get_github_login, org_members_list, organization_get, organizations_get, organizations_list, persons_cohorts_retrieve,
+                      persons_list, persons_retrieve, persons_values_retrieve, pr_lifecycle, project_get, projects_get, proxy_diagnose, proxy_get,
+                      proxy_list, pull_requests, query_apm_spans, query_error_tracking_issue, query_error_tracking_issue_events,
+                      query_error_tracking_issues_list, query_funnel, query_funnel_actors, query_lifecycle, query_lifecycle_actors, query_llm_trace,
+                      query_llm_traces_list, query_logs, query_mcp_harness_breakdown, query_mcp_missing_capabilities, query_mcp_tool_daily_stats,
+                      query_mcp_tool_descriptions, query_mcp_tool_failure_occurrences, query_mcp_tool_failures, query_mcp_tool_neighbors,
+                      query_mcp_tool_sample_intents, query_mcp_tool_stats, query_mcp_tool_top_users, query_metrics, query_paths, query_paths_actors,
+                      query_retention, query_retention_actors, query_session_recordings_list, query_stickiness, query_stickiness_actors, query_trends,
+                      query_trends_actors, query_web_overview, query_web_stats, query_web_vitals, read_data_schema, reminder_get, reminders_list,
+                      reusable_widgets_list, reusable_widgets_retrieve, review_hog_reviews_get, review_hog_reviews_list, review_hog_reviews_pr_status,
+                      role_get, role_members_list, roles_list, saved_query_column_annotations_list, scheduled_changes_get, scheduled_changes_list,
+                      scout_config_list, scout_config_precheck_test, scout_members_list, scout_metadata_get, scout_notes_list,
+                      scout_project_profile_get, scout_report_check_list, scout_report_checks_list, scout_rubric_get, scout_runs_emission_reports,
+                      scout_runs_emissions_list, scout_runs_list, scout_runs_recent_emissions, scout_runs_retrieve, scout_scratchpad_search,
+                      scout_trial_get, scout_trial_list, scout_trial_report, scout_trial_setup, session_recording_get, session_recording_playlist_get,
+                      session_recording_playlists_list, signals_scout_config_list, signals_scout_members_list, signals_scout_project_profile_get,
+                      signals_scout_runs_emission_reports, signals_scout_runs_emissions_list, signals_scout_runs_list,
+                      signals_scout_runs_recent_emissions, signals_scout_runs_retrieve, signals_scout_scratchpad_search, skill_file_get, skill_get,
+                      skill_list, stamphog_digest_runs_list, stamphog_pull_requests_get, stamphog_pull_requests_list, stamphog_repo_configs_get,
+                      stamphog_repo_configs_list, stamphog_review_runs_get, stamphog_review_runs_list, streamlit_apps_get, streamlit_apps_get_source,
+                      streamlit_apps_list, streamlit_apps_status, streamlit_apps_versions, subscriptions_deliveries_list,
+                      subscriptions_deliveries_retrieve, subscriptions_list, subscriptions_retrieve, subscriptions_summaries_list, survey_get,
+                      survey_stats, surveys_get_all, surveys_global_stats, surveys_responses_list, task_context_wiki_channel_resolve,
+                      task_context_wiki_page_retrieve, tasks_artifacts_list, tasks_comments_list, tasks_comments_retrieve, tasks_config_list,
+                      tasks_list, tasks_me_config_list, tasks_models_retrieve, tasks_retrieve, tasks_runs_list, tasks_runs_retrieve,
+                      tasks_runs_session_logs_retrieve, usage_metrics_list, usage_metrics_retrieve, user_get, user_home_settings_get, view_get,
+                      view_list, view_run_history, vision_alerts_events_list, vision_alerts_get, vision_alerts_list, vision_observations_get,
+                      vision_observations_list, vision_observations_search, vision_observations_signal_reports_list, vision_quota_get,
+                      vision_quota_spend_series_get, vision_requests_get, vision_scanners_backfills_get, vision_scanners_backfills_list,
+                      vision_scanners_counts, vision_scanners_estimate, vision_scanners_get, vision_scanners_impact_get, vision_scanners_list,
+                      vision_scanners_observations_get, vision_scanners_observations_list, vision_scanners_observations_stats,
+                      vision_scanners_scout_reports_get, vision_scanners_scout_reports_list, vision_scanners_self_driving_stats,
+                      vision_scanners_suggest_tags, vision_scanners_variants_list, vision_scanners_watch_feed, visual_review_repos_flakiness_retrieve,
+                      visual_review_repos_list, visual_review_repos_quarantine_list, visual_review_repos_retrieve,
+                      visual_review_repos_runs_counts_retrieve, visual_review_repos_runs_list, visual_review_repos_toleration_pileups_retrieve,
+                      visual_review_runs_counts_retrieve, visual_review_runs_list, visual_review_runs_quarantine_lifts_list,
+                      visual_review_runs_retrieve, visual_review_runs_snapshot_history_list, visual_review_runs_snapshots_list,
+                      visual_review_runs_tolerated_hashes_list, warehouse_column_annotations_list, warehouse_suggestions_get,
+                      warehouse_suggestions_list, warehouse_suggestions_status, web_analytics_bot_rules_list, web_analytics_weekly_digest,
+                      workflow_health, workflows_blast_radius, workflows_data_suggestions_get, workflows_get, workflows_get_email_template,
+                      workflows_get_invocation, workflows_get_revision, workflows_global_stats, workflows_list, workflows_list_batch_jobs,
+                      workflows_list_email_templates, workflows_list_invocations, workflows_list_proposals, workflows_list_revisions,
+                      workflows_list_versions, workflows_logs, workflows_show_email_template, workflows_stats, workflows_version_stats]
     source_links: firefight
     map: none
     history: none
@@ -1003,6 +1163,11 @@ providers:
     # Its MCP server reads an API key from the x-openstatus-key header, and a key belongs to the workspace, read only or
     # read and write (openstatus.dev/docs/reference/mcp-server).
     token: { header: x-openstatus-key, hint: "An API key from Settings, General, API Keys, which belongs to the workspace rather than a person. A read-only key gives Halon only the tools that read." }
+    # The tools its server's published list marks as reads (test/fixtures/files/openstatus_mcp_tools.txt says where it came from).
+    read_only_tools: [list_notifications, list_page_components, list_monitors, get_monitor, get_monitor_status, get_monitor_summary,
+                      list_response_logs, get_response_log, list_status_pages, list_private_locations, search_docs, get_doc_page, list_maintenances,
+                      list_incidents, get_incident, get_postmortem, list_status_reports, get_status_report, list_audit_logs, get_audit_log,
+                      search_content, get_content_page]
     source_links: firefight
     map: none
     history: none
@@ -1020,6 +1185,11 @@ providers:
     regions:
       - { key: us, label: US (app.honeybadger.io), server_url: "https://mcp.honeybadger.io/mcp", site: "https://app.honeybadger.io" }
       - { key: eu, label: EU (eu-app.honeybadger.io), server_url: "https://eu-mcp.honeybadger.io/mcp", site: "https://eu-app.honeybadger.io" }
+    # The tools its server's published list marks as reads (test/fixtures/files/honeybadger_mcp_tools.txt says where it came from).
+    read_only_tools: [list_fault_comments, get_fault_comment, list_dashboards, get_dashboard, list_faults, get_fault, list_fault_notices,
+                      list_fault_affected_users, get_fault_counts, query_insights, list_streams, get_reference, list_alarms, get_alarm,
+                      get_alarm_history, list_projects, get_project, get_project_occurrence_counts, get_project_integrations, get_project_report,
+                      list_check_ins, get_check_in, search_tools]
     source_links: server
     source_links_note: "Its faults, notices, Insights queries and check-ins carry their own page in Honeybadger."
     map: none
@@ -1045,6 +1215,13 @@ providers:
       - { key: us2, label: US2 (us2.signoz.cloud), server_url: "https://mcp.us2.signoz.cloud/mcp" }
       - { key: eu2, label: EU2 (eu2.signoz.cloud), server_url: "https://mcp.eu2.signoz.cloud/mcp" }
       - { key: in2, label: India 2 (in2.signoz.cloud), server_url: "https://mcp.in2.signoz.cloud/mcp" }
+    # The tools its server's published list marks as reads (test/fixtures/files/signoz_mcp_tools.txt says where it came from).
+    read_only_tools: [signoz_check_metric_usage, signoz_get_top_metrics, signoz_list_metrics, signoz_query_metrics, signoz_list_services,
+                      signoz_get_service_top_operations, signoz_execute_builder_query, signoz_get_org_overview, signoz_check_metric_cardinality,
+                      signoz_get_field_keys, signoz_get_field_values, signoz_aggregate_logs, signoz_search_logs, signoz_aggregate_traces,
+                      signoz_search_traces, signoz_get_trace_details, signoz_list_views, signoz_get_view, signoz_list_notification_channels,
+                      signoz_get_notification_channel, signoz_list_alerts, signoz_list_alert_rules, signoz_get_alert, signoz_get_alert_history,
+                      signoz_search_docs, signoz_fetch_doc, signoz_list_dashboards, signoz_get_dashboard, signoz_list_dashboard_templates]
     source_links: firefight
     map: none
     history: none
@@ -1080,8 +1257,12 @@ providers:
       scope_separator: ","
       params: { prompt: consent, actor: app }
       pkce: true
-    # The reads Linear names in public (linear.app/changelog). Its MCP page lists no tools, so its others are marked as its server says.
-    read_only_tools: [list_customer_needs, list_teams, get_team, list_projects, get_project, list_comments]
+    # The tools its server's published list marks as reads (test/fixtures/files/linear_mcp_tools.txt says where it came from).
+    read_only_tools: [extract_images, get_agent_skill, get_attachment, get_diff, get_diff_threads, get_document, get_issue, get_issue_status,
+                      get_milestone, get_notifications, get_project, get_release, get_release_note, get_status_updates, get_team, get_template,
+                      get_triage_responsibility, get_user, get_workspace, list_agent_skills, list_comments, list_custom_views, list_cycles, list_diffs,
+                      list_documents, list_issue_labels, list_issues, list_issue_statuses, list_milestones, list_project_labels, list_projects,
+                      list_release_notes, list_release_pipelines, list_releases, list_teams, list_templates, list_users, search_documentation]
     source_links: firefight
     map: none
     history: none
@@ -1199,6 +1380,15 @@ providers:
     # An organization API key, from the organization's settings (neon.com/docs/manage/api-keys), sent as Bearer
     # (neon.com/docs/ai/neon-mcp-server). A personal key loses the organization when its person leaves.
     token: { hint: "Use an organization API key, from your organization's Settings, API keys. Unlike a personal key, it keeps working when someone leaves the organization." }
+    # The tools its server's published list marks as reads (test/fixtures/files/neon_mcp_tools.txt says where it came from).
+    read_only_tools: [list_organizations, describe_table_schema, get_database_tables, describe_branch, get_neon_auth_config, list_slow_queries,
+                      inspect_database, search, fetch, list_docs_resources, get_doc_resource, list_projects, describe_project,
+                      list_project_permissions, list_project_members, list_regions, list_operations, get_operation, list_branches, get_branch,
+                      get_default_branch, compare_database_schema, list_postgres_roles, get_postgres_role, list_postgres_databases,
+                      get_postgres_database, list_postgres_endpoints, list_branch_computes, get_postgres_endpoint, list_snapshots,
+                      get_snapshot_schedule, get_auth, list_auth_trusted_domains, get_data_api, query_logs, list_log_fields, list_log_field_values,
+                      get_ai_gateway, list_functions, get_function, list_functions_custom_domains, list_triggers, get_trigger, list_credentials,
+                      get_storage, list_storage_buckets, list_storage_objects, get_realtime]
     source_links: firefight
     map: firefight
     scaling: none
@@ -1233,6 +1423,11 @@ providers:
     # Supabase has no token that is not a person's for its MCP server, which takes a personal access token as a header
     # (supabase.com/docs/guides/getting-started/mcp, supabase.com/docs/guides/platform/personal-access-tokens).
     token: { hint: "Use a scoped personal access token. Make it as a dedicated user, such as Firefight, so changes do not show as a teammate and the connection keeps working when someone leaves." }
+    # The tools its server's published list marks as reads (test/fixtures/files/supabase_mcp_tools.txt says where it came from).
+    read_only_tools: [list_edge_functions, get_edge_function, get_logs, query_logs, get_advisors, list_organizations, get_organization, list_projects,
+                      get_project, get_cost, confirm_cost, get_project_url, get_publishable_keys, generate_typescript_types, list_tables,
+                      list_extensions, list_migrations, list_branches, list_storage_buckets, get_storage_config, search_docs, list_notebooks,
+                      get_notebook]
     source_links: firefight
     map: firefight
     scaling: none
@@ -1252,6 +1447,14 @@ providers:
     # A service token belongs to the organization, and the hosted server takes its secret alone as Bearer, refusing
     # <id>:<secret> (planetscale.com/docs/mcp/service-token).
     token: { hint: "Use a service token from your organization's settings, so the connection is not one person's. Paste its secret alone after Bearer, without its id." }
+    # The tools its server's published list marks as reads (test/fixtures/files/planetscale_mcp_tools.txt says where it came from).
+    read_only_tools: [planetscale_list_organizations, planetscale_list_databases, planetscale_list_branches, planetscale_get_organization,
+                      planetscale_get_database, planetscale_get_branch, planetscale_get_branch_schema, planetscale_execute_read_query,
+                      planetscale_get_insights, planetscale_list_regions_for_organization, planetscale_list_cluster_sizes, planetscale_list_invoices,
+                      planetscale_get_invoice_line_items, planetscale_get_organization_billing_payment_method, planetscale_get_payment_method_setup,
+                      planetscale_search_documentation, planetscale_list_schema_recommendations, planetscale_list_query_error_patterns,
+                      planetscale_list_query_error_executions, planetscale_get_postgres_logs, planetscale_list_query_tags, planetscale_get_query_tag,
+                      planetscale_list_query_tag_summaries, planetscale_get_branch_metrics]
     source_links: firefight
     map: firefight
     scaling: none
@@ -1269,6 +1472,10 @@ providers:
     description: Read-only queries, service state, server logs, failed queries and metrics of your ClickHouse Cloud services.
     server_url: https://mcp.clickhouse.cloud/mcp
     site: https://console.clickhouse.cloud
+    # The tools its server's published list marks as reads (test/fixtures/files/clickhouse_mcp_tools.txt says where it came from).
+    read_only_tools: [run_select_query, list_databases, list_tables, get_organizations, get_organization_details, get_services_list,
+                      get_service_details, list_service_backups, get_service_backup_details, get_service_backup_configuration, list_clickpipes,
+                      get_clickpipe, get_organization_cost]
     source_links: firefight
     map: firefight
     scaling: none
@@ -1316,6 +1523,8 @@ providers:
     hosts: [ turso.io, api.turso.tech ]
     description: Read-only queries, top queries and the state of your Turso databases and their branches.
     server_url: https://mcp.turso.ai/mcp
+    # The tools its server's published list marks as reads (test/fixtures/files/turso_mcp_tools.txt says where it came from).
+    read_only_tools: [list_databases, get_database, list_branches, database_analytics, read_database]
     source_links: none
     source_links_note: "Turso documents no dashboard address for a database, and its tools' answers carry none."
     map: firefight
@@ -1334,6 +1543,10 @@ providers:
     description: State and metrics of your Upstash Redis databases, and QStash delivery logs and dead letter queues.
     server_url: https://mcp.upstash.com/mcp
     site: https://console.upstash.com
+    # The tools its server's published list marks as reads (test/fixtures/files/upstash_mcp_tools.txt says where it came from).
+    read_only_tools: [redis_list_databases, redis_get_database, redis_get_stats, redis_list_backups, qstash_list_users, qstash_list_schedules,
+                      qstash_flow_control_get, logs_list, dlq_list, index_list, index_get, index_info, index_list_namespaces, index_fetch, index_range,
+                      vector_query, search_query, box_logs, box_metrics, box_account]
     source_links: firefight
     map: firefight
     scaling: none

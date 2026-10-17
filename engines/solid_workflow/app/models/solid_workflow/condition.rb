@@ -58,10 +58,10 @@ module SolidWorkflow
       when OPERATOR_MATCHES_REGEX then Regexp.new(right.to_s, timeout: REGEX_TIMEOUT).match?(left.to_s)
       when OPERATOR_IS_EMPTY then left.blank?
       when OPERATOR_IS_NOT_EMPTY then left.present?
-      when OPERATOR_GREATER_THAN then ordered(left, right) { |a, b| a > b }
-      when OPERATOR_GREATER_OR_EQUAL then ordered(left, right) { |a, b| a >= b }
-      when OPERATOR_LESS_THAN then ordered(left, right) { |a, b| a < b }
-      when OPERATOR_LESS_OR_EQUAL then ordered(left, right) { |a, b| a <= b }
+      when OPERATOR_GREATER_THAN then ordered(left, right) { |left_value, right_value| left_value > right_value }
+      when OPERATOR_GREATER_OR_EQUAL then ordered(left, right) { |left_value, right_value| left_value >= right_value }
+      when OPERATOR_LESS_THAN then ordered(left, right) { |left_value, right_value| left_value < right_value }
+      when OPERATOR_LESS_OR_EQUAL then ordered(left, right) { |left_value, right_value| left_value <= right_value }
       else raise ArgumentError, "Unknown condition operator #{operator.inspect}"
       end
     rescue RegexpError, Regexp::TimeoutError

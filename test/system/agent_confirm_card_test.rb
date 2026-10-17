@@ -112,7 +112,7 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
   end
 
   test "allowing a tool for the rest of the chat answers every question about it" do
-    pause_on("delete_permission_set", "delete_permission_set")
+    pause_on("delete_catalog_entry", "delete_catalog_entry")
     visit agent_chat_path(@conversation)
 
     question("set_1") do
@@ -121,7 +121,18 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
     end
 
     assert_decided [ Chat::APPROVAL_APPROVED ] * 2
-    assert @chat.reload.allows_tool?("delete_permission_set")
+    assert @chat.reload.allows_tool?("delete_catalog_entry")
+  end
+
+  test "a change to who may do what is asked about every time, so its card never offers to allow it for the chat" do
+    pause_on("delete_permission_set")
+    visit agent_chat_path(@conversation)
+
+    question("set_1") do
+      assert_button "Approve"
+      assert_no_text "Allow for the rest of this chat"
+    end
+    page.save_screenshot(Rails.root.join("tmp/screenshots/confirm-card-permission-change.png"))
   end
 
   test "a call through a connection keeps what the tool reaches and its arguments under Details" do
@@ -207,13 +218,12 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
   private
 
   test "a time a workflow would run at reads in the viewer's own time zone, with the zone named" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     page.driver.browser.execute_cdp("Emulation.setTimezoneOverride", timezoneId: "Europe/Belgrade")
     # A June morning still to come, when Belgrade is two hours ahead of UTC, so the card has a run ahead of it.
     at = Time.utc(Time.current.year + 1, 6, 14, 7)
     message = @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
     arguments = { "name" => "Morning look", "trigger" => { "kind" => "once_at", "at" => at.strftime("%Y-%m-%dT%H:%M"), "time_zone" => "UTC" },
-                  "steps" => [ { "name" => "look", "kind" => "call_tool", "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => {} } } ],
+                  "steps" => [ { "name" => "look", "kind" => "call_tool", "config" => { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => {} } } ],
                   "short_title" => "Make Morning look", "intent" => "Look around in the morning" }
     @chat.request_decisions!([ message.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Conversation::Tools::CreateWorkflow::NAME, arguments: arguments).tool_call_id ])
     @conversation.reply_delivered!

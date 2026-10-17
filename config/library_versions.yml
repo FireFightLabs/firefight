@@ -703,8 +703,8 @@ skills:
     version: 1
     digest: 7cc5d3227981c56bb577d7b0e33a31c8bc1ac9a6904d3f89d929dae7a2ee9a0e
   running_runbooks:
-    version: 1
-    digest: a3f3cd4e6d742c3bf07ebe4f999a7f935c8fccb7505792f632f2258846105da7
+    version: 2
+    digest: 33b58ebbee06da09e70938765e6deb2b6346b274f4578db850268302d15b3a8a
   saving_runbooks:
     version: 1
     digest: 8bdf2f4ef467854dc29d79bece497b66e9f8bdfd8af1e80bea602530daf93f9b

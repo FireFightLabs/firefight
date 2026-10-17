@@ -132,17 +132,11 @@ class WorkspaceMembership < ApplicationRecord
       "decides who may ask, and a grant of a connection's reads, alone or in a pack, decides where they read it. What members " \
       "can do in each tool, above, can leave a connection's reads to the people chosen for it, or let every member change it. No access " \
       "below takes any of these away at once, and Restore gives it back. Configuring the workspace and any tool that " \
-      "changes something needs one of the grants below, such as a connection's changes pack."
+      "changes something needs one of the grants below, such as a connection's changes pack. Members also build " \
+      "workflows, test them and run published ones. Publishing one is an admin's."
   }.freeze
 
-  # Said only where workflows are switched on, since a member holds them without a grant there.
-  WORKFLOWS_NOTE = "Members also build workflows, test them and run published ones. Publishing one is an admin's.".freeze
-
-  def implicit_authority_note
-    note = IMPLICIT_AUTHORITY_NOTES.fetch(implicit_authority)
-    workflows = implicit_authority == Principal::IMPLICIT_MEMBER && FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS)
-    workflows ? "#{note} #{WORKFLOWS_NOTE}" : note
-  end
+  def implicit_authority_note = IMPLICIT_AUTHORITY_NOTES.fetch(implicit_authority)
 
   # Where each default stands for this member, which the Permissions screen shows and lets an admin take away. A
   # connection's reads are one row, its read pack, rather than a row for each tool.
@@ -154,7 +148,7 @@ class WorkspaceMembership < ApplicationRecord
     withheld = grants.select { |grant| grant.workspace_id == workspace_id && grant.no_access? }
     by_action = withheld.select(&:action).index_by { |grant| grant.action.key }
     by_role = withheld.select(&:role).index_by(&:role_id)
-    system = (NARROWABLE_KEYS - Ability::Action.hidden_keys(workspace)).map do |key|
+    system = NARROWABLE_KEYS.map do |key|
       DefaultAccess.new(action: Ability::Action.system!(key), role: nil, state: default_state(key, by_action, resolved), grant: by_action[key])
     end
     system + read_packs.map do |pack|
@@ -187,6 +181,64 @@ class WorkspaceMembership < ApplicationRecord
 
   def read_packs = @read_packs ||= self.class.read_packs_of(workspace)
   private :read_packs
+
+  # Said to a removed person wherever they reach Firefight, so being removed is never undone by using the chat.
+  REMOVED_REFUSAL = "An admin removed you from this Firefight workspace. Ask an admin if you should be added back.".freeze
+
+  scope :current_members, -> { where(removed_at: nil) }
+  scope :removed, -> { where.not(removed_at: nil) }
+
+  def removed? = removed_at.present?
+
+  # Why by cannot remove this member, or nil.
+  def removal_blocked_reason(by)
+    return "#{display_name} was already removed." if removed?
+    return "You can't remove yourself. Ask another admin." if by && by.id == id
+    return "Only an owner can remove an owner." if owner_role? && !by&.owner_role?
+
+    "#{display_name} is the only owner, so they can't be removed." if owner_role? && owner_count == 1
+  end
+
+  def restore_blocked_reason = ("#{display_name} is already a member." unless removed?)
+
+  # One guarded write, so two admins removing at once remove once.
+  def mark_removed!
+    won = self.class.where(id: id, removed_at: nil).update_all(removed_at: Time.current, updated_at: Time.current) == 1
+    reload
+    won
+  end
+
+  def restore!
+    won = self.class.where(id: id).where.not(removed_at: nil).update_all(removed_at: nil, updated_at: Time.current) == 1
+    reload
+    won
+  end
+
+  # What removing each member would take away, in one subquery each for the whole list.
+  scope :with_access_counts, lambda {
+    select(
+      "workspace_memberships.*",
+      "(SELECT COUNT(*) FROM api_keys WHERE api_keys.workspace_membership_id = workspace_memberships.id " \
+      "AND api_keys.deleted_at IS NULL AND api_keys.active) AS personal_token_count",
+      "(SELECT COUNT(DISTINCT application_id) FROM oauth_access_tokens WHERE oauth_access_tokens.resource_owner_id = " \
+      "workspace_memberships.id AND oauth_access_tokens.revoked_at IS NULL) AS connected_agent_count",
+      sanitize_sql_array([ "(SELECT COUNT(*) FROM workspace_memberships owners WHERE owners.workspace_id = " \
+                           "workspace_memberships.workspace_id AND owners.role = ? AND owners.removed_at IS NULL) AS owner_count",
+                           roles[:owner] ])
+    )
+  }
+
+  def live_personal_token_count
+    has_attribute?(:personal_token_count) ? self[:personal_token_count].to_i : personal_api_keys.where(deleted_at: nil, active: true).count
+  end
+
+  def owner_count
+    has_attribute?(:owner_count) ? self[:owner_count].to_i : workspace.workspace_memberships.owner_role.count
+  end
+
+  def connected_agent_count
+    has_attribute?(:connected_agent_count) ? self[:connected_agent_count].to_i : oauth_access_tokens.where(revoked_at: nil).distinct.count(:application_id)
+  end
 
   scope :by_role, ->(role) { where(role: role) }
   scope :owners, -> { where(role: :owner) }
@@ -228,28 +280,28 @@ class WorkspaceMembership < ApplicationRecord
 
   # Locks the workspace so "am I the first member" and the insert are one
   # step. Two installs finishing at once would otherwise both become owner.
-  def self.find_or_create_from_omniauth!(user, workspace, auth_hash)
+  def self.find_or_create_for_platform_user!(user, workspace, platform_user_id:, platform_data:)
     transaction do
       # A separate instance on purpose. with_lock reloads, which clears
       # previously_new_record? that the install flow reads afterwards.
       Workspace.lock.find(workspace.id)
-      create_from_omniauth!(user, workspace, auth_hash)
+      create_for_platform_user!(user, workspace, platform_user_id: platform_user_id, platform_data: platform_data)
     end
   end
 
-  # A member who joined before the workspace connected Slack keeps their row and gains their platform id.
-  def self.create_from_omniauth!(user, workspace, auth_hash)
+  # A member who joined before the workspace connected a chat platform keeps their row and gains their platform id.
+  def self.create_for_platform_user!(user, workspace, platform_user_id:, platform_data:)
     is_first_member = workspace.workspace_memberships.empty?
 
     membership = find_or_create_by!(
       user: user,
       workspace: workspace
     ) do |created|
-      created.platform_user_id = auth_hash.uid
+      created.platform_user_id = platform_user_id
       created.role = is_first_member ? :owner : :member
-      created.platform_data = auth_hash.extra.user_info
+      created.platform_data = platform_data
       created.joined_at = Time.current
     end
-    membership.link_platform_user!(auth_hash.uid, auth_hash.extra.user_info)
+    membership.link_platform_user!(platform_user_id, platform_data)
   end
 end

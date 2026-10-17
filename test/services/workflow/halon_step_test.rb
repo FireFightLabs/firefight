@@ -6,7 +6,6 @@ class Workflow::HalonStepTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     Investigation.stubs(:unavailable_reason).returns(nil)
     workflow = Workflow.create!(workspace: @workspace, name: "Probe", created_by: @alice)
     workflow.open_draft!(by: @alice).update!(steps: [ { "id" => "pause", "name" => "pause", "kind" => "delay", "config" => { "minutes" => 5 } } ])
@@ -52,7 +51,7 @@ class Workflow::HalonStepTest < ActiveSupport::TestCase
 
   test "the run's sandbox time counts against its spending ceiling beside its AI" do
     @run.workflow.update!(cost_cap_cents: 10)
-    CodeBox.create!(workspace: @workspace, key: @run.code_box_key, provider: SandboxProviders::BOAT, box_ref: "bx_1", address: "https://box.example.com",
+    CodeBox.create!(workspace: @workspace, key: @run.code_box_key, provider: Integrations::Sandboxes::Boat::KEY, box_ref: "bx_1", address: "https://box.example.com",
                     secret: "k", last_used_at: Time.current, box_started_at: 1.hour.ago, hourly_micros: 60_000, stopped_at: Time.current, running_seconds: 3600)
     Inference.create!(workspace: @workspace, inferable: @run, feature: FirefightAi::WorkflowAnswer::FEATURE, provider: "openai", model: "gpt", cost_micros: 40_000, status: "success")
     FirefightAi::WorkflowAnswer.any_instance.expects(:answer).never
@@ -71,7 +70,6 @@ class Workflow::HalonStepTest < ActiveSupport::TestCase
   end
 
   test "a skill the workspace switched off is not followed, and the step says so" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
     skill = Chat::CustomSkill.create_with!(workspace: @workspace, name: "game_day", by: @alice,
                                            content: { "when" => "A drill", "tools" => [ "get_form" ], "steps" => "1. Read `get_form`." })
     skill.switch!(on: false)

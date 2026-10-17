@@ -1,0 +1,16 @@
+# The tools ClickHouse Cloud's remote MCP server documents under Available tools at clickhouse.com/docs/products/cloud/features/ai-ml/remote-mcp
+# (read 2026-10-16), one per line. The page says every tool is read only and run_select_query accepts SELECT statements alone.
+# Each line is a tool as its server names it and whether it only reads or changes something.
+run_select_query read
+list_databases read
+list_tables read
+get_organizations read
+get_organization_details read
+get_services_list read
+get_service_details read
+list_service_backups read
+get_service_backup_details read
+get_service_backup_configuration read
+list_clickpipes read
+get_clickpipe read
+get_organization_cost read

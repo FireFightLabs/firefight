@@ -1,4 +1,4 @@
-# Where the box puts a coding agent's permission question, on its session's token: OpenCode asks before a step
+# Where the box puts a coding agent's permission question, on its session's token. OpenCode asks before a step
 # Fixing::PERMISSIONS marks ask, and Halon or the person decides it (CodeAgentPermissionService). One request waits a
 # little for the decision and otherwise says to ask again.
 class CodeAgentPermissionsController < ActionController::API

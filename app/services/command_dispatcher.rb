@@ -33,8 +33,8 @@ class CommandDispatcher
     AuthorizedDispatch.call(authorizing_handler(command), command, context: { incident_id: command.incident&.id }) do
       handler.execute(command)
     end
-  rescue AuthorizedDispatch::PrincipalUnresolved
-    Command.ephemeral(AuthorizedDispatch::UNRESOLVED_MESSAGE)
+  rescue AuthorizedDispatch::PrincipalUnresolved => e
+    Command.ephemeral(e.message)
   rescue AbilityGateway::Denied => e
     Command.ephemeral(AuthorizedDispatch.denied_message(e))
   rescue AbilityGateway::PendingApproval => e

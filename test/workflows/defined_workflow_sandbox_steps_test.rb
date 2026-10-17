@@ -12,7 +12,6 @@ class DefinedWorkflowSandboxStepsTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     FirefightAi::WorkflowRepair.any_instance.stubs(:suggest).returns(nil)
     WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:post_workflow_failure).returns({})
     Integrations::Terminal.stubs(:available?).returns(true)
@@ -60,7 +59,7 @@ class DefinedWorkflowSandboxStepsTest < ActiveSupport::TestCase
   # The run's box started and ten seconds passing while its command runs.
   def ten_seconds_in_the_box(workflow)
     proc do |*|
-      CodeBox.create!(workspace: @workspace, key: workflow.runs.sole.code_box_key, provider: SandboxProviders::BOAT, box_ref: "bx_9", address: "https://box.example.com",
+      CodeBox.create!(workspace: @workspace, key: workflow.runs.sole.code_box_key, provider: Integrations::Sandboxes::Boat::KEY, box_ref: "bx_9", address: "https://box.example.com",
                       secret: "k", last_used_at: Time.current, box_started_at: Time.current, hourly_micros: 360_000)
       travel 10.seconds
       true

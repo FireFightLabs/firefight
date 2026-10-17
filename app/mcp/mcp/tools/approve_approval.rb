@@ -1,13 +1,15 @@
 module Mcp
   module Tools
     class ApproveApproval < Base
-      tool_name APPROVE_APPROVAL
+      tool_name FirefightTools::APPROVE_APPROVAL
       description "Approve a pending ability approval by id, as the connected human. Only " \
                   "personal tokens and OAuth connections can resolve approvals — the approver " \
                   "is re-validated (role now, requester rules) at this moment. The requester " \
                   "then retries their parked call with approval_id. Docs: #{Docs::MCP_SERVER}"
       annotations(**WRITE)
       authorize_as Ability::Action::RESOURCE_APPROVALS, Ability::Action::ACTION_UPDATE
+
+      def self.token_refusal(workspace, args) = workspace.ability_approvals.find_by(id: args[:id].to_s)&.approve_with_token_blocked_reason
       input_schema(
         properties: {
           id: { type: "string", description: "Approval id" }

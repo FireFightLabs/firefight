@@ -6,8 +6,6 @@ class WorkflowsController < InertiaController
   authorizes Ability::Action::RESOURCE_WORKFLOWS, read: %i[index], create: %i[create run ask_publish],
                                                   update: %i[update publish enable disable repeat], delete: %i[destroy]
 
-  include RequiresWorkflows
-
   before_action :set_workflow, except: %i[index create]
 
   TAB_QUERY = "tab".freeze
@@ -106,8 +104,7 @@ class WorkflowsController < InertiaController
     blocked = @workflow.deletion_blocked_reason
     return redirect_to(workflow_path(@workflow), alert: blocked) if blocked
 
-    @workflow.agent&.destroy!
-    @workflow.destroy!
+    @workflow.destroy_with_agent!
     redirect_to halon_workflows_path, notice: "#{@workflow.name} was deleted."
   end
 

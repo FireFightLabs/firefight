@@ -74,7 +74,7 @@ class WorkflowRunEndService
 
   def stop_watches!
     Chat::Watch.active.joins(:chat).where(chats: { owner_type: Workflow::Run::Step.name, owner_id: @run.steps.select(:id) }).find_each do |watch|
-      Conversation::Watches.finish!(watch, Chat::Watch::STATUS_STOPPED, "Stopped, since the run it was for ended.")
+      Conversation::Watches.finish!(watch, Chat::Watch::STATUS_STOPPED, "Stopped, since the run it was for ended.", end_reason: "The run it was for ended.")
     end
   end
 
@@ -116,7 +116,7 @@ class WorkflowRunEndService
 
   # Halon reads why the step failed and, when its settings caused it, suggests a change as a proposal on the workflow,
   # which a person accepts or dismisses. True when it made one. Once per kind of failure for each published version
-  # (Workflow::Version#claim_repair!): a run failing in a way Halon already looked at spends nothing, unless that look
+  # (Workflow::Version#claim_repair!), so a run failing in a way Halon already looked at spends nothing, unless that look
   # broke before Halon answered.
   def suggest_repair!
     return false if Investigation.unavailable_reason(@workspace)

@@ -1,7 +1,6 @@
-# Who saves a provider's copy of one sandbox image version, named as the provider keeps it. Boxes that start at
-# once for a new version all find no copy, and only the one that claims it here saves it. The others pull the image
-# and never save. The sweep claims it ahead of need (Provider#prepare_image!). A claim not finished within
-# ABANDONED_AFTER, by a process that died, can be taken over.
+# Who saves a provider's copy of one sandbox image version for one workspace, named as the provider keeps it. Only a
+# box started ahead of need saves it (Provider#prepare_image!), never a run's, and one claim wins the save. A claim not
+# finished within ABANDONED_AFTER, by a process that died, can be taken over.
 class SandboxImageCopy < ApplicationRecord
   STATUS_UNCLAIMED = "unclaimed".freeze
   STATUS_SAVING = "saving".freeze
@@ -35,6 +34,6 @@ class SandboxImageCopy < ApplicationRecord
     where(provider: provider, name: name).where.not(status: STATUS_READY).update_all(status: STATUS_READY, updated_at: Time.current)
   end
 
-  # Rows for the provider's image versions other than the one it runs now.
-  def self.forget_others!(provider, name) = where(provider: provider).where.not(name: name).delete_all
+  # Rows for the provider's image versions other than the one it runs now, whose copies are all named from prefix.
+  def self.forget_others!(provider, prefix) = where(provider: provider).where.not("name LIKE ?", "#{sanitize_sql_like(prefix)}%").delete_all
 end

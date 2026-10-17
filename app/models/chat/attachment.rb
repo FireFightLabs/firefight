@@ -71,6 +71,15 @@ class Chat::Attachment < ApplicationRecord
   scope :unsent, -> { where(chat_id: nil) }
   scope :abandoned, -> { unsent.where(created_at: ...UNSENT_FOR.ago) }
 
+  # Files shared with Halon about these incidents, whether a chat or an investigation of the incident read them.
+  def self.of_incidents(workspace, incidents)
+    conversations = workspace.conversations.where(subject_type: Incident.name, subject_id: incidents)
+    investigations = workspace.investigations.where(subject_type: Incident.name, subject_id: incidents)
+    chats = Chat.where(owner_type: Conversation.name, owner_id: conversations.select(:id))
+      .or(Chat.where(owner_type: Investigation.name, owner_id: investigations.select(:id)))
+    where(chat_id: chats.select(:id))
+  end
+
   def self.rules_for(workspace, model_id: nil, provider: nil)
     unless model_id
       choice = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: workspace)

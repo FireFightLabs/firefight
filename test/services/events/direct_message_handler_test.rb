@@ -251,6 +251,16 @@ class Events::DirectMessageHandlerTest < ActiveSupport::TestCase
     assert_equal 0, @workspace.conversations.count
   end
 
+  test "a guest who writes to Halon is told guests cannot use Firefight, and asks nothing" do
+    Slack::Client.stubs(:get_user_info).returns({ user: { id: "U0GUEST", team_id: @workspace.platform_id, is_restricted: true } })
+    Slack::Client.expects(:post_message).with { |arguments| arguments[:text] == Slack::WorkspaceAdapter::GUEST_REFUSAL }.returns({ ok: true, ts: "1" })
+
+    write("hello", ts: "1700000000.000100", user: "U0GUEST")
+
+    assert_equal 0, @workspace.conversations.count
+    assert_not @workspace.workspace_memberships.exists?(platform_user_id: "U0GUEST")
+  end
+
   test "someone whose account cannot be read is told so and asks nothing" do
     Slack::Client.stubs(:get_user_info).raises(AdapterError, "user_not_found")
     Slack::Client.expects(:post_message).with { |arguments| arguments[:text] == AuthorizedDispatch::UNRESOLVED_MESSAGE }.returns({ ok: true, ts: "1" })

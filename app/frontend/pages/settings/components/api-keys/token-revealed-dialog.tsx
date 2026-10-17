@@ -12,12 +12,23 @@ import {
 } from "@/components/ui/dialog"
 import { whenClosed } from "@/lib/handlers"
 
+const API_KEY_TITLE = "API key created"
+const API_KEY_DESCRIPTION = "Copy this token now. For security reasons it cannot be shown again, and there's no way to recover it later."
+const API_KEY_WARNING = "If you lose this token, you'll need to revoke this key and create a new one. Store it somewhere safe (a password manager or your secrets store)."
+
+// Shows a credential once. A caller that is not an API key, such as a webhook's signing secret, names it in its own words.
 export function TokenRevealedDialog({
   token,
   onDismiss,
+  title = API_KEY_TITLE,
+  description = API_KEY_DESCRIPTION,
+  warning = API_KEY_WARNING,
 }: {
   token: string | null
   onDismiss: () => void
+  title?: string
+  description?: string
+  warning?: string
 }) {
   const [copied, setCopied] = useState(false)
 
@@ -45,12 +56,9 @@ export function TokenRevealedDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <IconKey className="size-5 text-brand" />
-            API key created
+            {title}
           </DialogTitle>
-          <DialogDescription>
-            Copy this token now. For security reasons it cannot be shown again,
-            and there's no way to recover it later.
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-3 py-2">
@@ -66,10 +74,7 @@ export function TokenRevealedDialog({
 
           <div className="edge-bar flex items-start gap-2 rounded-md bg-warning-tint px-3 py-2 [--edge-bar:var(--warning)] text-xs text-fg-primary [&>svg]:text-warning">
             <IconAlertTriangle className="size-4 shrink-0 mt-0.5" />
-            <p>
-              If you lose this token, you'll need to revoke this key and create a new one.
-              Store it somewhere safe (a password manager or your secrets store).
-            </p>
+            <p>{warning}</p>
           </div>
         </div>
 

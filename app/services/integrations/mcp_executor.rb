@@ -10,9 +10,14 @@ module Integrations
       return { "content" => [ { "type" => "text", "text" => refused } ], "isError" => true } if refused
       SecretReads.refuse!(tool, arguments)
       within = QUICK_READ if quick_read?(tool)
-      result = client_for(tool.integration, environment_row, within: within)
-               .call_tool(name: tool.remote_name, arguments: arguments)
-      kept = Redactions.apply(ToolResult.normalize(result), **Redactions.rules(tool.integration.provider))
+      rules = Redactions.rules(tool.integration.provider)
+      result = begin
+        client_for(tool.integration, environment_row, within: within).call_tool(name: tool.remote_name, arguments: arguments)
+      rescue Integrations::Error => error
+        # The server's own words reach the model and the chat as an answer does, so they lose credentials the same way.
+        raise error.exception(Redactions.message(error.message, **rules))
+      end
+      kept = Redactions.apply(ToolResult.normalize(result), **rules)
       kept = ApiIndex.hinted(kept, tool.integration.provider, tool.name, arguments, failed: failed?(tool, kept))
       SourceLinks.attach(kept, settings: ConnectionSettings.of(environment_row), tool_name: tool.name, arguments: arguments)
     rescue TimedOut
@@ -47,7 +52,9 @@ module Integrations
         "in your answer that #{name} was slow and what you did instead."
     end
 
-    # Names are sanitized into action-key-safe form, spec keeps the server's own name for the call.
+    # Names are sanitized into action-key-safe form, spec keeps the server's own name for the call. A server's readOnlyHint
+    # is its own claim, so a remote tool reads only when the registry lists it (IntegrationProvider::Entry#reads?) or an
+    # admin marks it.
     def self.tool_definitions(integration)
       environment_row = integration.resolve_environment(nil) || integration.integration_environments.enabled.first
 
@@ -56,7 +63,7 @@ module Integrations
           name: local_name(remote["name"]),
           description: remote["description"],
           params_schema: remote["inputSchema"] || {},
-          read_only: remote.dig("annotations", "readOnlyHint") == true,
+          read_only: false,
           spec: { "tool_name" => remote["name"] }
         )
       end

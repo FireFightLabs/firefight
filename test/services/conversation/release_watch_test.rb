@@ -2,7 +2,7 @@ require "test_helper"
 
 # A person's production release runs a Northflank workflow. Halon watches its newest run through run history, which
 # follows it to the end, names the step that failed with why from that step's own log, and is woken by a release
-# flow's live update rather than waiting for its next minute. Only Northflank's API is stubbed: the pack, the gateway,
+# flow's live update rather than waiting for its next minute. Only Northflank's API is stubbed. The pack, the gateway,
 # the capability routing and the watch all run as they do in production.
 class Conversation::ReleaseWatchTest < ActiveSupport::TestCase
   include SlackClientStubHelper
@@ -28,6 +28,7 @@ class Conversation::ReleaseWatchTest < ActiveSupport::TestCase
     NorthflankApi.any_instance.stubs(:addons).returns(Integrations::Pages::Read.new(items: [], complete: true))
     NorthflankApi.any_instance.stubs(:jobs).returns(Integrations::Pages::Read.new(items: [ { "id" => "migrate", "name" => "migrate", "jobType" => "manual" } ], complete: true))
     stub_post_message
+    stub_update_message
     @started = 30.seconds.ago.change(usec: 0)
   end
 

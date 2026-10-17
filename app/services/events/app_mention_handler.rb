@@ -14,6 +14,9 @@ module Events
       # Outside an incident's channel Halon only takes an investigation, which answers in that channel.
       return unless incident || investigate?(user_text)
 
+      refusal = WorkspaceMemberProvisioner.refusal(workspace: workspace, platform_user_id: event["user"], adapter: workspace.adapter)
+      return notify_blocked(workspace, channel_id, event, refusal) if refusal
+
       gate = Entitlements.check(workspace, Entitlements::AI)
       return notify_blocked(workspace, channel_id, event, gate.message) if gate.blocked?
 
@@ -85,7 +88,7 @@ module Events
 
     # People and channels named with their ids kept, so Halon reads who was meant and can act on them.
     def self.read_by_model(workspace, text)
-      text.present? ? workspace.adapter.messages_for_model(texts: [ text ])[text] : text
+      workspace.adapter.message_for_model(text: text)
     end
     private_class_method :read_by_model
 

@@ -77,7 +77,9 @@ Details. Nothing in the card is code: no tool names, arguments, ids or hashes, a
 Details, a modal. When Halon read text from outside that holds the change's own values, the line carries one italic
 caution. Once answered the same message is redrawn to one line saying how it stands, or to a checklist while an approved
 code change runs (`ChangeProgress`, its parts from `Chat::CodeFixProgress#stages`), ending on done with the page it
-made, failed with why, or cancelled by whom. See docs/ai.md, Some changes wait for the person to confirm.
+made, failed with why, or cancelled by whom. The last part is named for where the change goes, which the run knows
+before the agent starts (`Chat::CodeFixProgress#target`): Open a pull request, Push to the pull request (linked to it
+while it runs) or Push to the branch. See docs/ai.md, Some changes wait for the person to confirm.
 
 ```
 :raised_hand:  Halon wants to: add a commit to PR #856
@@ -86,7 +88,7 @@ Address the review comments on PR #856 as you asked.        [Approve] [Cancel] [
 :arrows_counterclockwise:  plan "Add a commit to PR #856"
   ✓ Write the change   3 files changed
   ◌ Check the change
-  ◌ Open a pull request
+  ◌ Push to the pull request   github.com/FireFightLabs/firefight/pull/856
 Approved by @Dana  ·  started 15:05                          [Details]
                          ... when it ends ...
 :white_check_mark:  Add a commit to PR #856
@@ -97,7 +99,7 @@ Done  ·  github.com/FireFightLabs/firefight/pull/856  ·  approved by @Dana    
 
 | | Use |
 |---|---|
-| card | the announcement (`Announcement`), an incident update or cancellation (`StatusUpdate`), a subscriber's update |
+| card | the announcement (`Announcement`), an incident update or cancellation (`StatusUpdate`), a subscriber's update, a watch (`WatchCard`) |
 | alert | resolved (`Resolution`), reopened (`Reopen`), escalated (`Escalation`) |
 | bold `section` | everything else, and the plain form of both |
 
@@ -204,6 +206,12 @@ The shared button only ever subscribes.
   `chat.postMessage` fails. Build the elements first and drop the block when
   the list comes back empty, rather than posting an empty one. `QuickActions`
   does this.
+- **An empty slot in any list is rejected too** ("must provide an object"), so
+  a button a builder left out as `nil` or `false` fails the whole message.
+  `Slack::Client` passes every message's and modal's blocks through
+  `Slack::Blocks.compact` on the way out, which drops those slots and any
+  `actions` or `context` block left with no elements. Builders should still
+  leave nothing out that way, but none can fail a post over it.
 - `plain_text` option labels truncate at **75 characters**, a select holds at
   most **100 options**, a `header` at **150 characters**, and a section's text
   at **3000**.
@@ -314,7 +322,8 @@ means, and a button to the page that fixes it.
 
 ## Messages that are edited in place
 
-An investigation's checklist and a fix's are edited in place the same way, see An investigation in a channel.
+An investigation's checklist and a fix's are edited in place the same way, see An investigation in a channel. So is a
+watch's card, see A watch in Slack.
 
 `Welcome` is the onboarding checklist in `#incidents`, rebuilt from
 `WorkspaceOnboarding#stage` and updated through `update_welcome_message`
@@ -329,7 +338,7 @@ one step per message, posted by `OnboardingWalkthroughService#advance!` as the
 incident earns it (declared, lead set, first message, resolved, postmortem),
 with the last posted step kept on the onboarding row so nothing posts twice. The first step is the last thing
 `IncidentCreationWorkflow` puts in the channel: its step waits on the pinned quick actions and on every other step that
-speaks in or fills the channel (the invites, runbooks, a carried over answer, an alert investigation's start). Those
+speaks in or fills the channel (the invites, runbooks, a carried-over answer, an alert investigation's start). Those
 steps are `on_failure: continue`, so one that fails for good still lets the guide post. Every other caller skips while
 that step is still to run (`IncidentCreationWorkflow.opening?`), so the `incident.created` progress job cannot post it
 above the quick actions. `Resolution` carries the postmortem button and a
@@ -409,6 +418,44 @@ Slack answers a refused block with `invalid_blocks`, which the client raises as 
 (`platform_data["plan_blocks_refused_at"]`, the name it had when plan blocks were the only ones), so later messages go
 plain without asking, and tries the newer blocks again after a week in case the workspace changed plans.
 
+## A watch in Slack
+
+A watch Halon keeps is **one card per place it reports**, edited in place as it moves (`Messages::WatchCard`): one in
+the chat's thread and one in the asker's direct messages, each kept on the watch (`thread_card_*`, `direct_card_*`). The
+first thing the watch says in a place claims posting the card with a guarded update, so two workers never post it
+twice, and everything after redraws it from how the watch stands now. A milestone never posts a message of its own:
+milestones and progress stay in the chat and on the run's page.
+
+The card is three things in plain words, and nothing in it is code (no pod ids, class names or error strings):
+
+- The title is what the watch is for, the person's purpose or else its title, unquoted and led by the state's emoji
+  (`:eyes:` watching, `:white_check_mark:` done, `:x:` failed, `:hourglass:` timed out, `:octagonal_sign:` stopped).
+- The subtitle is the state in a word, Watching, Done, Failed, Timed out or Stopped (`Chat::Watch::Shown.state_word`).
+- The body is one short line on why (`Shown.why`), the step it is on while it goes and the watch's `end_reason` once it
+  ended.
+
+While it goes it offers Stop, Open the run (when the provider gave the run's page) and, in direct messages, Open the
+chat for a dashboard chat. Stop asks first ("Halon stops watching this and says so here. It will not report on it
+again.") and never quotes the title. Once ended it offers only Open the run and Open the chat.
+
+**Editing a message notifies nobody**, so when the watch ends (done, failed, timed out, or stopped by anyone but the
+person who asked) it also posts one short line of its own beside each card, a `Blocks::Alert` led by the same emoji.
+The fallback text of both is the state, what it is for and why, so a notification reads the same as the card.
+
+```
+card  :eyes:  Ship main                                        (while it goes)
+      Watching
+      1 of 2 steps done. Web deploy is running.          [Stop] [Open the run] [Open the chat]
+                         ... when it ends, the same card ...
+card  :white_check_mark:  Ship main
+      Done
+      Took 7 minutes. web is serving 7676c83.                  [Open the run] [Open the chat]
+:white_check_mark:  *Done: Ship main.* Took 7 minutes. web is serving 7676c83.   (a new line, which notifies)
+```
+
+The card goes through `with_rich_blocks`, so a workspace whose Slack does not show cards gets the same words as a
+section, a context line and the buttons. See docs/ai.md, What it says, and where.
+
 ## Asking for a pack
 
 `PackRefusal` is posted in a chat's thread when Halon was refused a change for want of a pack. It names the pack and
@@ -439,7 +486,10 @@ old wording, with who decided in a context line. See docs/ai.md, Halon proposes 
 
 - **Halon shows it is working and when it is done.** A person's mention or direct message gets :eyes:
   (`mark_working`) and the conversation remembers it (`Conversation#acknowledged!`). When the turn answers, or asks to
-  confirm, each remembered message loses :eyes: and gets :heavy_check_mark: (`mark_done`), once. A refused message just
+  confirm, each remembered message loses :eyes: and gets :heavy_check_mark: (`mark_done`), once. When Slack itself fails
+  (a server error, an outage or a rate limit) the message is kept for the next answer, at most
+  `Conversation::MARK_ATTEMPTS` tries in all (`mark_again!`, counted in `mark_attempts`). A message or channel Slack
+  refused for good (gone, archived, not joined) is settled and never tried again. A refused message just
   loses :eyes: (`unmark_working`). A mention added to a live investigation keeps :eyes: until the run's own answer.
 - **A step line is plain words** (`Chat::Tools::Step#shown_line`): the words the agent wrote for the call, or the kind
   of system it read as an investigation's checklist names it ("Read the code", "Checked recent deploys"), never a tool's
@@ -455,7 +505,7 @@ old wording, with who decided in a context line. See docs/ai.md, Halon proposes 
 
 When a person writes to Halon in the app's direct messages, the answer is a reply under their message, streamed like a
 thread chat's (`Conversation::Delivery`), because Slack streams only into a thread. Everything the chat posts after
-that (requests to approve a change, plans, watch updates, handbook proposals) goes in the thread the person last wrote in,
+that (requests to approve a change, plans, watch cards, handbook proposals) goes in the thread the person last wrote in,
 never as a new top-level DM. A reply under one of Firefight's own DMs is answered in that thread too, by the person's
 chat. A refusal is one plain line in the same thread. See docs/ai.md, Direct messages.
 

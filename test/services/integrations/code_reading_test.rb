@@ -60,8 +60,8 @@ module Integrations
       GithubApp.stubs(:installation_token).returns("ghs_token")
       @provider = FakeProvider.new
       Sandboxes.stubs(:provider).returns(@provider)
-      SandboxProviders.stubs(:order_for).returns([ SandboxProviders::DOCKER ])
-      SandboxProviders.stubs(:in_use).returns([ SandboxProviders::DOCKER ])
+      SandboxProviders.stubs(:order_for).returns([ Integrations::Sandboxes::Docker::KEY ])
+      SandboxProviders.stubs(:in_use).returns([ Integrations::Sandboxes::Docker::KEY ])
       Sandboxes::Client.any_instance.stubs(:wait_until_ready!)
       @fixture = FixtureRepo.create!
       CodeReading.any_instance.stubs(:remote_url).returns(@fixture)
@@ -176,9 +176,9 @@ module Integrations
     end
 
     test "a box is reached as its provider says, so a boat box read back from its row sends its token as a cookie" do
-      row = CodeBox.create!(workspace: @workspace, key: "investigation-boat", provider: SandboxProviders::BOAT, box_ref: "bx_1",
+      row = CodeBox.create!(workspace: @workspace, key: "investigation-boat", provider: Integrations::Sandboxes::Boat::KEY, box_ref: "bx_1",
                             **CodeBox.address_columns("https://swift-otter-8080.on.boat.dev?_token=gate"), secret: "k1", last_used_at: Time.current)
-      Sandboxes.stubs(:provider).with(SandboxProviders::BOAT).returns(Sandboxes::Boat.new(api: stub))
+      Sandboxes.stubs(:provider).with(Integrations::Sandboxes::Boat::KEY).returns(Sandboxes::Boat.new(api: stub))
 
       box = CodeReading.box_of(row)
 
@@ -387,16 +387,16 @@ module Integrations
 
     test "a provider that cannot start a box hands over to the backup, and the box remembers who refused it and why" do
       backup = FakeProvider.new
-      SandboxProviders.stubs(:order_for).returns([ SandboxProviders::BOAT, SandboxProviders::NORTHFLANK ])
-      Sandboxes.stubs(:provider).with(SandboxProviders::BOAT).returns(@provider)
-      Sandboxes.stubs(:provider).with(SandboxProviders::NORTHFLANK).returns(backup)
+      SandboxProviders.stubs(:order_for).returns([ Integrations::Sandboxes::Boat::KEY, Integrations::Sandboxes::Northflank::KEY ])
+      Sandboxes.stubs(:provider).with(Integrations::Sandboxes::Boat::KEY).returns(@provider)
+      Sandboxes.stubs(:provider).with(Integrations::Sandboxes::Northflank::KEY).returns(backup)
       @provider.expects(:start).with { |fail_fast:, **| fail_fast }.raises(Sandboxes::Error, "boat.dev answered 503: No machine of this type is ready. (no_ready_machine)")
 
       reading("investigation-failover").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
 
       box = CodeBox.live.find_by!(key: "investigation-failover")
-      assert_equal SandboxProviders::NORTHFLANK, box.provider
-      assert_equal SandboxProviders::BOAT, box.failed_over_from
+      assert_equal Integrations::Sandboxes::Northflank::KEY, box.provider
+      assert_equal Integrations::Sandboxes::Boat::KEY, box.failed_over_from
       assert_equal "boat.dev answered 503: No machine of this type is ready. (no_ready_machine)", box.failover_reason
       assert_equal 1, backup.started.size
     end
@@ -404,12 +404,12 @@ module Integrations
     test "a workspace held to a provider that is down never fails over to the deployment's backup, and the run is told why" do
       SandboxProviders.unstub(:order_for)
       ENV.stubs(:[]).with(anything).returns(nil)
-      ENV.stubs(:[]).with("SANDBOX_PROVIDER").returns(SandboxProviders::BOAT)
-      ENV.stubs(:[]).with("SANDBOX_BACKUP_PROVIDER").returns(SandboxProviders::NORTHFLANK)
-      @workspace.update!(sandbox_provider: SandboxProviders::BOAT)
+      ENV.stubs(:[]).with("SANDBOX_PROVIDER").returns(Integrations::Sandboxes::Boat::KEY)
+      ENV.stubs(:[]).with("SANDBOX_BACKUP_PROVIDER").returns(Integrations::Sandboxes::Northflank::KEY)
+      @workspace.update!(sandbox_provider: Integrations::Sandboxes::Boat::KEY)
       backup = FakeProvider.new
-      Sandboxes.stubs(:provider).with(SandboxProviders::BOAT).returns(@provider)
-      Sandboxes.stubs(:provider).with(SandboxProviders::NORTHFLANK).returns(backup)
+      Sandboxes.stubs(:provider).with(Integrations::Sandboxes::Boat::KEY).returns(@provider)
+      Sandboxes.stubs(:provider).with(Integrations::Sandboxes::Northflank::KEY).returns(backup)
       @provider.expects(:start).once.with { |fail_fast:, **| !fail_fast }.raises(Sandboxes::Error, "boat.dev answered 502: Bad gateway.")
 
       first = assert_raises(Unavailable) { reading("investigation-held").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT) }
@@ -422,7 +422,7 @@ module Integrations
     end
 
     test "when every provider refuses, the run is told each one's reason once" do
-      SandboxProviders.stubs(:order_for).returns([ SandboxProviders::BOAT, SandboxProviders::NORTHFLANK ])
+      SandboxProviders.stubs(:order_for).returns([ Integrations::Sandboxes::Boat::KEY, Integrations::Sandboxes::Northflank::KEY ])
       @provider.stubs(:start).raises(Sandboxes::Error, "refused.")
 
       error = assert_raises(Unavailable) { reading("investigation-nowhere").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT) }
@@ -456,7 +456,7 @@ module Integrations
       reading("investigation-1").prepare("acme/app", ref: "abc")
 
       kept = PreparedCopy.find_by!(workspace: @workspace, repository: "acme/app")
-      assert_equal [ SandboxProviders::DOCKER, "kept-1", "abc" ], [ kept.kept_in, kept.kept_ref, kept.commit ]
+      assert_equal [ Integrations::Sandboxes::Docker::KEY, "kept-1", "abc" ], [ kept.kept_in, kept.kept_ref, kept.commit ]
       assert_equal [ "box-1" ], keeping.kept
 
       seeded = []
@@ -464,7 +464,7 @@ module Integrations
       Sandboxes::Client.any_instance.stubs(:prepare).returns("already" => false, "restored" => true, "prepared" => [], "setup" => [])
       Sandboxes::Client.any_instance.expects(:upload_archive).never
 
-      assert_enqueued_with(job: CodeBoxRetireJob, args: [ SandboxProviders::DOCKER, "box-2" ]) do
+      assert_enqueued_with(job: CodeBoxRetireJob, args: [ Integrations::Sandboxes::Docker::KEY, "box-2" ]) do
         reading("investigation-2").prepare("acme/app", ref: "def")
       end
 
@@ -479,7 +479,7 @@ module Integrations
     test "a box already holding another repository keeps its work and installs from nothing" do
       keeping = KeepingProvider.new
       Sandboxes.stubs(:provider).returns(keeping)
-      PreparedCopy.kept!(SandboxProviders::DOCKER, @workspace, "acme/app", PreparedCopy.key_for(lock_digest: "locks-1", setup_digest: nil),
+      PreparedCopy.kept!(Integrations::Sandboxes::Docker::KEY, @workspace, "acme/app", PreparedCopy.key_for(lock_digest: "locks-1", setup_digest: nil),
                          kept_ref: "kept-old", commit: "abc")
       stub_preparing(lock_digest: "locks-1")
       Sandboxes::Client.any_instance.stubs(:prepare).returns("already" => false, "restored" => false, "prepared" => [ { "exit_code" => 1 } ])
@@ -493,12 +493,14 @@ module Integrations
     test "the sweep asks every provider in use, and lets go of what a provider keeps that nobody used" do
       keeping = KeepingProvider.new
       Sandboxes.stubs(:provider).returns(keeping)
-      old = PreparedCopy.kept!(SandboxProviders::DOCKER, @workspace, "acme/app", "key-1", kept_ref: "kept-old", commit: "abc").first
-      fresh = PreparedCopy.kept!(SandboxProviders::DOCKER, @workspace, "acme/web", "key-1", kept_ref: "kept-fresh", commit: "abc").first
+      old = PreparedCopy.kept!(Integrations::Sandboxes::Docker::KEY, @workspace, "acme/app", "key-1", kept_ref: "kept-old", commit: "abc").first
+      fresh = PreparedCopy.kept!(Integrations::Sandboxes::Docker::KEY, @workspace, "acme/web", "key-1", kept_ref: "kept-fresh", commit: "abc").first
       old.update_columns(last_used_at: (PreparedCopy::KEPT_UNUSED_FOR + 1.day).ago)
 
+      CodeBox.create!(workspace: @workspace, key: "investigation-old", provider: Integrations::Sandboxes::Docker::KEY, box_ref: "box-old", address: "http://box",
+                      secret: "s", last_used_at: Time.current, stopped_at: Time.current)
       CodeReading.sweep_prepared!
-      assert_enqueued_with(job: SandboxImageCopyJob, args: [ SandboxProviders::DOCKER ]) { CodeReading.sweep! }
+      assert_enqueued_with(job: SandboxImageCopyJob, args: [ Integrations::Sandboxes::Docker::KEY, @workspace.id ]) { CodeReading.sweep! }
 
       assert_equal [ "kept-old" ], keeping.discarded
       assert_not PreparedCopy.exists?(old.id)

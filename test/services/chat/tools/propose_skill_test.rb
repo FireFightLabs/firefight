@@ -6,7 +6,6 @@ class Chat::Tools::ProposeSkillTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
     @conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
     @turn = Conversation::Turn.new(@conversation, asker: @member)
   end
@@ -52,10 +51,7 @@ class Chat::Tools::ProposeSkillTest < ActiveSupport::TestCase
     assert_match "Nothing was proposed.", answer
   end
 
-  test "it is offered only with the custom skills flag" do
+  test "it is offered in every workspace" do
     assert_equal [ Chat::Tools::ProposeSkill ], Chat::Tools::ProposeSkill.all(@turn).map(&:class)
-
-    FeatureFlags.disable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
-    assert_empty Chat::Tools::ProposeSkill.all(@turn)
   end
 end

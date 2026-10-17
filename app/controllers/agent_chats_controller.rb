@@ -49,7 +49,7 @@ class AgentChatsController < InertiaController
   PROP_SKILL_PROPOSALS = "skillProposals"
   # Setup's Meet Halon step, while an admin is on it: the question to start with, and whether Halon has answered.
   PROP_SETUP_GUIDE = "setupGuide"
-  # Workflows Halon made in the open chat, each a card with Run now and Cancel, only where the workspace has workflows.
+  # Workflows Halon made in the open chat, each a card with Run now and Cancel.
   PROP_WORKFLOWS = "workflows"
   # The plans Halon keeps in the open chat, each a checklist that moves as it works.
   PROP_PLANS = "plans"
@@ -104,7 +104,7 @@ class AgentChatsController < InertiaController
   MENTIONABLE = 20
   NOTHING_ASKED = "Say something first."
   SECRET_GONE = "That secret is no longer in this chat."
-  CHAT_DELETED = "Chat deleted."
+  CHAT_DELETED = "Chat was deleted."
 
   include ServesChatAttachment
   include PlatformText
@@ -286,7 +286,6 @@ class AgentChatsController < InertiaController
     redirect_to agent_chat_path(conversation), notice: %(Stopped watching "#{watch.title}".)
   end
 
-  # Schedule on a plan waiting for its time. It runs then, as whoever approved it, once a fresh reading says nothing moved.
   # Run now or Cancel on a workflow Halon made in this chat.
   def press_workflow
     workflow = chat_workflows.find_by(id: params[:workflow_id])
@@ -296,6 +295,7 @@ class AgentChatsController < InertiaController
     redirect_to agent_chat_path(conversation), (result.ok ? :notice : :alert) => result.words
   end
 
+  # Schedule on a plan waiting for its time. It runs then, as whoever approved it, once a fresh reading says nothing moved.
   def schedule_plan
     decide_plan { |plan| [ Conversation::Plans.approve!(plan, by: current_membership), "Plan scheduled for #{plan.reload.run_at_words}." ] }
   end
@@ -341,7 +341,7 @@ class AgentChatsController < InertiaController
     send_data copy.text, filename: copy.filename, type: "text/plain", disposition: "attachment"
   end
 
-  # Fix it on a pull request Halon opened from this chat: the code change runs on its branch as whoever asked for it.
+  # Fix it on a pull request Halon opened from this chat. The code change runs on its branch as whoever asked for it.
   def fix_pull_request
     notice = conversation.pull_request_notices.find_by(id: params[:notice_id])
     return redirect_to(agent_chat_path(conversation), alert: "That pull request is no longer in this chat.") unless notice
@@ -371,11 +371,11 @@ class AgentChatsController < InertiaController
     redirect_to agent_chat_path(conversation), (result.ok ? :notice : :alert) => result.words
   end
 
-  # A credential a tool call made, read from the provider now for the person it was made for. Answered as JSON for the
-  # dialog that shows it, and never cached.
+  # A credential a tool call made, read from the provider now, or a Firefight token minted now, for the person it was made
+  # for. Answered as JSON for the dialog that shows it, and never cached.
   def reveal_secret
     response.headers["Cache-Control"] = "no-store"
-    entry = conversation.chat&.secret_entries&.find_by(id: params[:secret_entry_id], kind: Chat::SecretEntry::KIND_REVEAL)
+    entry = conversation.chat&.secret_entries&.find_by(id: params[:secret_entry_id], kind: [ Chat::SecretEntry::KIND_REVEAL, Chat::SecretEntry::KIND_TOKEN ])
     return render(json: { error: SECRET_GONE }, status: :not_found) unless entry
 
     revealed = SecretEntryService.reveal(entry, by: current_membership)
@@ -447,17 +447,11 @@ class AgentChatsController < InertiaController
     @watches_shown ||= on_chat { |chat| window.placed(chat.watches).or(chat.watches.active).includes(:steps, :asker, :updates) }.to_a
   end
 
-  # The workflows made in this chat, none where the workspace has no workflows.
-  def chat_workflows
-    return Workflow.none unless FeatureFlags.enabled?(current_workspace, FeatureFlags::WORKFLOWS)
+  # The workflows made in this chat.
+  def chat_workflows = conversation.workflows.with_run_counts
 
-    conversation.workflows.with_run_counts
-  end
-
-  # The skills Halon proposed in the stretch of the chat on screen, none where the workspace keeps no skills of its own.
+  # The skills Halon proposed in the stretch of the chat on screen.
   def skill_proposals_shown
-    return [] unless Chat::CustomSkill.enabled_for?(current_workspace)
-
     window.placed(conversation.skill_proposals.includes(:decided_by, :parent_version, custom_skill: :live_version).order(:created_at))
   end
 
@@ -581,21 +575,21 @@ class AgentChatsController < InertiaController
     return redirect_back_or_to(agent_chat_path(conversation), alert: "A chat needs a name.") if title.blank?
 
     conversation.rename!(title)
-    redirect_back_or_to agent_chat_path(conversation), notice: "Chat renamed."
+    redirect_back_or_to agent_chat_path(conversation), notice: "Chat was renamed."
   end
 
   def pin
     pinned = ActiveModel::Type::Boolean.new.cast(params[:pinned])
     conversation.pin!(pinned)
 
-    redirect_back_or_to agent_chat_path(conversation), notice: pinned ? "Chat pinned." : "Chat unpinned."
+    redirect_back_or_to agent_chat_path(conversation), notice: pinned ? "Chat was pinned." : "Chat was unpinned."
   end
 
   def archive
     archived = ActiveModel::Type::Boolean.new.cast(params[:archived])
     conversation.archive!(archived)
 
-    redirect_back_or_to agent_chat_path(conversation), notice: archived ? "Chat archived." : "Chat back in the list."
+    redirect_back_or_to agent_chat_path(conversation), notice: archived ? "Chat was archived." : "Chat was restored."
   end
 
   # The list already read the open chat when it is on the page shown, with its chat and previews, so it is not read twice.

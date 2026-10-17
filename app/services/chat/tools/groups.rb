@@ -25,9 +25,9 @@ module Chat::Tools::Groups
   # its own watches. Halon loads the workspace's skills with use_skill and proposes them with propose_skill, so a skill
   # never changes on its word alone.
   NOT_FOR_HALON = [
-    Mcp::Tools::ASK_HALON, Mcp::Tools::GET_HALON_ANSWER, Mcp::Tools::START_INVESTIGATION, Mcp::Tools::LIST_WATCHES, Mcp::Tools::STOP_WATCH,
-    Mcp::Tools::LIST_WORKFLOWS, Mcp::Tools::CREATE_WORKFLOW, Mcp::Tools::RUN_WORKFLOW,
-    Mcp::Tools::LIST_SKILLS, Mcp::Tools::GET_SKILL, Mcp::Tools::UPSERT_SKILL, Mcp::Tools::DELETE_SKILL
+    FirefightTools::ASK_HALON, FirefightTools::GET_HALON_ANSWER, FirefightTools::START_INVESTIGATION, FirefightTools::LIST_WATCHES, FirefightTools::STOP_WATCH,
+    FirefightTools::LIST_WORKFLOWS, FirefightTools::CREATE_WORKFLOW, FirefightTools::RUN_WORKFLOW,
+    FirefightTools::LIST_SKILLS, FirefightTools::GET_SKILL, FirefightTools::UPSERT_SKILL, FirefightTools::DELETE_SKILL
   ].freeze
 
   # The registry's catch all, whose connections have nothing in common but their kind.
@@ -43,51 +43,51 @@ module Chat::Tools::Groups
       key: INCIDENT_HISTORY, title: "Incidents and what happened before",
       covers: "search incidents, find ones that read like this, read one, what was said in its channel, past investigations, how accurate Halon has been",
       tools: [
-        Mcp::Tools::SEARCH_INCIDENTS, Mcp::Tools::SEARCH_SIMILAR, Mcp::Tools::GET_INCIDENT,
-        Mcp::Tools::GET_INCIDENT_TRANSCRIPT, Mcp::Tools::GET_INVESTIGATION, Mcp::Tools::GET_HALON_PERFORMANCE
+        FirefightTools::SEARCH_INCIDENTS, FirefightTools::SEARCH_SIMILAR, FirefightTools::GET_INCIDENT,
+        FirefightTools::GET_INCIDENT_TRANSCRIPT, FirefightTools::GET_INVESTIGATION, FirefightTools::GET_HALON_PERFORMANCE
       ]
     ),
     Firefight.new(
       key: INCIDENT_RESPONSE, title: "Running an incident",
       covers: "declare, post an update, resolve, cancel, reopen, escalate, page whoever is on call, invite people, assign roles, link incidents",
       tools: [
-        Mcp::Tools::DECLARE_INCIDENT, Mcp::Tools::POST_INCIDENT_UPDATE, Mcp::Tools::RESOLVE_INCIDENT,
-        Mcp::Tools::CANCEL_INCIDENT, Mcp::Tools::REOPEN_INCIDENT, Mcp::Tools::ESCALATE_INCIDENT, Mcp::Tools::PAGE_ON_CALL,
-        Mcp::Tools::INVITE_RESPONDERS, Mcp::Tools::ASSIGN_INCIDENT_ROLE, Mcp::Tools::LINK_INCIDENT,
-        Mcp::Tools::GIVE_SHOUTOUT, Mcp::Tools::DISMISS_TIMELINE_NOTE
+        FirefightTools::DECLARE_INCIDENT, FirefightTools::POST_INCIDENT_UPDATE, FirefightTools::RESOLVE_INCIDENT,
+        FirefightTools::CANCEL_INCIDENT, FirefightTools::REOPEN_INCIDENT, FirefightTools::ESCALATE_INCIDENT, FirefightTools::PAGE_ON_CALL,
+        FirefightTools::INVITE_RESPONDERS, FirefightTools::ASSIGN_INCIDENT_ROLE, FirefightTools::LINK_INCIDENT,
+        FirefightTools::GIVE_SHOUTOUT, FirefightTools::DISMISS_TIMELINE_NOTE
       ]
     ),
     Firefight.new(
       key: CHANNELS, title: "Posting in channels",
       covers: "post a message as Firefight in any channel it can post in, such as release notes in #general or a heads up to a " \
               "team, named by the channel's name or link",
-      tools: [ Mcp::Tools::POST_TO_CHANNEL ]
+      tools: [ FirefightTools::POST_TO_CHANNEL ]
     ),
     Firefight.new(
       key: FOLLOW_UPS, title: "Follow-ups and runbooks",
       covers: "action items, finding and reading runbooks, attaching one to an incident, claiming its steps",
       tools: [
-        Mcp::Tools::CREATE_ACTION_ITEM, Mcp::Tools::ASSIGN_ACTION_ITEM, Mcp::Tools::COMPLETE_ACTION_ITEM,
-        Mcp::Tools::RENAME_ACTION_ITEM, Mcp::Tools::REOPEN_ACTION_ITEM, Mcp::Tools::UNASSIGN_ACTION_ITEM,
-        Mcp::Tools::CREATE_ACTION_ITEM_ISSUE, Mcp::Tools::SEARCH_RUNBOOKS, Mcp::Tools::GET_RUNBOOK, Mcp::Tools::ATTACH_RUNBOOK,
-        Mcp::Tools::CLAIM_RUNBOOK_STEP, Mcp::Tools::UPSERT_RUNBOOK
+        FirefightTools::CREATE_ACTION_ITEM, FirefightTools::ASSIGN_ACTION_ITEM, FirefightTools::COMPLETE_ACTION_ITEM,
+        FirefightTools::RENAME_ACTION_ITEM, FirefightTools::REOPEN_ACTION_ITEM, FirefightTools::UNASSIGN_ACTION_ITEM,
+        FirefightTools::CREATE_ACTION_ITEM_ISSUE, FirefightTools::SEARCH_RUNBOOKS, FirefightTools::GET_RUNBOOK, FirefightTools::ATTACH_RUNBOOK,
+        FirefightTools::CLAIM_RUNBOOK_STEP, FirefightTools::UPSERT_RUNBOOK
       ]
     ),
     Firefight.new(
       key: POSTMORTEMS, title: "Postmortems",
       covers: "read one, start one, edit it, move it through review",
       tools: [
-        Mcp::Tools::GET_POSTMORTEM, Mcp::Tools::START_POSTMORTEM, Mcp::Tools::UPDATE_POSTMORTEM,
-        Mcp::Tools::SET_POSTMORTEM_STATUS
+        FirefightTools::GET_POSTMORTEM, FirefightTools::START_POSTMORTEM, FirefightTools::UPDATE_POSTMORTEM,
+        FirefightTools::SET_POSTMORTEM_STATUS
       ]
     ),
     Firefight.new(
       key: ALERTS, title: "Alerts and routing",
       covers: "search alerts, alert sources, routing rules and trying an alert against them",
       tools: [
-        Mcp::Tools::SEARCH_ALERTS, Mcp::Tools::UPSERT_ALERT_SOURCE, Mcp::Tools::DELETE_ALERT_SOURCE,
-        Mcp::Tools::EVALUATE_ROUTING, Mcp::Tools::UPSERT_ROUTING_RULE, Mcp::Tools::DELETE_ROUTING_RULE,
-        Mcp::Tools::UPDATE_ROUTING_CONFIG
+        FirefightTools::SEARCH_ALERTS, FirefightTools::UPSERT_ALERT_SOURCE, FirefightTools::DELETE_ALERT_SOURCE,
+        FirefightTools::EVALUATE_ROUTING, FirefightTools::UPSERT_ROUTING_RULE, FirefightTools::DELETE_ROUTING_RULE,
+        FirefightTools::UPDATE_ROUTING_CONFIG
       ]
     ),
     Firefight.new(
@@ -98,29 +98,29 @@ module Chat::Tools::Groups
               "what changed around a resource, a service or the whole workspace (deploys, runs, settings, hand edits and changes " \
               "made through Firefight, in one list), and suggest a link",
       tools: [
-        Mcp::Tools::GET_RESOURCE_MAP, Mcp::Tools::SEARCH_MAP, Mcp::Tools::FIND_RESOURCES, Mcp::Tools::GET_RESOURCE, Mcp::Tools::GET_RESOURCE_LINKS,
-        Mcp::Tools::GET_RESOURCE_NEIGHBOURS, Mcp::Tools::TRAVERSE_RESOURCE_MAP, Mcp::Tools::BLAST_RADIUS, Mcp::Tools::RESOURCE_MAP_STATS,
-        Mcp::Tools::SUGGEST_RESOURCE_LINK
+        FirefightTools::GET_RESOURCE_MAP, FirefightTools::SEARCH_MAP, FirefightTools::FIND_RESOURCES, FirefightTools::GET_RESOURCE, FirefightTools::GET_RESOURCE_LINKS,
+        FirefightTools::GET_RESOURCE_NEIGHBOURS, FirefightTools::TRAVERSE_RESOURCE_MAP, FirefightTools::BLAST_RADIUS, FirefightTools::RESOURCE_MAP_STATS,
+        FirefightTools::SUGGEST_RESOURCE_LINK
       ]
     ),
     Firefight.new(
       key: OUTSIDE, title: "Outside providers and what is not connected",
       covers: "read an outside provider's public status page now, such as a payment, email, sign-in, CDN or cloud provider, " \
               "when errors point at it, and find the systems the apps use that no connection reaches, with how to connect each",
-      tools: [ Mcp::Tools::CHECK_STATUS_PAGE, Mcp::Tools::BLIND_SPOTS ]
+      tools: [ FirefightTools::CHECK_STATUS_PAGE, FirefightTools::BLIND_SPOTS ]
     ),
     Firefight.new(
       key: MONITORING, title: "Monitoring and security",
       covers: "the problems Halon raised on its own from scheduled checks and security events, when it said each and whether it got " \
               "worse, and how to check disks, certificates, error budgets, cost, a leaked secret, credential stuffing and suspicious access",
-      tools: [ Mcp::Tools::LIST_NOTICES ]
+      tools: [ FirefightTools::LIST_NOTICES ]
     ),
     Firefight.new(
       key: CATALOG, title: "Services, teams and ownership",
       covers: "search the catalog, who owns what, add or change entries and types",
       tools: [
-        Mcp::Tools::SEARCH_CATALOG, Mcp::Tools::UPSERT_CATALOG_ENTRY, Mcp::Tools::DELETE_CATALOG_ENTRY,
-        Mcp::Tools::UPSERT_CATALOG_TYPE, Mcp::Tools::DELETE_CATALOG_TYPE
+        FirefightTools::SEARCH_CATALOG, FirefightTools::UPSERT_CATALOG_ENTRY, FirefightTools::DELETE_CATALOG_ENTRY,
+        FirefightTools::UPSERT_CATALOG_TYPE, FirefightTools::DELETE_CATALOG_TYPE
       ]
     ),
     Firefight.new(
@@ -128,24 +128,24 @@ module Chat::Tools::Groups
       covers: "what is configured, the workspace settings, severities, statuses, incident types, roles, forms and custom fields, what can be connected, " \
               "the paths Halon may not change in a code host's repositories, a workflow's settings, and the handbook's pages when a person asks for them to change",
       tools: [
-        Mcp::Tools::GET_WORKSPACE_CONFIG, Mcp::Tools::UPDATE_WORKSPACE_SETTINGS, Mcp::Tools::UPDATE_PROTECTED_PATHS, Mcp::Tools::LIST_INTEGRATIONS, Mcp::Tools::UPSERT_SEVERITY, Mcp::Tools::DELETE_SEVERITY,
-        Mcp::Tools::UPSERT_STATUS, Mcp::Tools::DELETE_STATUS, Mcp::Tools::UPSERT_INCIDENT_TYPE,
-        Mcp::Tools::DELETE_INCIDENT_TYPE, Mcp::Tools::UPSERT_INCIDENT_ROLE, Mcp::Tools::DELETE_INCIDENT_ROLE,
-        Mcp::Tools::GET_FORM, Mcp::Tools::UPSERT_FORM_FIELD, Mcp::Tools::UPSERT_CUSTOM_FIELD,
-        Mcp::Tools::LIST_HANDBOOK_PAGES, Mcp::Tools::GET_HANDBOOK_PAGE, Mcp::Tools::UPSERT_HANDBOOK_PAGE, Mcp::Tools::DELETE_HANDBOOK_PAGE,
-        Mcp::Tools::UPDATE_WORKFLOW_SETTINGS, Mcp::Tools::UPDATE_WORKFLOW
+        FirefightTools::GET_WORKSPACE_CONFIG, FirefightTools::UPDATE_WORKSPACE_SETTINGS, FirefightTools::UPDATE_PROTECTED_PATHS, FirefightTools::LIST_INTEGRATIONS, FirefightTools::UPSERT_SEVERITY, FirefightTools::DELETE_SEVERITY,
+        FirefightTools::UPSERT_STATUS, FirefightTools::DELETE_STATUS, FirefightTools::UPSERT_INCIDENT_TYPE,
+        FirefightTools::DELETE_INCIDENT_TYPE, FirefightTools::UPSERT_INCIDENT_ROLE, FirefightTools::DELETE_INCIDENT_ROLE,
+        FirefightTools::GET_FORM, FirefightTools::UPSERT_FORM_FIELD, FirefightTools::UPSERT_CUSTOM_FIELD,
+        FirefightTools::LIST_HANDBOOK_PAGES, FirefightTools::GET_HANDBOOK_PAGE, FirefightTools::UPSERT_HANDBOOK_PAGE, FirefightTools::DELETE_HANDBOOK_PAGE,
+        FirefightTools::UPDATE_WORKFLOW_SETTINGS, FirefightTools::UPDATE_WORKFLOW
       ]
     ),
     Firefight.new(
       key: PERMISSIONS, title: "Permissions and approvals",
       covers: "who may do what, what members can read and change in each tool, permission sets, grants, approval rules, unattended rules, pending approvals, the activity log",
       tools: [
-        Mcp::Tools::LIST_ABILITIES, Mcp::Tools::LIST_PRINCIPALS, Mcp::Tools::UPSERT_PERMISSION_SET,
-        Mcp::Tools::DELETE_PERMISSION_SET, Mcp::Tools::GRANT_ABILITY, Mcp::Tools::REVOKE_GRANT,
-        Mcp::Tools::LIST_MEMBER_ACCESS, Mcp::Tools::SET_MEMBER_ACCESS,
-        Mcp::Tools::UPSERT_APPROVAL_RULE, Mcp::Tools::DELETE_APPROVAL_RULE, Mcp::Tools::LIST_UNATTENDED_RULES,
-        Mcp::Tools::UPSERT_UNATTENDED_RULE, Mcp::Tools::DELETE_UNATTENDED_RULE, Mcp::Tools::SEARCH_APPROVALS,
-        Mcp::Tools::APPROVE_APPROVAL, Mcp::Tools::DENY_APPROVAL, Mcp::Tools::SEARCH_ACTIVITY
+        FirefightTools::LIST_ABILITIES, FirefightTools::LIST_PRINCIPALS, FirefightTools::UPSERT_PERMISSION_SET,
+        FirefightTools::DELETE_PERMISSION_SET, FirefightTools::GRANT_ABILITY, FirefightTools::REVOKE_GRANT,
+        FirefightTools::LIST_MEMBER_ACCESS, FirefightTools::SET_MEMBER_ACCESS,
+        FirefightTools::UPSERT_APPROVAL_RULE, FirefightTools::DELETE_APPROVAL_RULE, FirefightTools::LIST_UNATTENDED_RULES,
+        FirefightTools::UPSERT_UNATTENDED_RULE, FirefightTools::DELETE_UNATTENDED_RULE, FirefightTools::SEARCH_APPROVALS,
+        FirefightTools::APPROVE_APPROVAL, FirefightTools::DENY_APPROVAL, FirefightTools::SEARCH_ACTIVITY
       ]
     ),
     Firefight.new(
@@ -154,10 +154,10 @@ module Chat::Tools::Groups
               "workspace's incident events to a URL the team owns. Never a provider's webhooks, such as a deploy or " \
               "workflow trigger at a hosting provider or a code host's webhooks, which that provider's own tools reach",
       tools: [
-        Mcp::Tools::LIST_AGENTS, Mcp::Tools::UPSERT_AGENT, Mcp::Tools::ROTATE_AGENT_TOKEN,
-        Mcp::Tools::REVOKE_AGENT_TOKEN, Mcp::Tools::DELETE_AGENT, Mcp::Tools::LIST_API_KEYS,
-        Mcp::Tools::UPSERT_API_KEY, Mcp::Tools::DELETE_API_KEY, Mcp::Tools::UPSERT_OUTBOUND_WEBHOOK,
-        Mcp::Tools::DELETE_OUTBOUND_WEBHOOK, Mcp::Tools::TEST_OUTBOUND_WEBHOOK
+        FirefightTools::LIST_AGENTS, FirefightTools::UPSERT_AGENT, FirefightTools::ROTATE_AGENT_TOKEN,
+        FirefightTools::REVOKE_AGENT_TOKEN, FirefightTools::DELETE_AGENT, FirefightTools::LIST_API_KEYS,
+        FirefightTools::UPSERT_API_KEY, FirefightTools::DELETE_API_KEY, FirefightTools::UPSERT_OUTBOUND_WEBHOOK,
+        FirefightTools::DELETE_OUTBOUND_WEBHOOK, FirefightTools::TEST_OUTBOUND_WEBHOOK
       ]
     )
   ].freeze

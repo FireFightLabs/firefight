@@ -1,0 +1,40 @@
+# The tools Supabase's MCP server defines in packages/mcp-server-supabase/src/tools of supabase-community/supabase-mcp at commit
+# bd2d33f1b401adbbf913b3f40eb460fd67e1f9ea, which supabase.com/docs/guides/getting-started/mcp documents for mcp.supabase.com, one per line.
+# Storage and notebooks are off unless asked for. execute_sql marks itself read only when the server runs read only, and changes data otherwise.
+# Each line is a tool as its server names it and whether it only reads or changes something.
+list_edge_functions read
+get_edge_function read
+deploy_edge_function change
+get_logs read
+query_logs read
+get_advisors read
+list_organizations read
+get_organization read
+list_projects read
+get_project read
+get_cost read
+confirm_cost read
+create_project change
+pause_project change
+restore_project change
+get_project_url read
+get_publishable_keys read
+generate_typescript_types read
+list_tables read
+list_extensions read
+list_migrations read
+apply_migration change
+execute_sql change
+create_edge_function_secret change
+create_branch change
+list_branches read
+delete_branch change
+merge_branch change
+reset_branch change
+rebase_branch change
+list_storage_buckets read
+get_storage_config read
+update_storage_config change
+search_docs read
+list_notebooks read
+get_notebook read

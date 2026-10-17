@@ -1,0 +1,14 @@
+<% content_for :title, "Continue to Slack" %>
+
+<h1>Taking you to Slack</h1>
+<p class="subject">Approve Firefight there to finish. If nothing happens, press the button.</p>
+
+<div class="actions">
+  <%= form_tag action, method: :post, id: "continue" do %>
+    <button type="submit" class="authorize">Continue to Slack</button>
+  <% end %>
+</div>
+
+<%= javascript_tag nonce: true do %>
+  document.getElementById("continue").submit()
+<% end %>

@@ -1,10 +1,6 @@
 class IntegrationsController < InertiaController
   include ReturnTo
 
-  class NameTaken < StandardError
-    def initialize(message = "Another connection already uses that name. Pick a different one.") = super
-  end
-
   authorizes Ability::Action::RESOURCE_INTEGRATIONS,
     read: :index,
     create: %i[create oauth_start oauth_callback list_scopes],
@@ -238,7 +234,7 @@ class IntegrationsController < InertiaController
       "state" => flow[:state], "verifier" => flow[:verifier],
       "client_id" => flow[:client_id], "token_endpoint" => flow[:token_endpoint],
       "server_url" => server_url, "region" => region, "fields" => provider.connect_values(fields_param(provider), asked), "kind" => kind,
-      "return_to" => return_to_param
+      "return_to" => return_to_param, "workspace_id" => current_workspace.id
     }
     redirect_to flow[:authorize_url], allow_other_host: true
   rescue Integrations::OauthFlow::Error => e
@@ -251,6 +247,10 @@ class IntegrationsController < InertiaController
     unless provider && params[:state].present? &&
            ActiveSupport::SecurityUtils.secure_compare(pending["state"].to_s, params[:state].to_s)
       return redirect_to integrations_path, alert: "The connection attempt expired. Try again."
+    end
+    # The browser may have moved to another workspace while it was away.
+    unless pending["workspace_id"] == current_workspace.id
+      return redirect_to integrations_path, alert: "This connection was started in another workspace, so nothing was connected. Start it again here."
     end
     return app_callback(provider, pending) if pending["app"] && provider.app_connect?
 
@@ -269,7 +269,7 @@ class IntegrationsController < InertiaController
     connected(environment_row.integration.name, safe_return_to(pending["return_to"]))
   rescue Integrations::OauthFlow::Error => e
     redirect_to integrations_path, alert: Integrations::Sentence.join("Could not connect", e)
-  rescue NameTaken => e
+  rescue Integration::NameTaken => e
     redirect_to integrations_path, alert: e.message
   end
 
@@ -285,16 +285,12 @@ class IntegrationsController < InertiaController
     redirect_to row.live_updates_setup_link(offered.place), allow_other_host: true
   end
 
-  # Removing the workspace's issue tracker, or a connection Firefight registered for map changes, takes back the webhook
-  # Firefight registered while its credentials still reach the provider. What a person set up to send changes stays at
-  # the provider, so the toast says how to remove it. A connection made through an app installed at the provider also
-  # removes the app from each account the person ticked, and the toast links to the app's settings for one left there.
+  # The toast says how to remove what a person set up at the provider, and links to the app's settings for an app left
+  # installed there (Integrations::Disconnection).
   def destroy
-    IssueSyncService.new(current_workspace).connection_removed(@integration, by: current_membership)
-    removal = @integration.integration_environments.filter_map(&:live_updates_removal_words).uniq
-    Integrations::MapEvents.connection_removed(@integration)
-    installations = Integrations::Installations.disconnected!(@integration, uninstall: params[:uninstall], by: current_membership)
-    @integration.update!(deleted_at: Time.current)
+    result = Integrations::Disconnection.disconnect!(@integration, uninstall: params[:uninstall], by: current_membership)
+    removal = result.removal
+    installations = result.installations
     return redirect_to integrations_path, notice: "Disconnected #{@integration.name}." if removal.empty? && installations.empty?
 
     lead = removal.any? ? "#{@integration.name} is disconnected and Firefight no longer accepts the changes it sends." : "#{@integration.name} is disconnected."
@@ -334,7 +330,7 @@ class IntegrationsController < InertiaController
     Integrations::ConnectionRefresh.run!(environment_row.integration)
 
     connected(environment_row.integration.name, return_to_param)
-  rescue NameTaken => e
+  rescue Integration::NameTaken => e
     redirect_back fallback_location: integrations_path, inertia: { errors: { name: e.message } }
   end
 
@@ -353,7 +349,7 @@ class IntegrationsController < InertiaController
     Integrations::ConnectionRefresh.run!(environment_row.integration)
 
     connected(environment_row.integration.name, return_to_param)
-  rescue NameTaken => e
+  rescue Integration::NameTaken => e
     redirect_back fallback_location: integrations_path, inertia: { errors: { name: e.message } }
   end
 
@@ -365,7 +361,7 @@ class IntegrationsController < InertiaController
     session[:integration_oauth] = {
       "provider" => provider.key, "name" => params[:name].presence || provider.app_connection_name, "environment_id" => environment_id_param,
       "state" => flow[:state], "verifier" => flow[:verifier], "client_id" => flow[:client_id], "token_endpoint" => flow[:token_endpoint],
-      "app" => true, "return_to" => return_to_param
+      "app" => true, "return_to" => return_to_param, "workspace_id" => current_workspace.id
     }
     redirect_to flow[:authorize_url], allow_other_host: true
   end
@@ -394,7 +390,7 @@ class IntegrationsController < InertiaController
 
     session[:integration_oauth] = {
       "provider" => provider.key, "name" => params[:name].presence || provider.name,
-      "environment_id" => environment_id_param, "state" => state, "return_to" => return_to_param
+      "environment_id" => environment_id_param, "state" => state, "return_to" => return_to_param, "workspace_id" => current_workspace.id
     }
     redirect_to install_url, allow_other_host: true
   end
@@ -403,6 +399,9 @@ class IntegrationsController < InertiaController
     if params[:installation_id].blank?
       return redirect_to integrations_path, alert: "The installation did not complete. Try again."
     end
+    refusal = Integrations::Credentials.installation_refusal(provider.key, params[:installation_id].to_s, code: params[:code].to_s,
+                                                                                                        redirect_uri: oauth_callback_integrations_url)
+    return redirect_to integrations_path, alert: refusal if refusal
 
     environment_row = connect!(provider, pending["name"], pending["environment_id"])
     Integrations::Installations.connected!(environment_row, params[:installation_id])
@@ -423,36 +422,8 @@ class IntegrationsController < InertiaController
     "Every tool on #{@integration.name} is on."
   end
 
-  # Keyed on the slug so one provider can back several accounts with their own credentials.
-  # Reconnecting under the default name revives the existing row. The region and the connect fields that are part of the
-  # server's address belong to the whole connection, so another environment cannot move it somewhere else. The other
-  # fields belong to the environment connected now, and a way of connecting that asks none leaves them as they were.
-  def connect!(provider, name, environment_id, region: nil, fields: nil, server_url: nil, kind: provider.kind, app: false)
-    slug = Integration.slug_for(name)
-    reserved = Integration.name_blocked_reason(name, workspace: current_workspace, provider: provider.key)
-    raise NameTaken, reserved if reserved
-
-    integration = current_workspace.integrations.find_or_initialize_by(slug: slug)
-    raise NameTaken if integration.persisted? && integration.provider != provider.key
-
-    path_values = provider.connect_values(fields, provider.address_fields)
-    moved = integration.move_blocked_reason(provider.region(region), path_values, environment_id) if provider.regions.any? || path_values.any?
-    raise NameTaken, moved if moved
-
-    integration.assign_attributes(
-      kind: kind, provider: provider.key, name: name,
-      settings: settings_for(kind) { server_url || provider.server_url_for(region, path_values) }
-                  .merge({ Integration::REGION_SETTING => provider.region(region)&.key, Integration::FIELDS_SETTING => path_values.presence,
-                           Integration::APP_SETTING => (true if app) }.compact),
-      deleted_at: nil, disabled_at: nil
-    )
-    integration.save!
-    environment_row = integration.integration_environments.find_or_create_by!(catalog_entry_id: environment_id.presence)
-    if fields && kind == provider.kind && provider.environment_fields.any?
-      chosen = environment_row.fields.slice(*provider.learned_fields.map(&:key))
-      environment_row.store_fields!(chosen.merge(provider.connect_values(fields, provider.environment_fields)))
-    end
-    environment_row
+  def connect!(provider, name, environment_id, **options)
+    Integration.connect!(current_workspace, provider, name, environment_id, **options)
   end
 
   # What the connect form asked beside the credentials, only the fields the provider declares.

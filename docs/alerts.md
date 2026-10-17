@@ -5,7 +5,7 @@ Machine-generated entry into incidents. A monitoring tool POSTs JSON, a routing 
 Two halves that must not be conflated:
 
 - **Ingestion** (`Alert`, `AlertSource`, `AlertGroup`, `AlertIngestService`) is alert-specific.
-- **PolicyRouter** (`Policy`, `PolicyRule`, `Policy::Evaluation`) is a generic rules primitive that alert routing is merely the first consumer of. Auto-investigate and the Ability Gateway's approval policies are meant to reuse it unchanged, and a workflow trigger's conditions match through the same `Policy::Conditions`. Never add alert vocabulary to the engine.
+- **PolicyRouter** (`Policy`, `PolicyRule`, `Policy::Evaluation`) is a generic rules engine, and alert routing is only its first consumer. Auto-investigate and the Ability Gateway's approval policies are meant to reuse it unchanged, and a workflow trigger's conditions match through the same `Policy::Conditions`. Never add alert vocabulary to the engine.
 
 ## The pipeline
 
@@ -205,6 +205,7 @@ One digest message per alert, posted once and updated in place. `#notify_digest`
 
 - **Creating a source opens its setup.** The create redirect carries `setup=<id>` and the page opens that source's dialog, whose setup box holds the URL, the token (or the field for a provider's own secret), the provider's steps and any template.
 - **Secrets never enter page props.** `AlertSourcesController#token` serves the secret on demand behind the copy button, mirroring API keys, and `#address` does the same for an address that holds the secret. `#sample_payload` returns the latest raw payload so the field-mapping UI offers real keys to click instead of asking for dot-paths typed blind.
+- **A source is deleted only while it holds no alerts.** Its alerts are the record of what fired, so `has_many :alerts` restricts the delete and `AlertSource#deletion_blocked_reason` names the count ("Checkout has 2 alerts and cannot be deleted. Disable it instead."). The list counts every source's alerts in one subquery (`with_usage_counts`) and ships the reason, so Delete is inert with it as its tooltip, and the controller, `DELETE /api/v1/alert_sources/:endpoint_path` and `delete_alert_source` refuse with it through `destroy_guarded!`. A disabled source (`enabled` false) keeps its address and rejects what is sent to it, is listed as Disabled, and is turned on again from its dialog.
 - **Only `AlertProviders::Base::NORMALIZED_FIELDS` are mappable**; the controller filters the submitted map rather than trusting it.
 - Config knobs are **validated at write time** (`Policy::AlertRoutingConfig`, `AlertSource` clamping) so ingest never defends against nonsense values. `domain_config_merging` gives the form partial-update semantics: nil leaves a knob untouched, an empty list reverts to the default.
 - Rule ordering is `priority`, unique per policy, reordered by `PolicyRulesController#move_up` / `#move_down`.

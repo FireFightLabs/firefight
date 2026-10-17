@@ -9,7 +9,6 @@ class Conversation::Tools::WorkflowToolsTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     @admin = workspace_memberships(:alice_workspace_one)
     @member = workspace_memberships(:bob_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     Conversation::Plans.stubs(:time_zone_of).returns("Europe/Belgrade")
     @adapter = WorkspaceAdapter.for(@workspace).class
     @adapter.any_instance.stubs(:post_workflow_publish_request_to_user).returns({ channel_id: "D1", message_id: "1.1" })
@@ -18,16 +17,6 @@ class Conversation::Tools::WorkflowToolsTest < ActiveSupport::TestCase
   def turn(asker, conversation = Conversation.start_personal!(workspace: @workspace, member: asker)) = Conversation::Turn.new(conversation, asker: asker)
 
   def check_later(minutes: 30) = { template: "check_later", params: { resource: "web", in_minutes: minutes, reply_in_chat: true } }
-
-  test "the tools are offered only where the workspace has workflows" do
-    names = ->(asker) { Conversation::Tools.for(turn(asker), offer: ->(_tools) { }).map(&:name) }
-    assert_includes names.call(@admin), Conversation::Tools::CreateWorkflow::NAME
-
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-    assert_not_includes names.call(@admin), Conversation::Tools::CreateWorkflow::NAME
-    assert_not_includes names.call(@admin), Conversation::Tools::RunWorkflow::NAME
-    assert_not_includes names.call(@admin), Conversation::Tools::ListWorkflows::NAME
-  end
 
   test "making one waits for the person, who is shown when it runs, each step and what it will be able to do" do
     travel_to Time.zone.parse("2026-10-13 12:00 UTC") do
@@ -165,7 +154,7 @@ class Conversation::Tools::WorkflowToolsTest < ActiveSupport::TestCase
   test "running one by name is confirmed with its steps and inputs, then starts as the workflow" do
     workflow = Workflow::Authoring.create!(workspace: @workspace, by: @admin, spec: {
       name: "Release Firefight", trigger: { kind: "manual", inputs: [ { key: "bump", question: "Which bump?", default: "patch" } ] },
-      steps: [ { name: "look", kind: "call_tool", config: { tool: Mcp::Tools::SEARCH_INCIDENTS, arguments: { query: "release {{inputs.bump}}" } } } ]
+      steps: [ { name: "look", kind: "call_tool", config: { tool: FirefightTools::SEARCH_INCIDENTS, arguments: { query: "release {{inputs.bump}}" } } } ]
     })
     workflow.update!(aliases: [ "ship it" ])
     WorkflowPublishService.new(workflow).publish!(workflow.draft, by: @admin)
@@ -194,5 +183,12 @@ class Conversation::Tools::WorkflowToolsTest < ActiveSupport::TestCase
 
     assert_equal [ "Check web" ], listed.map { |row| row["name"] }
     assert_match "Once on", listed.first["starts"]
+  end
+
+  test "the tools are offered in every workspace" do
+    names = Conversation::Tools.for(turn(@admin), offer: ->(_tools) { }).map(&:name)
+    assert_includes names, Conversation::Tools::CreateWorkflow::NAME
+    assert_includes names, Conversation::Tools::RunWorkflow::NAME
+    assert_includes names, Conversation::Tools::ListWorkflows::NAME
   end
 end

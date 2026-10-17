@@ -20,7 +20,7 @@ class SettingsAuthorizationTest < ActionDispatch::IntegrationTest
       -> { post policy_rules_url, params: { rule: { conditions: [], outcome: {} } } },
       -> { post approval_rules_url, params: { rule: { approver_role: "admin" } } },
       -> { post webhooks_url, params: { webhook: { url: "https://x.test" } } },
-      -> { get signing_secret_webhook_url(webhooks(:active_webhook)) },
+      -> { post rotate_signing_secret_webhook_url(webhooks(:active_webhook)) },
       -> { post incident_severities_url, params: { name: "Sev X" } },
       -> { post catalogue_types_url, params: { name: "Type X" } }
     ]
@@ -121,15 +121,6 @@ class SettingsAuthorizationTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_not_includes response.body, secret,
                         "an admin's page props must not embed the secret either"
-  end
-
-  test "an admin fetches a signing secret only by asking for it" do
-    sign_in(users(:alice), @workspace)
-
-    get signing_secret_webhook_url(webhooks(:active_webhook))
-    assert_response :success
-    assert_equal webhooks(:active_webhook).signing_secret,
-                 JSON.parse(response.body)["signingSecret"]
   end
 
   test "admins pass the same gates" do

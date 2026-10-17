@@ -1,12 +1,14 @@
 module Mcp
   module Tools
     class DeleteUnattendedRule < Base
-      tool_name DELETE_UNATTENDED_RULE
+      tool_name FirefightTools::DELETE_UNATTENDED_RULE
       description "Delete an unattended rule by id. A rule Halon already acted under is refused with the reason, and is " \
                   "switched off with upsert_unattended_rule instead. Docs: #{Docs::ON_CALL}"
       annotations(**DESTRUCTIVE)
       ends_something
       authorize_as Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_DELETE
+
+      def self.token_refusal(_workspace, _args) = Ability::UnattendedRule.change_blocked_reason(AbilityGateway::SOURCE_MCP)
       input_schema(
         properties: {
           id: { type: "string", description: "Id of the rule to delete" },

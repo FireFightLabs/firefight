@@ -1,4 +1,4 @@
-# The signing secret is read on demand from the dashboard, never listed here.
+# The signing secret is never returned here. It is shown once in the dashboard, when it is made or replaced.
 class Api::V1::WebhooksController < Api::V1::ApiController
   before_action :set_webhook, only: %i[update destroy]
 

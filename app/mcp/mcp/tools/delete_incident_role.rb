@@ -3,7 +3,7 @@ module Mcp
     class DeleteIncidentRole < Base
       include ConfiguresOption
 
-      tool_name DELETE_INCIDENT_ROLE
+      tool_name FirefightTools::DELETE_INCIDENT_ROLE
       deletes_option IncidentRole, resource: Ability::Action::RESOURCE_INCIDENT_ROLES
 
       def self.perform(workspace:, args:)

@@ -66,6 +66,38 @@ class PostmortemTest < ActiveSupport::TestCase
     assert_not_includes html, "javascript:"
   end
 
+  test "update_content! keeps the editor's task lists and their ticks, and nothing riding on them" do
+    postmortem = postmortems(:postmortem_resolved_ws1)
+    member = workspace_memberships(:alice_workspace_one)
+    task_list = '<ul data-type="taskList">' \
+      '<li data-checked="true" data-type="taskItem"><label><input type="checkbox" checked="checked"><span></span></label><div><p>Roll back</p></div></li>' \
+      '<li data-checked="false" data-type="taskItem"><label><input type="checkbox"><span></span></label><div><p>Add an alert</p></div></li>' \
+      "</ul>"
+
+    postmortem.update_content!(
+      task_list +
+        '<ul data-type="taskList" onclick="alert(1)"><li data-type="taskItem" data-checked="true" onmouseover="alert(2)">' \
+        '<label><input type="checkbox" onfocus="alert(3)" autofocus class="hidden" title="Done"><span></span></label><div><p>Hostile</p></div></li></ul>' \
+        '<ul><li data-type="<script>"><input type="text" value="x"><input type="checkbox"> plain</li></ul>' \
+        '<ol data-type="taskList" type="a"><li>ordered</li></ol><script>alert(4)</script>',
+      by: member
+    )
+
+    html = postmortem.reload.content["html"]
+    document = Nokogiri::HTML5.fragment(html)
+    items = document.css('ul[data-type="taskList"] > li[data-type="taskItem"]')
+    assert_equal [ "Roll back", "Add an alert", "Hostile" ], items.map { |item| item.text.strip }
+    assert_equal %w[true false true], items.map { |item| item["data-checked"] }
+    assert_equal [ true, false, false ], items.map { |item| item.at_css('label > input[type="checkbox"]').key?("checked") }
+    assert_equal 3, document.css("input").size
+    assert document.css("input").all? { |input| (input.attributes.keys - %w[type checked]).empty? }
+    assert_empty document.at_css("ol").attributes
+    assert_equal "plain", document.css("ul:not([data-type]) > li").sole.text.strip
+    assert_empty document.css("ul:not([data-type]) li").sole.attributes
+    %w[<script onclick onmouseover onfocus autofocus value= type="text" type="a"].each { |fragment| assert_not_includes html, fragment }
+    assert_equal html, postmortem.html_content
+  end
+
   test "update_content! preserves allowed formatting tags" do
     postmortem = postmortems(:postmortem_resolved_ws1)
     member = workspace_memberships(:alice_workspace_one)

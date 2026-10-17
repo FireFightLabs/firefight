@@ -1,6 +1,6 @@
 # Runs a workspace's workflows, each from the snapshot of the version its run started on. The engine runs the control
-# steps, and this says how a reference is filled, what step data is kept, how a sub workflow starts and when a run may
-# move: never for a workspace without the workflows flag. Every move the engine makes is written onto the run's own
+# steps, and this says how a reference is filled, what step data is kept, how a sub workflow starts and that a run may
+# move only while its record is there. Every move the engine makes is written onto the run's own
 # record (Workflow::Run), which outlives the engine's cleanup.
 class DefinedWorkflow < SolidWorkflow::Interpreter
   workflow_name "workflow.defined.v1"
@@ -118,7 +118,7 @@ class DefinedWorkflow < SolidWorkflow::Interpreter
     # Wakes every step parked on the signal key with what happened. Answers how many it woke.
     def signal!(key, payload = {}) = SolidWorkflow.signal!(key, payload)
 
-    # A step's error as a person reads it: its first line, without the class the engine writes ahead of it.
+    # A step's error as a person reads it, its first line without the class the engine writes ahead of it.
     def error_words(error) = error.to_s.lines.first.to_s.strip.sub(ERROR_CLASS, "")
     # Starts the engine's run for a run record, once however often it is asked.
     def launch!(run, not_before: nil, parent_step: nil)
@@ -154,7 +154,7 @@ class DefinedWorkflow < SolidWorkflow::Interpreter
       engine.present? && engine.cancel!(reason: "cancelled_by_person", by: by&.actor_display_name)
     end
 
-    def runnable?(workflow) = run_of(workflow)&.may_move? || false
+    def runnable?(workflow) = run_of(workflow).present?
 
     def resolve(value, scope, workflow:, step:) = Workflow::Version.filled(value, scope)
 
@@ -189,7 +189,7 @@ class DefinedWorkflow < SolidWorkflow::Interpreter
     # A step that acts is tried once unless its own retry says otherwise, since doing a change again on its own is a
     # person's decision.
     def default_retry_config = { max_attempts: 1, backoff: SolidWorkflow::Step::Retryable::BACKOFF_EXPONENTIAL }
-    # The engine's step a run's step row is: in the run's own engine run, or the item's run of a for each.
+    # The engine's step behind a run's step row, in the run's own engine run or in the item's run of a for each.
     def engine_step!(run, step_key, iteration)
       owner = SolidWorkflow::Workflow.where(subject: run).includes(:steps)
                                      .find { |workflow| Array(workflow.context.to_h[CONTEXT_ITERATION]).join(".") == iteration.to_s }

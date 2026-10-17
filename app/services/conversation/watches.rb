@@ -1,6 +1,7 @@
 # Watches from start to end. Halon writes one when a person asks to be told later, as keep reading this until that holds,
 # with any read it may make. The sweep and live updates check it within a ceiling on reads. Each milestone and the end
-# are said once, in the chat, in its thread when it has one, and in the asker's direct messages. A read that finds
+# are said once in the chat, and move one card in its thread when it has one and one in the asker's direct messages,
+# with the end also said in a line of its own there. A read that finds
 # nothing to follow is handed back to Halon to repair, and a reading Halon takes in the chat overrides what the watch
 # had. A watch only reads, as the person who asked.
 module Conversation::Watches
@@ -43,11 +44,16 @@ module Conversation::Watches
   # A line's mark: its kind while the watch goes on, how it ended for the last one.
   TONES = [ *(Chat::Watch::Update::KINDS - [ Chat::Watch::Update::KIND_ENDED ]), *ENDED_TONES.values ].freeze
 
-  # One line a watch said, as the chat, the platform's message and MCP show it. live is whether the watch still went
-  # when it was said, which is when the platform's message offers Stop.
-  # name is the watch named for what it waits on, link the page of what it follows when the provider gave one.
-  Said = Data.define(:id, :watch_id, :title, :name, :kind, :tone, :text, :at, :live, :link) do
-    def initialize(live: false, link: nil, **rest) = super
+  # A watch's card on the platform as it stands now, one per place it reports, edited in place. what is what it is for,
+  # state how it stands in a word, why one short plain line on that. update_id is a line it said, which Stop names.
+  # link is the page of what it follows when the provider gave one, conversation_id the dashboard chat a card in direct
+  # messages offers to open.
+  Card = Data.define(:watch_id, :update_id, :status, :state, :what, :why, :link, :conversation_id) do
+    def live? = status == Chat::Watch::STATUS_ACTIVE
+  end
+  # Where a card goes: the place, the channel or person, and the thread for a card in a chat's thread.
+  Place = Data.define(:key, :channel_id, :thread_id) do
+    def direct? = key == Chat::Watch::PLACE_DIRECT
   end
 
   ADD_TO_ARG = "add_to".freeze
@@ -351,7 +357,7 @@ module Conversation::Watches
   KINDS_SHOWN = 6
 
   # A history that holds runs, none of the name asked for, cannot follow that name, so it says at once which runs it does
-  # hold rather than waiting for a run that never shows up there. An empty history may simply hold nothing yet.
+  # hold rather than waiting for a run that never shows up there. An empty history may hold nothing yet.
   def self.refuse_other_kinds!(reader, arguments, name)
     return if name.blank?
 
@@ -1128,20 +1134,22 @@ module Conversation::Watches
     added = Chat::Watch.where(id: watch.id).pick(:steps_added_at)
     steps = watch.steps.reload.to_a
     failed = steps.find { |step| step.status == Chat::Watch::Step::STATUS_FAILED }
-    return finish!(watch, Chat::Watch::STATUS_FAILED, failed_words(watch, failed)) if failed
+    return fail_on!(watch, failed) if failed
     return unless steps.all?(&:over?)
 
     followed = steps.select { |step| step.status == Chat::Watch::Step::STATUS_SUCCEEDED }
     if followed.empty?
       return finish!(watch, Chat::Watch::STATUS_STOPPED, "I stopped #{Chat::Watch::Shown.named(watch)}, since none of it can be followed any more.",
-                     steps_added_at: added)
+                     end_reason: "None of it can be followed any more.", steps_added_at: added)
     end
 
     took = Integrations::Capabilities::History.duration(Time.current - watch.created_at)
     skipped = steps.count { |step| step.status == Chat::Watch::Step::STATUS_SKIPPED }
-    lost = steps.size - followed.size - skipped
-    finish!(watch, Chat::Watch::STATUS_SUCCEEDED,
-            standing(watch, "Done in #{took}.#{lost_words(lost, skipped)}", offer: false), steps_added_at: added)
+    lost = lost_words(steps.size - followed.size - skipped, skipped)
+    happened = "Done in #{took}.#{lost}"
+    said = verdict(watch, happened, offer: false)
+    finish!(watch, Chat::Watch::STATUS_SUCCEEDED, with_standing(watch, happened, said), end_reason: [ "Took #{took}.#{lost}", said ].compact.join(" "),
+            steps_added_at: added)
   end
 
   def self.lost_words(lost, skipped)
@@ -1151,12 +1159,16 @@ module Conversation::Watches
     " #{lost} step#{'s' if lost > 1} could not be followed#{skips}."
   end
 
-  # A step skipped because of this one is named after it, since what the person wanted waited on it too.
-  def self.failed_words(watch, step)
+  # Ends it failed on this step. A step skipped because of this one is named after it, since what the person wanted
+  # waited on it too. The card's line names the step, why it failed in the plain words its reason was asked in, and where
+  # that leaves the goal.
+  def self.fail_on!(watch, step, **guards)
     took = step.seconds_taken && " after #{Integrations::Capabilities::History.duration(step.seconds_taken)}"
     skipped = skipped_after(watch, step)
     skips = skipped.any? ? " #{skipped.map(&:label).to_sentence} #{skipped.size > 1 ? 'were' : 'was'} skipped, since #{skipped.size > 1 ? 'they wait' : 'it waits'} for it." : ""
-    standing(watch, "#{step.label} failed#{took}, so I stopped #{Chat::Watch::Shown.named(watch)}. #{step.reason.presence || 'It did not say why.'}#{skips}")
+    happened = "#{step.label} failed#{took}, so I stopped #{Chat::Watch::Shown.named(watch)}. #{step.reason.presence || 'It did not say why.'}#{skips}"
+    said = verdict(watch, happened)
+    finish!(watch, Chat::Watch::STATUS_FAILED, with_standing(watch, happened, said), end_reason: [ "#{step.label} failed#{took}.", step.reason.presence, said ].compact.join(" "), **guards)
   end
 
   # Skips what waits for a step that failed or could not be followed, down the chain, each said on the card once.
@@ -1174,15 +1186,34 @@ module Conversation::Watches
   end
 
   # What happened, then where that leaves what the person wanted, when the watch was started for a purpose. Where
-  # something went wrong it also offers the next step, never on a good end. Said by a model from what happened only, and
-  # the purpose itself when Halon is not available.
-  def self.standing(watch, happened, offer: true)
+  # something went wrong it also offers the next step, never on a good end. Said by a model from what happened and what
+  # each step that ended showed, and the purpose itself when Halon is not available.
+  def self.standing(watch, happened, offer: true) = with_standing(watch, happened, verdict(watch, happened, offer: offer))
+
+  def self.with_standing(watch, happened, said)
     return happened if watch.purpose.blank?
 
-    said = judge(watch)&.standing(purpose: watch.purpose, happened: happened, offer: offer)
-    [ happened, said.presence || "This was for: #{watch.purpose}" ].join(" ")
+    [ happened, said || "This was for: #{watch.purpose}" ].join(" ")
+  end
+
+  # Where what happened leaves the goal, in a sentence judged against what each step that ended showed, or nil when the
+  # watch has no purpose or Halon cannot say.
+  def self.verdict(watch, happened, offer: true)
+    return if watch.purpose.blank?
+
+    judge(watch)&.standing(purpose: watch.purpose, happened: happened, offer: offer, evidence: evidence(watch)).presence
   rescue FirefightAi::TransientError, FirefightAi::TerminalError, FirefightAi::OutOfCredit
-    "#{happened} This was for: #{watch.purpose}"
+    nil
+  end
+
+  # What each step that ended showed, in the words its reading was judged in, with how far a run got where nothing was
+  # said. Seen in a real chat, a watch whose rollout step saw every instance on the new version was judged to show
+  # nothing, since all the verdict was told was how long it took.
+  def self.evidence(watch)
+    Chat::Watch::Step.where(watch_id: watch.id).order(:position).includes(:watch).select(&:over?).map do |step|
+      shown = [ Chat::Watch::Shown.step_state(step), (step.summary if step.reason.blank?) ].compact_blank.join(" ")
+      "#{step.label}: #{shown}"
+    end
   end
 
   # Only while the limit is still past, since steps added meanwhile may have moved it.
@@ -1191,9 +1222,10 @@ module Conversation::Watches
 
     state = watch.open_steps.map { |step| "#{step.label}: #{step.ready? ? step.last_state.presence || 'nothing seen yet' : step.prerequisites_words}" }.join(" ")
     took = Integrations::Capabilities::History.duration(watch.expires_at - watch.created_at)
-    ended = finish!(watch, Chat::Watch::STATUS_TIMED_OUT,
-                    standing(watch, "I stopped #{Chat::Watch::Shown.named(watch)} after #{took}, its time limit. Last I saw: #{state.truncate(600)}"),
-                    expired_by: now)
+    happened = "I stopped #{Chat::Watch::Shown.named(watch)} after #{took}, its time limit. Last I saw: #{state.truncate(600)}"
+    said = verdict(watch, happened)
+    ended = finish!(watch, Chat::Watch::STATUS_TIMED_OUT, with_standing(watch, happened, said),
+                    end_reason: [ "Reached its time limit after #{took}.", said ].compact.join(" "), expired_by: now)
     skip_unstarted!(watch) if ended
     ended
   end
@@ -1215,11 +1247,11 @@ module Conversation::Watches
     reason = "#{step.deploy_failure} Nothing newer went out before the time limit."
     step.finished!(Chat::Watch::Step::STATUS_FAILED, reason: reason)
     skip_blocked!(watch)
-    finish!(watch, Chat::Watch::STATUS_FAILED, failed_words(watch, step.reload), expired_by: now)
+    fail_on!(watch, step.reload, expired_by: now)
   end
 
-  def self.finish!(watch, status, outcome, stopped_by: nil, **guards)
-    return false unless watch.finish!(status, outcome: outcome, stopped_by: stopped_by, **guards)
+  def self.finish!(watch, status, outcome, end_reason: nil, stopped_by: nil, **guards)
+    return false unless watch.finish!(status, outcome: outcome, end_reason: end_reason, stopped_by: stopped_by, **guards)
 
     tell!(watch, Chat::Watch::Update::KIND_ENDED, outcome, ended_as: status)
     true
@@ -1232,29 +1264,29 @@ module Conversation::Watches
 
     who = by.try(:display_name) || "Someone"
     member = by if by.is_a?(WorkspaceMembership)
-    return Chat::Watch::NOTHING_TO_STOP unless finish!(watch, Chat::Watch::STATUS_STOPPED, "#{who} stopped #{Chat::Watch::Shown.named(watch)}.", stopped_by: member)
+    stopped = finish!(watch, Chat::Watch::STATUS_STOPPED, "#{who} stopped #{Chat::Watch::Shown.named(watch)}.", end_reason: "Stopped by #{who}.", stopped_by: member)
+    return Chat::Watch::NOTHING_TO_STOP unless stopped
 
     nil
   end
 
-  # Stop pressed on a line the watch said on the platform, by whoever pressed it. The watch's end is said where it
-  # reports, as any stop is, and the pressed message loses its Stop once the watch is over, also when it had ended
-  # already. Returns why it was not stopped, or nil.
+  # Stop pressed on a watch's card on the platform, by whoever pressed it. The watch's end is said where it reports, as
+  # any stop is, which redraws its cards. A message pressed that is none of them, such as one a watch posted before it
+  # kept a card, or a card pressed after the watch had ended, is redrawn the same way. Returns why it was not stopped, or nil.
   def self.stop_pressed!(update, by:, channel_id:, message_id:)
     watch = update.watch
     blocked = stop!(watch, by: by)
-    take_stop_away(watch, update, channel_id, message_id) unless watch.reload.active?
+    watch.reload
+    redraw_pressed(watch, update, channel_id, message_id) unless watch.active? || (blocked.nil? && watch.card_at?(channel_id, message_id))
     blocked
   end
 
-  def self.take_stop_away(watch, update, channel_id, message_id)
+  def self.redraw_pressed(watch, update, channel_id, message_id)
     return if channel_id.blank? || message_id.blank?
 
-    conversation = watch.conversation
     adapter = WorkspaceAdapter.for(watch.workspace)
-    adapter.update_watch_update(channel_id: channel_id, message_id: message_id, update: said(watch, update),
-                                direct: adapter.direct_conversation?(channel_id: channel_id),
-                                conversation_id: (conversation.id if conversation.personal?))
+    adapter.update_watch_card(channel_id: channel_id, message_id: message_id,
+                              card: card(watch, update, direct: adapter.direct_conversation?(channel_id: channel_id)))
   rescue AdapterError => error
     Rails.logger.warn({ event: "watch.stop_unshown", watch_id: watch.id, update_id: update.id, error: error.class.name }.to_json)
   end
@@ -1327,25 +1359,74 @@ module Conversation::Watches
       "differently and which is true now, and never repeat what the watch had as current."
   end
 
-  # Says one line everywhere the watch reports: kept with the chat and drawn on its page, in the chat's thread when
-  # it has one, and in the asker's direct messages, unless the thread already is one with them.
+  # Says one line: kept with the chat and drawn on its page, and moving the watch's card where it reports, in the chat's
+  # thread when it has one, and in the asker's direct messages, unless the thread already is one with them. The end is
+  # also said in a short line of its own beside each card, since editing a message notifies nobody.
   def self.tell!(watch, kind, text, ended_as: nil)
     update = watch.updates.create!(kind: kind, text: Chat::SecretFree.redacted(text), ended_as: ended_as)
     return workflow_told!(watch, update) if watch.workflow_step?
 
-    conversation = watch.conversation
-    Conversation::LiveDelivery.watch_moved(conversation)
-    said = said(watch, update)
+    Conversation::LiveDelivery.watch_moved(watch.conversation)
     adapter = WorkspaceAdapter.for(watch.workspace)
-    in_thread = conversation.thread_id.present?
-    post(watch, update) { adapter.post_watch_update(channel_id: conversation.channel_id, thread_id: conversation.thread_id, update: said) } if in_thread
-    user_id = watch.asker.try(:platform_user_id)
-    return update if user_id.blank? || (in_thread && adapter.direct_conversation?(channel_id: conversation.channel_id))
-
-    posted = post(watch, update) { adapter.post_watch_update_to_user(user_id: user_id, update: said, conversation_id: (conversation.id if conversation.personal?)) }
-    # Kept so a reply to it in their direct messages is answered knowing which watch it came from.
-    update.update_columns(message_channel_id: posted[:channel_id], message_id: posted[:message_id]) if posted.is_a?(Hash) && posted[:message_id]
+    shown = Chat::Watch.includes(:steps).find(watch.id)
+    places(shown, adapter).each do |place|
+      show_card(shown, update, adapter, place)
+      say_end(shown, update, adapter, place) if kind == Chat::Watch::Update::KIND_ENDED && end_told?(shown)
+    end
     update
+  end
+
+  def self.places(watch, adapter)
+    conversation = watch.conversation
+    in_thread = conversation.thread_id.present?
+    user_id = watch.asker.try(:platform_user_id)
+    [
+      (Place.new(key: Chat::Watch::PLACE_THREAD, channel_id: conversation.channel_id, thread_id: conversation.thread_id) if in_thread),
+      (Place.new(key: Chat::Watch::PLACE_DIRECT, channel_id: user_id, thread_id: nil) unless user_id.blank? || (in_thread && adapter.direct_conversation?(channel_id: conversation.channel_id)))
+    ].compact
+  end
+
+  # Redraws the place's card from how the watch stands now, or posts it the first time. Posting is claimed first, so two
+  # workers never post it twice, and a post that failed lets go of its claim for the next line to try.
+  def self.show_card(watch, update, adapter, place)
+    if (at = watch.card_in(place.key))
+      return adapter.update_watch_card(channel_id: at.first, message_id: at.last, card: card(watch, update, direct: place.direct?))
+    end
+    return unless watch.claim_card!(place.key)
+
+    drawn = card(watch, update, direct: place.direct?)
+    posted = adapter.post_watch_card(channel_id: place.channel_id, thread_id: place.thread_id, card: drawn)
+    return watch.card_unclaimed!(place.key) unless posted.is_a?(Hash) && posted[:message_id]
+
+    unless watch.card_posted!(place.key, channel_id: posted[:channel_id], message_id: posted[:message_id])
+      return adapter.delete_message(channel_id: posted[:channel_id], message_id: posted[:message_id])
+    end
+    # What another worker said while this one posted found no card to edit, so the card is drawn again when it moved.
+    now = card(watch, update, direct: place.direct?)
+    adapter.update_watch_card(channel_id: posted[:channel_id], message_id: posted[:message_id], card: now) if now != drawn
+  rescue AdapterError => error
+    watch.card_unclaimed!(place.key) unless at
+    Rails.logger.warn({ event: "watch.untold", watch_id: watch.id, update_id: update.id, error: error.class.name }.to_json)
+  end
+
+  def self.say_end(watch, update, adapter, place)
+    adapter.post_watch_end(channel_id: place.channel_id, thread_id: place.thread_id, card: card(watch, update, direct: place.direct?))
+  rescue AdapterError => error
+    Rails.logger.warn({ event: "watch.untold", watch_id: watch.id, update_id: update.id, error: error.class.name }.to_json)
+  end
+
+  # Whoever asked for it and stopped it themselves sees the card change and needs no word of it.
+  def self.end_told?(watch)
+    !(watch.status == Chat::Watch::STATUS_STOPPED && watch.asker_type == WorkspaceMembership.name && watch.stopped_by_id == watch.asker_id)
+  end
+
+  # How the watch stands now, as its card shows it. direct is a card in the asker's direct messages, which offers to
+  # open a dashboard chat.
+  def self.card(watch, update, direct:)
+    conversation = watch.conversation
+    Card.new(watch_id: watch.id, update_id: update.id, status: watch.status, state: Chat::Watch::Shown.state_word(watch),
+             what: Chat::Watch::Shown.what(watch), why: Chat::Watch::Shown.why(watch), link: Chat::Watch::Shown.link(watch),
+             conversation_id: (conversation.id if direct && conversation.personal?))
   end
 
   # A watch a workflow's step started reports to nobody as it goes. The run's page shows its lines, and its end goes back
@@ -1359,17 +1440,9 @@ module Conversation::Watches
     update
   end
 
-  def self.post(watch, update)
-    yield
-  rescue AdapterError => error
-    Rails.logger.warn({ event: "watch.untold", watch_id: watch.id, update_id: update.id, error: error.class.name }.to_json)
-  end
-
-  def self.said(watch, update)
-    # A line that said how it ended keeps that, also once a reopened watch goes on.
-    tone = update.kind == Chat::Watch::Update::KIND_ENDED ? ENDED_TONES.fetch(update.ended_as || watch.status, TONE_DONE) : update.kind
-    Said.new(id: update.id, watch_id: watch.id, title: watch.title, name: Chat::Watch::Shown.name(watch), kind: update.kind, tone: tone,
-             text: update.text, at: update.created_at, live: watch.active?, link: Chat::Watch::Shown.link(watch))
+  # The mark beside a line on the chat's page. A line that said how it ended keeps that, also once a reopened watch goes on.
+  def self.tone(watch, update)
+    update.kind == Chat::Watch::Update::KIND_ENDED ? ENDED_TONES.fetch(update.ended_as || watch.status, TONE_DONE) : update.kind
   end
 
   REOPEN_NOTE = "When the person, or a reading you take, shows a watch ended wrongly, such as a step judged on what was there " \

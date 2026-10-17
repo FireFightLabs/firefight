@@ -42,15 +42,16 @@ module Integrations
     # Built from main whenever the box changes. An install that is not a release has no version tag to match.
     EDGE_TAG = "edge".freeze
 
+    def self.providers = [ Docker, Northflank, Boat ]
+
     # The provider for key, nil for none.
     def self.provider(key)
-      case key
-      when SandboxProviders::DOCKER then Docker.new
-      when SandboxProviders::NORTHFLANK then Northflank.new
-      when SandboxProviders::BOAT then Boat.new
-      when nil then nil
-      else raise Error, "#{key} is not a sandbox provider. There are #{SandboxProviders::KEYS.join(', ')}."
-      end
+      return nil if key.nil?
+
+      found = providers.find { |provider_class| provider_class::KEY == key }
+      raise Error, "#{key} is not a sandbox provider. There are #{SandboxProviders::KEYS.join(', ')}." unless found
+
+      found.new
     end
 
     # Where a provider's boxes run, as a check from one is described, such as "europe-west", or nil when it does not say.
@@ -91,9 +92,9 @@ module Integrations
       # before the image is pulled says how long a pull may take.
       def ready_within = Client::READY_TIMEOUT
 
-      # Makes the provider's copy of the image the deployment runs, ahead of any run, so nobody waits for the first pull
-      # of a new version. A provider that keeps no copies has none to make.
-      def prepare_image! = nil
+      # Makes the provider's copy of the image the deployment runs for one workspace, ahead of any run, so nobody waits
+      # for the first pull of a new version. A provider that keeps no copies has none to make.
+      def prepare_image!(_workspace_id) = nil
 
       # Where its boxes run. A provider that cannot tell, such as the Docker daemon on whatever machine runs Firefight,
       # takes the region the deployment names in SANDBOX_REGION.

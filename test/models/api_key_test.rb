@@ -44,19 +44,6 @@ class ApiKeyTest < ActiveSupport::TestCase
     end
   end
 
-  test "the matrix refuses the workflows ability where workflows are off, and keeps it where they are on" do
-    key = api_keys(:read_only_key)
-    FeatureFlags.disable!(key.workspace, FeatureFlags::WORKFLOWS)
-
-    assert_raises(ArgumentError) { key.replace_permissions!(Ability::Action::RESOURCE_WORKFLOWS => [ Ability::Action::ACTION_READ ]) }
-
-    FeatureFlags.enable!(key.workspace, FeatureFlags::WORKFLOWS)
-    key.replace_permissions!(Ability::Action::RESOURCE_WORKFLOWS => [ Ability::Action::ACTION_READ ])
-    assert_equal({ Ability::Action::RESOURCE_WORKFLOWS => [ Ability::Action::ACTION_READ ] }, key.granted_permissions)
-    FeatureFlags.disable!(key.workspace, FeatureFlags::WORKFLOWS)
-    assert_empty key.granted_permissions
-  end
-
   test "the matrix grants a service key the map's read and refuses what the map does not offer" do
     key = api_keys(:read_only_key)
 
@@ -178,6 +165,20 @@ class ApiKeyTest < ActiveSupport::TestCase
 
   test "authenticate returns nil for soft-deleted key" do
     assert_nil ApiKey.authenticate("ff_test_deleted_token_1234567890")
+  end
+
+  test "a disabled or deleted agent's token stops authenticating, even once it is cached" do
+    workspace = workspaces(:slack_workspace_one)
+    agent = workspace.agents.create!(name: "Deploy bot", slug: "deploy_bot_#{SecureRandom.hex(3)}")
+    _, raw_token = ApiKey.create_with_token!(workspace: workspace, created_by: workspace_memberships(:alice_workspace_one),
+                                             agent: agent, name: "Deploy bot token")
+    assert ApiKey.authenticate(raw_token)
+
+    agent.update!(enabled: false)
+    assert_nil ApiKey.authenticate(raw_token)
+
+    agent.update!(enabled: true, deleted_at: Time.current)
+    assert_nil ApiKey.authenticate(raw_token)
   end
 
   test "has_permission? returns true for granted permission" do
@@ -310,5 +311,12 @@ class ApiKeyTest < ActiveSupport::TestCase
 
     key.touch_last_used!
     assert_equal original.to_i, key.reload.last_used_at.to_i
+  end
+
+  test "the matrix keeps the workflows ability" do
+    key = api_keys(:read_only_key)
+
+    key.replace_permissions!(Ability::Action::RESOURCE_WORKFLOWS => [ Ability::Action::ACTION_READ ])
+    assert_equal({ Ability::Action::RESOURCE_WORKFLOWS => [ Ability::Action::ACTION_READ ] }, key.granted_permissions)
   end
 end

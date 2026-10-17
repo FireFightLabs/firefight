@@ -62,7 +62,7 @@ class Api::V1::WorkspaceConfigWritesTest < ActionDispatch::IntegrationTest
     assert_equal 1, runbook.reload.runbook_steps.count
   end
 
-  test "a runbook Halon can run is written and read back over the API with its procedure" do
+  test "a runbook Halon can run is written over the API into the workflow it links, and read back with it" do
     post api_v1_runbooks_url,
          params: { name: "Release Firefight", aliases: [ "ship it" ],
                    inputs: [ { key: "bump", question: "Which version bump?", default: "patch" } ],
@@ -73,8 +73,8 @@ class Api::V1::WorkspaceConfigWritesTest < ActionDispatch::IntegrationTest
     assert_response :created
     body = response.parsed_body["runbook"]
     assert_equal [ "ship it" ], body["aliases"]
-    assert_equal({ "workflow" => "release.yml", "bump" => "{{bump}}" }, body["steps"].first["arguments"])
-    assert_equal "run_workflow", body["steps"].first["tool"]
+    assert_equal "Start the release", body["steps"].first["title"]
+    assert_equal "Release Firefight", body["workflow"]["name"]
     assert_equal "bump", body["inputs"].first["key"]
     assert_equal "run_history", body["watch"]["steps"].first["capability"]
   end

@@ -69,7 +69,10 @@ class Workspace < ApplicationRecord
   has_many :api_keys, dependent: :destroy
   has_one :onboarding, class_name: "WorkspaceOnboarding", dependent: :destroy
   has_many :invitations, class_name: "WorkspaceInvitation", dependent: :delete_all
-  has_many :workspace_memberships, dependent: :destroy
+  has_many :all_workspace_memberships, class_name: "WorkspaceMembership", dependent: :destroy, inverse_of: :workspace
+  # Its members now. One an admin removed keeps its row for the history that names it (removed_memberships).
+  has_many :workspace_memberships, -> { where(removed_at: nil) }, inverse_of: :workspace
+  has_many :removed_memberships, -> { where.not(removed_at: nil) }, class_name: "WorkspaceMembership", inverse_of: :workspace
   has_many :users, through: :workspace_memberships
   belongs_to :created_by, class_name: "User", optional: true
 
@@ -233,16 +236,12 @@ class Workspace < ApplicationRecord
     end
   end
 
-  def self.find_or_create_from_slack!(auth_hash, created_by: nil)
-    team_info = auth_hash.extra.team_info
-
-    workspace = find_or_initialize_by(
-      platform: :slack,
-      platform_id: team_info["id"]
-    )
+  # install is what the platform's sign-in said about the team, as SlackAuthenticationService.install_from reads it.
+  def self.find_or_create_from_chat_install!(install, created_by: nil)
+    workspace = find_or_initialize_by(platform: install.fetch(:platform), platform_id: install.fetch(:platform_id))
 
     workspace.assign_attributes(
-      name: team_info["name"], installed_at: workspace.new_record? ? Time.current : workspace.installed_at, **slack_install_attributes(auth_hash)
+      name: install[:name], installed_at: workspace.new_record? ? Time.current : workspace.installed_at, **chat_install_attributes(install)
     )
     workspace.created_by ||= created_by if workspace.new_record?
 
@@ -250,31 +249,22 @@ class Workspace < ApplicationRecord
     workspace
   end
 
-  # What a Slack install stores on the workspace, whether it made the workspace or connected one already there.
-  def self.slack_install_attributes(auth_hash)
-    credentials = auth_hash.credentials
-    {
-      platform_data: auth_hash.extra.team_info,
-      access_token: credentials.token,
-      refresh_token: credentials.refresh_token,
-      token_expires_at: credentials.expires_at ? Time.at(credentials.expires_at) : nil,
-      disconnected_at: nil,
-      disconnected_reason: nil
-    }
+  # What an install stores on the workspace, whether it made the workspace or connected one already there.
+  def self.chat_install_attributes(install)
+    install.slice(:platform_data, :access_token, :refresh_token, :token_expires_at).merge(disconnected_at: nil, disconnected_reason: nil)
   end
 
-  # user comes from the prior OIDC sign-in. The bot install's users.info fetch
-  # is brittle, so identity is never derived from auth_hash when user is given.
-  # workspace is one that started without Slack, which this install connects.
-  def self.process_slack_installation(auth_hash, user: nil, workspace: nil)
+  # user is the person installing, already reached by a sign-in (SlackAuthenticationService), never looked up here from
+  # the install's email. member is their place in the platform. workspace is one that started without a chat platform,
+  # which this install connects.
+  def self.process_chat_installation(install:, member:, user:, workspace: nil)
     transaction do
       if workspace
-        workspace.connect_slack!(auth_hash)
+        workspace.connect_chat!(install)
       else
-        workspace = find_or_create_from_slack!(auth_hash, created_by: user)
+        workspace = find_or_create_from_chat_install!(install, created_by: user)
       end
-      user ||= User.find_or_create_from_omniauth!(auth_hash)
-      membership = WorkspaceMembership.find_or_create_from_omniauth!(user, workspace, auth_hash)
+      membership = WorkspaceMembership.find_or_create_for_platform_user!(user, workspace, **member)
 
       if workspace.previously_new_record?
         workspace.setup_incident_configuration!

@@ -150,6 +150,11 @@ module Slack
       )
     end
 
+    # The app's direct message channel with a person, opened if it was not (conversations.open, im:write).
+    def self.open_direct_channel(workspace:, user:)
+      api_post(workspace: workspace, endpoint: "conversations.open", payload: { users: user }).dig(:channel, :id)
+    end
+
     def self.create_channel(workspace:, name:, is_private: false)
       api_post(
         workspace: workspace,
@@ -298,10 +303,10 @@ module Slack
 
       # Hard page cap, conversations.list is Tier 2 rate limited.
       10.times do
-        payload = { types: types, exclude_archived: true, limit: 200 }
-        payload[:cursor] = cursor if cursor.present?
+        params = { types: types, exclude_archived: true, limit: 200 }
+        params[:cursor] = cursor if cursor.present?
 
-        body = api_post(workspace: workspace, endpoint: "conversations.list", payload: payload)
+        body = api_get(workspace: workspace, endpoint: "conversations.list", params: params)
         channels.concat(body[:channels] || [])
 
         cursor = body.dig(:response_metadata, :next_cursor)
@@ -316,14 +321,10 @@ module Slack
       cursor = nil
 
       loop do
-        payload = { limit: 200 }
-        payload[:cursor] = cursor if cursor.present?
+        params = { limit: 200 }
+        params[:cursor] = cursor if cursor.present?
 
-        body = api_post(
-          workspace: workspace,
-          endpoint: "users.list",
-          payload: payload
-        )
+        body = api_get(workspace: workspace, endpoint: "users.list", params: params)
 
         users.concat(body[:members] || [])
         cursor = body.dig(:response_metadata, :next_cursor)
@@ -334,23 +335,14 @@ module Slack
     end
 
     def self.get_permalink(workspace:, channel:, message_ts:)
-      body = api_post(
-        workspace: workspace,
-        endpoint: "chat.getPermalink",
-        payload: {
-          channel: channel,
-          message_ts: message_ts
-        }
-      )
-
-      body
+      api_get(workspace: workspace, endpoint: "chat.getPermalink", params: { channel: channel, message_ts: message_ts })
     end
 
     def self.get_message(workspace:, channel:, ts:)
-      body = api_post(
+      body = api_get(
         workspace: workspace,
         endpoint: "conversations.history",
-        payload: {
+        params: {
           channel: channel,
           latest: ts,
           limit: 1,
@@ -558,37 +550,48 @@ module Slack
 
     private
 
+    # Slack reads a JSON body only for write methods, so a method that reads goes through here with its arguments in the
+    # query string.
     def self.api_get(workspace:, endpoint:, params: {})
-      noting_failure(workspace, endpoint, params[:channel]) do
+      noting_failure(workspace, endpoint, conversation_in(params)) do
         uri = URI("#{SLACK_API_BASE}/#{endpoint}")
         uri.query = URI.encode_www_form(params) if params.any?
         request = Net::HTTP::Get.new(uri)
         request["Authorization"] = "Bearer #{workspace.access_token}"
 
-        response = pool_request(uri, request, endpoint: endpoint)
-
-        body = parse_json_body(response.body)
-        next body if body[:ok]
-
-        raise typed_error_for(body[:error], body)
+        answer(endpoint, pool_request(uri, request, endpoint: endpoint))
       end
     end
 
     def self.api_post(workspace:, endpoint:, payload:)
-      noting_failure(workspace, endpoint, payload[:channel]) do
+      noting_failure(workspace, endpoint, conversation_in(payload)) do
         uri = URI("#{SLACK_API_BASE}/#{endpoint}")
         request = Net::HTTP::Post.new(uri)
         request["Authorization"] = "Bearer #{workspace.access_token}"
         request["Content-Type"] = "application/json"
-        request.body = payload.to_json
+        request.body = without_empty_slots(payload).to_json
 
-        response = pool_request(uri, request, endpoint: endpoint)
-
-        body = parse_json_body(response.body)
-        next body if body[:ok]
-
-        raise typed_error_for(body[:error], body)
+        answer(endpoint, pool_request(uri, request, endpoint: endpoint))
       end
+    end
+
+    # Answers that say the outcome asked for already holds, such as a reaction that is already there.
+    ALREADY_SO = { "reactions.add" => %w[already_reacted], "reactions.remove" => %w[no_reaction] }.freeze
+
+    def self.answer(endpoint, response)
+      body = parse_json_body(response.body)
+      return body if body[:ok] || ALREADY_SO.fetch(endpoint, []).include?(body[:error])
+
+      raise typed_error_for(body[:error], body)
+    end
+
+    # Some methods name the conversation channel_id rather than channel.
+    def self.conversation_in(arguments) = arguments[:channel].presence || arguments[:channel_id]
+
+    def self.without_empty_slots(payload)
+      payload = payload.merge(blocks: Slack::Blocks.compact(payload[:blocks])) if payload[:blocks]
+      payload = payload.merge(view: payload[:view].merge(blocks: Slack::Blocks.compact(payload[:view][:blocks]))) if payload[:view].is_a?(Hash) && payload[:view][:blocks]
+      payload
     end
 
     # Answers the app expects and handles on its own, such as inviting someone already in the channel.

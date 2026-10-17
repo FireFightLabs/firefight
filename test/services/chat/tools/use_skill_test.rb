@@ -127,7 +127,7 @@ class Chat::Tools::UseSkillTest < ActiveSupport::TestCase
     answer = Chat::Tools::UseSkill.new(turn, offer: ->(tools) { @offered << tools }).call("skill" => "cloudflare_dns")
 
     assert answer.start_with?("Start from the zone on the resource map. `get_resource_map`")
-    assert_includes @offered.flatten.map(&:name), Mcp::Tools::GET_RESOURCE_MAP
+    assert_includes @offered.flatten.map(&:name), FirefightTools::GET_RESOURCE_MAP
   end
 
   test "a run holds use_skill and reads a provider's skill and guides as the investigator, offering only what it was granted" do
@@ -163,7 +163,6 @@ class Chat::Tools::UseSkillTest < ActiveSupport::TestCase
   end
 
   test "a workspace's own skill is listed and loaded like any other, its tools offered through the same rules" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
     grant_system!(Ability::Action::RESOURCE_FORMS, Ability::Action::ACTION_READ)
     Chat::CustomSkill.create_with!(workspace: @workspace, name: "game_day", by: workspace_memberships(:alice_workspace_one),
                                    content: { "when" => "Someone asks for a game day", "tools" => %w[get_form declare_incident], "steps" => "1. Read the form with `get_form`." })
@@ -177,7 +176,6 @@ class Chat::Tools::UseSkillTest < ActiveSupport::TestCase
   end
 
   test "a workspace's copy is loaded in place of Firefight's skill of the same name" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
     copy = Chat::CustomSkill.copy!(Chat::Skill.find("declaring"), workspace: @workspace, by: workspace_memberships(:alice_workspace_one))
     copy.write!(copy.live_version.content.merge("steps" => "1. Our own way, with `get_form`."), by: workspace_memberships(:alice_workspace_one))
 

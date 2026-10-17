@@ -2,11 +2,13 @@
 # that the tool then sends, such as a CI secret. A reveal shows that person a credential the tool made, such
 # as a workflow's webhook address, read live from the provider each time. Both are drawn as a card under the step, and a
 # chat in a Slack thread is pointed to the card. The row holds where the value goes or comes from (Integrations::
-# SecretHandoffs), never the value, so it is not one of the places a secret is stored.
+# SecretHandoffs), never the value, so it is not one of the places a secret is stored. A token shows its person a
+# Firefight token Halon minted for an API key or an agent, minted again at the moment they open it and shown once.
 class Chat::SecretEntry < ApplicationRecord
   KIND_ENTER = "enter"
   KIND_REVEAL = "reveal"
-  KINDS = [ KIND_ENTER, KIND_REVEAL ].freeze
+  KIND_TOKEN = "token"
+  KINDS = [ KIND_ENTER, KIND_REVEAL, KIND_TOKEN ].freeze
 
   STATUS_PENDING = "pending"
   # Being sent, so a second submission does not send it twice.
@@ -21,7 +23,8 @@ class Chat::SecretEntry < ApplicationRecord
   OPEN_FOR = 1.hour
 
   belongs_to :chat
-  belongs_to :tool, class_name: "Integration::Tool", foreign_key: :integration_tool_id, inverse_of: false
+  belongs_to :tool, class_name: "Integration::Tool", foreign_key: :integration_tool_id, inverse_of: false, optional: true
+  belongs_to :api_key, optional: true
   belongs_to :requester, class_name: "WorkspaceMembership"
   belongs_to :done_by, class_name: "WorkspaceMembership", optional: true
 
@@ -29,6 +32,8 @@ class Chat::SecretEntry < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
   validates :title, presence: true
   validates :reference, presence: true, if: :reveal?
+  validates :tool, presence: true, unless: :token?
+  validates :api_key, presence: true, if: :token?
 
   scope :in_order, -> { order(:created_at, :id) }
 
@@ -46,6 +51,12 @@ class Chat::SecretEntry < ApplicationRecord
     end
   end
 
+  # A token a Firefight tool minted in a chat, shown to whoever the call ran as.
+  def self.record_token!(chat:, tool_call_id:, api_key:, requester:)
+    create!(chat: chat, tool_call_id: tool_call_id, api_key: api_key, requester: requester, kind: KIND_TOKEN, status: STATUS_READY,
+            title: api_key.name)
+  end
+
   def conversation = chat.owner
 
   def workspace = chat.workspace
@@ -53,6 +64,16 @@ class Chat::SecretEntry < ApplicationRecord
   def enter? = kind == KIND_ENTER
 
   def reveal? = kind == KIND_REVEAL
+
+  def token? = kind == KIND_TOKEN
+
+  # Taken by the one opening that shows the token, so a second click or tab never mints it again.
+  def take_token!(by)
+    won = self.class.where(id: id, kind: KIND_TOKEN, status: STATUS_READY)
+              .update_all(status: STATUS_SET, done_by_id: by.id, done_at: Time.current, updated_at: Time.current)
+    reload
+    won == 1
+  end
 
   # A pending field past its hour reads expired, whether or not anything marked it.
   def shown_status = status == STATUS_PENDING && expires_at&.past? ? STATUS_EXPIRED : status
@@ -73,6 +94,7 @@ class Chat::SecretEntry < ApplicationRecord
   end
 
   def reveal_blocked_reason(member)
+    return "This token was already shown, and Firefight keeps no copy. Issue a new one if it was lost." if token? && shown_status == STATUS_SET
     return nil if member && member.id == requester_id
 
     "Only #{requester_name} can reveal this, since the call ran as them."
@@ -103,6 +125,8 @@ class Chat::SecretEntry < ApplicationRecord
   def body
     if enter?
       "Halon never sees it. Firefight sends it straight to #{tool.integration.display_name} and keeps no copy. Nothing is set until it is entered."
+    elsif token?
+      "It works like a password, so it is shown once, only here. Halon never sees it and Firefight keeps no copy, so issue a new one if it is lost."
     else
       "It works like a password, so it is shown only here. Firefight reads it from #{tool.integration.display_name} each time and keeps no copy."
     end
@@ -111,7 +135,7 @@ class Chat::SecretEntry < ApplicationRecord
   # How it stands, or nil while it waits with nothing to say beyond its button.
   def status_line
     case shown_status
-    when STATUS_SET then "Set by #{done_by&.display_name || 'someone who has left'} at #{clock(done_at)}."
+    when STATUS_SET then "#{token? ? 'Shown to' : 'Set by'} #{done_by&.display_name || 'someone who has left'} at #{clock(done_at)}."
     when STATUS_EXPIRED then "This field closed at #{clock(expires_at)}. Ask Halon again to set it."
     when STATUS_PENDING, STATUS_SETTING then "Open until #{clock(expires_at)}."
     end
@@ -122,6 +146,12 @@ class Chat::SecretEntry < ApplicationRecord
     "#{title} waits for its value. #{requester_name} types it in the secure field under this step, open until " \
       "#{clock(expires_at)}. You never see the value, and nothing is set until they do. Never ask for the value in the chat, " \
       "and if one is pasted there, say it was not used and point them to the field."
+  end
+
+  # What Halon is told in place of the token, once the card is in the chat.
+  def withheld_words
+    "The token for #{title} is shown once to #{requester_name} on a card under this step, where they copy it. You never " \
+      "see it and Firefight keeps no copy. Never ask for it, and if it is pasted in the chat, tell them to revoke it and issue a new one."
   end
 
   def at = created_at.utc.iso8601(3)

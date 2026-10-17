@@ -1,0 +1,30 @@
+# The tools PlanetScale's hosted MCP server documents at planetscale.com/docs/connect/mcp (read 2026-10-16), one per line, in its order.
+# The page names one planetscale_list_cluster_size_skus, which the server's own tools/list sends as planetscale_list_cluster_sizes (2026-10-16), so that name is kept.
+# planetscale_execute_read_query takes SELECT, SHOW, DESCRIBE and EXPLAIN only, on Postgres under a role with pg_read_all_data alone.
+# Each line is a tool as its server names it and whether it only reads or changes something.
+planetscale_list_organizations read
+planetscale_list_databases read
+planetscale_list_branches read
+planetscale_get_organization read
+planetscale_get_database read
+planetscale_get_branch read
+planetscale_get_branch_schema read
+planetscale_execute_read_query read
+planetscale_execute_write_query change
+planetscale_get_insights read
+planetscale_list_regions_for_organization read
+planetscale_list_cluster_sizes read
+planetscale_list_invoices read
+planetscale_get_invoice_line_items read
+planetscale_get_organization_billing_payment_method read
+planetscale_update_payment_method change
+planetscale_get_payment_method_setup read
+planetscale_search_documentation read
+planetscale_list_schema_recommendations read
+planetscale_list_query_error_patterns read
+planetscale_list_query_error_executions read
+planetscale_get_postgres_logs read
+planetscale_list_query_tags read
+planetscale_get_query_tag read
+planetscale_list_query_tag_summaries read
+planetscale_get_branch_metrics read

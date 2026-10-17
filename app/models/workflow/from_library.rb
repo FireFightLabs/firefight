@@ -84,7 +84,7 @@ module Workflow::FromLibrary
   # Moves a workflow that follows the library on to the item's current version. It gets a new live version with Firefight's
   # steps and the workspace's own trigger, scheduled from it, and a draft whose steps are still Firefight's moves along
   # too. One that someone changed since stops following and is told of the new version as a copy, and so does one whose
-  # new version needs more than its own identity was granted: nothing grants without a person, so an admin takes it into
+  # new version needs more than its own identity was granted. Nothing grants without a person, so an admin takes it into
   # a draft and publishing grants it. Claimed on the version it held, so two workers move it once.
   def upgrade_from_library!
     item = library_item

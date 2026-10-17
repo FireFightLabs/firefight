@@ -50,6 +50,8 @@ Any other client: Streamable HTTP transport with either OAuth (discovery via `/.
 
 A parameter whose values are the workspace's own is declared on the tool with `choice :role, from: ->(workspace) { ... }`, and a parameter naming a person with `person :member`. `Base.schema_for(workspace)` fills the choices into the parameter description at the moment the tool is offered ("one of: incident_lead (Incident Lead), ..."), and says a person parameter takes `"me"`. The agent's wrapper and the MCP server (`Mcp::Tools.for_workspace`, `Mcp::WorkspaceTool`) both hand out that schema, so a model picks from what exists rather than guessing a name, and an outside client sees the same. `WorkspaceMembership.resolve!(reference, acting:)` turns `"me"` into whoever is acting, and refuses it when a machine is acting, since a key has no seat in an incident.
 
+Firefight's own tools and their names are listed once, in `FirefightTools`. The MCP server, Halon, workflows and fixes all read that list, so none of them reaches into `app/mcp` for it. Models never name it: a fix's step is handed it at boot as `Investigation::RemediationStep.own_tools` (config/initializers/firefight_tools.rb), and ArchSpec refuses a model that depends on `app/mcp`.
+
 ## Read tools
 
 | Tool | Answers |
@@ -79,7 +81,7 @@ Results are workspace-scoped to the token, capped at 50 items with explicit `tru
 | `get_handbook_page` | One handbook page whole by id or title, with `wording_id` |
 | `upsert_handbook_page` | Add a page (title required) or change one by id or title, only what is sent. `freeze_windows` replaces the page's freeze windows, which plans keep out of. `wording_id` refuses an edit made over someone else's. A synced page refuses with why |
 | `delete_handbook_page` | Delete a page and its history. A synced page refuses with why |
-| `list_skills` | The workspace's own skills, each with when Halon uses it, whether it is on, its version, the Firefight skill it copies and how many workflows run it. Behind `CUSTOM_SKILLS` |
+| `list_skills` | The workspace's own skills, each with when Halon uses it, whether it is on, its version, the Firefight skill it copies and how many workflows run it |
 | `get_skill` | One skill whole by name or id, with its tools, steps and `version_id` |
 | `upsert_skill` | Add a skill (name required) or change one by name or id, only what is sent. A change to its content or name is a new version, and a call sending only `enabled` switches it on or off without one, or adds it switched off. `version_id` refuses any change over someone else's, a switch too, and the tools are checked against what Halon has |
 | `delete_skill` | Delete a skill and its versions. Refused while a workflow runs it |
@@ -144,7 +146,7 @@ An agent can hold work. `incident_actions.created_by` and `assignee` are polymor
 
 `assign_incident_role` authorizes as `incidents:update`. Roles hold one person each, so assigning replaces the current holder; the Incident Lead cannot be cleared, only handed over. `get_incident` returns every configured role with its holder, which is how an agent discovers the slugs it may pass.
 
-Authorization is the gateway's: admin personal tokens carry the admin's authority; service keys need the explicit `<resource>:<action>` scope. Every write is ledgered (`AbilityInvocation`), and workspace approval policies can park any call as `pending` — the tool result then carries an `approval id`; after a workspace admin approves (Slack buttons or `/app/gateway/approvals`), retry the identical call with `approval_id`. An argument a tool declares `write_only` (a secret a person types, such as `update_workspace_settings`'s `issue_webhook_secret`) reaches the ledger, the approval and `search_approvals` only as `sha256:<digest>` (`Mcp::Tools::Base.ledger_params`), so the identical retry still matches the approval and the value is never stored or shown. A call Halon made in a chat goes through the same `ledger_params`, and a held chat call that gave one cannot run from its approval, since the value was never kept, so it asks for the call again.
+Authorization is the gateway's. Admin personal tokens carry the admin's authority, and service keys need the explicit `<resource>:<action>` scope. Every write is ledgered (`AbilityInvocation`), and workspace approval policies can park any call as `pending` — the tool result then carries an `approval id`. After a workspace admin approves (Slack buttons or `/app/gateway/approvals`), retry the identical call with `approval_id`. An argument a tool declares `write_only` (a secret a person types, such as `update_workspace_settings`'s `issue_webhook_secret`) reaches the ledger, the approval and `search_approvals` only as `sha256:<digest>` (`Mcp::Tools::Base.ledger_params`), so the identical retry still matches the approval and the value is never stored or shown. A call Halon made in a chat goes through the same `ledger_params`, and a held chat call that gave one cannot run from its approval, since the value was never kept, so it asks for the call again.
 
 The server is self-describing for agents: server instructions, tool descriptions, and guidance-worthy responses (permission errors, no routing policy, unmatched dry runs) link to the relevant public docs page via `Mcp::Docs` constants — each page is fetchable as raw markdown (`https://firefight.app/docs/**/*.md`, index at `/llms.txt`).
 
@@ -243,8 +245,31 @@ the race where two people act at once.
 and their siblings authorize as `permissions` and `api_keys`, both in
 `ADMIN_ONLY_RESOURCES`. An admin's personal token or OAuth session reaches them
 and no service key or agent ever can, whatever it was granted, so an agent
-cannot mint another agent. Creating one returns its token once and never again,
-and a listing never carries one.
+cannot mint another agent. A token is never handed to a model or an agent
+(`Mcp::Tools::Base.mints_token?`, `TokenHandoff`): over MCP the answer carries a
+placeholder and the person behind the token is shown it once in Slack, in an
+ephemeral message in their direct messages with the app
+(`PlatformAdapter#post_token_once`), and a call whose person Slack cannot reach is
+refused before anything is made. A token Slack could not show is switched off at
+once. In Halon's chat it waits on a card under the step (`Chat::SecretEntry`
+`KIND_TOKEN`), which mints it again when its person opens it, once. A listing
+never carries one, and `ff_` tokens are redacted wherever text is scrubbed
+(`firefight_token` in `SECRET_PATTERNS`).
+
+**A person says yes to every change of who may do what.** A tool that changes
+permissions, principals, approvals, tokens or webhooks
+(`Ability::Action::PERSON_CONFIRMED_RESOURCES`, `Mcp::Tools::Base.asks_a_person?`,
+which `test_outbound_webhook` overrides since a test delivery changes nothing)
+waits over MCP for an admin to approve it, whoever holds the token, even though
+approvals and permissions are exempt from approval rules
+(`AbilityGateway.person_must_approve?`, `PERSON_REQUIREMENT`), and the REST API
+holds the same changes the same way (docs/api.md). A request made
+with a token, or by an agent, is approved only by a person in a session of their
+own, never with a token (`Ability::Approval#approve_with_token_blocked_reason`),
+and approval rules and unattended rules are never changed with a token
+(`PolicyRule.approval_change_blocked_reason`,
+`Ability::UnattendedRule.change_blocked_reason`), each refused before the call
+with its sentence (`Base.token_refusal`).
 
 ## Reading the conversation
 
@@ -263,7 +288,7 @@ part worth reading, and `more_before` carries the cursor. The limit is capped at
 
 ## Workflows
 
-Behind the workflows flag (`behind_flag FeatureFlags::WORKFLOWS`), so they are never listed in a workspace without it, and a call to one there is refused. `list_workflows` (`workflows: read`) is what Halon reads too (`Workflow::Listing`). `create_workflow` (`workflows: create`) takes the shape Halon writes (`Workflow::Authoring.schema`): a library template with its params, or a trigger, steps and edges by step name, and optionally its most runs per hour (`runs_per_hour`) and the all clear. `list_workflows` answers each workflow's most runs per hour and how many runs it skipped past it in the last week. It is published when the principal may publish it and grant what it needs, each its own gateway call (`workflows: update`, `permissions: create`), otherwise it waits as a draft and a member's request asks the admins. `run_workflow` (`workflows: create`) runs a published one by name as its own identity and answers its run's page. `update_workflow_settings` (`workspace: update`) sets how long runs keep their details. `update_workflow` (`workflows: update`) changes one workflow's settings, by name, slug or another name, through `Workflow#update_settings!` as the Settings page and `PATCH /api/v1/workflows/:id` do, only what is given, null clearing the spending ceiling, the owning team or the subject, and answers every setting with "<name> was updated." It is marked destructive (`DESTRUCTIVE` annotations), so Halon, which is offered it in the setup group, asks the person on a confirmation in the chat before it runs, and the gateway and approval rules decide it as the person. See [workflows.md](workflows.md).
+`list_workflows` (`workflows: read`) is what Halon reads too (`Workflow::Listing`). `create_workflow` (`workflows: create`) takes the shape Halon writes (`Workflow::Authoring.schema`): a library template with its params, or a trigger, steps and edges by step name, and optionally its most runs per hour (`runs_per_hour`) and the all clear. `list_workflows` answers each workflow's most runs per hour and how many runs it skipped past it in the last week. It is published when the principal may publish it and grant what it needs, each its own gateway call (`workflows: update`, `permissions: create`), otherwise it waits as a draft and a member's request asks the admins. `run_workflow` (`workflows: create`) runs a published one by name as its own identity and answers its run's page. `update_workflow_settings` (`workspace: update`) sets how long runs keep their details. `update_workflow` (`workflows: update`) changes one workflow's settings, by name, slug or another name, through `Workflow#update_settings!` as the Settings page and `PATCH /api/v1/workflows/:id` do, only what is given, null clearing the spending ceiling, the owning team or the subject, and answers every setting with "<name> was updated." It is marked destructive (`DESTRUCTIVE` annotations), so Halon, which is offered it in the setup group, asks the person on a confirmation in the chat before it runs, and the gateway and approval rules decide it as the person. See [workflows.md](workflows.md).
 
 ## Architecture
 

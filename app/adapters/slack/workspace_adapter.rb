@@ -180,8 +180,9 @@ module Slack
 
     # Each step on its own, so a message whose first mark is already gone still gets the second.
     def mark_done(channel_id:, message_id:)
-      unmark_working(channel_id: channel_id, message_id: message_id)
-      quietly(:mark_done) { add_reaction(channel_id: channel_id, message_id: message_id, name: Slack::Emoji::REACTION_DONE) }
+      removed = unmark_working(channel_id: channel_id, message_id: message_id)
+      added = quietly(:mark_done) { add_reaction(channel_id: channel_id, message_id: message_id, name: Slack::Emoji::REACTION_DONE) }
+      { success: removed[:success] && added[:success], retry: removed[:retry] || added[:retry] }
     end
 
     def unmark_working(channel_id:, message_id:)
@@ -289,7 +290,10 @@ module Slack
       "slack://channel?team=#{@workspace.platform_id}&id=#{channel_id}"
     end
 
+    # A message is named by both, so without either there is nothing to link and Slack is not asked.
     def get_message_permalink(channel_id:, message_id:)
+      return { permalink: nil } if channel_id.blank? || message_id.blank?
+
       translate_errors do
         result = Slack::Client.get_permalink(
           workspace: @workspace,
@@ -309,6 +313,8 @@ module Slack
           ts: message_id
         )
         message = raw.is_a?(Hash) ? (raw[:message] || raw["message"] || raw) : {}
+        # Slack hands back the newest message at or before the one asked for, so a deleted message reads as an older one.
+        next unless (message[:ts] || message["ts"]) == message_id
 
         {
           message_id: message[:ts] || message["ts"],
@@ -320,6 +326,8 @@ module Slack
         }
       end
     end
+
+    def message_for_model(text:) = text.present? ? messages_for_model(texts: [ text ])[text] : text
 
     def messages_as_markdown(texts:)
       names = mentioned_names(texts)
@@ -338,6 +346,30 @@ module Slack
 
     # The app is known only by the user id Slack names in the event's authorizations, since the install keeps none. An
     # event without them keeps every mention, as guessing which one is the app could drop someone else.
+    # People in an organisation wide install come from each of its workspaces, so the team is only compared for a single
+    # workspace.
+    def sender_from_another_organisation?(payload:)
+      team = payload.dig("event", "user_team").presence
+      team.present? && payload["enterprise_id"].blank? && team != payload["team_id"]
+    end
+
+    def pinned_message(payload:)
+      event = payload["event"] || {}
+      return unless event.dig("item", "type") == "message"
+
+      { channel_id: event.dig("item", "channel"), message_id: event.dig("item", "message", "ts") || event.dig("item", "ts"),
+        thread_id: event.dig("item", "message", "thread_ts"), user_id: event["user"] }
+    end
+
+    def reaction(payload:)
+      event = payload["event"] || {}
+      { emoji: event["reaction"], channel_id: event.dig("item", "channel"), message_id: event.dig("item", "ts"), user_id: event["user"] }
+    end
+
+    def pressed_message(raw:)
+      { channel_id: raw&.dig("container", "channel_id"), message_id: raw&.dig("container", "message_ts"), content: raw&.dig("message", "blocks") || [] }
+    end
+
     def text_for_app(payload:)
       text = payload.dig("event", "text").to_s
       app_ids = Array(payload["authorizations"]).filter_map { |authorization| authorization["user_id"] if authorization["is_bot"] }
@@ -361,8 +393,8 @@ module Slack
     # Read from the thread's first message. One that cannot be read, or is not there any more, counts as the person's,
     # so their message is answered rather than dropped.
     def direct_thread_root(channel_id:, thread_id:)
-      root = fetch_message(channel_id: channel_id, message_id: thread_id)[:raw].to_h.with_indifferent_access
-      return { started: PlatformAdapter::THREAD_STARTED_BY_PERSON, text: nil } unless root[:ts] == thread_id
+      root = fetch_message(channel_id: channel_id, message_id: thread_id)&.dig(:raw).to_h.with_indifferent_access
+      return { started: PlatformAdapter::THREAD_STARTED_BY_PERSON, text: nil } if root.empty?
 
       { started: thread_started_by(root), text: root[:text].presence }
     rescue AdapterError => error
@@ -390,11 +422,38 @@ module Slack
           real_name: profile[:real_name] || profile["real_name"],
           avatar_url: profile[:image_192] || profile["image_192"] || profile[:image_48] || profile["image_48"],
           email: profile[:email] || profile["email"],
+          email_confirmed: (user[:is_email_confirmed] || user["is_email_confirmed"]) == true,
           timezone: user[:tz] || user["tz"],
           raw: user
         }
       end
     end
+
+    GUEST_REFUSAL = "Guests of this Slack workspace can't use Firefight. Ask a workspace admin if you need it.".freeze
+    OUTSIDER_REFUSAL = "Firefight only works for people in this Slack workspace, so it can't do this for you.".freeze
+
+    # Slack Connect brings people from another organisation into shared channels, and a workspace can hold guests.
+    # Neither belongs to this workspace. Someone from a sibling workspace of an organisation wide install lists this
+    # workspace among their teams, so they are not taken for an outsider.
+    def member_refusal(profile:)
+      user = profile.to_h.with_indifferent_access[:raw]
+      return if user.blank?
+
+      user = user.to_h.with_indifferent_access
+      return OUTSIDER_REFUSAL if outsider?(user)
+
+      GUEST_REFUSAL if user[:is_restricted] || user[:is_ultra_restricted]
+    end
+
+    def outsider?(user)
+      return true if user[:is_stranger]
+
+      team = user[:team_id].presence
+      return false if team.nil? || team == @workspace.platform_id
+
+      Array(user.dig(:enterprise_user, :teams)).exclude?(@workspace.platform_id)
+    end
+    private :outsider?
 
     # broadcast also shows the reply in the channel itself.
     def post_threaded_message(channel_id:, parent_message_id:, text:, blocks: nil, broadcast: false)
@@ -446,6 +505,21 @@ module Slack
 
     def resolve_people(text)
       Slack::HandleResolver.new(@workspace).resolve(text)
+    end
+
+    # Ephemeral in the app's direct messages, so Slack keeps it for this person alone and drops it when they reload.
+    def post_token_once(user_id:, title:, token:)
+      translate_errors do
+        channel = Slack::Client.open_direct_channel(workspace: @workspace, user: user_id)
+        words = "Here is the token for #{title}. Copy it now. Only you can see this message, it disappears when Slack reloads, " \
+                "and Firefight keeps no copy."
+        Slack::Client.post_ephemeral(
+          workspace: @workspace, channel: channel, user: user_id, text: words,
+          blocks: [ { type: "section", text: { type: "mrkdwn", text: Slack::Mrkdwn.escape(words) } },
+                    { type: "section", text: { type: "mrkdwn", text: "```#{token}```" } } ]
+        )
+        { success: true }
+      end
     end
 
     # A user id as channel opens or reuses the DM with them.
@@ -522,6 +596,8 @@ module Slack
       text.match?(CHANNEL_ID) ? [ text, nil ] : nil
     end
 
+    MAY_PASS_LATER = [ AdapterError::ServerError, AdapterError::Unavailable, AdapterError::RateLimited ].freeze
+
     def translate_errors
       yield
     rescue AdapterError::AuthRevoked => e
@@ -529,12 +605,13 @@ module Slack
       raise
     end
 
-    # Something that only helps, such as a reaction already gone, never stops the work it goes with.
+    # Something that only helps, such as a reaction already gone, never stops the work it goes with. Only a failure of
+    # Slack itself may pass if tried again. A message, channel or permission Slack refused stays refused.
     def quietly(what)
       yield
     rescue AdapterError => e
       Rails.logger.info({ event: "slack.best_effort_skipped", what: what, error: e.message }.to_json)
-      { success: false }
+      { success: false, retry: MAY_PASS_LATER.any? { |kind| e.is_a?(kind) } }
     end
   end
 end

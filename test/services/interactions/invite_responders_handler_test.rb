@@ -11,7 +11,7 @@ class Interactions::InviteRespondersHandlerTest < ActiveSupport::TestCase
     result = Interactions::InviteRespondersHandler.execute(build_interaction(selected_users: []))
 
     assert_equal "errors", result[:response_action]
-    assert result[:errors][:invite_users_block].present?
+    assert result[:errors][Identifiers::INVITE_USERS_BLOCK].present?
   end
 
   test "invites selected users and clears modal" do
@@ -24,15 +24,19 @@ class Interactions::InviteRespondersHandlerTest < ActiveSupport::TestCase
 
     adapter = mock("workspace_adapter")
     WorkspaceAdapter.expects(:for).with(@workspace).returns(adapter)
+    adapter.expects(:submitted_value).with(has_entries(block_id: Identifiers::INVITE_USERS_BLOCK, input_id: Identifiers::INVITE_USERS_SELECT,
+                                                       kind: PlatformAdapter::Input::USERS))
+           .returns([ "U11111111", "U22222222" ])
     adapter.expects(:post_invite_summary).with(
       channel_id: @incident.channel_id, user_id: @member.platform_user_id, result: result
     )
+    adapter.expects(:modal_close_response).returns(:closed)
 
     result = Interactions::InviteRespondersHandler.execute(
       build_interaction(selected_users: [ "U11111111", "U22222222" ])
     )
 
-    assert_equal "clear", result[:response_action]
+    assert_equal :closed, result
   end
 
   test "returns errors when incident is missing" do

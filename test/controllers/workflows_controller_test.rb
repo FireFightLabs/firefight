@@ -7,7 +7,6 @@ class WorkflowsControllerTest < ActionDispatch::IntegrationTest
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
     @bob = workspace_memberships(:bob_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:post_workflow_publish_request_to_user).returns({ channel_id: "D1", message_id: "1.1" })
     WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:update_workflow_publish_request).returns({ success: true })
     WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:post_workflow_publish_answer_to_user).returns({})
@@ -17,7 +16,7 @@ class WorkflowsControllerTest < ActionDispatch::IntegrationTest
   def drafted(name = "Look around", by: @bob)
     workflow = Workflow.create!(workspace: @workspace, name: name, created_by: by)
     workflow.open_draft!(by: by).update!(steps: [ { "id" => "look", "name" => "look", "kind" => "call_tool",
-                                                    "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => {} } } ],
+                                                    "config" => { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => {} } } ],
                                          trigger: { "kind" => "manual", "inputs" => [ { "key" => "query", "question" => "What to look for?", "default" => "db" } ] })
     workflow
   end
@@ -26,31 +25,6 @@ class WorkflowsControllerTest < ActionDispatch::IntegrationTest
     workflow = drafted(name)
     WorkflowPublishService.new(workflow).publish!(workflow.draft, by: @alice)
     workflow.reload
-  end
-
-  test "without the workflows flag every page and action answers not found" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-    workflow = drafted
-    sign_in(users(:alice), @workspace)
-
-    get halon_workflows_path, headers: inertia_headers
-    assert_response :not_found
-    get workflow_path(workflow), headers: inertia_headers
-    assert_response :not_found
-    post run_workflow_path(workflow)
-    assert_response :not_found
-    patch settings_workspace_workflows_path, params: { workflow_run_retention_days: 30 }
-    assert_response :not_found
-  end
-
-  test "without the workflows flag a member who could not publish is told not found too, never that they may not" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-    workflow = drafted
-    sign_in(users(:bob), @workspace)
-
-    post publish_workflow_path(workflow)
-
-    assert_response :not_found
   end
 
   test "any member sees the workflows, their runs, the library and nothing waiting to publish" do
@@ -154,12 +128,6 @@ class WorkflowsControllerTest < ActionDispatch::IntegrationTest
     Ability::Grant.find_by!(principal: @bob, action: Ability::Action.system!(Workflow::CREATE_KEY)).destroy!
     post halon_workflows_path, params: { template: "probing_scan", time_zone: "Europe/Belgrade" }
     assert_equal "Look for probing in the logs was made as a draft.", flash[:notice]
-  end
-
-  test "without workflows the Permissions screen offers no default for making them" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-
-    assert_not(@bob.default_access.any? { |access| access.action&.key == Workflow::CREATE_KEY })
   end
 
   test "a run opens on the canvas with each step, and pinning and stopping it each say so" do

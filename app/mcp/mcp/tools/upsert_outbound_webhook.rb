@@ -1,14 +1,15 @@
 module Mcp
   module Tools
     class UpsertOutboundWebhook < Base
-      tool_name UPSERT_OUTBOUND_WEBHOOK
+      tool_name FirefightTools::UPSERT_OUTBOUND_WEBHOOK
       description "Create or change a Firefight outbound webhook, which posts this workspace's " \
                   "incident events to a URL you own. It is Firefight's own, never a provider's " \
                   "webhook such as a deploy or workflow trigger, which that provider's tools reach. " \
                   "Pass id to change an existing one, or leave it out to create. Sending " \
                   "subscribed_events replaces the set rather than adding to it, so read the " \
                   "current one from get_workspace_config first. The signing secret is never " \
-                  "returned here, copy it from the dashboard. If the call requires approval, retry " \
+                  "returned here. A person sets the receiver up with a new one from the webhook's " \
+                  "details in the dashboard, with Replace secret. If the call requires approval, retry " \
                   "the identical call with approval_id once approved. Docs: #{Docs::MCP_SERVER}"
       annotations(**WRITE)
       input_schema(

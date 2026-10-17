@@ -1,11 +1,11 @@
 module Mcp
   module Tools
     class UpsertApiKey < Base
-      tool_name UPSERT_API_KEY
+      tool_name FirefightTools::UPSERT_API_KEY
       description "Create or change a service key, which is a credential for automation with " \
                   "nothing to say on a timeline. Use upsert_agent instead for an AI that takes " \
                   "part in incidents under its own name. Pass prefix to change an existing key, or " \
-                  "leave it out to create. Creating returns the token once and never again. " \
+                  "leave it out to create. Creating shows the token once to the person the call runs as, never in this answer. " \
                   "Sending permissions replaces the set rather than adding to it, so read the " \
                   "current one from list_api_keys first. Authorizes as api_keys, which is " \
                   "admin-only and cannot be granted to a machine. Docs: #{Docs::MCP_SERVER}"
@@ -26,6 +26,8 @@ module Mcp
       upserts Ability::Action::RESOURCE_API_KEYS,
         scope: ->(workspace) { workspace.api_keys.where(deleted_at: nil).service },
         key: :prefix, column: :token_prefix
+
+      def self.mints_token?(_workspace, args) = args[:prefix].blank?
 
       def self.perform_with_principal(workspace:, principal:, args:)
         key = upsert_target(workspace, args)

@@ -14,20 +14,20 @@ module Slack
             { type: "section", text: { type: "mrkdwn", text: "*#{incident.identifier}: #{incident.name || 'Untitled Incident'}*" } },
             {
               type: "input",
-              block_id: "escalate_to_block",
+              block_id: Identifiers::ESCALATE_TO_BLOCK,
               element: {
                 type: "users_select",
-                action_id: "escalate_to_select",
+                action_id: Identifiers::ESCALATE_TO_SELECT,
                 placeholder: { type: "plain_text", text: "Select a person" }
               },
               label: { type: "plain_text", text: "Who should we escalate to?" }
             },
             {
               type: "input",
-              block_id: "reason_block",
+              block_id: Identifiers::REASON_BLOCK,
               element: {
                 type: "plain_text_input",
-                action_id: "reason_input",
+                action_id: Identifiers::REASON_INPUT,
                 multiline: true,
                 placeholder: { type: "plain_text", text: "Add context for the escalation" },
                 max_length: 3000

@@ -2,7 +2,7 @@ module Mcp
   module Tools
     # Stops a watch Halon keeps for whoever this key belongs to.
     class StopWatch < Base
-      tool_name STOP_WATCH
+      tool_name FirefightTools::STOP_WATCH
       authorize_as Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE
       description "Stop a watch Halon keeps for you, by the id list_watches gives. It says it stopped where it reports. " \
                   "Docs: #{Docs::MCP_SERVER}"

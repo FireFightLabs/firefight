@@ -857,7 +857,7 @@ module Integrations
 
         target = Target.parse(wanted) || named(environment_row, wanted)
         fail!("Nothing called #{wanted} in this project. list_resources shows what there is.") unless target
-        fail!("#{wanted} is in project #{target.project}, and this connection reaches #{project_of(environment_row)}.") if target.project != project_of(environment_row)
+        fail_policy!("#{wanted} is in project #{target.project}, and this connection reaches #{project_of(environment_row)}.") if target.project != project_of(environment_row)
 
         target
       end

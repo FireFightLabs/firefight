@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class EvaluateRouting < Base
-      tool_name EVALUATE_ROUTING
+      tool_name FirefightTools::EVALUATE_ROUTING
       authorize_as Ability::Action::RESOURCE_POLICIES
       description "Dry-run alert routing: given hypothetical alert fields (e.g. service, " \
                   "event, severity), returns which rule would match, the outcome (create " \

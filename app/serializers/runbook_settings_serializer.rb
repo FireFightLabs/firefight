@@ -17,31 +17,14 @@ class RunbookSettingsSerializer < BaseSerializer
 
   has_many :runbook_steps, as: :steps, serializer: RunbookStepSettingsSerializer
 
-  # What Halon asks the person each time it runs the runbook, each by the key its steps name as {{key}}.
-  type "{ key: string; question: string; default?: string }[]"
-  def inputs
-    runbook.inputs.map { |input| { key: input["key"], question: input["question"], default: input["default"].presence }.compact }
-  end
-
   type "string[]"
   def aliases
     runbook.aliases
   end
 
-  # What Halon watches once every step went through, as start_watch takes it.
-  type "Record<string, unknown>", optional: true
-  def watch
-    runbook.watch
-  end
-
-  type :boolean
-  def runnable
-    runbook.procedure?
-  end
-
-  # The workflow its Run it button starts, where the workspace has workflows.
+  # The workflow its Run it button starts.
   has_one :workflow, serializer: RunbookWorkflowSerializer, optional: true do
-    runbook.runnable_workflow
+    runbook.workflow
   end
 
   type "IncidentConditionSettings[]", optional: true

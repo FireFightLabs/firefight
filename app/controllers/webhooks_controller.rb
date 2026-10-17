@@ -2,14 +2,15 @@ class WebhooksController < InertiaController
   authorizes Ability::Action::RESOURCE_WEBHOOKS,
     read: :sample_payload,
     create: :create,
-    update: %i[update test activate deactivate signing_secret],
+    update: %i[update test activate deactivate rotate_signing_secret],
     delete: :destroy
-  before_action :set_webhook, only: [ :update, :destroy, :test, :activate, :deactivate, :signing_secret ]
+  before_action :set_webhook, only: [ :update, :destroy, :test, :activate, :deactivate, :rotate_signing_secret ]
 
   def create
     webhook = current_workspace.webhooks.new(webhook_params)
 
     if webhook.save
+      flash.inertia[:webhook_signing_secret] = webhook.signing_secret
       redirect_to developer_webhooks_path, notice: "#{webhook.name} was created."
     else
       redirect_back fallback_location: developer_webhooks_path, inertia: { errors: webhook.errors.to_hash }
@@ -24,9 +25,10 @@ class WebhooksController < InertiaController
     end
   end
 
-  # Read on demand so the secret is not in every settings page load.
-  def signing_secret
-    render json: { signingSecret: @webhook.signing_secret }
+  # The secret is shown once, so a receiver that lost it gets a new one, and the old one stops signing at once.
+  def rotate_signing_secret
+    flash.inertia[:webhook_signing_secret] = @webhook.rotate_signing_secret!
+    redirect_to developer_webhooks_path, notice: "#{@webhook.name} has a new signing secret. The old one stopped working."
   end
 
   def destroy

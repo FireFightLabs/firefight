@@ -3,8 +3,8 @@ import {
   IconCircleX,
   IconWebhook,
 } from "@tabler/icons-react"
-import { useState } from "react"
-import { router } from "@inertiajs/react"
+import { useEffect, useState } from "react"
+import { router, usePage } from "@inertiajs/react"
 
 import type { Webhook } from "@/types/serializers"
 import { webhookPath } from "@/lib/routes"
@@ -29,6 +29,11 @@ import { RowActions } from "@/components/row-actions"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { WebhookDetailSheet } from "@/pages/settings/components/webhooks/webhook-detail-sheet"
 import { whenClosed } from "@/lib/handlers"
+import { TokenRevealedDialog } from "@/pages/settings/components/api-keys/token-revealed-dialog"
+
+const SECRET_TITLE = "Signing secret"
+const SECRET_DESCRIPTION = "Copy this secret into the service that receives the webhook now. It cannot be shown again."
+const SECRET_WARNING = "If you lose it, replace the secret from the webhook's details and update the receiver. The old one stops working at once."
 
 export function WebhooksTab({
   webhooks,
@@ -45,6 +50,20 @@ export function WebhooksTab({
     ? webhooks.find((webhook) => webhook.id === activeWebhookId) ?? null
     : null
   const [deleting, setDeleting] = useState<Webhook | null>(null)
+  // Custom flash keys arrive through flash.inertia[:key] on the server (WebhooksController#create).
+  const { flash } = usePage()
+  const [revealedSecret, setRevealedSecret] = useState<string | null>(null)
+
+  // Lifted out of flash so the dialog survives re-renders. Rails clears flash on the next request.
+  useEffect(() => {
+    if (flash?.webhook_signing_secret) {
+      setRevealedSecret(flash.webhook_signing_secret)
+    }
+  }, [flash?.webhook_signing_secret])
+
+  function closeSecret() {
+    setRevealedSecret(null)
+  }
 
   function confirmDelete() {
     if (!deleting) {
@@ -147,6 +166,7 @@ export function WebhooksTab({
         open={detailWebhook !== null}
         onOpenChange={whenClosed(() => onWebhookSelect(null))}
       />
+      <TokenRevealedDialog token={revealedSecret} onDismiss={closeSecret} title={SECRET_TITLE} description={SECRET_DESCRIPTION} warning={SECRET_WARNING} />
     </div>
   )
 }

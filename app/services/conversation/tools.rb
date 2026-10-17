@@ -14,10 +14,7 @@ module Conversation::Tools
     ]
   end
 
-  # Only where the workspace has workflows.
   def self.workflows(turn)
-    return [] unless FeatureFlags.enabled?(turn.workspace, FeatureFlags::WORKFLOWS)
-
     [ CreateWorkflow.new(turn), RunWorkflow.new(turn), ListWorkflows.new(turn), Chat::Tools::GetWorkflow.new(turn), Chat::Tools::ProposeWorkflowEdit.new(turn) ]
   end
 

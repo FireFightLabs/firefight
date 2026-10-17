@@ -29,6 +29,8 @@ class AbilityGateway
               SOURCE_WORKFLOW ].freeze
   # Where a human acts directly rather than through a key or an agent.
   HUMAN_SOURCES = [ SOURCE_SLACK, SOURCE_WEB ].freeze
+  # A call made with a token, an API key, a personal token, an OAuth connection or an agent's.
+  TOKEN_SOURCES = [ SOURCE_API, SOURCE_MCP ].freeze
 
   class Denied < StandardError
     attr_reader :action_key
@@ -166,7 +168,7 @@ class AbilityGateway
   def self.request_approval!(principal:, action_key:, workspace:, scope: {}, params: {}, context: {})
     action = Ability::Action.lookup(action_key, workspace)
     raise Denied.new(action_key) unless permitted?(principal, action, action_key, workspace, scope, params: params) && action&.configured_for?(scope)
-    return nil unless approval_requirement(workspace, action, action_key, scope, context, params: params)
+    return nil unless approval_requirement(workspace, action, action_key, scope, context, params: params, principal: principal)
 
     approval_gate!(principal: principal, action: action, action_key: action_key, workspace: workspace, scope: scope, params: params,
                    context: context.except(:approval_id))
@@ -178,6 +180,8 @@ class AbilityGateway
   # request when the caller already read it.
   def self.permitted?(principal, action, action_key, workspace, scope, params: nil, resolved: nil, approval: nil)
     return false unless action
+    # A member an admin removed reaches nothing, whatever they left running.
+    return false if principal.is_a?(WorkspaceMembership) && principal.removed?
     return true if Ability::Action.open?(action_key)
     return true if principal.implicitly_allowed?(action, resolved)
     return true if Ability::Approval.decides_by_name?(principal, action_key, scope, workspace, loaded: approval)
@@ -208,7 +212,7 @@ class AbilityGateway
 
   # The caller claims the returned approval together with the allow ledger row.
   def self.approval_gate!(principal:, action:, action_key:, workspace:, scope:, params:, context:)
-    requirement = approval_requirement(workspace, action, action_key, scope, context, params: params)
+    requirement = approval_requirement(workspace, action, action_key, scope, context, params: params, principal: principal)
     return nil unless requirement
 
     ahead = approved_ahead(principal: principal, action_key: action_key, workspace: workspace, scope: scope, params: params,
@@ -266,7 +270,8 @@ class AbilityGateway
 
   # A read never waits on an approval rule, whatever rule names it: a tool that only reads, one of Firefight's own reads,
   # or a call shown to read through a tool that can also change things. Every change keeps every rule.
-  def self.approval_requirement(workspace, action, action_key, scope, context, params: nil)
+  def self.approval_requirement(workspace, action, action_key, scope, context, params: nil, principal: nil)
+    return PERSON_REQUIREMENT if principal && person_must_approve?(principal, action, context)
     return nil if Ability::Action.approval_exempt?(action_key)
     return nil if action.risk_of(params) == Ability::Action::RISK_READ
 
@@ -281,6 +286,18 @@ class AbilityGateway
       severity: context[:severity]
     )
     result.outcome&.dig(PolicyRule::ApprovalOutcome::REQUIRE_KEY)
+  end
+
+  # A person in Firefight or Slack, or in a chat with Halon, which asks them on its card first.
+  PERSON_SOURCES = [ SOURCE_WEB, SOURCE_SLACK, SOURCE_CONVERSATION ].freeze
+  # A call that changes permissions, a credential, an approval or a webhook (Ability::Action#asks_a_person?), made
+  # with a token or by a machine, waits for an admin to approve it, whatever its grants or the approval rules say.
+  PERSON_REQUIREMENT = { "role" => WorkspaceMembership.roles[:admin], "count" => 1, "self_approval" => true }.freeze
+
+  def self.person_must_approve?(principal, action, context)
+    return false unless context[:asks_a_person] && action&.asks_a_person?
+
+    !(principal.is_a?(WorkspaceMembership) && PERSON_SOURCES.include?(context[:source]))
   end
 
   # Anything that leaves Firefight is recorded, reads included. Reads of our own data are

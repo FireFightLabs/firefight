@@ -27,9 +27,9 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   test "every participation tool is offered as a write" do
     tools = rpc("tools/list").dig("result", "tools").index_by { |tool| tool["name"] }
 
-    [ Mcp::Tools::CREATE_ACTION_ITEM, Mcp::Tools::ASSIGN_ACTION_ITEM, Mcp::Tools::COMPLETE_ACTION_ITEM,
-      Mcp::Tools::CLAIM_RUNBOOK_STEP, Mcp::Tools::LINK_INCIDENT, Mcp::Tools::GIVE_SHOUTOUT,
-      Mcp::Tools::ESCALATE_INCIDENT, Mcp::Tools::INVITE_RESPONDERS ].each do |name|
+    [ FirefightTools::CREATE_ACTION_ITEM, FirefightTools::ASSIGN_ACTION_ITEM, FirefightTools::COMPLETE_ACTION_ITEM,
+      FirefightTools::CLAIM_RUNBOOK_STEP, FirefightTools::LINK_INCIDENT, FirefightTools::GIVE_SHOUTOUT,
+      FirefightTools::ESCALATE_INCIDENT, FirefightTools::INVITE_RESPONDERS ].each do |name|
       assert tools[name], "#{name} should be offered"
       assert_not tools[name].dig("annotations", "readOnlyHint"), "#{name} should not be read-only"
     end
@@ -38,7 +38,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   # An agent has to be able to name the work before it can act on it.
   test "get_incident names the action items and runbook steps by id" do
     action = incident_actions(:inc1_action_open)
-    content, = call_tool(Mcp::Tools::GET_INCIDENT, { incident: @incident.identifier })
+    content, = call_tool(FirefightTools::GET_INCIDENT, { incident: @incident.identifier })
 
     listed = content["action_items"].index_by { |item| item["id"] }
     assert listed[action.id], "the open item should be listed"
@@ -47,7 +47,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "an agent raises an action item and is recorded as having raised it" do
-    content, is_error = call_tool(Mcp::Tools::CREATE_ACTION_ITEM, {
+    content, is_error = call_tool(FirefightTools::CREATE_ACTION_ITEM, {
       incident: @incident.identifier, description: "Drain replica 2", kind: IncidentAction::ACTION_TYPE_ACTION
     }, token: @agent_token)
 
@@ -60,7 +60,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   test "an agent cannot raise an action on an incident that is over, and is told to raise a follow-up" do
     over = incidents(:resolved_minor_ws1)
 
-    _, is_error, text = call_tool(Mcp::Tools::CREATE_ACTION_ITEM, {
+    _, is_error, text = call_tool(FirefightTools::CREATE_ACTION_ITEM, {
       incident: over.identifier, description: "Too late", kind: IncidentAction::ACTION_TYPE_ACTION
     }, token: @agent_token)
 
@@ -72,7 +72,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   test "an agent takes an item and holds it under its own name" do
     action = incident_actions(:inc1_followup)
 
-    content, is_error = call_tool(Mcp::Tools::ASSIGN_ACTION_ITEM, {
+    content, is_error = call_tool(FirefightTools::ASSIGN_ACTION_ITEM, {
       incident: @incident.identifier, action_item: action.id
     }, token: @agent_token)
 
@@ -85,7 +85,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   test "an agent hands an item to a person" do
     action = incident_actions(:inc1_action_in_progress)
 
-    _, is_error = call_tool(Mcp::Tools::ASSIGN_ACTION_ITEM, {
+    _, is_error = call_tool(FirefightTools::ASSIGN_ACTION_ITEM, {
       incident: @incident.identifier, action_item: action.id, member: @other.user.email
     }, token: @agent_token)
 
@@ -97,7 +97,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   test "an agent finishes an item and the timeline names the agent" do
     action = incident_actions(:inc1_action_open)
 
-    _, is_error = call_tool(Mcp::Tools::COMPLETE_ACTION_ITEM, {
+    _, is_error = call_tool(FirefightTools::COMPLETE_ACTION_ITEM, {
       incident: @incident.identifier, action_item: action.id
     }, token: @agent_token)
 
@@ -111,7 +111,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
     action = incident_actions(:inc1_action_open)
     action.update!(status: IncidentAction::STATUS_DONE)
 
-    _, is_error, text = call_tool(Mcp::Tools::COMPLETE_ACTION_ITEM, {
+    _, is_error, text = call_tool(FirefightTools::COMPLETE_ACTION_ITEM, {
       incident: @incident.identifier, action_item: action.id
     })
 
@@ -122,7 +122,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   test "an agent claims a runbook step, which opens the item behind it" do
     attachment = attach_runbook
 
-    content, is_error = call_tool(Mcp::Tools::CLAIM_RUNBOOK_STEP, {
+    content, is_error = call_tool(FirefightTools::CLAIM_RUNBOOK_STEP, {
       incident: @incident.identifier,
       runbook: attachment.id,
       step: attachment.runbook.runbook_steps.first.id
@@ -136,7 +136,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   test "an agent links two incidents and both timelines say so" do
     other = incidents(:active_major_ws1)
 
-    _, is_error = call_tool(Mcp::Tools::LINK_INCIDENT, {
+    _, is_error = call_tool(FirefightTools::LINK_INCIDENT, {
       incident: @incident.identifier, other_incident: other.identifier,
       relationship: IncidentRelationship::RELATED
     }, token: @agent_token)
@@ -149,7 +149,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   test "marking a duplicate cancels this incident into the other one" do
     other = incidents(:active_major_ws1)
 
-    _, is_error = call_tool(Mcp::Tools::LINK_INCIDENT, {
+    _, is_error = call_tool(FirefightTools::LINK_INCIDENT, {
       incident: @incident.identifier, other_incident: other.identifier,
       relationship: IncidentRelationship::DUPLICATE
     }, token: @agent_token)
@@ -160,7 +160,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "an incident cannot be linked to itself" do
-    _, is_error, text = call_tool(Mcp::Tools::LINK_INCIDENT, {
+    _, is_error, text = call_tool(FirefightTools::LINK_INCIDENT, {
       incident: @incident.identifier, other_incident: @incident.identifier,
       relationship: IncidentRelationship::RELATED
     })
@@ -170,7 +170,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "an agent thanks someone and the shoutout names the agent" do
-    _, is_error = call_tool(Mcp::Tools::GIVE_SHOUTOUT, {
+    _, is_error = call_tool(FirefightTools::GIVE_SHOUTOUT, {
       incident: @incident.identifier, member: @other.user.email, message: "Found the leak in minutes"
     }, token: @agent_token)
 
@@ -182,7 +182,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   # Escalation from an agent means it has gone as far as it can and needs a named human.
   test "an agent escalates to a person and the chase is scheduled" do
     assert_enqueued_with(job: EscalationAcknowledgementReminderJob) do
-      _, is_error = call_tool(Mcp::Tools::ESCALATE_INCIDENT, {
+      _, is_error = call_tool(FirefightTools::ESCALATE_INCIDENT, {
         incident: @incident.identifier, member: @other.user.email, reason: "Needs a database owner"
       }, token: @agent_token)
 
@@ -200,7 +200,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
       @incident, { incident_status: @workspace.incident_statuses.closed.active.first }, changed_by: @membership
     )
 
-    _, is_error, text = call_tool(Mcp::Tools::ESCALATE_INCIDENT, {
+    _, is_error, text = call_tool(FirefightTools::ESCALATE_INCIDENT, {
       incident: @incident.identifier, member: @other.user.email, reason: "Too late"
     })
 
@@ -209,7 +209,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "an agent invites people by email and gets back their names" do
-    content, is_error = call_tool(Mcp::Tools::INVITE_RESPONDERS, {
+    content, is_error = call_tool(FirefightTools::INVITE_RESPONDERS, {
       incident: @incident.identifier, members: [ @other.user.email ]
     }, token: @agent_token)
 
@@ -218,7 +218,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "inviting somebody this workspace has never heard of says so" do
-    _, is_error, text = call_tool(Mcp::Tools::INVITE_RESPONDERS, {
+    _, is_error, text = call_tool(FirefightTools::INVITE_RESPONDERS, {
       incident: @incident.identifier, members: [ "nobody@example.com" ]
     })
 
@@ -230,13 +230,13 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   test "an incident that is over refuses an invite and a shoutout" do
     close_incident
 
-    _, is_error, text = call_tool(Mcp::Tools::INVITE_RESPONDERS, {
+    _, is_error, text = call_tool(FirefightTools::INVITE_RESPONDERS, {
       incident: @incident.identifier, members: [ @other.user.email ]
     })
     assert is_error
     assert_match(/nobody else can be brought into it/, text)
 
-    _, is_error, text = call_tool(Mcp::Tools::GIVE_SHOUTOUT, {
+    _, is_error, text = call_tool(FirefightTools::GIVE_SHOUTOUT, {
       incident: @incident.identifier, member: @other.user.email, message: "Nice work"
     })
     assert is_error
@@ -247,13 +247,13 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   test "an incident whose channel is still being created refuses both too" do
     @incident.update_columns(channel_id: nil)
 
-    _, is_error, text = call_tool(Mcp::Tools::INVITE_RESPONDERS, {
+    _, is_error, text = call_tool(FirefightTools::INVITE_RESPONDERS, {
       incident: @incident.identifier, members: [ @other.user.email ]
     })
     assert is_error
     assert_match(/no channel yet/, text)
 
-    _, is_error, text = call_tool(Mcp::Tools::GIVE_SHOUTOUT, {
+    _, is_error, text = call_tool(FirefightTools::GIVE_SHOUTOUT, {
       incident: @incident.identifier, member: @other.user.email, message: "Nice work"
     })
     assert is_error
@@ -271,7 +271,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
       assignee: nil, status: IncidentAction::STATUS_OPEN
     )
 
-    content, is_error = call_tool(Mcp::Tools::CLAIM_RUNBOOK_STEP, {
+    content, is_error = call_tool(FirefightTools::CLAIM_RUNBOOK_STEP, {
       incident: @incident.identifier, runbook: attachment.id, step: step.id
     }, token: @agent_token)
 
@@ -281,7 +281,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "a person this workspace has never heard of is named, not silently dropped" do
-    _, is_error, text = call_tool(Mcp::Tools::CREATE_ACTION_ITEM, {
+    _, is_error, text = call_tool(FirefightTools::CREATE_ACTION_ITEM, {
       incident: @incident.identifier, description: "Page somebody", member: "nobody@example.com"
     })
 
@@ -296,7 +296,7 @@ class McpIncidentParticipationToolsTest < ActionDispatch::IntegrationTest
       permissions: { Ability::Action::RESOURCE_INCIDENTS => %w[read] }
     )
 
-    _, is_error = call_tool(Mcp::Tools::CREATE_ACTION_ITEM, {
+    _, is_error = call_tool(FirefightTools::CREATE_ACTION_ITEM, {
       incident: @incident.identifier, description: "Should never exist"
     }, token: token)
 

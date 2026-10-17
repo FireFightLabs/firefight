@@ -10,7 +10,7 @@ class McpCatalogTypeToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "a type is created with the attributes its entries carry" do
-    content, is_error = call_tool(Mcp::Tools::UPSERT_CATALOG_TYPE, {
+    content, is_error = call_tool(FirefightTools::UPSERT_CATALOG_TYPE, {
       name: "Datastore",
       attributes: [
         { name: "Engine", attribute_type: CatalogAttributeDefinition::TYPE_SELECT, options: %w[Postgres Redis] },
@@ -27,12 +27,12 @@ class McpCatalogTypeToolsTest < ActionDispatch::IntegrationTest
 
   # The same rule the other configuration tools follow, so a resend does not orphan what entries hold.
   test "resending an attribute under a new name renames rather than replacing it" do
-    call_tool(Mcp::Tools::UPSERT_CATALOG_TYPE, {
+    call_tool(FirefightTools::UPSERT_CATALOG_TYPE, {
       name: "Datastore", attributes: [ { name: "Engine", attribute_type: CatalogAttributeDefinition::TYPE_TEXT } ]
     })
     definition = @workspace.catalog_types.find_by!(slug: "datastore").catalog_attribute_definitions.sole
 
-    call_tool(Mcp::Tools::UPSERT_CATALOG_TYPE, {
+    call_tool(FirefightTools::UPSERT_CATALOG_TYPE, {
       slug: "datastore", attributes: [ { name: "Engine", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, required: true } ]
     })
 
@@ -40,17 +40,17 @@ class McpCatalogTypeToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "changing the description alone leaves the shape alone" do
-    call_tool(Mcp::Tools::UPSERT_CATALOG_TYPE, {
+    call_tool(FirefightTools::UPSERT_CATALOG_TYPE, {
       name: "Datastore", attributes: [ { name: "Engine", attribute_type: CatalogAttributeDefinition::TYPE_TEXT } ]
     })
 
-    content, = call_tool(Mcp::Tools::UPSERT_CATALOG_TYPE, { slug: "datastore", description: "Where the data lives." })
+    content, = call_tool(FirefightTools::UPSERT_CATALOG_TYPE, { slug: "datastore", description: "Where the data lives." })
 
     assert_equal [ "Engine" ], content["attributes"].map { |a| a["name"] }
   end
 
   test "a reference to a type that does not exist says which" do
-    _, is_error, text = call_tool(Mcp::Tools::UPSERT_CATALOG_TYPE, {
+    _, is_error, text = call_tool(FirefightTools::UPSERT_CATALOG_TYPE, {
       name: "Datastore",
       attributes: [ { name: "Owner", attribute_type: CatalogAttributeDefinition::TYPE_REFERENCE, reference_type: "squad" } ]
     })
@@ -60,7 +60,7 @@ class McpCatalogTypeToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "a built-in type cannot be removed" do
-    _, is_error, text = call_tool(Mcp::Tools::DELETE_CATALOG_TYPE, { slug: CatalogType::SYSTEM_KEY_SERVICE })
+    _, is_error, text = call_tool(FirefightTools::DELETE_CATALOG_TYPE, { slug: CatalogType::SYSTEM_KEY_SERVICE })
 
     assert is_error
     assert_match(/built-in/, text)
@@ -68,22 +68,22 @@ class McpCatalogTypeToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "a type another type points at cannot be removed until it is unpointed" do
-    call_tool(Mcp::Tools::UPSERT_CATALOG_TYPE, { name: "Datastore" })
-    call_tool(Mcp::Tools::UPSERT_CATALOG_TYPE, {
+    call_tool(FirefightTools::UPSERT_CATALOG_TYPE, { name: "Datastore" })
+    call_tool(FirefightTools::UPSERT_CATALOG_TYPE, {
       name: "Pipeline",
       attributes: [ { name: "Reads from", attribute_type: CatalogAttributeDefinition::TYPE_REFERENCE, reference_type: "datastore" } ]
     })
 
-    _, is_error, text = call_tool(Mcp::Tools::DELETE_CATALOG_TYPE, { slug: "datastore" })
+    _, is_error, text = call_tool(FirefightTools::DELETE_CATALOG_TYPE, { slug: "datastore" })
 
     assert is_error
     assert_match(/Reads from/, text)
   end
 
   test "a type nothing points at is removed with its entries" do
-    call_tool(Mcp::Tools::UPSERT_CATALOG_TYPE, { name: "Datastore" })
+    call_tool(FirefightTools::UPSERT_CATALOG_TYPE, { name: "Datastore" })
 
-    content, is_error = call_tool(Mcp::Tools::DELETE_CATALOG_TYPE, { slug: "datastore" })
+    content, is_error = call_tool(FirefightTools::DELETE_CATALOG_TYPE, { slug: "datastore" })
 
     assert_not is_error, content.inspect
     assert_not @workspace.catalog_types.active.exists?(slug: "datastore")

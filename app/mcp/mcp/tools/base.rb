@@ -146,7 +146,7 @@ module Mcp
 
         def own_words? = @own_words == true
 
-        # A tool that ends something for good or for now: it resolves, cancels, deletes or revokes it. In a chat Halon
+        # A tool that ends something for good or for now, as resolving, cancelling, deleting or revoking does. In a chat Halon
         # reads what shows it will help before it calls one (Chat::Tools::LookFirst), as for any change to a connected
         # system. Firefight's other writes, such as an action item or an incident update, need no read first.
         def ends_something
@@ -167,9 +167,25 @@ module Mcp
           @authorization || raise(NotImplementedError, "#{name} declares no authorization")
         end
 
+        # Why this call is refused when it comes with a token over MCP, by a rule of the model it changes, or nil. Halon's
+        # chat runs the same tool for a person, who confirms it there.
+        def token_refusal(_workspace, _args) = nil
+
+        # Whether this call mints a Firefight token, whose answer carries it under :token. It is never handed to a
+        # model. Mcp::ToolDispatcher and Halon's chat hand it to the person the call runs as (TokenHandoff).
+        def mints_token?(_workspace, _args) = false
+
+        # Whether a call changes permissions, a credential, an approval or a webhook, which only a person's say lets
+        # through (Ability::Action::PERSON_CONFIRMED_RESOURCES). An upsert changes whichever way it goes.
+        def asks_a_person?
+          resource, crud_action = @authorization || [ @upserted_resource, Ability::Action::ACTION_UPDATE ]
+          resource.present? && Ability::Action.asks_a_person?(resource, crud_action)
+        end
+
         # A key that resolves to nothing is an error rather than a silent duplicate under a fresh slug.
         # key is what the agent passes, column is where a list stores it when the names differ.
         def upserts(resource, scope:, key: :slug, column: key)
+          @upserted_resource = resource
           define_singleton_method(:upsert_target) do |workspace, args|
             value = args[key]
             next nil if value.blank?

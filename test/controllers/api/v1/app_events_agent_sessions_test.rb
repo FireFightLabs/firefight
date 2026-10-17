@@ -97,7 +97,7 @@ class Api::V1::AppEventsAgentSessionsTest < ActionDispatch::IntegrationTest
     alice = workspace_memberships(:alice_workspace_one)
     workflow = Workflow.create!(workspace: @workspace, name: name, created_by: alice)
     draft = workflow.open_draft!(by: alice)
-    look = { "id" => "look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => { "query" => "{{trigger.issue.title}}" } } }
+    look = { "id" => "look", "name" => "look", "kind" => "call_tool", "config" => { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => { "query" => "{{trigger.issue.title}}" } } }
     draft.update!(trigger: { "kind" => Workflow::Trigger::KIND_ISSUE_ASSIGNED, "inputs" => [] }.merge(trigger), steps: [ look ], edges: [])
     assert_empty draft.problems
     assert WorkflowPublishService.new(workflow).publish!(draft.reload, by: alice).ok
@@ -105,7 +105,6 @@ class Api::V1::AppEventsAgentSessionsTest < ActionDispatch::IntegrationTest
   end
 
   test "a label added to an issue starts the workflows waiting for that label, once, and an assignment still starts every one of them" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     labelled_one = published("Labelled", Workflow::Listening::KEY_LABEL => "firefight")
     other_label = published("Other label", Workflow::Listening::KEY_LABEL => "Triage")
     assigned_only = published("Assigned only", {})
@@ -130,7 +129,6 @@ class Api::V1::AppEventsAgentSessionsTest < ActionDispatch::IntegrationTest
   end
 
   test "a label added in an organization no connection was made through starts nothing" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     workflow = published("Labelled", Workflow::Listening::KEY_LABEL => "Firefight")
 
     perform_enqueued_jobs(only: WorkflowEventJob) { deliver(labelled([ "Firefight" ], organization: "org-elsewhere")) }

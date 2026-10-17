@@ -16,7 +16,7 @@ class InlineChartsElsewhereTest < ApplicationSystemTestCase
     conversation = Conversation.start_personal!(workspace: @workspace, member: @alice)
     conversation.ask!("why is checkout slow")
     reply = conversation.chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
-    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Mcp::Tools::START_INVESTIGATION, arguments: { "symptom" => "Checkout is slow" })
+    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: FirefightTools::START_INVESTIGATION, arguments: { "symptom" => "Checkout is slow" })
     conversation.chat.add_message(role: :tool, content: "Started.", tool_call_id: "call_1")
     conversation.note!("It is running. Its answer will come back here.")
     conversation.reply_delivered!
@@ -58,7 +58,6 @@ class InlineChartsElsewhereTest < ApplicationSystemTestCase
   end
 
   test "the chat beside a workflow's canvas sets Halon's charts in its answer" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     workflow = Workflow.create!(workspace: @workspace, name: "Release check")
     workflow.edit!(operation: Workflow::Edit::OPERATION_ADD_STEP, by: @alice,
                    payload: { "step" => { "id" => "wait", "name" => "wait_a_bit", "kind" => DefinedWorkflow::KIND_DELAY, "config" => { "minutes" => 1 } } })

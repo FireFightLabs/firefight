@@ -16,8 +16,8 @@ class SignInMethodsTest < ApplicationSystemTestCase
   test "the sign-in page offers only Slack while self-serve sign-in is off" do
     visit login_path
 
-    assert_link "Continue with Slack"
-    assert_no_link "Continue with Google"
+    assert_button "Continue with Slack"
+    assert_no_button "Continue with Google"
     assert_no_field "Email"
     page.save_screenshot(Rails.root.join("tmp/screenshots/sign-in-slack-only.png"))
   end
@@ -26,8 +26,8 @@ class SignInMethodsTest < ApplicationSystemTestCase
     FeatureFlags.enable_globally!(FeatureFlags::SELF_SERVE_SIGNUP)
     visit login_path
 
-    assert_link "Continue with Slack"
-    assert_link "Continue with Google"
+    assert_button "Continue with Slack"
+    assert_button "Continue with Google"
     page.save_screenshot(Rails.root.join("tmp/screenshots/sign-in-all-methods.png"))
 
     perform_enqueued_jobs do

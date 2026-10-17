@@ -6,7 +6,6 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     FirefightAi::WorkflowRepair.any_instance.stubs(:suggest).returns(nil)
     WorkspaceAdapter.for(@workspace).class.any_instance.stubs(:post_workflow_failure).returns({})
   end
@@ -43,7 +42,7 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
     published(name, steps: [ restart, search ], edges: [ edge("restart", "look") ])
   end
 
-  def search = step("look", "call_tool", { "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => { "query" => "database" } })
+  def search = step("look", "call_tool", { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => { "query" => "database" } })
 
   test "a tool step calls the tool as the workflow's own identity" do
     workflow = published("Look around", steps: [ search ])
@@ -84,7 +83,7 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
   end
 
   test "following one of Firefight's skills needs only what its tools read, never what they change" do
-    skill = Struct.new(:source, :tools).new(Chat::Skill::SOURCE_FIREFIGHT, [ Mcp::Tools::SEARCH_INCIDENTS, Mcp::Tools::DECLARE_INCIDENT ])
+    skill = Struct.new(:source, :tools).new(Chat::Skill::SOURCE_FIREFIGHT, [ FirefightTools::SEARCH_INCIDENTS, FirefightTools::DECLARE_INCIDENT ])
 
     keys = DefinedWorkflow::Reach.for_skill(@workspace, skill).map(&:key)
 
@@ -250,7 +249,7 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
   test "only a change that can check first offers the switch, never a message, a notice, a webhook, a browser's send or a step that waits on a person" do
     restart = { "tool" => "restart", "arguments" => { "resource" => "web" } }
     assert DefinedWorkflow::Steps::CallTool.checks_first?(restart, @workspace)
-    assert_not DefinedWorkflow::Steps::CallTool.checks_first?({ "tool" => Mcp::Tools::SEARCH_INCIDENTS, "arguments" => {} }, @workspace)
+    assert_not DefinedWorkflow::Steps::CallTool.checks_first?({ "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => {} }, @workspace)
     assert DefinedWorkflow::Steps::RunCommand.checks_first?({ "command" => "ls", "changes" => true }, @workspace)
     [ DefinedWorkflow::Steps::PostToChannel, DefinedWorkflow::Steps::MessagePerson, DefinedWorkflow::Steps::RaiseNotice, DefinedWorkflow::Steps::SendWebhook,
       DefinedWorkflow::Steps::PostIncidentUpdate, DefinedWorkflow::Steps::Browser, DefinedWorkflow::Steps::AskPerson, DefinedWorkflow::Steps::Approval,
@@ -442,7 +441,6 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
   end
 
   test "a workflow cannot be published with a skill step whose skill the workspace switched off" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::CUSTOM_SKILLS)
     skill = Chat::CustomSkill.create_with!(workspace: @workspace, name: "game_day", by: @alice,
                                            content: { "when" => "A drill", "tools" => [ "get_form" ], "steps" => "1. Read `get_form`." })
     skill.switch!(on: false)

@@ -10,6 +10,7 @@ import { loginPath, reuseSignupWorkspacePath, signInWithSlackPath, signupWorkspa
 import { retryWait, TOO_MANY_STATUS } from "@/lib/http";
 import { formatDate, formatTime } from "@/lib/formatters";
 import { AuthLayout } from "@/components/auth/auth-layout";
+import { AuthPostForm } from "@/components/auth/auth-post-form";
 import { CardHeader } from "@/components/auth/card-header";
 import type { SharedProps } from "@/types";
 
@@ -148,13 +149,15 @@ export default function SignupWorkspace() {
           </Button>
         </form>
         <div className="mt-6 space-y-3 border-t border-border pt-4 text-center text-xs leading-relaxed text-fg-muted">
-          <p>
+          <div>
             Is your team already on Firefight?{" "}
-            <a href={signInWithSlackPath()} className={LINK_CLASS}>
-              Sign in with Slack
-            </a>{" "}
+            <AuthPostForm action={signInWithSlackPath()} className="inline">
+              <button type="submit" className={`cursor-pointer ${LINK_CLASS}`}>
+                Sign in with Slack
+              </button>
+            </AuthPostForm>{" "}
             or ask an admin to invite you.
-          </p>
+          </div>
           <SignedInAs email={email} />
         </div>
       </div>

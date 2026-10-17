@@ -12,8 +12,7 @@ class WorkspaceSettingsController < InertiaController
     render inertia: "settings/workspace", props: {
       settings: WorkspaceSettingsSerializer.one(current_workspace),
       issueWebhookUrl: current_workspace.issue_webhook_token && api_v1_issue_events_url(current_workspace.issue_webhook_token),
-      # Only where workflows are switched on, so the card is not there without them.
-      workflowRunRetentionDays: (current_workspace.workflow_run_retention_days if FeatureFlags.enabled?(current_workspace, FeatureFlags::WORKFLOWS)),
+      workflowRunRetentionDays: current_workspace.workflow_run_retention_days,
       **ai_account_props
     }
   end
@@ -38,7 +37,8 @@ class WorkspaceSettingsController < InertiaController
     session[:pending_user_id] = current_user.id
     session[:pending_team_id] = current_workspace.platform_id
     session[:pending_team_name] = current_workspace.chat_team_name
-    request.inertia? ? inertia_location(install_slack_app_path) : redirect_to(install_slack_app_path)
+    # The install starts only from a form posted with this page's token, so the answer is a page that posts one.
+    render "auth/continue", layout: "oauth", locals: { action: install_slack_app_path }
   end
 
   private

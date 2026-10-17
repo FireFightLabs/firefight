@@ -116,6 +116,15 @@ class PlatformAdapter
     HOME = :home
   end
 
+  # What kind of answer one input of a submitted modal holds, for submitted_value.
+  module Input
+    TEXT = :text
+    OPTION = :option
+    USER = :user
+    USERS = :users
+    CONVERSATIONS = :conversations
+  end
+
   # Positional arguments are the domain objects the modal shows. `metadata:` is
   # an encoded ModalState handed back on submission.
   # @return [Object] an opaque view for open_modal, push_modal, update_modal
@@ -139,6 +148,30 @@ class PlatformAdapter
   # Replaces the open modal with another view.
   # @return [Hash]
   def form_update_response(view)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # What a person gave in one input of a submitted modal, found by its Identifiers block and input ids. kind is an Input.
+  # @return [String, Array<String>, nil] text, a choice's value or a person's id, a list for several, nil when left empty
+  def submitted_value(values:, block_id:, input_id:, kind:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Keeps the modal open with a message beside each refused input, keyed by the input's Identifiers block id.
+  # @return [Hash]
+  def modal_errors_response(errors)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Closes the submitted modal and every modal under it.
+  # @return [Hash]
+  def modal_close_response
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Opens another view on top of the submitted modal.
+  # @return [Hash]
+  def modal_push_response(view)
     raise NotImplemented.new(__method__, self.class)
   end
 
@@ -211,6 +244,13 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Shows one person a Firefight token minted for them, seen by them alone and gone once they reload, so the platform
+  # keeps no copy either. title names what the token is for.
+  # @return [Hash] { success: true }
+  def post_token_once(user_id:, title:, token:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Tells one person why Halon will not do what they asked: in the thread they asked in, seen by them alone, and in their
   # direct messages, where it stays once they reload.
   # @return [Hash] { success: true }
@@ -235,6 +275,8 @@ class PlatformAdapter
   end
 
   # Shows on a message Halon was working on that the answer is in, replacing mark_working. Best effort.
+  # @return [Hash] { success:, retry: } success false when either mark did not change, and retry true only when the
+  #   platform may still take it, so a message or channel it refused for good is never tried again
   def mark_done(channel_id:, message_id:)
     raise NotImplemented.new(__method__, self.class)
   end
@@ -259,12 +301,13 @@ class PlatformAdapter
     raise NotImplementedError
   end
 
-  # @return [Hash] { permalink: "https://..." }
+  # @return [Hash] { permalink: "https://..." }, permalink nil when either id is blank.
   def get_message_permalink(channel_id:, message_id:)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # @return [Hash] { message_id:, channel_id:, user_id:, text:, posted_at:, raw: }
+  # Nil when the platform answers with a message other than the one asked for, as it may for one that was deleted.
+  # @return [Hash, nil] { message_id:, channel_id:, user_id:, text:, posted_at:, raw: }
   def fetch_message(channel_id:, message_id:)
     raise NotImplemented.new(__method__, self.class)
   end
@@ -287,6 +330,12 @@ class PlatformAdapter
   # name, as "@Ana (U07ABC)", so the model can pass it to a tool, an emoji reads as the emoji and code keeps its marks.
   # @return [Hash{String => String}] each text given, mapped to the model's reading of it.
   def messages_for_model(texts:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # One message as a model is given it, read as messages_for_model reads it. Blank text comes back as given.
+  # @return [String, nil]
+  def message_for_model(text:)
     raise NotImplemented.new(__method__, self.class)
   end
 
@@ -313,6 +362,31 @@ class PlatformAdapter
   # taken out, and anyone else it mentions left where they are.
   # @return [String]
   def text_for_app(payload:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Whether a message event came from someone in another organisation, reached through a connection shared with it.
+  # @return [Boolean]
+  def sender_from_another_organisation?(payload:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # The message a pin or unpin event is about, or nil when the pin is not on a message.
+  # @return [Hash, nil] { channel_id:, message_id:, thread_id:, user_id: }
+  def pinned_message(payload:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # A reaction event: the emoji's name, the message it is on and who added it.
+  # @return [Hash] { emoji:, channel_id:, message_id:, user_id: }
+  def reaction(payload:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # The app's own message a button was pressed on. content is the message as posted, handed back unread to the adapter
+  # method that rewrites it.
+  # @return [Hash] { channel_id:, message_id:, content: }
+  def pressed_message(raw:)
     raise NotImplemented.new(__method__, self.class)
   end
 
@@ -451,6 +525,32 @@ class PlatformAdapter
   # @param subscriber_user_ids [Array<String>] platform user ids to copy
   # @return [Hash] { message_id: ... }
   def post_escalation_announcement_thread(channel_id:, parent_message_id:, incident:, escalated_by:, escalated_to:, reason: nil, subscriber_user_ids: [])
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { message_id:, channel_id: }
+  def post_incident_update_message(channel_id:, incident:, message:, updated_by_platform_user_id:, updated_by_name: nil, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { message_id:, channel_id: }
+  def post_resolution_message(channel_id:, incident:, resolved_by_platform_user_id:, resolved_by_name: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { message_id:, channel_id: }
+  def post_reopen_message(channel_id:, incident:, reopened_by_platform_user_id:, reopened_by_name: nil, reason: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # @return [Hash] { message_id:, channel_id: }
+  def post_lead_announcement(channel_id:, lead_platform_user_id:, lead_name: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Tells the channel the lead could not be added to it, and how they can still join.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_lead_invite_failed(channel_id:, lead_platform_user_id:, lead_name: nil)
     raise NotImplemented.new(__method__, self.class)
   end
 
@@ -893,24 +993,22 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # One line a watch Halon keeps said, such as a milestone or how it ended, in the chat's thread. update is a
-  # Conversation::Watches::Said.
+  # The one card a watch Halon keeps has in a place, posted once: in a chat's thread, or to a person's direct messages
+  # when thread_id is nil and channel_id is their user id. card is a Conversation::Watches::Card.
   # @return [Hash] { message_id:, channel_id: }
-  def post_watch_update(channel_id:, thread_id:, update:)
+  def post_watch_card(channel_id:, thread_id:, card:)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # The same line to whoever asked for the watch. conversation_id is the dashboard chat it reports to, which the message
-  # offers to open, or nil for a chat that is not on the dashboard.
-  # @return [Hash] { message_id:, channel_id: }
-  def post_watch_update_to_user(user_id:, update:, conversation_id: nil)
-    raise NotImplemented.new(__method__, self.class)
-  end
-
-  # Redraws a line a watch said where it was posted, such as once the watch is over and Stop has nothing left to stop.
-  # direct and conversation_id are as the line was first sent with.
+  # Redraws a watch's card where it was posted, from how the watch stands now.
   # @return [Hash] { success: true }
-  def update_watch_update(channel_id:, message_id:, update:, direct: false, conversation_id: nil)
+  def update_watch_card(channel_id:, message_id:, card:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # How a watch ended, as a short message of its own beside its card, so the person is told. Placed as post_watch_card.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_watch_end(channel_id:, thread_id:, card:)
     raise NotImplemented.new(__method__, self.class)
   end
 
@@ -1154,8 +1252,17 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # @return [Hash] { user_id:, display_name:, real_name:, avatar_url:, email:, timezone: }
+  # email_confirmed says the platform confirmed the person holds the email.
+  # @return [Hash] { user_id:, display_name:, real_name:, avatar_url:, email:, email_confirmed:, timezone: }
   def get_user_info(user_id:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Why a person the platform describes may not act through Firefight, such as a guest or someone from another
+  # organisation, in words for them, or nil for one of the workspace's own. profile is what get_user_info answered, or
+  # the same saved.
+  # @return [String, nil]
+  def member_refusal(profile:)
     raise NotImplemented.new(__method__, self.class)
   end
 

@@ -32,14 +32,14 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
     tools = rpc("tools/list").dig("result", "tools")
     names = tools.map { |t| t["name"] }
 
-    assert_includes names, Mcp::Tools::SEARCH_RUNBOOKS
-    assert_includes names, Mcp::Tools::GET_RUNBOOK
-    assert tools.select { |t| [ Mcp::Tools::SEARCH_RUNBOOKS, Mcp::Tools::GET_RUNBOOK ].include?(t["name"]) }
+    assert_includes names, FirefightTools::SEARCH_RUNBOOKS
+    assert_includes names, FirefightTools::GET_RUNBOOK
+    assert tools.select { |t| [ FirefightTools::SEARCH_RUNBOOKS, FirefightTools::GET_RUNBOOK ].include?(t["name"]) }
       .all? { |t| t.dig("annotations", "readOnlyHint") }
   end
 
   test "search_runbooks returns active runbooks ordered with step counts" do
-    content, is_error = call_tool(Mcp::Tools::SEARCH_RUNBOOKS)
+    content, is_error = call_tool(FirefightTools::SEARCH_RUNBOOKS)
 
     assert_not is_error
     slugs = content["runbooks"].map { |r| r["slug"] }
@@ -51,7 +51,7 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "search_runbooks respects the query filter" do
-    content, is_error = call_tool(Mcp::Tools::SEARCH_RUNBOOKS, { query: "failover" })
+    content, is_error = call_tool(FirefightTools::SEARCH_RUNBOOKS, { query: "failover" })
 
     assert_not is_error
     assert_equal [ @failover.slug ], content["runbooks"].map { |r| r["slug"] }
@@ -60,7 +60,7 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
   test "get_runbook returns full content and ordered steps" do
     @failover.update!(content: "Full failover procedure", external_url: "https://wiki/failover")
 
-    content, is_error = call_tool(Mcp::Tools::GET_RUNBOOK, { slug: @failover.slug })
+    content, is_error = call_tool(FirefightTools::GET_RUNBOOK, { slug: @failover.slug })
 
     assert_not is_error
     assert_equal @failover.slug, content["slug"]
@@ -73,7 +73,7 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
   test "get_runbook does not find a soft-deleted runbook" do
     @rollback.update!(deleted_at: Time.current)
 
-    _, is_error = call_tool(Mcp::Tools::GET_RUNBOOK, { slug: @rollback.slug })
+    _, is_error = call_tool(FirefightTools::GET_RUNBOOK, { slug: @rollback.slug })
 
     assert is_error
   end
@@ -81,13 +81,13 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
   test "search_runbooks excludes soft-deleted runbooks" do
     @rollback.update!(deleted_at: Time.current)
 
-    content, _ = call_tool(Mcp::Tools::SEARCH_RUNBOOKS)
+    content, _ = call_tool(FirefightTools::SEARCH_RUNBOOKS)
 
     assert_not_includes content["runbooks"].map { |r| r["slug"] }, @rollback.slug
   end
 
   test "a slug that resolves to nothing is an error, never a silent duplicate" do
-    result = rpc("tools/call", { name: Mcp::Tools::UPSERT_RUNBOOK,
+    result = rpc("tools/call", { name: FirefightTools::UPSERT_RUNBOOK,
                                  arguments: { slug: "deleted-since-you-read-it", name: "Ghost" } }).fetch("result")
 
     assert result["isError"]
@@ -98,7 +98,7 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
   test "upsert_runbook resolves a severity slug to the id conditions match on" do
     critical = @workspace.incident_severities.active.find_by!(slug: "critical")
 
-    content, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+    content, is_error = call_tool(FirefightTools::UPSERT_RUNBOOK, {
       name: "Slug conditions",
       conditions: [ { condition_field: "severity", operator: "one_of", values: [ "critical" ] } ]
     })
@@ -111,7 +111,7 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
   test "upsert_runbook still accepts ids, so a read-modify-write round trips" do
     major = @workspace.incident_severities.active.find_by!(slug: "major")
 
-    content, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+    content, is_error = call_tool(FirefightTools::UPSERT_RUNBOOK, {
       name: "Id conditions",
       conditions: [ { condition_field: "severity", operator: "one_of", values: [ major.id ] } ]
     })
@@ -125,7 +125,7 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
     definition = incident_field_definitions(:affected_services_ws1)
     auth_service = catalog_entries(:auth_service)
 
-    content, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+    content, is_error = call_tool(FirefightTools::UPSERT_RUNBOOK, {
       name: "Catalog conditions",
       conditions: [ { condition_field: "custom_field", custom_field: definition.slug,
                       operator: "one_of", values: [ auth_service.slug ] } ]
@@ -141,7 +141,7 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
     definition = incident_field_definitions(:customer_tier_ws1)
     enterprise = incident_field_options(:customer_tier_enterprise)
 
-    content, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+    content, is_error = call_tool(FirefightTools::UPSERT_RUNBOOK, {
       name: "Option conditions",
       conditions: [ { condition_field: "custom_field", custom_field: definition.slug,
                       operator: "one_of", values: [ enterprise.label ] } ]
@@ -157,7 +157,7 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
     definition = incident_field_definitions(:customer_tier_ws1)
     pro = incident_field_options(:customer_tier_pro)
 
-    content, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+    content, is_error = call_tool(FirefightTools::UPSERT_RUNBOOK, {
       name: "Id custom conditions",
       conditions: [ { condition_field: "custom_field", incident_field_definition_id: definition.id,
                       operator: "one_of", values: [ pro.id ] } ]
@@ -170,7 +170,7 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "upsert_runbook refuses a custom field condition naming no field" do
-    _, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+    _, is_error = call_tool(FirefightTools::UPSERT_RUNBOOK, {
       name: "Unknown field",
       conditions: [ { condition_field: "custom_field", custom_field: "not_a_field",
                       operator: "one_of", values: [ "Enterprise" ] } ]
@@ -183,7 +183,7 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
   test "upsert_runbook refuses a custom field value matching none of what the field offers" do
     definition = incident_field_definitions(:customer_tier_ws1)
 
-    _, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+    _, is_error = call_tool(FirefightTools::UPSERT_RUNBOOK, {
       name: "Unknown option",
       conditions: [ { condition_field: "custom_field", custom_field: definition.slug,
                       operator: "one_of", values: [ "Platinum" ] } ]
@@ -194,7 +194,7 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "upsert_runbook refuses a value matching no severity rather than storing a dead condition" do
-    _, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+    _, is_error = call_tool(FirefightTools::UPSERT_RUNBOOK, {
       name: "Bad conditions",
       conditions: [ { condition_field: "severity", operator: "one_of", values: [ "sev1" ] } ]
     })
@@ -209,11 +209,11 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
       permissions: { Ability::Action::RESOURCE_INCIDENTS => [ Ability::Action::ACTION_READ ] }
     )
 
-    result, is_error = call_tool(Mcp::Tools::SEARCH_RUNBOOKS, {}, token: incidents_token)
+    result, is_error = call_tool(FirefightTools::SEARCH_RUNBOOKS, {}, token: incidents_token)
     assert is_error
     assert_empty result
 
-    _, is_error = call_tool(Mcp::Tools::GET_RUNBOOK, { slug: @failover.slug }, token: incidents_token)
+    _, is_error = call_tool(FirefightTools::GET_RUNBOOK, { slug: @failover.slug }, token: incidents_token)
     assert is_error
   end
 
@@ -226,14 +226,14 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
     )
     stub_post_message
 
-    content, is_error = call_tool(Mcp::Tools::ATTACH_RUNBOOK, {
+    content, is_error = call_tool(FirefightTools::ATTACH_RUNBOOK, {
       incident: incident.identifier, runbook: @failover.slug
     })
     assert_not is_error
     assert_equal @failover.slug, content["runbook"]
     assert content["newly_attached"]
 
-    content, is_error = call_tool(Mcp::Tools::ATTACH_RUNBOOK, {
+    content, is_error = call_tool(FirefightTools::ATTACH_RUNBOOK, {
       incident: incident.identifier, runbook: @failover.slug
     })
     assert_not is_error
@@ -249,7 +249,7 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
       name: "Test incident", is_private: false, channel_id: "C_ATTACH2", source: Incident::SOURCE_SLACK
     )
 
-    _, is_error = call_tool(Mcp::Tools::ATTACH_RUNBOOK, {
+    _, is_error = call_tool(FirefightTools::ATTACH_RUNBOOK, {
       incident: incident.identifier, runbook: "not_a_runbook"
     })
 
@@ -257,36 +257,38 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
     assert_equal 0, incident.incident_runbooks.count
   end
 
-  test "upsert_runbook saves a runbook Halon can run, which search and get show with its procedure" do
-    content, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+  test "upsert_runbook writes what a runbook runs into the workflow it links, which search and get show" do
+    content, is_error = call_tool(FirefightTools::UPSERT_RUNBOOK, {
       name: "Release Firefight", aliases: [ "release firefight" ],
       inputs: [ { key: "bump", question: "Which version bump?", default: "patch" } ],
-      steps: [ { title: "Start the release", tool: "run_workflow", arguments: { workflow: "release.yml", bump: "{{bump}}" } } ],
+      steps: [ { title: "Look for past releases", tool: "search_incidents", arguments: { query: "release {{bump}}" } } ],
       watch: { title: "release", steps: [ { label: "Release run", capability: "run_history", resource: "firefight" } ] }
     })
     assert_not is_error
     assert content["runnable"]
 
-    found, = call_tool(Mcp::Tools::SEARCH_RUNBOOKS, { query: "release firefight" })
+    found, = call_tool(FirefightTools::SEARCH_RUNBOOKS, { query: "release firefight" })
     assert_equal [ "release_firefight" ], found["runbooks"].map { |runbook| runbook["slug"] }
 
-    runbook, = call_tool(Mcp::Tools::GET_RUNBOOK, { slug: "release_firefight" })
-    assert_equal [ { "position" => 1, "title" => "Start the release", "tool" => "run_workflow", "arguments" => { "workflow" => "release.yml", "bump" => "{{bump}}" } } ], runbook["steps"]
+    runbook, = call_tool(FirefightTools::GET_RUNBOOK, { slug: "release_firefight" })
+    assert_equal [ { "position" => 1, "title" => "Look for past releases" } ], runbook["steps"]
+    assert_equal "Release Firefight", runbook["workflow"]["name"]
     assert_equal [ "release firefight" ], runbook["aliases"]
     assert_equal "run_history", runbook["watch"]["steps"].first["capability"]
   end
 
-  test "upsert_runbook refuses a step that names an input the runbook does not ask for" do
-    _, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
-      name: "Release Firefight", steps: [ { title: "Start", tool: "run_workflow", arguments: { bump: "{{bump}}" } } ]
+  test "upsert_runbook keeps a step that names an input nobody is asked for as a draft, and says why it is not published" do
+    content, is_error = call_tool(FirefightTools::UPSERT_RUNBOOK, {
+      name: "Release Firefight", steps: [ { title: "Start", tool: "search_incidents", arguments: { query: "{{bump}}" } } ]
     })
 
-    assert is_error
-    assert_nil @workspace.runbooks.find_by(slug: "release_firefight")
+    assert_not is_error
+    assert_equal Workflow::STATE_DRAFT, content["workflow"]["state"]
+    assert_match "start uses {{inputs.bump}}, which is not one of the trigger's inputs.", content["workflow"]["said"]
   end
 
   test "a runbook without tool steps reads exactly as before" do
-    runbook, = call_tool(Mcp::Tools::GET_RUNBOOK, { slug: @failover.slug })
+    runbook, = call_tool(FirefightTools::GET_RUNBOOK, { slug: @failover.slug })
 
     assert_equal [ { "position" => 1, "title" => "Pause writes", "instruction" => "Stop the writer" },
                    { "position" => 2, "title" => "Promote replica", "instruction" => "Run failover" } ], runbook["steps"]

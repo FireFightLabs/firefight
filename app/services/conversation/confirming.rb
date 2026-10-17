@@ -28,7 +28,7 @@ class Conversation::Confirming
     return chat.decide!(tool_call_id, approved: false, by: by) unless approved
 
     Conversation::Mitigations.choose!(chat, tool_call_id, expires) unless expires.nil?
-    for_chat &&= !Chat::DataRepairs.asks_each?(chat, tool_call_id)
+    for_chat &&= !Chat::DataRepairs.asks_each?(chat, tool_call_id) && !Chat::Tools.asks_a_person?(chat.tool_calls.where(tool_call_id: tool_call_id).pick(:name))
     return chat.decide!(tool_call_id, approved: true, for_chat: for_chat, by: by) unless Conversation::OwnerAsks.ask!(chat, tool_call_id, by: by)
 
     name, provenance = chat.tool_calls.where(tool_call_id: tool_call_id).pick(:name, :provenance)
@@ -38,10 +38,15 @@ class Conversation::Confirming
   private_class_method :decide_one
 
   def self.approve_allowed(chat, by)
-    chat.reload.awaiting_decision_allowable.select { |tool_call| chat.allows_tool?(tool_call.name) && !Chat::DataRepairs.asks_each?(chat, tool_call.tool_call_id) }
+    chat.reload.awaiting_decision_allowable.select { |tool_call| allowed_for_chat?(chat, tool_call) }
       .count { |tool_call| Conversation::OwnerAsks.ask!(chat, tool_call.tool_call_id, by: by) || chat.decide!(tool_call.tool_call_id, approved: true, by: by) }
   end
   private_class_method :approve_allowed
+
+  def self.allowed_for_chat?(chat, tool_call)
+    chat.allows_tool?(tool_call.name) && !Chat::DataRepairs.asks_each?(chat, tool_call.tool_call_id) && !Chat::Tools.asks_a_person?(tool_call.name)
+  end
+  private_class_method :allowed_for_chat?
 
   # Redraws the confirmation last posted in the chat's thread once a call it asked about was answered somewhere else, or
   # ran, so the message always says how the call stands. Only the latest message is kept, so a call asked in an earlier

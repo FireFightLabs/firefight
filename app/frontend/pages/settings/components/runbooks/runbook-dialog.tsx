@@ -6,13 +6,9 @@ import type {
   IncidentSeveritySettings,
   IncidentTypeSettings,
   RunbookCustomField,
-  RunbookPlace,
   RunbookSettings,
-  RunbookToolChoice,
-  RunbookWatchRead,
   RunbookWorkflowChoice,
 } from "@/types/serializers"
-import type { SearchableSelectOption } from "@/components/searchable-select"
 import { RUNBOOK_CHOICE_PROPS } from "@/lib/generated/constants"
 import type { SharedProps } from "@/types"
 import { runbookPath, runbooksPath } from "@/lib/routes"
@@ -41,16 +37,8 @@ import {
   RunbookStepsEditor,
   type EditableStep,
 } from "@/pages/settings/components/runbooks/runbook-steps-editor"
-import { RunbookProcedureEditor } from "@/pages/settings/components/runbooks/runbook-procedure-editor"
 import { RunbookWorkflowEditor } from "@/pages/settings/components/runbooks/runbook-workflow-editor"
-import { argumentsState, fieldErrors } from "@/lib/tool-fields"
-import {
-  inputPlaceholders,
-  procedurePayload,
-  procedureState,
-  type ProcedureState,
-} from "@/pages/settings/lib/runbook-procedure"
-import { watchError } from "@/lib/watch-spec"
+import { argumentsState } from "@/lib/tool-fields"
 import {
   RunbookConditionsEditor,
   type ConditionSectionState,
@@ -76,7 +64,7 @@ interface EditModel {
   severityState: ConditionSectionState
   customFieldStates: CustomFieldConditionState[]
   alwaysAttach: boolean
-  procedure: ProcedureState
+  aliasesText: string
   workflowId: string
 }
 
@@ -117,35 +105,27 @@ function initModel(runbook: RunbookSettings | null | undefined): EditModel {
     severityState: sectionState(runbook, CONDITION_FIELD_SEVERITY),
     customFieldStates: customFieldStates(runbook),
     alwaysAttach: runbook?.alwaysAttach ?? false,
-    procedure: procedureState(runbook),
+    aliasesText: (runbook?.aliases ?? []).join(", "),
     workflowId: runbook?.workflow?.id ?? "",
   }
 }
 
-// What the editor builds steps and the watch from, which the page sends only once asked.
+// The workflows a runbook can link, which the page sends only once asked.
 interface ChoiceProps extends SharedProps {
-  [RUNBOOK_CHOICE_PROPS.TOOL_CHOICES]?: RunbookToolChoice[]
-  [RUNBOOK_CHOICE_PROPS.WATCH_READS]?: RunbookWatchRead[]
-  [RUNBOOK_CHOICE_PROPS.PLACES]?: RunbookPlace[]
   [RUNBOOK_CHOICE_PROPS.WORKFLOWS]?: RunbookWorkflowChoice[]
 }
 
 const WORKFLOW_CHOICES = [ RUNBOOK_CHOICE_PROPS.WORKFLOWS ]
-const PROCEDURE_CHOICES = [ RUNBOOK_CHOICE_PROPS.TOOL_CHOICES, RUNBOOK_CHOICE_PROPS.WATCH_READS, RUNBOOK_CHOICE_PROPS.PLACES ]
 
-function loadChoices(linksWorkflow: boolean) {
-  router.reload({ only: linksWorkflow ? WORKFLOW_CHOICES : PROCEDURE_CHOICES })
+function loadChoices() {
+  router.reload({ only: WORKFLOW_CHOICES })
 }
 
 export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, severities, customFields }: RunbookDialogProps) {
   const isEdit = Boolean(runbook)
-  const { toolChoices, watchReads, places, workflowChoices, workflowsEnabled } = usePage<ChoiceProps>().props
-  const linksWorkflow = Boolean(workflowsEnabled)
-  const tools = toolChoices ?? null
-  const reads = watchReads ?? null
+  const { workflowChoices } = usePage<ChoiceProps>().props
   const [model, setModel] = useState<EditModel>(() => initModel(runbook))
   const [errors, setErrors] = useState<Errors>({})
-  const [stepErrors, setStepErrors] = useState<Record<string, Record<string, string>>>({})
   const [processing, setProcessing] = useState(false)
   const [wasOpen, setWasOpen] = useState(open)
 
@@ -159,28 +139,21 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
 
   useEffect(() => {
     if (open) {
-      loadChoices(linksWorkflow)
+      loadChoices()
     }
-  }, [ open, linksWorkflow ])
-
-  const placeholders: SearchableSelectOption[] = inputPlaceholders(model.procedure.inputs)
-  const placeOptions: SearchableSelectOption[] = (places ?? []).map((place) => ({ value: place.name, label: place.name, group: place.kind }))
-  const watchProblem = linksWorkflow ? null : watchError(model.procedure.watch)
-  const [ shownWatchProblem, setShownWatchProblem ] = useState<string | null>(null)
+  }, [ open ])
 
   // A server error outlives the value that caused it, so it is cleared once the
   // field changes.
   useEffect(() => {
     setErrors({})
-    setStepErrors({})
-    setShownWatchProblem(null)
   }, [model])
 
-  // The page comes back without the pickers' choices, which it loads only on request, so they are asked for again to keep
+  // The page comes back without the picker's choices, which it loads only on request, so they are asked for again to keep
   // showing what was picked beside the error.
   function showErrors(formErrors: Errors) {
     setErrors(formErrors)
-    loadChoices(linksWorkflow)
+    loadChoices()
   }
 
   function patch(next: Partial<EditModel>) {
@@ -196,7 +169,7 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
   }
 
   function setAliasesText(aliasesText: string) {
-    patch({ procedure: { ...model.procedure, aliasesText } })
+    patch({ aliasesText })
   }
 
   function handleSubmit(event: FormEvent) {
@@ -229,17 +202,6 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
       })
     }
 
-    const problems = stepProblems(model.steps, tools)
-    if (Object.keys(problems).length > 0 || watchProblem) {
-      setStepErrors(problems)
-      setShownWatchProblem(watchProblem)
-      return
-    }
-    const procedure = procedurePayload(model.procedure)
-    const runs = linksWorkflow
-      ? { workflow_id: model.workflowId }
-      : { inputs: procedure.inputs, watch: procedure.watch }
-
     const payload = {
       name: model.name,
       summary: model.summary,
@@ -248,8 +210,8 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
       steps: model.steps.map(sentStep),
       conditions,
       always_attach: model.alwaysAttach,
-      aliases: procedure.aliases,
-      ...runs,
+      aliases: sentAliases(model.aliasesText),
+      workflow_id: model.workflowId,
     }
 
     const options: VisitOptions = {
@@ -326,37 +288,19 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
 
             <RunbookStepsEditor
               steps={model.steps}
-              stepErrors={stepErrors}
-              withTools={!linksWorkflow}
-              tools={tools}
-              placeholders={placeholders}
-              places={placeOptions}
               onChange={(steps) => patch({ steps })}
             />
             {(errors.tool || errors.arguments) && <p className="text-xs text-destructive">{errors.tool ?? errors.arguments}</p>}
 
-            {linksWorkflow ? (
-              <RunbookWorkflowEditor
-                workflowId={model.workflowId}
-                savedName={runbook?.workflow?.name}
-                aliasesText={model.procedure.aliasesText}
-                workflows={workflowChoices ?? null}
-                errors={{ workflow: errors.workflow, aliases: errors.aliases }}
-                onWorkflowChange={setWorkflowId}
-                onAliasesChange={setAliasesText}
-              />
-            ) : (
-              <RunbookProcedureEditor
-                state={model.procedure}
-                errors={{ aliases: errors.aliases, inputs: errors.inputs, watch: errors.watch }}
-                watchError={shownWatchProblem}
-                reads={reads}
-                tools={tools}
-                placeholders={placeholders}
-                places={placeOptions}
-                onChange={(procedure) => patch({ procedure })}
-              />
-            )}
+            <RunbookWorkflowEditor
+              workflowId={model.workflowId}
+              savedName={runbook?.workflow?.name}
+              aliasesText={model.aliasesText}
+              workflows={workflowChoices ?? null}
+              errors={{ workflow: errors.workflow, aliases: errors.aliases }}
+              onWorkflowChange={setWorkflowId}
+              onAliasesChange={setAliasesText}
+            />
 
             <RunbookConditionsEditor
               typeState={model.typeState}
@@ -400,17 +344,8 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
   )
 }
 
-// What is wrong with each step's fields, by the step's key, checked against the tool's own fields once they loaded.
-function stepProblems(steps: EditableStep[], tools: RunbookToolChoice[] | null): Record<string, Record<string, string>> {
-  const problems: Record<string, Record<string, string>> = {}
-  steps.forEach((step) => {
-    const choice = tools?.find((tool) => tool.name === step.tool)
-    const found = choice ? fieldErrors(choice.fields, step.args) : {}
-    if (Object.keys(found).length > 0) {
-      problems[step.key] = found
-    }
-  })
-  return problems
+function sentAliases(aliasesText: string): string[] {
+  return aliasesText.split(",").map((name) => name.trim()).filter((name) => name.length > 0)
 }
 
 function sentStep(step: EditableStep) {

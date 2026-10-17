@@ -206,13 +206,11 @@ export const DATA_WRITE_KINDS = {
 
 export const SECRET_ENTRY_KINDS = {
   "ENTER": "enter",
-  "REVEAL": "reveal"
+  "REVEAL": "reveal",
+  "TOKEN": "token"
 } as const
 
 export const RUNBOOK_CHOICE_PROPS = {
-  "TOOL_CHOICES": "toolChoices",
-  "WATCH_READS": "watchReads",
-  "PLACES": "places",
   "WORKFLOWS": "workflowChoices"
 } as const
 
@@ -1576,10 +1574,6 @@ export const SANDBOX_SERVICES = [
 ] as const
 export type SandboxService = (typeof SANDBOX_SERVICES)[number]
 
-export const WORKFLOWS_RESOURCE = "workflows" as const
-
-export const SKILLS_RESOURCE = "skills" as const
-
 export const WORKFLOW_STATES = [
   "draft",
   "live",
@@ -1684,6 +1678,15 @@ export const WORKFLOW_SCHEDULE_REPEATS = [
   "monthly"
 ] as const
 export type WorkflowScheduleRepeat = (typeof WORKFLOW_SCHEDULE_REPEATS)[number]
+
+export const WORKFLOW_SCHEDULE_WEEKS = [
+  "1",
+  "2",
+  "3",
+  "4",
+  "last"
+] as const
+export type WorkflowScheduleWeek = (typeof WORKFLOW_SCHEDULE_WEEKS)[number]
 
 export const WORKFLOW_SCHEDULE_KEYS = {
   "REPEAT": "repeat",

@@ -146,8 +146,8 @@ class InteractionDispatcher
     AuthorizedDispatch.call(handler, interaction, context: { incident_id: interaction.incident_id }) do
       handler.execute(interaction)
     end
-  rescue AuthorizedDispatch::PrincipalUnresolved
-    refuse(interaction, AuthorizedDispatch::UNRESOLVED_MESSAGE)
+  rescue AuthorizedDispatch::PrincipalUnresolved => e
+    refuse(interaction, e.message)
   rescue AbilityGateway::Denied => e
     refuse(interaction, AuthorizedDispatch.denied_message(e))
   rescue AbilityGateway::PendingApproval => e

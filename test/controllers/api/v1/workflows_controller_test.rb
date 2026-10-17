@@ -5,7 +5,6 @@ class Api::V1::WorkflowsControllerTest < ActionDispatch::IntegrationTest
     @workspace = workspaces(:slack_workspace_one)
     @admin = workspace_memberships(:alice_workspace_one)
     @member = workspace_memberships(:bob_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     _, @token = ApiKey.create_with_token!(workspace: @workspace, created_by: @admin, on_behalf_of: @admin, name: "Personal")
     @workflow = Workflow.create!(workspace: @workspace, name: "Restart web", created_by: @admin)
   end
@@ -59,13 +58,5 @@ class Api::V1::WorkflowsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :forbidden
     assert_equal 100, @workflow.reload.runs_per_hour
-  end
-
-  test "without workflows a workflow is not found" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::WORKFLOWS)
-
-    change(@workflow.id, { runs_per_hour: 5 })
-
-    assert_response :not_found
   end
 end

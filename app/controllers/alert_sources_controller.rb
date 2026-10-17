@@ -31,8 +31,10 @@ class AlertSourcesController < InertiaController
   end
 
   def destroy
-    @alert_source.destroy!
+    @alert_source.destroy_guarded!
     redirect_to settings_alert_sources_path, notice: "#{@alert_source.name} was deleted."
+  rescue OptionGuards::Blocked => e
+    redirect_to settings_alert_sources_path, alert: e.message
   end
 
   # Fetched on demand, never embedded in page props. A secret the person pasted in from their tool is never sent back.

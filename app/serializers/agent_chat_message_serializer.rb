@@ -17,7 +17,8 @@ class AgentChatMessageSerializer < BaseSerializer
                   "checks: { name: string; status: string; reason: string | null }[]; " \
                   "review: { ran: boolean; right: boolean; findings: string[]; verified: string[]; unverified: string[]; unreviewed: string[]; " \
                   "summary: string | null; sentBack: boolean } | null; " \
-                  "pause: { id: string; status: string; question: string; savedBranch: string | null; decidedBy: string | null; resumableUntil: string | null } | null }".freeze
+                  "pause: { id: string; status: string; question: string; savedBranch: string | null; decidedBy: string | null; resumableUntil: string | null } | null; " \
+                  "target: #{Chat::CodeFixProgress::TARGETS.map(&:inspect).join(' | ')} | null }".freeze
 
   attributes(id: { type: :string }, role: { type: :string })
 

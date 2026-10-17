@@ -358,7 +358,7 @@ module Integrations
       test "a resource in another project is never reached, and a name is found on the map before the live list" do
         GoogleCloudApi.any_instance.expects(:restart_sql_instance).never
         assert_match "is in project other, and this connection reaches acme-prod",
-                     assert_raises(Integrations::Error) { call(:restart_resource, "resource" => "other:us-central1:orders") }.message
+                     assert_raises(Integrations::PolicyRefusal) { call(:restart_resource, "resource" => "other:us-central1:orders") }.message
 
         ResourceMap::Resource.create!(workspace: @workspace, provider: "google_cloud", account: "acme-prod", kind: ResourceMap::KIND_DATABASE, external_id: SQL_ID,
                                       name: "Orders", integration_environment: @row, first_seen_at: Time.current, last_seen_at: Time.current)

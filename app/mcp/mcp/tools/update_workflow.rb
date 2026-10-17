@@ -1,12 +1,11 @@
 module Mcp
   module Tools
     # One workflow's settings, the ones its Settings page changes (Workflow::Settings). Only what is given changes. It
-    # changes a live workflow's limits, so it is marked destructive: Halon asks the person on a confirmation in the chat
+    # changes a live workflow's limits, so it is marked destructive. Halon asks the person on a confirmation in the chat
     # before it runs (Chat::Tools::Firefight#destructive_by_declaration?), and the gateway and approval rules still decide.
     class UpdateWorkflow < Base
-      tool_name UPDATE_WORKFLOW
+      tool_name FirefightTools::UPDATE_WORKFLOW
       authorize_as Ability::Action::RESOURCE_WORKFLOWS, Ability::Action::ACTION_UPDATE
-      behind_flag FeatureFlags::WORKFLOWS
       description "Change one workflow's settings, the ones its Settings page holds: its name and description, owning team, spending ceiling " \
                   "per run (AI and sandbox time together), most runs per hour, one live run per subject, what a change does in a freeze " \
                   "window and the all clear. Only what you give changes, and null clears the spending ceiling, the owning team or the " \

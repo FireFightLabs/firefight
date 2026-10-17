@@ -1,7 +1,7 @@
 module Mcp
   module Tools
-    # The settings under Settings, Workspace. Transcript access is here rather than on
-    # Permissions on purpose: a grant says who may ask, this says whether there is anything to ask for.
+    # The settings under Settings, Workspace. Transcript access is here rather than on Permissions on purpose. A grant
+    # says who may ask, this says whether there is anything to ask for.
     class UpdateWorkspaceSettings < Base
       SETTINGS = Workspace::Settings::KEYS
       # The same choices the settings page offers, as an enum a client can check and with the labels a model reads.
@@ -14,7 +14,7 @@ module Mcp
         "#{entry.name}: #{fields.map { |field| "#{field.key} (#{field.hint.delete_suffix('.')})" }.join(', ')}" if fields.any?
       end.join(". ")
 
-      tool_name UPDATE_WORKSPACE_SETTINGS
+      tool_name FirefightTools::UPDATE_WORKSPACE_SETTINGS
       authorize_as Ability::Action::RESOURCE_WORKSPACE, Ability::Action::ACTION_UPDATE
       write_only(*Workspace::Settings::WRITE_ONLY)
       description "Change the workspace's own settings: whether incident transcripts may be read at all, " \

@@ -2,6 +2,8 @@ require "test_helper"
 
 # Both authorize as admin-only resources, so an admin's personal token reaches them and no machine ever can.
 class Api::V1::CredentialsApiTest < ActionDispatch::IntegrationTest
+  include ApprovesHeldApiCalls
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @membership = workspace_memberships(:alice_workspace_one)
@@ -14,7 +16,7 @@ class Api::V1::CredentialsApiTest < ActionDispatch::IntegrationTest
   test "an agent granted everything grantable still cannot reach credentials" do
     _, token = create_agent(
       workspace: @workspace, created_by: @membership, name: "Ambitious", slug: "ambitious",
-      permissions: (Ability::Action::GRANTABLE_RESOURCES - Ability::Action.hidden_resources(@workspace)).index_with { |resource| Ability::Action.actions_for(resource) }
+      permissions: Ability::Action::GRANTABLE_RESOURCES.index_with { |resource| Ability::Action.actions_for(resource) }
     )
 
     get api_v1_agents_url, headers: api_headers(token: token)

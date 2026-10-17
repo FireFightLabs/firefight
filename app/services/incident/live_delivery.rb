@@ -1,6 +1,6 @@
 # Tells open incident pages which part of them changed (Incident::LiveSignal), over IncidentChannel. An alert storm or a
 # busy run can change one part many times a second, so each incident and part is said at most once per WINDOW. A change
-# inside the window is never lost: the first one held back books a single trailing say (IncidentPageSignalJob) for after
+# inside the window is never lost. The first one held back books a single trailing say (IncidentPageSignalJob) for after
 # the window, which covers every change made before it runs and books another if the gate is still held. Two writers
 # racing for a key nobody holds yet can both pass, which says once more than needed and never loses a change, since the
 # limit caps cost rather than deciding what the page sees.

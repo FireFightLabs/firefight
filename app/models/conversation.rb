@@ -287,6 +287,25 @@ class Conversation < ApplicationRecord
                                           message_id, message_id ])
   end
 
+  # How many times in all a mark the platform could not make just now is tried, so one message never fails without end.
+  MARK_ATTEMPTS = 3
+
+  # A mark that failed for now goes back for the next answer until it was tried MARK_ATTEMPTS times. One statement, so
+  # two turns ending together count each try once.
+  def mark_again!(message_id)
+    tried = "COALESCE((mark_attempts ->> :id)::int, 1)"
+    kept = self.class.where(id: id).where("#{tried} < :cap", id: message_id, cap: MARK_ATTEMPTS).update_all([
+      "acknowledged_message_ids = array_append(array_remove(acknowledged_message_ids, CAST(:id AS varchar)), CAST(:id AS varchar)), " \
+      "mark_attempts = mark_attempts || jsonb_build_object(CAST(:id AS text), #{tried} + 1)", { id: message_id }
+    ])
+    mark_settled!(message_id) if kept.zero?
+  end
+
+  def mark_settled!(message_id)
+    self.class.where(id: id).where("jsonb_exists(mark_attempts, :id)", id: message_id)
+              .update_all([ "mark_attempts = mark_attempts - CAST(:id AS text)", { id: message_id } ])
+  end
+
   # The marked messages, taken under a lock so two turns ending together never mark one twice.
   def take_acknowledged!
     self.class.transaction do

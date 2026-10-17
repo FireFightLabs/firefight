@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { router } from "@inertiajs/react";
 import { IconCircleCheck, IconCircleX } from "@tabler/icons-react";
 
@@ -7,10 +7,10 @@ import {
   activateWebhookPath,
   deactivateWebhookPath,
   replayWebhookDeliveryPath,
-  signingSecretWebhookPath,
+  rotateSigningSecretWebhookPath,
   testWebhookPath,
 } from "@/lib/routes";
-import { requestJson } from "@/lib/http";
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -66,48 +66,25 @@ export function WebhookDetailSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [secret, setSecret] = useState<string | null>(null);
-  const [secretPending, setSecretPending] = useState(false);
-  const [secretError, setSecretError] = useState<string | null>(null);
+  // The secret was shown once when it was made. Replacing it shows the new one once on the list's dialog.
+  const [replacing, setReplacing] = useState(false);
   const webhookId = webhook?.id;
 
-  // A secret must not outlive the sheet it was asked for, or the next webhook
-  // opens showing the previous one's.
-  useEffect(() => {
-    setSecret(null);
-    setSecretError(null);
-  }, [webhookId, open]);
+  function askToReplace() {
+    setReplacing(true);
+  }
 
-  const hideSecret = useCallback(() => {
-    setSecret(null);
-    setSecretError(null);
-  }, []);
+  function keepSecret() {
+    setReplacing(false);
+  }
 
-  const revealSecret = useCallback(async () => {
+  function replaceSecret() {
     if (!webhookId) {
       return;
     }
-
-    setSecretPending(true);
-    setSecretError(null);
-    try {
-      const { ok, data } = await requestJson<{ signingSecret: string }>(
-        signingSecretWebhookPath(webhookId),
-        { method: "GET" },
-      );
-      if (ok && data) {
-        setSecret(data.signingSecret);
-      } else {
-        setSecretError(
-          "Couldn't load the signing secret. You may not have admin access.",
-        );
-      }
-    } catch {
-      setSecretError("Couldn't load the signing secret. Please try again.");
-    } finally {
-      setSecretPending(false);
-    }
-  }, [webhookId]);
+    setReplacing(false);
+    router.post(rotateSigningSecretWebhookPath(webhookId));
+  }
 
   // preserveState keeps the sheet open, so the new attempt appears in the list
   // already on screen.
@@ -129,17 +106,7 @@ export function WebhookDetailSheet({
     [webhookId],
   );
 
-  const toggleSecret = secret === null ? revealSecret : hideSecret;
-  const secretButtonLabel = secretPending
-    ? "Loading"
-    : secret === null
-      ? "Reveal"
-      : "Hide";
-
   function handleOpenChange(next: boolean) {
-    if (!next) {
-      hideSecret();
-    }
     onOpenChange(next);
   }
 
@@ -207,21 +174,16 @@ export function WebhookDetailSheet({
                   Signing Secret
                 </h4>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 rounded-md bg-muted px-3 py-2 font-mono text-sm break-all">
-                    {secret ?? "••••••••••••••••••••••••••"}
-                  </code>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={toggleSecret}
-                    disabled={secretPending}
-                  >
-                    {secretButtonLabel}
+                  <p className="flex-1 text-sm text-muted-foreground">
+                    {webhook.signingSecretHint}
+                  </p>
+                  <Button variant="outline" size="sm" onClick={askToReplace}>
+                    Replace secret
                   </Button>
                 </div>
-                {secretError ? (
-                  <p className="text-destructive text-xs">{secretError}</p>
-                ) : null}
+                <p className="text-xs text-muted-foreground">
+                  It was shown once when it was made. Replace it if the receiver lost it.
+                </p>
               </div>
     
               <Separator />
@@ -325,6 +287,14 @@ export function WebhookDetailSheet({
           </div>
         </div>
       </SheetContent>
+      <ConfirmDeleteDialog
+        open={replacing}
+        title={`Replace the signing secret for ${webhook.name}?`}
+        description="The current secret stops working at once, so deliveries fail the receiver's check until it has the new one. The new secret is shown once."
+        confirmLabel="Replace secret"
+        onConfirm={replaceSecret}
+        onCancel={keepSecret}
+      />
     </Sheet>
   );
 }

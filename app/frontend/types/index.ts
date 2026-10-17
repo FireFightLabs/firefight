@@ -6,6 +6,7 @@ export type FlashData = {
   alert?: string
   // Custom flash keys sent via `flash.inertia[:key]` on the server.
   api_key_token?: string
+  webhook_signing_secret?: string
   // Pages elsewhere the toast points to, such as a provider's settings for what Firefight left there.
   links?: FlashLink[]
 }
@@ -24,10 +25,6 @@ export type SharedProps = PageProps & {
   // Packs members asked for that wait on an admin, zero for anyone else.
   waitingPackRequestsCount?: number
   agentAvailable?: boolean
-  // Whether the workspace has workflows and its own skills, which are off until the feature ships.
-  workflowsEnabled?: boolean
-  // Whether the workspace keeps skills of its own, which are off until the feature ships.
-  customSkillsEnabled?: boolean
   // One flag per Ability::Action resource, whether the viewer may change it.
   currentUserCan?: Record<string, boolean>
   // Set by the cloud engine when loaded, absent on self-hosted builds.

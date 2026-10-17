@@ -95,7 +95,11 @@ class WorkspaceInvitation < ApplicationRecord
 
   private
 
+  # An admin's invitation is how a removed person comes back, so accepting it adds their membership back.
   def seat!(user, now)
+    removed = workspace.removed_memberships.find_by(user: user)
+    return removed.tap(&:restore!) if removed
+
     workspace.workspace_memberships.find_by(user: user) ||
       WorkspaceMembership.transaction(requires_new: true) do
         workspace.workspace_memberships.create!(user: user, role: :member, joined_at: now)

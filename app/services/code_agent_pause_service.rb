@@ -1,5 +1,5 @@
-# A code change paused at its spending limit: told where it came from, and decided by the person it runs as. Continue
-# gives it another budget of the same size and carries it on at the start of a turn in the chat, through the very tool a
+# A code change paused at its spending limit. It says where it came from, and the person it runs as decides. Continue
+# gives it another budget of the same size and carries it on at the start of a turn in the chat, through the same tool a
 # chat offers them, so grants, approval rules and the ledger apply. Stop deletes the saved branch and closes the box.
 class CodeAgentPauseService
   GONE = "This paused change is gone.".freeze
@@ -38,7 +38,7 @@ class CodeAgentPauseService
     nil
   end
 
-  # Stop, pressed by the person the change runs as: the saved branch is deleted and the box closed. Answers why not, or nil.
+  # Stop, pressed by the person the change runs as, deletes the saved branch and closes the box. Answers why not, or nil.
   def self.stop!(pause, by:)
     blocked = pause.decide_blocked_reason(by)
     return blocked if blocked
@@ -75,9 +75,7 @@ class CodeAgentPauseService
     chat = session.place.try(:chat) if session.place.is_a?(Conversation)
     return unless chat && session.tool_call_id
 
-    # The session started with its call, so the call's work is the first kept since, never an earlier or a later call
-    # by the same id.
-    kept = chat.step_progresses.of_call(session.tool_call_id, since: session.created_at).first
+    kept = Chat::StepProgress.of_call_made_by(chat, session.tool_call_id, session.created_at)
     work = kept&.work
     return unless work
 

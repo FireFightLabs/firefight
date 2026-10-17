@@ -15,7 +15,7 @@ module Slack
           { type: "divider" },
           { type: "section", text: { type: "mrkdwn", text: Mrkdwn.escape(notice.text).truncate(Formatting::SECTION_TEXT_LIMIT) } }
         ]
-        buttons = (notice.live ? live_buttons(notice) : []) + [ (WatchUpdate.link(notice.conversation_id) if direct) ].compact
+        buttons = (notice.live ? live_buttons(notice) : []) + [ (WatchCard.link(notice.conversation_id) if direct) ].compact
         blocks << { type: "actions", elements: buttons } if buttons.any?
         blocks
       end

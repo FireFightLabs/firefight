@@ -44,6 +44,7 @@ class SecretEntryService
   def self.reveal(entry, by:)
     blocked = entry.reveal_blocked_reason(by)
     return Revealed.new(value: nil, words: blocked) if blocked
+    return token(entry, by) if entry.token?
 
     Revealed.new(value: Integrations::SecretHandoffs::Gate.resolve(entry.reference, workspace: entry.workspace, principal: by, source: AbilityGateway::SOURCE_WEB),
                  words: nil)
@@ -52,6 +53,18 @@ class SecretEntryService
   rescue Integrations::Error => error
     Revealed.new(value: nil, words: Integrations::Sentence.all("It could not be read.", error))
   end
+
+  # Minted now, for the one opening that wins, and never kept.
+  def self.token(entry, by)
+    return Revealed.new(value: nil, words: "This key was deleted, so it has no token to show.") unless entry.api_key&.live?
+    # One transaction, so a token that could not be minted leaves the card ready for another try.
+    value = ApiKey.transaction { entry.api_key.reissue_token! if entry.take_token!(by) }
+    return Revealed.new(value: nil, words: entry.reveal_blocked_reason(by) || "This token was already shown.") unless value
+
+    moved!(entry)
+    Revealed.new(value: value, words: nil)
+  end
+  private_class_method :token
 
   # The card and its Slack message say how it stands now.
   def self.moved!(entry)

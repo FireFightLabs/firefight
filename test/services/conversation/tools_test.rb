@@ -24,8 +24,9 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
     names = Conversation::Tools.for(turn, offer: ->(_tools) { }).map(&:name)
 
     assert_equal [ "open_tools", "use_skill", "search_docs", "read_doc", "read_result", "update_theories", "start_investigation", "run_runbook", "start_watch", "repair_watch", "extend_watch",
-                   "stop_watch", "list_watches", "make_plan", "update_plan", "finish_plan", "cancel_plan", "remember", "recall", "dispute_memory", "search_handbook",
-                   "propose_handbook_edit", "correct_memory", "search_web", "read_web_page" ], names
+                   "stop_watch", "list_watches", "make_plan", "update_plan", "finish_plan", "cancel_plan", "create_workflow", "run_workflow", "list_workflows",
+                   "get_workflow", "propose_workflow_edit", "remember", "recall", "dispute_memory", "search_handbook", "propose_handbook_edit", "propose_skill",
+                   "correct_memory", "search_web", "read_web_page" ], names
   end
 
   test "a plan's tools are never shown as steps, since the person sees the plan as its checklist" do
@@ -167,7 +168,7 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
   test "a chat about no incident investigates what the person said, and the answer comes back to it" do
     @conversation.update!(subject: nil)
 
-    tool.call(tool_call: RubyLLM::ToolCall.new(id: "call_7", name: Mcp::Tools::START_INVESTIGATION, arguments: {}), symptom: "checkout is slow")
+    tool.call(tool_call: RubyLLM::ToolCall.new(id: "call_7", name: FirefightTools::START_INVESTIGATION, arguments: {}), symptom: "checkout is slow")
 
     investigation = @conversation.investigations.sole
     assert_nil investigation.subject
@@ -186,7 +187,7 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
   # The refusal still goes to the model as text, so without the mark the card would say Completed.
   test "a refusal is remembered as failed on the saved call" do
     @conversation.update!(subject: nil)
-    call = RubyLLM::ToolCall.new(id: "call_1", name: Mcp::Tools::START_INVESTIGATION, arguments: {})
+    call = RubyLLM::ToolCall.new(id: "call_1", name: FirefightTools::START_INVESTIGATION, arguments: {})
     @conversation.chat_record.add_message(RubyLLM::Message.new(role: :assistant, content: "", tool_calls: { "call_1" => call }))
 
     tool.call(tool_call: call)

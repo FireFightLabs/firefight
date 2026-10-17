@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class PageOnCall < Base
-      tool_name PAGE_ON_CALL
+      tool_name FirefightTools::PAGE_ON_CALL
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Wake whoever is on call by raising a page in the workspace's on-call tool, on the service or team " \
                   "whose escalation has them on call, with what they need to know. The tool's own escalation pages them, " \

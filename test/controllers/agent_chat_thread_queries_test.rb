@@ -62,7 +62,7 @@ class AgentChatThreadQueriesTest < ActionDispatch::IntegrationTest
   def code_fix_step
     key = "call_#{SecureRandom.hex(4)}"
     asking = @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
-    asking.ruby_llm_tool_calls.create!(tool_call_id: key, name: Mcp::Tools::SEARCH_INCIDENTS, arguments: {})
+    asking.ruby_llm_tool_calls.create!(tool_call_id: key, name: FirefightTools::SEARCH_INCIDENTS, arguments: {})
     request = CodeAgent::Request.new(principal: @member, source: AbilityGateway::SOURCE_CONVERSATION, place: @conversation, tool_call_id: key)
     session, = CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"),
                                       repository: "acme/api", request: request)
@@ -84,8 +84,8 @@ class AgentChatThreadQueriesTest < ActionDispatch::IntegrationTest
     own = Chat.open!(owner: helper, workspace: @workspace, model_choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"))
     asking = own.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
     2.times do |read|
-      call = asking.ruby_llm_tool_calls.create!(tool_call_id: "#{key}_#{read}", name: Mcp::Tools::SEARCH_INCIDENTS, arguments: { "query" => "web" })
-      kept = own.saved_results.keep!(tool_name: Mcp::Tools::SEARCH_INCIDENTS, text: "INC-1\n" * 50) if read.positive?
+      call = asking.ruby_llm_tool_calls.create!(tool_call_id: "#{key}_#{read}", name: FirefightTools::SEARCH_INCIDENTS, arguments: { "query" => "web" })
+      kept = own.saved_results.keep!(tool_name: FirefightTools::SEARCH_INCIDENTS, text: "INC-1\n" * 50) if read.positive?
       content = kept ? "[Too large to hand over, saved as #{kept.handle}. Read it with read_result.]" : "INC-1"
       call.update!(result: own.messages.create!(role: Chat::Message::ROLE_TOOL, content: content))
     end

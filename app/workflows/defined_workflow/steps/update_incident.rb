@@ -42,10 +42,10 @@ class DefinedWorkflow::Steps::UpdateIncident < DefinedWorkflow::Steps::Firefight
   class << self
     def tool_for(config, _workspace)
       case config[KEY_CHANGE]
-      when CHANGE_LEAD, CHANGE_ROLE then Mcp::Tools::ASSIGN_INCIDENT_ROLE
-      when CHANGE_INVITE then Mcp::Tools::INVITE_RESPONDERS
-      when CHANGE_RUNBOOK then Mcp::Tools::ATTACH_RUNBOOK
-      else Mcp::Tools::POST_INCIDENT_UPDATE
+      when CHANGE_LEAD, CHANGE_ROLE then FirefightTools::ASSIGN_INCIDENT_ROLE
+      when CHANGE_INVITE then FirefightTools::INVITE_RESPONDERS
+      when CHANGE_RUNBOOK then FirefightTools::ATTACH_RUNBOOK
+      else FirefightTools::POST_INCIDENT_UPDATE
       end
     end
 

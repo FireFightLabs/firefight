@@ -22,8 +22,8 @@ class ApiKey < ApplicationRecord
   validate :one_identity_only
   validate :not_a_workflows_own
 
-  after_update :invalidate_cache!
-  after_destroy :invalidate_cache!
+  # After commit, so a request reading the row between the change and its commit cannot cache the old one again.
+  after_commit :invalidate_cache!, on: %i[update destroy]
 
   scope :active, -> { where(active: true, deleted_at: nil) }
   scope :not_expired, -> { where("expires_at IS NULL OR expires_at > ?", Time.current) }
@@ -49,6 +49,8 @@ class ApiKey < ApplicationRecord
 
     return nil unless api_key
     return nil unless api_key.active? && !api_key.deleted? && !api_key.expired?
+    # Read fresh rather than from the cached row, so turning an agent off stops its token at once.
+    return nil if api_key.agent_id && !Agent.active.exists?(api_key.agent_id)
 
     api_key
   end
@@ -61,6 +63,16 @@ class ApiKey < ApplicationRecord
       token_prefix: raw_token.first(12)
     )
     [ api_key, raw_token ]
+  end
+
+  # A token shown to a person later, from a card in a chat, is minted at the moment they open it, so no token waits
+  # anywhere to be shown and the one minted with the key stops working.
+  def reissue_token!
+    raw_token = self.class.generate_token
+    retired = token_digest
+    update!(token_digest: self.class.digest_token(raw_token), token_prefix: raw_token.first(12))
+    Rails.cache.delete("#{CACHE_PREFIX}#{retired}")
+    raw_token
   end
 
   def live?
@@ -98,7 +110,7 @@ class ApiKey < ApplicationRecord
   # order, resources then actions, so the same grants always read the same way.
   def granted_permissions
     held = ability_grants.includes(:action).filter_map { |grant| grant.action&.key }.to_set
-    (Ability::Action.grantable_keys - Ability::Action.hidden_keys(workspace)).select { |key| held.include?(key) }.each_with_object({}) do |key, matrix|
+    Ability::Action.grantable_keys.select { |key| held.include?(key) }.each_with_object({}) do |key, matrix|
       resource, action = key.split(".")
       (matrix[resource] ||= []) << action
     end

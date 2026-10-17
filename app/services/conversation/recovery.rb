@@ -1,4 +1,4 @@
-# A reply job can die without a word: a worker killed by a deploy or a crash is failed by the queue and never retried, so
+# A reply job can die without a word. A worker killed by a deploy or a crash is failed by the queue and never retried, so
 # the person would watch Halon work forever. The sweep finds a turn still owed whose job is gone. It runs the turn again
 # once when nothing in it could have changed anything, and otherwise ends it saying so.
 class Conversation::Recovery

@@ -248,23 +248,22 @@ module Ability
     # A rule that could hold the Permissions screen could lock admins out of removing it.
     APPROVAL_EXEMPT_RESOURCES = [ RESOURCE_APPROVALS, RESOURCE_PERMISSIONS ].freeze
 
+    # Who may do what, the principals and tokens that carry it, the approvals that decide it and where events are sent.
+    # A change to any of them is made only with a person's say. Halon asks on its card every time, and a call made with
+    # a token or by a machine waits for a person to approve it (AbilityGateway.person_requirement).
+    PERSON_CONFIRMED_RESOURCES = [ RESOURCE_PERMISSIONS, RESOURCE_API_KEYS, RESOURCE_APPROVALS, RESOURCE_WEBHOOKS ].freeze
+
+    def self.asks_a_person?(resource, crud_action) = PERSON_CONFIRMED_RESOURCES.include?(resource.to_s) && crud_action.to_s != ACTION_READ
+
+    def asks_a_person? = system? && self.class.asks_a_person?(self.class.resource_of(key), key.to_s.split(".").last)
+
     # An open action is never held, since a broad rule would stall every lookup. A workspace switches it off instead.
     def self.approval_exempt?(key)
       APPROVAL_EXEMPT_RESOURCES.include?(resource_of(key)) || open?(key)
     end
     # Nobody needs a grant for an open action, so none is offered.
     scope :grantable, -> { where.not(key: admin_only_keys + OPEN_KEYS) }
-    scope :grantable_for, ->(workspace) { where(workspace_id: [ nil, workspace.id ]).grantable.where.not(key: hidden_keys(workspace)) }
-
-    # Resources whose work is not switched on for the workspace, which nothing offers until it is.
-    def self.hidden_resources(workspace)
-      hidden = []
-      hidden.push(RESOURCE_WORKFLOWS, RESOURCE_HTTP_REQUESTS) unless FeatureFlags.enabled?(workspace, FeatureFlags::WORKFLOWS)
-      hidden << RESOURCE_SKILLS unless FeatureFlags.enabled?(workspace, FeatureFlags::CUSTOM_SKILLS)
-      hidden
-    end
-
-    def self.hidden_keys(workspace) = keys_for(hidden_resources(workspace))
+    scope :grantable_for, ->(workspace) { where(workspace_id: [ nil, workspace.id ]).grantable }
 
     def self.system_key(resource, action)
       "#{resource}.#{action}"

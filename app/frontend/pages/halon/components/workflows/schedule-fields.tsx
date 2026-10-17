@@ -1,11 +1,11 @@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { WORKFLOW_SCHEDULE_LIMITS, WORKFLOW_SCHEDULE_REPEATS } from "@/lib/generated/constants"
+import { WORKFLOW_SCHEDULE_LIMITS, WORKFLOW_SCHEDULE_REPEATS, WORKFLOW_SCHEDULE_WEEKS } from "@/lib/generated/constants"
 import { REPEAT_LABELS } from "@/pages/halon/components/workflows/labels"
 import { TimeZoneSelect } from "@/pages/halon/components/workflows/time-zone-select"
 import { WeekdayPicker } from "@/pages/halon/components/workflows/weekday-picker"
-import { chosenRepeat, DAY_NAMES, type Schedule, WEEK_LABELS, WEEKS } from "@/pages/halon/lib/schedule"
+import { chosenRepeat, DAY_NAMES, type Schedule, WEEK_LABELS } from "@/pages/halon/lib/schedule"
 
 interface ScheduleFieldsProps {
   idPrefix: string
@@ -61,7 +61,7 @@ export function ScheduleFields({ idPrefix, schedule, timeZones, disabled = false
             <Select value={schedule.week} disabled={disabled} onValueChange={(value) => change("week", value)}>
               <SelectTrigger id={`${idPrefix}-week`} className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {WEEKS.map((week) => <SelectItem key={week} value={week}>{WEEK_LABELS[week]}</SelectItem>)}
+                {WORKFLOW_SCHEDULE_WEEKS.map((week) => <SelectItem key={week} value={week}>{WEEK_LABELS[week]}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

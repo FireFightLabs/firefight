@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     class EscalateIncident < Base
-      tool_name ESCALATE_INCIDENT
+      tool_name FirefightTools::ESCALATE_INCIDENT
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Ask a specific person to pick this incident up. Firefight posts the ask in the " \
                   "incident channel, messages them directly with an acknowledge button, and chases " \

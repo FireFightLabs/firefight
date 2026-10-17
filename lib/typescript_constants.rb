@@ -312,8 +312,6 @@ module TypescriptConstants
       Export.new("APPROVAL_NOTIFY_DEFAULT", PolicyRule::ApprovalOutcome::NOTIFY_DEFAULT, nil),
       Export.new("APPROVER_ROLES", [ WorkspaceMembership.roles[:owner], WorkspaceMembership.roles[:admin] ], "ApproverRole"),
       Export.new("SANDBOX_SERVICES", CodeBox::SERVICES, "SandboxService"),
-      Export.new("WORKFLOWS_RESOURCE", Ability::Action::RESOURCE_WORKFLOWS, nil),
-      Export.new("SKILLS_RESOURCE", Ability::Action::RESOURCE_SKILLS, nil),
       Export.new("WORKFLOW_STATES", Workflow::STATES, "WorkflowState"),
       Export.new("CHAT_WORKFLOW_ACTIONS", {
         "RUN_NOW" => Workflow::ACTION_RUN_NOW, "CANCEL" => Workflow::ACTION_CANCEL, "TURN_OFF" => Workflow::ACTION_TURN_OFF
@@ -335,6 +333,7 @@ module TypescriptConstants
         "CHANNEL" => Workflow::Library::PARAM_CHANNEL, "REPLY_IN_CHAT" => Workflow::Library::PARAM_REPLY_IN_CHAT, "DAYS" => Workflow::Library::PARAM_DAYS
       }, nil),
       Export.new("WORKFLOW_SCHEDULE_REPEATS", Workflow::Trigger::Schedule::REPEATS, "WorkflowScheduleRepeat"),
+      Export.new("WORKFLOW_SCHEDULE_WEEKS", Workflow::Trigger::Schedule::WEEKS.map(&:to_s), "WorkflowScheduleWeek"),
       Export.new("WORKFLOW_SCHEDULE_KEYS", {
         "REPEAT" => Workflow::Trigger::Schedule::KEY_REPEAT, "EVERY" => Workflow::Trigger::Schedule::KEY_EVERY, "AT" => Workflow::Trigger::Schedule::KEY_AT,
         "DAYS" => Workflow::Trigger::Schedule::KEY_DAYS, "WEEK_OF_MONTH" => Workflow::Trigger::Schedule::KEY_WEEK, "WEEKDAY" => Workflow::Trigger::Schedule::KEY_WEEKDAY,

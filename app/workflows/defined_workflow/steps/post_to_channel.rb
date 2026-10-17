@@ -15,7 +15,7 @@ class DefinedWorkflow::Steps::PostToChannel < DefinedWorkflow::Steps::CallTool
   KEY_REPLY = "reply_in_chat".freeze
   OUTPUT_CHANNEL = "channel".freeze
   OUTPUT_LINK = "link".freeze
-  TOOL = Mcp::Tools::POST_TO_CHANNEL
+  TOOL = FirefightTools::POST_TO_CHANNEL
 
   class << self
     def changes?(_config, _workspace) = true

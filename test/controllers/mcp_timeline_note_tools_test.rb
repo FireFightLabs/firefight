@@ -20,14 +20,14 @@ class McpTimelineNoteToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "tools/list offers dismiss_timeline_note as a write tool" do
-    tool = rpc("tools/list").dig("result", "tools").find { |entry| entry["name"] == Mcp::Tools::DISMISS_TIMELINE_NOTE }
+    tool = rpc("tools/list").dig("result", "tools").find { |entry| entry["name"] == FirefightTools::DISMISS_TIMELINE_NOTE }
 
     assert tool
     assert_not tool.dig("annotations", "readOnlyHint")
   end
 
   test "dismissing a note marks it and reports what was dismissed" do
-    content, is_error = call_tool(Mcp::Tools::DISMISS_TIMELINE_NOTE, {
+    content, is_error = call_tool(FirefightTools::DISMISS_TIMELINE_NOTE, {
       incident: @incident.identifier, note_id: @note.id
     })
 
@@ -39,15 +39,15 @@ class McpTimelineNoteToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "a dismissed note stops being returned by get_incident" do
-    call_tool(Mcp::Tools::DISMISS_TIMELINE_NOTE, { incident: @incident.identifier, note_id: @note.id })
+    call_tool(FirefightTools::DISMISS_TIMELINE_NOTE, { incident: @incident.identifier, note_id: @note.id })
 
-    content, = call_tool(Mcp::Tools::GET_INCIDENT, { incident: @incident.identifier })
+    content, = call_tool(FirefightTools::GET_INCIDENT, { incident: @incident.identifier })
 
     assert_not_includes content["timeline"].map { |entry| entry["event"] }, IncidentEvent::MILESTONE_NOTED
   end
 
   test "get_incident names the kind so an agent can ask for the root cause" do
-    content, = call_tool(Mcp::Tools::GET_INCIDENT, { incident: @incident.identifier })
+    content, = call_tool(FirefightTools::GET_INCIDENT, { incident: @incident.identifier })
     entry = content["timeline"].find { |row| row["event"] == IncidentEvent::MILESTONE_NOTED }
 
     assert_equal "root_cause", entry["kind"]
@@ -60,7 +60,7 @@ class McpTimelineNoteToolsTest < ActionDispatch::IntegrationTest
       @incident.update!(incident_severity: incident_severities(:major_ws1))
     end
 
-    content, = call_tool(Mcp::Tools::GET_INCIDENT, { incident: @incident.identifier })
+    content, = call_tool(FirefightTools::GET_INCIDENT, { incident: @incident.identifier })
     entry = content["timeline"].reverse.find { |row| row["event"] == IncidentEvent::INCIDENT_UPDATED }
 
     assert_equal "Rolled back the deploy.\n\n- Errors are back to baseline", entry.dig("update", "message")
@@ -72,7 +72,7 @@ class McpTimelineNoteToolsTest < ActionDispatch::IntegrationTest
   test "an event that is not an AI note is refused with the reason" do
     pin = @incident.incident_events.create!(event_type: IncidentEvent::MESSAGE_PINNED, metadata: {})
 
-    _, is_error, text = call_tool(Mcp::Tools::DISMISS_TIMELINE_NOTE, {
+    _, is_error, text = call_tool(FirefightTools::DISMISS_TIMELINE_NOTE, {
       incident: @incident.identifier, note_id: pin.id
     })
 
@@ -84,7 +84,7 @@ class McpTimelineNoteToolsTest < ActionDispatch::IntegrationTest
     other = incidents(:resolved_minor_ws1)
     stray = other.incident_events.create!(event_type: IncidentEvent::MILESTONE_NOTED, metadata: { statement: "x" })
 
-    _, is_error = call_tool(Mcp::Tools::DISMISS_TIMELINE_NOTE, {
+    _, is_error = call_tool(FirefightTools::DISMISS_TIMELINE_NOTE, {
       incident: @incident.identifier, note_id: stray.id
     })
 

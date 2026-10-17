@@ -33,12 +33,8 @@ class Chat::CustomSkill < ApplicationRecord
   scope :switched_on, -> { where(enabled: true) }
   scope :ordered, -> { order(:name) }
 
-  def self.enabled_for?(workspace) = FeatureFlags.enabled?(workspace, FeatureFlags::CUSTOM_SKILLS)
-
   # The skills Halon loads: live and switched on. A copy switched off leaves Firefight's skill of its name to be loaded.
   def self.definitions_for(workspace)
-    return [] unless enabled_for?(workspace)
-
     where(workspace: workspace).live.switched_on.includes(:live_version).ordered.map(&:definition)
   end
 
@@ -47,8 +43,6 @@ class Chat::CustomSkill < ApplicationRecord
   # The workspace's own skill of this name when it is switched off, which nothing may follow, or nil. A copy that is off
   # is not in the way, since Firefight's own skill of its name is followed instead.
   def self.switched_off(workspace, name)
-    return unless enabled_for?(workspace)
-
     where(workspace: workspace, enabled: false, library_name: nil).live.find_by(name: normalize_value_for(:name, name))
   end
 

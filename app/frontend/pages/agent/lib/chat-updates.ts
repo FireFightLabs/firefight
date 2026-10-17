@@ -73,8 +73,8 @@ const KEEPS_PAGE = { preserveScroll: true, preserveState: true }
 export const IN_PLACE = { ...KEEPS_PAGE, showProgress: false }
 
 // Opening a chat shows its composer at once and a skeleton where the conversation goes, which loads next. The
-// conversation is an ordinary visit, not a background one: Inertia drops a background response read ahead from another
-// chat, and opening a third chat meanwhile should stop it.
+// conversation is an ordinary visit, not a background one, since Inertia drops a background response read ahead from
+// another chat, and opening a third chat meanwhile should stop it.
 const CHAT_HEAD_VISIT = { ...KEEPS_PAGE, only: CHAT_HEAD }
 const THREAD_VISIT = { ...KEEPS_PAGE, only: THREAD, reset: MESSAGES }
 

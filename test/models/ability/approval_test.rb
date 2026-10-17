@@ -66,6 +66,17 @@ module Ability
       assert_equal first.consumed_at.to_i, @approval.reload.consumed_at.to_i
     end
 
+    test "a deny and an approve decided at once from two copies leave the first decision standing" do
+      denying = Ability::Approval.find(@approval.id)
+      approving = Ability::Approval.find(@approval.id)
+
+      denying.deny!(by: @admin)
+
+      assert_raises(Ability::Approval::NotAllowed) { approving.approve!(by: @admin) }
+      assert @approval.reload.denied?
+      assert_not @approval.usable?
+    end
+
     test "approver must hold the required role at click time" do
       member = workspace_memberships(:bob_workspace_one)
 
@@ -187,17 +198,27 @@ module Ability
       assert_equal [ "Faylee (Northflank)" ], Ability::Approval.with_connection_names([ Ability::Approval.find(@approval.id) ]).map(&:connection_name)
     end
 
-    test "an approval of a call a person runs lasts an hour from when it was approved, and one replayed at once never lapses" do
+    test "an approval of a call a person runs lasts an hour from when it was approved" do
       @approval.update!(held_for_run: true)
       @approval.approve!(by: @admin)
 
       assert_in_delta Ability::Approval::RUN_WINDOW.from_now, @approval.run_expires_at, 5.seconds
       travel(Ability::Approval::RUN_WINDOW + 1.second) { assert_not @approval.usable? }
+    end
 
+    test "an approval nobody holds for a run lapses too, so a caller that never retries leaves nothing usable behind" do
       replayed = Ability::Approval.create!(workspace: @workspace, principal: @requester, principal_label: "key", action_key: "catalog.delete",
                                            request_digest: "d", required_role: WorkspaceMembership.roles[:admin])
-      replayed.approve!(by: @admin)
-      assert_nil replayed.run_expires_at
+
+      assert_enqueued_with(job: ApprovedCallExpiryJob, args: [ replayed.id ]) { replayed.approve!(by: @admin) }
+
+      assert_in_delta Ability::Approval::RUN_WINDOW.from_now, replayed.run_expires_at, 5.seconds
+      assert replayed.usable?
+      travel(Ability::Approval::RUN_WINDOW + 1.second) do
+        assert_not replayed.usable?
+        ApprovedCallExpiryJob.perform_now(replayed.id)
+        assert_equal Ability::Approval::STATUS_EXPIRED, replayed.reload.status
+      end
     end
 
     test "a lapse is one statement that loses to a run claiming the approval, and only an unused approval lapses or is dismissed" do

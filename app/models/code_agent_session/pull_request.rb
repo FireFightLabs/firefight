@@ -1,4 +1,4 @@
-# A code change that opened a pull request owns it for its whole life: Halon follows it until it is merged or closed,
+# A code change that opened a pull request owns it for its whole life. Halon follows it until it is merged or closed,
 # and tells whoever asked when it conflicts with its base, a check fails or a reviewer asks for changes. Each move is
 # one guarded update, so two workers or a live update arriving with the sweep never say anything twice.
 module CodeAgentSession::PullRequest

@@ -61,9 +61,9 @@ module Chat::Tools
   def self.chart_card = Card.new(kind: CARD_CHART, category: nil)
 
   def self.card_for(tool_name, arguments)
-    return Card.new(kind: CARD_INVESTIGATION, category: nil) if tool_name.to_s == Mcp::Tools::START_INVESTIGATION
+    return Card.new(kind: CARD_INVESTIGATION, category: nil) if tool_name.to_s == FirefightTools::START_INVESTIGATION
     return Card.new(kind: CARD_SCREENSHOTS, category: nil) if tool_name.to_s == Browser::NAME
-    return nil unless tool_name.to_s == Mcp::Tools::LIST_INTEGRATIONS
+    return nil unless tool_name.to_s == FirefightTools::LIST_INTEGRATIONS
 
     category = arguments.to_h.stringify_keys["category"]
     return nil if category.blank?
@@ -89,7 +89,15 @@ module Chat::Tools
   end
 
   def self.firefight_reading_names
-    @firefight_reading_names ||= Mcp::Tools.all.filter_map { |tool_class| tool_class.name_value.to_s if tool_class.annotations_value&.read_only_hint }.to_set
+    @firefight_reading_names ||= FirefightTools.all.filter_map { |tool_class| tool_class.name_value.to_s if tool_class.annotations_value&.read_only_hint }.to_set
+  end
+
+  # A tool that changes permissions, a credential, an approval or a webhook is asked about every time, so Allow for the
+  # rest of this chat never covers it.
+  def self.asks_a_person?(tool_name) = person_confirmed_names.include?(tool_name.to_s)
+
+  def self.person_confirmed_names
+    @person_confirmed_names ||= FirefightTools.all.filter_map { |tool_class| tool_class.name_value.to_s if tool_class.asks_a_person? }.to_set
   end
 
   # target is what the call reaches, worked out from the tool when it was asked (Chat::Tools::Target), and call what the
@@ -231,7 +239,7 @@ module Chat::Tools
 
   def self.changes_in(place) = "Changes something in #{place}."
 
-  # One time a change customers feel may be undone after: value is what the answer sends back, minutes or keep.
+  # One time a change customers feel may be undone after. value is what the answer sends back, minutes or keep.
   Expiry = Data.define(:value, :label)
 
   # A call that waits for the person's decision carries one sentence saying what it will do, and a few words naming the
@@ -330,7 +338,7 @@ module Chat::Tools
   end
 
   def self.own_resource(name, workspace)
-    own = Mcp::Tools.all.find { |tool_class| tool_class.name_value.to_s == name }
+    own = FirefightTools.all.find { |tool_class| tool_class.name_value.to_s == name }
     own && Array(own.authorization(workspace, {})).first
   rescue NotImplementedError, ActiveRecord::RecordNotFound
     nil
@@ -372,7 +380,7 @@ module Chat::Tools
   end
 
   def self.required_arguments
-    @required_arguments ||= Mcp::Tools.all.to_h do |tool_class|
+    @required_arguments ||= FirefightTools.all.to_h do |tool_class|
       [ tool_class.name_value.to_s, Array(tool_class.input_schema_value.to_h[:required]).map(&:to_s) ]
     end
   end
@@ -415,7 +423,7 @@ module Chat::Tools
       intent: intent_of(tool_call.arguments), asked: (step&.asked || []) + planned(tool_call), status: CONFIRMATION_STATUSES.fetch(tool_call.approval, :awaiting),
       target: target, call: call, read: Provenance.stored(tool_call),
       safeguards: [ *repair&.confirmation_rows, owner&.confirmation_row, *page&.would_send_rows ].compact,
-      expires: expiries(mitigation), for_chat: repair.nil? && !Browser.sends?(tool_call.arguments),
+      expires: expiries(mitigation), for_chat: repair.nil? && !Browser.sends?(tool_call.arguments) && !asks_a_person?(tool_call.name),
       waiting_on: (owner.owner_name if tool_call.approval == Chat::APPROVAL_OWNER_ASKED && owner),
       support: workspace ? LookFirst.support(chat, tool_call, workspace) : [], page: page,
       short_title: short_title_of(tool_call.arguments), chosen_expiry: chosen_expiry(mitigation), undo_words: undo_words(workspace, mitigation),
@@ -685,7 +693,7 @@ module Chat::Tools
 
   # Firefight's own tools and capabilities that change something, which a turn finds by searching rather than holding.
   def self.writing_names
-    @writing_names ||= (Mcp::Tools.all.map { |tool_class| tool_class.name_value.to_s } - firefight_reading_names.to_a +
+    @writing_names ||= (FirefightTools.all.map { |tool_class| tool_class.name_value.to_s } - firefight_reading_names.to_a +
                         Integrations::Capabilities::SPECS.values.select(&:writes).map(&:tool_name)).to_set
   end
 
@@ -730,8 +738,7 @@ module Chat::Tools
     lambda do
       workspace = agent_run.workspace
       principal = agent_run.acting_principal
-      [ workspace.reach_version(principal), (granted(agent_run) if principal), Mcp::Tools.available_in(workspace).map(&:name_value),
-        Chat::CustomSkill.enabled_for?(workspace) ]
+      [ workspace.reach_version(principal), (granted(agent_run) if principal), FirefightTools.available_in(workspace).map(&:name_value) ]
     end
   end
 
@@ -746,7 +753,7 @@ module Chat::Tools
   def self.firefight_entries(agent_run, resolved: nil)
     principal = agent_run.acting_principal
     workspace = agent_run.workspace
-    offered = Mcp::Tools.available_in(workspace).reject { |tool_class| Groups::NOT_FOR_HALON.include?(tool_class.name_value.to_s) }
+    offered = FirefightTools.available_in(workspace).reject { |tool_class| Groups::NOT_FOR_HALON.include?(tool_class.name_value.to_s) }
     keys = offered.to_h { |tool_class| [ tool_class, Ability::Action.system_key(*tool_class.authorization(workspace, {})) ] }
     actions = Ability::Action.system_actions.where(key: keys.values).index_by(&:key)
     # An open action, such as reading a public web page, is made the first time it is asked for.

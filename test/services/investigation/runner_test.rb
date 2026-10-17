@@ -228,12 +228,12 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
     )
     Ability::Grant.create!(workspace: @workspace, principal: @investigation.acting_principal, action: action)
     chat = @investigation.create_chat!(workspace: @workspace, model: "claude-sonnet-4-5", provider: :anthropic)
-    chat.remember_found_tools!([ Mcp::Tools::SEARCH_INCIDENTS ])
+    chat.remember_found_tools!([ FirefightTools::SEARCH_INCIDENTS ])
     investigator = fake(outcome: :answered, conclude: true)
 
     Investigation::Runner.new(@investigation).run
 
-    assert_includes investigator.calls.sole[:tools].map(&:name), Mcp::Tools::SEARCH_INCIDENTS
+    assert_includes investigator.calls.sole[:tools].map(&:name), FirefightTools::SEARCH_INCIDENTS
   end
 
   test "a responder's note joins the run at its next step, says who added it, and shows as a step" do

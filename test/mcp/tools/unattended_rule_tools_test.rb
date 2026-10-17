@@ -11,13 +11,14 @@ module Mcp
         @context = { workspace: @workspace, principal: @admin }
       end
 
-      def call(tool, args) = ToolDispatcher.call(tool: tool, server_context: @context, args: args)
+      # Over MCP a token is refused, so these run as Halon's chat runs them for a person who confirmed.
+      def call(tool, args) = ToolDispatcher.run(tool: tool, workspace: @workspace, principal: @admin, args: args)
 
       test "they sit with permissions, authorize as permissions and read, write and delete as the screen does" do
-        group = Chat::Tools::Groups::FIREFIGHT.find { |each| each.tools.include?(UPSERT_UNATTENDED_RULE) }
+        group = Chat::Tools::Groups::FIREFIGHT.find { |each| each.tools.include?(FirefightTools::UPSERT_UNATTENDED_RULE) }
         assert_equal Chat::Tools::Groups::PERMISSIONS, group.key
-        assert_includes group.tools, LIST_UNATTENDED_RULES
-        assert_includes group.tools, DELETE_UNATTENDED_RULE
+        assert_includes group.tools, FirefightTools::LIST_UNATTENDED_RULES
+        assert_includes group.tools, FirefightTools::DELETE_UNATTENDED_RULE
         assert_equal [ Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_CREATE ], UpsertUnattendedRule.authorization(@workspace, {})
 
         created = call(UpsertUnattendedRule, { capability: "restart", resource: "web", metric: "http_5xx", threshold: 50 }).structured_content

@@ -65,7 +65,7 @@ module Events
 
     # How a model reads the message, with people and channels named and their ids kept, read once as it is saved.
     def self.for_model(workspace, text)
-      text.present? ? workspace.adapter.messages_for_model(texts: [ text ])[text] : nil
+      workspace.adapter.message_for_model(text: text) if text.present?
     end
     private_class_method :for_model
 

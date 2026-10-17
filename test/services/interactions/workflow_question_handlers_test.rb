@@ -9,7 +9,6 @@ class Interactions::WorkflowQuestionHandlersTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
     @bob = workspace_memberships(:bob_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @adapter = @workspace.adapter
     Workspace.any_instance.stubs(:adapter).returns(@adapter)
     WorkspaceAdapter.stubs(:for).returns(@adapter)

@@ -23,7 +23,7 @@ class DefinedWorkflow::Steps::PostIncidentUpdate < DefinedWorkflow::Steps::Firef
   KEY_INCIDENT = DefinedWorkflow::Steps::FirefightTool::KEY_INCIDENT
 
   class << self
-    def tool_for(_config, _workspace) = Mcp::Tools::POST_INCIDENT_UPDATE
+    def tool_for(_config, _workspace) = FirefightTools::POST_INCIDENT_UPDATE
 
     def arguments_for(config, _workspace) = { KEY_INCIDENT => config[KEY_INCIDENT].to_s, "answers" => { KEY_MESSAGE => config[KEY_MESSAGE].to_s } }
 
@@ -84,7 +84,7 @@ class DefinedWorkflow::Steps::PostIncidentUpdate < DefinedWorkflow::Steps::Firef
   def finished(posted, checkpoint) = { OUTPUT_POSTED => posted, OUTPUT_ANSWER => checkpoint[CHECKPOINT_ANSWER] }
 
   def incident_live?
-    incident = Mcp::Tools::GetIncident.find_by_reference(workspace.incidents.where(deleted_at: nil), @config[KEY_INCIDENT].to_s)
+    incident = workspace.incidents.where(deleted_at: nil).find_by_reference(@config[KEY_INCIDENT].to_s)
     incident.present? && !incident.terminal?
   end
 

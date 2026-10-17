@@ -10,10 +10,10 @@ module Chat::Helpers
 
   # What the asking turn or run lends its helpers. purse is its loop's (FirefightAi::AgentLoop::Purse) and max_spend_cents
   # the cap that loop stops at. since is when the question began, which the per question limit counts from. canceled
-  # says whether a person stopped it, moved is called with the run_helpers call's id whenever one of its helpers moved
-  # (see teller), and fresh_parent builds a
-  # copy of the asking turn or run for a helper's own thread, since a record is never shared between threads. choose
-  # answers the model a check runs on, given whether it is deep, and is asked only once a check is handed off.
+  # says whether a person stopped it. moved is called with the run_helpers call's id whenever one of its helpers moved
+  # (see teller). fresh_parent builds a copy of the asking turn or run for a helper's own thread, since a record is never
+  # shared between threads. choose answers the model a check runs on, given whether it is deep, and is asked only once a
+  # check is handed off.
   # inferable and member are what the ledger names. specialists is what a specialist reads with (Chat::Specialists::Live,
   # or a rehearsal's own), nil where none is asked.
   Share = Data.define(:purse, :max_spend_cents, :since, :canceled, :moved, :fresh_parent, :choose, :inferable, :member, :specialists) do

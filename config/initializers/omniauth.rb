@@ -31,8 +31,10 @@ Rails.application.config.middleware.use OmniAuth::Builder do
   end
 end
 
-OmniAuth.config.allowed_request_methods = [ :get, :post ]
-OmniAuth.config.silence_get_warning = true
+# A sign-in starts only from a form Firefight drew, posted with its CSRF token (omniauth-rails_csrf_protection), so a
+# link or an image elsewhere cannot start one in someone's browser. A GET falls through to the routes, which send it
+# to the sign-in page.
+OmniAuth.config.allowed_request_methods = [ :post ]
 OmniAuth.config.on_failure = proc { |env|
   OmniAuth::FailureEndpoint.new(env).redirect_to_failure
 }

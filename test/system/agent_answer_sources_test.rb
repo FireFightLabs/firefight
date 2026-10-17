@@ -13,7 +13,7 @@ class AgentAnswerSourcesTest < ApplicationSystemTestCase
     @conversation.ask!("How did the release go?")
     chat = @conversation.chat_record
     asked = chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
-    call = asked.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Mcp::Tools::SEARCH_INCIDENTS, arguments: { "query" => "release" })
+    call = asked.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: FirefightTools::SEARCH_INCIDENTS, arguments: { "query" => "release" })
     call.update!(result: chat.messages.create!(role: Chat::Message::ROLE_TOOL, content: "Run 4182 failed at migrate. #{RUN}"))
     @conversation.note!("Run 4182 failed at its migrate step.")
     @conversation.reply_delivered!

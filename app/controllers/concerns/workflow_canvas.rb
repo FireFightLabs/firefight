@@ -1,11 +1,6 @@
-# A workflow's canvas and every change made on it, which exist only for a workspace with the workflows flag
-# (RequiresWorkflows). Every change made on the canvas goes back to it.
+# A workflow's canvas and every change made on it. Every change made on the canvas goes back to it.
 module WorkflowCanvas
   extend ActiveSupport::Concern
-
-  included do
-    include RequiresWorkflows
-  end
 
   private
 

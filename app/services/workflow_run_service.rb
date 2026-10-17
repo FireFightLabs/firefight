@@ -1,7 +1,6 @@
 # Starts a run of a workflow: refuses what may not start, keeps the run's record and starts the engine on the version's
 # snapshot. Every way a run starts goes through here, by hand, from Halon, from a trigger, from another workflow or again
-# from a step of an earlier run, so none of them can skip the workflows flag or the workflow's limits. One start key
-# gives one run.
+# from a step of an earlier run, so none of them can skip the workflow's limits. One start key gives one run.
 class WorkflowRunService
   def initialize(workflow)
     @workflow = workflow
@@ -42,7 +41,7 @@ class WorkflowRunService
     run
   end
 
-  # Starts a run again from one of its steps, on the same inputs and trigger: each step before it that succeeded stands
+  # Starts a run again from one of its steps, on the same inputs and trigger. Each step before it that succeeded stands
   # in with what it gave, and that step and every one after it runs again. A test run starts again as a test run of the
   # draft, a real one as a real run of the live version, so a fix published since is what runs.
   def self.rerun_from!(source, step_key:, by:)
@@ -93,7 +92,6 @@ class WorkflowRunService
 
   # Trying one step asks only that it and the steps before it can run.
   def tested_version(up_to)
-    refuse!("Workflows are not switched on for this workspace.") unless FeatureFlags.enabled?(@workflow.workspace, FeatureFlags::WORKFLOWS)
     version = @workflow.draft || @workflow.live_version
     refuse!("#{@workflow.name} has no steps to test yet.") unless version && version.steps.any?
     problem = DefinedWorkflow.problems(up_to.present? ? version.snapshot_up_to(up_to) : version.snapshot).first

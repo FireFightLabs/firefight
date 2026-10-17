@@ -13,10 +13,12 @@ class CodeBoxJobsTest < ActiveJob::TestCase
     CodeBoxSweepJob.perform_now
   end
 
-  test "preparing the image copy hands over to the provider's one place for it" do
-    Integrations::CodeReading.expects(:prepare_image!).with(SandboxProviders::BOAT)
+  test "preparing a workspace's image copy hands over to the provider's one place for it, and a job naming no workspace does nothing" do
+    workspace_id = workspaces(:slack_workspace_one).id
+    Integrations::CodeReading.expects(:prepare_image!).once.with(Integrations::Sandboxes::Boat::KEY, workspace_id)
 
-    SandboxImageCopyJob.perform_now(SandboxProviders::BOAT)
+    SandboxImageCopyJob.perform_now(Integrations::Sandboxes::Boat::KEY, workspace_id)
+    SandboxImageCopyJob.perform_now(Integrations::Sandboxes::Boat::KEY)
   end
 
   test "a chat answer that read code schedules its box's idle check, and one that did not schedules nothing" do

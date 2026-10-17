@@ -4,7 +4,6 @@ class WorkflowSuggestionsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::WORKFLOWS)
     @workflow = Workflow.create!(workspace: @workspace, name: "Probe check")
     @workflow.edit!(operation: Workflow::Edit::OPERATION_ADD_STEP, by: @alice, payload: { "step" => delay("wait") })
     @workflow.reload.draft.publish!(by: @alice)

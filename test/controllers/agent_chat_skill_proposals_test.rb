@@ -17,18 +17,8 @@ class AgentChatSkillProposalsTest < ActionDispatch::IntegrationTest
   def thread_headers = inertia_partial_headers("agent/index", AgentChatsController::THREAD_PROPS)
 
   test "the chat shows the proposal while the workspace keeps its own skills" do
-    Chat::CustomSkill.stubs(:enabled_for?).returns(true)
-
     get agent_chat_path(@conversation), headers: thread_headers
 
     assert_equal [ @proposal.id ], inertia_props[AgentChatsController::PROP_SKILL_PROPOSALS].pluck("id")
-  end
-
-  test "without its own skills the chat shows no proposal" do
-    Chat::CustomSkill.stubs(:enabled_for?).returns(false)
-
-    get agent_chat_path(@conversation), headers: thread_headers
-
-    assert_empty inertia_props[AgentChatsController::PROP_SKILL_PROPOSALS]
   end
 end
