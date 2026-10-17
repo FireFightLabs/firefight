@@ -53,6 +53,22 @@ module Chat::Tools::Provenance
     chat.present? && chat.allows_tool?(tool_name) && !read_outside?(chat)
   end
 
+  # Whether text read from outside holds one of this call's own values that the person did not write themselves, so
+  # the change may have come from that text rather than from them or from Firefight's own data.
+  def self.holds_outside_values?(chat, tool_call, workspace)
+    read_outside?(chat) && of(chat, tool_call, workspace).sources.any? { |source| source.found.any? }
+  end
+
+  # The same for a call of this turn by its id, answered only when asked. A call not found on the chat is taken to hold
+  # some, so the person is asked.
+  def self.reads_into(agent_run, tool_call_id)
+    lambda do
+      chat = agent_run.chat
+      call = chat&.tool_calls&.find_by(tool_call_id: tool_call_id.to_s)
+      call.nil? || holds_outside_values?(chat, call, agent_run.workspace)
+    end
+  end
+
   # Kept with each call put to the person, so the question says what was read before it however often it is redrawn,
   # and Allow for the rest of this chat is never offered or honoured for it (Chat#decide!).
   def self.record!(agent_run, tool_calls)

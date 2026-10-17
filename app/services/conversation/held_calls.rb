@@ -6,10 +6,13 @@ module Conversation::HeldCalls
   # What the card and the platform's message draw. call and target name the call as the confirmation does ("Api request"
   # on "Production (Hosting), project shop"), and action as the request does ("pause dev-web"). line is the one line under
   # the headline. offers is what may be done now, whoever does it. progress is how far a code change got while it runs.
+  # rows are what a counted database write touches, for its approvers.
   Shown = Data.define(
     :id, :conversation_id, :status, :headline, :call, :target, :asked, :state, :warning, :checked_at, :expires_at,
-    :decided_by, :result, :offers, :action, :line, :approval_id, :approved_by, :progress, :link
-  )
+    :decided_by, :result, :offers, :action, :line, :approval_id, :approved_by, :progress, :link, :rows
+  ) do
+    def initialize(rows: [], **) = super
+  end
 
   COULD_NOT_FINISH = "Firefight could not finish this call. Check whether it went through before asking for it again.".freeze
 
@@ -220,7 +223,7 @@ module Conversation::HeldCalls
       target: held.target, asked: asked(held), state: report&.state, warning: report&.warning, checked_at: held.state_checked_at,
       expires_at: approval.run_expires_at, decided_by: held.decided_by&.display_name, result: held.result, offers: held.offers,
       action: action, line: line(held, status, approved_by), approval_id: approval.id, approved_by: approved_by, progress: work,
-      link: work&.pull_request.presence
+      link: work&.pull_request.presence, rows: held.safeguard_rows
     )
   end
 

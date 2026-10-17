@@ -53,7 +53,7 @@ class Conversation::Tools::RunRunbookTest < ActiveSupport::TestCase
     run = workflow.runs.sole
     assert_match "Started Release Firefight, the workflow Release Firefight runs. Its run: ", said
     assert_includes said, Workflow::Links.run(run)
-    assert_equal [ workflow.agent, Workflow::Run::STARTED_BY_HALON, @member ], [ run.agent, run.started_by_kind, run.started_by ]
+    assert_equal [ workflow.agent, Workflow::Run::STARTED_BY_HALON, @member, @member ], [ run.agent, run.started_by_kind, run.started_by, run.confirmed_by ]
     assert_equal({ "bump" => "minor" }, run.inputs)
     assert_equal({ "name" => "Release Firefight", "slug" => runbook.slug }, run.trigger_payload["runbook"])
     assert Ability::Invocation.exists?(principal: @member, action_key: Workflow::CREATE_KEY), "starting it is ledgered as running a workflow"

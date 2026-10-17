@@ -39,10 +39,14 @@ module Slack
 
       def self.fallback(held_call) = "#{held_call.headline}. #{held_call.line}"
 
+      # What a counted database write touches, one line each, as the asker's confirmation shows it.
+      def self.rows_lines(rows) = rows.map { |label, value| "*#{Mrkdwn.escape(label)}:* #{Mrkdwn.escape(value.to_s)}" }
+
       # The one line, with how things stand now while a call approved before approving ran it waits to be run, and the
       # page a finished change made.
       def self.body(held_call)
         lines = [ Mrkdwn.escape(held_call.line) ]
+        lines.concat(rows_lines(held_call.rows)) if held_call.status == Chat::HeldCall::STATUS_WAITING
         if held_call.status == Chat::HeldCall::STATUS_READY
           lines << ":warning: #{Mrkdwn.escape(held_call.warning)}" if held_call.warning
           lines << "Now: #{Mrkdwn.escape(held_call.state)}" if held_call.state

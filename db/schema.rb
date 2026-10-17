@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_17_100200) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_17_100300) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -3384,7 +3384,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_100200) do
     t.string "rerun_from_step_key"
     t.text "private_inputs"
     t.string "telling_job_id"
+    t.uuid "confirmed_by_id"
     t.index ["agent_id"], name: "index_workflow_runs_on_agent_id"
+    t.index ["confirmed_by_id"], name: "index_workflow_runs_on_confirmed_by_id"
     t.index ["parent_run_id"], name: "index_workflow_runs_on_parent_run_id"
     t.index ["rerun_of_id"], name: "index_workflow_runs_on_rerun_of_id"
     t.index ["started_by_id"], name: "index_workflow_runs_on_started_by_id"
@@ -3966,6 +3968,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_100200) do
   add_foreign_key "workflow_runs", "workflow_runs", column: "rerun_of_id", on_delete: :nullify
   add_foreign_key "workflow_runs", "workflow_versions", column: "version_id"
   add_foreign_key "workflow_runs", "workflows", on_delete: :cascade
+  add_foreign_key "workflow_runs", "workspace_memberships", column: "confirmed_by_id", on_delete: :nullify
   add_foreign_key "workflow_runs", "workspace_memberships", column: "started_by_id", on_delete: :nullify
   add_foreign_key "workflow_runs", "workspaces"
   add_foreign_key "workflow_skipped_runs", "workflows", on_delete: :cascade

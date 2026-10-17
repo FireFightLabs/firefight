@@ -3,7 +3,10 @@
 class ApprovalNotificationService
   # What a request says, as people read it: who wants to, what they want to do in plain words, how the approved call went
   # (OUTCOME_*), with its reason when it failed and the page it made when it did one.
-  Shown = Data.define(:who, :action, :outcome, :reason, :link)
+  # rows are what a counted database write touches, as the asker's card would have shown them.
+  Shown = Data.define(:who, :action, :outcome, :reason, :link, :rows) do
+    def initialize(rows: [], **) = super
+  end
   HALON = "Halon".freeze
   OUTCOME_WORKING = :working
   OUTCOME_DONE = :done
@@ -66,7 +69,7 @@ class ApprovalNotificationService
     # A chat's call keeps why it failed in plain words, where the ledger keeps only the first line.
     reason = held.result.presence || reason if held && outcome == OUTCOME_FAILED
     Shown.new(who: approval.from_chat? ? HALON : approval.principal_label, action: held_shown&.action || action_words(approval),
-              outcome: outcome, reason: reason, link: held_shown&.link)
+              outcome: outcome, reason: reason, link: held_shown&.link, rows: held_shown&.rows || [])
   end
 
   # The call by what it does, such as "use api request on Faylee (Northflank)" or "delete incidents", never its key.

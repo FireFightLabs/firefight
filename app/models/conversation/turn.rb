@@ -123,15 +123,21 @@ class Conversation::Turn
   # approver answers, nor to a change to who may do what, which a person always answers, nor in an outside agent's chat
   # or one in a tracker's issue, which act for a machine. action is the tool's action the call runs as, scope where it
   # runs, safe whether this call is safe (Integrations::SafeChanges), capability the capability Halon called through and
-  # integration_id the connection it routed to.
-  def unasked_for(action, scope: {}, params: {}, safe: false, capability: nil, integration_id: nil)
+  # integration_id the connection it routed to. An entry of the list covers a call only when its values came from the
+  # person or Firefight's own data. outside answers whether text read from outside, such as an issue or a log line, holds
+  # one of them (Chat::Tools::Provenance), and such a call is asked on the card as usual, which says why
+  # (#listed_but_read!). A safe change runs either way.
+  def unasked_for(action, scope: {}, params: {}, safe: false, capability: nil, integration_id: nil, tool_call_id: nil, outside: -> { true })
     return nil unless decides_for_person? && action && !action.read? && !action.asks_a_person?
     return nil if approval_requirement_for(action, scope, params).present?
     return Unasked.new(reason: Ability::Invocation::UNASKED_SAFE, allowance_id: nil) if safe && workspace.safe_changes_without_asking?
 
     allowance = Ability::Allowance.covering(workspace, action: action, environment_id: scope.to_h["environment"], capability: capability,
                                                        integration_id: integration_id)
-    Unasked.new(reason: Ability::Invocation::UNASKED_ALLOWANCE, allowance_id: allowance.id) if allowance
+    return nil unless allowance
+    return listed_but_read!(tool_call_id, allowance) if tool_call_id.blank? || outside.call
+
+    Unasked.new(reason: Ability::Invocation::UNASKED_ALLOWANCE, allowance_id: allowance.id)
   end
 
   # Whether an approval rule holds this change for someone other than the asker. Their approval is the one yes it needs,
@@ -150,6 +156,13 @@ class Conversation::Turn
     chat.tool_calls.where(tool_call_id: tool_call_id.to_s).update_all(unasked_reason: unasked.reason, allowance_id: unasked.allowance_id,
                                                                      updated_at: Time.current)
     true
+  end
+
+  # The entry that would have covered the call is kept on it, with no reason to run unasked, so its card says the list
+  # covers it and why it still asks (Chat::Tools::Confirmation#caution). Returns nil, since the person is asked.
+  def listed_but_read!(tool_call_id, allowance)
+    chat.tool_calls.where(tool_call_id: tool_call_id.to_s).update_all(allowance_id: allowance.id, unasked_reason: nil, updated_at: Time.current) if tool_call_id.present?
+    nil
   end
 
   # Why a call that is running was settled to run without asking, or nil.

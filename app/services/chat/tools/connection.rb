@@ -165,16 +165,30 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # it runs without asking, which is kept on the call so it is ledgered and said as such.
   def without_person?(given, tool_call)
     return false unless tool_call && @agent_run.respond_to?(:unasked_for)
+    return true if held_for_others?(given)
 
-    action = @tool.ability_action
-    entry = @tool.integration.environment_entry_for(given[Integration::Tool::ENVIRONMENT_ARG])
-    scope = entry ? { "environment" => entry.id } : {}
-    params = own_arguments(given).except(Chat::DataRepairs::CHECK_ARG, Chat::Tools::TrackedIssues::KIND_ARG)
-    return true if @agent_run.asks_approvers_instead?(action, scope: scope, params: params)
-
-    @agent_run.unasked!(tool_call.id, @agent_run.unasked_for(action, scope: scope, params: params, safe: @tool.safe_change?))
+    scope, params = call_scope(given)
+    @agent_run.unasked!(tool_call.id, @agent_run.unasked_for(@tool.ability_action, scope: scope, params: params, safe: @tool.safe_change?,
+                                                                                   tool_call_id: tool_call.id,
+                                                                                   outside: Chat::Tools::Provenance.reads_into(@agent_run, tool_call.id)))
   rescue Integration::UnknownEnvironment
     false
+  end
+
+  # Whether an approval rule holds this call for someone other than the asker, whose approvers are then the only ones
+  # asked. A counted write's rows go on their card (Chat::HeldCall#safeguard_rows).
+  def held_for_others?(given)
+    return false unless @agent_run.respond_to?(:asks_approvers_instead?)
+
+    scope, params = call_scope(given)
+    @agent_run.asks_approvers_instead?(@tool.ability_action, scope: scope, params: params)
+  rescue Integration::UnknownEnvironment
+    false
+  end
+
+  def call_scope(given)
+    entry = @tool.integration.environment_entry_for(given[Integration::Tool::ENVIRONMENT_ARG])
+    [ entry ? { "environment" => entry.id } : {}, own_arguments(given).except(Chat::DataRepairs::CHECK_ARG, Chat::Tools::TrackedIssues::KIND_ARG) ]
   end
 
   # Counted before anyone is asked. A write that cannot be counted runs at once so its refusal reaches the agent, and a
@@ -184,7 +198,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     case Chat::DataRepairs.settle(@agent_run, @tool, tool_call.id, given)
     when Chat::DataRepairs::REFUSED then true
     when Chat::DataRepairs::READS then !confirms_as_usual?
-    when Chat::DataRepairs::COUNTED then approved_ahead?
+    when Chat::DataRepairs::COUNTED then approved_ahead? || held_for_others?(given)
     else false
     end
   end

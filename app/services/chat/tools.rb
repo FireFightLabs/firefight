@@ -116,10 +116,14 @@ module Chat::Tools
   # action rather than Halon's words (Chat::Tools.effect), nil when nothing more than "a change" is known. decided_by is
   # the member who answered it, outcome how it went once it ran (Chat::StepOutcome), and progress how far a code change
   # got while it runs (Chat::CodeFixProgress).
+  # listed is whether an entry of what Halon may do without asking covers the call, which still asks since outside text
+  # holds its values.
   Confirmation = Data.define(:tool_call_id, :question, :intent, :asked, :status, :target, :call, :read, :safeguards, :expires, :for_chat, :waiting_on,
-                             :support, :page, :short_title, :chosen_expiry, :undo_words, :plan_undo, :tool_name, :effect, :decided_by, :outcome, :progress) do
+                             :support, :page, :short_title, :chosen_expiry, :undo_words, :plan_undo, :tool_name, :effect, :decided_by, :outcome, :progress,
+                             :listed) do
     def initialize(read: nil, safeguards: [], expires: [], for_chat: true, waiting_on: nil, support: [], page: nil, short_title: nil,
-                   chosen_expiry: nil, undo_words: nil, plan_undo: nil, tool_name: nil, effect: nil, decided_by: nil, outcome: nil, progress: nil, **) = super
+                   chosen_expiry: nil, undo_words: nil, plan_undo: nil, tool_name: nil, effect: nil, decided_by: nil, outcome: nil, progress: nil,
+                   listed: false, **) = super
 
     # The question as a label, which names the tool when the agent's words lead.
     def tool_label = question.delete_suffix("?")
@@ -164,7 +168,9 @@ module Chat::Tools
     # the request is theirs. Where it came from in a word, the full list under Details.
     def caution
       places = holding_sources.map { |source| Chat::Tools::Provenance.place(source.from) }.uniq
-      format(CAUTION, places: places.to_sentence) if places.any?
+      return if places.empty?
+
+      [ format(CAUTION, places: places.to_sentence), (LISTED_BUT_READ if listed) ].compact.join(" ")
     end
 
     def holding_sources = read&.sources&.select { |source| source.found.any? } || []
@@ -214,6 +220,7 @@ module Chat::Tools
   UNDO_AUTOMATICALLY = "Undo automatically".freeze
   WANTS_TO = "Halon wants to:".freeze
   CAUTION = "It read text from %<places>s that other people wrote. Check this is what you want.".freeze
+  LISTED_BUT_READ = "It is on the list of what Halon may do without asking, and asks anyway, since that text holds what it would change.".freeze
   ACTION_LIMIT = 120
   LINE_LIMIT = 160
   # A commit, a review or a comment named by its id says nothing to the person approving, so the card leaves them out,
@@ -428,7 +435,7 @@ module Chat::Tools
       support: workspace ? LookFirst.support(chat, tool_call, workspace) : [], page: page,
       short_title: short_title_of(tool_call.arguments), chosen_expiry: chosen_expiry(mitigation), undo_words: undo_words(workspace, mitigation),
       plan_undo: plan_undo(chat, tool_call), tool_name: tool_call.name.to_s, effect: effect(workspace, tool_call.name, target),
-      decided_by: decided_by(tool_call), **ran(chat, tool_call)
+      decided_by: decided_by(tool_call), listed: tool_call.try(:allowance_id).present? && tool_call.try(:unasked_reason).blank?, **ran(chat, tool_call)
     )
   end
 

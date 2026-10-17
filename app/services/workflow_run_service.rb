@@ -14,7 +14,7 @@ class WorkflowRunService
   # from a later step takes from the run it came from (rerun_from!).
   def start!(started_by_kind:, started_by: nil, inputs: {}, trigger_kind: Workflow::Trigger::KIND_MANUAL, trigger_payload: {},
              start_key: SecureRandom.uuid, not_before: nil, parent_run: nil, parent_step: nil, test: false, real_step_keys: [],
-             up_to: nil, stand_ins: {}, snapshot: nil, rerun_of: nil, rerun_from_step_key: nil)
+             up_to: nil, stand_ins: {}, snapshot: nil, rerun_of: nil, rerun_from_step_key: nil, confirmed_by: nil)
     version = test ? tested_version(up_to) : live_version
     content = snapshot || (up_to.present? ? version.snapshot_up_to(up_to) : nil)
     resolved = Workflow::Trigger.resolve_inputs(version.trigger, inputs, private_values: version.private_input_values)
@@ -33,7 +33,8 @@ class WorkflowRunService
                    inputs: Workflow::Run.redacted(plain), private_inputs: (kept.to_json if kept.any?), agent: @workflow.agent,
                    started_by_kind: started_by_kind, started_by: started_by, parent_run: parent_run, parent_step_key: parent_step&.name, test: test,
                    real_step_keys: test ? real_keys(version, content, real_step_keys) : [], subject_key: subject,
-                   snapshot: content, stand_ins: standing, rerun_of: rerun_of, rerun_from_step_key: rerun_from_step_key
+                   snapshot: content, stand_ins: standing, rerun_of: rerun_of, rerun_from_step_key: rerun_from_step_key,
+                   confirmed_by: confirmed_by
       )
     end
     DefinedWorkflow.launch!(run, not_before: not_before, parent_step: parent_step)

@@ -58,6 +58,30 @@ class Chat::DataRepairsTest < ActiveSupport::TestCase
     assert Chat::DataRepairs.asks_each?(@chat, "call_1")
   end
 
+  test "a write an approval rule holds for someone else goes to the approvers alone, with the rows it changes on their card" do
+    bob = workspace_memberships(:bob_workspace_one)
+    Ability::Grant.create!(workspace: @workspace, principal: bob, action: @write.ability_action)
+    @workspace.find_or_create_approval_policy!.policy_rules.create!(priority: 1, conditions: [], outcome: { "require" => { "role" => "admin", "count" => 1 } })
+    conversation = Conversation.start_personal!(workspace: @workspace, member: bob)
+    @turn = Conversation::Turn.new(conversation, asker: bob)
+    @chat = conversation.chat_record
+    @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "").ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: @write.model_facing_name,
+                                                                                                          arguments: write_arguments)
+    answer_reads(touched: 42, wrong: 42)
+    expect_no_write
+
+    assert_equal true, tool.approval_resolver.call(write_call), "Bob is not asked, since he cannot approve it"
+    tool.call(tool_call: write_call, **write_arguments.symbolize_keys)
+
+    assert_nil @chat.tool_calls.find_by!(tool_call_id: "call_1").approval, "Bob never saw a card"
+    held = Chat::HeldCall.find_by!(chat: @chat, tool_call_id: "call_1")
+    shown = Conversation::HeldCalls.shown(held)
+    assert_includes shown.rows, [ "Rows it changes", "42 rows of orders" ]
+    assert_match "*Rows it changes:* 42 rows of orders", Slack::Messages::HeldCall.body(shown)
+    request = Slack::Messages::Approval.build_request(held.approval, shown: ApprovalNotificationService.shown(held.approval)).to_json
+    assert_includes request, "42 rows of orders"
+  end
+
   test "each read is in the activity log as the person, through the read tool, and never waits for an approval rule" do
     answer_reads(touched: 3, wrong: 3)
     Ability::Approval.expects(:create!).never

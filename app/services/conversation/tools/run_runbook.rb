@@ -83,7 +83,7 @@ class Conversation::Tools::RunRunbook < RubyLLM::Tool
     workflow = runbook.workflow
     run = @turn.tool_call(action_key: Workflow::CREATE_KEY, params: { Conversation::Tools::RunWorkflow::WORKFLOW_ARG => workflow.slug }) do
       RunbookRunService.new(runbook).start!(by: @turn.asker, inputs: given[INPUTS_ARG].to_h, incident: @turn.incident,
-                                            started_by_kind: Workflow::Run::STARTED_BY_HALON)
+                                            started_by_kind: Workflow::Run::STARTED_BY_HALON, confirmed_by: confirmer)
     end.value
     "Started #{workflow.name}, the workflow #{runbook.name} runs. Its run: #{Workflow::Links.run(run)}. Tell the person it is running and where they can follow it."
   rescue Workflow::Run::Refused => error
@@ -91,6 +91,10 @@ class Conversation::Tools::RunRunbook < RubyLLM::Tool
   rescue AbilityGateway::Denied, AbilityGateway::PendingApproval
     refused(tool_call, "#{@turn.asker_name} is not allowed to run workflows.")
   end
+
+  # A run starts only once the person said yes, on its card or by allowing runbooks for the rest of the chat, so their yes
+  # also answers a step an approval rule would ask them about.
+  def confirmer = (@turn.asker if @turn.asker.is_a?(WorkspaceMembership) && !@turn.conversation.mcp?)
 
   def reads_runbooks? = @turn.asker.present? && @turn.asker.may?(Ability::Action::RESOURCE_RUNBOOKS, Ability::Action::ACTION_READ, @turn.workspace)
 

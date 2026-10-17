@@ -101,7 +101,8 @@ class Chat::Tools::Capability < RubyLLM::Tool
     return true if @agent_run.asks_approvers_instead?(action, scope: found.scope, params: found.arguments)
 
     unasked = @agent_run.unasked_for(action, scope: found.scope, params: found.arguments, safe: Integrations::SafeChanges.capability_call?(found, asked),
-                                             capability: @spec.key, integration_id: found.tool.integration_id)
+                                             capability: @spec.key, integration_id: found.tool.integration_id, tool_call_id: tool_call.id,
+                                             outside: Chat::Tools::Provenance.reads_into(@agent_run, tool_call.id))
     @agent_run.unasked!(tool_call.id, unasked)
   rescue Integrations::Capabilities::Unroutable
     false
