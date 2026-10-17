@@ -89,7 +89,7 @@ class ApiKeysControllerTest < ActionDispatch::IntegrationTest
     get abilities_api_key_url(service_key)
     assert_response :success
     body = JSON.parse(response.body)
-    assert_equal "service", body["mode"]
+    assert_equal [ "service", "Scoped" ], body.values_at("mode", "principal")
     assert_equal [ "alerts.read" ], body["abilities"].map { |a| a["action_key"] }
     assert_equal "read", body["abilities"].first["risk_level"]
 
@@ -101,7 +101,7 @@ class ApiKeysControllerTest < ActionDispatch::IntegrationTest
     get abilities_api_key_url(personal_key)
     assert_response :success
     body = JSON.parse(response.body)
-    assert_equal "personal", body["mode"]
+    assert_equal [ "personal", users(:alice).name ], body.values_at("mode", "principal")
     assert body["abilities"].all? { |a| a["implicit"] && a["risk_level"] == "read" }
   end
 

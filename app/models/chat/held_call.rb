@@ -67,7 +67,7 @@ class Chat::HeldCall < ApplicationRecord
 
   def expires_at = approval.run_expires_at
 
-  def asker_name = asker.try(:display_name) || approval.principal_label
+  def asker_name = approval.principal_name
 
   # What it shows now, an approved call whose window passed reading as expired before the job marks it.
   def shown_status = lapsed? ? STATUS_EXPIRED : status

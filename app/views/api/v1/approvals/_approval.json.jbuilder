@@ -1,5 +1,6 @@
 json.(approval, :id, :action_key, :scope, :params, :required_role, :status, :source)
 json.principal approval.principal_label
+json.principal_name approval.principal_name
 json.self_approvable approval.self_approvable
 json.approvers Ability::Principal.references(approval.approver_ids)
 json.agents_may_approve approval.agents_may_approve

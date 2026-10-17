@@ -69,7 +69,7 @@ class ApprovalNotificationService
     outcome, reason = outcome_of(approval)
     # A chat's call keeps why it failed in plain words, where the ledger keeps only the first line.
     reason = held.result.presence || reason if held && outcome == OUTCOME_FAILED
-    Shown.new(who: approval.from_chat? ? HALON : approval.principal_label, action: held_shown&.action || action_words(approval),
+    Shown.new(who: approval.from_chat? ? HALON : approval.principal_name, action: held_shown&.action || action_words(approval),
               outcome: outcome, reason: reason, link: held_shown&.link, rows: held_shown&.rows || [], caution: held_shown&.caution)
   end
 

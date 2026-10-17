@@ -237,7 +237,7 @@ class Conversation::Turn
     )
   end
 
-  def asker_name = asker.try(:display_name) || "The person asking"
+  def asker_name = asker.try(:actor_display_name) || "The person asking"
 
   private
 

@@ -127,7 +127,7 @@ class Chat::Mitigation < ApplicationRecord
     end
   end
 
-  def asker_name = asker.try(:display_name) || "The person who asked"
+  def asker_name = asker.try(:actor_display_name) || "The person who asked"
 
   # Moves only from where it was, so a double click or two workers never act twice. False when it had moved.
   def move!(from:, to:, **columns)

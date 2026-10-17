@@ -9,7 +9,7 @@ module Slack
           ("*Through*\n#{Mrkdwn.escape(approval.connection_name)}" if approval.connection_name),
           ("*Scope*\n```#{Mrkdwn.escape(JSON.pretty_generate(approval.scope))}```" if approval.scope.present?),
           ("*Parameters*\n```#{Mrkdwn.escape(JSON.pretty_generate(params))}```" if params.present?),
-          "*Asked by*\n#{Mrkdwn.escape(approval.principal_label)}"
+          "*Asked by*\n#{Mrkdwn.escape(approval.principal_name)}"
         ].compact
         {
           type: "modal", title: { type: "plain_text", text: "Details" }, close: { type: "plain_text", text: "Close" },

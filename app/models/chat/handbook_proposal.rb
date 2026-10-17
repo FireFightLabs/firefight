@@ -126,7 +126,7 @@ class Chat::HandbookProposal < ApplicationRecord
     if investigation
       investigation.incident ? "the #{investigation.incident.identifier} investigation" : "an investigation"
     elsif conversation&.personal?
-      "a chat with #{conversation.started_by.try(:display_name) || 'someone'}"
+      "a chat with #{conversation.started_by.try(:actor_display_name) || 'someone'}"
     elsif incident
       "a chat in #{incident.identifier}"
     else

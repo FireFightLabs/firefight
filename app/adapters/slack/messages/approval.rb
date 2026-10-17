@@ -21,7 +21,7 @@ module Slack
 
       # A workflow's Approval step: what it asks and what approvers should know, rather than a call.
       def self.question_request(approval, rich:)
-        title = "#{Mrkdwn.escape(approval.principal_label)} asks: #{Mrkdwn.escape(approval.question.to_s)}"
+        title = "#{Mrkdwn.escape(approval.principal_name)} asks: #{Mrkdwn.escape(approval.question.to_s)}"
         card = Blocks::Card.new(icon: REQUEST_ICON, title: title, body: approvers_line(approval), actions: decision_buttons(approval)).to_blocks(rich: rich)
         return card if approval.question_details.blank?
 
@@ -31,7 +31,7 @@ module Slack
       # Approved or denied says by whom, and an approved call says how it went once it ran. Withdrawn, the buttons are gone
       # and it says why, after whoever approved it when it was approved but never ran.
       def self.build_resolved(approval, shown:, rich: false)
-        title = approval.workflow_question? ? "#{Mrkdwn.escape(approval.principal_label)} asked: #{Mrkdwn.escape(approval.question.to_s)}" : Mrkdwn.escape(wants(shown))
+        title = approval.workflow_question? ? "#{Mrkdwn.escape(approval.principal_name)} asked: #{Mrkdwn.escape(approval.question.to_s)}" : Mrkdwn.escape(wants(shown))
         actions = approval.workflow_question? ? [] : [ details_button(approval) ]
         Blocks::Card.new(icon: resolved_icon(approval, shown), title: title, body: verdict(approval, shown), actions: actions).to_blocks(rich: rich)
       end
@@ -82,7 +82,7 @@ module Slack
       end
 
       def self.request_fallback(approval, shown:)
-        return "#{approval.principal_label} asks: #{approval.question}" if approval.workflow_question?
+        return "#{approval.principal_name} asks: #{approval.question}" if approval.workflow_question?
 
         wants(shown)
       end

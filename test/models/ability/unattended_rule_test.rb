@@ -20,7 +20,7 @@ class Ability::UnattendedRuleTest < ActiveSupport::TestCase
   test "says why it cannot act: no grant of the tool, or the resource gone from the map" do
     rule = restart_rule
 
-    assert_equal "Firefight Investigator holds no grant of Northflank's api_request, so this rule cannot act yet. Grant it under Gateway, Permissions.",
+    assert_equal "Halon holds no grant of Northflank's api_request, so this rule cannot act yet. Grant it under Gateway, Permissions.",
                  rule.blocked_reason
     grant_investigator(@api)
     assert_nil rule.reload.blocked_reason

@@ -272,7 +272,7 @@ class WorkspaceMembership < ApplicationRecord
   end
 
   def self.unresolved(reference, acting)
-    return "\"me\" is not a person here, since #{acting.principal_label} is acting" if reference.to_s.casecmp?(ME) && acting
+    return "\"me\" is not a person here, since #{acting.actor_display_name} is acting" if reference.to_s.casecmp?(ME) && acting
 
     "No workspace member matches #{reference.inspect}"
   end

@@ -9,8 +9,13 @@ class AbilityInvocationSerializer < BaseSerializer
     invocation.id
   end
 
+  # Who asked or acted as a person reads it, such as "Halon", never the machine label the row keeps.
+  type :string
+  def principal_name
+    invocation.principal_name
+  end
+
   attributes(
-    principal_label: { type: :string },
     action_key: { type: :string }
   )
 

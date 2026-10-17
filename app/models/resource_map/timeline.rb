@@ -337,7 +337,7 @@ class ResourceMap::Timeline
     link = AppUrl.absolute(Rails.application.routes.url_helpers.gateway_activity_path)
     Ability::Invocation.with_connection_names(found).map do |invocation|
       Entry.new(at: invocation.created_at, kind: KIND_FIREFIGHT, source: SOURCE_FIREFIGHT, what: firefight_words(invocation),
-                where: invocation.connection_name, by: invocation.principal_label, link: link)
+                where: invocation.connection_name, by: invocation.principal_name, link: link)
     end
   end
 

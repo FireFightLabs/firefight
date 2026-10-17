@@ -41,7 +41,7 @@ class CodeAgentSession::Pause < ApplicationRecord
   # Continue and Stop run as whoever asked for the change, so only they decide.
   def decide_blocked_reason(member)
     return "This was already decided." unless offered?
-    return "Only #{session.principal.try(:display_name) || 'the person who asked'} can decide, since the change runs as them." unless member && session.principal == member
+    return "Only #{session.principal.try(:actor_display_name) || 'the person who asked'} can decide, since the change runs as them." unless member && session.principal == member
 
     nil
   end

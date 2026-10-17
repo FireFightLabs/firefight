@@ -3,6 +3,7 @@ module Ability
   # with the outcome unknown rather than erased by a crash. No result bodies are stored.
   class Invocation < ApplicationRecord
     include Ability::ConnectionNamed
+    include Ability::PrincipalNamed
 
     DECISION_ALLOW = "allow"
     DECISION_DENY = "deny"
