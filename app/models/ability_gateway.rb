@@ -351,7 +351,9 @@ class AbilityGateway
       approval_id: approval&.id,
       completed_at: completed_at,
       workflow_step_key: context[:workflow_step_key],
-      workflow_iteration: context[:workflow_iteration]
+      workflow_iteration: context[:workflow_iteration],
+      unasked_reason: context[:unasked_reason],
+      allowance_id: context[:allowance_id]
     )
   end
 end

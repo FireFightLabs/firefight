@@ -76,6 +76,23 @@ module Integrations
                           "Took bug off issue #5 Checkout times out."
         end
 
+        test "a comment Firefight posted is deleted, in the conversation or on the code, and anyone else's is refused" do
+          GithubApp.stubs(:bot_login).returns("firefight[bot]")
+          ours = { "id" => 41, "user" => { "login" => "firefight[bot]" }, "html_url" => "https://github.com/acme/web/issues/5#issuecomment-41" }
+          GithubApp.stubs(:get).with("/repos/acme/web/issues/comments/41", token: "ghs_token").returns(ours)
+          GithubApp.expects(:write).with(:delete, "/repos/acme/web/issues/comments/41", token: "ghs_token").returns({})
+          assert_includes text_of(@pack.delete_comment(environment_row: @row, arguments: { "repo" => "acme/web", "comment_id" => 41 })), "Deleted comment 41 in acme/web."
+
+          GithubApp.stubs(:get).with("/repos/acme/web/pulls/comments/42", token: "ghs_token").returns(ours.merge("id" => 42))
+          GithubApp.expects(:write).with(:delete, "/repos/acme/web/pulls/comments/42", token: "ghs_token").returns({})
+          @pack.delete_comment(environment_row: @row, arguments: { "repo" => "acme/web", "comment_id" => 42, "review" => true })
+
+          GithubApp.stubs(:get).with("/repos/acme/web/issues/comments/43", token: "ghs_token").returns(ours.merge("id" => 43, "user" => { "login" => "ada" }))
+          GithubApp.expects(:write).with(:delete, "/repos/acme/web/issues/comments/43", token: "ghs_token").never
+          refused = assert_raises(Integrations::PolicyRefusal) { @pack.delete_comment(environment_row: @row, arguments: { "repo" => "acme/web", "comment_id" => 43 }) }
+          assert_equal "Only a comment Firefight posted is deleted, and comment 43 is ada's. A person deletes it on GitHub.", refused.message
+        end
+
         test "assigning says who GitHub would not assign" do
           GithubApp.stubs(:get).with("/repos/acme/web/issues/5", token: "ghs_token").returns(issue(5))
           GithubApp.expects(:write).with(:post, "/repos/acme/web/issues/5/assignees", { assignees: [ "ada", "bob" ] }, token: "ghs_token")

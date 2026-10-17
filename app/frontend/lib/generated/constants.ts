@@ -184,7 +184,16 @@ export const MITIGATION_STATUSES = {
   "UNDO_HELD": "undo_held",
   "DUE_BY_HAND": "due_by_hand",
   "CANCELLED": "cancelled",
-  "WITH_PLAN": "with_plan"
+  "WITH_PLAN": "with_plan",
+  "MADE": "made"
+} as const
+
+export const MITIGATION_UNDO_STATES = {
+  "NONE": "none",
+  "WRITING": "writing",
+  "READY": "ready",
+  "BY_HAND": "by_hand",
+  "NO_INVERSE": "no_inverse"
 } as const
 
 export const OWNER_ASK_STATUSES = {

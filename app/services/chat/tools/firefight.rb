@@ -32,10 +32,11 @@ class Chat::Tools::Firefight < RubyLLM::Tool
     requires_approval? ? Chat::Tools.with_intent(schema.deep_stringify_keys) : schema
   end
 
-  # A change that names no read from this turn goes back to Halon rather than to the person (Chat::Tools::LookFirst).
-  # Anything else is decided as the chat stored it.
+  # A change that names no read from this turn goes back to Halon rather than to the person (Chat::Tools::LookFirst), and
+  # one an approval rule holds for someone else goes to them alone, so nobody is asked twice. Anything else is decided as
+  # the chat stored it.
   def approval_resolver
-    Chat::Tools::Target.resolver(@agent_run) { |given, tool_call| unsupported(given, tool_call&.id).present? }
+    Chat::Tools::Target.resolver(@agent_run) { |given, tool_call| unsupported(given, tool_call&.id).present? || approvers_instead?(given) }
   end
 
   def call(tool_call: nil, **arguments)
@@ -62,6 +63,17 @@ class Chat::Tools::Firefight < RubyLLM::Tool
 
   # Only a tool that resolves, cancels, deletes or revokes something. An action item or an incident update needs no read first.
   def looks_first? = @tool_class.ends_something? && Chat::Tools::LookFirst.applies?(@agent_run)
+
+  # Only a call the gateway can hold is held, so only then do its approvers stand in for the asker.
+  def approvers_instead?(given)
+    return false unless @agent_run.respond_to?(:asks_approvers_instead?) && (@tool_class.holdable? || @tool_class.asks_a_person?)
+
+    arguments = given.symbolize_keys.except(*Chat::Tools::FOR_PERSON.map(&:to_sym), Chat::Tools::LookFirst::BECAUSE.to_sym)
+    action = Ability::Action.lookup(Ability::Action.system_key(*@tool_class.authorization(@agent_run.workspace, arguments)), @agent_run.workspace)
+    @agent_run.asks_approvers_instead?(action, params: @tool_class.ledger_params(arguments).transform_keys(&:to_s))
+  rescue *Mcp::ToolDispatcher::TOOL_ERRORS
+    false
+  end
 
   def unsupported(given, tool_call_id)
     Chat::Tools::LookFirst.refusal(@agent_run, given, tool_call_id: tool_call_id, change: name) if looks_first?

@@ -103,6 +103,9 @@ export function ActivityTab({
                   </TableCell>
                   <TableCell>
                     <ActionLabel actionKey={invocation.actionKey} title={invocation.connection} />
+                    {invocation.unaskedBecause && (
+                      <span className="text-muted-foreground mt-0.5 block text-xs">{invocation.unaskedBecause}</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge variant={DECISION_VARIANT[invocation.decision] ?? "secondary"}>

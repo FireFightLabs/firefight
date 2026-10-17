@@ -273,6 +273,7 @@ module Integrations
         "issue_lookup" => { "issues" => READ },
         "create_issue" => { "issues" => WRITE },
         "comment_on_issue" => { "issues" => WRITE },
+        "delete_comment" => { "issues" => WRITE, "pull_requests" => WRITE },
         "update_issue" => { "issues" => WRITE },
         "label_issue" => { "issues" => WRITE },
         "assign_issue" => { "issues" => WRITE },

@@ -130,7 +130,7 @@ class SettingsController < InertiaController
 
   # The gateway ledger, read only. The oversight surface for governed writes.
   def activity
-    scope = current_workspace.ability_invocations.order(created_at: :desc)
+    scope = current_workspace.ability_invocations.includes(allowance: [ :environment, :integration, { action: :source } ]).order(created_at: :desc)
     scope = scope.where(decision: params[:decision]) if params[:decision].present?
 
     render inertia: "settings/activity", props: {

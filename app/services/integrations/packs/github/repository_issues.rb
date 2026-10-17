@@ -51,6 +51,17 @@ module Integrations
                                                       %w[repo number body]),
                     read_only: false
 
+          pack.tool :delete_comment,
+                    description: "Delete a comment Firefight posted on an issue or a pull request, by the comment's id as the call that " \
+                                 "posted it said. A comment anyone else wrote is refused, and a person deletes it on GitHub",
+                    params_schema: Code.object_schema({
+                      "repo" => REPO,
+                      "comment_id" => { "type" => "integer", "description" => "The comment's id" },
+                      "review" => { "type" => "boolean", "description" => "Whether it is a review comment on a pull request's code, as " \
+                                                                           "reply_to_review_comment posts (optional, a comment in the conversation)" }
+                    }, %w[repo comment_id]),
+                    read_only: false
+
           pack.tool :update_issue,
                     description: "Change an issue's title or description",
                     params_schema: Code.object_schema({
@@ -145,7 +156,25 @@ module Integrations
           asking("comment_on_issue", "GitHub has no issue #{number} in #{repo}") do
             issue = only_issue!(repo, number, token)
             comment = GithubApp.write(:post, "/repos/#{repo}/issues/#{number}/comments", { body: body }, token: token)
-            linked("Commented on issue ##{number} #{issue['title']} in #{repo}.", comment["html_url"].presence || issue["html_url"])
+            linked("Commented on issue ##{number} #{issue['title']} in #{repo}#{", as comment #{comment['id']}" if comment['id']}.", comment["html_url"].presence || issue["html_url"])
+          end
+        end
+
+        # Only a comment Firefight's App posted, so an undo never takes away what a person wrote.
+        def delete_comment(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          id = number_argument(arguments, "comment_id")
+          path = boolean_argument(arguments, "review") ? "/repos/#{repo}/pulls/comments/#{id}" : "/repos/#{repo}/issues/comments/#{id}"
+          token = GithubApp.installation_token(environment_row)
+          asking("delete_comment", "GitHub has no comment #{id} in #{repo}") do
+            comment = GithubApp.get(path, token: token)
+            author = comment.dig("user", "login").to_s
+            unless GithubApp.bot_login.present? && author.casecmp?(GithubApp.bot_login)
+              fail_policy! "Only a comment Firefight posted is deleted, and comment #{id} is #{author.presence || 'someone else'}'s. A person deletes it on GitHub."
+            end
+
+            GithubApp.write(:delete, path, token: token)
+            linked("Deleted comment #{id} in #{repo}.", comment["html_url"])
           end
         end
 

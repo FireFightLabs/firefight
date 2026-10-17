@@ -30,11 +30,14 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
   # A call shown to read runs without asking, since reads never wait. A call whose words name another connection is
   # refused rather than put to the person (Chat::Tools::Target), and so is a write Firefight cannot count first, and a
-  # change that names no read from this turn (Chat::Tools::LookFirst).
+  # change that names no read from this turn (Chat::Tools::LookFirst). A change an approval rule holds for someone else
+  # goes to them alone, and a safe change or one on the list of what Halon may do without asking runs unasked
+  # (Conversation::Turn#unasked_for). A write that changes rows is never one of those, since each is counted for the person.
   def approval_resolver
     Chat::Tools::Target.resolver(@agent_run) do |given, tool_call|
       reads?(given) || misdirection(given, reached_row(given)).present? || unsupported(given, tool_call&.id).present? ||
-        (data_writes? && runs_unasked?(given, tool_call)) || (stops? && stops_unasked?(given, tool_call))
+        (data_writes? && runs_unasked?(given, tool_call)) || (stops? && stops_unasked?(given, tool_call)) ||
+        (!data_writes? && !stops? && without_person?(given, tool_call))
     end
   end
 
@@ -153,9 +156,25 @@ class Chat::Tools::Connection < RubyLLM::Tool
     entry = @tool.integration.environment_entry_for(given[Integration::Tool::ENVIRONMENT_ARG])
     ask = Conversation::OwnerAsks.look_up!(@agent_run, call_id: tool_call.id, tool: @tool, environment_entry: entry,
                                                        arguments: Chat::DataRepairs.provider_arguments(@tool, entry, given))
-    ask.nil? && !confirms_as_usual?
+    ask.nil? && (!confirms_as_usual? || without_person?(given, tool_call))
   rescue Integration::UnknownEnvironment
     true
+  end
+
+  # Whether the person who asked is not the one to answer this call, since an approval rule holds it for someone else, or
+  # it runs without asking, which is kept on the call so it is ledgered and said as such.
+  def without_person?(given, tool_call)
+    return false unless tool_call && @agent_run.respond_to?(:unasked_for)
+
+    action = @tool.ability_action
+    entry = @tool.integration.environment_entry_for(given[Integration::Tool::ENVIRONMENT_ARG])
+    scope = entry ? { "environment" => entry.id } : {}
+    params = own_arguments(given).except(Chat::DataRepairs::CHECK_ARG, Chat::Tools::TrackedIssues::KIND_ARG)
+    return true if @agent_run.asks_approvers_instead?(action, scope: scope, params: params)
+
+    @agent_run.unasked!(tool_call.id, @agent_run.unasked_for(action, scope: scope, params: params, safe: @tool.safe_change?))
+  rescue Integration::UnknownEnvironment
+    false
   end
 
   # Counted before anyone is asked. A write that cannot be counted runs at once so its refusal reaches the agent, and a
@@ -210,8 +229,10 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # call_id is the call the person confirmed, when it differs from tool_call_id, as for a held call run once approved,
   # which has no tool call of its own. Its safeguards (Chat::Safeguards) run around the call.
   # relayed is a call a provider's command line tool made in Halon's terminal, whose answer keeps the API's own shape too.
+  # undoable is whether something puts the change back when it ran without asking, which a capability decides call by
+  # call, and the tool's own declaration otherwise.
   def run(arguments, environment_entry:, tool_call_id:, shown_as: name, present: nil, approval_id: nil, alone: true, target: nil, refusal: nil,
-          call_id: tool_call_id, relayed: false)
+          call_id: tool_call_id, relayed: false, undoable: nil)
     @alone = alone
     @failed = false
     @waiting = false
@@ -229,9 +250,10 @@ class Chat::Tools::Connection < RubyLLM::Tool
     environment_row = nil
     safeguards = Chat::Safeguards.around(@agent_run, @tool, call_id, environment_entry: environment_entry, arguments: arguments) if refusal.nil?
     refusal ||= safeguards&.before
+    unasked = (@agent_run.unasked_of(call_id) if approval_id.nil? && @agent_run.respond_to?(:unasked_of))
     said = @agent_run.tool_call(
       action_key: @tool.action_key, params: arguments, scope: scope, tool_name: shown_as,
-      label: Chat::Tools.label(shown_as, arguments, workspace: @agent_run.workspace), holdable: refusal.nil?, **{ approval_id: approval_id }.compact
+      label: Chat::Tools.label(shown_as, arguments, workspace: @agent_run.workspace), holdable: refusal.nil?, **{ approval_id: approval_id, unasked: unasked }.compact
     ) do |authorization|
       next refused_by_rule!(tool_call_id, authorization, refusal) if refusal
 
@@ -256,12 +278,13 @@ class Chat::Tools::Connection < RubyLLM::Tool
     return FirefightAi::Evidence.refused(shown_as, @refusal, step: said.step) if @refusal
 
     guarded = safeguards&.after(ok: !@failed, result: result)
+    made = made_unasked(unasked, call_id, environment_entry, arguments, result, undoable) unless @failed
     charted = Chat::Chart::Marker.note(keep_charts(tool_call_id, result, said.step))
     tracked = present.nil? && Chat::Tools::TrackedIssues.after(
       @agent_run, tool: @tool, environment_row: environment_row, scope: scope, arguments: arguments, result: result, kind: @issue_kind
     )
     reminder = Chat::Tools::SkillReminder.for(@agent_run, source: @tool.integration.provider, handle: @tool.name, tool_call_id: tool_call_id)
-    [ Chat::Tools.hand_over(@agent_run, shown_as, said), charted, @failure_note, guarded.presence, tracked.presence, reminder ].compact.join("\n\n")
+    [ Chat::Tools.hand_over(@agent_run, shown_as, said), charted, @failure_note, guarded.presence, made, tracked.presence, reminder ].compact.join("\n\n")
   rescue AbilityGateway::Denied
     @agent_run.pack_refused!(@tool.action_key, tool_call_id)
     failed(tool_call_id, @agent_run.refusal(@tool.action_key) + Mcp::ConnectionToolFactory.environment_hint(@tool))
@@ -285,6 +308,19 @@ class Chat::Tools::Connection < RubyLLM::Tool
   end
 
   private
+
+  # A change that ran without asking is kept as made and said where the chat is (Conversation::Mitigations.made!), with
+  # Undo when something puts it back. A safe change follows the tool's own declaration, and one on the list of what
+  # Halon may do without asking has Undo unless its tool is declared to have none.
+  def made_unasked(unasked, call_id, environment_entry, arguments, result, undoable)
+    return unless unasked
+
+    if undoable.nil?
+      undoable = Integrations::SafeChanges.undoable?(@tool) || (unasked.reason == Ability::Invocation::UNASKED_ALLOWANCE && !@tool.safe_change?)
+    end
+    Conversation::Mitigations.made!(@agent_run, call_id: call_id, tool: @tool, environment_entry: environment_entry, arguments: arguments, result: result,
+                                                unasked: unasked, undoable: undoable)
+  end
 
   # A coding agent writing a change in Firefight's sandbox hands over its whole work each time it moves
   # (Chat::CodeFixProgress), which the turn shows and keeps as it always has. Anything else a long tool says, such as an

@@ -1,15 +1,20 @@
 # Changes customers feel for a while (Chat::Mitigation): proposed when Halon pauses on one, started when it runs, its undo
 # written from what it returned, a reminder before it runs out, and its undo run when it does, unless someone kept it.
 # The undo runs as whoever asked for the change, through the same tools and the gateway, so grants, approval rules and
-# the activity log apply as for any call.
+# the activity log apply as for any call. A change Halon made without asking is kept the same way, as made, and said
+# where the chat is with Undo when something puts it back.
 module Conversation::Mitigations
   KIND_REMINDER = "reminder".freeze
   KIND_ENDED = "ended".freeze
   KIND_KEPT = "kept".freeze
   KIND_EXTENDED = "extended".freeze
+  KIND_MADE = "made".freeze
 
-  # What a person or the platform is shown, the same on the dashboard and in Slack.
-  Notice = Data.define(:id, :kind, :title, :text, :live, :conversation_id)
+  # What a person or the platform is shown, the same on the dashboard and in Slack. keeps is whether Keep it and One
+  # more hour are offered while it is in place, and undoable whether Undo now is.
+  Notice = Data.define(:id, :kind, :title, :text, :live, :conversation_id, :keeps, :undoable) do
+    def initialize(keeps: true, undoable: true, **) = super
+  end
 
   # Kept at the pause, so the person sees and can change when it is undone. A call that runs without a pause, such as
   # one allowed for the rest of the chat, is kept as it runs, with the default time.
@@ -60,6 +65,55 @@ module Conversation::Mitigations
                     .update_all(status: Chat::Mitigation::STATUS_WITH_PLAN, outcome: "Put back by the plan's undo instead.", ended_at: Time.current,
                                 told_at: Time.current, updated_at: Time.current)
     Conversation::LiveDelivery.safeguard_moved(plan.conversation)
+  end
+
+  # A change Halon made without asking ran. A change customers feel is still counted down as it was, and anything else is
+  # kept as made, in place until someone undoes it. Either way the person sees it with why it was not asked, where the
+  # chat is. undoable is whether something puts it back. Returns what Halon reads, or nil when it was not kept.
+  def self.made!(agent_run, call_id:, tool:, environment_entry:, arguments:, result:, unasked:, undoable:)
+    chat = agent_run.chat
+    return nil if chat.nil? || unasked.nil? || call_id.blank?
+
+    mitigation = Chat::Mitigation.for_call(chat, call_id)
+    if mitigation
+      mitigation.update_columns(unasked_reason: unasked.reason, allowance_id: unasked.allowance_id)
+    else
+      mitigation = Chat::Mitigation.create!(
+        chat: chat, workspace: agent_run.workspace, asker: agent_run.acting_principal, tool_call_id: call_id.to_s, action_key: tool.action_key,
+        environment_id: environment_entry&.id, arguments: arguments.to_h, status: Chat::Mitigation::STATUS_MADE, started_at: Time.current,
+        told_at: Time.current, result: Chat::SecretFree.redacted(result_text(result)).truncate(Chat::Mitigation::RESULT_LIMIT),
+        undo_state: undoable ? Chat::Mitigation::UNDO_NONE : Chat::Mitigation::UNDO_NO_INVERSE, unasked_reason: unasked.reason,
+        allowance_id: unasked.allowance_id, **called(agent_run, chat, call_id, tool)
+      )
+    end
+    tell!(mitigation, KIND_MADE, made_words(mitigation))
+    made_note(mitigation)
+  rescue ActiveRecord::RecordNotUnique
+    nil
+  end
+
+  # The name Halon called it by, what it reaches and the change in Halon's few words, read from the call itself.
+  def self.called(agent_run, chat, call_id, tool)
+    call = chat.tool_calls.find_by(tool_call_id: call_id.to_s)
+    name = call&.name || tool.model_facing_name
+    arguments = call&.arguments.to_h
+    { tool_name: name, target: Chat::Tools::Target.describe(agent_run, name, arguments),
+      intent: Chat::Tools.short_title_of(arguments) || Chat::Tools.intent_of(arguments) }
+  end
+  private_class_method :called
+
+  def self.made_words(mitigation)
+    undo = if mitigation.live?
+      mitigation.undo_state == Chat::Mitigation::UNDO_NO_INVERSE ? "Nothing puts it back as it was, so there is no Undo." : "Undo puts it back."
+    end
+    [ "#{mitigation.label}.", mitigation.unasked_words, undo ].compact.join(" ")
+  end
+
+  def self.made_note(mitigation)
+    return started_note(mitigation) unless mitigation.made?
+
+    undo = mitigation.undo_state == Chat::Mitigation::UNDO_NO_INVERSE ? "with no Undo, since nothing puts it back" : "with Undo"
+    "This ran without asking the person, #{mitigation.unasked_because}. They see it in the chat #{undo}. Say what you changed, in a sentence."
   end
 
   def self.started_note(mitigation)
@@ -141,7 +195,7 @@ module Conversation::Mitigations
   def self.undo_now!(mitigation, by:)
     blocked = mitigation.undo_blocked_reason(by)
     return blocked if blocked
-    return "This was just changed by someone else." unless mitigation.move!(from: [ Chat::Mitigation::STATUS_ACTIVE, Chat::Mitigation::STATUS_KEPT ],
+    return "This was just changed by someone else." unless mitigation.move!(from: [ Chat::Mitigation::STATUS_ACTIVE, Chat::Mitigation::STATUS_KEPT, Chat::Mitigation::STATUS_MADE ],
                                                                              to: Chat::Mitigation::STATUS_UNDOING, claimed_at: Time.current, ended_by_id: by&.id)
 
     MitigationUndoRunJob.perform_later(mitigation.id)
@@ -175,7 +229,10 @@ module Conversation::Mitigations
 
   # Claimed as undoing by whoever started it. Each step runs in order as the asker, and the first that does not go
   # through stops it, said with why.
+  # A change made without asking has its undo written only once someone presses Undo, here, so a label nobody takes off
+  # costs nothing.
   def self.undo!(mitigation, by:)
+    write_undo!(mitigation) if mitigation.undo_state == Chat::Mitigation::UNDO_NONE && mitigation.made_unasked?
     if mitigation.undo_state != Chat::Mitigation::UNDO_READY
       ending!(mitigation, Chat::Mitigation::STATUS_DUE_BY_HAND, "#{mitigation.title} is due to be undone, and Firefight cannot do it itself. " \
                                                                  "#{mitigation.undo_note.presence || 'Its undo is not written yet.'}")
@@ -230,8 +287,10 @@ module Conversation::Mitigations
   end
   private_class_method :outcome_words
 
+  # Halon was told of a change made without asking as it ran, so it hears again once that change is undone.
   def self.ending!(mitigation, status, text)
-    mitigation.move!(from: Chat::Mitigation::STATUS_UNDOING, to: status, ended_at: Time.current, outcome: Chat::SecretFree.redacted(text))
+    told = { told_at: nil } if mitigation.made_unasked?
+    mitigation.move!(from: Chat::Mitigation::STATUS_UNDOING, to: status, ended_at: Time.current, outcome: Chat::SecretFree.redacted(text), **told.to_h)
     tell!(mitigation, KIND_ENDED, text)
   end
   private_class_method :ending!
@@ -245,15 +304,20 @@ module Conversation::Mitigations
     in_thread = conversation.thread_id.present?
     posted = post(mitigation) { adapter.post_mitigation_notice(channel_id: conversation.channel_id, thread_id: conversation.thread_id, notice: notice) } if in_thread
     user_id = mitigation.asker.try(:platform_user_id)
-    unless user_id.blank? || (in_thread && adapter.direct_conversation?(channel_id: conversation.channel_id))
+    unless user_id.blank? || !timed?(mitigation) || (in_thread && adapter.direct_conversation?(channel_id: conversation.channel_id))
       posted = post(mitigation) { adapter.post_mitigation_notice_to_user(user_id: user_id, notice: notice) } || posted
     end
     mitigation.update_columns(message_channel_id: posted[:channel_id], message_id: posted[:message_id]) if posted.is_a?(Hash) && posted[:message_id]
     notice
   end
 
+  # A change made without asking that nothing counts down stays where the chat is, since nobody needs reminding of it.
+  # One with a time still reaches the asker wherever they are.
+  def self.timed?(mitigation) = !(mitigation.made_unasked? && mitigation.duration_minutes.nil?)
+
   def self.notice(mitigation, kind, text)
-    Notice.new(id: mitigation.id, kind: kind, title: mitigation.title, text: text, live: mitigation.active? || mitigation.kept?,
+    Notice.new(id: mitigation.id, kind: kind, title: mitigation.title, text: text, live: mitigation.live?, keeps: timed?(mitigation),
+               undoable: mitigation.undo_state != Chat::Mitigation::UNDO_NO_INVERSE,
                conversation_id: (mitigation.conversation.id if mitigation.conversation.personal?))
   end
 
@@ -292,6 +356,6 @@ module Conversation::Mitigations
 
     Chat::Mitigation.where(id: ended.map(&:id)).update_all(told_at: Time.current)
     lines = ended.map { |mitigation| "- #{mitigation.title}: #{mitigation.outcome.presence || 'kept, so it stays until someone changes it back.'}" }
-    "Temporary changes you made earlier, and what became of them since, already told to the person:\n#{lines.join("\n")}"
+    "Changes you made earlier that Firefight keeps track of, temporary or made without asking, and what became of them since, already told to the person:\n#{lines.join("\n")}"
   end
 end

@@ -63,12 +63,15 @@ class Conversation::Turn
   def chat_owner = conversation
 
   # A turn nobody can be credited with does nothing.
-  def tool_call(action_key:, params: {}, scope: {}, approval_id: nil, holdable: true, **, &block)
+  # unasked is why the call runs without the person's yes, kept on the call when it was settled (#unasked_for), which the
+  # activity log records.
+  def tool_call(action_key:, params: {}, scope: {}, approval_id: nil, holdable: true, unasked: nil, **, &block)
     raise AbilityGateway::Denied.new(action_key) unless asker
 
     value = Chat::ToolCall.run!(
       workspace: workspace, principal: asker, action_key: action_key, params: params, scope: scope,
-      context: { source: AbilityGateway::SOURCE_CONVERSATION, incident_id: conversation.incident_id, approval_id: approval_id }.compact,
+      context: { source: AbilityGateway::SOURCE_CONVERSATION, incident_id: conversation.incident_id, approval_id: approval_id,
+                 unasked_reason: unasked&.reason, allowance_id: unasked&.allowance_id }.compact,
       holdable: holdable, &block
     )
     Chat::ToolCall::Outcome.new(value: value)
@@ -109,6 +112,52 @@ class Conversation::Turn
     return false if allowed || @approved_tools.include?(tool_name.to_s)
 
     declared_destructive || (action.present? && (action.risk_level == Ability::Action::RISK_DESTRUCTIVE || !action.reversible))
+  end
+
+  # Why a change runs without the person's yes, kept on its call, or nil.
+  Unasked = Data.define(:reason, :allowance_id)
+
+  # Why this change runs without asking the person, or nil when they are asked. A safe change runs while the workspace
+  # lets it (Workspace#safe_changes_without_asking), and a risky one when an enabled entry of the list of what Halon may
+  # do without asking covers it (Ability::Allowance). Neither applies to a change an approval rule covers, which its
+  # approver answers, nor to a change to who may do what, which a person always answers, nor in an outside agent's chat
+  # or one in a tracker's issue, which act for a machine. action is the tool's action the call runs as, scope where it
+  # runs, safe whether this call is safe (Integrations::SafeChanges), capability the capability Halon called through and
+  # integration_id the connection it routed to.
+  def unasked_for(action, scope: {}, params: {}, safe: false, capability: nil, integration_id: nil)
+    return nil unless decides_for_person? && action && !action.read? && !action.asks_a_person?
+    return nil if approval_requirement_for(action, scope, params).present?
+    return Unasked.new(reason: Ability::Invocation::UNASKED_SAFE, allowance_id: nil) if safe && workspace.safe_changes_without_asking?
+
+    allowance = Ability::Allowance.covering(workspace, action: action, environment_id: scope.to_h["environment"], capability: capability,
+                                                       integration_id: integration_id)
+    Unasked.new(reason: Ability::Invocation::UNASKED_ALLOWANCE, allowance_id: allowance.id) if allowance
+  end
+
+  # Whether an approval rule holds this change for someone other than the asker. Their approval is the one yes it needs,
+  # so the asker is not asked first and the call goes straight to the approvers (#hold!), never asked twice.
+  def asks_approvers_instead?(action, scope: {}, params: {})
+    return false unless asker && chat && !conversation.mcp? && action
+
+    requirement = approval_requirement_for(action, scope, params)
+    requirement.present? && !Ability::Approval.self_approvable_by?(asker, requirement, workspace: workspace)
+  end
+
+  # Kept on the call, so it runs, is ledgered and is said as made without asking however the turn goes on.
+  def unasked!(tool_call_id, unasked)
+    return false unless unasked && chat && tool_call_id.present?
+
+    chat.tool_calls.where(tool_call_id: tool_call_id.to_s).update_all(unasked_reason: unasked.reason, allowance_id: unasked.allowance_id,
+                                                                     updated_at: Time.current)
+    true
+  end
+
+  # Why a call that is running was settled to run without asking, or nil.
+  def unasked_of(tool_call_id)
+    return nil unless chat && tool_call_id.present?
+
+    reason, allowance_id = chat.tool_calls.where(tool_call_id: tool_call_id.to_s).pick(:unasked_reason, :allowance_id)
+    reason && Unasked.new(reason: reason, allowance_id: allowance_id)
   end
 
   # A call an approval rule held for someone else's approval is kept with the chat, so it is asked for there and runs once
@@ -185,6 +234,14 @@ class Conversation::Turn
     name = asker.try(:actor_display_name)
     "Not allowed: #{name}, the agent this chat acts as, has no grant for #{action_key} in this workspace. Say so, and that a " \
       "workspace admin can grant it to #{name} under Gateway, Permissions. #{Chat::StaleRefusals::AS_READ}"
+  end
+
+  # A person's own chat with Halon, where the person is there to answer.
+  def decides_for_person? = asker.present? && chat.present? && !@reads_only && !conversation.mcp? && !conversation.issue?
+
+  def approval_requirement_for(action, scope, params)
+    AbilityGateway.approval_requirement(workspace, action, action.key, scope.to_h, { source: AbilityGateway::SOURCE_CONVERSATION }, params: params,
+                                                                                                                                principal: asker)
   end
 
   def self_approvable?(action)

@@ -23,7 +23,7 @@ module Mcp
                   "how many days an unconfirmed memory is used before it expires, " \
                   "which connected coding agent writes a fix's code changes, what Firefight's own agent may spend on one code fix, which issue tracker incident items are kept in step " \
                   "with and when a new item gets an issue there, whether an alert that opens an incident starts Halon and how much " \
-                  "those runs may spend in an hour, and whether Halon pages whoever is on call with what it found. Give only the settings to change. Read the current values with " \
+                  "those runs may spend in an hour, whether Halon pages whoever is on call with what it found, and whether Halon makes safe changes in a chat without asking. Give only the settings to change. Read the current values with " \
                   "get_workspace_config. Only a workspace admin may call this. Docs: #{Docs::MCP_SERVER}"
       # Workspace wide and made rarely, so a chat asks before any of them.
       annotations(**DESTRUCTIVE)
@@ -45,9 +45,15 @@ module Mcp
           alert_investigations_enabled: { type: "boolean", description: "Whether an alert that opens an incident starts Halon on it, once per alert group. Off by default" },
           alert_storm_ceiling_cents: { type: "integer", minimum: Workspace::OnCall::MIN_ALERT_RUN_CENTS, maximum: Workspace::OnCall::MAX_STORM_CEILING_CENTS,
                                        description: "How much, in cents, the runs alerts start may spend together in any hour. Past it, an alert opens its incident without starting Halon" },
-          on_call_paging_enabled: { type: "boolean", description: "Whether Halon, in a run an alert started, escalates the incident to whoever it found on call, with what it found. Off by default" }
+          on_call_paging_enabled: { type: "boolean", description: "Whether Halon, in a run an alert started, escalates the incident to whoever it found on call, with what it found. Off by default" },
+          safe_changes_without_asking: { type: "boolean", description: "Whether Halon makes a safe change in a person's chat without asking first, such as a label, a comment, running CI again or restarting a service, and says so after with Undo where something puts it back. Risky changes ask either way. On by default" }
         }
       )
+
+      # Whether Halon asks before a safe change is what Halon may do without asking, which a token never sets.
+      def self.token_refusal(_workspace, args)
+        Ability::Allowance.change_blocked_reason(AbilityGateway::SOURCE_MCP) if args.to_h.symbolize_keys.key?(:safe_changes_without_asking)
+      end
 
       def self.perform_with_principal(workspace:, principal:, args:)
         changes = args.slice(*SETTINGS)

@@ -23,7 +23,15 @@ import {
 } from "@/pages/settings/components/workspace/issue-tracking-card"
 import { SlackCard } from "@/pages/settings/components/workspace/slack-card"
 import { WorkflowRunsCard } from "@/pages/settings/components/workspace/workflow-runs-card"
-import type { AiProviderOption, WorkspaceAiAccount, WorkspaceSettings } from "@/types/serializers"
+import { AllowancesCard } from "@/pages/settings/components/workspace/allowances-card"
+import type {
+  AiProviderOption,
+  Allowance,
+  AllowanceChoice,
+  EnvironmentOption,
+  WorkspaceAiAccount,
+  WorkspaceSettings,
+} from "@/types/serializers"
 import type { SharedProps } from "@/types"
 
 interface WorkspacePageProps extends SharedProps {
@@ -35,6 +43,10 @@ interface WorkspacePageProps extends SharedProps {
   aiFallback: string
   aiCredits: AiCredits | null
   workflowRunRetentionDays: number
+  allowances: Allowance[]
+  allowanceCapabilities: AllowanceChoice[]
+  allowanceTools: AllowanceChoice[]
+  environments: EnvironmentOption[]
 }
 
 function retentionText(days?: number): string {
@@ -64,13 +76,18 @@ function agentSlug(choice: string): string {
 }
 
 export default function Workspace() {
-  const { settings, issueWebhookUrl, aiAccounts, aiProviders, aiSignIn, aiFallback, aiCredits, workflowRunRetentionDays } = usePage<WorkspacePageProps>().props
+  const {
+    settings, issueWebhookUrl, aiAccounts, aiProviders, aiSignIn, aiFallback, aiCredits, workflowRunRetentionDays, allowances,
+    allowanceCapabilities, allowanceTools, environments,
+  } = usePage<WorkspacePageProps>().props
   const canManageAiAccounts = useCan("ai_accounts")
+  const canManageAllowances = useCan("permissions")
   const [transcriptAccess, setTranscriptAccess] = useState(settings.transcriptAccessEnabled)
   const [retention, setRetention] = useState(retentionText(settings.transcriptRetentionDays))
   const [archiveDelay, setArchiveDelay] = useState(settings.archiveChannelDelay)
   const [webSearch, setWebSearch] = useState(settings.webSearchEnabled)
   const [regression, setRegression] = useState(settings.halonRegressionEnabled)
+  const [safeChanges, setSafeChanges] = useState(settings.safeChangesWithoutAsking)
   const [memoryExpiry, setMemoryExpiry] = useState(expiryChoice(settings.memoryExpiryDays))
   const [codeFixAgent, setCodeFixAgent] = useState(agentChoice(settings.codeFixAgent))
   const [codeFixBudget, setCodeFixBudget] = useState(dollarsField(settings.codeFixBudgetCents))
@@ -116,6 +133,7 @@ export default function Workspace() {
         archive_channel_delay: archiveDelay,
         web_search_enabled: webSearch,
         halon_regression_enabled: regression,
+        safe_changes_without_asking: safeChanges,
         memory_expiry_days: expiryDays(memoryExpiry),
         code_fix_agent: agentSlug(codeFixAgent),
         code_fix_budget_cents: fieldCents(codeFixBudget),
@@ -272,6 +290,22 @@ export default function Workspace() {
               <Switch id="halon-regression" checked={regression} onCheckedChange={setRegression} />
             </div>
 
+            <div className="flex items-start justify-between gap-6">
+              <div className="max-w-prose">
+                <Label htmlFor="safe-changes" className="text-foreground">
+                  Halon makes safe changes without asking
+                </Label>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  On by default. A safe change is harmless or easy to put back, and touches no data, access, money or
+                  where traffic goes, such as a label, a comment, running CI again, restarting a service or scaling one
+                  up. In a chat, Halon makes it and then says what it did, with Undo where something puts it back. Turn
+                  it off and Halon asks before each one. Halon always asks before a risky change, unless the list below
+                  allows it.
+                </p>
+              </div>
+              <Switch id="safe-changes" checked={safeChanges} onCheckedChange={setSafeChanges} />
+            </div>
+
             <div className="max-w-prose">
               <Label htmlFor="memory-expiry" className="text-foreground">
                 Stop using unconfirmed memories
@@ -368,6 +402,14 @@ export default function Workspace() {
             </div>
           </CardContent>
         </Card>
+
+        <AllowancesCard
+          allowances={allowances}
+          capabilities={allowanceCapabilities}
+          tools={allowanceTools}
+          environments={environments}
+          canManage={canManageAllowances}
+        />
 
         <WorkflowRunsCard days={workflowRunRetentionDays} />
 
