@@ -34,6 +34,22 @@ class Investigation::UnattendedTest < ActiveSupport::TestCase
     assert_match "Checking the unattended rule", reading.triggered_by_label
   end
 
+  test "asking again for a lapsed approval of Firefight's own restart asks the approval rule's approvers, not only an admin" do
+    alice = workspace_memberships(:alice_workspace_one)
+    Ability::Grant.grant!(workspace: @workspace, principal: alice, target: { action: @api.ability_action })
+    @workspace.find_or_create_approval_policy!.policy_rules.create!(priority: 1, conditions: [], outcome: { "require" => { "role" => "owner", "count" => 1 } })
+    step = @plan.steps.sole
+    lapsed = @workspace.ability_approvals.create!(principal: alice, principal_label: "user:Alice", action_key: @api.action_key, request_digest: "d",
+                                                  required_role: "owner", status: Ability::Approval::STATUS_APPROVED, params: step.call_arguments,
+                                                  scope: step.call_scope, resolved_at: Time.current)
+    @plan.update_columns(approved_by_id: alice.id, applied_from: AbilityGateway::SOURCE_WORKFLOW)
+    step.update_columns(status: Investigation::RemediationStep::STATUS_APPROVED, approval_id: lapsed.id)
+
+    renewed = step.reload.request_approval_again!
+
+    assert_equal WorkspaceMembership.roles[:owner], renewed.required_role, "the rule's approvers, as when it was first asked"
+  end
+
   test "an approval rule that would hold the change is answered by the unattended rule, which the Approvals page names" do
     rule = restart_rule
     grant_investigator(@api)

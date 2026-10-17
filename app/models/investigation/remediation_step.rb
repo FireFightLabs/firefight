@@ -446,7 +446,7 @@ class Investigation::RemediationStep < ApplicationRecord
     investigation = plan.finding.investigation
     AbilityGateway.request_approval!(
       principal: plan.acting_principal, action_key: approval.action_key, workspace: investigation.workspace, scope: approval.scope,
-      params: approval.params, context: { source: plan.applied_from, incident_id: investigation.incident&.id }.compact
+      params: approval.params, context: { source: plan.applied_from, incident_id: investigation.incident&.id, capability: (true if resource_id) }.compact
     )
     nil
   rescue AbilityGateway::PendingApproval => pending
