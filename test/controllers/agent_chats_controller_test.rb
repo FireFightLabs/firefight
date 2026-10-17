@@ -853,6 +853,20 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Undoing Feature flag disable on PostHog.", flash[:notice]
   end
 
+  test "marking a change Halon was asked to put back as back says so, and a second press says why not" do
+    Slack::WorkspaceAdapter.any_instance.stubs(:post_mitigation_notice_to_user).returns({ channel_id: "D1", message_id: "1.1" })
+    conversation = start_chat
+    mitigation = temporary_change!(conversation)
+    mitigation.update_columns(status: Chat::Mitigation::STATUS_UNDO_ASKED)
+
+    post agent_chat_mitigation_back_url(conversation, mitigation_id: mitigation.id)
+    assert_equal "Feature flag disable on PostHog is marked as back.", flash[:notice]
+    assert_equal Chat::Mitigation::STATUS_UNDONE, mitigation.reload.status
+
+    post agent_chat_mitigation_back_url(conversation, mitigation_id: mitigation.id)
+    assert_equal "This is no longer running, so there is nothing to change.", flash[:alert]
+  end
+
   test "an open chat arrives with its temporary changes and what each viewer may do with them" do
     conversation = start_chat
     temporary_change!(conversation)
@@ -862,7 +876,8 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     shown = inertia_props["mitigations"].sole
     assert_equal "active", shown["status"]
     assert_nil shown["keepBlockedReason"]
-    assert_equal "Halon is still writing how to undo this. Try again in a moment.", shown["undoBlockedReason"]
+    assert_nil shown["undoBlockedReason"]
+    assert shown["asksHalon"]
   end
 
   test "the rows a statement touched download for someone who may read that database, recorded in the activity log" do
@@ -932,6 +947,6 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     posthog.tools.create!(name: "feature_flag_disable", description: "Disable a flag", enabled: true, read_only: false, params_schema: {})
     Chat::Mitigation.create!(chat: conversation.chat_record, workspace: @workspace, asker: @member, tool_call_id: "call_1", tool_name: "posthog_feature_flag_disable",
                              action_key: "posthog.feature_flag_disable", target: "PostHog", duration_minutes: 60, status: status,
-                             expires_at: (30.minutes.from_now unless status == Chat::Mitigation::STATUS_PROPOSED), undo_state: Chat::Mitigation::UNDO_WRITING)
+                             expires_at: (30.minutes.from_now unless status == Chat::Mitigation::STATUS_PROPOSED), undo_state: Chat::Mitigation::UNDO_IN_CHAT)
   end
 end

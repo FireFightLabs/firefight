@@ -114,7 +114,7 @@ class AgentChatsController < InertiaController
                                              update: %i[update ask_pack fill_secret reveal_secret], delete: %i[destroy]
   authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask confirm stop run_held_call dismiss_held_call ask_held_call_again stop_watch fix_pull_request
                                                                 schedule_plan cancel_plan retry_plan undo_plan keep_mitigation extend_mitigation
-                                                                undo_mitigation]
+                                                                undo_mitigation mark_mitigation_back]
   authorizes Ability::Action::RESOURCE_INCIDENTS, read: %i[incidents]
   authorizes Ability::Action::RESOURCE_WORKFLOWS, create: %i[press_workflow]
 
@@ -327,6 +327,11 @@ class AgentChatsController < InertiaController
 
   def undo_mitigation
     decide_mitigation { |mitigation| [ Conversation::Mitigations.undo_now!(mitigation, by: current_membership), "Undoing #{mitigation.label}." ] }
+  end
+
+  # It's back, once Halon was asked to put a change back and a person sees that it is.
+  def mark_mitigation_back
+    decide_mitigation { |mitigation| [ Conversation::Mitigations.mark_back!(mitigation, by: current_membership), "#{mitigation.label} is marked as back." ] }
   end
 
   # The rows a statement touched, as they were right before it ran, for whoever may read that database.

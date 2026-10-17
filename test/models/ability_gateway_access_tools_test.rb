@@ -46,6 +46,46 @@ class AbilityGatewayAccessToolsTest < ActiveSupport::TestCase
     assert_person_asked agent_run.held
   end
 
+  test "a whole API's tool that writes waits for an admin outside a person's own call, and its reads and Firefight's own capability calls do not" do
+    northflank = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Northflank", slug: "northflank")
+    northflank.integration_environments.create!(credentials: { token: "x" }.to_json)
+    api = northflank.tools.create!(name: "api_request", description: "Call the API", enabled: true, read_only: false, params_schema: { "type" => "object" })
+    Ability::Grant.create!(workspace: @workspace, principal: @run.acting_principal, action: Ability::Action.lookup(api.action_key, @workspace))
+    agent_run = Workflow::AgentRun.new(run: @run, record: @step)
+    write = { "method" => "POST", "path" => "/v1/projects/shop/secrets", "body" => {} }
+
+    held = assert_raises(AbilityGateway::PendingApproval) { agent_run.tool_call(action_key: api.action_key, params: write) { :written } }
+    assert_person_asked held.approval
+    assert_equal :read, agent_run.tool_call(action_key: api.action_key, params: { "method" => "GET", "path" => "/v1/projects" }) { :read }.value
+    assert_equal :restarted, agent_run.tool_call(action_key: api.action_key, params: write, capability: Integrations::Capabilities::RESTART) { :restarted }.value
+  end
+
+  test "a marker for Firefight's own restart that a model or a workflow puts in the arguments is ignored" do
+    northflank = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Northflank", slug: "northflank")
+    northflank.integration_environments.create!(credentials: { token: "x" }.to_json)
+    api = northflank.tools.create!(name: "api_request", description: "Call the API", enabled: true, read_only: false, params_schema: { "type" => "object" })
+    Ability::Grant.create!(workspace: @workspace, principal: @run.acting_principal, action: Ability::Action.lookup(api.action_key, @workspace))
+    agent_run = Workflow::AgentRun.new(run: @run, record: @step)
+    Integrations::NativeExecutor.expects(:call).never
+
+    Chat::Tools::Connection.new(agent_run, api).call("method" => "POST", "path" => "/v1/projects/shop/secrets", "capability" => Integrations::Capabilities::RESTART)
+
+    assert_person_asked agent_run.held
+  end
+
+  test "an unattended rule never answers for a change only a person may approve" do
+    rule = @workspace.unattended_rules.new(id: SecureRandom.uuid)
+    @workspace.unattended_rules.stubs(:find_by).returns(rule)
+    rule.stubs(:admits?).returns(true)
+    Ability::Grant.create!(workspace: @workspace, principal: SystemAgent.investigator, action: Ability::Action.lookup(@secret.action_key, @workspace))
+
+    held = assert_raises(AbilityGateway::PendingApproval) do
+      AbilityGateway.authorize!(principal: SystemAgent.investigator, action_key: @secret.action_key, workspace: @workspace, params: { "name" => "TOKEN" },
+                                context: { source: AbilityGateway::SOURCE_INVESTIGATION, unattended_rule_id: rule.id }) { :set }
+    end
+    assert_person_asked held.approval
+  end
+
   private
 
   def assert_person_asked(approval)

@@ -70,4 +70,8 @@ class AgentChatMitigationSerializer < BaseSerializer
 
   type :string, optional: true
   def undo_blocked_reason = mitigation.undo_blocked_reason(options[:member])
+
+  # Why this viewer may not mark it as back, or null. Offered only once Halon was asked to put it back.
+  type :string, optional: true
+  def back_blocked_reason = mitigation.back_blocked_reason(options[:member])
 end

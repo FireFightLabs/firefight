@@ -291,7 +291,7 @@ class AgentChatWindowTest < ActionDispatch::IntegrationTest
     flag_tool
     Chat::Mitigation.create!(chat: @chat, workspace: @workspace, asker: @member, tool_call_id: key, tool_name: "posthog_feature_flag_disable",
                              action_key: "posthog.feature_flag_disable", target: "PostHog", duration_minutes: 60, status: Chat::Mitigation::STATUS_ACTIVE,
-                             expires_at: 30.minutes.from_now, undo_state: Chat::Mitigation::UNDO_WRITING)
+                             expires_at: 30.minutes.from_now, undo_state: Chat::Mitigation::UNDO_IN_CHAT)
   end
 
   def chart

@@ -65,13 +65,14 @@ class Conversation::Turn
   # A turn nobody can be credited with does nothing.
   # unasked is why the call runs without the person's yes, kept on the call when it was settled (#unasked_for), which the
   # activity log records.
-  def tool_call(action_key:, params: {}, scope: {}, approval_id: nil, holdable: true, unasked: nil, **, &block)
+  # capability is the capability Firefight built the call for, which the gateway reads (AbilityGateway.person_must_approve?).
+  def tool_call(action_key:, params: {}, scope: {}, approval_id: nil, holdable: true, unasked: nil, capability: nil, **, &block)
     raise AbilityGateway::Denied.new(action_key) unless asker
 
     value = Chat::ToolCall.run!(
       workspace: workspace, principal: asker, action_key: action_key, params: params, scope: scope,
       context: { source: AbilityGateway::SOURCE_CONVERSATION, incident_id: conversation.incident_id, approval_id: approval_id,
-                 unasked_reason: unasked&.reason, allowance_id: unasked&.allowance_id }.compact,
+                 unasked_reason: unasked&.reason, allowance_id: unasked&.allowance_id, capability: capability }.compact,
       holdable: holdable, &block
     )
     Chat::ToolCall::Outcome.new(value: value)

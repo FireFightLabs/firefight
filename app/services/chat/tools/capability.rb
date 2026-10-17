@@ -21,7 +21,6 @@ class Chat::Tools::Capability < RubyLLM::Tool
   def parameters_schema
     schema = Integrations::Capabilities.schema(@spec, Integrations::Capabilities.connection_choices(@agent_run.workspace, @spec, @tools))
     schema = Chat::Tools::LookFirst.with_because(schema, required: true) if looks_first?
-    schema = Chat::Tools.with_putting_back(schema, Conversation::Mitigations.waiting_undo_ids(@agent_run.chat, @tools)) if @spec.writes
     requires_approval? ? Chat::Tools.with_intent(schema) : schema
   end
 
@@ -158,7 +157,7 @@ class Chat::Tools::Capability < RubyLLM::Tool
 
   def ask(found, tool_call, alone: true, asked: connection(found))
     text = asked.run(found.arguments, environment_entry: found.environment_entry, tool_call_id: tool_call&.id, shown_as: name, present: found.present,
-                                      alone: alone, target: target_of(found), inverse: inverse_of(found, tool_call))
+                                      alone: alone, target: target_of(found), inverse: inverse_of(found, tool_call), capability: @spec.key)
     @answered = Answered.new(call: found, result: asked.last_result) unless asked.failed? || asked.waiting?
     text
   end
@@ -172,7 +171,7 @@ class Chat::Tools::Capability < RubyLLM::Tool
 
       asked = connection(found)
       text = asked.run(found.arguments, environment_entry: found.environment_entry, tool_call_id: tool_call&.id, shown_as: name,
-                                        present: found.present, alone: false, target: target_of(found))
+                                        present: found.present, alone: false, target: target_of(found), capability: @spec.key)
       answered ||= !asked.failed?
       Integrations::Capabilities.headed(found.environment_row, text)
     end

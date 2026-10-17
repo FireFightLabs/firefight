@@ -171,6 +171,8 @@ module Identifiers
   MITIGATION_KEEP = "mitigation_keep"
   MITIGATION_EXTEND = "mitigation_extend"
   MITIGATION_UNDO = "mitigation_undo"
+  # Once Halon was asked to put a temporary change back, a person marks it back.
+  MITIGATION_BACK = "mitigation_back"
   # The owner's answer to Halon stopping something they started.
   OWNER_AGREE = "owner_agree"
   OWNER_DECLINE = "owner_decline"

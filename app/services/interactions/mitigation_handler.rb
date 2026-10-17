@@ -1,12 +1,13 @@
 module Interactions
-  # Keep it, One more hour or Undo now on a temporary change Halon made, from its reminder or any line it said. Whoever may
-  # change it on the dashboard may press them, and anyone else is told who can.
+  # Keep it, One more hour, Undo now or It's back on a temporary change Halon made, from its reminder or any line it
+  # said. Whoever may change it on the dashboard may press them, and anyone else is told who can.
   class MitigationHandler
     extend HandlerAuthorization
     authorize_as Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE
 
     ACTIONS = {
-      Identifiers::MITIGATION_KEEP => :keep!, Identifiers::MITIGATION_EXTEND => :extend!, Identifiers::MITIGATION_UNDO => :undo_now!
+      Identifiers::MITIGATION_KEEP => :keep!, Identifiers::MITIGATION_EXTEND => :extend!, Identifiers::MITIGATION_UNDO => :undo_now!,
+      Identifiers::MITIGATION_BACK => :mark_back!
     }.freeze
 
     def self.execute(interaction)

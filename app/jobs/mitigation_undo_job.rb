@@ -1,4 +1,5 @@
 # Moves a temporary change whose undo a model used to write to being put back in the chat, for a job queued before.
+# Kept for one release so a queued job or an older process during the rollout does not crash. Remove it in the next.
 class MitigationUndoJob < ApplicationJob
   queue_as :default
   limits_concurrency key: ->(mitigation_id) { mitigation_id }, duration: 10.minutes

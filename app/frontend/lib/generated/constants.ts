@@ -182,7 +182,6 @@ export const MITIGATION_STATUSES = {
   "UNDONE": "undone",
   "UNDO_FAILED": "undo_failed",
   "UNDO_HELD": "undo_held",
-  "DUE_BY_HAND": "due_by_hand",
   "CANCELLED": "cancelled",
   "WITH_PLAN": "with_plan",
   "MADE": "made",
@@ -191,9 +190,7 @@ export const MITIGATION_STATUSES = {
 
 export const MITIGATION_UNDO_STATES = {
   "NONE": "none",
-  "WRITING": "writing",
   "READY": "ready",
-  "BY_HAND": "by_hand",
   "NO_INVERSE": "no_inverse",
   "IN_CHAT": "in_chat"
 } as const

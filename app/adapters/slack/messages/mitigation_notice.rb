@@ -35,11 +35,25 @@ module Slack
           { type: "button", text: { type: "plain_text", text: "Keep it" }, action_id: Identifiers::MITIGATION_KEEP, value: value },
           { type: "button", text: { type: "plain_text", text: "One more hour" }, action_id: Identifiers::MITIGATION_EXTEND, value: value }
         ]
-        (notice.keeps ? keeping : []) + (notice.undoable ? [ undo_button(value, notice.asks_halon) ] : [])
+        (notice.keeps ? keeping : []) + (notice.marks_back ? [ back_button(value, notice.title) ] : []) +
+          (notice.undoable ? [ undo_button(value, notice.asks_halon) ] : [])
+      end
+
+      # It's back cannot be taken back, so Slack asks first.
+      def self.back_button(value, title)
+        {
+          type: "button", text: { type: "plain_text", text: BACK }, action_id: Identifiers::MITIGATION_BACK, value: value,
+          confirm: {
+            title: { type: "plain_text", text: "Mark #{title} as back?".truncate(100) }, text: { type: "plain_text", text: BACK_STOPS },
+            confirm: { type: "plain_text", text: BACK }, deny: { type: "plain_text", text: "Cancel" }
+          }
+        }
       end
 
       PUTS_BACK = "Firefight puts back what this changed, as the person who asked for it, and says how it went here.".freeze
-      ASKS_HALON = "Halon is asked in the chat to put back what this changed, and that call asks first like any change.".freeze
+      ASKS_HALON = "Halon is asked in the chat to put back what this changed. Its call asks first, and you mark it once it's back.".freeze
+      BACK = "It's back".freeze
+      BACK_STOPS = "Firefight stops tracking it.".freeze
 
       def self.undo_button(value, asks_halon)
         {

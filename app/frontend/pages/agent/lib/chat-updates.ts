@@ -5,7 +5,7 @@ import {
   INVESTIGATION_QUERY_PARAM,
 } from "@/lib/generated/constants"
 import {
-  agentChatAskPath, agentChatConfirmPath, agentChatMitigationExtendPath, agentChatMitigationKeepPath, agentChatMitigationUndoPath,
+  agentChatAskPath, agentChatConfirmPath, agentChatMitigationExtendPath, agentChatMitigationBackPath, agentChatMitigationKeepPath, agentChatMitigationUndoPath,
   agentChatPackRefusalAskPath, agentChatPath, agentChatPullRequestFixPath, agentChatSecretEntryFillPath, agentChatStopPath, agentChatsPath,
   agentChatWatchStopPath, investigationStopPath,
 } from "@/lib/routes"
@@ -252,6 +252,10 @@ export function extendMitigation(conversationId: string, mitigationId: string, c
 
 export function undoMitigation(conversationId: string, mitigationId: string, callbacks: CardCallbacks) {
   router.post(agentChatMitigationUndoPath(conversationId, mitigationId), {}, { ...IN_PLACE, only: SAFEGUARDS, ...callbacks })
+}
+
+export function markMitigationBack(conversationId: string, mitigationId: string, callbacks: CardCallbacks) {
+  router.post(agentChatMitigationBackPath(conversationId, mitigationId), {}, { ...IN_PLACE, only: SAFEGUARDS, ...callbacks })
 }
 
 // A coding agent's question and pause sit in a step's saved message, so answering one reloads the messages. Continue

@@ -328,7 +328,7 @@ class Investigation::RemediationStep < ApplicationRecord
     AbilityGateway.authorize!(
       principal: plan.acting_principal, action_key: tool.action_key, workspace: investigation.workspace, scope: scope, params: arguments,
       context: { source: plan.applied_from, approval_id: approval_id, incident_id: investigation.incident&.id,
-                 unattended_rule_id: applied_under_rule_id, triggered_by_label: triggered_by_label }.compact
+                 unattended_rule_id: applied_under_rule_id, triggered_by_label: triggered_by_label, capability: (true if resource_id) }.compact
     )
   end
 
@@ -446,7 +446,7 @@ class Investigation::RemediationStep < ApplicationRecord
     investigation = plan.finding.investigation
     AbilityGateway.request_approval!(
       principal: plan.acting_principal, action_key: approval.action_key, workspace: investigation.workspace, scope: approval.scope,
-      params: approval.params, context: { source: plan.applied_from, incident_id: investigation.incident&.id }.compact
+      params: approval.params, context: { source: plan.applied_from, incident_id: investigation.incident&.id, capability: (true if resource_id) }.compact
     )
     nil
   rescue AbilityGateway::PendingApproval => pending

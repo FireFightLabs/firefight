@@ -65,7 +65,6 @@ class Chat::Tools::Connection < RubyLLM::Tool
     schema = Chat::Tools::TrackedIssues.with_kind(schema) if tracks_issues?
     schema = Chat::DataRepairs.with_check(schema) if data_writes?
     schema = Chat::Tools::LookFirst.with_because(schema, required: false) if changes_at_all?
-    schema = Chat::Tools.with_putting_back(schema, Conversation::Mitigations.waiting_undo_ids(@agent_run.chat, [ @tool ])) if changes_at_all?
     requires_approval? ? Chat::Tools.with_intent(schema) : schema
   end
 
@@ -248,8 +247,9 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # relayed is a call a provider's command line tool made in Halon's terminal, whose answer keeps the API's own shape too.
   # inverse is the fixed call that puts the change back when it ran without asking (Integrations::SafeChanges::Inverse),
   # which a capability works out call by call, nil for none, and the registry's declaration for the tool by default.
+  # capability is the capability Firefight built the call for, so the gateway knows its request is Firefight's own.
   def run(arguments, environment_entry:, tool_call_id:, shown_as: name, present: nil, approval_id: nil, alone: true, target: nil, refusal: nil,
-          call_id: tool_call_id, relayed: false, inverse: :declared)
+          call_id: tool_call_id, relayed: false, inverse: :declared, capability: nil)
     @alone = alone
     @failed = false
     @waiting = false
@@ -270,7 +270,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     unasked = (@agent_run.unasked_of(call_id) if approval_id.nil? && @agent_run.respond_to?(:unasked_of))
     said = @agent_run.tool_call(
       action_key: @tool.action_key, params: arguments, scope: scope, tool_name: shown_as,
-      label: Chat::Tools.label(shown_as, arguments, workspace: @agent_run.workspace), holdable: refusal.nil?, **{ approval_id: approval_id, unasked: unasked }.compact
+      label: Chat::Tools.label(shown_as, arguments, workspace: @agent_run.workspace), holdable: refusal.nil?, **{ approval_id: approval_id, unasked: unasked, capability: capability }.compact
     ) do |authorization|
       next refused_by_rule!(tool_call_id, authorization, refusal) if refusal
 
@@ -308,7 +308,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
   rescue AbilityGateway::PendingApproval => pending
     if approval_id.nil? && approved_by_asker?(pending.approval)
       return run(arguments, environment_entry: environment_entry, tool_call_id: tool_call_id, shown_as: shown_as, present: present,
-                            approval_id: pending.approval.id, alone: alone, target: target, relayed: relayed)
+                            approval_id: pending.approval.id, alone: alone, target: target, relayed: relayed, capability: capability)
     end
 
     @waiting = true
