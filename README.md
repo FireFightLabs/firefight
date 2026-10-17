@@ -1,166 +1,107 @@
-<h1 align="center">
-  Firefight
-</h1>
 <p align="center">
-  <b>Open-source, agent-ready incident management</b><br />
-  Run incidents from Slack, and let your AI agents work them too, with every action they take permissioned, approved, and on the record
+  <a href="https://firefight.app">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme-hero-dark.svg" />
+      <source media="(prefers-color-scheme: light)" srcset=".github/assets/readme-hero-light.svg" />
+      <img src=".github/assets/readme-hero-dark.svg" width="100%" alt="Firefight. The open-source AI SRE that investigates incidents and ships the fix." />
+    </picture>
+  </a>
 </p>
 
-<h4 align="center">
-  <a href="https://firefight.app">Website</a> ·
-  <a href="https://firefight.app/docs">Docs</a> ·
-  <a href="SELF_HOSTING.md">Self-hosting</a> ·
-  <a href="#local-development">Local development</a> ·
-  <a href="https://github.com/FireFightLabs/firefight/releases">Releases</a> ·
-  <a href="https://firefight.app/slack">Community</a>
-</h4>
-
-<h4 align="center">
-  <a href="https://github.com/FireFightLabs/firefight/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="Firefight is released under the AGPL-3.0 license" />
-  </a>
-  <a href="https://github.com/FireFightLabs/firefight/actions/workflows/ci.yml">
-    <img src="https://github.com/FireFightLabs/firefight/actions/workflows/ci.yml/badge.svg" alt="CI status" />
-  </a>
-  <a href="https://github.com/FireFightLabs/firefight/blob/main/CONTRIBUTING.md">
-    <img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs welcome" />
-  </a>
-  <a href="https://firefight.app/slack">
-    <img src="https://img.shields.io/badge/chat-on%20Slack-blueviolet" alt="Chat with the Firefight community on Slack" />
-  </a>
-  <a href="https://x.com/firefightapp_">
-    <img src="https://img.shields.io/twitter/follow/firefightapp_?label=Follow" alt="Follow Firefight on X" />
-  </a>
-</h4>
-
 <p align="center">
-  <img src=".github/assets/readme-hero.png" width="100%" alt="Firefight: declare and resolve incidents in Slack, tracked in a full web dashboard" />
+  Halon is the open-source AI SRE. It investigates production incidents, proves the root cause, and ships the fix.
 </p>
 
-Questions, or want to talk about running it at your company? **hello@firefight.app**
+<p align="center">
+  <a href="https://firefight.app"><b>Cloud</b></a>
+  &nbsp;·&nbsp;
+  <a href="SELF_HOSTING.md"><b>Self-host</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://firefight.app/docs"><b>Docs</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://firefight.app/slack"><b>Community</b></a>
+</p>
 
-## What is Firefight?
+<br />
 
-Firefight is an incident management platform. It records what broke, who responded, and what you changed so it doesn't happen again.
+<p align="center">
+  <img src=".github/assets/halon-demo.webp" width="960" alt="In an incident channel, a Datadog alert says the checkout 5xx rate is above 5%. Halon works through its checklist and answers that the 14:02 deploy lowered the database pool from 20 to 5, very sure. In the thread, Maya asks for a pull request that sets the pool back to 20, approves Halon's request, and the card follows the change until the pull request is open." />
+</p>
 
-Declaring an incident opens its channel, pulls in the people who should be there, announces it to the rest of the company, and starts a timeline that records every decision from that point on. When it's over, the postmortem is drafted from what actually happened rather than from memory.
+<p align="center">
+  <img src=".github/assets/halon-demo-final.png" width="960" alt="The thread after the fix: Maya's request, and Halon's finished card with the change written, checked and opened as acme/checkout#913, approved by Maya Ortiz." />
+</p>
 
-Agents work an incident the same way, over MCP or the REST API, under their own name and reaching only what you granted them.
+<p align="center"><sub>
+  14:06, Datadog fires on checkout. 14:09, Halon traces it to the 14:02 deploy that cut the database pool from 20 to 5.<br />
+  14:12, Maya approves the fix in the thread. Halon opens the pull request.
+</sub></p>
 
-## Why Firefight?
+<br />
 
-An alerting tool, a chat thread, a doc template, a status page. Nothing holds them together except a process doc, and nobody opens a process doc at 3am.
+<p align="center">
+  <img src=".github/assets/dashboard/incident.png" width="960" alt="The INC-042 incident page in the Firefight dashboard, with the live timeline, roles and Halon's answer." />
+</p>
+<p align="center"><sub>The same incident in the dashboard.</sub></p>
 
-- **The first twenty minutes go to setup.** Opening the channel, working out who to pull in, posting the first update. The incident has a head start before anyone is even in the room.
-- **The answers end up buried.** Critical detail sits in DMs, threads, and someone's dashboard. Whoever joins late reads two hundred messages to learn what everyone else already knows.
-- **The fix ships and the write-up waits.** Somebody still has to rebuild the timeline, chase the follow-ups, and write it up, usually after hours. So it gets skipped, and the same incident comes back in two months.
-- **Your agents are locked out.** They can read your code and your logs, but not your incidents, your history, or the reasoning behind either. The one place that knows what actually happened is the one place they cannot reach.
+<br />
 
-It is AGPL-3.0, so you can read every line and run it yourself
+## What it does
 
-## Features
+Root cause fast, every finding backed by evidence. Fixes ship through an approval gateway with a full audit trail.
 
-### Incident response
-- **Slack-native flow**: declare, update status and severity, assign a lead, invite responders, escalate, and close without leaving Slack
-- **Incident channels**: created automatically with pinned quick actions, topic metadata, and announcement threads
-- **Audit-grade timeline**: every state change is an immutable event with full attribution
-- **Roles, action items and follow-ups**: assign who is accountable, track work during the incident and after it
-- **Incident relationships**: link related incidents, or mark one a duplicate of another
+**Investigation in the incident channel.** An alert can start a run on its own, or anyone runs `/ff investigate`. Halon reads recent deploys, logs, metrics, the running code and your databases through the tools you connect, and posts its progress as a live checklist.
 
-### Built for agents
-- **MCP server**: every incident action and every settings screen has a tool behind it, so an agent can run an incident or set the workspace up without touching a browser
-- **Ability Gateway**: every privileged call goes through one gate. Grant abilities individually or in named sets, scope them to an environment, and hold the risky ones for human approval
-- **Agents are first-class**: an agent is its own principal with its own token and its own name on the timeline. It inherits nothing from whoever created it, and no machine can mint another machine
-- **Invocation ledger**: every privileged call is recorded before it runs, with who asked, what for, and whether it was allowed, refused, or held for approval
-- **Governed transcripts**: an agent can read what people actually said in an incident channel, but only once an admin turns it on and grants the ability, with secrets redacted before storage and a retention window you set
-- **Bring your own agent**: Claude Code, an internal support bot, whatever you already run. It connects over MCP or the API and works the incident
+**Evidence-backed answers.** Every conclusion ships with a confidence level and the evidence behind it, each fact linked to its source. Gaps in coverage are reported alongside the answer.
 
-### AI built in
-- **AI postmortems**: a structured draft generated from the incident's full timeline and channel transcript, ready for human editing
-- **AI catchups**: joining an incident late? Get a summary of what's happened so far
-- **Timeline notes**: the theories tested, the decisions made and the root cause, lifted out of the conversation onto the timeline with the quote and the person
-- **Cost-tracked inference**: every AI call is logged with tokens, latency, and cost
+**Fixes through an approval gateway.** Fixes run through Firefight's own tools or as a pull request written in an isolated sandbox. Reads are immediate. Changes require sign-off in Slack, under the approval rules your admins set, and every call to a connected tool is recorded in the activity log.
 
-### Alerts
-- **Ingest from anything**: point anything that can POST JSON at a per-source endpoint
-- **Routing rules**: first-match-wins rules that open an incident, attach to an open one, notify a team, or drop it
-- **Storm control**: deduplication, flap handling, and grouping, so an alert storm becomes one incident rather than forty
-- **Test before you ship**: dry run a rule against a sample alert and see exactly why it did or did not match, without notifying anyone
+**A complete incident platform.** Declaration, roles, paging through PagerDuty and Opsgenie, status pages, workflows and postmortems drafted from the timeline. Self-hosted or on [firefight.app](https://firefight.app).
 
-### Make it yours
-- **Custom fields**: text, numbers, links, single and multi select, or a reference into your catalog
-- **Lifecycle forms**: decide what responders are asked when they declare, update, resolve or cancel, with fields that only appear when they are relevant
-- **Severities, statuses, types and roles**: your vocabulary, not ours, all of it renameable and reorderable
-- **Runbooks**: the procedure for a known failure, attached automatically to the incidents that match it
-- **Service catalog**: services, teams, environments and anything else you track, with typed attributes and relationships
+## What Halon knows
 
-### Platform
-- **Web dashboard**: the incident list, the incident itself, the postmortem editor, and every settings screen
-- **REST API**: the whole product over HTTP, from declaring an incident to configuring every settings screen, with bearer-token auth, granular per-key permissions, idempotency keys, and an OpenAPI document covering every operation
-- **Outbound webhooks**: subscribe external systems to incident events, with delivery tracking and retries
+Halon starts every run from your team's context: the resource map of what runs where, read live from your connected tools, the service catalog with owners, the handbook your team writes and approves, memory of past incidents that a person confirms, and every past incident and postmortem. [How context works](https://firefight.app/product/context).
 
-## Documentation
+<table>
+  <tr>
+    <td width="50%"><img src=".github/assets/dashboard/chat.png" width="100%" alt="Halon's chat in the dashboard with a run and its checklist" /></td>
+    <td width="50%"><img src=".github/assets/dashboard/investigation.png" width="100%" alt="The investigation behind INC-042, with its theories, how sure Halon is of each, and the steps each one cites" /></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src=".github/assets/dashboard/map.png" width="100%" alt="The resource map, with checkout-api outlined while INC-042 is open, and its key checks" /></td>
+    <td width="50%"><img src=".github/assets/dashboard/workflow.png" width="100%" alt="A scheduled check on the workflow canvas, from schedule to Halon's check to raising notices" /></td>
+  </tr>
+</table>
 
-Full documentation is at **[firefight.app/docs](https://firefight.app/docs)**
+## Get started
 
-| | |
-|---|---|
-| [Your first incident](https://firefight.app/docs/getting-started/your-first-incident) | Start here |
-| [Slack command reference](https://firefight.app/docs/incidents/slack-commands) | Every `/ff` command |
-| [MCP server](https://firefight.app/docs/api/mcp-server) | Connecting an agent, and every tool it gets |
-| [REST API](https://firefight.app/docs/api/overview) | Auth, endpoints, and the OpenAPI document |
-| [The gateway](https://firefight.app/docs/gateway/overview) | Permissions, approvals, and the activity log |
+[Firefight Cloud](https://firefight.app) runs in minutes. Sign in with Slack.
 
-Engineering references for people working on Firefight itself live in [`docs/`](docs/)
+To self-host, you need a machine with Docker, a hostname and a Slack workspace.
 
-## Getting started
+1. **Create the Slack app** from [`config/slack_manifests/template.yml`](config/slack_manifests/template.yml), with your address in place of `<base-url>`.
+2. **Fill in `.env`** from [`.env.selfhost.example`](.env.selfhost.example): your hostname, a Postgres password, the Slack app's three keys, and the secrets these print.
+   ```sh
+   docker run --rm ghcr.io/firefightlabs/firefight:latest bin/rails secret
+   docker run --rm ghcr.io/firefightlabs/firefight:latest bin/rails db:encryption:init
+   ```
+3. **Start it** with `docker compose up -d`. Sign in with Slack at your address and run `/ff new`.
 
-| | |
-|---|---|
-| **Firefight Cloud** | The fastest way to get started: managed hosting with AI features included. Sign in at [app.firefight.app](https://app.firefight.app) |
-| **Self-hosting** | Run Firefight on your own infrastructure, free under the AGPL. See [SELF_HOSTING.md](SELF_HOSTING.md) |
+[SELF_HOSTING.md](SELF_HOSTING.md) covers AI keys, code sandboxes, upgrades and backups.
 
-## Self-hosting
+## We ship fast
 
-Firefight ships as a Docker image with every release, and the repository carries a `docker-compose.yml` that runs it with Postgres and TLS.
+In the last 30 days we merged more than 400 pull requests and tagged 49 releases. Every version is published to `ghcr.io/firefightlabs/firefight`, the same image Firefight Cloud runs. The [changelog](https://firefight.app/changelog) has the details.
 
-```sh
-cp .env.selfhost.example .env   # fill in your hostname, Slack app, and secrets
-docker compose up -d
-```
+## Learn more
 
-You need a machine with Docker, a hostname pointing at it, and a Slack app, which Firefight ships the manifest for. **[SELF_HOSTING.md](SELF_HOSTING.md)** walks through all of it, plus upgrades, backups, and running it without Compose.
+- [Halon](https://firefight.app/docs/ai/halon) and [investigations](https://firefight.app/docs/ai/investigations)
+- [Permissions and approvals](https://firefight.app/docs/gateway/overview) and [what reaches the AI](https://firefight.app/docs/ai/data-handling)
+- [Integrations](https://firefight.app/docs/api/integrations), plus any MCP server
+- [REST API](https://firefight.app/docs/api/overview) and [Firefight's MCP server](https://firefight.app/docs/api/mcp-server)
 
-Your instance talks to Slack, to Postgres, and to whatever AI provider you configure. It sends us nothing.
-
-## Local development
-
-```sh
-mise install                          # Ruby + Node toolchain
-docker run -d --name firefight-postgres -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres -p 5432:5432 \
-  -v firefight-postgres-data:/var/lib/postgresql postgres:18.3
-bundle install
-bin/rails db:prepare && bin/rails db:prepare RAILS_ENV=test
-bin/dev
-```
-
-[CONTRIBUTING.md](CONTRIBUTING.md) has the full setup: creating the Slack app, the environment variables, the local tunnel for Slack callbacks, and how the multi-database layout works
-
-## Open source vs. paid
-
-This repository is licensed under [AGPL-3.0](LICENSE): free to use, self-host, and modify. If you run a modified version as a service, you must share your changes under the same license.
-
-Firefight Cloud is our managed offering: hosting, upgrades, and AI features with usage included in the plan. Self-hosters bring their own LLM API key for the AI features.
-
-## Security
-
-Found a vulnerability? Please report it privately, see [SECURITY.md](SECURITY.md). Do not open a public issue for security problems.
-
-## Contributing
-
-Contributions are welcome: bug reports, fixes, and features. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup and conventions, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for how we work together. Fork PRs run the full CI suite, no secrets required.
+Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md), and report vulnerabilities as [SECURITY.md](SECURITY.md) describes.
 
 ## License
 
-[AGPL-3.0](LICENSE) © Firefight Labs
+[AGPL-3.0](LICENSE). Run it, host it and change it. If you offer a changed version as a service, publish your changes under the same license.

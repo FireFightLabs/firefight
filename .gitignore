@@ -13,6 +13,7 @@
 # Ignore all environment files (except the example template).
 /.env*
 !/.env.example
+!/.env.selfhost.example
 
 # Ignore all logfiles and tempfiles.
 /log/*
