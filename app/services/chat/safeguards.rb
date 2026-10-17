@@ -13,7 +13,7 @@ class Chat::Safeguards
 
     repair = (Chat::DataRepair.for_call(chat, call_id) if Chat::DataRepairs.applies?(agent_run, tool))
     ask = Chat::OwnerAsk.for_call(chat, call_id)
-    undoes = (Conversation::Mitigations.undo_asked_in(chat, tool, call_id) unless Integrations::ReadGuards.reads?(tool, arguments))
+    undoes = putting_back(chat, tool, call_id, arguments)
     mitigation = Chat::Mitigation.for_call(chat, call_id)
     if undoes
       mitigation&.move!(from: Chat::Mitigation::STATUS_PROPOSED, to: Chat::Mitigation::STATUS_CANCELLED)
@@ -29,6 +29,15 @@ class Chat::Safeguards
 
     new(agent_run, tool, environment_entry, arguments, repair: repair, ask: ask, mitigation: mitigation, undoes: undoes)
   end
+
+  # The change this call puts back, named by the call, tied to it as it runs. Read only while one waits.
+  def self.putting_back(chat, tool, call_id, arguments)
+    return nil if chat.undos_asked.empty? || Integrations::ReadGuards.reads?(tool, arguments)
+
+    named = chat.tool_calls.find_by(tool_call_id: call_id)&.arguments.to_h[Chat::Tools::PUTS_BACK_ARG]
+    Conversation::Mitigations.undo_asked_in(chat, tool, call_id, named)
+  end
+  private_class_method :putting_back
 
   # Settled when Halon pauses on calls, so the confirmation can say what each will touch, who started what it stops,
   # and when a change customers feel is undone.
@@ -48,7 +57,7 @@ class Chat::Safeguards
       end
       next unless found.mitigation
       # Putting back a change Halon was asked to put back is never counted down itself.
-      next if Conversation::Mitigations.undo_waiting?(agent_run.chat, found.tool)
+      next if Conversation::Mitigations.undo_named(agent_run.chat, found.tool, tool_call.arguments.to_h[Chat::Tools::PUTS_BACK_ARG])
 
       Conversation::Mitigations.propose!(agent_run, call_id: tool_call.tool_call_id, tool: found.tool, environment_entry: found.environment_entry,
                                                     arguments: found.arguments, tool_name: tool_call.name, target: tool_call.try(:target),
@@ -88,9 +97,9 @@ class Chat::Safeguards
 
     found = capability(call, given)
     return unless found.mitigation
-    return if Conversation::Mitigations.undo_waiting?(agent_run.chat, found.tool)
 
     record = agent_run.chat.tool_calls.find_by(tool_call_id: tool_call_id)
+    return if Conversation::Mitigations.undo_named(agent_run.chat, found.tool, record&.arguments.to_h[Chat::Tools::PUTS_BACK_ARG])
     mitigation = Conversation::Mitigations.propose!(agent_run, call_id: tool_call_id, tool: found.tool, environment_entry: found.environment_entry,
                                                                arguments: found.arguments, tool_name: record&.name || call.spec.tool_name, target: record&.target,
                                                                intent: Chat::Tools.intent_of(given))

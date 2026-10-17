@@ -270,13 +270,28 @@ module Chat::Tools
     "description" => "The change in two to five words starting with a verb, for the title of the approval and its button, " \
                      "such as \"Pause dev-web\" or \"Purge the firefight.app cache\""
   }.freeze
-  # Every argument the agent writes for the person alone, which no tool is given.
-  FOR_PERSON = [ INTENT_ARG, SHORT_TITLE_ARG ].freeze
+  # Names the change Firefight asked Halon to put back that a call puts back, offered only while one waits on the call's
+  # connection (Conversation::Mitigations.undo_asked_in), so the change is undone by that call and no other.
+  PUTS_BACK_ARG = "puts_back".freeze
+  # Every argument the agent writes for the person or for Firefight, which no tool is given.
+  FOR_PERSON = [ INTENT_ARG, SHORT_TITLE_ARG, PUTS_BACK_ARG ].freeze
 
   def self.with_intent(schema)
     schema = schema.deep_dup
     schema["properties"] = (schema["properties"] || {}).merge(INTENT_ARG => INTENT, SHORT_TITLE_ARG => SHORT_TITLE)
-    schema["required"] = (Array(schema["required"]) + FOR_PERSON).uniq
+    schema["required"] = (Array(schema["required"]) + [ INTENT_ARG, SHORT_TITLE_ARG ]).uniq
+    schema
+  end
+
+  # ids are the changes waiting to be put back on the call's connection, and none adds nothing.
+  def self.with_putting_back(schema, ids)
+    return schema if ids.empty?
+
+    schema = schema.deep_dup
+    schema["properties"] = (schema["properties"] || {}).merge(PUTS_BACK_ARG => {
+      "type" => "string", "enum" => ids,
+      "description" => "Only when this call puts back a change Firefight asked you to put back: that change's id. Leave it out for any other call."
+    })
     schema
   end
 

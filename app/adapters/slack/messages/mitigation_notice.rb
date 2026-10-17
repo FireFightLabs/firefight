@@ -23,7 +23,7 @@ module Slack
       end
 
       def self.title(notice)
-        lead = notice.keeps ? "Temporary change" : "Made without asking"
+        lead = notice.temporary ? "Temporary change" : "Made without asking"
         "#{lead}: #{notice.title}".truncate(150)
       end
 

@@ -65,6 +65,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     schema = Chat::Tools::TrackedIssues.with_kind(schema) if tracks_issues?
     schema = Chat::DataRepairs.with_check(schema) if data_writes?
     schema = Chat::Tools::LookFirst.with_because(schema, required: false) if changes_at_all?
+    schema = Chat::Tools.with_putting_back(schema, Conversation::Mitigations.waiting_undo_ids(@agent_run.chat, [ @tool ])) if changes_at_all?
     requires_approval? ? Chat::Tools.with_intent(schema) : schema
   end
 
