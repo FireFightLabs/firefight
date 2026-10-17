@@ -19,16 +19,21 @@ module Integrations
 
     def self.tool?(tool) = listed?(tool, :safe_tools)
 
+    # A safe tool whose call outside text could have written, such as a comment's words, which is safe only while
+    # nothing from outside has reached the chat (Chat::Tools::Provenance.read_anything_outside?).
+    def self.until_outside?(tool) = listed?(tool, :safe_until_outside_tools)
+
     def self.access?(tool)
       entry = IntegrationProvider.find(tool.integration.provider)
       entry.present? && entry.access_tools.include?(tool.name)
     end
 
-    # The undo the registry declares for a safe tool's call, built from the call's own arguments and the values its
-    # answer named, or nil when it declares none or a value is missing. Never a tool that changes access, writes rows,
-    # stops something or changes what customers get, and always one of the same connection that is switched on.
+    # The undo the registry declares for a tool's call, built from the call's own arguments and the values its answer
+    # named, or nil when it declares none or a value is missing. Never a tool that changes access, writes rows, stops
+    # something or changes what customers get, and always one of the same connection that is switched on.
     def self.inverse(tool, arguments, result)
-      spec = (entry_of(tool)&.undo_tools.to_h[tool.name] if tool?(tool))
+      entry = entry_of(tool)
+      spec = (entry.undo_tools.to_h[tool.name] if entry && entry.kind == tool.integration.kind)
       return nil unless spec
 
       undo = tool.integration.tools.find_by(name: spec["tool"], enabled: true)
@@ -46,7 +51,10 @@ module Integrations
     end
 
     # Whether a tool may be the undo of a change made without asking.
-    def self.inverse_allowed?(tool) = !tool.read_only? && !access?(tool) && tool.effects.empty? && Integrations::ReadGuards.for(tool).nil?
+    def self.inverse_allowed?(tool)
+      !tool.read_only? && !access?(tool) && Integrations::ReadGuards.for(tool).nil? &&
+        (tool.effects & [ Ability::Action::EFFECT_DATA_WRITE, Ability::Action::EFFECT_STOPS ]).empty?
+    end
 
     def self.value_of(from, given, facts)
       return from.delete_prefix(LITERAL) if from.start_with?(LITERAL)
@@ -75,6 +83,20 @@ module Integrations
 
       back = Capabilities.resolve(workspace, Capabilities::SCALE, given.except(Capabilities::PLAN_ARG).merge("instances" => live_instances(call).to_s),
                                   [ call.tool ], principal: principal)
+      Inverse.new(tool: call.tool, arguments: back.arguments)
+    rescue Capabilities::Unroutable
+      nil
+    end
+
+    # The scale back to the live count from before, for a scale down kept as a temporary change.
+    def self.scale_back(call, workspace:, principal:)
+      return nil unless call.spec.key == Capabilities::SCALE
+
+      before = live_instances(call)
+      return nil unless before
+
+      back = Capabilities.resolve(workspace, Capabilities::SCALE, { "resource" => call.resource&.id.to_s, "instances" => before.to_s }, [ call.tool ],
+                                  principal: principal)
       Inverse.new(tool: call.tool, arguments: back.arguments)
     rescue Capabilities::Unroutable
       nil

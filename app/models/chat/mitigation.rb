@@ -35,7 +35,9 @@ class Chat::Mitigation < ApplicationRecord
   UNDO_BY_HAND = "by_hand"
   # Nothing puts it back as it was, such as a restart, so it offers no undo.
   UNDO_NO_INVERSE = "no_inverse"
-  UNDO_STATES = [ UNDO_NONE, UNDO_WRITING, UNDO_READY, UNDO_BY_HAND, UNDO_NO_INVERSE ].freeze
+  # No fixed call puts it back, so Halon puts it back in the chat, where the undo asks like any change.
+  UNDO_IN_CHAT = "in_chat"
+  UNDO_STATES = [ UNDO_NONE, UNDO_WRITING, UNDO_READY, UNDO_BY_HAND, UNDO_NO_INVERSE, UNDO_IN_CHAT ].freeze
 
   DEFAULT_MINUTES = 60
   # What the person may choose when they confirm it, in minutes. Keeping it is nil.
@@ -138,11 +140,16 @@ class Chat::Mitigation < ApplicationRecord
 
   # Ran, so its time starts now rather than when it was confirmed.
   # A change the person chose to keep is told to Halon as it runs, so it is never told again.
-  def start!(result:)
+  # undo is the one fixed step that puts it back, or nil, when Halon puts it back in the chat instead.
+  def start!(result:, undo: nil)
     expires = duration_minutes && duration_minutes.minutes.from_now
+    steps = undo ? [ undo ] : undo_steps
     move!(from: STATUS_PROPOSED, to: duration_minutes ? STATUS_ACTIVE : STATUS_KEPT, started_at: Time.current, expires_at: expires,
-          result: Chat::SecretFree.redacted(result.to_s).truncate(RESULT_LIMIT), undo_state: UNDO_WRITING, told_at: (Time.current unless duration_minutes))
+          result: Chat::SecretFree.redacted(result.to_s).truncate(RESULT_LIMIT), undo_state: steps.any? ? UNDO_READY : UNDO_IN_CHAT, undo_steps: steps,
+          undo_note: (steps.any? ? "#{steps.first['description']}." : IN_CHAT_NOTE), told_at: (Time.current unless duration_minutes))
   end
+
+  IN_CHAT_NOTE = "Halon puts it back in the chat, and asks first like any change.".freeze
 
   # The reminder is claimed once, so two sweeps never send two.
   def claim_reminder! = self.class.where(id: id, status: STATUS_ACTIVE, reminded_at: nil).update_all(reminded_at: Time.current, updated_at: Time.current) == 1

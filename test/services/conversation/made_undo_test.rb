@@ -80,7 +80,7 @@ class Conversation::MadeUndoTest < ActiveSupport::TestCase
 
   private
 
-  def step(tool, arguments) = { "description" => tool.name, "action_key" => tool.action_key, "arguments" => arguments }
+  def step(tool, arguments) = { "description" => tool.name, "action_key" => tool.action_key, "arguments" => arguments, "declared" => true }
 
   def made!(tool, steps)
     Chat::Mitigation.create!(chat: @chat, workspace: @workspace, asker: @alice, tool_call_id: "call_#{SecureRandom.hex(3)}", tool_name: tool.model_facing_name,

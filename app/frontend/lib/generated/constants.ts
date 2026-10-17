@@ -193,7 +193,8 @@ export const MITIGATION_UNDO_STATES = {
   "WRITING": "writing",
   "READY": "ready",
   "BY_HAND": "by_hand",
-  "NO_INVERSE": "no_inverse"
+  "NO_INVERSE": "no_inverse",
+  "IN_CHAT": "in_chat"
 } as const
 
 export const OWNER_ASK_STATUSES = {

@@ -66,7 +66,6 @@ class Chat::ToolCatalogueReadsTest < ActiveSupport::TestCase
     Chat::Tools.capability_entries(turn)
     Chat::Specialists.backing(workspace, [ @write.model_facing_name ])
     Chat::Tools::Target.connection_tool(workspace, @echo.model_facing_name)
-    Conversation::Mitigations.undo_tools(workspace)
     Chat::Tools::SkillTools.provider_handles(workspace, "fake")
     Integrations::Capabilities.offered(workspace)
   end

@@ -169,9 +169,10 @@ class Chat::Tools::Connection < RubyLLM::Tool
     return true if held_for_others?(given)
 
     scope, params = call_scope(given)
-    @agent_run.unasked!(tool_call.id, @agent_run.unasked_for(@tool.ability_action, scope: scope, params: params, safe: @tool.safe_change?,
-                                                                                   tool_call_id: tool_call.id,
-                                                                                   outside: Chat::Tools::Provenance.outside_read(@agent_run)))
+    outside = Chat::Tools::Provenance.outside_read(@agent_run)
+    safe = @tool.safe_change? && !(Integrations::SafeChanges.until_outside?(@tool) && outside.call)
+    @agent_run.unasked!(tool_call.id, @agent_run.unasked_for(@tool.ability_action, scope: scope, params: params, safe: safe,
+                                                                                   tool_call_id: tool_call.id, outside: outside))
   rescue Integration::UnknownEnvironment
     false
   end

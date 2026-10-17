@@ -58,20 +58,20 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     assert_nil Chat::Mitigation.chosen_minutes(Chat::Mitigation::KEEP)
   end
 
-  test "once it runs its time starts, its undo is written, and Halon is told when it ends" do
+  test "once it runs its time starts, and with no fixed undo declared Halon puts it back in the chat, never a model's undo" do
     call = pause!
     Chat::Safeguards.prepare!(@turn, [ call ])
     call.update_columns(approval: Chat::APPROVAL_APPROVED)
+    FirefightAi::UndoWriter.any_instance.expects(:write).never
 
-    said = nil
-    assert_enqueued_with(job: MitigationUndoJob) { said = run! }
+    said = run!
     mitigation = Chat::Mitigation.for_call(@chat, "call_1")
 
     assert_match "Flag 7 (new-checkout) is now off.", said
     assert_match "Firefight undoes this in 1 hour", said
     assert_equal Chat::Mitigation::STATUS_ACTIVE, mitigation.status
     assert_in_delta 1.hour.from_now, mitigation.expires_at, 5.seconds
-    assert_equal Chat::Mitigation::UNDO_WRITING, mitigation.undo_state
+    assert_equal [ Chat::Mitigation::UNDO_IN_CHAT, [] ], [ mitigation.undo_state, mitigation.undo_steps ]
   end
 
   test "a call that runs without a pause, such as one allowed for the chat, is kept with the default time" do
@@ -98,28 +98,30 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     assert_empty Chat::Mitigation.expiry_due.where(id: mitigation.id)
   end
 
-  test "the undo is written from what the change returned, checked against what the workspace can run" do
-    mitigation = active!
-    FirefightAi::UndoWriter.any_instance.expects(:write).with do |steps, tools:, **|
-      steps.sole.result.include?("now off") && tools.include?(@enable.model_facing_name)
-    end.returns({ "summary" => "Turn it back on", "steps" => [ { "kind" => "action", "description" => "Turn new-checkout back on",
-                                                                 "tool" => @enable.model_facing_name, "arguments" => ARGUMENTS } ] })
+  test "when its time is up with no fixed undo, Halon is asked in the chat, where the undo asks like any change" do
+    mitigation = active!(expires_at: 1.minute.ago)
+    mitigation.update!(undo_state: Chat::Mitigation::UNDO_IN_CHAT)
+    Integration.any_instance.expects(:executor).never
 
-    MitigationUndoJob.perform_now(mitigation.id)
+    assert_enqueued_with(job: ConversationReplyJob, args: [ @conversation.id, @alice.id ]) { Conversation::Mitigations.expire!(mitigation) }
 
-    assert_equal Chat::Mitigation::UNDO_READY, mitigation.reload.undo_state
-    assert_equal @enable.action_key, mitigation.undo_steps.sole["action_key"]
+    assert_equal Chat::Mitigation::STATUS_UNDO_HELD, mitigation.reload.status
+    assert_match "which no fixed call puts back", @chat.messages.where(nudge: true).last.content
   end
 
-  test "an undo only a person can do leaves it by hand, said with what to do" do
+  test "a job queued for a model to write an undo puts the change back in the chat instead, and a model's step never runs" do
     mitigation = active!
-    FirefightAi::UndoWriter.any_instance.stubs(:write).returns({ "steps" => [ { "kind" => "manual", "description" => "Turn the flag on in PostHog", "missing" => "No tool turns it on." } ] })
+    FirefightAi::UndoWriter.any_instance.expects(:write).never
 
     MitigationUndoJob.perform_now(mitigation.id)
+    assert_equal Chat::Mitigation::UNDO_IN_CHAT, mitigation.reload.undo_state
+    mitigation.destroy!
 
-    assert_equal Chat::Mitigation::UNDO_BY_HAND, mitigation.reload.undo_state
-    assert_match "Undo it by hand: Turn the flag on in PostHog No tool turns it on.", mitigation.undo_note
-    assert_match "Halon could not write an undo it can run itself", mitigation.undo_blocked_reason(@alice)
+    written = active!(expires_at: 1.minute.ago).tap { |row| row.update!(undo_state: Chat::Mitigation::UNDO_READY,
+                                                                       undo_steps: [ { "description" => "On", "action_key" => @enable.action_key, "arguments" => ARGUMENTS } ]) }
+    Conversation::Mitigations.expire!(written)
+    assert_equal Chat::Mitigation::STATUS_UNDO_FAILED, written.reload.status
+    assert_empty @sent
   end
 
   test "it is reminded about once before it runs out, and undone as the asker when it does" do
@@ -273,7 +275,7 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
   def ready!(expires_at:)
     active!(expires_at: expires_at).tap do |mitigation|
       mitigation.update!(undo_state: Chat::Mitigation::UNDO_READY, undo_note: "Turn new-checkout back on",
-                         undo_steps: [ { "description" => "Turn new-checkout back on", "action_key" => @enable.action_key, "arguments" => ARGUMENTS } ])
+                         undo_steps: [ { "description" => "Turn new-checkout back on", "action_key" => @enable.action_key, "arguments" => ARGUMENTS, "declared" => true } ])
     end
   end
 

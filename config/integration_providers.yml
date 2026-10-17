@@ -56,7 +56,10 @@
 # capability decides those call by call from a live count (Integrations::SafeChanges). undo_tools gives a safe tool the
 # one fixed call that puts it back, on the same connection: the tool, and each of its arguments taken from the call's
 # own argument of that name, from a value the tool's answer named (result.<name>), or as written (=<value>). Only a tool
-# here offers Undo, and no model ever writes one. access_tools change who can reach something or set a secret, so a
+# here offers Undo, and no model ever writes one. A temporary change, such as a flag turned off, is put back the same way
+# when its tool is here, and otherwise in the chat, where the undo asks like any change. safe_until_outside_tools are
+# safe only while nothing from outside has reached the chat, such as a comment, whose words outside text could have
+# written. access_tools change who can reach something or set a secret, so a
 # person is always asked and the list of what Halon may do without asking never holds one.
 # status_page is the provider's public status page and hosts the domains its API and apps answer on, read with the
 # outside systems in config/upstreams.yml, which says what each means. A provider that runs only where its customer runs
@@ -135,7 +138,8 @@ categories:
 
 providers:
   - key: github
-    safe_tools: [rerun_workflow, comment_on_issue, comment_on_pull_request, reply_to_review_comment, label_issue, label_pull_request, assign_issue, run_tests, request_reviewers]
+    safe_tools: [comment_on_issue, comment_on_pull_request, reply_to_review_comment, label_issue, label_pull_request, assign_issue, run_tests, request_reviewers]
+    safe_until_outside_tools: [comment_on_issue, comment_on_pull_request, reply_to_review_comment]
     undo_tools:
       comment_on_issue: { tool: delete_issue_comment, arguments: { repo: repo, comment_id: result.comment_id } }
       comment_on_pull_request: { tool: delete_pull_request_comment, arguments: { repo: repo, comment_id: result.comment_id } }
@@ -163,7 +167,7 @@ providers:
     holds_code: true
     stopping_tools: [cancel_workflow]
   - key: gitlab
-    safe_tools: [retry_pipeline, run_tests]
+    safe_tools: [run_tests]
     name: GitLab
     category: Code
     mark: GL
@@ -194,7 +198,7 @@ providers:
     holds_code: true
     stopping_tools: [cancel_pipeline]
   - key: bitbucket
-    safe_tools: [rerun_pipeline, run_tests]
+    safe_tools: [run_tests]
     name: Bitbucket
     category: Code
     mark: BB

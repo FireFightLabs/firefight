@@ -9,6 +9,8 @@ module Conversation::Mitigations
   KIND_KEPT = "kept".freeze
   KIND_EXTENDED = "extended".freeze
   KIND_MADE = "made".freeze
+  # Marks an undo step as the registry's fixed call, the only kind Firefight runs itself.
+  DECLARED = "declared".freeze
 
   # What a person or the platform is shown, the same on the dashboard and in Slack. keeps is whether Keep it and One
   # more hour are offered while it is in place, and undoable whether Undo now is.
@@ -49,11 +51,10 @@ module Conversation::Mitigations
       mitigation.move!(from: Chat::Mitigation::STATUS_PROPOSED, to: Chat::Mitigation::STATUS_CANCELLED)
       return nil
     end
-    return nil unless mitigation.start!(result: result_text(result))
+    return nil unless mitigation.start!(result: result_text(result), undo: declared_undo(mitigation, result))
 
     mitigation.update_columns(plan_step_id: step.id) if step
 
-    MitigationUndoJob.perform_later(mitigation.id)
     Conversation::LiveDelivery.safeguard_moved(mitigation.conversation)
     started_note(mitigation)
   end
@@ -96,12 +97,23 @@ module Conversation::Mitigations
   def self.undo_of(inverse, environment_entry)
     return { undo_state: Chat::Mitigation::UNDO_NO_INVERSE } unless inverse
 
-    description = "#{inverse.tool.name.to_s.tr('_', ' ').upcase_first} on #{inverse.tool.integration.display_name}"
-    { undo_state: Chat::Mitigation::UNDO_READY, undo_note: "#{description}.",
-      undo_steps: [ { "description" => description, "action_key" => inverse.tool.action_key, "arguments" => inverse.arguments,
-                      "environment_id" => environment_entry&.id } ] }
+    step = undo_step(inverse, environment_entry)
+    { undo_state: Chat::Mitigation::UNDO_READY, undo_note: "#{step['description']}.", undo_steps: [ step ] }
   end
   private_class_method :undo_of
+
+  def self.undo_step(inverse, environment_entry)
+    { "description" => "#{inverse.tool.name.to_s.tr('_', ' ').upcase_first} on #{inverse.tool.integration.display_name}",
+      "action_key" => inverse.tool.action_key, "arguments" => inverse.arguments, "environment_id" => environment_entry&.id, DECLARED => true }
+  end
+
+  # The fixed call the registry declares to put a temporary change back, from what it was sent and answered, or nil.
+  def self.declared_undo(mitigation, result)
+    tool = Integration::Tool.by_action_key(mitigation.workspace, mitigation.action_key)
+    inverse = tool && Integrations::SafeChanges.inverse(tool, mitigation.arguments, result.is_a?(Hash) ? result : {})
+    inverse && undo_step(inverse, (CatalogEntry.find_by(id: mitigation.environment_id) if mitigation.environment_id))
+  end
+  private_class_method :declared_undo
 
   # The name Halon called it by, what it reaches and the change in Halon's few words, read from the call itself.
   def self.called(agent_run, chat, call_id, tool)
@@ -142,49 +154,6 @@ module Conversation::Mitigations
     Array(result["content"]).filter_map { |part| part["text"] }.join("\n")
   end
   private_class_method :result_text
-
-  # Written by Halon from what the change returned, such as the id of a rule it made, and checked against what the
-  # workspace can run, as a fix's undo is (Investigation::UndoWriter). A step only a person can do leaves it by hand.
-  def self.write_undo!(mitigation)
-    workspace = mitigation.workspace
-    step = FirefightAi::UndoWriter::Step.new(
-      position: 1, kind: Investigation::RemediationStep::KIND_ACTION, description: mitigation.title, repository: nil, tool: mitigation.tool_name,
-      arguments: mitigation.arguments.presence, result: mitigation.result, undo: nil, status: Investigation::RemediationStep::STATUS_DONE
-    )
-    plan = FirefightAi::UndoWriter.new(workspace).write([ step ], summary: mitigation.title, tools: undo_tools(workspace), inferable: mitigation.conversation)
-    steps = plan["steps"].each_with_index.map do |asked, index|
-      Investigation::RemediationStep.checked(workspace, asked, position: index + 1, principal: mitigation.asker)
-    end
-    by_hand = steps.reject(&:action?)
-    if steps.empty? || by_hand.any?
-      words = by_hand.map { |each| [ each.description, each.missing ].compact.join(" ") }.join(" ").presence || "Nothing it was given says how."
-      return written!(mitigation, Chat::Mitigation::UNDO_BY_HAND, [], "Undo it by hand: #{words}")
-    end
-
-    written!(mitigation, Chat::Mitigation::UNDO_READY, steps.map { |each| { "description" => each.description, "action_key" => each.action_key, "arguments" => each.arguments } },
-             steps.map(&:description).join(" "))
-  rescue Investigation::RemediationPlan::Refused => refused
-    written!(mitigation, Chat::Mitigation::UNDO_BY_HAND, [], "Undo it by hand, since Halon's undo could not run here: #{refused.message}")
-  rescue FirefightAi::OutOfCredit
-    written!(mitigation, Chat::Mitigation::UNDO_BY_HAND, [], AiCredit.cannot(workspace, "write how to undo this"))
-  rescue FirefightAi::Error => error
-    Rails.logger.warn({ event: "mitigation.undo_not_written", mitigation_id: mitigation.id, error: error.class.name }.to_json)
-    written!(mitigation, Chat::Mitigation::UNDO_BY_HAND, [], "Halon could not reach its AI to write how to undo this, so undo it by hand.")
-  end
-
-  def self.written!(mitigation, state, steps, note)
-    mitigation.update!(undo_state: state, undo_steps: steps, undo_note: Chat::SecretFree.redacted(note))
-    Conversation::LiveDelivery.safeguard_moved(mitigation.conversation)
-  end
-  private_class_method :written!
-
-  # Every tool that changes something here, by the name Halon calls it, and the capabilities that change things.
-  def self.undo_tools(workspace)
-    tools = workspace.switched_on_tools
-    connected = tools.reject(&:read_only).map(&:model_facing_name)
-    capabilities = Integrations::Capabilities.offered(workspace, tools: tools).filter_map { |spec, _tools| spec.tool_name if spec.writes }
-    connected + capabilities
-  end
 
   # Due within REMIND_BEFORE, said once.
   def self.remind!(mitigation)
@@ -241,6 +210,7 @@ module Conversation::Mitigations
   # Claimed as undoing by whoever started it. Each step runs in order as the asker, and the first that does not go
   # through stops it, said with why.
   def self.undo!(mitigation, by:)
+    return in_chat!(mitigation, by: by) if mitigation.undo_state == Chat::Mitigation::UNDO_IN_CHAT
     if mitigation.undo_state != Chat::Mitigation::UNDO_READY
       ending!(mitigation, Chat::Mitigation::STATUS_DUE_BY_HAND, "#{mitigation.title} is due to be undone, and Firefight cannot do it itself. " \
                                                                  "#{mitigation.undo_note.presence || 'Its undo is not written yet.'}")
@@ -270,24 +240,26 @@ module Conversation::Mitigations
   def self.undone_by(_mitigation, by) = by ? "#{by.display_name} undid" : "Time was up, so Firefight undid"
   private_class_method :undone_by
 
+  # Every undo Firefight runs itself is a fixed declared call (run_inverse). A step written before that, by a model, is
+  # never run, and its change is put back in the chat instead.
   def self.run_step(turn, mitigation, step)
-    return run_inverse(turn, mitigation, step) if mitigation.made_unasked? && mitigation.duration_minutes.nil?
+    return [ :failed, "its undo was not one Firefight declares, so put it back by hand" ] unless step[DECLARED]
 
-    tool = Integration::Tool.by_action_key(mitigation.workspace, step["action_key"])
-    return [ :failed, "the tool it runs with is switched off or gone" ] unless tool
-
-    arguments = step["arguments"].to_h
-    entry = tool.integration.environment_entry_for(arguments[Integration::Tool::ENVIRONMENT_ARG])
-    connection = Chat::Tools::Connection.new(turn, tool)
-    said = connection.run(arguments.except(Integration::Tool::ENVIRONMENT_ARG), environment_entry: entry, tool_call_id: nil, shown_as: tool.model_facing_name)
-    return :held if connection.waiting?
-    return [ :failed, said.to_s.lines.first.to_s.strip.truncate(300) ] if connection.failed?
-
-    :ran
-  rescue Integration::UnknownEnvironment => error
-    [ :failed, error.message ]
+    run_inverse(turn, mitigation, step)
   end
   private_class_method :run_step
+
+  # No fixed call puts it back, so Halon is asked in the chat to put it back, where its call goes through the resolver
+  # and the card like any change, as whoever asked for the change.
+  def self.in_chat!(mitigation, by:)
+    conversation = mitigation.conversation
+    who = by ? "#{by.display_name} pressed Undo now on" : "Time is up for"
+    mitigation.chat.nudge!("#{who} #{mitigation.title} (#{mitigation.label}), which no fixed call puts back. Put it back now with the tool " \
+                           "that does, from what the call returned earlier in this chat. It asks the person like any change.")
+    ConversationReplyJob.perform_later(conversation.id, (mitigation.asker.id if mitigation.asker.is_a?(WorkspaceMembership)))
+    ending!(mitigation, Chat::Mitigation::STATUS_UNDO_HELD, "Halon puts #{mitigation.title} back in the chat, and asks first like any change.")
+  end
+  private_class_method :in_chat!
 
   # The declared undo of a change made without asking, only ever through a tool that may be one (SafeChanges.inverse_allowed?)
   # of the same connection, in the environment the change ran in, through the gateway as the asker, so grants, approval
