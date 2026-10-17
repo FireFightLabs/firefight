@@ -120,15 +120,15 @@ npm run typecheck            # TypeScript strict check
 npm run lint                 # ESLint
 ```
 
-All of these must pass before a PR is ready for review.
+All of these must pass before a PR is ready for review. Fork PRs run the full CI suite and need no secrets.
 
 ### Measuring Halon
 
-Halon has a bench of 42 recorded scenarios in [`config/halon_bench`](config/halon_bench). Every tool call is answered from the scenario's own recorded world, so nothing outside Firefight is reached, and a judge model scores each answer. CI replays the bench on pull requests from branches of this repository that touch Halon's prompt, tools or loop, and fails when the score drops by more than the noise. A pull request from a fork gets no model keys, so it is benched once its branch is here. To run it yourself:
+Halon has a bench of 42 recorded scenarios in [`config/halon_bench`](config/halon_bench). Every tool call is answered from the scenario's own recorded world, so nothing outside Firefight is reached, and a judge model scores each answer. CI replays the bench on pull requests from branches of this repository that touch Halon's prompt, tools or loop, and fails when the score drops by more than the noise. A pull request from a fork gets no model keys, so the bench does not run on it. To bench those changes in CI, open the pull request from a branch of this repository, or run it yourself:
 
 ```sh
 bin/rails "halon:chat_bench[MODEL,PROVIDER]"
-``` Fork PRs run the full CI suite — no secrets are required.
+```
 
 ## Conventions
 

@@ -49,7 +49,7 @@
 
 **It tells you how sure it is.** The answer names the cause and the fix, links every fact back to the page it came from, and says whether Halon is very sure or guessing. If it could not check something, it says so.
 
-**It asks before it changes anything.** A fix runs through Firefight's own tools, or as a pull request written in a throwaway sandbox. Each change shows up as a card saying what Halon wants to do, and it runs once someone approves it in Slack. Your approval rules decide who that can be. Reads never wait, and every call, read or change, lands in the activity log.
+**It asks before it changes anything.** A fix runs through Firefight's own tools, or as a pull request written in a throwaway sandbox. Each change shows up as a card saying what Halon wants to do, and it runs once someone approves it in Slack. Your approval rules decide who that can be. Reads never wait, and every call to your connected tools, read or change, lands in the activity log.
 
 **It runs the rest of the incident too.** Channels, roles, a timeline, paging through PagerDuty or Opsgenie, status page updates, workflows and a postmortem drafted from what actually happened. Halon is one part of a full incident platform you can host yourself.
 
