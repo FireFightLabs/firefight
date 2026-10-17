@@ -28,6 +28,9 @@ class Chat::HeldCall < ApplicationRecord
   RESULT_LIMIT = 2_000
 
   belongs_to :chat
+
+  # What a counted write touches, as the asker's card would have shown it, so its approvers see the rows they approve.
+  def safeguard_rows = Chat::DataRepair.for_call(chat, tool_call_id)&.confirmation_rows || []
   belongs_to :approval, class_name: "Ability::Approval"
   belongs_to :decided_by, class_name: "WorkspaceMembership", optional: true
   # Halon's reading of how things stand now, on a chat of its own.

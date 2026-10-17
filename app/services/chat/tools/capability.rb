@@ -34,10 +34,13 @@ class Chat::Tools::Capability < RubyLLM::Tool
   end
 
   # A change whose words name another connection than the one it would run through is refused rather than put to the
-  # person (Chat::Tools::Target), and so is one that names no read from this turn (Chat::Tools::LookFirst).
+  # person (Chat::Tools::Target), and so is one that names no read from this turn (Chat::Tools::LookFirst). A change an
+  # approval rule holds for someone else goes to them alone, and a safe change, such as a restart of a service or a scale
+  # up, or one on the list of what Halon may do without asking, runs unasked (Conversation::Turn#unasked_for).
   def approval_resolver
     Chat::Tools::Target.resolver(@agent_run) do |given, tool_call|
-      misdirection(given).present? || unsupported(given, tool_call&.id).present? || undone(given, tool_call&.id).present?
+      misdirection(given).present? || unsupported(given, tool_call&.id).present? || undone(given, tool_call&.id).present? ||
+        without_person?(given, tool_call)
     end
   end
 
@@ -88,6 +91,23 @@ class Chat::Tools::Capability < RubyLLM::Tool
 
   def looks_first? = @spec.writes && Chat::Tools::LookFirst.applies?(@agent_run)
 
+  # Whether the person who asked is not the one to answer this change, decided on the call as it is routed.
+  def without_person?(given, tool_call)
+    return false unless @spec.writes && tool_call && @agent_run.respond_to?(:unasked_for)
+
+    asked = given.except(*Chat::Tools::FOR_PERSON, Chat::Tools::LookFirst::BECAUSE)
+    found = Integrations::Capabilities.resolve(@agent_run.workspace, @spec.key, asked, @callable, principal: @agent_run.acting_principal)
+    action = found.tool.ability_action
+    return true if @agent_run.asks_approvers_instead?(action, scope: found.scope, params: found.arguments)
+
+    unasked = @agent_run.unasked_for(action, scope: found.scope, params: found.arguments, safe: Integrations::SafeChanges.capability_call?(found, asked),
+                                             capability: @spec.key, integration_id: found.tool.integration_id, tool_call_id: tool_call.id,
+                                             outside: Chat::Tools::Provenance.outside_read(@agent_run))
+    @agent_run.unasked!(tool_call.id, unasked)
+  rescue Integrations::Capabilities::Unroutable
+    false
+  end
+
   def unsupported(given, tool_call_id)
     Chat::Tools::LookFirst.refusal(@agent_run, given, tool_call_id: tool_call_id, change: name) if looks_first?
   end
@@ -127,9 +147,17 @@ class Chat::Tools::Capability < RubyLLM::Tool
 
   def connection(found) = Chat::Tools::Connection.new(@agent_run, found.tool)
 
+  # The call that puts back what this one changes, when it runs without asking. A safe scale up is scaled back to the
+  # live count it started from. Nothing else a capability changes has one, so it offers no Undo.
+  def inverse_of(found, tool_call)
+    return nil unless @spec.writes && tool_call
+
+    Integrations::SafeChanges.capability_inverse(found, tool_call.arguments, workspace: @agent_run.workspace, principal: @agent_run.acting_principal)
+  end
+
   def ask(found, tool_call, alone: true, asked: connection(found))
     text = asked.run(found.arguments, environment_entry: found.environment_entry, tool_call_id: tool_call&.id, shown_as: name, present: found.present,
-                                      alone: alone, target: target_of(found))
+                                      alone: alone, target: target_of(found), inverse: inverse_of(found, tool_call))
     @answered = Answered.new(call: found, result: asked.last_result) unless asked.failed? || asked.waiting?
     text
   end

@@ -133,7 +133,7 @@ module Integrations
 
           result = @pack.comment_on_pull_request(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => 412, "body" => "Rolled back. Token ghp_#{'a' * 36}" })
 
-          assert_includes text_of(result), "Commented on PR #412 Fix payment retries in acme/checkout, and GitHub shows the comment. #{PullRequests::READ_BACK}"
+          assert_includes text_of(result), "Commented on PR #412 Fix payment retries in acme/checkout as comment 1, and GitHub shows the comment. #{PullRequests::READ_BACK}"
           assert text_of(result).end_with?("https://github.com/acme/checkout/pull/412#issuecomment-1")
         end
 

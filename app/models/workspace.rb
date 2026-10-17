@@ -26,6 +26,7 @@ class Workspace < ApplicationRecord
   has_many :ability_invocations, class_name: "Ability::Invocation", dependent: :delete_all
   has_many :ability_approvals, class_name: "Ability::Approval", dependent: :destroy
   has_many :unattended_rules, class_name: "Ability::UnattendedRule", dependent: :destroy
+  has_many :allowances, class_name: "Ability::Allowance", dependent: :destroy
   has_many :ability_grants, class_name: "Ability::Grant", dependent: :destroy
   has_many :ai_model_overrides, dependent: :destroy
   # Its own model keys, tried in order before whatever the deployment pays with.

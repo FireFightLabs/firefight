@@ -75,6 +75,16 @@ class AbilityApprovalSerializer < BaseSerializer
     Ability::Source.label(approval.source)
   end
 
+  # What a counted database write touches, each a label and what it says, as the asker's card would have shown it.
+  type "string[][]"
+  def rows = shown.rows
+
+  # The warning about text read from outside Firefight before the call, as the asker's card would have carried it.
+  type :string, optional: true
+  def caution = shown.caution
+
+  def shown = memo.fetch(:shown) { ApprovalNotificationService.shown(approval) }
+
   type :string
   def created_at
     approval.created_at.iso8601

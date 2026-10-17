@@ -203,6 +203,12 @@ class Integration::Tool < ApplicationRecord
   # What its change does beyond its risk, which its action answers (Ability::Action#effects).
   def effects = @effects ||= Integrations::Effects.of(self)
 
+  # Whether its change is safe for Halon to make without asking, which its action answers (Ability::Action#change_class).
+  def safe_change? = Integrations::SafeChanges.tool?(self)
+
+  # Whether its change reaches who can get at something or a secret, which a person is always asked about.
+  def access_change? = !read_only? && Integrations::SafeChanges.access?(self)
+
   # The tool its provider names as the one that writes a code change, which is handed who asked and what they said.
   def writes_code? = !read_only? && IntegrationProvider.find(integration.provider)&.code_fix_tool == name
 

@@ -224,6 +224,18 @@ class WorkspaceSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Workspace settings were updated. Code fix budget was set to $10.", flash[:notice]
   end
 
+  test "Halon makes safe changes without asking until someone turns it off, and the notice says which way" do
+    assert @workspace.safe_changes_without_asking?
+
+    patch settings_workspace_path, params: { safe_changes_without_asking: false }
+    assert_not @workspace.reload.safe_changes_without_asking?
+    assert_equal "Halon now asks before safe changes.", flash[:notice]
+
+    patch settings_workspace_path, params: { safe_changes_without_asking: true, web_search_enabled: false }
+    assert @workspace.reload.safe_changes_without_asking?
+    assert_equal "Workspace settings were updated. Halon makes safe changes without asking.", flash[:notice]
+  end
+
   test "a budget outside the range is refused with the range, and nothing is saved" do
     patch settings_workspace_path, params: { code_fix_budget_cents: 10_000 }
 

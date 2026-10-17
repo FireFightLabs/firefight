@@ -15,7 +15,8 @@ module Slack
         return question_request(approval, rich: rich) if approval.workflow_question?
 
         actions = [ *decision_buttons(approval), details_button(approval) ]
-        Blocks::Card.new(icon: REQUEST_ICON, title: Mrkdwn.escape(wants(shown)), body: request_line(approval), actions: actions).to_blocks(rich: rich)
+        body = [ request_line(approval), *HeldCall.rows_lines(shown.rows), (":warning: #{Mrkdwn.escape(shown.caution)}" if shown.caution) ].compact.join("\n")
+        Blocks::Card.new(icon: REQUEST_ICON, title: Mrkdwn.escape(wants(shown)), body: body, actions: actions).to_blocks(rich: rich)
       end
 
       # A workflow's Approval step: what it asks and what approvers should know, rather than a call.

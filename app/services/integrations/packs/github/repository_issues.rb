@@ -51,6 +51,13 @@ module Integrations
                                                       %w[repo number body]),
                     read_only: false
 
+          pack.tool :delete_issue_comment,
+                    description: "Delete a comment Firefight posted on an issue, by the comment's id as comment_on_issue said it. A " \
+                                 "comment anyone else wrote is refused, and a person deletes it on GitHub",
+                    params_schema: Code.object_schema({ "repo" => REPO, "comment_id" => { "type" => "integer", "description" => "The comment's id" } },
+                                                      %w[repo comment_id]),
+                    read_only: false
+
           pack.tool :update_issue,
                     description: "Change an issue's title or description",
                     params_schema: Code.object_schema({
@@ -145,8 +152,16 @@ module Integrations
           asking("comment_on_issue", "GitHub has no issue #{number} in #{repo}") do
             issue = only_issue!(repo, number, token)
             comment = GithubApp.write(:post, "/repos/#{repo}/issues/#{number}/comments", { body: body }, token: token)
-            linked("Commented on issue ##{number} #{issue['title']} in #{repo}.", comment["html_url"].presence || issue["html_url"])
+            linked("Commented on issue ##{number} #{issue['title']} in #{repo}#{", as comment #{comment['id']}" if comment['id']}.", comment["html_url"].presence || issue["html_url"],
+                   facts: { "comment_id" => comment["id"] })
           end
+        end
+
+        def delete_issue_comment(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          id = number_argument(arguments, "comment_id")
+          delete_own_comment("delete_issue_comment", repo, id, "/repos/#{repo}/issues/comments/#{id}", GithubApp.installation_token(environment_row),
+                             on_pull_request: false)
         end
 
         def update_issue(environment_row:, arguments:)
@@ -218,6 +233,35 @@ module Integrations
         end
 
         private
+
+        # Only a comment Firefight's App posted, so an undo never takes away what a person wrote. A conversation comment's
+        # endpoint takes an issue's and a pull request's alike, so on_pull_request says which it must be, and the comment's
+        # parent is read to hold each tool to its own permission. nil is a review comment, which is always a pull request's.
+        def delete_own_comment(tool, repo, id, path, token, on_pull_request: nil)
+          asking(tool, "GitHub has no comment #{id} in #{repo}") do
+            comment = GithubApp.get(path, token: token)
+            author = comment.dig("user", "login").to_s
+            own = GithubApp.bot_login
+            unless own.present? && author.casecmp?(own)
+              fail_policy! "Only a comment Firefight posted is deleted, and comment #{id} is #{author.presence || 'someone else'}'s. A person deletes it on GitHub."
+            end
+            parent_matches!(comment, repo, id, token, on_pull_request) unless on_pull_request.nil?
+
+            GithubApp.write(:delete, path, token: token)
+            linked("Deleted comment #{id} in #{repo}.", comment["html_url"])
+          end
+        end
+
+        def parent_matches!(comment, repo, id, token, on_pull_request)
+          number = comment["issue_url"].to_s[%r{/issues/(\d+)\z}, 1]
+          fail_policy! "GitHub did not say what comment #{id} is on, so it was not deleted." unless number
+
+          pull_request = GithubApp.get("/repos/#{repo}/issues/#{number}", token: token).key?("pull_request")
+          return if pull_request == on_pull_request
+
+          other = pull_request ? "a pull request, so delete_pull_request_comment deletes it" : "an issue, so delete_issue_comment deletes it"
+          fail_policy! "Comment #{id} is on #{other}."
+        end
 
         def issue_target(arguments, environment_row)
           [ repo_argument(arguments), number_argument(arguments), GithubApp.installation_token(environment_row) ]

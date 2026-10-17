@@ -254,8 +254,13 @@ class AbilityGateway
 
   # A team that set an unattended rule decided ahead, so a call the rule admits is approved by the rule rather than
   # waiting for an approver. The approval is written like any other, naming the rule, so the Approvals page and the
-  # activity log show who decided.
+  # activity log show who decided. A step of a run a person confirmed in a chat is approved by that confirmation when
+  # they may approve it, so they are asked once.
   def self.approved_ahead(principal:, action_key:, workspace:, scope:, params:, context:, requirement:)
+    confirmed = confirmed_ahead(principal: principal, action_key: action_key, workspace: workspace, scope: scope, params: params,
+                                context: context, requirement: requirement)
+    return confirmed if confirmed
+
     rule = context[:unattended_rule_id] && workspace.unattended_rules.find_by(id: context[:unattended_rule_id])
     return nil unless rule&.admits?(principal: principal, action_key: action_key, scope: scope, params: params)
 
@@ -267,6 +272,25 @@ class AbilityGateway
       approved_under_rule: rule, resolved_at: now, incident_id: context[:incident_id], source: context[:source]
     )
   end
+
+  # The person who confirmed a workflow run on its card in a chat, when they may give this approval themselves. A change
+  # that must have a person's own say (PERSON_REQUIREMENT) is never answered ahead, since the card named the run, not it.
+  def self.confirmed_ahead(principal:, action_key:, workspace:, scope:, params:, context:, requirement:)
+    return nil if requirement.equal?(PERSON_REQUIREMENT) || context[:workflow_run_id].blank?
+
+    person = Workflow::Run.where(workspace_id: workspace.id).find_by(id: context[:workflow_run_id])&.confirmed_by
+    return nil if person.nil? || person.removed?
+
+    approval = Ability::Approval.new(
+      workspace: workspace, principal_type: principal.class.polymorphic_name, principal_id: principal.id, principal_label: principal.principal_label,
+      action_key: action_key, request_digest: Ability::Approval.digest(action_key, params, scope), scope: scope, params: params,
+      **Ability::Approval.requirement_attributes(requirement), status: Ability::Approval::STATUS_APPROVED, approver_type: person.class.polymorphic_name,
+      approver_id: person.id, resolved_at: Time.current, workflow_run_id: context[:workflow_run_id], source: context[:source]
+    )
+    approval.save! if approval.approver?(person)
+    approval if approval.persisted?
+  end
+  private_class_method :confirmed_ahead
 
   # A read never waits on an approval rule, whatever rule names it: a tool that only reads, one of Firefight's own reads,
   # or a call shown to read through a tool that can also change things. Every change keeps every rule.
@@ -351,7 +375,9 @@ class AbilityGateway
       approval_id: approval&.id,
       completed_at: completed_at,
       workflow_step_key: context[:workflow_step_key],
-      workflow_iteration: context[:workflow_iteration]
+      workflow_iteration: context[:workflow_iteration],
+      unasked_reason: context[:unasked_reason],
+      allowance_id: context[:allowance_id]
     )
   end
 end

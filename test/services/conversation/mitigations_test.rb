@@ -225,6 +225,30 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     assert_nil ended.find { |block| block[:type] == "actions" }
   end
 
+  test "a change made without asking offers Undo now alone in Slack, and none when nothing puts it back" do
+    notice = Conversation::Mitigations::Notice.new(id: "m1", kind: Conversation::Mitigations::KIND_MADE, title: "Label issue 12 as a bug",
+                                                   text: "Halon made it without asking.", live: true, conversation_id: nil, keeps: false)
+    blocks = Slack::Messages::MitigationNotice.build(notice)
+    actions = blocks.find { |block| block[:type] == "actions" }[:elements].map { |element| element[:action_id] }
+    assert_equal [ Identifiers::MITIGATION_UNDO ], actions
+    assert_match "Made without asking: Label issue 12 as a bug", blocks.first.dig(:text, :text)
+
+    final = Slack::Messages::MitigationNotice.build(notice.with(undoable: false))
+    assert_nil final.find { |block| block[:type] == "actions" }
+  end
+
+  test "a change made without asking in a dashboard chat stays on its card, with no direct message" do
+    Slack::WorkspaceAdapter.any_instance.expects(:post_mitigation_notice_to_user).never
+    made = Chat::Mitigation.create!(chat: @chat, workspace: @workspace, asker: @alice, tool_call_id: "call_9", tool_name: @disable.model_facing_name,
+                                    action_key: @disable.action_key, arguments: ARGUMENTS, status: Chat::Mitigation::STATUS_MADE, started_at: Time.current,
+                                    undo_state: Chat::Mitigation::UNDO_NO_INVERSE, unasked_reason: Ability::Invocation::UNASKED_SAFE)
+
+    notice = Conversation::Mitigations.tell!(made, Conversation::Mitigations::KIND_MADE, "Made.")
+
+    assert_not notice.keeps
+    assert_not notice.undoable
+  end
+
   private
 
   def pause!

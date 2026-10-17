@@ -100,7 +100,7 @@ module Integrations
 
         def github_link(url) = url.present? ? Telemetry::Link.new(provider: PROVIDER, url: url) : nil
 
-        def linked(text, url) = Telemetry.result(text, link: github_link(url))
+        def linked(text, url, facts: {}) = Telemetry.result(text, link: github_link(url), facts: facts)
 
         # A page under the repository's address as GitHub's documentation names it, such as /pulls, /issues, /releases,
         # /branches, /commit/<sha> or /security/dependabot, for an answer that lists rather than names one thing.

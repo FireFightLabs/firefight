@@ -125,14 +125,15 @@ module Chat::Tools::Target
   # A call RubyLLM would pause for the person runs at once when it is refused, so the refusal reaches the agent and
   # nobody is asked to confirm a call that will not run. Otherwise the decision is the one recorded on the call, as
   # RubyLLM reads it when a tool has no resolver of its own.
+  # A recorded Cancel always wins, so nothing decided after it, such as the setting turned on or an entry added to the
+  # list of what Halon may do without asking, runs a call someone cancelled.
   def self.resolver(agent_run)
     lambda do |tool_call|
+      decided = agent_run.chat&.tool_calls&.where(tool_call_id: tool_call.id)&.pick(:approval)
+      next false if decided == Chat::APPROVAL_DENIED
       next true if yield(tool_call.arguments.to_h.stringify_keys, tool_call)
 
-      case agent_run.chat&.tool_calls&.where(tool_call_id: tool_call.id)&.pick(:approval)
-      when Chat::APPROVAL_APPROVED then true
-      when Chat::APPROVAL_DENIED then false
-      end
+      true if decided == Chat::APPROVAL_APPROVED
     end
   end
 

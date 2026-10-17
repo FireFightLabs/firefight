@@ -228,6 +228,14 @@ module Ability
     EFFECT_STOPS = "stops"
     EFFECTS = [ EFFECT_DATA_WRITE, EFFECT_MITIGATION, EFFECT_STOPS ].freeze
 
+    # How much a change risks, which decides whether Halon asks before it in a chat. A safe change is harmless or put back
+    # by another tool and touches no data, access, money or where production traffic goes, so Halon makes it without asking
+    # while the workspace lets it and says so after. Anything else is risky and asks. A tool's class is its provider's
+    # (Integrations::SafeChanges), and Firefight's own is safe for a write it can take back that asks no person.
+    CHANGE_SAFE = "safe"
+    CHANGE_RISKY = "risky"
+    CHANGE_CLASSES = [ CHANGE_SAFE, CHANGE_RISKY ].freeze
+
     KEY_FORMAT = /\A[a-z0-9_]+(\.[a-z0-9_]+)+\z/
 
     belongs_to :workspace, optional: true
@@ -255,7 +263,12 @@ module Ability
 
     def self.asks_a_person?(resource, crud_action) = PERSON_CONFIRMED_RESOURCES.include?(resource.to_s) && crud_action.to_s != ACTION_READ
 
-    def asks_a_person? = system? && self.class.asks_a_person?(self.class.resource_of(key), key.to_s.split(".").last)
+    # Firefight's own change to who may do what, or a connection's tool that changes access or a secret.
+    def asks_a_person?
+      return source.respond_to?(:access_change?) && source.access_change? if tool?
+
+      system? && self.class.asks_a_person?(self.class.resource_of(key), key.to_s.split(".").last)
+    end
 
     # An open action is never held, since a broad rule would stall every lookup. A workspace switches it off instead.
     def self.approval_exempt?(key)
@@ -349,6 +362,14 @@ module Ability
     def effects = tool? && source.respond_to?(:effects) ? source.effects : []
 
     def effect?(effect) = effects.include?(effect)
+
+    # CHANGE_SAFE or CHANGE_RISKY for a change, nil for a read. params is the call, since a call shown to read is a read.
+    def change_class(params = nil)
+      return nil if risk_of(params) == RISK_READ
+
+      safe = tool? ? source.respond_to?(:safe_change?) && source.safe_change? : risk_level == RISK_WRITE && reversible && !asks_a_person?
+      safe ? CHANGE_SAFE : CHANGE_RISKY
+    end
 
     def admin_only?
       system? && ADMIN_ONLY_RESOURCES.include?(self.class.resource_of(key))

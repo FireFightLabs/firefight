@@ -93,6 +93,17 @@ module Integrations
                     }, %w[repo number comment_id body]),
                     read_only: false
 
+          pack.tool :delete_pull_request_comment,
+                    description: "Delete a comment Firefight posted on a pull request, in its conversation as comment_on_pull_request " \
+                                 "said it or on its code as reply_to_review_comment said it. A comment anyone else wrote is refused, " \
+                                 "and a person deletes it on GitHub",
+                    params_schema: Code.object_schema({
+                      "repo" => REPO,
+                      "comment_id" => { "type" => "integer", "description" => "The comment's id" },
+                      "review" => { "type" => "boolean", "description" => "Whether it is a review comment on the code (optional, a comment in the conversation)" }
+                    }, %w[repo comment_id]),
+                    read_only: false
+
           pack.tool :review_pull_request,
                     description: "Submit a review of a pull request on its current head commit: approve it, request changes or comment, " \
                                  "with comments on lines of its diff if given",
@@ -226,8 +237,8 @@ module Integrations
             pull = GithubApp.get("/repos/#{repo}/pulls/#{number}", token: token)
             comment = GithubApp.write(:post, "/repos/#{repo}/issues/#{number}/comments", { body: body }, token: token)
             shown = comment_shown(repo, comment["id"], token)
-            said = shown ? "Commented on PR ##{number} #{pull['title']} in #{repo}, and GitHub shows the comment." : "GitHub does not show a comment on PR ##{number} #{pull['title']} in #{repo}, so nothing was said there."
-            linked("#{said} #{READ_BACK}", shown&.dig("html_url").presence || pull["html_url"])
+            said = shown ? "Commented on PR ##{number} #{pull['title']} in #{repo}#{" as comment #{comment['id']}" if comment['id']}, and GitHub shows the comment." : "GitHub does not show a comment on PR ##{number} #{pull['title']} in #{repo}, so nothing was said there."
+            linked("#{said} #{READ_BACK}", shown&.dig("html_url").presence || pull["html_url"], facts: { "comment_id" => (comment["id"] if shown) })
           end
         end
 
@@ -237,8 +248,16 @@ module Integrations
           body = written_text(arguments, "body")
           asking("reply_to_review_comment", "GitHub has no review comment #{comment_id} on pull request #{number} in #{repo}") do
             reply = GithubApp.write(:post, "/repos/#{repo}/pulls/#{number}/comments/#{comment_id}/replies", { body: body }, token: token)
-            linked("Replied to review comment #{comment_id} on PR ##{number} in #{repo}#{" on #{reply['path']}" if reply['path']}.", reply["html_url"])
+            linked("Replied to review comment #{comment_id} on PR ##{number} in #{repo}#{" on #{reply['path']}" if reply['path']}#{", as review comment #{reply['id']}" if reply['id']}.", reply["html_url"], facts: { "comment_id" => reply["id"] })
           end
+        end
+
+        def delete_pull_request_comment(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          id = number_argument(arguments, "comment_id")
+          path = boolean_argument(arguments, "review") ? "/repos/#{repo}/pulls/comments/#{id}" : "/repos/#{repo}/issues/comments/#{id}"
+          delete_own_comment("delete_pull_request_comment", repo, id, path, GithubApp.installation_token(environment_row),
+                             on_pull_request: (true unless boolean_argument(arguments, "review")))
         end
 
         def review_pull_request(environment_row:, arguments:)

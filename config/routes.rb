@@ -81,6 +81,7 @@ Rails.application.routes.draw do
         end
       end
       resources :unattended_rules, only: [ :index, :create, :update, :destroy ]
+      resources :allowances, only: [ :index, :create, :update, :destroy ]
       resources :approvals, only: [ :index, :show ] do
         member do
           post :approve
@@ -595,6 +596,7 @@ Rails.application.routes.draw do
     patch "/settings/workspace", to: "workspace_settings#update"
     post "/settings/workspace/slack/reinstall", to: "workspace_settings#reinstall_slack", as: :reinstall_slack
     patch "/settings/workspace/workflows", to: "workflow_settings#update", as: :settings_workspace_workflows
+    resources :allowances, only: [ :create, :update, :destroy ], path: "settings/workspace/without-asking"
     resources :ai_accounts, only: [ :create, :update, :destroy ], path: "settings/workspace/ai-accounts" do
       collection do
         patch :reorder

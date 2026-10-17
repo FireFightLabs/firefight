@@ -37,6 +37,7 @@ export function HeldCallCard({ conversationId, heldCall }: HeldCallCardProps) {
   const open = OPEN_STATUSES.includes(heldCall.status)
   const expiry = useExpiresIn(open ? heldCall.expiresAt : null)
   const checking = heldCall.status === HELD_CALL_STATUSES.CHECKING
+  const rows = heldCall.rows.map(([ label, meta ]) => ({ label, meta }))
   const details = heldCall.asked.map(([ label, meta ]) => ({ label, meta: withLocalMoments(meta) }))
   const offers = expiry.expired ? [] : heldCall.offers
   const blocked = offers.includes(APPROVED_CALL_ACTIONS.RUN) ? heldCall.runBlockedReason : heldCall.askAgainBlockedReason
@@ -72,6 +73,13 @@ export function HeldCallCard({ conversationId, heldCall }: HeldCallCardProps) {
         <h3 className="text-[14px] font-semibold leading-snug text-ink [overflow-wrap:anywhere]">{heldCall.headline}</h3>
         {!checking && <p className="text-[13px] leading-relaxed text-ink-2 [overflow-wrap:anywhere]">{heldCall.line}</p>}
       </div>
+      {heldCall.status === HELD_CALL_STATUSES.WAITING && rows.length > 0 && <DetailList details={rows} />}
+      {heldCall.status === HELD_CALL_STATUSES.WAITING && heldCall.caution && (
+        <p className="flex items-start gap-1.5 text-[13px] font-medium text-warning">
+          <IconAlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+          {heldCall.caution}
+        </p>
+      )}
       {heldCall.stages.length > 0 && (
         <ul className="flex flex-col gap-1.5">
           {heldCall.stages.map((stage) => (

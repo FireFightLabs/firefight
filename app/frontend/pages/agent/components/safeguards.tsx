@@ -1,10 +1,10 @@
-import { IconClockHour4, IconDatabase, IconDownload, IconLoader2, IconUserQuestion } from "@tabler/icons-react"
+import { IconCircleCheck, IconClockHour4, IconDatabase, IconDownload, IconLoader2, IconUserQuestion } from "@tabler/icons-react"
 import { useState } from "react"
 
 import { Button, buttonVariants } from "@/components/agent-ui/button"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { formatDateTime, formatTime } from "@/lib/formatters"
-import { DATA_WRITE_KINDS, MITIGATION_STATUSES, OWNER_ASK_STATUSES } from "@/lib/generated/constants"
+import { DATA_WRITE_KINDS, MITIGATION_STATUSES, MITIGATION_UNDO_STATES, OWNER_ASK_STATUSES } from "@/lib/generated/constants"
 import { agentChatDataRepairCopyPath } from "@/lib/routes"
 import { extendMitigation, keepMitigation, undoMitigation } from "@/pages/agent/lib/chat-updates"
 import type { AgentChatDataRepair, AgentChatMitigation, AgentChatOwnerAsk } from "@/types/serializers"
@@ -78,20 +78,33 @@ function mitigationState(mitigation: AgentChatMitigation): string {
   if (mitigation.status === MITIGATION_STATUSES.KEPT) {
     return "Kept. Firefight will not undo it."
   }
+  if (mitigation.status === MITIGATION_STATUSES.MADE) {
+    return mitigation.unaskedWords ?? ""
+  }
   if (mitigation.status === MITIGATION_STATUSES.UNDOING) {
     return "Undoing it now."
   }
   return mitigation.outcome ?? ""
 }
 
+// Why Halon made a change customers feel without asking, said beside when it is undone.
+function unaskedLine(mitigation: AgentChatMitigation): string | null {
+  return mitigation.status === MITIGATION_STATUSES.MADE ? null : mitigation.unaskedWords ?? null
+}
+
 // A change customers feel, such as a feature flag turned off. While it is in place it says when Firefight undoes it and
-// offers Keep it, One more hour and Undo now, each blocked with why when this viewer may not. Undo now asks first.
+// offers Keep it, One more hour and Undo now, each blocked with why when this viewer may not. Undo now asks first. A
+// change Halon made without asking says why and offers Undo now alone, or nothing when nothing puts it back.
 function MitigationCard({ conversationId, mitigation }: { conversationId: string; mitigation: AgentChatMitigation }) {
   const [ sending, setSending ] = useState<string | null>(null)
   const [ confirming, setConfirming ] = useState(false)
-  const live = mitigation.status === MITIGATION_STATUSES.ACTIVE || mitigation.status === MITIGATION_STATUSES.KEPT
+  const made = mitigation.status === MITIGATION_STATUSES.MADE
+  const live = mitigation.status === MITIGATION_STATUSES.ACTIVE || mitigation.status === MITIGATION_STATUSES.KEPT || made
   const active = mitigation.status === MITIGATION_STATUSES.ACTIVE
-  const blocked = mitigation.undoBlockedReason ?? (active ? mitigation.keepBlockedReason : null)
+  const undoable = mitigation.undoState !== MITIGATION_UNDO_STATES.NO_INVERSE
+  const blocked = undoable ? mitigation.undoBlockedReason ?? (active ? mitigation.keepBlockedReason : null) : null
+  const because = unaskedLine(mitigation)
+  const Icon = made ? IconCircleCheck : IconClockHour4
 
   function doneSending() {
     setSending(null)
@@ -122,17 +135,19 @@ function MitigationCard({ conversationId, mitigation }: { conversationId: string
   }
 
   return (
-    <section className={CARD_CLASS} aria-label="Temporary change">
+    <section className={CARD_CLASS} aria-label={made ? "Change made without asking" : "Temporary change"}>
       <div className="flex items-start gap-2">
-        <IconClockHour4 className="mt-0.5 size-4 shrink-0 text-ink-2" />
+        <Icon className="mt-0.5 size-4 shrink-0 text-ink-2" />
         <div className="flex min-w-0 flex-col gap-1">
           <h3 className="text-[14px] font-semibold leading-snug text-ink [overflow-wrap:anywhere]">{mitigation.title}</h3>
           <p className="text-[12.5px] text-ink-2 [overflow-wrap:anywhere]">{mitigation.label}</p>
           <p className="text-[13px] leading-snug text-ink [overflow-wrap:anywhere]">{mitigationState(mitigation)}</p>
+          {because && <p className="text-[12.5px] leading-snug text-ink-2 [overflow-wrap:anywhere]">{because}</p>}
+          {made && !undoable && <p className="text-[12.5px] leading-snug text-ink-3">There is no Undo for this change.</p>}
           {live && mitigation.undoNote && <p className="text-[12.5px] leading-snug text-ink-3 [overflow-wrap:anywhere]">Undo: {mitigation.undoNote}</p>}
         </div>
       </div>
-      {live && (
+      {live && (active || undoable) && (
         <div className="flex flex-wrap items-center gap-2">
           {active && (
             <Button size="sm" variant="secondary" disabled={mitigation.keepBlockedReason != null || sending != null} onClick={keep}>
@@ -146,10 +161,12 @@ function MitigationCard({ conversationId, mitigation }: { conversationId: string
               One more hour
             </Button>
           )}
-          <Button size="sm" variant="secondary" disabled={mitigation.undoBlockedReason != null || sending != null} onClick={askToUndo}>
-            {sending === "undo" && <IconLoader2 className="size-3.5 motion-safe:animate-spin" />}
-            Undo now
-          </Button>
+          {undoable && (
+            <Button size="sm" variant="secondary" disabled={mitigation.undoBlockedReason != null || sending != null} onClick={askToUndo}>
+              {sending === "undo" && <IconLoader2 className="size-3.5 motion-safe:animate-spin" />}
+              Undo now
+            </Button>
+          )}
           {blocked && <span className="text-[12.5px] text-ink-3">{blocked}</span>}
         </div>
       )}

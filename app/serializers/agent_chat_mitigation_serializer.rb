@@ -45,6 +45,13 @@ class AgentChatMitigationSerializer < BaseSerializer
     mitigation.outcome
   end
 
+  # Why Halon made it without asking, for a change it made so, such as "Halon made it without asking, since it is a safe
+  # change.", or null.
+  type :string, optional: true
+  def unasked_words
+    mitigation.unasked_words
+  end
+
   # Placed among the chat's messages by when it ran.
   type :string
   def at

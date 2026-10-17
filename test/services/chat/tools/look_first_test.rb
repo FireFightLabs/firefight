@@ -82,6 +82,8 @@ class Chat::Tools::LookFirstTest < ActiveSupport::TestCase
   end
 
   test "a change naming a read from this turn is put to the person, and the card shows the read and what it showed" do
+    # A restart of a service is a safe change, which asks only once the workspace says Halon asks before those.
+    @workspace.update!(safe_changes_without_asking: false)
     asked!("web is erroring, restart it")
     read!("call_logs", "search_logs", { "resource" => "web" }, "500s since 14:02")
     because = [ "search_logs: 500s since 14:02, right after the deploy" ]

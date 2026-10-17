@@ -70,6 +70,13 @@ class AbilityInvocationSerializer < BaseSerializer
     Ability::Source.label(invocation.source)
   end
 
+  # Why a change Halon made in a chat ran without the person's yes, such as "Made without asking because it is a safe
+  # change.", or null.
+  type :string, optional: true
+  def unasked_because
+    invocation.unasked_because
+  end
+
   type :string
   def created_at
     invocation.created_at.iso8601
