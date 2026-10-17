@@ -10,9 +10,8 @@ class IntegrationSerializerTest < ActiveSupport::TestCase
     end
     loaded = workspace.integrations.where(id: integration.id).includes(:tools, integration_environments: :environment).to_a
 
-    seen = []
-    counter = ->(_, _, _, _, payload) { seen << payload[:sql] unless payload[:name].in?([ "SCHEMA", "TRANSACTION" ]) }
-    rows = ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { IntegrationSerializer.many(loaded).as_json }
+    rows = nil
+    seen = queries_sent(cached: true) { rows = IntegrationSerializer.many(loaded).as_json }
 
     assert_equal %w[list_services restart search_logs], rows.sole["tools"].map { |tool| tool["name"] }
     assert_empty seen.grep(/FROM "integration_tools"|FROM "integrations"|FROM "integration_environments"/)

@@ -1,30 +1,51 @@
 # The statements a block sends the database, without schema reads, transactions or the query cache's hits, so a test
-# can say what a page or a turn costs and that it costs no more for more rows.
+# can say what a page or a turn costs and that it costs no more for more rows. Every query count goes through here, so
+# each one counts only the block's own work.
 module QueryCountHelper
   UNCOUNTED = %w[SCHEMA TRANSACTION].freeze
+  SCHEMA = "SCHEMA".freeze
 
-  # The query cache outlives a request in a test, so it is emptied first, else a block repeating an earlier one sends
-  # nothing. cached counts the cache's answers too, for a page whose two reads match by chance with few rows.
-  # repeats false leaves out a statement sent again with the same values, which the cache answers unless something
-  # emptied it. In a test every thread shares one connection, and a write on it from any thread empties every thread's
-  # cache, so whether the cache answered depends on what else is running rather than on the code measured.
-  def queries_sent(cached: false, repeats: true, &)
-    ActiveRecord::Base.lease_connection.clear_query_cache
-    sent = []
-    seen = Set.new
-    callback = lambda do |*, payload|
-      next if UNCOUNTED.include?(payload[:name]) || (payload[:cached] && !cached)
-      next unless repeats || seen.add?([ payload[:sql], bound_values(payload) ])
+  # A transactional test pins one connection for every thread, so a write or a finished unit of work on any thread
+  # empties every thread's query cache. While a count runs each thread empties only its own, as on a connection of its
+  # own outside tests, so a thread an earlier test left working cannot turn the block's cached reads into sent ones.
+  module OwnQueryCache
+    def clear_query_cache
+      return super unless QueryCountHelper.counting?
 
-      sent << payload[:sql]
+      query_cache.clear
     end
-    ActiveSupport::Notifications.subscribed(callback, "sql.active_record", &)
-    sent
+  end
+  ActiveRecord::ConnectionAdapters::ConnectionPool.prepend(OwnQueryCache)
+
+  COUNTS = Concurrent::AtomicFixnum.new
+
+  def self.counting? = COUNTS.value.positive?
+
+  # Once the last count ends every thread's cache is emptied, as Rails would have done for each write it held back.
+  def self.counting
+    COUNTS.increment
+    yield
+  ensure
+    ActiveRecord::Base.connection_handler.each_connection_pool(&:clear_query_cache) if COUNTS.decrement.zero?
   end
 
-  def bound_values(payload)
-    binds = payload[:type_casted_binds]
-    binds.respond_to?(:call) ? binds.call : binds
+  # The query cache outlives a request in a test, so it is emptied first, else a block repeating an earlier one sends
+  # nothing. cached counts the cache's answers too, for a page whose two reads match by chance with few rows or a check
+  # that a loaded record reads nothing at all. transactions counts BEGIN and SAVEPOINT too. A statement from a thread that
+  # was already running when the block began is another test's leftover work, never the block's.
+  def queries_sent(cached: false, transactions: false, &)
+    ActiveRecord::Base.lease_connection.clear_query_cache
+    elsewhere = (Thread.list - [ Thread.current ]).to_set
+    uncounted = transactions ? [ SCHEMA ] : UNCOUNTED
+    sent = []
+    lock = Mutex.new
+    callback = lambda do |*, payload|
+      next if elsewhere.include?(Thread.current) || uncounted.include?(payload[:name]) || (payload[:cached] && !cached)
+
+      lock.synchronize { sent << payload[:sql] }
+    end
+    QueryCountHelper.counting { ActiveSupport::Notifications.subscribed(callback, "sql.active_record", &) }
+    sent
   end
 
   # The statements sent more than once, for a failure message that says which query repeats.

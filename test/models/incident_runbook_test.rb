@@ -25,14 +25,10 @@ class IncidentRunbookTest < ActiveSupport::TestCase
     attachments = incident.incident_runbooks.to_a
 
     # Counted per attachment. The first load depends on what the page preloaded, the second adding none is the point.
-    queries = 0
-    counter = ->(*, payload) { queries += 1 unless payload[:name] == "SCHEMA" || payload[:cached] }
-
-    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { attachments.first.actions_by_step }
+    queries = queries_sent(transactions: true) { attachments.first.actions_by_step }.size
     assert_operator queries, :>=, 1, "the first attachment should load the incident's step actions"
 
-    queries = 0
-    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { attachments.last.actions_by_step }
+    queries = queries_sent(transactions: true) { attachments.last.actions_by_step }.size
 
     assert_equal 2, attachments.size
     assert_equal 0, queries, "the second attachment should reuse the first one's load"

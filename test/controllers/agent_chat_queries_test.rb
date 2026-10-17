@@ -3,7 +3,6 @@ require "test_helper"
 # What opening a chat costs the database. The page and its conversation are two requests, and a longer chat must not
 # cost more of either, since every message's steps and sources are read for the whole page at once.
 class AgentChatQueriesTest < ActionDispatch::IntegrationTest
-  NOT_COUNTED = %w[SCHEMA TRANSACTION].freeze
   FEW = 2
   MANY = 30
   # Pinned, so a query added per message or per prop shows here. Raise them only for a prop that is new. The
@@ -35,7 +34,7 @@ class AgentChatQueriesTest < ActionDispatch::IntegrationTest
 
     assert_equal PAGE_QUERIES, counted { get agent_chat_url(conversation), headers: inertia_headers }.size
     queries = counted { get agent_chat_url(conversation), headers: thread_headers }
-    assert_equal THREAD_QUERIES, queries.size, repeated(queries)
+    assert_equal THREAD_QUERIES, queries.size, repeated_queries(queries)
   end
 
   test "a question sent from the open chat reads back the pinned queries, however long the chat" do
@@ -49,7 +48,7 @@ class AgentChatQueriesTest < ActionDispatch::IntegrationTest
       Rails.cache.clear
       queries = counted { get agent_chat_url(conversation), headers: headers }
 
-      assert_equal ASKED_QUERIES, queries.size, repeated(queries)
+      assert_equal ASKED_QUERIES, queries.size, repeated_queries(queries)
     end
   end
 
@@ -110,19 +109,8 @@ class AgentChatQueriesTest < ActionDispatch::IntegrationTest
     "[Too large to hand over, saved as #{kept.handle}. Read it with read_result.]"
   end
 
-  # Each request starts with an empty query cache, as it does in production, so a query the request before made is still
-  # counted.
-  def counted
-    ActiveRecord::Base.lease_connection.clear_query_cache
-    queries = []
-    callback = ->(*, payload) { queries << payload[:sql] unless NOT_COUNTED.include?(payload[:name]) || payload[:cached] }
-    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
-    assert_response :success
-    queries
-  end
-
-  def repeated(queries)
-    queries.tally.select { |_sql, count| count > 1 }.map { |sql, count| "#{count}x #{sql.truncate(200)}" }.join("\n")
+  def counted(&)
+    queries_sent(&).tap { assert_response :success }
   end
 
   def chart
