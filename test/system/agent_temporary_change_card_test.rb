@@ -1,7 +1,7 @@
 require "application_system_test_case"
 
 # A temporary change no fixed call puts back says Halon asks in the chat to put it back, and once Halon was asked it says
-# the change stays in place until that call runs, with Undo now alone to ask again.
+# a person marks it once it is back, with Undo now to ask again.
 class AgentTemporaryChangeCardTest < ApplicationSystemTestCase
   include ActiveJob::TestHelper
 
@@ -22,7 +22,7 @@ class AgentTemporaryChangeCardTest < ApplicationSystemTestCase
     @conversation.reply_delivered!
   end
 
-  test "while it runs it says Halon is asked to put it back, and once asked it offers Undo now alone" do
+  test "while it runs it says Halon is asked to put it back, and once asked it offers It's back and Undo now" do
     mitigation = Chat::Mitigation.create!(
       chat: @chat, workspace: @workspace, asker: @alice, tool_call_id: "call_1", tool_name: @disable.model_facing_name, action_key: @disable.action_key,
       arguments: {}, intent: "Turn new-checkout off", duration_minutes: 60, status: Chat::Mitigation::STATUS_ACTIVE, started_at: Time.current,
@@ -41,11 +41,15 @@ class AgentTemporaryChangeCardTest < ApplicationSystemTestCase
     mitigation.update_columns(status: Chat::Mitigation::STATUS_UNDO_ASKED, claimed_at: Time.current)
     visit agent_chat_path(@conversation)
     within("[aria-label='Temporary change']") do
-      assert_text "Halon was asked in this chat to put it back. It stays in place until that call runs."
+      assert_text "Halon was asked to put this back. Mark it once it's back."
       assert_no_button "Keep it"
       assert_no_button "One more hour"
       assert_button "Undo now"
     end
     page.save_screenshot(Rails.root.join("tmp/screenshots/temporary-change-asked.png").to_s)
+
+    within("[aria-label='Temporary change']") { click_button "It's back" }
+    assert_toast "Feature flag disable is marked as back."
+    assert_equal Chat::Mitigation::STATUS_UNDONE, mitigation.reload.status
   end
 end

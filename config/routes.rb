@@ -514,6 +514,7 @@ Rails.application.routes.draw do
     post "/agent/:id/mitigations/:mitigation_id/keep", to: "agent_chats#keep_mitigation", as: :agent_chat_mitigation_keep
     post "/agent/:id/mitigations/:mitigation_id/extend", to: "agent_chats#extend_mitigation", as: :agent_chat_mitigation_extend
     post "/agent/:id/mitigations/:mitigation_id/undo", to: "agent_chats#undo_mitigation", as: :agent_chat_mitigation_undo
+    post "/agent/:id/mitigations/:mitigation_id/back", to: "agent_chats#mark_mitigation_back", as: :agent_chat_mitigation_back
     get "/agent/:id/data-repairs/:data_repair_id/copy", to: "agent_chats#data_repair_copy", as: :agent_chat_data_repair_copy
     post "/agent/:id/pull-requests/:notice_id/fix", to: "agent_chats#fix_pull_request", as: :agent_chat_pull_request_fix
     post "/agent/:id/plans/:plan_id/schedule", to: "agent_chats#schedule_plan", as: :agent_chat_plan_schedule

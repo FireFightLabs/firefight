@@ -111,94 +111,6 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     assert_empty @sent
   end
 
-  test "the call Halon makes to put it back is its undo, counted as undone only once it runs, and is kept as a change of its own, starting on Never" do
-    mitigation = in_chat!(expires_at: 1.minute.ago)
-    Conversation::Mitigations.expire!(mitigation)
-    schema = Chat::Tools::Connection.new(@turn, @enable).parameters_schema
-    assert_equal [ mitigation.id ], schema.dig("properties", Chat::Tools::PUTS_BACK_ARG, "enum"), "Halon is offered the change to name"
-    back = undo_call!("call_back", puts_back: mitigation.id)
-    Chat::Safeguards.prepare!(@turn, [ back ])
-    putting_back = Chat::Mitigation.for_call(@chat, "call_back")
-    assert putting_back, "turning a flag back on is a change customers feel, kept like any"
-    assert_nil putting_back.duration_minutes, "putting something back is never itself undone unless the person picks a time"
-    assert_equal Chat::Mitigation::KEEP, Chat::Tools.confirmation(back.reload).chosen_expiry
-    assert_equal Chat::Mitigation::STATUS_UNDO_ASKED, mitigation.reload.status
-
-    said = run_enable!("call_back")
-
-    assert_equal [ "feature_flag_enable", ARGUMENTS ], @sent.last, "the provider never sees which change it puts back"
-    assert_equal Chat::Mitigation::STATUS_UNDONE, mitigation.reload.status
-    assert_equal "Halon put Turn new-checkout off back.", mitigation.outcome
-    assert_equal Chat::Mitigation::STATUS_KEPT, Chat::Mitigation.for_call(@chat, "call_back").status
-    assert_match "This put back Turn new-checkout off", said
-  end
-
-  test "a call naming a change to put back always asks on its card, which says what it puts back, whatever would let it run unasked" do
-    mitigation = in_chat!(expires_at: 1.minute.ago)
-    Conversation::Mitigations.expire!(mitigation)
-    connection = Chat::Tools::Connection.new(@turn, @enable)
-    Conversation::Turn.any_instance.stubs(:unasked_for).returns(Conversation::Turn::Unasked.new(reason: Ability::Invocation::UNASKED_SAFE, allowance_id: nil))
-
-    assert connection.requires_approval?
-    back = undo_call!("call_back", puts_back: mitigation.id, approval: Chat::APPROVAL_REQUESTED)
-    assert_nil connection.approval_resolver.call(RubyLLM::ToolCall.new(id: "call_back", name: connection.name, arguments: @undo_arguments)),
-               "never unasked, whatever the setting or the list says"
-    assert_includes Chat::Tools.confirmation(back.reload).safeguards, [ Chat::Tools::PUTS_BACK_ROW, "Turn new-checkout off" ]
-  end
-
-  test "a call naming a change it does not reach is not its undo, so the change stays waiting" do
-    mitigation = in_chat!(expires_at: 1.minute.ago)
-    mitigation.update_columns(target: "Elsewhere (PostHog)")
-    Conversation::Mitigations.expire!(mitigation)
-    undo_call!("call_back", puts_back: mitigation.id)
-
-    run_enable!("call_back")
-
-    assert_equal Chat::Mitigation::STATUS_UNDO_ASKED, mitigation.reload.status
-    assert_nil mitigation.undo_tool_call_id
-  end
-
-  test "Undo now waits while Halon's call to put it back is tied, and only that call settles or lets go of it" do
-    mitigation = in_chat!(expires_at: 1.minute.ago)
-    Conversation::Mitigations.expire!(mitigation)
-    mitigation.reload.update_columns(undo_tool_call_id: "call_back")
-
-    assert_match "Halon's call to put this back", mitigation.reload.undo_blocked_reason(@alice)
-    assert_equal mitigation.undo_blocked_reason(@alice), Conversation::Mitigations.undo_now!(mitigation, by: @alice)
-
-    Conversation::Mitigations.undo_ran!(mitigation, ok: true, call_id: "call_other")
-    assert_equal Chat::Mitigation::STATUS_UNDO_ASKED, mitigation.reload.status, "another call settles nothing"
-    Conversation::Mitigations.release_undo!(@chat, "call_other")
-    assert_equal "call_back", mitigation.reload.undo_tool_call_id
-    Conversation::Mitigations.release_undo!(@chat, "call_back")
-    assert_nil mitigation.reload.undo_tool_call_id
-    assert_nil mitigation.undo_blocked_reason(@alice)
-  end
-
-  test "an undo call the gateway refuses lets go of the change, so Undo now can ask again" do
-    mitigation = in_chat!(expires_at: 1.minute.ago)
-    Conversation::Mitigations.expire!(mitigation)
-    undo_call!("call_back", puts_back: mitigation.id)
-    AbilityGateway.stubs(:authorize!).raises(AbilityGateway::Denied.new(@enable.action_key))
-
-    run_enable!("call_back")
-
-    assert_nil mitigation.reload.undo_tool_call_id
-  end
-
-  test "an undo call an approval rule held lets go of the change when its approvers say no" do
-    mitigation = in_chat!(expires_at: 1.minute.ago)
-    Conversation::Mitigations.expire!(mitigation)
-    mitigation.reload.update_columns(undo_tool_call_id: "call_back")
-    approval = @workspace.ability_approvals.create!(principal: @alice, principal_label: "user:Alice", action_key: @enable.action_key, request_digest: "d",
-                                                    required_role: "admin", status: Ability::Approval::STATUS_DENIED)
-    Chat::HeldCall.create!(chat: @chat, approval: approval, tool_name: @enable.model_facing_name, tool_call_id: "call_back", status: Chat::HeldCall::STATUS_WAITING)
-
-    Conversation::HeldCalls.denied!(approval)
-
-    assert_nil mitigation.reload.undo_tool_call_id
-  end
-
   test "pressing Undo on a plan hands it a change Halon was asked to put back too" do
     mitigation = in_chat!(expires_at: 1.minute.ago)
     Conversation::Mitigations.expire!(mitigation)
@@ -218,22 +130,6 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
 
     assert_not mitigation.undone_by_firefight?
     assert Conversation::Mitigations.notice(mitigation, Conversation::Mitigations::KIND_REMINDER, "Soon.").asks_halon
-  end
-
-  test "a change on the same connection that names nothing to put back is its own change, counted down, and leaves the waiting one in place" do
-    mitigation = in_chat!(expires_at: 1.minute.ago)
-    Conversation::Mitigations.expire!(mitigation)
-    other = pause!
-    other.update_columns(tool_call_id: "call_other", approval: Chat::APPROVAL_APPROVED)
-    Chat::Safeguards.prepare!(@turn, [ other ])
-    assert Chat::Mitigation.for_call(@chat, "call_other"), "another flag turned off is counted down as any"
-
-    tool = Chat::Tools::Connection.new(@turn, @disable)
-    tool.call(tool_call: RubyLLM::ToolCall.new(id: "call_other", name: tool.name, arguments: { "id" => 8 }), id: 8)
-
-    assert_equal Chat::Mitigation::STATUS_UNDO_ASKED, mitigation.reload.status
-    assert_nil mitigation.undo_tool_call_id
-    assert_equal Chat::Mitigation::STATUS_ACTIVE, Chat::Mitigation.for_call(@chat, "call_other").status
   end
 
   test "while the person is asked about another call, Halon is asked to put it back at its next turn, so that question is never withdrawn" do
@@ -263,22 +159,44 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     assert_match "#{@alice.display_name} pressed Undo now on Turn new-checkout off", Conversation::Mitigations.untold_note(@chat)
   end
 
-  test "an undo call that fails, or never runs, leaves the change in place, due by hand, and Undo now asks Halon again" do
+  test "Halon's call to put it back never marks the change undone, and nothing it names changes when the call is undone" do
     mitigation = in_chat!(expires_at: 1.minute.ago)
     Conversation::Mitigations.expire!(mitigation)
-    failing = Object.new
-    failing.define_singleton_method(:call) { |**| { "isError" => true, "content" => [ { "type" => "text", "text" => "Flag 7 is locked." } ] } }
-    Integration.any_instance.stubs(:executor).returns(failing)
-    undo_call!("call_back", puts_back: mitigation.id)
+    message = @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    back = message.ruby_llm_tool_calls.create!(tool_call_id: "call_back", name: @enable.model_facing_name, approval: Chat::APPROVAL_APPROVED,
+                                               arguments: ARGUMENTS.merge("intent" => "Turn new-checkout back on", "puts_back" => mitigation.id))
+    Chat::Safeguards.prepare!(@turn, [ back ])
 
-    said = run_enable!("call_back")
-    @chat.tool_calls.find_by!(tool_call_id: "call_back").update!(result: @chat.messages.create!(role: Chat::Message::ROLE_TOOL, content: said.to_s))
-    assert_equal Chat::Mitigation::STATUS_UNDO_ASKED, mitigation.reload.status
-    assert_nil mitigation.undo_tool_call_id, "the next call to put it back is tied to it instead"
+    tool = Chat::Tools::Connection.new(@turn, @enable)
+    tool.call(tool_call: RubyLLM::ToolCall.new(id: "call_back", name: tool.name, arguments: back.arguments), **back.arguments.symbolize_keys)
+
+    assert_equal "feature_flag_enable", @sent.last.first
+    assert_equal Chat::Mitigation::STATUS_UNDO_ASKED, mitigation.reload.status, "only a person marks it back"
+    assert_equal Chat::Mitigation::DEFAULT_MINUTES, Chat::Mitigation.for_call(@chat, "call_back").duration_minutes, "no argument changes when it is undone"
+  end
+
+  test "It's back marks it undone once, for whoever may undo it, and only once Halon was asked" do
+    mitigation = in_chat!(expires_at: 1.hour.from_now)
+
+    assert_match "was not asked", Conversation::Mitigations.mark_back!(mitigation, by: @alice)
+    mitigation.update_columns(status: Chat::Mitigation::STATUS_UNDO_ASKED)
+    assert_match "Only", Conversation::Mitigations.mark_back!(mitigation.reload, by: @bob)
+
+    assert_nil Conversation::Mitigations.mark_back!(mitigation, by: @alice)
+    assert_equal [ Chat::Mitigation::STATUS_UNDONE, @alice.id ], [ mitigation.reload.status, mitigation.ended_by_id ]
+    assert_equal "#{@alice.display_name} marked Turn new-checkout off as put back.", mitigation.outcome
+    stale = Chat::Mitigation.find(mitigation.id)
+    stale.status = Chat::Mitigation::STATUS_UNDO_ASKED
+    assert_equal "This was just changed by someone else.", Conversation::Mitigations.mark_back!(stale, by: @alice)
+  end
+
+  test "Halon asked to put it back and still not marked a while later is due by hand, and Undo now asks Halon again" do
+    mitigation = in_chat!(expires_at: 1.minute.ago)
+    Conversation::Mitigations.expire!(mitigation)
 
     travel(Chat::Mitigation::REMIND_BEFORE + 1.minute) do
       Slack::WorkspaceAdapter.any_instance.expects(:post_mitigation_notice_to_user).once.with do |notice:, **|
-        notice.kind == Conversation::Mitigations::KIND_REMINDER && notice.text.include?("is still in place") && notice.text.include?("by hand")
+        notice.kind == Conversation::Mitigations::KIND_REMINDER && notice.text.include?("not marked as back") && notice.text.include?("by hand")
       end.returns({ channel_id: "D1", message_id: "1.2" })
       MitigationSweepJob.perform_now
       MitigationSweepJob.perform_now
@@ -290,7 +208,6 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     assert_equal Chat::Mitigation::STATUS_UNDO_ASKED, mitigation.reload.status
     assert_match "Alice", @chat.messages.where(nudge: true).last.content
   end
-
   test "a job queued for a model to write an undo puts the change back in the chat instead, and a model's step never runs" do
     mitigation = active!
     FirefightAi::UndoWriter.any_instance.expects(:write).never
@@ -446,7 +363,7 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     assert_nil final.find { |block| block[:type] == "actions" }
   end
 
-  test "a temporary change Halon was asked to put back is still titled one in Slack, offering Undo now alone, and asking Halon again" do
+  test "a temporary change Halon was asked to put back is still titled one in Slack, offering It's back and Undo now to ask again" do
     mitigation = in_chat!(expires_at: 1.minute.ago)
     mitigation.update_columns(status: Chat::Mitigation::STATUS_UNDO_ASKED)
 
@@ -454,7 +371,8 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     blocks = Slack::Messages::MitigationNotice.build(notice)
 
     assert_match "Temporary change: Turn new-checkout off", blocks.first.dig(:text, :text)
-    undo = blocks.find { |block| block[:type] == "actions" }[:elements].sole
+    back, undo = blocks.find { |block| block[:type] == "actions" }[:elements]
+    assert_equal [ Identifiers::MITIGATION_BACK, Slack::Messages::MitigationNotice::BACK ], [ back[:action_id], back.dig(:text, :text) ]
     assert_equal Identifiers::MITIGATION_UNDO, undo[:action_id]
     assert_equal Slack::Messages::MitigationNotice::ASKS_HALON, undo.dig(:confirm, :text, :text)
   end
@@ -494,19 +412,6 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
 
   def in_chat!(expires_at:)
     active!(expires_at: expires_at).tap { |row| row.update!(undo_state: Chat::Mitigation::UNDO_IN_CHAT, undo_note: Chat::Mitigation::IN_CHAT_NOTE) }
-  end
-
-  # Halon's call to turn the flag back on, approved on its card, naming the change it puts back.
-  def undo_call!(call_id, puts_back:, approval: Chat::APPROVAL_APPROVED)
-    @undo_arguments = ARGUMENTS.merge(Chat::Tools::PUTS_BACK_ARG => puts_back)
-    message = @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
-    message.ruby_llm_tool_calls.create!(tool_call_id: call_id, name: @enable.model_facing_name, arguments: @undo_arguments.merge("intent" => "Turn new-checkout back on"),
-                                        approval: approval)
-  end
-
-  def run_enable!(call_id)
-    tool = Chat::Tools::Connection.new(@turn, @enable)
-    tool.call(tool_call: RubyLLM::ToolCall.new(id: call_id, name: tool.name, arguments: @undo_arguments), **@undo_arguments.symbolize_keys)
   end
 
   def ready!(expires_at:)

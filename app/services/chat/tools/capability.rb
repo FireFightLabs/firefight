@@ -21,16 +21,12 @@ class Chat::Tools::Capability < RubyLLM::Tool
   def parameters_schema
     schema = Integrations::Capabilities.schema(@spec, Integrations::Capabilities.connection_choices(@agent_run.workspace, @spec, @tools))
     schema = Chat::Tools::LookFirst.with_because(schema, required: true) if looks_first?
-    schema = Chat::Tools.with_putting_back(schema, Conversation::Mitigations.waiting_undo_ids(@agent_run.chat, @tools)) if @spec.writes
     requires_approval? ? Chat::Tools.with_intent(schema) : schema
   end
 
   # A read is written by Firefight and only ever reads, so it never waits for the person. A change asks whenever the
   # tool it could run as would.
-  def requires_approval? = asks_anyway? || (@spec.writes && Conversation::Mitigations.waiting_undo_ids(@agent_run.chat, @tools).any?)
-
-  # Whether a call asks the person whatever it names. One that names a change to put back always asks on its card.
-  def asks_anyway?
+  def requires_approval?
     return false unless @spec.writes
 
     allowed = Chat::Tools::Provenance.allowed?(@agent_run, name)
@@ -43,7 +39,7 @@ class Chat::Tools::Capability < RubyLLM::Tool
   # up, or one on the list of what Halon may do without asking, runs unasked (Conversation::Turn#unasked_for).
   def approval_resolver
     Chat::Tools::Target.resolver(@agent_run) do |given, tool_call|
-      !asks_anyway? || misdirection(given).present? || unsupported(given, tool_call&.id).present? || undone(given, tool_call&.id).present? ||
+      misdirection(given).present? || unsupported(given, tool_call&.id).present? || undone(given, tool_call&.id).present? ||
         without_person?(given, tool_call)
     end
   end

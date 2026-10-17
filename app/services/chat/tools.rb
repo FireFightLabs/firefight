@@ -270,30 +270,13 @@ module Chat::Tools
     "description" => "The change in two to five words starting with a verb, for the title of the approval and its button, " \
                      "such as \"Pause dev-web\" or \"Purge the firefight.app cache\""
   }.freeze
-  # Names the change Firefight asked Halon to put back that a call puts back, offered only while one waits on the call's
-  # connection (Conversation::Mitigations.undo_asked_in), so the change is undone by that call and no other.
-  PUTS_BACK_ARG = "puts_back".freeze
-  # The line on the card of a call that names a change it puts back, beside that change's title.
-  PUTS_BACK_ROW = "Puts back".freeze
-  # Every argument the agent writes for the person or for Firefight, which no tool is given.
-  FOR_PERSON = [ INTENT_ARG, SHORT_TITLE_ARG, PUTS_BACK_ARG ].freeze
+  # Every argument the agent writes for the person alone, which no tool is given.
+  FOR_PERSON = [ INTENT_ARG, SHORT_TITLE_ARG ].freeze
 
   def self.with_intent(schema)
     schema = schema.deep_dup
     schema["properties"] = (schema["properties"] || {}).merge(INTENT_ARG => INTENT, SHORT_TITLE_ARG => SHORT_TITLE)
-    schema["required"] = (Array(schema["required"]) + [ INTENT_ARG, SHORT_TITLE_ARG ]).uniq
-    schema
-  end
-
-  # ids are the changes waiting to be put back on the call's connection, and none adds nothing.
-  def self.with_putting_back(schema, ids)
-    return schema if ids.empty?
-
-    schema = schema.deep_dup
-    schema["properties"] = (schema["properties"] || {}).merge(PUTS_BACK_ARG => {
-      "type" => "string", "enum" => ids,
-      "description" => "Only when this call puts back a change Firefight asked you to put back: that change's id. Leave it out for any other call."
-    })
+    schema["required"] = (Array(schema["required"]) + FOR_PERSON).uniq
     schema
   end
 
@@ -452,7 +435,7 @@ module Chat::Tools
       tool_call_id: tool_call.tool_call_id, question: browser_question(tool_call) || (target ? "#{call} on #{target}?" : "#{step&.title || tool_call.name.humanize}?"),
       intent: intent_of(tool_call.arguments), asked: (step&.asked || []) + planned(tool_call), status: CONFIRMATION_STATUSES.fetch(tool_call.approval, :awaiting),
       target: target, call: call, read: Provenance.stored(tool_call),
-      safeguards: [ puts_back_row(chat, tool_call), *repair&.confirmation_rows, owner&.confirmation_row, *page&.would_send_rows ].compact,
+      safeguards: [ *repair&.confirmation_rows, owner&.confirmation_row, *page&.would_send_rows ].compact,
       expires: expiries(mitigation), for_chat: repair.nil? && !Browser.sends?(tool_call.arguments) && !asks_a_person?(tool_call.name, workspace),
       waiting_on: (owner.owner_name if tool_call.approval == Chat::APPROVAL_OWNER_ASKED && owner),
       support: workspace ? LookFirst.support(chat, tool_call, workspace) : [], page: page,
@@ -495,13 +478,6 @@ module Chat::Tools
     Ability::Action::EFFECT_MITIGATION => "Changes what customers get from %<place>s until it is undone.",
     Ability::Action::EFFECT_DATA_WRITE => "Changes rows in %<place>s."
   }.freeze
-
-  # The change a call names as the one it puts back, by its title, or nil.
-  def self.puts_back_row(chat, tool_call)
-    named = tool_call.arguments.to_h.stringify_keys[PUTS_BACK_ARG]
-    putting_back = (chat.mitigations.find_by(id: named.to_s) if chat && named.present?)
-    [ PUTS_BACK_ROW, putting_back.title ] if putting_back
-  end
 
   # What undoing a change customers feel means, such as starting a paused service again, when Firefight puts it back
   # itself, and ASK_HALON_TO_PUT_BACK when no fixed call does and Halon is asked in the chat instead.
