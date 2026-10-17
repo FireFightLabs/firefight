@@ -152,7 +152,8 @@ module Integrations
           asking("comment_on_issue", "GitHub has no issue #{number} in #{repo}") do
             issue = only_issue!(repo, number, token)
             comment = GithubApp.write(:post, "/repos/#{repo}/issues/#{number}/comments", { body: body }, token: token)
-            linked("Commented on issue ##{number} #{issue['title']} in #{repo}#{", as comment #{comment['id']}" if comment['id']}.", comment["html_url"].presence || issue["html_url"])
+            linked("Commented on issue ##{number} #{issue['title']} in #{repo}#{", as comment #{comment['id']}" if comment['id']}.", comment["html_url"].presence || issue["html_url"],
+                   facts: { "comment_id" => comment["id"] })
           end
         end
 

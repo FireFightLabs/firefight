@@ -221,9 +221,9 @@ class IntegrationProvider
   # says about the provider's consent screen, such as which access to leave off.
   Entry =Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
                       :source_links, :source_links_note, :map, :map_note, :history, :history_note, :scaling, :scaling_note, :code_fix_tool, :regions, :connect_fields, :site, :code_agent,
-                      :app, :setting_words, :holds_code, :mitigation_tools, :stopping_tools, :safe_tools, :safe_tools_without_undo, :access_tools, :status_page, :hosts, :holds_flags, :write_tools,
+                      :app, :setting_words, :holds_code, :mitigation_tools, :stopping_tools, :safe_tools, :undo_tools, :access_tools, :status_page, :hosts, :holds_flags, :write_tools,
                       :admin_marks_reads, :retiring, :test_logins, :specialist, :oauth_scopes, :consent_note, :own_server, :token, :holds_status_pages) do
-    def initialize(connect_with: nil, read_only_tools: [], write_tools: [], admin_marks_reads: false, mitigation_tools: [], stopping_tools: [], safe_tools: [], safe_tools_without_undo: [], access_tools: [], source_links_note: nil, map_note: nil, history: HISTORY_NONE, history_note: nil, scaling: nil, scaling_note: nil, code_fix_tool: nil, regions: [],
+    def initialize(connect_with: nil, read_only_tools: [], write_tools: [], admin_marks_reads: false, mitigation_tools: [], stopping_tools: [], safe_tools: [], undo_tools: {}, access_tools: [], source_links_note: nil, map_note: nil, history: HISTORY_NONE, history_note: nil, scaling: nil, scaling_note: nil, code_fix_tool: nil, regions: [],
                    connect_fields: [], site: nil, code_agent: false, app: nil, setting_words: [], holds_code: false, status_page: nil, hosts: [], holds_flags: false, retiring: nil,
                    test_logins: false, specialist: nil, oauth_scopes: [], consent_note: nil, own_server: nil, token: nil, holds_status_pages: false, **) = super
 
@@ -356,9 +356,9 @@ class IntegrationProvider
         # one is undone after a time the person sees unless someone keeps it. stopping_tools end or remove something
         # someone started, such as cancelling a run, so whoever started it is asked first (Ability::Action::EFFECTS).
         mitigation_tools: Array(raw["mitigation_tools"]), stopping_tools: Array(raw["stopping_tools"]),
-        # safe_tools and safe_tools_without_undo are changes Halon may make without asking, and access_tools ones a person is
-        # always asked about (Integrations::SafeChanges).
-        safe_tools: Array(raw["safe_tools"]), safe_tools_without_undo: Array(raw["safe_tools_without_undo"]), access_tools: Array(raw["access_tools"]),
+        # safe_tools are changes Halon may make without asking, undo_tools the fixed call that puts each back, and
+        # access_tools changes a person is always asked about (Integrations::SafeChanges).
+        safe_tools: Array(raw["safe_tools"]), undo_tools: raw["undo_tools"].to_h, access_tools: Array(raw["access_tools"]),
         source_links: declared(raw, "source_links", SOURCE_LINKS, SOURCE_LINKS_EXPLAINED), source_links_note: raw["source_links_note"],
         map: declared(raw, "map", MAPS, MAP_EXPLAINED), map_note: raw["map_note"],
         history: declared(raw, "history", HISTORIES, HISTORY_EXPLAINED), history_note: raw["history_note"],

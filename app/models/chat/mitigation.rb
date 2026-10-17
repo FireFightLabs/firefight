@@ -2,8 +2,9 @@
 # down (Ability::Action::EFFECT_MITIGATION). It is undone after the time the person chose when they confirmed it,
 # DEFAULT_MINUTES unless they changed it, with a reminder REMIND_BEFORE that, unless someone keeps it. Its undo is
 # written once it ran, from what the call returned (Conversation::Mitigations). Every move is one guarded update, so
-# two workers never remind or undo twice. A change Halon made without asking (unasked_reason) is kept here too, as made:
-# it stays until someone presses Undo, which is written only then, and offers none when nothing puts it back.
+# two workers never remind or undo twice. A change Halon made without asking (unasked_reason) is kept here too, as made.
+# It stays until someone presses Undo, which runs the one call the registry declares to put it back, and offers none when
+# none is declared.
 class Chat::Mitigation < ApplicationRecord
   STATUS_PROPOSED = "proposed"
   STATUS_ACTIVE = "active"
@@ -158,7 +159,7 @@ class Chat::Mitigation < ApplicationRecord
   def undo_blocked_reason(member)
     blocked = change_blocked_reason(member)
     return blocked if blocked
-    return "Nothing puts this back as it was, so it cannot be undone." if undo_state == UNDO_NO_INVERSE
+    return "There is no Undo for this change." if undo_state == UNDO_NO_INVERSE
     return "Halon is still writing how to undo this. Try again in a moment." if undo_state == UNDO_WRITING
     return "Halon could not write an undo it can run itself. #{undo_note}" if undo_state == UNDO_BY_HAND
 

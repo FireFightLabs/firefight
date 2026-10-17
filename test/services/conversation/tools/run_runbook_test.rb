@@ -44,6 +44,30 @@ class Conversation::Tools::RunRunbookTest < ActiveSupport::TestCase
     assert_match "No runbook is called deploy everything", tool.call(runbook: "deploy everything")
   end
 
+  test "the person's own Approve on this run's card answers its steps" do
+    workflow = published_workflow_of(release_runbook)
+    chat = @conversation.chat_record
+    approved = chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+                   .ruby_llm_tool_calls.create!(tool_call_id: "call_ok", name: Conversation::Tools::RunRunbook::NAME, arguments: { "runbook" => "ship it" })
+    chat.request_decisions!([ "call_ok" ])
+    chat.decide!("call_ok", approved: true, by: @member)
+
+    Conversation::Tools::RunRunbook.new(turn(@member)).call(tool_call: RubyLLM::ToolCall.new(id: "call_ok", name: approved.name, arguments: {}),
+                                                            runbook: "ship it", inputs: { "bump" => "minor" })
+    assert_equal @member, workflow.runs.sole.confirmed_by
+  end
+
+  test "Allow for the rest of the chat runs a runbook without a card, and its yes answers none of the steps" do
+    workflow = published_workflow_of(release_runbook)
+    chat = @conversation.chat_record
+    chat.allow_tool!(Conversation::Tools::RunRunbook::NAME)
+    allowed = chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+                  .ruby_llm_tool_calls.create!(tool_call_id: "call_allowed", name: Conversation::Tools::RunRunbook::NAME, arguments: { "runbook" => "ship it" })
+    Conversation::Tools::RunRunbook.new(turn(@member)).call(tool_call: RubyLLM::ToolCall.new(id: "call_allowed", name: allowed.name, arguments: {}),
+                                                            runbook: "ship it", inputs: { "bump" => "minor" })
+    assert_nil workflow.runs.sole.confirmed_by
+  end
+
   test "running a runbook starts the workflow it links as the workflow's own identity, with the inputs given" do
     runbook = release_runbook
     workflow = published_workflow_of(runbook)
@@ -53,7 +77,8 @@ class Conversation::Tools::RunRunbookTest < ActiveSupport::TestCase
     run = workflow.runs.sole
     assert_match "Started Release Firefight, the workflow Release Firefight runs. Its run: ", said
     assert_includes said, Workflow::Links.run(run)
-    assert_equal [ workflow.agent, Workflow::Run::STARTED_BY_HALON, @member, @member ], [ run.agent, run.started_by_kind, run.started_by, run.confirmed_by ]
+    assert_equal [ workflow.agent, Workflow::Run::STARTED_BY_HALON, @member, nil ], [ run.agent, run.started_by_kind, run.started_by, run.confirmed_by ],
+                 "a call with no card the person approved confirms nothing for its steps"
     assert_equal({ "bump" => "minor" }, run.inputs)
     assert_equal({ "name" => "Release Firefight", "slug" => runbook.slug }, run.trigger_payload["runbook"])
     assert Ability::Invocation.exists?(principal: @member, action_key: Workflow::CREATE_KEY), "starting it is ledgered as running a workflow"

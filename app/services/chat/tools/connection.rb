@@ -141,7 +141,8 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
   # Whether the call would ask as any change does, allowed for the chat (until something outside was read) and a
   # scheduled plan's approved tools included.
-  def confirms_as_usual? = @agent_run.confirms?(@tool.ability_action, allowed: Chat::Tools::Provenance.allowed?(@agent_run, name), tool_name: name)
+  def confirms_as_usual? = @agent_run.confirms?(@tool.ability_action, allowed: Chat::Tools::Provenance.allowed?(@agent_run, name), tool_name: name,
+                                                                     asks_a_person: @tool.access_change?)
 
   # A scheduled plan's tool, approved ahead by the person, since nobody may be there to answer.
   def approved_ahead? = @agent_run.respond_to?(:approved_ahead?) && @agent_run.approved_ahead?(name)
@@ -170,7 +171,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     scope, params = call_scope(given)
     @agent_run.unasked!(tool_call.id, @agent_run.unasked_for(@tool.ability_action, scope: scope, params: params, safe: @tool.safe_change?,
                                                                                    tool_call_id: tool_call.id,
-                                                                                   outside: Chat::Tools::Provenance.reads_into(@agent_run, tool_call.id)))
+                                                                                   outside: Chat::Tools::Provenance.outside_read(@agent_run)))
   rescue Integration::UnknownEnvironment
     false
   end
@@ -178,7 +179,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # Whether an approval rule holds this call for someone other than the asker, whose approvers are then the only ones
   # asked. A counted write's rows go on their card (Chat::HeldCall#safeguard_rows).
   def held_for_others?(given)
-    return false unless @agent_run.respond_to?(:asks_approvers_instead?)
+    return false unless @agent_run.respond_to?(:asks_approvers_instead?) && !@tool.access_change?
 
     scope, params = call_scope(given)
     @agent_run.asks_approvers_instead?(@tool.ability_action, scope: scope, params: params)
@@ -243,10 +244,10 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # call_id is the call the person confirmed, when it differs from tool_call_id, as for a held call run once approved,
   # which has no tool call of its own. Its safeguards (Chat::Safeguards) run around the call.
   # relayed is a call a provider's command line tool made in Halon's terminal, whose answer keeps the API's own shape too.
-  # undoable is whether something puts the change back when it ran without asking, which a capability decides call by
-  # call, and the tool's own declaration otherwise.
+  # inverse is the fixed call that puts the change back when it ran without asking (Integrations::SafeChanges::Inverse),
+  # which a capability works out call by call, nil for none, and the registry's declaration for the tool by default.
   def run(arguments, environment_entry:, tool_call_id:, shown_as: name, present: nil, approval_id: nil, alone: true, target: nil, refusal: nil,
-          call_id: tool_call_id, relayed: false, undoable: nil)
+          call_id: tool_call_id, relayed: false, inverse: :declared)
     @alone = alone
     @failed = false
     @waiting = false
@@ -292,7 +293,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     return FirefightAi::Evidence.refused(shown_as, @refusal, step: said.step) if @refusal
 
     guarded = safeguards&.after(ok: !@failed, result: result)
-    made = made_unasked(unasked, call_id, environment_entry, arguments, result, undoable) unless @failed
+    made = made_unasked(unasked, call_id, environment_entry, arguments, result, inverse) unless @failed
     charted = Chat::Chart::Marker.note(keep_charts(tool_call_id, result, said.step))
     tracked = present.nil? && Chat::Tools::TrackedIssues.after(
       @agent_run, tool: @tool, environment_row: environment_row, scope: scope, arguments: arguments, result: result, kind: @issue_kind
@@ -324,16 +325,13 @@ class Chat::Tools::Connection < RubyLLM::Tool
   private
 
   # A change that ran without asking is kept as made and said where the chat is (Conversation::Mitigations.made!), with
-  # Undo when something puts it back. A safe change follows the tool's own declaration, and one on the list of what
-  # Halon may do without asking has Undo unless its tool is declared to have none.
-  def made_unasked(unasked, call_id, environment_entry, arguments, result, undoable)
+  # Undo only when a fixed call that puts it back is declared for it. No model writes one.
+  def made_unasked(unasked, call_id, environment_entry, arguments, result, inverse)
     return unless unasked
 
-    if undoable.nil?
-      undoable = Integrations::SafeChanges.undoable?(@tool) || (unasked.reason == Ability::Invocation::UNASKED_ALLOWANCE && !@tool.safe_change?)
-    end
+    inverse = Integrations::SafeChanges.inverse(@tool, arguments, result) if inverse == :declared
     Conversation::Mitigations.made!(@agent_run, call_id: call_id, tool: @tool, environment_entry: environment_entry, arguments: arguments, result: result,
-                                                unasked: unasked, undoable: undoable)
+                                                unasked: unasked, inverse: inverse)
   end
 
   # A coding agent writing a change in Firefight's sandbox hands over its whole work each time it moves

@@ -102,7 +102,7 @@ class Chat::Tools::Capability < RubyLLM::Tool
 
     unasked = @agent_run.unasked_for(action, scope: found.scope, params: found.arguments, safe: Integrations::SafeChanges.capability_call?(found, asked),
                                              capability: @spec.key, integration_id: found.tool.integration_id, tool_call_id: tool_call.id,
-                                             outside: Chat::Tools::Provenance.reads_into(@agent_run, tool_call.id))
+                                             outside: Chat::Tools::Provenance.outside_read(@agent_run))
     @agent_run.unasked!(tool_call.id, unasked)
   rescue Integrations::Capabilities::Unroutable
     false
@@ -147,18 +147,17 @@ class Chat::Tools::Capability < RubyLLM::Tool
 
   def connection(found) = Chat::Tools::Connection.new(@agent_run, found.tool)
 
-  # Whether something puts back what this call changes, when it runs without asking. A scale up is scaled back down, a
-  # restart has nothing, and a change on the list of what Halon may do without asking is offered an undo.
-  def undoable?(found, tool_call)
-    given = tool_call&.arguments.to_h.stringify_keys
-    return Integrations::SafeChanges.capability_undoable?(found, given) if Integrations::SafeChanges.capability_call?(found, given)
+  # The call that puts back what this one changes, when it runs without asking. A safe scale up is scaled back to the
+  # live count it started from. Nothing else a capability changes has one, so it offers no Undo.
+  def inverse_of(found, tool_call)
+    return nil unless @spec.writes && tool_call
 
-    @spec.writes
+    Integrations::SafeChanges.capability_inverse(found, tool_call.arguments, workspace: @agent_run.workspace, principal: @agent_run.acting_principal)
   end
 
   def ask(found, tool_call, alone: true, asked: connection(found))
     text = asked.run(found.arguments, environment_entry: found.environment_entry, tool_call_id: tool_call&.id, shown_as: name, present: found.present,
-                                      alone: alone, target: target_of(found), undoable: undoable?(found, tool_call))
+                                      alone: alone, target: target_of(found), inverse: inverse_of(found, tool_call))
     @answered = Answered.new(call: found, result: asked.last_result) unless asked.failed? || asked.waiting?
     text
   end

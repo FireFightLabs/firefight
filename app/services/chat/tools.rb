@@ -93,8 +93,14 @@ module Chat::Tools
   end
 
   # A tool that changes permissions, a credential, an approval or a webhook is asked about every time, so Allow for the
-  # rest of this chat never covers it.
-  def self.asks_a_person?(tool_name) = person_confirmed_names.include?(tool_name.to_s)
+  # rest of this chat never covers it. So is a connection's tool that changes who can reach something or sets a secret
+  # (Integrations::SafeChanges.access?), found by its name in the workspace.
+  def self.asks_a_person?(tool_name, workspace = nil)
+    return true if person_confirmed_names.include?(tool_name.to_s)
+
+    tool = workspace && Target.label(workspace, tool_name)
+    tool.present? && Integrations::SafeChanges.access?(tool)
+  end
 
   def self.person_confirmed_names
     @person_confirmed_names ||= FirefightTools.all.filter_map { |tool_class| tool_class.name_value.to_s if tool_class.asks_a_person? }.to_set
@@ -168,9 +174,7 @@ module Chat::Tools
     # the request is theirs. Where it came from in a word, the full list under Details.
     def caution
       places = holding_sources.map { |source| Chat::Tools::Provenance.place(source.from) }.uniq
-      return if places.empty?
-
-      [ format(CAUTION, places: places.to_sentence), (LISTED_BUT_READ if listed) ].compact.join(" ")
+      [ (format(CAUTION, places: places.to_sentence) if places.any?), (LISTED_BUT_READ if listed) ].compact.join(" ").presence
     end
 
     def holding_sources = read&.sources&.select { |source| source.found.any? } || []
@@ -220,7 +224,7 @@ module Chat::Tools
   UNDO_AUTOMATICALLY = "Undo automatically".freeze
   WANTS_TO = "Halon wants to:".freeze
   CAUTION = "It read text from %<places>s that other people wrote. Check this is what you want.".freeze
-  LISTED_BUT_READ = "It is on the list of what Halon may do without asking, and asks anyway, since that text holds what it would change.".freeze
+  LISTED_BUT_READ = "It is on the list of what Halon may do without asking, and asks anyway, since Halon has read text from outside Firefight in this chat.".freeze
   ACTION_LIMIT = 120
   LINE_LIMIT = 160
   # A commit, a review or a comment named by its id says nothing to the person approving, so the card leaves them out,
@@ -430,7 +434,7 @@ module Chat::Tools
       intent: intent_of(tool_call.arguments), asked: (step&.asked || []) + planned(tool_call), status: CONFIRMATION_STATUSES.fetch(tool_call.approval, :awaiting),
       target: target, call: call, read: Provenance.stored(tool_call),
       safeguards: [ *repair&.confirmation_rows, owner&.confirmation_row, *page&.would_send_rows ].compact,
-      expires: expiries(mitigation), for_chat: repair.nil? && !Browser.sends?(tool_call.arguments) && !asks_a_person?(tool_call.name),
+      expires: expiries(mitigation), for_chat: repair.nil? && !Browser.sends?(tool_call.arguments) && !asks_a_person?(tool_call.name, workspace),
       waiting_on: (owner.owner_name if tool_call.approval == Chat::APPROVAL_OWNER_ASKED && owner),
       support: workspace ? LookFirst.support(chat, tool_call, workspace) : [], page: page,
       short_title: short_title_of(tool_call.arguments), chosen_expiry: chosen_expiry(mitigation), undo_words: undo_words(workspace, mitigation),

@@ -80,6 +80,8 @@ class Chat::DataRepairsTest < ActiveSupport::TestCase
     assert_match "*Rows it changes:* 42 rows of orders", Slack::Messages::HeldCall.body(shown)
     request = Slack::Messages::Approval.build_request(held.approval, shown: ApprovalNotificationService.shown(held.approval)).to_json
     assert_includes request, "42 rows of orders"
+    assert_includes AbilityApprovalSerializer.one(held.approval)[:rows], [ "Rows it changes", "42 rows of orders" ]
+    assert_includes Mcp::Tools::SearchApprovals.approval_payload(held.approval)[:rows_it_changes], [ "Rows it changes", "42 rows of orders" ]
   end
 
   test "each read is in the activity log as the person, through the read tool, and never waits for an approval rule" do

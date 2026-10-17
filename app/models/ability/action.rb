@@ -263,7 +263,12 @@ module Ability
 
     def self.asks_a_person?(resource, crud_action) = PERSON_CONFIRMED_RESOURCES.include?(resource.to_s) && crud_action.to_s != ACTION_READ
 
-    def asks_a_person? = system? && self.class.asks_a_person?(self.class.resource_of(key), key.to_s.split(".").last)
+    # Firefight's own change to who may do what, or a connection's tool that changes access or a secret.
+    def asks_a_person?
+      return source.respond_to?(:access_change?) && source.access_change? if tool?
+
+      system? && self.class.asks_a_person?(self.class.resource_of(key), key.to_s.split(".").last)
+    end
 
     # An open action is never held, since a broad rule would stall every lookup. A workspace switches it off instead.
     def self.approval_exempt?(key)

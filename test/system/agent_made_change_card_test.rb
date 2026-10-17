@@ -33,7 +33,7 @@ class AgentMadeChangeCardTest < ApplicationSystemTestCase
       assert_button "Undo now"
     end
     within("[aria-label='Change made without asking']", text: "Run the tests on main") do
-      assert_text "Nothing puts this back as it was, so there is no Undo."
+      assert_text "There is no Undo for this change."
       assert_no_button "Undo now"
     end
     page.save_screenshot(Rails.root.join("tmp/screenshots/made-without-asking.png").to_s)

@@ -64,9 +64,10 @@ class Chat::Tools::Firefight < RubyLLM::Tool
   # Only a tool that resolves, cancels, deletes or revokes something. An action item or an incident update needs no read first.
   def looks_first? = @tool_class.ends_something? && Chat::Tools::LookFirst.applies?(@agent_run)
 
-  # Only a call the gateway can hold is held, so only then do its approvers stand in for the asker.
+  # Only a call the gateway can hold is held, so only then do its approvers stand in for the asker. A change to who may do
+  # what keeps the asker's own card as well, since a person always says yes to it.
   def approvers_instead?(given)
-    return false unless @agent_run.respond_to?(:asks_approvers_instead?) && (@tool_class.holdable? || @tool_class.asks_a_person?)
+    return false unless @agent_run.respond_to?(:asks_approvers_instead?) && @tool_class.holdable? && !@tool_class.asks_a_person?
 
     arguments = given.symbolize_keys.except(*Chat::Tools::FOR_PERSON.map(&:to_sym), Chat::Tools::LookFirst::BECAUSE.to_sym)
     action = Ability::Action.lookup(Ability::Action.system_key(*@tool_class.authorization(@agent_run.workspace, arguments)), @agent_run.workspace)

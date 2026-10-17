@@ -59,6 +59,12 @@ class AgentChatHeldCallSerializer < BaseSerializer
     shown.rows
   end
 
+  # The warning the asker's card would have carried when text from outside Firefight was read before the call.
+  type :string, optional: true
+  def caution
+    shown.caution
+  end
+
   # How things stand now, in Halon's words, and what kind of change it found, said plainly above them.
   type :string, optional: true
   def state

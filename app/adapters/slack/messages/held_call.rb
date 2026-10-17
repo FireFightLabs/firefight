@@ -46,7 +46,10 @@ module Slack
       # page a finished change made.
       def self.body(held_call)
         lines = [ Mrkdwn.escape(held_call.line) ]
-        lines.concat(rows_lines(held_call.rows)) if held_call.status == Chat::HeldCall::STATUS_WAITING
+        if held_call.status == Chat::HeldCall::STATUS_WAITING
+          lines.concat(rows_lines(held_call.rows))
+          lines << ":warning: #{Mrkdwn.escape(held_call.caution)}" if held_call.caution
+        end
         if held_call.status == Chat::HeldCall::STATUS_READY
           lines << ":warning: #{Mrkdwn.escape(held_call.warning)}" if held_call.warning
           lines << "Now: #{Mrkdwn.escape(held_call.state)}" if held_call.state

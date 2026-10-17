@@ -143,7 +143,7 @@ function MitigationCard({ conversationId, mitigation }: { conversationId: string
           <p className="text-[12.5px] text-ink-2 [overflow-wrap:anywhere]">{mitigation.label}</p>
           <p className="text-[13px] leading-snug text-ink [overflow-wrap:anywhere]">{mitigationState(mitigation)}</p>
           {because && <p className="text-[12.5px] leading-snug text-ink-2 [overflow-wrap:anywhere]">{because}</p>}
-          {made && !undoable && <p className="text-[12.5px] leading-snug text-ink-3">Nothing puts this back as it was, so there is no Undo.</p>}
+          {made && !undoable && <p className="text-[12.5px] leading-snug text-ink-3">There is no Undo for this change.</p>}
           {live && mitigation.undoNote && <p className="text-[12.5px] leading-snug text-ink-3 [overflow-wrap:anywhere]">Undo: {mitigation.undoNote}</p>}
         </div>
       </div>

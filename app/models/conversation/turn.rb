@@ -124,9 +124,9 @@ class Conversation::Turn
   # or one in a tracker's issue, which act for a machine. action is the tool's action the call runs as, scope where it
   # runs, safe whether this call is safe (Integrations::SafeChanges), capability the capability Halon called through and
   # integration_id the connection it routed to. An entry of the list covers a call only when its values came from the
-  # person or Firefight's own data. outside answers whether text read from outside, such as an issue or a log line, holds
-  # one of them (Chat::Tools::Provenance), and such a call is asked on the card as usual, which says why
-  # (#listed_but_read!). A safe change runs either way.
+  # person, so never once anything from outside has reached the chat (outside, Chat::Tools::Provenance), the same as
+  # Allow for the rest of this chat. Such a call is asked on the card as usual, which says why (#listed_but_read!). A safe
+  # change runs either way.
   def unasked_for(action, scope: {}, params: {}, safe: false, capability: nil, integration_id: nil, tool_call_id: nil, outside: -> { true })
     return nil unless decides_for_person? && action && !action.read? && !action.asks_a_person?
     return nil if approval_requirement_for(action, scope, params).present?

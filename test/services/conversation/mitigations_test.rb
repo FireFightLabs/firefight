@@ -237,23 +237,6 @@ class Conversation::MitigationsTest < ActiveSupport::TestCase
     assert_nil final.find { |block| block[:type] == "actions" }
   end
 
-  test "Undo on a change made without asking writes its undo then, runs it as the asker, and Halon hears it was undone" do
-    made = Chat::Mitigation.create!(chat: @chat, workspace: @workspace, asker: @alice, tool_call_id: "call_9", tool_name: @disable.model_facing_name,
-                                    action_key: @disable.action_key, arguments: ARGUMENTS, intent: "Turn new-checkout off", status: Chat::Mitigation::STATUS_MADE,
-                                    started_at: Time.current, told_at: Time.current, result: "Flag 7 (new-checkout) is now off.",
-                                    undo_state: Chat::Mitigation::UNDO_NONE, unasked_reason: Ability::Invocation::UNASKED_SAFE)
-    FirefightAi::UndoWriter.any_instance.expects(:write).returns({ "summary" => "Turn it back on", "steps" => [
-      { "kind" => "action", "description" => "Turn new-checkout back on", "tool" => @enable.model_facing_name, "arguments" => ARGUMENTS }
-    ] })
-
-    assert_nil Conversation::Mitigations.undo_now!(made, by: @alice)
-    perform_enqueued_jobs(only: MitigationUndoRunJob)
-
-    assert_equal Chat::Mitigation::STATUS_UNDONE, made.reload.status
-    assert_equal [ "feature_flag_enable", ARGUMENTS ], @sent.last
-    assert_match "new-checkout", Conversation::Mitigations.untold_note(@chat)
-  end
-
   test "a change made without asking in a dashboard chat stays on its card, with no direct message" do
     Slack::WorkspaceAdapter.any_instance.expects(:post_mitigation_notice_to_user).never
     made = Chat::Mitigation.create!(chat: @chat, workspace: @workspace, asker: @alice, tool_call_id: "call_9", tool_name: @disable.model_facing_name,

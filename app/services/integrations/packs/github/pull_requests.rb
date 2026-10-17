@@ -238,7 +238,7 @@ module Integrations
             comment = GithubApp.write(:post, "/repos/#{repo}/issues/#{number}/comments", { body: body }, token: token)
             shown = comment_shown(repo, comment["id"], token)
             said = shown ? "Commented on PR ##{number} #{pull['title']} in #{repo}#{" as comment #{comment['id']}" if comment['id']}, and GitHub shows the comment." : "GitHub does not show a comment on PR ##{number} #{pull['title']} in #{repo}, so nothing was said there."
-            linked("#{said} #{READ_BACK}", shown&.dig("html_url").presence || pull["html_url"])
+            linked("#{said} #{READ_BACK}", shown&.dig("html_url").presence || pull["html_url"], facts: { "comment_id" => (comment["id"] if shown) })
           end
         end
 
@@ -248,7 +248,7 @@ module Integrations
           body = written_text(arguments, "body")
           asking("reply_to_review_comment", "GitHub has no review comment #{comment_id} on pull request #{number} in #{repo}") do
             reply = GithubApp.write(:post, "/repos/#{repo}/pulls/#{number}/comments/#{comment_id}/replies", { body: body }, token: token)
-            linked("Replied to review comment #{comment_id} on PR ##{number} in #{repo}#{" on #{reply['path']}" if reply['path']}#{", as review comment #{reply['id']}" if reply['id']}.", reply["html_url"])
+            linked("Replied to review comment #{comment_id} on PR ##{number} in #{repo}#{" on #{reply['path']}" if reply['path']}#{", as review comment #{reply['id']}" if reply['id']}.", reply["html_url"], facts: { "comment_id" => reply["id"] })
           end
         end
 

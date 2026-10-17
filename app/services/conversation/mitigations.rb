@@ -70,7 +70,8 @@ module Conversation::Mitigations
   # A change Halon made without asking ran. A change customers feel is still counted down as it was, and anything else is
   # kept as made, in place until someone undoes it. Either way the person sees it with why it was not asked, where the
   # chat is. undoable is whether something puts it back. Returns what Halon reads, or nil when it was not kept.
-  def self.made!(agent_run, call_id:, tool:, environment_entry:, arguments:, result:, unasked:, undoable:)
+  # inverse is the fixed call that puts it back (Integrations::SafeChanges::Inverse), or nil for none, which offers no Undo.
+  def self.made!(agent_run, call_id:, tool:, environment_entry:, arguments:, result:, unasked:, inverse:)
     chat = agent_run.chat
     return nil if chat.nil? || unasked.nil? || call_id.blank?
 
@@ -82,8 +83,7 @@ module Conversation::Mitigations
         chat: chat, workspace: agent_run.workspace, asker: agent_run.acting_principal, tool_call_id: call_id.to_s, action_key: tool.action_key,
         environment_id: environment_entry&.id, arguments: arguments.to_h, status: Chat::Mitigation::STATUS_MADE, started_at: Time.current,
         told_at: Time.current, result: Chat::SecretFree.redacted(result_text(result)).truncate(Chat::Mitigation::RESULT_LIMIT),
-        undo_state: undoable ? Chat::Mitigation::UNDO_NONE : Chat::Mitigation::UNDO_NO_INVERSE, unasked_reason: unasked.reason,
-        allowance_id: unasked.allowance_id, **called(agent_run, chat, call_id, tool)
+        unasked_reason: unasked.reason, allowance_id: unasked.allowance_id, **undo_of(inverse, environment_entry), **called(agent_run, chat, call_id, tool)
       )
     end
     tell!(mitigation, KIND_MADE, made_words(mitigation))
@@ -91,6 +91,17 @@ module Conversation::Mitigations
   rescue ActiveRecord::RecordNotUnique
     nil
   end
+
+  # The undo as one step ready to run, the declared call on the same connection and environment, or none.
+  def self.undo_of(inverse, environment_entry)
+    return { undo_state: Chat::Mitigation::UNDO_NO_INVERSE } unless inverse
+
+    description = "#{inverse.tool.name.to_s.tr('_', ' ').upcase_first} on #{inverse.tool.integration.display_name}"
+    { undo_state: Chat::Mitigation::UNDO_READY, undo_note: "#{description}.",
+      undo_steps: [ { "description" => description, "action_key" => inverse.tool.action_key, "arguments" => inverse.arguments,
+                      "environment_id" => environment_entry&.id } ] }
+  end
+  private_class_method :undo_of
 
   # The name Halon called it by, what it reaches and the change in Halon's few words, read from the call itself.
   def self.called(agent_run, chat, call_id, tool)
@@ -104,7 +115,7 @@ module Conversation::Mitigations
 
   def self.made_words(mitigation)
     undo = if mitigation.live?
-      mitigation.undo_state == Chat::Mitigation::UNDO_NO_INVERSE ? "Nothing puts it back as it was, so there is no Undo." : "Undo puts it back."
+      mitigation.undo_state == Chat::Mitigation::UNDO_NO_INVERSE ? "There is no Undo for this change." : "Undo puts it back."
     end
     [ "#{mitigation.label}.", mitigation.unasked_words, undo ].compact.join(" ")
   end
@@ -112,7 +123,7 @@ module Conversation::Mitigations
   def self.made_note(mitigation)
     return started_note(mitigation) unless mitigation.made?
 
-    undo = mitigation.undo_state == Chat::Mitigation::UNDO_NO_INVERSE ? "with no Undo, since nothing puts it back" : "with Undo"
+    undo = mitigation.undo_state == Chat::Mitigation::UNDO_NO_INVERSE ? "with no Undo" : "with Undo"
     "This ran without asking the person, #{mitigation.unasked_because}. They see it in the chat #{undo}. Say what you changed, in a sentence."
   end
 
@@ -229,10 +240,7 @@ module Conversation::Mitigations
 
   # Claimed as undoing by whoever started it. Each step runs in order as the asker, and the first that does not go
   # through stops it, said with why.
-  # A change made without asking has its undo written only once someone presses Undo, here, so a label nobody takes off
-  # costs nothing.
   def self.undo!(mitigation, by:)
-    write_undo!(mitigation) if mitigation.undo_state == Chat::Mitigation::UNDO_NONE && mitigation.made_unasked?
     if mitigation.undo_state != Chat::Mitigation::UNDO_READY
       ending!(mitigation, Chat::Mitigation::STATUS_DUE_BY_HAND, "#{mitigation.title} is due to be undone, and Firefight cannot do it itself. " \
                                                                  "#{mitigation.undo_note.presence || 'Its undo is not written yet.'}")
@@ -263,6 +271,8 @@ module Conversation::Mitigations
   private_class_method :undone_by
 
   def self.run_step(turn, mitigation, step)
+    return run_inverse(turn, mitigation, step) if mitigation.made_unasked? && mitigation.duration_minutes.nil?
+
     tool = Integration::Tool.by_action_key(mitigation.workspace, step["action_key"])
     return [ :failed, "the tool it runs with is switched off or gone" ] unless tool
 
@@ -278,6 +288,26 @@ module Conversation::Mitigations
     [ :failed, error.message ]
   end
   private_class_method :run_step
+
+  # The declared undo of a change made without asking, only ever through a tool that may be one (SafeChanges.inverse_allowed?)
+  # of the same connection, in the environment the change ran in, through the gateway as the asker, so grants, approval
+  # rules and the activity log apply.
+  def self.run_inverse(turn, mitigation, step)
+    tool = Integration::Tool.by_action_key(mitigation.workspace, step["action_key"])
+    made_on = Integration::Tool.by_action_key(mitigation.workspace, mitigation.action_key)
+    return [ :failed, "the tool it runs with is switched off or gone" ] unless tool&.enabled? && made_on
+    return [ :failed, "it would reach another connection" ] unless tool.integration_id == made_on.integration_id
+    return [ :failed, "#{tool.name} may not undo a change" ] unless Integrations::SafeChanges.inverse_allowed?(tool)
+
+    entry = (CatalogEntry.find_by(id: step["environment_id"], workspace_id: mitigation.workspace_id) if step["environment_id"])
+    connection = Chat::Tools::Connection.new(turn, tool)
+    said = connection.run(step["arguments"].to_h, environment_entry: entry, tool_call_id: nil, shown_as: tool.model_facing_name, inverse: nil)
+    return :held if connection.waiting?
+    return [ :failed, said.to_s.lines.first.to_s.strip.truncate(300) ] if connection.failed?
+
+    :ran
+  end
+  private_class_method :run_inverse
 
   def self.outcome_words(mitigation, outcome, step, _by)
     # A held call runs as soon as it is approved (Conversation::HeldCalls.approved!), so there is no Run to wait for.

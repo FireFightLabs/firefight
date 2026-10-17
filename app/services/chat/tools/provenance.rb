@@ -53,30 +53,32 @@ module Chat::Tools::Provenance
     chat.present? && chat.allows_tool?(tool_name) && !read_outside?(chat)
   end
 
-  # Whether text read from outside holds one of this call's own values that the person did not write themselves, so
-  # the change may have come from that text rather than from them or from Firefight's own data.
-  def self.holds_outside_values?(chat, tool_call, workspace)
-    read_outside?(chat) && of(chat, tool_call, workspace).sources.any? { |source| source.found.any? }
+  # Whether anything not written by a person in Firefight has reached this chat's model: any tool's result, Firefight's
+  # own included, a file someone attached, what Firefight adds to a turn (a nudge, such as a held call's answer or the
+  # message a direct message replies to) and a memory no person confirmed. The list of what Halon may do without asking
+  # covers a change only before any of it, the same promise Allow for the rest of this chat makes, since a value from
+  # any of them can steer what a change does.
+  def self.read_anything_outside?(chat)
+    return true unless chat
+
+    chat.tool_calls.where.not(result_id: nil).exists? || chat.attached_files.exists? || chat.messages.where(nudge: true).exists? ||
+      Chat::MemoryUse.joins(:memory).where(owner: chat.owner).where.not(chat_memories: { state: Chat::Memory::STATE_CONFIRMED }).exists?
   end
 
-  # The same for a call of this turn by its id, answered only when asked. A call not found on the chat is taken to hold
-  # some, so the person is asked.
-  def self.reads_into(agent_run, tool_call_id)
-    lambda do
-      chat = agent_run.chat
-      call = chat&.tool_calls&.find_by(tool_call_id: tool_call_id.to_s)
-      call.nil? || holds_outside_values?(chat, call, agent_run.workspace)
-    end
-  end
+  # The same for a turn, answered only when asked.
+  def self.outside_read(agent_run) = -> { read_anything_outside?(agent_run.chat) }
 
   # Kept with each call put to the person, so the question says what was read before it however often it is redrawn,
   # and Allow for the rest of this chat is never offered or honoured for it (Chat#decide!).
-  def self.record!(agent_run, tool_calls)
-    chat = agent_run.chat
+  def self.record!(agent_run, tool_calls) = record_in!(agent_run.chat, tool_calls, agent_run.workspace)
+
+  # The same for calls kept in a chat, such as one an approval rule sent straight to its approvers, so their request
+  # carries the warning the asker's card would have.
+  def self.record_in!(chat, tool_calls, workspace)
     return if tool_calls.empty? || !read_outside?(chat)
 
     tool_calls.each do |tool_call|
-      read = of(chat, tool_call, agent_run.workspace)
+      read = of(chat, tool_call, workspace)
       tool_call.update_columns(provenance: {
         SOURCES => read.sources.map { |source| { LABEL => source.label, FOUND => source.found, FROM => source.from } }, OTHERS => read.others
       })

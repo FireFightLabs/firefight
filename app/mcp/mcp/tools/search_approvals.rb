@@ -27,6 +27,9 @@ module Mcp
         )
       end
 
+      # What the approver's card shows beyond the call, a database write's rows and the warning about text read from outside.
+      def self.shown(approval) = ApprovalNotificationService.shown(approval)
+
       def self.approval_payload(approval)
         {
           id: approval.id,
@@ -45,6 +48,8 @@ module Mcp
           on_call_may_approve: approval.on_call_may_approve,
           status: approval.status,
           approver: approval.decider_name,
+          rows_it_changes: shown(approval).rows.presence,
+          outside_text_warning: shown(approval).caution,
           requested_at: approval.created_at.iso8601,
           resolved_at: approval.resolved_at&.iso8601
         }.compact

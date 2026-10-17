@@ -49,14 +49,15 @@
 # makes through one is undone after a time the person sees and can change, unless someone keeps it. stopping_tools end
 # or remove something someone started, such as cancelling a run, so its pack asks whoever started it first. Neither
 # lists a general tool that reaches a whole API, since which call it makes is only known when it is called.
-# safe_tools are tools whose change is harmless or put back by another tool, and changes no data, access, money or where
+# safe_tools are tools whose change is harmless or easy to put back, and changes no data, access, money or where
 # production traffic goes, such as a label, a comment or running CI again, so Halon makes it without asking when the
-# workspace lets it and says so with Undo. safe_tools_without_undo are as harmless with nothing that puts them back, such
-# as a restart, so Halon says what it did with no Undo. Every other change is risky and asks. A tool on a remote server
-# is listed only where its own documentation makes that plain, and a restart, a scale or a rollback that can reach a
-# database or a whole machine is never listed, since the capability decides those call by call
-# (Integrations::SafeChanges). access_tools change who can reach something or set a secret, so a person is always asked
-# and the list of what Halon may do without asking never holds one.
+# workspace lets it and says what it did. Every other change is risky and asks. A tool on a remote server is listed only
+# where its own documentation makes that plain, and a restart, a scale or a rollback is never listed, since the
+# capability decides those call by call from a live count (Integrations::SafeChanges). undo_tools gives a safe tool the
+# one fixed call that puts it back, on the same connection: the tool, and each of its arguments taken from the call's
+# own argument of that name, from a value the tool's answer named (result.<name>), or as written (=<value>). Only a tool
+# here offers Undo, and no model ever writes one. access_tools change who can reach something or set a secret, so a
+# person is always asked and the list of what Halon may do without asking never holds one.
 # status_page is the provider's public status page and hosts the domains its API and apps answer on, read with the
 # outside systems in config/upstreams.yml, which says what each means. A provider that runs only where its customer runs
 # it, such as Kubernetes, has neither.
@@ -134,8 +135,14 @@ categories:
 
 providers:
   - key: github
-    safe_tools: [rerun_workflow, comment_on_issue, comment_on_pull_request, reply_to_review_comment, label_issue, label_pull_request, assign_issue]
-    safe_tools_without_undo: [run_tests, request_reviewers]
+    safe_tools: [rerun_workflow, comment_on_issue, comment_on_pull_request, reply_to_review_comment, label_issue, label_pull_request, assign_issue, run_tests, request_reviewers]
+    undo_tools:
+      comment_on_issue: { tool: delete_issue_comment, arguments: { repo: repo, comment_id: result.comment_id } }
+      comment_on_pull_request: { tool: delete_pull_request_comment, arguments: { repo: repo, comment_id: result.comment_id } }
+      reply_to_review_comment: { tool: delete_pull_request_comment, arguments: { repo: repo, comment_id: result.comment_id, review: "=true" } }
+      label_issue: { tool: label_issue, arguments: { repo: repo, number: number, add: remove, remove: add } }
+      label_pull_request: { tool: label_pull_request, arguments: { repo: repo, number: number, add: remove, remove: add } }
+      assign_issue: { tool: assign_issue, arguments: { repo: repo, number: number, add: remove, remove: add } }
     access_tools: [set_actions_secret]
     name: GitHub
     category: Code
@@ -156,8 +163,7 @@ providers:
     holds_code: true
     stopping_tools: [cancel_workflow]
   - key: gitlab
-    safe_tools: [retry_pipeline]
-    safe_tools_without_undo: [run_tests]
+    safe_tools: [retry_pipeline, run_tests]
     name: GitLab
     category: Code
     mark: GL
@@ -188,8 +194,7 @@ providers:
     holds_code: true
     stopping_tools: [cancel_pipeline]
   - key: bitbucket
-    safe_tools: [rerun_pipeline]
-    safe_tools_without_undo: [run_tests]
+    safe_tools: [rerun_pipeline, run_tests]
     name: Bitbucket
     category: Code
     mark: BB
@@ -439,7 +444,6 @@ providers:
     history: firefight
     stopping_tools: [rollout_pause, suspend_cronjob]
   - key: modal
-    safe_tools_without_undo: [rollover_app]
     name: Modal
     category: Cloud and hosting
     mark: MD
@@ -463,7 +467,6 @@ providers:
           allowed: "letters, numbers, dots, dashes and underscores, starting with a letter or number, at most 64 characters",
           hint: "The Modal environment this connection reads, such as main. Leave it empty for the workspace's default environment." }
   - key: digitalocean
-    safe_tools_without_undo: [restart_app]
     name: DigitalOcean
     category: Cloud and hosting
     specialist: cloud
@@ -543,7 +546,6 @@ providers:
       - { key: project, label: Project ref, placeholder: proj_..., pattern: 'proj_[a-z0-9]+', allowed: "proj_ followed by lowercase letters and numbers",
           hint: "The project's ref, starting with proj_, as in your trigger.config.ts. Links to runs use it." }
   - key: aws
-    safe_tools_without_undo: [restart_service]
     name: AWS
     category: Cloud and hosting
     specialist: cloud
@@ -719,7 +721,6 @@ providers:
     scaling_note: "A service counts the replicas it is set to run."
     history: firefight
   - key: fly
-    safe_tools_without_undo: [restart_app]
     name: Fly.io
     category: Cloud and hosting
     mark: FL
@@ -801,7 +802,7 @@ providers:
     history_note: "It pages people about what runs elsewhere and keeps no builds or deploys whose length could be read."
     map_note: "It pages people about what runs elsewhere and runs nothing of its own."
   - key: opsgenie
-    safe_tools_without_undo: [add_alert_note]
+    safe_tools: [add_alert_note]
     name: Opsgenie
     category: Alerting and on-call
     mark: OG
