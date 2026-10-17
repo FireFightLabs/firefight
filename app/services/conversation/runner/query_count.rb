@@ -9,15 +9,27 @@ class Conversation::Runner::QueryCount
     @total = 0
     @cached = 0
     @db_seconds = 0.0
+    @started = []
   end
 
   def count(&)
-    fiber = Fiber.current
-    counter = ->(_name, started, finished, _id, payload) { add(payload, finished - started) if Fiber.current.equal?(fiber) }
-    ActiveSupport::Notifications.subscribed(counter, "sql.active_record", monotonic: true, &)
+    @fiber = Fiber.current
+    ActiveSupport::Notifications.subscribed(self, "sql.active_record", &)
   end
 
   def db_ms = (@db_seconds * 1000).round(1)
+
+  def start(_name, _id, _payload)
+    @started << Process.clock_gettime(Process::CLOCK_MONOTONIC) if Fiber.current.equal?(@fiber)
+  end
+
+  # A transaction's BEGIN or SAVEPOINT is sent inside the first statement that needs it, so its time is already that
+  # statement's and only the outermost statement's time is added.
+  def finish(_name, _id, payload)
+    return unless Fiber.current.equal?(@fiber) && (started = @started.pop)
+
+    add(payload, @started.empty? ? Process.clock_gettime(Process::CLOCK_MONOTONIC) - started : 0.0)
+  end
 
   private
 

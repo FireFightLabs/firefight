@@ -51,5 +51,5 @@ module Workflow::Chatting
 
   private
 
-  def member_words(member) = member.try(:display_name) || "Whoever is asking"
+  def member_words(member) = member.try(:actor_display_name) || "Whoever is asking"
 end

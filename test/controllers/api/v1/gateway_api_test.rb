@@ -149,6 +149,7 @@ class Api::V1::GatewayApiTest < ActionDispatch::IntegrationTest
     get api_v1_approvals_url, params: { status: "pending" }, headers: api_headers(token: service_token)
     assert_response :success
     assert_equal [ approval.id ], json_response["approvals"].map { |row| row["id"] }
+    assert_equal [ @bob.principal_label, @bob.display_name ], json_response["approvals"].sole.values_at("principal", "principal_name")
 
     post approve_api_v1_approval_url(approval), headers: api_headers(token: service_token)
     assert_response :unprocessable_entity
@@ -172,6 +173,7 @@ class Api::V1::GatewayApiTest < ActionDispatch::IntegrationTest
     row = json_response["activity"].first
     assert_equal "permissions.create", row["action_key"]
     assert_equal "api", row["source"]
+    assert_equal [ @admin.principal_label, @admin.display_name ], row.values_at("principal", "principal_name")
     assert_equal 1, json_response["pagination"]["page"]
   end
 

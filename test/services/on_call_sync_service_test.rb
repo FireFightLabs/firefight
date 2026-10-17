@@ -32,7 +32,7 @@ class OnCallSyncServiceTest < ActiveSupport::TestCase
     assert_includes @incident.on_call_members, @bob
     ledger = @workspace.ability_invocations.find_by!(action_key: "pagerduty.manage_incidents")
     assert_equal [ SystemAgent.paging, AbilityGateway::SOURCE_PAGING, Ability::Invocation::OUTCOME_SUCCESS ], [ ledger.principal, ledger.source, ledger.outcome ]
-    assert_equal "Firefight Investigator, on a page to Checkout in PagerDuty, for #{@incident.identifier}", ledger.triggered_by_label
+    assert_equal "Halon, on a page to Checkout in PagerDuty, for #{@incident.identifier}", ledger.triggered_by_label
   end
 
   test "a page the tool refuses, or one Firefight paging may no longer raise, fails with why on the incident" do

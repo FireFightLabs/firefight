@@ -97,7 +97,7 @@ export function ActivityTab({
                   <TableCell className="text-muted-foreground whitespace-nowrap">
                     {formatDateTime(invocation.createdAt)}
                   </TableCell>
-                  <TableCell>{invocation.principalLabel}</TableCell>
+                  <TableCell>{invocation.principalName}</TableCell>
                   <TableCell className="text-muted-foreground">
                     {invocation.sourceLabel ?? "-"}
                   </TableCell>

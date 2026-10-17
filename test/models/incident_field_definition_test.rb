@@ -12,13 +12,7 @@ class IncidentFieldDefinitionTest < ActiveSupport::TestCase
     definition = IncidentFieldDefinition.includes(:incident_field_options)
       .find(incident_field_definitions(:customer_tier_ws1).id)
 
-    queries = 0
-    counter = ->(*, payload) { queries += 1 unless payload[:name] == "SCHEMA" }
-    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
-      definition.selectable_values
-    end
-
-    assert_equal 0, queries
+    assert_empty queries_sent(cached: true, transactions: true) { definition.selectable_values }
   end
 
   test "option sources outside the field type's allowed set are refused" do

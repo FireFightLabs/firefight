@@ -93,7 +93,7 @@ export function ApprovalsTab({
                     <TableCell className="text-muted-foreground whitespace-nowrap">
                       {formatDateTime(approval.createdAt)}
                     </TableCell>
-                    <TableCell>{approval.principalLabel}</TableCell>
+                    <TableCell>{approval.principalName}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {approval.sourceLabel ?? "-"}
                     </TableCell>
@@ -161,7 +161,7 @@ export function ApprovalsTab({
                     <TableCell className="text-muted-foreground whitespace-nowrap">
                       {formatDateTime(approval.createdAt)}
                     </TableCell>
-                    <TableCell>{approval.principalLabel}</TableCell>
+                    <TableCell>{approval.principalName}</TableCell>
                     <TableCell>
                       <ActionLabel actionKey={approval.actionKey} title={approval.question ?? approval.connection} />
                     </TableCell>

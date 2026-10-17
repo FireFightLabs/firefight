@@ -24,9 +24,9 @@ module Mcp
         invocations, truncated = capped(scope, args)
 
         respond(
-          activity: Ability::ConnectionNamed.with_connection_names(invocations).map do |invocation|
+          activity: Ability::PrincipalNamed.with_principal_names(Ability::ConnectionNamed.with_connection_names(invocations)).map do |invocation|
             {
-              id: invocation.id, principal: invocation.principal_label, source: invocation.source, source_label: Ability::Source.label(invocation.source),
+              id: invocation.id, principal: invocation.principal_label, principal_name: invocation.principal_name, source: invocation.source, source_label: Ability::Source.label(invocation.source),
               ability: invocation.action_key, connection: invocation.connection_name, provider: invocation.connection_provider, decision: invocation.decision, outcome: invocation.outcome,
               error: invocation.error_summary, duration_ms: invocation.duration_ms, unasked_because: invocation.unasked_because,
               at: invocation.created_at.utc.iso8601

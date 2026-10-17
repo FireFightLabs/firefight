@@ -59,10 +59,10 @@ class ApiKeysController < InertiaController
   # What the key can do as the gateway resolves it, the answer to why a call was denied.
   def abilities
     if @api_key.personal?
-      render json: { principal: @api_key.principal.principal_label, mode: KIND_PERSONAL,
+      render json: { principal: @api_key.principal.actor_display_name, mode: KIND_PERSONAL,
                      abilities: Ability::Preview.implicit_member_reads }
     else
-      render json: { principal: @api_key.principal_label, mode: "service",
+      render json: { principal: @api_key.actor_display_name, mode: "service",
                      abilities: Ability::Preview.for(@api_key) }
     end
   end

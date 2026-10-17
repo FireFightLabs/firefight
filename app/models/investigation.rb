@@ -372,7 +372,7 @@ class Investigation < ApplicationRecord
     {
       source: AbilityGateway::SOURCE_INVESTIGATION,
       incident_id: incident_id,
-      triggered_by_label: triggered_by.try(:principal_label)
+      triggered_by_label: triggered_by.try(:actor_display_name)
     }
   end
 
