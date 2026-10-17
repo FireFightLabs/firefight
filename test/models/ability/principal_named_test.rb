@@ -63,6 +63,24 @@ class Ability::PrincipalNamedTest < ActiveSupport::TestCase
     assert_equal [ "agent:Deploy bot", "Deploy bot" ], activity.find { |row| row[:id] == invocation.id }.values_at(:principal, :principal_name)
   end
 
+  test "a call Halon made in a member's chat reads as Halon, for the member, wherever people and tools read it" do
+    member = workspace_memberships(:alice_workspace_one)
+    approval = approval_by(member, source: AbilityGateway::SOURCE_CONVERSATION)
+    invocation = invocation_by(member, source: AbilityGateway::SOURCE_CONVERSATION)
+    shown = "Halon, for #{users(:alice).name}"
+
+    assert_equal [ shown, shown ], [ approval.principal_name, invocation.principal_name ]
+    assert_equal shown, AbilityApprovalSerializer.one(approval)[:principalName]
+    assert_equal shown, AbilityInvocationSerializer.one(invocation)[:principalName]
+    approvals = Mcp::Tools::SearchApprovals.perform(workspace: @workspace, args: {}).structured_content[:approvals]
+    activity = Mcp::Tools::SearchActivity.perform(workspace: @workspace, args: { limit: 50 }).structured_content[:activity]
+    assert_equal shown, approvals.find { |row| row[:id] == approval.id }[:principal_name]
+    assert_equal shown, activity.find { |row| row[:id] == invocation.id }[:principal_name]
+
+    assert_equal users(:alice).name, Chat::HeldCall.new(approval: approval).asker_name, "who may run it is still the person"
+    assert_equal "Halon", approval_by(SystemAgent.investigator, source: AbilityGateway::SOURCE_CONVERSATION).principal_name
+  end
+
   test "a held call names whoever asked in plain words, a person or not" do
     assert_equal "Halon", Chat::HeldCall.new(approval: approval_by(SystemAgent.investigator)).asker_name
     assert_equal users(:alice).name, Chat::HeldCall.new(approval: approval_by(workspace_memberships(:alice_workspace_one))).asker_name
@@ -70,16 +88,16 @@ class Ability::PrincipalNamedTest < ActiveSupport::TestCase
 
   private
 
-  def approval_by(principal)
+  def approval_by(principal, source: nil)
     Ability::Approval.create!(
-      workspace: @workspace, principal: principal, principal_label: principal.principal_label, action_key: "catalog.delete",
+      workspace: @workspace, principal: principal, principal_label: principal.principal_label, action_key: "catalog.delete", source: source,
       request_digest: Ability::Approval.digest("catalog.delete", {}, {}), required_role: WorkspaceMembership.roles[:admin]
     )
   end
 
-  def invocation_by(principal)
+  def invocation_by(principal, source: nil)
     Ability::Invocation.create!(
-      workspace: @workspace, principal: principal, principal_label: principal.principal_label, action_key: "catalog.delete",
+      workspace: @workspace, principal: principal, principal_label: principal.principal_label, action_key: "catalog.delete", source: source,
       idempotency_key: SecureRandom.uuid, decision: Ability::Invocation::DECISION_ALLOW
     )
   end

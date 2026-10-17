@@ -21,7 +21,7 @@ class ApprovalsController < InertiaController
     redirect_to gateway_approvals_path, alert: e.message
   end
 
-  def asker = approval.principal_name
+  def asker = approval.principal_own_name
 
   def approval = @approval ||= current_workspace.ability_approvals.find(params[:id])
 

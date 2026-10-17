@@ -25,7 +25,7 @@ class ResourceMap::TimelineTest < ActiveSupport::TestCase
     assert_equal @web.url, entries.last.link
     assert_equal "Northflank reported web changed, #{ResourceMap::Timeline::HAND_EDIT}", entries.first.what
     firefight = entries.second
-    assert_equal [ users(:alice).name, "Northflank" ], [ firefight.by, firefight.where ]
+    assert_equal [ "Halon, for #{users(:alice).name}", "Northflank" ], [ firefight.by, firefight.where ]
     assert_match "Restart service through Northflank, from Halon chat", firefight.what
     assert_match "/gateway/activity", firefight.link
   end

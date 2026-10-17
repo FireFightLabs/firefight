@@ -17,6 +17,15 @@ module Ability
       def with_principal_names(records) = PrincipalNamed.with_principal_names(records)
     end
 
-    def principal_name = principal&.actor_display_name || principal_label.to_s.split(":", 2).last
+    # A call Halon made in a member's chat runs with the member's access, so it reads as Halon and names whose access it
+    # used, as the chat's request in Slack says Halon wants to.
+    def principal_name
+      return "#{SystemAgent::HALON}, for #{principal_own_name}" if source == AbilityGateway::SOURCE_CONVERSATION && principal_type == WorkspaceMembership.name
+
+      principal_own_name
+    end
+
+    # The principal's own name, the person whose access a chat's call used rather than Halon.
+    def principal_own_name = principal&.actor_display_name || principal_label.to_s.split(":", 2).last
   end
 end
