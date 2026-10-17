@@ -84,9 +84,7 @@ class AgentChatInPlaceTest < ActionDispatch::IntegrationTest
 
   # The badges' counts are shared props too.
   def assert_no_counts(&)
-    sent = []
-    recorder = ->(*, payload) { sent << payload[:sql] }
-    ActiveSupport::Notifications.subscribed(recorder, "sql.active_record", &)
+    sent = queries_sent(cached: true, transactions: true, &)
     assert_response :success
     assert_empty sent.grep(/ability_approvals|ability_pack_requests/)
   end

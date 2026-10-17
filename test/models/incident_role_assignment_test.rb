@@ -138,11 +138,7 @@ class IncidentRoleAssignmentTest < ActiveSupport::TestCase
     incident.lead = member
 
     loaded = Incident.includes(incident_role_assignments: [ :incident_role, :workspace_membership ]).find(incident.id)
-    queries = 0
-    ActiveSupport::Notifications.subscribed(->(*) { queries += 1 }, "sql.active_record") do
-      assert_equal member, loaded.lead
-    end
-    assert_equal 0, queries
+    assert_empty(queries_sent(cached: true, transactions: true) { assert_equal member, loaded.lead })
 
     other = workspace_memberships(:bob_workspace_one)
     loaded.lead = other

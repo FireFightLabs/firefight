@@ -251,9 +251,8 @@ class Ability::MemberAccessTest < ActiveSupport::TestCase
     other.tools.create!(name: "restart_service", read_only: false, enabled: true)
 
     assert_empty row.read.through
-    queries = []
-    counter = ->(_, _, _, _, payload) { queries << payload[:sql] if payload[:sql].include?("ability_grants") }
-    connections = ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { Ability::Role.member_access_of(@workspace).connections }
+    connections = nil
+    queries = queries_sent(cached: true, transactions: true) { connections = Ability::Role.member_access_of(@workspace).connections }.grep(/ability_grants/)
 
     assert_equal [ [ @bob.id ] ] * 2, connections.map { |connection| connection.change.through.sole.people_ids }
     assert_equal 2, queries.size, "one for the packs' own grants and one for every member's reach"

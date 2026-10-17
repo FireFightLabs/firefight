@@ -81,10 +81,5 @@ class Conversation::TurnQueriesTest < ActiveSupport::TestCase
   def call(id, name, arguments) = RubyLLM::ToolCall.new(id: id, name: name.to_s, arguments: arguments)
 
   # How many times the block read the workspace's connection tools whole or its skills, from the query cache or not.
-  def tool_reads
-    reads = 0
-    counter = ->(*, payload) { reads += 1 if payload[:sql].match?(WHOLE_READS) }
-    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { yield }
-    reads
-  end
+  def tool_reads(&) = queries_sent(cached: true, transactions: true, &).grep(WHOLE_READS).size
 end

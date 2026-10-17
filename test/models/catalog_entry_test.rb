@@ -24,13 +24,7 @@ class CatalogEntryTest < ActiveSupport::TestCase
     service = CatalogEntry.includes(outgoing_relationships: { target_entry: :catalog_type })
       .find(catalog_entries(:auth_service).id)
 
-    queries = 0
-    counter = ->(*, payload) { queries += 1 unless payload[:name] == "SCHEMA" }
-    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
-      service.active_outgoing_relationships
-    end
-
-    assert_equal 0, queries
+    assert_empty queries_sent(cached: true, transactions: true) { service.active_outgoing_relationships }
   end
 
   test "requires name" do

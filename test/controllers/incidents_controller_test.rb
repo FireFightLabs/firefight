@@ -169,10 +169,7 @@ class IncidentsControllerTest < ActionDispatch::IntegrationTest
 
   # Dropping declared_by from with_list_associations makes this fail.
   test "the incidents table names who declared each one from the preload" do
-    seen = []
-    counter = ->(_, _, _, _, payload) { seen << payload[:sql] unless payload[:name].in?([ "SCHEMA", "TRANSACTION" ]) }
-
-    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { get dashboard_path, headers: inertia_headers }
+    seen = queries_sent(cached: true) { get dashboard_path, headers: inertia_headers }
 
     assert_response :success
     rows = inertia_props["incidents"]
