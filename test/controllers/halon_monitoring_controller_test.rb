@@ -52,6 +52,28 @@ class HalonMonitoringControllerTest < ActionDispatch::IntegrationTest
     assert flash[:alert].present?
   end
 
+  test "a member who may change checks but not the workspace can neither take one over nor hand it on" do
+    bob = workspace_memberships(:bob_workspace_one)
+    Ability::Grant.grant!(workspace: @workspace, principal: bob,
+                          target: { action: Ability::Action.system!(Ability::Action.system_key(Ability::Action::RESOURCE_MONITORING, Ability::Action::ACTION_UPDATE)) })
+    @check.update_columns(owner_id: workspace_memberships(:alice_workspace_one).id)
+    sign_in(users(:bob), @workspace)
+
+    post take_over_investigation_check_path(@check)
+    patch change_owner_investigation_check_path(@check), params: { owner_id: bob.id }
+
+    assert_equal workspace_memberships(:alice_workspace_one), @check.reload.owner
+  end
+
+  test "a check cannot be given to a member of another workspace" do
+    sign_in(users(:alice), @workspace)
+
+    patch change_owner_investigation_check_path(@check), params: { owner_id: workspace_memberships(:alice_workspace_two).id }
+
+    assert_equal "Choose a member of this workspace.", flash[:alert]
+    assert_equal workspace_memberships(:bob_workspace_one), @check.reload.owner
+  end
+
   test "a check cannot be given to someone who is not a member" do
     sign_in(users(:alice), @workspace)
     workspace_memberships(:bob_workspace_one).update_column(:removed_at, Time.current)

@@ -54,6 +54,41 @@ class HalonCheckSweepJobTest < ActiveJob::TestCase
     assert_nil @check.reload.owner_gone_told_at
   end
 
+  test "a check whose owner left is paused by the sweep even when it is not due" do
+    bob = workspace_memberships(:bob_workspace_one)
+    @check.update_columns(owner_id: bob.id)
+    bob.update_column(:removed_at, Time.current)
+
+    travel_to(Time.utc(2026, 10, 10, 7, 0)) do
+      assert_enqueued_with(job: CheckOwnerGoneJob, args: [ @check.id ]) { HalonCheckSweepJob.perform_now }
+    end
+
+    assert @check.reload.paused?
+  end
+
+  test "a direct message that can never land keeps its claim, so nobody is told again and again" do
+    @check.update_columns(owner_id: nil, paused_at: Time.current)
+    adapter = mock("adapter")
+    adapter.stubs(:post_notice).raises(AdapterError::NotFound, "channel_not_found")
+    WorkspaceAdapter.stubs(:for).returns(adapter)
+
+    CheckOwnerGoneJob.perform_now(@check.id)
+
+    assert @check.reload.owner_gone_told_at
+  end
+
+  test "a telling that keeps failing is tried a few times and then left" do
+    @check.update_columns(owner_id: nil, paused_at: Time.current)
+    adapter = mock("adapter")
+    adapter.stubs(:post_notice).raises(AdapterError::ServerError, "Slack is down")
+    WorkspaceAdapter.stubs(:for).returns(adapter)
+
+    Investigation::Check::Ownership::NOTICE_ATTEMPTS.times { CheckOwnerGoneJob.perform_now(@check.id) }
+
+    assert @check.reload.owner_gone_told_at
+    assert_equal Investigation::Check::Ownership::NOTICE_ATTEMPTS, @check.owner_gone_notice_attempts
+  end
+
   test "a check paused before the sweep, such as by the move to owners, has its admins told on the next sweep" do
     @check.update_columns(owner_id: nil, paused_at: Time.current)
 

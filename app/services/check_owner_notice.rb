@@ -6,20 +6,23 @@ class CheckOwnerNotice
     @workspace = check.workspace
   end
 
-  # Answers whether no admin could be told, though there was one to tell, so the telling is tried again. A workspace
-  # with no admin on the platform has nobody to try again for.
+  # A message that can never land: nobody there, a platform the workspace disconnected, or one that took Firefight's access.
+  FOR_GOOD = [ AdapterError::NotFound, AdapterError::AuthRevoked, AdapterError::NotConnected ].freeze
+
+  # Answers whether to try again: no admin was told, and some failure may pass. A workspace with no admin on the platform,
+  # or only messages that can never land, has nothing to try again for.
   def tell_admins!
     adapter = WorkspaceAdapter.for(@workspace)
-    tried = 0
     told = 0
+    passing = 0
     @workspace.workspace_memberships.admins_and_owners.current_members.where.not(platform_user_id: nil).find_each do |admin|
-      tried += 1
       adapter.post_notice(user_id: admin.platform_user_id, notice: notice)
       told += 1
     rescue AdapterError => error
+      passing += 1 unless FOR_GOOD.any? { |kind| error.is_a?(kind) }
       Rails.logger.warn({ event: "check_owner.notice_failed", check_id: @check.id, error: error.class.name }.to_json)
     end
-    tried.positive? && told.zero?
+    told.zero? && passing.positive?
   end
 
   private

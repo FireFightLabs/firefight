@@ -17,6 +17,8 @@ class HalonCheckSweepJob < ApplicationJob
 
       InvestigationService.new(workspace).start(check, trigger_source: Investigation::TRIGGER_SCHEDULE)
     end
+    # An owner who left is caught here too when the removal did not pause their checks, whatever the schedule.
+    Investigation::Check.owned_by_gone.includes(owner: :user).find_each { |check| pause(check, now) }
     Investigation::Check.untold_pauses.pluck(:id).each { |id| CheckOwnerGoneJob.perform_later(id) }
   end
 

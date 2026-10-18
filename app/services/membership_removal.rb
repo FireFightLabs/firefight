@@ -14,8 +14,17 @@ class MembershipRemoval
     return false unless removed
 
     ActionCable.server.remote_connections.where(current_user: membership.user, current_workspace_id: membership.workspace_id).disconnect
+    pause_checks!(membership)
     true
   end
+
+  # Their scheduled checks ran in their name, so each pauses now rather than at its next time, and the admins are told.
+  def self.pause_checks!(membership)
+    Investigation::Check.active.where(owner_id: membership.id).includes(owner: :user).find_each do |check|
+      CheckOwnerGoneJob.perform_later(check.id) if check.pause_for_gone_owner!
+    end
+  end
+  private_class_method :pause_checks!
 
   # Their tokens stay revoked, so they make new ones once they are back.
   def self.restore!(membership)

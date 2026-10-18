@@ -68,7 +68,8 @@ class InvestigationChecksController < InertiaController
     return redirect_to(halon_monitoring_path, alert: blocked) if blocked
 
     resumed = @check.paused?
-    @check.hand_to!(member)
+    return redirect_to(halon_monitoring_path, alert: "#{@check.name} changed owner while you were choosing. Look again.") unless @check.hand_to!(member)
+
     redirect_to halon_monitoring_path, notice: "#{@check.name} is now owned by #{member.display_name}#{' and runs again' if resumed}."
   end
 

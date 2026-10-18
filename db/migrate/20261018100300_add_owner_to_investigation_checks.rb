@@ -6,5 +6,6 @@ class AddOwnerToInvestigationChecks < ActiveRecord::Migration[8.1]
     add_column :investigation_checks, :paused_at, :datetime
     add_column :investigation_checks, :paused_owner_name, :string
     add_column :investigation_checks, :owner_gone_told_at, :datetime
+    add_column :investigation_checks, :owner_gone_notice_attempts, :integer, default: 0, null: false
   end
 end

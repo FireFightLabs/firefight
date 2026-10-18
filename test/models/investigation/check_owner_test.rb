@@ -103,6 +103,33 @@ class Investigation::CheckOwnerTest < ActiveSupport::TestCase
     assert_equal "Certificates (owned by a former member, who left) is paused. Give it a new owner to resume.", orphan.paused_because
   end
 
+  test "removing the owner pauses their checks at once, and the admins are told" do
+    assert_enqueued_with(job: CheckOwnerGoneJob, args: [ @check.id ]) do
+      MembershipRemoval.remove!(@bob, by: @alice)
+    end
+
+    assert @check.reload.paused?
+    assert_equal "Disks (owned by #{@bob.display_name}, who left) is paused. Give it a new owner to resume.", @check.paused_because
+  end
+
+  test "a pause read before a handover changes nothing once the check has its new owner" do
+    stale = Investigation::Check.find(@check.id)
+    @bob.update_column(:removed_at, Time.current)
+    Investigation::Check.find(@check.id).hand_to!(@alice)
+
+    assert_not stale.pause_for_gone_owner!
+    assert_not @check.reload.paused?
+    assert_equal @alice, @check.owner
+  end
+
+  test "a handover read before another one lands changes nothing, so two cannot cross" do
+    stale = Investigation::Check.find(@check.id)
+    assert Investigation::Check.find(@check.id).hand_to!(@alice)
+
+    assert_not stale.hand_to!(workspace_memberships(:alice_workspace_one))
+    assert_not stale.hand_to!(@alice), "still stale, since it read Bob as the owner"
+  end
+
   private
 
   def scheduled_run

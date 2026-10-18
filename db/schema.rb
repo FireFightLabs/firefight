@@ -2121,6 +2121,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_100400) do
     t.datetime "paused_at"
     t.string "paused_owner_name"
     t.datetime "owner_gone_told_at"
+    t.integer "owner_gone_notice_attempts", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index "workspace_id, lower((name)::text)", name: "index_investigation_checks_on_workspace_and_name", unique: true
