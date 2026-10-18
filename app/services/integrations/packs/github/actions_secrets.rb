@@ -29,12 +29,14 @@ module Integrations
 
         def self.included(pack)
           pack.tool LIST_SECRETS,
+                    summary: "Lists the names of a repository's Actions secrets and when each was last set.",
                     description: "The names of a repository's GitHub Actions secrets, or an environment's, with when each was last set. " \
                                  "GitHub never gives a secret's value",
                     params_schema: Code.object_schema({ "repo" => Code::REPO, "environment" => ENVIRONMENT }, %w[repo]),
                     read_only: true
 
           pack.tool SET_SECRET,
+                    summary: "Creates or replaces a GitHub Actions secret in a repository or environment.",
                     description: "Create or replace a GitHub Actions secret in a repository, or in one of its environments. Never pass the " \
                                  "value: the person types it in a secure field Firefight shows under this step, or value_from names a " \
                                  "value Firefight reads itself from another tool, so it never passes through you",
@@ -47,6 +49,7 @@ module Integrations
                     read_only: false
 
           pack.tool LIST_VARIABLES,
+                    summary: "Lists the names of a repository's Actions variables and when each changed.",
                     description: "The names of a repository's GitHub Actions variables, or an environment's, with when each was last " \
                                  "changed. Their values are never shown",
                     params_schema: Code.object_schema({ "repo" => Code::REPO, "environment" => ENVIRONMENT.merge("description" => ENVIRONMENT_VARIABLES) }, %w[repo]),

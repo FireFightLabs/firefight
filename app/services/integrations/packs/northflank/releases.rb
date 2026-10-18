@@ -51,6 +51,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool WORKFLOW_RUNS,
+                    summary: "Lists a workflow's recent runs and how each step went.",
                     description: "A Northflank workflow's recent runs, newest first, each with its status, when it started and finished and how " \
                                  "long it took, and how long finished runs usually take. Name a run to read it with each node, such as a " \
                                  "build, a release or a job run, how each went, the error a failed one gave and its retries",
@@ -67,6 +68,7 @@ module Integrations
                     read_only: true
 
           pack.tool RELEASE_FLOW_RUNS,
+                    summary: "Lists a pipeline stage's release flow runs and how each step went.",
                     description: "The recent runs of the release flow of one stage of a Northflank pipeline, newest first, each with its " \
                                  "status, when it started and finished and how long it took, and how long finished runs usually take. Name a " \
                                  "run to read it with each node, how each went, the error a failed one gave and its retries",

@@ -215,6 +215,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool :fix_code,
+                    summary: "Writes a code change and opens it as a pull request for review.",
                     description: "Write a code change with Firefight's own coding agent in Firefight's sandbox and open it as a pull " \
                                  "request, ready for review, written on the base branch's newest commit, or add it to an open pull request's " \
                                  "branch when pull_request or branch is given. The agent works in a real git copy with the newest base fetched, so " \

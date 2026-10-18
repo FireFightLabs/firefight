@@ -187,6 +187,9 @@ class Integration::Tool < ApplicationRecord
   # What an agent reads of the tool, led by what it lacks, so a listing cut short still says it.
   def described_for_agents(rows = nil) = [ access_missing_reason(rows), description.presence ].compact.join(" ").presence
 
+  # The one line a person reads beside the tool, never what an agent reads (Integrations::ToolSummaries).
+  def summary = Integrations::ToolSummaries.of(self)
+
   # Another connection's tool Halon would call by the same name, or nil.
   def namesake = integration.tool_namesakes[name]
 

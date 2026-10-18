@@ -28,6 +28,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool ADD_WEBHOOK,
+                    summary: "Adds a webhook trigger that starts a workflow run.",
                     description: "Add a webhook trigger to a Northflank workflow, so a request to its address starts a run, such as from a " \
                                  "CI job after a release. Firefight makes the address, which works as a password, so it is never shown to " \
                                  "you: the person reveals it under this step, and value_from on a tool that stores secrets takes the " \

@@ -18,12 +18,14 @@ module Integrations
       DEPLOY = { "type" => "string", "description" => "A deploy's id, as list_deploys shows it" }.freeze
 
       tool :list_sites,
+           summary: "Lists the Netlify sites with their address, team and live deploy state.",
            description: "The Netlify sites this token reaches, with each one's address, team and the state of the deploy it serves. " \
                         "Use it first to find the name to pass to the other tools",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :describe_site,
+           summary: "Shows how one site is set up and which deploy it serves now.",
            description: "How one site is set up and what it serves now: its addresses and domains, HTTPS, the deploy that is live " \
                         "(when, which branch and commit, and whether auto publishing is locked to it), the repository, branch and " \
                         "build command it builds from, and whether builds are stopped",
@@ -31,6 +33,7 @@ module Integrations
            read_only: true
 
       tool :list_deploys,
+           summary: "Lists a site's deploys with their state, branch, commit and errors.",
            description: "A site's deploys, newest first: when each was made and published, its state (ready, building, error and " \
                         "the rest), its context (production, deploy-preview, branch-deploy), branch, commit and title, the error " \
                         "Netlify gave when it failed, and its id, which restore_deploy and rollback take. Use it to see what " \
@@ -48,6 +51,7 @@ module Integrations
            read_only: true
 
       tool :deploy_history,
+           summary: "Shows a site's recent deploys with how long each took against the usual.",
            description: "A site's recent deploys, each a build and its publish, with its context, state, when it started and " \
                         "finished and how long it took, and how long finished ones usually take",
            params_schema: {
@@ -63,6 +67,7 @@ module Integrations
            read_only: true
 
       tool :describe_deploy,
+           summary: "Shows one deploy of a site in full, including any error.",
            description: "One deploy of a site in full: its state and the error Netlify gave when it failed, its context, branch, " \
                         "commit and title, when it was created, updated and published, whether it is locked, and the functions " \
                         "it carries with their schedules",
@@ -70,6 +75,7 @@ module Integrations
            read_only: true
 
       tool :restore_deploy,
+           summary: "Publishes an earlier deploy of a site as its live version.",
            description: "Publish an earlier deploy of a site as its live version, without building again. Netlify keeps every " \
                         "deploy, so this is instant, and it can be undone by restoring the deploy that was live before. A later " \
                         "production deploy from Git publishes over it while auto publishing is on",
@@ -77,6 +83,7 @@ module Integrations
            read_only: false
 
       tool :api_read,
+           summary: "Reads other Netlify data such as forms, DNS records and the audit log.",
            description: "Anything else Netlify's API reads that the other tools do not cover, such as a site's forms and " \
                         "submissions, functions, DNS zones and records, SSL certificate, snippets, files of a deploy, or the " \
                         "team's members and audit log. A GET to a path of Netlify's API (#{NetlifyApi::API_ROOT}), as the API " \

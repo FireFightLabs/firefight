@@ -55,13 +55,14 @@ class IntegrationSerializer < BaseSerializer
     end
   end
 
-  # accessMissing says what the app installation was not granted that the tool needs, or null. readMark is whether an
-  # admin marked the tool as a read, what changing that does and why it cannot be changed, for a server whose reads an
-  # admin marks (Integration::Tool#mark_read!), or null.
-  type "{ id: string; name: string; description: string | null; actionKey: string; readOnly: boolean; enabled: boolean; available: boolean; toggleBlockedReason: string | null; accessMissing: string | null; readMark: { marked: boolean; words: string; blockedReason: string | null } | null }[]"
+  # summary is the one line a person reads of what the tool does, never the description its model reads. accessMissing
+  # says what the app installation was not granted that the tool needs, or null. readMark is whether an admin marked
+  # the tool as a read, what changing that does and why it cannot be changed, for a server whose reads an admin marks
+  # (Integration::Tool#mark_read!), or null.
+  type "{ id: string; name: string; summary: string | null; actionKey: string; readOnly: boolean; enabled: boolean; available: boolean; toggleBlockedReason: string | null; accessMissing: string | null; readMark: { marked: boolean; words: string; blockedReason: string | null } | null }[]"
   def tools
     integration.tools.sort_by(&:name).map do |tool|
-      { id: tool.id, name: tool.name, description: tool.description,
+      { id: tool.id, name: tool.name, summary: tool.summary,
         actionKey: tool.action_key, readOnly: tool.read_only, enabled: tool.enabled,
         available: tool.available?, toggleBlockedReason: tool.toggle_blocked_reason, accessMissing: tool.access_missing_reason,
         readMark: read_mark_of(tool) }

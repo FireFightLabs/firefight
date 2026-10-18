@@ -79,12 +79,14 @@ module Integrations
       TASK = { "type" => "string", "description" => "A task, by its identifier, as list_tasks shows it" }.freeze
 
       tool :list_tasks,
+           summary: "Lists the tasks in the latest deployed version and where each is defined.",
            description: "The tasks in the newest version deployed to this Trigger.dev environment, with the file each is defined in. " \
                         "Use it first to find the identifier to pass to the other tools",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :list_runs,
+           summary: "Lists task runs with their status, version and timings.",
            description: "Runs in this environment, newest first, with each run's id, task, status, version, when it was created, " \
                         "started and finished, and how long it computed. Filter by task, status, the error group it belongs to " \
                         "and when it was created, or read one run by its id with each attempt",
@@ -103,6 +105,7 @@ module Integrations
            read_only: true
 
       tool :run_details,
+           summary: "Shows one run with its attempts, errors, related runs and logs.",
            description: "One run: its status, task, version, timings, every attempt with its error and stack, the runs around it, and what " \
                         "it logged. The payload and output are left out, since they can hold customer data",
            params_schema: { "type" => "object", "properties" => { "run" => { "type" => "string", "description" => "The run's id, starting run_" } },
@@ -110,6 +113,7 @@ module Integrations
            read_only: true
 
       tool :search_task_logs,
+           summary: "Searches what a task's recent runs logged.",
            description: "What a task's recent runs logged, newest first, at most #{LOG_LIMIT} lines from its latest #{LOG_RUNS} runs in the " \
                         "range. Filter by text or a regular expression",
            params_schema: {
@@ -129,12 +133,14 @@ module Integrations
            read_only: true
 
       tool :describe_task,
+           summary: "Shows a task's deployed version, queue state and how its recent runs ended.",
            description: "How one task stands now: the version deployed to the environment and where the task is defined in it, its " \
                         "queue (running, queued, paused and its concurrency limit), and how its runs in the last hour ended",
            params_schema: { "type" => "object", "properties" => { "task" => TASK }, "required" => [ "task" ] },
            read_only: true
 
       tool :list_deployments,
+           summary: "Lists deployments with their version, status, git details and failures.",
            description: "The environment's deployments, newest first: the version, its status, when it was created and deployed, its " \
                         "git details and why it failed. A version is what promote_deployment takes. Every task in the environment " \
                         "runs the same version",
@@ -148,6 +154,7 @@ module Integrations
            read_only: true
 
       tool :list_errors,
+           summary: "Lists error groups by frequency with their task and when they were seen.",
            description: "Error groups in this environment, most frequent first: the error's type and message, the task, how often it " \
                         "happened in the range, when it was first and last seen, and whether it is resolved. Pass an error's id to " \
                         "list_runs to see the runs behind it",
@@ -165,12 +172,14 @@ module Integrations
            read_only: true
 
       tool :list_queues,
+           summary: "Lists queues with running and waiting runs, pause state and concurrency limits.",
            description: "The environment's queues and concurrency limits: for each, how many runs are executing and waiting, whether " \
                         "it is paused, and its limit. Runs piling up behind a paused queue or a full limit show here",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :task_metrics,
+           summary: "Charts a task's runs, failures, CPU and memory over time.",
            description: "Metrics of one task over time: runs started, failed runs, and the CPU and memory of its runs. Returns min, " \
                         "average, max and latest, and the person sees each metric as a chart",
            params_schema: {
@@ -186,6 +195,7 @@ module Integrations
            read_only: true
 
       tool :promote_deployment,
+           summary: "Rolls every task back to an earlier deployed version.",
            description: "Make an earlier deployed version the current one for this environment, which rolls every task in it back. New " \
                         "runs start on that version, and runs already started keep the version they started on",
            params_schema: {
@@ -196,6 +206,7 @@ module Integrations
            read_only: false
 
       tool :api_read,
+           summary: "Reads any other Trigger.dev detail, such as schedules, batches or a run's result.",
            description: "Anything else Trigger.dev's API reads that the other tools do not cover, such as one deployment or batch, " \
                         "a run's result or attempts, schedules, waitpoints, bulk actions or concurrency limits. A GET to a path of " \
                         "the API (#{TriggerDevApi::API_ROOT}), written as the API reference the trigger_dev_api skill names writes " \
@@ -205,6 +216,7 @@ module Integrations
            read_only: true
 
       tool :run_costs,
+           summary: "Shows what runs cost by day or month and by task.",
            description: "What the environment's runs cost, from each run's compute and base cost, by day or by month and by task, " \
                         "newest first. Use it to watch spend and find the task that grew. Trigger.dev reports cost per run, so a busy " \
                         "environment is read for its newest #{COST_RUNS} runs and says when it was cut",

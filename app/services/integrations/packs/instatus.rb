@@ -53,23 +53,27 @@ module Integrations
       WHEN = ->(what) { { "type" => "string", "description" => "#{what}, as an ISO 8601 time such as 2026-10-14T22:00:00Z" } }
 
       tool :list_status_pages,
+           summary: "Lists the Instatus status pages you can reach and how each one stands now.",
            description: "The Instatus status pages this key reaches, with each one's id, its address as customers see it and how " \
                         "it stands now. Use it first, for the page the other tools take",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :list_components,
+           summary: "Lists a status page's components and the status each one shows.",
            description: "A page's components as its customers see them, each with its id, its group and the status it shows now: " \
                         "OPERATIONAL, UNDERMAINTENANCE, DEGRADEDPERFORMANCE, PARTIALOUTAGE or MAJOROUTAGE",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
            read_only: true
 
       tool :get_component,
+           summary: "Shows one component with its status, description and group.",
            description: "One component in full: its status, description, group and whether its uptime is shown",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE, "component" => COMPONENT }, "required" => [ "component" ] },
            read_only: true
 
       tool :list_incidents,
+           summary: "Lists a status page's open, resolved or all incidents.",
            description: "A page's incidents, newest first, each with its id, status, the components it affects and when it started " \
                         "and was resolved. list picks open ones (the default), resolved ones or all",
            params_schema: {
@@ -83,11 +87,13 @@ module Integrations
            read_only: true
 
       tool :get_incident,
+           summary: "Shows one status page incident with its affected components and updates.",
            description: "One incident in full: its status, the components it affects and its updates as customers read them, with each one's id",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE, "incident" => INCIDENT }, "required" => [ "incident" ] },
            read_only: true
 
       tool :list_maintenances,
+           summary: "Lists a status page's maintenance with each window and status.",
            description: "A page's maintenance, newest first, each with its id, status (NOTSTARTEDYET, INPROGRESS or COMPLETED), its " \
                         "window and the components it touches",
            params_schema: {
@@ -97,11 +103,13 @@ module Integrations
            read_only: true
 
       tool :get_maintenance,
+           summary: "Shows one maintenance with its window, status, components and updates.",
            description: "One maintenance in full: its window, status, components and updates, with each one's id",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE, "maintenance" => MAINTENANCE }, "required" => [ "maintenance" ] },
            read_only: true
 
       tool :list_subscribers,
+           summary: "Lists a status page's subscribers and whether they confirmed.",
            description: "A page's subscribers, each with its id, how they are told and whether they confirmed",
            params_schema: {
              "type" => "object",
@@ -115,12 +123,14 @@ module Integrations
            read_only: true
 
       tool :list_templates,
+           summary: "Lists a status page's incident and maintenance templates.",
            description: "A page's templates for incidents and maintenance, each with its id, name, status and message. " \
                         "create_incident_from_template takes the id",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
            read_only: true
 
       tool :create_status_page,
+           summary: "Creates a new Instatus status page with its first components.",
            description: "Make a new Instatus status page with its first components",
            params_schema: {
              "type" => "object",
@@ -137,6 +147,7 @@ module Integrations
            read_only: false
 
       tool :update_status_page,
+           summary: "Updates a status page's settings, such as its name, privacy and look.",
            description: "Change a page's settings: its name, subdomain, the website its logo links to, its public email, its " \
                         "language, whether it is private, whether new subscribers confirm by email, and how it looks: logo, " \
                         "colours, header, HTML, CSS and date formats",
@@ -158,11 +169,13 @@ module Integrations
            read_only: false
 
       tool :delete_status_page,
+           summary: "Deletes a status page for good, with everything on it.",
            description: "Delete a status page for good, with its components, incidents, maintenance and subscribers",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE.merge("description" => "The status page to delete, by its id, name or subdomain") }, "required" => [ "page" ] },
            read_only: false
 
       tool :create_incident,
+           summary: "Opens an incident on a status page that customers can see.",
            description: "Open an incident on a status page, which its customers see, with its first update. Set the components it " \
                         "affects to the status they show. Draft the words with the person first",
            params_schema: {
@@ -181,6 +194,7 @@ module Integrations
            read_only: false
 
       tool :create_incident_from_template,
+           summary: "Opens a status page incident from one of the page's templates.",
            description: "Open an incident on a status page from one of its incident templates, with the words, status and components " \
                         "the template holds. list_templates shows them",
            params_schema: {
@@ -192,6 +206,7 @@ module Integrations
            read_only: false
 
       tool :post_incident_update,
+           summary: "Posts an update to a status page incident that customers can see.",
            description: "Post an update to an incident, which its customers see, at the status it now has, such as MONITORING or " \
                         "RESOLVED, and set the components it affects. Draft the words with the person first",
            params_schema: {
@@ -208,6 +223,7 @@ module Integrations
            read_only: false
 
       tool :update_incident,
+           summary: "Changes an incident's title or affected components without posting an update.",
            description: "Change an incident's title or the components it affects, without posting an update",
            params_schema: {
              "type" => "object",
@@ -221,6 +237,7 @@ module Integrations
            read_only: false
 
       tool :edit_incident_update,
+           summary: "Edits the words of an incident update already posted.",
            description: "Change the words of an incident update already posted. Find its id with get_incident",
            params_schema: {
              "type" => "object",
@@ -230,16 +247,19 @@ module Integrations
            read_only: false
 
       tool :delete_incident_update,
+           summary: "Deletes one update from a status page incident.",
            description: "Delete one update from an incident",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE, "incident" => INCIDENT, "update" => UPDATE }, "required" => %w[incident update] },
            read_only: false
 
       tool :delete_incident,
+           summary: "Deletes a status page incident and its updates for good.",
            description: "Delete an incident and its updates from the page for good. Resolving it is usually what is wanted",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE, "incident" => INCIDENT }, "required" => [ "incident" ] },
            read_only: false
 
       tool :schedule_maintenance,
+           summary: "Schedules maintenance on a status page for the components it touches.",
            description: "Schedule maintenance on a status page, which its customers see ahead of time, for the components the work " \
                         "touches. Instatus can start and end it on time and remind subscribers before it starts",
            params_schema: {
@@ -261,6 +281,7 @@ module Integrations
            read_only: false
 
       tool :update_maintenance,
+           summary: "Changes a maintenance's title or moves its window.",
            description: "Change maintenance's title or move its window. post_maintenance_update tells customers how it is going",
            params_schema: {
              "type" => "object",
@@ -275,6 +296,7 @@ module Integrations
            read_only: false
 
       tool :post_maintenance_update,
+           summary: "Posts an update on maintenance progress that customers can see.",
            description: "Post an update to maintenance, which its customers see, at the status it now has: NOTSTARTEDYET, " \
                         "INPROGRESS or COMPLETED. Draft the words with the person first",
            params_schema: {
@@ -291,6 +313,7 @@ module Integrations
            read_only: false
 
       tool :edit_maintenance_update,
+           summary: "Edits the words of a maintenance update already posted.",
            description: "Change the words of a maintenance update already posted. Find its id with get_maintenance",
            params_schema: {
              "type" => "object",
@@ -300,16 +323,19 @@ module Integrations
            read_only: false
 
       tool :delete_maintenance_update,
+           summary: "Deletes one update from a maintenance.",
            description: "Delete one update from maintenance",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE, "maintenance" => MAINTENANCE, "update" => UPDATE }, "required" => %w[maintenance update] },
            read_only: false
 
       tool :delete_maintenance,
+           summary: "Deletes a maintenance and its updates for good.",
            description: "Delete maintenance and its updates from the page for good",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE, "maintenance" => MAINTENANCE }, "required" => [ "maintenance" ] },
            read_only: false
 
       tool :update_component,
+           summary: "Sets the status a component shows, or changes its name or description.",
            description: "Set the status a component shows on the page, such as MAJOROUTAGE or OPERATIONAL, or change its name or " \
                         "description. Customers see it at once",
            params_schema: {
@@ -326,6 +352,7 @@ module Integrations
            read_only: false
 
       tool :create_component,
+           summary: "Adds a component to a status page.",
            description: "Add a component to a page, which customers then see",
            params_schema: {
              "type" => "object",
@@ -342,11 +369,13 @@ module Integrations
            read_only: false
 
       tool :delete_component,
+           summary: "Removes a component from a status page for good.",
            description: "Remove a component from a page for good",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE, "component" => COMPONENT }, "required" => [ "component" ] },
            read_only: false
 
       tool :add_subscriber,
+           summary: "Subscribes someone to a status page's updates by email or SMS.",
            description: "Subscribe someone to a page's updates by email or SMS, for every component or the ones named",
            params_schema: {
              "type" => "object",
@@ -361,6 +390,7 @@ module Integrations
            read_only: false
 
       tool :remove_subscriber,
+           summary: "Unsubscribes someone from a status page.",
            description: "Unsubscribe someone from a page",
            params_schema: {
              "type" => "object",

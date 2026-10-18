@@ -41,6 +41,7 @@ module Integrations
         def self.included(pack)
           repo = pack::REPO_PARAM
           pack.tool :pipelines,
+                    summary: "Lists a project's pipelines with their status, branch and commit.",
                     description: "A project's pipelines, newest first, with their status, branch or tag, commit, what started them and their page",
                     params_schema: CodeHost::Code.object_schema({
                       "repo" => repo,
@@ -52,6 +53,7 @@ module Integrations
                     read_only: true
 
           pack.tool :ci_runs,
+                    summary: "Lists recent pipelines with how long each took compared with the usual time.",
                     description: "A project's pipelines, newest first, each with its status, when it started and finished and how long " \
                                  "it took, and how long finished pipelines usually take",
                     params_schema: CodeHost::Code.object_schema({
@@ -64,6 +66,7 @@ module Integrations
                     read_only: true
 
           pack.tool :pipeline_jobs,
+                    summary: "Shows the jobs of a pipeline by stage, with why any failed.",
                     description: "The jobs of one pipeline, by stage, with each one's status, why it failed and how long it took. Use job_log for a job's output",
                     params_schema: CodeHost::Code.object_schema({
                       "repo" => repo,
@@ -73,6 +76,7 @@ module Integrations
                     read_only: true
 
           pack.tool :job_log,
+                    summary: "Shows the end of a CI job's log, where it says why the job failed.",
                     description: "The end of a job's log, where it says why it failed, filtered by text if asked. Without a job, the newest " \
                                  "failed job in the project, on a branch when one is named, in the time asked when one is given",
                     params_schema: CodeHost::Code.object_schema({
@@ -84,6 +88,7 @@ module Integrations
                     read_only: true
 
           pack.tool :ci_status,
+                    summary: "Shows how CI stands on a branch, its failed jobs and recent deploys.",
                     description: "How a project's CI stands now: the latest pipeline on a branch (the default branch unless named) with " \
                                  "its failed jobs, how the last pipelines went and since when it fails, and what each environment last deployed",
                     params_schema: CodeHost::Code.object_schema({
@@ -93,12 +98,14 @@ module Integrations
 
           pipeline_id = { "type" => "integer", "description" => "The pipeline's id, as pipelines or ci_status shows it" }
           pack.tool :retry_pipeline,
+                    summary: "Retries a pipeline's failed and canceled jobs.",
                     description: "Retry a pipeline's failed and canceled jobs, the retry GitLab offers, on the same commit. For a failure " \
                                  "that is not the code, such as a flaky test or a runner that went away",
                     params_schema: CodeHost::Code.object_schema({ "repo" => repo, "pipeline_id" => pipeline_id }, %w[repo pipeline_id]),
                     read_only: false
 
           pack.tool :run_pipeline,
+                    summary: "Runs a new pipeline on a branch or tag.",
                     description: "Run a new pipeline on a branch or tag, with CI/CD variables or inputs if asked",
                     params_schema: CodeHost::Code.object_schema({
                       "repo" => repo,
@@ -110,6 +117,7 @@ module Integrations
                     read_only: false
 
           pack.tool :cancel_pipeline,
+                    summary: "Cancels a pipeline's unfinished jobs.",
                     description: "Cancel a pipeline's jobs that have not finished, such as a deploy that should not go out",
                     params_schema: CodeHost::Code.object_schema({ "repo" => repo, "pipeline_id" => pipeline_id }, %w[repo pipeline_id]),
                     read_only: false

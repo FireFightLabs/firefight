@@ -31,6 +31,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool WORKLOAD_RUNS,
+                    summary: "Shows a workload's recent rollouts or job runs and how each one went.",
                     description: "A workload's recent runs, newest first: a deployment's, statefulset's or daemonset's rollouts, one per " \
                                  "revision, or a cronjob's jobs, or a job's own run, each with how it went, when it started and finished, " \
                                  "how long it took, and how long finished ones usually take. Name a run, a revision number or a job's name, " \

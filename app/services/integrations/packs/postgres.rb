@@ -32,6 +32,7 @@ module Integrations
       PASSWORD_SET = /(\bPASSWORD\s+)'[^']*(?:'|\z)/i
 
       tool :list_tables,
+           summary: "Lists the database's tables with their row counts and size on disk.",
            description: "List the tables in the database, by schema, with roughly how many rows each holds and its size on disk",
            params_schema: {
              "type" => "object",
@@ -40,6 +41,7 @@ module Integrations
            read_only: true
 
       tool :describe_table,
+           summary: "Shows one table's columns, keys and indexes.",
            description: "The shape of one table: its columns with types, nulls and defaults, its primary key, indexes and foreign keys",
            params_schema: {
              "type" => "object",
@@ -49,6 +51,7 @@ module Integrations
            read_only: true
 
       tool :run_query,
+           summary: "Runs a read-only query and shows the rows it returns.",
            description: "Run one read-only SELECT and get its rows back, at most #{ROW_LIMIT}. A query that would write is refused, " \
                         "and one running longer than #{Connection::STATEMENT_TIMEOUT_MS / 1000} seconds is stopped, so count or " \
                         "aggregate rather than reading a large table whole",
@@ -60,6 +63,7 @@ module Integrations
            read_only: true
 
       tool :explain_query,
+           summary: "Shows how Postgres plans to run a query and where it spends its time.",
            description: "The plan Postgres chooses for a query. With analyze it also runs the query and reports real timings and " \
                         "rows per step, which shows where a slow query spends its time",
            params_schema: {
@@ -73,12 +77,14 @@ module Integrations
            read_only: true
 
       tool :current_activity,
+           summary: "Shows what the database is doing now, including slow and blocked queries.",
            description: "What the database is doing now: connections by state against the limit, the longest running queries, " \
                         "and which sessions are blocked and by whom. Use it when something is slow, stuck or out of connections",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :table_health,
+           summary: "Shows how tables are scanned and vacuumed, and which hold the most dead rows.",
            description: "How tables are being read and kept: sequential against index scans, live and dead rows, and when each " \
                         "was last vacuumed and analyzed. Tables with the most dead rows first, or one table",
            params_schema: {
@@ -88,6 +94,7 @@ module Integrations
            read_only: true
 
       tool :database_status,
+           summary: "Shows how the database stands now, from size and connections to replication.",
            description: "How the database stands now: its version, size, how long it has been up, connections against the " \
                         "limit, the oldest open transaction, its commits, rollbacks, deadlocks and cache hit rate since " \
                         "statistics were reset, how close it is to transaction ID wraparound, and its replication",

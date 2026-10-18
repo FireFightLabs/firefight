@@ -47,6 +47,7 @@ module Integrations
           repo = pack::REPO_PARAM
           pipeline = { "type" => "string", "description" => "The pipeline's uuid, as pipelines or ci_status shows it" }
           pack.tool :pipelines,
+                    summary: "Lists a repository's pipelines with their outcome, branch and commit.",
                     description: "A repository's pipelines, newest first, with their outcome, branch, commit, what started them and their page",
                     params_schema: CodeHost::Code.object_schema({
                       "repo" => repo,
@@ -57,6 +58,7 @@ module Integrations
                     read_only: true
 
           pack.tool :ci_runs,
+                    summary: "Lists recent pipelines with how long each took against the usual time.",
                     description: "A repository's pipelines, newest first, each with its status, when it started and finished and how " \
                                  "long it took, and how long finished pipelines usually take",
                     params_schema: CodeHost::Code.object_schema({
@@ -69,11 +71,13 @@ module Integrations
                     read_only: true
 
           pack.tool :pipeline_steps,
+                    summary: "Lists the steps of one pipeline and how each went.",
                     description: "The steps of one pipeline, with each one's outcome and how long it took. Use job_log for a step's output",
                     params_schema: CodeHost::Code.object_schema({ "repo" => repo, "pipeline" => pipeline }, %w[repo pipeline]),
                     read_only: true
 
           pack.tool :job_log,
+                    summary: "Shows the end of a pipeline step's log, where it says why it failed.",
                     description: "The end of a pipeline step's log, where it says why it failed, filtered by text if asked. Without a step, the " \
                                  "newest failed step in the repository, on a branch when one is named, in the time asked when one is given",
                     params_schema: CodeHost::Code.object_schema({
@@ -86,6 +90,7 @@ module Integrations
                     read_only: true
 
           pack.tool :ci_status,
+                    summary: "Shows how a repository's CI stands now and what each environment last deployed.",
                     description: "How a repository's CI stands now: the latest pipeline on a branch (the main branch unless named) with its " \
                                  "failed steps, how the last pipelines went and since when it fails, and what each environment last deployed",
                     params_schema: CodeHost::Code.object_schema({
@@ -94,12 +99,14 @@ module Integrations
                     read_only: true
 
           pack.tool :rerun_pipeline,
+                    summary: "Reruns a finished pipeline from the start on the same commit.",
                     description: "Run a finished pipeline again as a new pipeline, on the same commit, branch or tag and pipeline definition, " \
                                  "every step from the start. For a failure that is not the code, such as a flaky test",
                     params_schema: CodeHost::Code.object_schema({ "repo" => repo, "pipeline" => pipeline }, %w[repo pipeline]),
                     read_only: false
 
           pack.tool :run_pipeline,
+                    summary: "Runs a pipeline on the newest commit of a branch or tag.",
                     description: "Run a pipeline on the newest commit of a branch or tag, the definition that matches it or a custom " \
                                  "pipeline by name, with variables if asked",
                     params_schema: CodeHost::Code.object_schema({
@@ -113,6 +120,7 @@ module Integrations
                     read_only: false
 
           pack.tool :cancel_pipeline,
+                    summary: "Cancels a running pipeline and its unfinished steps.",
                     description: "Stop a pipeline and every step that has not finished, such as a deploy that should not go out",
                     params_schema: CodeHost::Code.object_schema({ "repo" => repo, "pipeline" => pipeline }, %w[repo pipeline]),
                     read_only: false

@@ -48,6 +48,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool :list_pull_requests,
+                    summary: "Lists a repository's pull requests, filtered by state, branch, author or label.",
                     description: "List a repository's pull requests, newest first, filtered by state, base or head branch, author, label or " \
                                  "words in them, each with its branches, author and page",
                     params_schema: Code.object_schema({
@@ -64,6 +65,7 @@ module Integrations
                     read_only: true
 
           pack.tool :pr_lookup,
+                    summary: "Shows one pull request with its reviews, checks and changed files.",
                     description: "Fetch a pull request: title, state, author, branches, whether GitHub says it can merge, its reviews and " \
                                  "review comments, the checks and statuses on its head commit, its changed files, and for a Dependabot " \
                                  "update the security advisories it fixes",
@@ -71,6 +73,7 @@ module Integrations
                     read_only: true
 
           pack.tool :pull_request_diff,
+                    summary: "Shows a pull request's changed files and their diffs.",
                     description: "A pull request's changed files with each one's diff, optionally only the files under a path",
                     params_schema: Code.object_schema({
                       "repo" => REPO, "number" => NUMBER,
@@ -81,11 +84,13 @@ module Integrations
 
           body = { "type" => "string", "description" => "What to say, in GitHub's markdown" }
           pack.tool :comment_on_pull_request,
+                    summary: "Adds a comment to a pull request's conversation.",
                     description: "Add a comment to a pull request's conversation",
                     params_schema: Code.object_schema({ "repo" => REPO, "number" => NUMBER, "body" => body }, %w[repo number body]),
                     read_only: false
 
           pack.tool :reply_to_review_comment,
+                    summary: "Replies in the thread of a review comment on a pull request.",
                     description: "Reply in the thread of a review comment on a pull request's code, by the comment's id as pr_lookup shows it",
                     params_schema: Code.object_schema({
                       "repo" => REPO, "number" => NUMBER,
@@ -94,6 +99,7 @@ module Integrations
                     read_only: false
 
           pack.tool :delete_pull_request_comment,
+                    summary: "Deletes a comment Firefight posted on a pull request.",
                     description: "Delete a comment Firefight posted on a pull request, in its conversation as comment_on_pull_request " \
                                  "said it or on its code as reply_to_review_comment said it. A comment anyone else wrote is refused, " \
                                  "and a person deletes it on GitHub",
@@ -105,6 +111,7 @@ module Integrations
                     read_only: false
 
           pack.tool :review_pull_request,
+                    summary: "Submits a review that approves, requests changes on or comments on a pull request.",
                     description: "Submit a review of a pull request on its current head commit: approve it, request changes or comment, " \
                                  "with comments on lines of its diff if given",
                     params_schema: Code.object_schema({
@@ -124,6 +131,7 @@ module Integrations
                     read_only: false
 
           pack.tool :update_pull_request,
+                    summary: "Updates a pull request's title, description or base branch.",
                     description: "Change a pull request's title, description or the branch it merges into",
                     params_schema: Code.object_schema({
                       "repo" => REPO, "number" => NUMBER,
@@ -134,6 +142,7 @@ module Integrations
                     read_only: false
 
           pack.tool :request_reviewers,
+                    summary: "Asks people or teams to review a pull request.",
                     description: "Ask people or teams to review a pull request",
                     params_schema: Code.object_schema({
                       "repo" => REPO, "number" => NUMBER,
@@ -144,6 +153,7 @@ module Integrations
 
           labels = { "type" => "array", "items" => { "type" => "string" } }
           pack.tool :label_pull_request,
+                    summary: "Adds labels to a pull request or removes them.",
                     description: "Add labels to a pull request or take them off. Only labels the repository already has are added",
                     params_schema: Code.object_schema({
                       "repo" => REPO, "number" => NUMBER,
@@ -154,16 +164,19 @@ module Integrations
 
           comment = { "type" => "string", "description" => "A comment saying why, posted first (optional)" }
           pack.tool :close_pull_request,
+                    summary: "Closes a pull request without merging it.",
                     description: "Close a pull request without merging it, with a comment saying why if given. It can be reopened",
                     params_schema: Code.object_schema({ "repo" => REPO, "number" => NUMBER, "comment" => comment }, %w[repo number]),
                     read_only: false
 
           pack.tool :reopen_pull_request,
+                    summary: "Reopens a pull request that was closed without being merged.",
                     description: "Reopen a pull request that was closed without being merged",
                     params_schema: Code.object_schema({ "repo" => REPO, "number" => NUMBER, "comment" => comment }, %w[repo number]),
                     read_only: false
 
           pack.tool :merge_pull_request,
+                    summary: "Merges a pull request when GitHub says it is ready to merge.",
                     description: "Merge a pull request, only when GitHub says it can merge: no conflicts, no failing required check or " \
                                  "missing review, and up to date where its base asks for that. The merge is of the head commit read now",
                     params_schema: Code.object_schema({
@@ -175,6 +188,7 @@ module Integrations
                     read_only: false
 
           pack.tool :update_pull_request_branch,
+                    summary: "Updates a pull request's branch by merging its base branch into it.",
                     description: "Bring a pull request's branch up to date with its base, by merging the base into it as GitHub's Update branch button does",
                     params_schema: Code.object_schema({ "repo" => REPO, "number" => NUMBER }, %w[repo number]),
                     read_only: false

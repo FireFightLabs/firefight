@@ -17,6 +17,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool :revert_pull_request,
+                    summary: "Opens a pull request that reverts a merged pull request.",
                     description: "Open a pull request that reverts a merged pull request, on a branch under #{Branches::PREFIX} made from its " \
                                  "base branch as it is now. Nothing reaches the base branch until that pull request is reviewed and merged. " \
                                  "A pull request whose changes were since changed again, so it does not revert cleanly, is refused",

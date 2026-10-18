@@ -55,21 +55,25 @@ module Integrations
       BLAME_HEADER = /\A(\h{40}) \d+ (\d+)/
 
       tool :list_repositories,
+           summary: "Lists the workspace's repositories with each main branch and last update.",
            description: "List the repositories in this Bitbucket workspace, with each one's main branch and last update",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :pr_lookup,
+           summary: "Shows a pull request with its author, approvers, branches and changed files.",
            description: "Fetch a pull request: title, state, author, who closed it, its branches and merge commit, who approved it, and the changed files",
            params_schema: Code.object_schema({ "repo" => REPO_PARAM, "id" => { "type" => "integer", "description" => "The pull request's number, as in #42" } }, %w[repo id]),
            read_only: true
 
       tool :commit_lookup,
+           summary: "Shows a commit's message, author and changed files.",
            description: "Fetch a commit: message, author, stats, and changed files",
            params_schema: Code.object_schema({ "repo" => REPO_PARAM, "sha" => { "type" => "string", "description" => COMMIT_REFERENCE } }, %w[repo sha]),
            read_only: true
 
       tool :recent_deployments,
+           summary: "Lists a repository's recent deployments and how each one went.",
            description: "List a repository's deployments, newest first, each with the environment, the release and commit deployed, " \
                         "the outcome, who ran it and the pipeline that made it",
            params_schema: Code.object_schema({
@@ -80,6 +84,7 @@ module Integrations
            read_only: true
 
       tool :merged_pull_requests,
+           summary: "Lists pull requests recently merged into a repository.",
            description: "List pull requests merged into a repository, most recently updated first, optionally only those updated since a " \
                         "given time. Bitbucket keeps no merge time, so a pull request's last update stands for it",
            params_schema: Code.object_schema({
@@ -89,6 +94,7 @@ module Integrations
            read_only: true
 
       tool :running_commit,
+           summary: "Finds which commit was running in production at a given time.",
            description: "Which commit was running at a given time: the last deployment that succeeded before it, and the one before " \
                         "that to compare against. Without a deployment it falls back to the main branch at that time and says " \
                         "so, since a merge is not proof of a deploy",
@@ -100,6 +106,7 @@ module Integrations
            read_only: true
 
       tool :compare_commits,
+           summary: "Compares two commits with their pull requests, changed files and diffs.",
            description: "What changed between two commits: the commits and pull requests with their authors and approvers, " \
                         "the changed files grouped by kind with migrations, config and dependencies first, dependency bumps " \
                         "in plain words, who owns the changed files, and every diff",
@@ -111,6 +118,7 @@ module Integrations
            read_only: true
 
       tool :fetch_file,
+           summary: "Reads a file from a repository at a given commit.",
            description: "Read a file from the repository at a given commit, optionally sliced to a line range with surrounding context",
            params_schema: Code.object_schema({
              "repo" => REPO_PARAM,
@@ -122,6 +130,7 @@ module Integrations
            read_only: true
 
       tool :blame,
+           summary: "Shows which commits and pull requests last changed some lines of a file.",
            description: "Attribute a line range, as it stood at a given commit, to the commits and pull requests that last touched it. " \
                         "Read with git in the code sandbox, since Bitbucket's API has no blame",
            params_schema: Code.object_schema({
@@ -134,6 +143,7 @@ module Integrations
            read_only: true
 
       tool :api_read,
+           summary: "Reads any other Bitbucket data, such as environments, branch rules or members.",
            description: "Anything else Bitbucket's REST API reads that the other Bitbucket tools do not cover, such as a repository's " \
                         "deployment environments, branch restrictions, branching model, members and permissions, or a workspace's " \
                         "projects. A GET to a path of Bitbucket Cloud's REST API (#{BitbucketApi::API_ROOT}), written after /2.0, " \

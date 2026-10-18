@@ -68,6 +68,7 @@ module Integrations
       }.freeze
 
       tool :describe_resource,
+           summary: "Shows the health of the Tinybird workspace, a data source or a published pipe.",
            description: "How one Tinybird resource stands. Without a name, the workspace: its region, how many data sources and " \
                         "endpoints it has, the endpoints that failed in the last hour, the data sources whose operations failed " \
                         "and its latest deployments. With a data source's name, its engine, rows, size, quarantined rows and " \
@@ -79,17 +80,20 @@ module Integrations
            read_only: true
 
       tool :list_datasources,
+           summary: "Lists data sources with their size, row count and the pipes that read them.",
            description: "Every data source the token reads, with its engine, rows, size and the pipes that read it",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :list_endpoints,
+           summary: "Lists published pipes with the data sources they read.",
            description: "Every pipe published as an API endpoint, with its description, the data sources it reads and the parameters " \
                         "call_endpoint takes for it",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :run_query,
+           summary: "Runs a read-only SQL query on the workspace's data sources and pipes.",
            description: "Run one read-only SQL query through Tinybird's Query API, on the workspace's data sources and pipes, and on " \
                         "its service data sources such as tinybird.pipe_stats_rt, tinybird.datasources_ops_log, tinybird.endpoint_errors " \
                         "and tinybird.jobs_log. Tinybird's SQL is ClickHouse's. Leave out FORMAT, since Firefight asks for JSON itself",
@@ -104,6 +108,7 @@ module Integrations
            read_only: true
 
       tool :call_endpoint,
+           summary: "Calls a published pipe and shows what it returns to its users.",
            description: "Call a published API endpoint with its own parameters and read what it answers, as its users would. " \
                         "list_endpoints names each endpoint's parameters. A call counts toward the endpoint's rate limits",
            params_schema: {
@@ -118,6 +123,7 @@ module Integrations
            read_only: true
 
       tool :endpoint_requests,
+           summary: "Lists recent requests to published pipes with their status, timing and errors.",
            description: "Requests to the workspace's API endpoints and Query API, newest first, at most #{LOG_LIMIT}, from " \
                         "tinybird.pipe_stats_rt: when, which endpoint, the status, how long it took, rows read and returned, the " \
                         "token's name and the error when it failed",
@@ -133,6 +139,7 @@ module Integrations
            read_only: true
 
       tool :datasource_operations,
+           summary: "Lists recent appends, replaces and other operations on data sources.",
            description: "Operations on the workspace's data sources, newest first, at most #{LOG_LIMIT}, from " \
                         "tinybird.datasources_ops_log: appends, replaces, deletes, populates and copies, with their result, rows, " \
                         "quarantined rows, the pipe that wrote and the error when one failed",
@@ -149,6 +156,7 @@ module Integrations
            read_only: true
 
       tool :list_errors,
+           summary: "Groups what failed in the workspace by cause, most frequent first.",
            description: "What failed in the workspace, grouped by what failed and why, most frequent first: endpoint requests from " \
                         "tinybird.endpoint_errors, data source operations and jobs. Narrow it to one data source or endpoint by name",
            params_schema: {
@@ -163,6 +171,7 @@ module Integrations
            read_only: true
 
       tool :endpoint_metrics,
+           summary: "Charts requests, errors, CPU time and latency for a published pipe or the workspace.",
            description: "Requests, failures, 4xx and 5xx responses, CPU time, latency and its 95th percentile alone over time for one API endpoint, or for every " \
                         "request the workspace answered, from tinybird.pipe_stats_rt. The person sees each metric as a chart",
            params_schema: {
@@ -177,6 +186,7 @@ module Integrations
            read_only: true
 
       tool :jobs,
+           summary: "Lists recent deployments, copies, imports and other jobs with their status.",
            description: "The workspace's jobs, newest first, from tinybird.jobs_log: deployments, copies, populates, imports, syncs and " \
                         "sinks, with their status, when each started and ended, and the error when one failed",
            params_schema: {
@@ -191,6 +201,7 @@ module Integrations
            read_only: true
 
       tool :api_read,
+           summary: "Reads any other Tinybird detail, such as a job, a data source or a pipe's nodes.",
            description: "Anything else Tinybird's API reads that the other tools do not cover, such as one job by its id, a data " \
                         "source's details, a pipe's nodes, or what the Analyze API makes of a file. A GET to a path of the API " \
                         "for this workspace's region, starting /v0 or /v1, as Tinybird's API reference writes it, such as " \

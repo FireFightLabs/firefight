@@ -87,6 +87,7 @@ module Integrations
       RESOURCE = { "type" => "string", "description" => "A workload as kind/name, such as deployment/web, statefulset/db, daemonset/agent, cronjob/nightly or job/migrate, or a name alone when only one workload has it" }.freeze
 
       tool :list_resources,
+           summary: "Lists the workloads, services and ingresses in the connected namespaces.",
            description: "The workloads (deployments, statefulsets, daemonsets, cronjobs and jobs), services and ingresses in the " \
                         "connected namespaces, with how many pods are ready and whether each is running, progressing or failed. " \
                         "Use it first to find the kind/name to pass to the other tools",
@@ -94,6 +95,7 @@ module Integrations
            read_only: true
 
       tool :workload_logs,
+           summary: "Searches the recent logs of a workload's pods.",
            description: "What a workload's pods printed, newest first, at most #{LOG_LIMIT} lines, from its #{POD_LIMIT} newest pods. " \
                         "Filter by text or a regular expression. previous reads each container as it was before its last " \
                         "restart, which is where a crash's last lines are. Kubernetes keeps logs only for pods that still exist",
@@ -114,12 +116,14 @@ module Integrations
            read_only: true
 
       tool :pod_metrics,
+           summary: "Shows the CPU and memory each pod of a workload uses now.",
            description: "CPU and memory each pod of a workload uses now, against its requests and limits, from the cluster's " \
                         "metrics API. The metrics API keeps only the latest reading, so this is never a history",
            params_schema: { "type" => "object", "properties" => { "namespace" => NAMESPACE, "resource" => RESOURCE }, "required" => [ "resource" ] },
            read_only: true
 
       tool :describe_workload,
+           summary: "Shows how a workload stands now, with its pods, restarts and latest events.",
            description: "How one workload stands now: desired, ready and updated replicas, its conditions, what each container " \
                         "runs with its requests, limits and probes, each pod's phase, restarts and why its containers last " \
                         "stopped (such as OOMKilled or CrashLoopBackOff), and its latest events. A cronjob shows its schedule and recent jobs",
@@ -127,6 +131,7 @@ module Integrations
            read_only: true
 
       tool :rollout_history,
+           summary: "Lists a workload's rollout revisions and which one is current.",
            description: "The revisions of a deployment, statefulset or daemonset, newest first: when each was made, the images " \
                         "it ran and its change cause, and which one is current. rollout_undo takes the revision number",
            params_schema: {
@@ -140,6 +145,7 @@ module Integrations
            read_only: true
 
       tool :list_events,
+           summary: "Lists recent events in a namespace, such as failed probes and evictions.",
            description: "Events in a namespace, newest first: scheduling failures, failed probes, image pulls, evictions, " \
                         "out of memory kills and the rest. The API server keeps events for an hour by default",
            params_schema: {
@@ -154,6 +160,7 @@ module Integrations
            read_only: true
 
       tool :rollout_undo,
+           summary: "Rolls a workload back to an earlier revision.",
            description: "Put a deployment, statefulset or daemonset back on an earlier revision from rollout_history, as kubectl " \
                         "rollout undo does. The pods roll out again as the workload's strategy says",
            params_schema: {
@@ -167,12 +174,14 @@ module Integrations
            read_only: false
 
       tool :rollout_restart,
+           summary: "Restarts every pod of a workload without downtime.",
            description: "Replace every pod of a deployment, statefulset or daemonset with a fresh one, as kubectl rollout restart " \
                         "does, following the workload's strategy so it keeps serving",
            params_schema: { "type" => "object", "properties" => { "namespace" => NAMESPACE, "resource" => RESOURCE }, "required" => [ "resource" ] },
            read_only: false
 
       tool :scale_workload,
+           summary: "Sets how many pods a deployment or statefulset runs.",
            description: "Set how many pods a deployment or statefulset runs, as kubectl scale does",
            params_schema: {
              "type" => "object",
@@ -185,6 +194,7 @@ module Integrations
            read_only: false
 
       tool :api_read,
+           summary: "Reads other cluster objects, such as config maps, nodes or autoscalers.",
            description: "Anything else the cluster's API server reads that the other tools do not cover, such as config maps, " \
                         "persistent volume claims, network policies, horizontal pod autoscalers, pod disruption budgets, nodes, " \
                         "custom resources or one object in full. A GET to a path under /api or /apis, as kubectl get --raw takes " \

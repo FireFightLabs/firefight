@@ -46,12 +46,14 @@ module Integrations
 
         def self.included(pack)
           pack.tool :list_workflows,
+                    summary: "Lists a repository's GitHub Actions workflows and whether each is active.",
                     description: "A repository's GitHub Actions workflows, each with its file, whether it is active and its page. A " \
                                  "workflow's file name is what workflow_runs and run_workflow take",
                     params_schema: Code.object_schema({ "repo" => Code::REPO }, %w[repo]),
                     read_only: true
 
           pack.tool :workflow_runs,
+                    summary: "Lists recent workflow runs with their outcome, branch, commit and trigger.",
                     description: "A repository's GitHub Actions workflow runs, newest first, with the workflow, its outcome, the branch and " \
                                  "commit, what started it and its page",
                     params_schema: Code.object_schema({
@@ -64,6 +66,7 @@ module Integrations
                     read_only: true
 
           pack.tool :ci_runs,
+                    summary: "Lists recent CI runs with how long each took compared with the usual time.",
                     description: "A repository's GitHub Actions runs, newest first, each with its workflow, status, when it started and " \
                                  "finished and how long it took, and how long finished runs usually take",
                     params_schema: Code.object_schema({
@@ -76,6 +79,7 @@ module Integrations
                     read_only: true
 
           pack.tool :workflow_jobs,
+                    summary: "Shows the jobs of a workflow run with their outcome and failed steps.",
                     description: "The jobs of one workflow run, with each one's outcome, the steps that failed and how long it took. Use job_log for a job's output",
                     params_schema: Code.object_schema({
                       "repo" => Code::REPO,
@@ -85,6 +89,7 @@ module Integrations
                     read_only: true
 
           pack.tool :job_log,
+                    summary: "Shows the end of a CI job's log, where it says why the job failed.",
                     description: "The end of a GitHub Actions job's log, where it says why it failed, filtered by text if asked. Without a " \
                                  "job, the newest failed job in the repository, on a branch when one is named, in the time asked when one is given",
                     params_schema: Code.object_schema({
@@ -96,6 +101,7 @@ module Integrations
                     read_only: true
 
           pack.tool :ci_status,
+                    summary: "Shows how CI stands on a branch, failing workflows first, and recent deploys.",
                     description: "How a repository's CI stands now: the latest run of each GitHub Actions workflow on a branch (the default " \
                                  "branch unless named), failing ones first with the jobs and steps that failed, and what each deployment " \
                                  "environment last received",
@@ -106,6 +112,7 @@ module Integrations
 
           run_id = { "type" => "integer", "description" => "The run's id, as workflow_runs or ci_status shows it" }
           pack.tool :rerun_workflow,
+                    summary: "Reruns a finished workflow run, either every job or only the failed ones.",
                     description: "Run a finished GitHub Actions workflow run again, every job or only the jobs that failed and the jobs " \
                                  "that depend on them, on the same commit. For a failure that is not the code, such as a flaky test",
                     params_schema: Code.object_schema({
@@ -115,6 +122,7 @@ module Integrations
                     read_only: false
 
           pack.tool :run_workflow,
+                    summary: "Starts a GitHub Actions workflow by hand on a branch or tag.",
                     description: "Start a GitHub Actions workflow by hand on a branch or tag, with the inputs it declares. Only a workflow " \
                                  "with a workflow_dispatch trigger can be started this way",
                     params_schema: Code.object_schema({
@@ -127,6 +135,7 @@ module Integrations
                     read_only: false
 
           pack.tool :cancel_workflow,
+                    summary: "Cancels a queued or running workflow run.",
                     description: "Cancel a GitHub Actions workflow run that is queued or running, such as a deploy that should not go out",
                     params_schema: Code.object_schema({ "repo" => Code::REPO, "run_id" => run_id }, %w[repo run_id]),
                     read_only: false
