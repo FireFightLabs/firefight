@@ -32,8 +32,9 @@ class Investigation < ApplicationRecord
   REPEATED_CALL = "Repeated the same tool call".freeze
   ENDED_WITHOUT_AN_ANSWER = "Ended without an answer".freeze
   GAVE_UP = "Something went wrong on my side".freeze
+  OUT_OF_TIME = "Stopped at its time limit before it could answer".freeze
   PLAIN_STOP_REASONS = [
-    STOPPED_BY_A_RESPONDER, BUDGET_SPENT, TOO_MANY_TURNS, STALLED, REPEATED_CALL, ENDED_WITHOUT_AN_ANSWER, GAVE_UP
+    STOPPED_BY_A_RESPONDER, BUDGET_SPENT, TOO_MANY_TURNS, STALLED, REPEATED_CALL, ENDED_WITHOUT_AN_ANSWER, GAVE_UP, OUT_OF_TIME
   ].freeze
 
   # A worker renews this every turn, so a dead one holds the run for at most this long.
@@ -88,6 +89,7 @@ class Investigation < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
   validates :trigger_source, inclusion: { in: TRIGGER_SOURCES }
   validates :max_turns, :max_spend_cents, numericality: { only_integer: true, greater_than: 0 }
+  validates :max_duration_seconds, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validate :asks_something
 
   scope :live, -> { where(status: LIVE_STATUSES) }
@@ -228,9 +230,11 @@ class Investigation < ApplicationRecord
     false
   end
 
-  # Runs as the agent, not the person, so a finding does not depend on who asked.
+  # Runs as the agent, not the person, so a finding does not depend on who asked. A run a person started reads no further
+  # than they read the map, as their chat would. One an alert or a schedule started keeps the agent's own reach.
   def acting_principal
-    SystemAgent.investigator
+    agent = SystemAgent.investigator
+    triggered_by.is_a?(WorkspaceMembership) ? agent.within_reach_of(triggered_by) : agent
   end
 
   def refusal(action_key)
@@ -318,6 +322,10 @@ class Investigation < ApplicationRecord
   end
 
   def spent_cents = (spent_micros / 10_000.0).round(2)
+
+  # When the run has to conclude by, counted from its first turn so a run taken up again keeps its time. Nil for a run
+  # from before time limits, or one not started.
+  def deadline = (started_at + max_duration_seconds if started_at && max_duration_seconds)
 
   # Why a failed run stopped, in the words the thread was told. A technical cause is never shown to people, except that
   # the AI account ran out of credit, which is said without naming whose.

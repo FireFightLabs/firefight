@@ -36,6 +36,7 @@ class InvestigationService
         triggered_by: triggered_by,
         brief: brief,
         max_turns: limits.max_turns,
+        max_duration_seconds: limits.max_duration.to_i,
         max_spend_cents: [ limits.max_spend_cents, max_spend_cents ].compact.min,
         **answer_in
       )

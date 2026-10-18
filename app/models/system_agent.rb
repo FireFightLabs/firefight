@@ -66,9 +66,22 @@ class SystemAgent < ApplicationRecord
     super.where(workspace_id: listing_workspace_id)
   end
 
+  # The person a run they started acts within, nil for a run nobody asked for. The agent keeps its own grants and its
+  # name in the activity log, and reaches no further than this person reads the map (AbilityGateway.reach, permitted?).
+  attr_reader :acting_for
+
+  # This agent bounded by what member reads of the map, as their own chat would be. The same row to grants and the ledger.
+  def within_reach_of(member) = clone.tap { |agent| agent.acting_for = member }
+
   def actor_display_name = name
   def actor_kind = Ability::Principal::KIND_SYSTEM_AGENT
   def platform_user_id = nil
+
+  protected
+
+  attr_writer :acting_for
+
+  public
 
   # Nobody authenticates as one, so no MCP session ever resolves to it.
   def mcp_readable?(_resource)

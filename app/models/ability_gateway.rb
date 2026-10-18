@@ -180,6 +180,7 @@ class AbilityGateway
   # request when the caller already read it.
   def self.permitted?(principal, action, action_key, workspace, scope, params: nil, resolved: nil, approval: nil)
     return false unless action
+    return false if beyond_person?(principal, workspace, scope)
     # A member an admin removed reaches nothing, whatever they left running.
     return false if principal.is_a?(WorkspaceMembership) && principal.removed?
     return true if Ability::Action.open?(action_key)
@@ -202,13 +203,27 @@ class AbilityGateway
   # Where a principal may read something filtered by environment (Ability::Action::FILTERED_KEYS), as a scope: {} for
   # every environment, { "environment" => catalog entry ids } for those alone, or nil for none. A reader filters its rows
   # by it, after the call itself was authorized.
+  # An agent acting within a person's reach (SystemAgent#acting_for) reaches only where both do.
   def self.reach(principal:, action_key:, workspace:)
     action = principal && Ability::Action.lookup(action_key, workspace)
     return nil unless action
-    return {} if principal.implicitly_allowed?(action)
 
-    Ability::Resolver.resolve(principal, workspace).reach(action_key)
+    own = principal.implicitly_allowed?(action) ? {} : Ability::Resolver.resolve(principal, workspace).reach(action_key)
+    person = principal.try(:acting_for)
+    person ? Ability::Scope.within(own, reach(principal: person, action_key: action_key, workspace: workspace)) : own
   end
+
+  # Whether a call aims at an environment the person an agent acts within does not read on the map, so a run they started
+  # never reaches what their own chat could not.
+  def self.beyond_person?(principal, workspace, scope)
+    person = principal.try(:acting_for)
+    environment = scope[Ability::Scope::DIMENSION_ENVIRONMENT] || scope[Ability::Scope::DIMENSION_ENVIRONMENT.to_sym] if scope.is_a?(Hash)
+    return false if person.nil? || environment.blank?
+
+    allowed = reach(principal: person, action_key: Ability::Action::MAP_READ, workspace: workspace)
+    allowed.nil? || (allowed.key?(Ability::Scope::DIMENSION_ENVIRONMENT) && !allowed[Ability::Scope::DIMENSION_ENVIRONMENT].include?(environment))
+  end
+  private_class_method :beyond_person?
 
   # The caller claims the returned approval together with the allow ledger row.
   def self.approval_gate!(principal:, action:, action_key:, workspace:, scope:, params:, context:)

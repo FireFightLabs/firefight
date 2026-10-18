@@ -18,6 +18,7 @@ class InvestigationServiceTest < ActiveSupport::TestCase
 
     assert_equal Workspace::INVESTIGATION_DEFAULT_MAX_TURNS, investigation.max_turns
     assert_equal Workspace::INVESTIGATION_DEFAULT_MAX_SPEND_CENTS, investigation.max_spend_cents
+    assert_equal Workspace::INVESTIGATION_MAX_DURATION.to_i, investigation.max_duration_seconds
     assert_equal @member, investigation.triggered_by
     assert_equal Investigation::TRIGGER_COMMAND, investigation.trigger_source
   end

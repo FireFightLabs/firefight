@@ -18,4 +18,9 @@ module SearchEmbedding::Writing
 
   # A record says when it is worth embedding. Most are worth it as soon as they exist.
   def search_embeddable? = true
+
+  class_methods do
+    # What a backfill reads to ask search_embeddable? of each record, with whatever that question loads.
+    def search_embedding_candidates = all
+  end
 end

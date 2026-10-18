@@ -390,6 +390,46 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     assert chat.heard_stop.wait(2), "the tool's wait heard the stop"
   end
 
+  test "reaching the time limit buys one last turn to conclude, then the run stops for time" do
+    chat = FakeChat.new([ tool_reply("call_1"), tool_reply("call_2"), tool_reply("call_3") ])
+
+    outcome = run_loop(chat, budget: budget(ends_at: 1.second.ago))
+
+    assert_equal FirefightAi::AgentLoop::STATUS_OUT_OF_TIME, outcome.status
+    assert_includes chat.messages.map(&:content), FirefightAi::AgentLoop::TIME_UP
+    assert_equal 1, chat.model_calls, "the last turn is one model call, not a whole run"
+    assert_equal [ "call_1" ], chat.messages.select(&:tool_result?).map(&:tool_call_id), "what the last turn asked for still answers"
+  end
+
+  test "a run that concludes on its last turn is answered, not stopped for time" do
+    chat = FakeChat.new([ llm_reply(content: "It was the database") ])
+
+    outcome = run_loop(chat, budget: budget(ends_at: 1.second.ago), reply_is_answer: true)
+
+    assert_equal FirefightAi::AgentLoop::STATUS_ANSWERED, outcome.status
+  end
+
+  test "a run well past its time limit stops before another model call" do
+    chat = FakeChat.new([ tool_reply("call_1") ])
+
+    outcome = run_loop(chat, budget: budget(ends_at: (FirefightAi::AgentLoop::TIME_UP_GRACE + 1).seconds.ago))
+
+    assert_equal FirefightAi::AgentLoop::STATUS_OUT_OF_TIME, outcome.status
+    assert_equal 0, chat.model_calls
+  end
+
+  test "a tool still running once the last turn's grace is over is stopped, and the run ends for time" do
+    chat = SlowToolChat.new([ tool_reply("call_1"), llm_reply(content: "never asked") ], waits: 5, stoppable: true)
+    started = clock
+
+    outcome = run_loop(chat, budget: budget(ends_at: (FirefightAi::AgentLoop::TIME_UP_GRACE - 0.3).seconds.ago))
+
+    assert_equal FirefightAi::AgentLoop::STATUS_OUT_OF_TIME, outcome.status
+    assert_operator clock - started, :<, 2.5
+    assert chat.heard_stop.wait(2), "the tool's wait heard the stop"
+    assert_empty chat.messages.select(&:tool_result?)
+  end
+
   test "a tool that finishes before any stop answers as before" do
     chat = SlowToolChat.new([ tool_reply("call_1"), llm_reply(content: "done") ], waits: 0.1)
 
@@ -445,9 +485,9 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     )
   end
 
-  def budget(max_spend_cents: 400, max_turns: 500, turns_used: 0, spent_micros: 0)
+  def budget(max_spend_cents: 400, max_turns: 500, turns_used: 0, spent_micros: 0, ends_at: nil)
     FirefightAi::AgentLoop::Budget.new(
-      max_spend_cents: max_spend_cents, max_turns: max_turns, turns_used: turns_used, spent_micros: spent_micros
+      max_spend_cents: max_spend_cents, max_turns: max_turns, turns_used: turns_used, spent_micros: spent_micros, ends_at: ends_at
     )
   end
 
