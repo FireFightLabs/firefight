@@ -2,26 +2,45 @@ module Integrations
   # An outside coding agent opens its pull request itself, so Firefight cannot refuse what it pushes. Once it opens, what
   # it changed is read through the code host that holds it and checked against the paths the workspace keeps out of code
   # changes. One that touches any is flagged for a person, with a comment on the pull request, and never closed. One whose
-  # files cannot be read is flagged too, since a change nobody checked is not a clean one.
+  # files cannot be read is flagged too, since a change nobody checked is not a clean one. An agent's answer can name any
+  # address, so only a pull request in the repository the change was asked for, on a connection holding it, is read or
+  # commented on, and any other is flagged unchecked with nothing written.
   module ProtectedPullRequests
     # One pull request a person must review, and why, in the words the answer, the step and the thread show.
     Flag = Data.define(:url, :sentence)
 
     NO_HOST = "no connected code host can read it".freeze
+    NOT_ASKED = "it is not in %<repository>s, the repository the change was asked for".freeze
+    BROKE = "the check failed on Firefight's side".freeze
 
     module_function
 
-    # The pull requests among urls that need a person. asked_by is whoever asked for the change, named in the activity log
-    # beside the comment, and via the coding agent's tool the change came through, whose call the comment belongs to.
-    def check(workspace, urls, asked_by:, via:)
-      urls.filter_map { |url| flag_for(workspace, url, asked_by, via) }
+    # The pull requests among urls that need a person. repository is the one the change was asked for, as given. asked_by
+    # is whoever asked for the change, named in the activity log beside the comment, and via the coding agent's tool the
+    # change came through, whose call the comment belongs to.
+    def check(workspace, urls, repository:, asked_by:, via:)
+      asked = named(repository)
+      urls.filter_map do |url|
+        flag_for(workspace, url, asked, asked_by, via)
+      rescue StandardError => error
+        Rails.logger.warn({ event: "protected_pull_requests.check_failed", url: url, error: error.class.name }.to_json)
+        unchecked(url, BROKE)
+      end
     end
 
-    def flag_for(workspace, url, asked_by, via)
-      addresses = PullRequests.addressed(workspace, url)
-      repository = addresses.first&.repository || CodeChange.repository_name(url) || url
-      return if Integration.protected_paths_for(workspace, repository).empty?
-      return unchecked(url, NO_HOST) if addresses.empty?
+    # owner/name, or a longer path on a host with groups, from a name or an address.
+    def named(repository) = repository.to_s.strip.sub(%r{\A(?:https?://|git@)[^/:]+[/:]}, "").delete_suffix(".git").delete_suffix("/")
+
+    def flag_for(workspace, url, asked, asked_by, via)
+      return if Integration.protected_paths_for(workspace, asked).empty?
+
+      owned = PullRequests.addressed(workspace, url)
+      return unchecked(url, NO_HOST) if owned.empty?
+
+      addresses = owned.select { |address| address.repository.casecmp?(asked) }
+      return unchecked(url, format(NOT_ASKED, repository: asked)) if addresses.empty?
+
+      repository = addresses.first.repository
 
       address, paths, failure = read_paths(addresses)
       # A host that cannot list the files may still take a comment, so the pull request itself says it went unchecked.

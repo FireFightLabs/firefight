@@ -14,7 +14,7 @@ module Investigation::Finding::Searchable
   def search_embeddable? = !investigation.rehearsal? && !investigation.scheduled?
 
   class_methods do
-    def search_embedding_candidates = includes(:investigation)
+    def search_embedding_candidates(workspace_ids) = joins(:investigation).where(investigations: { workspace_id: workspace_ids }).includes(:investigation)
   end
 
   def search_facts

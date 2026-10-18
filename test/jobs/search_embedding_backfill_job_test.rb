@@ -50,6 +50,29 @@ class SearchEmbeddingBackfillJobTest < ActiveJob::TestCase
     assert_no_enqueued_jobs
   end
 
+  test "a workspace without AI is passed over before anything is queued for it" do
+    other = incidents(:active_p0_ws2)
+    Entitlements.stubs(:allows?).returns(true)
+    Entitlements.stubs(:allows?).with(other.workspace, Entitlements::AI).returns(false)
+
+    SearchEmbeddingBackfillJob.new.perform(0)
+
+    assert written?(Incident.name, @incident.id)
+    refute written?(Incident.name, other.id)
+  end
+
+  test "only one backfill runs at a time, however often it is started" do
+    assert_equal 1, SearchEmbeddingBackfillJob.concurrency_limit
+    assert_equal SearchEmbeddingBackfillJob::CONCURRENCY_KEY, SearchEmbeddingBackfillJob.new.concurrency_key.split("/").last
+  end
+
+  test "a vector another writer saved first is kept rather than failing the job" do
+    FirefightAi.stubs(:embed).returns(Struct.new(:vectors, :model).new(Array.new(SearchEmbedding::DIMENSIONS, 0.1), FirefightAi.embedding_model))
+    SearchEmbedding.any_instance.stubs(:update!).raises(ActiveRecord::RecordNotUnique)
+
+    assert_nothing_raised { SearchEmbeddingService.new(@workspace).write!(@incident) }
+  end
+
   private
 
   def written?(type, id)

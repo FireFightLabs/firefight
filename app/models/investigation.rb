@@ -230,12 +230,18 @@ class Investigation < ApplicationRecord
     false
   end
 
-  # Runs as the agent, not the person, so a finding does not depend on who asked. A run a person started reads no further
-  # than they read the map, as their chat would. One an alert or a schedule started keeps the agent's own reach.
+  # Someone asked for these, a person, an agent or a key. An alert, a schedule, a security event or a published workflow
+  # starts the rest, with the investigator's own reach.
+  ASKED_TRIGGERS = [ TRIGGER_COMMAND, TRIGGER_BUTTON, TRIGGER_CONVERSATION, TRIGGER_MCP, TRIGGER_DASHBOARD ].freeze
+
+  # Runs as the agent, not the person, so a finding does not depend on who asked. A run someone asked for reaches no
+  # further than whoever asked could themselves, by their own grants and their map reach.
   def acting_principal
     agent = SystemAgent.investigator
-    triggered_by.is_a?(WorkspaceMembership) ? agent.within_reach_of(triggered_by) : agent
+    asked_by_someone? ? agent.within_reach_of(triggered_by) : agent
   end
+
+  def asked_by_someone? = triggered_by.present? && ASKED_TRIGGERS.include?(trigger_source)
 
   def refusal(action_key)
     "Not allowed: this agent has no grant for #{action_key} in this workspace."

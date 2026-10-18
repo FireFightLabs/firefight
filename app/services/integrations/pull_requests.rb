@@ -91,19 +91,23 @@ module Integrations
       pack.present? && FLAG_HOOKS.all? { |hook| pack.method_defined?(hook) }
     end
 
-    # The pull request at url as each code host connection of the workspace that owns the address reads it, those whose
-    # sweep put its repository on the map first, since one connection may reach repositories another cannot.
+    # The pull request at url as each code host connection of the workspace that owns the address reads it. A connection
+    # owns it only when its sweep put the repository on the map, so an address nobody here holds is read and written by
+    # none. A connection that fails while working it out owns nothing, so the answer it serves still comes back.
     def addressed(workspace, url)
-      found = flagging_rows(workspace).filter_map do |row|
+      flagging_rows(workspace).filter_map do |row|
         repository, number = NativePack.fetch!(row.integration).pull_request_at(row, url)
-        Address.new(environment_row: row, repository: repository, number: number) if repository
+        Address.new(environment_row: row, repository: repository, number: number) if repository && holds?(row, repository)
+      rescue StandardError => error
+        Rails.logger.warn({ event: "pull_requests.address_unread", integration_id: row.integration_id, error: error.class.name }.to_json)
+        nil
       end
-      return found if found.size < 2
+    end
 
-      held = ResourceMap::Resource.present.where(workspace: workspace, kind: ResourceMap::KIND_REPOSITORY, external_id: found.map(&:repository),
-                                                 integration_environment_id: found.map { |address| address.environment_row.id })
-                                  .pluck(:integration_environment_id, :external_id)
-      found.sort_by { |address| held.include?([ address.environment_row.id, address.repository ]) ? 0 : 1 }
+    def holds?(row, repository)
+      ResourceMap::Resource.present.where(workspace_id: row.integration.workspace_id, kind: ResourceMap::KIND_REPOSITORY)
+                           .where("lower(external_id) = ?", repository.downcase)
+                           .where("integration_environment_id = :row OR sightings ? :row", row: row.id.to_s).exists?
     end
 
     # Every path the pull request changes, a renamed file under both names.

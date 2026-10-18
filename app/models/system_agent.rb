@@ -66,12 +66,13 @@ class SystemAgent < ApplicationRecord
     super.where(workspace_id: listing_workspace_id)
   end
 
-  # The person a run they started acts within, nil for a run nobody asked for. The agent keeps its own grants and its
-  # name in the activity log, and reaches no further than this person reads the map (AbilityGateway.reach, permitted?).
+  # Whoever asked for the run this agent works on, a member, an agent or a key, nil for a run nobody asked for. The agent
+  # keeps its own grants and its name in the activity log, and makes no call they could not (AbilityGateway.permitted?).
   attr_reader :acting_for
 
-  # This agent bounded by what member reads of the map, as their own chat would be. The same row to grants and the ledger.
-  def within_reach_of(member) = clone.tap { |agent| agent.acting_for = member }
+  # This agent bounded by what starter may do and read, as their own chat or key would be. The same row to grants and the
+  # ledger.
+  def within_reach_of(starter) = clone.tap { |agent| agent.acting_for = starter }
 
   def actor_display_name = name
   def actor_kind = Ability::Principal::KIND_SYSTEM_AGENT

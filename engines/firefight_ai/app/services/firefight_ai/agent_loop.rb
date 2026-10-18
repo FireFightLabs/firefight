@@ -179,7 +179,6 @@ module FirefightAi
     def stop_reason
       return STATUS_ANSWERED if @answered.call
       return STATUS_CANCELED if @canceled.call
-      return STATUS_OUT_OF_TIME if overtime?
       # Running tools already asked for costs nothing, and a provider refuses a chat with anything between a call and its
       # result, including the next question in a chat that stopped before the result was saved.
       return nil if tools_pending?
@@ -209,8 +208,14 @@ module FirefightAi
 
     def time_up? = !@budget.ends_at.nil? && Time.current >= @budget.ends_at
 
-    # Past the last turn's grace, counted from when it was offered, or from the limit while a tool kept it from being offered.
-    def overtime? = !@budget.ends_at.nil? && Time.current >= (@time_up_offered || @budget.ends_at) + time_up_grace
+    # When a batch of tools that started at started is stopped for time, nil for a run with no limit. Each batch has the
+    # whole grace, from the limit, from when the last turn was offered or from its own start, whichever is latest, so a
+    # call the last turn asked for, or one a run taken up past its limit left pending, still runs, and one that hangs ends.
+    def tools_stop_at(started)
+      return nil if @budget.ends_at.nil?
+
+      [ (@time_up_offered || @budget.ends_at), started ].max + time_up_grace
+    end
 
     def time_up_grace = TIME_UP_GRACE
 
@@ -243,9 +248,10 @@ module FirefightAi
       trace = Tracing.context
       tools = StopSignal.watching(signal) { Thread.new { Tracing.within(trace) { beside_the_loop { @chat.step } } } }
       tools.report_on_exception = false
+      stop_at = tools_stop_at(Time.current)
       until wait_for(tools, STOP_CHECK_EVERY)
         stopped = if @canceled.call then STOPPED
-        elsif overtime? then STOPPED_FOR_TIME
+        elsif stop_at && Time.current >= stop_at then STOPPED_FOR_TIME
         end
         next unless stopped
 

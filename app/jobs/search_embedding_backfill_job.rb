@@ -5,6 +5,10 @@
 class SearchEmbeddingBackfillJob < ApplicationJob
   queue_as :background
 
+  # One backfill at a time, so starting it twice never walks the same records twice at once.
+  CONCURRENCY_KEY = "search_embedding_backfill".freeze
+  limits_concurrency key: CONCURRENCY_KEY, duration: 1.hour
+
   TYPES = [ Incident, Investigation::Finding, Postmortem ].freeze
   BATCH = 200
   # Spaces the batches out, so the embedding provider is never sent a workspace's whole history at once.
@@ -13,7 +17,7 @@ class SearchEmbeddingBackfillJob < ApplicationJob
   # type_index is where in TYPES the backfill is, after_id the last record of that kind it reached.
   def perform(type_index = 0, after_id = nil)
     type = TYPES.fetch(type_index)
-    batch = batch_of(type, after_id)
+    batch = batch_of(type, after_id, entitled_workspace_ids)
     if batch.empty?
       self.class.perform_later(type_index + 1) if type_index + 1 < TYPES.size
       return
@@ -25,8 +29,13 @@ class SearchEmbeddingBackfillJob < ApplicationJob
 
   private
 
-  def batch_of(klass, after_id)
-    missing = klass.search_embedding_candidates.where.missing(:search_embedding).order(:id)
+  # Only workspaces with AI are walked, so nothing is queued for one whose records the writing job would pass over.
+  def entitled_workspace_ids
+    Workspace.find_each.select { |workspace| Entitlements.allows?(workspace, Entitlements::AI) }.map(&:id)
+  end
+
+  def batch_of(klass, after_id, workspace_ids)
+    missing = klass.search_embedding_candidates(workspace_ids).where.missing(:search_embedding).order(:id)
     missing = missing.where(klass.arel_table[:id].gt(after_id)) if after_id
     missing.limit(BATCH).to_a
   end

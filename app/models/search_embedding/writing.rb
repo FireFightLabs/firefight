@@ -20,7 +20,7 @@ module SearchEmbedding::Writing
   def search_embeddable? = true
 
   class_methods do
-    # What a backfill reads to ask search_embeddable? of each record, with whatever that question loads.
-    def search_embedding_candidates = all
+    # What a backfill reads in these workspaces to ask search_embeddable? of each record, with whatever that question loads.
+    def search_embedding_candidates(workspace_ids) = where(workspace_id: workspace_ids)
   end
 end

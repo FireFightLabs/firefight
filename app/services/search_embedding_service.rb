@@ -19,6 +19,9 @@ class SearchEmbeddingService
     result = FirefightAi.embed(text, workspace: @workspace)
     embedding.update!(vector: result.vectors, model: result.model, content_digest: digest)
     embedding
+  rescue ActiveRecord::RecordNotUnique
+    # Another writer saved this record's vector first, from the same words or newer ones, so theirs is kept.
+    SearchEmbedding.find_by(embeddable: record)
   end
 
   def similar_to(query, limit: SearchEmbedding::DEFAULT_LIMIT, types: nil)

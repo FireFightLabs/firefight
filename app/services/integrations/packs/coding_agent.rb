@@ -188,7 +188,8 @@ module Integrations
       # agent pushed them itself, and anything a person must look at leads the answer and is carried for the fix's step.
       def answer(repo, session, state)
         if state.pull_requests.any?
-          flagged = ProtectedPullRequests.check(integration.workspace, state.pull_requests, asked_by: request&.principal, via: "#{integration.slug}.#{FIX_CODE}")
+          flagged = ProtectedPullRequests.check(integration.workspace, state.pull_requests, repository: repo, asked_by: request&.principal,
+                                                                                     via: "#{integration.slug}.#{FIX_CODE}")
                                          .map(&:sentence).join(" ").presence
           text = [ flagged, "#{self.class::NAME} opened #{state.pull_requests.to_sentence} for #{repo}.",
                    ("Its session then stopped: #{state.reason}." if state.phase == PHASE_STOPPED && state.reason),

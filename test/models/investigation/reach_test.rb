@@ -66,7 +66,58 @@ class Investigation::ReachTest < ActiveSupport::TestCase
     end
   end
 
+  test "a call that names no environment is checked against the environment of the row it runs on" do
+    agent = investigation(triggered_by: @member, trigger_source: Investigation::TRIGGER_COMMAND).acting_principal
+    dev_only = read_tool("dev_only", catalog_entries(:development_env))
+    prod_only = read_tool("prod_only", catalog_entries(:production_env))
+
+    assert_raises(AbilityGateway::Denied) { call(agent, dev_only) }
+    assert_equal :read, call(agent, prod_only)
+  end
+
+  test "a run reads no connection the person who started it was set to No access on, and is not offered its tools" do
+    tool = read_tool("prod_only", catalog_entries(:production_env))
+    Ability::Grant.withhold!(workspace: @workspace, principal: @member, role: tool.integration.permission_packs.find_by!(pack: Ability::Role::PACK_READ))
+    agent = investigation(triggered_by: @member.reload, trigger_source: Investigation::TRIGGER_COMMAND).acting_principal
+
+    assert_raises(AbilityGateway::Denied) { call(agent, tool, scope: { "environment" => catalog_entries(:production_env).id }) }
+    assert_not tool.callable_by?(agent)
+    assert tool.callable_by?(SystemAgent.investigator)
+  end
+
+  test "a run a service key started reads only what the key was granted" do
+    key = api_keys(:read_only_key)
+    tool = read_tool("prod_only", catalog_entries(:production_env))
+    agent = investigation(triggered_by: key, trigger_source: Investigation::TRIGGER_MCP).acting_principal
+
+    assert_equal key, agent.acting_for
+    assert_empty ResourceMap::Resource.visible_to(agent, @workspace)
+    assert_raises(AbilityGateway::Denied) { call(agent, tool) }
+
+    limit_map_to(@workspace, key, catalog_entries(:production_env))
+    Ability::Grant.grant!(workspace: @workspace, principal: key, target: { role: tool.integration.permission_packs.find_by!(pack: Ability::Role::PACK_READ) })
+    assert_equal %w[orders-db web], ResourceMap::Resource.visible_to(agent, @workspace).order(:name).pluck(:name)
+    assert_equal :read, call(agent, tool)
+  end
+
+  test "a run a workflow started keeps the investigator's reach, since its workflow was published by an admin" do
+    workflow_agent = @workspace.agents.create!(name: "Triage workflow", slug: "triage_workflow")
+    agent = investigation(triggered_by: workflow_agent, trigger_source: Investigation::TRIGGER_WORKFLOW).acting_principal
+
+    assert_nil agent.acting_for
+  end
+
   private
+
+  def read_tool(name, environment)
+    connection = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: name.humanize, slug: name)
+    connection.integration_environments.create!(environment: environment)
+    connection.tools.create!(name: "list_services", read_only: true, enabled: true)
+  end
+
+  def call(agent, tool, scope: {})
+    AbilityGateway.authorize!(principal: agent, action_key: tool.action_key, workspace: @workspace, scope: scope) { :read }
+  end
 
   def investigation(triggered_by:, trigger_source:)
     @workspace.investigations.create!(

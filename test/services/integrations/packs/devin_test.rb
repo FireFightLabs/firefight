@@ -206,7 +206,7 @@ module Integrations
         DevinApi.any_instance.stubs(:session).returns(session("exit", nil, prs: [ "https://github.com/acme/web/pull/8" ]))
         DevinApi.any_instance.stubs(:messages).returns("items" => [])
         flag = ProtectedPullRequests::Flag.new(url: "https://github.com/acme/web/pull/8", sentence: "https://github.com/acme/web/pull/8 changes infra/prod.tf.")
-        ProtectedPullRequests.expects(:check).with(@workspace, [ "https://github.com/acme/web/pull/8" ], asked_by: nil, via: "devin.fix_code").returns([ flag ])
+        ProtectedPullRequests.expects(:check).with(@workspace, [ "https://github.com/acme/web/pull/8" ], repository: "acme/web", asked_by: nil, via: "devin.fix_code").returns([ flag ])
 
         result = @pack.fix_code(environment_row: @row, arguments: ARGUMENTS)
 
