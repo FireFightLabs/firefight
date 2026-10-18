@@ -22,7 +22,7 @@ module Integrations
       asked = named(repository)
       asked_host = host_of(repository)
       urls.filter_map do |url|
-        next unchecked(url, format(NOT_ASKED, repository: repository.to_s.strip)) unless same_host?(url, asked_host) || unkept?(workspace, asked)
+        next unchecked(url, format(NOT_ASKED, repository: repository.to_s.strip)) unless same_host?(url, asked_host)
 
         flag_for(workspace, url, asked, asked_by, via)
       rescue StandardError => error
@@ -41,14 +41,15 @@ module Integrations
 
     def unkept?(workspace, asked) = Integration.protected_paths_for(workspace, asked).empty?
 
+    # A pull request outside the asked repository is flagged whether or not that repository keeps any paths, since the
+    # agent was not asked to open it.
     def flag_for(workspace, url, asked, asked_by, via)
-      return if unkept?(workspace, asked)
-
       owned = PullRequests.addressed(workspace, url)
+      return unchecked(url, format(NOT_ASKED, repository: asked)) if owned.any? && owned.none? { |address| address.repository.casecmp?(asked) }
+      return if unkept?(workspace, asked)
       return unchecked(url, NO_HOST) if owned.empty?
 
       addresses = owned.select { |address| address.repository.casecmp?(asked) }
-      return unchecked(url, format(NOT_ASKED, repository: asked)) if addresses.empty?
 
       repository = addresses.first.repository
 

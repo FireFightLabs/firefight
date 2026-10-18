@@ -238,13 +238,13 @@ class AbilityGateway
   # run holds the copy it loaded when it began.
   def self.starter_gone?(starter)
     case starter
+    when Ability::GoneStarter then true
     when WorkspaceMembership then !WorkspaceMembership.current_members.exists?(id: starter.id)
     when ApiKey then !ApiKey.find_by(id: starter.id)&.live?
     when Agent then !Agent.active.exists?(id: starter.id)
     else false
     end
   end
-  private_class_method :starter_gone?
 
   def self.map_reaches?(starter, workspace, environment)
     allowed = reach(principal: starter, action_key: Ability::Action::MAP_READ, workspace: workspace)

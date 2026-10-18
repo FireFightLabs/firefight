@@ -230,18 +230,20 @@ class Investigation < ApplicationRecord
     false
   end
 
-  # Someone asked for these, a person, an agent or a key. An alert, a schedule, a security event or a published workflow
-  # starts the rest, with the investigator's own reach.
-  ASKED_TRIGGERS = [ TRIGGER_COMMAND, TRIGGER_BUTTON, TRIGGER_CONVERSATION, TRIGGER_MCP, TRIGGER_DASHBOARD ].freeze
-
-  # Runs as the agent, not the person, so a finding does not depend on who asked. A run someone asked for reaches no
-  # further than whoever asked could themselves, by their own grants and their map reach.
+  # Runs as the agent, not the person, so a finding does not depend on who asked. A run with a person, an agent or a key
+  # behind it, whatever started it, reaches no further than they could themselves, by their own grants and their map
+  # reach. Only a run nobody is behind, such as one an alert or a schedule started, or a workflow's own identity on a run
+  # its trigger started, keeps the investigator's own reach. A starter whose row is gone is still someone, who reaches
+  # nothing (Ability::GoneStarter), never the investigator's whole reach.
   def acting_principal
     agent = SystemAgent.investigator
-    asked_by_someone? ? agent.within_reach_of(triggered_by) : agent
+    return agent if triggered_by_type.blank? || triggered_by_id.blank?
+
+    starter = triggered_by || Ability::GoneStarter.new(type: triggered_by_type, id: triggered_by_id)
+    workflows_own?(starter) ? agent : agent.within_reach_of(starter)
   end
 
-  def asked_by_someone? = triggered_by.present? && ASKED_TRIGGERS.include?(trigger_source)
+  def workflows_own?(starter) = starter.is_a?(Agent) && starter.workflow.present?
 
   def refusal(action_key)
     "Not allowed: this agent has no grant for #{action_key} in this workspace."

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_18_100100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_18_100200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -3387,7 +3387,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_100100) do
     t.text "private_inputs"
     t.string "telling_job_id"
     t.uuid "confirmed_by_id"
+    t.string "asked_by_type"
+    t.uuid "asked_by_id"
     t.index ["agent_id"], name: "index_workflow_runs_on_agent_id"
+    t.index ["asked_by_type", "asked_by_id"], name: "index_workflow_runs_on_asked_by"
     t.index ["confirmed_by_id"], name: "index_workflow_runs_on_confirmed_by_id"
     t.index ["parent_run_id"], name: "index_workflow_runs_on_parent_run_id"
     t.index ["rerun_of_id"], name: "index_workflow_runs_on_rerun_of_id"

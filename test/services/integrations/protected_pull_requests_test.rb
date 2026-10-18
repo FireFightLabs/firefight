@@ -99,6 +99,18 @@ module Integrations
                    flag.sentence
     end
 
+    test "a pull request outside the asked repository is flagged even when that repository keeps no paths" do
+      ResourceMap::Resource.create!(workspace: @workspace, provider: "github", account: "acme", kind: ResourceMap::KIND_REPOSITORY, external_id: "acme/other",
+                                    name: "other", url: "https://github.com/acme/other", integration_environment: @row,
+                                    first_seen_at: Time.current, last_seen_at: Time.current)
+      elsewhere = "https://github.com/acme/other/pull/9"
+
+      flag = ProtectedPullRequests.check(@workspace, [ elsewhere ], repository: "acme/web", asked_by: @asker, via: "devin.fix_code").sole
+
+      assert_equal format(CodeChange::PROTECTED_UNCHECKED, pull_request: elsewhere, reason: format(ProtectedPullRequests::NOT_ASKED, repository: "acme/web")),
+                   flag.sentence
+    end
+
     test "a pull request on another code host than the address the change was asked for is never read or commented on" do
       @github.protect_paths!([ ".github/workflows/" ])
       Packs::Github.any_instance.expects(:pull_request_paths).never

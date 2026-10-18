@@ -71,7 +71,9 @@ class DefinedWorkflow::Steps::Investigate < DefinedWorkflow::Steps::Base
     found
   end
 
-  # Started as the workflow's own identity asking, through the gateway, or the one already running for the incident.
+  # Started as the workflow's own identity asking, through the gateway, or the one already running for the incident. The
+  # investigation is in the name of whoever is behind the run, so it reaches no further than they could, and in the
+  # workflow's own only when its trigger started it with nobody behind it.
   def start
     subject = incident
     brief = Investigation::Brief.from(@config.slice(KEY_SYMPTOM, KEY_NAMES), source: Investigation::Brief::SOURCE_WORKFLOW)
@@ -80,7 +82,7 @@ class DefinedWorkflow::Steps::Investigate < DefinedWorkflow::Steps::Base
 
     agent_run = Workflow::AgentRun.new(run: @run, record: record)
     started = agent_run.tool_call(action_key: ACTION, params: { KEY_INCIDENT => subject&.identifier, KEY_SYMPTOM => @config[KEY_SYMPTOM] }.compact) do
-      InvestigationService.new(workspace).start(subject, trigger_source: Investigation::TRIGGER_WORKFLOW, triggered_by: principal, brief: brief)
+      InvestigationService.new(workspace).start(subject, trigger_source: Investigation::TRIGGER_WORKFLOW, triggered_by: @run.asker || principal, brief: brief)
     end.value
     investigation = started || subject&.investigations&.where(status: Investigation::LIVE_STATUSES)&.order(:created_at)&.last
     raise Refused, Investigation.already_running_message(subject) unless investigation

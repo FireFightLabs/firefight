@@ -116,7 +116,7 @@ class Integration::Tool < ApplicationRecord
   # An agent working for whoever started its run is offered only what they could call themselves too.
   def callable_by?(principal, resolved = Ability::Resolver.resolve(principal, integration.workspace), arguments: nil)
     starter = principal.try(:acting_for)
-    return false if starter && !callable_by?(starter, arguments: arguments)
+    return false if starter && (AbilityGateway.starter_gone?(starter) || !callable_by?(starter, arguments: arguments))
 
     return true if resolved.action_keys.include?(action_key)
     return false unless ability_action.present?

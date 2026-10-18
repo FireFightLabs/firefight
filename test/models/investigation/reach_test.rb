@@ -114,11 +114,48 @@ class Investigation::ReachTest < ActiveSupport::TestCase
     end
   end
 
-  test "a run a workflow started keeps the investigator's reach, since its workflow was published by an admin" do
-    workflow_agent = @workspace.agents.create!(name: "Triage workflow", slug: "triage_workflow")
-    agent = investigation(triggered_by: workflow_agent, trigger_source: Investigation::TRIGGER_WORKFLOW).acting_principal
+  test "a run a workflow's own identity started, with nobody behind it, keeps the investigator's reach" do
+    workflow = Workflow.create!(workspace: @workspace, name: "Triage", created_by: workspace_memberships(:alice_workspace_one))
+    own = @workspace.agents.create!(name: "Triage workflow", slug: "triage_workflow")
+    workflow.update!(agent: own)
+    agent = investigation(triggered_by: own.reload, trigger_source: Investigation::TRIGGER_WORKFLOW).acting_principal
 
     assert_nil agent.acting_for
+  end
+
+  test "an agent someone made that starts a run bounds it, whatever the trigger" do
+    standalone = @workspace.agents.create!(name: "Pager bot", slug: "pager_bot")
+    agent = investigation(triggered_by: standalone, trigger_source: Investigation::TRIGGER_WORKFLOW).acting_principal
+
+    assert_equal standalone, agent.acting_for
+    assert_empty ResourceMap::Resource.visible_to(agent, @workspace)
+  end
+
+  test "a person pressing Run now on a monitoring check bounds that run" do
+    agent = investigation(triggered_by: @member, trigger_source: Investigation::TRIGGER_SCHEDULE).acting_principal
+
+    assert_equal @member, agent.acting_for
+    assert_equal %w[orders-db web], ResourceMap::Resource.visible_to(agent, @workspace).order(:name).pluck(:name)
+  end
+
+  test "a run whose starter's row is gone reaches nothing, never the investigator's whole reach" do
+    run = investigation(triggered_by: @member, trigger_source: Investigation::TRIGGER_COMMAND)
+    run.update_columns(triggered_by_id: SecureRandom.uuid)
+    agent = Investigation.find(run.id).acting_principal
+
+    assert agent.acting_for
+    assert_empty ResourceMap::Resource.visible_to(agent, @workspace)
+    assert_raises(AbilityGateway::Denied) { call(agent, read_tool("prod_only", catalog_entries(:production_env))) }
+    assert_not read_tool("prod_two", catalog_entries(:production_env)).callable_by?(agent)
+  end
+
+  test "a fix Halon applies on its own for a run whose starter is gone runs as nobody who can reach anything" do
+    run = investigation(triggered_by: @member, trigger_source: Investigation::TRIGGER_COMMAND)
+    run.update_columns(triggered_by_id: SecureRandom.uuid)
+    finding = Investigation.find(run.id).conclude!(summary: "The pool was too small")
+    plan = Investigation::RemediationPlan.new(finding: finding, applied_from: AbilityGateway::SOURCE_INVESTIGATION)
+
+    assert_empty ResourceMap::Resource.visible_to(plan.acting_principal, @workspace)
   end
 
   private
