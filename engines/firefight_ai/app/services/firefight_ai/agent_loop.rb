@@ -202,15 +202,17 @@ module FirefightAi
     def time_up
       return STATUS_OUT_OF_TIME if @time_up_offered
 
-      @time_up_offered = true
+      @time_up_offered = Time.current
       @nudge.call(TIME_UP)
       nil
     end
 
     def time_up? = !@budget.ends_at.nil? && Time.current >= @budget.ends_at
 
-    # Past the last turn's grace, when nothing more is waited for.
-    def overtime? = !@budget.ends_at.nil? && Time.current >= @budget.ends_at + TIME_UP_GRACE
+    # Past the last turn's grace, counted from when it was offered, or from the limit while a tool kept it from being offered.
+    def overtime? = !@budget.ends_at.nil? && Time.current >= (@time_up_offered || @budget.ends_at) + time_up_grace
+
+    def time_up_grace = TIME_UP_GRACE
 
     # Only a model call is billed. Running the tools the model already asked for is not.
     def advance

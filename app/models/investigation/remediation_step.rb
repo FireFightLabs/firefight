@@ -493,7 +493,8 @@ class Investigation::RemediationStep < ApplicationRecord
     label, url = (Outcome.of(kept, work) if status == STATUS_DONE && already_done.nil?)
     move!(from: [ STATUS_RUNNING, STATUS_WAITING_APPROVAL ], to: status, result: kept,
           invocation_id: invocation_id || self.invocation_id, finished_at: Time.current, failure: failure,
-          already_done_reason: already_done, outcome_label: label, outcome_url: url, needs_person: needs_person.presence)
+          already_done_reason: already_done, outcome_label: label, outcome_url: url,
+          needs_person: self.class.redacted(needs_person)&.truncate(RESULT_LIMIT).presence)
       .tap { |moved| plan.record_step_ended!(self) if moved }
   end
 

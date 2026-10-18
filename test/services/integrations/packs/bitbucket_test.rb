@@ -432,6 +432,7 @@ module Integrations
         assert_equal [ "acme/web", 42 ], @pack.pull_request_at(@row, "https://bitbucket.org/acme/web/pull-requests/42")
         assert_equal [ "acme/web", 42 ], @pack.pull_request_at(@row, "https://bitbucket.org/acme/web/pull-requests/42/diff")
         assert_nil @pack.pull_request_at(@row, "https://github.com/acme/web/pull/42")
+        assert_nil @pack.pull_request_at(@row, "https://bitbucket.org/other/web/pull-requests/42"), "a workspace this connection does not read"
       end
 
       test "the paths a pull request changes are read from every page of its diffstat, a moved file under both names" do

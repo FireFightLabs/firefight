@@ -23,8 +23,8 @@ class SearchEmbeddingBackfillJobTest < ActiveJob::TestCase
     real = finding_for(rehearsal: false)
     clear_enqueued_jobs
 
-    SearchEmbeddingBackfillJob.new.perform(SearchEmbeddingBackfillJob::TYPES.index(Investigation::Finding.name))
-    SearchEmbeddingBackfillJob.new.perform(SearchEmbeddingBackfillJob::TYPES.index(Postmortem.name))
+    SearchEmbeddingBackfillJob.new.perform(SearchEmbeddingBackfillJob::TYPES.index(Investigation::Finding))
+    SearchEmbeddingBackfillJob.new.perform(SearchEmbeddingBackfillJob::TYPES.index(Postmortem))
 
     assert written?(Investigation::Finding.name, real.id)
     refute written?(Investigation::Finding.name, rehearsal.id)

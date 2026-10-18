@@ -30,7 +30,9 @@ module CodeChange::UnifiedDiff
       if line.start_with?("--- ")
         old_path = line.delete_prefix("--- ").strip
       elsif line.start_with?("+++ ") && old_path
-        path = strip_side(line.delete_prefix("+++ ").strip)
+        new_path = line.delete_prefix("+++ ").strip
+        # A deleted file's new side is /dev/null, so it is named by its old path.
+        path = strip_side(new_path == NEW_FILE ? old_path : new_path)
         patch = files[path] = FilePatch.new(path: path, created: old_path == NEW_FILE, hunks: [])
         old_path = nil
         hunk = nil

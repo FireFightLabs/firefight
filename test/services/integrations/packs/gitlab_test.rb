@@ -421,6 +421,8 @@ module Integrations
         @row.store_fields!(Gitlab::URL => "https://gitlab.example.com")
         assert_equal [ "acme/web", 7 ], @pack.pull_request_at(@row.reload, "https://gitlab.example.com/acme/web/-/merge_requests/7/diffs")
         assert_nil @pack.pull_request_at(@row, "https://gitlab.com/acme/web/-/merge_requests/7")
+        assert_nil @pack.pull_request_at(@row, "http://gitlab.example.com/acme/web/-/merge_requests/7"), "another scheme is another address"
+        assert_nil @pack.pull_request_at(@row, "https://gitlab.example.com:8443/acme/web/-/merge_requests/7"), "another port is another address"
       end
 
       test "the paths a merge request changes are read from every page of its diffs, a renamed file under both names" do

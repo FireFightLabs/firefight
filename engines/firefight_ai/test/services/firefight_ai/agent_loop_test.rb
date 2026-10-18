@@ -409,6 +409,20 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     assert_equal FirefightAi::AgentLoop::STATUS_ANSWERED, outcome.status
   end
 
+  # Seen in review: a tool that ran until just before the grace ran out left the last turn almost no time.
+  test "the last turn's grace counts from when it was offered, so a tool that held it back still leaves it the whole grace" do
+    agent_loop = FirefightAi::AgentLoop.new(
+      chat: FakeChat.new([]), budget: budget(ends_at: (FirefightAi::AgentLoop::TIME_UP_GRACE - 1).seconds.ago), answered: -> { false },
+      inference: { workspace: @workspace, feature: "investigation", provider: "openai", model: "gpt-4o", inferable: @incident }
+    )
+
+    travel 2.seconds do
+      assert agent_loop.send(:overtime?), "a tool holding back the last turn is stopped once the grace after the limit is over"
+      agent_loop.send(:time_up)
+      assert_not agent_loop.send(:overtime?), "once offered, the last turn has the whole grace"
+    end
+  end
+
   test "a run well past its time limit stops before another model call" do
     chat = FakeChat.new([ tool_reply("call_1") ])
 
@@ -420,12 +434,13 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
 
   test "a tool still running once the last turn's grace is over is stopped, and the run ends for time" do
     chat = SlowToolChat.new([ tool_reply("call_1"), llm_reply(content: "never asked") ], waits: 5, stoppable: true)
+    FirefightAi::AgentLoop.any_instance.stubs(:time_up_grace).returns(1.5)
     started = clock
 
-    outcome = run_loop(chat, budget: budget(ends_at: (FirefightAi::AgentLoop::TIME_UP_GRACE - 0.3).seconds.ago))
+    outcome = run_loop(chat, budget: budget(ends_at: 1.second.ago))
 
     assert_equal FirefightAi::AgentLoop::STATUS_OUT_OF_TIME, outcome.status
-    assert_operator clock - started, :<, 2.5
+    assert_operator clock - started, :<, 4.5
     assert chat.heard_stop.wait(2), "the tool's wait heard the stop"
     assert_empty chat.messages.select(&:tool_result?)
   end

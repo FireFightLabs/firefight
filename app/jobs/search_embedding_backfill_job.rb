@@ -5,7 +5,7 @@
 class SearchEmbeddingBackfillJob < ApplicationJob
   queue_as :background
 
-  TYPES = [ Incident.name, Investigation::Finding.name, Postmortem.name ].freeze
+  TYPES = [ Incident, Investigation::Finding, Postmortem ].freeze
   BATCH = 200
   # Spaces the batches out, so the embedding provider is never sent a workspace's whole history at once.
   PAUSE = 1.minute
@@ -13,13 +13,13 @@ class SearchEmbeddingBackfillJob < ApplicationJob
   # type_index is where in TYPES the backfill is, after_id the last record of that kind it reached.
   def perform(type_index = 0, after_id = nil)
     type = TYPES.fetch(type_index)
-    batch = batch_of(type.constantize, after_id)
+    batch = batch_of(type, after_id)
     if batch.empty?
       self.class.perform_later(type_index + 1) if type_index + 1 < TYPES.size
       return
     end
 
-    ActiveJob.perform_all_later(batch.select(&:search_embeddable?).map { |record| WriteSearchEmbeddingJob.new(type, record.id) })
+    ActiveJob.perform_all_later(batch.select(&:search_embeddable?).map { |record| WriteSearchEmbeddingJob.new(type.name, record.id) })
     self.class.set(wait: PAUSE).perform_later(type_index, batch.last.id)
   end
 

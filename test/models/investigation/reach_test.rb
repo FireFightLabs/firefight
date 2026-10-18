@@ -55,6 +55,17 @@ class Investigation::ReachTest < ActiveSupport::TestCase
     assert_empty ResourceMap::Resource.visible_to(agent, @workspace)
   end
 
+  test "a run whose member was removed since reads none of the map" do
+    agent = investigation(triggered_by: @member, trigger_source: Investigation::TRIGGER_COMMAND).acting_principal
+    @member.update_column(:removed_at, Time.current)
+
+    assert_empty ResourceMap::Resource.visible_to(agent, @workspace)
+    assert_raises(AbilityGateway::Denied) do
+      AbilityGateway.authorize!(principal: agent, action_key: Ability::Action::MAP_READ, workspace: @workspace,
+                                scope: { "environment" => catalog_entries(:production_env).id }) { :read }
+    end
+  end
+
   private
 
   def investigation(triggered_by:, trigger_source:)

@@ -24,14 +24,18 @@ module Integrations
       return unchecked(url, NO_HOST) if addresses.empty?
 
       address, paths, failure = read_paths(addresses)
-      return unchecked(url, failure) unless address
+      # A host that cannot list the files may still take a comment, so the pull request itself says it went unchecked.
+      unless address
+        said = comment(workspace, addresses.first, url, [], CodeChange::PROTECTED_UNCHECKED_COMMENT, asked_by, via)
+        return Flag.new(url: url, sentence: [ unchecked(url, failure).sentence, said ].compact.join(" "))
+      end
 
       touched = Integration.protected_among_for(workspace, repository, paths).sort
       return if touched.empty?
 
       named = touched.to_sentence
-      comment = comment(workspace, address, url, touched, asked_by, via)
-      Flag.new(url: url, sentence: [ format(CodeChange::PROTECTED_TOUCHED, pull_request: url, paths: named), comment ].compact.join(" "))
+      said = comment(workspace, address, url, touched, format(CodeChange::PROTECTED_COMMENT, paths: named), asked_by, via)
+      Flag.new(url: url, sentence: [ format(CodeChange::PROTECTED_TOUCHED, pull_request: url, paths: named), said ].compact.join(" "))
     end
 
     # The first connection that can read what changed, in the order addressed gives them.
@@ -49,9 +53,9 @@ module Integrations
 
     # Written as the code host connection and recorded as Halon's, since it is Firefight's own rule speaking
     # (Integration.record_pull_request_flag!). Answers why it could not be posted, or nil once it was.
-    def comment(workspace, address, url, touched, asked_by, via)
+    def comment(workspace, address, url, touched, body, asked_by, via)
       Integration.record_pull_request_flag!(workspace, via: via, url: url, paths: touched, asked_by: asked_by) do
-        PullRequests.flag!(address, format(CodeChange::PROTECTED_COMMENT, paths: touched.to_sentence))
+        PullRequests.flag!(address, body)
       end
       nil
     rescue Integrations::Error => error

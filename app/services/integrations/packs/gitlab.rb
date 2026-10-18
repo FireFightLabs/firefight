@@ -406,9 +406,12 @@ module Integrations
       def pull_request_at(environment_row, url)
         uri = URI.parse(url.to_s.strip)
         base = URI.parse(GitlabApi.base_url(ConnectionSettings.of(environment_row).field(URL)))
-        return unless uri.host&.casecmp?(base.host.to_s)
+        base_path = base.path.to_s.delete_suffix("/")
+        path = uri.path.to_s
+        return unless uri.scheme&.casecmp?(base.scheme.to_s) && uri.host&.casecmp?(base.host.to_s) && uri.port == base.port &&
+                      (base_path.empty? || path.start_with?("#{base_path}/"))
 
-        found = uri.path.to_s.delete_prefix(base.path.to_s.delete_suffix("/")).match(MERGE_REQUEST_PATH)
+        found = path.delete_prefix(base_path).match(MERGE_REQUEST_PATH)
         [ found[1], found[2].to_i ] if found && found[1].match?(REPO_FORMAT)
       rescue URI::InvalidURIError, GitlabApi::Error
         nil

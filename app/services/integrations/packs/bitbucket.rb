@@ -479,10 +479,13 @@ module Integrations
       PULL_REQUEST_ADDRESS = %r{\Ahttps://bitbucket\.org/([\w.\-]+/[\w.\-]+)/pull-requests/(\d+)(?:[/?#]|\z)}
 
       # A pull request's repository and number, read from its address on Bitbucket Cloud, or nil for any other address
-      # (Integrations::PullRequests.addressed).
-      def pull_request_at(_environment_row, url)
+      # and for one outside the workspaces this connection reads (Integrations::PullRequests.addressed).
+      def pull_request_at(environment_row, url)
         found = url.to_s.strip.match(PULL_REQUEST_ADDRESS)
-        [ found[1], found[2].to_i ] if found
+        return unless found
+
+        workspace = found[1].split("/", 2).first
+        [ found[1], found[2].to_i ] if ConnectionSettings.of(environment_row).scopes.any? { |each| each.to_s.casecmp?(workspace) }
       end
 
       # Every path a pull request changes, a moved file under both names (Integrations::PullRequests.paths). A list

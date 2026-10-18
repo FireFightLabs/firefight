@@ -50,6 +50,8 @@ module CodeChange
                         "some paths out of code changes. A person must review it before it is merged.".freeze
   PROTECTED_COMMENT = "Firefight flagged this pull request. It changes %<paths>s, which this workspace keeps out of code changes. " \
                       "A person must review it before it is merged.".freeze
+  PROTECTED_UNCHECKED_COMMENT = "Firefight flagged this pull request. It could not check which files it changes, and this workspace keeps " \
+                                "some paths out of code changes. A person must review it before it is merged.".freeze
   PROTECTED_COMMENT_FAILED = "Firefight could not comment on it there (%<reason>s).".freeze
   # The fact a coding agent's answer carries for the fix step it ran in, holding why a person must look at its change.
   NEEDS_PERSON = "needs_person".freeze

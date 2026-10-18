@@ -63,13 +63,25 @@ module Integrations
                                                            reason: ProtectedPullRequests::NO_HOST), flag.sentence
     end
 
-    test "a pull request whose files cannot be read is flagged as unchecked with the code host's reason" do
+    test "a pull request whose files cannot be read is flagged as unchecked with the code host's reason, and says so on the pull request" do
       @github.protect_paths!([ ".github/workflows/" ])
       Packs::Github.any_instance.stubs(:pull_request_paths).raises(Integrations::Error, "GitHub answered 404")
+      Packs::Github.any_instance.expects(:flag_pull_request).with { |row, body:, **| row == @row && body == CodeChange::PROTECTED_UNCHECKED_COMMENT }
 
       flag = ProtectedPullRequests.check(@workspace, [ URL ], asked_by: @asker, via: "devin.fix_code").sole
 
       assert_equal format(CodeChange::PROTECTED_UNCHECKED, pull_request: URL, reason: "GitHub answered 404"), flag.sentence
+    end
+
+    test "an unchecked pull request whose comment is refused too keeps both reasons in its flag" do
+      @github.protect_paths!([ ".github/workflows/" ])
+      Packs::Github.any_instance.stubs(:pull_request_paths).raises(Integrations::Error, "GitHub answered 404")
+      Packs::Github.any_instance.stubs(:flag_pull_request).raises(Integrations::Error, "GitHub answered 403")
+
+      flag = ProtectedPullRequests.check(@workspace, [ URL ], asked_by: @asker, via: "devin.fix_code").sole
+
+      assert_equal [ format(CodeChange::PROTECTED_UNCHECKED, pull_request: URL, reason: "GitHub answered 404"),
+                     format(CodeChange::PROTECTED_COMMENT_FAILED, reason: "GitHub answered 403") ].join(" "), flag.sentence
     end
   end
 end

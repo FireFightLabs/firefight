@@ -53,6 +53,23 @@ class CodeChange::BenchScoreTest < ActiveSupport::TestCase
     assert_includes score.notes, "It changed config/routes.rb, which the fix does not need."
   end
 
+  test "each file a diff deletes is named by its old path, so two deletions are two stray files" do
+    deletions = <<~DIFF
+      --- a/config/routes.rb
+      +++ /dev/null
+      @@ -1,1 +0,0 @@
+      -Rails.application.routes.draw do
+      --- a/config/puma.rb
+      +++ /dev/null
+      @@ -1,1 +0,0 @@
+      -workers 2
+    DIFF
+    score = CodeChange::BenchScore.of(nil_guard, nil_guard.expected_diff + deletions)
+
+    assert_includes score.notes, "It changed config/routes.rb, which the fix does not need."
+    assert_includes score.notes, "It changed config/puma.rb, which the fix does not need."
+  end
+
   test "lines are compared without regard to the space around them" do
     respaced = nil_guard.expected_diff.gsub("      email =", "  email  =")
 

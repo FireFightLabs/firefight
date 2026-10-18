@@ -208,8 +208,11 @@ class AbilityGateway
     action = principal && Ability::Action.lookup(action_key, workspace)
     return nil unless action
 
-    own = principal.implicitly_allowed?(action) ? {} : Ability::Resolver.resolve(principal, workspace).reach(action_key)
     person = principal.try(:acting_for)
+    # A member an admin removed reaches nothing, so neither does a run they started.
+    return nil if person.is_a?(WorkspaceMembership) && person.removed?
+
+    own = principal.implicitly_allowed?(action) ? {} : Ability::Resolver.resolve(principal, workspace).reach(action_key)
     person ? Ability::Scope.within(own, reach(principal: person, action_key: action_key, workspace: workspace)) : own
   end
 
@@ -217,8 +220,12 @@ class AbilityGateway
   # never reaches what their own chat could not.
   def self.beyond_person?(principal, workspace, scope)
     person = principal.try(:acting_for)
+    return false if person.nil?
+    # A member an admin removed reaches nothing, so a run they started can make no call at all.
+    return true if person.is_a?(WorkspaceMembership) && person.removed?
+
     environment = scope[Ability::Scope::DIMENSION_ENVIRONMENT] || scope[Ability::Scope::DIMENSION_ENVIRONMENT.to_sym] if scope.is_a?(Hash)
-    return false if person.nil? || environment.blank?
+    return false if environment.blank?
 
     allowed = reach(principal: person, action_key: Ability::Action::MAP_READ, workspace: workspace)
     allowed.nil? || (allowed.key?(Ability::Scope::DIMENSION_ENVIRONMENT) && !allowed[Ability::Scope::DIMENSION_ENVIRONMENT].include?(environment))
