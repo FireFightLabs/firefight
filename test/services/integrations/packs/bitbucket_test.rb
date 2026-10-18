@@ -428,6 +428,29 @@ module Integrations
         assert_nil @pack.map_refresh(@row, ResourceMap::Scope.new(account: "acme")), "a workspace is read by a sweep"
       end
 
+      test "a pull request's address on Bitbucket names its repository and number, and no other host's does" do
+        assert_equal [ "acme/web", 42 ], @pack.pull_request_at(@row, "https://bitbucket.org/acme/web/pull-requests/42")
+        assert_equal [ "acme/web", 42 ], @pack.pull_request_at(@row, "https://bitbucket.org/acme/web/pull-requests/42/diff")
+        assert_nil @pack.pull_request_at(@row, "https://github.com/acme/web/pull/42")
+      end
+
+      test "the paths a pull request changes are read from every page of its diffstat, a moved file under both names" do
+        BitbucketApi.any_instance.stubs(:list).with("#{REPO}/pullrequests/42/diffstat", {}, pages: Bitbucket::FLAG_FILE_PAGES)
+                    .returns([ [ stat("app/a.rb", 1, 1), { "status" => "renamed", "new" => { "path" => "bitbucket-pipelines.yml" }, "old" => { "path" => "ci.yml" } } ], false ])
+
+        assert_equal [ "app/a.rb", "bitbucket-pipelines.yml", "ci.yml" ], @pack.pull_request_paths(@row, repository: "acme/web", number: 42)
+
+        BitbucketApi.any_instance.stubs(:list).with("#{REPO}/pullrequests/42/diffstat", {}, pages: Bitbucket::FLAG_FILE_PAGES).returns([ [], true ])
+        error = assert_raises(Integrations::Error) { @pack.pull_request_paths(@row, repository: "acme/web", number: 42) }
+        assert_match "more files than Bitbucket lists", error.message
+      end
+
+      test "a flag is a comment on the pull request" do
+        BitbucketApi.any_instance.expects(:post).with("#{REPO}/pullrequests/42/comments", { "content" => { "raw" => "Look here." } }).returns("id" => 1)
+
+        @pack.flag_pull_request(@row, repository: "acme/web", number: 42, body: "Look here.")
+      end
+
       private
 
       def call(tool, arguments = {}) = @pack.call(tool.to_s, environment_row: @row, arguments: arguments)

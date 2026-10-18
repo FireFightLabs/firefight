@@ -77,7 +77,51 @@ module Integrations
       def initialize(numbers: [], branches: [], **) = super
     end
 
+    # A pull request as one code host connection reads it: the environment row that reaches it, its repository and number.
+    Address = Data.define(:environment_row, :repository, :number)
+
+    # What a code host's pack answers so a pull request someone else opened can be checked: which pull request an address
+    # is, what it changed, and a comment on it.
+    FLAG_HOOKS = %i[pull_request_at pull_request_paths flag_pull_request].freeze
+
     module_function
+
+    def flags?(integration)
+      pack = NativePack.for(integration.provider)
+      pack.present? && FLAG_HOOKS.all? { |hook| pack.method_defined?(hook) }
+    end
+
+    # The pull request at url as each code host connection of the workspace that owns the address reads it, those whose
+    # sweep put its repository on the map first, since one connection may reach repositories another cannot.
+    def addressed(workspace, url)
+      found = flagging_rows(workspace).filter_map do |row|
+        repository, number = NativePack.fetch!(row.integration).pull_request_at(row, url)
+        Address.new(environment_row: row, repository: repository, number: number) if repository
+      end
+      return found if found.size < 2
+
+      held = ResourceMap::Resource.present.where(workspace: workspace, kind: ResourceMap::KIND_REPOSITORY, external_id: found.map(&:repository),
+                                                 integration_environment_id: found.map { |address| address.environment_row.id })
+                                  .pluck(:integration_environment_id, :external_id)
+      found.sort_by { |address| held.include?([ address.environment_row.id, address.repository ]) ? 0 : 1 }
+    end
+
+    # Every path the pull request changes, a renamed file under both names.
+    def paths(address)
+      row = address.environment_row
+      NativePack.fetch!(row.integration).pull_request_paths(row, repository: address.repository, number: address.number)
+    end
+
+    # A comment on the pull request, written as the connection.
+    def flag!(address, body)
+      row = address.environment_row
+      NativePack.fetch!(row.integration).flag_pull_request(row, repository: address.repository, number: address.number, body: body)
+    end
+
+    def flagging_rows(workspace)
+      workspace.integrations.active.includes(:integration_environments).select { |integration| integration.holds_code? && flags?(integration) }
+               .flat_map { |integration| integration.integration_environments.select(&:enabled).sort_by(&:created_at) }
+    end
 
     def follows?(integration)
       pack = NativePack.for(integration.provider)

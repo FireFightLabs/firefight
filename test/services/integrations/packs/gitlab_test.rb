@@ -414,6 +414,32 @@ module Integrations
         assert_includes @pack.send(:code_remote, @row.reload).options, "http.curloptResolve=gitlab.example.com:443:203.0.113.7"
       end
 
+      test "a merge request's address on this connection's instance names its project and number, and no other host's does" do
+        assert_equal [ "acme/platform/web", 42 ], @pack.pull_request_at(@row, "https://gitlab.com/acme/platform/web/-/merge_requests/42")
+        assert_nil @pack.pull_request_at(@row, "https://github.com/acme/web/pull/42")
+
+        @row.store_fields!(Gitlab::URL => "https://gitlab.example.com")
+        assert_equal [ "acme/web", 7 ], @pack.pull_request_at(@row.reload, "https://gitlab.example.com/acme/web/-/merge_requests/7/diffs")
+        assert_nil @pack.pull_request_at(@row, "https://gitlab.com/acme/web/-/merge_requests/7")
+      end
+
+      test "the paths a merge request changes are read from every page of its diffs, a renamed file under both names" do
+        GitlabApi.any_instance.stubs(:list).with("#{PROJECT}/merge_requests/42/diffs", {}, pages: Gitlab::FLAG_FILE_PAGES)
+                 .returns([ [ { "new_path" => "app/a.rb", "old_path" => "app/a.rb" }, { "new_path" => ".gitlab-ci.yml", "old_path" => "ci.yml", "renamed_file" => true } ], false ])
+
+        assert_equal [ "app/a.rb", ".gitlab-ci.yml", "ci.yml" ], @pack.pull_request_paths(@row, repository: "acme/platform/web", number: 42)
+
+        GitlabApi.any_instance.stubs(:list).with("#{PROJECT}/merge_requests/42/diffs", {}, pages: Gitlab::FLAG_FILE_PAGES).returns([ [], true ])
+        error = assert_raises(Integrations::Error) { @pack.pull_request_paths(@row, repository: "acme/platform/web", number: 42) }
+        assert_match "more files than GitLab lists", error.message
+      end
+
+      test "a flag is a note on the merge request" do
+        GitlabApi.any_instance.expects(:post).with("#{PROJECT}/merge_requests/42/notes", { "body" => "Look here." }).returns("id" => 1)
+
+        @pack.flag_pull_request(@row, repository: "acme/platform/web", number: 42, body: "Look here.")
+      end
+
       private
 
       def call(tool, arguments)

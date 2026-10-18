@@ -57,6 +57,26 @@ class Investigation::CodeFixStepTest < ActiveSupport::TestCase
     assert_equal "acme/infra", code.arguments["repo"], "the arguments are fixed when it starts, so an approval still matches on resume"
   end
 
+  test "a change whose pull request touches a kept path is done and marked as needing a person, and one that does not is not" do
+    needs = "https://github.com/acme/infra/pull/9 changes infra/prod.tf, which this workspace keeps out of code changes."
+    answer = Integrations::Telemetry.result("Devin opened https://github.com/acme/infra/pull/9 for acme/infra.", link: nil, facts: { CodeChange::NEEDS_PERSON => needs })
+    Integrations::NativeExecutor.stubs(:call).returns(answer)
+
+    perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { Investigation::FixRunner.apply!(@plan, by: @alice, from: AbilityGateway::SOURCE_WEB) }
+
+    code = @plan.steps.third.reload
+    assert_equal [ Investigation::RemediationStep::STATUS_DONE, needs ], [ code.status, code.needs_person ]
+    assert_equal needs, InvestigationRemediationStepSerializer.one(code)[:needsPerson]
+  end
+
+  test "a change whose answer carries nothing for a person needs nobody" do
+    Integrations::NativeExecutor.stubs(:call).returns("content" => [ { "type" => "text", "text" => "Opened https://github.com/acme/infra/pull/9." } ])
+
+    perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { Investigation::FixRunner.apply!(@plan, by: @alice, from: AbilityGateway::SOURCE_WEB) }
+
+    assert_nil @plan.steps.third.reload.needs_person
+  end
+
   test "a coding agent the workspace chose writes the change instead of the code host, and a person does it while the agent is off" do
     devin = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "devin", name: "Devin", slug: "devin")
     devin.integration_environments.create!

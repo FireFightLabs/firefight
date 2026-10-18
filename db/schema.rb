@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_18_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_18_100100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -2322,6 +2322,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_100000) do
     t.string "outcome_label"
     t.string "outcome_url"
     t.boolean "firefight_tool", default: false, null: false
+    t.text "needs_person"
     t.index ["applied_under_rule_id"], name: "index_investigation_remediation_steps_on_applied_under_rule_id"
     t.index ["approval_id"], name: "index_investigation_remediation_steps_on_approval_id"
     t.index ["done_by_id"], name: "index_investigation_remediation_steps_on_done_by_id"

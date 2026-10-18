@@ -41,6 +41,19 @@ module CodeChange
 
   CI_WARNING = "This changes a CI workflow, which runs with this repository's secrets. Review it carefully.".freeze
 
+  # What an outside coding agent's pull request is flagged with when it changes a path the workspace keeps out of code
+  # changes, or when what it changed could not be read. Firefight cannot refuse what such an agent pushes, so a person
+  # decides, and the pull request is never closed for them.
+  PROTECTED_TOUCHED = "%<pull_request>s changes %<paths>s, which this workspace keeps out of code changes. " \
+                      "A person must review it before it is merged.".freeze
+  PROTECTED_UNCHECKED = "Firefight could not check which files %<pull_request>s changes (%<reason>s), and this workspace keeps " \
+                        "some paths out of code changes. A person must review it before it is merged.".freeze
+  PROTECTED_COMMENT = "Firefight flagged this pull request. It changes %<paths>s, which this workspace keeps out of code changes. " \
+                      "A person must review it before it is merged.".freeze
+  PROTECTED_COMMENT_FAILED = "Firefight could not comment on it there (%<reason>s).".freeze
+  # The fact a coding agent's answer carries for the fix step it ran in, holding why a person must look at its change.
+  NEEDS_PERSON = "needs_person".freeze
+
   # What a change's pull request and its answer lead with, or nil when it touches no CI workflow.
   def self.ci_warning(paths) = (CI_WARNING if paths.any? { |path| path.to_s.match?(CI_WORKFLOW) })
 
