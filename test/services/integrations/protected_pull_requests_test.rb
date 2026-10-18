@@ -111,6 +111,19 @@ module Integrations
                    flag.sentence
     end
 
+    test "a pull request no connection holds, whose address names another repository, is flagged even when nothing is kept" do
+      stranger = "https://github.com/stranger/web/pull/1"
+
+      flag = ProtectedPullRequests.check(@workspace, [ stranger ], repository: "acme/web", asked_by: @asker, via: "devin.fix_code").sole
+
+      assert_equal format(CodeChange::PROTECTED_UNCHECKED, pull_request: stranger, reason: format(ProtectedPullRequests::NOT_ASKED, repository: "acme/web")),
+                   flag.sentence
+    end
+
+    test "a pull request in the asked repository that nothing keeps paths for is not flagged" do
+      assert_empty ProtectedPullRequests.check(@workspace, [ URL ], repository: "acme/web", asked_by: @asker, via: "devin.fix_code")
+    end
+
     test "a pull request on another code host than the address the change was asked for is never read or commented on" do
       @github.protect_paths!([ ".github/workflows/" ])
       Packs::Github.any_instance.expects(:pull_request_paths).never
@@ -130,7 +143,7 @@ module Integrations
 
       flag = ProtectedPullRequests.check(@workspace, [ stranger ], repository: "https://github.com/acme/web", asked_by: @asker, via: "devin.fix_code").sole
 
-      assert_equal format(CodeChange::PROTECTED_UNCHECKED, pull_request: stranger, reason: ProtectedPullRequests::NO_HOST), flag.sentence
+      assert_equal format(CodeChange::PROTECTED_UNCHECKED, pull_request: stranger, reason: format(ProtectedPullRequests::NOT_ASKED, repository: "acme/web")), flag.sentence
     end
 
     test "a connection that fails while working out an address is passed over, and the answer still comes back" do
