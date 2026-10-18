@@ -37,6 +37,25 @@ class Investigation::CheckOwnerTest < ActiveSupport::TestCase
     assert_match Investigation::CheckSeed::CANNOT_REACH, reach
   end
 
+  test "a Run now run is told the reach of whoever pressed it, not the owner's" do
+    limit_map_to(@workspace, @bob, catalog_entries(:production_env))
+    pressed = @workspace.investigations.create!(subject: @check, trigger_source: Investigation::TRIGGER_SCHEDULE, triggered_by: @alice,
+                                                max_turns: 10, max_spend_cents: 400)
+
+    reach = Investigation::CheckSeed.new(pressed).gather.dig("check", "runs_within")
+
+    assert_match @alice.display_name, reach
+    assert_match "on the map every environment.", reach
+  end
+
+  test "a run whose owner left is told it reaches nothing" do
+    @bob.update_column(:removed_at, Time.current)
+
+    reach = Investigation::CheckSeed.new(scheduled_run).gather.dig("check", "runs_within")
+
+    assert_match "reaches nothing", reach
+  end
+
   test "a scheduled run whose owner is gone reaches nothing" do
     @bob.update_column(:removed_at, Time.current)
 

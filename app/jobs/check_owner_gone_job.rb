@@ -6,8 +6,9 @@ class CheckOwnerGoneJob < ApplicationJob
 
   def perform(check_id)
     check = Investigation::Check.find(check_id)
-    return unless check.claim_owner_gone_notice!
+    claimed_at = check.claim_owner_gone_notice!
+    return unless claimed_at
 
-    CheckOwnerNotice.new(check).tell_admins!
+    check.release_owner_gone_notice!(claimed_at) if CheckOwnerNotice.new(check).tell_admins!
   end
 end

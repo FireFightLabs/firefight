@@ -33,6 +33,18 @@ class HalonCheckSweepJobTest < ActiveJob::TestCase
     assert_equal "Open Monitoring", told.sole.last.link_label
   end
 
+  test "admins nobody could be told about a paused check are tried again on the next sweep" do
+    @check.update_columns(owner_id: nil, paused_at: Time.current)
+    adapter = mock("adapter")
+    adapter.stubs(:post_notice).raises(AdapterError, "Slack is down")
+    WorkspaceAdapter.stubs(:for).returns(adapter)
+
+    CheckOwnerGoneJob.perform_now(@check.id)
+
+    assert_nil @check.reload.owner_gone_told_at
+    assert_enqueued_with(job: CheckOwnerGoneJob, args: [ @check.id ]) { HalonCheckSweepJob.perform_now }
+  end
+
   test "a check paused before the sweep, such as by the move to owners, has its admins told on the next sweep" do
     @check.update_columns(owner_id: nil, paused_at: Time.current)
 

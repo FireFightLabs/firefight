@@ -36,9 +36,17 @@ module Investigation::Check::Ownership
     paused
   end
 
-  # Takes the one telling of the admins. False when someone already told them, or it is no longer paused.
+  # Takes the one telling of the admins, answering the time it was taken. Nil when someone already told them, or it is no
+  # longer paused.
   def claim_owner_gone_notice!(now = Time.current)
-    self.class.where(id: id, owner_gone_told_at: nil).where.not(paused_at: nil).update_all(owner_gone_told_at: now, updated_at: now) > 0
+    claimed = self.class.where(id: id, owner_gone_told_at: nil).where.not(paused_at: nil).update_all(owner_gone_told_at: now, updated_at: now) > 0
+    now if claimed
+  end
+
+  # Gives back a telling no admin received, so the next sweep tries again. Only the claim made at claimed_at, so a failed
+  # job never clears a newer one, such as after the check was handed on and paused again.
+  def release_owner_gone_notice!(claimed_at, now = Time.current)
+    self.class.where(id: id, owner_gone_told_at: claimed_at).where.not(paused_at: nil).update_all(owner_gone_told_at: nil, updated_at: now)
   end
 
   def paused_because

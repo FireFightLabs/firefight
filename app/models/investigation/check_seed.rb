@@ -27,18 +27,19 @@ class Investigation::CheckSeed
 
   private
 
-  # The check runs in its owner's name, so it reads only what they may. Said up front, so a run names what it could not
-  # reach rather than reading around it.
+  # The run is in the name of whoever it is bounded by, the same one Investigation#acting_principal names: the check's
+  # owner on its schedule, whoever pressed Run now otherwise. Said up front, so a run names what it could not reach rather
+  # than reading around it.
   def runs_within
-    owner = @check.owner
-    return "This check has no owner, so it reaches nothing. #{CANNOT_REACH}" unless owner
+    starter = @investigation.acting_principal.acting_for
+    return "This run has nobody it runs for, so it reaches nothing. #{CANNOT_REACH}" if starter.nil? || AbilityGateway.starter_gone?(starter)
 
-    environments = ResourceMap::Resource.environments_visible_to(owner, @investigation.workspace)
-    where = if environments.nil? then "every environment on the map"
-    elsif environments.empty? then "no environment on the map"
+    environments = ResourceMap::Resource.environments_visible_to(starter, @investigation.workspace)
+    where = if environments.nil? then "every environment"
+    elsif environments.empty? then "no environment"
     else @investigation.workspace.catalog_entries.where(id: environments).order(:name).pluck(:name).to_sentence
     end
-    "This check runs in #{owner.display_name}'s name, so it reads only what they may, on the map #{where}. #{CANNOT_REACH}"
+    "This run is in #{starter.actor_display_name}'s name, so it reads only what they may, on the map #{where}. #{CANNOT_REACH}"
   end
 
   def raised
