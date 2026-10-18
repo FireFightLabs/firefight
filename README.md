@@ -1,27 +1,37 @@
+<h1 align="center">
+  Firefight
+</h1>
 <p align="center">
-  <a href="https://firefight.app">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme-hero-dark.svg" />
-      <source media="(prefers-color-scheme: light)" srcset=".github/assets/readme-hero-light.svg" />
-      <img src=".github/assets/readme-hero-dark.svg" width="100%" alt="Firefight. The open-source AI SRE that investigates incidents and ships the fix." />
-    </picture>
+  <b>The open-source AI SRE and incident management</b><br />
+  Halon finds the root cause and ships the fix. Firefight runs the incident in Slack.
+</p>
+
+<h4 align="center">
+  <a href="https://firefight.app">Website</a> ·
+  <a href="https://firefight.app/docs">Docs</a> ·
+  <a href="SELF_HOSTING.md">Self-hosting</a> ·
+  <a href="CONTRIBUTING.md">Local development</a> ·
+  <a href="https://github.com/FireFightLabs/firefight/releases">Releases</a> ·
+  <a href="https://firefight.app/slack">Community</a>
+</h4>
+
+<h4 align="center">
+  <a href="https://github.com/FireFightLabs/firefight/blob/main/LICENSE">
+    <img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="Firefight is released under the AGPL-3.0 license" />
   </a>
-</p>
-
-<p align="center">
-  Halon is the open-source AI SRE. It investigates production incidents, proves the root cause, and ships the fix.
-</p>
-
-<p align="center">
-  <a href="https://firefight.app"><b>Cloud</b></a>
-  &nbsp;·&nbsp;
-  <a href="SELF_HOSTING.md"><b>Self-host</b></a>
-  &nbsp;·&nbsp;
-  <a href="https://firefight.app/docs"><b>Docs</b></a>
-  &nbsp;·&nbsp;
-  <a href="https://firefight.app/slack"><b>Community</b></a>
-</p>
-
+  <a href="https://github.com/FireFightLabs/firefight/actions/workflows/ci.yml">
+    <img src="https://github.com/FireFightLabs/firefight/actions/workflows/ci.yml/badge.svg" alt="CI status" />
+  </a>
+  <a href="https://github.com/FireFightLabs/firefight/blob/main/CONTRIBUTING.md">
+    <img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs welcome" />
+  </a>
+  <a href="https://firefight.app/slack">
+    <img src="https://img.shields.io/badge/chat-on%20Slack-blueviolet" alt="Chat with the Firefight community on Slack" />
+  </a>
+  <a href="https://x.com/firefightapp_">
+    <img src="https://img.shields.io/twitter/follow/firefightapp_?label=Follow" alt="Follow Firefight on X" />
+  </a>
+</h4>
 <br />
 
 <p align="center">
