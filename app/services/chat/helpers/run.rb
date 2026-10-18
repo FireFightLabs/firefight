@@ -22,7 +22,7 @@ class Chat::Helpers::Run
     finish(work(chat, agent, choice), chat)
   rescue StandardError => error
     Rails.logger.warn({ event: "chat_helper.failed", helper_id: @helper.id, error: error.class.name, reason: error.try(:reason) }.compact.to_json)
-    @helper.finish!(Chat::Helper::STATUS_FAILED, ended_because: Chat::Helper::COULD_NOT, spent_micros: @counted)
+    @helper.finish!(Chat::Helper::STATUS_FAILED, ended_because: Chat::Helper::COULD_NOT, report: unfinished, spent_micros: @counted)
   ensure
     @share.moved.call(@helper.tool_call_id)
   end
@@ -30,11 +30,19 @@ class Chat::Helpers::Run
   private
 
   def work(chat, agent, choice)
-    presented = Chat::Tools.presented(agent, choice)
+    tools, deferred = equipment(agent, chat, choice)
     engine(choice).run(
-      chat: chat, tools: tools(agent, chat, presented), deferred_tools: presented.deferred, max_spend_cents: @max_spend_cents,
+      chat: chat, tools: tools, deferred_tools: deferred, max_spend_cents: @max_spend_cents,
       canceled: @share.canceled, on_step: ->(_step) { tell }, memory: chat
     ) { |turn| spent(turn) }
+  end
+
+  # A rehearsal hands its own reads. Otherwise the workspace's, as its provider's tool search presents them.
+  def equipment(agent, chat, choice)
+    return [ @share.helper_reads.tools(agent), [] ] if @share.helper_reads
+
+    presented = Chat::Tools.presented(agent, choice)
+    [ tools(agent, chat, presented), presented.deferred ]
   end
 
   def engine(choice)
@@ -101,6 +109,20 @@ class Chat::Helpers::Run
 
   def ended(outcome)
     status = outcome.status == FirefightAi::AgentLoop::STATUS_CANCELED ? Chat::Helper::STATUS_STOPPED : Chat::Helper::STATUS_FAILED
-    @helper.finish!(status, ended_because: ENDINGS.fetch(outcome.status, Chat::Helper::COULD_NOT), turns_used: outcome.turns_used, spent_micros: outcome.spent_micros)
+    @helper.finish!(status, ended_because: ENDINGS.fetch(outcome.status, Chat::Helper::COULD_NOT), report: unfinished,
+                            turns_used: outcome.turns_used, spent_micros: outcome.spent_micros)
+  end
+
+  # What a helper that ended without a report had, so work it did is never lost to the loop that asked. That is its last
+  # words, or else what it read, and nil when it did nothing.
+  def unfinished
+    chat = Chat.find_by(owner: @helper)
+    return nil unless chat
+
+    said = chat.messages.where(role: Chat::Message::ROLE_ASSISTANT, nudge: false).reorder(created_at: :desc, id: :desc).find { |message| message.content.present? }
+    said&.content || @helper.read_list
+  rescue StandardError => error
+    Rails.logger.warn({ event: "chat_helper.unfinished_not_read", helper_id: @helper.id, error: error.class.name }.to_json)
+    nil
   end
 end

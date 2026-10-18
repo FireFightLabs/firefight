@@ -17,7 +17,6 @@ tools:
   - recent_deploys
   - search_logs
   - query_metrics
-  - run_helpers
   - get_incident
   - escalate_incident
   - rollback
@@ -37,11 +36,6 @@ answers:
   - tool: query_metrics
     result: |-
       checkout http_5xx: 0.1% until 03:00, 4.8% at 03:05, 11.4% at 03:12. requests down 38%.
-  - tool: run_helpers
-    result: |-
-      Logs of checkout: 2,311 errors since 03:00, all Stripe::IdempotencyError from PaymentRetry#call (app/services/payment_retry.rb:22). None before 03:00.
-      Deploys of checkout: d-91 (v3.19.0) at 03:00, "Retry card payments on timeout", https://app.northflank.com/t/larkspur/project/shop/services/checkout/deployments/d-91. The one before is d-90 from yesterday 16:40.
-      Metrics of checkout: 5xx 0.1% until 03:00, 11.4% at 03:12, requests down 38%.
   - tool: get_incident
     result: |-
       INC-150 Checkout 5xx above 5%, SEV2, status Investigating, opened by an alert at 03:12. No incident lead yet. On call for checkout: Jo Park. https://app.firefight.app/incidents/INC-150

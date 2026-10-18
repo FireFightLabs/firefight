@@ -12,7 +12,7 @@ class Chat::Tools::Open < RubyLLM::Tool
     Chat::Tools::STATE_SWITCHED_OFF => "connected, but no tools switched on"
   }.freeze
 
-  def self.tool_name = "open_tools"
+  def self.tool_name = Chat::Helper::OPEN_TOOLS
 
   # presented is how the chat was handed its tools (Chat::Tools.presented). Where its provider searches tools itself, or
   # every tool whoever acts may call was held from the start, this lists what exists rather than being the way in.

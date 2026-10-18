@@ -18,10 +18,12 @@ class Conversation::Bench
   # Replays that run at once from the terminal, each a whole chat on the model. Each holds a database connection, and the
   # terminal gives a run a pool of this many plus one.
   AT_ONCE = 3
+  # Marks the prompt version of a run made with helpers turned off, so it is never compared as the same Halon.
+  WITHOUT_HELPERS = "+no-helpers".freeze
 
-  # The ledger's features that are Halon's own calls in a replay: its chat's, those of the specialists that read for it and
-  # the challenger's second look at a cause it named.
-  HALONS = [ FirefightAi::Responder::FEATURE, FirefightAi::Specialist::FEATURE, FirefightAi::Challenger::FEATURE ].freeze
+  # The ledger's features that are Halon's own calls in a replay: its chat's, those of the specialists and helpers that
+  # read for it and the challenger's second look at a cause it named.
+  HALONS = [ FirefightAi::Responder::FEATURE, FirefightAi::Specialist::FEATURE, FirefightAi::Helper::FEATURE, FirefightAi::Challenger::FEATURE ].freeze
 
   # Refuses a run while too many are going, since every run holds database connections on a server others share.
   class Busy < StandardError; end
@@ -163,14 +165,16 @@ class Conversation::Bench
     end
 
     # The chat's prompt as a run replays it. Forced on or off, specialists give one prompt. In auto each replay decides
-    # (Conversation::Rehearsal#asks_specialists?), so the run names both and that it chose between them.
+    # (Conversation::Rehearsal#asks_specialists?), so the run names both and that it chose between them. A run without
+    # helpers says so.
     def prompt_version(workspace, choice)
       with = ->(specialists) { FirefightAi::Responder.new(workspace, inferable: nil, model: choice, specialists: specialists).prompt_version }
-      case Chat::Specialists.mode
+      version = case Chat::Specialists.mode
       when FirefightAi::Configuration::SPECIALISTS_ON then with.call(true)
       when FirefightAi::Configuration::SPECIALISTS_OFF then with.call(false)
       else "#{with.call(false)}+auto-#{with.call(true)}"
       end
+      Chat::Helpers.offered? ? version : "#{version}#{WITHOUT_HELPERS}"
     end
 
     # What is left of a run's budget, in whole cents, as the most one replay may spend. Nil for a run with no budget.
@@ -179,7 +183,7 @@ class Conversation::Bench
       left && [ (left / FirefightAi::AgentLoop::MICROS_PER_CENT.to_f).ceil, 1 ].max
     end
 
-    # What Halon's own model calls cost, from the inference ledger, its specialists' included since they read for it. The
+    # What Halon's own model calls cost, from the inference ledger, its specialists' and helpers' included since they read for it. The
     # judge's call is grading, so it is left out.
     def spent(result) = Inference.where(inferable: result, feature: HALONS).sum(:cost_micros)
 

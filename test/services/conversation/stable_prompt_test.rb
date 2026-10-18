@@ -109,7 +109,8 @@ class Conversation::StablePromptTest < ActiveSupport::TestCase
     )
 
     second = sent_requests.last[:body]["messages"]
-    assert_equal "#{FirefightAi::Responder::CONTEXT_HEADING}\nYou are acting for Alice.", Array(second.last["content"]).last["text"]
+    assert_equal "#{FirefightAi::Responder::CONTEXT_HEADING}\nYou are acting for Alice.\n\n[Limits: step 2 of 5, $0.00 of $1.00 spent.]",
+                 Array(second.last["content"]).last["text"]
     result = Array(second[-2]["content"]).find { |block| block["type"] == "tool_result" }
     assert_equal "toolu_1", result["tool_use_id"]
     assert_equal({ "type" => "ephemeral" }, Array(second[-2]["content"]).last["cache_control"])
@@ -186,9 +187,11 @@ class Conversation::StablePromptTest < ActiveSupport::TestCase
     assert_nil bodies.first["messages"].rindex { |message| message["role"] != "developer" && marked?(message) }, "the brief is never marked"
     bodies.each_cons(2).with_index(2) do |(before, after), call|
       cached = after["messages"].rindex { |message| message["role"] != "developer" && marked?(message) }
-      assert_equal after["messages"].size - 1, cached, "call #{call} marks the last message it sends, the tool result"
-      assert_equal as_cached(before["messages"]), as_cached(after["messages"][0...before["messages"].size]),
-                   "call #{call} sends what call #{call - 1} sent as it sent it"
+      assert_equal after["messages"].size - 2, cached, "call #{call} marks the tool result, the last message before its limits line"
+      limits = after["messages"].last["content"]
+      assert_match(/\A\[Limits: step #{call} of /, limits.is_a?(Array) ? limits.last["text"] : limits)
+      sent = before["messages"][0...-1]
+      assert_equal as_cached(sent), as_cached(after["messages"][0...sent.size]), "call #{call} sends what call #{call - 1} sent as it sent it"
       assert_operator after.to_json.scan("\"cache_control\"").size, :<=, 4
     end
     assert_not chat.messages.where(cache_until_here: true).where.not(role: Chat::Message::ROLE_SYSTEM).exists?, "a call's mark is never saved"

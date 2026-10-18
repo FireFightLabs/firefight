@@ -34,4 +34,15 @@ class FirefightAi::HelperTest < ActiveSupport::TestCase
 
     assert_equal :outcome, outcome
   end
+
+  test "helpers are on by default, off turns them off, and anything else is refused at boot" do
+    config = FirefightAi::Configuration.new
+
+    assert [ config.helpers == FirefightAi::Configuration::HELPERS_ON, config.helpers? ].all?
+    config.helpers = "OFF"
+    assert_not config.helpers?
+    config.helpers = ""
+    assert config.helpers?
+    assert_raises(ArgumentError) { config.helpers = "sometimes" }
+  end
 end

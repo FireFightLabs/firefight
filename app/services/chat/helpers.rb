@@ -15,9 +15,10 @@ module Chat::Helpers
   # shared between threads. choose answers the model a check runs on, given whether it is deep, and is asked only once a
   # check is handed off.
   # inferable and member are what the ledger names. specialists is what a specialist reads with (Chat::Specialists::Live,
-  # or a rehearsal's own), nil where none is asked.
-  Share = Data.define(:purse, :max_spend_cents, :since, :canceled, :moved, :fresh_parent, :choose, :inferable, :member, :specialists) do
-    def initialize(specialists: nil, **) = super
+  # or a rehearsal's own), nil where none is asked. helper_reads is what a helper reads with in a rehearsal
+  # (Conversation::Rehearsal::Helpers), nil for the workspace's own tools.
+  Share = Data.define(:purse, :max_spend_cents, :since, :canceled, :moved, :fresh_parent, :choose, :inferable, :member, :specialists, :helper_reads) do
+    def initialize(specialists: nil, helper_reads: nil, **) = super
   end
 
   # What the asking loop reads, and whether nothing came of it, which marks the call failed.
@@ -58,6 +59,9 @@ module Chat::Helpers
       Rails.logger.warn({ event: "chat_helper.not_told", chat_id: chat.id, error: error.class.name }.to_json)
     end
   end
+
+  # Whether chats and runs are offered run_helpers, which the deployment can turn off (FIREFIGHT_AI_HELPERS).
+  def self.offered? = FirefightAi.configuration.helpers?
 
   # Below this a helper could not pay for a turn on most models, so the loop reads it itself instead.
   MIN_SHARE_CENTS = 1
@@ -124,8 +128,8 @@ module Chat::Helpers
   # longer, its findings with the lines and links that show them.
   def self.reports(helpers)
     done = helpers.count(&:reported?)
-    return [ "Specialists reported, #{done} of #{helpers.size}:", *helpers.map(&:line) ].join("\n\n") if helpers.any?(&:specialist?)
+    return [ "Specialists reported, #{done} of #{helpers.size}. #{Chat::Helper::OPEN_WITH}", *helpers.map(&:line) ].join("\n\n") if helpers.any?(&:specialist?)
 
-    [ "Helpers reported, #{done} of #{helpers.size}:", *helpers.map(&:line) ].join("\n")
+    [ "Helpers reported, #{done} of #{helpers.size}. #{Chat::Helper::OPEN_WITH}", *helpers.map(&:line) ].join("\n")
   end
 end

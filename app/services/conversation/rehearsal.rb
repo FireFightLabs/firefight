@@ -17,7 +17,8 @@ class Conversation::Rehearsal
 
   # Tools Halon's instructions name that a live chat holds whatever a scenario lists. The skills and what changed are
   # offered with no connection at all, and the rest come with any connected system. A scenario that leaves them out
-  # still has them, as live, so an instruction never names a tool that is not there.
+  # still has them, as live, so an instruction never names a tool that is not there. run_helpers is added the same way
+  # wherever the deployment offers helpers.
   ALWAYS_OFFERED = [ Chat::Tools::UseSkill.tool_name, ResourceMap::Timeline::TOOL_NAME ].freeze
   CONNECTED_OFFERED = [
     Integrations::Capabilities.spec(Integrations::Capabilities::STATUS).tool_name, Integrations::Capabilities::KEY_QUERY_TOOL,
@@ -35,7 +36,8 @@ class Conversation::Rehearsal
   def self.as_offered(bench_case, shared: Conversation::BenchCase.shared_tools)
     return bench_case if bench_case.captured?
 
-    wanted = ALWAYS_OFFERED + (bench_case.tools.any?(&:outside?) || Conversation::BenchWorkspace.on? ? CONNECTED_OFFERED : [])
+    wanted = ALWAYS_OFFERED + (Chat::Helpers.offered? ? [ Chat::Helper::RUN_HELPERS ] : []) +
+             (bench_case.tools.any?(&:outside?) || Conversation::BenchWorkspace.on? ? CONNECTED_OFFERED : [])
     added = (wanted - bench_case.tools.map(&:name)).map { |name| Conversation::BenchCase.tool_from(shared.fetch(name)) }
     with_shared = bench_case.offering(added)
     Conversation::BenchWorkspace.on? ? with_shared.offering(Conversation::BenchWorkspace.offered_beside(with_shared)) : with_shared
@@ -240,21 +242,34 @@ class Conversation::Rehearsal
     end
   end
 
-  # ask_specialist, in a replay that asks specialists, run on the scenario's own tools.
+  # ask_specialist, in a replay that asks specialists, and run_helpers, where the deployment offers helpers, each running
+  # real agents on the scenario's own tools. A real chat replayed answers run_helpers from its record, since the reads its
+  # helpers made are not in it.
   def asking(chat, purse)
-    return [] unless @specialists
+    helping = helps?
+    return [] unless @specialists || helping
 
     asker = Asker.new(chat: chat, workspace: @result.workspace)
     share = Chat::Helpers::Share.new(
       purse: purse, max_spend_cents: budget.max_spend_cents, since: @turn_started || Time.current, canceled: -> { false }, moved: ->(_tool_call_id) { },
-      fresh_parent: -> { asker }, choose: ->(deep) { specialist_model(deep) }, inferable: @result, member: nil, specialists: specialists
+      fresh_parent: -> { asker }, choose: ->(deep) { specialist_model(deep) }, inferable: @result, member: nil,
+      specialists: (specialists if @specialists), helper_reads: (helper_reads if helping)
     )
-    [ Chat::Tools::AskSpecialist.new(asker, share: share) ]
+    [ *(Chat::Tools::AskSpecialist.new(asker, share: share) if @specialists), *(Chat::Tools::Helpers.new(asker, share: share) if helping) ]
   end
 
+  def helps? = Chat::Helpers.offered? && !@case.captured?
+
   def specialists
-    @specialist_source ||= Conversation::Rehearsal::Specialists.new(@case, recorded: ->(definition, own_chat) { recorded(definition, own_chat) })
+    @specialist_source ||= Conversation::Rehearsal::Specialists.new(@case, recorded: ->(definition, own_chat) { recorded(definition, own_chat) }, lock: world_lock)
   end
+
+  def helper_reads
+    @helper_reads ||= Conversation::Rehearsal::Helpers.new(@case, recorded: ->(definition, own_chat) { recorded(definition, own_chat) }, lock: world_lock)
+  end
+
+  # Specialists and helpers read the world from threads of their own, one call at a time across all of them.
+  def world_lock = @world_lock ||= Mutex.new
 
   # The quick model of the compared model's provider, on the same key, as a live specialist runs on the quick model, or
   # the model compared when the deployment runs specialists on the main model or the provider has no quick model with a
@@ -305,8 +320,12 @@ class Conversation::Rehearsal
     held?(chat) && (!@specialists || !definition.outside? || definition.reads)
   end
 
-  # What Halon may hold: every scenario tool, less the reads a specialist holds when the deployment asks specialists.
-  def halons = @specialists ? @case.tools.reject { |definition| Conversation::Rehearsal::Specialists.reserved?(definition) } : @case.tools
+  # What Halon may hold: every scenario tool, less the reads a specialist holds when the deployment asks specialists, and
+  # less a scenario's run_helpers, which real helpers answer (asking) or which the deployment does not offer.
+  def halons
+    held = @specialists ? @case.tools.reject { |definition| Conversation::Rehearsal::Specialists.reserved?(definition) } : @case.tools
+    @case.captured? ? held : held.reject { |definition| definition.name == Chat::Helper::RUN_HELPERS }
+  end
 
   # The specialist that holds a scenario tool, by its title, or nil. Given the chat, a read a specialist made in it, or
   # one of a connection whose change Halon holds, is Halon's to open, as live (Chat::Specialists.loadable).

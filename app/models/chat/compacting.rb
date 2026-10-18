@@ -14,6 +14,7 @@ module Chat::Compacting
 
   STUB = "[Shortened to save room. The full result is saved as %<handle>s. Read it again with read_result.]".freeze
   STUB_MARK = "[Shortened to save room.".freeze
+  STUBBED_AS = /The full result is saved as (?<handle>result_\d+)\./
 
   included do
     has_many :compactions, -> { order(:created_at) }, class_name: "Chat::Compaction", dependent: :destroy, inverse_of: :chat
@@ -104,7 +105,7 @@ module Chat::Compacting
     ended = helpers.where.not(status: Chat::Helper::STATUS_RUNNING).reorder(created_at: :desc, position: :desc).limit(HELPERS_REMEMBERED).to_a.reverse
     return nil if ended.empty?
 
-    "What your helpers reported, oldest first:\n#{ended.map(&:line).join("\n")}"
+    "What your helpers reported, oldest first. #{Chat::Helper::OPEN_WITH}\n#{ended.map(&:line).join("\n")}"
   end
 
   def saved_results_brief

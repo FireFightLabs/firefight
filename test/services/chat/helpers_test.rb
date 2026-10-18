@@ -32,7 +32,8 @@ class Chat::HelpersTest < ActiveSupport::TestCase
     result = hand_off(checks("Logs of web", "Recent deploys", "Error rate"))
 
     assert_not result.failed
-    assert_equal [ "Helpers reported, 3 of 3:", "- Logs of web: Read Logs of web.", "- Recent deploys: Read Recent deploys.", "- Error rate: Read Error rate." ],
+    assert_equal [ "Helpers reported, 3 of 3. #{Chat::Helper::OPEN_WITH}", "- Logs of web (helper_1): Read Logs of web.",
+                   "- Recent deploys (helper_2): Read Recent deploys.", "- Error rate (helper_3): Read Error rate." ],
                  result.text.lines.map(&:chomp)
     assert_equal 3, threads.size
     helpers = @chat.helpers.to_a
@@ -94,7 +95,7 @@ class Chat::HelpersTest < ActiveSupport::TestCase
     result = hand_off(checks("Logs", "Deploys"))
 
     assert result.failed
-    assert_equal [ "- Logs: #{Chat::Helper::COULD_NOT}", "- Deploys: #{Chat::Helper::OUT_OF_BUDGET}" ], result.text.lines.drop(1).map(&:chomp)
+    assert_equal [ "- Logs (helper_1): #{Chat::Helper::COULD_NOT}", "- Deploys (helper_2): #{Chat::Helper::OUT_OF_BUDGET}" ], result.text.lines.drop(1).map(&:chomp)
     assert_equal [ Chat::Helper::STATUS_FAILED ] * 2, @chat.helpers.map(&:status)
   end
 
@@ -167,7 +168,71 @@ class Chat::HelpersTest < ActiveSupport::TestCase
     assert_equal Chat::StepOutcome::KIND_FAILED, Chat::Helpers.line(helper.tap { |each| each.update_columns(status: Chat::Helper::STATUS_FAILED) }).outcome
   end
 
+  test "a helper cut off before it reported hands back its last words, marked unfinished, and the page still shows no report" do
+    FirefightAi::Helper.any_instance.stubs(:run).with do |chat:, **|
+      read(chat, "call_a", "Checkout logs: 40 timeouts since 14:02.")
+      chat.add_message(role: Chat::Message::ROLE_ASSISTANT, content: "So far 40 timeouts since 14:02, all on the orders pool.")
+      true
+    end.returns(outcome(status: FirefightAi::AgentLoop::STATUS_OUT_OF_TURNS))
+
+    result = hand_off(checks("Logs"))
+
+    assert result.failed
+    assert_equal "- Logs (helper_1): #{Chat::Helper::OUT_OF_TURNS} #{Chat::Helper::UNFINISHED} So far 40 timeouts since 14:02, all on the orders pool.",
+                 result.text.lines.last.chomp
+    helper = @chat.helpers.sole
+    assert_equal Chat::Helper::STATUS_FAILED, helper.status
+    assert_nil AgentChatHelperSerializer.one(helper).deep_stringify_keys["report"]
+  end
+
+  test "a helper that ended with no words of its own hands back what it read, each named for read_result" do
+    FirefightAi::Helper.any_instance.stubs(:run).with do |chat:, **|
+      read(chat, "call_a", "Checkout logs: 40 timeouts since 14:02.")
+      read(chat, "call_b", "Deploys: web d-91 at 13:58.")
+      true
+    end.returns(outcome(status: FirefightAi::AgentLoop::STATUS_OUT_OF_BUDGET))
+
+    result = hand_off(checks("Logs"))
+
+    assert_includes result.text, "#{Chat::Helper::OUT_OF_BUDGET} #{Chat::Helper::UNFINISHED} It read helper_1_result_1 (#{FirefightTools::SEARCH_INCIDENTS}, 1 lines), " \
+                                 "helper_1_result_2 (#{FirefightTools::SEARCH_INCIDENTS}, 1 lines)."
+    assert_includes Chat::Tools::ReadResult.new(@turn).execute(result: "helper_1_result_2"), "Deploys: web d-91 at 13:58."
+  end
+
+  test "a helper whose run fails after it read something still hands back what it read" do
+    FirefightAi::Helper.any_instance.stubs(:run).with do |chat:, **|
+      read(chat, "call_a", "Checkout logs: 40 timeouts since 14:02.")
+      raise FirefightAi::TransientError, "provider down"
+    end
+
+    result = hand_off(checks("Logs"))
+
+    assert_includes result.text, "#{Chat::Helper::COULD_NOT} #{Chat::Helper::UNFINISHED} It read helper_1_result_1"
+  end
+
+  test "run_helpers is offered in chats and runs unless the deployment turns helpers off" do
+    share = Chat::Helpers::Share.new(purse: @purse, max_spend_cents: 400, since: 1.minute.ago, canceled: -> { false }, moved: ->(_key) { },
+                                     fresh_parent: -> { @turn }, choose: ->(_deep) { @side }, inferable: @conversation, member: @bob)
+    investigation = @workspace.investigations.create!(subject: incidents(:active_critical_ws1), trigger_source: Investigation::TRIGGER_COMMAND,
+                                                      max_turns: 10, max_spend_cents: 400)
+    offered = lambda do
+      [ Conversation::Tools.for(@turn, offer: ->(_tools) { }, helpers: share), Investigation::Tools.for(investigation, offer: ->(_tools) { }, helpers: share) ]
+        .map { |tools| tools.map(&:name).include?(Chat::Tools::Helpers::NAME) }
+    end
+
+    assert_equal [ true, true ], offered.call
+    FirefightAi.configuration.stubs(:helpers?).returns(false)
+    assert_equal [ false, false ], offered.call
+  end
+
   private
+
+  # A read the helper made, saved in its own chat as the loop saves one.
+  def read(chat, id, text)
+    chat.add_message(role: Chat::Message::ROLE_ASSISTANT, content: "",
+                     tool_calls: { id => RubyLLM::ToolCall.new(id: id, name: FirefightTools::SEARCH_INCIDENTS, arguments: {}) })
+    chat.add_message(role: Chat::Message::ROLE_TOOL, content: FirefightAi::Evidence.frame(FirefightTools::SEARCH_INCIDENTS, text), tool_call_id: id)
+  end
 
   def checks(*titles) = titles.map { |title| Chat::Helpers::Check.new(title: title, brief: "Read #{title}", deep: false) }
 

@@ -719,7 +719,8 @@ run_helpers:
     would otherwise run one after another, such as the logs, the recent deploys and the error rate of one service. At most 8 for one question.
     Set deep only for a check that reasons across several results. Keep for yourself anything that changes something and any read that depends
     on another's answer. A report says what its helper read, so cite the steps it names, and run a check yourself before stating a cause that
-    rests on a helper's words alone.
+    rests on a helper's words alone. Everything a helper read stays whole for read_result under the helper's name, such as helper_1, so open it
+    there rather than reading the same thing again.
   reads: true
   parameters:
     type: object

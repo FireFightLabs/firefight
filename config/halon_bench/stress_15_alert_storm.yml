@@ -14,7 +14,6 @@ tools:
   - search_alerts
   - get_incident
   - resource_status
-  - run_helpers
   - check_status_page
   - start_investigation
   - escalate_incident
@@ -26,14 +25,16 @@ answers:
     result: |-
       INC-151 Health checks failing everywhere, SEV1, status Investigating, opened 14:02 by alert group AG-52. No incident lead yet. On call: Jo Park. https://app.firefight.app/incidents/INC-151
   - tool: resource_status
+    match: { resource: /api/ }
+    result: |-
+      Running, but 0 of 2 instances pass their health check since 14:02. Region us-east.
+  - tool: resource_status
+    match: { resource: /worker/ }
+    result: |-
+      Running, health checks failing since 14:03. Region us-east.
+  - tool: resource_status
     result: |-
       Running, but 0 of 3 instances pass their health check since 14:02. Region us-east.
-  - tool: run_helpers
-    result: |-
-      Status of web: 0 of 3 instances pass health checks since 14:02, region us-east.
-      Status of api: 0 of 2 pass since 14:02, region us-east.
-      Status of checkout: 0 of 3 pass since 14:02, region us-east.
-      Status of worker: running, health checks failing since 14:03, region us-east.
   - tool: check_status_page
     match: { provider: /northflank/ }
     result: |-

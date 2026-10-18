@@ -4,7 +4,7 @@
 module Investigation::Tools
   def self.for(investigation, offer:, helpers: nil, presented: Chat::Tools::Presented.none)
     [ Chat::Tools::Open.new(investigation, offer: offer, presented: presented), Chat::Tools::UseSkill.new(investigation, offer: offer), *Chat::Tools::Docs.all(investigation),
-      Chat::Tools::ReadResult.new(investigation), *(Chat::Tools::Helpers.new(investigation, share: helpers) if helpers),
+      Chat::Tools::ReadResult.new(investigation), *(Chat::Tools::Helpers.new(investigation, share: helpers) if helpers && Chat::Helpers.offered?),
       *own_tools(investigation), *Chat::Tools.memory(investigation), *Chat::Tools::Web.all(investigation),
       *Chat::Tools::Terminal.all(investigation), *Chat::Tools::OutsideCheck.all(investigation),
       *Chat::Tools::Browser.all(investigation) ]
