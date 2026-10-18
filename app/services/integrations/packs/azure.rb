@@ -200,7 +200,7 @@ module Integrations
            read_only: false
 
       tool :scale_app,
-           summary: "Sets how many instances or replicas an Azure app runs.",
+           summary: "Scales an App Service plan, which all its apps share, or a Container App's replicas.",
            description: "Set how many instances an app runs. An App Service app sets the instance count of its App Service plan, " \
                         "which every app on that plan shares. A Container App sets its fewest and most replicas. Undo by " \
                         "setting the values describe_resource showed before",

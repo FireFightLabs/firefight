@@ -174,7 +174,7 @@ module Integrations
            read_only: false
 
       tool :rollout_restart,
-           summary: "Restarts every pod of a workload without downtime.",
+           summary: "Restarts every pod of a workload, following its rollout strategy.",
            description: "Replace every pod of a deployment, statefulset or daemonset with a fresh one, as kubectl rollout restart " \
                         "does, following the workload's strategy so it keeps serving",
            params_schema: { "type" => "object", "properties" => { "namespace" => NAMESPACE, "resource" => RESOURCE }, "required" => [ "resource" ] },

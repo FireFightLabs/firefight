@@ -59,6 +59,7 @@ module Integrations
     test "a tool neither knows shows the first sentence of its description, cut cleanly at a word" do
       assert_equal "Finds an order by its number.", ToolSummaries.first_sentence("Finds an order by its number. Use it first, e.g. for refunds.")
       assert_equal "Reads orders for a customer, e.g. a refund.", ToolSummaries.first_sentence("Reads `orders` for a **customer**, e.g. a refund.")
+      assert_equal "Calls run_query for the latest rows.", ToolSummaries.first_sentence("Calls `run_query` for the _latest_ rows.")
       long = "Searches every order the shop has taken for the customer named, with the items, the totals and the address it went to"
       shown = ToolSummaries.first_sentence(long)
 

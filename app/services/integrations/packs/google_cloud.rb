@@ -93,7 +93,7 @@ module Integrations
       SERVICE = { "type" => "string", "description" => "A Cloud Run service, by name or id, as list_resources shows it" }.freeze
 
       tool :list_resources,
-           summary: "Lists the project's Cloud Run, Cloud SQL, Compute Engine and GKE resources.",
+           summary: "Lists the project's Cloud Run, Cloud Deploy, Cloud SQL, Compute Engine and GKE resources.",
            description: "The Cloud Run services and jobs, Cloud Deploy delivery pipelines and their stages, Cloud SQL instances, " \
                         "Compute Engine instances and GKE clusters in the Google Cloud project for this environment, with where each runs and how it stands. Use it first to find the name " \
                         "to pass to the other tools",

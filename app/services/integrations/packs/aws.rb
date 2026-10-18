@@ -176,7 +176,7 @@ module Integrations
       PROJECT_RESOURCE = { "type" => "string", "description" => "A CodeBuild project, by its name or ARN as list_resources shows it" }.freeze
 
       tool :list_resources,
-           summary: "Lists the ECS services, Lambda functions, EC2 instances and databases in each region.",
+           summary: "Lists the ECS services, Lambda functions, EC2 instances, databases and CodeBuild projects.",
            description: "The ECS services, Lambda functions, EC2 instances, RDS databases and CodeBuild projects this connection reaches, in each of " \
                         "its regions, with their state and ARN. Use it first to find the name to pass to the other tools",
            params_schema: {

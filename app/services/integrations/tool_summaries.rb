@@ -10,7 +10,8 @@ module Integrations
     OMISSION = "…".freeze
     # A sentence ends at a stop followed by a capital, so "e.g. a branch" stays one sentence.
     FIRST_SENTENCE = /\A.+?[.!?](?=\s+[[:upper:]]|\z)/
-    MARKUP = /[`*_]{1,3}(?=\S)|(?<=\S)[`*_]{1,3}/
+    # Backticks and asterisks go wherever they are, underscores only where they open or close emphasis, so run_query keeps its own.
+    MARKUP = /[`*]+|(?<![[:alnum:]])_{1,2}(?=[[:alnum:]])|(?<=[[:alnum:]])_{1,2}(?![[:alnum:]])/
 
     module_function
 
