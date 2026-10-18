@@ -1,9 +1,11 @@
-<h1 align="center">
-  Firefight
-</h1>
 <p align="center">
-  <b>The open-source AI SRE and incident management</b><br />
-  Halon finds the root cause and ships the fix. Firefight runs the incident in Slack.
+  <a href="https://firefight.app">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme-hero-dark.svg" />
+      <source media="(prefers-color-scheme: light)" srcset=".github/assets/readme-hero-light.svg" />
+      <img src=".github/assets/readme-hero-dark.svg" width="100%" alt="FireFight. The open-source AI SRE and incident management. Halon finds the root cause and ships the fix. FireFight runs the incident in Slack." />
+    </picture>
+  </a>
 </p>
 
 <h4 align="center">
@@ -17,7 +19,7 @@
 
 <h4 align="center">
   <a href="https://github.com/FireFightLabs/firefight/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="Firefight is released under the AGPL-3.0 license" />
+    <img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="FireFight is released under the AGPL-3.0 license" />
   </a>
   <a href="https://github.com/FireFightLabs/firefight/actions/workflows/ci.yml">
     <img src="https://github.com/FireFightLabs/firefight/actions/workflows/ci.yml/badge.svg" alt="CI status" />
@@ -26,33 +28,19 @@
     <img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs welcome" />
   </a>
   <a href="https://firefight.app/slack">
-    <img src="https://img.shields.io/badge/chat-on%20Slack-blueviolet" alt="Chat with the Firefight community on Slack" />
+    <img src="https://img.shields.io/badge/chat-on%20Slack-blueviolet" alt="Chat with the FireFight community on Slack" />
   </a>
   <a href="https://x.com/firefightapp_">
-    <img src="https://img.shields.io/twitter/follow/firefightapp_?label=Follow" alt="Follow Firefight on X" />
+    <img src="https://img.shields.io/twitter/follow/firefightapp_?label=Follow" alt="Follow FireFight on X" />
   </a>
 </h4>
-<br />
-
-<p align="center">
-  <img src=".github/assets/halon-demo.webp" width="960" alt="In an incident channel, a Datadog alert says the checkout 5xx rate is above 5%. Halon works through its checklist and answers that the 14:02 deploy lowered the database pool from 20 to 5, very sure. In the thread, Maya asks for a pull request that sets the pool back to 20, approves Halon's request, and the card follows the change until the pull request is open." />
-</p>
-
-<p align="center">
-  <img src=".github/assets/halon-demo-final.png" width="960" alt="The thread after the fix: Maya's request, and Halon's finished card with the change written, checked and opened as acme/checkout#913, approved by Maya Ortiz." />
-</p>
-
-<p align="center"><sub>
-  14:06, Datadog fires on checkout. 14:09, Halon traces it to the 14:02 deploy that cut the database pool from 20 to 5.<br />
-  14:12, Maya approves the fix in the thread. Halon opens the pull request.
-</sub></p>
 
 <br />
 
 <p align="center">
-  <img src=".github/assets/dashboard/incident.png" width="960" alt="The INC-042 incident page in the Firefight dashboard, with the live timeline, roles and Halon's answer." />
+  <img src=".github/assets/dashboard/incident.png" width="960" alt="The INC-042 incident page in the FireFight dashboard, with the live timeline, roles and the root cause Halon found." />
 </p>
-<p align="center"><sub>The same incident in the dashboard.</sub></p>
+<p align="center"><sub>An incident in the FireFight dashboard, with the live timeline, roles and the root cause.</sub></p>
 
 <br />
 
@@ -64,7 +52,7 @@ Root cause fast, every finding backed by evidence. Fixes ship through an approva
 
 **Evidence-backed answers.** Every conclusion ships with a confidence level and the evidence behind it, each fact linked to its source. Gaps in coverage are reported alongside the answer.
 
-**Fixes through an approval gateway.** Fixes run through Firefight's own tools or as a pull request written in an isolated sandbox. Reads are immediate. Changes require sign-off in Slack, under the approval rules your admins set, and every call to a connected tool is recorded in the activity log.
+**Fixes through an approval gateway.** Fixes run through FireFight's own tools or as a pull request written in an isolated sandbox. Reads are immediate. Changes require sign-off in Slack, under the approval rules your admins set, and every call to a connected tool is recorded in the activity log.
 
 **A complete incident platform.** Declaration, roles, paging through PagerDuty and Opsgenie, status pages, workflows and postmortems drafted from the timeline. Self-hosted or on [firefight.app](https://firefight.app).
 
@@ -85,7 +73,7 @@ Halon starts every run from your team's context: the resource map of what runs w
 
 ## Get started
 
-[Firefight Cloud](https://firefight.app) runs in minutes. Sign in with Slack.
+[FireFight Cloud](https://firefight.app) runs in minutes. Sign in with Slack.
 
 To self-host, you need a machine with Docker, a hostname and a Slack workspace.
 
@@ -101,14 +89,14 @@ To self-host, you need a machine with Docker, a hostname and a Slack workspace.
 
 ## We ship fast
 
-In the last 30 days we merged more than 400 pull requests and tagged 49 releases. Every version is published to `ghcr.io/firefightlabs/firefight`, the same image Firefight Cloud runs. The [changelog](https://firefight.app/changelog) has the details.
+In the last 30 days we merged more than 400 pull requests and tagged 49 releases. Every version is published to `ghcr.io/firefightlabs/firefight`, the same image FireFight Cloud runs. The [changelog](https://firefight.app/changelog) has the details.
 
 ## Learn more
 
 - [Halon](https://firefight.app/docs/ai/halon) and [investigations](https://firefight.app/docs/ai/investigations)
 - [Permissions and approvals](https://firefight.app/docs/gateway/overview) and [what reaches the AI](https://firefight.app/docs/ai/data-handling)
 - [Integrations](https://firefight.app/docs/api/integrations), plus any MCP server
-- [REST API](https://firefight.app/docs/api/overview) and [Firefight's MCP server](https://firefight.app/docs/api/mcp-server)
+- [REST API](https://firefight.app/docs/api/overview) and [FireFight's MCP server](https://firefight.app/docs/api/mcp-server)
 
 Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md), and report vulnerabilities as [SECURITY.md](SECURITY.md) describes.
 
