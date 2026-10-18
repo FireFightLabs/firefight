@@ -9,6 +9,12 @@ class CheckOwnerGoneJob < ApplicationJob
     claimed_at = check.claim_owner_gone_notice!
     return unless claimed_at
 
-    check.release_owner_gone_notice!(claimed_at) if CheckOwnerNotice.new(check).tell_admins!
+    # A telling that broke, or reached no admin there was, gives its claim back, so a retry or the next sweep tells them.
+    check.release_owner_gone_notice!(claimed_at) if begin
+      CheckOwnerNotice.new(check).tell_admins!
+    rescue StandardError
+      check.release_owner_gone_notice!(claimed_at)
+      raise
+    end
   end
 end

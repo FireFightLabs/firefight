@@ -45,6 +45,15 @@ class HalonCheckSweepJobTest < ActiveJob::TestCase
     assert_enqueued_with(job: CheckOwnerGoneJob, args: [ @check.id ]) { HalonCheckSweepJob.perform_now }
   end
 
+  test "a telling that breaks before reaching anyone gives its claim back, so a retry or the next sweep tells them" do
+    @check.update_columns(owner_id: nil, paused_at: Time.current)
+    WorkspaceAdapter.stubs(:for).raises(RuntimeError, "no platform")
+
+    assert_raises(RuntimeError) { CheckOwnerGoneJob.new.perform(@check.id) }
+
+    assert_nil @check.reload.owner_gone_told_at
+  end
+
   test "a check paused before the sweep, such as by the move to owners, has its admins told on the next sweep" do
     @check.update_columns(owner_id: nil, paused_at: Time.current)
 
