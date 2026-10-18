@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_18_100200) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_18_100400) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -2117,11 +2117,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_100200) do
     t.datetime "last_run_at"
     t.datetime "deleted_at"
     t.uuid "created_by_id"
+    t.uuid "owner_id"
+    t.datetime "paused_at"
+    t.string "paused_owner_name"
+    t.datetime "owner_gone_told_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index "workspace_id, lower((name)::text)", name: "index_investigation_checks_on_workspace_and_name", unique: true
     t.index ["created_by_id"], name: "index_investigation_checks_on_created_by_id"
     t.index ["next_run_at"], name: "index_investigation_checks_due", where: "(deleted_at IS NULL)"
+    t.index ["owner_id"], name: "index_investigation_checks_on_owner_id"
     t.index ["workspace_id"], name: "index_investigation_checks_on_workspace_id"
   end
 
@@ -3853,6 +3858,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_100200) do
   add_foreign_key "integration_tools", "integrations"
   add_foreign_key "integrations", "workspaces"
   add_foreign_key "investigation_checks", "workspace_memberships", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "investigation_checks", "workspace_memberships", column: "owner_id", on_delete: :nullify
   add_foreign_key "investigation_checks", "workspaces"
   add_foreign_key "investigation_evidence", "investigation_findings", column: "finding_id"
   add_foreign_key "investigation_findings", "integrations", column: "page_integration_id", on_delete: :nullify

@@ -4,6 +4,8 @@ class Investigation::CheckSeed
   # What was raised before is listed back this far.
   RAISED_WITHIN = 60.days
   RAISED_LIMIT = 30
+  CANNOT_REACH = "When what this check looks at is outside that, say so plainly, such as \"I can't reach production for this check\", " \
+                 "and do not try to read it.".freeze
 
   def initialize(investigation)
     @investigation = investigation
@@ -16,7 +18,7 @@ class Investigation::CheckSeed
       Investigation::Seeding::KEY_GATHERED_AT => Time.current.iso8601,
       "check" => {
         "name" => @check.name, "looks_at" => kind.description, "notes" => @check.notes, "skill" => kind.skill,
-        "today" => Time.current.in_time_zone(@check.zone).to_date.iso8601
+        "today" => Time.current.in_time_zone(@check.zone).to_date.iso8601, "runs_within" => runs_within
       }.compact,
       "already_raised" => raised,
       "billing" => (billing if @check.kind == Investigation::Check::KIND_COST)
@@ -24,6 +26,20 @@ class Investigation::CheckSeed
   end
 
   private
+
+  # The check runs in its owner's name, so it reads only what they may. Said up front, so a run names what it could not
+  # reach rather than reading around it.
+  def runs_within
+    owner = @check.owner
+    return "This check has no owner, so it reaches nothing. #{CANNOT_REACH}" unless owner
+
+    environments = ResourceMap::Resource.environments_visible_to(owner, @investigation.workspace)
+    where = if environments.nil? then "every environment on the map"
+    elsif environments.empty? then "no environment on the map"
+    else @investigation.workspace.catalog_entries.where(id: environments).order(:name).pluck(:name).to_sentence
+    end
+    "This check runs in #{owner.display_name}'s name, so it reads only what they may, on the map #{where}. #{CANNOT_REACH}"
+  end
 
   def raised
     @check.notices.where(last_seen_at: RAISED_WITHIN.ago..).includes(:resource).recent.limit(RAISED_LIMIT).map do |notice|

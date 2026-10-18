@@ -237,11 +237,15 @@ class Investigation < ApplicationRecord
   # nothing (Ability::GoneStarter), never the investigator's whole reach.
   def acting_principal
     agent = SystemAgent.investigator
+    return agent.within_reach_of(check_owner) if scheduled? && triggered_by_type.blank?
     return agent if triggered_by_type.blank? || triggered_by_id.blank?
 
     starter = triggered_by || Ability::GoneStarter.new(type: triggered_by_type, id: triggered_by_id)
     workflows_own?(starter) ? agent : agent.within_reach_of(starter)
   end
+
+  # A scheduled check's own runs are in its owner's name, someone who reaches nothing once they are gone.
+  def check_owner = check.owner || Ability::GoneStarter.new(type: WorkspaceMembership.name, id: check.owner_id)
 
   def workflows_own?(starter) = starter.is_a?(Agent) && starter.workflow.present?
 
