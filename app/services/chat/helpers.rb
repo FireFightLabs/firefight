@@ -128,8 +128,10 @@ module Chat::Helpers
   # longer, its findings with the lines and links that show them.
   def self.reports(helpers)
     done = helpers.count(&:reported?)
-    return [ "Specialists reported, #{done} of #{helpers.size}. #{Chat::Helper::OPEN_WITH}", *helpers.map(&:line) ].join("\n\n") if helpers.any?(&:specialist?)
+    handles = Chat::Helper.handles_in(helpers.first&.chat_id)
+    lines = helpers.map { |helper| helper.line(handles.fetch(helper.id)) }
+    return [ "Specialists reported, #{done} of #{helpers.size}. #{Chat::Helper::OPEN_WITH}", *lines ].join("\n\n") if helpers.any?(&:specialist?)
 
-    [ "Helpers reported, #{done} of #{helpers.size}. #{Chat::Helper::OPEN_WITH}", *helpers.map(&:line) ].join("\n")
+    [ "Helpers reported, #{done} of #{helpers.size}. #{Chat::Helper::OPEN_WITH}", *lines ].join("\n")
   end
 end

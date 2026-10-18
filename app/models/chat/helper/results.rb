@@ -12,10 +12,9 @@ module Chat::Helper::Results
     # Every helper's results in the chat that asked, or only those of the helper named, such as helper_2. A helper exists
     # only inside the chat that started it, so nothing outside that chat is ever read.
     def results_in(chat, helper: nil)
-      where(chat_id: chat.id).in_order.includes(:own_chat).each_with_index.flat_map do |each, index|
-        handle = "#{Chat::Helper::HANDLE_PREFIX}#{index + 1}"
-        helper.nil? || helper == handle ? each.results(handle) : []
-      end
+      handles = handles_in(chat.id)
+      wanted = helper ? handles.select { |_id, handle| handle == helper } : handles
+      where(id: wanted.keys).in_order.includes(:own_chat).flat_map { |each| each.results(wanted.fetch(each.id)) }
     end
   end
 

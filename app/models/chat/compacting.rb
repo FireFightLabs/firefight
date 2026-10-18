@@ -105,7 +105,8 @@ module Chat::Compacting
     ended = helpers.where.not(status: Chat::Helper::STATUS_RUNNING).reorder(created_at: :desc, position: :desc).limit(HELPERS_REMEMBERED).to_a.reverse
     return nil if ended.empty?
 
-    "What your helpers reported, oldest first. #{Chat::Helper::OPEN_WITH}\n#{ended.map(&:line).join("\n")}"
+    handles = Chat::Helper.handles_in(id)
+    "What your helpers reported, oldest first. #{Chat::Helper::OPEN_WITH}\n#{ended.map { |helper| helper.line(handles.fetch(helper.id)) }.join("\n")}"
   end
 
   def saved_results_brief

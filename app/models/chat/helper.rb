@@ -98,7 +98,7 @@ class Chat::Helper < ApplicationRecord
 
   # How it went, as Halon reads it back and as a rebuilt chat remembers it, named by the handle read_result opens
   # everything it read with. A specialist's report runs over several lines, so it starts on its own.
-  def line
+  def line(handle = self.handle)
     said = reported? ? report : [ ended_because, ("#{UNFINISHED} #{report}" if report.present?) ].compact.join(" ")
     return "#{title} (#{handle}):\n#{said.presence || 'nothing reported'}" if specialist?
 
@@ -106,7 +106,10 @@ class Chat::Helper < ApplicationRecord
   end
 
   # The name the asking chat's read_result knows it by, counted across that chat's helpers in the order they started.
-  def handle = "#{HANDLE_PREFIX}#{self.class.where(chat_id: chat_id).in_order.ids.index(id).to_i + 1}"
+  def handle = self.class.handles_in(chat_id).fetch(id)
+
+  # Every helper's handle in one chat by its id, read once for lines naming several.
+  def self.handles_in(chat_id) = where(chat_id: chat_id).in_order.ids.each_with_index.to_h { |id, index| [ id, "#{HANDLE_PREFIX}#{index + 1}" ] }
 
   # A helper still running when its asking call was closed as interrupted belongs to a worker that died.
   def self.interrupted!(chat, tool_call_ids)
