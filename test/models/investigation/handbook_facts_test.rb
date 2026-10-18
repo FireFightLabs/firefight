@@ -17,7 +17,7 @@ class Investigation::HandbookFactsTest < ActiveSupport::TestCase
 
   test "a scheduled check reads the handbook among its starting facts, and its prompt says how to follow it" do
     check = @workspace.investigation_checks.create!(name: "Cloud bill", kind: Investigation::Check::KIND_COST, cadence: Investigation::Check::CADENCE_WEEKLY,
-                                                    hour: 9, weekday: 1, time_zone: "UTC")
+                                                    hour: 9, weekday: 1, time_zone: "UTC", created_by: workspace_memberships(:alice_workspace_one))
     run = @workspace.investigations.create!(subject: check, trigger_source: Investigation::TRIGGER_SCHEDULE, max_turns: 10, max_spend_cents: 400)
     run.build_seed_pack!
 

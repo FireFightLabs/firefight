@@ -11,6 +11,9 @@ module Workflow::Run::Acting
 
   def acting_principal = test? ? started_by : agent
 
+  # The person, agent or key behind the run, nil for one its trigger started with nobody behind it.
+  def asker = asked_by || started_by
+
   def reads_first? = !test? && UNATTENDED.include?(trigger_kind)
 
   # How the activity log names the run beside each call it made.

@@ -474,6 +474,40 @@ module Integrations
         fail! error.message
       end
 
+      # Bitbucket lists a pull request's diffstat 100 to a page, and this many pages is every file a change could need.
+      FLAG_FILE_PAGES = 30
+      PULL_REQUEST_ADDRESS = %r{\Ahttps://bitbucket\.org/([\w.\-]+/[\w.\-]+)/pull-requests/(\d+)(?:[/?#]|\z)}
+
+      # A pull request's repository and number, read from its address on Bitbucket Cloud, or nil for any other address
+      # and for one outside the workspaces this connection reads (Integrations::PullRequests.addressed).
+      def pull_request_at(environment_row, url)
+        found = url.to_s.strip.match(PULL_REQUEST_ADDRESS)
+        return unless found
+
+        workspace = found[1].split("/", 2).first
+        [ found[1], found[2].to_i ] if ConnectionSettings.of(environment_row).scopes.any? { |each| each.to_s.casecmp?(workspace) }
+      end
+
+      # Every path a pull request changes, a moved file under both names (Integrations::PullRequests.paths). A list
+      # Bitbucket cuts short is refused rather than taken for the whole.
+      def pull_request_paths(environment_row, repository:, number:)
+        stats, more = api(environment_row).list("#{BitbucketApi.repository(repository)}/pullrequests/#{number}/diffstat", {}, pages: FLAG_FILE_PAGES)
+        fail! "PR ##{number} in #{repository} changes more files than Bitbucket lists." if more
+
+        stats.flat_map { |stat| [ stat.dig("new", "path"), stat.dig("old", "path") ] }.compact.uniq
+      rescue BitbucketApi::Error => error
+        fail! error.message
+      end
+
+      # A comment on the pull request, written with the connection's token, which needs write:pullrequest:bitbucket
+      # (Integrations::PullRequests.flag!).
+      def flag_pull_request(environment_row, repository:, number:, body:)
+        api(environment_row).post("#{BitbucketApi.repository(repository)}/pullrequests/#{number}/comments", { "content" => { "raw" => body } })
+        nil
+      rescue BitbucketApi::Error => error
+        fail! error.message
+      end
+
       private
 
       # Every tool reaches the API first, so the site its links open is known by the time it links.

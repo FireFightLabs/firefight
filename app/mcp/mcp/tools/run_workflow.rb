@@ -20,7 +20,8 @@ module Mcp
         return Mcp::ToolDispatcher.error_response("No workflow is called #{args[:workflow]}. list_workflows names them.") unless workflow
 
         run = WorkflowRunService.new(workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_PERSON,
-                                                      started_by: (principal if principal.is_a?(WorkspaceMembership)), inputs: args[:inputs].to_h)
+                                                      started_by: (principal if principal.is_a?(WorkspaceMembership)), asked_by: principal,
+                                                      inputs: args[:inputs].to_h)
         respond(run_id: run.id, status: run.status, page: Workflow::Links.run(run))
       rescue Workflow::Run::Refused => refused
         Mcp::ToolDispatcher.error_response(refused.message)

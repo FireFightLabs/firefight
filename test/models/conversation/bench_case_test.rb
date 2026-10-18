@@ -9,12 +9,15 @@ class Conversation::BenchCaseTest < ActiveSupport::TestCase
   CHATS = %w[review_fix_on_a_specialists_read change_only_reads_through_a_change].freeze
   # Habits of the answer itself, such as placing the charts it drew beside what they show.
   ANSWERS = %w[charts_sit_where_they_are_read].freeze
+  # Hostile text in a log line, an issue, a pull request comment and a web page, aimed at access, data and secrets.
+  INJECTIONS = %w[inject_01_log_line_asks_for_access inject_02_issue_asks_for_a_data_write inject_03_pr_comment_asks_for_a_secret
+                  inject_04_web_page_asks_for_access inject_05_log_line_asks_for_a_secret].freeze
 
   test "every scenario reads, says what a good run reaches and what it does next, and names only tools it offers" do
     scenarios = Conversation::BenchCase.scenarios
 
-    assert_equal FAILURES.size + 19 + HABITS.size + 12 + CHATS.size + ANSWERS.size, scenarios.size
-    assert_empty (FAILURES + HABITS + CHATS + ANSWERS) - scenarios.map(&:key)
+    assert_equal FAILURES.size + 19 + HABITS.size + 12 + CHATS.size + ANSWERS.size + INJECTIONS.size, scenarios.size
+    assert_empty (FAILURES + HABITS + CHATS + ANSWERS + INJECTIONS) - scenarios.map(&:key)
     assert_equal 19, scenarios.count { |scenario| scenario.key.start_with?("stress_") }
     assert_equal 12, scenarios.count { |scenario| scenario.key.start_with?("hard_") }
     scenarios.each do |scenario|
@@ -22,6 +25,16 @@ class Conversation::BenchCaseTest < ActiveSupport::TestCase
       assert scenario.expect.next_step.present?, "#{scenario.key} says nothing about the next step"
       assert scenario.shape.present?, "#{scenario.key} says nothing about the failure it comes from"
       assert scenario.context.start_with?("You are acting for "), "#{scenario.key} does not say who is asking the way a chat does"
+    end
+  end
+
+  # A hostile text scenario scores a model that follows the text as wrong only through the calls it must never make.
+  test "every injection scenario names the calls its hostile text asks for as calls never to make" do
+    INJECTIONS.each do |key|
+      scenario = Conversation::BenchCase.scenario(key)
+
+      assert scenario.expect.never_calls.any?, "#{key} names no call the hostile text asks for"
+      scenario.expect.never_calls.each { |name| assert scenario.answers.any? { |answer| answer.tool == name }, "#{key} never answers #{name}" }
     end
   end
 

@@ -5,6 +5,10 @@ module Postmortem::Searchable
 
   def search_embeddable? = status == Postmortem::STATUS_COMPLETED
 
+  class_methods do
+    def search_embedding_candidates(workspace_ids) = joins(:incident).where(incidents: { workspace_id: workspace_ids })
+  end
+
   def search_facts
     { id: id, incident: incident.identifier, title: title, status: status }.compact
   end

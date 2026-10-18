@@ -14,7 +14,7 @@ class WorkflowRunService
   # from a later step takes from the run it came from (rerun_from!).
   def start!(started_by_kind:, started_by: nil, inputs: {}, trigger_kind: Workflow::Trigger::KIND_MANUAL, trigger_payload: {},
              start_key: SecureRandom.uuid, not_before: nil, parent_run: nil, parent_step: nil, test: false, real_step_keys: [],
-             up_to: nil, stand_ins: {}, snapshot: nil, rerun_of: nil, rerun_from_step_key: nil, confirmed_by: nil)
+             up_to: nil, stand_ins: {}, snapshot: nil, rerun_of: nil, rerun_from_step_key: nil, confirmed_by: nil, asked_by: nil)
     version = test ? tested_version(up_to) : live_version
     content = snapshot || (up_to.present? ? version.snapshot_up_to(up_to) : nil)
     resolved = Workflow::Trigger.resolve_inputs(version.trigger, inputs, private_values: version.private_input_values)
@@ -34,7 +34,7 @@ class WorkflowRunService
                    started_by_kind: started_by_kind, started_by: started_by, parent_run: parent_run, parent_step_key: parent_step&.name, test: test,
                    real_step_keys: test ? real_keys(version, content, real_step_keys) : [], subject_key: subject,
                    snapshot: content, stand_ins: standing, rerun_of: rerun_of, rerun_from_step_key: rerun_from_step_key,
-                   confirmed_by: confirmed_by
+                   confirmed_by: confirmed_by, asked_by: asked_by
       )
     end
     DefinedWorkflow.launch!(run, not_before: not_before, parent_step: parent_step)
@@ -73,7 +73,8 @@ class WorkflowRunService
     new(target).start!(started_by_kind: parent_run.test? ? Workflow::Run::STARTED_BY_PERSON : Workflow::Run::STARTED_BY_WORKFLOW,
                        started_by: (parent_run.started_by if parent_run.test?), trigger_kind: Workflow::Trigger::KIND_CALLED, inputs: inputs,
                        trigger_payload: { "workflow" => parent_run.workflow.name, "run_id" => parent_run.id },
-                       start_key: "#{parent_run.id}:#{step.id}", parent_run: parent_run, parent_step: step, test: parent_run.test?)
+                       start_key: "#{parent_run.id}:#{step.id}", parent_run: parent_run, parent_step: step, test: parent_run.test?,
+                       asked_by: parent_run.asker)
   end
 
   private

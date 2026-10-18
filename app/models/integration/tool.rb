@@ -113,7 +113,11 @@ class Integration::Tool < ApplicationRecord
   # Whether it is worth offering. Each call is still authorized on its own. A tool that can also read through its guard
   # is worth offering to whoever may read its connection, and each change through it still needs its own grant. With
   # arguments, whether this one call may be made, so a change through such a tool needs the grant a change does.
+  # An agent working for whoever started its run is offered only what they could call themselves too.
   def callable_by?(principal, resolved = Ability::Resolver.resolve(principal, integration.workspace), arguments: nil)
+    starter = principal.try(:acting_for)
+    return false if starter && (AbilityGateway.starter_gone?(starter) || !callable_by?(starter, arguments: arguments))
+
     return true if resolved.action_keys.include?(action_key)
     return false unless ability_action.present?
     return true if principal.implicitly_allowed?(ability_action, resolved)
@@ -195,6 +199,9 @@ class Integration::Tool < ApplicationRecord
 
     integration.resolve_environment(scope["environment"] || scope[:environment]).present?
   end
+
+  # The environment a call that names none runs in, from the row the connection resolves on its own.
+  def environment_reached = integration.resolve_environment(nil)&.catalog_entry_id
 
   def remote_name
     spec["tool_name"].presence || name

@@ -4,7 +4,7 @@ class Investigation::CheckSeedTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @check = @workspace.investigation_checks.create!(name: "Cloud bill", kind: Investigation::Check::KIND_COST, cadence: Investigation::Check::CADENCE_WEEKLY,
-                                                     hour: 9, weekday: 1, time_zone: "UTC", notes: "Our budget is $2,000 a month.")
+                                                     hour: 9, weekday: 1, time_zone: "UTC", notes: "Our budget is $2,000 a month.", created_by: workspace_memberships(:alice_workspace_one))
     @run = @workspace.investigations.create!(subject: @check, trigger_source: Investigation::TRIGGER_SCHEDULE, max_turns: 10, max_spend_cents: 400)
     @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "aws", name: "AWS")
     @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "render", name: "Render")

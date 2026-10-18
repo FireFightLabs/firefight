@@ -235,6 +235,16 @@ class Slack::Messages::FixProgressTest < ActiveSupport::TestCase
     assert_equal [ Identifiers::FIX_STEP_ASK_AGAIN, Identifiers::FIX_STEP_DISMISS ], expired[:actions].pluck(:action_id)
   end
 
+  test "a step whose change needs a person says why under how the fix stands, so the thread never reads it as clean" do
+    @plan.apply!(by: @alice, from: AbilityGateway::SOURCE_SLACK)
+    code = @plan.steps.third
+    code.update_columns(status: Investigation::RemediationStep::STATUS_DONE, needs_person: "#{PULL} changes infra/prod.tf, which this workspace keeps out of code changes.")
+
+    blocks = Slack::Messages::FixProgress.build(@plan.reload)
+
+    assert_equal ":warning:  Step 3: #{PULL} changes infra/prod.tf, which this workspace keeps out of code changes.", blocks.fourth.dig(:text, :text)
+  end
+
   private
 
   def state_line(plan) = Slack::Messages::FixProgress.build(plan).third.dig(:text, :text)

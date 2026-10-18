@@ -19,7 +19,8 @@ class Investigation::Rehearsal
       run = rehearse!(
         original.workspace, original.subject, replay_of: original, seed_pack: original.seed_pack, brief: original.brief,
         seed_notes: original.seed_notes&.except(Investigation::Seeding::KEY_TOLD),
-        max_turns: original.max_turns, max_spend_cents: original.max_spend_cents, model: model, provider: provider
+        max_turns: original.max_turns, max_spend_cents: original.max_spend_cents, max_duration_seconds: original.max_duration_seconds,
+        model: model, provider: provider
       )
       copy_steps_before_the_loop(original, run)
       started&.call(run)
@@ -31,7 +32,8 @@ class Investigation::Rehearsal
       limits = incident.workspace.investigation_limits
       brief = Investigation::Brief.from({ Investigation::Brief::KEY_SYMPTOM => said }, source: Investigation::Brief::SOURCE_REHEARSAL)
       run = rehearse!(
-        incident.workspace, incident, brief: brief, max_turns: limits.max_turns, max_spend_cents: limits.max_spend_cents, model: model, provider: provider
+        incident.workspace, incident, brief: brief, max_turns: limits.max_turns, max_spend_cents: limits.max_spend_cents,
+        max_duration_seconds: limits.max_duration.to_i, model: model, provider: provider
       )
       run.build_seed_pack!
       finish(run)

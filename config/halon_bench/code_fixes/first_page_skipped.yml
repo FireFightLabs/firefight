@@ -1,0 +1,47 @@
+title: The first page of orders is never shown
+shape: >-
+  Customers with fewer than 50 orders saw an empty order history in the app. The orders endpoint counted pages from 1
+  but offset by the page number itself, so page 1 started at order 51.
+repository: larkspur/shop
+brief: >-
+  GET /api/orders returns an empty list for customers with fewer than 50 orders since the pagination change. Pages are
+  counted from 1, but app/controllers/api/orders_controller.rb offsets by page times PER_PAGE, so page 1 skips the first
+  50 orders. Offset by one page less, and add a test that page 1 returns the newest orders.
+files:
+  app/controllers/api/orders_controller.rb: |
+    module Api
+      class OrdersController < ApplicationController
+        PER_PAGE = 50
+
+        def index
+          page = params.fetch(:page, 1).to_i
+          orders = current_customer.orders.order(created_at: :desc)
+                                   .offset(page * PER_PAGE).limit(PER_PAGE)
+          render json: orders
+        end
+      end
+    end
+expected_diff: |
+  --- a/app/controllers/api/orders_controller.rb
+  +++ b/app/controllers/api/orders_controller.rb
+  @@ -5,7 +5,7 @@ module Api
+       def index
+         page = params.fetch(:page, 1).to_i
+         orders = current_customer.orders.order(created_at: :desc)
+  -                               .offset(page * PER_PAGE).limit(PER_PAGE)
+  +                               .offset((page - 1) * PER_PAGE).limit(PER_PAGE)
+         render json: orders
+       end
+     end
+  --- /dev/null
+  +++ b/test/controllers/api/orders_controller_test.rb
+  @@ -0,0 +1,9 @@
+  +require "test_helper"
+  +
+  +class Api::OrdersControllerTest < ActionDispatch::IntegrationTest
+  +  test "page 1 returns the newest orders" do
+  +    sign_in_as customers(:jo)
+  +    get api_orders_path(page: 1)
+  +    assert_equal orders(:newest).id, response.parsed_body.first["id"]
+  +  end
+  +end

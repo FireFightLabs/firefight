@@ -39,7 +39,7 @@ class DefinedWorkflowIncidentStepsTest < ActiveSupport::TestCase
   def start(workflow, except: QUIET, **options)
     run = nil
     perform_enqueued_jobs(except: except) do
-      run = WorkflowRunService.new(workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_PERSON, started_by: @alice, **options)
+      run = WorkflowRunService.new(workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_PERSON, **{ started_by: @alice }.merge(options))
     end
     run.reload
   end
@@ -166,13 +166,37 @@ class DefinedWorkflowIncidentStepsTest < ActiveSupport::TestCase
     run = start(workflow)
     assert_equal Workflow::Run::STATUS_WAITING, run.status, run.error
     investigation = @incident.investigations.find_by!(trigger_source: Investigation::TRIGGER_WORKFLOW)
-    assert_equal workflow.agent, investigation.triggered_by
+    assert_equal @alice, investigation.triggered_by, "a person ran it, so the run is theirs to bound"
+    assert_equal @alice, investigation.acting_principal.acting_for
 
     perform_enqueued_jobs(except: QUIET) { investigation.finish!(status: Investigation::STATUS_SUCCEEDED) }
 
     run.reload
     assert_equal Workflow::Run::STATUS_SUCCEEDED, run.status, run.error
     assert_equal [ "succeeded", investigation.id ], output(run, "look").values_at("status", "investigation_id")
+  end
+
+  test "investigate in a run its trigger started is the workflow's own, and keeps Halon's reach" do
+    workflow = published("Look into it", steps: [ step("look", "investigate", { "incident" => "INC-001" }) ])
+    Investigation.stubs(:start_refusal).returns(nil)
+
+    start(workflow, started_by_kind: Workflow::Run::STARTED_BY_TRIGGER, started_by: nil, trigger_kind: Workflow::Trigger::KIND_SCHEDULE)
+    investigation = @incident.investigations.find_by!(trigger_source: Investigation::TRIGGER_WORKFLOW)
+
+    assert_equal workflow.agent, investigation.triggered_by
+    assert_nil investigation.acting_principal.acting_for
+  end
+
+  test "investigate in a run a key started over MCP is bounded by that key" do
+    workflow = published("Look into it", steps: [ step("look", "investigate", { "incident" => "INC-001" }) ])
+    Investigation.stubs(:start_refusal).returns(nil)
+    key = api_keys(:full_access_key)
+
+    start(workflow, started_by: nil, asked_by: key)
+    investigation = @incident.investigations.find_by!(trigger_source: Investigation::TRIGGER_WORKFLOW)
+
+    assert_equal key, investigation.triggered_by
+    assert_equal key, investigation.acting_principal.acting_for
   end
 
   test "classify takes the route Halon names, and the otherwise route for one it does not" do

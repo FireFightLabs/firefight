@@ -5,6 +5,12 @@ export interface CheckChoice {
   description?: string
 }
 
+// A member a check can be given to, by name.
+export interface CheckMember {
+  id: string
+  name: string
+}
+
 // Which connected providers Halon can read spend from, and which it cannot.
 export interface SpendCoverage {
   read: string[]

@@ -55,6 +55,10 @@ class InvestigationRemediationStepSerializer < BaseSerializer
   type :string, optional: true
   def result = step.result
 
+  # Why a person must look at what the step changed before anyone merges it, the same words Slack's fix message uses.
+  type :string, optional: true
+  def needs_person = step.needs_person
+
   # What its coding agent has done so far, or did, the same shape a chat step carries.
   type "#{AgentChatMessageSerializer::PROGRESS_TYPE} | null"
   def progress = work&.to_h
