@@ -17,11 +17,15 @@ class SearchEmbeddingService
     return embedding if embedding.persisted? && embedding.content_digest == digest
 
     result = FirefightAi.embed(text, workspace: @workspace)
-    embedding.update!(vector: result.vectors, model: result.model, content_digest: digest)
+    # A savepoint, so a lost insert race leaves any transaction the caller holds usable.
+    SearchEmbedding.transaction(requires_new: true) { embedding.update!(vector: result.vectors, model: result.model, content_digest: digest) }
     embedding
   rescue ActiveRecord::RecordNotUnique
-    # Another writer saved this record's vector first, from the same words or newer ones, so theirs is kept.
-    SearchEmbedding.find_by(embeddable: record)
+    # Another writer saved this record's vector first. Theirs is kept when it is from the words the record holds now,
+    # and written again from them otherwise, which finds that row and updates it.
+    winner = SearchEmbedding.find_by!(embeddable: record)
+    current = SearchEmbedding.digest_for(record.reload.search_text.to_s.squish)
+    winner.content_digest == current ? winner : write!(record)
   end
 
   def similar_to(query, limit: SearchEmbedding::DEFAULT_LIMIT, types: nil)

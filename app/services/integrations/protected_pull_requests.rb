@@ -20,7 +20,10 @@ module Integrations
     # change came through, whose call the comment belongs to.
     def check(workspace, urls, repository:, asked_by:, via:)
       asked = named(repository)
+      asked_host = host_of(repository)
       urls.filter_map do |url|
+        next unchecked(url, format(NOT_ASKED, repository: repository.to_s.strip)) unless same_host?(url, asked_host) || unkept?(workspace, asked)
+
         flag_for(workspace, url, asked, asked_by, via)
       rescue StandardError => error
         Rails.logger.warn({ event: "protected_pull_requests.check_failed", url: url, error: error.class.name }.to_json)
@@ -31,8 +34,15 @@ module Integrations
     # owner/name, or a longer path on a host with groups, from a name or an address.
     def named(repository) = repository.to_s.strip.sub(%r{\A(?:https?://|git@)[^/:]+[/:]}, "").delete_suffix(".git").delete_suffix("/")
 
+    # The host an address names, nil for a bare name. A mirror on another host is another repository.
+    def host_of(repository) = repository.to_s.strip[%r{\A(?:https?://|git@)([^/:]+)}, 1]&.downcase
+
+    def same_host?(url, asked_host) = asked_host.nil? || host_of(url) == asked_host
+
+    def unkept?(workspace, asked) = Integration.protected_paths_for(workspace, asked).empty?
+
     def flag_for(workspace, url, asked, asked_by, via)
-      return if Integration.protected_paths_for(workspace, asked).empty?
+      return if unkept?(workspace, asked)
 
       owned = PullRequests.addressed(workspace, url)
       return unchecked(url, NO_HOST) if owned.empty?

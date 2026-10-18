@@ -100,6 +100,20 @@ class Investigation::ReachTest < ActiveSupport::TestCase
     assert_equal :read, call(agent, tool)
   end
 
+  test "a run a service key started stops reaching anything once the key is switched off" do
+    key = api_keys(:read_only_key)
+    limit_map_to(@workspace, key, catalog_entries(:production_env))
+    run = investigation(triggered_by: key, trigger_source: Investigation::TRIGGER_MCP)
+    ApiKey.where(id: key.id).update_all(active: false)
+    agent = run.acting_principal
+
+    assert_empty ResourceMap::Resource.visible_to(agent, @workspace)
+    assert_raises(AbilityGateway::Denied) do
+      AbilityGateway.authorize!(principal: agent, action_key: Ability::Action::MAP_READ, workspace: @workspace,
+                                scope: { "environment" => catalog_entries(:production_env).id }) { :read }
+    end
+  end
+
   test "a run a workflow started keeps the investigator's reach, since its workflow was published by an admin" do
     workflow_agent = @workspace.agents.create!(name: "Triage workflow", slug: "triage_workflow")
     agent = investigation(triggered_by: workflow_agent, trigger_source: Investigation::TRIGGER_WORKFLOW).acting_principal

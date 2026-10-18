@@ -183,9 +183,10 @@ module FirefightAi
       # result, including the next question in a chat that stopped before the result was saved.
       return nil if tools_pending?
       return STATUS_OUT_OF_TURNS if @turns >= @budget.max_turns
+      # One last turn is all a run gets, whichever limit offered it.
+      return STATUS_OUT_OF_BUDGET if @last_turn_offered
       return time_up if time_up?
       return nil if @purse.spent < @budget.max_spend_cents * MICROS_PER_CENT
-      return STATUS_OUT_OF_BUDGET if @last_turn_offered
 
       # One last turn, which may go over the cap.
       @last_turn_offered = true

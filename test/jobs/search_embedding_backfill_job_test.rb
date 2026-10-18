@@ -66,14 +66,38 @@ class SearchEmbeddingBackfillJobTest < ActiveJob::TestCase
     assert_equal SearchEmbeddingBackfillJob::CONCURRENCY_KEY, SearchEmbeddingBackfillJob.new.concurrency_key.split("/").last
   end
 
-  test "a vector another writer saved first is kept rather than failing the job" do
-    FirefightAi.stubs(:embed).returns(Struct.new(:vectors, :model).new(Array.new(SearchEmbedding::DIMENSIONS, 0.1), FirefightAi.embedding_model))
-    SearchEmbedding.any_instance.stubs(:update!).raises(ActiveRecord::RecordNotUnique)
+  test "a vector another writer saved first from the current words is kept rather than failing the job" do
+    stub_embed
+    assert_nil @incident.search_embedding
+    winner = SearchEmbedding.create!(workspace: @workspace, embeddable: @incident, vector: vector(0.2), model: FirefightAi.embedding_model,
+                                     content_digest: SearchEmbedding.digest_for(@incident.search_text.to_s.squish))
 
-    assert_nothing_raised { SearchEmbeddingService.new(@workspace).write!(@incident) }
+    assert_equal winner, SearchEmbeddingService.new(@workspace).write!(@incident)
+    assert_equal 1, SearchEmbedding.where(embeddable: @incident).count
+  end
+
+  test "a vector another writer saved first from older words is written again from the current ones" do
+    stub_embed
+    assert_nil @incident.search_embedding
+    stale = SearchEmbedding.create!(workspace: @workspace, embeddable: @incident, vector: vector(0.2), model: FirefightAi.embedding_model, content_digest: "older")
+
+    written = SearchEmbeddingService.new(@workspace).write!(@incident)
+
+    assert_equal stale, written
+    assert_equal SearchEmbedding.digest_for(@incident.search_text.to_s.squish), stale.reload.content_digest
+  end
+
+  test "two writes of one record wait for each other, so the second finds the first's vector instead of paying again" do
+    assert_equal "#{Incident.name}:#{@incident.id}", WriteSearchEmbeddingJob.new(Incident.name, @incident.id).concurrency_key.split("/").last
   end
 
   private
+
+  def vector(value) = Array.new(SearchEmbedding::DIMENSIONS, value)
+
+  def stub_embed
+    FirefightAi.stubs(:embed).returns(Struct.new(:vectors, :model).new(vector(0.1), FirefightAi.embedding_model))
+  end
 
   def written?(type, id)
     enqueued_jobs.any? { |job| job["job_class"] == WriteSearchEmbeddingJob.name && job["arguments"] == [ type, id ] }

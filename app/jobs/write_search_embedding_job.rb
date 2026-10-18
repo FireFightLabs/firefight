@@ -1,6 +1,9 @@
 class WriteSearchEmbeddingJob < ApplicationJob
   queue_as :default
 
+  # Two writes of one record wait for each other, so the second finds the first's vector rather than paying for it again.
+  limits_concurrency key: ->(record_type, record_id) { "#{record_type}:#{record_id}" }, duration: 15.minutes
+
   retry_on FirefightAi::TransientError, wait: :polynomially_longer, attempts: 3
   discard_on FirefightAi::TerminalError
   discard_on ActiveRecord::RecordNotFound

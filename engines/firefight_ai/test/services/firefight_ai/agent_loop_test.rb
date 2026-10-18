@@ -410,8 +410,8 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
   end
 
   # Seen in review: a tool that ran until just before the grace ran out left the last turn almost no time.
-  # Seen in review: a tool that ran until just before the grace ran out left the last turn almost no time.
   test "each batch of tools has the whole grace, counted from the limit, the last turn or when the batch started, whichever is latest" do
+    freeze_time
     agent_loop = FirefightAi::AgentLoop.new(
       chat: FakeChat.new([]), budget: budget(ends_at: 1.minute.ago), answered: -> { false },
       inference: { workspace: @workspace, feature: "investigation", provider: "openai", model: "gpt-4o", inferable: @incident }
@@ -420,9 +420,21 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     started = Time.current
 
     assert_equal started + grace, agent_loop.send(:tools_stop_at, started)
-    assert_equal 1.minute.ago.round + grace, agent_loop.send(:tools_stop_at, 2.minutes.ago).round
+    assert_equal 1.minute.ago + grace, agent_loop.send(:tools_stop_at, 2.minutes.ago)
     agent_loop.send(:time_up)
     assert_operator agent_loop.send(:tools_stop_at, 2.minutes.ago), :>=, started + grace
+  end
+
+  # Seen in review: a budget's last turn whose tools ran past the time limit bought a second last turn.
+  test "a run that spent its budget gets one last turn, even when that turn's tools run past its time limit" do
+    chat = FakeChat.new([ tool_reply("call_1", cost: 5.00), tool_reply("call_2"), tool_reply("call_3") ])
+    past_the_limit = ->(step) { travel(10.minutes) if step.key == "call_2" && step.status == FirefightAi::AgentLoop::STEP_RUNNING }
+
+    outcome = run_loop(chat, budget: budget(max_spend_cents: 400, ends_at: 1.minute.from_now), on_step: past_the_limit)
+
+    assert_equal FirefightAi::AgentLoop::STATUS_OUT_OF_BUDGET, outcome.status
+    assert_equal 2, chat.model_calls
+    assert_not_includes chat.messages.map(&:content), FirefightAi::AgentLoop::TIME_UP
   end
 
   test "a run taken up again past its limit still gets its last turn, rather than stopping without one" do

@@ -99,6 +99,17 @@ module Integrations
                    flag.sentence
     end
 
+    test "a pull request on another code host than the address the change was asked for is never read or commented on" do
+      @github.protect_paths!([ ".github/workflows/" ])
+      Packs::Github.any_instance.expects(:pull_request_paths).never
+      Packs::Github.any_instance.expects(:flag_pull_request).never
+
+      flag = ProtectedPullRequests.check(@workspace, [ URL ], repository: "https://gitlab.com/acme/web", asked_by: @asker, via: "devin.fix_code").sole
+
+      assert_equal format(CodeChange::PROTECTED_UNCHECKED, pull_request: URL, reason: format(ProtectedPullRequests::NOT_ASKED, repository: "https://gitlab.com/acme/web")),
+                   flag.sentence
+    end
+
     test "an address on a repository the connection does not hold on the map is not that connection's, so nothing is read or written" do
       @github.protect_paths!([ ".github/workflows/" ])
       Packs::Github.any_instance.expects(:pull_request_paths).never

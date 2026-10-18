@@ -209,8 +209,7 @@ class AbilityGateway
     return nil unless action
 
     starter = principal.try(:acting_for)
-    # A member an admin removed reaches nothing, so neither does a run they started.
-    return nil if starter.is_a?(WorkspaceMembership) && starter.removed?
+    return nil if starter && starter_gone?(starter)
 
     own = principal.implicitly_allowed?(action) ? {} : Ability::Resolver.resolve(principal, workspace).reach(action_key)
     starter ? Ability::Scope.within(own, reach(principal: starter, action_key: action_key, workspace: workspace)) : own
@@ -224,7 +223,7 @@ class AbilityGateway
   def self.within_starter?(principal, action, action_key, workspace, scope, params)
     starter = principal.try(:acting_for)
     return true if starter.nil?
-    return false if starter.is_a?(WorkspaceMembership) && starter.removed?
+    return false if starter_gone?(starter)
 
     landing = action.environment_reached(scope)
     return false if action.tool? && !map_reaches?(starter, workspace, landing)
@@ -233,6 +232,19 @@ class AbilityGateway
     permitted?(starter, action, action_key, workspace, landed, params: params)
   end
   private_class_method :within_starter?
+
+  # Whoever asked for a run can stop being anyone while it works: a member an admin removed, a key switched off, deleted
+  # or expired, an agent disabled or deleted. A run they started then reaches nothing. Read from the database, since the
+  # run holds the copy it loaded when it began.
+  def self.starter_gone?(starter)
+    case starter
+    when WorkspaceMembership then !WorkspaceMembership.current_members.exists?(id: starter.id)
+    when ApiKey then !ApiKey.find_by(id: starter.id)&.live?
+    when Agent then !Agent.active.exists?(id: starter.id)
+    else false
+    end
+  end
+  private_class_method :starter_gone?
 
   def self.map_reaches?(starter, workspace, environment)
     allowed = reach(principal: starter, action_key: Ability::Action::MAP_READ, workspace: workspace)
