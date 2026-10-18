@@ -26,6 +26,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool :list_branches,
+                    summary: "Lists a repository's branches and which ones are protected.",
                     description: "A repository's branches, with the commit each one is at and whether it is protected",
                     params_schema: Code.object_schema({
                       "repo" => Code::REPO,
@@ -35,6 +36,7 @@ module Integrations
                     read_only: true
 
           pack.tool :branch_protection,
+                    summary: "Shows how a branch is protected, such as required reviews and checks.",
                     description: "How a branch is protected: the rules from its rulesets and its branch protection, such as required reviews and " \
                                  "checks, whether it can be force pushed or deleted, and who may push to it",
                     params_schema: Code.object_schema({
@@ -43,6 +45,7 @@ module Integrations
                     read_only: true
 
           pack.tool :create_branch,
+                    summary: "Creates a new working branch from a branch, tag or commit.",
                     description: "Make a branch named under #{PREFIX} from a branch, tag or commit, such as for a revert. Only branches made " \
                                  "this way can be deleted with delete_branch",
                     params_schema: Code.object_schema({
@@ -53,6 +56,7 @@ module Integrations
                     read_only: false
 
           pack.tool :delete_branch,
+                    summary: "Deletes a working branch that Firefight created.",
                     description: "Delete a branch under #{PREFIX}, which Firefight made. Never the default branch, a protected one, or one an " \
                                  "open pull request comes from",
                     params_schema: Code.object_schema({

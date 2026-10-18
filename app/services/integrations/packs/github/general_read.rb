@@ -6,6 +6,7 @@ module Integrations
       module GeneralRead
         def self.included(pack)
           pack.tool ApiReads::TOOL,
+                    summary: "Reads other GitHub data, such as environments, rulesets, teams and webhooks.",
                     description: "Anything else GitHub's REST API reads that the other GitHub tools do not cover, such as a repository's " \
                                  "environments and their protection rules, deployment statuses, rulesets, collaborators, teams, webhooks' " \
                                  "deliveries, packages, Pages, traffic or an organization's settings. A GET to a path of GitHub's REST API " \

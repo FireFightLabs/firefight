@@ -176,6 +176,7 @@ module Integrations
       PROJECT_RESOURCE = { "type" => "string", "description" => "A CodeBuild project, by its name or ARN as list_resources shows it" }.freeze
 
       tool :list_resources,
+           summary: "Lists the ECS services, Lambda functions, EC2 instances, databases and CodeBuild projects.",
            description: "The ECS services, Lambda functions, EC2 instances, RDS databases and CodeBuild projects this connection reaches, in each of " \
                         "its regions, with their state and ARN. Use it first to find the name to pass to the other tools",
            params_schema: {
@@ -188,6 +189,7 @@ module Integrations
            read_only: true
 
       tool :describe_resource,
+           summary: "Shows how one AWS resource is set up and how it is doing now.",
            description: "How one resource is set up and how it stands now. An ECS service: its rollout, task counts, task " \
                         "definition, containers, health checks, load balancers and latest events. A Lambda function: its state, " \
                         "last update, runtime, memory, timeout and aliases. An EC2 instance: its state, type and status checks. An " \
@@ -197,6 +199,7 @@ module Integrations
            read_only: true
 
       tool :search_logs,
+           summary: "Searches the CloudWatch logs of an ECS service, Lambda function or database.",
            description: "Log lines of one ECS service, Lambda function or RDS database from CloudWatch Logs, newest first, at most " \
                         "#{LOG_LIMIT}, through a Logs Insights query on its log groups. Filter by text, a regular expression or text to " \
                         "leave out. An ECS service is read from the awslogs log group its task definition names, a Lambda function " \
@@ -216,6 +219,7 @@ module Integrations
            read_only: true
 
       tool :logs_insights_query,
+           summary: "Runs a custom CloudWatch Logs Insights query to count and group log lines.",
            description: "Run a CloudWatch Logs Insights query, in the Logs Insights query language, on log groups in one region, " \
                         "such as fields @timestamp, @message | filter @message like /timeout/ | stats count(*) by bin(5m). Use it " \
                         "for counts, groupings and log groups search_logs does not read. Logs Insights charges by the data it scans, " \
@@ -234,6 +238,7 @@ module Integrations
            read_only: true
 
       tool :cloudwatch_metrics,
+           summary: "Charts the CloudWatch metrics of one resource over time.",
            description: "CloudWatch metrics of one resource over time, with min, average, max and latest, and the person sees each " \
                         "as a chart. An ECS service has CPUUtilization and MemoryUtilization. A Lambda function has Invocations, " \
                         "Errors, Throttles, Duration and ConcurrentExecutions. An EC2 instance has CPUUtilization, NetworkIn, " \
@@ -252,6 +257,7 @@ module Integrations
            read_only: true
 
       tool :list_deployments,
+           summary: "Lists recent deployments of an ECS service or versions of a Lambda function.",
            description: "What went out to an ECS service or a Lambda function, newest first. An ECS service: its deployments, when, " \
                         "how each ended and the task definition it rolled out, with the revisions a rollback can go back " \
                         "to. A Lambda function: its published versions and the alias pointing at each. Use it to see what changed " \
@@ -269,6 +275,7 @@ module Integrations
            read_only: true
 
       tool :list_builds,
+           summary: "Lists a CodeBuild project's builds, or shows the phases of one build.",
            description: "A CodeBuild project's builds, newest first, each with its status, when it started and finished, how long it " \
                         "took and the source version it built, and how long finished builds usually take. With run, that one " \
                         "build with each phase, how it ended and why a failed phase failed",
@@ -284,6 +291,7 @@ module Integrations
            read_only: true
 
       tool :build_log,
+           summary: "Shows the end of a CodeBuild build's log, where it says why it failed.",
            description: "The end of a CodeBuild build's log from CloudWatch Logs, where it says why it failed, filtered by text, a " \
                         "regular expression or text to leave out. Without a build, the project's newest build",
            params_schema: {
@@ -301,6 +309,7 @@ module Integrations
            read_only: true
 
       tool :list_tasks,
+           summary: "Lists an ECS service's running and stopped tasks with why each stopped.",
            description: "The tasks of an ECS service, newest first: the ones running and the ones stopped in the last hour or so, " \
                         "with why each stopped (its stop code and reason) and each container's exit code. Many stopped tasks mean " \
                         "the service keeps replacing them",
@@ -315,6 +324,7 @@ module Integrations
            read_only: true
 
       tool :rollback_deployment,
+           summary: "Rolls an ECS service or Lambda function back to an earlier version.",
            description: "Put an ECS service back on an earlier revision of its task definition, or move a Lambda function's alias " \
                         "back to an earlier version. list_deployments gives the revisions and versions",
            params_schema: {
@@ -329,12 +339,14 @@ module Integrations
            read_only: false
 
       tool :restart_service,
+           summary: "Restarts an ECS service by replacing every task on the same code.",
            description: "Start a new deployment of an ECS service on the task definition it already runs, which replaces every task. " \
                         "For a service stuck in a bad state while its code is fine",
            params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
            read_only: false
 
       tool :scale_service,
+           summary: "Sets how many tasks an ECS service runs.",
            description: "Set how many tasks an ECS service runs. An auto scaling policy on the service can change it again",
            params_schema: {
              "type" => "object",
@@ -359,6 +371,7 @@ module Integrations
       }.freeze
 
       tool :api_read,
+           summary: "Reads any other AWS resource, such as load balancers, queues or the audit trail.",
            description: "Anything else AWS's API reads that the other tools do not cover, such as load balancers and their target " \
                         "health, Auto Scaling groups, CloudFormation change sets, CodePipeline action types, " \
                         "SQS queues, DynamoDB tables, EKS clusters, Route 53 records or certificates. One operation of one " \
@@ -379,6 +392,7 @@ module Integrations
            read_only: true
 
       tool :cost_and_usage,
+           summary: "Shows what the AWS account spent by day or month and which services cost most.",
            description: "What the AWS account spent, from Cost Explorer, by day or by month, with each period's total and the services " \
                         "that cost most. Use it to watch spend and find what grew and since when. AWS charges the account $0.01 for each " \
                         "Cost Explorer request, and the last day or two are still estimates",

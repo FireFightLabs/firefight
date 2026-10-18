@@ -395,10 +395,9 @@ export function ConnectedCard({
                   </div>
                   <p
                     className="text-muted-foreground mt-0.5 line-clamp-2 text-xs"
-                    title={tool.description ?? undefined}
+                    title={tool.summary ?? undefined}
                   >
-                    {tool.description ??
-                      "No description offered by the server."}
+                    {tool.summary ?? "No description offered by the server."}
                   </p>
                   {tool.accessMissing && (
                     <p className="text-warning mt-0.5 text-xs">

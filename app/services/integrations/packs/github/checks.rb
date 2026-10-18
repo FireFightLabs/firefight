@@ -11,6 +11,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool :ref_checks,
+                    summary: "Shows the checks and statuses on a commit, branch or tag, failing ones first.",
                     description: "The checks and commit statuses on a commit, branch or tag, failing ones first, with each one's page. " \
                                  "Read before merging, or to see why a pull request is blocked",
                     params_schema: Code.object_schema({

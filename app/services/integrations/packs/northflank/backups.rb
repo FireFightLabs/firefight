@@ -14,6 +14,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool BACKUP_HISTORY,
+                    summary: "Lists a database's recent backups with their status and timing.",
                     description: "A Northflank database's recent backups, newest first, each with its status, when it started and finished " \
                                  "and how long it took, and how long finished ones usually take. Name a backup to read it alone",
                     params_schema: {

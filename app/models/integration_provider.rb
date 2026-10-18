@@ -222,10 +222,11 @@ class IntegrationProvider
   Entry =Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
                       :source_links, :source_links_note, :map, :map_note, :history, :history_note, :scaling, :scaling_note, :code_fix_tool, :regions, :connect_fields, :site, :code_agent,
                       :app, :setting_words, :holds_code, :mitigation_tools, :stopping_tools, :safe_tools, :safe_until_outside_tools, :undo_tools, :access_tools, :status_page, :hosts, :holds_flags, :write_tools,
-                      :admin_marks_reads, :retiring, :test_logins, :specialist, :oauth_scopes, :consent_note, :own_server, :token, :holds_status_pages) do
+                      :admin_marks_reads, :retiring, :test_logins, :specialist, :oauth_scopes, :consent_note, :own_server, :token, :holds_status_pages,
+                      :tool_summaries) do
     def initialize(connect_with: nil, read_only_tools: [], write_tools: [], admin_marks_reads: false, mitigation_tools: [], stopping_tools: [], safe_tools: [], safe_until_outside_tools: [], undo_tools: {}, access_tools: [], source_links_note: nil, map_note: nil, history: HISTORY_NONE, history_note: nil, scaling: nil, scaling_note: nil, code_fix_tool: nil, regions: [],
                    connect_fields: [], site: nil, code_agent: false, app: nil, setting_words: [], holds_code: false, status_page: nil, hosts: [], holds_flags: false, retiring: nil,
-                   test_logins: false, specialist: nil, oauth_scopes: [], consent_note: nil, own_server: nil, token: nil, holds_status_pages: false, **) = super
+                   test_logins: false, specialist: nil, oauth_scopes: [], consent_note: nil, own_server: nil, token: nil, holds_status_pages: false, tool_summaries: {}, **) = super
 
     # Whether a tool only reads, from what its server declares and what the registry says of it. write_tools wins over
     # both, for a tool a server marks read only although it sends something.
@@ -391,7 +392,10 @@ class IntegrationProvider
         specialist: raw["specialist"].presence,
         oauth_scopes: Array(raw["oauth_scopes"]).map(&:to_s), consent_note: raw["consent_note"].presence,
         own_server: raw["own_server"] && OwnServer.new(**raw["own_server"].symbolize_keys),
-        token: raw["token"] && TokenForm.new(**raw["token"].symbolize_keys)
+        token: raw["token"] && TokenForm.new(**raw["token"].symbolize_keys),
+        # The one line a person reads beside each of its server's tools, by the name Firefight gives the tool, since a
+        # server's own descriptions are written for a model (Integrations::ToolSummaries).
+        tool_summaries: raw["tool_summaries"].to_h.transform_keys(&:to_s).freeze
       )
     end.freeze
   end

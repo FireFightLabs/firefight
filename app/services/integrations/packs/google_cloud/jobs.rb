@@ -28,6 +28,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool LIST_EXECUTIONS,
+                    summary: "Lists a Cloud Run job's recent executions with their status, timing and task results.",
                     description: "A Cloud Run job's recent executions, newest first, each with its status, when it started and finished, " \
                                  "how long it took, how many of its tasks succeeded, failed or were retried, and how long finished " \
                                  "executions usually take. Name an execution to read it with each task, how each ended, its exit code " \

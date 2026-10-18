@@ -48,21 +48,25 @@ module Integrations
       GIT_USER = "oauth2".freeze
 
       tool :list_projects,
+           summary: "Lists the GitLab projects this connection can see.",
            description: "List the projects this GitLab connection can see, with each one's default branch and last activity",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :mr_lookup,
+           summary: "Shows one merge request with its approvals and changed files.",
            description: "Fetch a merge request: title, state, author, who merged it and when, its branches, who approved it, and the changed files",
            params_schema: Code.object_schema({ "repo" => REPO_PARAM, "iid" => { "type" => "integer", "description" => "The merge request's number in the project, as in !42" } }, %w[repo iid]),
            read_only: true
 
       tool :commit_lookup,
+           summary: "Shows one commit with its message, author and changed files.",
            description: "Fetch a commit: message, author, stats, and changed files",
            params_schema: Code.object_schema({ "repo" => REPO_PARAM, "sha" => { "type" => "string", "description" => COMMIT_REFERENCE } }, %w[repo sha]),
            read_only: true
 
       tool :recent_deployments,
+           summary: "Lists a project's recent deployments with their environment and outcome.",
            description: "List a project's deployments, newest first, each with the environment, the ref and commit deployed, the outcome, who ran it and its job",
            params_schema: Code.object_schema({
              "repo" => REPO_PARAM,
@@ -72,6 +76,7 @@ module Integrations
            read_only: true
 
       tool :merged_merge_requests,
+           summary: "Lists merge requests recently merged into a project.",
            description: "List merge requests merged into a project, newest first, optionally only those merged since a given time",
            params_schema: Code.object_schema({
              "repo" => REPO_PARAM,
@@ -80,6 +85,7 @@ module Integrations
            read_only: true
 
       tool :running_commit,
+           summary: "Finds which commit was running at a given time.",
            description: "Which commit was running at a given time: the last deployment that succeeded before it, and the one before " \
                         "that to compare against. Without a deployment it falls back to the default branch at that time and " \
                         "says so, since a merge is not proof of a deploy",
@@ -91,6 +97,7 @@ module Integrations
            read_only: true
 
       tool :compare_commits,
+           summary: "Compares two commits and shows the merge requests, files and diffs between them.",
            description: "What changed between two commits: the commits and merge requests with their authors and approvers, " \
                         "the changed files grouped by kind with migrations, config and dependencies first, dependency bumps " \
                         "in plain words, who owns the changed files, and every diff",
@@ -102,6 +109,7 @@ module Integrations
            read_only: true
 
       tool :fetch_file,
+           summary: "Shows a file from a project at a given commit.",
            description: "Read a file from the project at a given commit, optionally sliced to a line range with surrounding context",
            params_schema: Code.object_schema({
              "repo" => REPO_PARAM,
@@ -113,6 +121,7 @@ module Integrations
            read_only: true
 
       tool :blame,
+           summary: "Shows which commits and merge requests last changed some lines of a file.",
            description: "Attribute a line range, as it stood at a given commit, to the commits and merge requests that last touched it",
            params_schema: Code.object_schema({
              "repo" => REPO_PARAM,
@@ -134,6 +143,7 @@ module Integrations
       ).freeze
 
       tool :api_read,
+           summary: "Reads other GitLab data, such as environments, members, releases and issues.",
            description: "Anything else GitLab's REST API reads that the other GitLab tools do not cover, such as a project's environments " \
                         "and their protections, protected branches, releases, members, container registry, issues, or a group's " \
                         "settings. A GET to a path of GitLab's REST API (the instance's /api/v4), written after /api/v4 as the API " \

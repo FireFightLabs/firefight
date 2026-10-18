@@ -71,31 +71,37 @@ module Integrations
 
         def self.included(pack)
           pack.tool :list_workspaces,
+                    summary: "Lists your Instatus workspaces and the pages in each.",
                     description: "The Instatus workspaces this key's user is in, each with its id, slug and the pages in it",
                     params_schema: { "type" => "object", "properties" => {} },
                     read_only: true
 
           pack.tool :list_audience_groups,
+                    summary: "Lists a private page's audience groups with their teammates and components.",
                     description: "A private page's audience groups, each with the teammates in it and the components they see",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
                     read_only: true
 
           pack.tool :list_routing_rules,
+                    summary: "Lists the routing rules that decide who hears about an incident.",
                     description: "Who Instatus tells about an incident, by rule: what an incident must match and who each rule notifies",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
                     read_only: true
 
           pack.tool :list_escalation_policies,
+                    summary: "Lists Instatus escalation policies with their steps and timing.",
                     description: "Instatus's escalation policies, each with its steps, who each step notifies after how long, and how it repeats",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
                     read_only: true
 
           pack.tool :who_is_on_call,
+                    summary: "Shows who is on call now and next on an Instatus on-call schedule.",
                     description: "Who is on call now and next on an Instatus on-call schedule, and everyone in its rotation",
                     params_schema: { "type" => "object", "properties" => { "schedule" => SCHEDULE }, "required" => [ "schedule" ] },
                     read_only: true
 
           pack.tool :create_workspace,
+                    summary: "Creates an Instatus workspace.",
                     description: "Make an Instatus workspace",
                     params_schema: { "type" => "object", "properties" => {
                       "name" => { "type" => "string", "description" => "Its name" }, "slug" => { "type" => "string", "description" => "Its slug" },
@@ -106,11 +112,13 @@ module Integrations
                     read_only: false
 
           pack.tool :delete_workspace,
+                    summary: "Deletes an Instatus workspace for good.",
                     description: "Delete an Instatus workspace for good",
                     params_schema: { "type" => "object", "properties" => { "workspace" => { "type" => "string", "description" => "The workspace, by id or slug" } }, "required" => [ "workspace" ] },
                     read_only: false
 
           pack.tool :create_audience_group,
+                    summary: "Creates an audience group on a private page.",
                     description: "Make an audience group on a private page, the teammates who see the components named",
                     params_schema: { "type" => "object", "properties" => {
                       "page" => PAGE, "name" => { "type" => "string", "description" => "Its name" },
@@ -120,6 +128,7 @@ module Integrations
                     read_only: false
 
           pack.tool :update_audience_group,
+                    summary: "Renames an audience group or sets its teammates and components.",
                     description: "Rename an audience group or set its teammates and components",
                     params_schema: { "type" => "object", "properties" => {
                       "page" => PAGE, "group" => { "type" => "string", "description" => "The audience group, by id or name" },
@@ -130,11 +139,13 @@ module Integrations
                     read_only: false
 
           pack.tool :delete_audience_group,
+                    summary: "Removes an audience group from a private page.",
                     description: "Remove an audience group from a private page",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE, "group" => { "type" => "string", "description" => "The audience group, by id or name" } }, "required" => [ "group" ] },
                     read_only: false
 
           pack.tool :create_monitoring_integration,
+                    summary: "Connects a monitoring service such as Pingdom to open and resolve incidents.",
                     description: "Connect a third party monitoring tool, such as Pingdom or New Relic, to open and resolve incidents for the " \
                                  "components named. The tool's own keys and the address it sends to are set in Instatus and the tool",
                     params_schema: { "type" => "object", "properties" => {
@@ -144,6 +155,7 @@ module Integrations
                     read_only: false
 
           pack.tool :update_monitoring_integration,
+                    summary: "Changes a monitoring integration's name, components or incident names.",
                     description: "Rename a monitoring integration, change its components, or name the incidents it opens and resolves",
                     params_schema: { "type" => "object", "properties" => {
                       "page" => PAGE, "integration" => { "type" => "string", "description" => "The integration's id" },
@@ -155,11 +167,13 @@ module Integrations
                     read_only: false
 
           pack.tool :delete_monitoring_integration,
+                    summary: "Disconnects a monitoring integration.",
                     description: "Disconnect a monitoring integration",
                     params_schema: { "type" => "object", "properties" => { "integration" => { "type" => "string", "description" => "The integration's id" } }, "required" => [ "integration" ] },
                     read_only: false
 
           pack.tool :create_routing_rule,
+                    summary: "Adds a routing rule that decides who hears about matching incidents.",
                     description: "Add a routing rule: who Instatus tells about an incident that matches",
                     params_schema: { "type" => "object", "properties" => {
                       "page" => PAGE, "assertions" => ASSERTIONS, "actions" => ACTIONS, "order" => { "type" => "integer", "description" => "Its place among the rules (optional)" }
@@ -167,6 +181,7 @@ module Integrations
                     read_only: false
 
           pack.tool :update_routing_rule,
+                    summary: "Changes what a routing rule matches, who it tells, or its order.",
                     description: "Change what a routing rule matches, who it tells, or its place among the rules",
                     params_schema: { "type" => "object", "properties" => {
                       "page" => PAGE, "rule" => { "type" => "string", "description" => "The routing rule's id, as list_routing_rules shows it" },
@@ -176,27 +191,32 @@ module Integrations
                     read_only: false
 
           pack.tool :delete_routing_rule,
+                    summary: "Removes a routing rule.",
                     description: "Remove a routing rule",
                     params_schema: { "type" => "object", "properties" => { "rule" => { "type" => "string", "description" => "The routing rule's id" } }, "required" => [ "rule" ] },
                     read_only: false
 
           pack.tool :create_escalation_policy,
+                    summary: "Creates an escalation policy for incidents nobody has acknowledged.",
                     description: "Make an escalation policy: who is notified, step by step, while an incident is not acknowledged",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE }.merge(escalation_fields), "required" => %w[name rules] },
                     read_only: false
 
           pack.tool :update_escalation_policy,
+                    summary: "Changes an escalation policy's name, steps or repeats.",
                     description: "Change an escalation policy's name, steps or how it repeats. Its steps are replaced by the ones given",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE, "policy" => { "type" => "string", "description" => "The policy's id or name" } }.merge(escalation_fields),
                                      "required" => [ "policy" ] },
                     read_only: false
 
           pack.tool :delete_escalation_policy,
+                    summary: "Removes an escalation policy.",
                     description: "Remove an escalation policy",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE, "policy" => { "type" => "string", "description" => "The policy's id or name" } }, "required" => [ "policy" ] },
                     read_only: false
 
           pack.tool :create_on_call_schedule,
+                    summary: "Creates an on-call schedule of rotating shifts.",
                     description: "Make an on-call schedule of shifts, each a rotation of teammates",
                     params_schema: { "type" => "object", "properties" => {
                       "page" => PAGE.merge("description" => "The page whose teammates are named by email (optional when the key reaches one page)"),
@@ -206,6 +226,7 @@ module Integrations
                     read_only: false
 
           pack.tool :update_on_call_schedule,
+                    summary: "Changes an on-call schedule's name or description, or replaces its shifts.",
                     description: "Change an on-call schedule's name or description, or replace its shifts",
                     params_schema: { "type" => "object", "properties" => {
                       "page" => PAGE.merge("description" => "The page whose teammates are named by email (optional when the key reaches one page)"),
@@ -216,6 +237,7 @@ module Integrations
                     read_only: false
 
           pack.tool :delete_on_call_schedule,
+                    summary: "Removes an on-call schedule.",
                     description: "Remove an on-call schedule",
                     params_schema: { "type" => "object", "properties" => { "schedule" => SCHEDULE }, "required" => [ "schedule" ] },
                     read_only: false

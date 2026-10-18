@@ -75,12 +75,14 @@ module Integrations
       RESOURCE = { "type" => "string", "description" => "An app or Managed Postgres cluster in the organization, by name or id, as list_resources shows it" }.freeze
 
       tool :list_resources,
+           summary: "Lists the apps and Managed Postgres clusters in the Fly.io organization.",
            description: "The apps and Managed Postgres clusters in the Fly.io organization for this environment, with each one's " \
                         "status and how many machines an app has. Use it first to find the name to pass to the other tools",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :describe_resource,
+           summary: "Shows how one app's machines or a Postgres cluster are doing now.",
            description: "How one app or Managed Postgres cluster stands now. An app: each machine's state, region, size, image, " \
                         "restart policy, health checks and their status, and its latest events, such as an exit, its code, and " \
                         "whether it ran out of memory. A cluster: its status, plan, region and the apps attached to it",
@@ -88,6 +90,7 @@ module Integrations
            read_only: true
 
       tool :search_logs,
+           summary: "Searches the log lines of one app.",
            description: "Log lines of one app, newest first, at most #{LOG_LIMIT}, from Fly's log history of about 7 days. Fly's " \
                         "logs cannot be searched at the source, so Firefight reads the range and keeps the lines that contain " \
                         "the text, match the regular expression or leave out the excluded text",
@@ -106,6 +109,7 @@ module Integrations
            read_only: true
 
       tool :query_metrics,
+           summary: "Charts an app's CPU, memory, requests, errors and latency over time.",
            description: "Metrics of one app over time from Fly's metrics: CPU and memory per machine, requests and 4xx and 5xx " \
                         "responses at Fly's edge per minute, the latency 95% of responses at the edge finished within, and network " \
                         "in and out per machine. Returns min, average, max and " \
@@ -123,6 +127,7 @@ module Integrations
            read_only: true
 
       tool :list_deployments,
+           summary: "Lists an app's releases with their status, author and image.",
            description: "An app's releases, newest first: the version, its status (complete, failed, interrupted, running), " \
                         "what it was, who released it, when, and the image it runs. rollback_release takes the version. Use it " \
                         "to see what changed before something broke",
@@ -137,6 +142,7 @@ module Integrations
            read_only: true
 
       tool :deploy_history,
+           summary: "Lists an app's recent deploys with how long each took against the usual time.",
            description: "An app's recent releases, each a deploy, with its status, when it started and finished and how long it " \
                         "took, and how long finished ones usually take",
            params_schema: {
@@ -152,12 +158,14 @@ module Integrations
            read_only: true
 
       tool :restart_app,
+           summary: "Restarts every running machine of an app, one at a time.",
            description: "Restart every running machine of an app, one at a time, for an app stuck in a bad state while its code is " \
                         "fine. Each machine reboots on the image it already runs. Stopped machines are left as they are",
            params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
            read_only: false
 
       tool :rollback_release,
+           summary: "Rolls every machine of an app back to an earlier release's image.",
            description: "Put every machine of an app back on the image of an earlier release, by the version list_deployments " \
                         "shows, one machine at a time, each started again before the next. A machine that changed since it was read, " \
                         "or does not start again, stops the rollback there and the rest are left as they were. The app's " \
@@ -173,6 +181,7 @@ module Integrations
            read_only: false
 
       tool :api_read,
+           summary: "Reads any other machine, volume, certificate or Postgres detail on Fly.io.",
            description: "Anything else Fly.io's Machines API reads that the other tools do not cover, such as one machine " \
                         "and its events, processes and versions, an app's volumes and their snapshots, IP assignments and " \
                         "certificates, or a Managed Postgres cluster's databases, backups and active or slow queries. A GET to " \
@@ -184,6 +193,7 @@ module Integrations
            read_only: true
 
       tool :graphql_read,
+           summary: "Reads older releases and other data Fly.io keeps only in its GraphQL service.",
            description: "What Fly.io keeps only in its GraphQL API (#{FlyApi::API_ROOT}/graphql), above all an app's releases " \
                         "past the newest, each with its version, status, reason, image and who made it. One GraphQL query that starts " \
                         "from app(name: ...) or organization(slug: ...) in this connection's organization, such as " \

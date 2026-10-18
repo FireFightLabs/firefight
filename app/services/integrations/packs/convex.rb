@@ -50,12 +50,14 @@ module Integrations
       FUNCTION = { "type" => "string", "description" => "Only executions of functions whose path contains this, such as messages:send (optional)" }.freeze
 
       tool :deployment_status,
+           summary: "Shows the Convex deployment's details and whether it was recently paused.",
            description: "Who this Convex deployment is (project, type, id), the URLs it answers on, and whether it was paused, " \
                         "or stopped by a usage limit or by Convex, in the last #{STATE_DAYS} days, from its audit log",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :search_logs,
+           summary: "Searches the deployment's function logs and errors.",
            description: "Function log lines of the deployment, newest first, at most #{LOG_LIMIT}: what each query, mutation, " \
                         "action and HTTP action printed, and the error of each execution that failed. Filter by text, by " \
                         "function or to failures only. The deployment keeps only its recent executions, so a range older " \
@@ -74,6 +76,7 @@ module Integrations
            read_only: true
 
       tool :function_errors,
+           summary: "Lists failing functions grouped by error, with how often each happened.",
            description: "Functions that failed, grouped by function and error with how often each happened and when last, " \
                         "worst first, and whether Convex retried them. Read from the executions the deployment still keeps",
            params_schema: {
@@ -88,6 +91,7 @@ module Integrations
            read_only: true
 
       tool :recent_pushes,
+           summary: "Lists recent code and schema pushes to the deployment and who made them.",
            description: "Code and schema pushed to the deployment, newest first, from its audit log: when, by whom (a person " \
                         "in the dashboard, or a deploy key or token) and what Convex recorded about it. Use it to see what " \
                         "changed before something broke",

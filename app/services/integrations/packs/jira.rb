@@ -19,6 +19,7 @@ module Integrations
       ON_ISSUE = { "type" => "object", "properties" => { CLOUD => SITE_ARG, ISSUE => ISSUE_ARG }, "required" => [ CLOUD, ISSUE ] }.freeze
 
       tool :createjiraissue,
+           summary: "Creates a Jira issue in a project.",
            description: "Open a Jira issue in a project, with its type, summary, description and, optionally, the account id to assign",
            params_schema: {
              "type" => "object",
@@ -31,26 +32,31 @@ module Integrations
            read_only: false
 
       tool :editjiraissue,
+           summary: "Updates a Jira issue's fields, such as its summary or assignee.",
            description: "Change a Jira issue's fields, such as summary, or assignee as an object with an accountId, null to unassign",
            params_schema: ON_ISSUE.deep_merge("properties" => { "fields" => { "type" => "object" } }, "required" => [ CLOUD, ISSUE, "fields" ]),
            read_only: false
 
       tool :transitionjiraissue,
+           summary: "Moves a Jira issue to another status.",
            description: "Move a Jira issue through one of its transitions, given as an object with its id",
            params_schema: ON_ISSUE.deep_merge("properties" => { "transition" => { "type" => "object" } }, "required" => [ CLOUD, ISSUE, "transition" ]),
            read_only: false
 
       tool :listjiraissuetransitions,
+           summary: "Lists the statuses a Jira issue can move to now.",
            description: "The transitions a Jira issue can take now, each with the status it leads to and that status's category",
            params_schema: ON_ISSUE,
            read_only: true
 
       tool :lookupjiraaccountid,
+           summary: "Finds Jira accounts by name or email.",
            description: "The Jira accounts matching a name or an email, each with its account id and, where its profile shows it, its email",
            params_schema: { "type" => "object", "properties" => { CLOUD => SITE_ARG, "query" => { "type" => "string" } }, "required" => [ CLOUD, "query" ] },
            read_only: true
 
       tool :getjiraissue,
+           summary: "Shows one Jira issue with its summary, status and assignee.",
            description: "One Jira issue by its key, with its summary, status and assignee",
            params_schema: ON_ISSUE,
            read_only: true

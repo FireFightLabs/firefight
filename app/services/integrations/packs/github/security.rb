@@ -22,6 +22,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool :dependabot_alerts,
+                    summary: "Lists a repository's Dependabot alerts, most severe first.",
                     description: "A repository's Dependabot alerts, most severe first: the vulnerable package, the advisory, the version " \
                                  "that fixes it and each alert's page",
                     params_schema: Code.object_schema({
@@ -35,12 +36,14 @@ module Integrations
                     read_only: true
 
           pack.tool :dependabot_alert,
+                    summary: "Shows one Dependabot alert with its advisory, severity and fixed version.",
                     description: "One Dependabot alert in full: the advisory, its CVE and severity, the vulnerable versions, the version " \
                                  "that fixes it, where the package is declared and whether it was dismissed",
                     params_schema: Code.object_schema({ "repo" => REPO, "number" => NUMBER }, %w[repo number]),
                     read_only: true
 
           pack.tool :dismiss_dependabot_alert,
+                    summary: "Dismisses an open Dependabot alert with a reason.",
                     description: "Dismiss an open Dependabot alert with the reason, such as a fix already started or a package the code does not use",
                     params_schema: Code.object_schema({
                       "repo" => REPO, "number" => NUMBER,
@@ -51,11 +54,13 @@ module Integrations
                     read_only: false
 
           pack.tool :reopen_dependabot_alert,
+                    summary: "Reopens a dismissed Dependabot alert.",
                     description: "Reopen a Dependabot alert that was dismissed",
                     params_schema: Code.object_schema({ "repo" => REPO, "number" => NUMBER }, %w[repo number]),
                     read_only: false
 
           pack.tool :code_scanning_alerts,
+                    summary: "Lists a repository's code scanning alerts with their rule and severity.",
                     description: "A repository's code scanning alerts, such as CodeQL's, with the rule, its severity, where in the code it is and each alert's page",
                     params_schema: Code.object_schema({
                       "repo" => REPO,
@@ -67,11 +72,13 @@ module Integrations
                     read_only: true
 
           pack.tool :code_scanning_alert,
+                    summary: "Shows one code scanning alert with its rule, location and state.",
                     description: "One code scanning alert in full: the rule and what it looks for, the tool that found it, where it is and its state",
                     params_schema: Code.object_schema({ "repo" => REPO, "number" => NUMBER }, %w[repo number]),
                     read_only: true
 
           pack.tool :secret_scanning_alerts,
+                    summary: "Lists a repository's leaked secret alerts and whether each secret still works.",
                     description: "A repository's secret scanning alerts: what kind of secret, whether it still works, whether it was pushed past " \
                                  "push protection or leaked publicly, and each alert's page. Never the secret itself",
                     params_schema: Code.object_schema({
@@ -82,6 +89,7 @@ module Integrations
                     read_only: true
 
           pack.tool :secret_scanning_alert,
+                    summary: "Shows one secret scanning alert and how it was resolved.",
                     description: "One secret scanning alert: what kind of secret, whether it still works, who resolved it and how. Never the secret itself",
                     params_schema: Code.object_schema({ "repo" => REPO, "number" => NUMBER }, %w[repo number]),
                     read_only: true

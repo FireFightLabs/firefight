@@ -10,6 +10,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool :pending_deployments,
+                    summary: "Lists the deployments a workflow run is waiting on for approval.",
                     description: "The deployments a GitHub Actions run is waiting on, one per environment held by its protection rules, " \
                                  "with the wait timer, who may review it and whether Firefight's GitHub App may",
                     params_schema: Code.object_schema({
@@ -18,6 +19,7 @@ module Integrations
                     read_only: true
 
           pack.tool :review_pending_deployment,
+                    summary: "Approves or rejects a deployment waiting on an environment's reviewers.",
                     description: "Approve or reject a GitHub Actions run's deployment waiting on an environment's required reviewers, with a " \
                                  "comment. Approving lets the run's deploy job go on to that environment, rejecting fails it. GitHub " \
                                  "takes this only when Firefight's GitHub App is one of the environment's required reviewers",

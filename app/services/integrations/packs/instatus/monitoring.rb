@@ -62,6 +62,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool :list_monitors,
+                    summary: "Lists the uptime monitors checking a page's addresses and their status.",
                     description: "The monitors checking a page's addresses, each with its id, the address, how often, from where, its group and " \
                                  "status: UP, DOWN, DEGRADED or UNKNOWN",
                     params_schema: { "type" => "object", "properties" => {
@@ -71,6 +72,7 @@ module Integrations
                     read_only: true
 
           pack.tool :get_monitor_logs,
+                    summary: "Shows a monitor's latest checks with status codes and response times.",
                     description: "A monitor's latest checks, newest first, with where each ran from, its status, HTTP code and response time",
                     params_schema: { "type" => "object", "properties" => {
                       "monitor" => MONITOR,
@@ -81,11 +83,13 @@ module Integrations
                     read_only: true
 
           pack.tool :list_monitor_alerts,
+                    summary: "Lists where a page's monitors send their alerts.",
                     description: "Where a page's monitors send alerts, each with its id, kind, the monitors it covers and when it fires. A webhook's address is not shown",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
                     read_only: true
 
           pack.tool :list_cron_monitors,
+                    summary: "Lists the cron monitors watching a page's scheduled jobs and their status.",
                     description: "The cron monitors waiting for a page's scheduled jobs to ping, each with its id, how often the job runs, " \
                                  "its grace, state and status. The ping address is not shown, since it works as a password",
                     params_schema: { "type" => "object", "properties" => {
@@ -95,6 +99,7 @@ module Integrations
                     read_only: true
 
           pack.tool :get_cron_monitor,
+                    summary: "Shows how a cron monitor's job has run, with its availability and latest pings.",
                     description: "How a cron monitor's job has run: its availability over a day, a week and a month, its last success and " \
                                  "failure, and its latest pings",
                     params_schema: { "type" => "object", "properties" => {
@@ -104,27 +109,32 @@ module Integrations
                     read_only: true
 
           pack.tool :create_monitor,
+                    summary: "Creates an uptime monitor that checks an address on a schedule.",
                     description: "Start a monitor that checks an address on a schedule, which can open and resolve incidents on the page itself",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE }.merge(MONITOR_FIELDS), "required" => %w[name url] },
                     read_only: false
 
           pack.tool :update_monitor,
+                    summary: "Changes what a monitor checks, how often, from where, or how it reacts.",
                     description: "Change what a monitor checks, how often, from where, or what it does when it fails or recovers",
                     params_schema: { "type" => "object", "properties" => { "monitor" => MONITOR }.merge(MONITOR_FIELDS.transform_values { |field| field.merge("description" => "#{field['description'].to_s.sub(/ \(optional.*\)\z/, '')} (optional)") }),
                                      "required" => [ "monitor" ] },
                     read_only: false
 
           pack.tool :delete_monitor,
+                    summary: "Stops and removes an uptime monitor.",
                     description: "Stop and remove a monitor",
                     params_schema: { "type" => "object", "properties" => { "monitor" => MONITOR }, "required" => [ "monitor" ] },
                     read_only: false
 
           pack.tool :run_monitor_check,
+                    summary: "Runs a monitor's check right away.",
                     description: "Run a monitor's check now. A check that fails can open an incident, as the monitor is set to",
                     params_schema: { "type" => "object", "properties" => { "monitor" => MONITOR, "location" => LOCATION }, "required" => [ "monitor" ] },
                     read_only: false
 
           pack.tool :create_monitor_alert,
+                    summary: "Sends a page's monitor alerts by email, SMS, phone call, WhatsApp or incident.",
                     description: "Send a page's monitors' alerts by email, SMS, phone call or WhatsApp, or as an incident. Slack, Discord, " \
                                  "Teams, Google Chat and webhook alerts take an address that works as a password, so they are added in Instatus",
                     params_schema: { "type" => "object", "properties" => {
@@ -136,6 +146,7 @@ module Integrations
                     read_only: false
 
           pack.tool :update_monitor_alert,
+                    summary: "Changes which monitors an alert covers, when it fires, or where it goes.",
                     description: "Change which monitors an alert covers, when it fires, or its email or phone number",
                     params_schema: { "type" => "object", "properties" => {
                       "alert" => ALERT, "recipient" => { "type" => "string", "description" => "A new email or phone number (optional)" },
@@ -144,42 +155,50 @@ module Integrations
                     read_only: false
 
           pack.tool :delete_monitor_alert,
+                    summary: "Stops a monitor alert.",
                     description: "Stop a monitor alert",
                     params_schema: { "type" => "object", "properties" => { "alert" => ALERT }, "required" => [ "alert" ] },
                     read_only: false
 
           pack.tool :create_monitor_group,
+                    summary: "Creates a group to keep monitors together.",
                     description: "Make a group to keep monitors together, which add_monitors_to_group fills",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE, "name" => { "type" => "string", "description" => "Its name" } }, "required" => [ "name" ] },
                     read_only: false
 
           pack.tool :update_monitor_group,
+                    summary: "Renames a monitor group.",
                     description: "Rename a monitor group",
                     params_schema: { "type" => "object", "properties" => { "group" => MONITOR_GROUP, "name" => { "type" => "string", "description" => "Its new name" } }, "required" => %w[group name] },
                     read_only: false
 
           pack.tool :add_monitors_to_group,
+                    summary: "Adds monitors to a monitor group.",
                     description: "Put monitors in a monitor group",
                     params_schema: { "type" => "object", "properties" => { "group" => MONITOR_GROUP, "monitors" => MONITOR_IDS }, "required" => %w[group monitors] },
                     read_only: false
 
           pack.tool :delete_monitor_group,
+                    summary: "Removes a monitor group.",
                     description: "Remove a monitor group",
                     params_schema: { "type" => "object", "properties" => { "group" => MONITOR_GROUP }, "required" => [ "group" ] },
                     read_only: false
 
           pack.tool :run_monitor_group_check,
+                    summary: "Runs the checks of every monitor in a group right away.",
                     description: "Run the checks of every monitor in a group now. A check that fails can open an incident, as its monitor is set to",
                     params_schema: { "type" => "object", "properties" => { "group" => MONITOR_GROUP, "location" => LOCATION }, "required" => [ "group" ] },
                     read_only: false
 
           pack.tool :create_cron_monitor,
+                    summary: "Creates a cron monitor that marks a scheduled job down when it misses a ping.",
                     description: "Start a cron monitor that waits for a scheduled job to ping, and marks it down when a ping does not come in " \
                                  "time. Its ping address is in Instatus, since it works as a password",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE }.merge(cron_fields), "required" => %w[name period] },
                     read_only: false
 
           pack.tool :update_cron_monitor,
+                    summary: "Changes a cron monitor's schedule, grace or reactions, or pauses or mutes it.",
                     description: "Change a cron monitor's schedule or grace, pause or mute it, or what it does when the job fails or recovers",
                     params_schema: { "type" => "object", "properties" => { "cron" => CRON }.merge(cron_fields).merge(
                       "state" => { "type" => "string", "enum" => InstatusApi::CRON_STATES, "description" => "ACTIVE, PAUSED or MUTED (optional)" }
@@ -187,6 +206,7 @@ module Integrations
                     read_only: false
 
           pack.tool :delete_cron_monitor,
+                    summary: "Removes a cron monitor.",
                     description: "Remove a cron monitor. Its job's pings then go nowhere",
                     params_schema: { "type" => "object", "properties" => { "cron" => CRON }, "required" => [ "cron" ] },
                     read_only: false

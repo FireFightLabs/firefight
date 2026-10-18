@@ -48,12 +48,14 @@ module Integrations
       COST_ROWS = 50_000
 
       tool :list_resources,
+           summary: "Lists the team's Vercel projects with their production deployment state.",
            description: "The projects in the Vercel team for this environment, with their framework and the state of their " \
                         "production deployment. Use it first to find the name to pass to the other tools",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :describe_resource,
+           summary: "Shows a project's setup, domains, production deployment and recent rollbacks.",
            description: "How one project is set up and how it stands now: its framework, Git repository and production branch, " \
                         "the production deployment and its state, its domains, its latest deployments, and how the last " \
                         "rollback or promotion went",
@@ -61,6 +63,7 @@ module Integrations
            read_only: true
 
       tool :list_deployments,
+           summary: "Lists a project's deployments with their commit, author, state and failures.",
            description: "A project's deployments, newest first: when, production or preview, its state and why it failed, the " \
                         "commit and branch, who made it, its page, and which one serves production now. Use it to see what " \
                         "changed before something broke, and for the id rollback_deployment and promote_deployment take",
@@ -76,6 +79,7 @@ module Integrations
            read_only: true
 
       tool :deploy_history,
+           summary: "Shows how long a project's recent builds took to go live.",
            description: "A project's recent deployments, each a build and its release, with production or preview, its state, " \
                         "when it started building and when it was ready and how long that took, and how long finished ones usually take",
            params_schema: {
@@ -91,6 +95,7 @@ module Integrations
            read_only: true
 
       tool :deployment_logs,
+           summary: "Shows a deployment's build output or streams its live function logs.",
            description: "Log lines of one deployment of a project. type build reads its build output, newest first, of the " \
                         "newest deployment unless one is named. type runtime watches what its functions log live, for up to #{MAX_SECONDS} " \
                         "seconds, of the production deployment unless one is named, since Vercel's API gives no past runtime " \
@@ -111,6 +116,7 @@ module Integrations
            read_only: true
 
       tool :rollback_deployment,
+           summary: "Rolls a project's production domains back to an earlier deployment.",
            description: "Point a project's production domains back at an earlier production deployment, without building it " \
                         "again. Afterwards new deployments no longer go live on their own until one is promoted with " \
                         "promote_deployment. The Hobby plan can only go back to the previous production deployment",
@@ -125,6 +131,7 @@ module Integrations
            read_only: false
 
       tool :promote_deployment,
+           summary: "Promotes a deployment to serve production, undoing a rollback.",
            description: "Make a production deployment of a project serve its production domains, without building it again. " \
                         "It undoes a rollback, and lets new deployments go live on their own again",
            params_schema: {
@@ -135,6 +142,7 @@ module Integrations
            read_only: false
 
       tool :api_read,
+           summary: "Reads any other Vercel detail, such as project settings, domains or firewall rules.",
            description: "Anything else Vercel's API reads that the other tools do not cover, such as a project's settings, " \
                         "domains and their configuration, aliases, a deployment by its id and its files, checks, firewall " \
                         "settings, Edge Config or the team's members. A GET to a path of Vercel's REST API " \
@@ -146,6 +154,7 @@ module Integrations
            read_only: true
 
       tool :billing_charges,
+           summary: "Shows what the Vercel team was charged and which projects drove the cost.",
            description: "What the Vercel team was charged, by day or by month, with each period's total, the services that cost most and " \
                         "the projects behind them. Use it to watch spend and find what grew and since when. The token's role on the team " \
                         "has to see billing",

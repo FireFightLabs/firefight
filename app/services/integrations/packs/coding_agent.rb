@@ -51,6 +51,7 @@ module Integrations
       # Declared by each subclass once its name is set, so the descriptions name the provider.
       def self.coding_tools!
         tool FIX_CODE.to_sym,
+             summary: "Hands a code change to a coding assistant that opens it as a pull request.",
              description: "Hand a code change to #{self::NAME}, which writes it in its own environment and opens it as a pull request, " \
                           "ready for review. Give the repository, what to change and why with the evidence, and a title. Firefight " \
                           "follows the session for up to #{TIME_LIMIT.in_minutes.to_i} minutes and answers with the pull request. Merging stays a person's. " \
@@ -73,6 +74,7 @@ module Integrations
              read_only: false
 
         tool :session_status,
+             summary: "Shows how a handed off code change is going and the pull requests it opened.",
              description: "How a change handed to #{self::NAME} is going: whether it is working, waiting for a person, finished or " \
                           "stopped, the pull requests it opened, its last words and what it used. Give the session id fix_code answered with",
              params_schema: {

@@ -66,6 +66,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool LIST_ROLLOUTS,
+                    summary: "Lists recent Cloud Deploy rollouts with their status and why any failed.",
                     description: "The recent rollouts of a Cloud Deploy delivery pipeline, or of one of its stages, newest first, each with " \
                                  "its release, status, when it started and finished, how long it took, why it failed, and how long finished " \
                                  "rollouts usually take. Name a rollout to read it with each phase's jobs (predeploy, deploy, verify, " \
@@ -83,6 +84,7 @@ module Integrations
                     read_only: true
 
           pack.tool ROLLBACK_TARGET,
+                    summary: "Rolls a Cloud Deploy stage back to an earlier release.",
                     description: "Roll one stage of a Cloud Deploy pipeline back: Cloud Deploy makes a new rollout of an earlier release to " \
                                  "the stage's target, the release named or the last one that succeeded there. list_rollouts shows the " \
                                  "releases each stage ran. Undo by promoting the release it ran before to the stage again",
@@ -97,6 +99,7 @@ module Integrations
                     read_only: false
 
           pack.tool CANCEL_ROLLOUT,
+                    summary: "Cancels a Cloud Deploy rollout that has not finished.",
                     description: "Stop a Cloud Deploy rollout that has not finished, such as one waiting for an approval or deploying. What it " \
                                  "already deployed stays, so roll the stage back to undo that",
                     params_schema: {
@@ -114,6 +117,7 @@ module Integrations
         def self.rollout_tools(pack)
           rollout = { "type" => "string", "description" => "The rollout, as release/rollout, as list_rollouts shows it" }
           pack.tool APPROVE_ROLLOUT,
+                    summary: "Approves a Cloud Deploy rollout that is waiting for approval.",
                     description: "Approve a Cloud Deploy rollout waiting for an approval, so it deploys to its stage. Read the rollout with " \
                                  "list_rollouts first, and only when the person asks for it",
                     params_schema: {
@@ -123,6 +127,7 @@ module Integrations
                     },
                     read_only: false
           pack.tool ADVANCE_ROLLOUT,
+                    summary: "Advances a Cloud Deploy rollout to its next phase, such as a canary step.",
                     description: "Start the next phase of a Cloud Deploy rollout that waits to be advanced, such as a canary going from 25% to " \
                                  "stable. Read the rollout with list_rollouts first, and only when the person asks for it",
                     params_schema: {

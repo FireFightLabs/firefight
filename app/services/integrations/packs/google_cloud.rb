@@ -93,6 +93,7 @@ module Integrations
       SERVICE = { "type" => "string", "description" => "A Cloud Run service, by name or id, as list_resources shows it" }.freeze
 
       tool :list_resources,
+           summary: "Lists the project's Cloud Run, Cloud Deploy, Cloud SQL, Compute Engine and GKE resources.",
            description: "The Cloud Run services and jobs, Cloud Deploy delivery pipelines and their stages, Cloud SQL instances, " \
                         "Compute Engine instances and GKE clusters in the Google Cloud project for this environment, with where each runs and how it stands. Use it first to find the name " \
                         "to pass to the other tools",
@@ -100,6 +101,7 @@ module Integrations
            read_only: true
 
       tool :search_logs,
+           summary: "Searches a resource's logs in Cloud Logging.",
            description: "Log lines from one resource, newest first, at most #{LOG_LIMIT}, from Cloud Logging. Filter by text, a " \
                         "regular expression, or text to leave out. For a Cloud Run service, stream app is what it prints, " \
                         "requests is each request it served, with status and latency, and build what the builds that deploy it printed",
@@ -125,6 +127,7 @@ module Integrations
            read_only: true
 
       tool :query_metrics,
+           summary: "Charts a resource's CPU, memory, requests, errors and latency over time.",
            description: "Metrics of one Cloud Run service, Cloud SQL instance or Compute Engine instance over time, from Cloud " \
                         "Monitoring: cpu, memory, requests, http_4xx, http_5xx and latency_p95 for a service, cpu, memory, disk and " \
                         "tcp_connections for a database, and network_in and network_out. Returns min, average, max and " \
@@ -142,6 +145,7 @@ module Integrations
            read_only: true
 
       tool :list_revisions,
+           summary: "Lists a Cloud Run service's revisions and how much traffic each serves.",
            description: "A Cloud Run service's revisions, newest first: when each was made, by whom, the image it runs, whether " \
                         "it is ready, and how much of the traffic it serves. Use it to see what changed before something " \
                         "broke, and for the revision rollback_service takes",
@@ -157,6 +161,7 @@ module Integrations
            read_only: true
 
       tool :list_builds,
+           summary: "Lists Cloud Build builds with their status, commit and why any failed.",
            description: "Cloud Build builds, newest first, each with its status, trigger, branch and commit, when it started and " \
                         "finished, how long it took and why it failed. A Cloud Run service's are the builds of the trigger that " \
                         "deploys it. Without a service, the project's builds in one region. Give build for one build with each of its steps",
@@ -172,6 +177,7 @@ module Integrations
            read_only: true
 
       tool :describe_resource,
+           summary: "Shows how one resource is set up and how it stands now.",
            description: "How one resource is set up and how it stands now. A Cloud Run service: its readiness, traffic split, " \
                         "image, instance limits and address. A Cloud SQL instance: its engine, state, tier, availability and " \
                         "disk. A Compute Engine instance: its state, machine type and addresses. A GKE cluster: its state, " \
@@ -181,6 +187,7 @@ module Integrations
            read_only: true
 
       tool :error_groups,
+           summary: "Lists the errors a Cloud Run service reported, most frequent first.",
            description: "The errors a Cloud Run service reported to Error Reporting, grouped by kind, most frequent first, with " \
                         "how often each happened, when it was first and last seen, and a sample message",
            params_schema: {
@@ -196,6 +203,7 @@ module Integrations
            read_only: true
 
       tool :rollback_service,
+           summary: "Rolls a Cloud Run service back by sending all traffic to an earlier revision.",
            description: "Send all of a Cloud Run service's traffic to one of its revisions, such as the last one that worked. " \
                         "list_revisions shows them. Undo by sending the traffic back to the revision that served it before",
            params_schema: {
@@ -209,6 +217,7 @@ module Integrations
            read_only: false
 
       tool :scale_service,
+           summary: "Sets the minimum and maximum instances of a Cloud Run service.",
            description: "Set how many instances a Cloud Run service keeps at least (min_instances) and may start at most " \
                         "(max_instances), on the service itself, so no new revision is made. Undo by setting the values " \
                         "describe_resource showed before",
@@ -224,6 +233,7 @@ module Integrations
            read_only: false
 
       tool :restart_resource,
+           summary: "Restarts a Cloud SQL instance or resets a Compute Engine instance.",
            description: "Restart a Cloud SQL instance, which drops its connections for a short while, or reset a Compute Engine " \
                         "instance, which is a hard reset that loses what is in its memory. Cloud Run services have no restart",
            params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
@@ -243,6 +253,7 @@ module Integrations
       DASHBOARD = "home/dashboard".freeze
 
       tool :api_read,
+           summary: "Reads other Google Cloud data, such as build triggers, backups and IAM policies.",
            description: "Anything else Google Cloud's APIs read that the other tools do not cover, such as Cloud Build triggers, " \
                         "Cloud Deploy releases and rollouts, a Cloud Run revision's conditions, GKE node pools, Cloud SQL " \
                         "operations and backups, Pub/Sub subscriptions or IAM policies. A GET to one API, named by its host's first " \

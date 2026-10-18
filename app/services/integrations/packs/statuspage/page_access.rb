@@ -12,17 +12,20 @@ module Integrations
 
         def self.included(pack)
           pack.tool :list_page_access_users,
+                    summary: "Lists who can see a private status page, with their groups and what they see.",
                     description: "The people who may see an audience-specific page, each with the groups they are in and the components " \
                                  "and metrics they see",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE, "email" => { "type" => "string", "description" => "Only this person (optional)" } } },
                     read_only: true
 
           pack.tool :list_page_access_groups,
+                    summary: "Lists the access groups of a private status page with their members.",
                     description: "The groups of an audience-specific page, each with its people, components and metrics",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
                     read_only: true
 
           pack.tool :create_page_access_user,
+                    summary: "Gives someone access to a private status page by email or login.",
                     description: "Let someone see an audience-specific page, by email or by their login at the page's identity provider",
                     params_schema: {
                       "type" => "object",
@@ -37,6 +40,7 @@ module Integrations
                     read_only: false
 
           pack.tool :update_page_access_user,
+                    summary: "Updates a private status page viewer's email, login or groups.",
                     description: "Change a page access user's email, login or groups",
                     params_schema: {
                       "type" => "object",
@@ -51,11 +55,13 @@ module Integrations
                     read_only: false
 
           pack.tool :delete_page_access_user,
+                    summary: "Removes someone's access to a private status page.",
                     description: "Take away someone's access to an audience-specific page",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE, "user" => USER }, "required" => [ "user" ] },
                     read_only: false
 
           pack.tool :change_page_access_user_access,
+                    summary: "Changes which components or metrics a private status page viewer sees.",
                     description: "Change which components or metrics a page access user sees",
                     params_schema: {
                       "type" => "object",
@@ -70,6 +76,7 @@ module Integrations
                     read_only: false
 
           pack.tool :create_page_access_group,
+                    summary: "Creates an access group on a private status page with its members and components.",
                     description: "Make a group of an audience-specific page with the people, components and metrics it holds",
                     params_schema: {
                       "type" => "object",
@@ -86,6 +93,7 @@ module Integrations
                     read_only: false
 
           pack.tool :update_page_access_group,
+                    summary: "Renames a status page access group or sets its members and metrics.",
                     description: "Rename a page access group or set the people and metrics it holds",
                     params_schema: {
                       "type" => "object",
@@ -101,6 +109,7 @@ module Integrations
                     read_only: false
 
           pack.tool :change_page_access_group_components,
+                    summary: "Changes which components a status page access group sees.",
                     description: "Change which components a page access group sees",
                     params_schema: {
                       "type" => "object",
@@ -113,6 +122,7 @@ module Integrations
                     read_only: false
 
           pack.tool :delete_page_access_group,
+                    summary: "Deletes a status page access group while its members keep their own access.",
                     description: "Remove a page access group. Its people keep their own access",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE, "group" => ACCESS_GROUP }, "required" => [ "group" ] },
                     read_only: false

@@ -13,31 +13,37 @@ module Integrations
 
         def self.included(pack)
           pack.tool :list_metrics,
+                    summary: "Lists the metric charts a status page shows customers.",
                     description: "A page's metrics, the charts it shows customers, each with its id, unit and when it last had data",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
                     read_only: true
 
           pack.tool :get_metric,
+                    summary: "Shows one status page metric with its latest readings.",
                     description: "One metric with its latest readings",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE, "metric" => METRIC }, "required" => [ "metric" ] },
                     read_only: true
 
           pack.tool :list_notices,
+                    summary: "Lists a status page's general notices.",
                     description: "A page's general notices, the banners it shows apart from incidents and maintenance",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
                     read_only: true
 
           pack.tool :list_outages,
+                    summary: "Lists the outages recorded on a page's components.",
                     description: "The outages recorded on a page's components, each with its id, component, status, when it ran and its incident",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
                     read_only: true
 
           pack.tool :list_teammates,
+                    summary: "Lists the teammates who manage a status page.",
                     description: "The people who manage a page in Instatus, each with their member id and email",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
                     read_only: true
 
           pack.tool :create_metric,
+                    summary: "Adds a metric chart to a status page.",
                     description: "Add a metric, a chart customers see, which add_metric_data fills",
                     params_schema: { "type" => "object", "properties" => {
                       "page" => PAGE, "name" => { "type" => "string", "description" => "Its name" },
@@ -46,6 +52,7 @@ module Integrations
                     read_only: false
 
           pack.tool :update_metric,
+                    summary: "Renames a metric or changes its unit.",
                     description: "Rename a metric or change its unit",
                     params_schema: { "type" => "object", "properties" => {
                       "page" => PAGE, "metric" => METRIC, "name" => { "type" => "string", "description" => "A new name (optional)" },
@@ -54,11 +61,13 @@ module Integrations
                     read_only: false
 
           pack.tool :delete_metric,
+                    summary: "Removes a metric and its readings from a status page.",
                     description: "Remove a metric and its readings from a page",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE, "metric" => METRIC }, "required" => [ "metric" ] },
                     read_only: false
 
           pack.tool :add_metric_data,
+                    summary: "Sends new readings to a status page metric.",
                     description: "Send readings to a metric, which its chart then shows",
                     params_schema: { "type" => "object", "properties" => {
                       "page" => PAGE, "metric" => METRIC,
@@ -73,11 +82,13 @@ module Integrations
                     read_only: false
 
           pack.tool :delete_metric_data,
+                    summary: "Deletes every reading of a metric, emptying its chart.",
                     description: "Delete every reading of a metric, which empties its chart",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE, "metric" => METRIC }, "required" => [ "metric" ] },
                     read_only: false
 
           pack.tool :create_notice,
+                    summary: "Shows a general notice banner on a status page.",
                     description: "Show a general notice on a page, a banner apart from incidents and maintenance, such as planned changes",
                     params_schema: { "type" => "object", "properties" => {
                       "page" => PAGE, "name" => { "type" => "string", "description" => "Its title" },
@@ -88,6 +99,7 @@ module Integrations
                     read_only: false
 
           pack.tool :update_notice,
+                    summary: "Changes a general notice's title, text or whether it shows collapsed.",
                     description: "Change a general notice's title, words, or whether it shows collapsed",
                     params_schema: { "type" => "object", "properties" => {
                       "page" => PAGE, "notice" => NOTICE, "name" => { "type" => "string", "description" => "A new title (optional)" },
@@ -97,11 +109,13 @@ module Integrations
                     read_only: false
 
           pack.tool :delete_notice,
+                    summary: "Takes a general notice off a status page.",
                     description: "Take a general notice off a page",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE, "notice" => NOTICE }, "required" => [ "notice" ] },
                     read_only: false
 
           pack.tool :create_outage,
+                    summary: "Records an outage on a component's uptime bar.",
                     description: "Record an outage on a component's uptime bar, such as one that happened without an incident",
                     params_schema: { "type" => "object", "properties" => {
                       "page" => PAGE, "component" => COMPONENT,
@@ -111,6 +125,7 @@ module Integrations
                     read_only: false
 
           pack.tool :update_outage,
+                    summary: "Changes an outage's status or when it started or ended.",
                     description: "Change an outage's status or when it started or ended",
                     params_schema: { "type" => "object", "properties" => {
                       "page" => PAGE, "outage" => OUTAGE,
@@ -120,16 +135,19 @@ module Integrations
                     read_only: false
 
           pack.tool :delete_outage,
+                    summary: "Removes an outage from a component's uptime bar.",
                     description: "Remove an outage from a component's uptime bar",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE, "outage" => OUTAGE }, "required" => [ "outage" ] },
                     read_only: false
 
           pack.tool :add_teammate,
+                    summary: "Invites someone by email to manage a status page.",
                     description: "Invite someone by email to manage a page in Instatus",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE, "email" => { "type" => "string", "description" => "Their email" } }, "required" => [ "email" ] },
                     read_only: false
 
           pack.tool :remove_teammate,
+                    summary: "Removes someone's access to manage a status page.",
                     description: "Take away someone's access to manage a page in Instatus",
                     params_schema: { "type" => "object", "properties" => {
                       "page" => PAGE, "member" => { "type" => "string", "description" => "Their member id or email, as list_teammates shows it" }

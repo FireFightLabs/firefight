@@ -16,6 +16,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool :list_artifacts,
+                    summary: "Lists the artifacts a workflow run uploaded, such as test reports.",
                     description: "The files a GitHub Actions run uploaded as artifacts, such as test reports or build output, with each " \
                                  "one's id, size and whether it has expired. Without a run, the repository's newest, by name if given",
                     params_schema: Code.object_schema({
@@ -27,6 +28,7 @@ module Integrations
                     read_only: true
 
           pack.tool :read_artifact,
+                    summary: "Shows the files inside a workflow artifact and the text of each.",
                     description: "Read a GitHub Actions artifact: the files in it, and the text of the text files, each cut short. " \
                                  "An artifact larger than #{ARCHIVE_LIMIT / 1_000_000} MB is not read",
                     params_schema: Code.object_schema({

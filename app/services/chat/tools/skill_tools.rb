@@ -5,6 +5,7 @@
 module Chat::Tools::SkillTools
   GROUP_OWN = "Halon's own reads".freeze
 
+  # description is what a person reads in the skill editor, a connection's tool's summary (Integration::Tool#summary).
   Choice = Data.define(:name, :group, :description)
 
   OWN = [
@@ -21,7 +22,7 @@ module Chat::Tools::SkillTools
 
   def choices(workspace)
     picked = Chat::Tools::Choices.tools(workspace).map do |choice|
-      Choice.new(name: choice.name, group: choice.group, description: choice.description)
+      Choice.new(name: choice.name, group: choice.group, description: choice.shown_description)
     end
     (picked + OWN).uniq(&:name)
   end

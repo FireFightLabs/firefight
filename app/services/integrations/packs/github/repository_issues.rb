@@ -15,6 +15,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool :list_issues,
+                    summary: "Lists a repository's issues, filtered by state, label, assignee or author.",
                     description: "List a repository's issues, newest first, filtered by state, labels, assignee, author or words in them. " \
                                  "Pull requests are left out, list_pull_requests lists them",
                     params_schema: Code.object_schema({
@@ -30,11 +31,13 @@ module Integrations
                     read_only: true
 
           pack.tool :issue_lookup,
+                    summary: "Shows one issue with its description, labels, assignees and comments.",
                     description: "Fetch an issue with its description, labels, assignees and its newest comments",
                     params_schema: Code.object_schema({ "repo" => REPO, "number" => NUMBER }, %w[repo number]),
                     read_only: true
 
           pack.tool :create_issue,
+                    summary: "Opens an issue in a repository.",
                     description: "Open an issue in a repository, with labels it already has and assignees if given",
                     params_schema: Code.object_schema({
                       "repo" => REPO,
@@ -46,12 +49,14 @@ module Integrations
                     read_only: false
 
           pack.tool :comment_on_issue,
+                    summary: "Adds a comment to an issue.",
                     description: "Add a comment to an issue",
                     params_schema: Code.object_schema({ "repo" => REPO, "number" => NUMBER, "body" => { "type" => "string", "description" => "What to say, in GitHub's markdown" } },
                                                       %w[repo number body]),
                     read_only: false
 
           pack.tool :delete_issue_comment,
+                    summary: "Deletes a comment Firefight posted on an issue.",
                     description: "Delete a comment Firefight posted on an issue, by the comment's id as comment_on_issue said it. A " \
                                  "comment anyone else wrote is refused, and a person deletes it on GitHub",
                     params_schema: Code.object_schema({ "repo" => REPO, "comment_id" => { "type" => "integer", "description" => "The comment's id" } },
@@ -59,6 +64,7 @@ module Integrations
                     read_only: false
 
           pack.tool :update_issue,
+                    summary: "Updates an issue's title or description.",
                     description: "Change an issue's title or description",
                     params_schema: Code.object_schema({
                       "repo" => REPO, "number" => NUMBER,
@@ -68,6 +74,7 @@ module Integrations
                     read_only: false
 
           pack.tool :label_issue,
+                    summary: "Adds labels to an issue or removes them.",
                     description: "Add labels to an issue or take them off. Only labels the repository already has are added",
                     params_schema: Code.object_schema({
                       "repo" => REPO, "number" => NUMBER,
@@ -76,6 +83,7 @@ module Integrations
                     read_only: false
 
           pack.tool :assign_issue,
+                    summary: "Assigns people to an issue or removes them from it.",
                     description: "Assign people to an issue or take them off it",
                     params_schema: Code.object_schema({
                       "repo" => REPO, "number" => NUMBER,
@@ -85,6 +93,7 @@ module Integrations
 
           comment = { "type" => "string", "description" => "A comment saying why, posted with it (optional)" }
           pack.tool :close_issue,
+                    summary: "Closes an issue as completed, not planned or a duplicate.",
                     description: "Close an issue as completed, not planned or a duplicate, with a comment saying why if given. It can be reopened",
                     params_schema: Code.object_schema({
                       "repo" => REPO, "number" => NUMBER,
@@ -94,6 +103,7 @@ module Integrations
                     read_only: false
 
           pack.tool :reopen_issue,
+                    summary: "Reopens a closed issue.",
                     description: "Reopen a closed issue",
                     params_schema: Code.object_schema({ "repo" => REPO, "number" => NUMBER, "comment" => comment }, %w[repo number]),
                     read_only: false

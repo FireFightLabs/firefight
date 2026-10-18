@@ -65,12 +65,14 @@ module Integrations
       DEPLOYMENT = { "type" => "string", "description" => "A deployment id, as list_deployments shows it (optional, the latest)" }.freeze
 
       tool :list_resources,
+           summary: "Lists the services, databases and cron jobs in the Railway environment.",
            description: "The services, databases and cron jobs in the Railway project environment for this connection, with " \
                         "the status of each one's latest deployment. Use it first to find the name to pass to the other tools",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :describe_resource,
+           summary: "Shows how one service, database or cron job is set up and how it stands now.",
            description: "How one service, database or cron job is set up and how it stands now: its latest deployment and the " \
                         "state of each replica, its replicas and region, what it runs, its start command, health check, restart " \
                         "policy, whether it sleeps when idle, its schedule and its domains",
@@ -78,6 +80,7 @@ module Integrations
            read_only: true
 
       tool :search_logs,
+           summary: "Searches app, build or request logs of one service.",
            description: "Log lines from one service, newest first, at most #{LOG_LIMIT}. type app is what the code prints, across " \
                         "its deployments in the range, or one deployment's when deployment is given. build is one deployment's " \
                         "build. http is the requests reaching one " \
@@ -98,6 +101,7 @@ module Integrations
            read_only: true
 
       tool :query_metrics,
+           summary: "Shows CPU, memory, network and request metrics of a service or database.",
            description: "Metrics of one service or database over time: CPU, memory, network in and out and disk, and requests " \
                         "and 4xx and 5xx responses through its public domains. Returns min, average, max and latest, and the " \
                         "person sees each metric as a chart",
@@ -114,6 +118,7 @@ module Integrations
            read_only: true
 
       tool :list_deployments,
+           summary: "Lists a service's deployments with status, commit and who started each.",
            description: "A service's deployments, newest first: when, the status (SUCCESS, FAILED, CRASHED, REMOVED and the " \
                         "rest), the commit, who started it, and whether Railway can still roll back to it. The id is what " \
                         "rollback_deployment takes. Use it to see what changed before something broke",
@@ -128,6 +133,7 @@ module Integrations
            read_only: true
 
       tool :deploy_history,
+           summary: "Shows a service's recent deployments with how long each took to go live.",
            description: "A service's recent deployments, each a build and its release, with its status, when it started and when " \
                         "it went live or failed and how long that took, and how long finished ones usually take. A deployment " \
                         "replaced since shows no length, since Railway keeps only when its status last changed",
@@ -144,12 +150,14 @@ module Integrations
            read_only: true
 
       tool :restart_deployment,
+           summary: "Restarts a service's latest deployment without building again.",
            description: "Restart the containers of a service's latest deployment without building it again, such as one that " \
                         "crashed and ran out of restarts",
            params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
            read_only: false
 
       tool :rollback_deployment,
+           summary: "Rolls a service back to an earlier deployment.",
            description: "Put a service back on an earlier deployment, by the id list_deployments shows. Railway restores that " \
                         "deployment's image and variables without building, while it still keeps the image",
            params_schema: {
@@ -163,6 +171,7 @@ module Integrations
            read_only: false
 
       tool :scale_service,
+           summary: "Sets how many replicas a service runs.",
            description: "Set how many replicas a service runs in its region, from 1 to #{MAX_REPLICAS}. A service that runs in " \
                         "more than one region is scaled in Railway, region by region",
            params_schema: {
@@ -176,6 +185,7 @@ module Integrations
            read_only: false
 
       tool :api_read,
+           summary: "Reads other Railway data such as environments, volumes and domains.",
            description: "Anything else Railway's API reads that the other tools do not cover, such as a project's environments " \
                         "and services, a deployment by its id, volumes and their backups, domains, TCP proxies, deployment " \
                         "triggers or the workspace's members. One GraphQL query to Railway's public API " \

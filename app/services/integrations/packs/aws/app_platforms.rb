@@ -68,6 +68,7 @@ module Integrations
           }
 
           pack.tool APP_OPERATIONS,
+                    summary: "Lists an App Runner service's recent deployments, updates and pauses.",
                     description: "An App Runner service's recent operations, newest first: its deployments, updates, pauses and resumes, " \
                                  "each with how it ended, when it started and finished, and how long finished ones usually take. Name an " \
                                  "operation to read it with where its deployment log is",
@@ -75,6 +76,7 @@ module Integrations
                     read_only: true
 
           pack.tool ENVIRONMENT_EVENTS,
+                    summary: "Lists an Elastic Beanstalk environment's recent deployments and their errors.",
                     description: "An Elastic Beanstalk environment's recent deployments and updates, newest first, read from its events, each " \
                                  "with how it ended, the version it deployed and the error a failed one gave. Name one by its request id " \
                                  "to read every event it wrote",
@@ -82,6 +84,7 @@ module Integrations
                     read_only: true
 
           pack.tool DESCRIBE_APP,
+                    summary: "Shows how an App Runner service or Elastic Beanstalk environment is doing.",
                     description: "How an App Runner service or Elastic Beanstalk environment is set up and how it stands now: its status, " \
                                  "health, address, what it runs and its latest events. Environment variables are named, never shown",
                     params_schema: { "type" => "object", "properties" => { "resource" => resource }, "required" => [ "resource" ] },
