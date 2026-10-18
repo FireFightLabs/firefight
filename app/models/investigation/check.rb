@@ -3,6 +3,7 @@
 # has two runs at once, and what the run finds is said through Investigation::Notice, once and again only when it worsens.
 class Investigation::Check < ApplicationRecord
   include OptionGuards
+  include Investigation::Check::Ownership
 
   USAGE_NOUN = "run".freeze
 
@@ -67,7 +68,7 @@ class Investigation::Check < ApplicationRecord
 
   scope :active, -> { where(deleted_at: nil) }
   scope :ordered, -> { order(:name) }
-  scope :due, ->(now = Time.current) { active.where(next_run_at: ..now) }
+  scope :due, ->(now = Time.current) { active.where(paused_at: nil).where(next_run_at: ..now) }
 
   def self.usage_association = :investigations
 
@@ -106,6 +107,7 @@ class Investigation::Check < ApplicationRecord
   # A person asked for it now. The schedule stays as it is.
   def run_now_blocked_reason
     return "#{name} #{NOT_DUE}" unless enabled?
+    return paused_because if paused?
     return "#{name} #{ALREADY_RUNNING}" if running?
 
     Investigation.start_refusal(workspace)

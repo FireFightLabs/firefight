@@ -486,12 +486,15 @@ class Investigation::RemediationStep < ApplicationRecord
   # failure is why it did not go through in plain words (FAILURE_*), beside the tool's own in result.
   # A step that went through keeps what it produced, such as the pull request it opened, and already_done says the
   # outcome held before it ran, in plain words.
-  def finish!(status, result: nil, invocation_id: nil, failure: nil, already_done: nil)
+  # needs_person is why a person must look at what the step changed before anyone merges it, such as a coding agent's pull
+  # request that touched a path the workspace keeps out of code changes. The step keeps the status it ended with.
+  def finish!(status, result: nil, invocation_id: nil, failure: nil, already_done: nil, needs_person: nil)
     kept = self.class.redacted(result)&.truncate(RESULT_LIMIT)
     label, url = (Outcome.of(kept, work) if status == STATUS_DONE && already_done.nil?)
     move!(from: [ STATUS_RUNNING, STATUS_WAITING_APPROVAL ], to: status, result: kept,
           invocation_id: invocation_id || self.invocation_id, finished_at: Time.current, failure: failure,
-          already_done_reason: already_done, outcome_label: label, outcome_url: url)
+          already_done_reason: already_done, outcome_label: label, outcome_url: url,
+          needs_person: self.class.redacted(needs_person)&.truncate(RESULT_LIMIT).presence)
       .tap { |moved| plan.record_step_ended!(self) if moved }
   end
 

@@ -201,6 +201,25 @@ module Integrations
         assert_equal "Devin refused this key: Devin answered 401: Unauthorized.", Devin.credential_refusal({ Devin::API_KEY => "cog_key" }, fields: { Devin::ORGANIZATION => "org-abc" })
       end
 
+      test "a pull request that touches a kept path leads the answer with it and carries it for the fix, and one that does not says nothing" do
+        DevinApi.any_instance.stubs(:create_session).returns("session_id" => "devin-1", "url" => "https://app.devin.ai/sessions/devin-1")
+        DevinApi.any_instance.stubs(:session).returns(session("exit", nil, prs: [ "https://github.com/acme/web/pull/8" ]))
+        DevinApi.any_instance.stubs(:messages).returns("items" => [])
+        flag = ProtectedPullRequests::Flag.new(url: "https://github.com/acme/web/pull/8", sentence: "https://github.com/acme/web/pull/8 changes infra/prod.tf.")
+        ProtectedPullRequests.expects(:check).with(@workspace, [ "https://github.com/acme/web/pull/8" ], repository: "acme/web", asked_by: nil, via: "devin.fix_code").returns([ flag ])
+
+        result = @pack.fix_code(environment_row: @row, arguments: ARGUMENTS)
+
+        assert result_text(result).start_with?("https://github.com/acme/web/pull/8 changes infra/prod.tf.\nDevin opened https://github.com/acme/web/pull/8 for acme/web.")
+        assert_equal flag.sentence, result.dig(Telemetry::STRUCTURED, Telemetry::FACTS, CodeChange::NEEDS_PERSON)
+
+        ProtectedPullRequests.expects(:check).returns([])
+        result = @pack.fix_code(environment_row: @row, arguments: ARGUMENTS)
+
+        assert result_text(result).start_with?("Devin opened")
+        assert_nil result.dig(Telemetry::STRUCTURED, Telemetry::FACTS, CodeChange::NEEDS_PERSON)
+      end
+
       private
 
       def session(status, detail, prs: [], acus: 1)

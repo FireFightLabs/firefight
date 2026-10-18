@@ -9,7 +9,7 @@ class HalonMonitoringController < InertiaController
   NOTICES_SHOWN = 50
 
   def show
-    checks = current_workspace.investigation_checks.with_usage_counts.ordered.to_a
+    checks = current_workspace.investigation_checks.with_usage_counts.includes(owner: :user).ordered.to_a
     Investigation::Check.preload_runs(checks)
     notices = current_workspace.investigation_notices.includes(:resource, :check).recent.limit(NOTICES_SHOWN)
 
@@ -20,7 +20,9 @@ class HalonMonitoringController < InertiaController
       securityEventsEnabled: current_workspace.halon_security_events_enabled,
       spend: spend_coverage,
       kinds: Investigation::Check::KIND_DETAILS.values.map { |kind| { value: kind.key, label: kind.label, description: kind.description } },
-      cadences: Investigation::Check::CADENCE_LABELS.map { |value, label| { value: value, label: label } }
+      cadences: Investigation::Check::CADENCE_LABELS.map { |value, label| { value: value, label: label } },
+      members: current_workspace.workspace_memberships.current_members.includes(:user).sort_by(&:display_name)
+                                .map { |member| { id: member.id, name: member.display_name } }
     }
   end
 

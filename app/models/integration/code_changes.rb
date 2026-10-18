@@ -1,6 +1,7 @@
 # Which files the code changes Halon writes may touch in the repositories a code host connection holds. Any may until
 # an admin lists the paths that may not (CodeChange::PathPattern), since every change arrives as a pull request a person
-# reviews. A coding agent that pushes its own change is told the same list, since Firefight cannot refuse what it pushes.
+# reviews. A coding agent that pushes its own change is told the same list, since Firefight cannot refuse what it pushes,
+# and its pull request is checked against it once it opens (Integrations::ProtectedPullRequests).
 module Integration::CodeChanges
   extend ActiveSupport::Concern
 
@@ -29,9 +30,7 @@ module Integration::CodeChanges
   end
 
   # The changed paths the connection's list keeps out of a code change.
-  def protected_among(paths)
-    paths.select { |path| protected_paths.any? { |pattern| CodeChange::PathPattern.match?(pattern, path) } }
-  end
+  def protected_among(paths) = self.class.kept_among(protected_paths, paths)
 
   # Why a change to these paths in repo is not opened, naming them and where the list is changed, or nil when none is kept out.
   def protected_paths_refusal(repo, paths)
@@ -71,6 +70,22 @@ module Integration::CodeChanges
                          .where.not(integration_environment_id: nil).distinct.pluck(:integration_environment_id)
       holders = hosts.select { |host| host.integration_environments.any? { |row| rows.include?(row.id) } }
       (holders.presence || hosts).flat_map(&:protected_paths).uniq
+    end
+
+    # The changed paths a coding agent's pull request in repo was asked to leave alone, by the same lists.
+    def protected_among_for(workspace, repo, paths) = kept_among(protected_paths_for(workspace, repo), paths)
+
+    # A comment Firefight writes on a coding agent's pull request that touched a kept path. Nobody asked for it, so it is
+    # in the activity log as Halon's, under the coding agent's call it follows (via), naming whoever asked for the change.
+    def record_pull_request_flag!(workspace, via:, url:, paths:, asked_by:, &)
+      AbilityGateway.record_unattended!(
+        principal: SystemAgent.investigator, action_key: via, workspace: workspace, params: { "pull_request" => url, "protected_paths" => paths },
+        context: { source: AbilityGateway::SOURCE_CODE_AGENT, triggered_by_label: asked_by&.try(:actor_display_name) }, &
+      )
+    end
+
+    def kept_among(patterns, paths)
+      paths.select { |path| patterns.any? { |pattern| CodeChange::PathPattern.match?(pattern, path) } }
     end
   end
 end

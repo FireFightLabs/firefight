@@ -418,6 +418,32 @@ module Integrations
           )
         end
 
+        # GitHub lists at most 3,000 files of a pull request, 100 to a page.
+        FLAG_FILE_PAGES = 30
+        PULL_REQUEST_ADDRESS = %r{\Ahttps://github\.com/([\w.\-]+/[\w.\-]+)/pull/(\d+)(?:[/?#]|\z)}
+
+        # A pull request's repository and number, read from its address on GitHub, or nil for any other address
+        # (Integrations::PullRequests.addressed).
+        def pull_request_at(_environment_row, url)
+          found = url.to_s.strip.match(PULL_REQUEST_ADDRESS)
+          [ found[1], found[2].to_i ] if found
+        end
+
+        # Every path a pull request changes, a renamed file under both names (Integrations::PullRequests.paths). A list
+        # GitHub cuts short is refused rather than taken for the whole.
+        def pull_request_paths(environment_row, repository:, number:)
+          read = files_read(repository, number, GithubApp.installation_token(environment_row), FLAG_FILE_PAGES)
+          fail! "PR ##{number} in #{repository} changes more files than GitHub lists." if read.incomplete?
+
+          read.items.flat_map { |file| [ file["filename"], file["previous_filename"] ] }.compact.uniq
+        end
+
+        # A comment on the pull request, written as Firefight's GitHub App (Integrations::PullRequests.flag!).
+        def flag_pull_request(environment_row, repository:, number:, body:)
+          GithubApp.write(:post, "/repos/#{repository}/issues/#{number}/comments", { body: body }, token: GithubApp.installation_token(environment_row))
+          nil
+        end
+
         private
 
         # What GitHub shows after a change was asked for: each change said only when the pull request read back shows it.
@@ -614,11 +640,13 @@ module Integrations
           end
         end
 
-        def changed_files(repo, number, token)
-          Pages.read(max_pages: MAX_FILES / 100) do |page|
+        def changed_files(repo, number, token) = files_read(repo, number, token, MAX_FILES / 100).items
+
+        def files_read(repo, number, token, pages)
+          Pages.read(max_pages: pages) do |page|
             listed = Array(GithubApp.get("/repos/#{repo}/pulls/#{number}/files?per_page=100&page=#{page || 1}", token: token))
             [ listed, (listed.size == 100 ? (page || 1) + 1 : nil) ]
-          end.items
+          end
         end
 
         def diff_text(file)

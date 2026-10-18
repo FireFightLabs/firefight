@@ -438,6 +438,8 @@ Rails.application.routes.draw do
         patch :disable
         patch :enable
         post :run
+        post :take_over, path: "take-over"
+        patch :change_owner, path: "change-owner"
       end
     end
     get "/halon/skills", to: "halon_skills#index", as: :halon_skills

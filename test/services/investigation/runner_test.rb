@@ -137,6 +137,34 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
     assert_equal "Budget spent before it could answer", result.error_summary
   end
 
+  test "a run that reaches its time limit stops for time, and says so with what it did before it stopped" do
+    fake(outcome: :out_of_time)
+    Chat::StoppedNote.stubs(:for).returns("What I did before I stopped:\n- Read the logs")
+    Investigation::Delivery.any_instance.expects(:stopped!).with(Investigation::OUT_OF_TIME, where_it_stopped: "What I did before I stopped:\n- Read the logs")
+
+    result = Investigation::Runner.new(@investigation).run
+
+    assert_equal Investigation::STATUS_FAILED, result.status
+    assert_equal Investigation::OUT_OF_TIME, result.error_summary
+  end
+
+  test "a run is handed the time it must conclude by, counted from when it first started" do
+    @investigation.update_columns(max_duration_seconds: 3_600)
+    investigator = fake(outcome: :answered, conclude: true)
+
+    Investigation::Runner.new(@investigation).run
+
+    assert_equal @investigation.reload.started_at + 3_600, investigator.calls.sole[:budget].ends_at
+  end
+
+  test "a run from before time limits has none" do
+    investigator = fake(outcome: :answered, conclude: true)
+
+    Investigation::Runner.new(@investigation).run
+
+    assert_nil investigator.calls.sole[:budget].ends_at
+  end
+
   test "an answer is posted where the run started" do
     fake(outcome: :answered, conclude: true)
     Investigation::Delivery.any_instance.expects(:answered!).with { |finding| finding == @investigation.reload.finding }

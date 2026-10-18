@@ -1,0 +1,40 @@
+title: Order confirmations sent twice
+shape: >-
+  Every customer got two order confirmation emails two seconds apart. The worker logs showed the job enqueued twice per
+  order, once from after_create and once from after_commit, after a refactor added the second callback.
+repository: larkspur/shop
+brief: >-
+  Order confirmation emails go out twice per order since October 9. The worker logs show OrderConfirmationJob enqueued
+  twice per order, from the after_create and the after_commit callbacks in app/models/order.rb. Keep the after_commit
+  one, since it runs once the order is saved for good, and remove the other.
+files:
+  app/models/order.rb: |
+    class Order < ApplicationRecord
+      belongs_to :customer
+      has_many :line_items, dependent: :destroy
+
+      after_create :send_confirmation
+      after_commit :send_confirmation, on: :create
+
+      def total
+        line_items.sum(&:amount)
+      end
+
+      private
+
+      def send_confirmation
+        OrderConfirmationJob.perform_later(id)
+      end
+    end
+expected_diff: |
+  --- a/app/models/order.rb
+  +++ b/app/models/order.rb
+  @@ -2,8 +2,7 @@ class Order < ApplicationRecord
+     belongs_to :customer
+     has_many :line_items, dependent: :destroy
+
+  -  after_create :send_confirmation
+     after_commit :send_confirmation, on: :create
+
+     def total
+       line_items.sum(&:amount)

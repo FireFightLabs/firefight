@@ -64,6 +64,12 @@ export function FixStep({ investigationId, step, screenshots }: { investigationI
         )}
         {status && <FixStepStatus status={step.status} label={status} />}
         {step.failureLine && <span className="text-xs text-fg-body">{step.failureLine}</span>}
+        {step.needsPerson && (
+          <span className="flex items-start gap-1.5 text-xs text-warning">
+            <IconAlertTriangle className="mt-px size-3.5 shrink-0" />
+            {step.needsPerson}
+          </span>
+        )}
         <StepOutcome step={step} />
         {step.progress && (
           <CodeFixWorkView

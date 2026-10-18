@@ -39,7 +39,7 @@ class HalonMonitoringQueriesTest < ActionDispatch::IntegrationTest
   def checks(count)
     Array.new(count) do |index|
       check = @workspace.investigation_checks.create!(name: "Disks #{SecureRandom.hex(3)}", kind: Investigation::Check::KIND_DISK,
-                                                      cadence: Investigation::Check::CADENCE_DAILY, hour: 9, time_zone: "Europe/Belgrade")
+                                                      cadence: Investigation::Check::CADENCE_DAILY, hour: 9, time_zone: "Europe/Belgrade", created_by: workspace_memberships(:alice_workspace_one))
       2.times do |run_index|
         run = @workspace.investigations.create!(subject: check, trigger_source: Investigation::TRIGGER_SCHEDULE, max_turns: 10, max_spend_cents: 400,
                                                 status: Investigation::STATUS_SUCCEEDED, created_at: (10 - run_index).minutes.ago)

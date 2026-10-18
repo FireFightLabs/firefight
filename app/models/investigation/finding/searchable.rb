@@ -13,6 +13,10 @@ module Investigation::Finding::Searchable
   # A scheduled check's answer says what it looked at, which reads like no incident and would only crowd the search.
   def search_embeddable? = !investigation.rehearsal? && !investigation.scheduled?
 
+  class_methods do
+    def search_embedding_candidates(workspace_ids) = joins(:investigation).where(investigations: { workspace_id: workspace_ids }).includes(:investigation)
+  end
+
   def search_facts
     {
       id: id, incident: investigation.incident&.identifier, question: investigation.question, summary: summary,

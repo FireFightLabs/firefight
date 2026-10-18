@@ -23,6 +23,37 @@ class HalonMonitoringTest < ApplicationSystemTestCase
     assert @workspace.investigation_checks.exists?(name: "Disks every morning")
   end
 
+  test "a check whose owner left says it is paused, and an admin takes it over or gives it to someone else" do
+    bob = workspace_memberships(:bob_workspace_one)
+    alice = workspace_memberships(:alice_workspace_one)
+    check = @workspace.investigation_checks.create!(name: "Disks", kind: Investigation::Check::KIND_DISK, cadence: Investigation::Check::CADENCE_DAILY,
+                                                    hour: 9, time_zone: "UTC", created_by: bob)
+    bob.update_column(:removed_at, Time.current)
+    check.pause_for_gone_owner!
+
+    visit halon_monitoring_path
+
+    assert_text "Disks (owned by #{bob.display_name}, who left) is paused. Give it a new owner to resume."
+    page.save_screenshot(Rails.root.join("tmp/screenshots/monitoring-check-paused.png"))
+    click_button "Owner of Disks"
+    find("[role=menuitem]", text: "Take over").click
+
+    assert_text "Disks is now owned by #{alice.display_name} and runs again."
+    assert_no_text "is paused"
+    assert_equal alice, check.reload.owner
+
+    click_button "Owner of Disks"
+    find("[role=menuitem]", text: "Change owner").click
+    within("[role=dialog]") do
+      find("#check-owner").click
+    end
+    find("[role=option]", text: alice.display_name).click
+    page.save_screenshot(Rails.root.join("tmp/screenshots/monitoring-change-owner.png"))
+    within("[role=dialog]") { click_button "Change owner" }
+
+    assert_text "Disks is now owned by #{alice.display_name}."
+  end
+
   test "what Halon raised shows its urgency, its date and why it is still waiting" do
     reading = Investigation::Notice::Reading.new(signal: Investigation::Notice::SIGNAL_DISK, topic: "orders-db volume",
                                                  summary: "The orders-db volume is full around Oct 28.", severity: Investigation::Notice::SEVERITY_MEDIUM,

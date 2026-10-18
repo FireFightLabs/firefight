@@ -7,6 +7,8 @@ module FirefightAi
     STATUS_STALLED = :stalled
     STATUS_REPEATED_TOOL_CALL = :repeated_tool_call
     STATUS_CANCELED = :canceled
+    # The run reached its time limit (Budget#ends_at) and its last turn did not conclude.
+    STATUS_OUT_OF_TIME = :out_of_time
     # The next run resumes from the saved chat once the person decides.
     STATUS_WAITING = :waiting
 
@@ -15,6 +17,9 @@ module FirefightAi
 
     REMINDER = "That reply did nothing. Call a tool to keep going, or conclude with what you have.".freeze
     LAST_TURN = "This run has spent its budget. Conclude now with the evidence you already have.".freeze
+    TIME_UP = "This run has reached its time limit. Conclude now with the evidence you already have.".freeze
+    # How long the last turn after the time limit may take, tools included, before the run is stopped wherever it is.
+    TIME_UP_GRACE = 5.minutes
     # Said before asking again for a reply that ran past the output limit in the middle of a tool call, since the same
     # reply written again would be cut off the same way.
     CUT_OFF = "Your last reply ran past the most you can write at once and was cut off in the middle of a tool call, so " \
@@ -29,9 +34,10 @@ module FirefightAi
     # How long a stopped loop lets a tool that had just answered finish saving its result, in seconds.
     SETTLE_AFTER_STOP = 1
 
-    # Micros, the ledger's unit, never rounded. The cap is still set in cents.
-    Budget = Data.define(:max_spend_cents, :max_turns, :turns_used, :spent_micros) do
-      def initialize(max_spend_cents:, max_turns:, turns_used: 0, spent_micros: 0) = super
+    # Micros, the ledger's unit, never rounded. The cap is still set in cents. ends_at is the time by which the run
+    # concludes, nil for none.
+    Budget = Data.define(:max_spend_cents, :max_turns, :turns_used, :spent_micros, :ends_at) do
+      def initialize(max_spend_cents:, max_turns:, turns_used: 0, spent_micros: 0, ends_at: nil) = super
     end
 
     Turn = Data.define(:turns_used, :spent_micros)
@@ -151,6 +157,7 @@ module FirefightAi
 
         message = advance
         return outcome(STATUS_CANCELED) if message.equal?(STOPPED)
+        return outcome(STATUS_OUT_OF_TIME) if message.equal?(STOPPED_FOR_TIME)
         return outcome(STATUS_STALLED) if message.nil?
         unless message.role == :assistant
           report_spent_beside
@@ -176,8 +183,10 @@ module FirefightAi
       # result, including the next question in a chat that stopped before the result was saved.
       return nil if tools_pending?
       return STATUS_OUT_OF_TURNS if @turns >= @budget.max_turns
-      return nil if @purse.spent < @budget.max_spend_cents * MICROS_PER_CENT
+      # One last turn is all a run gets, whichever limit offered it.
       return STATUS_OUT_OF_BUDGET if @last_turn_offered
+      return time_up if time_up?
+      return nil if @purse.spent < @budget.max_spend_cents * MICROS_PER_CENT
 
       # One last turn, which may go over the cap.
       @last_turn_offered = true
@@ -185,8 +194,31 @@ module FirefightAi
       nil
     end
 
-    # What run_tools answers when a stop ended the tools.
+    # What run_tools answers when a stop ended the tools, and when the time limit's grace did.
     STOPPED = Object.new.freeze
+    STOPPED_FOR_TIME = Object.new.freeze
+
+    # One last turn to conclude, as for a spent budget, then the run stops.
+    def time_up
+      return STATUS_OUT_OF_TIME if @time_up_offered
+
+      @time_up_offered = Time.current
+      @nudge.call(TIME_UP)
+      nil
+    end
+
+    def time_up? = !@budget.ends_at.nil? && Time.current >= @budget.ends_at
+
+    # When a batch of tools that started at started is stopped for time, nil for a run with no limit. Each batch has the
+    # whole grace, from the limit, from when the last turn was offered or from its own start, whichever is latest, so a
+    # call the last turn asked for, or one a run taken up past its limit left pending, still runs, and one that hangs ends.
+    def tools_stop_at(started)
+      return nil if @budget.ends_at.nil?
+
+      [ (@time_up_offered || @budget.ends_at), started ].max + time_up_grace
+    end
+
+    def time_up_grace = TIME_UP_GRACE
 
     # Only a model call is billed. Running the tools the model already asked for is not.
     def advance
@@ -211,19 +243,23 @@ module FirefightAi
     # checks it gives up and tidies after itself, and the chat is cancelled, so RubyLLM saves no result for a tool that
     # answers after the stop. The loop lends its database connection to the tools while it waits.
     def run_tools
-      return @chat.step if @canceled.equal?(NEVER_CANCELED)
+      return @chat.step if @canceled.equal?(NEVER_CANCELED) && @budget.ends_at.nil?
 
       signal = Concurrent::Event.new
       trace = Tracing.context
       tools = StopSignal.watching(signal) { Thread.new { Tracing.within(trace) { beside_the_loop { @chat.step } } } }
       tools.report_on_exception = false
+      stop_at = tools_stop_at(Time.current)
       until wait_for(tools, STOP_CHECK_EVERY)
-        next unless @canceled.call
+        stopped = if @canceled.call then STOPPED
+        elsif stop_at && Time.current >= stop_at then STOPPED_FOR_TIME
+        end
+        next unless stopped
 
         signal.set
         @chat.to_llm.cancel
         settle(tools)
-        return STOPPED
+        return stopped
       end
       tools.value
     end

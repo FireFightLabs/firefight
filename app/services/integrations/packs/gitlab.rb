@@ -407,6 +407,46 @@ module Integrations
         fail! error.message
       end
 
+      # GitLab lists a merge request's diffs 100 to a page, and this many pages is every file a change could need.
+      FLAG_FILE_PAGES = 30
+      MERGE_REQUEST_PATH = %r{\A/(.+?)/-/merge_requests/(\d+)(?:/|\z)}
+
+      # A merge request's project and number, read from its address on this connection's instance, or nil for any other
+      # address (Integrations::PullRequests.addressed).
+      def pull_request_at(environment_row, url)
+        uri = URI.parse(url.to_s.strip)
+        base = URI.parse(GitlabApi.base_url(ConnectionSettings.of(environment_row).field(URL)))
+        base_path = base.path.to_s.delete_suffix("/")
+        path = uri.path.to_s
+        return unless uri.scheme&.casecmp?(base.scheme.to_s) && uri.host&.casecmp?(base.host.to_s) && uri.port == base.port &&
+                      (base_path.empty? || path.start_with?("#{base_path}/"))
+
+        found = path.delete_prefix(base_path).match(MERGE_REQUEST_PATH)
+        [ found[1], found[2].to_i ] if found && found[1].match?(REPO_FORMAT)
+      rescue URI::InvalidURIError, GitlabApi::Error
+        nil
+      end
+
+      # Every path a merge request changes, a renamed file under both names (Integrations::PullRequests.paths). A list
+      # GitLab cuts short is refused rather than taken for the whole.
+      def pull_request_paths(environment_row, repository:, number:)
+        diffs, more = api(environment_row).list("#{GitlabApi.project(repository)}/merge_requests/#{number}/diffs", {}, pages: FLAG_FILE_PAGES)
+        fail! "Merge request !#{number} in #{repository} changes more files than GitLab lists." if more
+
+        diffs.flat_map { |diff| [ diff["new_path"], diff["old_path"] ] }.compact.uniq
+      rescue GitlabApi::Error => error
+        fail! error.message
+      end
+
+      # A note on the merge request, written with the connection's token, which needs the api scope
+      # (Integrations::PullRequests.flag!).
+      def flag_pull_request(environment_row, repository:, number:, body:)
+        api(environment_row).post("#{GitlabApi.project(repository)}/merge_requests/#{number}/notes", { "body" => body })
+        nil
+      rescue GitlabApi::Error => error
+        fail! error.message
+      end
+
       private
 
       def api(environment_row)

@@ -383,6 +383,15 @@ module Ability
       source.present? && source.configured_for?(scope)
     end
 
+    # The environment a call lands in: the one its scope names, or for a tool the environment of the row its connection
+    # resolves without one, nil when that row is wired to no environment or none resolves.
+    def environment_reached(scope)
+      named = scope.to_h[Ability::Scope::DIMENSION_ENVIRONMENT] || scope.to_h[Ability::Scope::DIMENSION_ENVIRONMENT.to_sym]
+      return named if named.present? || system? || source.nil?
+
+      source.environment_reached
+    end
+
     private
 
     def system_actions_are_global

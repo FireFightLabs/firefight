@@ -44,4 +44,14 @@ class InvestigationCheckSerializer < BaseSerializer
 
   type :string, optional: true
   def run_blocked_reason = check.run_now_blocked_reason
+
+  # Who it runs in the name of, or who left when it is paused for want of one.
+  type :string, optional: true
+  def owner_name = check.owner&.display_name || check.paused_owner_name
+
+  type :string, optional: true
+  def owner_id = check.owner_id
+
+  type :string, optional: true
+  def paused_because = check.paused_because
 end

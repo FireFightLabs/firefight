@@ -9,6 +9,8 @@ module Integrations
     class CodingAgent < NativePack
       # The provider's fields on an environment row, which only these packs read.
       API_KEY = "api_key".freeze
+      # The tool a change is handed over with, whose action key a flag on its pull request is recorded under.
+      FIX_CODE = "fix_code".freeze
 
       # Under Investigation::RemediationStep::CODE_STALE_AFTER, so a step is never given up on while its agent has time.
       TIME_LIMIT = 30.minutes
@@ -48,7 +50,7 @@ module Integrations
 
       # Declared by each subclass once its name is set, so the descriptions name the provider.
       def self.coding_tools!
-        tool :fix_code,
+        tool FIX_CODE.to_sym,
              summary: "Hands a code change to a coding assistant that opens it as a pull request.",
              description: "Hand a code change to #{self::NAME}, which writes it in its own environment and opens it as a pull request, " \
                           "ready for review. Give the repository, what to change and why with the evidence, and a title. Firefight " \
@@ -184,12 +186,17 @@ module Integrations
         state.with(phase: PHASE_STOPPED, reason: "it reached the #{TIME_LIMIT.in_minutes.to_i} minute limit, and stopping it failed (#{Sentence.clean(error)}), so stop it in #{self.class::NAME}")
       end
 
+      # What the pull requests changed is checked against the paths the workspace keeps out of code changes, since the
+      # agent pushed them itself, and anything a person must look at leads the answer and is carried for the fix's step.
       def answer(repo, session, state)
         if state.pull_requests.any?
-          text = [ "#{self.class::NAME} opened #{state.pull_requests.to_sentence} for #{repo}.",
+          flagged = ProtectedPullRequests.check(integration.workspace, state.pull_requests, repository: repo, asked_by: request&.principal,
+                                                                                     via: "#{integration.slug}.#{FIX_CODE}")
+                                         .map(&:sentence).join(" ").presence
+          text = [ flagged, "#{self.class::NAME} opened #{state.pull_requests.to_sentence} for #{repo}.",
                    ("Its session then stopped: #{state.reason}." if state.phase == PHASE_STOPPED && state.reason),
                    said(state), spent(state), follow_line(session) ]
-          return Telemetry.result(text.compact.join("\n"), link: pull_request_link(state.pull_requests.first))
+          return Telemetry.result(text.compact.join("\n"), link: pull_request_link(state.pull_requests.first), facts: { CodeChange::NEEDS_PERSON => flagged })
         end
 
         why = state.phase == PHASE_STOPPED ? "stopped without opening a pull request: #{state.reason || 'it gave no reason'}." : "finished without opening a pull request."

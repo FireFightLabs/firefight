@@ -1,0 +1,36 @@
+title: Refunds for guest orders crash
+shape: >-
+  Refunds issued on orders placed without an account raised NoMethodError and the refund email never went out. Guest
+  orders have no customer, only a guest email, and the notifier read the customer's email without checking.
+repository: larkspur/shop
+brief: >-
+  Refunds.notify raises NoMethodError, undefined method email for nil, for every refund on a guest order since guest
+  checkout shipped. app/services/refunds/notifier.rb reads order.customer.email, and a guest order has no customer, only
+  guest_email. Use the customer's email when there is one, else the guest email, and send nothing when neither is set.
+files:
+  app/services/refunds/notifier.rb: |
+    module Refunds
+      class Notifier
+        def initialize(refund)
+          @refund = refund
+        end
+
+        def deliver
+          email = @refund.order.customer.email
+          RefundMailer.issued(email, @refund.amount).deliver_later
+        end
+      end
+    end
+expected_diff: |
+  --- a/app/services/refunds/notifier.rb
+  +++ b/app/services/refunds/notifier.rb
+  @@ -6,7 +6,9 @@ module Refunds
+
+       def deliver
+  -      email = @refund.order.customer.email
+  +      email = @refund.order.customer&.email || @refund.order.guest_email
+  +      return if email.blank?
+  +
+         RefundMailer.issued(email, @refund.amount).deliver_later
+       end
+     end

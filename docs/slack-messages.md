@@ -373,7 +373,9 @@ fix starting. Nothing else is broadcast, a stop or a fix ending included, which 
   INC-003"), posted once in the thread and the channel when it is applied and redrawn in place. The redraw is the
   record: how the fix stands is the line under the checklist ("Applying the fix · 1 of 2 steps done", "Fix applied · 2
   of 2 steps done", "Fix stopped: 1 of 2 steps failed · 1 of 2 steps done"), never a second post, and Try again
-  redraws the same message back to applying. Each step is its short name (`RemediationStep#shown_title`), never the
+  redraws the same message back to applying. A step whose change a person must look at (`RemediationStep#needs_person`,
+  such as a coding agent's pull request that touched a protected path) adds a warning line under it, "Step 3: ...", so
+  the thread never reads that change as clean. Each step is its short name (`RemediationStep#shown_title`), never the
   instructions, with how it stands:
   - A step that went through shows what it produced as a link (`RemediationStep::Outcome`, kept in `outcome_label` and
     `outcome_url` when the step ends): "Opened a pull request: PR #856", where PR #856 is a `link` element in the plan

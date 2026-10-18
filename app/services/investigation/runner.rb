@@ -11,7 +11,8 @@ class Investigation::Runner
     FirefightAi::AgentLoop::STATUS_OUT_OF_BUDGET => Investigation::BUDGET_SPENT,
     FirefightAi::AgentLoop::STATUS_OUT_OF_TURNS => Investigation::TOO_MANY_TURNS,
     FirefightAi::AgentLoop::STATUS_STALLED => Investigation::STALLED,
-    FirefightAi::AgentLoop::STATUS_REPEATED_TOOL_CALL => Investigation::REPEATED_CALL
+    FirefightAi::AgentLoop::STATUS_REPEATED_TOOL_CALL => Investigation::REPEATED_CALL,
+    FirefightAi::AgentLoop::STATUS_OUT_OF_TIME => Investigation::OUT_OF_TIME
   }.freeze
 
   def initialize(investigation)
@@ -63,6 +64,8 @@ class Investigation::Runner
     if @investigation.reload.finding
       delivery.answered!(@investigation.finding)
       OnCallFollowUpJob.perform_later(@investigation.id) if @investigation.started_by_alert? && !@investigation.rehearsal?
+    elsif result.error_summary == Investigation::OUT_OF_TIME
+      delivery.stopped!(result.error_summary, where_it_stopped: Chat::StoppedNote.for(@investigation.chat, since: @investigation.chat&.created_at))
     else
       delivery.stopped!(result.error_summary)
     end
@@ -155,7 +158,7 @@ class Investigation::Runner
   def budget
     FirefightAi::AgentLoop::Budget.new(
       max_spend_cents: @investigation.max_spend_cents, max_turns: @investigation.max_turns,
-      turns_used: @investigation.turns_used, spent_micros: @investigation.spent_micros
+      turns_used: @investigation.turns_used, spent_micros: @investigation.spent_micros, ends_at: @investigation.deadline
     )
   end
 

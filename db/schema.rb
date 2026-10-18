@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_17_120200) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_18_100400) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -2117,11 +2117,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_120200) do
     t.datetime "last_run_at"
     t.datetime "deleted_at"
     t.uuid "created_by_id"
+    t.uuid "owner_id"
+    t.datetime "paused_at"
+    t.string "paused_owner_name"
+    t.datetime "owner_gone_told_at"
+    t.integer "owner_gone_notice_attempts", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index "workspace_id, lower((name)::text)", name: "index_investigation_checks_on_workspace_and_name", unique: true
     t.index ["created_by_id"], name: "index_investigation_checks_on_created_by_id"
     t.index ["next_run_at"], name: "index_investigation_checks_due", where: "(deleted_at IS NULL)"
+    t.index ["owner_id"], name: "index_investigation_checks_on_owner_id"
     t.index ["workspace_id"], name: "index_investigation_checks_on_workspace_id"
   end
 
@@ -2322,6 +2328,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_120200) do
     t.string "outcome_label"
     t.string "outcome_url"
     t.boolean "firefight_tool", default: false, null: false
+    t.text "needs_person"
     t.index ["applied_under_rule_id"], name: "index_investigation_remediation_steps_on_applied_under_rule_id"
     t.index ["approval_id"], name: "index_investigation_remediation_steps_on_approval_id"
     t.index ["done_by_id"], name: "index_investigation_remediation_steps_on_done_by_id"
@@ -2382,6 +2389,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_120200) do
     t.string "lease_holder"
     t.uuid "lease_token"
     t.datetime "lease_until"
+    t.integer "max_duration_seconds"
     t.integer "max_spend_cents", null: false
     t.integer "max_turns", null: false
     t.string "model_override"
@@ -3385,7 +3393,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_120200) do
     t.text "private_inputs"
     t.string "telling_job_id"
     t.uuid "confirmed_by_id"
+    t.string "asked_by_type"
+    t.uuid "asked_by_id"
     t.index ["agent_id"], name: "index_workflow_runs_on_agent_id"
+    t.index ["asked_by_type", "asked_by_id"], name: "index_workflow_runs_on_asked_by"
     t.index ["confirmed_by_id"], name: "index_workflow_runs_on_confirmed_by_id"
     t.index ["parent_run_id"], name: "index_workflow_runs_on_parent_run_id"
     t.index ["rerun_of_id"], name: "index_workflow_runs_on_rerun_of_id"
@@ -3848,6 +3859,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_120200) do
   add_foreign_key "integration_tools", "integrations"
   add_foreign_key "integrations", "workspaces"
   add_foreign_key "investigation_checks", "workspace_memberships", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "investigation_checks", "workspace_memberships", column: "owner_id", on_delete: :nullify
   add_foreign_key "investigation_checks", "workspaces"
   add_foreign_key "investigation_evidence", "investigation_findings", column: "finding_id"
   add_foreign_key "investigation_findings", "integrations", column: "page_integration_id", on_delete: :nullify

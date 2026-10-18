@@ -4,7 +4,7 @@ class Investigation::CheckToolsTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @check = @workspace.investigation_checks.create!(name: "Disks", kind: Investigation::Check::KIND_DISK, cadence: Investigation::Check::CADENCE_DAILY,
-                                                     hour: 9, time_zone: "UTC")
+                                                     hour: 9, time_zone: "UTC", created_by: workspace_memberships(:alice_workspace_one))
     @run = @workspace.investigations.create!(subject: @check, trigger_source: Investigation::TRIGGER_SCHEDULE, max_turns: 10, max_spend_cents: 400)
     @step = @run.steps.create!(position: 1, tool_name: "query_metrics", label: "Metrics of orders-db", action_key: "northflank.query_metrics",
                                status: Investigation::Step::STATUS_SUCCEEDED, started_at: Time.current)
