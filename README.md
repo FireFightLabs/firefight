@@ -72,7 +72,7 @@ Halon starts every run from your team's context: the resource map of what runs w
 
 ## Get started
 
-[FireFight Cloud](https://firefight.app) runs in minutes. Sign in with Slack.
+To use FireFight Cloud, sign up at [app.firefight.app](https://app.firefight.app) with Slack, Google or email, then add FireFight to your Slack workspace. Nothing to install or host.
 
 To self-host, you need a machine with Docker, a hostname and a Slack workspace.
 
