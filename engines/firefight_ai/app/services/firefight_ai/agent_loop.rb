@@ -436,9 +436,9 @@ module FirefightAi
       return nil if @budget.ends_at.nil?
 
       minutes = ((@budget.ends_at - Time.current) / 60.0).ceil
-      return "no time left" unless minutes.positive?
+      return "the time limit has passed" unless minutes.positive?
 
-      minutes == 1 ? "under a minute left" : "#{minutes} minutes left"
+      minutes == 1 ? "under a minute until the time limit" : "#{minutes} minutes until the time limit"
     end
 
     # A share rather than an amount, so no price reaches the model or anything it writes.

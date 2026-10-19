@@ -212,9 +212,9 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     run_loop(chat, budget: budget(max_turns: 10, ends_at: 40.minutes.from_now), reply_is_answer: true)
 
     first, second, third = chat.last_sent
-    assert_equal "[Limits: step 1 of 10, 0% of the budget used, 40 minutes left.]", first
-    assert_equal "[Limits: step 2 of 10, 0% of the budget used, 40 minutes left.]", second
-    assert_equal "[Limits: step 3 of 10, 87% of the budget used, 40 minutes left. #{FirefightAi::AgentLoop::WRAP_UP}]", third
+    assert_equal "[Limits: step 1 of 10, 0% of the budget used, 40 minutes until the time limit.]", first
+    assert_equal "[Limits: step 2 of 10, 0% of the budget used, 40 minutes until the time limit.]", second
+    assert_equal "[Limits: step 3 of 10, 87% of the budget used, 40 minutes until the time limit. #{FirefightAi::AgentLoop::WRAP_UP}]", third
 
     steps = FakeChat.new([ tool_reply("call_0"), llm_reply(content: "Done") ])
     run_loop(steps, budget: budget(max_turns: 3), reply_is_answer: true)
@@ -228,7 +228,7 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     )
     travel(41.minutes)
     agent_loop.run
-    assert_equal "[Limits: step 1 of 500, 0% of the budget used, 9 minutes left. #{FirefightAi::AgentLoop::WRAP_UP}]", late.last_sent.first
+    assert_equal "[Limits: step 1 of 500, 0% of the budget used, 9 minutes until the time limit. #{FirefightAi::AgentLoop::WRAP_UP}]", late.last_sent.first
   end
 
   test "the limits line follows the context the app sends" do
