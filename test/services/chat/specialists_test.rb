@@ -194,7 +194,7 @@ class Chat::SpecialistsTest < ActiveSupport::TestCase
                      "asks" => [ { "domain" => "databases", "objective" => "Who holds the connections?" } ])
 
     assert_not_includes handed, "planetscale_create_branch"
-    assert_includes said, "Specialists reported, 1 of 1:"
+    assert_includes said, "Specialists reported, 1 of 1. #{Chat::Helper::OPEN_WITH}"
     assert_includes said, "Shows: open connections 498 of 500 since 13:39"
     assert_includes said, "Link: #{INSIGHTS_LINK}"
     assert_includes said, "Proposed change: planetscale_create_branch {\"name\":\"fix\"}"

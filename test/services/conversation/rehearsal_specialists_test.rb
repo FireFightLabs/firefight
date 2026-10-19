@@ -54,7 +54,7 @@ class Conversation::RehearsalSpecialistsTest < ActiveSupport::TestCase
     calls = replay.transcript.calls
     assert_equal %w[ask_specialist planetscale_api_request planetscale_get_insights], calls.map(&:name)
     asked, refused, read = calls
-    assert_equal [ nil, "databases", "databases" ], calls.map(&:by)
+    assert_equal [ nil, "The databases specialist", "The databases specialist" ], calls.map(&:by)
     assert_equal Conversation::Rehearsal::Specialists::ONLY_READS, refused.result, "a specialist never makes a change"
     assert_equal INSIGHTS, read.result
     assert_includes asked.result, "Shows: open connections 498 of 500 since 13:39"

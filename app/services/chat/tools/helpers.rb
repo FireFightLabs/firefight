@@ -1,7 +1,7 @@
 # Hands independent checks to helpers that run at the same time, such as the logs, the recent deploys and the error
 # rate of one service, and answers with what each reported. A helper only reads, as whoever the chat or run acts for.
 class Chat::Tools::Helpers < RubyLLM::Tool
-  NAME = "run_helpers".freeze
+  NAME = Chat::Helper::RUN_HELPERS
   CHECKS_ARG = "checks".freeze
   TITLE_ARG = "title".freeze
   BRIEF_ARG = "brief".freeze
@@ -32,7 +32,8 @@ class Chat::Tools::Helpers < RubyLLM::Tool
               "#{Chat::Helper::MAX_PER_QUESTION} for one question. Set deep only for a check that reasons across several " \
               "results. Keep for yourself anything that changes something and any read that depends on another's answer. " \
               "A report says what its helper read, so cite the steps it names, and run a check yourself before stating a " \
-              "cause that rests on a helper's words alone."
+              "cause that rests on a helper's words alone. Everything a helper read stays whole for read_result under " \
+              "the helper's name, such as helper_1, so open it there rather than reading the same thing again."
 
   def self.tool_name = NAME
 

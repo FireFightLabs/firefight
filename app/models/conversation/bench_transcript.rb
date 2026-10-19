@@ -14,6 +14,8 @@ class Conversation::BenchTranscript
   Entry = Data.define(:said_by, :text, :call)
 
   PERSON = :person
+  # The calls whose reads a specialist or a helper made, named here since a model never reaches for the tools themselves.
+  STARTS_OTHERS = [ Chat::Helper::ASK_SPECIALIST, Chat::Helper::RUN_HELPERS ].freeze
   HALON = :halon
   CALL = :call
   # What the reply before it lists as read, as the dashboard and a thread show under an answer.
@@ -110,15 +112,16 @@ class Conversation::BenchTranscript
     [ Entry.new(said_by: SOURCES, text: listed.map { |source| [ source.title, source.url ].compact.join(" ") }.join("; "), call: nil) ]
   end
 
-  # What the specialists an ask_specialist call started read for Halon, each after the call that asked them, so the score
-  # and the judge see every read the answer rests on. Their report goes back to Halon as the call's own result.
+  # What the specialists an ask_specialist call or the helpers a run_helpers call started read for Halon, each after the
+  # call that asked them, so the score and the judge see every read the answer rests on. Their report goes back to Halon
+  # as the call's own result.
   def specialist_entries(message, call)
-    return [] unless call.name == Chat::Helper::ASK_SPECIALIST
+    return [] unless STARTS_OTHERS.include?(call.name)
 
-    Chat::Helper.where(chat_id: message.chat_id, tool_call_id: call.tool_call_id).where.not(domain: nil).in_order.includes(:own_chat).flat_map do |helper|
+    Chat::Helper.where(chat_id: message.chat_id, tool_call_id: call.tool_call_id).in_order.includes(:own_chat).flat_map do |helper|
       next [] unless helper.own_chat
 
-      by = helper.domain.tr("_", " ")
+      by = helper.specialist? ? "The #{helper.domain.tr('_', ' ')} specialist" : "A helper"
       helper.own_chat.tool_calls.where.not(name: Chat::Helper::REPORT_FINDINGS).includes(:result).order(:created_at, :id).map do |read|
         Entry.new(said_by: CALL, text: nil, call: call_of(read, by: by))
       end
@@ -142,7 +145,7 @@ class Conversation::BenchTranscript
     return "Agent updated its #{call.result.presence || 'theory board'}" if call.name == Chat::Theory::TOOL
 
     kind = call.reads ? "a read" : "a change"
-    who = call.by ? "The #{call.by} specialist, for the agent," : "Agent"
+    who = call.by ? "#{call.by}, for the agent," : "Agent"
     lines = [ "#{who} called #{call.name} #{call.arguments.to_json} (#{kind})" ]
     lines << "  #{DECISION_WORDS.fetch(call.approval)}" if call.asked?
     lines << "  It returned: #{call.result.truncate(RESULT_SHOWN)}" if call.ran? && call.result.present?

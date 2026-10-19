@@ -122,8 +122,8 @@ class Chat::CompactingTest < ActiveSupport::TestCase
     chat.rebuild!(note: "Checkout waits on the orders database.", tokens_before: 150_000)
 
     fresh = chat.sent_messages.last.content
-    assert_match "What your helpers reported, oldest first:\n- Check 2: Finding 2.", fresh
-    assert_match "- Check 1: Finding #{Chat::Compacting::HELPERS_REMEMBERED + 1}.", fresh
+    assert_match "What your helpers reported, oldest first. #{Chat::Helper::OPEN_WITH}\n- Check 2 (helper_2): Finding 2.", fresh
+    assert_match "- Check 1 (helper_13): Finding #{Chat::Compacting::HELPERS_REMEMBERED + 1}.", fresh
     assert_no_match "Finding 1.\n", fresh
     assert_no_match "nothing reported", fresh
   end

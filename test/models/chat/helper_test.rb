@@ -41,7 +41,7 @@ class Chat::HelperTest < ActiveSupport::TestCase
     assert helper.finish!(Chat::Helper::STATUS_REPORTED, report: "web logs show 3 new errors (steps 4, 6)")
     assert_not helper.finish!(Chat::Helper::STATUS_STOPPED, ended_because: Chat::Helper::STOPPED)
 
-    assert_equal [ Chat::Helper::STATUS_REPORTED, "- Check 1: web logs show 3 new errors (steps 4, 6)" ], [ helper.status, helper.line ]
+    assert_equal [ Chat::Helper::STATUS_REPORTED, "- Check 1 (helper_1): web logs show 3 new errors (steps 4, 6)" ], [ helper.status, helper.line ]
   end
 
   test "a report is kept without chart markers, since its charts are named to Halon apart from it and the page shows it as text" do

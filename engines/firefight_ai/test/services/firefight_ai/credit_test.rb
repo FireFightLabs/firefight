@@ -212,6 +212,8 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
     def awaiting_approval? = false
     def max_output_tokens = @limit
 
+    def add_message(**attributes) = RubyLLM::Message.new(**attributes).tap { |message| messages << message }
+
     def with_max_output_tokens(limit)
       @limit = limit
       self

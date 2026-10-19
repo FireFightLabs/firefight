@@ -1,6 +1,6 @@
-# How the agent reads a tool result that was too large to be handed over whole. It reads a range
-# of lines or searches, and with no result named it searches everything saved in the chat, which
-# is how two logs are lined up on the same request or the same minute.
+# How the agent reads a tool result that was too large to be handed over whole, or what one of its helpers read. It reads
+# a range of lines or searches, and with no result named it searches everything saved in the chat, which is how two logs
+# are lined up on the same request or the same minute.
 class Chat::Tools::ReadResult < RubyLLM::Tool
   PAGE_LINES = 400
   MATCH_LIMIT = 40
@@ -10,8 +10,10 @@ class Chat::Tools::ReadResult < RubyLLM::Tool
 
   description "Read more of a tool result, or a file the person attached, that was saved because it was too large to show whole. " \
               "Give from_line and to_line to read a range, or search to find lines containing some text. " \
-              "Leave result out to search every saved result at once, for example for a request id or a timestamp."
-  parameter :result, description: "The saved result's name, such as result_1. Leave out to search all of them", required: false
+              "Leave result out to search every saved result at once, for example for a request id or a timestamp. " \
+              "Everything a helper read is here too, whole. Name the helper, such as helper_1, to list or search what it read."
+  parameter :result, description: "The saved result's name, such as result_1 or helper_1_result_2, or a helper's name, such as helper_1. " \
+                                  "Leave out to search all of them", required: false
   parameter :search, description: "Text to look for, whatever its case", required: false
   parameter :from_line, type: :integer, description: "First line to read", required: false
   parameter :to_line, type: :integer, description: "Last line to read", required: false
@@ -24,18 +26,31 @@ class Chat::Tools::ReadResult < RubyLLM::Tool
   end
 
   def execute(result: nil, search: nil, from_line: nil, to_line: nil)
-    saved = @agent_run.chat&.saved_results.to_a
+    name = result.to_s.strip.presence
+    saved = readable(name)
     return "Nothing has been saved in this chat yet." if saved.blank?
 
-    chosen = result.present? ? saved.select { |one| one.handle == result.to_s.strip } : saved
+    chosen = name ? saved.select { |one| one.handle == name || one.handle.start_with?("#{name}#{Chat::Helper::Results::RESULT_INFIX}") } : saved
     return unknown(result, saved) if chosen.empty?
     return searched(chosen, search) if search.present?
-    return "Name one result to read lines from. Saved here: #{names(saved)}." unless chosen.one?
+    return "Name one result to read lines from. Saved here: #{names(name ? chosen : saved)}." unless chosen.one?
 
     page(chosen.sole, from_line, to_line)
   end
 
   private
+
+  # The chat's own saved results and what its helpers read, which is read only when a helper's result or every result is
+  # asked for.
+  def readable(name)
+    chat = @agent_run.chat
+    return [] unless chat
+
+    own = chat.saved_results.to_a
+    return own if name && !name.start_with?(Chat::Helper::HANDLE_PREFIX)
+
+    own + Chat::Helper.results_in(chat, helper: name&.split(Chat::Helper::Results::RESULT_INFIX)&.first)
+  end
 
   def unknown(result, saved) = "Nothing is saved as #{result}. Saved here: #{names(saved)}."
 
