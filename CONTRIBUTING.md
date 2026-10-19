@@ -108,6 +108,16 @@ Set these environment variables to archive incident files to R2:
 - `R2_REQUEST_CHECKSUM_CALCULATION` (recommended: `when_required`)
 - `R2_RESPONSE_CHECKSUM_VALIDATION` (recommended: `when_required`)
 
+## Demo workspace
+
+The README's pictures of INC-042, Halon's run on it and the chat that asked for it come from an Acme workspace. Build it in your development database with:
+
+```sh
+bin/rails demo:readme
+```
+
+It writes through the same models and services production does, so every name on the page is the one the code gives today. Nothing it starts runs, so no message reaches Slack and no model is called. Running it again replaces the workspace. The story happens between 14:02 and 14:47 on your machine's clock, on the last day that time has passed, or on `DAY=2026-10-17` if you set it. Sign in as `maya@acme.dev` to see it. It runs only in development and test.
+
 ## Running the test suite
 
 `bin/ci` runs everything CI runs: rubocop, bundler-audit, brakeman, the test suite (parallel), system tests, and seeds.
