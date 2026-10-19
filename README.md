@@ -45,15 +45,14 @@
 
 ## What it does
 
-Root cause fast, every finding backed by evidence. Fixes ship through an approval gateway with a full audit trail.
+When something breaks in production, Halon figures out why and helps you fix it.
 
-**Investigation in the incident channel.** An alert can start a run on its own, or anyone runs `/ff investigate`. Halon reads recent deploys, logs, metrics, the running code and your databases through the tools you connect, and posts its progress as a live checklist.
+- **It finds the cause.** An alert or a question in Slack gets it started. Halon checks what changed recently, the logs, the metrics and your code, like an engineer on call would. It posts what it's checking as it goes.
+- **It shows its work.** Every answer says how sure Halon is and links to the log line, graph or commit behind it. If it couldn't check something, it says so.
+- **It fixes it, with your say.** Halon can roll back, restart, or open a pull request with the fix. Reading never needs permission. Small changes just happen and can be undone. Anything risky asks the right person in Slack first. Everything it does is logged.
+- **It runs the incident too.** FireFight opens the Slack channel, assigns roles, pages whoever is on call, updates your status page and drafts the postmortem.
 
-**Evidence-backed answers.** Every conclusion ships with a confidence level and the evidence behind it, each fact linked to its source. Gaps in coverage are reported alongside the answer.
-
-**Fixes through an approval gateway.** Fixes run through FireFight's own tools or as a pull request written in an isolated sandbox. Reads are immediate. Changes require sign-off in Slack, under the approval rules your admins set, and every call to a connected tool is recorded in the activity log.
-
-**A complete incident platform.** Declaration, roles, paging through PagerDuty and Opsgenie, status pages, workflows and postmortems drafted from the timeline. Self-hosted or on [firefight.app](https://firefight.app).
+Run it on your own servers, or use FireFight Cloud.
 
 ## What Halon knows
 
