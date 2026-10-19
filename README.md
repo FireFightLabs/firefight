@@ -8,6 +8,12 @@
   </a>
 </p>
 
+<h1 align="center">FireFight</h1>
+<p align="center">
+  <b>The open-source AI SRE and incident management</b><br />
+  Halon finds the root cause and ships the fix. FireFight runs the incident in Slack.
+</p>
+
 <h4 align="center">
   <a href="https://firefight.app">Website</a> ·
   <a href="https://firefight.app/docs">Docs</a> ·
