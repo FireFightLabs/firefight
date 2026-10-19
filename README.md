@@ -38,9 +38,8 @@
 <br />
 
 <p align="center">
-  <img src=".github/assets/dashboard/incident.png" width="960" alt="The INC-042 incident page in the FireFight dashboard, with the live timeline, roles and the root cause Halon found." />
+  <img src=".github/assets/readme-showcase.png" width="100%" alt="The INC-042 incident page in the FireFight dashboard, with the root cause Halon found, and Halon's answer in chat beside it." />
 </p>
-<p align="center"><sub>An incident in the FireFight dashboard, with the live timeline, roles and the root cause.</sub></p>
 
 <br />
 
