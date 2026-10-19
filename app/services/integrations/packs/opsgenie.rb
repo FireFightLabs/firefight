@@ -42,6 +42,7 @@ module Integrations
       SCHEDULE = { "type" => "string", "description" => "The schedule, by its name or id, as who_is_on_call shows it" }.freeze
 
       tool :who_is_on_call,
+           summary: "Shows who is on call now, for one schedule or every schedule.",
            description: "Who is on call now in Opsgenie, for one schedule or for every schedule with the team that owns it. Use it to " \
                         "find who to page or who is already being paged",
            params_schema: {
@@ -53,18 +54,21 @@ module Integrations
            read_only: true
 
       tool :who_is_on_call_next,
+           summary: "Shows who comes on call next on a schedule.",
            description: "Who comes on call next in Opsgenie on one schedule, with overrides counted. Use it to say who takes over " \
                         "and to find who to override",
            params_schema: { "type" => "object", "properties" => { "schedule" => SCHEDULE }, "required" => [ "schedule" ] },
            read_only: true
 
       tool :list_escalations,
+           summary: "Lists the escalation policies with who each one notifies and when.",
            description: "The escalation policies in Opsgenie: who each one notifies, in what order, after how long and on which " \
                         "condition. Use it to see who an alert reaches next, and for the name escalate_alert takes",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :search_alerts,
+           summary: "Searches alerts with their status, priority and owner.",
            description: "Alerts in Opsgenie, newest first, with their status, priority, how many times each fired and who owns or " \
                         "acknowledged it. query uses Opsgenie's alert search, such as status: open AND acknowledged: false",
            params_schema: {
@@ -77,12 +81,14 @@ module Integrations
            read_only: true
 
       tool :get_alert,
+           summary: "Shows one alert in full with its notes and history.",
            description: "One Opsgenie alert in full: its message, description, details, tags, responders and how it was handled, " \
                         "with its latest notes and its log of what happened to it",
            params_schema: { "type" => "object", "properties" => ALERT, "required" => [ "alert" ] },
            read_only: true
 
       tool :search_incidents,
+           summary: "Searches incidents with their status, priority and affected services.",
            description: "Incidents in Opsgenie, newest first, with their status, priority and the services they affect. query uses " \
                         "Opsgenie's incident search, such as status: open",
            params_schema: {
@@ -95,12 +101,14 @@ module Integrations
            read_only: true
 
       tool :list_maintenance_targets,
+           summary: "Lists the integrations and alert policies a maintenance window can quiet.",
            description: "The integrations and alert policies in Opsgenie, by name and id, which a maintenance window quiets. Use it " \
                         "for the ids create_maintenance takes",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :create_alert,
+           summary: "Raises an alert that pages its responders.",
            description: "Raise an Opsgenie alert, which pages its responders through their escalations and schedules. Use it to " \
                         "wake someone, with what they need to know in the description",
            params_schema: {
@@ -118,12 +126,14 @@ module Integrations
            read_only: false
 
       tool :acknowledge_alert,
+           summary: "Acknowledges an alert so it stops escalating.",
            description: "Acknowledge an Opsgenie alert, which stops it paging further along its escalation. Say who is handling it " \
                         "in the note",
            params_schema: { "type" => "object", "properties" => ALERT.merge("note" => NOTE), "required" => [ "alert" ] },
            read_only: false
 
       tool :escalate_alert,
+           summary: "Escalates an alert to an escalation policy, paging the people it names.",
            description: "Escalate an Opsgenie alert to an escalation policy, which pages the people it names. Find the policy with " \
                         "list_escalations first",
            params_schema: {
@@ -137,6 +147,7 @@ module Integrations
            read_only: false
 
       tool :add_alert_note,
+           summary: "Adds a note to an alert that everyone on it sees.",
            description: "Add a note to an Opsgenie alert, which everyone on it sees, such as what is known or which incident it belongs to",
            params_schema: {
              "type" => "object",
@@ -146,11 +157,13 @@ module Integrations
            read_only: false
 
       tool :close_alert,
+           summary: "Closes an alert so it stops paging anyone.",
            description: "Close an Opsgenie alert once the problem is over, which stops it paging anyone",
            params_schema: { "type" => "object", "properties" => ALERT.merge("note" => NOTE), "required" => [ "alert" ] },
            read_only: false
 
       tool :snooze_alert,
+           summary: "Snoozes an alert until a set time.",
            description: "Snooze an Opsgenie alert until a time, which stops it paging until then",
            params_schema: {
              "type" => "object",
@@ -163,6 +176,7 @@ module Integrations
            read_only: false
 
       tool :assign_alert,
+           summary: "Makes one person the owner of an alert.",
            description: "Make one person the owner of an Opsgenie alert",
            params_schema: {
              "type" => "object",
@@ -172,6 +186,7 @@ module Integrations
            read_only: false
 
       tool :add_responder,
+           summary: "Brings a team or person into an alert, paging them.",
            description: "Bring a team or a person into an Opsgenie alert, which pages them without taking it off whoever has it",
            params_schema: {
              "type" => "object",
@@ -185,16 +200,19 @@ module Integrations
            read_only: false
 
       tool :resolve_incident,
+           summary: "Resolves an Opsgenie incident.",
            description: "Resolve an Opsgenie incident once the problem is fixed",
            params_schema: { "type" => "object", "properties" => INCIDENT, "required" => [ "incident" ] },
            read_only: false
 
       tool :close_incident,
+           summary: "Closes an Opsgenie incident for good.",
            description: "Close an Opsgenie incident, which ends it for good",
            params_schema: { "type" => "object", "properties" => INCIDENT, "required" => [ "incident" ] },
            read_only: false
 
       tool :create_schedule_override,
+           summary: "Puts someone on call on a schedule for a while in place of the rotation.",
            description: "Put someone on call on an Opsgenie schedule for a while, in place of whoever the rotation names, such as " \
                         "when the person on call is out",
            params_schema: {
@@ -210,6 +228,7 @@ module Integrations
            read_only: false
 
       tool :create_maintenance,
+           summary: "Starts a maintenance window that quiets alerts during planned work.",
            description: "Start a maintenance window in Opsgenie, which quiets an integration's alerts or a policy for a while, such " \
                         "as during planned work. Find the ids with list_maintenance_targets",
            params_schema: {

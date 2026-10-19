@@ -133,7 +133,7 @@ module Integrations
 
           result = @pack.comment_on_pull_request(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => 412, "body" => "Rolled back. Token ghp_#{'a' * 36}" })
 
-          assert_includes text_of(result), "Commented on PR #412 Fix payment retries in acme/checkout, and GitHub shows the comment. #{PullRequests::READ_BACK}"
+          assert_includes text_of(result), "Commented on PR #412 Fix payment retries in acme/checkout as comment 1, and GitHub shows the comment. #{PullRequests::READ_BACK}"
           assert text_of(result).end_with?("https://github.com/acme/checkout/pull/412#issuecomment-1")
         end
 
@@ -356,6 +356,40 @@ module Integrations
           error = assert_raises(NativePack::Error) { @pack.close_pull_request(environment_row: @row, arguments: { "repo" => "acme/secret", "number" => 1 }) }
           assert_equal "GitHub has no pull request 1 in acme/secret. GitHub answers not found for a repository this connection's GitHub App was not given, " \
                        "and list_repositories names the ones it was.", error.message
+        end
+
+        test "a pull request's address names its repository and number, and only an address on GitHub does" do
+          assert_equal [ "acme/checkout", 412 ], @pack.pull_request_at(@row, "https://github.com/acme/checkout/pull/412")
+          assert_equal [ "acme/checkout", 412 ], @pack.pull_request_at(@row, "https://github.com/acme/checkout/pull/412/files")
+          assert_nil @pack.pull_request_at(@row, "https://gitlab.com/acme/checkout/-/merge_requests/412")
+          assert_nil @pack.pull_request_at(@row, "https://github.com/acme/checkout/issues/412")
+        end
+
+        test "the paths a pull request changes are every file on every page, a renamed one under both names" do
+          first = Array.new(100) { |index| { "filename" => "app/file_#{index}.rb" } }
+          GithubApp.stubs(:get).with("/repos/acme/checkout/pulls/412/files?per_page=100&page=1", token: "ghs_token").returns(first)
+          GithubApp.stubs(:get).with("/repos/acme/checkout/pulls/412/files?per_page=100&page=2", token: "ghs_token")
+                   .returns([ { "filename" => ".github/workflows/deploy.yml", "previous_filename" => "ci/deploy.yml" } ])
+
+          paths = @pack.pull_request_paths(@row, repository: "acme/checkout", number: 412)
+
+          assert_equal 102, paths.size
+          assert_includes paths, ".github/workflows/deploy.yml"
+          assert_includes paths, "ci/deploy.yml"
+        end
+
+        test "a pull request whose files cannot all be listed is never taken as read whole" do
+          GithubApp.stubs(:get).with { |path, **| path.start_with?("/repos/acme/checkout/pulls/412/files") }
+                   .returns(Array.new(100) { |index| { "filename" => "file_#{index}.rb" } })
+
+          error = assert_raises(Integrations::Error) { @pack.pull_request_paths(@row, repository: "acme/checkout", number: 412) }
+          assert_match "more files than GitHub lists", error.message
+        end
+
+        test "a flag is a comment on the pull request" do
+          GithubApp.expects(:write).with(:post, "/repos/acme/checkout/issues/412/comments", { body: "Look here." }, token: "ghs_token").returns("id" => 1)
+
+          @pack.flag_pull_request(@row, repository: "acme/checkout", number: 412, body: "Look here.")
         end
 
         private

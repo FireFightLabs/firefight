@@ -5,7 +5,7 @@ module Integrations
     fixtures :workspaces, :users, :workspace_memberships
 
     class OtherPack < NativePack
-      tool :other_tool, description: "Elsewhere", params_schema: {}, read_only: true
+      tool :other_tool, description: "Elsewhere", summary: "Answers from elsewhere.", params_schema: {}, read_only: true
 
       def other_tool(environment_row:, arguments:)
         "other"

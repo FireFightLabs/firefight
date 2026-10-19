@@ -49,6 +49,18 @@ class Chat::Terminal::RelayTest < ActiveSupport::TestCase
     assert_not Ability::Invocation.exists?(workspace: @workspace, action_key: @writes.action_key)
   end
 
+  test "a confirmed command never changes access or sets a secret, which Halon calls itself so the person is asked about it" do
+    Integrations::SafeChanges.stubs(:access?).returns(false)
+    Integrations::SafeChanges.stubs(:access?).with(@writes).returns(true)
+
+    said = relay(changes: true).call(@writes.model_facing_name, {})
+
+    assert_equal Chat::Terminal::Relay::OUTCOME_REFUSED, said.outcome
+    assert_match "Call it yourself", said.text
+    assert_match "changes who can reach something or sets a secret", said.text
+    assert_not Ability::Invocation.exists?(workspace: @workspace, action_key: @writes.action_key)
+  end
+
   test "kubectl reads a cluster through the general read, with the API's own answer" do
     kubernetes = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "kubernetes", name: "Kubernetes")
     kubernetes.integration_environments.create!(credentials: { token: "x" }.to_json)

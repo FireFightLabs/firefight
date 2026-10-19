@@ -15,6 +15,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool :billing_usage,
+                    summary: "Shows what the GitHub organization was charged and which products cost most.",
                     description: "What the GitHub organization was charged, by day or by month, with each period's total, the products " \
                                  "and SKUs that cost most, such as Actions minutes or Copilot, and the repositories behind them. Use it to " \
                                  "watch spend and find what grew. Needs Organization administration read, on the enhanced billing platform",

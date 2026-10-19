@@ -45,10 +45,11 @@ class AgentChatConfirmationSerializerTest < ActiveSupport::TestCase
     assert_equal "Faylee (Northflank), project faylee", without_words[:label]
   end
 
-  test "a change customers feel offers its undo times in order from never, labelled for what undoing it means" do
+  test "a change customers feel offers its undo times in order from never, labelled for what undoing it means and who does it" do
     call = ask!(PAUSE)
     Chat::Mitigation.create!(chat: @chat, workspace: @workspace, tool_call_id: call.tool_call_id, tool_name: @tool.model_facing_name, action_key: @tool.action_key,
-                             arguments: PAUSE.slice("method", "path"), duration_minutes: Chat::Mitigation::DEFAULT_MINUTES)
+                             arguments: PAUSE.slice("method", "path"), duration_minutes: Chat::Mitigation::DEFAULT_MINUTES,
+                             undo_steps: [ { "description" => "Resume", "action_key" => @tool.action_key, "arguments" => {}, "declared" => true } ])
 
     shown = shown(call)
 
@@ -61,6 +62,9 @@ class AgentChatConfirmationSerializerTest < ActiveSupport::TestCase
     kept = shown(call)
     assert_equal Chat::Mitigation::KEEP, kept[:chosenExpiry]
     assert_equal Chat::Tools::UNDO_AUTOMATICALLY, kept[:undoLabel]
+
+    Chat::Mitigation.find_by!(chat: @chat, tool_call_id: call.tool_call_id).update!(undo_steps: [])
+    assert_equal Chat::Tools::ASK_HALON_TO_PUT_BACK, shown(call)[:undoLabel], "with no fixed undo, the label says Halon is asked"
   end
 
   test "a change a running plan step carries out says how that step puts it back" do

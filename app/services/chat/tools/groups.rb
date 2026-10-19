@@ -138,13 +138,14 @@ module Chat::Tools::Groups
     ),
     Firefight.new(
       key: PERMISSIONS, title: "Permissions and approvals",
-      covers: "who may do what, what members can read and change in each tool, permission sets, grants, approval rules, unattended rules, pending approvals, the activity log",
+      covers: "who may do what, what members can read and change in each tool, permission sets, grants, approval rules, unattended rules, what Halon may do without asking, pending approvals, the activity log",
       tools: [
         FirefightTools::LIST_ABILITIES, FirefightTools::LIST_PRINCIPALS, FirefightTools::UPSERT_PERMISSION_SET,
         FirefightTools::DELETE_PERMISSION_SET, FirefightTools::GRANT_ABILITY, FirefightTools::REVOKE_GRANT,
         FirefightTools::LIST_MEMBER_ACCESS, FirefightTools::SET_MEMBER_ACCESS,
         FirefightTools::UPSERT_APPROVAL_RULE, FirefightTools::DELETE_APPROVAL_RULE, FirefightTools::LIST_UNATTENDED_RULES,
-        FirefightTools::UPSERT_UNATTENDED_RULE, FirefightTools::DELETE_UNATTENDED_RULE, FirefightTools::SEARCH_APPROVALS,
+        FirefightTools::UPSERT_UNATTENDED_RULE, FirefightTools::DELETE_UNATTENDED_RULE, FirefightTools::LIST_ALLOWANCES,
+        FirefightTools::UPSERT_ALLOWANCE, FirefightTools::DELETE_ALLOWANCE, FirefightTools::SEARCH_APPROVALS,
         FirefightTools::APPROVE_APPROVAL, FirefightTools::DENY_APPROVAL, FirefightTools::SEARCH_ACTIVITY
       ]
     ),

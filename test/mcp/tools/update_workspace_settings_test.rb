@@ -123,7 +123,7 @@ class Mcp::Tools::UpdateWorkspaceSettingsTest < ActiveSupport::TestCase
                    web_search_enabled: true, halon_regression_enabled: false, memory_expiry_days: nil, code_fix_agent: nil, issue_tracker: nil,
                    issue_creation: Workspace::IssueSync::ISSUE_CREATION_NEVER, issue_tracker_target: {}, issue_webhook_secret_set: false,
                    alert_investigations_enabled: false, alert_storm_ceiling_cents: 2_000, on_call_paging_enabled: false,
-                   code_fix_budget_cents: 200 }, body[:settings])
+                   code_fix_budget_cents: 200, safe_changes_without_asking: true }, body[:settings])
   end
 
   test "a secret given in a chat is ledgered as its digest, and a held call that gave one never runs from its approval" do
@@ -154,5 +154,16 @@ class Mcp::Tools::UpdateWorkspaceSettingsTest < ActiveSupport::TestCase
     assert refused.error?
     assert_match "A code fix's budget must be between $0.50 and $50.", refused.content.first[:text]
     assert_equal 1_250, @workspace.reload.code_fix_budget_cents
+  end
+
+  test "a token never sets whether Halon asks before a safe change, though Halon's chat may for the person who confirmed" do
+    refused = Mcp::ToolDispatcher.call(tool: Mcp::Tools::UpdateWorkspaceSettings, server_context: { workspace: @workspace, principal: @admin },
+                                       args: { safe_changes_without_asking: false })
+    assert refused.error?
+    assert_equal Ability::Allowance::TOKEN_CHANGE_REFUSAL, refused.content.first[:text]
+    assert @workspace.reload.safe_changes_without_asking?
+
+    Mcp::ToolDispatcher.run(tool: Mcp::Tools::UpdateWorkspaceSettings, workspace: @workspace, principal: @admin, args: { safe_changes_without_asking: false })
+    assert_not @workspace.reload.safe_changes_without_asking?
   end
 end

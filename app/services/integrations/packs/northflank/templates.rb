@@ -28,6 +28,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool TEMPLATE_RUNS,
+                    summary: "Lists a template's recent runs and how each step went.",
                     description: "A Northflank template's recent runs, newest first, each with its status, when it started and finished and how " \
                                  "long it took, and how long finished runs usually take. Templates belong to the team rather than a project. " \
                                  "Name a run to read it with each node, such as a project, a service, a build or a release, how each went, " \
@@ -45,6 +46,7 @@ module Integrations
                     read_only: true
 
           pack.tool RUN_TEMPLATE,
+                    summary: "Starts a run of a template, creating or changing what it defines.",
                     description: "Start a run of a Northflank template, which creates or changes everything it defines across the team's " \
                                  "projects. Pass the values its ${args.<name>} read as arguments. Follow the run with run_history on the template",
                     params_schema: {
@@ -58,6 +60,7 @@ module Integrations
                     read_only: false
 
           pack.tool ABORT_TEMPLATE_RUN,
+                    summary: "Aborts a running template run.",
                     description: "Abort a running Northflank template run. What its finished nodes already did stays in place",
                     params_schema: {
                       "type" => "object",

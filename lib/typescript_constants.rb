@@ -58,6 +58,7 @@ module TypescriptConstants
       }, nil),
       Export.new("WATCH_STATUSES", Chat::Watch::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
       Export.new("MITIGATION_STATUSES", Chat::Mitigation::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
+      Export.new("MITIGATION_UNDO_STATES", Chat::Mitigation::UNDO_STATES.to_h { |state| [ state.upcase, state ] }, nil),
       Export.new("OWNER_ASK_STATUSES", Chat::OwnerAsk::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
       Export.new("DATA_WRITE_KINDS", Integrations::DataWrites::Statement::KINDS.to_h { |kind| [ kind.upcase, kind ] }, nil),
       Export.new("SECRET_ENTRY_KINDS", Chat::SecretEntry::KINDS.to_h { |kind| [ kind.upcase, kind ] }, nil),

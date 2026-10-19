@@ -13,10 +13,5 @@ module ManyToolsHelper
     integration
   end
 
-  def queries_made
-    count = 0
-    counter = ->(*, payload) { count += 1 unless %w[SCHEMA TRANSACTION].include?(payload[:name]) }
-    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { yield }
-    count
-  end
+  def queries_made(&) = queries_sent(cached: true, &).size
 end

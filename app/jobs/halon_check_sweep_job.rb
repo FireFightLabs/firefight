@@ -7,8 +7,9 @@ class HalonCheckSweepJob < ApplicationJob
   def perform(now = Time.current)
     workspaces = {}
     refusals = {}
-    Investigation::Check.due(now).includes(:workspace).find_each do |check|
+    Investigation::Check.due(now).includes(:workspace, :owner).find_each do |check|
       workspace = workspaces[check.workspace_id] ||= check.workspace
+      next pause(check, now) if check.owner_gone?
       next unless check.claim_due!(now)
 
       check.workspace = workspace
@@ -16,5 +17,15 @@ class HalonCheckSweepJob < ApplicationJob
 
       InvestigationService.new(workspace).start(check, trigger_source: Investigation::TRIGGER_SCHEDULE)
     end
+    # An owner who left is caught here too when the removal did not pause their checks, whatever the schedule.
+    Investigation::Check.owned_by_gone.includes(owner: :user).find_each { |check| pause(check, now) }
+    Investigation::Check.untold_pauses.pluck(:id).each { |id| CheckOwnerGoneJob.perform_later(id) }
+  end
+
+  private
+
+  # A check runs in its owner's name, so one whose owner left waits for a new one rather than running as nobody.
+  def pause(check, now)
+    CheckOwnerGoneJob.perform_later(check.id) if check.pause_for_gone_owner!(now)
   end
 end

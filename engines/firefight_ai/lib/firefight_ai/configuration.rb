@@ -50,6 +50,13 @@ module FirefightAi
     SPECIALISTS_MODES = [ SPECIALISTS_AUTO, SPECIALISTS_ON, SPECIALISTS_OFF ].freeze
     attr_reader :specialists
 
+    # Whether Halon may hand reads to helpers (run_helpers) in a chat and a run. On unless turned off, which a bench run
+    # comparing the two ways does.
+    HELPERS_ON = :on
+    HELPERS_OFF = :off
+    HELPERS_MODES = [ HELPERS_ON, HELPERS_OFF ].freeze
+    attr_reader :helpers
+
     # The sampling temperature of Halon's own loop, in a chat and an investigation, so two runs of one question differ as
     # little as the model allows. Each provider's own unless set (none), since a bench run found 0 lost hard cases. A
     # model the registry says takes no temperature is never sent one (FirefightAi.loop_temperature).
@@ -116,6 +123,7 @@ module FirefightAi
       @trace_calls = false
       @judgments = JUDGMENT_STRUCTURED
       @specialists = SPECIALISTS_AUTO
+      @helpers = HELPERS_ON
       @loop_temperature = nil
       @finish_reads = false
       @specialist_model = SPECIALIST_QUICK
@@ -128,6 +136,16 @@ module FirefightAi
 
       @specialists = mode
     end
+
+    # Blank keeps on. Anything but on or off is refused at boot.
+    def helpers=(value)
+      mode = value.to_s.strip.downcase.presence&.to_sym || HELPERS_ON
+      raise ArgumentError, "FIREFIGHT_AI_HELPERS must be one of #{HELPERS_MODES.join(', ')}, not #{value}" unless HELPERS_MODES.include?(mode)
+
+      @helpers = mode
+    end
+
+    def helpers? = @helpers == HELPERS_ON
 
     # Blank or none leaves the provider's own, and anything but a number from 0 to 2 is refused at boot.
     def loop_temperature=(value)

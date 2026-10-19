@@ -134,7 +134,7 @@ class Conversation::RehearsalTest < ActiveSupport::TestCase
     replay = Conversation::Rehearsal.replay!(bench_case, result: @result, model: @model)
     first, opened, second = replay.transcript.calls
 
-    assert_equal [ "use_skill", "open_tools", "update_theories" ], JSON.parse(JSON.parse(first.result)["error"][/\[.*\]/])
+    assert_equal [ "use_skill", "open_tools", "run_helpers", "update_theories" ], JSON.parse(JSON.parse(first.result)["error"][/\[.*\]/])
     assert_match "read_run: Reads a run (ready to call)", opened.result
     assert_equal "Run 412 failed.", second.result
   end
@@ -285,7 +285,7 @@ class Conversation::RehearsalTest < ActiveSupport::TestCase
     plain = Conversation::Rehearsal.as_offered(build)
     connected = Conversation::Rehearsal.as_offered(release_case(decisions: []))
 
-    assert_equal %w[read_run use_skill what_changed], plain.tools.map(&:name)
+    assert_equal %w[read_run use_skill what_changed run_helpers], plain.tools.map(&:name)
     assert_includes connected.tools.map(&:name), "resource_status"
     assert_includes connected.tools.map(&:name), "run_key_query"
     assert_equal "Runbook release: tag, then run the Northflank release workflow.", Conversation::BenchCase::World.new(connected).peek("search_runbooks", {}).result

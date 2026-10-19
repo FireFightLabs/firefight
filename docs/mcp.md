@@ -107,6 +107,9 @@ The Ability Gateway is administered over MCP with the same model calls the dashb
 | `list_unattended_rules` | Every unattended rule (docs/ai.md, On call) with its sentence, why it cannot act yet and how many times Halon acted under it |
 | `upsert_unattended_rule` | Create (no id) or update (id) an unattended rule, the resource by its map id, name or provider id. Only the keys given change, so `enabled` alone turns it on or off |
 | `delete_unattended_rule` | Delete a rule by id, refused with why once Halon acted under it |
+| `list_allowances` | What Halon may do without asking in a person's chat (docs/ai.md, Asking by risk), each entry with its sentence and how many changes Halon made under it, and whether safe changes run without asking |
+| `upsert_allowance` | Add (no id) or change (id) an entry: a `capability` or an `action_key`, an `integration` slug for a capability and an `environment` by id or name. Only the keys given change, so `enabled` alone turns it on or off. Refused with why for a change to access or a secret, a general tool, a statement that writes rows and a tool on a remote server |
+| `delete_allowance` | Delete an entry by id, refused with why once Halon made a change under it |
 | `search_activity` | The invocation ledger, filtered by decision and ability key. A tool's row names the connection it ran through as a person tells it apart (`connection`, such as "Faylee (Northflank)") and its `provider`, and where the call came from as stored (`source`) and as a person reads it (`source_label`, such as "Halon chat") |
 | `search_approvals` | Approvals by status, each with its ability key and, for a tool, the connection it runs through (`connection`) and its `provider`, so a pending request says which account it would reach, and where it came from (`source`, `source_label`) |
 
@@ -266,10 +269,13 @@ approvals and permissions are exempt from approval rules
 holds the same changes the same way (docs/api.md). A request made
 with a token, or by an agent, is approved only by a person in a session of their
 own, never with a token (`Ability::Approval#approve_with_token_blocked_reason`),
-and approval rules and unattended rules are never changed with a token
+and approval rules, unattended rules, what Halon may do without asking and whether
+it asks before a safe change are never changed with a token
 (`PolicyRule.approval_change_blocked_reason`,
-`Ability::UnattendedRule.change_blocked_reason`), each refused before the call
-with its sentence (`Base.token_refusal`).
+`Ability::UnattendedRule.change_blocked_reason`, `Ability::Allowance.change_blocked_reason`),
+each refused before the call with its sentence (`Base.token_refusal`). An outside
+agent's chat with Halon over `ask_halon` asks before every change as before: safe
+changes and the list apply only in a person's own chat (docs/ai.md, Asking by risk).
 
 ## Reading the conversation
 

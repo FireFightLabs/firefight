@@ -105,14 +105,16 @@ module Integrations
       # connection reaches several (Integrations::Scopes). A pack whose tools name one another way answers them too.
       def scope_references(arguments) = [ arguments["resource"] ]
 
-      def tool(name, description:, params_schema:, read_only:)
+      # description is what the model reads. summary is the one line a person reads beside the tool, in plain words
+      # (Integrations::ToolSummaries).
+      def tool(name, description:, summary:, params_schema:, read_only:)
         name = name.to_s
         unless name.match?(/\A[a-z0-9_]+\z/)
           raise ArgumentError, "Tool name '#{name}' must be a valid method name (a-z, 0-9, _)"
         end
 
         tool_definitions << ToolDefinition.new(
-          name: name, description: description, params_schema: params_schema, read_only: read_only
+          name: name, description: description, summary: summary, params_schema: params_schema, read_only: read_only
         )
       end
     end

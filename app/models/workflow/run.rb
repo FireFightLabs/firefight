@@ -45,6 +45,12 @@ class Workflow::Run < ApplicationRecord
   # The workflow's own identity it acted as, kept as it was when the run started.
   belongs_to :agent, optional: true
   belongs_to :started_by, class_name: "WorkspaceMembership", optional: true
+  # Who is behind the run when it is not the member in started_by, such as a key or an agent over MCP, or the person
+  # behind the run that called this one. What the run starts in their name reaches no further than they could.
+  belongs_to :asked_by, polymorphic: true, optional: true
+  # The person who confirmed the run on its card in a chat with Halon. A step an approval rule holds for an approval they
+  # may give is approved by that confirmation (AbilityGateway.approved_ahead), so they are not asked a second time.
+  belongs_to :confirmed_by, class_name: "WorkspaceMembership", optional: true
   # The run this one started again from a later step, taking its results for the steps before that step.
   belongs_to :rerun_of, class_name: "Workflow::Run", optional: true
   has_many :steps, -> { order(:created_at, :iteration) }, class_name: "Workflow::Run::Step", foreign_key: :run_id, inverse_of: :run

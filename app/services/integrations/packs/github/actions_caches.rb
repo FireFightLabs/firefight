@@ -11,6 +11,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool :clear_actions_cache,
+                    summary: "Deletes a repository's GitHub Actions caches by key or by branch.",
                     description: "Delete a repository's GitHub Actions caches with a key, or every cache made on a branch or ref, such as a " \
                                  "poisoned dependency cache that keeps failing builds. The next run on that ref builds its cache again, " \
                                  "which makes it slower once",

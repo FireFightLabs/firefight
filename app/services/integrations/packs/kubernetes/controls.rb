@@ -21,25 +21,30 @@ module Integrations
           cronjob = { "type" => "string", "description" => "The cronjob, as cronjob/name or a name alone" }
           deployment = { "type" => "string", "description" => "The deployment, as deployment/name or a name alone" }
           pack.tool PAUSE,
+                    summary: "Pauses a deployment's rollout where it stands.",
                     description: "Pause a deployment's rollout where it stands, as kubectl rollout pause does. Pods already running " \
                                  "keep running, and changes to its template wait until rollout_resume. A paused deployment cannot be " \
                                  "rolled back or restarted until it is resumed",
                     params_schema: { "type" => "object", "properties" => { "namespace" => NAMESPACE, "resource" => deployment }, "required" => [ "resource" ] },
                     read_only: false
           pack.tool RESUME,
+                    summary: "Resumes a paused deployment's rollout.",
                     description: "Resume a paused deployment's rollout, as kubectl rollout resume does, so its pods roll out to its template",
                     params_schema: { "type" => "object", "properties" => { "namespace" => NAMESPACE, "resource" => deployment }, "required" => [ "resource" ] },
                     read_only: false
           pack.tool RUN_NOW,
+                    summary: "Starts a cronjob's job right away, outside its schedule.",
                     description: "Start a cronjob's job now, outside its schedule, as kubectl create job --from=cronjob does. The job is " \
                                  "the cronjob's own template, marked as started by hand, and workload_runs follows it",
                     params_schema: { "type" => "object", "properties" => { "namespace" => NAMESPACE, "resource" => cronjob }, "required" => [ "resource" ] },
                     read_only: false
           pack.tool SUSPEND,
+                    summary: "Stops a cronjob from starting new jobs.",
                     description: "Stop a cronjob from starting new jobs, by setting its suspend. Jobs already running carry on",
                     params_schema: { "type" => "object", "properties" => { "namespace" => NAMESPACE, "resource" => cronjob }, "required" => [ "resource" ] },
                     read_only: false
           pack.tool RESUME_SCHEDULE,
+                    summary: "Lets a suspended cronjob start jobs on its schedule again.",
                     description: "Let a suspended cronjob start jobs on its schedule again. Without a starting deadline, the runs it " \
                                  "missed while suspended start at once",
                     params_schema: { "type" => "object", "properties" => { "namespace" => NAMESPACE, "resource" => cronjob }, "required" => [ "resource" ] },

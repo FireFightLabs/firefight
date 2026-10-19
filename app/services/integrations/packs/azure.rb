@@ -93,6 +93,7 @@ module Integrations
       SITE = { "type" => "string", "description" => "An App Service or Function app, by name or id, as list_resources shows it" }.freeze
 
       tool :list_resources,
+           summary: "Lists the apps, Container Apps and databases in the Azure subscription.",
            description: "The App Service and Function apps, Container Apps, Azure SQL databases and PostgreSQL flexible servers in " \
                         "the Azure subscription for this environment, with their resource group, region and state. Use it first " \
                         "to find the name to pass to the other tools",
@@ -100,6 +101,7 @@ module Integrations
            read_only: true
 
       tool :search_logs,
+           summary: "Searches one Azure resource's logs in Log Analytics.",
            description: "Log lines from one resource, newest first, at most #{LOG_LIMIT}, from Log Analytics. Filter by text, a " \
                         "regular expression, or text to leave out. stream app is what it prints, requests the HTTP requests an " \
                         "App Service app served, and system a Container App's platform events, such as failed starts. Azure " \
@@ -120,6 +122,7 @@ module Integrations
            read_only: true
 
       tool :query_metrics,
+           summary: "Charts one Azure resource's metrics over time from Azure Monitor.",
            description: "Metrics of one resource over time, from Azure Monitor: requests, http_4xx, http_5xx, cpu, memory and " \
                         "network for an app, cpu_time for an App Service app, cpu, memory, disk and tcp_connections for a " \
                         "database. Returns min, average, max and latest, and the person sees each metric as a chart",
@@ -136,6 +139,7 @@ module Integrations
            read_only: true
 
       tool :list_deployments,
+           summary: "Lists recent deployments of an app with its deployment slots or revisions.",
            description: "What went out to an app, newest first. An App Service or Function app: its deployments (when, by whom, " \
                         "the message and whether it succeeded) and its deployment slots. A Container App: its revisions, with " \
                         "image, health, replicas and traffic share. Use it to see what changed before something broke, and for " \
@@ -152,6 +156,7 @@ module Integrations
            read_only: true
 
       tool :deployment_log,
+           summary: "Shows the log of one App Service or Function app deployment.",
            description: "The log of one deployment of an App Service or Function app, each line with when it was written and whether " \
                         "it was an error, where a failed deployment says why. Without a deployment, the newest one's",
            params_schema: {
@@ -165,12 +170,14 @@ module Integrations
            read_only: true
 
       tool :describe_resource,
+           summary: "Shows how one Azure app or database is set up and how it is doing now.",
            description: "How one resource is set up and how it stands now: an app's state, plan or revision mode, image, " \
                         "instances or replicas and addresses, or a database's status, size and storage",
            params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
            read_only: true
 
       tool :rollback_app,
+           summary: "Rolls an Azure app back by swapping a slot or moving traffic to a revision.",
            description: "Put an app back on what ran before. An App Service or Function app swaps the named deployment slot with " \
                         "production, so what the slot runs goes live and production moves into the slot. Undo by swapping " \
                         "again. A Container App sends all its traffic to the named revision, which needs multiple revision " \
@@ -186,12 +193,14 @@ module Integrations
            read_only: false
 
       tool :restart_resource,
+           summary: "Restarts an Azure app or a PostgreSQL server.",
            description: "Restart an App Service or Function app, every active revision of a Container App, or a PostgreSQL " \
                         "flexible server, which drops its connections for a short while. Azure SQL databases have no restart",
            params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
            read_only: false
 
       tool :scale_app,
+           summary: "Scales an App Service plan, which all its apps share, or a Container App's replicas.",
            description: "Set how many instances an app runs. An App Service app sets the instance count of its App Service plan, " \
                         "which every app on that plan shares. A Container App sets its fewest and most replicas. Undo by " \
                         "setting the values describe_resource showed before",
@@ -208,6 +217,7 @@ module Integrations
            read_only: false
 
       tool :api_read,
+           summary: "Reads any other Azure resource, such as plans, clusters or load balancers.",
            description: "Anything else Azure Resource Manager reads that the other tools do not cover, such as a Web App's " \
                         "deployment slots and deployments, a Container App's revisions and replicas, App Service plans, an AKS " \
                         "cluster's node pools, load balancers, Front Door and Application Gateway, Key Vault's settings, activity " \
@@ -220,6 +230,7 @@ module Integrations
            read_only: true
 
       tool :cost_query,
+           summary: "Shows what the Azure subscription spent by day or month and what cost most.",
            description: "What the Azure subscription spent, from Cost Management, by day or by month, with each period's total and the " \
                         "services that cost most. Use it to watch spend and find what grew and since when. Needs the Cost Management Reader role",
            params_schema: {

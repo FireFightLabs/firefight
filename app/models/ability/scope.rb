@@ -19,6 +19,14 @@ module Ability
 
     def self.no_access?(scope) = scope.is_a?(Hash) && (scope[NO_ACCESS_KEY] || scope[NO_ACCESS_KEY.to_sym]) == true
 
+    # Where two reaches overlap, each as AbilityGateway.reach answers it: nil when either reaches nowhere, and a dimension
+    # one leaves open taken from the other.
+    def self.within(one, other)
+      return nil if one.nil? || other.nil?
+
+      one.merge(other) { |_dimension, mine, theirs| mine & theirs }
+    end
+
     def self.covers?(grant_scope, requested)
       grant_scope.all? do |dimension, allowed|
         value = requested[dimension] || requested[dimension.to_sym]

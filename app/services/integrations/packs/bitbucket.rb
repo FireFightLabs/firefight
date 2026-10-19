@@ -55,21 +55,25 @@ module Integrations
       BLAME_HEADER = /\A(\h{40}) \d+ (\d+)/
 
       tool :list_repositories,
+           summary: "Lists the workspace's repositories with each main branch and last update.",
            description: "List the repositories in this Bitbucket workspace, with each one's main branch and last update",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :pr_lookup,
+           summary: "Shows a pull request with its author, approvers, branches and changed files.",
            description: "Fetch a pull request: title, state, author, who closed it, its branches and merge commit, who approved it, and the changed files",
            params_schema: Code.object_schema({ "repo" => REPO_PARAM, "id" => { "type" => "integer", "description" => "The pull request's number, as in #42" } }, %w[repo id]),
            read_only: true
 
       tool :commit_lookup,
+           summary: "Shows a commit's message, author and changed files.",
            description: "Fetch a commit: message, author, stats, and changed files",
            params_schema: Code.object_schema({ "repo" => REPO_PARAM, "sha" => { "type" => "string", "description" => COMMIT_REFERENCE } }, %w[repo sha]),
            read_only: true
 
       tool :recent_deployments,
+           summary: "Lists a repository's recent deployments and how each one went.",
            description: "List a repository's deployments, newest first, each with the environment, the release and commit deployed, " \
                         "the outcome, who ran it and the pipeline that made it",
            params_schema: Code.object_schema({
@@ -80,6 +84,7 @@ module Integrations
            read_only: true
 
       tool :merged_pull_requests,
+           summary: "Lists pull requests recently merged into a repository.",
            description: "List pull requests merged into a repository, most recently updated first, optionally only those updated since a " \
                         "given time. Bitbucket keeps no merge time, so a pull request's last update stands for it",
            params_schema: Code.object_schema({
@@ -89,6 +94,7 @@ module Integrations
            read_only: true
 
       tool :running_commit,
+           summary: "Finds which commit was running in production at a given time.",
            description: "Which commit was running at a given time: the last deployment that succeeded before it, and the one before " \
                         "that to compare against. Without a deployment it falls back to the main branch at that time and says " \
                         "so, since a merge is not proof of a deploy",
@@ -100,6 +106,7 @@ module Integrations
            read_only: true
 
       tool :compare_commits,
+           summary: "Compares two commits with their pull requests, changed files and diffs.",
            description: "What changed between two commits: the commits and pull requests with their authors and approvers, " \
                         "the changed files grouped by kind with migrations, config and dependencies first, dependency bumps " \
                         "in plain words, who owns the changed files, and every diff",
@@ -111,6 +118,7 @@ module Integrations
            read_only: true
 
       tool :fetch_file,
+           summary: "Reads a file from a repository at a given commit.",
            description: "Read a file from the repository at a given commit, optionally sliced to a line range with surrounding context",
            params_schema: Code.object_schema({
              "repo" => REPO_PARAM,
@@ -122,6 +130,7 @@ module Integrations
            read_only: true
 
       tool :blame,
+           summary: "Shows which commits and pull requests last changed some lines of a file.",
            description: "Attribute a line range, as it stood at a given commit, to the commits and pull requests that last touched it. " \
                         "Read with git in the code sandbox, since Bitbucket's API has no blame",
            params_schema: Code.object_schema({
@@ -134,6 +143,7 @@ module Integrations
            read_only: true
 
       tool :api_read,
+           summary: "Reads any other Bitbucket data, such as environments, branch rules or members.",
            description: "Anything else Bitbucket's REST API reads that the other Bitbucket tools do not cover, such as a repository's " \
                         "deployment environments, branch restrictions, branching model, members and permissions, or a workspace's " \
                         "projects. A GET to a path of Bitbucket Cloud's REST API (#{BitbucketApi::API_ROOT}), written after /2.0, " \
@@ -470,6 +480,40 @@ module Integrations
 
       def check_health!(environment_row)
         ConnectionSettings.of(environment_row).scopes.each { |workspace| api(environment_row).get("/repositories/#{Http.segment(workspace)}", "pagelen" => 1) }
+      rescue BitbucketApi::Error => error
+        fail! error.message
+      end
+
+      # Bitbucket lists a pull request's diffstat 100 to a page, and this many pages is every file a change could need.
+      FLAG_FILE_PAGES = 30
+      PULL_REQUEST_ADDRESS = %r{\Ahttps://bitbucket\.org/([\w.\-]+/[\w.\-]+)/pull-requests/(\d+)(?:[/?#]|\z)}
+
+      # A pull request's repository and number, read from its address on Bitbucket Cloud, or nil for any other address
+      # and for one outside the workspaces this connection reads (Integrations::PullRequests.addressed).
+      def pull_request_at(environment_row, url)
+        found = url.to_s.strip.match(PULL_REQUEST_ADDRESS)
+        return unless found
+
+        workspace = found[1].split("/", 2).first
+        [ found[1], found[2].to_i ] if ConnectionSettings.of(environment_row).scopes.any? { |each| each.to_s.casecmp?(workspace) }
+      end
+
+      # Every path a pull request changes, a moved file under both names (Integrations::PullRequests.paths). A list
+      # Bitbucket cuts short is refused rather than taken for the whole.
+      def pull_request_paths(environment_row, repository:, number:)
+        stats, more = api(environment_row).list("#{BitbucketApi.repository(repository)}/pullrequests/#{number}/diffstat", {}, pages: FLAG_FILE_PAGES)
+        fail! "PR ##{number} in #{repository} changes more files than Bitbucket lists." if more
+
+        stats.flat_map { |stat| [ stat.dig("new", "path"), stat.dig("old", "path") ] }.compact.uniq
+      rescue BitbucketApi::Error => error
+        fail! error.message
+      end
+
+      # A comment on the pull request, written with the connection's token, which needs write:pullrequest:bitbucket
+      # (Integrations::PullRequests.flag!).
+      def flag_pull_request(environment_row, repository:, number:, body:)
+        api(environment_row).post("#{BitbucketApi.repository(repository)}/pullrequests/#{number}/comments", { "content" => { "raw" => body } })
+        nil
       rescue BitbucketApi::Error => error
         fail! error.message
       end

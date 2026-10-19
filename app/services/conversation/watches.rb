@@ -1262,7 +1262,7 @@ module Conversation::Watches
     blocked = watch.stop_blocked_reason(by)
     return blocked if blocked
 
-    who = by.try(:display_name) || "Someone"
+    who = by.try(:actor_display_name) || "Someone"
     member = by if by.is_a?(WorkspaceMembership)
     stopped = finish!(watch, Chat::Watch::STATUS_STOPPED, "#{who} stopped #{Chat::Watch::Shown.named(watch)}.", end_reason: "Stopped by #{who}.", stopped_by: member)
     return Chat::Watch::NOTHING_TO_STOP unless stopped

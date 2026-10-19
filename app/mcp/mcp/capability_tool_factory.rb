@@ -231,7 +231,7 @@ module Mcp
       started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       result = AbilityGateway.authorize!(
         principal: server_context[:principal], action_key: tool.action_key, workspace: workspace, scope: call.scope,
-        params: call.arguments, context: { source: AbilityGateway::SOURCE_MCP, approval_id: approval_id }
+        params: call.arguments, context: { source: AbilityGateway::SOURCE_MCP, approval_id: approval_id, capability: call.spec.key }
       ) do |authorization|
         answer = tool.integration.executor.call(
           tool: tool, environment_row: call.environment_row, arguments: call.arguments, box_key: server_context[:principal].code_box_key

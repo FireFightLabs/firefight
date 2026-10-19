@@ -54,6 +54,7 @@ module Integrations
       DEPLOYMENT_ENDED = %w[success failure error].freeze
 
       tool :commit_lookup,
+           summary: "Shows a commit's message, author and changed files.",
            description: "Fetch a commit: message, author, stats, and changed files",
            params_schema: {
              "type" => "object",
@@ -66,6 +67,7 @@ module Integrations
            read_only: true
 
       tool :recent_deployments,
+           summary: "Lists a repository's recent deployments and how each one went.",
            description: "List recent deployments for a repository, newest first, each with the ref deployed, the environment and the outcome",
            params_schema: {
              "type" => "object",
@@ -85,6 +87,7 @@ module Integrations
       MAX_WINDOW_HOURS = 24 * 14
 
       tool CHANGES_BEFORE,
+           summary: "Ranks recent changes across repositories by how likely each caused a failure.",
            description: "What changed before a time, across every repository this connection can see, ranked by how likely " \
                         "each change is to have caused a failure that started then, with the reasons shown. Give whatever " \
                         "clues you have: repository or service names, stack trace frames as path:line, error text, a commit. " \
@@ -109,11 +112,13 @@ module Integrations
            read_only: true
 
       tool LIST_REPOSITORIES,
+           summary: "Lists the connected repositories with each default branch and last push.",
            description: "List the repositories this GitHub connection can see, with each one's default branch and last push",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool RUNNING_COMMIT,
+           summary: "Finds which commit was running in production at a given time.",
            description: "Which commit was running at a given time: the last deploy that succeeded before it, and the one before " \
                         "that to compare against. Without a deploy record it falls back to the default branch at that time and " \
                         "says so, since a merge is not proof of a deploy",
@@ -129,6 +134,7 @@ module Integrations
            read_only: true
 
       tool :compare_commits,
+           summary: "Compares two commits with their pull requests, changed files and diffs.",
            description: "What changed between two commits: the commits and pull requests with their authors and reviewers, " \
                         "the changed files grouped by kind with migrations, config and dependencies first, dependency bumps " \
                         "in plain words, who owns the changed files, and every diff",
@@ -144,6 +150,7 @@ module Integrations
            read_only: true
 
       tool :merged_pull_requests,
+           summary: "Lists pull requests recently merged into a repository.",
            description: "List pull requests merged into a repository, newest first, optionally only those merged since a given time",
            params_schema: {
              "type" => "object",
@@ -156,6 +163,7 @@ module Integrations
            read_only: true
 
       tool :fetch_file,
+           summary: "Reads a file from a repository at a given commit.",
            description: "Read a file from the repository at a given commit, optionally sliced to a line range with surrounding context",
            params_schema: {
              "type" => "object",
@@ -171,6 +179,7 @@ module Integrations
            read_only: true
 
       tool :blame,
+           summary: "Shows which commits and pull requests last changed some lines of a file.",
            description: "Attribute a line range, as it stood at a given commit, to the commits and pull requests that last touched it",
            params_schema: {
              "type" => "object",
@@ -273,6 +282,8 @@ module Integrations
         "issue_lookup" => { "issues" => READ },
         "create_issue" => { "issues" => WRITE },
         "comment_on_issue" => { "issues" => WRITE },
+        "delete_issue_comment" => { "issues" => WRITE },
+        "delete_pull_request_comment" => { "pull_requests" => WRITE },
         "update_issue" => { "issues" => WRITE },
         "label_issue" => { "issues" => WRITE },
         "assign_issue" => { "issues" => WRITE },

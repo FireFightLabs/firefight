@@ -46,18 +46,21 @@ module Integrations
       APP = { "type" => "string", "description" => "An app, by its name or its id (ap-...), as list_apps shows it" }.freeze
 
       tool :list_apps,
+           summary: "Lists the apps in the Modal environment with their state and containers.",
            description: "The apps in the Modal environment for this connection that run, are deployed or stopped recently, with " \
                         "each one's state and how many containers it runs now. Use it first to find the name to pass to the other tools",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :describe_app,
+           summary: "Shows how one Modal app stands now, with its version and functions.",
            description: "How one Modal app stands now: its state, the version deployed, when and by whom, how many containers run, " \
                         "and its functions and servers with each one's GPU, schedule and whether it serves the web",
            params_schema: { "type" => "object", "properties" => { "app" => APP }, "required" => [ "app" ] },
            read_only: true
 
       tool :app_logs,
+           summary: "Shows log lines from one Modal app, including crashes and timeouts.",
            description: "Log lines of one Modal app, newest first, at most #{MAX_LOG_LIMIT}. Filter by text, by function, or by " \
                         "source. stdout and stderr are what the code prints, and system is what Modal says about its containers, such as " \
                         "a crash, an out of memory kill or a timeout. Without a source every one is read",
@@ -77,6 +80,7 @@ module Integrations
            read_only: true
 
       tool :deployment_history,
+           summary: "Lists an app's deployed versions with who deployed each and when.",
            description: "The versions of one Modal app, newest first: when each was deployed and by whom, the commit it came from, " \
                         "and whether it was a rollback or a rollover. rollback_app takes the version. Use it to see what changed before something broke",
            params_schema: {
@@ -87,6 +91,7 @@ module Integrations
            read_only: true
 
       tool :rollback_app,
+           summary: "Rolls a Modal app back to an earlier version.",
            description: "Put a deployed Modal app back on an earlier version. Modal deploys it again as a new version with the " \
                         "functions and settings of the one asked for. Modal offers rollbacks on its Team and Enterprise plans",
            params_schema: {
@@ -100,12 +105,14 @@ module Integrations
            read_only: false
 
       tool :rollover_app,
+           summary: "Replaces every container of a Modal app with fresh ones on the same version.",
            description: "Replace every container of a deployed Modal app with fresh ones on the same version, for containers stuck " \
                         "in a bad state or holding a secret or connection that went stale. Old containers finish what they hold first",
            params_schema: { "type" => "object", "properties" => { "app" => APP }, "required" => [ "app" ] },
            read_only: false
 
       tool :update_autoscaler,
+           summary: "Changes how one function of a Modal app scales its containers.",
            description: "Change how one function of a Modal app scales: the containers it keeps running, the most it may run, the " \
                         "spare ones it keeps while busy, and how long an idle one waits before it stops. What is left out keeps its " \
                         "value. The next deployment of the app puts back what its code says",

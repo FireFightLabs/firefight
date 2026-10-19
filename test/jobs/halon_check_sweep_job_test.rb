@@ -6,8 +6,93 @@ class HalonCheckSweepJobTest < ActiveJob::TestCase
     FirefightAi.stubs(:context_window).returns(200_000)
     @check = travel_to(Time.utc(2026, 10, 10, 6, 0)) do
       @workspace.investigation_checks.create!(name: "Disks", kind: Investigation::Check::KIND_DISK, cadence: Investigation::Check::CADENCE_DAILY,
-                                              hour: 9, time_zone: "UTC")
+                                              hour: 9, time_zone: "UTC", created_by: workspace_memberships(:alice_workspace_one))
     end
+  end
+
+  test "a due check whose owner left is paused instead of run, and admins are told once by direct message" do
+    bob = workspace_memberships(:bob_workspace_one)
+    @check.update_columns(owner_id: bob.id)
+    bob.update_column(:removed_at, Time.current)
+    told = []
+    adapter = mock("adapter")
+    adapter.stubs(:post_notice).with { |user_id:, notice:| told << [ user_id, notice ] }.returns(success: true)
+    WorkspaceAdapter.stubs(:for).returns(adapter)
+
+    travel_to Time.utc(2026, 10, 10, 9, 2) do
+      perform_enqueued_jobs(only: CheckOwnerGoneJob) do
+        HalonCheckSweepJob.perform_now
+        HalonCheckSweepJob.perform_now
+      end
+    end
+
+    assert_empty @check.investigations
+    assert @check.reload.paused?
+    assert_equal [ workspace_memberships(:alice_workspace_one).platform_user_id ], told.map(&:first)
+    assert_equal "Disks (owned by #{bob.display_name}, who left) is paused. Give it a new owner to resume.", told.sole.last.title
+    assert_equal "Open Monitoring", told.sole.last.link_label
+  end
+
+  test "admins nobody could be told about a paused check are tried again on the next sweep" do
+    @check.update_columns(owner_id: nil, paused_at: Time.current)
+    adapter = mock("adapter")
+    adapter.stubs(:post_notice).raises(AdapterError, "Slack is down")
+    WorkspaceAdapter.stubs(:for).returns(adapter)
+
+    CheckOwnerGoneJob.perform_now(@check.id)
+
+    assert_nil @check.reload.owner_gone_told_at
+    assert_enqueued_with(job: CheckOwnerGoneJob, args: [ @check.id ]) { HalonCheckSweepJob.perform_now }
+  end
+
+  test "a telling that breaks before reaching anyone gives its claim back, so a retry or the next sweep tells them" do
+    @check.update_columns(owner_id: nil, paused_at: Time.current)
+    WorkspaceAdapter.stubs(:for).raises(RuntimeError, "no platform")
+
+    assert_raises(RuntimeError) { CheckOwnerGoneJob.new.perform(@check.id) }
+
+    assert_nil @check.reload.owner_gone_told_at
+  end
+
+  test "a check whose owner left is paused by the sweep even when it is not due" do
+    bob = workspace_memberships(:bob_workspace_one)
+    @check.update_columns(owner_id: bob.id)
+    bob.update_column(:removed_at, Time.current)
+
+    travel_to(Time.utc(2026, 10, 10, 7, 0)) do
+      assert_enqueued_with(job: CheckOwnerGoneJob, args: [ @check.id ]) { HalonCheckSweepJob.perform_now }
+    end
+
+    assert @check.reload.paused?
+  end
+
+  test "a direct message that can never land keeps its claim, so nobody is told again and again" do
+    @check.update_columns(owner_id: nil, paused_at: Time.current)
+    adapter = mock("adapter")
+    adapter.stubs(:post_notice).raises(AdapterError::NotFound, "channel_not_found")
+    WorkspaceAdapter.stubs(:for).returns(adapter)
+
+    CheckOwnerGoneJob.perform_now(@check.id)
+
+    assert @check.reload.owner_gone_told_at
+  end
+
+  test "a telling that keeps failing is tried a few times and then left" do
+    @check.update_columns(owner_id: nil, paused_at: Time.current)
+    adapter = mock("adapter")
+    adapter.stubs(:post_notice).raises(AdapterError::ServerError, "Slack is down")
+    WorkspaceAdapter.stubs(:for).returns(adapter)
+
+    Investigation::Check::Ownership::NOTICE_ATTEMPTS.times { CheckOwnerGoneJob.perform_now(@check.id) }
+
+    assert @check.reload.owner_gone_told_at
+    assert_equal Investigation::Check::Ownership::NOTICE_ATTEMPTS, @check.owner_gone_notice_attempts
+  end
+
+  test "a check paused before the sweep, such as by the move to owners, has its admins told on the next sweep" do
+    @check.update_columns(owner_id: nil, paused_at: Time.current)
+
+    assert_enqueued_with(job: CheckOwnerGoneJob, args: [ @check.id ]) { HalonCheckSweepJob.perform_now }
   end
 
   test "a due check starts one scheduled run with the check as its subject, and its schedule moves on" do
@@ -58,6 +143,7 @@ class HalonCheckSweepJobTest < ActiveJob::TestCase
   private
 
   def due_check(name)
-    @workspace.investigation_checks.create!(name: name, kind: Investigation::Check::KIND_DISK, cadence: Investigation::Check::CADENCE_DAILY, hour: 9, time_zone: "UTC")
+    @workspace.investigation_checks.create!(name: name, kind: Investigation::Check::KIND_DISK, cadence: Investigation::Check::CADENCE_DAILY, hour: 9, time_zone: "UTC",
+                                            created_by: workspace_memberships(:alice_workspace_one))
   end
 end

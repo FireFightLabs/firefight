@@ -147,8 +147,6 @@ class Operator::ProcessesTest < ActionDispatch::IntegrationTest
   end
 
   def workspace_lookups(&)
-    seen = []
-    ActiveSupport::Notifications.subscribed(->(*, payload) { seen << payload[:sql] }, "sql.active_record", &)
-    seen.grep(/FROM "workspaces" WHERE "workspaces"."id" = \$1/).size
+    queries_sent(cached: true, transactions: true, &).grep(/FROM "workspaces" WHERE "workspaces"."id" = \$1/).size
   end
 end

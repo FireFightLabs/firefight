@@ -101,6 +101,7 @@ module Integrations
       }.freeze
 
       tool :list_resources,
+           summary: "Lists the services and databases in the Northflank project and their state.",
            description: "The services and databases (addons) in the Northflank project for this environment, with their type and " \
                         "whether each is running, deploying or failed, every project's when the connection reaches several and " \
                         "none is named. Use it first to find the name to pass to the other tools",
@@ -108,6 +109,7 @@ module Integrations
            read_only: true
 
       tool :api_request,
+           summary: "Reads or changes anything in a Northflank project, such as services or jobs.",
            description: "Any call to Northflank's API inside the project: read or change services, databases, jobs, builds, " \
                         "deployments, volumes, secrets, release flows and the rest. The path is relative to the project, such as " \
                         "services/web/restart, and query options go in query, never in the path. A list answers one page. " \
@@ -131,6 +133,7 @@ module Integrations
            read_only: false
 
       tool :search_logs,
+           summary: "Searches log lines from one service, database or job.",
            description: "Log lines from one service, database or job, newest first, at most #{LOG_LIMIT}, one run of a job when it is named. Filter by text or a regular " \
                         "expression, and by log type: runtime for what the app prints, build, ingress for HTTP requests reaching it " \
                         "where Northflank has ingress logs switched on for the account. The app's runtime logs usually carry each " \
@@ -152,6 +155,7 @@ module Integrations
            read_only: true
 
       tool :query_metrics,
+           summary: "Shows CPU, memory, request and error metrics of a service, database or job.",
            description: "Metrics of one service, database or job over time: CPU, memory, requests, 4xx and 5xx responses, network, " \
                         "open TCP connections and disk. Returns min, average, max and latest per container, and the person " \
                         "sees each metric as a chart",
@@ -169,6 +173,7 @@ module Integrations
            read_only: true
 
       tool :recent_builds,
+           summary: "Lists the latest builds of a service or job with commit and outcome.",
            description: "The latest builds of one service or job, newest first, with commit, branch, when it ran and whether it succeeded. " \
                         "Use it to see what changed before something broke",
            params_schema: {
@@ -182,6 +187,7 @@ module Integrations
            read_only: true
 
       tool :build_history,
+           summary: "Shows a service's or job's recent builds with how long each took.",
            description: "A service's or job's recent builds, with each one's status, when it started and finished and how long it took, " \
                         "and how long finished ones usually take. Northflank keeps no end time for a deployment, so this reads builds",
            params_schema: {
@@ -197,6 +203,7 @@ module Integrations
            read_only: true
 
       tool :describe_resource,
+           summary: "Shows how one service, database or job is set up and how it stands now.",
            description: "How one service, database or job is set up and how it stands now. A service: its rollout status, " \
                         "instances, plan, the repository, branch and commit it runs or the image, ephemeral storage, health " \
                         "checks and ports. A database: its type and version, status, replicas, storage, plan, network access, " \
@@ -206,6 +213,7 @@ module Integrations
            read_only: true
 
       tool :list_deployments,
+           summary: "Lists a service's deployments with the commit, instances and who started each.",
            description: "A service's deployments, newest first: each one's id, when it went out, the commit or image, how many instances, " \
                         "whether it is the stable or canary side of a rollout, and why (such as a build, a template or release run, or a " \
                         "change to its settings) and by whom. Use it to see what changed before something broke",
@@ -220,6 +228,7 @@ module Integrations
            read_only: true
 
       tool :list_containers,
+           summary: "Lists the containers of a service, database or job and their state.",
            description: "The containers of a service, database or job, newest first, running and past, with each one's state " \
                         "(running, starting, stopped, failed, finished) and when it started and last changed. Many short lived " \
                         "containers mean restarts",
@@ -234,12 +243,14 @@ module Integrations
            read_only: true
 
       tool :list_jobs,
+           summary: "Lists the project's cron and manual jobs and whether each is suspended.",
            description: "The jobs in the project, cron and manual, with whether each is suspended, every project's when the " \
                         "connection reaches several and none is named. Use job_runs for how a job's runs went",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :job_runs,
+           summary: "Lists a job's runs with each one's outcome and timing.",
            description: "A job's runs, newest first, with each one's id, outcome (succeeded, running, failed), when it started and " \
                         "finished, and how many attempts failed. Name a run for that run alone, however old",
            params_schema: {
@@ -254,6 +265,7 @@ module Integrations
            read_only: true
 
       tool :build_logs,
+           summary: "Shows log lines from a service's or job's builds.",
            description: "Log lines from a service's or job's builds, newest first, at most #{LOG_LIMIT}. Name a build from recent_builds " \
                         "to read one build, such as the one that failed",
            params_schema: {
@@ -271,6 +283,7 @@ module Integrations
            read_only: true
 
       tool :billing_usage,
+           summary: "Shows what the Northflank account was charged and what cost the most.",
            description: "What the Northflank account or team was charged, by day or by month, with each period's total and what cost " \
                         "most: CPU, memory, storage and GPU, bring your own cloud, egress IPs and load balancers. Use it to watch spend " \
                         "and find what grew and since when. The token's role needs Billing read",

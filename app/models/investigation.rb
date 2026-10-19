@@ -32,8 +32,9 @@ class Investigation < ApplicationRecord
   REPEATED_CALL = "Repeated the same tool call".freeze
   ENDED_WITHOUT_AN_ANSWER = "Ended without an answer".freeze
   GAVE_UP = "Something went wrong on my side".freeze
+  OUT_OF_TIME = "Stopped at its time limit before it could answer".freeze
   PLAIN_STOP_REASONS = [
-    STOPPED_BY_A_RESPONDER, BUDGET_SPENT, TOO_MANY_TURNS, STALLED, REPEATED_CALL, ENDED_WITHOUT_AN_ANSWER, GAVE_UP
+    STOPPED_BY_A_RESPONDER, BUDGET_SPENT, TOO_MANY_TURNS, STALLED, REPEATED_CALL, ENDED_WITHOUT_AN_ANSWER, GAVE_UP, OUT_OF_TIME
   ].freeze
 
   # A worker renews this every turn, so a dead one holds the run for at most this long.
@@ -88,6 +89,7 @@ class Investigation < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
   validates :trigger_source, inclusion: { in: TRIGGER_SOURCES }
   validates :max_turns, :max_spend_cents, numericality: { only_integer: true, greater_than: 0 }
+  validates :max_duration_seconds, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validate :asks_something
 
   scope :live, -> { where(status: LIVE_STATUSES) }
@@ -228,10 +230,24 @@ class Investigation < ApplicationRecord
     false
   end
 
-  # Runs as the agent, not the person, so a finding does not depend on who asked.
+  # Runs as the agent, not the person, so a finding does not depend on who asked. A run with a person, an agent or a key
+  # behind it, whatever started it, reaches no further than they could themselves, by their own grants and their map
+  # reach. Only a run nobody is behind, such as one an alert or a schedule started, or a workflow's own identity on a run
+  # its trigger started, keeps the investigator's own reach. A starter whose row is gone is still someone, who reaches
+  # nothing (Ability::GoneStarter), never the investigator's whole reach.
   def acting_principal
-    SystemAgent.investigator
+    agent = SystemAgent.investigator
+    return agent.within_reach_of(check_owner) if scheduled? && triggered_by_type.blank?
+    return agent if triggered_by_type.blank? || triggered_by_id.blank?
+
+    starter = triggered_by || Ability::GoneStarter.new(type: triggered_by_type, id: triggered_by_id)
+    workflows_own?(starter) ? agent : agent.within_reach_of(starter)
   end
+
+  # A scheduled check's own runs are in its owner's name, someone who reaches nothing once they are gone.
+  def check_owner = check.owner || Ability::GoneStarter.new(type: WorkspaceMembership.name, id: check.owner_id)
+
+  def workflows_own?(starter) = starter.is_a?(Agent) && starter.workflow.present?
 
   def refusal(action_key)
     "Not allowed: this agent has no grant for #{action_key} in this workspace."
@@ -319,6 +335,10 @@ class Investigation < ApplicationRecord
 
   def spent_cents = (spent_micros / 10_000.0).round(2)
 
+  # When the run has to conclude by, counted from its first turn so a run taken up again keeps its time. Nil for a run
+  # from before time limits, or one not started.
+  def deadline = (started_at + max_duration_seconds if started_at && max_duration_seconds)
+
   # Why a failed run stopped, in the words the thread was told. A technical cause is never shown to people, except that
   # the AI account ran out of credit, which is said without naming whose.
   def stopped_because
@@ -372,7 +392,7 @@ class Investigation < ApplicationRecord
     {
       source: AbilityGateway::SOURCE_INVESTIGATION,
       incident_id: incident_id,
-      triggered_by_label: triggered_by.try(:principal_label)
+      triggered_by_label: triggered_by.try(:actor_display_name)
     }
   end
 

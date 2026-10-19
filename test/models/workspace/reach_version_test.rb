@@ -48,9 +48,7 @@ class Workspace::ReachVersionTest < ActiveSupport::TestCase
   end
 
   test "is read in one query" do
-    sent = []
-    collect = ->(_name, _started, _finished, _id, payload) { sent << payload[:sql] unless payload[:name] == "SCHEMA" }
-    ActiveSupport::Notifications.subscribed(collect, "sql.active_record") { @workspace.reach_version(@member) }
+    sent = queries_sent(cached: true, transactions: true) { @workspace.reach_version(@member) }
 
     assert_equal 1, sent.size
   end

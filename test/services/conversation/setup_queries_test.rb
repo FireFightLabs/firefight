@@ -311,18 +311,9 @@ class Conversation::SetupQueriesTest < ActiveSupport::TestCase
       !FirefightAi.chars_fit_up_front?(tail.sum(&:definition_chars))
   end
 
-  def sql_of(&)
-    sent = []
-    collect = ->(_name, _started, _finished, _id, payload) { sent << payload[:sql] unless payload[:name] == "SCHEMA" || payload[:cached] }
-    ActiveSupport::Notifications.subscribed(collect, "sql.active_record", &)
-    sent
-  end
+  def sql_of(&) = queries_sent(transactions: true, &)
 
-  def queries_of(&)
-    counted = Conversation::Runner::QueryCount.new
-    counted.count(&)
-    counted.total
-  end
+  def queries_of(&) = queries_sent(transactions: true, &).size
 
   def answer_with_fake(conversation)
     responder = Object.new

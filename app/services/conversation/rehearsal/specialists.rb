@@ -7,11 +7,11 @@ class Conversation::Rehearsal::Specialists
   # Said to a specialist that calls a general tool in a way that would change something.
   ONLY_READS = "Not run. A specialist only reads, so put this change in proposed_changes for Halon to decide on.".freeze
 
-  # recorded builds a scenario tool for a chat (Conversation::Rehearsal#recorded).
-  def initialize(bench_case, recorded:)
+  # recorded builds a scenario tool for a chat (Conversation::Rehearsal#recorded). lock is shared with the replay's helpers.
+  def initialize(bench_case, recorded:, lock: Mutex.new)
     @case = bench_case
     @recorded = recorded
-    @lock = Mutex.new
+    @lock = lock
   end
 
   # The kind of system a connected tool belongs to by its provider, or nil for a capability, Firefight's own or one no
@@ -65,11 +65,13 @@ class Conversation::Rehearsal::Specialists
   # A scenario tool as a specialist holds it: answered from the world, one call at a time across the specialists, and
   # never a change. It never asks the person, since a specialist has nobody to ask.
   class Reading < RubyLLM::Tool
-    def initialize(tool, definition, lock)
+    # refused is what a call that would change something is answered with.
+    def initialize(tool, definition, lock, refused: ONLY_READS)
       super()
       @tool = tool
       @definition = definition
       @lock = lock
+      @refused = refused
     end
 
     def name = @definition.name
@@ -79,7 +81,7 @@ class Conversation::Rehearsal::Specialists
     def parameters_schema = @definition.parameters.deep_stringify_keys
 
     def call(tool_call: nil, **arguments)
-      return ONLY_READS unless @definition.reads?(Conversation::Rehearsal.asked(arguments))
+      return @refused unless @definition.reads?(Conversation::Rehearsal.asked(arguments))
 
       @lock.synchronize { @tool.call(tool_call: tool_call, **arguments) }
     end
@@ -89,12 +91,13 @@ class Conversation::Rehearsal::Specialists
   # reading shape, which Firefight turns into the tool's own call as live (Integrations::ReadGuards), so a specialist
   # reads through it and never changes anything.
   class Guarded < RubyLLM::Tool
-    def initialize(tool, definition, guard, lock)
+    def initialize(tool, definition, guard, lock, refused: ONLY_READS)
       super()
       @tool = tool
       @definition = definition
       @guard = guard
       @lock = lock
+      @refused = refused
     end
 
     def name = @definition.name
@@ -106,7 +109,7 @@ class Conversation::Rehearsal::Specialists
     def call(tool_call: nil, **arguments)
       handle = Conversation::Rehearsal::Specialists.handle_of(@definition)
       given = @guard.reading(handle, arguments.stringify_keys)
-      return ONLY_READS unless @guard.reads?(handle, given)
+      return @refused unless @guard.reads?(handle, given)
 
       @lock.synchronize { @tool.call(tool_call: tool_call, **given) }
     rescue Integrations::ReadGuards::Refused, Integrations::PolicyRefusal => refused
@@ -124,5 +127,7 @@ class Conversation::Rehearsal::Specialists
     end
   end
 
-  def reads?(definition) = definition.reads || definition.reads_when.present? || self.class.guard_of(definition).present?
+  def reads?(definition) = self.class.reads?(definition)
+
+  def self.reads?(definition) = definition.reads || definition.reads_when.present? || guard_of(definition).present?
 end

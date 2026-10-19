@@ -1,8 +1,11 @@
 # A change Halon made in a chat that customers feel for a while, such as a feature flag turned off or a service scaled
-# down (Ability::Action::EFFECT_MITIGATION). It is undone after the time the person chose when they confirmed it,
-# DEFAULT_MINUTES unless they changed it, with a reminder REMIND_BEFORE that, unless someone keeps it. Its undo is
-# written once it ran, from what the call returned (Conversation::Mitigations). Every move is one guarded update, so
-# two workers never remind or undo twice.
+# down (Ability::Action::EFFECT_MITIGATION). It is put back after the time the person chose when they confirmed it,
+# DEFAULT_MINUTES unless they changed it, with a reminder REMIND_BEFORE that, unless someone keeps it. Firefight puts it
+# back itself only with the one fixed call the registry declares, or a scale back to the count it had. With none, Halon
+# is asked in the chat to put it back (STATUS_UNDO_ASKED, Conversation::Mitigations), and it counts as undone only once
+# a person marks it back, since no model's call says so. Every move is one guarded update, so two workers never remind
+# or undo twice. A change Halon made without asking (unasked_reason) is kept here too, as made. It stays until someone presses Undo, which runs
+# the one call the registry declares to put it back, and offers none when none is declared.
 class Chat::Mitigation < ApplicationRecord
   STATUS_PROPOSED = "proposed"
   STATUS_ACTIVE = "active"
@@ -11,25 +14,39 @@ class Chat::Mitigation < ApplicationRecord
   STATUS_UNDONE = "undone"
   STATUS_UNDO_FAILED = "undo_failed"
   STATUS_UNDO_HELD = "undo_held"
-  STATUS_DUE_BY_HAND = "due_by_hand"
   STATUS_CANCELLED = "cancelled"
   # Ran as a step of a plan whose Undo was pressed, so the plan's undo puts it back and Firefight never undoes it again.
   STATUS_WITH_PLAN = "with_plan"
+  # Made without asking, so it stays until someone undoes it, with no time and nothing to keep.
+  STATUS_MADE = "made"
+  # Halon was asked in the chat to put it back, so it counts as in place until a person marks it back.
+  STATUS_UNDO_ASKED = "undo_asked"
   STATUSES = [
-    STATUS_PROPOSED, STATUS_ACTIVE, STATUS_KEPT, STATUS_UNDOING, STATUS_UNDONE, STATUS_UNDO_FAILED, STATUS_UNDO_HELD, STATUS_DUE_BY_HAND,
-    STATUS_CANCELLED, STATUS_WITH_PLAN
+    STATUS_PROPOSED, STATUS_ACTIVE, STATUS_KEPT, STATUS_UNDOING, STATUS_UNDONE, STATUS_UNDO_FAILED, STATUS_UNDO_HELD,
+    STATUS_CANCELLED, STATUS_WITH_PLAN, STATUS_MADE, STATUS_UNDO_ASKED
   ].freeze
   # How it ended, which Halon hears once at its next turn.
-  TOLD = [ STATUS_KEPT, STATUS_UNDONE, STATUS_UNDO_FAILED, STATUS_UNDO_HELD, STATUS_DUE_BY_HAND ].freeze
+  TOLD = [ STATUS_KEPT, STATUS_UNDONE, STATUS_UNDO_FAILED, STATUS_UNDO_HELD ].freeze
   # Shown in the chat, from the moment it ran.
   SHOWN = STATUSES - [ STATUS_PROPOSED, STATUS_CANCELLED ]
 
   UNDO_NONE = "none"
-  UNDO_WRITING = "writing"
   UNDO_READY = "ready"
-  # Halon could not write an undo it can run itself, so a person does it, with undo_note saying what.
+  # Nothing puts it back as it was, such as a restart, so it offers no undo.
+  UNDO_NO_INVERSE = "no_inverse"
+  # No fixed call puts it back, so Halon is asked in the chat to put it back, where its call asks like any change.
+  UNDO_IN_CHAT = "in_chat"
+  UNDO_STATES = [ UNDO_NONE, UNDO_READY, UNDO_NO_INVERSE, UNDO_IN_CHAT ].freeze
+
+  # States from before, which a process still running the last release can write during the rollout. They are read as
+  # the chat's, and `bin/rails mitigations:move_old_undo_states` rewrites them once the deploy is done. Remove these,
+  # the task and MitigationUndoJob in the release after.
+  UNDO_WRITING = "writing"
   UNDO_BY_HAND = "by_hand"
-  UNDO_STATES = [ UNDO_NONE, UNDO_WRITING, UNDO_READY, UNDO_BY_HAND ].freeze
+  STATUS_DUE_BY_HAND = "due_by_hand"
+  OLD_UNDO_STATES = [ UNDO_WRITING, UNDO_BY_HAND ].freeze
+  # How a change waiting for Halon to put it back can be stored, which a guarded move from it names.
+  ASKED_AS_STORED = [ STATUS_UNDO_ASKED, STATUS_DUE_BY_HAND ].freeze
 
   DEFAULT_MINUTES = 60
   # What the person may choose when they confirm it, in minutes. Keeping it is nil.
@@ -47,9 +64,15 @@ class Chat::Mitigation < ApplicationRecord
   belongs_to :ended_by, class_name: "WorkspaceMembership", optional: true
   # The plan step it ran as, when Halon made it while carrying out a plan, so it and the plan are undone once between them.
   belongs_to :plan_step, class_name: "Chat::Plan::Step", optional: true
+  # The entry of what Halon may do without asking that let it run unasked.
+  belongs_to :allowance, class_name: "Ability::Allowance", optional: true
 
-  validates :status, inclusion: { in: STATUSES }
-  validates :undo_state, inclusion: { in: UNDO_STATES }
+  validates :status, inclusion: { in: STATUSES + [ STATUS_DUE_BY_HAND ] }
+  validates :undo_state, inclusion: { in: UNDO_STATES + OLD_UNDO_STATES }
+
+  def status = super == STATUS_DUE_BY_HAND ? STATUS_UNDO_ASKED : super
+
+  def undo_state = OLD_UNDO_STATES.include?(super) ? UNDO_IN_CHAT : super
   validates :duration_minutes, inclusion: { in: DURATIONS }, allow_nil: true
 
   scope :shown, -> { where(status: SHOWN) }
@@ -61,6 +84,8 @@ class Chat::Mitigation < ApplicationRecord
   scope :expiry_due, ->(now = Time.current) { where(status: STATUS_ACTIVE).where(expires_at: ..now) }
   # An undo still claimed after CLAIM_LAPSES, so its worker died partway.
   scope :undo_lapsed, -> { where(status: STATUS_UNDOING, claimed_at: ...CLAIM_LAPSES.ago) }
+  # Halon was asked to put it back REMIND_BEFORE ago and it is still in place, so the person is told it is due by hand.
+  scope :undo_ask_lapsed, -> { where(status: STATUS_UNDO_ASKED, reminded_at: nil, claimed_at: ...REMIND_BEFORE.ago) }
 
   # The steps of a plan whose changes Firefight already put back when their time ran out or someone pressed Undo now, so
   # the plan's own undo leaves them out.
@@ -80,6 +105,7 @@ class Chat::Mitigation < ApplicationRecord
   def self.duration_short(minutes) = (minutes % 60).zero? ? "#{minutes / 60} h" : "#{minutes} min"
 
   KEEP = "keep".freeze
+  STAYS = "It stays until someone undoes it, so there is no time to keep or extend.".freeze
 
   # nil keeps it. Anything not offered falls back to the default, so a crafted value cannot set a long one.
   def self.chosen_minutes(value)
@@ -97,9 +123,33 @@ class Chat::Mitigation < ApplicationRecord
 
   def proposed? = status == STATUS_PROPOSED
 
-  def ended? = !(proposed? || active? || status == STATUS_UNDOING)
+  def made? = status == STATUS_MADE
 
-  def asker_name = asker.try(:display_name) || "The person who asked"
+  def undo_asked? = status == STATUS_UNDO_ASKED
+
+  # Still in place, so it can be undone.
+  def live? = active? || kept? || made? || undo_asked?
+
+  # Whether Firefight puts it back itself, with fixed steps only, rather than asking Halon in the chat.
+  def undone_by_firefight? = undo_state == UNDO_READY && undo_steps.any? && undo_steps.all? { |step| step[DECLARED] }
+
+  def ended? = !(proposed? || live? || status == STATUS_UNDOING)
+
+  def made_unasked? = unasked_reason.present?
+
+  # Why it ran without the person's yes, as the card and the platform say it, or nil.
+  def unasked_words = (unasked_because && "Halon made it without asking, #{unasked_because}.")
+
+  def unasked_because
+    case unasked_reason
+    when Ability::Invocation::UNASKED_SAFE then "since it is a safe change"
+    when Ability::Invocation::UNASKED_ALLOWANCE
+      entry = allowance ? "\"#{allowance.sentence}\"" : "an entry"
+      "since #{entry} is on the list of what Halon may do without asking"
+    end
+  end
+
+  def asker_name = asker.try(:actor_display_name) || "The person who asked"
 
   # Moves only from where it was, so a double click or two workers never act twice. False when it had moved.
   def move!(from:, to:, **columns)
@@ -110,11 +160,19 @@ class Chat::Mitigation < ApplicationRecord
 
   # Ran, so its time starts now rather than when it was confirmed.
   # A change the person chose to keep is told to Halon as it runs, so it is never told again.
-  def start!(result:)
+  # undo is the one fixed step that puts it back, or nil, when Halon puts it back in the chat instead.
+  def start!(result:, undo: nil)
     expires = duration_minutes && duration_minutes.minutes.from_now
+    steps = undo ? [ undo ] : undo_steps
     move!(from: STATUS_PROPOSED, to: duration_minutes ? STATUS_ACTIVE : STATUS_KEPT, started_at: Time.current, expires_at: expires,
-          result: Chat::SecretFree.redacted(result.to_s).truncate(RESULT_LIMIT), undo_state: UNDO_WRITING, told_at: (Time.current unless duration_minutes))
+          result: Chat::SecretFree.redacted(result.to_s).truncate(RESULT_LIMIT), undo_state: steps.any? ? UNDO_READY : UNDO_IN_CHAT, undo_steps: steps,
+          undo_note: (steps.any? ? "#{steps.first['description']}." : IN_CHAT_NOTE), told_at: (Time.current unless duration_minutes))
   end
+
+  IN_CHAT_NOTE = "Halon is asked in the chat to put it back. Its call asks first, and someone marks it once it's back.".freeze
+  # Marks an undo step as the registry's fixed call, the only kind Firefight runs itself.
+  DECLARED = "declared".freeze
+  ASKED = "Halon was asked in the chat to put this back, so there is no time to keep or extend.".freeze
 
   # The reminder is claimed once, so two sweeps never send two.
   def claim_reminder! = self.class.where(id: id, status: STATUS_ACTIVE, reminded_at: nil).update_all(reminded_at: Time.current, updated_at: Time.current) == 1
@@ -122,7 +180,7 @@ class Chat::Mitigation < ApplicationRecord
   # Why this person may not keep, extend or undo it now, or nil. Whoever asked may, and in a chat in a channel or
   # thread anyone there may, since the asker may be away when it runs out. A personal dashboard chat is its owner's.
   def change_blocked_reason(member)
-    return "This is no longer running, so there is nothing to change." unless active? || kept?
+    return "This is no longer running, so there is nothing to change." unless live?
     return nil if member == asker || conversation.thread_id.present?
 
     "Only #{asker_name} can change this, since it was made in their own chat."
@@ -131,18 +189,22 @@ class Chat::Mitigation < ApplicationRecord
   def undo_blocked_reason(member)
     blocked = change_blocked_reason(member)
     return blocked if blocked
-    return "Halon is still writing how to undo this. Try again in a moment." if undo_state == UNDO_WRITING
-    return "Halon could not write an undo it can run itself. #{undo_note}" if undo_state == UNDO_BY_HAND
+    return "There is no Undo for this change." if undo_state == UNDO_NO_INVERSE
 
     nil
   end
 
+  # Why this person may not mark it as put back now, or nil. Only once Halon was asked to put it back, by whoever may undo it.
+  def back_blocked_reason(member)
+    change_blocked_reason(member) || ("Halon was not asked to put this back, so there is nothing to mark." unless undo_asked?)
+  end
+
   def extend_blocked_reason(member)
-    change_blocked_reason(member) || ("It is kept, so it is not undone at any time." if kept?)
+    change_blocked_reason(member) || ("It is kept, so it is not undone at any time." if kept?) || (STAYS if made?) || (ASKED if undo_asked?)
   end
 
   def keep_blocked_reason(member)
-    change_blocked_reason(member) || ("It is already kept." if kept?)
+    change_blocked_reason(member) || ("It is already kept." if kept?) || (STAYS if made?) || (ASKED if undo_asked?)
   end
 
   # What it changed, as a person reads it, in the agent's sentence or else as the call and what it reaches.

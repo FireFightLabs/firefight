@@ -93,15 +93,21 @@ export function ApprovalsTab({
                     <TableCell className="text-muted-foreground whitespace-nowrap">
                       {formatDateTime(approval.createdAt)}
                     </TableCell>
-                    <TableCell>{approval.principalLabel}</TableCell>
+                    <TableCell>{approval.principalName}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {approval.sourceLabel ?? "-"}
                     </TableCell>
                     <TableCell>
                       <ActionLabel actionKey={approval.actionKey} title={approval.question ?? approval.connection} />
+                      {approval.caution && (
+                        <span className="mt-0.5 block max-w-80 text-xs font-medium text-amber-600 dark:text-amber-400">{approval.caution}</span>
+                      )}
                     </TableCell>
-                    <TableCell className="text-muted-foreground max-w-64 truncate text-xs">
-                      {describeParams(approval)}
+                    <TableCell className="text-muted-foreground max-w-64 text-xs">
+                      <span className="block truncate">{describeParams(approval)}</span>
+                      {approval.rows.map(([ label, value ]) => (
+                        <span key={label} className="block">{label}: {value}</span>
+                      ))}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{approval.requiredRole}</TableCell>
                     {canDecide && (
@@ -155,7 +161,7 @@ export function ApprovalsTab({
                     <TableCell className="text-muted-foreground whitespace-nowrap">
                       {formatDateTime(approval.createdAt)}
                     </TableCell>
-                    <TableCell>{approval.principalLabel}</TableCell>
+                    <TableCell>{approval.principalName}</TableCell>
                     <TableCell>
                       <ActionLabel actionKey={approval.actionKey} title={approval.question ?? approval.connection} />
                     </TableCell>

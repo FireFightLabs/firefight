@@ -12,23 +12,27 @@ module Integrations
 
         def self.included(pack)
           pack.tool :list_metrics_providers,
+                    summary: "Lists the sources a status page's system metrics come from, such as Datadog or Pingdom.",
                     description: "The providers a page's system metrics come from, each with its id and kind, such as Self, Datadog or Pingdom",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
                     read_only: true
 
           pack.tool :list_metrics,
+                    summary: "Lists the system metric charts a status page shows customers.",
                     description: "A page's system metrics, the charts it shows customers, each with its id, its provider, what it reads " \
                                  "and whether it is shown",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE, "provider" => PROVIDER.merge("description" => "Only this provider's (optional)") } },
                     read_only: true
 
           pack.tool :create_metrics_provider,
+                    summary: "Adds a metrics source to a status page that charts readings sent to it.",
                     description: "Add a Self metrics provider to a page, whose metrics take the data sent to them with add_metric_data. " \
                                  "A provider that pulls from another service is added in Statuspage, since it holds that service's keys",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
                     read_only: false
 
           pack.tool :update_metrics_provider,
+                    summary: "Changes the address a Datadog or New Relic metrics source reads from.",
                     description: "Change the address a metrics provider reads from, for a Datadog or New Relic provider",
                     params_schema: {
                       "type" => "object",
@@ -38,11 +42,13 @@ module Integrations
                     read_only: false
 
           pack.tool :delete_metrics_provider,
+                    summary: "Removes a metrics source and its metrics from a status page.",
                     description: "Remove a metrics provider and its metrics from a page",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE, "provider" => PROVIDER }, "required" => [ "provider" ] },
                     read_only: false
 
           pack.tool :create_metric,
+                    summary: "Adds a metric chart that customers see on a status page.",
                     description: "Add a metric, a chart customers see, to a metrics provider",
                     params_schema: {
                       "type" => "object",
@@ -64,6 +70,7 @@ module Integrations
                     read_only: false
 
           pack.tool :update_metric,
+                    summary: "Renames a status page metric or changes what it reads.",
                     description: "Rename a metric or change what its provider reads it by",
                     params_schema: {
                       "type" => "object",
@@ -74,11 +81,13 @@ module Integrations
                     read_only: false
 
           pack.tool :delete_metric,
+                    summary: "Deletes a status page metric and its data.",
                     description: "Remove a metric and its data from a page",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE, "metric" => METRIC }, "required" => [ "metric" ] },
                     read_only: false
 
           pack.tool :add_metric_data,
+                    summary: "Sends new readings to a status page metric chart.",
                     description: "Send readings to a metric of a Self provider, which its chart then shows",
                     params_schema: {
                       "type" => "object",
@@ -97,6 +106,7 @@ module Integrations
                     read_only: false
 
           pack.tool :reset_metric_data,
+                    summary: "Clears every reading of a status page metric, emptying its chart.",
                     description: "Delete every reading of a metric, which empties its chart",
                     params_schema: { "type" => "object", "properties" => { "page" => PAGE, "metric" => METRIC }, "required" => [ "metric" ] },
                     read_only: false

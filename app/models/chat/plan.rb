@@ -276,7 +276,7 @@ class Chat::Plan < ApplicationRecord
     owner.belongs_to_one_person? ? owner.started_by == member : owner.kind == Conversation::KIND_CHANNEL
   end
 
-  def only_who_may = "Only #{conversation.try(:started_by).try(:display_name) || 'whoever this chat belongs to'} can do that."
+  def only_who_may = "Only #{conversation.try(:started_by).try(:actor_display_name) || 'whoever this chat belongs to'} can do that."
 
   def approve_blocked_reason(member)
     return "This plan is not waiting to be scheduled." unless proposed?

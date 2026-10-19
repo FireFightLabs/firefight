@@ -180,6 +180,7 @@ class AbilityGateway
   # request when the caller already read it.
   def self.permitted?(principal, action, action_key, workspace, scope, params: nil, resolved: nil, approval: nil)
     return false unless action
+    return false unless within_starter?(principal, action, action_key, workspace, scope, params)
     # A member an admin removed reaches nothing, whatever they left running.
     return false if principal.is_a?(WorkspaceMembership) && principal.removed?
     return true if Ability::Action.open?(action_key)
@@ -202,13 +203,57 @@ class AbilityGateway
   # Where a principal may read something filtered by environment (Ability::Action::FILTERED_KEYS), as a scope: {} for
   # every environment, { "environment" => catalog entry ids } for those alone, or nil for none. A reader filters its rows
   # by it, after the call itself was authorized.
+  # An agent acting for whoever started its run (SystemAgent#acting_for) reaches only where both do.
   def self.reach(principal:, action_key:, workspace:)
     action = principal && Ability::Action.lookup(action_key, workspace)
     return nil unless action
-    return {} if principal.implicitly_allowed?(action)
 
-    Ability::Resolver.resolve(principal, workspace).reach(action_key)
+    starter = principal.try(:acting_for)
+    return nil if starter && starter_gone?(starter)
+
+    own = principal.implicitly_allowed?(action) ? {} : Ability::Resolver.resolve(principal, workspace).reach(action_key)
+    starter ? Ability::Scope.within(own, reach(principal: starter, action_key: action_key, workspace: workspace)) : own
   end
+
+  # Whether whoever started the run an agent acts for (SystemAgent#acting_for) could make this call themselves, so a run
+  # never reaches what their own chat or key could not. The call is checked where it lands: a tool's call that names no
+  # environment runs on the connection's default row, so that row's environment is the one checked (Ability::Action#
+  # environment_reached). Their own grants decide it, No access included, and a tool's call must also land in an
+  # environment they read on the map, every environment for a connection wired to none.
+  def self.within_starter?(principal, action, action_key, workspace, scope, params)
+    starter = principal.try(:acting_for)
+    return true if starter.nil?
+    return false if starter_gone?(starter)
+
+    landing = action.environment_reached(scope)
+    return false if action.tool? && !map_reaches?(starter, workspace, landing)
+
+    landed = landing ? scope.to_h.stringify_keys.merge(Ability::Scope::DIMENSION_ENVIRONMENT => landing) : scope
+    permitted?(starter, action, action_key, workspace, landed, params: params)
+  end
+  private_class_method :within_starter?
+
+  # Whoever asked for a run can stop being anyone while it works: a member an admin removed, a key switched off, deleted
+  # or expired, an agent disabled or deleted. A run they started then reaches nothing. Read from the database, since the
+  # run holds the copy it loaded when it began.
+  def self.starter_gone?(starter)
+    case starter
+    when Ability::GoneStarter then true
+    when WorkspaceMembership then !WorkspaceMembership.current_members.exists?(id: starter.id)
+    when ApiKey then !ApiKey.find_by(id: starter.id)&.live?
+    when Agent then !Agent.active.exists?(id: starter.id)
+    else false
+    end
+  end
+
+  def self.map_reaches?(starter, workspace, environment)
+    allowed = reach(principal: starter, action_key: Ability::Action::MAP_READ, workspace: workspace)
+    return false if allowed.nil?
+    return true unless allowed.key?(Ability::Scope::DIMENSION_ENVIRONMENT)
+
+    environment.present? && allowed[Ability::Scope::DIMENSION_ENVIRONMENT].include?(environment)
+  end
+  private_class_method :map_reaches?
 
   # The caller claims the returned approval together with the allow ledger row.
   def self.approval_gate!(principal:, action:, action_key:, workspace:, scope:, params:, context:)
@@ -254,8 +299,15 @@ class AbilityGateway
 
   # A team that set an unattended rule decided ahead, so a call the rule admits is approved by the rule rather than
   # waiting for an approver. The approval is written like any other, naming the rule, so the Approvals page and the
-  # activity log show who decided.
+  # activity log show who decided. A step of a run a person confirmed in a chat is approved by that confirmation when
+  # they may approve it, so they are asked once.
   def self.approved_ahead(principal:, action_key:, workspace:, scope:, params:, context:, requirement:)
+    confirmed = confirmed_ahead(principal: principal, action_key: action_key, workspace: workspace, scope: scope, params: params,
+                                context: context, requirement: requirement)
+    return confirmed if confirmed
+
+    return nil if requirement.equal?(PERSON_REQUIREMENT)
+
     rule = context[:unattended_rule_id] && workspace.unattended_rules.find_by(id: context[:unattended_rule_id])
     return nil unless rule&.admits?(principal: principal, action_key: action_key, scope: scope, params: params)
 
@@ -268,10 +320,29 @@ class AbilityGateway
     )
   end
 
+  # The person who confirmed a workflow run on its card in a chat, when they may give this approval themselves. A change
+  # that must have a person's own say (PERSON_REQUIREMENT) is never answered ahead, since the card named the run, not it.
+  def self.confirmed_ahead(principal:, action_key:, workspace:, scope:, params:, context:, requirement:)
+    return nil if requirement.equal?(PERSON_REQUIREMENT) || context[:workflow_run_id].blank?
+
+    person = Workflow::Run.where(workspace_id: workspace.id).find_by(id: context[:workflow_run_id])&.confirmed_by
+    return nil if person.nil? || person.removed?
+
+    approval = Ability::Approval.new(
+      workspace: workspace, principal_type: principal.class.polymorphic_name, principal_id: principal.id, principal_label: principal.principal_label,
+      action_key: action_key, request_digest: Ability::Approval.digest(action_key, params, scope), scope: scope, params: params,
+      **Ability::Approval.requirement_attributes(requirement), status: Ability::Approval::STATUS_APPROVED, approver_type: person.class.polymorphic_name,
+      approver_id: person.id, resolved_at: Time.current, workflow_run_id: context[:workflow_run_id], source: context[:source]
+    )
+    approval.save! if approval.approver?(person)
+    approval if approval.persisted?
+  end
+  private_class_method :confirmed_ahead
+
   # A read never waits on an approval rule, whatever rule names it: a tool that only reads, one of Firefight's own reads,
   # or a call shown to read through a tool that can also change things. Every change keeps every rule.
   def self.approval_requirement(workspace, action, action_key, scope, context, params: nil, principal: nil)
-    return PERSON_REQUIREMENT if principal && person_must_approve?(principal, action, context)
+    return PERSON_REQUIREMENT if principal && person_must_approve?(principal, action, context, params)
     return nil if Ability::Action.approval_exempt?(action_key)
     return nil if action.risk_of(params) == Ability::Action::RISK_READ
 
@@ -291,14 +362,28 @@ class AbilityGateway
   # A person in Firefight or Slack, or in a chat with Halon, which asks them on its card first.
   PERSON_SOURCES = [ SOURCE_WEB, SOURCE_SLACK, SOURCE_CONVERSATION ].freeze
   # A call that changes permissions, a credential, an approval or a webhook (Ability::Action#asks_a_person?), made
-  # with a token or by a machine, waits for an admin to approve it, whatever its grants or the approval rules say.
+  # with a token or by a machine, waits for an admin to approve it, whatever its grants or the approval rules say. A
+  # connection's access or secret tool is known from its action alone, so no path that reaches it can leave it out.
+  # Firefight's own actions say so in context[:asks_a_person], since a tool such as a webhook's test delivery
+  # authorizes as a change it does not make. A write through a tool that reaches a whole API can change anything there,
+  # so it counts the same, unless Firefight built the call for a capability (context[:capability], a restart, a scale or
+  # a rollback), whose request is Firefight's own and changes nothing else. Its reads are reads.
   PERSON_REQUIREMENT = { "role" => WorkspaceMembership.roles[:admin], "count" => 1, "self_approval" => true }.freeze
 
-  def self.person_must_approve?(principal, action, context)
-    return false unless context[:asks_a_person] && action&.asks_a_person?
+  def self.person_must_approve?(principal, action, context, params = nil)
+    return false unless asks_a_person?(action, context, params)
 
     !(principal.is_a?(WorkspaceMembership) && PERSON_SOURCES.include?(context[:source]))
   end
+
+  def self.asks_a_person?(action, context, params)
+    return false unless action
+    return true if action.asks_a_person? && (action.tool? || context[:asks_a_person])
+
+    action.tool? && context[:capability].blank? && action.source.respond_to?(:whole_api?) && action.source.whole_api? &&
+      action.risk_of(params) != Ability::Action::RISK_READ
+  end
+  private_class_method :asks_a_person?
 
   # Anything that leaves Firefight is recorded, reads included. Reads of our own data are
   # covered by the request log, and a person's incident participation by record_change!.
@@ -351,7 +436,9 @@ class AbilityGateway
       approval_id: approval&.id,
       completed_at: completed_at,
       workflow_step_key: context[:workflow_step_key],
-      workflow_iteration: context[:workflow_iteration]
+      workflow_iteration: context[:workflow_iteration],
+      unasked_reason: context[:unasked_reason],
+      allowance_id: context[:allowance_id]
     )
   end
 end

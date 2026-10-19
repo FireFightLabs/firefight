@@ -6,10 +6,14 @@ module Conversation::HeldCalls
   # What the card and the platform's message draw. call and target name the call as the confirmation does ("Api request"
   # on "Production (Hosting), project shop"), and action as the request does ("pause dev-web"). line is the one line under
   # the headline. offers is what may be done now, whoever does it. progress is how far a code change got while it runs.
+  # rows are what a counted database write touches, for its approvers, and caution the warning about text read from
+  # outside that the asker's card would have carried.
   Shown = Data.define(
     :id, :conversation_id, :status, :headline, :call, :target, :asked, :state, :warning, :checked_at, :expires_at,
-    :decided_by, :result, :offers, :action, :line, :approval_id, :approved_by, :progress, :link
-  )
+    :decided_by, :result, :offers, :action, :line, :approval_id, :approved_by, :progress, :link, :rows, :caution
+  ) do
+    def initialize(rows: [], caution: nil, **) = super
+  end
 
   COULD_NOT_FINISH = "Firefight could not finish this call. Check whether it went through before asking for it again.".freeze
 
@@ -38,8 +42,14 @@ module Conversation::HeldCalls
 
   # Held, so it is asked in the chat's thread, after the turn's own writes (HeldCallPostJob). held is false when nothing
   # was kept, as in an outside agent's chat.
+  # The request carries what was read from outside before the call, as the asker's card would have, since an approval rule
+  # that holds it for someone else sends it to them without that card.
   def self.ask_where_held(held)
-    HeldCallPostJob.perform_later(held.id) if held.is_a?(Chat::HeldCall)
+    return unless held.is_a?(Chat::HeldCall)
+
+    call = held.chat.tool_calls.find_by(tool_call_id: held.tool_call_id)
+    Chat::Tools::Provenance.record_in!(held.chat, [ call ], held.workspace) if call && call.provenance.nil?
+    HeldCallPostJob.perform_later(held.id)
   end
 
   def self.held!(held) = tell!(held)
@@ -212,7 +222,8 @@ module Conversation::HeldCalls
     approval = held.approval
     status = held.shown_status
     report = (Chat::CurrentState::Report.new(state: held.checked_state, change: held.state_change, checked_at: held.state_checked_at) if held.state_change)
-    action = action_of(held)
+    call = held.chat.tool_calls.find_by(tool_call_id: held.tool_call_id)
+    action = action_of(held, call)
     work = progress || Chat::StepProgress.where(chat_id: held.chat_id).of_call(held.tool_call_id, since: held.created_at).last&.work
     approved_by = (approver_name(approval) if approval.approver)
     Shown.new(
@@ -220,14 +231,13 @@ module Conversation::HeldCalls
       target: held.target, asked: asked(held), state: report&.state, warning: report&.warning, checked_at: held.state_checked_at,
       expires_at: approval.run_expires_at, decided_by: held.decided_by&.display_name, result: held.result, offers: held.offers,
       action: action, line: line(held, status, approved_by), approval_id: approval.id, approved_by: approved_by, progress: work,
-      link: work&.pull_request.presence
+      link: work&.pull_request.presence, rows: held.safeguard_rows, caution: (Chat::Tools.confirmation(call).caution if call)
     )
   end
 
   # What Halon asked to do, in its own words as the chat's request names it ("pause dev-web"), or the call by its own
   # name on what it reaches when it wrote none.
-  def self.action_of(held)
-    tool_call = held.chat.tool_calls.find_by(tool_call_id: held.tool_call_id)
+  def self.action_of(held, tool_call = held.chat.tool_calls.find_by(tool_call_id: held.tool_call_id))
     worded = tool_call && Chat::Tools.words_for_person(tool_call.arguments)
     worded ? Chat::Tools.confirmation(tool_call).action : named(held).downcase_first
   end

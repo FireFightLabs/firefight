@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { IconAlertTriangle } from "@tabler/icons-react"
-import { router } from "@inertiajs/react"
+import { Link, router } from "@inertiajs/react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { RowActions } from "@/components/row-actions"
-import { unattendedRulePath } from "@/lib/routes"
+import { settingsWorkspacePath, unattendedRulePath } from "@/lib/routes"
 import { UnattendedRuleDialog } from "@/pages/halon/components/on-call/unattended-rule-dialog"
 import type { UnattendedRule, UnattendedRuleResource } from "@/types/serializers"
 
@@ -67,6 +67,11 @@ export function UnattendedRulesEditor({
           <p className="text-muted-foreground text-xs">
             Changes Halon may make on its own when an alert starts it and nobody is there to apply its fix. Each one is
             checked against a fresh reading first, said in the incident with how to undo it, and kept in the activity log.
+            What Halon may change in someone&apos;s chat without asking is under{" "}
+            <Link href={settingsWorkspacePath()} className="underline underline-offset-4">
+              Settings, Workspace
+            </Link>
+            .
           </p>
         </div>
         {canManage && (

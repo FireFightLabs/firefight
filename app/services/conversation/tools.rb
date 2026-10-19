@@ -6,7 +6,7 @@ module Conversation::Tools
   def self.for(turn, offer:, helpers: nil, presented: Chat::Tools::Presented.none)
     [
       Chat::Tools::Open.new(turn, offer: offer, presented: presented), Chat::Tools::UseSkill.new(turn, offer: offer), *Chat::Tools::Docs.all(turn), Chat::Tools::ReadResult.new(turn),
-      *(Chat::Tools::Helpers.new(turn, share: helpers) if helpers), *(Chat::Tools::AskSpecialist.new(turn, share: helpers) if helpers&.specialists),
+      *(Chat::Tools::Helpers.new(turn, share: helpers) if helpers && Chat::Helpers.offered?), *(Chat::Tools::AskSpecialist.new(turn, share: helpers) if helpers&.specialists),
       Chat::Tools::Theories.new(turn), StartInvestigation.new(turn), RunRunbook.new(turn), StartWatch.new(turn), RepairWatch.new(turn), ExtendWatch.new(turn), StopWatch.new(turn),
       ListWatches.new(turn), *plans(turn), *workflows(turn),
       *Chat::Tools.memory(turn), *Chat::Tools::ProposeSkill.all(turn), Chat::Tools::CorrectMemory.new(turn), *Chat::Tools::Web.all(turn), *Chat::Tools::Terminal.all(turn),

@@ -53,6 +53,18 @@ class AgentChatHeldCallSerializer < BaseSerializer
     shown.asked
   end
 
+  # What a counted database write touches, each a label and what it says, as the asker's card would have shown it.
+  type "string[][]"
+  def rows
+    shown.rows
+  end
+
+  # The warning the asker's card would have carried when text from outside Firefight was read before the call.
+  type :string, optional: true
+  def caution
+    shown.caution
+  end
+
   # How things stand now, in Halon's words, and what kind of change it found, said plainly above them.
   type :string, optional: true
   def state

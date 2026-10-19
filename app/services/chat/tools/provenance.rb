@@ -46,21 +46,47 @@ module Chat::Tools::Provenance
     outside_calls(chat).exists? || chat.attached_files.exists?
   end
 
-  # Whether a tool the person allowed for the rest of the chat still runs without asking. Only until something outside
-  # has been read.
+  # Whether a tool the person allowed for the rest of the chat still runs without asking. Only until anything from
+  # outside reached the chat, by the same rule as the list of what Halon may do without asking.
   def self.allowed?(agent_run, tool_name)
     chat = agent_run.chat
-    chat.present? && chat.allows_tool?(tool_name) && !read_outside?(chat)
+    chat.present? && chat.allows_tool?(tool_name) && !read_anything_outside?(chat)
   end
+
+  # Whether anything not written by a person in Firefight has reached this chat's model: any tool's result, Firefight's
+  # own included, a file someone attached, what Firefight adds to a turn (a nudge, such as a held call's answer or the
+  # message a direct message replies to), a memory no person confirmed, and what every turn is told around the chat that
+  # someone outside may have written: the incident's name, which can be an alert's title, and how its investigations
+  # went (Conversation::Context#current). The list of what Halon may do without asking
+  # covers a change only before any of it, the same promise Allow for the rest of this chat makes, since a value from
+  # any of them can steer what a change does.
+  def self.read_anything_outside?(chat)
+    return true unless chat
+
+    chat.tool_calls.where.not(result_id: nil).exists? || chat.attached_files.exists? || chat.messages.where(nudge: true).exists? ||
+      Chat::MemoryUse.joins(:memory).where(owner: chat.owner).where.not(chat_memories: { state: Chat::Memory::STATE_CONFIRMED }).exists? ||
+      told_around?(chat.owner)
+  end
+
+  def self.told_around?(owner)
+    owner.is_a?(Conversation) && (owner.incident_id.present? || owner.investigations.seen.exists?)
+  end
+  private_class_method :told_around?
+
+  # The same for a turn, answered only when asked.
+  def self.outside_read(agent_run) = -> { read_anything_outside?(agent_run.chat) }
 
   # Kept with each call put to the person, so the question says what was read before it however often it is redrawn,
   # and Allow for the rest of this chat is never offered or honoured for it (Chat#decide!).
-  def self.record!(agent_run, tool_calls)
-    chat = agent_run.chat
-    return if tool_calls.empty? || !read_outside?(chat)
+  def self.record!(agent_run, tool_calls) = record_in!(agent_run.chat, tool_calls, agent_run.workspace)
+
+  # The same for calls kept in a chat, such as one an approval rule sent straight to its approvers, so their request
+  # carries the warning the asker's card would have.
+  def self.record_in!(chat, tool_calls, workspace)
+    return if tool_calls.empty? || !read_anything_outside?(chat)
 
     tool_calls.each do |tool_call|
-      read = of(chat, tool_call, agent_run.workspace)
+      read = of(chat, tool_call, workspace)
       tool_call.update_columns(provenance: {
         SOURCES => read.sources.map { |source| { LABEL => source.label, FOUND => source.found, FROM => source.from } }, OTHERS => read.others
       })
@@ -81,6 +107,7 @@ module Chat::Tools::Provenance
     reads += chat.attached_files.map do |file|
       Source.new(label: "File attached: #{file.filename}", found: values.select { |value| mentions?(file.text.to_s, value) }, from: ATTACHED)
     end
+    reads += around(chat).map { |label, text, from| Source.new(label: label, found: values.select { |value| mentions?(text, value) }, from: from) }
 
     found, rest = reads.partition { |source| source.found.any? }
     shown = (found + rest.reverse).first([ SHOWN, found.size ].max)
@@ -149,6 +176,25 @@ module Chat::Tools::Provenance
     provider = Chat::Tools::Docs.provider_name(skill.source)
     arguments["reference"].present? ? "#{provider}'s docs" : "a #{provider} skill's steps"
   end
+
+  INCIDENT_NAME = "the incident's name".freeze
+  INVESTIGATIONS = "an investigation's findings".freeze
+
+  # What reached the model besides tool results and files, as a label, its text and where it came from: the incident's
+  # name and how its investigations went, told on every turn, and what Firefight added to a turn.
+  def self.around(chat)
+    owner = chat.owner
+    found = []
+    if owner.is_a?(Conversation)
+      found << [ "The incident's name", owner.incident.name.to_s, INCIDENT_NAME ] if owner.incident
+      runs = owner.investigations.seen.includes(:finding).to_a
+      found << [ "How its investigations went", runs.map { |run| run.finding&.summary.to_s }.join("\n"), INVESTIGATIONS ] if runs.any?
+    end
+    added = chat.messages.where(nudge: true).pluck(:content)
+    found << [ "What Firefight added to the chat", added.join("\n"), FIREFIGHT ] if added.any?
+    found
+  end
+  private_class_method :around
 
   def self.outside_calls(chat)
     chat.tool_calls.where.not(result_id: nil).where.not(name: own_words_names.to_a)

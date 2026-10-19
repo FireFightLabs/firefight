@@ -346,7 +346,7 @@ class Investigation::FixRunner
     else
       authorization.finalize_success!
       step.finish!(Investigation::RemediationStep::STATUS_DONE, result: text.presence, invocation_id: authorization.invocation_id,
-                                                              already_done: result[ALREADY_HELD])
+                                                              already_done: result[ALREADY_HELD], needs_person: needs_person(result))
     end
   rescue Integrations::Error => error
     authorization.finalize_error!(error)
@@ -356,6 +356,11 @@ class Investigation::FixRunner
     Rails.logger.warn({ event: "fix.step_failed", step_id: step.id, error: error.class.name }.to_json)
     step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: COULD_NOT_FINISH, invocation_id: authorization.invocation_id,
                                                                 failure: Investigation::RemediationStep::FAILURE_BROKE)
+  end
+
+  # Why a person must look at what the call changed, as the tool's answer carries it (CodeChange::NEEDS_PERSON), or nil.
+  def needs_person(result)
+    (result[Integrations::Telemetry::STRUCTURED] || {}).to_h.dig(Integrations::Telemetry::FACTS, CodeChange::NEEDS_PERSON).presence
   end
 
   # Why a call failed in plain words, from what kind of failure it was. The tool's own words stay in the step's result.

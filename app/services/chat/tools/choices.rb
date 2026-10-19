@@ -20,9 +20,13 @@ module Chat::Tools::Choices
   # watch_fields are what a watch reads with instead, when a guard keeps the tool to reads through arguments of its own.
   # read_only is whether every call only reads, which a workflow step's Reads or Changes says, and action_key is the
   # gateway action a call makes, nil when the arguments decide it, such as a capability picking a connection.
-  # status_page marks a tool of a connection whose provider hosts its customers' status pages.
-  Choice = Data.define(:name, :group, :description, :fields, :reads, :watch_fields, :read_only, :action_key, :status_page) do
-    def initialize(watch_fields: nil, read_only: nil, action_key: nil, status_page: false, **) = super
+  # status_page marks a tool of a connection whose provider hosts its customers' status pages. description is what Halon
+  # reads, summary the line a person reads of a connection's tool (Integration::Tool#summary), nil where the two are one.
+  Choice = Data.define(:name, :group, :description, :fields, :reads, :watch_fields, :read_only, :action_key, :status_page, :summary) do
+    def initialize(watch_fields: nil, read_only: nil, action_key: nil, status_page: false, summary: nil, **) = super
+
+    # What a person reads of it in a picker.
+    def shown_description = summary || description
   end
   Read = Data.define(:name, :label, :history)
   Place = Data.define(:name, :kind)
@@ -70,7 +74,8 @@ module Chat::Tools::Choices
       Choice.new(name: tool.model_facing_name, group: tool.integration.display_name,
                  description: Chat::Tools.clean(tool.description, Chat::Tools::ONE_LINE), fields: fields(tool.offered_schema(rows.fetch(tool.integration))),
                  reads: tool.read_only? || Integrations::ReadGuards.for(tool).present?, watch_fields: watched_fields(tool),
-                 read_only: tool.read_only?, action_key: tool.action_key, status_page: IntegrationProvider.find(tool.integration.provider)&.holds_status_pages || false)
+                 read_only: tool.read_only?, action_key: tool.action_key, status_page: IntegrationProvider.find(tool.integration.provider)&.holds_status_pages || false,
+                 summary: tool.summary)
     end
   end
 

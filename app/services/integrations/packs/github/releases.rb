@@ -18,6 +18,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool :list_releases,
+                    summary: "Lists a repository's releases, including drafts and prereleases.",
                     description: "A repository's releases, newest first, with each one's tag, whether it is a draft or a prerelease, when it was published and its page",
                     params_schema: Code.object_schema({
                       "repo" => Code::REPO,
@@ -26,6 +27,7 @@ module Integrations
                     read_only: true
 
           pack.tool :release_lookup,
+                    summary: "Shows one release with its notes and files.",
                     description: "One release with its notes and files: by its tag, or the latest published one",
                     params_schema: Code.object_schema({
                       "repo" => Code::REPO, "tag" => { "type" => "string", "description" => "The release's tag, such as v2.4.0 (optional, the latest release)" }
@@ -33,6 +35,7 @@ module Integrations
                     read_only: true
 
           pack.tool :list_tags,
+                    summary: "Lists a repository's tags and the commit each one points at.",
                     description: "A repository's tags, with the commit each one points at",
                     params_schema: Code.object_schema({
                       "repo" => Code::REPO,
@@ -41,6 +44,7 @@ module Integrations
                     read_only: true
 
           pack.tool :create_draft_release,
+                    summary: "Creates a draft release for a person to review.",
                     description: "Write a draft release for a person to review. Nobody outside the repository sees a draft, and its tag is " \
                                  "made only when it is published",
                     params_schema: Code.object_schema({
@@ -54,6 +58,7 @@ module Integrations
                     read_only: false
 
           pack.tool :update_release,
+                    summary: "Updates a release's notes, title or prerelease flag.",
                     description: "Change a release's notes, title or prerelease flag, on a draft or a published release, such as filling in " \
                                  "a placeholder a release workflow left in a draft's notes before it is published. It does not publish a draft",
                     params_schema: Code.object_schema({
@@ -68,6 +73,7 @@ module Integrations
                     read_only: false
 
           pack.tool :publish_release,
+                    summary: "Publishes a draft release and notifies the repository's watchers.",
                     description: "Publish a draft release. Its notes become public, it is marked the repository's latest release unless " \
                                  "make_latest is false or it is a prerelease, its tag is made on its target if the tag does not exist yet, " \
                                  "GitHub notifies the repository's watchers and sends the release published event. Publishing builds and " \

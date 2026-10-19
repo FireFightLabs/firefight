@@ -42,6 +42,9 @@ module FirefightTools
   LIST_UNATTENDED_RULES = "list_unattended_rules".freeze
   UPSERT_UNATTENDED_RULE = "upsert_unattended_rule".freeze
   DELETE_UNATTENDED_RULE = "delete_unattended_rule".freeze
+  LIST_ALLOWANCES = "list_allowances".freeze
+  UPSERT_ALLOWANCE = "upsert_allowance".freeze
+  DELETE_ALLOWANCE = "delete_allowance".freeze
   SEARCH_ACTIVITY = "search_activity".freeze
   CREATE_ACTION_ITEM = "create_action_item".freeze
   ASSIGN_ACTION_ITEM = "assign_action_item".freeze
@@ -145,7 +148,8 @@ module FirefightTools
       Mcp::Tools::GetForm, Mcp::Tools::UpsertCustomField, Mcp::Tools::UpsertFormField,
       Mcp::Tools::ListAbilities, Mcp::Tools::ListPrincipals, Mcp::Tools::UpsertPermissionSet, Mcp::Tools::DeletePermissionSet, Mcp::Tools::GrantAbility, Mcp::Tools::RevokeGrant,
       Mcp::Tools::ListMemberAccess, Mcp::Tools::SetMemberAccess,
-      Mcp::Tools::UpsertApprovalRule, Mcp::Tools::DeleteApprovalRule, Mcp::Tools::ListUnattendedRules, Mcp::Tools::UpsertUnattendedRule, Mcp::Tools::DeleteUnattendedRule, Mcp::Tools::SearchActivity,
+      Mcp::Tools::UpsertApprovalRule, Mcp::Tools::DeleteApprovalRule, Mcp::Tools::ListUnattendedRules, Mcp::Tools::UpsertUnattendedRule, Mcp::Tools::DeleteUnattendedRule,
+      Mcp::Tools::ListAllowances, Mcp::Tools::UpsertAllowance, Mcp::Tools::DeleteAllowance, Mcp::Tools::SearchActivity,
       Mcp::Tools::CreateActionItem, Mcp::Tools::AssignActionItem, Mcp::Tools::CompleteActionItem, Mcp::Tools::RenameActionItem, Mcp::Tools::ReopenActionItem, Mcp::Tools::UnassignActionItem,
       Mcp::Tools::CreateActionItemIssue, Mcp::Tools::ClaimRunbookStep,
       Mcp::Tools::LinkIncident, Mcp::Tools::GiveShoutout, Mcp::Tools::EscalateIncident, Mcp::Tools::PageOnCall, Mcp::Tools::InviteResponders, Mcp::Tools::PostToChannel,

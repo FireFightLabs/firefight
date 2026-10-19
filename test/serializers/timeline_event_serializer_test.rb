@@ -107,11 +107,7 @@ class TimelineEventSerializerTest < ActiveSupport::TestCase
     end
 
     events = incident.timeline_events
-    queries = 0
-    counter = ->(*) { queries += 1 }
-    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
-      TimelineEventSerializer.many(events).to_json
-    end
+    queries = queries_sent(cached: true, transactions: true) { TimelineEventSerializer.many(events).to_json }.size
 
     updates = events.map(&:eventable).grep(IncidentUpdate)
     assert_equal updates[-2], updates[-1].previous_update

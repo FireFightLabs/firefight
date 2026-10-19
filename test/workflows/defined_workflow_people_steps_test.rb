@@ -259,10 +259,10 @@ class DefinedWorkflowPeopleStepsTest < ActiveSupport::TestCase
 
     shown = ApprovalNotificationService.shown(approval)
     blocks = Slack::Messages::Approval.build_request(approval, shown: shown)
-    assert_equal "*:raised_hand:  #{approval.principal_label} asks: Release checkout?*\nApprovers: <@#{@alice.platform_user_id}>", blocks.first.dig(:text, :text)
+    assert_equal "*:raised_hand:  #{approval.principal.actor_display_name} asks: Release checkout?*\nApprovers: <@#{@alice.platform_user_id}>", blocks.first.dig(:text, :text)
     assert_equal [ Identifiers::APPROVE_ABILITY, Identifiers::DENY_ABILITY ], blocks.second[:elements].map { |button| button[:action_id] }
     assert_equal "> Build 412 passed.", blocks.third.dig(:text, :text)
-    assert_equal "#{approval.principal_label} asks: Release checkout?", Slack::Messages::Approval.request_fallback(approval, shown: shown)
+    assert_equal "#{approval.principal.actor_display_name} asks: Release checkout?", Slack::Messages::Approval.request_fallback(approval, shown: shown)
   end
 
   test "approval denied takes the denied route" do

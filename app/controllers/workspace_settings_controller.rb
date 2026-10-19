@@ -13,6 +13,7 @@ class WorkspaceSettingsController < InertiaController
       settings: WorkspaceSettingsSerializer.one(current_workspace),
       issueWebhookUrl: current_workspace.issue_webhook_token && api_v1_issue_events_url(current_workspace.issue_webhook_token),
       workflowRunRetentionDays: current_workspace.workflow_run_retention_days,
+      **allowance_props,
       **ai_account_props
     }
   end
@@ -43,12 +44,32 @@ class WorkspaceSettingsController < InertiaController
 
   private
 
-  # A new code fix budget is named, since it is what every fix may spend from now on.
+  # What Halon may do without asking (AllowancesController), and what an entry can name.
+  def allowance_props
+    tools = current_workspace.switched_on_tools
+    {
+      allowances: AllowanceSerializer.many(current_workspace.allowances.with_usage_counts.includes(:environment, :created_by, :integration, action: :source).order(:created_at)),
+      allowanceCapabilities: AllowanceChoiceSerializer.many(Ability::Allowance.capability_choices(current_workspace, tools: tools)),
+      allowanceTools: AllowanceChoiceSerializer.many(Ability::Allowance.tool_choices(current_workspace, tools: tools)),
+      environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries)
+    }
+  end
+
+  # A new code fix budget is named, since it is what every fix may spend from now on, and so is whether Halon asks
+  # before a safe change, since it changes what every chat does next.
   def updated_words(before)
     changed = current_workspace.settings.reject { |key, value| before[key] == value }.keys
-    return UPDATED unless changed.include?(:code_fix_budget_cents)
+    named = [ (budget_words if changed.include?(:code_fix_budget_cents)), (safe_change_words if changed.include?(:safe_changes_without_asking)) ].compact
+    return UPDATED if named.empty?
 
-    budget = "Code fix budget was set to #{current_workspace.shown_code_fix_budget}."
-    changed == [ :code_fix_budget_cents ] ? budget : "#{UPDATED} #{budget}"
+    (changed - NAMED_SETTINGS).empty? ? named.join(" ") : [ UPDATED, *named ].join(" ")
+  end
+
+  NAMED_SETTINGS = %i[code_fix_budget_cents safe_changes_without_asking].freeze
+
+  def budget_words = "Code fix budget was set to #{current_workspace.shown_code_fix_budget}."
+
+  def safe_change_words
+    current_workspace.safe_changes_without_asking? ? "Halon makes safe changes without asking." : "Halon now asks before safe changes."
   end
 end

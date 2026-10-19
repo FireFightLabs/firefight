@@ -39,6 +39,21 @@ class Chat::Tools::ChoicesTest < ActiveSupport::TestCase
     assert_not choices.key?(FirefightTools::ASK_HALON)
   end
 
+  test "a person picking a connection's tool reads its summary, while Halon keeps the description written for it" do
+    github = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub", slug: "github")
+    github.integration_environments.create!(credentials: { token: "x" }.to_json)
+    github.tools.create!(name: "rerun_workflow", description: "Rerun. Pass the run id from ci_runs.", read_only: false, enabled: true,
+                         params_schema: { "type" => "object" })
+    summary = Integrations::NativePack.for("github").tool_definitions.find { |definition| definition.name == "rerun_workflow" }.summary
+
+    rerun = Chat::Tools::Choices.tools(@workspace).find { |choice| choice.name == "github_rerun_workflow" }
+
+    assert_equal "Rerun. Pass the run id from ci_runs.", rerun.description
+    assert_equal summary, rerun.shown_description
+    assert_equal summary, WorkflowToolChoiceSerializer.one(rerun, workflow: Workflow.create!(workspace: @workspace, name: "Look around")).as_json["description"]
+    assert_equal summary, Chat::Tools::SkillTools.choices(@workspace).find { |choice| choice.name == "github_rerun_workflow" }.description
+  end
+
   test "a watch reads with run history first, and only with reads" do
     reads = Chat::Tools::Choices.reads
 

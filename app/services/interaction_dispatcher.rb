@@ -91,6 +91,7 @@ class InteractionDispatcher
     Identifiers::MITIGATION_KEEP => Interactions::MitigationHandler,
     Identifiers::MITIGATION_EXTEND => Interactions::MitigationHandler,
     Identifiers::MITIGATION_UNDO => Interactions::MitigationHandler,
+    Identifiers::MITIGATION_BACK => Interactions::MitigationHandler,
     Identifiers::OWNER_AGREE => Interactions::OwnerAskHandler,
     Identifiers::OWNER_DECLINE => Interactions::OwnerAskHandler,
     Identifiers::HELD_CALL_RUN => Interactions::HeldCallHandler,

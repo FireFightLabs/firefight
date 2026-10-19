@@ -17,8 +17,7 @@ class ConnectPackWritesTest < ActionDispatch::IntegrationTest
   end
 
   test "connecting AWS's tools files their packs together, in well under half the queries filing each tool took" do
-    queries = 0
-    ActiveSupport::Notifications.subscribed(->(*) { queries += 1 }, "sql.active_record") { connect_aws }
+    queries = queries_sent(cached: true, transactions: true) { connect_aws }.size
 
     tools = aws.tools.enabled.count
     assert_operator tools, :>=, 25

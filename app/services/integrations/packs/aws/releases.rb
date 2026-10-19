@@ -89,6 +89,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool PIPELINE_EXECUTIONS,
+                    summary: "Lists a CodePipeline pipeline's recent runs and how each stage went.",
                     description: "A CodePipeline pipeline's recent executions, newest first, each with its status, when it started and " \
                                  "finished, the source revision and what started it, and how long finished ones usually take. Name an " \
                                  "execution to read it with each stage's actions, how each went, the error a failed one gave and where its log is",
@@ -96,6 +97,7 @@ module Integrations
                     read_only: true
 
           pack.tool CODEDEPLOY_DEPLOYMENTS,
+                    summary: "Lists a CodeDeploy deployment group's recent deployments and any rollbacks.",
                     description: "A CodeDeploy deployment group's recent deployments, newest first, each with its status, when it started " \
                                  "and finished, the revision and any rollback, and how long finished ones usually take. Name a deployment " \
                                  "to read it with each target's lifecycle events and the error a failed one gave",
@@ -103,6 +105,7 @@ module Integrations
                     read_only: true
 
           pack.tool STACK_EVENTS,
+                    summary: "Lists a CloudFormation stack's recent changes and the first resource that failed.",
                     description: "A CloudFormation stack's recent operations (create, update, delete), newest first, read from its events, " \
                                  "each with how it ended and the first resource that failed. Name an operation to read it with each " \
                                  "resource it changed and why one failed",
@@ -110,6 +113,7 @@ module Integrations
                     read_only: true
 
           pack.tool STOP_SERVICE_DEPLOYMENT,
+                    summary: "Stops an ECS deployment in progress, rolling it back or leaving it where it is.",
                     description: "Stop an ECS service deployment that is still going, rolling the service back to the revision it ran before " \
                                  "(rollback) or leaving it where it is (abort). list_deployments shows the deployments",
                     params_schema: {
@@ -124,6 +128,7 @@ module Integrations
                     read_only: false
 
           pack.tool STOP_PIPELINE_EXECUTION,
+                    summary: "Stops a CodePipeline run that is still going.",
                     description: "Stop a CodePipeline execution that is still going. By default the actions in progress finish first. With " \
                                  "abandon, they are abandoned at once, which can leave a deployment half done",
                     params_schema: {
@@ -139,6 +144,7 @@ module Integrations
                     read_only: false
 
           pack.tool ROLLBACK_PIPELINE_STAGE,
+                    summary: "Rolls one CodePipeline stage back to what an earlier successful run deployed.",
                     description: "Roll one stage of a CodePipeline pipeline back to what an earlier successful execution deployed there. " \
                                  "Only a V2 pipeline can, and the stage must not be the source stage",
                     params_schema: {
@@ -153,6 +159,7 @@ module Integrations
                     read_only: false
 
           pack.tool STOP_CODEDEPLOY_DEPLOYMENT,
+                    summary: "Stops a CodeDeploy deployment in progress and rolls back what it changed.",
                     description: "Stop a CodeDeploy deployment that is still going, and by default roll back what it already changed to the " \
                                  "revision deployed before",
                     params_schema: {
@@ -167,6 +174,7 @@ module Integrations
                     read_only: false
 
           pack.tool CANCEL_STACK_UPDATE,
+                    summary: "Cancels a CloudFormation stack update in progress and rolls the stack back.",
                     description: "Cancel a CloudFormation stack update that is still going, which rolls the stack back to how it was before",
                     params_schema: {
                       "type" => "object",

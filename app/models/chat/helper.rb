@@ -26,6 +26,8 @@ class Chat::Helper < ApplicationRecord
   # their calls apart without reaching for the tools themselves.
   ASK_SPECIALIST = "ask_specialist".freeze
   REPORT_FINDINGS = "report_findings".freeze
+  RUN_HELPERS = "run_helpers".freeze
+  OPEN_TOOLS = "open_tools".freeze
 
   # Why a helper ended without a report, in the words Halon and the person read.
   OUT_OF_BUDGET = "It ran out of the budget it was given before it could report.".freeze
@@ -33,6 +35,13 @@ class Chat::Helper < ApplicationRecord
   INTERRUPTED = "It was interrupted before it reported.".freeze
   STOPPED = "Stopped before it reported.".freeze
   COULD_NOT = "It could not run.".freeze
+  # Leads what a helper that ended without a report had so far, kept in report though it never reported.
+  UNFINISHED = "Unfinished, what it had so far:".freeze
+  HANDLE_PREFIX = "helper_".freeze
+  # Said once over the lines naming helpers, so Halon opens what one read instead of reading it again.
+  OPEN_WITH = "read_result opens everything a helper read, whole, by the name in brackets, such as helper_1.".freeze
+
+  include Results
 
   belongs_to :chat
   belongs_to :workspace
@@ -87,14 +96,20 @@ class Chat::Helper < ApplicationRecord
     self.class.where(id: id).update_all(turns_used: turns_used, spent_micros: spent_micros, updated_at: Time.current)
   end
 
-  # How it went, as Halon reads it back and as a rebuilt chat remembers it. A specialist's report runs over several lines,
-  # so it starts on its own.
-  def line
-    said = reported? ? report : ended_because
-    return "#{title}:\n#{said.presence || 'nothing reported'}" if specialist?
+  # How it went, as Halon reads it back and as a rebuilt chat remembers it, named by the handle read_result opens
+  # everything it read with. A specialist's report runs over several lines, so it starts on its own.
+  def line(handle = self.handle)
+    said = reported? ? report : [ ended_because, ("#{UNFINISHED} #{report}" if report.present?) ].compact.join(" ")
+    return "#{title} (#{handle}):\n#{said.presence || 'nothing reported'}" if specialist?
 
-    "- #{title}: #{said.presence || 'nothing reported'}"
+    "- #{title} (#{handle}): #{said.presence || 'nothing reported'}"
   end
+
+  # The name the asking chat's read_result knows it by, counted across that chat's helpers in the order they started.
+  def handle = self.class.handles_in(chat_id).fetch(id)
+
+  # Every helper's handle in one chat by its id, read once for lines naming several.
+  def self.handles_in(chat_id) = where(chat_id: chat_id).in_order.ids.each_with_index.to_h { |id, index| [ id, "#{HANDLE_PREFIX}#{index + 1}" ] }
 
   # A helper still running when its asking call was closed as interrupted belongs to a worker that died.
   def self.interrupted!(chat, tool_call_ids)

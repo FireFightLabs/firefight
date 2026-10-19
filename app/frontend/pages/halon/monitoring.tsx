@@ -7,7 +7,7 @@ import type { InvestigationCheck, InvestigationNotice } from "@/types/serializer
 import { ChecksCard } from "@/pages/halon/components/monitoring/checks-card"
 import { NoticesCard } from "@/pages/halon/components/monitoring/notices-card"
 import { WhereCard } from "@/pages/halon/components/monitoring/where-card"
-import type { CheckChoice, SpendCoverage } from "@/pages/halon/components/monitoring/types"
+import type { CheckChoice, CheckMember, SpendCoverage } from "@/pages/halon/components/monitoring/types"
 
 interface MonitoringProps extends SharedProps {
   checks: InvestigationCheck[]
@@ -17,11 +17,13 @@ interface MonitoringProps extends SharedProps {
   spend: SpendCoverage
   kinds: CheckChoice[]
   cadences: CheckChoice[]
+  members: CheckMember[]
 }
 
 export default function HalonMonitoringPage() {
-  const { checks, notices, monitoringChannel, securityEventsEnabled, spend, kinds, cadences } = usePage<MonitoringProps>().props
+  const { checks, notices, monitoringChannel, securityEventsEnabled, spend, kinds, cadences, members } = usePage<MonitoringProps>().props
   const canManage = useCan("monitoring")
+  const canChangeOwner = useCan("workspace")
 
   return (
     <AuthenticatedLayout title="Monitoring">
@@ -32,7 +34,14 @@ export default function HalonMonitoringPage() {
           looks into leaked secrets as they are reported. It says each problem once, in the owning team&apos;s channel, and
           again only when it gets worse.
         </p>
-        <ChecksCard checks={checks} kinds={kinds} cadences={cadences} canManage={canManage} />
+        <ChecksCard
+          checks={checks}
+          kinds={kinds}
+          cadences={cadences}
+          members={members}
+          canManage={canManage}
+          canChangeOwner={canChangeOwner}
+        />
         <NoticesCard notices={notices} />
         <WhereCard
           monitoringChannel={monitoringChannel}

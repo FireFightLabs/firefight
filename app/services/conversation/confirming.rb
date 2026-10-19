@@ -28,7 +28,7 @@ class Conversation::Confirming
     return chat.decide!(tool_call_id, approved: false, by: by) unless approved
 
     Conversation::Mitigations.choose!(chat, tool_call_id, expires) unless expires.nil?
-    for_chat &&= !Chat::DataRepairs.asks_each?(chat, tool_call_id) && !Chat::Tools.asks_a_person?(chat.tool_calls.where(tool_call_id: tool_call_id).pick(:name))
+    for_chat &&= !Chat::DataRepairs.asks_each?(chat, tool_call_id) && !Chat::Tools.asks_a_person?(chat.tool_calls.where(tool_call_id: tool_call_id).pick(:name), chat.workspace)
     return chat.decide!(tool_call_id, approved: true, for_chat: for_chat, by: by) unless Conversation::OwnerAsks.ask!(chat, tool_call_id, by: by)
 
     name, provenance = chat.tool_calls.where(tool_call_id: tool_call_id).pick(:name, :provenance)
@@ -44,7 +44,7 @@ class Conversation::Confirming
   private_class_method :approve_allowed
 
   def self.allowed_for_chat?(chat, tool_call)
-    chat.allows_tool?(tool_call.name) && !Chat::DataRepairs.asks_each?(chat, tool_call.tool_call_id) && !Chat::Tools.asks_a_person?(tool_call.name)
+    chat.allows_tool?(tool_call.name) && !Chat::DataRepairs.asks_each?(chat, tool_call.tool_call_id) && !Chat::Tools.asks_a_person?(tool_call.name, chat.workspace)
   end
   private_class_method :allowed_for_chat?
 

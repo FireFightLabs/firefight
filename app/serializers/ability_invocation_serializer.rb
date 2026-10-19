@@ -9,8 +9,13 @@ class AbilityInvocationSerializer < BaseSerializer
     invocation.id
   end
 
+  # Who asked or acted as a person reads it, such as "Halon", never the machine label the row keeps.
+  type :string
+  def principal_name
+    invocation.principal_name
+  end
+
   attributes(
-    principal_label: { type: :string },
     action_key: { type: :string }
   )
 
@@ -68,6 +73,13 @@ class AbilityInvocationSerializer < BaseSerializer
   type :string, optional: true
   def source_label
     Ability::Source.label(invocation.source)
+  end
+
+  # Why a change Halon made in a chat ran without the person's yes, such as "Made without asking because it is a safe
+  # change.", or null.
+  type :string, optional: true
+  def unasked_because
+    invocation.unasked_because
   end
 
   type :string

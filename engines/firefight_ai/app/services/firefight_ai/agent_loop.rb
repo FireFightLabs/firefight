@@ -7,6 +7,8 @@ module FirefightAi
     STATUS_STALLED = :stalled
     STATUS_REPEATED_TOOL_CALL = :repeated_tool_call
     STATUS_CANCELED = :canceled
+    # The run reached its time limit (Budget#ends_at) and its last turn did not conclude.
+    STATUS_OUT_OF_TIME = :out_of_time
     # The next run resumes from the saved chat once the person decides.
     STATUS_WAITING = :waiting
 
@@ -15,6 +17,15 @@ module FirefightAi
 
     REMINDER = "That reply did nothing. Call a tool to keep going, or conclude with what you have.".freeze
     LAST_TURN = "This run has spent its budget. Conclude now with the evidence you already have.".freeze
+    TIME_UP = "This run has reached its time limit. Conclude now with the evidence you already have.".freeze
+    OUT_OF_STEPS = "This run has used all its steps. Conclude now with the evidence you already have.".freeze
+    LAST_WORDS = { STATUS_OUT_OF_TURNS => OUT_OF_STEPS, STATUS_OUT_OF_TIME => TIME_UP, STATUS_OUT_OF_BUDGET => LAST_TURN }.freeze
+    # The limits line says to wrap up once this share of the spend cap or of the time is gone, or this many steps are left.
+    WRAP_UP_SHARE = 0.8
+    WRAP_UP_STEPS = 2
+    WRAP_UP = "Close to the limit, so wrap up and finish with what you have.".freeze
+    # How long the last turn after the time limit may take, tools included, before the run is stopped wherever it is.
+    TIME_UP_GRACE = 5.minutes
     # Said before asking again for a reply that ran past the output limit in the middle of a tool call, since the same
     # reply written again would be cut off the same way.
     CUT_OFF = "Your last reply ran past the most you can write at once and was cut off in the middle of a tool call, so " \
@@ -29,9 +40,10 @@ module FirefightAi
     # How long a stopped loop lets a tool that had just answered finish saving its result, in seconds.
     SETTLE_AFTER_STOP = 1
 
-    # Micros, the ledger's unit, never rounded. The cap is still set in cents.
-    Budget = Data.define(:max_spend_cents, :max_turns, :turns_used, :spent_micros) do
-      def initialize(max_spend_cents:, max_turns:, turns_used: 0, spent_micros: 0) = super
+    # Micros, the ledger's unit, never rounded. The cap is still set in cents. ends_at is the time by which the run
+    # concludes, nil for none.
+    Budget = Data.define(:max_spend_cents, :max_turns, :turns_used, :spent_micros, :ends_at) do
+      def initialize(max_spend_cents:, max_turns:, turns_used: 0, spent_micros: 0, ends_at: nil) = super
     end
 
     Turn = Data.define(:turns_used, :spent_micros)
@@ -109,6 +121,7 @@ module FirefightAi
       @checks = checks.dup
       @retry_malformed = retry_malformed
       @context = context.presence
+      @started_at = Time.current
       # The app hears of a step and of a tool's progress one report at a time, though tools of one step run together.
       @reporting = ::Monitor.new
       steady!
@@ -151,6 +164,7 @@ module FirefightAi
 
         message = advance
         return outcome(STATUS_CANCELED) if message.equal?(STOPPED)
+        return outcome(STATUS_OUT_OF_TIME) if message.equal?(STOPPED_FOR_TIME)
         return outcome(STATUS_STALLED) if message.nil?
         unless message.role == :assistant
           report_spent_beside
@@ -175,18 +189,43 @@ module FirefightAi
       # Running tools already asked for costs nothing, and a provider refuses a chat with anything between a call and its
       # result, including the next question in a chat that stopped before the result was saved.
       return nil if tools_pending?
-      return STATUS_OUT_OF_TURNS if @turns >= @budget.max_turns
-      return nil if @purse.spent < @budget.max_spend_cents * MICROS_PER_CENT
-      return STATUS_OUT_OF_BUDGET if @last_turn_offered
+      # One last turn is all a run gets, whichever limit offered it, and it may go over that limit.
+      return @last_turn if @last_turn
 
-      # One last turn, which may go over the cap.
-      @last_turn_offered = true
-      @nudge.call(LAST_TURN)
+      reached = limit_reached
+      return nil unless reached
+
+      @last_turn = reached
+      @time_up_offered = Time.current if reached == STATUS_OUT_OF_TIME
+      @nudge.call(LAST_WORDS.fetch(reached))
       nil
     end
 
-    # What run_tools answers when a stop ended the tools.
+    # What run_tools answers when a stop ended the tools, and when the time limit's grace did.
     STOPPED = Object.new.freeze
+    STOPPED_FOR_TIME = Object.new.freeze
+
+    def limit_reached
+      return STATUS_OUT_OF_TURNS if @turns >= @budget.max_turns
+      return STATUS_OUT_OF_TIME if time_up?
+
+      STATUS_OUT_OF_BUDGET if @purse.spent >= cap_micros
+    end
+
+    def cap_micros = @budget.max_spend_cents * MICROS_PER_CENT
+
+    def time_up? = !@budget.ends_at.nil? && Time.current >= @budget.ends_at
+
+    # When a batch of tools that started at started is stopped for time, nil for a run with no limit. Each batch has the
+    # whole grace, from the limit, from when the last turn was offered or from its own start, whichever is latest, so a
+    # call the last turn asked for, or one a run taken up past its limit left pending, still runs, and one that hangs ends.
+    def tools_stop_at(started)
+      return nil if @budget.ends_at.nil?
+
+      [ (@time_up_offered || @budget.ends_at), started ].max + time_up_grace
+    end
+
+    def time_up_grace = TIME_UP_GRACE
 
     # Only a model call is billed. Running the tools the model already asked for is not.
     def advance
@@ -211,19 +250,23 @@ module FirefightAi
     # checks it gives up and tidies after itself, and the chat is cancelled, so RubyLLM saves no result for a tool that
     # answers after the stop. The loop lends its database connection to the tools while it waits.
     def run_tools
-      return @chat.step if @canceled.equal?(NEVER_CANCELED)
+      return @chat.step if @canceled.equal?(NEVER_CANCELED) && @budget.ends_at.nil?
 
       signal = Concurrent::Event.new
       trace = Tracing.context
       tools = StopSignal.watching(signal) { Thread.new { Tracing.within(trace) { beside_the_loop { @chat.step } } } }
       tools.report_on_exception = false
+      stop_at = tools_stop_at(Time.current)
       until wait_for(tools, STOP_CHECK_EVERY)
-        next unless @canceled.call
+        stopped = if @canceled.call then STOPPED
+        elsif stop_at && Time.current >= stop_at then STOPPED_FOR_TIME
+        end
+        next unless stopped
 
         signal.set
         @chat.to_llm.cancel
         settle(tools)
-        return STOPPED
+        return stopped
       end
       tools.value
     end
@@ -359,21 +402,47 @@ module FirefightAi
     # grows, the history in front of the context ends in a cache boundary for this call only, marked on a copy, so no
     # later call carries the mark. Otherwise a provider that caches at boundaries, such as Anthropic, would write the history with this context at
     # its end and find none of it on the next call, whose context comes after more of the chat. holding marks the
-    # boundary the run's first call holds (hold_history). A loop with no context, such as a helper's or a specialist's,
-    # marks its history the same way, since the provider's own rolling boundary (with_caching) is not read on every
-    # route. Through OpenRouter, Claude Haiku 4.5 read only the instructions from the cache on each of 85 specialist
+    # boundary the run's first call holds (hold_history). Every loop ends its call with where it stands against its
+    # limits, so a loop with no context of its own, such as a helper's or a specialist's, marks its history the same way,
+    # since the provider's own rolling boundary (with_caching) is not read on every route. Through OpenRouter, Claude Haiku 4.5 read only the instructions from the cache on each of 85 specialist
     # calls, while every mark on a message was read.
     def with_context_last(holding: false)
       llm = @chat.to_llm
       marks = cache_marks(llm, holding)
       marks.each { |message, copy| swap(llm.messages, message, copy) }
-      note = llm.add_message(role: :user, content: @context) if @context
+      note = llm.add_message(role: :user, content: [ @context, limits ].compact.join("\n\n"))
       yield
     ensure
       messages = @chat.to_llm.messages
       messages.delete_if { |message| message.equal?(note) } if note
       marks&.each { |message, copy| swap(messages, copy, message) }
     end
+
+    # Where the run stands against its limits, so the model can pace itself rather than be cut off mid thought.
+    def limits
+      step = @last_turn ? "this is the last step" : "step #{@turns + 1} of #{@budget.max_turns}"
+      parts = [ step, "#{budget_used}% of the budget used", time_left_words ].compact
+      "[Limits: #{parts.join(', ')}.#{" #{WRAP_UP}" if wrapping_up?}]"
+    end
+
+    def wrapping_up?
+      return true if @last_turn || @budget.max_turns - @turns <= WRAP_UP_STEPS || @purse.spent >= cap_micros * WRAP_UP_SHARE
+      return false if @budget.ends_at.nil?
+
+      @budget.ends_at - Time.current <= (@budget.ends_at - @started_at) * (1 - WRAP_UP_SHARE)
+    end
+
+    def time_left_words
+      return nil if @budget.ends_at.nil?
+
+      minutes = ((@budget.ends_at - Time.current) / 60.0).ceil
+      return "the time limit has passed" unless minutes.positive?
+
+      minutes == 1 ? "under a minute until the time limit" : "#{minutes} minutes until the time limit"
+    end
+
+    # A share rather than an amount, so no price reaches the model or anything it writes.
+    def budget_used = cap_micros.positive? ? (@purse.spent * 100 / cap_micros).floor : 0
 
     # Each message marked for this call with the copy that carries the mark. In a chat that holds its history, on a model
     # whose provider keeps a boundary for an hour, the saved boundaries (the instructions and the held history) and the

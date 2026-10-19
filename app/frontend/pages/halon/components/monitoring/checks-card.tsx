@@ -1,12 +1,18 @@
 import { useState } from "react"
 import { Link, router } from "@inertiajs/react"
-import { IconPlayerPlay, IconPlus, IconRadar } from "@tabler/icons-react"
+import { IconAlertTriangle, IconPlayerPlay, IconPlus, IconRadar, IconUserCog } from "@tabler/icons-react"
 
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { labelFor } from "@/components/investigations/labels"
 import { OptionsTable } from "@/components/options-table"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { TableCell, TableHead } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { InvestigationStatus } from "@/lib/generated/constants"
@@ -16,17 +22,21 @@ import {
   investigationCheckPath,
   investigationPath,
   runInvestigationCheckPath,
+  takeOverInvestigationCheckPath,
 } from "@/lib/routes"
 import { timeAgo } from "@/lib/time"
 import type { InvestigationCheck } from "@/types/serializers"
 import { CheckDialog, type CheckDialogState } from "@/pages/halon/components/monitoring/check-dialog"
-import type { CheckChoice } from "@/pages/halon/components/monitoring/types"
+import { OwnerDialog } from "@/pages/halon/components/monitoring/owner-dialog"
+import type { CheckChoice, CheckMember } from "@/pages/halon/components/monitoring/types"
 
 interface ChecksCardProps {
   checks: InvestigationCheck[]
   kinds: CheckChoice[]
   cadences: CheckChoice[]
+  members: CheckMember[]
   canManage: boolean
+  canChangeOwner: boolean
 }
 
 function toggleEnabled(check: InvestigationCheck) {
@@ -35,6 +45,43 @@ function toggleEnabled(check: InvestigationCheck) {
 
 function runNow(check: InvestigationCheck) {
   router.post(runInvestigationCheckPath(check.id), {}, { preserveScroll: true })
+}
+
+function takeOver(check: InvestigationCheck) {
+  router.post(takeOverInvestigationCheckPath(check.id), {}, { preserveScroll: true })
+}
+
+// Who the check runs in the name of, and why it waits when that person left.
+function Owner({ check }: { check: InvestigationCheck }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-sm text-muted-foreground">{check.ownerName ?? "No owner"}</span>
+      {check.pausedBecause && (
+        <span className="flex items-start gap-1.5 text-xs text-warning">
+          <IconAlertTriangle className="mt-px size-3.5 shrink-0" />
+          {check.pausedBecause}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// Who a check runs as decides what it reads, so only an admin takes it over or hands it on.
+function OwnerActions({ check, onChange }: { check: InvestigationCheck; onChange: (check: InvestigationCheck) => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="size-8 text-muted-foreground">
+          <IconUserCog className="size-4" />
+          <span className="sr-only">Owner of {check.name}</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-40">
+        <DropdownMenuItem onClick={() => takeOver(check)}>Take over</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onChange(check)}>Change owner</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 }
 
 // How a check's latest run ended, in the words of a check rather than an investigation.
@@ -88,9 +135,14 @@ function deleteDescription(check: InvestigationCheck | null): string {
   return `${check.name} has not run yet, so no run or problem is lost. Halon stops looking at it at once.`
 }
 
-export function ChecksCard({ checks, kinds, cadences, canManage }: ChecksCardProps) {
+export function ChecksCard({ checks, kinds, cadences, members, canManage, canChangeOwner }: ChecksCardProps) {
   const [dialog, setDialog] = useState<CheckDialogState>(null)
   const [deleting, setDeleting] = useState<InvestigationCheck | null>(null)
+  const [changingOwner, setChangingOwner] = useState<InvestigationCheck | null>(null)
+
+  function closeOwnerDialog() {
+    setChangingOwner(null)
+  }
 
   function openCreate() {
     setDialog({ mode: "create" })
@@ -173,16 +225,20 @@ export function ChecksCard({ checks, kinds, cadences, canManage }: ChecksCardPro
             <>
               <TableHead className="hidden md:table-cell">Looks at</TableHead>
               <TableHead className="hidden lg:table-cell">Schedule</TableHead>
+              <TableHead>Owner</TableHead>
               <TableHead>Last run</TableHead>
               {canManage && <TableHead className="w-28" />}
+              {canChangeOwner && <TableHead className="w-10" />}
             </>
           }
           cells={(check) => (
             <>
               <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{check.kindLabel}</TableCell>
               <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">{check.schedule}</TableCell>
+              <TableCell className="max-w-64 whitespace-normal"><Owner check={check} /></TableCell>
               <TableCell className="text-sm"><LastRun check={check} /></TableCell>
               {canManage && <TableCell><RunNow check={check} /></TableCell>}
+              {canChangeOwner && <TableCell><OwnerActions check={check} onChange={setChangingOwner} /></TableCell>}
             </>
           )}
           onToggleEnabled={toggleEnabled}
@@ -192,6 +248,7 @@ export function ChecksCard({ checks, kinds, cadences, canManage }: ChecksCardPro
         />
       </CardContent>
       {dialogElement}
+      {canChangeOwner && <OwnerDialog check={changingOwner} members={members} onClose={closeOwnerDialog} />}
 
       {canManage && (
         <ConfirmDeleteDialog

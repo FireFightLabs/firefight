@@ -108,10 +108,5 @@ class Workspace::ToolCatalogueTest < ActiveSupport::TestCase
 
   private
 
-  def whole_reads
-    reads = 0
-    counter = ->(*, payload) { reads += 1 if payload[:sql].match?(WHOLE_READS) }
-    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { yield }
-    reads
-  end
+  def whole_reads(&) = queries_sent(cached: true, transactions: true, &).grep(WHOLE_READS).size
 end

@@ -175,7 +175,7 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
     visit agent_chat_path(@conversation)
 
     within(CARD) do
-      assert_text Chat::Tools::UNDO_AUTOMATICALLY
+      assert_text Chat::Tools::ASK_HALON_TO_PUT_BACK
       assert_equal [ "Never", "15 min", "1 h", "4 h", "24 h" ], all("[data-slot='toggle-group-item']").map(&:text)
       assert_selector "[data-slot='toggle-group-item'][data-state='on']", text: "1 h"
       find("[data-slot='toggle-group-item']", exact_text: "4 h").click

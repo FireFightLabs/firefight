@@ -3,12 +3,13 @@ require "test_helper"
 class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
   # Stands in for a RubyLLM chat. A reply asking for tools is answered on the next move, as RubyLLM does.
   class FakeChat
-    attr_reader :messages, :model_calls, :streamed
+    attr_reader :messages, :model_calls, :streamed, :last_sent
 
     def initialize(replies)
       @replies = replies
       @messages = []
       @model_calls = 0
+      @last_sent = []
     end
 
     def to_llm = self
@@ -38,6 +39,7 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
       return answer_tool_call(pending) if pending
 
       @model_calls += 1
+      @last_sent << messages.last&.content
       reply = @replies.shift
       return nil if reply.nil?
       raise reply if reply.is_a?(Exception)
@@ -181,16 +183,81 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
 
     run_loop(chat, budget: budget(max_turns: 2))
 
-    assert_equal [ "call_0", "call_1" ], chat.messages.select(&:tool_result?).map(&:tool_call_id)
+    assert_equal [ "call_0", "call_1", "call_2" ], chat.messages.select(&:tool_result?).map(&:tool_call_id)
   end
 
-  test "a run that reaches the turn guard stops" do
+  test "a run that reaches the turn guard gets one last turn to conclude, then stops" do
     chat = FakeChat.new(Array.new(5) { |index| tool_reply("call_#{index}") })
 
     outcome = run_loop(chat, budget: budget(max_turns: 2))
 
     assert_equal FirefightAi::AgentLoop::STATUS_OUT_OF_TURNS, outcome.status
-    assert_equal 2, outcome.turns_used
+    assert_equal 3, outcome.turns_used
+    assert_equal 1, chat.messages.count { |message| message.content == FirefightAi::AgentLoop::OUT_OF_STEPS }
+  end
+
+  test "every model call ends with where the run stands against its limits, which is never saved" do
+    chat = FakeChat.new([ tool_reply("call_0"), llm_reply(content: "It was the database") ])
+
+    run_loop(chat, budget: budget(max_turns: 5), reply_is_answer: true)
+
+    assert_equal [ "[Limits: step 1 of 5, 0% of the budget used.]", "[Limits: step 2 of 5, 0% of the budget used.]" ], chat.last_sent
+    assert chat.messages.none? { |message| message.content.to_s.start_with?("[Limits:") }
+  end
+
+  test "the limits line says to wrap up in the last two steps, past most of the budget and near the time limit" do
+    freeze_time
+    chat = FakeChat.new([ tool_reply("call_0"), tool_reply("call_1", cost: 3.50), llm_reply(content: "Done") ])
+
+    run_loop(chat, budget: budget(max_turns: 10, ends_at: 40.minutes.from_now), reply_is_answer: true)
+
+    first, second, third = chat.last_sent
+    assert_equal "[Limits: step 1 of 10, 0% of the budget used, 40 minutes until the time limit.]", first
+    assert_equal "[Limits: step 2 of 10, 0% of the budget used, 40 minutes until the time limit.]", second
+    assert_equal "[Limits: step 3 of 10, 87% of the budget used, 40 minutes until the time limit. #{FirefightAi::AgentLoop::WRAP_UP}]", third
+
+    steps = FakeChat.new([ tool_reply("call_0"), llm_reply(content: "Done") ])
+    run_loop(steps, budget: budget(max_turns: 3), reply_is_answer: true)
+    assert_not_includes steps.last_sent.first, FirefightAi::AgentLoop::WRAP_UP
+    assert_includes steps.last_sent.second, FirefightAi::AgentLoop::WRAP_UP
+
+    late = FakeChat.new([ llm_reply(content: "Done") ])
+    agent_loop = FirefightAi::AgentLoop.new(
+      chat: late, budget: budget(ends_at: 50.minutes.from_now), answered: -> { false }, reply_is_answer: true,
+      inference: { workspace: @workspace, feature: "investigation", provider: "openai", model: "gpt-4o", inferable: @incident }
+    )
+    travel(41.minutes)
+    agent_loop.run
+    assert_equal "[Limits: step 1 of 500, 0% of the budget used, 9 minutes until the time limit. #{FirefightAi::AgentLoop::WRAP_UP}]", late.last_sent.first
+  end
+
+  test "the limits line follows the context the app sends" do
+    chat = FakeChat.new([ llm_reply(content: "Done") ])
+
+    FirefightAi::AgentLoop.new(
+      chat: chat, budget: budget(max_turns: 5), answered: -> { false }, reply_is_answer: true, context: "You are acting for Alice.",
+      inference: { workspace: @workspace, feature: "investigation", provider: "openai", model: "gpt-4o", inferable: @incident }
+    ).run
+
+    assert_equal "You are acting for Alice.\n\n[Limits: step 1 of 5, 0% of the budget used.]", chat.last_sent.first
+  end
+
+  test "a run that concludes on the last turn the turn guard gave it is answered" do
+    chat = FakeChat.new([ tool_reply("call_0"), tool_reply("call_1"), llm_reply(content: "It was the database") ])
+
+    outcome = run_loop(chat, budget: budget(max_turns: 2), reply_is_answer: true)
+
+    assert_equal FirefightAi::AgentLoop::STATUS_ANSWERED, outcome.status
+  end
+
+  test "only one last turn is given, whichever limit comes first" do
+    chat = FakeChat.new([ tool_reply("call_0", cost: 5.00), tool_reply("call_1"), tool_reply("call_2") ])
+
+    outcome = run_loop(chat, budget: budget(max_spend_cents: 400, max_turns: 2))
+
+    assert_equal FirefightAi::AgentLoop::STATUS_OUT_OF_BUDGET, outcome.status
+    assert_equal 2, chat.model_calls
+    assert_not_includes chat.messages.map(&:content), FirefightAi::AgentLoop::OUT_OF_STEPS
   end
 
   test "a repeated tool call id stops the run rather than paying for it forever" do
@@ -390,6 +457,86 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     assert chat.heard_stop.wait(2), "the tool's wait heard the stop"
   end
 
+  test "reaching the time limit buys one last turn to conclude, then the run stops for time" do
+    chat = FakeChat.new([ tool_reply("call_1"), tool_reply("call_2"), tool_reply("call_3") ])
+
+    outcome = run_loop(chat, budget: budget(ends_at: 1.second.ago))
+
+    assert_equal FirefightAi::AgentLoop::STATUS_OUT_OF_TIME, outcome.status
+    assert_includes chat.messages.map(&:content), FirefightAi::AgentLoop::TIME_UP
+    assert_equal 1, chat.model_calls, "the last turn is one model call, not a whole run"
+    assert_equal [ "call_1" ], chat.messages.select(&:tool_result?).map(&:tool_call_id), "what the last turn asked for still answers"
+  end
+
+  test "a run that concludes on its last turn is answered, not stopped for time" do
+    chat = FakeChat.new([ llm_reply(content: "It was the database") ])
+
+    outcome = run_loop(chat, budget: budget(ends_at: 1.second.ago), reply_is_answer: true)
+
+    assert_equal FirefightAi::AgentLoop::STATUS_ANSWERED, outcome.status
+  end
+
+  # Seen in review: a tool that ran until just before the grace ran out left the last turn almost no time.
+  test "each batch of tools has the whole grace, counted from the limit, the last turn or when the batch started, whichever is latest" do
+    freeze_time
+    agent_loop = FirefightAi::AgentLoop.new(
+      chat: FakeChat.new([]), budget: budget(ends_at: 1.minute.ago), answered: -> { false },
+      inference: { workspace: @workspace, feature: "investigation", provider: "openai", model: "gpt-4o", inferable: @incident }
+    )
+    grace = FirefightAi::AgentLoop::TIME_UP_GRACE
+    started = Time.current
+
+    assert_equal started + grace, agent_loop.send(:tools_stop_at, started)
+    assert_equal 1.minute.ago + grace, agent_loop.send(:tools_stop_at, 2.minutes.ago)
+    agent_loop.send(:stop_reason)
+    assert_operator agent_loop.send(:tools_stop_at, 2.minutes.ago), :>=, started + grace
+  end
+
+  # Seen in review: a budget's last turn whose tools ran past the time limit bought a second last turn.
+  test "a run that spent its budget gets one last turn, even when that turn's tools run past its time limit" do
+    chat = FakeChat.new([ tool_reply("call_1", cost: 5.00), tool_reply("call_2"), tool_reply("call_3") ])
+    past_the_limit = ->(step) { travel(10.minutes) if step.key == "call_2" && step.status == FirefightAi::AgentLoop::STEP_RUNNING }
+
+    outcome = run_loop(chat, budget: budget(max_spend_cents: 400, ends_at: 1.minute.from_now), on_step: past_the_limit)
+
+    assert_equal FirefightAi::AgentLoop::STATUS_OUT_OF_BUDGET, outcome.status
+    assert_equal 2, chat.model_calls
+    assert_not_includes chat.messages.map(&:content), FirefightAi::AgentLoop::TIME_UP
+  end
+
+  test "a run taken up again past its limit still gets its last turn, rather than stopping without one" do
+    chat = FakeChat.new([ llm_reply(content: "It was the database") ])
+
+    outcome = run_loop(chat, budget: budget(ends_at: (FirefightAi::AgentLoop::TIME_UP_GRACE + 1).seconds.ago), reply_is_answer: true)
+
+    assert_equal FirefightAi::AgentLoop::STATUS_ANSWERED, outcome.status
+    assert_includes chat.messages.map(&:content), FirefightAi::AgentLoop::TIME_UP
+  end
+
+  test "a call left pending by a run taken up again past its limit runs before the run stops, so a conclusion it asked for lands" do
+    chat = FakeChat.new([])
+    chat.add_message(role: :assistant, content: "", tool_calls: { "call_0" => RubyLLM::ToolCall.new(id: "call_0", name: "conclude", arguments: {}) })
+    concluded = -> { chat.messages.any?(&:tool_result?) }
+
+    outcome = run_loop(chat, budget: budget(ends_at: (FirefightAi::AgentLoop::TIME_UP_GRACE + 1).seconds.ago), answered: concluded)
+
+    assert_equal FirefightAi::AgentLoop::STATUS_ANSWERED, outcome.status
+    assert_equal 0, chat.model_calls
+  end
+
+  test "a tool still running once the last turn's grace is over is stopped, and the run ends for time" do
+    chat = SlowToolChat.new([ tool_reply("call_1"), llm_reply(content: "never asked") ], waits: 5, stoppable: true)
+    FirefightAi::AgentLoop.any_instance.stubs(:time_up_grace).returns(1.5)
+    started = clock
+
+    outcome = run_loop(chat, budget: budget(ends_at: 1.second.ago))
+
+    assert_equal FirefightAi::AgentLoop::STATUS_OUT_OF_TIME, outcome.status
+    assert_operator clock - started, :<, 4.5
+    assert chat.heard_stop.wait(2), "the tool's wait heard the stop"
+    assert_empty chat.messages.select(&:tool_result?)
+  end
+
   test "a tool that finishes before any stop answers as before" do
     chat = SlowToolChat.new([ tool_reply("call_1"), llm_reply(content: "done") ], waits: 0.1)
 
@@ -445,9 +592,9 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     )
   end
 
-  def budget(max_spend_cents: 400, max_turns: 500, turns_used: 0, spent_micros: 0)
+  def budget(max_spend_cents: 400, max_turns: 500, turns_used: 0, spent_micros: 0, ends_at: nil)
     FirefightAi::AgentLoop::Budget.new(
-      max_spend_cents: max_spend_cents, max_turns: max_turns, turns_used: turns_used, spent_micros: spent_micros
+      max_spend_cents: max_spend_cents, max_turns: max_turns, turns_used: turns_used, spent_micros: spent_micros, ends_at: ends_at
     )
   end
 

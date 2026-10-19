@@ -96,12 +96,14 @@ module Integrations
       COMPONENT = { "type" => "string", "description" => "One component of the app, by its name in the app spec, as describe_resource shows it" }.freeze
 
       tool :list_resources,
+           summary: "Lists the App Platform apps, Droplets and managed databases in the account.",
            description: "The App Platform apps, Droplets and managed databases this token can see, with what each is and how it " \
                         "stands. Use it first to find the name to pass to the other tools",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :describe_resource,
+           summary: "Shows how one app, Droplet or database is set up and how it is doing now.",
            description: "How one app, Droplet or database is set up and how it stands now. An app: its active and in-progress " \
                         "deployments, whether it is pinned by a rollback, each component's instances, size, source and health, " \
                         "and its domains. A Droplet: status, size, image, region and addresses. A database: engine, version, " \
@@ -110,6 +112,7 @@ module Integrations
            read_only: true
 
       tool :app_logs,
+           summary: "Searches an App Platform app's run, build or deploy logs.",
            description: "Log lines of an App Platform app's active deployment, or of any one deployment by its id, such as one " \
                         "that failed, newest first, at most #{LOG_LIMIT}. type picks run logs (what the app prints), build, deploy, " \
                         "or RUN_RESTARTED for instances that crashed or restarted. Filter by text or a regular expression, and to " \
@@ -132,6 +135,7 @@ module Integrations
            read_only: true
 
       tool :list_deployments,
+           summary: "Lists an App Platform app's deployments with what caused each one.",
            description: "An App Platform app's deployments, newest first: when each was made, its phase, what caused it, the " \
                         "commit each component was built from, and its id, which rollback_app takes",
            params_schema: {
@@ -145,6 +149,7 @@ module Integrations
            read_only: true
 
       tool :deploy_history,
+           summary: "Lists an app's recent builds and releases with how long each took.",
            description: "An App Platform app's recent deployments, each a build and its release, with its phase, when it started " \
                         "and finished and how long it took, and how long finished ones usually take",
            params_schema: {
@@ -161,6 +166,7 @@ module Integrations
            read_only: true
 
       tool :resource_metrics,
+           summary: "Charts the metrics of one app, Droplet or MySQL database over time.",
            description: "Metrics of one app, Droplet or MySQL database over time, with min, average, max and latest for each, " \
                         "and the person sees each as a chart. An app keeps cpu, memory and restarts per instance, a Droplet " \
                         "cpu, memory, disk, network_in and network_out, and a MySQL database cpu, memory and disk",
@@ -177,6 +183,7 @@ module Integrations
            read_only: true
 
       tool :rollback_app,
+           summary: "Rolls an App Platform app back to an earlier deployment.",
            description: "Put an App Platform app back on an earlier deployment, by the id list_deployments shows. DigitalOcean " \
                         "pins the app to it, so no new deployment goes out, not even on a push, until someone commits or " \
                         "reverts the rollback in the control panel",
@@ -191,6 +198,7 @@ module Integrations
            read_only: false
 
       tool :restart_app,
+           summary: "Restarts an App Platform app, or one of its components, on the same code.",
            description: "A rolling restart of an App Platform app, every component or one, for one stuck in a bad state while " \
                         "its code is fine. It makes a new deployment of the same code",
            params_schema: {
@@ -201,6 +209,7 @@ module Integrations
            read_only: false
 
       tool :scale_app,
+           summary: "Sets how many instances a service or worker of an app runs.",
            description: "Set how many instances one service or worker of an App Platform app runs. Everything else in the app's " \
                         "spec stays as it is, and the same code is redeployed. A component that autoscales is refused",
            params_schema: {
@@ -215,6 +224,7 @@ module Integrations
            read_only: false
 
       tool :billing,
+           summary: "Shows what the DigitalOcean account spends this month and in past months.",
            description: "What the DigitalOcean account spends: used this month so far, its balance, the month so far by product, and " \
                         "the total of each month before, newest first. Use it to watch spend and find what grew. Needs the billing:read scope",
            params_schema: {
@@ -224,12 +234,14 @@ module Integrations
            read_only: true
 
       tool :reboot_droplet,
+           summary: "Reboots a Droplet gracefully.",
            description: "Reboot a Droplet gracefully, as the reboot command on it would, for one that hangs or misbehaves while " \
                         "its disk and setup are fine",
            params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
            read_only: false
 
       tool :api_read,
+           summary: "Reads any other DigitalOcean resource, such as load balancers or clusters.",
            description: "Anything else DigitalOcean's API reads that the other tools do not cover, such as an app's alerts, " \
                         "domains or one deployment's progress, load balancers, volumes, Kubernetes clusters, firewalls, VPCs, " \
                         "a database's configuration, replicas or backups, or the account's projects. A GET to a path of the API " \

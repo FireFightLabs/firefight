@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_18_100400) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -31,6 +31,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
     t.index ["key"], name: "index_ability_actions_on_system_key", unique: true, where: "(workspace_id IS NULL)"
     t.index ["source_type", "source_id"], name: "index_ability_actions_on_source_type_and_source_id"
     t.index ["workspace_id", "key"], name: "index_ability_actions_on_workspace_key", unique: true, where: "(workspace_id IS NOT NULL)"
+  end
+
+  create_table "ability_allowances", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.string "capability"
+    t.uuid "action_id"
+    t.uuid "integration_id"
+    t.uuid "environment_id"
+    t.boolean "enabled", default: true, null: false
+    t.uuid "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action_id"], name: "index_ability_allowances_on_action_id"
+    t.index ["created_by_id"], name: "index_ability_allowances_on_created_by_id"
+    t.index ["environment_id"], name: "index_ability_allowances_on_environment_id"
+    t.index ["integration_id"], name: "index_ability_allowances_on_integration_id"
+    t.index ["workspace_id", "capability", "action_id", "integration_id", "environment_id"], name: "index_ability_allowances_uniquely", unique: true, nulls_not_distinct: true
+    t.check_constraint "(capability IS NULL) <> (action_id IS NULL)", name: "ability_allowances_one_change"
   end
 
   create_table "ability_approvals", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -115,7 +133,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
     t.uuid "workflow_run_id"
     t.string "workflow_step_key"
     t.string "workflow_iteration"
+    t.string "unasked_reason"
+    t.uuid "allowance_id"
     t.index ["action_key"], name: "index_ability_invocations_on_action_key"
+    t.index ["allowance_id"], name: "index_ability_invocations_on_allowance_id"
     t.index ["principal_type", "principal_id", "created_at"], name: "index_ability_invocations_on_principal"
     t.index ["workflow_run_id", "workflow_step_key"], name: "idx_on_workflow_run_id_workflow_step_key_96873e3f4e", where: "(workflow_run_id IS NOT NULL)"
     t.index ["workflow_run_id"], name: "index_ability_invocations_on_workflow_run_id"
@@ -809,6 +830,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
     t.string "message_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "unasked_reason"
+    t.uuid "allowance_id"
+    t.index ["allowance_id"], name: "index_chat_mitigations_on_allowance_id"
     t.index ["asker_type", "asker_id"], name: "index_chat_mitigations_on_asker"
     t.index ["chat_id", "tool_call_id"], name: "index_chat_mitigations_on_chat_id_and_tool_call_id", unique: true
     t.index ["chat_id"], name: "index_chat_mitigations_on_chat_id"
@@ -816,6 +840,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
     t.index ["plan_step_id"], name: "index_chat_mitigations_on_plan_step_id"
     t.index ["status", "expires_at"], name: "index_chat_mitigations_on_status_and_expires_at"
     t.index ["workspace_id"], name: "index_chat_mitigations_on_workspace_id"
+  end
+
+  create_table "chat_model_switches", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.datetime "created_at", null: false
+    t.string "backup_model", null: false
+    t.string "backup_provider"
+    t.string "cause", null: false
+    t.string "failed_model", null: false
+    t.string "failed_provider"
+    t.string "reason"
+    t.datetime "updated_at", null: false
+    t.index ["chat_id"], name: "index_chat_model_switches_on_chat_id"
   end
 
   create_table "chat_owner_asks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -843,19 +880,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
     t.index ["owner_id"], name: "index_chat_owner_asks_on_owner_id"
     t.index ["plan_id"], name: "index_chat_owner_asks_on_plan_id"
     t.index ["workspace_id"], name: "index_chat_owner_asks_on_workspace_id"
-  end
-
-  create_table "chat_model_switches", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.uuid "chat_id", null: false
-    t.datetime "created_at", null: false
-    t.string "backup_model", null: false
-    t.string "backup_provider"
-    t.string "cause", null: false
-    t.string "failed_model", null: false
-    t.string "failed_provider"
-    t.string "reason"
-    t.datetime "updated_at", null: false
-    t.index ["chat_id"], name: "index_chat_model_switches_on_chat_id"
   end
 
   create_table "chat_pack_refusals", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2093,11 +2117,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
     t.datetime "last_run_at"
     t.datetime "deleted_at"
     t.uuid "created_by_id"
+    t.uuid "owner_id"
+    t.datetime "paused_at"
+    t.string "paused_owner_name"
+    t.datetime "owner_gone_told_at"
+    t.integer "owner_gone_notice_attempts", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index "workspace_id, lower((name)::text)", name: "index_investigation_checks_on_workspace_and_name", unique: true
     t.index ["created_by_id"], name: "index_investigation_checks_on_created_by_id"
     t.index ["next_run_at"], name: "index_investigation_checks_due", where: "(deleted_at IS NULL)"
+    t.index ["owner_id"], name: "index_investigation_checks_on_owner_id"
     t.index ["workspace_id"], name: "index_investigation_checks_on_workspace_id"
   end
 
@@ -2298,6 +2328,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
     t.string "outcome_label"
     t.string "outcome_url"
     t.boolean "firefight_tool", default: false, null: false
+    t.text "needs_person"
     t.index ["applied_under_rule_id"], name: "index_investigation_remediation_steps_on_applied_under_rule_id"
     t.index ["approval_id"], name: "index_investigation_remediation_steps_on_approval_id"
     t.index ["done_by_id"], name: "index_investigation_remediation_steps_on_done_by_id"
@@ -2358,6 +2389,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
     t.string "lease_holder"
     t.uuid "lease_token"
     t.datetime "lease_until"
+    t.integer "max_duration_seconds"
     t.integer "max_spend_cents", null: false
     t.integer "max_turns", null: false
     t.string "model_override"
@@ -2927,6 +2959,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
     t.jsonb "mcp_state"
     t.jsonb "mcp_result"
     t.uuid "decided_by_id"
+    t.string "unasked_reason"
+    t.uuid "allowance_id"
+    t.index ["allowance_id"], name: "index_ruby_llm_tool_calls_on_allowance_id"
     t.index ["decided_by_id"], name: "index_ruby_llm_tool_calls_on_decided_by_id"
     t.index ["message_type", "message_id", "tool_call_id"], name: "index_ruby_llm_tool_calls_on_message_and_tool_call_id", unique: true
     t.index ["name"], name: "index_ruby_llm_tool_calls_on_name"
@@ -3357,7 +3392,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
     t.string "rerun_from_step_key"
     t.text "private_inputs"
     t.string "telling_job_id"
+    t.uuid "confirmed_by_id"
+    t.string "asked_by_type"
+    t.uuid "asked_by_id"
     t.index ["agent_id"], name: "index_workflow_runs_on_agent_id"
+    t.index ["asked_by_type", "asked_by_id"], name: "index_workflow_runs_on_asked_by"
+    t.index ["confirmed_by_id"], name: "index_workflow_runs_on_confirmed_by_id"
     t.index ["parent_run_id"], name: "index_workflow_runs_on_parent_run_id"
     t.index ["rerun_of_id"], name: "index_workflow_runs_on_rerun_of_id"
     t.index ["started_by_id"], name: "index_workflow_runs_on_started_by_id"
@@ -3365,7 +3405,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
     t.index ["version_id"], name: "index_workflow_runs_on_version_id"
     t.index ["workflow_id", "created_at"], name: "index_workflow_runs_on_workflow_id_and_created_at"
     t.index ["workflow_id", "start_key"], name: "index_workflow_runs_on_workflow_id_and_start_key", unique: true
-    t.index ["workflow_id", "subject_key"], name: "index_workflow_runs_one_live_per_subject", unique: true, where: "((subject_key IS NOT NULL) AND ((status)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying, 'waiting'::character varying, 'paused'::character varying])::text[])))"
+    t.index ["workflow_id", "subject_key"], name: "index_workflow_runs_one_live_per_subject", unique: true, where: "((subject_key IS NOT NULL) AND ((status)::text = ANY (ARRAY[('queued'::character varying)::text, ('running'::character varying)::text, ('waiting'::character varying)::text, ('paused'::character varying)::text])))"
     t.index ["workspace_id", "created_at"], name: "index_workflow_runs_on_workspace_id_and_created_at"
     t.index ["workspace_id", "finished_at"], name: "index_workflow_runs_awaiting_pruning", where: "((details_pruned_at IS NULL) AND (pinned = false))"
   end
@@ -3442,7 +3482,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
     t.index ["agent_id"], name: "index_workflows_on_agent_id"
     t.index ["created_by_id"], name: "index_workflows_on_created_by_id"
     t.index ["hook_token"], name: "index_workflows_on_hook_token", unique: true
-
     t.index ["library_key", "follows_library"], name: "index_workflows_on_library_key_and_follows_library"
     t.index ["live_version_id"], name: "index_workflows_on_live_version_id"
     t.index ["next_run_at"], name: "index_workflows_on_next_run_at", where: "(next_run_at IS NOT NULL)"
@@ -3570,6 +3609,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
     t.boolean "halon_applies_workflow_read_fixes", default: false, null: false
     t.integer "workflow_run_retention_days", default: 90, null: false
     t.integer "code_fix_budget_cents", default: 200, null: false
+    t.boolean "safe_changes_without_asking", default: true, null: false
     t.index ["created_by_id"], name: "index_workspaces_on_created_by_id"
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
     t.index ["issue_webhook_token"], name: "index_workspaces_on_issue_webhook_token", unique: true
@@ -3578,12 +3618,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
   end
 
   add_foreign_key "ability_actions", "workspaces"
+  add_foreign_key "ability_allowances", "ability_actions", column: "action_id", on_delete: :cascade
+  add_foreign_key "ability_allowances", "catalog_entries", column: "environment_id", on_delete: :cascade
+  add_foreign_key "ability_allowances", "integrations", on_delete: :cascade
+  add_foreign_key "ability_allowances", "workspace_memberships", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "ability_allowances", "workspaces"
   add_foreign_key "ability_approvals", "ability_unattended_rules", column: "approved_under_rule_id", on_delete: :nullify
   add_foreign_key "ability_approvals", "workflow_runs", on_delete: :nullify
   add_foreign_key "ability_approvals", "workspaces"
   add_foreign_key "ability_grants", "ability_actions", column: "action_id"
   add_foreign_key "ability_grants", "ability_roles", column: "role_id"
   add_foreign_key "ability_grants", "workspaces"
+  add_foreign_key "ability_invocations", "ability_allowances", column: "allowance_id", on_delete: :nullify
   add_foreign_key "ability_invocations", "workflow_runs", on_delete: :nullify
   add_foreign_key "ability_invocations", "workspaces"
   add_foreign_key "ability_pack_requests", "ability_roles", column: "role_id", on_delete: :cascade
@@ -3678,6 +3724,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
   add_foreign_key "chat_memory_uses", "chat_memories", column: "memory_id", on_delete: :cascade
   add_foreign_key "chat_messages", "chats"
   add_foreign_key "chat_messages", "workspace_memberships", column: "sender_id", on_delete: :nullify
+  add_foreign_key "chat_mitigations", "ability_allowances", column: "allowance_id", on_delete: :nullify
   add_foreign_key "chat_mitigations", "chat_plan_steps", column: "plan_step_id", on_delete: :nullify
   add_foreign_key "chat_mitigations", "chats", on_delete: :cascade
   add_foreign_key "chat_mitigations", "workspace_memberships", column: "ended_by_id", on_delete: :nullify
@@ -3812,6 +3859,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
   add_foreign_key "integration_tools", "integrations"
   add_foreign_key "integrations", "workspaces"
   add_foreign_key "investigation_checks", "workspace_memberships", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "investigation_checks", "workspace_memberships", column: "owner_id", on_delete: :nullify
   add_foreign_key "investigation_checks", "workspaces"
   add_foreign_key "investigation_evidence", "investigation_findings", column: "finding_id"
   add_foreign_key "investigation_findings", "integrations", column: "page_integration_id", on_delete: :nullify
@@ -3894,6 +3942,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
   add_foreign_key "resource_map_uses", "integration_environments", on_delete: :cascade
   add_foreign_key "resource_map_uses", "resource_map_resources", column: "resource_id", on_delete: :cascade
   add_foreign_key "resource_map_uses", "workspaces"
+  add_foreign_key "ruby_llm_tool_calls", "ability_allowances", column: "allowance_id", on_delete: :nullify
   add_foreign_key "ruby_llm_tool_calls", "workspace_memberships", column: "decided_by_id", on_delete: :nullify
   add_foreign_key "runbook_steps", "runbooks"
   add_foreign_key "runbooks", "workflows", on_delete: :nullify
@@ -3930,6 +3979,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_220000) do
   add_foreign_key "workflow_runs", "workflow_runs", column: "rerun_of_id", on_delete: :nullify
   add_foreign_key "workflow_runs", "workflow_versions", column: "version_id"
   add_foreign_key "workflow_runs", "workflows", on_delete: :cascade
+  add_foreign_key "workflow_runs", "workspace_memberships", column: "confirmed_by_id", on_delete: :nullify
   add_foreign_key "workflow_runs", "workspace_memberships", column: "started_by_id", on_delete: :nullify
   add_foreign_key "workflow_runs", "workspaces"
   add_foreign_key "workflow_skipped_runs", "workflows", on_delete: :cascade

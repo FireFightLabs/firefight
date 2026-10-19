@@ -8,8 +8,13 @@ class AbilityApprovalSerializer < BaseSerializer
     approval.id
   end
 
+  # Who asked or acted as a person reads it, such as "Halon", never the machine label the row keeps.
+  type :string
+  def principal_name
+    approval.principal_name
+  end
+
   attributes(
-    principal_label: { type: :string },
     action_key: { type: :string },
     required_role: { type: :string },
     self_approvable: { type: :boolean }
@@ -74,6 +79,16 @@ class AbilityApprovalSerializer < BaseSerializer
   def source_label
     Ability::Source.label(approval.source)
   end
+
+  # What a counted database write touches, each a label and what it says, as the asker's card would have shown it.
+  type "string[][]"
+  def rows = shown.rows
+
+  # The warning about text read from outside Firefight before the call, as the asker's card would have carried it.
+  type :string, optional: true
+  def caution = shown.caution
+
+  def shown = memo.fetch(:shown) { ApprovalNotificationService.shown(approval) }
 
   type :string
   def created_at

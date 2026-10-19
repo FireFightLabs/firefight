@@ -29,6 +29,7 @@ module Slack
         steps = plan.steps.includes(:done_by, approval: :approver).to_a
         blocks = Checklist.blocks(title: title(plan), items: steps.map { |step| item(step) }, rich: rich, emoji: ":hammer_and_wrench:", summary: true)
         blocks.concat(state(plan, steps).to_blocks(rich: rich))
+        steps.select { |step| step.needs_person.present? }.each { |step| blocks.concat(needs_person(step).to_blocks(rich: rich)) }
         acting = steps.select { |step| acts_on?(step, steps) }
         shown = 0
         acting.each do |step|
@@ -66,6 +67,11 @@ module Slack
         level = STATE_LEVELS[plan.status]
         level ||= steps.any? { |step| STOPPED.include?(step.status) } ? Slack::Blocks::Alert::LEVEL_ERROR : Slack::Blocks::Alert::LEVEL_WARNING
         Slack::Blocks::Alert.new(level: level, text: "#{heading(plan, steps)}  ·  #{steps.count(&:done?)} of #{steps.size} steps done")
+      end
+
+      # A step whose change a person must look at before anyone merges it, such as a pull request that touched a kept path.
+      def self.needs_person(step)
+        Slack::Blocks::Alert.new(level: Slack::Blocks::Alert::LEVEL_WARNING, text: "Step #{step.position}: #{Mrkdwn.escape(step.needs_person)}")
       end
 
       CHECKLIST_STATUSES = {

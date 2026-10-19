@@ -13,9 +13,10 @@ class WorkflowToolChoiceSerializer < BaseSerializer
     choice.group
   end
 
+  # The line a person reads, a connection's tool's summary rather than what Halon reads of it.
   type :string
   def description
-    choice.description
+    choice.shown_description
   end
 
   # What a watch asks of the tool when it differs from a call's, or nil.

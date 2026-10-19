@@ -33,11 +33,13 @@ module Integrations
           repo = pack.const_defined?(:REPO_PARAM, false) ? pack::REPO_PARAM : REPO
           repos = pack.const_defined?(:REPOS_PARAM, false) ? pack::REPOS_PARAM : REPOS
           pack.tool :list_files,
+                    summary: "Lists the files in a repository, or in one folder of it.",
                     description: "List the files in a repository at a commit, optionally under one directory",
                     params_schema: object_schema({ "repo" => repo, "ref" => REF, "path_prefix" => { "type" => "string", "description" => "Only paths under this directory (optional)" } }, %w[repo]),
                     read_only: true
 
           pack.tool :code_search,
+                    summary: "Searches a repository's code for a pattern and shows matching lines.",
                     description: "Regex search across a repository at a commit, returning path:line references with the matching line",
                     params_schema: object_schema({
                       "repo" => repo, "ref" => REF,
@@ -47,6 +49,7 @@ module Integrations
                     read_only: true
 
           pack.tool :find_definition,
+                    summary: "Finds where a class, method or function is defined in the code.",
                     description: "Where a class, module, method or function is defined, across one or several repositories at a commit. " \
                                  "Says so when nothing defines it, which is how a call to something missing is found",
                     params_schema: object_schema({
@@ -57,6 +60,7 @@ module Integrations
                     read_only: true
 
           pack.tool :find_usages,
+                    summary: "Finds every place a name is used in a repository's code.",
                     description: "Every place a name appears as a whole word in a repository at a commit",
                     params_schema: object_schema({
                       "repo" => repo, "ref" => REF, "symbol" => { "type" => "string", "description" => "The exact name to look for" },
@@ -65,6 +69,7 @@ module Integrations
                     read_only: true
 
           pack.tool :git_log,
+                    summary: "Searches a repository's commit history by file, text or author.",
                     description: "A repository's history, newest first: commits touching a path, or the commits that added or removed some text (git log -S), " \
                                  "or whose changes match a regex (git log -G), optionally by author or time",
                     params_schema: object_schema({
@@ -80,6 +85,7 @@ module Integrations
                     read_only: true
 
           pack.tool :show_commit,
+                    summary: "Shows one commit in full with its message, changed files and diff.",
                     description: "One commit in full: message, author, the files it changed and its diff, optionally only for one path",
                     params_schema: object_schema({
                       "repo" => repo, "sha" => { "type" => "string", "description" => "The commit SHA" },
@@ -88,6 +94,7 @@ module Integrations
                     read_only: true
 
           pack.tool :diff_refs,
+                    summary: "Shows the diff between two commits, branches or tags.",
                     description: "The diff between two commits, branches or tags in a repository, optionally only for one path",
                     params_schema: object_schema({
                       "repo" => repo, "base" => { "type" => "string", "description" => "The earlier commit, branch or tag" },
@@ -97,6 +104,7 @@ module Integrations
                     read_only: true
 
           pack.tool :ask_language_server,
+                    summary: "Looks up a symbol's definition, references and type through a language server.",
                     description: "Ask the language server for Ruby, TypeScript, JavaScript, Go or Python: the definition of what sits at a " \
                                  "line and column, every reference to it, its type and docs, or the symbols matching a name. More exact " \
                                  "than a text search when a name is common",
@@ -112,6 +120,7 @@ module Integrations
                     read_only: true
 
           pack.tool :run_shell,
+                    summary: "Runs a read-only shell command in a copy of a repository.",
                     description: "Run a read-only shell command in a checkout of a repository at a commit, for what the other tools do not cover. " \
                                  "It runs as a user that cannot write the code",
                     params_schema: object_schema({
@@ -121,6 +130,7 @@ module Integrations
                     read_only: true
 
           pack.tool :run_tests,
+                    summary: "Runs a repository's tests, or another command, in a writable copy of it.",
                     description: "Run a repository's own tests, or any command, in a writable copy at a commit. Its dependencies and tool " \
                                  "versions are installed first, once per copy, and the services, variables and setup commands its CI uses " \
                                  "are set up as the workspace keeps them. Postgres and Redis can be started for it",

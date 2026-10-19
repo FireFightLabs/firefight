@@ -1,11 +1,11 @@
 # One read tool per return shape plus a write tool. Stub Integrations::NativePack.for to return it.
 class FakeNativePack < Integrations::NativePack
-  tool :echo_text, description: "Echoes text back",
+  tool :echo_text, description: "Echoes text back", summary: "Echoes text back.",
                    params_schema: { "type" => "object", "properties" => { "text" => { "type" => "string" } } },
                    read_only: true
-  tool :structured, description: "Already MCP-shaped", params_schema: { "type" => "object" }, read_only: true
-  tool :data_result, description: "Returns a hash", params_schema: { "type" => "object" }, read_only: true
-  tool :write_thing, description: "Writes a thing", params_schema: { "type" => "object" }, read_only: false
+  tool :structured, description: "Already MCP-shaped", summary: "Answers in its own shape.", params_schema: { "type" => "object" }, read_only: true
+  tool :data_result, description: "Returns a hash", summary: "Answers with data.", params_schema: { "type" => "object" }, read_only: true
+  tool :write_thing, description: "Writes a thing", summary: "Writes a thing.", params_schema: { "type" => "object" }, read_only: false
 
   def echo_text(environment_row:, arguments:)
     "echo: #{arguments['text']}"

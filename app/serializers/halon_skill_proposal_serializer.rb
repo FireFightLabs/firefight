@@ -28,7 +28,7 @@ class HalonSkillProposalSerializer < BaseSerializer
     conversation = proposal.conversation
     return "a chat" unless conversation
 
-    conversation.personal? ? "a chat with #{conversation.started_by.try(:display_name) || 'someone'}" : "a chat"
+    conversation.personal? ? "a chat with #{conversation.started_by.try(:actor_display_name) || 'someone'}" : "a chat"
   end
 
   # When Halon proposed it, which places its card after the turn that wrote it.

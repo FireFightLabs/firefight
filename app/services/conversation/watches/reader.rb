@@ -140,5 +140,5 @@ class Conversation::Watches::Reader
     notes.presence ? "#{said} #{notes.join(' ')}" : said
   end
 
-  def who = @principal.try(:display_name) || "The person who asked"
+  def who = @principal.try(:actor_display_name) || "The person who asked"
 end

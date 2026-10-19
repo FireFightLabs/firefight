@@ -353,7 +353,7 @@ class Chat::Memory < ApplicationRecord
   # Where it came from, said to viewer, such as "your chat", "a chat with Ana", "INC-12" or "the INC-12 investigation".
   def origin_for(viewer)
     case source
-    when Conversation then source.started_by == viewer ? "your chat" : "a chat with #{source.started_by.try(:display_name) || 'someone'}"
+    when Conversation then source.started_by == viewer ? "your chat" : "a chat with #{source.started_by.try(:actor_display_name) || 'someone'}"
     when Investigation then source.incident ? "the #{source.incident.identifier} investigation" : "an investigation"
     when Incident then source.identifier
     when WorkspaceMembership then source == viewer ? "what you wrote on the Memory page" : "what #{source.display_name} wrote on the Memory page"

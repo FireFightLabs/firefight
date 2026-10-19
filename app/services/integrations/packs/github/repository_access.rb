@@ -12,6 +12,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool :repository_access,
+                    summary: "Lists who can reach a repository, with each person's and team's role.",
                     description: "Who can reach a repository: each person with access and their role (read, triage, write, maintain or " \
                                  "admin), the teams given it with theirs, and in an organization which people are outside collaborators " \
                                  "rather than members",

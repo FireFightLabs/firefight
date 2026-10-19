@@ -48,6 +48,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool :list_pull_requests,
+                    summary: "Lists a repository's pull requests, filtered by state, branch, author or label.",
                     description: "List a repository's pull requests, newest first, filtered by state, base or head branch, author, label or " \
                                  "words in them, each with its branches, author and page",
                     params_schema: Code.object_schema({
@@ -64,6 +65,7 @@ module Integrations
                     read_only: true
 
           pack.tool :pr_lookup,
+                    summary: "Shows one pull request with its reviews, checks and changed files.",
                     description: "Fetch a pull request: title, state, author, branches, whether GitHub says it can merge, its reviews and " \
                                  "review comments, the checks and statuses on its head commit, its changed files, and for a Dependabot " \
                                  "update the security advisories it fixes",
@@ -71,6 +73,7 @@ module Integrations
                     read_only: true
 
           pack.tool :pull_request_diff,
+                    summary: "Shows a pull request's changed files and their diffs.",
                     description: "A pull request's changed files with each one's diff, optionally only the files under a path",
                     params_schema: Code.object_schema({
                       "repo" => REPO, "number" => NUMBER,
@@ -81,11 +84,13 @@ module Integrations
 
           body = { "type" => "string", "description" => "What to say, in GitHub's markdown" }
           pack.tool :comment_on_pull_request,
+                    summary: "Adds a comment to a pull request's conversation.",
                     description: "Add a comment to a pull request's conversation",
                     params_schema: Code.object_schema({ "repo" => REPO, "number" => NUMBER, "body" => body }, %w[repo number body]),
                     read_only: false
 
           pack.tool :reply_to_review_comment,
+                    summary: "Replies in the thread of a review comment on a pull request.",
                     description: "Reply in the thread of a review comment on a pull request's code, by the comment's id as pr_lookup shows it",
                     params_schema: Code.object_schema({
                       "repo" => REPO, "number" => NUMBER,
@@ -93,7 +98,20 @@ module Integrations
                     }, %w[repo number comment_id body]),
                     read_only: false
 
+          pack.tool :delete_pull_request_comment,
+                    summary: "Deletes a comment Firefight posted on a pull request.",
+                    description: "Delete a comment Firefight posted on a pull request, in its conversation as comment_on_pull_request " \
+                                 "said it or on its code as reply_to_review_comment said it. A comment anyone else wrote is refused, " \
+                                 "and a person deletes it on GitHub",
+                    params_schema: Code.object_schema({
+                      "repo" => REPO,
+                      "comment_id" => { "type" => "integer", "description" => "The comment's id" },
+                      "review" => { "type" => "boolean", "description" => "Whether it is a review comment on the code (optional, a comment in the conversation)" }
+                    }, %w[repo comment_id]),
+                    read_only: false
+
           pack.tool :review_pull_request,
+                    summary: "Submits a review that approves, requests changes on or comments on a pull request.",
                     description: "Submit a review of a pull request on its current head commit: approve it, request changes or comment, " \
                                  "with comments on lines of its diff if given",
                     params_schema: Code.object_schema({
@@ -113,6 +131,7 @@ module Integrations
                     read_only: false
 
           pack.tool :update_pull_request,
+                    summary: "Updates a pull request's title, description or base branch.",
                     description: "Change a pull request's title, description or the branch it merges into",
                     params_schema: Code.object_schema({
                       "repo" => REPO, "number" => NUMBER,
@@ -123,6 +142,7 @@ module Integrations
                     read_only: false
 
           pack.tool :request_reviewers,
+                    summary: "Asks people or teams to review a pull request.",
                     description: "Ask people or teams to review a pull request",
                     params_schema: Code.object_schema({
                       "repo" => REPO, "number" => NUMBER,
@@ -133,6 +153,7 @@ module Integrations
 
           labels = { "type" => "array", "items" => { "type" => "string" } }
           pack.tool :label_pull_request,
+                    summary: "Adds labels to a pull request or removes them.",
                     description: "Add labels to a pull request or take them off. Only labels the repository already has are added",
                     params_schema: Code.object_schema({
                       "repo" => REPO, "number" => NUMBER,
@@ -143,16 +164,19 @@ module Integrations
 
           comment = { "type" => "string", "description" => "A comment saying why, posted first (optional)" }
           pack.tool :close_pull_request,
+                    summary: "Closes a pull request without merging it.",
                     description: "Close a pull request without merging it, with a comment saying why if given. It can be reopened",
                     params_schema: Code.object_schema({ "repo" => REPO, "number" => NUMBER, "comment" => comment }, %w[repo number]),
                     read_only: false
 
           pack.tool :reopen_pull_request,
+                    summary: "Reopens a pull request that was closed without being merged.",
                     description: "Reopen a pull request that was closed without being merged",
                     params_schema: Code.object_schema({ "repo" => REPO, "number" => NUMBER, "comment" => comment }, %w[repo number]),
                     read_only: false
 
           pack.tool :merge_pull_request,
+                    summary: "Merges a pull request when GitHub says it is ready to merge.",
                     description: "Merge a pull request, only when GitHub says it can merge: no conflicts, no failing required check or " \
                                  "missing review, and up to date where its base asks for that. The merge is of the head commit read now",
                     params_schema: Code.object_schema({
@@ -164,6 +188,7 @@ module Integrations
                     read_only: false
 
           pack.tool :update_pull_request_branch,
+                    summary: "Updates a pull request's branch by merging its base branch into it.",
                     description: "Bring a pull request's branch up to date with its base, by merging the base into it as GitHub's Update branch button does",
                     params_schema: Code.object_schema({ "repo" => REPO, "number" => NUMBER }, %w[repo number]),
                     read_only: false
@@ -226,8 +251,8 @@ module Integrations
             pull = GithubApp.get("/repos/#{repo}/pulls/#{number}", token: token)
             comment = GithubApp.write(:post, "/repos/#{repo}/issues/#{number}/comments", { body: body }, token: token)
             shown = comment_shown(repo, comment["id"], token)
-            said = shown ? "Commented on PR ##{number} #{pull['title']} in #{repo}, and GitHub shows the comment." : "GitHub does not show a comment on PR ##{number} #{pull['title']} in #{repo}, so nothing was said there."
-            linked("#{said} #{READ_BACK}", shown&.dig("html_url").presence || pull["html_url"])
+            said = shown ? "Commented on PR ##{number} #{pull['title']} in #{repo}#{" as comment #{comment['id']}" if comment['id']}, and GitHub shows the comment." : "GitHub does not show a comment on PR ##{number} #{pull['title']} in #{repo}, so nothing was said there."
+            linked("#{said} #{READ_BACK}", shown&.dig("html_url").presence || pull["html_url"], facts: { "comment_id" => (comment["id"] if shown) })
           end
         end
 
@@ -237,8 +262,16 @@ module Integrations
           body = written_text(arguments, "body")
           asking("reply_to_review_comment", "GitHub has no review comment #{comment_id} on pull request #{number} in #{repo}") do
             reply = GithubApp.write(:post, "/repos/#{repo}/pulls/#{number}/comments/#{comment_id}/replies", { body: body }, token: token)
-            linked("Replied to review comment #{comment_id} on PR ##{number} in #{repo}#{" on #{reply['path']}" if reply['path']}.", reply["html_url"])
+            linked("Replied to review comment #{comment_id} on PR ##{number} in #{repo}#{" on #{reply['path']}" if reply['path']}#{", as review comment #{reply['id']}" if reply['id']}.", reply["html_url"], facts: { "comment_id" => reply["id"] })
           end
+        end
+
+        def delete_pull_request_comment(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          id = number_argument(arguments, "comment_id")
+          path = boolean_argument(arguments, "review") ? "/repos/#{repo}/pulls/comments/#{id}" : "/repos/#{repo}/issues/comments/#{id}"
+          delete_own_comment("delete_pull_request_comment", repo, id, path, GithubApp.installation_token(environment_row),
+                             on_pull_request: (true unless boolean_argument(arguments, "review")))
         end
 
         def review_pull_request(environment_row:, arguments:)
@@ -383,6 +416,32 @@ module Integrations
             head_sha: pull.dig("head", "sha"), base: base, base_sha: pull.dig("base", "sha"), failing_checks: failing, checks_pending: pending,
             reviews: changes_requested(repository, number, token)
           )
+        end
+
+        # GitHub lists at most 3,000 files of a pull request, 100 to a page.
+        FLAG_FILE_PAGES = 30
+        PULL_REQUEST_ADDRESS = %r{\Ahttps://github\.com/([\w.\-]+/[\w.\-]+)/pull/(\d+)(?:[/?#]|\z)}
+
+        # A pull request's repository and number, read from its address on GitHub, or nil for any other address
+        # (Integrations::PullRequests.addressed).
+        def pull_request_at(_environment_row, url)
+          found = url.to_s.strip.match(PULL_REQUEST_ADDRESS)
+          [ found[1], found[2].to_i ] if found
+        end
+
+        # Every path a pull request changes, a renamed file under both names (Integrations::PullRequests.paths). A list
+        # GitHub cuts short is refused rather than taken for the whole.
+        def pull_request_paths(environment_row, repository:, number:)
+          read = files_read(repository, number, GithubApp.installation_token(environment_row), FLAG_FILE_PAGES)
+          fail! "PR ##{number} in #{repository} changes more files than GitHub lists." if read.incomplete?
+
+          read.items.flat_map { |file| [ file["filename"], file["previous_filename"] ] }.compact.uniq
+        end
+
+        # A comment on the pull request, written as Firefight's GitHub App (Integrations::PullRequests.flag!).
+        def flag_pull_request(environment_row, repository:, number:, body:)
+          GithubApp.write(:post, "/repos/#{repository}/issues/#{number}/comments", { body: body }, token: GithubApp.installation_token(environment_row))
+          nil
         end
 
         private
@@ -581,11 +640,13 @@ module Integrations
           end
         end
 
-        def changed_files(repo, number, token)
-          Pages.read(max_pages: MAX_FILES / 100) do |page|
+        def changed_files(repo, number, token) = files_read(repo, number, token, MAX_FILES / 100).items
+
+        def files_read(repo, number, token, pages)
+          Pages.read(max_pages: pages) do |page|
             listed = Array(GithubApp.get("/repos/#{repo}/pulls/#{number}/files?per_page=100&page=#{page || 1}", token: token))
             [ listed, (listed.size == 100 ? (page || 1) + 1 : nil) ]
-          end.items
+          end
         end
 
         def diff_text(file)

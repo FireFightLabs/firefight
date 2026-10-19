@@ -8,9 +8,7 @@ class PrincipalSerializerTest < ActiveSupport::TestCase
     members = principals.grep(WorkspaceMembership).reject(&:admin_access?)
     assert members.many?, "expected more than one member to prove it"
 
-    seen = []
-    counter = ->(_, _, _, _, payload) { seen << payload[:sql] unless payload[:name].in?([ "SCHEMA", "TRANSACTION" ]) }
-    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { PrincipalSerializer.many(principals).as_json }
+    seen = queries_sent(cached: true) { PrincipalSerializer.many(principals).as_json }
 
     assert_empty seen.grep(/FROM "ability_roles"/), "the read packs are looked up once, with the listing"
     assert_empty seen.grep(/FROM "workspaces"/)

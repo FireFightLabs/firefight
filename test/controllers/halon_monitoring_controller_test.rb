@@ -8,7 +8,79 @@ class HalonMonitoringControllerTest < ActionDispatch::IntegrationTest
     Investigation.stubs(:available_for?).returns(true)
     Investigation.stubs(:start_refusal).returns(nil)
     @check = @workspace.investigation_checks.create!(name: "Disks", kind: Investigation::Check::KIND_DISK, cadence: Investigation::Check::CADENCE_DAILY,
-                                                     hour: 9, time_zone: "Europe/Belgrade")
+                                                     hour: 9, time_zone: "Europe/Belgrade", created_by: workspace_memberships(:bob_workspace_one))
+  end
+
+  test "each check shows its owner, and a paused one says why" do
+    sign_in(users(:bob), @workspace)
+    workspace_memberships(:bob_workspace_one).update_column(:removed_at, Time.current)
+    @check.pause_for_gone_owner!
+    sign_in(users(:alice), @workspace)
+
+    get halon_monitoring_path, headers: inertia_headers
+
+    check = inertia_props["checks"].sole
+    assert_equal workspace_memberships(:bob_workspace_one).display_name, check["ownerName"]
+    assert_equal @check.reload.paused_because, check["pausedBecause"]
+    assert_includes inertia_props["members"].map { |member| member["id"] }, workspace_memberships(:alice_workspace_one).id
+  end
+
+  test "an admin takes over a paused check, which resumes and says so" do
+    workspace_memberships(:bob_workspace_one).update_column(:removed_at, Time.current)
+    @check.pause_for_gone_owner!
+    sign_in(users(:alice), @workspace)
+
+    post take_over_investigation_check_path(@check)
+
+    assert_equal "Disks is now owned by #{workspace_memberships(:alice_workspace_one).display_name} and runs again.", flash[:notice]
+    assert_equal workspace_memberships(:alice_workspace_one), @check.reload.owner
+    assert_not @check.paused?
+  end
+
+  test "an admin gives a check to another member, and a member who is not an admin cannot" do
+    sign_in(users(:alice), @workspace)
+
+    patch change_owner_investigation_check_path(@check), params: { owner_id: workspace_memberships(:alice_workspace_one).id }
+
+    assert_equal "Disks is now owned by #{workspace_memberships(:alice_workspace_one).display_name}.", flash[:notice]
+    assert_equal workspace_memberships(:alice_workspace_one), @check.reload.owner
+
+    sign_in(users(:bob), @workspace)
+    post take_over_investigation_check_path(@check)
+
+    assert_equal workspace_memberships(:alice_workspace_one), @check.reload.owner
+    assert flash[:alert].present?
+  end
+
+  test "a member who may change checks but not the workspace can neither take one over nor hand it on" do
+    bob = workspace_memberships(:bob_workspace_one)
+    Ability::Grant.grant!(workspace: @workspace, principal: bob,
+                          target: { action: Ability::Action.system!(Ability::Action.system_key(Ability::Action::RESOURCE_MONITORING, Ability::Action::ACTION_UPDATE)) })
+    @check.update_columns(owner_id: workspace_memberships(:alice_workspace_one).id)
+    sign_in(users(:bob), @workspace)
+
+    post take_over_investigation_check_path(@check)
+    patch change_owner_investigation_check_path(@check), params: { owner_id: bob.id }
+
+    assert_equal workspace_memberships(:alice_workspace_one), @check.reload.owner
+  end
+
+  test "a check cannot be given to a member of another workspace" do
+    sign_in(users(:alice), @workspace)
+
+    patch change_owner_investigation_check_path(@check), params: { owner_id: workspace_memberships(:alice_workspace_two).id }
+
+    assert_equal "Choose a member of this workspace.", flash[:alert]
+    assert_equal workspace_memberships(:bob_workspace_one), @check.reload.owner
+  end
+
+  test "a check cannot be given to someone who is not a member" do
+    sign_in(users(:alice), @workspace)
+    workspace_memberships(:bob_workspace_one).update_column(:removed_at, Time.current)
+
+    patch change_owner_investigation_check_path(@check), params: { owner_id: workspace_memberships(:bob_workspace_one).id }
+
+    assert_equal "#{workspace_memberships(:bob_workspace_one).display_name} is not a member of this workspace any more.", flash[:alert]
   end
 
   def form(**overrides)

@@ -82,9 +82,16 @@ class Chat::Safeguards
     return unless found.mitigation
 
     record = agent_run.chat.tool_calls.find_by(tool_call_id: tool_call_id)
-    Conversation::Mitigations.propose!(agent_run, call_id: tool_call_id, tool: found.tool, environment_entry: found.environment_entry,
-                                                  arguments: found.arguments, tool_name: record&.name || call.spec.tool_name, target: record&.target,
-                                                  intent: Chat::Tools.intent_of(given))
+    mitigation = Conversation::Mitigations.propose!(agent_run, call_id: tool_call_id, tool: found.tool, environment_entry: found.environment_entry,
+                                                               arguments: found.arguments, tool_name: record&.name || call.spec.tool_name, target: record&.target,
+                                                               intent: Chat::Tools.intent_of(given))
+    # A scale that also changes the plan is not put back by a count alone, so Halon puts it back in the chat.
+    back = (Integrations::SafeChanges.scale_back(call, workspace: agent_run.workspace, principal: agent_run.acting_principal) if given.to_h.stringify_keys[Integrations::Capabilities::PLAN_ARG].blank?)
+    if back && mitigation
+      Chat::Mitigation.where(id: mitigation.id, status: Chat::Mitigation::STATUS_PROPOSED)
+                      .update_all(undo_steps: [ Conversation::Mitigations.undo_step(back, found.environment_entry) ], updated_at: Time.current)
+    end
+    mitigation&.reload
   end
 
   # Fewer instances than the map last read the resource running is a change customers feel, whichever provider runs

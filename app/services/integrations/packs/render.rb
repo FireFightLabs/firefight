@@ -83,12 +83,14 @@ module Integrations
       RESOURCE = { "type" => "string", "description" => "A service, Postgres database or Key Value instance in the workspace, by name or id, as list_resources shows it" }.freeze
 
       tool :list_resources,
+           summary: "Lists the services and datastores in the Render workspace and their state.",
            description: "The services, Postgres databases and Key Value instances in the Render workspace for this environment, " \
                         "with their type and whether each is running or suspended. Use it first to find the name to pass to the other tools",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :describe_resource,
+           summary: "Shows how one service or datastore is set up and how it stands now.",
            description: "How one service or datastore is set up and how it stands now. A service: whether it is suspended and why, " \
                         "its plan, region, instances or autoscaling, what it runs, its health check path, its latest deploy and " \
                         "its events of the last day. A datastore: its status, version, plan, disk, high availability and maintenance",
@@ -96,6 +98,7 @@ module Integrations
            read_only: true
 
       tool :search_logs,
+           summary: "Searches app, request or build logs of one service or datastore.",
            description: "Log lines from one service or datastore, newest first, at most #{LOG_LIMIT}. Filter by text or a regular " \
                         "expression, and by type: app for what the code prints, request for HTTP requests reaching a web " \
                         "service (Pro workspaces and higher), build for its builds",
@@ -115,6 +118,7 @@ module Integrations
            read_only: true
 
       tool :query_metrics,
+           summary: "Shows CPU, memory, disk and request metrics of a service or datastore.",
            description: "Metrics of one service or datastore over time: CPU, memory and persistent disk usage, and for a web " \
                         "service requests, 4xx and 5xx responses and the latency 95% of its requests finished within, and for a " \
                         "datastore its active connections. " \
@@ -132,6 +136,7 @@ module Integrations
            read_only: true
 
       tool :deploy_history,
+           summary: "Shows a service's recent deploys with how long each took against the usual.",
            description: "A service's recent deploys, each a build and its release, with its status, when it started and finished and " \
                         "how long it took, and how long finished ones usually take",
            params_schema: {
@@ -147,6 +152,7 @@ module Integrations
            read_only: true
 
       tool :list_deployments,
+           summary: "Lists a service's deploys with status, commit and what triggered each.",
            description: "A service's deploys, newest first: when each started and finished, its status, the commit or image, and " \
                         "what triggered it (a new commit, a rollback, a manual deploy). The id of a live deploy is what " \
                         "rollback_deploy takes. Use it to see what changed before something broke",
@@ -161,6 +167,7 @@ module Integrations
            read_only: true
 
       tool :list_events,
+           summary: "Lists a service's events such as failed instances, restarts and scaling.",
            description: "A service's events, newest first: instances that failed and why (ran out of memory, exited, failed health " \
                         "checks, timed out), restarts, deploys and builds that ended, scaling, disk usage warnings and suspensions. " \
                         "Use it when instances crash or restart",
@@ -177,6 +184,7 @@ module Integrations
            read_only: true
 
       tool :restart_service,
+           summary: "Restarts a service or Postgres database on the same code and settings.",
            description: "Restart a web service, private service, background worker or Postgres database. Render replaces every " \
                         "instance with the same code and settings, without downtime for a service, and does not pick up " \
                         "environment changes made since the last deploy",
@@ -184,6 +192,7 @@ module Integrations
            read_only: false
 
       tool :rollback_deploy,
+           summary: "Rolls a service back to an earlier deploy.",
            description: "Put a service back on an earlier deploy, by the deploy id list_deployments shows. Render puts that " \
                         "build back live without building again, while it still keeps the build. Autodeploy stays on, so the " \
                         "next commit deploys again",
@@ -198,6 +207,7 @@ module Integrations
            read_only: false
 
       tool :scale_service,
+           summary: "Sets how many instances a service runs.",
            description: "Set how many instances a web service, private service or background worker runs. Render ignores it " \
                         "while autoscaling is on for the service",
            params_schema: {
@@ -211,6 +221,7 @@ module Integrations
            read_only: false
 
       tool :api_read,
+           summary: "Reads other Render data such as jobs, disks, domains and blueprints.",
            description: "Anything else Render's API reads that the other tools do not cover, such as a service's jobs, disks, " \
                         "custom domains, environment groups, blueprints, projects or a deploy by its id. A GET to a path of " \
                         "Render's public API (#{RenderApi::API_ROOT}), as the API reference the render_api skill names writes " \

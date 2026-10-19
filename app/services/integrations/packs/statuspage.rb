@@ -55,18 +55,21 @@ module Integrations
       }.freeze
 
       tool :list_pages,
+           summary: "Lists the status pages with their addresses and subscription options.",
            description: "The Statuspage pages this key reaches, with each one's id, its address as customers see it and which " \
                         "subscriptions it allows. Use it first, for the page the other tools take",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :list_components,
+           summary: "Lists a page's components and the status each one shows now.",
            description: "A page's components and component groups as its customers see them, each with its id and the status it " \
                         "shows now: operational, under_maintenance, degraded_performance, partial_outage or major_outage",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
            read_only: true
 
       tool :get_component_uptime,
+           summary: "Shows a component's uptime and outage time over a range of dates.",
            description: "A component's uptime over a range of dates, with how long it was in a partial or a major outage",
            params_schema: {
              "type" => "object",
@@ -80,6 +83,7 @@ module Integrations
            read_only: true
 
       tool :list_incidents,
+           summary: "Lists a page's incidents and scheduled maintenance.",
            description: "A page's incidents and scheduled maintenance, newest first, each with its id, status, impact and when it " \
                         "started and ended. list picks which: unresolved (incidents open now), active_maintenance (maintenance " \
                         "under way), upcoming, scheduled, or all, which query searches",
@@ -95,22 +99,26 @@ module Integrations
            read_only: true
 
       tool :get_incident,
+           summary: "Shows one incident or maintenance in full with its updates.",
            description: "One incident or maintenance in full: its status and impact, the components it affects, its updates as " \
                         "customers read them with each one's id, its schedule, and whether its postmortem is published",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE, "incident" => INCIDENT }, "required" => [ "incident" ] },
            read_only: true
 
       tool :get_postmortem,
+           summary: "Shows an incident's postmortem, both published text and draft.",
            description: "An incident's postmortem: the published text and the draft, and when each was last changed",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE, "incident" => INCIDENT }, "required" => [ "incident" ] },
            read_only: true
 
       tool :list_incident_templates,
+           summary: "Lists a page's incident templates.",
            description: "A page's incident templates, each with its title, message, the status it moves to and the components it names",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
            read_only: true
 
       tool :list_subscribers,
+           summary: "Lists a page's subscribers and the components they follow.",
            description: "A page's subscribers, each with its id, how they are told (email, sms, webhook, slack, teams) and the " \
                         "components they follow",
            params_schema: {
@@ -126,6 +134,7 @@ module Integrations
            read_only: true
 
       tool :count_subscribers,
+           summary: "Counts a page's subscribers by how they are notified.",
            description: "How many subscribers a page has, by how they are told. Use it to say how many people an update reaches",
            params_schema: {
              "type" => "object",
@@ -137,11 +146,13 @@ module Integrations
            read_only: true
 
       tool :list_incident_subscribers,
+           summary: "Lists the people subscribed to one incident.",
            description: "The people subscribed to one incident alone, each with its id",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE, "incident" => INCIDENT }, "required" => [ "incident" ] },
            read_only: true
 
       tool :update_page,
+           summary: "Changes a status page's settings, such as its name, domain and look.",
            description: "Change a page's settings: its name, its own domain or subdomain, the website its logo links to, its time " \
                         "zone, whether search engines list it, who can view it, how people may subscribe, the sender and footer " \
                         "of its notification emails, its template and its colours",
@@ -165,11 +176,13 @@ module Integrations
            read_only: false
 
       tool :get_status_embed,
+           summary: "Shows how a page's status embed looks on other sites.",
            description: "How a page's status embed looks, the box other sites show while an incident or maintenance is on",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
            read_only: true
 
       tool :update_status_embed,
+           summary: "Changes where a page's status embed sits and its colors.",
            description: "Change where a page's status embed sits and its colours during an incident and during maintenance",
            params_schema: {
              "type" => "object",
@@ -179,16 +192,19 @@ module Integrations
            read_only: false
 
       tool :list_unsubscribed,
+           summary: "Lists the people who unsubscribed from a page.",
            description: "The people who unsubscribed from a page, each with how they were told",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
            read_only: true
 
       tool :subscriber_histogram,
+           summary: "Counts a page's subscribers by how they are notified and by state.",
            description: "How many subscribers a page has by how they are told and by state: active, unconfirmed and quarantined",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE } },
            read_only: true
 
       tool :unsubscribe_subscribers,
+           summary: "Unsubscribes many subscribers from a page at once.",
            description: "Unsubscribe many subscribers at once, at most #{StatuspageApi::BULK_LIMIT} by id, or every one on a page with fewer than that",
            params_schema: {
              "type" => "object",
@@ -203,11 +219,13 @@ module Integrations
            read_only: false
 
       tool :resend_confirmations,
+           summary: "Resends the confirmation message to unconfirmed email subscribers.",
            description: "Send the confirmation message again to unconfirmed email subscribers, by id or every one",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE, "subscribers" => BULK_SUBSCRIBERS }, "required" => [ "subscribers" ] },
            read_only: false
 
       tool :reactivate_subscribers,
+           summary: "Reactivates subscribers who were quarantined after bounced messages.",
            description: "Take quarantined subscribers back, the ones Statuspage stopped sending to after their messages bounced, by id or every one",
            params_schema: {
              "type" => "object",
@@ -218,6 +236,7 @@ module Integrations
            read_only: false
 
       tool :create_incident,
+           summary: "Opens an incident on a status page that customers see.",
            description: "Open an incident on a status page, which its customers see, with its first update. Set the components it " \
                         "affects to the status they show. Draft the words with the person first",
            params_schema: {
@@ -236,6 +255,7 @@ module Integrations
            read_only: false
 
       tool :post_incident_update,
+           summary: "Posts an update to an incident or maintenance that customers see.",
            description: "Post an update to an incident or maintenance, which its customers see, at the status it now has, such as " \
                         "monitoring or resolved, and set the components it affects. Draft the words with the person first",
            params_schema: {
@@ -252,6 +272,7 @@ module Integrations
            read_only: false
 
       tool :update_incident,
+           summary: "Changes an incident's title, impact or affected components.",
            description: "Change an incident's title, its impact or the components it affects, without posting an update",
            params_schema: {
              "type" => "object",
@@ -266,6 +287,7 @@ module Integrations
            read_only: false
 
       tool :edit_incident_update,
+           summary: "Edits the words or time of an update already posted.",
            description: "Change the words of an update already posted, or when it says it happened. Find its id with get_incident",
            params_schema: {
              "type" => "object",
@@ -280,11 +302,13 @@ module Integrations
            read_only: false
 
       tool :delete_incident,
+           summary: "Deletes an incident or maintenance and its updates from the page.",
            description: "Delete an incident or maintenance and its updates from the page for good. Resolving it is usually what is wanted",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE, "incident" => INCIDENT }, "required" => [ "incident" ] },
            read_only: false
 
       tool :schedule_maintenance,
+           summary: "Schedules maintenance on a status page for the components it touches.",
            description: "Schedule maintenance on a status page, which its customers see ahead of time, for the components the work " \
                         "touches. Statuspage can start and finish it on time, set those components to under_maintenance while it " \
                         "runs and remind subscribers before it starts",
@@ -308,6 +332,7 @@ module Integrations
            read_only: false
 
       tool :update_maintenance,
+           summary: "Changes scheduled maintenance's title or moves its window.",
            description: "Change scheduled maintenance's title or move its window. post_incident_update tells customers how it is going",
            params_schema: {
              "type" => "object",
@@ -322,6 +347,7 @@ module Integrations
            read_only: false
 
       tool :update_component,
+           summary: "Sets the status a component shows, or changes its name or group.",
            description: "Set the status a component shows on the page, such as major_outage or operational, or change its name, " \
                         "description or group. Customers see it at once",
            params_schema: {
@@ -338,6 +364,7 @@ module Integrations
            read_only: false
 
       tool :create_component,
+           summary: "Adds a component to a status page.",
            description: "Add a component to a page, which customers then see",
            params_schema: {
              "type" => "object",
@@ -354,11 +381,13 @@ module Integrations
            read_only: false
 
       tool :delete_component,
+           summary: "Deletes a component from a page, with its history.",
            description: "Remove a component from a page for good, with its history",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE, "component" => COMPONENT }, "required" => [ "component" ] },
            read_only: false
 
       tool :create_component_group,
+           summary: "Groups components under one heading on a page.",
            description: "Group components under one heading on a page",
            params_schema: {
              "type" => "object",
@@ -373,6 +402,7 @@ module Integrations
            read_only: false
 
       tool :update_component_group,
+           summary: "Renames a component group or changes which components it holds.",
            description: "Rename a component group or change which components it holds",
            params_schema: {
              "type" => "object",
@@ -387,11 +417,13 @@ module Integrations
            read_only: false
 
       tool :delete_component_group,
+           summary: "Deletes a component group from a page.",
            description: "Remove a component group from a page",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE, "group" => GROUP }, "required" => [ "group" ] },
            read_only: false
 
       tool :draft_postmortem,
+           summary: "Writes or replaces an incident's postmortem draft.",
            description: "Write or replace an incident's postmortem draft, which customers do not see until it is published",
            params_schema: {
              "type" => "object",
@@ -401,6 +433,7 @@ module Integrations
            read_only: false
 
       tool :publish_postmortem,
+           summary: "Publishes an incident's postmortem draft on the page.",
            description: "Publish an incident's postmortem draft on the page, which customers then read",
            params_schema: {
              "type" => "object",
@@ -413,16 +446,19 @@ module Integrations
            read_only: false
 
       tool :revert_postmortem,
+           summary: "Takes a published postmortem off the page and back to a draft.",
            description: "Take a published postmortem back to a draft, off the page",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE, "incident" => INCIDENT }, "required" => [ "incident" ] },
            read_only: false
 
       tool :delete_postmortem,
+           summary: "Deletes an incident's postmortem, published and draft.",
            description: "Delete an incident's postmortem, published and draft",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE, "incident" => INCIDENT }, "required" => [ "incident" ] },
            read_only: false
 
       tool :create_incident_template,
+           summary: "Saves an incident template to start incidents or updates from.",
            description: "Save an incident template, the title, message and status a person can start an incident or update from",
            params_schema: {
              "type" => "object",
@@ -440,6 +476,7 @@ module Integrations
            read_only: false
 
       tool :add_subscriber,
+           summary: "Subscribes someone to a page's updates by email, SMS or webhook.",
            description: "Subscribe someone to a page's updates by email, SMS or webhook, for every component or the ones named",
            params_schema: {
              "type" => "object",
@@ -450,6 +487,7 @@ module Integrations
            read_only: false
 
       tool :update_subscriber,
+           summary: "Changes which components a subscriber hears about.",
            description: "Change which components a subscriber hears about",
            params_schema: {
              "type" => "object",
@@ -462,6 +500,7 @@ module Integrations
            read_only: false
 
       tool :unsubscribe,
+           summary: "Unsubscribes someone from a page.",
            description: "Unsubscribe someone from a page",
            params_schema: {
              "type" => "object",
@@ -474,11 +513,13 @@ module Integrations
            read_only: false
 
       tool :resend_subscriber_confirmation,
+           summary: "Resends the confirmation message to one unconfirmed subscriber.",
            description: "Send a subscriber who has not confirmed the confirmation message again",
            params_schema: { "type" => "object", "properties" => { "page" => PAGE, "subscriber" => SUBSCRIBER }, "required" => [ "subscriber" ] },
            read_only: false
 
       tool :add_incident_subscriber,
+           summary: "Subscribes someone to one incident's updates.",
            description: "Subscribe someone to one incident's updates alone, by email or SMS",
            params_schema: {
              "type" => "object",
@@ -488,6 +529,7 @@ module Integrations
            read_only: false
 
       tool :remove_incident_subscriber,
+           summary: "Unsubscribes someone from one incident.",
            description: "Unsubscribe someone from one incident",
            params_schema: {
              "type" => "object",

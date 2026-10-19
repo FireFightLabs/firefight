@@ -48,21 +48,25 @@ module Integrations
       GIT_USER = "oauth2".freeze
 
       tool :list_projects,
+           summary: "Lists the GitLab projects this connection can see.",
            description: "List the projects this GitLab connection can see, with each one's default branch and last activity",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
       tool :mr_lookup,
+           summary: "Shows one merge request with its approvals and changed files.",
            description: "Fetch a merge request: title, state, author, who merged it and when, its branches, who approved it, and the changed files",
            params_schema: Code.object_schema({ "repo" => REPO_PARAM, "iid" => { "type" => "integer", "description" => "The merge request's number in the project, as in !42" } }, %w[repo iid]),
            read_only: true
 
       tool :commit_lookup,
+           summary: "Shows one commit with its message, author and changed files.",
            description: "Fetch a commit: message, author, stats, and changed files",
            params_schema: Code.object_schema({ "repo" => REPO_PARAM, "sha" => { "type" => "string", "description" => COMMIT_REFERENCE } }, %w[repo sha]),
            read_only: true
 
       tool :recent_deployments,
+           summary: "Lists a project's recent deployments with their environment and outcome.",
            description: "List a project's deployments, newest first, each with the environment, the ref and commit deployed, the outcome, who ran it and its job",
            params_schema: Code.object_schema({
              "repo" => REPO_PARAM,
@@ -72,6 +76,7 @@ module Integrations
            read_only: true
 
       tool :merged_merge_requests,
+           summary: "Lists merge requests recently merged into a project.",
            description: "List merge requests merged into a project, newest first, optionally only those merged since a given time",
            params_schema: Code.object_schema({
              "repo" => REPO_PARAM,
@@ -80,6 +85,7 @@ module Integrations
            read_only: true
 
       tool :running_commit,
+           summary: "Finds which commit was running at a given time.",
            description: "Which commit was running at a given time: the last deployment that succeeded before it, and the one before " \
                         "that to compare against. Without a deployment it falls back to the default branch at that time and " \
                         "says so, since a merge is not proof of a deploy",
@@ -91,6 +97,7 @@ module Integrations
            read_only: true
 
       tool :compare_commits,
+           summary: "Compares two commits and shows the merge requests, files and diffs between them.",
            description: "What changed between two commits: the commits and merge requests with their authors and approvers, " \
                         "the changed files grouped by kind with migrations, config and dependencies first, dependency bumps " \
                         "in plain words, who owns the changed files, and every diff",
@@ -102,6 +109,7 @@ module Integrations
            read_only: true
 
       tool :fetch_file,
+           summary: "Shows a file from a project at a given commit.",
            description: "Read a file from the project at a given commit, optionally sliced to a line range with surrounding context",
            params_schema: Code.object_schema({
              "repo" => REPO_PARAM,
@@ -113,6 +121,7 @@ module Integrations
            read_only: true
 
       tool :blame,
+           summary: "Shows which commits and merge requests last changed some lines of a file.",
            description: "Attribute a line range, as it stood at a given commit, to the commits and merge requests that last touched it",
            params_schema: Code.object_schema({
              "repo" => REPO_PARAM,
@@ -134,6 +143,7 @@ module Integrations
       ).freeze
 
       tool :api_read,
+           summary: "Reads other GitLab data, such as environments, members, releases and issues.",
            description: "Anything else GitLab's REST API reads that the other GitLab tools do not cover, such as a project's environments " \
                         "and their protections, protected branches, releases, members, container registry, issues, or a group's " \
                         "settings. A GET to a path of GitLab's REST API (the instance's /api/v4), written after /api/v4 as the API " \
@@ -393,6 +403,46 @@ module Integrations
 
       def check_health!(environment_row)
         api(environment_row).get("/projects", "membership" => true, "simple" => true, "per_page" => 1)
+      rescue GitlabApi::Error => error
+        fail! error.message
+      end
+
+      # GitLab lists a merge request's diffs 100 to a page, and this many pages is every file a change could need.
+      FLAG_FILE_PAGES = 30
+      MERGE_REQUEST_PATH = %r{\A/(.+?)/-/merge_requests/(\d+)(?:/|\z)}
+
+      # A merge request's project and number, read from its address on this connection's instance, or nil for any other
+      # address (Integrations::PullRequests.addressed).
+      def pull_request_at(environment_row, url)
+        uri = URI.parse(url.to_s.strip)
+        base = URI.parse(GitlabApi.base_url(ConnectionSettings.of(environment_row).field(URL)))
+        base_path = base.path.to_s.delete_suffix("/")
+        path = uri.path.to_s
+        return unless uri.scheme&.casecmp?(base.scheme.to_s) && uri.host&.casecmp?(base.host.to_s) && uri.port == base.port &&
+                      (base_path.empty? || path.start_with?("#{base_path}/"))
+
+        found = path.delete_prefix(base_path).match(MERGE_REQUEST_PATH)
+        [ found[1], found[2].to_i ] if found && found[1].match?(REPO_FORMAT)
+      rescue URI::InvalidURIError, GitlabApi::Error
+        nil
+      end
+
+      # Every path a merge request changes, a renamed file under both names (Integrations::PullRequests.paths). A list
+      # GitLab cuts short is refused rather than taken for the whole.
+      def pull_request_paths(environment_row, repository:, number:)
+        diffs, more = api(environment_row).list("#{GitlabApi.project(repository)}/merge_requests/#{number}/diffs", {}, pages: FLAG_FILE_PAGES)
+        fail! "Merge request !#{number} in #{repository} changes more files than GitLab lists." if more
+
+        diffs.flat_map { |diff| [ diff["new_path"], diff["old_path"] ] }.compact.uniq
+      rescue GitlabApi::Error => error
+        fail! error.message
+      end
+
+      # A note on the merge request, written with the connection's token, which needs the api scope
+      # (Integrations::PullRequests.flag!).
+      def flag_pull_request(environment_row, repository:, number:, body:)
+        api(environment_row).post("#{GitlabApi.project(repository)}/merge_requests/#{number}/notes", { "body" => body })
+        nil
       rescue GitlabApi::Error => error
         fail! error.message
       end

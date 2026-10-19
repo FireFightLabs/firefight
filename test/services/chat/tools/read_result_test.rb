@@ -71,6 +71,29 @@ class Chat::Tools::ReadResultTest < ActiveSupport::TestCase
     assert_match "No lines", @tool.execute(search: "kafka")
   end
 
+  # Seen on the bench, Halon read a helper's five lines, then read the same logs again for the detail behind them.
+  test "everything a run's helper read is opened whole by the helper's name, a large result from where its own chat saved it" do
+    helper = helper_that_read(@chat, [ [ "log_query", (1..300).map { |number| "checkout line #{number}#{' req-8f2 stuck' if number == 210}" }.join("\n"), 4 ],
+                                       [ "list_deploys", "web d-91 at 13:58", 5 ] ])
+
+    listed = @tool.execute(result: "helper_1")
+    assert_match "helper_1_result_1 (step 4, log_query, 300 lines)", listed
+    assert_match "helper_1_result_2 (step 5, list_deploys, 1 lines)", listed
+    assert_match "210  checkout line 210 req-8f2 stuck", @tool.execute(result: "helper_1_result_1", from_line: 209, to_line: 211)
+    assert_match "helper_1_result_1 line 210", @tool.execute(search: "req-8f2"), "a search of everything reaches what helpers read"
+    assert_match "web d-91", @tool.execute(result: "helper_1", search: "d-91")
+    assert_equal "web d-91 at 13:58", helper.reload.results.second.content
+  end
+
+  test "another chat's helpers are out of reach" do
+    other = @workspace.investigations.create!(subject: incidents(:active_major_ws1), trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400)
+    other_chat = @workspace.chats.create!(owner: other, model: "claude-sonnet-4-5", provider: :anthropic)
+    helper_that_read(other_chat, [ [ "log_query", "checkout req-9a1 stuck", 2 ] ])
+
+    assert_match "Nothing is saved as helper_1", @tool.execute(result: "helper_1")
+    assert_match "No lines", @tool.execute(search: "req-9a1")
+  end
+
   test "another chat's saved results are out of reach" do
     other = @workspace.investigations.create!(
       subject: incidents(:active_major_ws1), trigger_source: Investigation::TRIGGER_COMMAND,
@@ -79,5 +102,26 @@ class Chat::Tools::ReadResultTest < ActiveSupport::TestCase
     @workspace.chats.create!(owner: other, model: "claude-sonnet-4-5", provider: :anthropic)
 
     assert_match "Nothing has been saved", Chat::Tools::ReadResult.new(other.reload).execute(search: "req-8f2")
+  end
+
+  private
+
+  # A helper of chat whose own chat holds each read as the loop leaves it, the first one large enough that its own chat
+  # saved it and handed over only a preview.
+  def helper_that_read(chat, reads)
+    check = Chat::Helpers::Check.new(title: "Logs", brief: "Read the logs", deep: false)
+    helper = Chat::Helper.start!(chat: chat, tool_call_id: "call_1", checks: [ check ], since: 1.minute.ago).sole
+    own = @workspace.chats.create!(owner: helper, model: "claude-haiku-4-5", provider: :anthropic)
+    reads.each_with_index do |(tool, text, step), index|
+      id = "h_#{index}"
+      own.add_message(role: :assistant, content: "", tool_calls: { id => RubyLLM::ToolCall.new(id: id, name: tool, arguments: {}) })
+      shown = if index.zero?
+        FirefightAi::Evidence.preview(text, handle: own.saved_results.keep!(tool_name: tool, text: text, step: step).handle, read_with: Chat::SavedResult::READ_WITH)
+      else
+        text
+      end
+      own.add_message(role: :tool, content: FirefightAi::Evidence.frame(tool, shown, step: step), tool_call_id: id)
+    end
+    helper
   end
 end

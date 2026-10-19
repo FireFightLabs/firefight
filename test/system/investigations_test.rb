@@ -249,6 +249,33 @@ class InvestigationsTest < ApplicationSystemTestCase
     assert_equal Investigation::RemediationStep::STATUS_PROPOSED, plan.steps.first.reload.status
   end
 
+  test "a coding agent's pull request that changed a kept path says on its step that a person must review it" do
+    plan = @investigation.finding.remediation_plan
+    plan.apply!(by: workspace_memberships(:alice_workspace_one), from: AbilityGateway::SOURCE_WEB)
+    flagged = format(CodeChange::PROTECTED_TOUCHED, pull_request: "https://github.com/acme/cloud/pull/41", paths: ".github/workflows/deploy.yml")
+    plan.steps.first.update_columns(status: Investigation::RemediationStep::STATUS_DONE, result: "Devin opened https://github.com/acme/cloud/pull/41",
+                                    needs_person: flagged)
+
+    visit incident_path(@incident, Investigation::QUERY_PARAM => @investigation.id)
+
+    within("[role=dialog]") do
+      assert_text flagged
+      page.save_screenshot(Rails.root.join("tmp/screenshots/investigation-fix-needs-person.png"))
+    end
+  end
+
+  test "a run stopped at its time limit says so where its answer would be" do
+    @investigation.finding.destroy!
+    @investigation.update_columns(status: Investigation::STATUS_FAILED, error_summary: Investigation::OUT_OF_TIME)
+
+    visit incident_path(@incident, Investigation::QUERY_PARAM => @investigation.id)
+
+    within("[role=dialog]") do
+      assert_text Investigation::OUT_OF_TIME
+      page.save_screenshot(Rails.root.join("tmp/screenshots/investigation-out-of-time.png"))
+    end
+  end
+
   private
 
   def assert_toasts_shown(count)

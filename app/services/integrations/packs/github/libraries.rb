@@ -49,6 +49,7 @@ module Integrations
 
         def self.included(pack)
           pack.tool :library_source,
+                    summary: "Shows the source and docs of a library the repository depends on.",
                     description: "The source and bundled docs of a library this repository depends on, at the exact version it " \
                                  "installs: its version and files, a search in it, or one file. Read how a library really behaves " \
                                  "before relying on it",

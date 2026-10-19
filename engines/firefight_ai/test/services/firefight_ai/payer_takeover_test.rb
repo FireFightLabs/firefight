@@ -24,6 +24,8 @@ class FirefightAi::PayerTakeoverTest < ActiveSupport::TestCase
     def with_tool_options(**) = self
     def awaiting_approval? = false
     def with_max_output_tokens(_limit) = self
+
+    def add_message(**attributes) = RubyLLM::Message.new(**attributes).tap { |message| messages << message }
     def deferred_tools = {}
     def id = "chat-1"
     def with_provider_options(_options) = self
