@@ -201,7 +201,7 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
 
     run_loop(chat, budget: budget(max_turns: 5), reply_is_answer: true)
 
-    assert_equal [ "[Limits: step 1 of 5, $0.00 of $4.00 spent.]", "[Limits: step 2 of 5, $0.00 of $4.00 spent.]" ], chat.last_sent
+    assert_equal [ "[Limits: step 1 of 5, 0% of the budget used.]", "[Limits: step 2 of 5, 0% of the budget used.]" ], chat.last_sent
     assert chat.messages.none? { |message| message.content.to_s.start_with?("[Limits:") }
   end
 
@@ -212,9 +212,9 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     run_loop(chat, budget: budget(max_turns: 10, ends_at: 40.minutes.from_now), reply_is_answer: true)
 
     first, second, third = chat.last_sent
-    assert_equal "[Limits: step 1 of 10, $0.00 of $4.00 spent, 40 minutes left.]", first
-    assert_equal "[Limits: step 2 of 10, $0.00 of $4.00 spent, 40 minutes left.]", second
-    assert_equal "[Limits: step 3 of 10, $3.50 of $4.00 spent, 40 minutes left. #{FirefightAi::AgentLoop::WRAP_UP}]", third
+    assert_equal "[Limits: step 1 of 10, 0% of the budget used, 40 minutes left.]", first
+    assert_equal "[Limits: step 2 of 10, 0% of the budget used, 40 minutes left.]", second
+    assert_equal "[Limits: step 3 of 10, 87% of the budget used, 40 minutes left. #{FirefightAi::AgentLoop::WRAP_UP}]", third
 
     steps = FakeChat.new([ tool_reply("call_0"), llm_reply(content: "Done") ])
     run_loop(steps, budget: budget(max_turns: 3), reply_is_answer: true)
@@ -228,7 +228,7 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     )
     travel(41.minutes)
     agent_loop.run
-    assert_equal "[Limits: step 1 of 500, $0.00 of $4.00 spent, 9 minutes left. #{FirefightAi::AgentLoop::WRAP_UP}]", late.last_sent.first
+    assert_equal "[Limits: step 1 of 500, 0% of the budget used, 9 minutes left. #{FirefightAi::AgentLoop::WRAP_UP}]", late.last_sent.first
   end
 
   test "the limits line follows the context the app sends" do
@@ -239,7 +239,7 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
       inference: { workspace: @workspace, feature: "investigation", provider: "openai", model: "gpt-4o", inferable: @incident }
     ).run
 
-    assert_equal "You are acting for Alice.\n\n[Limits: step 1 of 5, $0.00 of $4.00 spent.]", chat.last_sent.first
+    assert_equal "You are acting for Alice.\n\n[Limits: step 1 of 5, 0% of the budget used.]", chat.last_sent.first
   end
 
   test "a run that concludes on the last turn the turn guard gave it is answered" do

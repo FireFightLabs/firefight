@@ -421,7 +421,7 @@ module FirefightAi
     # Where the run stands against its limits, so the model can pace itself rather than be cut off mid thought.
     def limits
       step = @last_turn ? "this is the last step" : "step #{@turns + 1} of #{@budget.max_turns}"
-      parts = [ step, "#{dollars(@purse.spent)} of #{dollars(cap_micros)} spent", time_left_words ].compact
+      parts = [ step, "#{budget_used}% of the budget used", time_left_words ].compact
       "[Limits: #{parts.join(', ')}.#{" #{WRAP_UP}" if wrapping_up?}]"
     end
 
@@ -441,7 +441,8 @@ module FirefightAi
       minutes == 1 ? "under a minute left" : "#{minutes} minutes left"
     end
 
-    def dollars(micros) = format("$%.2f", micros / 1_000_000.0)
+    # A share rather than an amount, so no price reaches the model or anything it writes.
+    def budget_used = cap_micros.positive? ? (@purse.spent * 100 / cap_micros).floor : 0
 
     # Each message marked for this call with the copy that carries the mark. In a chat that holds its history, on a model
     # whose provider keeps a boundary for an hour, the saved boundaries (the instructions and the held history) and the

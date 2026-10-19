@@ -109,7 +109,7 @@ class Conversation::StablePromptTest < ActiveSupport::TestCase
     )
 
     second = sent_requests.last[:body]["messages"]
-    assert_equal "#{FirefightAi::Responder::CONTEXT_HEADING}\nYou are acting for Alice.\n\n[Limits: step 2 of 5, $0.00 of $1.00 spent.]",
+    assert_equal "#{FirefightAi::Responder::CONTEXT_HEADING}\nYou are acting for Alice.\n\n[Limits: step 2 of 5, 0% of the budget used.]",
                  Array(second.last["content"]).last["text"]
     result = Array(second[-2]["content"]).find { |block| block["type"] == "tool_result" }
     assert_equal "toolu_1", result["tool_use_id"]
