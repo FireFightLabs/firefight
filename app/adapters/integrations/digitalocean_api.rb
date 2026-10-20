@@ -21,6 +21,9 @@ module Integrations
     PAGE_SIZE = 200
     MAX_PAGES = 10
     LOG_BYTES = 2_000_000
+    # How long a live log address is read before what it sent so far is taken.
+    LIVE_SECONDS = 10
+    JOB_INVOCATION_LOGS = "JOB_INVOCATION".freeze
     # DigitalOcean puts its reason in message, and its error's name in id.
     REASON = ->(body) { body["message"].presence || body["id"].presence }
 
@@ -42,21 +45,79 @@ module Integrations
 
     def health(app_id) = get("/apps/#{Http.segment(app_id)}/health")["app_health"] || {}
 
-    # The archived logs of one deployment, the active one unless named, of one component or of every one
-    # (apps_get_logs_active_deployment, apps_get_logs and their aggregate forms). DigitalOcean answers with the addresses
-    # of the files (historic_urls), which are read next, and a live address Firefight does not follow.
-    def log_urls(app_id, type:, component: nil, deployment: nil)
+    # Where the logs of one deployment are, the active one unless named, of one component or of every one
+    # (apps_get_logs_active_deployment, apps_get_logs and their aggregate forms): the archived files (historic_urls), and
+    # for a deployment still running or serving, its live address (live_url). Asked without follow, the live address sends
+    # what is there now and closes, as doctl reads it (digitalocean/doctl, commands/apps.go, RunAppsGetLogs).
+    def logs(app_id, type:, component: nil, deployment: nil)
       path = "/apps/#{Http.segment(app_id)}"
       path += "/deployments/#{Http.segment(deployment)}" if deployment
       path += "/components/#{Http.segment(component)}" if component
-      Array(get("#{path}/logs", "type" => type, "follow" => false)["historic_urls"])
+      log_answer(get("#{path}/logs", "type" => type, "follow" => false))
+    end
+
+    # Where one job invocation's logs are (apps_get_job_invocation_logs), by its job's name, in the same shape.
+    def job_invocation_logs(app_id, job_name, invocation_id)
+      path = "/apps/#{Http.segment(app_id)}/jobs/#{Http.segment(job_name)}/invocations/#{Http.segment(invocation_id)}/logs"
+      log_answer(get(path, "type" => JOB_INVOCATION_LOGS, "follow" => false))
     end
 
     # One archived log file at DigitalOcean's signed address, read without the token, which only ever goes to the API,
     # on a public https address only, and cut to its last LOG_BYTES.
     def log_file(url) = Http.download(url, provider_key: PROVIDER_KEY, error_class: Error, limit: LOG_BYTES)
 
+    # What a live log address holds now, read the same way as a file and for at most LIVE_SECONDS. Each message is JSON
+    # with its lines in data, as doctl reads it.
+    def live_log(url)
+      Http::LiveSocket.messages(url, provider_key: PROVIDER_KEY, error_class: Error, limit: LOG_BYTES, seconds: LIVE_SECONDS).map do |message|
+        parsed = JSON.parse(message)
+        parsed.is_a?(Hash) ? parsed["data"].to_s : message
+      rescue JSON::ParserError
+        message
+      end.join
+    end
+
     def rollback(app_id, deployment_id) = post("/apps/#{Http.segment(app_id)}/rollback", { "deployment_id" => deployment_id })
+
+    # Whether the app can go back to a deployment, with the condition that stops it (error) and the ones that make it
+    # slower or less exact (warnings), each a code, a message and its components (apps_validate_rollback).
+    def validate_rollback(app_id, deployment_id) = post("/apps/#{Http.segment(app_id)}/rollback/validate", { "deployment_id" => deployment_id })
+
+    # Keeps the rollback for good and unpins the app (apps_commit_rollback).
+    def commit_rollback(app_id) = post("/apps/#{Http.segment(app_id)}/rollback/commit", nil)
+
+    # Undoes the rollback with a new deployment of the spec from before it, and unpins the app (apps_revert_rollback).
+    def revert_rollback(app_id) = post("/apps/#{Http.segment(app_id)}/rollback/revert", nil)
+
+    # A new deployment from the newest commit of each component's source, built again from scratch with force_build
+    # (apps_create_deployment).
+    def create_deployment(app_id, force_build:) = post("/apps/#{Http.segment(app_id)}/deployments", { "force_build" => force_build })
+
+    def cancel_deployment(app_id, deployment_id)
+      post("/apps/#{Http.segment(app_id)}/deployments/#{Http.segment(deployment_id)}/cancel", nil)["deployment"] || {}
+    end
+
+    # An app's job invocations, newest first, of one job or every one (apps_list_job_invocations).
+    def job_invocations(app_id, limit:, job_name: nil)
+      get("/apps/#{Http.segment(app_id)}/job-invocations", { "per_page" => limit, "job_names" => job_name })["job_invocations"] || []
+    end
+
+    # One job invocation (apps_get_job_invocation), which the specification shows both bare and under job_invocation.
+    def job_invocation(app_id, invocation_id)
+      answer = get("/apps/#{Http.segment(app_id)}/job-invocations/#{Http.segment(invocation_id)}")
+      answer["job_invocation"] || answer
+    end
+
+    def cancel_job_invocation(app_id, invocation_id, job_name:)
+      answer = send_request(:post, "/apps/#{Http.segment(app_id)}/job-invocations/#{Http.segment(invocation_id)}/cancel", nil, { "job_name" => job_name })
+      answer["job_invocation"] || answer
+    end
+
+    # An app's events, its deployments and autoscaling, newest first (apps_list_events).
+    def events(app_id, limit:, type: nil) = get("/apps/#{Http.segment(app_id)}/events", { "per_page" => limit, "event_types" => type })["events"] || []
+
+    # The alerts an app and its components have set up, each a rule, its threshold and its phase (apps_list_alerts).
+    def alerts(app_id) = get("/apps/#{Http.segment(app_id)}/alerts")["alerts"] || []
 
     # components empty restarts every one, as the API does when none is named.
     def restart(app_id, components = []) = post("/apps/#{Http.segment(app_id)}/restart", components.any? ? { "components" => components } : {})
@@ -68,6 +129,17 @@ module Integrations
     def droplet(droplet_id) = get("/droplets/#{Http.segment(droplet_id)}")["droplet"] || {}
 
     def droplet_action(droplet_id, type) = post("/droplets/#{Http.segment(droplet_id)}/actions", { "type" => type })
+
+    # A Droplet's actions, such as reboots, resizes and power cycles, each with its status and when it started and ended
+    # (dropletActions_list). The specification gives no order, so the first page and the last are read and the newest of
+    # both taken.
+    def droplet_actions(droplet_id, limit:)
+      path = "/droplets/#{Http.segment(droplet_id)}/actions"
+      first = get(path, "per_page" => PAGE_SIZE, "page" => 1)
+      last = first.dig("links", "pages", "last").to_s[/[?&]page=(\d+)/, 1].to_i
+      found = Array(first["actions"]) + (last > 1 ? Array(get(path, "per_page" => PAGE_SIZE, "page" => last)["actions"]) : [])
+      found.uniq { |action| action["id"] }.sort_by { |action| action["started_at"].to_s }.reverse.first(limit)
+    end
 
     # The list takes no page parameters in the specification, so it is read as one answer, and always in full.
     def databases = Pages::Read.new(items: get("/databases")["databases"] || [], complete: true)
@@ -93,6 +165,8 @@ module Integrations
     def invoice_summary(invoice_uuid) = get("/customers/my/invoices/#{Http.segment(invoice_uuid)}/summary")
 
     private
+
+    def log_answer(answer) = { historic: Array(answer["historic_urls"]), live: answer["live_url"].presence }
 
     # Every page of a list, following DigitalOcean's links.pages.next, up to MAX_PAGES.
     def list(path, key)

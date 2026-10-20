@@ -59,6 +59,59 @@ module Integrations
     # Makes an earlier deployed version the one new runs start on (promote_deployment_v1).
     def promote(version) = post("/api/v1/deployments/#{segment(version)}/promote", nil)
 
+    # Cancels a run still going, and does nothing to one already finished (cancel_run_v1).
+    def cancel_run(run_id) = post("/api/v2/runs/#{segment(run_id)}/cancel", nil)
+
+    # A new run with the same payload and options as the one named, in the same environment, answering the new run's id
+    # (replay_run_v1). An empty body replays it unchanged.
+    def replay_run(run_id) = post("/api/v1/runs/#{segment(run_id)}/replay", {})
+
+    # Cancels or replays many runs at once, by their ids or by a filter, answering the bulk action's id
+    # (create_bulk_action_v1). It runs on Trigger.dev's side after the answer.
+    def bulk_action(action, name:, run_ids: nil, filter: nil)
+      post("/api/v1/bulk-actions", { "action" => action, "name" => name, "runIds" => run_ids, "filter" => filter }.compact)
+    end
+
+    # One queue by its id, or by a task's identifier or a custom queue's name with type (retrieve_queue_v1).
+    def queue(name, type) = get("/api/v1/queues/#{segment(name)}", { "type" => type })
+
+    # Pauses a queue, so no new run starts, or resumes it (pause_queue_v1). action is pause or resume.
+    def pause_queue(name, type, action) = post("/api/v1/queues/#{segment(name)}/pause", { "type" => type, "action" => action })
+
+    def override_queue_concurrency(name, type, limit)
+      post("/api/v1/queues/#{segment(name)}/concurrency/override", { "type" => type, "concurrencyLimit" => limit })
+    end
+
+    # Puts a queue's limit back to the one its code declares (reset_queue_concurrency_v1).
+    def reset_queue_concurrency(name, type) = post("/api/v1/queues/#{segment(name)}/concurrency/reset", { "type" => type })
+
+    def concurrency_limit(name) = get("/api/v1/concurrency-limits/#{segment(name)}")
+
+    def pause_concurrency_limit(name, action) = post("/api/v1/concurrency-limits/#{segment(name)}/pause", { "action" => action })
+
+    # Overrides a concurrency limit's total, its per key bound or both, keeping the declared values for reset
+    # (override_concurrency_limit_v1).
+    def override_concurrency_limit(name, total: nil, per_key: nil)
+      post("/api/v1/concurrency-limits/#{segment(name)}/override", { "total" => total, "perKey" => per_key }.compact)
+    end
+
+    def reset_concurrency_limit(name) = post("/api/v1/concurrency-limits/#{segment(name)}/reset", {})
+
+    # One error group with its status (retrieve_error_v1).
+    def error_group(error_id) = get("/api/v1/errors/#{segment(error_id)}")
+
+    # Marks an error group resolved, in a version when named (resolve_error_v1).
+    def resolve_error(error_id, version: nil) = post("/api/v1/errors/#{segment(error_id)}/resolve", { "resolvedInVersion" => version }.compact)
+
+    # Marks an error group ignored, for a while or until it happens more than a rate or a count when given (ignore_error_v1).
+    def ignore_error(error_id, duration_ms: nil, occurrence_rate: nil, total_occurrences: nil, reason: nil)
+      body = { "duration" => duration_ms, "occurrenceRate" => occurrence_rate, "totalOccurrences" => total_occurrences, "reason" => reason }.compact
+      post("/api/v1/errors/#{segment(error_id)}/ignore", body)
+    end
+
+    # Moves a resolved or ignored error group back to unresolved (unresolve_error_v1).
+    def unresolve_error(error_id) = post("/api/v1/errors/#{segment(error_id)}/unresolve", nil)
+
     # Any GET of the API by its path, /api/v1 and the rest included, for the general read (Integrations::ApiReads),
     # which checks the path before it gets here.
     def read(path, query) = get(path, query)

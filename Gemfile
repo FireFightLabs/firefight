@@ -115,6 +115,8 @@ gem "rubyzip", "~> 3.7", require: false
 
 # Modal's API is gRPC only, which its open source client speaks, so the Modal integration calls it the same way
 gem "grpc", require: false
+# Reads a provider's live log address, a WebSocket, such as a DigitalOcean deployment's while it builds
+gem "websocket-driver", "~> 0.8", require: false
 
 # Persistent HTTP connection pool (for Slack API keep-alive)
 gem "net-http-persistent"

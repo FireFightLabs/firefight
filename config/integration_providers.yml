@@ -708,7 +708,7 @@ providers:
     color: "#0080ff"
     status_page: { url: https://status.digitalocean.com, feed: statuspage }
     hosts: [ api.digitalocean.com, digitaloceanspaces.com, ondigitalocean.app ]
-    description: Logs, metrics and deployments of App Platform apps, Droplets and managed databases, and rollbacks, restarts and scaling when you allow it.
+    description: Logs, metrics, deployments, job runs and events of App Platform apps, Droplets and managed databases, and rollbacks, restarts, redeploys, cancelling and scaling when you allow it.
     site: https://cloud.digitalocean.com
     server_url: ""
     kind: native
@@ -719,6 +719,7 @@ providers:
     scaling: firefight
     scaling_note: "An app counts the instances its services and workers run. An app with a component that scales on its own has no one count, so it shows none."
     history: firefight
+    stopping_tools: [cancel_deployment, cancel_job_run]
   - key: netlify
     name: Netlify
     category: Cloud and hosting
@@ -766,7 +767,7 @@ providers:
     color: "#1a1b1f"
     status_page: { url: https://status.trigger.dev, feed: page }
     hosts: [ api.trigger.dev, trigger.dev ]
-    description: Task runs, logs, errors and deployments of a Trigger.dev environment, and promoting an earlier version when you allow it.
+    description: Task runs, logs, errors, queues and deployments of a Trigger.dev environment, and promoting an earlier version, cancelling and replaying runs, pausing queues and resolving errors when you allow it.
     site: https://cloud.trigger.dev
     server_url: ""
     kind: native
@@ -776,6 +777,15 @@ providers:
     scaling: none
     scaling_note: "It runs each task on demand and says no count of copies."
     history: firefight
+    stopping_tools: [cancel_run, bulk_cancel_runs]
+    mitigation_tools: [pause_queue, pause_concurrency_limit]
+    safe_tools: [resolve_error, ignore_error, unresolve_error]
+    safe_until_outside_tools: [ignore_error]
+    undo_tools:
+      resolve_error: { tool: unresolve_error, arguments: { error: result.error } }
+      ignore_error: { tool: unresolve_error, arguments: { error: result.error } }
+      pause_queue: { tool: resume_queue, arguments: { queue: result.queue } }
+      pause_concurrency_limit: { tool: resume_concurrency_limit, arguments: { limit: result.limit } }
     connect_fields:
       - { key: project, label: Project ref, placeholder: proj_..., pattern: 'proj_[a-z0-9]+', allowed: "proj_ followed by lowercase letters and numbers",
           hint: "The project's ref, starting with proj_, as in your trigger.config.ts. Links to runs use it." }

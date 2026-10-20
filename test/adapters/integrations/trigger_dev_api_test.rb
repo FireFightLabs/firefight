@@ -64,6 +64,42 @@ module Integrations
       assert_kind_of Integrations::RateLimited, limited
     end
 
+    test "runs, queues, concurrency limits and error groups are changed at their documented paths with their documented bodies" do
+      sent = []
+      Http.stubs(:request).with do |uri, request, **|
+        sent << [ request.method, uri.path, request.body && JSON.parse(request.body) ]
+        true
+      end.returns(response(200, { id: "x" }))
+
+      @api.cancel_run("run_a")
+      @api.replay_run("run_a")
+      @api.bulk_action("replay", name: "Firefight: replay", filter: { "taskIdentifier" => "send-email" })
+      @api.pause_queue("send-email", "task", "pause")
+      @api.override_queue_concurrency("queue_1", "id", 3)
+      @api.reset_queue_concurrency("queue_1", "id")
+      @api.pause_concurrency_limit("openai", "resume")
+      @api.override_concurrency_limit("openai", per_key: 2)
+      @api.reset_concurrency_limit("openai")
+      @api.resolve_error("error_1", version: "20261001.1")
+      @api.ignore_error("error_1", duration_ms: 60_000, reason: "flaky")
+      @api.unresolve_error("error_1")
+
+      assert_equal [
+        [ "POST", "/api/v2/runs/run_a/cancel", nil ],
+        [ "POST", "/api/v1/runs/run_a/replay", {} ],
+        [ "POST", "/api/v1/bulk-actions", { "action" => "replay", "name" => "Firefight: replay", "filter" => { "taskIdentifier" => "send-email" } } ],
+        [ "POST", "/api/v1/queues/send-email/pause", { "type" => "task", "action" => "pause" } ],
+        [ "POST", "/api/v1/queues/queue_1/concurrency/override", { "type" => "id", "concurrencyLimit" => 3 } ],
+        [ "POST", "/api/v1/queues/queue_1/concurrency/reset", { "type" => "id" } ],
+        [ "POST", "/api/v1/concurrency-limits/openai/pause", { "action" => "resume" } ],
+        [ "POST", "/api/v1/concurrency-limits/openai/override", { "perKey" => 2 } ],
+        [ "POST", "/api/v1/concurrency-limits/openai/reset", {} ],
+        [ "POST", "/api/v1/errors/error_1/resolve", { "resolvedInVersion" => "20261001.1" } ],
+        [ "POST", "/api/v1/errors/error_1/ignore", { "duration" => 60_000, "reason" => "flaky" } ],
+        [ "POST", "/api/v1/errors/error_1/unresolve", nil ]
+      ], sent
+    end
+
     test "a change that went through stays done whatever came back with it" do
       Http.stubs(:request).returns(stub(code: "200", body: "ok"))
 

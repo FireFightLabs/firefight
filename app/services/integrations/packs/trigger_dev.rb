@@ -1,8 +1,9 @@
 module Integrations
   module Packs
     # Trigger.dev for one project environment per environment row: its tasks, their runs and what they logged, error
-    # groups, queues, deployments and the metrics Trigger.dev keeps, read with that environment's secret API key. Every
-    # tool reads, except promote_deployment, which makes an earlier version the current one. The paths, parameters and
+    # groups, queues, deployments and the metrics Trigger.dev keeps, read with that environment's secret API key. The tools
+    # that change anything promote an earlier version, cancel or replay runs, pause, resume or override queues and
+    # concurrency limits, and triage error groups. The paths, parameters and
     # fields are the ones in Trigger.dev's OpenAPI spec (triggerdotdev/trigger.dev, docs/v3-openapi.yaml), and the
     # queries the ones its query docs give (docs/observability/query.mdx, docs/logging.mdx).
     class TriggerDev < NativePack
@@ -77,6 +78,10 @@ module Integrations
 
       RANGE = Capabilities::RANGE
       TASK = { "type" => "string", "description" => "A task, by its identifier, as list_tasks shows it" }.freeze
+
+      include RunControl
+      include QueueControl
+      include ErrorTriage
 
       tool :list_tasks,
            summary: "Lists the tasks in the latest deployed version and where each is defined.",
@@ -234,8 +239,8 @@ module Integrations
         [
           CredentialField.new(key: API_KEY, label: "Secret API key", secret: true, placeholder: "tr_prod_sk_...",
                               hint: "A named API key of the environment this connection reads, from API keys in the Trigger.dev dashboard. " \
-                                    "Observer reads runs, logs and queues. For Halon to promote an earlier version, choose a preset " \
-                                    "that can deploy, such as No restrictions.")
+                                    "Observer reads runs, logs and queues. For Halon to promote an earlier version, cancel or replay runs, " \
+                                    "pause queues or triage errors, choose a preset that can, such as No restrictions.")
         ]
       end
 
