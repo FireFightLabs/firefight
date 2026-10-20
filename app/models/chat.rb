@@ -197,9 +197,10 @@ class Chat < ApplicationRecord
   def notice!(text) = messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: text, notice: true)
 
   # The loop keeps the agent moving by speaking as the user, which is how a model reads it.
-  # Marked, because the content is encrypted and nothing else could tell it from the person's words.
+  # Marked, because the content is encrypted and nothing else could tell it from the person's words. Saved and marked
+  # together, since a page reading in between would show it as the person's own message.
   def nudge!(text)
-    add_message(role: Chat::Message::ROLE_USER, content: text).tap { |message| message.update!(nudge: true) }
+    transaction { add_message(role: Chat::Message::ROLE_USER, content: text).tap { |message| message.update!(nudge: true) } }
   end
 
   # Requested is ours, RubyLLM reads anything but approved or denied as undecided.
