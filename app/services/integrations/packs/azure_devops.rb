@@ -9,7 +9,7 @@ module Integrations
     # diffs run git in the run's sandbox, where reading code by search, definition, history and language server happens
     # too (CodeHost::Code). The pipelines tools live in AzureDevops::Pipelines and the deployments in
     # AzureDevops::Deployments. Every tool only reads but the sandbox's test runner and the ones that run, retry or
-    # cancel a pipeline run or answer an approval.
+    # cancel a pipeline run, answer an approval or deploy an earlier deployment again.
     class AzureDevops < NativePack
       # The environment row's credential and connect fields, which only this pack reads.
       ORGANIZATION = "organization".freeze

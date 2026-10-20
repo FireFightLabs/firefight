@@ -23,6 +23,13 @@ module Integrations
         SUCCEEDED = "succeeded".freeze
         JOB = "Job".freeze
         TASK = "Task".freeze
+        STAGE = "Stage".freeze
+        # A run held for an approval has a timeline record of this type whose identifier is the approval's id, as Microsoft's
+        # own scripts read it (Azure/azure-sdk-tools, Approve-Sync-PRs.ps1). It counts only while Approvals - Query still
+        # lists that approval as pending.
+        APPROVAL_RECORD = "Checkpoint.Approval".freeze
+        # At most this many unfinished runs of a list have their timeline read to tell a held one from one still running.
+        HELD_READS = 10
         PENDING = "pending".freeze
         DECISIONS = { "approve" => "approved", "reject" => "rejected" }.freeze
         # A YAML pipeline's process type, which the Pipelines API runs. A classic one is queued as a build.
@@ -45,6 +52,7 @@ module Integrations
         WRITE_NEEDS = "Running, retrying or canceling a pipeline run needs a token with Build (Read & execute) from someone who may " \
                       "queue and stop builds of the pipeline, and answering an approval also Pipeline Resources (Use) from one of its approvers".freeze
         FOLLOW = "ci_runs with its id as run, or ci_status, follows it".freeze
+        HELD_WORDS = "waiting for an approval".freeze
 
         # What a CI tool reads: the project, the filter of its runs, what it is called, its page and default branch.
         Target = Data.define(:project, :query, :what, :page, :branch, :repository_id, :definition_id)
@@ -72,9 +80,9 @@ module Integrations
                                  "how long it took, and how long finished runs usually take",
                     params_schema: CodeHost::Code.object_schema({
                       **target,
-                      "name" => { "type" => "string", "description" => "Only runs of pipelines whose name contains this, such as release (optional)" },
+                      "name" => { "type" => "string", "description" => "Only runs of pipelines whose name contains this, such as release, or else deployments to an environment it names (optional)" },
                       "ref" => { "type" => "string", "description" => "Only runs for this branch (optional)" },
-                      "run" => { "type" => "string", "description" => "Only this run, by its id, with each job and how it ended (optional)" },
+                      "run" => { "type" => "string", "description" => "Only this run, by its id, with each job and how it ended, or a deployment by the id this answer gives it (optional)" },
                       "limit" => { "type" => "integer", "description" => "At most this many (optional, #{HISTORY_LIMIT}, at most #{MAX_HISTORY})" }
                     }, []),
                     read_only: true
@@ -170,18 +178,28 @@ module Integrations
           runs = builds(azure, target.project, query)
           return Telemetry.result("No runs of #{target.what} match.", link: link(target.page)) if runs.empty?
 
-          Telemetry.result(runs.map { |build| run_line(build) }.join("\n"), link: link(target.page))
+          held = held_runs(azure, target.project, runs)
+          Telemetry.result(runs.map { |build| run_line(build, held: held.include?(build["id"])) }.join("\n"), link: link(target.page))
         end
 
         def ci_runs(environment_row:, arguments:)
           azure = api(environment_row)
           target = ci_target(azure, arguments)
-          return one_run(azure, target, positive_id(arguments, "run")) if arguments["run"].present?
+          asked = arguments["run"].to_s.strip
+          return one_deployment(azure, target, asked.delete_prefix(Deployments::DEPLOYMENT_RUN)) if asked.start_with?(Deployments::DEPLOYMENT_RUN)
+          return one_run(azure, target, positive_id(arguments, "run")) if asked.present?
 
           limit = whole_number_argument(arguments, "limit", HISTORY_LIMIT, MAX_HISTORY)
           name = arguments["name"].to_s.strip.presence
           query = target.query.merge("$top" => name ? MAX_RUNS : limit, "queryOrder" => "queueTimeDescending", "branchName" => branch_ref(ref_argument(arguments)))
-          runs = builds(azure, target.project, query).map { |build| history_run(build) }
+          found = builds(azure, target.project, query)
+          held = held_runs(azure, target.project, found)
+          runs = found.map { |build| history_run(build, held: held.include?(build["id"])) }
+          if name && runs.none? { |run| run.called?(name) }
+            return Capabilities::History.result(deployment_runs(azure, target), what: "deployments of #{target.what}, since no pipeline is named #{name}",
+                                                name: name, limit: limit)
+          end
+
           Capabilities::History.result(runs, what: target.what, link: link(target.page), name: name, limit: limit)
         end
 
@@ -439,12 +457,12 @@ module Integrations
 
         def failed_record?(record) = [ Capabilities::History::FAILED, Capabilities::History::CANCELLED ].include?(record_status(record)) && record["result"] != "skipped"
 
-        def history_run(build)
+        def history_run(build, held: false)
           Capabilities::History::Run.new(
             id: build["id"].to_s, number: build["buildNumber"].to_s.presence, name: build.dig("definition", "name").presence || "run #{build['id']}",
-            status: run_status(build), started_at: Telemetry.parse_time(build["startTime"] || build["queueTime"]),
+            status: held ? Capabilities::History::WAITING : run_status(build), started_at: Telemetry.parse_time(build["startTime"] || build["queueTime"]),
             finished_at: (Telemetry.parse_time(build["finishTime"]) if build["status"] == COMPLETED), url: build.dig("_links", "web", "href"),
-            detail: [ ("partly succeeded" if build["result"] == "partiallySucceeded"),
+            detail: [ ("partly succeeded" if build["result"] == "partiallySucceeded"), (HELD_WORDS if held),
                       "#{branch_name(build['sourceBranch'])} at #{build['sourceVersion'].to_s[0, 12]}, #{build['reason']}" ].compact.join(", ")
           )
         end
@@ -461,16 +479,19 @@ module Integrations
           end
 
           records = timeline(azure, target.project, id)
+          held_stages = build["status"] == COMPLETED ? [] : held_stages(records, pending_ids(azure, target.project))
           jobs = records.values.select { |record| record["type"] == JOB && record["result"] != "skipped" }.sort_by { |record| [ record["startTime"].to_s, record["order"].to_i ] }
-          parts = jobs.map { |job| history_part(records, target.project, id, job) }
-          Capabilities::History.result([ history_run(build).with(parts: parts) ], what: target.what, link: link(build.dig("_links", "web", "href")))
+          parts = jobs.map { |job| history_part(records, target.project, id, job, held: held_stages.include?(stage_id(records, job))) }
+          run = history_run(build, held: held_stages.any?).with(parts: parts)
+          Capabilities::History.result([ run ], what: target.what, link: link(build.dig("_links", "web", "href")))
         end
 
-        def history_part(records, project, build_id, job)
+        def history_part(records, project, build_id, job, held: false)
           error = errors_of(records, job).first
           log = job.dig("log", "id")
+          waits = held && job["state"].to_s != COMPLETED
           Capabilities::History::Part.new(
-            id: job["id"].to_s, name: step_name(records, job), status: record_status(job), started_at: Telemetry.parse_time(job["startTime"]),
+            id: job["id"].to_s, name: step_name(records, job), status: waits ? Capabilities::History::WAITING : record_status(job), started_at: Telemetry.parse_time(job["startTime"]),
             finished_at: Telemetry.parse_time(job["finishTime"]), detail: error && Sentence.clean(error),
             log: log && { Capabilities::History::LOG_TOOL => "job_log", Capabilities::History::LOG_ARGUMENTS => { "project" => project, "build_id" => build_id, "log_id" => log } }
           )
@@ -532,15 +553,16 @@ module Integrations
           "No failed run#{" #{where}" if where.present?} among the newest #{FAILED_CANDIDATES} failed runs."
         end
 
-        def run_line(build)
-          "#{build['queueTime']}  run #{build['buildNumber']} (#{build['id']})  #{build.dig('definition', 'name')}  #{run_word(build)}  " \
+        def run_line(build, held: false)
+          "#{build['queueTime']}  run #{build['buildNumber']} (#{build['id']})  #{build.dig('definition', 'name')}  #{held ? HELD_WORDS : run_word(build)}  " \
             "#{branch_name(build['sourceBranch'])}  #{build['sourceVersion'].to_s[0, 12]}  #{build['reason']}  #{build.dig('_links', 'web', 'href')}"
         end
 
         def latest_text(azure, target, ref, latest)
           return "No run on #{ref} of #{target.what}. If its CI runs elsewhere, ask that connection." unless latest
 
-          text = "Latest run on #{ref}: #{latest['buildNumber']} (#{latest['id']}) of #{latest.dig('definition', 'name')}, #{run_word(latest)}, commit " \
+          held = held_runs(azure, target.project, [ latest ]).include?(latest["id"])
+          text = "Latest run on #{ref}: #{latest['buildNumber']} (#{latest['id']}) of #{latest.dig('definition', 'name')}, #{held ? HELD_WORDS : run_word(latest)}, commit " \
                  "#{latest['sourceVersion'].to_s[0, 12]}, started by #{latest['reason']} at #{latest['queueTime']}."
           return text unless run_status(latest) == Capabilities::History::FAILED
 
@@ -563,6 +585,39 @@ module Integrations
         # Approvals waiting in the project (Approvals - Query, state pending), which a run waits on before a stage.
         def pending(azure, project)
           azure.values(azure.get("#{AzureDevopsApi.project(project)}/_apis/pipelines/approvals", "state" => PENDING, "$expand" => "steps", "top" => APPROVALS_SHOWN))
+        end
+
+        # The ids of the approvals waiting in the project, or none when the token may not read them.
+        def pending_ids(azure, project)
+          @pending_ids ||= {}
+          @pending_ids[project] ||= pending(azure, project).filter_map { |approval| approval["id"].to_s.downcase.presence }
+        rescue AzureDevopsApi::Refused
+          @pending_ids[project] = []
+        end
+
+        # The runs among builds held for an approval, read from the timelines of the unfinished ones only when the project
+        # has an approval waiting.
+        def held_runs(azure, project, builds)
+          waiting = builds.reject { |build| build["status"] == COMPLETED }.first(HELD_READS)
+          return [] if waiting.empty? || pending_ids(azure, project).empty?
+
+          waiting.select { |build| held_stages(timeline(azure, project, build["id"]), pending_ids(azure, project)).any? }.map { |build| build["id"] }
+        end
+
+        # The stages of a run held by an approval still pending, by their record's id, or the approval's own record when no
+        # stage holds it.
+        def held_stages(records, pending)
+          return [] if pending.empty?
+
+          records.values.select { |record| record["type"] == APPROVAL_RECORD && pending.include?(record["identifier"].to_s.downcase) && record["state"] != COMPLETED }
+                 .map { |record| stage_id(records, record) || record["id"] }.uniq
+        end
+
+        # The id of the stage a record sits in, found through its parents.
+        def stage_id(records, record)
+          current = record
+          current = records[current["parentId"]] while current && current["type"] != STAGE
+          current&.dig("id")
         end
 
         def approvals_text(azure, project)

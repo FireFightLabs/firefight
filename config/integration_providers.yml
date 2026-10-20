@@ -242,7 +242,7 @@ providers:
     color: "#0078d4"
     status_page: { url: https://status.dev.azure.com, feed: page }
     hosts: [ dev.azure.com, vsrm.dev.azure.com ]
-    description: Pull requests, pipeline runs, deployments, releases and code of your Azure DevOps projects, and run, rerun or cancel a pipeline or answer an approval when you allow it.
+    description: Pull requests, pipeline runs, deployments, releases and code of your Azure DevOps projects, and when you allow it, run, rerun or cancel a pipeline, answer an approval, or deploy an earlier deployment again.
     # Azure DevOps' hosted MCP server signs in only with Microsoft Entra, with no dynamic client registration and no token
     # (learn.microsoft.com/azure/devops/mcp-server/remote-mcp-server), and has no environments, approvals, blame or service
     # hooks, so the pack reads the REST API itself.

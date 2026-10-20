@@ -8,6 +8,9 @@ module Integrations
       SHA = ("a" * 40).freeze
       WEB = "https://dev.azure.com/fabrikam/Shop/_git/checkout".freeze
       PROJECT_WEB = "https://dev.azure.com/fabrikam/Shop".freeze
+      APPROVALS = "/Shop/_apis/pipelines/approvals".freeze
+      PENDING_QUERY = { "state" => "pending", "$expand" => "steps", "top" => 50 }.freeze
+      APPROVAL = "aab27959-a5be-4ee3-97ca-f19b3602cd2f".freeze
 
       setup do
         @workspace = workspaces(:slack_workspace_one)
@@ -18,12 +21,13 @@ module Integrations
         @pack = AzureDevops.new(@integration, box_key: "investigation-1")
         AzureDevopsApi.any_instance.stubs(:get).with(REPO).returns(repository)
         AzureDevopsApi.any_instance.stubs(:get).with("/_apis/projects/Shop").returns("id" => "project-guid", "name" => "Shop", "_links" => { "web" => { "href" => PROJECT_WEB } })
+        stub_get(APPROVALS, PENDING_QUERY, "value" => [])
       end
 
       test "the token is the one credential, the organization and projects connect fields, and only the test runner and CI changes write" do
         assert_equal "pat-token", ConnectionSettings.of(@row.reload).credential(AzureDevops::TOKEN)
         assert_equal [ AzureDevops::TOKEN ], AzureDevops.credential_fields.map(&:key)
-        assert_equal %w[run_tests run_pipeline retry_pipeline cancel_pipeline approve_check], AzureDevops.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[run_tests run_pipeline retry_pipeline cancel_pipeline approve_check redeploy], AzureDevops.tool_definitions.reject(&:read_only).map(&:name)
         organization, project = IntegrationProvider.find(AzureDevops::PROVIDER_KEY).connect_fields
         assert_equal [ AzureDevops::ORGANIZATION, false ], [ organization.key, organization.scope ]
         assert_nil organization.refusal("fabrikam")
@@ -402,6 +406,97 @@ module Integrations
         assert_nil @pack.flag_pull_request(@row, repository: "Shop/checkout", number: 42, body: "Touches a flag.")
       end
 
+      test "a run held by a pending approval is waiting, in the list and with the jobs of the stage it holds, and one still running is not" do
+        stub_get(APPROVALS, PENDING_QUERY, "value" => [ { "id" => APPROVAL } ])
+        stub_get(BUILDS, { "repositoryId" => "repo-guid", "repositoryType" => "TfsGit", "$top" => 10, "queryOrder" => "queueTimeDescending" },
+                 "value" => [ build(9, "inProgress", nil, start: "2026-10-01T11:00:00Z"), build(8, "inProgress", nil, start: "2026-10-01T10:30:00Z") ])
+        stub_get("#{BUILDS}/9/timeline", "records" => held_records)
+        stub_get("#{BUILDS}/8/timeline", "records" => timeline_records)
+
+        held, running = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "Shop/checkout" }))
+        assert_equal [ Capabilities::History::WAITING, Capabilities::History::RUNNING ], [ held.status, running.status ]
+        assert_includes held.detail, "waiting for an approval"
+
+        stub_get("#{BUILDS}/9", build(9, "inProgress", nil, start: "2026-10-01T11:00:00Z"))
+        run = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "Shop/checkout", "run" => "9" })).sole
+        assert_equal Capabilities::History::WAITING, run.status
+        assert_equal({ "Build / Compile" => Capabilities::History::SUCCEEDED, "Deploy / Release" => Capabilities::History::WAITING },
+                     run.parts.to_h { |part| [ part.name, part.status ] })
+
+        stub_get(APPROVALS, PENDING_QUERY, "value" => [])
+        fresh = AzureDevops.new(@integration, box_key: "investigation-1")
+        assert_equal Capabilities::History::RUNNING, Capabilities::History.runs_of(fresh.ci_runs(environment_row: @row, arguments: { "repo" => "Shop/checkout", "run" => "9" })).sole.status,
+                     "once the approval is answered the run goes on"
+      end
+
+      test "deployments are kept as runs too, which ci_runs reads by an environment's name no pipeline has and follows by their id" do
+        stub_environments
+        runs = Capabilities::History.runs_of(@pack.recent_deployments(environment_row: @row, arguments: { "repo" => "Shop/checkout" }))
+        assert_equal [ [ "deployment-41", "deployment to production", Capabilities::History::SUCCEEDED ] ], runs.map { |run| [ run.id, run.name, run.status ] }
+
+        stub_get(BUILDS, { "repositoryId" => "repo-guid", "repositoryType" => "TfsGit", "$top" => 50, "queryOrder" => "queueTimeDescending" },
+                 "value" => [ build(7, "completed", "succeeded") ])
+        named = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "Shop/checkout", "name" => "production" }))
+        assert_equal [ "deployment-41" ], named.map(&:id)
+
+        one = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "Shop/checkout", "run" => "deployment-41" })).sole
+        assert_equal [ "deployment to production", 600 ], [ one.name, one.seconds ]
+      end
+
+      test "an earlier deployment is redeployed by rerunning the stage that made it in its run, only one that succeeded and whose run ended" do
+        stub_environments
+        stub_get("#{BUILDS}/7/timeline", "records" => [ { "id" => "deploy", "type" => "Stage", "name" => "Deploy to production", "identifier" => "Deploy" } ])
+        AzureDevopsApi.any_instance.expects(:patch).with("#{BUILDS}/7/stages/Deploy", { "state" => "retry", "forceRetryAllJobs" => true }).returns(nil)
+
+        text = call(:redeploy, "repo" => "Shop/checkout", "deployment" => "41")
+
+        assert_includes text, "Deploying the deployment 41 of #{SHA[0, 12]} to production again by rerunning stage Deploy to production of run 20261001.7 (7)"
+        assert_match "No deployment 99 among the recent deployments of Shop/checkout", assert_raises(NativePack::Error) { call(:redeploy, "repo" => "Shop/checkout", "deployment" => "99") }.message
+        assert_match "No deployment 40 among", assert_raises(NativePack::Error) { call(:redeploy, "repo" => "Shop/checkout", "deployment" => "40") }.message, "another repository's deployment is not this one's"
+      end
+
+      test "a deployment that failed is no version to go back to" do
+        stub_get("/Shop/_apis/distributedtask/environments", { "$top" => 50 }, "value" => [ { "id" => 3, "name" => "production" } ])
+        stub_get("/Shop/_apis/distributedtask/environments/3/environmentdeploymentrecords", { "top" => 30 },
+                 "value" => [ { "id" => 42, "planType" => "Build", "result" => "failed", "owner" => { "id" => 7 }, "definition" => { "id" => 12 }, "stageName" => "Deploy" } ])
+        stub_get(BUILDS, { "buildIds" => "7" }, "value" => [ build(7, "completed", "failed") ])
+
+        assert_match "did not succeed, so it is no version to go back to",
+                     assert_raises(PolicyRefusal) { call(:redeploy, "repo" => "Shop/checkout", "deployment" => "42") }.message
+      end
+
+      test "a classic release is deployed again to its stage only when it succeeded there and is not on its way" do
+        path = "/Shop/_apis/release/releases/14/environments/3"
+        stub_get(path, "id" => 3, "name" => "PROD", "status" => "inProgress", "release" => { "name" => "Release-14" })
+        assert_match "Release-14 to PROD is inProgress already", assert_raises(NativePack::Error) { call(:redeploy, "project" => "Shop", "deployment" => "release/14/3") }.message
+
+        stub_get(path, "id" => 3, "name" => "PROD", "status" => "succeeded", "release" => { "name" => "Release-14", "_links" => { "web" => { "href" => "https://dev.azure.com/fabrikam/Shop/_release?releaseId=14" } } })
+        AzureDevopsApi.any_instance.expects(:patch).with(path, { "status" => "inProgress", "comment" => "Deployed again as a rollback." }).returns({})
+        assert_includes call(:redeploy, "project" => "Shop", "deployment" => "release/14/3"), "Deploying Release-14 to PROD again in Shop."
+      end
+
+      test "a classic release deployment waiting for an approval is waiting, and each is named by the id redeploy takes" do
+        stub_get("/Shop/_apis/release/deployments", { "$top" => 10, "queryOrder" => "descending" },
+                 "value" => [ { "id" => 53, "release" => { "id" => 15, "name" => "Release-15" }, "releaseEnvironment" => { "id" => 4, "name" => "PROD" },
+                                "deploymentStatus" => "notDeployed", "operationStatus" => "Pending", "queuedOn" => "2026-10-01T11:00:00Z" } ])
+
+        result = @pack.release_deployments(environment_row: @row, arguments: { "project" => "Shop" })
+
+        assert_includes result.dig("content", 0, "text"), "release/15/4"
+        assert_includes result.dig("content", 0, "text"), "notDeployed, waiting for an approval"
+        deploy = Capabilities::Deploys.deploys_of(result).sole
+        assert_equal [ "release/15/4", Capabilities::History::WAITING ], [ deploy.id, deploy.status ]
+      end
+
+      test "a rollback is routed to redeploy with the deployment named, through the repository or the pipeline" do
+        repo = ResourceMap::Resource.new(kind: ResourceMap::KIND_REPOSITORY, external_id: "Shop/checkout", name: "Shop/checkout", details: {})
+        assert_equal [ "redeploy", { "repo" => "Shop/checkout", "deployment" => "41" } ],
+                     Capabilities::AzureDevops.route(Capabilities::ROLLBACK, repo, { "to" => "41" }, tool: nil).then { |route| [ route.tool_name, route.arguments ] }
+
+        pipeline = ResourceMap::Resource.new(kind: ResourceMap::KIND_PIPELINE, external_id: "Shop/12", name: "Shop/checkout-ci", details: {})
+        assert_equal({ "pipeline" => "Shop/12", "deployment" => "41" }, Capabilities::AzureDevops.route(Capabilities::ROLLBACK, pipeline, { "to" => "41" }, tool: nil).arguments)
+      end
+
       test "a pipeline on the map is asked through the pipeline, a repository through the repository" do
         pipeline = ResourceMap::Resource.new(kind: ResourceMap::KIND_PIPELINE, external_id: "Shop/12", name: "Shop/checkout-ci", details: {})
         route = Capabilities::AzureDevops.route(Capabilities::HISTORY, pipeline, { "run" => "7" }, tool: nil)
@@ -447,6 +542,18 @@ module Integrations
           { "id" => "task", "type" => "Task", "name" => "Run tests", "parentId" => "test", "state" => "completed", "result" => "failed", "order" => 1,
             "finishTime" => "2026-10-01T10:04:30Z", "log" => { "id" => 6 }, "issues" => [ { "type" => "error", "message" => "Tests failed" } ] },
           { "id" => "lint", "type" => "Job", "name" => "Lint", "parentId" => "phase", "state" => "completed", "result" => "skipped" } ]
+      end
+
+      # A run that built, then reached a deploy stage held by the pending approval.
+      def held_records
+        [ { "id" => "stage", "type" => "Stage", "name" => "Build" },
+          { "id" => "phase", "type" => "Phase", "name" => "Compile", "parentId" => "stage" },
+          { "id" => "compile", "type" => "Job", "name" => "Compile", "parentId" => "phase", "state" => "completed", "result" => "succeeded" },
+          { "id" => "deploy", "type" => "Stage", "name" => "Deploy", "identifier" => "Deploy", "state" => "pending" },
+          { "id" => "checkpoint", "type" => "Checkpoint", "name" => "Checkpoint", "parentId" => "deploy", "state" => "inProgress" },
+          { "id" => "approval", "type" => "Checkpoint.Approval", "identifier" => APPROVAL, "parentId" => "checkpoint", "state" => "inProgress" },
+          { "id" => "release", "type" => "Job", "name" => "Release", "parentId" => "deploy-phase", "state" => "pending" },
+          { "id" => "deploy-phase", "type" => "Phase", "name" => "Release", "parentId" => "deploy" } ]
       end
 
       def stub_environments

@@ -52,8 +52,8 @@ skills:
     version: 1
     digest: 6b8ad80f4fa0db9ebac0f4cf38038a14896072a2051b02bc9e1f7c5f635c2b0e
   azure_devops_changes:
-    version: 1
-    digest: 1d90c70b322f89f4029cd10cf644f14e437f1c657d1260679c4849c18a510dd0
+    version: 2
+    digest: 614668802177dea2ef9f1248d4d60fdd8d07f2c7ea8ca3b81cf8774106a04557
   azure_devops_code:
     version: 1
     digest: 732644b2c6562179412bf88ddce4f4ea850eceb66741098f8085ca845c561853

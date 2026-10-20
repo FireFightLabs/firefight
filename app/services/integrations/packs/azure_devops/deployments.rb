@@ -13,6 +13,15 @@ module Integrations
         CANDIDATES = 30
         NO_DEPLOY_LOOKBACK = 24.hours
         BUILD = "Build".freeze
+        # A deployment read as a run carries this before its id, so ci_runs tells it from a pipeline run's.
+        DEPLOYMENT_RUN = "deployment-".freeze
+        # A classic release deployment is named for redeploy by its release and the release's stage, release/<id>/<id>.
+        RELEASE_DEPLOYMENT = %r{\Arelease/(\d+)/(\d+)\z}
+        # A release stage already on its way, which is not deployed again on top of itself (EnvironmentStatus).
+        RELEASE_GOING = %w[inProgress queued scheduled].freeze
+        RELEASE_SUCCEEDED = %w[succeeded partiallySucceeded].freeze
+        # A classic release deployment held for a person, an approval or a manual intervention (DeploymentOperationStatus).
+        RELEASE_HELD = %w[pending manualinterventionpending].freeze
         # A deployment record's result in Firefight's words (TaskResult). One with no result yet is still going.
         RECORD_STATUSES = {
           "succeeded" => Capabilities::History::SUCCEEDED, "succeededwithissues" => Capabilities::History::SUCCEEDED,
@@ -52,6 +61,20 @@ module Integrations
                     }, %w[repo at]),
                     read_only: true
 
+          pack.tool :redeploy,
+                    summary: "Deploys an earlier deployment again by rerunning the stage that made it.",
+                    description: "Roll back to an earlier deployment by rerunning the stage that deployed it, in the run that made it, every job " \
+                                 "of that stage on that run's commit, as Azure DevOps documents for a rollback in a YAML pipeline. A classic " \
+                                 "release deployment, named release/<release>/<stage> as release_deployments shows it, is deployed again to " \
+                                 "its stage. Approvals and checks on the stage or its environment still wait for a person",
+                    params_schema: CodeHost::Code.object_schema({
+                      "repo" => repo.merge("description" => "#{repo['description']}. Or name a pipeline instead (optional)"),
+                      "pipeline" => Pipelines::PIPELINE_PARAM.merge("description" => "#{Pipelines::PIPELINE_PARAM['description']}. Or name a repository instead (optional)"),
+                      "project" => Pipelines::PROJECT_PARAM.merge("description" => "The project, for a classic release deployment named without a repository or pipeline (optional)"),
+                      "deployment" => { "type" => "string", "description" => "The deployment's id, as recent_deployments or release_deployments shows it" }
+                    }, %w[deployment]),
+                    read_only: false
+
           pack.tool :release_deployments,
                     summary: "Lists the deployments of a project's classic release pipelines.",
                     description: "List the deployments of a project's classic release pipelines, newest first, each with the release, the " \
@@ -74,7 +97,9 @@ module Integrations
             return Capabilities::Deploys.with_deploys("No deployments recorded for #{target.what}#{" in #{arguments['deployment_environment']}" if arguments['deployment_environment'].present?}.", [])
           end
 
-          Capabilities::Deploys.with_deploys(deployments.map { |deployment| deployment_line(deployment) }.join("\n"), deployments.map { |deployment| deploy_of(deployment) })
+          # Each is kept as a deploy and as a run, so a watch follows one as it follows a pipeline run.
+          result = Capabilities::Deploys.with_deploys(deployments.map { |deployment| deployment_line(deployment) }.join("\n"), deployments.map { |deployment| deploy_of(deployment) })
+          Capabilities::RunHistory.with_runs(result, deployments.map { |deployment| deployment_run(deployment) })
         end
 
         def running_commit(environment_row:, arguments:)
@@ -110,20 +135,82 @@ module Integrations
           return Capabilities::Deploys.with_deploys("No classic release deployments in #{project}#{" to #{wanted}" if wanted}.", []) if found.empty?
 
           text = found.map do |deployment|
-            "#{deployment['startedOn'] || deployment['queuedOn']}  #{deployment.dig('releaseDefinition', 'name')}  #{deployment.dig('release', 'name')}  " \
-              "#{deployment.dig('releaseEnvironment', 'name')}  #{deployment['deploymentStatus']}  by #{deployment.dig('requestedFor', 'displayName') || 'unknown'}  " \
-              "#{deployment.dig('release', '_links', 'web', 'href')}"
+            "#{release_deployment_id(deployment)}  #{deployment['startedOn'] || deployment['queuedOn']}  #{deployment.dig('releaseDefinition', 'name')}  " \
+              "#{deployment.dig('release', 'name')}  #{deployment.dig('releaseEnvironment', 'name')}  #{release_word(deployment)}  " \
+              "by #{deployment.dig('requestedFor', 'displayName') || 'unknown'}  #{deployment.dig('release', '_links', 'web', 'href')}"
           end.join("\n")
           deploys = found.map do |deployment|
-            status = Capabilities::Deploys.status(deployment["deploymentStatus"], RELEASE_STATUSES)
-            Capabilities::Deploys::Deploy.new(id: deployment["id"], version: deployment.dig("release", "name"), status: status,
+            status = release_status(deployment)
+            Capabilities::Deploys::Deploy.new(id: release_deployment_id(deployment), version: deployment.dig("release", "name"), status: status,
                                               started_at: deployment["startedOn"], environment: deployment.dig("releaseEnvironment", "name"),
                                               finished_at: (deployment["completedOn"] if Capabilities::History::FINISHED.include?(status)))
           end
           Capabilities::Deploys.with_deploys([ text, (Telemetry.link_line(page) if page) ].compact.join("\n"), deploys)
         end
 
+        def redeploy(environment_row:, arguments:)
+          azure = api(environment_row)
+          given = arguments["deployment"].to_s.strip
+          if (release = given.match(RELEASE_DEPLOYMENT))
+            project = arguments["project"].present? ? project_argument(arguments) : ci_target(azure, arguments).project
+            return redeploy_release(azure, project, release[1], release[2])
+          end
+
+          id = Integer(given, exception: false)
+          fail! "deployment must be a deployment's id as recent_deployments shows it, or release/<release>/<stage> as release_deployments does" unless id&.positive?
+
+          target = ci_target(azure, arguments)
+          deployment = deployments_of(azure, target, nil).find { |each| each[:record]["id"] == id }
+          fail! "No deployment #{id} among the recent deployments of #{target.what}. recent_deployments lists them." unless deployment
+
+          redeploy_stage(azure, target, deployment)
+        end
+
         private
+
+        # A YAML pipeline's deployment rolled back by rerunning its stage in the run that made it (Stages - Update, state
+        # retry with every job), the rollback Azure DevOps' Sprint 235 notes describe. Only a deployment that succeeded is
+        # a version to go back to.
+        def redeploy_stage(azure, target, deployment)
+          record = deployment[:record]
+          build = deployment[:build]
+          named = "deployment #{record['id']} of #{deployment[:commit].to_s[0, 12].presence || 'an unknown commit'} to #{deployment[:environment]}"
+          fail_policy! "The #{named} did not succeed, so it is no version to go back to." unless deployment[:status] == Capabilities::History::SUCCEEDED
+          fail_policy! "The run that made the #{named} is no longer kept, so its stage cannot run again." unless build
+          fail! "Run #{build['id']}, which made the #{named}, is still #{run_word(build)}, so its stage cannot run again until it finishes." unless build["status"] == COMPLETED
+
+          stage = timeline(azure, target.project, build["id"]).values.find do |each|
+            each["type"] == Pipelines::STAGE && [ each["identifier"], each["name"] ].compact.any? { |name| name.to_s.casecmp?(record["stageName"].to_s) }
+          end
+          fail_policy! "Run #{build['buildNumber']} no longer shows the stage #{record['stageName']} that made the #{named}, so it cannot run again." unless stage
+
+          changing("rerun stage #{stage['name']} of run #{build['id']} in #{target.project}") do
+            azure.patch("#{AzureDevopsApi.project(target.project)}/_apis/build/builds/#{build['id']}/stages/#{Http.segment(stage['identifier'] || stage['name'])}",
+                        { "state" => "retry", "forceRetryAllJobs" => true })
+          end
+          Telemetry.result("Deploying the #{named} again by rerunning stage #{stage['name']} of run #{build['buildNumber']} (#{build['id']}) of " \
+                           "#{build.dig('definition', 'name')}, on #{branch_name(build['sourceBranch'])} at #{build['sourceVersion'].to_s[0, 12]}, every job of " \
+                           "that stage. If the stage or its environment needs an approval, it waits for one. #{Pipelines::FOLLOW}.",
+                           link: link(build.dig("_links", "web", "href")))
+        end
+
+        # A classic release deployed again to the same stage (Releases - Update Release Environment, status inProgress), only
+        # one that succeeded there and is not on its way already.
+        def redeploy_release(azure, project, release_id, environment_id)
+          path = "#{AzureDevopsApi.project(project)}/_apis/release/releases/#{release_id}/environments/#{environment_id}"
+          stage = begin
+            azure.get(path)
+          rescue AzureDevopsApi::NotFound
+            fail! "#{project} has no release #{release_id} with a stage #{environment_id}. release_deployments lists them."
+          end
+          named = "#{stage.dig('release', 'name') || "release #{release_id}"} to #{stage['name']}"
+          fail! "#{named} is #{stage['status']} already, so it is not deployed again on top of itself." if RELEASE_GOING.include?(stage["status"])
+          fail_policy! "#{named} did not succeed when it was deployed, so it is no version to go back to." unless RELEASE_SUCCEEDED.include?(stage["status"])
+
+          changing("deploy #{named} again in #{project}") { azure.patch(path, { "status" => "inProgress", "comment" => "Deployed again as a rollback." }) }
+          Telemetry.result("Deploying #{named} again in #{project}. If the stage needs an approval or its gates must pass, it waits for them. " \
+                           "release_deployments with this project follows it.", link: link(stage.dig("release", "_links", "web", "href")))
+        end
 
         # The deployments the project's environments recorded, newest first, kept to the repository's or pipeline's runs,
         # each with the run that made it. An environment named is read alone.
@@ -160,7 +247,7 @@ module Integrations
         def deployment_line(deployment)
           record = deployment[:record]
           build = deployment[:build].to_h
-          "#{record['startTime'] || record['queueTime']}  #{deployment[:environment]}  #{deployment[:branch]}  #{deployment[:commit].to_s[0, 12]}  " \
+          "deployment #{record['id']}  #{record['startTime'] || record['queueTime']}  #{deployment[:environment]}  #{deployment[:branch]}  #{deployment[:commit].to_s[0, 12]}  " \
             "#{record['result'] || 'running'}  #{[ record['stageName'], record['jobName'] ].compact.join(' / ')}  by #{build.dig('requestedFor', 'displayName') || 'unknown'}  " \
             "run #{record.dig('owner', 'name')} (#{record.dig('owner', 'id')}) of #{record.dig('definition', 'name')}#{"  #{build.dig('_links', 'web', 'href')}" if build.dig('_links', 'web', 'href')}"
         end
@@ -173,6 +260,45 @@ module Integrations
                                             status: deployment[:status], started_at: record["startTime"] || record["queueTime"], finished_at: finished,
                                             environment: deployment[:environment])
         end
+
+        # A deployment as a run, named for where it went, so a watch follows it and learns how long one takes.
+        def deployment_run(deployment)
+          record = deployment[:record]
+          deploy = deploy_of(deployment)
+          Capabilities::History::Run.new(
+            id: "#{DEPLOYMENT_RUN}#{record['id']}", name: "deployment to #{deployment[:environment].presence || 'an unnamed environment'}",
+            status: deploy.status, started_at: Telemetry.parse_time(deploy.started_at), finished_at: Telemetry.parse_time(deploy.finished_at),
+            url: deployment[:build]&.dig("_links", "web", "href"),
+            detail: "run #{record.dig('owner', 'name')} of #{record.dig('definition', 'name')} by #{deployment[:build]&.dig('requestedFor', 'displayName') || 'unknown'}"
+          )
+        end
+
+        def deployment_runs(azure, target) = deployments_of(azure, target, nil).map { |deployment| deployment_run(deployment) }
+
+        def one_deployment(azure, target, given)
+          id = Integer(given.to_s, exception: false)
+          fail! "run must be a deployment's id as ci_runs gives it, such as #{DEPLOYMENT_RUN}41" unless id&.positive?
+
+          found = deployments_of(azure, target, nil).find { |deployment| deployment[:record]["id"] == id }
+          fail! "No deployment #{id} among the recent deployments of #{target.what}. ci_runs with an environment's name lists them." unless found
+
+          Capabilities::History.result([ deployment_run(found) ], what: "deployments of #{target.what}")
+        end
+
+        # The id redeploy takes for a classic release deployment, its release and the release's stage.
+        def release_deployment_id(deployment) = "release/#{deployment.dig('release', 'id')}/#{deployment.dig('releaseEnvironment', 'id')}"
+
+        # A deployment not finished whose operation waits for an approval or a manual intervention is held for a person.
+        def release_held?(deployment)
+          !Capabilities::History::FINISHED.include?(Capabilities::Deploys.status(deployment["deploymentStatus"], RELEASE_STATUSES)) &&
+            RELEASE_HELD.include?(deployment["operationStatus"].to_s.downcase)
+        end
+
+        def release_status(deployment)
+          release_held?(deployment) ? Capabilities::History::WAITING : Capabilities::Deploys.status(deployment["deploymentStatus"], RELEASE_STATUSES)
+        end
+
+        def release_word(deployment) = release_held?(deployment) ? "#{deployment['deploymentStatus']}, #{Pipelines::HELD_WORDS}" : deployment["deploymentStatus"].to_s
 
         # An environment asked for by name, else anything that looks like production, else every environment.
         def scoped_to_environment(deployments, environment)
