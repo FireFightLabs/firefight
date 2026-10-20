@@ -85,9 +85,12 @@ module Integrations
         error = assert_raises(MapEventSource::Refused) { Planetscale.register(row, url: url) }
         assert_match "myorg/shop: PlanetScale answered 422: too many webhooks", error.message
 
-        row.update!(map_events_secret: "kept-secret")
+        row.update!(map_events_secret: "stale-secret")
+        PlanetscaleApi.any_instance.stubs(:webhooks).with("myorg", "shop").returns([ { "id" => "w9", "url" => url, "events" => [], "secret" => "shop-old-secret" } ])
+        PlanetscaleApi.any_instance.stubs(:update_webhook).raises(PlanetscaleApi::Refused, "PlanetScale answered 403: Forbidden")
         PlanetscaleApi.any_instance.stubs(:create_webhook).with("myorg", "blog", url: url, events: Planetscale::EVENTS).returns({ "id" => "w2", "secret" => "blog-secret" })
-        assert_equal "blog-secret\nkept-secret", Planetscale.register(row, url: url).secret, "a secret saved before stays while one database is refused"
+        assert_equal "blog-secret\nshop-old-secret", Planetscale.register(row, url: url).secret,
+                     "a refused database's own webhook keeps its secret, and no other secret saved before is kept"
       end
 
       test "an admin adds a webhook to each database, each with a secret of its own, so every one saved counts" do
