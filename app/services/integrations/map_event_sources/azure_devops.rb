@@ -49,7 +49,9 @@ module Integrations
           given = headers["Authorization"].to_s
           return false unless given.start_with?(BASIC)
 
-          ActiveSupport::SecurityUtils.secure_compare(Base64.decode64(given.delete_prefix(BASIC)), "#{BASIC_USER}:#{secret}")
+          ActiveSupport::SecurityUtils.secure_compare(Base64.strict_decode64(given.delete_prefix(BASIC)), "#{BASIC_USER}:#{secret}")
+        rescue ArgumentError
+          false
         end
 
         def events(payload, headers:)

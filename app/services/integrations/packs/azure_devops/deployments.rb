@@ -81,11 +81,12 @@ module Integrations
           azure = api(environment_row)
           target = ci_target(azure, arguments.slice("repo"))
           at = time_argument(arguments, "at")
-          succeeded = deployments_of(azure, target, nil).select do |deployment|
+          environment = arguments["deployment_environment"].to_s.strip.presence
+          succeeded = deployments_of(azure, target, environment).select do |deployment|
             finished = Telemetry.parse_time(deployment[:record]["finishTime"])
             deployment[:status] == Capabilities::History::SUCCEEDED && deployment[:commit].present? && finished && finished <= at
           end
-          deployed = scoped_to_environment(succeeded, arguments["deployment_environment"].to_s).first(2)
+          deployed = scoped_to_environment(succeeded, environment.to_s).first(2)
           return deployed_text(target.what, at, *deployed) if deployed.any?
 
           default_branch_text(azure, target, at)
@@ -101,6 +102,8 @@ module Integrations
             azure.values(azure.get("#{AzureDevopsApi.project(project)}/_apis/release/deployments", query.compact))
           rescue AzureDevopsApi::Refused => error
             fail! Sentence.join("Azure DevOps refused to list #{project}'s release deployments", error, after: "Reading them needs Release (Read)")
+          rescue AzureDevopsApi::NotFound => error
+            fail! Sentence.join("Azure DevOps found no classic releases for #{project}", error, after: "Check the project's name and that it uses classic release pipelines")
           end
           found = found.select { |deployment| deployment.dig("releaseEnvironment", "name").to_s.casecmp?(wanted) } if wanted
           page = link(project_page(azure, project))

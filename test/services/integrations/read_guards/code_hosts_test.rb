@@ -65,6 +65,10 @@ module Integrations
         assert_not AzureDevops.secret?("/Shop/_apis/pipelines/approvals")
         assert_not AzureDevops.secret?("/Shop/_apis/build/builds/7")
         assert AzureDevops.webhooks?("/_apis/hooks/subscriptions")
+        assert_raises(PolicyRefusal) { AzureDevops.reading(ApiReads::TOOL, "path" => "/Shop/_APIs/Build/Builds/7/Logs/3") }
+        assert_raises(PolicyRefusal) { AzureDevops.reading(ApiReads::TOOL, "path" => "/Shop/_apis/Git/Repositories/checkout/Items") }
+        assert AzureDevops.secret?("/Shop/_apis/DistributedTask/VariableGroups")
+        assert AzureDevops.webhooks?("/_apis/Hooks/Subscriptions")
         assert AzureDevops.organization_read?("/_apis/projects")
         assert_not AzureDevops.organization_read?("/_apis/hooks/subscriptions")
       end

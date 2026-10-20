@@ -10,19 +10,20 @@ module Integrations
     module AzureDevops
       extend PathReads
 
+      # Azure DevOps reads a path whatever its case, so each pattern matches any case too.
       REFUSED = {
-        %r{/_apis/build/builds/[^/]+/logs(/|\z)} => "A run's log is not read here. Read it with job_log.",
-        %r{/_apis/pipelines/[^/]+/runs/[^/]+/logs(/|\z)} => "A run's log is not read here. Read it with job_log.",
-        %r{/_apis/build/builds/[^/]+/artifacts(/|\z)|/_apis/pipelines/[^/]+/runs/[^/]+/artifacts(/|\z)} =>
+        %r{/_apis/build/builds/[^/]+/logs(/|\z)}i => "A run's log is not read here. Read it with job_log.",
+        %r{/_apis/pipelines/[^/]+/runs/[^/]+/logs(/|\z)}i => "A run's log is not read here. Read it with job_log.",
+        %r{/_apis/build/builds/[^/]+/artifacts(/|\z)|/_apis/pipelines/[^/]+/runs/[^/]+/artifacts(/|\z)}i =>
           "A run's artifacts answer where they are kept, so a read never fetches them.",
-        %r{/_apis/git/repositories/[^/]+/(items|blobs|packs)(/|\z)} => "A file's content is not read here. Read a file with fetch_file.",
-        %r{/_apis/distributedtask/securefiles(/|\z)} => "A secure file is a download that holds a secret, so a read never fetches it.",
-        %r{/_apis/tokens?(/|\z)|/_apis/tokenadmin(/|\z)} => "Personal access tokens are never read."
+        %r{/_apis/git/repositories/[^/]+/(items|blobs|packs)(/|\z)}i => "A file's content is not read here. Read a file with fetch_file.",
+        %r{/_apis/distributedtask/securefiles(/|\z)}i => "A secure file is a download that holds a secret, so a read never fetches it.",
+        %r{/_apis/tokens?(/|\z)|/_apis/tokenadmin(/|\z)}i => "Personal access tokens are never read."
       }.freeze
-      SECRET_PATHS = %r{/_apis/hooks/subscriptions(/|\z)|/_apis/distributedtask/variablegroups(/|\z)|/_apis/serviceendpoint(/|\z)|/_apis/build/definitions(/|\z)|/_apis/pipelines/\d+(/runs)?(/|\z)}
-      WEBHOOK_PATHS = %r{/_apis/hooks/subscriptions(/|\z)}
+      SECRET_PATHS = %r{/_apis/hooks/subscriptions(/|\z)|/_apis/distributedtask/variablegroups(/|\z)|/_apis/serviceendpoint(/|\z)|/_apis/build/definitions(/|\z)|/_apis/pipelines/\d+(/runs)?(/|\z)}i
+      WEBHOOK_PATHS = %r{/_apis/hooks/subscriptions(/|\z)}i
       # Reads the organization answers for, outside any project.
-      ORGANIZATION_READS = %r{\A/_apis/(projects|hooks/publishers|hooks/consumers|distributedtask/pools|process)(/|\z)}
+      ORGANIZATION_READS = %r{\A/_apis/(projects|hooks/publishers|hooks/consumers|distributedtask/pools|process)(/|\z)}i
 
       def self.organization_read?(path) = path.match?(ORGANIZATION_READS)
     end

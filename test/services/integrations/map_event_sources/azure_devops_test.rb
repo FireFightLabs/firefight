@@ -19,6 +19,7 @@ module Integrations
         assert_not AzureDevops.verify(raw_body: "{}", headers: basic("firefight", "guessed"), secret: "made-secret")
         assert_not AzureDevops.verify(raw_body: "{}", headers: basic("someone", "made-secret"), secret: "made-secret")
         assert_not AzureDevops.verify(raw_body: "{}", headers: { "Authorization" => "Bearer made-secret" }, secret: "made-secret")
+        assert_not AzureDevops.verify(raw_body: "{}", headers: { "Authorization" => "Basic !#{Base64.strict_encode64('firefight:made-secret')}" }, secret: "made-secret")
         assert_not AzureDevops.verify(raw_body: "{}", headers: {}, secret: "made-secret")
         assert_not AzureDevops.verify(raw_body: "{}", headers: basic("firefight", ""), secret: nil)
       end

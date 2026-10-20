@@ -22,7 +22,7 @@ module Integrations
     CONTINUATION_PARAM = "continuationToken".freeze
     PAGE_SIZE = 100
     # The Release API's paths, which only its own host answers.
-    RELEASE_PATH = %r{\A/[^/]+/_apis/release(/|\z)}
+    RELEASE_PATH = %r{\A/[^/]+/_apis/release(/|\z)}i
     ORGANIZATION = /\A[A-Za-z0-9][A-Za-z0-9-]{0,49}\z/
     # Azure DevOps reads the reason a call failed from message (its error shape, typeKey and message).
     REASON = ->(body) { body["message"].presence || body["typeKey"].presence }

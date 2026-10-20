@@ -297,6 +297,25 @@ module Integrations
         assert_includes text, "Tip of main at that time: #{'b' * 40}"
       end
 
+      test "the running commit in a named environment is read from that environment, however many others the project has" do
+        stub_get("/Shop/_apis/distributedtask/environments", { "name" => "staging", "$top" => 50 }, "value" => [ { "id" => 9, "name" => "staging" } ])
+        stub_get("/Shop/_apis/distributedtask/environments/9/environmentdeploymentrecords", { "top" => 30 },
+                 "value" => [ { "id" => 90, "planType" => "Build", "result" => "succeeded", "owner" => { "id" => 7, "name" => "20261001.7" }, "definition" => { "id" => 12, "name" => "checkout-ci" },
+                                "startTime" => "2026-10-01T10:00:00Z", "finishTime" => "2026-10-01T10:10:00Z" } ])
+        stub_get(BUILDS, { "buildIds" => "7" }, "value" => [ build(7, "completed", "succeeded") ])
+
+        text = call(:running_commit, "repo" => "Shop/checkout", "at" => "2026-10-01T12:00:00Z", "deployment_environment" => "staging")
+
+        assert_includes text, "Running in Shop/checkout at 2026-10-01T12:00:00Z: #{SHA}"
+        assert_includes text, "staging deployment 90 succeeded"
+      end
+
+      test "a project without classic releases is said in words" do
+        AzureDevopsApi.any_instance.stubs(:get).with("/Shop/_apis/release/deployments", anything).raises(AzureDevopsApi::NotFound, "Azure DevOps answered 404")
+
+        assert_match "found no classic releases for Shop", assert_raises(NativePack::Error) { call(:release_deployments, "project" => "Shop") }.message
+      end
+
       test "classic release deployments are read on the Release API, kept as data with the release as their version" do
         stub_get("/Shop/_apis/release/deployments", { "$top" => 10, "queryOrder" => "descending" },
                  "value" => [ { "id" => 52, "release" => { "name" => "Release-14", "_links" => { "web" => { "href" => "https://dev.azure.com/fabrikam/Shop/_release?releaseId=14" } } },
