@@ -1,6 +1,6 @@
 ---
 name: fly_api
-when: A question about Fly.io that the other Fly.io tools do not answer, such as one machine and its events, processes and versions, an app's volumes and snapshots, IP assignments and certificates, or a Managed Postgres cluster's databases, backups and active or slow queries, a release older than the newest few through Fly.io's GraphQL API, and finding out whether Fly.io's Machines API offers a read at all
+when: A question about Fly.io that the other Fly.io tools do not answer, such as one machine and its events, processes and versions, an app's volumes and snapshots, IP assignments and certificates, or a Managed Postgres cluster's databases and backups, a release older than the newest few through Fly.io's GraphQL API, and finding out whether Fly.io's Machines API offers a read at all
 tools: [api_read, graphql_read, list_resources]
 references: [api/index.md]
 ---

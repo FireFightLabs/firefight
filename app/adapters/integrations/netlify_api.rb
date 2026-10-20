@@ -53,6 +53,22 @@ module Integrations
       send_request(uri, Net::HTTP::Post.new(uri))
     end
 
+    # lockDeploy keeps a site's auto publishing on one deploy, so a later deploy builds without going live, and
+    # unlockDeploy lets new production deploys publish again. Each answers the deploy.
+    def lock_deploy(deploy_id) = write(Net::HTTP::Post, "/deploys/#{Http.segment(deploy_id)}/lock")
+
+    def unlock_deploy(deploy_id) = write(Net::HTTP::Post, "/deploys/#{Http.segment(deploy_id)}/unlock")
+
+    # cancelSiteDeploy stops a deploy that has not finished, answering it.
+    def cancel_deploy(deploy_id) = write(Net::HTTP::Post, "/deploys/#{Http.segment(deploy_id)}/cancel")
+
+    # createSiteBuild starts a build of the site from its repository, of branch or the production branch, with the build
+    # cache cleared when asked. Its branch and clear_cache are query parameters in the swagger. It answers the build,
+    # whose deploy_id is the deploy it makes.
+    def create_build(site_id, branch: nil, clear_cache: false)
+      write(Net::HTTP::Post, "/sites/#{Http.segment(site_id)}/builds", nil, { "branch" => branch.presence, "clear_cache" => (true if clear_cache) }.compact)
+    end
+
     # The site's outgoing hooks (listHooksBySiteId), each with its type, event, data.url and whether Netlify disabled it,
     # read only to find the ones Firefight made at the connection's own address.
     def hooks(site_id) = Array(get("/hooks", "site_id" => site_id))
