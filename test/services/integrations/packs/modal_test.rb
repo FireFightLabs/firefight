@@ -135,7 +135,7 @@ module Integrations
         assert_match "inference is already stopped", assert_raises(NativePack::Error) { call(:stop_app, "app" => "inference") }.message
 
         ModalApi.any_instance.stubs(:apps).with("main").returns([])
-        assert_match "inference is not in main", assert_raises(NativePack::Error) { call(:stop_app, "app" => APP_ID) }.message
+        assert_match "inference is not in main", assert_raises(PolicyRefusal) { call(:stop_app, "app" => APP_ID) }.message
       end
 
       test "the history is newest first with commits, and says which entries were rollbacks" do

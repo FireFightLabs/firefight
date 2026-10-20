@@ -432,7 +432,7 @@ module Integrations
         app_id, app = find_app(environment_row, asked)
         return [ app_id, app ] if api(environment_row).apps(environment(environment_row)).any? { |listed| listed.app_id == app_id }
 
-        fail!("#{app} is not in #{environment(environment_row).presence || 'the default environment'}, which this connection reaches. list_apps shows what is.")
+        fail_policy!("#{app} is not in #{environment(environment_row).presence || 'the default environment'}, which this connection reaches. list_apps shows what is.")
       end
 
       def running_container(environment_row, asked)
