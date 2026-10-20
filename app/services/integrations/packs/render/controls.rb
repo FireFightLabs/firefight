@@ -80,7 +80,7 @@ module Integrations
                     read_only: false
 
           pack.tool SET_AUTOSCALING,
-                    summary: "Changes a service's autoscaling: on or off, its instance range and targets.",
+                    summary: "Turns a service's autoscaling on or off, or changes its instance range and targets.",
                     description: "Change the autoscaling of a Render web service, private service or background worker: turn it on or " \
                                  "off, the fewest and most instances, and the CPU and memory use it aims for, each a percentage of the " \
                                  "plan. What is left out stays as it is. While autoscaling is on, Render ignores a set number of instances",
