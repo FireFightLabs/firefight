@@ -86,8 +86,6 @@ module Integrations
       answer.is_a?(Hash) ? Array(answer["value"]) : []
     end
 
-    def web_url(*segments) = [ "https://#{HOST}", Http.segment(@organization), *segments ].join("/")
-
     private
 
     def call(method, path, query, body: nil, accept: "application/json", with_status: false, as: :json)

@@ -3,11 +3,13 @@ module Integrations
     # Azure DevOps' changes, sent to service hook subscriptions Firefight creates on each of the connection's projects
     # with its token (Subscriptions - Create, the Web Hooks consumer's httpRequest action, filtered to a project by the
     # projectId publisher input, as Create a service hook subscription programmatically writes it). Creating one needs
-    # a project administrator. Azure DevOps does not sign a delivery, and the Web Hooks consumer sends the HTTP headers
-    # a subscription names (Service hook consumers, Web Hooks, httpHeaders), so Firefight sends its own secret in one and
-    # compares it in constant time. A delivery names its event by eventType and itself by id, the same on every retry.
+    # a project administrator. Azure DevOps does not sign a delivery, so Firefight sends its own secret as the Web Hooks
+    # consumer's basic authentication password and compares it in constant time. The consumer's httpHeaders are shown to
+    # anyone who can see the subscription (Service hook consumers, Web Hooks), while basicAuthPassword is a confidential
+    # input Azure DevOps never shows again. A delivery names its event by eventType and itself by id, the same on every retry.
     class AzureDevops < MapEventSource
-      SECRET_HEADER = "X-Firefight-Token".freeze
+      BASIC_USER = "firefight".freeze
+      BASIC = "Basic ".freeze
       # The events followed, each with the publisher and resource version its sample payload in Service hook events
       # gives. resourceVersion is left out where the page gives none, which Azure DevOps reads as its latest released one.
       GIT_PUSH = "git.push".freeze
@@ -44,7 +46,10 @@ module Integrations
         def verify(raw_body:, headers:, secret:)
           return false if secret.blank?
 
-          ActiveSupport::SecurityUtils.secure_compare(headers[SECRET_HEADER.downcase].to_s, secret.to_s)
+          given = headers["Authorization"].to_s
+          return false unless given.start_with?(BASIC)
+
+          ActiveSupport::SecurityUtils.secure_compare(Base64.decode64(given.delete_prefix(BASIC)), "#{BASIC_USER}:#{secret}")
         end
 
         def events(payload, headers:)
@@ -95,7 +100,7 @@ module Integrations
 
         # Subscribes to every event on each project the connection reaches, every subscription sending the same secret of
         # Firefight's own. Firefight's own from before at this connection's address is taken back first, since Azure DevOps
-        # shows its headers to anyone who may see the subscription and a new secret is made each time. A project the
+        # never shows a password again and a new secret is made each time. A project the
         # connection no longer reaches loses Firefight's subscriptions there. A subscription at any other address is never
         # touched. The id is each project's subscriptions, by project.
         def register(row, url:)
@@ -144,7 +149,7 @@ module Integrations
         def subscribe(api, project_id, event_type, publisher, version, url, secret)
           api.post("/_apis/hooks/subscriptions", {
             "publisherId" => publisher, "eventType" => event_type, "resourceVersion" => version, "consumerId" => CONSUMER, "consumerActionId" => ACTION,
-            "publisherInputs" => { "projectId" => project_id }, "consumerInputs" => { "url" => url, "httpHeaders" => "#{SECRET_HEADER}:#{secret}" }
+            "publisherInputs" => { "projectId" => project_id }, "consumerInputs" => { "url" => url, "basicAuthUsername" => BASIC_USER, "basicAuthPassword" => secret }
           }.compact)
         end
 

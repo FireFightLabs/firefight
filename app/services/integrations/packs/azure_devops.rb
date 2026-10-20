@@ -405,7 +405,7 @@ module Integrations
         text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::AzureDevops.secret?(path), webhooks: ReadGuards::AzureDevops.webhooks?(path))
         page = (answer.dig("_links", "web", "href") if answer.is_a?(Hash) && answer["_links"].is_a?(Hash) && answer.dig("_links", "web").is_a?(Hash))
         page ||= answer["webUrl"] if answer.is_a?(Hash) && answer["webUrl"].is_a?(String)
-        page ||= azure.web_url(Http.segment(named)) if named
+        page ||= project_page(azure, named) if named
         Telemetry.result(text, link: link(page))
       rescue AzureDevopsApi::Refused => error
         fail! Sentence.join("Azure DevOps refused this read", error, after: "The token's scopes do not reach it")
@@ -604,6 +604,16 @@ module Integrations
         @repository_pages[repo] = azure.get(path_of(repo))["webUrl"].presence
       rescue AzureDevopsApi::Error
         @repository_pages[repo] = nil
+      end
+
+      # A project's page, the _links.web Projects - Get answers for it, read once a call.
+      def project_page(azure, project)
+        @project_pages ||= {}
+        return @project_pages[project] if @project_pages.key?(project)
+
+        @project_pages[project] = azure.get("/_apis/projects/#{Http.segment(project)}").dig("_links", "web", "href").presence
+      rescue AzureDevopsApi::Error
+        @project_pages[project] = nil
       end
 
       # A commit's page under its repository's, as a commit's own remoteUrl writes it (Commits - Get).

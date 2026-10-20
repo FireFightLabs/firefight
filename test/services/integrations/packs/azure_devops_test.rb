@@ -7,6 +7,7 @@ module Integrations
       BUILDS = "/Shop/_apis/build/builds".freeze
       SHA = ("a" * 40).freeze
       WEB = "https://dev.azure.com/fabrikam/Shop/_git/checkout".freeze
+      PROJECT_WEB = "https://dev.azure.com/fabrikam/Shop".freeze
 
       setup do
         @workspace = workspaces(:slack_workspace_one)
@@ -16,6 +17,7 @@ module Integrations
         AzureDevops.store_credentials!(@row, AzureDevops::TOKEN => " pat-token ")
         @pack = AzureDevops.new(@integration, box_key: "investigation-1")
         AzureDevopsApi.any_instance.stubs(:get).with(REPO).returns(repository)
+        AzureDevopsApi.any_instance.stubs(:get).with("/_apis/projects/Shop").returns("id" => "project-guid", "name" => "Shop", "_links" => { "web" => { "href" => PROJECT_WEB } })
       end
 
       test "the token is the one credential, the organization and projects connect fields, and only the test runner and CI changes write" do
@@ -304,6 +306,7 @@ module Integrations
         result = @pack.release_deployments(environment_row: @row, arguments: { "project" => "Shop" })
 
         assert_includes result.dig("content", 0, "text"), "MyShuttle.CD  Release-14  PROD  succeeded  by Chuck"
+        assert_includes result.dig("content", 0, "text"), PROJECT_WEB, "the project's page is the one Projects - Get gives"
         deploy = Capabilities::Deploys.deploys_of(result).sole
         assert_equal [ "Release-14", "PROD", Capabilities::History::SUCCEEDED ], [ deploy.version, deploy.environment, deploy.status ]
       end
@@ -349,7 +352,7 @@ module Integrations
 
       test "the general read keeps to the projects the connection reads, refuses a run's log, and links the page it read" do
         AzureDevopsApi.any_instance.expects(:read).with("/Shop/_apis/policy/configurations", {}).returns("value" => [ { "id" => 1 } ])
-        assert_match "https://dev.azure.com/fabrikam/Shop", call(:api_read, "path" => "/Shop/_apis/policy/configurations")
+        assert_match PROJECT_WEB, call(:api_read, "path" => "/Shop/_apis/policy/configurations")
 
         AzureDevopsApi.any_instance.expects(:read).with("/_apis/projects", {}).returns("value" => [])
         call(:api_read, "path" => "/_apis/projects")

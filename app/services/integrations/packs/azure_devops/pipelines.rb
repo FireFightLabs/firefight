@@ -247,7 +247,7 @@ module Integrations
           azure = api(environment_row)
           project = project_argument(arguments)
           approvals = pending(azure, project)
-          page = link(azure.web_url(Http.segment(project)))
+          page = link(project_page(azure, project))
           return Telemetry.result("No approval is waiting in #{project}.", link: page) if approvals.empty?
 
           Telemetry.result("#{approvals.size} approvals waiting in #{project}:\n#{approvals.map { |approval| approval_line(approval) }.join("\n")}", link: page)
@@ -328,7 +328,7 @@ module Integrations
           end
           now = azure.values(answered).first.to_h["status"] || status
           Telemetry.result("Answered approval #{id} in #{project}: #{status}. It is now #{now}. ci_status shows the run going on.",
-                           link: link(azure.web_url(Http.segment(project))))
+                           link: link(project_page(azure, project)))
         end
 
         # Whoever the run was queued for, matched to a member by the address Azure DevOps names them by.

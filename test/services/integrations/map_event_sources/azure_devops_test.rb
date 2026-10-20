@@ -14,11 +14,13 @@ module Integrations
         Packs::AzureDevops.store_credentials!(@row, Packs::AzureDevops::TOKEN => "pat-token")
       end
 
-      test "a delivery carrying the secret Firefight made is Azure DevOps', and one without it is not" do
-        assert AzureDevops.verify(raw_body: "{}", headers: { "x-firefight-token" => "made-secret" }, secret: "made-secret")
-        assert_not AzureDevops.verify(raw_body: "{}", headers: { "x-firefight-token" => "guessed" }, secret: "made-secret")
+      test "a delivery signed in with the password Firefight made is Azure DevOps', and one without it is not" do
+        assert AzureDevops.verify(raw_body: "{}", headers: basic("firefight", "made-secret"), secret: "made-secret")
+        assert_not AzureDevops.verify(raw_body: "{}", headers: basic("firefight", "guessed"), secret: "made-secret")
+        assert_not AzureDevops.verify(raw_body: "{}", headers: basic("someone", "made-secret"), secret: "made-secret")
+        assert_not AzureDevops.verify(raw_body: "{}", headers: { "Authorization" => "Bearer made-secret" }, secret: "made-secret")
         assert_not AzureDevops.verify(raw_body: "{}", headers: {}, secret: "made-secret")
-        assert_not AzureDevops.verify(raw_body: "{}", headers: { "x-firefight-token" => "" }, secret: nil)
+        assert_not AzureDevops.verify(raw_body: "{}", headers: basic("firefight", ""), secret: nil)
       end
 
       test "a push to the default branch re-reads its repository, and a push to another branch nothing" do
@@ -77,7 +79,7 @@ module Integrations
         assert_match(/\A\h{64}\z/, secret)
         push = sent.find { |body| body["eventType"] == "git.push" }
         assert_equal({ "publisherId" => "tfs", "eventType" => "git.push", "resourceVersion" => "1.0", "consumerId" => "webHooks", "consumerActionId" => "httpRequest",
-                       "publisherInputs" => { "projectId" => "project-guid" }, "consumerInputs" => { "url" => URL, "httpHeaders" => "X-Firefight-Token:#{secret}" } }, push)
+                       "publisherInputs" => { "projectId" => "project-guid" }, "consumerInputs" => { "url" => URL, "basicAuthUsername" => "firefight", "basicAuthPassword" => secret } }, push)
         assert_not sent.find { |body| body["eventType"] == "ms.vss-pipelines.run-state-changed-event" }.key?("resourceVersion")
         assert_equal({ "Shop" => [ "sub" ] * AzureDevops::EVENTS.size }, JSON.parse(webhook.id))
         assert_equal [ "Shop" ], webhook.scopes
@@ -116,6 +118,8 @@ module Integrations
       end
 
       private
+
+      def basic(user, password) = { "Authorization" => "Basic #{Base64.strict_encode64("#{user}:#{password}")}" }
 
       def push(ref)
         { "id" => "event-1", "eventType" => "git.push",

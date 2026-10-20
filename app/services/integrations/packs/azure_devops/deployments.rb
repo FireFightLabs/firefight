@@ -103,7 +103,7 @@ module Integrations
             fail! Sentence.join("Azure DevOps refused to list #{project}'s release deployments", error, after: "Reading them needs Release (Read)")
           end
           found = found.select { |deployment| deployment.dig("releaseEnvironment", "name").to_s.casecmp?(wanted) } if wanted
-          page = link(azure.web_url(Http.segment(project), "_release"))
+          page = link(project_page(azure, project))
           return Capabilities::Deploys.with_deploys("No classic release deployments in #{project}#{" to #{wanted}" if wanted}.", []) if found.empty?
 
           text = found.map do |deployment|
@@ -117,7 +117,7 @@ module Integrations
                                               started_at: deployment["startedOn"], environment: deployment.dig("releaseEnvironment", "name"),
                                               finished_at: (deployment["completedOn"] if Capabilities::History::FINISHED.include?(status)))
           end
-          Capabilities::Deploys.with_deploys("#{text}\n#{Telemetry.link_line(page)}", deploys)
+          Capabilities::Deploys.with_deploys([ text, (Telemetry.link_line(page) if page) ].compact.join("\n"), deploys)
         end
 
         private
