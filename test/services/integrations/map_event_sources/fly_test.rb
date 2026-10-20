@@ -28,8 +28,9 @@ module Integrations
         assert_equal [ "web" ], Fly.poll(@row, since: moved.cursor).events.map { |event| event.scope.external_id }
 
         FlyApi.any_instance.stubs(:releases).with("web", limit: 1).raises(FlyApi::Error, "Fly answered 500: oops")
-        read = JSON.parse(Fly.poll(@row, since: nil).cursor)
-        assert_not_equal Fly::UNREAD, read.dig("apps", "web"), "the machines still fingerprint the app"
+        kept = Fly.poll(@row, since: moved.cursor)
+        assert_empty kept.events
+        assert_equal JSON.parse(moved.cursor).dig("apps", "web"), JSON.parse(kept.cursor).dig("apps", "web")
       end
 
       test "the first read takes each app's machines and says nothing, and a machine that changed since names its app" do

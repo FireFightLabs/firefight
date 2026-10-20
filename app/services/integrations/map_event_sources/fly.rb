@@ -83,7 +83,7 @@ module Integrations
 
         # What the map shows of an app, from its status, its machines' states and when each last changed, and its newest
         # release's version and status, so a deploy starting, finishing or failing is heard before its machines move. nil
-        # when its machines could not be read. A release list Fly does not answer leaves the release out.
+        # when its machines or its releases could not be read, so the fingerprint from before is kept.
         def fingerprint(api, app)
           machines = api.machines(app["name"]).select { |machine| Packs::Fly.app_machine?(machine) }
           parts = machines.map { |machine| [ machine["id"], machine["state"], machine["updated_at"] ].join(":") }.sort
@@ -96,14 +96,11 @@ module Integrations
           nil
         end
 
-        # The newest release as its version and status (FlyApi#releases, GraphQL releasesUnprocessed), or nil.
+        # The newest release as its version and status (FlyApi#releases, GraphQL releasesUnprocessed), or nil for an app
+        # with none. A release list Fly does not answer raises, so the fingerprint keeps what was known.
         def release_of(api, name)
           release = api.releases(name, limit: 1).first
           release && "release:#{release['version']}:#{release['status']}"
-        rescue Integrations::RateLimited
-          raise
-        rescue FlyApi::Error
-          nil
         end
 
         def event(name, fingerprint, action, row)

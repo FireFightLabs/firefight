@@ -210,7 +210,7 @@ module Integrations
       test "a stop and a suspend wait for each machine to reach that state, and stop at one that does not" do
         FlyApi.any_instance.stubs(:machines).returns([ machine("m1", "started"), machine("m2", "started"), machine("m3", "stopped") ])
         FlyApi.any_instance.expects(:stop_machine).with("web", "m1").returns({})
-        FlyApi.any_instance.expects(:wait_for).with("web", "m1", "stopped", version: nil).returns(false)
+        FlyApi.any_instance.expects(:wait_for).with("web", "m1", "stopped", version: "v-m1").returns(false)
         FlyApi.any_instance.expects(:stop_machine).with("web", "m2").never
 
         text = call(:stop_app, "resource" => "web")
@@ -218,7 +218,7 @@ module Integrations
         assert_match "Stopped there, so 1 more machines were left as they were.", text
 
         FlyApi.any_instance.expects(:suspend_machine).with("web", "m2").returns({})
-        FlyApi.any_instance.expects(:wait_for).with("web", "m2", "suspended", version: nil).returns(true)
+        FlyApi.any_instance.expects(:wait_for).with("web", "m2", "suspended", version: "v-m2").returns(true)
         assert_match "m2 in iad: suspended", call(:suspend_app, "resource" => "web", "machine" => "m2")
 
         FlyApi.any_instance.stubs(:machines).returns([ machine("m3", "stopped") ])
@@ -268,6 +268,14 @@ module Integrations
         FlyApi.any_instance.stubs(:machines).returns([ mounted ])
         FlyApi.any_instance.expects(:create_machine).never
         assert_match "needs a volume of its own", assert_raises(NativePack::Error) { call(:scale_app, "resource" => "web", "instances" => 2) }.message
+      end
+
+      test "one scale adds at most a few machines, refused as Firefight's own rule" do
+        FlyApi.any_instance.stubs(:machines).returns([ machine("m1", "started") ])
+        FlyApi.any_instance.expects(:create_machine).never
+
+        refusal = assert_raises(Integrations::PolicyRefusal) { call(:scale_app, "resource" => "web", "instances" => 1 + Fly::SCALE_STEP_MAX + 1) }
+        assert_match "adds at most #{Fly::SCALE_STEP_MAX} machines in one call", refusal.message
       end
 
       test "a resize gives each machine the size's CPUs and memory, keeps a stopped one stopped, and refuses memory the size cannot take" do

@@ -262,8 +262,8 @@ skills:
     version: 1
     digest: c1683760866d592974ea1e88a55950809c2f4a30cf57638f8f163eb849bd510c
   fly_fixes:
-    version: 3
-    digest: f140d3c627976741b54b5c612557a1df78f3edaea410019ce7caa946fbc31b89
+    version: 4
+    digest: 4f55e7c9d8a46b6759b2a7bf6fed172b572460c87186731ab1cd87657a19dbdb
   fly_proxy_errors:
     version: 2
     digest: 1787ff4c2df1e30506df84126a00e0e4a5e418e83e5cbbcadefbb11126d66fe9

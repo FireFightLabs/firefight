@@ -92,6 +92,8 @@ module Integrations
       MEMORY_PER_CPU = { SHARED => 256..2048, PERFORMANCE => 2048..8192 }.freeze
       MEMORY_STEP = { SHARED => 256, PERFORMANCE => 2048 }.freeze
       DEFAULT_GROUP = "app".freeze
+      # The most machines one scale_app call adds, since each is billed and waited on in turn.
+      SCALE_STEP_MAX = 10
       # A standby copies the machine it stands by, so a new machine stands by nothing, as fly scale count clears it.
       STANDBY_FOR = "FLY_STANDBY_FOR".freeze
 
@@ -225,8 +227,8 @@ module Integrations
       tool :stop_app,
            summary: "Stops an app's running machines, or one of them.",
            description: "Stop the running machines of an app, one at a time, or only the one named, each sent its own stop " \
-                        "signal. A stopped machine serves nothing until it is started again with start_app. A machine Fly's " \
-                        "proxy starts on demand starts again on the next request",
+                        "signal. A stopped machine serves nothing until it is started again with start_app. A machine whose " \
+                        "service has auto_start_machines on is started again by Fly's proxy on the next request",
            params_schema: {
              "type" => "object",
              "properties" => { "resource" => RESOURCE, "machine" => MACHINE.merge("description" => "#{MACHINE['description']} (optional, every running one otherwise)") },
@@ -486,7 +488,7 @@ module Integrations
         machines = machines_in(environment_row, resource, arguments["machine"], [ STARTED ], "stop")
         said = one_at_a_time(environment_row, resource, machines, "stopped", state: STOPPED) do |machine|
           api(environment_row).stop_machine(resource[:name], machine["id"])
-          nil
+          machine["version"]
         end
         Telemetry.result("Stopping #{resource[:name]}, machine by machine. start_app starts them again.\n#{said.join("\n")}",
                          link: link(environment_row, resource, MACHINES_PAGE))
@@ -499,7 +501,7 @@ module Integrations
         machines = machines_in(environment_row, resource, arguments["machine"], [ STARTED ], "suspend")
         said = one_at_a_time(environment_row, resource, machines, "suspended", state: SUSPENDED) do |machine|
           api(environment_row).suspend_machine(resource[:name], machine["id"])
-          nil
+          machine["version"]
         end
         Telemetry.result("Suspending #{resource[:name]}, machine by machine. start_app resumes them.\n#{said.join("\n")}",
                          link: link(environment_row, resource, MACHINES_PAGE))
@@ -531,7 +533,11 @@ module Integrations
 
         group, machines = group_machines(environment_row, resource, arguments["group"])
         have = machines.size
-        named = "#{resource[:name]}#{" (#{group})" if group}"
+        if wanted - have > SCALE_STEP_MAX
+          fail_policy! "Firefight adds at most #{SCALE_STEP_MAX} machines in one call, since each is billed and started in turn. " \
+                       "Scale in steps, or use fly scale count in Fly.io for more."
+        end
+        named ="#{resource[:name]}#{" (#{group})" if group}"
         return Telemetry.result("#{named} already runs #{have} machines, so nothing changed.", link: link(environment_row, resource, MACHINES_PAGE)) if wanted == have
 
         said = wanted > have ? add_machines(environment_row, resource, machines, wanted - have, arguments["region"]) : remove_machines(environment_row, resource, machines, have - wanted)
