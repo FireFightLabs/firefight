@@ -15,6 +15,20 @@ module Integrations
       end
     end
 
+    # A pack beside a remote server added tools since the connection last listed its server's, so they are saved with the
+    # server's tools as the connection last listed them, without asking the server again.
+    def self.add_beside!(integration)
+      beside = McpExecutor.beside_tool_definitions(integration)
+      return [] if beside.empty?
+
+      listed = integration.tools.available.reject { |tool| beside.any? { |definition| definition.name == tool.name } }.map do |tool|
+        ToolDefinition.new(name: tool.name, description: tool.description, params_schema: tool.params_schema, read_only: tool.declared_read?, spec: tool.spec.to_h)
+      end
+      Integration::Tool.transaction do
+        Ability::Role.filing_together(integration) { integration.counting_tools_together { save_all!(integration, listed + beside) } }
+      end
+    end
+
     # The connection's tools are read once. A tool seen before is saved on its own, and the new ones together, each
     # switched on unless another connection's tool shares its name as Halon calls it, read once for every new tool.
     def self.save_all!(integration, definitions)

@@ -29,7 +29,11 @@ module Integrations
     # CDN in front of it served, backup and restore a database's own jobs.
     STREAM_APP = "app".freeze
     STREAM_BUILD = "build".freeze
-    LOG_STREAMS = [ STREAM_APP, STREAM_BUILD, *%w[requests internal cdn backup restore] ].freeze
+    # A backend's own services beside its database: sign-in, file storage and realtime.
+    STREAM_AUTH = "auth".freeze
+    STREAM_STORAGE = "storage".freeze
+    STREAM_REALTIME = "realtime".freeze
+    LOG_STREAMS = [ STREAM_APP, STREAM_BUILD, *%w[requests internal cdn backup restore], STREAM_AUTH, STREAM_STORAGE, STREAM_REALTIME ].freeze
     # The metric names every adapter maps to its provider's own, so a question reads the same whatever answers it.
     # latency_p95 is the time 95% of requests finished within, duration a function's average run, invocations its runs
     # and throttles the runs its provider turned away.
@@ -65,7 +69,8 @@ module Integrations
                  "regex" => { "type" => "string", "description" => "Only lines matching this regular expression (optional)" },
                  "exclude" => { "type" => "string", "description" => "Leave out lines containing this text (optional)" },
                  "stream" => { "type" => "string", "enum" => LOG_STREAMS,
-                               "description" => "Which logs: app (what the code prints), build, requests (traffic reaching it), internal (calls between services), cdn, backup or restore (optional, app)" },
+                               "description" => "Which logs: app (what the code prints), build, requests (traffic reaching it), internal (calls between services), cdn, backup, " \
+                                                "restore, or auth, storage and realtime (a backend's own sign-in, file storage and realtime services) (optional, app)" },
                  RUN_ARG => { "type" => "string", "description" => "Only one run's lines, by the run's id as run_history gives it, for a job whose provider keeps them per run (optional)" },
                  "deployment" => { "type" => "string",
                                    "description" => "build stream only: the deployment or build whose log to read, by the id run_history or recent_deploys " \

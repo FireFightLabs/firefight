@@ -70,6 +70,26 @@ module Integrations
                      "https://mcp.acme.example/datadog" => "datadog", "https://tools.acme.example/mcp" => "custom_mcp" }, checked)
     end
 
+    test "a pack beside the server adds the tools the connection is offered, keeps its own over a server tool of the same name, and runs them itself" do
+      server = [ { "name" => "list_projects", "inputSchema" => { "type" => "object" } }, { "name" => "restart_project", "description" => "the server's own" } ]
+      McpClient.stubs(:new).returns(stub(tools_list: server))
+      supabase = connection("supabase", "Supabase", "https://mcp.supabase.com/mcp")
+
+      names = McpExecutor.tool_definitions(supabase).map(&:name)
+      assert_equal 1, names.count("restart_project")
+      assert_includes names, "list_action_runs"
+      assert_not_includes names, "restore_to_point_in_time", "a connection left read only, the connect form's default, is offered no change"
+      restart = McpExecutor.tool_definitions(supabase.tap { |each| each.update!(settings: each.settings.merge(Integration::FIELDS_SETTING => { "read_only" => "false" })) })
+                           .find { |definition| definition.name == "restart_project" }
+      assert_equal [ false, true ], [ restart.read_only, restart.spec[McpExecutor::BESIDE] ]
+
+      tool = supabase.tools.create!(name: "get_project_health", description: "health", read_only: true, enabled: true, params_schema: {}, spec: { McpExecutor::BESIDE => true })
+      Packs::Supabase.any_instance.expects(:call).with("get_project_health", environment_row: supabase.integration_environments.first, arguments: { "project_id" => "abc" })
+                     .returns(Telemetry.result("healthy", link: nil))
+      McpClient.expects(:new).never
+      assert_equal "healthy", call(tool, { "project_id" => "abc" })["content"].sole["text"]
+    end
+
     private
 
     def connection(provider, name, server_url)

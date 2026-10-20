@@ -43,11 +43,66 @@ module Integrations
         assert_empty Planetscale.events(BRANCH_READY.except("database"), headers: {})
       end
 
+      test "a deploy request moving wakes watches, and one that applied or errored is a deploy that ended" do
+        request = DEPLOY_REQUEST.merge("resource" => DEPLOY_REQUEST["resource"].merge("number" => 7, "html_url" => "https://app.planetscale.com/myorg/example_database/deploy-requests/7"))
+
+        assert Planetscale.wakes?(request, headers: {})
+        assert_not Planetscale.wakes?(BRANCH_READY, headers: {})
+        ended = Planetscale.runs_ended(request, headers: {}).sole
+        assert_equal [ RunsEnded::KIND_DEPLOY, RunsEnded::OUTCOME_SUCCEEDED, "deploy request #7", "example_database/main", "main" ],
+                     [ ended.kind, ended.outcome, ended.name, ended.place, ended.environment ]
+        assert_equal RunsEnded::OUTCOME_FAILED, Planetscale.runs_ended(request.merge("event" => "deploy_request.errored"), headers: {}).sole.outcome
+        assert_empty Planetscale.runs_ended(request.merge("event" => "deploy_request.queued"), headers: {})
+      end
+
+      test "Firefight adds its webhook to each database on the map when the connection reaches PlanetScale's API, keeping each secret" do
+        row = connection
+        url = "https://firefight.example/api/v1/map_events/token"
+        assert_not Planetscale.registers_for?(row), "a service token without its id reaches only the server"
+        row.store_fields!(Packs::Planetscale::TOKEN_ID => "tok123")
+        assert Planetscale.registers_for?(row)
+
+        PlanetscaleApi.any_instance.stubs(:webhooks).with("myorg", "shop").returns([ { "id" => "w0", "url" => "https://elsewhere.example", "events" => [] } ])
+        PlanetscaleApi.any_instance.stubs(:webhooks).with("myorg", "blog").returns([ { "id" => "w9", "url" => url, "events" => Planetscale::EVENTS, "secret" => "blog-secret" } ])
+        PlanetscaleApi.any_instance.expects(:create_webhook).with("myorg", "shop", url: url, events: Planetscale::EVENTS).returns({ "id" => "w1", "secret" => "shop-secret" })
+        PlanetscaleApi.any_instance.expects(:update_webhook).never
+
+        assert Planetscale.register_again?(row, url: url)
+        webhook = Planetscale.register(row, url: url)
+        assert_equal [ Planetscale::ALL_DATABASES, "blog-secret\nshop-secret" ], [ webhook.id, webhook.secret ]
+        assert_nil Planetscale.confirmation_for(row, url: url)
+      end
+
+      test "a database whose webhooks would be full is asked about first, and a refusal on every database is said" do
+        row = connection
+        row.store_fields!(Packs::Planetscale::TOKEN_ID => "tok123")
+        url = "https://firefight.example/api/v1/map_events/token"
+        others = 4.times.map { |index| { "id" => "o#{index}", "url" => "https://other#{index}.example" } }
+        PlanetscaleApi.any_instance.stubs(:webhooks).returns(others)
+
+        assert_match "would take the last of the 5 webhooks PlanetScale allows on myorg/blog and myorg/shop", Planetscale.confirmation_for(row, url: url)
+        PlanetscaleApi.any_instance.stubs(:create_webhook).raises(PlanetscaleApi::Refused, "PlanetScale answered 422: too many webhooks")
+        error = assert_raises(MapEventSource::Refused) { Planetscale.register(row, url: url) }
+        assert_match "myorg/shop: PlanetScale answered 422: too many webhooks", error.message
+      end
+
       test "an admin adds a webhook to each database, each with a secret of its own, so every one saved counts" do
         assert Planetscale.many_secrets?
-        assert_not Planetscale.registers?
         assert_match "hourly sweep", Planetscale.limits
         assert Planetscale::EVENTS.all? { |type| Planetscale.setup_steps.join(" ").include?(type) }
+      end
+
+      private
+
+      def connection
+        integration = workspaces(:slack_workspace_one).integrations.create!(kind: Integration::KIND_MCP, provider: "planetscale", name: "PlanetScale",
+                                                                            settings: { "server_url" => "https://mcp.pscale.dev/mcp/planetscale" })
+        row = integration.integration_environments.create!(credentials: IntegrationEnvironment.token_credentials("Bearer pscale_tkn_secret"))
+        databases = %w[shop blog].map do |name|
+          ResourceMap::Found.new(provider: "planetscale", account: "myorg", kind: ResourceMap::KIND_DATABASE, external_id: name, name: name)
+        end
+        ResourceMap.record!(row, ResourceMap::Snapshot.new(resources: databases))
+        row
       end
     end
   end

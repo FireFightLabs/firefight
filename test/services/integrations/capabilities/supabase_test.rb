@@ -70,8 +70,8 @@ class Integrations::Capabilities::SupabaseTest < ActiveSupport::TestCase
 
   test "what Supabase cannot read is said" do
     assert_match "at most a day of logs", unroutable(Capabilities::LOGS, "resource" => "shop", "minutes" => 2000)
-    assert_match "branch action runs with stream build", unroutable(Capabilities::LOGS, "resource" => "shop", "stream" => "cdn")
-    assert_match "no connection offers a rollback", unroutable(Capabilities::ROLLBACK, "resource" => "shop", "to" => "1")
+    assert_match "auth, storage and realtime logs with those streams", unroutable(Capabilities::LOGS, "resource" => "shop", "stream" => "cdn")
+    assert_match "say it as an ISO 8601 time", unroutable(Capabilities::ROLLBACK, "resource" => "shop", "to" => "yesterday-ish")
   end
 
   test "deploys are the migrations applied, newest first, with when each was written" do
@@ -85,7 +85,10 @@ class Integrations::Capabilities::SupabaseTest < ActiveSupport::TestCase
     assert_match "/database/migrations", text
   end
 
-  test "status reads the project by its ref" do
+  test "status reads the project with each service's health, and the project alone while that tool is off" do
+    assert_equal [ "get_project_health", { "project_id" => REF } ], resolve(Capabilities::STATUS, "resource" => "shop").then { |found| [ found.tool.name, found.arguments ] }
+    @supabase.tools.find_by!(name: "get_project_health").update!(enabled: false)
+
     call = resolve(Capabilities::STATUS, "resource" => "shop")
     assert_equal [ "get_project", { "id" => REF } ], [ call.tool.name, call.arguments ]
 
@@ -164,6 +167,40 @@ class Integrations::Capabilities::SupabaseTest < ActiveSupport::TestCase
 
     assert_match "production branch, and Supabase resets only preview branches", unroutable(Capabilities::ROLLBACK, "resource" => "shop/main", "to" => "1")
     assert_match "has not read the branch id of shop/old", unroutable(Capabilities::ROLLBACK, "resource" => "shop/old", "to" => "1")
+  end
+
+  test "run history is a branch's action runs, or one of them by its id with its steps" do
+    list = resolve(Capabilities::HISTORY, "resource" => "shop/feature", "limit" => 5)
+    assert_equal [ "list_action_runs", { "project_id" => "zyxwvutsrqponmlkjihg", "limit" => 5 } ], [ list.tool.name, list.arguments ]
+    one = resolve(Capabilities::HISTORY, "resource" => "shop/feature", "run" => "run_8f2")
+    assert_equal [ "get_action_run", { "project_id" => "zyxwvutsrqponmlkjihg", "run_id" => "run_8f2" } ], [ one.tool.name, one.arguments ]
+  end
+
+  test "a project restarts, reads its metrics now, and its errors are the performance warnings its advisors give" do
+    assert_equal [ "restart_project", { "project_id" => REF } ], resolve(Capabilities::RESTART, "resource" => "shop").then { |found| [ found.tool.name, found.arguments ] }
+    metrics = resolve(Capabilities::METRICS, "resource" => "shop", "metrics" => %w[memory])
+    assert_equal [ "get_project_metrics", { "project_id" => REF, "readings" => %w[memory] } ], [ metrics.tool.name, metrics.arguments ]
+    assert_match "does not keep requests", unroutable(Capabilities::METRICS, "resource" => "shop", "metrics" => %w[requests])
+
+    errors = resolve(Capabilities::ERRORS, "resource" => "shop")
+    assert_equal [ "get_advisors", { "project_id" => REF, "type" => "performance" } ], [ errors.tool.name, errors.arguments ]
+    lints = { "result" => { "lints" => [ { "title" => "Unindexed foreign keys", "level" => "INFO", "count" => 2, "remediation" => "https://supabase.com/docs/guides/database/database-linter",
+                                             "findings" => [ { "detail" => "Table public.orders has a foreign key without an index" } ] } ] } }
+    assert_match "- INFO: Unindexed foreign keys (2 findings). Table public.orders has a foreign key without an index https://supabase.com/docs/guides/database/database-linter",
+                 answer_text(errors, lints)
+  end
+
+  test "the project rolls back to a moment with point in time recovery, saying what is lost" do
+    call = resolve(Capabilities::ROLLBACK, "resource" => "shop", "to" => "2026-10-04T09:30:00Z")
+    assert_equal [ "restore_to_point_in_time", { "project_id" => REF, "to" => "2026-10-04T09:30:00Z" } ], [ call.tool.name, call.arguments ]
+    assert_equal "nothing after 2026-10-04T09:30:00Z, which is lost", call.keeps
+  end
+
+  test "auth, storage and realtime logs read as the server's get_logs reads them" do
+    call = resolve(Capabilities::LOGS, "resource" => "shop", "stream" => "auth", "minutes" => 30)
+    assert_match "from logs where source = 'auth_logs'", call.arguments["sql"]
+    assert_match "log_attributes['msg'] as msg", call.arguments["sql"]
+    assert_match "source = 'realtime_logs'", resolve(Capabilities::LOGS, "resource" => "shop", "stream" => "realtime").arguments["sql"]
   end
 
   private

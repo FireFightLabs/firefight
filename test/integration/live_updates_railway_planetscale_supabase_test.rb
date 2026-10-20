@@ -70,7 +70,8 @@ class LiveUpdatesRailwayPlanetscaleSupabaseTest < ActionDispatch::IntegrationTes
     row = mcp_row("planetscale", "PlanetScale", "https://mcp.pscale.dev/mcp/planetscale",
                   %w[planetscale_get_database planetscale_get_branch planetscale_list_branches])
     sign_in_admin
-    assert_equal "Send PlanetScale's changes to Firefight and save the signing secret under Integrations to turn them on.", row.live_updates.reason
+    assert_equal "Send PlanetScale's changes to Firefight and save the signing secret under Integrations to turn them on. A connection made by " \
+                 "signing in to PlanetScale, or with a service token and its id, has Firefight add these webhooks itself.", row.live_updates.reason
 
     patch map_events_secret_integration_path(row.integration), params: { environment_row_id: row.id, secret: "first-database-secret" }
     patch map_events_secret_integration_path(row.integration), params: { environment_row_id: row.id, secret: "second-database-secret" }
