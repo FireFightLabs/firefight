@@ -31,6 +31,15 @@ class Integrations::Capabilities::CodeHostAdapterTest < ActiveSupport::TestCase
     assert_raises(Integrations::Capabilities::Unroutable) { resolve(Integrations::Capabilities::HISTORY, "resource" => "acme/web", "connection" => "circleci") }
   end
 
+  test "a repository's deploys are narrowed to an environment, and it rolls back by deploying an earlier deployment again" do
+    deploys = resolve(Integrations::Capabilities::DEPLOYS, "resource" => "acme/web", "deployment_environment" => "production", "limit" => 5)
+    rollback = resolve(Integrations::Capabilities::ROLLBACK, "resource" => "acme/platform/api", "to" => "42")
+
+    assert_equal [ "recent_deployments", { "repo" => "acme/web", "deployment_environment" => "production", "limit" => 5 } ], [ deploys.tool.name, deploys.arguments ]
+    assert_equal [ @gitlab_row, "redeploy", { "repo" => "acme/platform/api", "deployment" => "42" } ], [ rollback.environment_row, rollback.tool.name, rollback.arguments ]
+    assert_raises(Integrations::Capabilities::Unroutable) { resolve(Integrations::Capabilities::ROLLBACK, "resource" => "acme/web") }
+  end
+
   test "a repository only keeps build logs, so another stream is refused in the host's words" do
     error = assert_raises(Integrations::Capabilities::Unroutable) { resolve(Integrations::Capabilities::LOGS, "resource" => "acme/platform/api", "stream" => "requests") }
 
@@ -39,8 +48,8 @@ class Integrations::Capabilities::CodeHostAdapterTest < ActiveSupport::TestCase
 
   test "a code host wraps none of its tools, so Halon keeps every one, and its details say what it answers for its repositories" do
     assert_not Integrations::Capabilities.adapter_for("github").wraps?("recent_deployments")
-    assert_equal "Halon can read their build logs, see what was deployed, check how their CI stands, and see how long their CI runs usually take " \
-                 "for the repositories GitLab puts on the map, " \
+    assert_equal "Halon can read their build logs, see what was deployed, check how their CI stands, see how long their CI runs usually take, " \
+                 "and roll a resource back for the repositories GitLab puts on the map, " \
                  "through the tools that are switched on. It also uses GitLab's other tools that are switched on.", Integrations::Capabilities.halon_sentence("gitlab", "GitLab")
     assert_equal "Halon can read their build logs, see what was deployed, check how their CI stands, see how long their CI runs usually take, and roll a " \
                  "deployed component back for the CircleCI projects on the map and the repositories they build, through the tools that are switched on. " \

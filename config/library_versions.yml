@@ -73,17 +73,17 @@ skills:
     version: 1
     digest: c6a0c91e6719f0e0f5fd76bd23d3e12484cded2407daaf0a02b8c36944ffe32e
   bitbucket_changes:
-    version: 1
-    digest: 97780b4781b88e661d429b9a8ca38f9462f444c15c5805060c12c710e2757ced
+    version: 2
+    digest: 656df295d87d7a01c74afc0d6ae49cbd1a70608a07b5116289f468fb7e7c78a7
   bitbucket_code:
     version: 1
     digest: bda7ce564050d686c96fc478119fdb2c7077d899549fa7230bb849f6b80a4470
   bitbucket_failing_pipeline:
-    version: 1
-    digest: 66c90526d4165210ea52a66ab0eb421152418723037413c0d29ab95c5347d8a0
+    version: 2
+    digest: 786e010569ac48fc56ebaac5a5b13b845cb105b902f2d73e02e5fea54b816dc1
   bitbucket_rerun:
-    version: 1
-    digest: c5255d59d4b3b8935b2d11f8ee53b408e5b38624c1a11846fafc9974dd11a7ce
+    version: 2
+    digest: 87fd8bc7674174c782e40400ed8bac540c845dc2f33e52dc21bbb126af21f8c1
   bitbucket_triage:
     version: 1
     digest: ef6e825ce6a1164bc68f27ae445321b05cd6f2e4cecd5506f49dc93da2212d8b
@@ -289,8 +289,8 @@ skills:
     version: 1
     digest: 112c6c879c255a6827c841a5af43b4c119741c69140839c5185ae06d1c308004
   github_deploys:
-    version: 1
-    digest: 14a8a02116aef8ea39ddf29b17e0150f28b7249a1eb908d538fd8791bf944d03
+    version: 2
+    digest: 92de81aaaa1dbfda5e4eb63621fd3f9dd0c0e5ec93923a8421a3a3974c03e80d
   github_failing_build:
     version: 1
     digest: 75ba62caf6c7d5e813efd3131e0c56911ed1a25931d0d1091aa502f16e4d55b8
@@ -307,8 +307,8 @@ skills:
     version: 1
     digest: 0470ab64bcc912cc0ea4b61e347a8b270399d03320c16ac0e6b6b880b543202e
   github_rerun:
-    version: 1
-    digest: a43abc5287ad855289da66fabcdb458ebc6cad2ff5f37067dc8dca04869b5a2e
+    version: 2
+    digest: 4376593f977b8bd62dcb1d6c949f4a29b5b09b354576a7a3a138e66b55a35a91
   github_security:
     version: 1
     digest: d9a349bd363fbf0a02314d14d1a34eee422ecd51555a67c4d2589524945163c9
@@ -316,11 +316,11 @@ skills:
     version: 1
     digest: 2008644e4bd397eb66dd14b51cef81202d8bdfac10a96343014748e6d8880c1e
   gitlab_api:
-    version: 1
-    digest: cdd792d0fbde9ea6e59e8d55a3303ce5e6b3d17ea30960f02de15ca3986b2cb3
+    version: 2
+    digest: 3c6faefd9d54c3691b534960908f671691752da2099c3f5969796d152530100a
   gitlab_changes:
-    version: 1
-    digest: 9a4739895a43e363348c35ae4b6b33ae175856a6e616f43b89c634894c029a84
+    version: 2
+    digest: 8a052ff4d8363273c3303bf1bd51fc1e67477b7821bef3c84c59ad6524081ec7
   gitlab_code:
     version: 1
     digest: 1152e67567c960582e95115687c27f284e9a5e97cf39cee1be21a96297b7f2d1
@@ -328,8 +328,8 @@ skills:
     version: 1
     digest: 53e06107f44978cebb3546926154acb1e2953db9115ddf0f08632efed1abab93
   gitlab_rerun:
-    version: 1
-    digest: ac9334948dd73ed0ca1ed7f4e158bfebe45a71900d3cf0a1c62587d05c11575a
+    version: 2
+    digest: 6a78f21639914b2d7fb7dc007d9f68c832cb237a0e01c34d24d9a77f41032766
   gitlab_triage:
     version: 1
     digest: 2157e2b657c0b5df847cabd55b6e1c715e7fe22583eb048716d1bd6773b3eadb

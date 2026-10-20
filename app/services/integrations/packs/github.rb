@@ -19,6 +19,7 @@ module Integrations
       include Security
       include ActionsSecrets
       include PendingDeployments
+      include Deployments
       include RepositoryAccess
       include Artifacts
       include ActionsCaches
@@ -52,6 +53,8 @@ module Integrations
       }.freeze
       # The states a rollout ends in, whose status row is written when it ended.
       DEPLOYMENT_ENDED = %w[success failure error].freeze
+      # A deployment read as a run carries this before its id, so ci_runs tells it from a workflow run's.
+      DEPLOYMENT_RUN = "deployment-".freeze
 
       tool :commit_lookup,
            summary: "Shows a commit's message, author and changed files.",
@@ -68,7 +71,8 @@ module Integrations
 
       tool :recent_deployments,
            summary: "Lists a repository's recent deployments and how each one went.",
-           description: "List recent deployments for a repository, newest first, each with the ref deployed, the environment and the outcome",
+           description: "List recent deployments for a repository, newest first, each with its id, the ref deployed, the environment, the " \
+                        "outcome, its log and the address it serves at",
            params_schema: {
              "type" => "object",
              "properties" => {
@@ -241,7 +245,8 @@ module Integrations
       # environment's are Environments, which the secrets tools name themselves when GitHub refuses one. A repository's
       # Actions variables are Variables, and an environment's are Environments in the same way. Reverting a pull request
       # is Contents write for the Git database and the merge, and Pull requests write to open the revert. A run's pending
-      # deployments are Actions read and reviewing one is Deployments write. Collaborators are Metadata, and a
+      # deployments are Actions read and reviewing one is Deployments write. A repository's environments are Actions read,
+      # and running again what made a deployment reads it (Deployments read) and reruns its job or run (Actions write). Collaborators are Metadata, and a
       # repository's teams (Administration read) and an organization's outside collaborators (Members read) only add to
       # that answer. Artifacts and caches are Actions. api_read reads whatever path it is given, so it needs nothing of
       # its own, and GitHub's refusal names what the path needed.
@@ -265,6 +270,9 @@ module Integrations
         "rerun_workflow" => { "actions" => WRITE },
         "run_workflow" => { "actions" => WRITE, "contents" => READ },
         "cancel_workflow" => { "actions" => WRITE },
+        "rerun_job" => { "actions" => WRITE },
+        "redeploy" => { "actions" => WRITE, "deployments" => READ },
+        "list_environments" => { "actions" => READ },
         "fix_code" => { "contents" => WRITE, "pull_requests" => WRITE },
         "list_pull_requests" => { "pull_requests" => READ },
         "pull_request_diff" => { "pull_requests" => READ },
@@ -390,15 +398,21 @@ module Integrations
         TEXT
       end
 
+      # Each deployment is kept as a deploy and as a run, so a watch follows one as it follows a CI run.
       def recent_deployments(environment_row:, arguments:)
         repo = repo_argument(arguments)
         token = GithubApp.installation_token(environment_row)
         deployments = GithubApp.get("/repos/#{repo}/deployments?#{deployment_query(arguments)}", token: token)
-        return Capabilities::Deploys.with_deploys("No deployments recorded for #{repo}.", []) if deployments.blank?
+        link = actions_link(repo_page(repo, "deployments"))
+        target = arguments["deployment_environment"].to_s.strip.presence
+        if deployments.blank?
+          return Capabilities::RunHistory.with_runs(Capabilities::Deploys.with_deploys(Telemetry.result("No deployments recorded for #{repo}#{" in #{target}" if target}.", link: link), []), [])
+        end
 
         read = Array(deployments).map { |deployment| [ deployment, newest_status(repo, deployment["id"], token) ] }
         text = read.map { |deployment, status| deployment_line(deployment, status) }.join("\n")
-        Capabilities::Deploys.with_deploys(text, read.map { |deployment, status| deploy_of(deployment, status) })
+        result = Capabilities::Deploys.with_deploys(Telemetry.result(text, link: link), read.map { |deployment, status| deploy_of(deployment, status) })
+        Capabilities::RunHistory.with_runs(result, read.map { |deployment, status| deployment_run(deployment, status) }, link: link)
       end
 
       def merged_pull_requests(environment_row:, arguments:)
@@ -587,13 +601,20 @@ module Integrations
         query.to_query
       end
 
+      # The id is what redeploy takes, the log the page of whatever ran it, and the address where the environment serves it.
       def deployment_line(deployment, status)
         ref = deployment["ref"].presence || deployment["sha"].to_s[0, 8]
         target = deployment["environment"].presence || "unknown environment"
         creator = deployment.dig("creator", "login").presence || "unknown"
+        said = status.to_h["description"].presence || deployment["description"].presence
 
-        "#{deployment['created_at']}  #{target}  #{ref}  #{state_word(status)}  by #{creator}"
+        [ "#{deployment['created_at']}  #{target}  #{ref}  #{state_word(status)}  by #{creator}  deployment #{deployment['id']}",
+          ("  #{Sentence.clean(said)}" if said), ("  log #{deployment_log(status)}" if deployment_log(status)),
+          ("  serves at #{status['environment_url']}" if status.to_h["environment_url"].present?) ].compact.join
       end
+
+      # The page of whatever ran a deployment, which its newest status names.
+      def deployment_log(status) = status.to_h["log_url"].presence || status.to_h["target_url"].presence
 
       # GitHub's ref is a branch, a tag or the commit itself and does not say which, so a ref that is not the commit is
       # kept as the branch. A deployment GitHub marked inactive was replaced, so it no longer serves.

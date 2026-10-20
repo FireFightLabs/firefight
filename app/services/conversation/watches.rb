@@ -9,6 +9,7 @@ module Conversation::Watches
   # How a job or step inside a run stands, in the words its progress is said in.
   PART_STATES = {
     Integrations::Capabilities::History::QUEUED => Chat::Watch::Step::PART_WAITING,
+    Integrations::Capabilities::History::WAITING => Chat::Watch::Step::PART_HELD,
     Integrations::Capabilities::History::RUNNING => Chat::Watch::Step::PART_RUNNING,
     Integrations::Capabilities::History::SUCCEEDED => Chat::Watch::Step::PART_PASSED,
     Integrations::Capabilities::History::FAILED => Chat::Watch::Step::PART_FAILED,
@@ -545,14 +546,16 @@ module Conversation::Watches
   # start, running slow, and its end with why it failed. call is the history read that found it, nil for a read tool's.
   def self.run_moved(watch, step, run, environment_row, reader, now, progress, call:)
     step.seen!(digest: run.status, state: Integrations::Capabilities::History.line(run))
-    moved = step.progress!(Array(run.parts).map { |part| [ part.name.to_s, PART_STATES.fetch(part.status, Chat::Watch::Step::PART_WAITING) ] })
+    moved = step.progress!(part_states(run))
     step.summarized!(run_summary(run))
     progress << "#{step.label}: #{moved.join(', ')}." if moved.any? && !run.finished?
     tell_failed_part(watch, step, run, environment_row, reader)
     unless run.finished?
       said_start = step.started_told_at.nil? && step.started!(run_id: run.id.to_s, at: run.started_at, url: run.url)
       tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "#{step.label} started.") if said_start && step.report_start
-      tell!(watch, Chat::Watch::Update::KIND_SLOW, slow_words(step, now)) if step.slow?(now) && step.slow_told!
+      # A run held for a person is not slow, and the hold was said already.
+      held = run.status == Integrations::Capabilities::History::WAITING
+      tell!(watch, Chat::Watch::Update::KIND_SLOW, slow_words(step, now)) if !held && step.slow?(now) && step.slow_told!
       return
     end
 
@@ -566,6 +569,17 @@ module Conversation::Watches
 
   PARTS_NAMED = 2
 
+  # Each job or step in the words its progress is said in. A run held while none of its jobs or steps says so is said by
+  # its own name beside them, so a deploy waiting for approval is heard rather than looking queued.
+  def self.part_states(run)
+    parts = Array(run.parts).map { |part| [ part.name.to_s, PART_STATES.fetch(part.status, Chat::Watch::Step::PART_WAITING) ] }
+    return parts unless run.status == Integrations::Capabilities::History::WAITING && parts.none? { |_name, state| state == Chat::Watch::Step::PART_HELD }
+
+    parts + [ [ held_name(run), Chat::Watch::Step::PART_HELD ] ]
+  end
+
+  def self.held_name(run) = run.name.to_s.presence || "The run"
+
   # Where a run stands in a few words, for its row on the card, such as "build-images running, 4 of 7 done", rather than
   # every job it holds.
   def self.run_summary(run)
@@ -574,8 +588,11 @@ module Conversation::Watches
     return "#{run.number ? "Run ##{run.number}" : 'The run'} is #{run.status}." if parts.empty?
 
     running = parts.select { |part| part.status == history::RUNNING }.map(&:name)
+    held = parts.select { |part| part.status == history::WAITING }.map(&:name)
+    held = [ held_name(run) ] if held.empty? && run.status == history::WAITING
     done = parts.count { |part| part.status == history::SUCCEEDED }
-    [ ("#{running.first(PARTS_NAMED).join(', ')} running" if running.any?), "#{done} of #{parts.size} done" ].compact.join(", ")
+    [ ("#{held.first(PARTS_NAMED).join(', ')} #{Chat::Watch::Step::PART_HELD}" if held.any?), ("#{running.first(PARTS_NAMED).join(', ')} running" if running.any?),
+      "#{done} of #{parts.size} done" ].compact.join(", ")
   end
 
   # The run read by the id the step follows or was given, nil when there is none or the provider finds no run by it.
