@@ -469,7 +469,9 @@ module Integrations
       # replaces the app's spec with what it is sent. update_all_source_versions stays off, so no new code goes out.
       def scale_app(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"], only: KIND_APP)
-        count = Integer(arguments["instances"], exception: false)
+        given = arguments["instances"]
+        # Integer() truncates a Float, so a fraction is refused rather than rounded down.
+        count = given.is_a?(Float) && !(given.finite? && given == given.floor) ? nil : Integer(given, exception: false)
         fail!("instances must be a whole number, 1 or more.") unless count && count >= 1
 
         spec = api(environment_row).app(resource[:id])["spec"].to_h.deep_dup

@@ -338,6 +338,15 @@ module Integrations
         assert_raises(Integrations::Error) { call(:scale_app, "resource" => "shop", "component" => "web", "instances" => 0) }
       end
 
+      test "a fractional or non-finite instance count is refused, never rounded down" do
+        DigitaloceanApi.any_instance.expects(:update_app).never
+
+        [ 2.9, 1.5, Float::INFINITY, Float::NAN, "2.9" ].each do |instances|
+          error = assert_raises(Integrations::Error) { call(:scale_app, "resource" => "shop", "component" => "web", "instances" => instances) }
+          assert_equal "instances must be a whole number, 1 or more.", error.message, instances.inspect
+        end
+      end
+
       test "a change the token may not make says which scope to give it, and a Droplet reboots" do
         DigitaloceanApi.any_instance.stubs(:restart).raises(DigitaloceanApi::Error, "DigitalOcean answered 403: You do not have access for the attempted action.")
 
