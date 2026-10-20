@@ -2,9 +2,10 @@ module Integrations
   module Packs
     # GitLab, on GitLab.com or a workspace's own instance, read with an access token through GitLab's REST API (doc/api in
     # gitlab-org/gitlab): merge requests, commits, deployments, pipelines and their jobs, files and blame. Reading code by
-    # search, definition, history and language server happens in the run's sandbox (CodeHost::Code), and the pipelines
-    # tools live in Gitlab::Pipelines. Every tool only reads but the sandbox's test runner and the ones that retry, run or
-    # cancel a pipeline.
+    # search, definition, history and language server happens in the run's sandbox (CodeHost::Code), the pipelines tools
+    # live in Gitlab::Pipelines, environments and deployments in Gitlab::Deployments, and releases and tags in
+    # Gitlab::Releases. Every tool only reads but the sandbox's test runner and the ones that retry, run or cancel a
+    # pipeline or a job, run a deployment again, approve one or stop an environment.
     class Gitlab < NativePack
       # The environment row's credentials, which only this pack reads.
       URL = "url".freeze
@@ -21,6 +22,8 @@ module Integrations
       include Code
       include Pipelines
       include CiConfig
+      include Deployments
+      include Releases
 
       REPO_FORMAT = %r{\A[\w.\-]+(/[\w.\-]+)+\z}
       # Scopes an access token needs: the API to read, and the repository to fetch for the code sandbox. api covers both.
@@ -31,13 +34,15 @@ module Integrations
       DEPLOYMENT_LIMIT = 10
       MAX_DEPLOYMENTS = 50
       DEPLOYMENT_CANDIDATES = 30
-      # A deployment's status in Firefight's words. Blocked waits on an approval, and skipped never ran because a newer one did.
+      # A deployment's status in Firefight's words. Blocked waits on a person's approval, and skipped never ran because a newer one did.
       DEPLOYMENT_STATUSES = {
-        "created" => Capabilities::History::QUEUED, "blocked" => Capabilities::History::QUEUED,
+        "created" => Capabilities::History::QUEUED, "blocked" => Capabilities::History::WAITING,
         "running" => Capabilities::History::RUNNING, "success" => Capabilities::History::SUCCEEDED,
         "failed" => Capabilities::History::FAILED, "canceled" => Capabilities::History::CANCELLED,
         "skipped" => Capabilities::History::CANCELLED
       }.freeze
+      # A deployment read as a run carries this before its id, so ci_runs tells it from a pipeline's.
+      DEPLOYMENT_RUN = "deployment-".freeze
       NO_DEPLOY_LOOKBACK = 24.hours
       PULL_LOOKUP_LIMIT = 25
       BLAME_MERGE_REQUESTS = 5
@@ -143,9 +148,9 @@ module Integrations
       ).freeze
 
       tool :api_read,
-           summary: "Reads other GitLab data, such as environments, members, releases and issues.",
-           description: "Anything else GitLab's REST API reads that the other GitLab tools do not cover, such as a project's environments " \
-                        "and their protections, protected branches, releases, members, container registry, issues, or a group's " \
+           summary: "Reads other GitLab data, such as protected branches, members and issues.",
+           description: "Anything else GitLab's REST API reads that the other GitLab tools do not cover, such as a project's " \
+                        "protected branches, members, container registry, issues, or a group's " \
                         "settings. A GET to a path of GitLab's REST API (the instance's /api/v4), written after /api/v4 as the API " \
                         "reference the gitlab_api skill names writes it, such as /projects/<project id>/environments, or with " \
                         "project set and the path inside it. A list answers one page: pass per_page, at most 100, and page 2, 3 " \
@@ -244,16 +249,22 @@ module Integrations
         TEXT
       end
 
+      # Each deployment is kept as a deploy and as a run, so a watch follows one as it follows a pipeline.
       def recent_deployments(environment_row:, arguments:)
         repo = repo_argument(arguments)
         limit = whole_number_argument(arguments, "limit", DEPLOYMENT_LIMIT, MAX_DEPLOYMENTS)
         query = { "order_by" => "id", "sort" => "desc", "per_page" => limit, "environment" => arguments["deployment_environment"].presence }
-        deployments = Array(api(environment_row).get("#{GitlabApi.project(repo)}/deployments", query))
+        gitlab = api(environment_row)
+        deployments = Array(gitlab.get("#{GitlabApi.project(repo)}/deployments", query))
+        page = link(gitlab.web_url(repo, "-", "environments"))
         if deployments.empty?
-          return Capabilities::Deploys.with_deploys("No deployments recorded for #{repo}#{" in #{query['environment']}" if query['environment']}.", [])
+          empty = Telemetry.result("No deployments recorded for #{repo}#{" in #{query['environment']}" if query['environment']}.", link: page)
+          return Capabilities::RunHistory.with_runs(Capabilities::Deploys.with_deploys(empty, []), [])
         end
 
-        Capabilities::Deploys.with_deploys(deployments.map { |deployment| deployment_line(deployment) }.join("\n"), deployments.map { |deployment| deploy_of(deployment) })
+        text = Telemetry.result(deployments.map { |deployment| deployment_line(deployment) }.join("\n"), link: page)
+        Capabilities::RunHistory.with_runs(Capabilities::Deploys.with_deploys(text, deployments.map { |deployment| deploy_of(deployment) }),
+                                           deployments.map { |deployment| deployment_run(deployment) }, link: page)
       end
 
       def merged_merge_requests(environment_row:, arguments:)

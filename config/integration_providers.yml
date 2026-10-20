@@ -159,7 +159,7 @@ providers:
     color: "#24292f"
     status_page: { url: https://www.githubstatus.com, feed: statuspage }
     hosts: [ api.github.com, github.com, githubusercontent.com, ghcr.io ]
-    description: Correlate incidents with recent pull requests, commits and GitHub Actions runs from your repositories, read issues, releases, checks and security alerts, and when you allow it, comment on, review, close or merge pull requests, work on issues, and rerun, start or cancel a workflow.
+    description: Correlate incidents with recent pull requests, commits, deployments and GitHub Actions runs from your repositories, read issues, releases, environments, checks and security alerts, and when you allow it, comment on, review, close or merge pull requests, work on issues, rerun, start or cancel a workflow or one job, and deploy an earlier deployment again.
     server_url: ""
     kind: native
     site: https://github.com
@@ -180,7 +180,7 @@ providers:
     color: "#fc6d26"
     status_page: { url: https://status.gitlab.com, feed: page }
     hosts: [ gitlab.com, registry.gitlab.com ]
-    description: Merge requests, deployments, pipelines and code of your projects, on GitLab.com or your own GitLab, and retry, run or cancel a pipeline when you allow it.
+    description: Merge requests, deployments, environments, pipelines, releases, tags and code of your projects, on GitLab.com or your own GitLab, and when you allow it, retry, run or cancel a pipeline or one job, start a manual job, approve a deployment, deploy an earlier one again or stop an environment.
     # GitLab's own MCP server stays available from the connect dialog, and connections made through it keep running.
     server_url: https://gitlab.com/api/v4/mcp
     site: https://gitlab.com
@@ -202,7 +202,7 @@ providers:
     scaling_note: "It holds repositories and runs CI, which run no copies of a service."
     history: firefight
     holds_code: true
-    stopping_tools: [cancel_pipeline]
+    stopping_tools: [cancel_pipeline, cancel_job, stop_environment]
   - key: bitbucket
     safe_tools: [run_tests]
     safe_until_outside_tools: [run_tests]
@@ -212,7 +212,7 @@ providers:
     color: "#0052cc"
     status_page: { url: https://bitbucket.status.atlassian.com, feed: statuspage }
     hosts: [ api.bitbucket.org, bitbucket.org ]
-    description: Pull requests, deployments, pipelines and code of the repositories in your Bitbucket workspaces, and rerun, run or stop a pipeline when you allow it.
+    description: Pull requests, deployments, pipelines, test reports, tags and code of the repositories in your Bitbucket workspaces, and rerun, run or stop a pipeline or deploy an earlier deployment again when you allow it.
     # Atlassian's MCP server reaches Bitbucket only for a workspace linked to an organization, and cannot fetch code.
     server_url: ""
     site: https://bitbucket.org
@@ -240,20 +240,24 @@ providers:
     color: "#343434"
     status_page: { url: https://status.circleci.com, feed: statuspage }
     hosts: [ circleci.com ]
-    description: Read pipelines, workflows and failing jobs with their logs and tests, and rerun a workflow when you allow it.
-    # CircleCI's cloud runs in one place, and its hosted server is the one address its docs give.
+    description: Runs, workflows and failing jobs with their logs and tests, and what each project deployed, and rerun, cancel, approve, run a pipeline or roll back when you allow it.
+    # CircleCI's cloud runs in one place. Its hosted MCP server, the one address its docs give, stays offered as "Use an MCP
+    # server instead", though it cannot run a pipeline, approve a held job, read deploys or roll back.
     server_url: https://mcp.circleci.com/v1/mcp
     site: https://app.circleci.com
+    kind: native
+    connect_with: api_token
     # Personal API tokens are the only tokens API v2 and the MCP server take
     # (circleci.com/docs/guides/toolkit/api-developers-guide, circleci.com/docs/guides/toolkit/connecting-to-the-circleci-mcp-server).
     token: { hint: "Use a personal API token. Make it as a dedicated user, such as Firefight, so changes do not show as a teammate and the connection keeps working when someone leaves." }
     # The tools its server's published list marks as reads (test/fixtures/files/circleci_mcp_tools.txt says where it came from).
     read_only_tools: [hello, list_runs, get_run, list_workflows, get_workflow, list_jobs, get_job, get_job_logs, list_artifacts, list_job_tests]
     source_links: firefight
-    map: none
-    history: none
-    history_note: "CircleCI's hosted server documents its tools by name only, not what list_runs answers, so when a run started and finished cannot be read with confidence. The code host that holds the repository answers how long its runs take."
-    map_note: "It builds and tests code that its host puts on the map and runs nothing of its own."
+    map: firefight
+    scaling: none
+    scaling_note: "It builds, tests and deploys code, which runs no copies of a service."
+    history: firefight
+    stopping_tools: [cancel_workflow]
     # What a person reads beside each tool, by the name Firefight gives it (Integrations::ToolSummaries).
     tool_summaries:
       cancel_workflow: "Cancels a running workflow."
