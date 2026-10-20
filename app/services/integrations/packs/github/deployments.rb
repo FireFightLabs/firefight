@@ -53,7 +53,7 @@ module Integrations
             deployment = GithubApp.get("/repos/#{repo}/deployments/#{id}", token: token)
             commit = deployment["sha"].to_s[0, 12]
             named = "deployment #{id} of #{commit} to #{deployment['environment']}"
-            run_id, job_id = deployment_log(newest_status(repo, id, token)).to_s.match(RUN_PAGE)&.captures
+            run_id, job_id = actions_run_of(repo, id, token)
             unless run_id
               fail_policy! "The #{named} names no GitHub Actions run, so another system made it and Firefight cannot run it again. " \
                            "That system deploys #{commit} again."
@@ -83,6 +83,13 @@ module Integrations
         end
 
         private
+
+        # The run, and the job when named, a deployment's statuses say made it. A newer status may leave its log out, so
+        # every status is looked through, newest first.
+        def actions_run_of(repo, id, token)
+          statuses = Array(GithubApp.get("/repos/#{repo}/deployments/#{id}/statuses?per_page=100", token: token))
+          statuses.lazy.filter_map { |status| deployment_log(status).to_s.match(RUN_PAGE)&.captures }.first
+        end
 
         def environment_line(environment)
           rules = Array(environment["protection_rules"]).filter_map { |rule| rule_words(rule) }
