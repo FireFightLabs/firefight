@@ -71,6 +71,24 @@ module Integrations
         assert_match "already ended, COMPLETED", assert_raises(NativePack::Error) { call(:abort_bulk_action, "bulk_action" => "bulk_2") }.message
       end
 
+      test "a bulk action that ends between the read and the abort is said as ended" do
+        TriggerDevApi.any_instance.stubs(:bulk_action_status).with("bulk_3").returns({ "status" => "PENDING" }, { "status" => "COMPLETED" })
+        TriggerDevApi.any_instance.stubs(:abort_bulk_action).raises(TriggerDevApi::Error, "Trigger.dev answered 400: Bulk action is not pending")
+
+        assert_match "ended while it was being stopped, COMPLETED", assert_raises(NativePack::Error) { call(:abort_bulk_action, "bulk_action" => "bulk_3") }.message
+      end
+
+      test "a fraction is refused for a count, never rounded down" do
+        TriggerDevApi.any_instance.expects(:override_queue_concurrency).never
+        TriggerDevApi.any_instance.expects(:override_concurrency_limit).never
+        TriggerDevApi.any_instance.expects(:ignore_error).never
+        TriggerDevApi.any_instance.stubs(:error_group).returns("status" => "unresolved")
+
+        assert_match "whole number", assert_raises(NativePack::Error) { call(:override_queue_concurrency, "queue" => "send-email", "concurrency" => 2.9) }.message
+        assert_match "whole number", assert_raises(NativePack::Error) { call(:override_concurrency_limit, "limit" => "openai", "total" => 0.5) }.message
+        assert_match "whole number", assert_raises(NativePack::Error) { call(:ignore_error, "error" => "error_1", "minutes" => 1.5) }.message
+      end
+
       test "the environment's deployments are run history, timed from when each was made to when it deployed, and one is read by its id" do
         listed = [ { "id" => "deployment_2", "version" => "20261002.1", "status" => "DEPLOYED", "createdAt" => "2026-10-02T10:00:00Z", "deployedAt" => "2026-10-02T10:03:00Z" },
                    { "id" => "deployment_1", "version" => "20261001.1", "status" => "FAILED", "createdAt" => "2026-10-01T10:00:00Z", "error" => { "message" => "build failed" } } ]

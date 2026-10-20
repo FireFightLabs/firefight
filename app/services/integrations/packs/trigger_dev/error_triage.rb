@@ -102,7 +102,8 @@ module Integrations
         def whole(value, name)
           return if value.blank?
 
-          count = Integer(value, exception: false)
+          # Integer() truncates a Float, so a fraction is refused rather than rounded down.
+          count = value.is_a?(Float) && !(value.finite? && value == value.floor) ? nil : Integer(value, exception: false)
           fail!("#{name} must be a whole number above 0.") unless count&.positive?
 
           count

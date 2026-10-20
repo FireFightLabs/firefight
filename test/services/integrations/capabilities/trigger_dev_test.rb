@@ -59,6 +59,9 @@ class Integrations::Capabilities::TriggerDevTest < ActiveSupport::TestCase
     one = resolve(Integrations::Capabilities::HISTORY, "resource" => "send-email", "run" => "deployment_9")
     assert_equal [ "deploy_history", { "run" => "deployment_9" } ], [ one.tool.name, one.arguments ]
     assert_not Integrations::Capabilities::TriggerDev.wraps?("deploy_history")
+
+    task_named_deploy = resolve(Integrations::Capabilities::HISTORY, "resource" => "send-email", "name" => "deploy-notifier")
+    assert_equal "list_runs", task_named_deploy.tool.name, "a task whose name holds deploy is still its runs"
   end
 
   private

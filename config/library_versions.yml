@@ -784,8 +784,8 @@ skills:
     version: 2
     digest: 30782d9486ad0fc63358291bc30e8dd5c9456a09a088c3cc6f8f9b8a894cdec2
   trigger_dev_failing_runs:
-    version: 3
-    digest: '085b793c5bfe459d501f8dfdc4c0425e43d10be1bcd8bc1438504cdd2f453adf'
+    version: 4
+    digest: 7f86bdf8c29c3116ae5895341ee0bf579985f0a1e561d674fe0d24f745fb000d
   trigger_dev_stuck_runs:
     version: 3
     digest: 2972b4693ee2562036817064a6f97680166978c07ef79964258024d84a947633

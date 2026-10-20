@@ -45,6 +45,10 @@ module Integrations
         Timeout.timeout(seconds) { ssl.connect }
         ssl.post_connection_check(uri.host)
         ssl
+      rescue StandardError, Timeout::Error
+        # Nothing outside holds the socket yet, so a failed handshake closes it here.
+        (ssl || tcp)&.close
+        raise
       end
 
       # Frames are parsed as they arrive, and the read stops at the close frame, the end of the stream, the deadline or

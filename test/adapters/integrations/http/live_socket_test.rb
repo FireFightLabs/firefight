@@ -33,6 +33,20 @@ module Integrations
         assert_match "private network", assert_raises(Error) { LiveSocket.messages("wss://logs.example/live", provider_key: "digitalocean", error_class: Error, limit: 10, seconds: 1) }.message
       end
 
+      test "a handshake that fails closes the socket it opened" do
+        Socket.stubs(:tcp).returns(mock("tcp"))
+        ssl = mock("ssl")
+        OpenSSL::SSL::SSLSocket.stubs(:new).returns(ssl)
+        ssl.stubs(:hostname=)
+        ssl.stubs(:sync_close=)
+        ssl.stubs(:connect).raises(OpenSSL::SSL::SSLError, "handshake failed")
+        # sync_close is set, so closing the TLS socket closes the TCP one beneath it.
+        ssl.expects(:close).once
+        PublicAddress.stubs(:check!).returns(PublicAddress::Checked.new(ip: IPAddr.new("203.0.113.5"), private: false))
+
+        assert_raises(Error) { LiveSocket.messages("wss://logs.example/live", provider_key: "digitalocean", error_class: Error, limit: 10, seconds: 1) }
+      end
+
       private
 
       # A WebSocket server on the other end that sends each message, then closes.

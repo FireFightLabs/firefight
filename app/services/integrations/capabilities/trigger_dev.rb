@@ -46,7 +46,7 @@ module Integrations
         when ROLLBACK then Route.new(tool_name: TOOLS[ROLLBACK], arguments: { "version" => target(given) })
         when HISTORY
           run = given["run"].to_s.strip.delete_prefix("#").presence
-          if given["name"].to_s.downcase.include?(DEPLOY_RUN) || (run && !run.start_with?(RUN_PREFIX))
+          if given["name"].to_s.strip.casecmp?(DEPLOY_RUN) || (run && !run.start_with?(RUN_PREFIX))
             return Route.new(tool_name: DEPLOY_HISTORY, arguments: { "run" => run, "limit" => given["limit"] }.compact_blank)
           end
 

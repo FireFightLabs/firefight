@@ -178,7 +178,8 @@ module Integrations
         def bound(value, name)
           return if value.nil? || value.to_s.strip.empty?
 
-          count = Integer(value, exception: false)
+          # Integer() truncates a Float, so a fraction is refused rather than rounded down.
+          count = value.is_a?(Float) && !(value.finite? && value == value.floor) ? nil : Integer(value, exception: false)
           fail!("#{name} must be a whole number from 0 to #{MOST}.") unless count&.between?(0, MOST)
 
           count

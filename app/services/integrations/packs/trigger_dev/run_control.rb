@@ -120,7 +120,15 @@ module Integrations
           end
           fail!("Bulk action #{id} already ended, #{action['status']}, so there is nothing to stop.") unless action["status"] == BULK_PENDING
 
-          changing("abort bulk action #{id}") { api.abort_bulk_action(id) }
+          begin
+            changing("abort bulk action #{id}") { api.abort_bulk_action(id) }
+          rescue TriggerDevApi::Error
+            # One that finished between the read and the abort is said as ended, not as Trigger.dev's refusal.
+            now = api.bulk_action_status(id)["status"]
+            raise if now == BULK_PENDING
+
+            fail!("Bulk action #{id} ended while it was being stopped, #{now}, so there is nothing to stop.")
+          end
           counts = action["counts"].to_h
           Telemetry.result("Bulk action #{id} (#{action['type'].to_s.downcase}) is stopped and takes no more runs. It had done #{counts['success'].to_i + counts['failure'].to_i} " \
                            "of #{counts['total'] || 'its'} runs, and those stay as they are. #{no_page}", link: nil)
