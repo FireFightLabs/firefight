@@ -151,6 +151,19 @@ class ChatTest < ActiveSupport::TestCase
     assert_equal "What changed today?", Chat.find(@chat.id).last_readable_message.content
   end
 
+  # Seen live: a page that read the chat between the note's save and its marking showed the note as the person's words.
+  test "a nudge is saved and marked as one write, so no reader ever finds it unmarked" do
+    written_in = []
+    record = lambda do |*, payload|
+      written_in << Chat::Message.connection.current_transaction if payload[:sql].match?(/\A(INSERT INTO|UPDATE) "chat_messages"/)
+    end
+
+    ActiveSupport::Notifications.subscribed(record, "sql.active_record") { @chat.nudge!("Check again before you answer.") }
+
+    assert_equal 2, written_in.size
+    assert_equal 1, written_in.map(&:object_id).uniq.size, "the save and the marking were committed apart"
+  end
+
   # Seen live: four "Something went wrong" notices sent back as Halon's own replies, and the next answer copied them.
   test "a chat whose history holds failure notices shows them to the person and sends none of them to the model" do
     RubyLLM.config.stubs(:openai_api_key).returns("not-used")
