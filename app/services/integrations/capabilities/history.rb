@@ -10,7 +10,10 @@ module Integrations
       SUCCEEDED = "succeeded".freeze
       FAILED = "failed".freeze
       CANCELLED = "cancelled".freeze
-      STATUSES = [ QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELLED ].freeze
+      # Held until a person acts, such as approving a deploy to a protected environment or starting a manual job. It has
+      # not ended, and it will not go on by itself.
+      WAITING = "waiting".freeze
+      STATUSES = [ QUEUED, WAITING, RUNNING, SUCCEEDED, FAILED, CANCELLED ].freeze
       # Over, one way or another.
       FINISHED = [ SUCCEEDED, FAILED, CANCELLED ].freeze
       # How many finished runs the usual duration is read from at most.
