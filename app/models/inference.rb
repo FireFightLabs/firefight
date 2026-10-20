@@ -36,6 +36,8 @@ class Inference < ApplicationRecord
 
   def self.track(context)
     attrs   = context.slice(*CONTEXT_KEYS)
+    # Priced by the hour the call was sent, for a provider that charges more at busy hours.
+    sent_at = Time.current
     started = monotonic_now
     PromptVersion.remember!(
       template: context[:prompt_template], version: context[:prompt_version], text: context[:prompt_text]
@@ -51,7 +53,7 @@ class Inference < ApplicationRecord
         cache_read_tokens:   tokens.try(:cache_read).to_i,
         cache_write_tokens:  tokens.try(:cache_write).to_i,
         cache_write_tokens_by_ttl: tokens.try(:cache_write_by_ttl).to_h,
-        cost_micros:         FirefightAi.billed_micros(response.try(:cost), provider: attrs[:provider]),
+        cost_micros:         FirefightAi.billed_micros(response.try(:cost), provider: attrs[:provider], at: sent_at),
         latency_ms:          elapsed_ms_since(started),
         stop_reason:         response.try(:finish_reason)&.to_s,
         provider_request_id: FirefightAi::RequestId.from(response.try(:raw)),

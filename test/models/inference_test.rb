@@ -133,4 +133,17 @@ class InferenceTest < ActiveSupport::TestCase
 
     assert_equal [ 9_000, 4_500, 4_500, 4_500 ], [ peak, off_peak, weekend, openrouter ].map(&:cost_micros)
   end
+
+  test "a call is priced at the hour it was sent, when its answer comes back after a busy hour ended" do
+    deepseek = @context.merge(provider: "deepseek", model: "deepseek-flash")
+
+    _, row = travel_to(Time.utc(2026, 10, 20, 9, 59)) do
+      Inference.track(deepseek) do
+        travel_to(Time.utc(2026, 10, 20, 10, 1))
+        llm_reply(cost: 0.0045)
+      end
+    end
+
+    assert_equal 9_000, row.cost_micros
+  end
 end
