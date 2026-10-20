@@ -44,7 +44,7 @@ module Integrations
 
         text = restore_refusal("source_lsn" => "0/1A2B3C4", "preserve_under_name" => "kept")
         assert_match "Neon answered 401: authentication required. Neon refused this connection for its API", text
-        assert_match "connect Neon again with an organization API key", text
+        assert_match "connect Neon again and choose Use a token instead, with an organization API key", text
       end
 
       test "consumption is read for the project's organization, hourly for a day, one chart per metric" do

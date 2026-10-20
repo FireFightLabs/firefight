@@ -27,7 +27,7 @@ module Integrations
 
       test "a token the Platform API does not take is told how to connect, and a bad time or a missing database is said" do
         TursoApi.any_instance.stubs(:organizations).raises(TursoApi::Refused, "Turso answered 401: invalid token")
-        assert_match "Connect Turso again with a Platform API token", refusal("database" => "shop")
+        assert_match "Connect Turso again and choose Use a token instead, with an API token scoped to the organization", refusal("database" => "shop")
 
         assert_match "from is an ISO 8601 time", refusal("database" => "shop", "from" => "last week")
 

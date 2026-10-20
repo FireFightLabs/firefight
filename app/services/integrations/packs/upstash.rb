@@ -12,8 +12,8 @@ module Integrations
       KEY = /\ABearer\s+(?<email>[^\s:]+@[^\s:]+):(?<key>\S+)\z/
       COMPLETED = "completed".freeze
       NEEDS_KEY = "Restoring a backup goes through Upstash's Developer API, which takes a Developer API key and not the sign-in this " \
-                  "connection was made with. Connect Upstash again with a Developer API key, from the Upstash console's Account, API Keys, " \
-                  "pasted as Bearer followed by the account's email, a colon and the key.".freeze
+                  "connection was made with. Connect Upstash again and choose Use a token instead, with the account's Email and a Developer API " \
+                  "key from the Upstash console's Account, API Keys.".freeze
 
       def self.beside_server? = true
 

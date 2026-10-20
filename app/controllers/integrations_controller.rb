@@ -42,7 +42,7 @@ class IntegrationsController < InertiaController
     # The server's whole address is pasted here, so only the fields that are not part of it are asked, and none when it
     # is a native provider's own MCP server.
     asked = provider&.mcp_alternative? ? [] : provider&.environment_fields.to_a
-    refusal = provider&.connect_refusal(nil, fields_param(provider), asked)
+    refusal = provider&.connect_refusal(nil, fields_param(provider), asked) || token_refusal(provider)
     return redirect_back(fallback_location: integrations_path, alert: refusal) if refusal
 
     integration = current_workspace.integrations.create!(
@@ -53,7 +53,7 @@ class IntegrationsController < InertiaController
     )
     environment_row = integration.integration_environments.create!(
       catalog_entry_id: params[:environment_id].presence,
-      credentials: IntegrationEnvironment.token_credentials(params[:authorization], header: provider&.token&.header)
+      credentials: IntegrationEnvironment.token_credentials(authorization_param(provider), header: provider&.token&.header)
     )
     environment_row.store_fields!(provider.connect_values(fields_param(provider), asked)) if asked.any?
     Integrations::ConnectionRefresh.run!(integration)
@@ -440,6 +440,23 @@ class IntegrationsController < InertiaController
   def connect!(provider, name, environment_id, **options)
     Integration.connect!(current_workspace, provider, name, environment_id, **options)
   end
+
+  # The token form's values, for a provider whose credential is fields (IntegrationProvider::TokenForm).
+  def token_fields_param(provider)
+    params.fetch(:token_fields, {}).permit(*provider.token.fields.map(&:key)).to_h
+  end
+
+  # The header the connection is reached with: built from the token form's fields where the provider names them, and
+  # otherwise as pasted, which a header sent whole still is.
+  def authorization_param(provider)
+    token_fields?(provider) ? provider.token.authorization(token_fields_param(provider)) : params[:authorization]
+  end
+
+  def token_refusal(provider)
+    provider.token.refusal(token_fields_param(provider)) if token_fields?(provider)
+  end
+
+  def token_fields?(provider) = provider&.token&.fields? && params[:authorization].blank?
 
   # What the connect form asked beside the credentials, only the fields the provider declares.
   def fields_param(provider)

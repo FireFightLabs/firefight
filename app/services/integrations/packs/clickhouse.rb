@@ -201,8 +201,8 @@ module Integrations
         authorization = Credentials.headers_for(environment_row)["Authorization"].to_s
         unless authorization.match?(BASIC)
           fail! "To #{what}, Firefight goes through the ClickHouse Cloud API, which takes an API key and not the sign-in this connection " \
-                "was made with. Connect ClickHouse again with an API key whose role holds #{permission}, pasted as Basic followed by " \
-                "the key id and secret joined by a colon in base64."
+                "was made with. Connect ClickHouse again and choose Use a token instead, with the Key ID and Key secret of an API key " \
+                "whose role holds #{permission}."
         end
 
         ClickhouseApi.new(authorization)

@@ -12,8 +12,8 @@ module Integrations
       TO = "to".freeze
       # A token reaching more organizations than this is asked to name the database's own another way.
       ORGANIZATIONS_TRIED = 5
-      NEEDS_TOKEN = "Turso's Platform API did not take this connection's token, so its usage cannot be read. Connect Turso again with " \
-                    "a Platform API token scoped to the organization, made with turso auth api-tokens mint and its --org flag, pasted as Bearer followed by the token.".freeze
+      NEEDS_TOKEN = "Turso's Platform API did not take this connection's token, so its usage cannot be read. Connect Turso again " \
+                    "and choose Use a token instead, with an API token scoped to the organization, made with turso auth api-tokens mint and its --org flag.".freeze
       FIELDS = { "rows_read" => "rows read", "rows_written" => "rows written", "storage_bytes" => "storage", "bytes_synced" => "synced" }.freeze
 
       def self.beside_server? = true

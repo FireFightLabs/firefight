@@ -94,6 +94,22 @@ class IntegrationProviderTest < ActiveSupport::TestCase
     assert_nil IntegrationProvider.find("pagerduty").token.header
   end
 
+  test "a token form with fields builds the header its scheme names, and says which field is empty" do
+    basic = IntegrationProvider::TokenForm.new(scheme: "basic", fields: [ { key: "key_id", label: "Key ID" }, { key: "key_secret", label: "Key secret", secret: true } ])
+    assert_equal "Basic #{Base64.strict_encode64('id:sec')}", basic.authorization("key_id" => " id ", "key_secret" => "sec")
+    assert_equal "Fill in Key secret to connect with a token.", basic.refusal("key_id" => "id")
+    assert_nil basic.refusal("key_id" => "id", "key_secret" => "sec")
+    assert_equal [ false, true ], basic.fields.map(&:secret)
+
+    bearer = IntegrationProvider::TokenForm.new(scheme: "bearer", fields: [ { key: "email", label: "Email" }, { key: "api_key", label: "API key" } ])
+    assert_equal "Bearer ops@example.com:k3y", bearer.authorization("email" => "ops@example.com", "api_key" => "k3y")
+    assert_raises(ArgumentError) { IntegrationProvider::TokenForm.new(scheme: "digest", fields: [ { key: "a", label: "A" } ]) }
+
+    asked = IntegrationProvider.all.select { |entry| entry.token&.fields? }.to_h { |entry| [ entry.key, entry.token.fields.map(&:label) ] }
+    assert_equal({ "clickhouse" => [ "Key ID", "Key secret" ], "neon" => [ "API key" ], "turso" => [ "API token" ], "upstash" => [ "Email", "API key" ] }, asked)
+    asked.each_key { |key| assert_no_match(/Bearer|Basic|base64/, IntegrationProvider.find(key).token.hint, "#{key}'s hint names no header syntax") }
+  end
+
   test "a token goes in the Authorization header unless the provider's server reads it from another" do
     assert_equal({ "authorization" => "Bearer key" }, JSON.parse(IntegrationEnvironment.token_credentials("Bearer key")))
     assert_equal({ "headers" => { "x-openstatus-key" => "key" } }, JSON.parse(IntegrationEnvironment.token_credentials("key", header: "x-openstatus-key")))

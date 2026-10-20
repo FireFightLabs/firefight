@@ -30,8 +30,8 @@ module Integrations
       GRANULARITIES = { "hourly" => 168.hours, "daily" => 60.days, "monthly" => 1.year }.freeze
       DEFAULT_MINUTES = 24 * 60
       NEEDS_KEY = "Neon refused this connection for its API. A connection signed in through Neon's MCP server reaches only that " \
-                  "server, so connect Neon again with an organization API key, from your organization's Settings, API keys, in the token " \
-                  "form, and check the key reaches this project.".freeze
+                  "server, so connect Neon again and choose Use a token instead, with an organization API key from your organization's " \
+                  "Settings, API keys, and check the key reaches this project.".freeze
       PLANS = "Neon keeps consumption history only for the Launch, Scale, Agent, Business and Enterprise plans, from when the account " \
               "moved to one.".freeze
 

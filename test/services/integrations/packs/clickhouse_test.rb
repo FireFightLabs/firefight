@@ -43,7 +43,7 @@ module Integrations
 
       test "a connection signed in rather than made with an API key is told how to reconnect, and a key without the permission is named" do
         Credentials.stubs(:headers_for).returns("Authorization" => "Bearer oauth-token")
-        assert_match "Connect ClickHouse again with an API key whose role holds control-plane:service:manage-scaling-config", refusal("numReplicas" => 4)
+        assert_match "Connect ClickHouse again and choose Use a token instead, with the Key ID and Key secret of an API key whose role holds control-plane:service:manage-scaling-config", refusal("numReplicas" => 4)
 
         Credentials.stubs(:headers_for).returns("Authorization" => KEY)
         ClickhouseApi.any_instance.stubs(:service).raises(ClickhouseApi::Refused, "ClickHouse Cloud answered 403: Forbidden")

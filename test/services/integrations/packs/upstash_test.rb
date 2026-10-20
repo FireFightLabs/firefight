@@ -39,7 +39,7 @@ module Integrations
         Credentials.stubs(:headers_for).returns("Authorization" => "Bearer oauth-token")
         UpstashApi.expects(:new).never
 
-        assert_match "Connect Upstash again with a Developer API key", refusal("database_id" => "db-1", "backup_id" => "bk-1")
+        assert_match "Connect Upstash again and choose Use a token instead, with the account's Email and a Developer API key", refusal("database_id" => "db-1", "backup_id" => "bk-1")
       end
 
       private
