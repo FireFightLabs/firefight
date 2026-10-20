@@ -3693,6 +3693,7 @@ providers:
         label: Service token ID
         hint: With a service token, its id from your organization's settings, which lets Firefight read deploy requests and add its webhooks. Leave it empty when you sign in.
         optional: true
+        editable: true
     # The tools its server's published list marks as reads (test/fixtures/files/planetscale_mcp_tools.txt says where it came from).
     read_only_tools: [planetscale_list_organizations, planetscale_list_databases, planetscale_list_branches, planetscale_get_organization,
                       planetscale_get_database, planetscale_get_branch, planetscale_get_branch_schema, planetscale_execute_read_query,
