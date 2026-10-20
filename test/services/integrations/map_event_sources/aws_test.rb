@@ -48,6 +48,11 @@ module Integrations
                      named.call(Aws::LAMBDA, "UpdateFunctionCode20150331v2", asked: { "functionName" => "checkout" })
         assert_equal [ [ "ev-1", ResourceMap::Event::REMOVED, "arn:aws:lambda:eu-west-1:#{ACCOUNT}:function:checkout" ] ],
                      named.call(Aws::LAMBDA, "DeleteFunction20150331", asked: { "functionName" => "arn:aws:lambda:eu-west-1:#{ACCOUNT}:function:checkout:7" })
+        assert_equal [ [ "ev-1", ResourceMap::Event::UPDATED, "arn:aws:lambda:eu-west-1:#{ACCOUNT}:function:checkout" ] ],
+                     named.call(Aws::LAMBDA, "PublishVersion20150331", asked: { "functionName" => "checkout" },
+                                                                       answered: { "functionArn" => "arn:aws:lambda:eu-west-1:#{ACCOUNT}:function:checkout:8" })
+        assert_equal [ [ "ev-1", ResourceMap::Event::UPDATED, "arn:aws:lambda:eu-west-1:#{ACCOUNT}:function:checkout" ] ],
+                     named.call(Aws::LAMBDA, "UpdateAlias20150331", asked: { "functionName" => "checkout", "name" => "live", "functionVersion" => "7" })
         instances = { "instancesSet" => { "items" => [ { "instanceId" => "i-1" }, { "instanceId" => "i-2" } ] } }
         assert_equal [ [ "ev-1 arn:aws:ec2:eu-west-1:#{ACCOUNT}:instance/i-1", ResourceMap::Event::ADDED, "arn:aws:ec2:eu-west-1:#{ACCOUNT}:instance/i-1" ],
                        [ "ev-1 arn:aws:ec2:eu-west-1:#{ACCOUNT}:instance/i-2", ResourceMap::Event::ADDED, "arn:aws:ec2:eu-west-1:#{ACCOUNT}:instance/i-2" ] ],
@@ -100,7 +105,39 @@ module Integrations
         second = Aws.poll(@row, since: first.cursor)
 
         assert_equal [ "ev-1" ], second.events.map(&:id)
-        assert_equal [ Time.current.utc.iso8601(6) ] * 2, JSON.parse(second.cursor).values
+        assert_equal [ Time.current.utc.iso8601(6) ] * 2, JSON.parse(second.cursor).slice("eu-west-1", "us-east-1").values
+      end
+
+      test "without the stack, a service whose deployment started is asked each read until none is going, which is a change" do
+        travel_to Time.zone.parse("2026-10-06 10:00:00 UTC")
+        service = "arn:aws:ecs:eu-west-1:#{ACCOUNT}:service/prod/web"
+        since = { "eu-west-1" => 5.minutes.ago.utc.iso8601(6), "us-east-1" => 5.minutes.ago.utc.iso8601(6) }.to_json
+        AwsApi.any_instance.stubs(:call).with(:cloudtrail, "eu-west-1", :lookup_events, anything)
+              .returns(events: [ { event_id: "ev-1", event_source: Aws::ECS, cloud_trail_event: update_service_record.to_json } ])
+        AwsApi.any_instance.stubs(:call).with(:cloudtrail, "us-east-1", :lookup_events, anything).returns(events: [])
+
+        first = Aws.poll(@row, since: since)
+        assert_equal({ service => "2026-10-06T10:00:00Z" }, JSON.parse(first.cursor)[Aws::ROLLOUTS])
+
+        travel 5.minutes
+        AwsApi.any_instance.stubs(:call).with(:cloudtrail, "eu-west-1", :lookup_events, anything).returns(events: [])
+        AwsApi.any_instance.expects(:call).with(:ecs, "eu-west-1", :list_service_deployments, { cluster: "prod", service: service, status: Aws::ROLLING })
+              .returns(service_deployments: [ { status: "IN_PROGRESS" } ])
+        still = Aws.poll(@row, since: first.cursor)
+        assert_empty still.events
+        assert JSON.parse(still.cursor)[Aws::ROLLOUTS].key?(service)
+
+        travel 5.minutes
+        AwsApi.any_instance.expects(:call).with(:ecs, "eu-west-1", :list_service_deployments, { cluster: "prod", service: service, status: Aws::ROLLING })
+              .returns(service_deployments: [])
+        done = Aws.poll(@row, since: still.cursor)
+        assert_equal [ [ ResourceMap::Event::UPDATED, service ] ], done.events.map { |event| [ event.action, event.scope.external_id ] }
+        assert_nil JSON.parse(done.cursor)[Aws::ROLLOUTS]
+
+        @row.map_events_sent!("eu-west-1")
+        AwsApi.any_instance.stubs(:call).with(:cloudtrail, "eu-west-1", :lookup_events, anything)
+              .returns(events: [ { event_id: "ev-2", event_source: Aws::ECS, cloud_trail_event: update_service_record.merge("eventID" => "ev-2").to_json } ])
+        assert_nil JSON.parse(Aws.poll(@row.reload, since: done.cursor).cursor)[Aws::ROLLOUTS], "a region the stack sends from says when a deployment ends"
       end
 
       test "a region AWS asks to slow down keeps its place, a busy one is swept in full, and keys without the permission say which" do

@@ -3,13 +3,15 @@ module Integrations
     # Azure for the subscriptions an environment reads, one, several or every one its service principal can read (the
     # subscription connect field, a scope), with a service principal the workspace creates. It reads App Service and
     # Functions apps with their deployments and slots, Container Apps with their revisions, Azure SQL databases and
-    # PostgreSQL flexible servers, their metrics from Azure Monitor and their logs from Log Analytics. Three tools change
-    # something, each as Azure's own API does it, and only when the principal's roles allow it and the
-    # tool is switched on: swapping a slot or moving a Container App's traffic, restarting, and scaling.
+    # PostgreSQL flexible servers, their metrics from Azure Monitor and their logs from Log Analytics, and container
+    # registries with their ACR Tasks runs and run logs. Three tools change something, each as Azure's own API does it,
+    # and only when the principal's roles allow it and the tool is switched on: swapping a slot or moving a Container
+    # App's traffic, restarting, and scaling.
     #
     # Every endpoint, parameter and field is from the Resource Manager specifications in Azure/azure-rest-api-specs
     # (Microsoft.Web 2025-03-01, Microsoft.App 2025-01-01, Microsoft.Sql 2023-08-01, Microsoft.DBforPostgreSQL
-    # 2024-08-01, Microsoft.Insights metrics 2023-10-01, Log Analytics query v1), and the log tables and columns are the
+    # 2024-08-01, Microsoft.ContainerRegistry 2023-07-01 and RegistryTasks 2019-04-01, Microsoft.Insights metrics
+    # 2023-10-01, Log Analytics query v1), and the log tables and columns are the
     # ones Azure Monitor's table reference gives.
     class Azure < NativePack
       # The environment row's credentials, which only this pack reads.
@@ -26,9 +28,10 @@ module Integrations
       TYPE_CONTAINER = "Container App".freeze
       TYPE_SQL = "Azure SQL database".freeze
       TYPE_POSTGRES = "PostgreSQL flexible server".freeze
+      TYPE_REGISTRY = "Container registry".freeze
       KINDS = {
         TYPE_WEB => ResourceMap::KIND_SERVICE, TYPE_FUNCTION => ResourceMap::KIND_SERVICE, TYPE_CONTAINER => ResourceMap::KIND_SERVICE,
-        TYPE_SQL => ResourceMap::KIND_DATABASE, TYPE_POSTGRES => ResourceMap::KIND_DATABASE
+        TYPE_SQL => ResourceMap::KIND_DATABASE, TYPE_POSTGRES => ResourceMap::KIND_DATABASE, TYPE_REGISTRY => ResourceMap::KIND_BUILD_SERVICE
       }.freeze
       # The kinds that serve hostnames, which go on the map with them.
       SERVES_HOSTS = [ TYPE_WEB, TYPE_FUNCTION, TYPE_CONTAINER ].freeze
@@ -37,6 +40,18 @@ module Integrations
       APP_VERSION = "2025-01-01".freeze
       SQL_VERSION = "2023-08-01".freeze
       POSTGRES_VERSION = "2024-08-01".freeze
+      # A registry (Microsoft.ContainerRegistry Registry 2023-07-01), and its ACR Tasks runs, whose newest stable version
+      # is RegistryTasks 2019-04-01.
+      REGISTRY_VERSION = "2023-07-01".freeze
+      RUNS_VERSION = "2019-04-01".freeze
+      # A run's status (RunStatus) in the words every run history uses.
+      RUN_STATES = {
+        "queued" => Capabilities::History::QUEUED, "started" => Capabilities::History::RUNNING, "running" => Capabilities::History::RUNNING,
+        "succeeded" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED, "error" => Capabilities::History::FAILED,
+        "timeout" => Capabilities::History::FAILED, "canceled" => Capabilities::History::CANCELLED
+      }.freeze
+      RUN_LIMIT = 20
+      RUN_LOG_LINES = 200
       SQL_PORT = 1433
       POSTGRES_PORTS = [ 5432, 6432 ].freeze
       KEY_VAULT = "@Microsoft.KeyVault(".freeze
@@ -87,14 +102,23 @@ module Integrations
       COST_MONTHS_MAX = 12
       DEPLOY_LIMIT = 20
       LOG_TEXT_LIMIT = 2_000
+      # A slot swap is followed this long before it is said as still going, asking where it stands every SWAP_POLL seconds.
+      SWAP_WAIT = 25
+      SWAP_POLL = 5
+      # A long running call's ended states, as its Azure-AsyncOperation answers them.
+      OPERATION_STATES = {
+        "succeeded" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED, "canceled" => Capabilities::History::CANCELLED
+      }.freeze
+      # A slot difference's settingType for what is neither an app setting nor a connection string.
+      GENERAL_SETTING = "General".freeze
 
       RESOURCE = { "type" => "string", "description" => "An App Service or Function app, Container App, Azure SQL database or PostgreSQL flexible server, by name or id, as list_resources shows it" }.freeze
       APP = { "type" => "string", "description" => "An App Service or Function app, or a Container App, by name or id, as list_resources shows it" }.freeze
       SITE = { "type" => "string", "description" => "An App Service or Function app, by name or id, as list_resources shows it" }.freeze
 
       tool :list_resources,
-           summary: "Lists the apps, Container Apps and databases in the Azure subscription.",
-           description: "The App Service and Function apps, Container Apps, Azure SQL databases and PostgreSQL flexible servers in " \
+           summary: "Lists the apps, databases and container registries in the Azure subscription.",
+           description: "The App Service and Function apps, Container Apps, Azure SQL databases, PostgreSQL flexible servers and container registries in " \
                         "the Azure subscription for this environment, with their resource group, region and state. Use it first " \
                         "to find the name to pass to the other tools",
            params_schema: { "type" => "object", "properties" => {} },
@@ -169,6 +193,41 @@ module Integrations
            },
            read_only: true
 
+      REGISTRY = { "type" => "string", "description" => "A container registry, by name or id, as list_resources shows it" }.freeze
+
+      tool :list_registry_runs,
+           summary: "Lists a container registry's ACR Tasks runs, or shows one run.",
+           description: "A container registry's ACR Tasks runs, its builds and runs of its tasks, newest first, each with its status, " \
+                        "when it started and finished, the task, what started it, the images it pushed and why a failed run failed. " \
+                        "With run, that one run alone",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => REGISTRY,
+               "run" => { "type" => "string", "description" => "Only this run, by its id, such as ca12 (optional)" },
+               "limit" => { "type" => "integer", "description" => "At most this many (optional, #{RUN_LIMIT})" }
+             },
+             "required" => [ "resource" ]
+           },
+           read_only: true
+
+      tool :registry_run_log,
+           summary: "Shows the end of an ACR Tasks run's log, where it says why it failed.",
+           description: "The end of one ACR Tasks run's log, where a failed build says why, filtered by text or text to leave out. " \
+                        "Without a run, the registry's newest",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => REGISTRY,
+               "run" => { "type" => "string", "description" => "The run, by its id as list_registry_runs shows it (optional, the newest)" },
+               "text" => { "type" => "string", "description" => "Only lines containing this text (optional)" },
+               "exclude" => { "type" => "string", "description" => "Leave out lines containing this text (optional)" },
+               "limit" => { "type" => "integer", "description" => "At most this many of the last lines (optional, #{RUN_LOG_LINES})" }
+             },
+             "required" => [ "resource" ]
+           },
+           read_only: true
+
       tool :describe_resource,
            summary: "Shows how one Azure app or database is set up and how it is doing now.",
            description: "How one resource is set up and how it stands now: an app's state, plan or revision mode, image, " \
@@ -191,6 +250,22 @@ module Integrations
              "required" => %w[resource to]
            },
            read_only: false
+
+      tool :slot_differences,
+           summary: "Shows which settings differ between an app's deployment slot and production.",
+           description: "The settings that differ between a deployment slot of an App Service or Function app and production, which a " \
+                        "swap moves or leaves where they are, each with its type, how a swap treats it and how much it matters. Read " \
+                        "it before rollback_app swaps a slot, to say what the swap changes. App settings and connection strings are " \
+                        "named, never shown",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => SITE,
+               "slot" => { "type" => "string", "description" => "The deployment slot, by name, as list_deployments shows it" }
+             },
+             "required" => %w[resource slot]
+           },
+           read_only: true
 
       tool :restart_resource,
            summary: "Restarts an Azure app or a PostgreSQL server.",
@@ -347,6 +422,7 @@ module Integrations
 
       def search_logs(environment_row:, arguments:)
         target = find(environment_row, arguments["resource"])
+        registry_refused!(target)
         stream = arguments["stream"].presence || STREAM_APP
         fail!("stream must be one of #{STREAMS.join(', ')}.") unless STREAMS.include?(stream)
 
@@ -372,6 +448,7 @@ module Integrations
 
       def query_metrics(environment_row:, arguments:)
         target = find(environment_row, arguments["resource"])
+        registry_refused!(target)
         resource = read(environment_row, target)
         type = type_of(target, resource)
         known = Metrics::BY_TYPE.fetch(type)
@@ -424,6 +501,39 @@ module Integrations
         Telemetry.result("#{heading}\n#{lines.join("\n").presence || 'The deployment wrote no log.'}", link: deployment_center(environment_row, target.id))
       end
 
+      # A registry's runs (Runs - List, $top), newest first by when each was scheduled, or one by its id (Runs - Get).
+      def list_registry_runs(environment_row:, arguments:)
+        target = registry_target(environment_row, arguments["resource"])
+        link = portal_link(environment_row, target.id)
+        what = "the ACR Tasks runs of #{target.name}"
+        runs = if arguments["run"].present?
+          [ registry_run(target, registry_run_of(environment_row, target, arguments["run"])) ]
+        else
+          limit = Capabilities::Answers.limit(arguments, RUN_LIMIT)
+          newest_registry_runs(environment_row, target, limit).map { |run| registry_run(target, run) }
+        end
+        Capabilities::RunHistory.with_runs(Capabilities::History.result(runs, what: what, link: link), runs, link: link)
+      end
+
+      # A run's log, at the short lived address Runs - Get Log SAS URL answers, read without the principal's token.
+      def registry_run_log(environment_row:, arguments:)
+        target = registry_target(environment_row, arguments["resource"])
+        run = if arguments["run"].present?
+          registry_run_of(environment_row, target, arguments["run"])
+        else
+          newest_registry_runs(environment_row, target, 1).first || fail!("#{target.name} has no ACR Tasks runs.")
+        end
+        id = run.dig("properties", "runId") || run["name"]
+        address = api(environment_row).post("#{target.id}/runs/#{api(environment_row).segment(id)}/listLogSasUrl", RUNS_VERSION)["logLink"]
+        fail!("Azure gave no log for run #{id} of #{target.name}. A run that has not started has none yet.") if address.blank?
+
+        text = Http.download(address, provider_key: PROVIDER_KEY, error_class: AzureApi::Error, limit: Http::DOWNLOAD_LIMIT)
+        kept, matched = run_log_lines(text.lines.map(&:chomp), arguments)
+        heading = "Log of run #{id} of #{target.name}, #{run.dig('properties', 'status').to_s.downcase.presence || 'unknown'}."
+        body = kept.empty? ? "No line matched." : "#{kept.size < matched ? "The last #{kept.size} of #{matched} lines" : "#{kept.size} lines"}:\n#{kept.join("\n")}"
+        Telemetry.result("#{heading}\n#{body}", link: portal_link(environment_row, target.id))
+      end
+
       def describe_resource(environment_row:, arguments:)
         target = find(environment_row, arguments["resource"])
         resource = read(environment_row, target)
@@ -432,12 +542,14 @@ module Integrations
         when TYPE_CONTAINER then container_lines(resource)
         when TYPE_SQL then sql_lines(resource)
         when TYPE_POSTGRES then postgres_lines(resource)
+        when TYPE_REGISTRY then registry_lines(environment_row, target, resource)
         end
         Telemetry.result(lines.compact.join("\n"), link: portal_link(environment_row, target.id))
       end
 
       def rollback_app(environment_row:, arguments:)
         target = find(environment_row, arguments["resource"])
+        registry_refused!(target)
         to = arguments["to"].to_s.strip
         fail!("Say what to go back to: a slot of an App Service app, or a revision of a Container App, as list_deployments shows them.") if to.empty?
 
@@ -448,8 +560,22 @@ module Integrations
         Telemetry.result(text, link: portal_link(environment_row, target.id))
       end
 
+      def slot_differences(environment_row:, arguments:)
+        target = find(environment_row, arguments["resource"])
+        fail!("#{target.name} is a #{target.type}. Deployment slots are an App Service or Function app's.") unless target.site?
+        slot = arguments["slot"].to_s.strip
+        fail!("Say which slot, by its name as list_deployments shows it.") if slot.empty?
+
+        api = api(environment_row)
+        slot!(api, target, slot)
+        lines = slot_difference_lines(slot_differences_of(api, target, slot))
+        text = lines.any? ? "Settings that differ between slot #{slot} and #{target.name}'s production:\n#{lines.join("\n")}" : "Slot #{slot} and #{target.name}'s production have the same settings."
+        Telemetry.result(text, link: portal_link(environment_row, target.id))
+      end
+
       def restart_resource(environment_row:, arguments:)
         target = find(environment_row, arguments["resource"])
+        registry_refused!(target)
         api = api(environment_row)
         text = case target.type
         when TYPE_WEB
@@ -472,6 +598,7 @@ module Integrations
 
       def scale_app(environment_row:, arguments:)
         target = find(environment_row, arguments["resource"])
+        registry_refused!(target)
         text = if target.site? then scale_plan(environment_row, target, arguments)
         elsif target.container? then scale_replicas(environment_row, target, arguments)
         else fail!("#{target.name} is a #{target.type}. Its size is changed in the portal, since a database's tier is not an instance count.")
@@ -635,7 +762,8 @@ module Integrations
             "App Service and Function apps" => [ [ TYPE_WEB, TYPE_FUNCTION ], -> { whole(api.list("#{root}/Microsoft.Web/sites", WEB_VERSION)) { |site| site_item(site, plans) } } ],
             "Container Apps" => [ [ TYPE_CONTAINER ], -> { whole(api.list("#{root}/Microsoft.App/containerApps", APP_VERSION)) { |app| container_item(app) } } ],
             "Azure SQL databases" => [ [ TYPE_SQL ], -> { sql_items(api, root) } ],
-            "PostgreSQL flexible servers" => [ [ TYPE_POSTGRES ], -> { whole(api.list("#{root}/Microsoft.DBforPostgreSQL/flexibleServers", POSTGRES_VERSION)) { |server| postgres_item(server) } } ]
+            "PostgreSQL flexible servers" => [ [ TYPE_POSTGRES ], -> { whole(api.list("#{root}/Microsoft.DBforPostgreSQL/flexibleServers", POSTGRES_VERSION)) { |server| postgres_item(server) } } ],
+            "Container registries" => [ [ TYPE_REGISTRY ], -> { whole(api.list("#{root}/Microsoft.ContainerRegistry/registries", REGISTRY_VERSION)) { |registry| registry_item(registry) } } ]
           }.each do |what, (types, read)|
             found, complete = read.call
             items.concat(found)
@@ -674,6 +802,7 @@ module Integrations
         when TYPE_WEB then site_item(site = api.get(target.id, WEB_VERSION), plan_of(api, site))
         when TYPE_CONTAINER then container_item(api.get(target.id, APP_VERSION))
         when TYPE_POSTGRES then postgres_item(api.get(target.id, POSTGRES_VERSION))
+        when TYPE_REGISTRY then registry_item(api.get(target.id, REGISTRY_VERSION))
         when TYPE_SQL then sql_item(api.get(target.id.sub(%r{/databases/[^/]+\z}i, ""), SQL_VERSION), api.get(target.id, SQL_VERSION))
         end
       end
@@ -826,6 +955,12 @@ module Integrations
           .merge(server_host: properties["fullyQualifiedDomainName"])
       end
 
+      # A registry reads as its provisioningState, since ACR reports no running state of its own.
+      def registry_item(registry)
+        properties = registry["properties"].to_h
+        item(registry, TYPE_REGISTRY, properties["provisioningState"], details: { "sku" => registry.dig("sku", "name"), "login_server" => properties["loginServer"] })
+      end
+
       def function?(site) = site["kind"].to_s.split(",").map(&:strip).include?(FUNCTION_KIND)
 
       # A resource by its id, or by its name from the map's last sweep and then the subscription's live list. Only the
@@ -852,7 +987,8 @@ module Integrations
       end
 
       def read(environment_row, target)
-        version = { TYPE_WEB => WEB_VERSION, TYPE_CONTAINER => APP_VERSION, TYPE_SQL => SQL_VERSION, TYPE_POSTGRES => POSTGRES_VERSION }.fetch(target.type)
+        version = { TYPE_WEB => WEB_VERSION, TYPE_CONTAINER => APP_VERSION, TYPE_SQL => SQL_VERSION, TYPE_POSTGRES => POSTGRES_VERSION,
+                    TYPE_REGISTRY => REGISTRY_VERSION }.fetch(target.type)
         (@read ||= {})[target.id] ||= api(environment_row).get(target.id, version)
       end
 
@@ -1086,6 +1222,55 @@ module Integrations
         target
       end
 
+      # A registry holds images and the runs that build them, which only the run tools read.
+      def registry_refused!(target)
+        return unless target.registry?
+
+        fail!("#{target.name} is a container registry. Firefight reads its ACR Tasks runs with list_registry_runs and their logs with registry_run_log.")
+      end
+
+      def registry_target(environment_row, asked)
+        target = find(environment_row, asked)
+        fail!("#{target.name} is a #{target.type}. ACR Tasks runs are a container registry's.") unless target.registry?
+
+        target
+      end
+
+      # Runs - List answers in no order it documents, so the first page is read and sorted by when each was scheduled.
+      def newest_registry_runs(environment_row, target, limit)
+        runs = api(environment_row).get("#{target.id}/runs", RUNS_VERSION, "$top" => [ limit, RUN_LIMIT ].max)["value"]
+        Array(runs).sort_by { |run| run.dig("properties", "createTime").to_s }.reverse.first(limit)
+      end
+
+      def registry_run_of(environment_row, target, asked)
+        id = asked.to_s.strip.split("/").last.to_s
+        fail!("Say which run, by its id as list_registry_runs shows it.") if id.empty?
+
+        api(environment_row).get("#{target.id}/runs/#{api(environment_row).segment(id)}", RUNS_VERSION)
+      rescue AzureApi::NotFound
+        fail!("#{target.name} has no run #{id}. list_registry_runs shows its runs.")
+      end
+
+      # A run as every run history reads it (RegistryTasks, Run), scheduled at createTime, from startTime to finishTime,
+      # with its task, what started it, the images it pushed and the error Azure gave. Its log is read by registry_run_log.
+      def registry_run(target, run)
+        properties = run["properties"].to_h
+        status = Capabilities::History.status(properties["status"], RUN_STATES)
+        images = Array(properties["outputImages"]).filter_map { |image| [ image["repository"], image["tag"] ].compact.join(":").presence }
+        Capabilities::History::Run.new(
+          id: properties["runId"].presence || run["name"].to_s, name: properties["task"].presence || properties["runType"].to_s.downcase.presence || "run",
+          status: status, started_at: Capabilities::RunHistory.time(properties["startTime"] || properties["createTime"]),
+          finished_at: (Capabilities::RunHistory.time(properties["finishTime"]) if Capabilities::History::FINISHED.include?(status)),
+          detail: [ properties["runType"].presence, ("pushed #{images.join(', ')}" if images.any?), properties["runErrorMessage"].presence ].compact.join(", ").presence
+        )
+      end
+
+      def run_log_lines(lines, arguments)
+        text, exclude = arguments["text"].to_s, arguments["exclude"].to_s
+        matched = lines.reject(&:blank?).select { |line| (text.empty? || line.include?(text)) && (exclude.empty? || !line.include?(exclude)) }
+        [ matched.last(Capabilities::Answers.limit(arguments, RUN_LOG_LINES)), matched.size ]
+      end
+
       def deployment_center(environment_row, resource_id)
         settings = ConnectionSettings.of(environment_row)
         Telemetry::Link.new(provider: PROVIDER, url: format(DEPLOYMENT_CENTER, portal: settings.site, tenant: settings.field(TENANT), id: resource_id))
@@ -1098,9 +1283,11 @@ module Integrations
         rows = listed.map do |revision|
           properties = revision["properties"].to_h
           image = Array(properties.dig("template", "containers")).filter_map { |container| container["image"] }.join(", ")
-          [ properties["createdTime"], revision["name"], (properties["active"] ? "active" : "inactive"), "health #{properties['healthState'].to_s.downcase}",
-            "running #{properties['runningState'].to_s.downcase}", "#{properties['replicas'].to_i} replicas", "#{properties['trafficWeight'].to_i}% of traffic",
-            "image #{image}" ].join(", ")
+          [ properties["createdTime"], revision["name"], (properties["active"] ? "active" : "inactive"),
+            "provisioning #{properties['provisioningState'].to_s.downcase.presence || 'unknown'}",
+            ("provisioning error: #{properties['provisioningError'].to_s.strip}" if properties["provisioningError"].present?),
+            "health #{properties['healthState'].to_s.downcase}", "running #{properties['runningState'].to_s.downcase}",
+            "#{properties['replicas'].to_i} replicas", "#{properties['trafficWeight'].to_i}% of traffic", "image #{image}" ].compact.join(", ")
         end
         mode = app.dig("properties", "configuration", "activeRevisionsMode")
         return [ "#{target.name} has no revisions.", [] ] if rows.empty?
@@ -1126,15 +1313,78 @@ module Integrations
         traffic.map { |weight| "#{weight['weight']}% to #{weight['revisionName'] || (weight['latestRevision'] ? 'the latest revision' : weight['label'])}" }.join(", ")
       end
 
+      # The swap is a long running call, followed for SWAP_WAIT and said as it stands then. The settings that differ
+      # between the slots are said with it, by name.
       def swap_slot(environment_row, target, slot)
         api = api(environment_row)
+        slot!(api, target, slot)
+        differences = slot_difference_lines(slot_differences_of(api, target, slot))
+        started = api.start("#{target.id}/slotsswap", WEB_VERSION, { "targetSlot" => slot, "preserveVnet" => true })
+        state, reason = follow_operation(api, started)
+        undo = "To undo, swap #{slot} with production again."
+        settings = differences.any? ? " Settings that differed between the slots:\n#{differences.join("\n")}" : ""
+        case state
+        when Capabilities::History::SUCCEEDED
+          "Azure swapped slot #{slot} with #{target.name}'s production, so what #{slot} ran is live and what ran in production is in #{slot}. #{undo}#{settings}"
+        when Capabilities::History::FAILED
+          fail!(Sentence.join("Azure could not swap slot #{slot} with #{target.name}'s production", reason) +
+                " describe_resource shows what production runs now.")
+        else
+          "Azure is still swapping slot #{slot} with #{target.name}'s production after #{SWAP_WAIT} seconds, which can take a few minutes. " \
+            "describe_resource says when the last swap finished. #{undo}#{settings}"
+        end
+      end
+
+      def slot!(api, target, slot)
         slots = api.list("#{target.id}/slots", WEB_VERSION).items.map { |each| each["name"].to_s.split("/").last }
         fail!("#{target.name} has no slot called #{slot}. Its slots are #{slots.join(', ').presence || 'none'}.") unless slots.include?(slot)
-
-        api.post("#{target.id}/slotsswap", WEB_VERSION, { "targetSlot" => slot, "preserveVnet" => true })
-        "Azure is swapping slot #{slot} with #{target.name}'s production, so what #{slot} runs goes live and what ran in production moves into #{slot}. " \
-          "To undo, swap #{slot} with production again."
       end
+
+      # Each setting that differs (Web Apps, List Slot Differences From Production), with its type, how a swap treats it
+      # and how much it matters.
+      def slot_differences_of(api, target, slot)
+        Array(api.post("#{target.id}/slotsdiffs", WEB_VERSION, { "targetSlot" => slot, "preserveVnet" => true })["value"])
+      end
+
+      # An app setting's or a connection string's value can be a secret, so only a general setting's values are said.
+      def slot_difference_lines(differences)
+        differences.map do |difference|
+          properties = difference["properties"].to_h
+          general = properties["settingType"].to_s.casecmp?(GENERAL_SETTING)
+          values = " (production #{properties['valueInCurrentSlot'].presence || 'unset'}, slot #{properties['valueInTargetSlot'].presence || 'unset'})" if general
+          said = [ properties["level"].to_s.downcase.presence, properties["diffRule"].presence, (properties["description"].presence if general) ].compact.join(", ")
+          "  #{properties['settingName']}, #{properties['settingType'].to_s.downcase.presence || 'setting'}#{values}#{": #{said}" if said.present?}"
+        end
+      end
+
+      # Follows a long running call by its Azure-AsyncOperation, or its Location, for SWAP_WAIT at most (Azure Resource
+      # Manager, Track asynchronous Azure operations). Answers its state in run history's words and Azure's reason.
+      def follow_operation(api, started)
+        return [ Capabilities::History::SUCCEEDED, nil ] if started.status == 200
+
+        async = started.header("azure-asyncoperation").presence
+        url = async || started.header("location").presence
+        return [ Capabilities::History::RUNNING, nil ] unless url
+
+        (SWAP_WAIT / SWAP_POLL).times do
+          pause(SWAP_POLL)
+          answer = api.operation(url)
+          next if answer.status == 202
+
+          return [ Capabilities::History::SUCCEEDED, nil ] unless async
+
+          body = answer.body.is_a?(Hash) ? answer.body : {}
+          state = OPERATION_STATES[body["status"].to_s.downcase]
+          return [ state, Http.words(body["error"]) ] if state
+        end
+        [ Capabilities::History::RUNNING, nil ]
+      rescue AzureApi::Error => error
+        raise if error.is_a?(Integrations::RateLimited)
+
+        [ Capabilities::History::FAILED, error.message ]
+      end
+
+      def pause(seconds) = sleep(seconds)
 
       def move_traffic(environment_row, target, revision_name)
         api = api(environment_row)
@@ -1205,8 +1455,16 @@ module Integrations
           ("Runs #{config['linuxFxVersion'].presence || config['windowsFxVersion']}" if config["linuxFxVersion"].present? || config["windowsFxVersion"].present?),
           ("Health check #{config['healthCheckPath']}" if config["healthCheckPath"].present?),
           ("Addresses: #{Array(properties['enabledHostNames']).reject { |host| host.include?(SCM_HOST) }.join(', ')}" if properties["enabledHostNames"].present?),
-          ("Last changed #{properties['lastModifiedTimeUtc']}" if properties["lastModifiedTimeUtc"])
+          ("Last changed #{properties['lastModifiedTimeUtc']}" if properties["lastModifiedTimeUtc"]),
+          swap_line(properties["slotSwapStatus"].to_h)
         ]
+      end
+
+      # The last slot swap that finished (Site.slotSwapStatus), which Azure keeps only once one succeeded.
+      def swap_line(status)
+        return if status["timestampUtc"].blank?
+
+        "Last slot swap: #{status['sourceSlotName']} with #{status['destinationSlotName']}, finished #{status['timestampUtc']}"
       end
 
       def container_lines(app)
@@ -1234,6 +1492,16 @@ module Integrations
           ("Largest size #{(properties['maxSizeBytes'].to_i / 1_073_741_824.0).round(1)} GB" if properties["maxSizeBytes"]),
           ("Zone redundant" if properties["zoneRedundant"]),
           ("Paused since #{properties['pausedDate']}" if properties["pausedDate"] && properties["status"].to_s == "Paused")
+        ]
+      end
+
+      def registry_lines(environment_row, target, registry)
+        properties = registry["properties"].to_h
+        recent = newest_registry_runs(environment_row, target, 5).map { |run| Capabilities::History.line(registry_run(target, run)) }
+        [
+          "#{registry['name']}, a container registry in #{registry['location']}, #{properties['provisioningState'].to_s.downcase}",
+          "Sku #{registry.dig('sku', 'name')}, address #{properties['loginServer']}",
+          (recent.any? ? "Latest ACR Tasks runs, newest first:\n#{recent.join("\n")}" : "No ACR Tasks runs.")
         ]
       end
 

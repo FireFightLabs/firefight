@@ -72,6 +72,19 @@ module Integrations
 
     def post(path, api_version, body = nil) = arm(Net::HTTP::Post, path, api_version, body)
 
+    # A long running call, answered as an Http::Answer whose Azure-AsyncOperation or Location header names where to
+    # follow it (Azure Resource Manager, Track asynchronous Azure operations).
+    def start(path, api_version, body = nil) = arm(Net::HTTP::Post, path, api_version, body, with_status: true)
+
+    # Where a long running call stands, as an Http::Answer: 202 while it runs, and once it ended 200 from its Location,
+    # or a status from its Azure-AsyncOperation. The token goes only to the cloud's own Resource Manager.
+    def operation(url)
+      uri = URI.parse(url.to_s)
+      raise Error, "Azure named an operation outside Resource Manager, so it is not followed" unless uri.host == URI.parse(@cloud.management).host
+
+      send_request(uri, Net::HTTP::Get.new(uri), MANAGEMENT, with_status: true)
+    end
+
     def patch(path, api_version, body) = arm(Net::HTTP::Patch, path, api_version, body)
 
     def put(path, api_version, body) = arm(Net::HTTP::Put, path, api_version, body)
@@ -128,7 +141,7 @@ module Integrations
       send_request(uri, Net::HTTP::Get.new(uri), MANAGEMENT)
     end
 
-    def arm(verb, path, api_version, body, query = {})
+    def arm(verb, path, api_version, body, query = {}, with_status: false)
       uri = URI.parse("#{@cloud.management}#{path}")
       uri.query = URI.encode_www_form(query.compact.merge("api-version" => api_version))
       request = verb.new(uri)
@@ -136,12 +149,13 @@ module Integrations
         request["Content-Type"] = "application/json"
         request.body = body.to_json
       end
-      send_request(uri, request, MANAGEMENT)
+      send_request(uri, request, MANAGEMENT, with_status: with_status)
     end
 
-    def send_request(uri, request, audience)
+    def send_request(uri, request, audience, with_status: false)
       request["Authorization"] = "Bearer #{access_token(audience)}"
-      Http.json(uri, request, error_class: Error, provider_name: "Azure", refine: ->(code, _reason) { { FORBIDDEN => Forbidden, NOT_FOUND => NotFound }[code] })
+      Http.json(uri, request, error_class: Error, provider_name: "Azure", refine: ->(code, _reason) { { FORBIDDEN => Forbidden, NOT_FOUND => NotFound }[code] },
+                              with_status: with_status)
     end
 
     def access_token(audience)

@@ -1,7 +1,7 @@
 ---
 name: aws_triage
 when: Starting on anything wrong with an ECS service, Lambda function, EC2 instance, RDS database or CodeBuild project on AWS, before knowing what kind of problem it is
-tools: [list_resources, resource_status, recent_deploys, run_history, query_metrics, cloudwatch_metrics, search_logs, list_tasks, build_log]
+tools: [list_resources, resource_status, recent_deploys, run_history, query_metrics, cloudwatch_metrics, search_logs, list_tasks, build_log, restart, reboot_database]
 references: [application-failures/application-failure-troubleshooting.md, cloudwatch/troubleshooting.md]
 ---
 Work from the outside in, and stop as soon as one of these explains what was reported.
@@ -16,4 +16,5 @@ Work from the outside in, and stop as soon as one of these explains what was rep
 3. Call `recent_deploys` for an ECS service or a Lambda function. A deployment or a new version shortly before the trouble began is the first suspect.
 4. Call `query_metrics` over the window, which reads each kind's usual CloudWatch metrics when `metrics` is left out. `cloudwatch_metrics` reads any metric AWS documents for the kind by its CloudWatch name, such as Throttles for a function or FreeStorageSpace for a database. CloudWatch records ECS and Lambda metrics every minute, and EC2 every five minutes unless detailed monitoring is on, so a short spike shows only in a narrow range. Errors that rise with invocations point at load, and errors on flat traffic point at the code or something it calls.
 5. Read what it printed with `search_logs` around the moment the metrics turned. For an ECS service that keeps replacing tasks, call `list_tasks` first, since a stopped task says why it stopped.
-6. When something in the answer is not clear, read the AWS guide for it. The failing application guide lists where each AWS service writes its logs.
+6. An EC2 instance failing its status checks, or an RDS database that stopped answering while nothing changed, can be rebooted with `restart` once the evidence points at the host and not the code. The database drops every connection for a short while, and there is nothing to undo. For a Multi-AZ database, `reboot_database` with `failover` moves it to its standby instead.
+7. When something in the answer is not clear, read the AWS guide for it. The failing application guide lists where each AWS service writes its logs.

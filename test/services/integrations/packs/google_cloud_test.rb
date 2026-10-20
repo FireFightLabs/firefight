@@ -150,13 +150,20 @@ module Integrations
           { "name" => "#{RUN_ID}/revisions/web-00002-xyz", "createTime" => "2026-10-03T09:00:00Z", "reconciling" => true,
             "containers" => [ { "image" => "web:v2" } ], "conditions" => [ { "type" => "Ready", "state" => "CONDITION_PENDING" } ] },
           { "name" => "#{RUN_ID}/revisions/web-00003-bad", "createTime" => "2026-10-02T09:00:00Z",
-            "conditions" => [ { "type" => "Ready", "state" => "CONDITION_FAILED", "lastTransitionTime" => "2026-10-02T09:02:00Z" } ] }
+            "conditions" => [ { "type" => "Ready", "state" => "CONDITION_FAILED", "lastTransitionTime" => "2026-10-02T09:02:00Z",
+                                "revisionReason" => "HEALTH_CHECK_CONTAINER_ERROR",
+                                "message" => "The user-provided container failed to start and listen on the port defined by PORT=8080." } ] }
         ]))
 
         result = GoogleCloud.new(@integration).call("list_revisions", environment_row: @row, arguments: { "resource" => "web" })
+        runs = Capabilities::History.runs_of(result)
 
         assert_equal [ [ "web-00002-xyz", "running", nil ], [ "web-00003-bad", "failed", 120 ], [ "web-00001-abc", "succeeded", 90 ] ],
-                     Capabilities::History.runs_of(result).map { |run| [ run.id, run.status, run.seconds ] }
+                     runs.map { |run| [ run.id, run.status, run.seconds ] }
+        said = "health check container error: The user-provided container failed to start and listen on the port defined by PORT=8080."
+        assert_equal said, runs.second.detail
+        assert_match "ready failed (#{said})", result["content"].sole["text"]
+        assert_equal "web:v1", runs.third.detail, "a condition that succeeded has no reason"
       end
 
       test "revisions are kept as deploys, live by their share of the traffic, with the commit Cloud Build labels them with" do
@@ -373,7 +380,7 @@ module Integrations
         snapshot = @pack.map_of(@row)
 
         web = snapshot.resources.find { |resource| resource.external_id == RUN_ID }
-        assert_equal [ ResourceMap::KIND_SERVICE, "web", "ready", "https://console.cloud.google.com/run/services?project=acme-prod" ], [ web.kind, web.name, web.status, web.url ]
+        assert_equal [ ResourceMap::KIND_SERVICE, "web", "ready", "https://console.cloud.google.com/run/detail/us-central1/web?project=acme-prod" ], [ web.kind, web.name, web.status, web.url ]
         assert_equal({ "type" => "Cloud Run service", "region" => "us-central1", "image" => "us-docker.pkg.dev/acme/web:v2", "latest_revision" => "web-00002-xyz" }, web.details)
         assert_equal %w[web-123.us-central1.run.app web-abc-uc.a.run.app], snapshot.links.map { |link| link.from.last }.sort
         assert snapshot.links.all? { |link| link.to == web.key && link.relation == ResourceMap::RELATION_SERVED_BY }

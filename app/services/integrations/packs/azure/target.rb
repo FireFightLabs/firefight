@@ -8,7 +8,8 @@ module Integrations
         %r{\Amicrosoft\.web/sites/(?<name>[^/]+)\z}i => TYPE_WEB,
         %r{\Amicrosoft\.app/containerapps/(?<name>[^/]+)\z}i => TYPE_CONTAINER,
         %r{\Amicrosoft\.sql/servers/(?<server>[^/]+)/databases/(?<name>[^/]+)\z}i => TYPE_SQL,
-        %r{\Amicrosoft\.dbforpostgresql/flexibleservers/(?<name>[^/]+)\z}i => TYPE_POSTGRES
+        %r{\Amicrosoft\.dbforpostgresql/flexibleservers/(?<name>[^/]+)\z}i => TYPE_POSTGRES,
+        %r{\Amicrosoft\.containerregistry/registries/(?<name>[^/]+)\z}i => TYPE_REGISTRY
       }.freeze
 
       # One thing the pack reaches. A web app and a function app are both sites, so type says site until the site is read.
@@ -34,6 +35,8 @@ module Integrations
         def container? = type == TYPE_CONTAINER
 
         def database? = [ TYPE_SQL, TYPE_POSTGRES ].include?(type)
+
+        def registry? = type == TYPE_REGISTRY
       end
     end
   end

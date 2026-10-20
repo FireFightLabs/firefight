@@ -2,8 +2,9 @@ module Integrations
   module Packs
     # AWS for one account per environment, in the regions the connection names: its ECS services, Lambda functions, EC2
     # instances, RDS databases and CodeBuild projects, their CloudWatch logs and metrics, ECS deployments, Lambda
-    # versions and CodeBuild builds, and three changes Halon may make when the keys allow them and the tools are switched
-    # on (roll an ECS service or a Lambda alias back, restart an ECS service, scale one). Every call goes through AWS's
+    # versions and CodeBuild builds, and the changes Halon may make when the keys allow them and the tools are switched
+    # on (roll an ECS service or a Lambda alias back, restart an ECS service, scale one, reboot an EC2 instance or an RDS
+    # database). Every call goes through AWS's
     # SDK for Ruby (Integrations::AwsApi), with the operations, parameters and answers the API references of ECS,
     # Lambda, EC2, RDS, CodeBuild, CloudWatch and CloudWatch Logs give. The metric names, dimensions and statistics are
     # the ones each service's CloudWatch metrics page documents (AWS/ECS, AWS/Lambda, AWS/EC2, AWS/RDS). Console addresses are the console host of the region's
@@ -121,6 +122,10 @@ module Integrations
       ROLLBACK_STATUSES = {
         "rollback_requested" => Capabilities::History::QUEUED, "rollback_in_progress" => Capabilities::History::RUNNING,
         "rollback_successful" => Capabilities::History::SUCCEEDED, "rollback_failed" => Capabilities::History::FAILED
+      }.freeze
+      # A Lambda function's last update (LastUpdateStatus) in the words every run history uses.
+      UPDATE_STATUSES = {
+        "successful" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED, "inprogress" => Capabilities::History::RUNNING
       }.freeze
       # A service deployment's own id, the last part of its ARN (ECS developer guide, Viewing service deployments).
       DEPLOYMENT_ID = /\A[A-Za-z0-9_-]{1,255}\z/
@@ -345,6 +350,29 @@ module Integrations
            params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
            read_only: false
 
+      tool :reboot_instance,
+           summary: "Reboots an EC2 instance, which stays on the same host and keeps its disks.",
+           description: "Reboot an EC2 instance, like restarting its operating system. It keeps its host, addresses and disks, and EC2 " \
+                        "forces the reboot when the instance does not shut down cleanly within a few minutes. For an instance stuck " \
+                        "in a bad state, such as failing its status checks",
+           params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
+           read_only: false
+
+      tool :reboot_database,
+           summary: "Reboots an RDS database, which drops its connections for a short while.",
+           description: "Reboot an RDS database instance, which restarts its engine and drops every connection for a short while. A " \
+                        "Multi-AZ instance may fail over to its standby instead, which changes which host answers. For a database " \
+                        "stuck in a bad state, such as one that stopped answering",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => RESOURCE,
+               "failover" => { "type" => "boolean", "description" => "A Multi-AZ instance only: reboot by failing over to its standby (optional, false)" }
+             },
+             "required" => [ "resource" ]
+           },
+           read_only: false
+
       tool :scale_service,
            summary: "Sets how many tasks an ECS service runs.",
            description: "Set how many tasks an ECS service runs. An auto scaling policy on the service can change it again",
@@ -412,7 +440,7 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: ACCESS_KEY_ID, label: "Access key ID", secret: false, placeholder: "AKIA...",
-                              hint: "The access key of an IAM user that can read ECS, Lambda, EC2, RDS, CloudWatch metrics and CloudWatch Logs Insights, CodeBuild's projects and builds (codebuild:ListProjects, codebuild:BatchGetProjects, codebuild:ListBuildsForProject and codebuild:BatchGetBuilds) with their logs (logs:GetLogEvents), the tags of ECS services and Lambda functions (ecs:ListTagsForResource and lambda:ListTags), Cost Explorer's spend (ce:GetCostAndUsage), which lets Halon watch the bill, ECS task definitions (ecs:DescribeTaskDefinition), which say which database a service uses, and CloudTrail's event history (cloudtrail:LookupEvents), which lets the map follow changes every five minutes. To follow releases, also allow it to read CodePipeline, CodeDeploy, CloudFormation stacks and their events, App Runner and Elastic Beanstalk. For Halon to apply fixes, also allow it to update ECS services and Lambda aliases, and to stop or roll back a release (ecs:StopServiceDeployment, codepipeline:StopPipelineExecution and RollbackStage, codedeploy:StopDeployment, cloudformation:CancelUpdateStack)."),
+                              hint: "The access key of an IAM user that can read ECS, Lambda, EC2, RDS, CloudWatch metrics and CloudWatch Logs Insights, CodeBuild's projects and builds (codebuild:ListProjects, codebuild:BatchGetProjects, codebuild:ListBuildsForProject and codebuild:BatchGetBuilds) with their logs (logs:GetLogEvents), the tags of ECS services and Lambda functions (ecs:ListTagsForResource and lambda:ListTags), Cost Explorer's spend (ce:GetCostAndUsage), which lets Halon watch the bill, ECS task definitions (ecs:DescribeTaskDefinition), which say which database a service uses, and CloudTrail's event history (cloudtrail:LookupEvents), which lets the map follow changes every five minutes. To follow releases, also allow it to read CodePipeline, CodeDeploy, CloudFormation stacks and their events, App Runner and Elastic Beanstalk. For Halon to apply fixes, also allow it to update ECS services and Lambda aliases, reboot EC2 instances and RDS databases (ec2:RebootInstances, rds:RebootDBInstance), and to stop or roll back a release (ecs:StopServiceDeployment, codepipeline:StopPipelineExecution and RollbackStage, codedeploy:StopDeployment, cloudformation:CancelUpdateStack)."),
           CredentialField.new(key: SECRET_ACCESS_KEY, label: "Secret access key", secret: true, placeholder: "",
                               hint: "The secret AWS shows once, when you create the access key.")
         ]
@@ -552,8 +580,7 @@ module Integrations
         when SERVICE
           run ? one_deployment(environment_row, entry, run) : service_deployments(environment_row, entry, Capabilities::Answers.limit(arguments, DEPLOYMENT_LIMIT))
         when FUNCTION
-          fail!("#{entry.name} is a Lambda function, whose versions are not runs to read by id. Leave run out to list them.") if run
-          function_versions(environment_row, entry, Capabilities::Answers.limit(arguments, VERSION_LIMIT))
+          run ? one_function_run(environment_row, entry, run) : function_versions(environment_row, entry, Capabilities::Answers.limit(arguments, VERSION_LIMIT))
         else fail!("#{entry.name} is #{KIND_ARTICLED.fetch(entry.kind)}, and only ECS services and Lambda functions have deployments.")
         end
       end
@@ -637,6 +664,33 @@ module Integrations
         end
         Telemetry.result("#{entry.name} is starting a new deployment on the task definition it runs, which replaces every task. " \
                          "Nothing to undo. Follow it with describe_resource.", link: resource_link(entry))
+      end
+
+      # RebootInstances only queues the reboot, and the instance stays running throughout (EC2 API reference and user guide,
+      # Reboot your instance).
+      def reboot_instance(environment_row:, arguments:)
+        entry = find_resource(environment_row, arguments["resource"])
+        fail!("#{entry.name} is #{KIND_ARTICLED.fetch(entry.kind)}, and only EC2 instances are rebooted with reboot_instance.") unless entry.kind == INSTANCE
+
+        id = entry.details.to_h["instance_id"] || entry.arn.split("/").last
+        changing(entry) { api(environment_row).call(:ec2, entry.region, :reboot_instances, instance_ids: [ id ]) }
+        Telemetry.result("EC2 is rebooting #{entry.name}#{" (#{id})" unless entry.name == id}. It stays running and keeps its addresses and disks, and EC2 forces the reboot " \
+                         "when it does not shut down cleanly within a few minutes. Nothing to undo. Follow it with describe_resource.", link: resource_link(entry))
+      end
+
+      # RebootDBInstance sets the instance rebooting, which is a short outage, and takes a failover only on a Multi-AZ
+      # instance (RDS API reference, RebootDBInstance).
+      def reboot_database(environment_row:, arguments:)
+        entry = find_resource(environment_row, arguments["resource"])
+        fail!("#{entry.name} is #{KIND_ARTICLED.fetch(entry.kind)}, and only RDS databases are rebooted with reboot_database.") unless entry.kind == DATABASE
+
+        failover = arguments["failover"] == true || arguments["failover"].to_s == "true"
+        changing(entry) do
+          api(environment_row).call(:rds, entry.region, :reboot_db_instance, db_instance_identifier: entry.name, force_failover: failover)
+        end
+        how = " by failing over to its standby, so another host answers once it is back" if failover
+        Telemetry.result("RDS is rebooting #{entry.name}#{how}. Its connections drop until it is available again, usually within " \
+                         "a few minutes. Nothing to undo. Follow it with describe_resource.", link: resource_link(entry))
       end
 
       def cost_and_usage(environment_row:, arguments:)
@@ -1768,8 +1822,66 @@ module Integrations
         end
         how = aliases.size > 1 ? "A rollback takes alias:version, such as #{aliases.first[:name]}:#{published.last[:version]}" : "A rollback takes a version"
         cut = "\nLambda has more versions of #{entry.name} than Firefight reads, so the newest may be missing." if more
-        result = Telemetry.result("Latest #{rows.size} versions of #{entry.name}, newest first. #{how}.\n#{rows.join("\n")}\n#{alias_line(aliases)}#{cut}", link: link)
+        update = latest_update(environment_row, entry)
+        text = "#{update_line(update)}\nLatest #{rows.size} versions of #{entry.name}, newest first. #{how}.\n#{rows.join("\n")}\n#{alias_line(aliases)}#{cut}"
+        runs = [ update_run(entry, update), *published.map { |version| version_run(entry, version) } ]
+        result = Capabilities::RunHistory.with_runs(Telemetry.result(text, link: link), runs, link: link)
         Capabilities::Deploys.with_deploys(result, version_deploys(published, aliases))
+      end
+
+      # The function's last update of its code or settings (GetFunctionConfiguration), the one update of $LATEST Lambda keeps.
+      def latest_update(environment_row, entry)
+        api(environment_row).call(:lambda, entry.region, :get_function_configuration, function_name: entry.name)
+      end
+
+      def update_line(update)
+        reason = update[:last_update_status_reason].presence
+        "Last update of $LATEST at #{update[:last_modified]}: #{update[:last_update_status].to_s.downcase.presence || 'unknown'}#{", #{reason}" if reason}."
+      end
+
+      # Lambda says when its last update started (LastModified) and how it stands (LastUpdateStatus), not when it ended,
+      # and keeps no update before it. It is named by its RevisionId, which changes with every update.
+      def update_run(entry, update)
+        reason = [ update[:last_update_status_reason_code], update[:last_update_status_reason] ].compact_blank.join(": ").presence
+        Capabilities::History::Run.new(
+          id: update[:revision_id].to_s, name: "update", title: "update of $LATEST",
+          status: Capabilities::History.status(update[:last_update_status], UPDATE_STATUSES), started_at: Capabilities::RunHistory.time(update[:last_modified]),
+          url: function_link(entry)&.url, detail: [ ("code sha256 #{update[:code_sha_256].to_s.first(12)}" if update[:code_sha_256]), reason ].compact.join(", ").presence
+        )
+      end
+
+      # A version is published from $LATEST once its update succeeded, so it went out when Lambda made it.
+      def version_run(entry, version)
+        Capabilities::History::Run.new(
+          id: version[:version].to_s, number: version[:version].to_s, name: "version", status: Capabilities::History::SUCCEEDED,
+          started_at: Capabilities::RunHistory.time(version[:last_modified]), url: function_link(entry, version[:version])&.url,
+          detail: [ version[:description].presence, ("code sha256 #{version[:code_sha_256].to_s.first(12)}" if version[:code_sha_256]) ].compact.join(", ").presence
+        )
+      end
+
+      # One run by its id: a published version by its number, or the last update of $LATEST by its revision id. An update
+      # Lambda has since replaced cannot be read, since it keeps only the newest.
+      def one_function_run(environment_row, entry, asked)
+        wanted = asked.to_s.strip.delete_prefix("#")
+        run = if wanted.match?(/\A\d+\z/)
+          version_run(entry, function_version(environment_row, entry, wanted))
+        else
+          update = latest_update(environment_row, entry)
+          unless update[:revision_id].to_s == wanted
+            fail!("#{wanted} is not the last update of #{entry.name}. Lambda keeps only its newest update of $LATEST, #{update[:revision_id]}, " \
+                  "made at #{update[:last_modified]}, so an earlier one was replaced.")
+          end
+          update_run(entry, update)
+        end
+        link = Telemetry::Link.new(provider: PROVIDER, url: run.url)
+        result = Capabilities::History.result([ run ], what: "the versions and updates of #{entry.name}", link: link)
+        Capabilities::RunHistory.with_runs(result, [ run ], link: link)
+      end
+
+      def function_version(environment_row, entry, version)
+        api(environment_row).call(:lambda, entry.region, :get_function_configuration, function_name: entry.name, qualifier: version)
+      rescue AwsApi::NotFound
+        fail!("#{entry.name} has no version #{version}. list_deployments shows its versions.")
       end
 
       # A version is out once Lambda publishes it, when it was last modified. It serves where an alias points at it or
@@ -1817,13 +1929,20 @@ module Integrations
           fail!(parts[:alias] ? "#{entry.name} has no alias #{parts[:alias]}. It has #{names.join(', ')}." : "#{entry.name} has more than one alias (#{names.join(', ')}), so say which, as alias:version.")
         end
         before = chosen[:function_version]
-        fail!("#{chosen[:name]} already points at version #{parts[:version]}.") if before == parts[:version]
+        weights = chosen.dig(:routing_config, :additional_version_weights).to_h.select { |_, weight| weight.to_f.positive? }
+        fail!("#{chosen[:name]} already points at version #{parts[:version]}.") if before == parts[:version] && weights.empty?
 
+        # An empty weights map takes off a weighted split, so every request reaches the version (Lambda developer guide,
+        # Implement Lambda canary deployments using a weighted alias).
         changing(entry) do
-          api(environment_row).call(:lambda, entry.region, :update_alias, function_name: entry.name, name: chosen[:name], function_version: parts[:version])
+          api(environment_row).call(:lambda, entry.region, :update_alias, function_name: entry.name, name: chosen[:name], function_version: parts[:version],
+                                                                           routing_config: { additional_version_weights: {} })
         end
-        Telemetry.result("#{entry.name}'s alias #{chosen[:name]} now points at version #{parts[:version]} in place of #{before}. " \
-                         "Undo by pointing it back at #{before}.", link: resource_link(entry))
+        split = weights.map { |version, weight| "#{(weight.to_f * 100).round}% to version #{version}" }.join(" and ")
+        was = split.present? ? "#{before} with #{split}" : before
+        Telemetry.result("#{entry.name}'s alias #{chosen[:name]} now points at version #{parts[:version]} in place of #{was}" \
+                         "#{', so every request reaches it' if split.present?}. " \
+                         "Undo by pointing it back at #{before}#{" and setting its weighted routing to #{split} again" if split.present?}.", link: resource_link(entry))
       end
 
       # A change the keys' policy refuses says what to allow, since that is the workspace's to fix in AWS. AWS's own
@@ -1839,17 +1958,27 @@ module Integrations
 
       def time(value) = value.respond_to?(:utc) ? value.utc.iso8601 : value.to_s.presence || "unknown"
 
-      # Pages in the AWS console, on the console host of the region's partition, at the service paths AWS's own guides link to.
+      # Each resource's own page in the AWS console, on the console host of the region's partition, at the paths AWS's own
+      # tools and samples open them at: an ECS service's health tab, a Lambda function, an EC2 instance's details and an
+      # RDS instance's page.
       def resource_link(entry)
         return app_link(entry) if AppPlatforms.platform_of(entry.arn)
 
         case entry.kind
-        when SERVICE then console_link(entry.region, "ecs/v2")
-        when FUNCTION then console_link(entry.region, "lambda/home", "/functions")
-        when INSTANCE then console_link(entry.region, "ec2/")
+        when SERVICE
+          return console_link(entry.region, "ecs/v2") if entry.cluster.blank?
+
+          console_link(entry.region, "ecs/v2/clusters/#{Http.segment(entry.cluster)}/services/#{Http.segment(entry.name)}/health")
+        when FUNCTION then function_link(entry)
+        when INSTANCE then console_link(entry.region, "ec2/home", "InstanceDetails:instanceId=#{entry.details.to_h['instance_id'] || entry.arn.split('/').last}")
         when PROJECT then console_link(entry.region, "codesuite/codebuild/#{arn_account(entry.arn)}/projects/#{Http.segment(entry.name)}/history")
-        else console_link(entry.region, "rds/")
+        else console_link(entry.region, "rds/home", "database:id=#{entry.name};is-cluster=false")
         end
+      end
+
+      # A Lambda function's page, or one of its published versions'.
+      def function_link(entry, version = nil)
+        console_link(entry.region, "lambda/home", "/functions/#{Http.segment(entry.name)}#{"/versions/#{Http.segment(version)}" if version}")
       end
 
       # A build's own page in the CodeBuild console, by the project's account and the build's id.
