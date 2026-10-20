@@ -138,10 +138,10 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: TOKEN, label: "Personal access token", secret: true, placeholder: "Paste a token",
-                              hint: "An organization scoped personal access token, ideally of a user made for Firefight, with #{SCOPES_WORDS}. " \
-                                    "Running, retrying or canceling a pipeline run needs Build (Read & execute), answering an approval also " \
-                                    "Pipeline Resources (Use), commenting on a pull request Code (Read & write), and following changes live " \
-                                    "Service Hooks (Read, query, & manage) from a project administrator.")
+                              hint: "Create one in Azure DevOps under User settings, Personal access tokens, for this organization. " \
+                                    "Reading needs Code, Build, Release and Project and Team (Read), and Environment (Read & manage). " \
+                                    "Running or canceling pipelines needs Build (Read & execute), approvals Pipeline Resources (Use), " \
+                                    "pull request comments Code (Read & write), and live updates Service Hooks (Read, query, & manage) from a project administrator.")
         ]
       end
 
