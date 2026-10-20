@@ -51,7 +51,7 @@ module Integrations
 
         test "redeploying an earlier deployment runs again the job that made it, or its whole run when only the run is named" do
           GithubApp.stubs(:get).with("/repos/acme/web/deployments/5", token: "ghs_token").returns(deployment(5, "production"))
-          GithubApp.stubs(:get).with("/repos/acme/web/deployments/5/statuses?per_page=100", token: "ghs_token")
+          GithubApp.stubs(:get).with("/repos/acme/web/deployments/5/statuses?page=1&per_page=100", token: "ghs_token")
                    .returns([ { "state" => "inactive", "log_url" => "https://github.com/acme/web/actions/runs/41/job/9" } ])
           GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/41", token: "ghs_token").returns(workflow_run(41))
           GithubApp.stubs(:get).with("/repos/acme/web/actions/jobs/9", token: "ghs_token").returns("id" => 9, "run_id" => 41)
@@ -62,15 +62,26 @@ module Integrations
           assert_includes text, "Deploying the deployment 5 of #{'b' * 12} to production again, running the job that made it (job 9) and the jobs that depend on it in Deploy run 7 (41)"
           assert_not Github.tool_definitions.find { |definition| definition.name == "redeploy" }.read_only
 
-          GithubApp.stubs(:get).with("/repos/acme/web/deployments/5/statuses?per_page=100", token: "ghs_token")
+          GithubApp.stubs(:get).with("/repos/acme/web/deployments/5/statuses?page=1&per_page=100", token: "ghs_token")
                    .returns([ { "state" => "inactive" }, { "state" => "success", "target_url" => "https://github.com/acme/web/actions/runs/41" } ])
           GithubApp.expects(:act).with("/repos/acme/web/actions/runs/41/rerun", {}, token: "ghs_token").returns({})
           assert_includes @pack.redeploy(environment_row: @row, arguments: { "repo" => "acme/web", "deployment" => 5 })["content"].first["text"], "every job of the run that made it"
         end
 
+        test "the run that made a deployment is found on a later page of its statuses" do
+          GithubApp.stubs(:get).with("/repos/acme/web/deployments/5", token: "ghs_token").returns(deployment(5, "production"))
+          GithubApp.stubs(:get).with("/repos/acme/web/deployments/5/statuses?page=1&per_page=100", token: "ghs_token").returns(Array.new(100) { { "state" => "inactive" } })
+          GithubApp.stubs(:get).with("/repos/acme/web/deployments/5/statuses?page=2&per_page=100", token: "ghs_token")
+                   .returns([ { "state" => "success", "target_url" => "https://github.com/acme/web/actions/runs/41" } ])
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/41", token: "ghs_token").returns(workflow_run(41))
+          GithubApp.expects(:act).with("/repos/acme/web/actions/runs/41/rerun", {}, token: "ghs_token").returns({})
+
+          assert_includes @pack.redeploy(environment_row: @row, arguments: { "repo" => "acme/web", "deployment" => 5 })["content"].first["text"], "every job of the run that made it"
+        end
+
         test "a run that built another commit, or a job of another run, is never run again for a deployment" do
           GithubApp.stubs(:get).with("/repos/acme/web/deployments/5", token: "ghs_token").returns(deployment(5, "production"))
-          GithubApp.stubs(:get).with("/repos/acme/web/deployments/5/statuses?per_page=100", token: "ghs_token")
+          GithubApp.stubs(:get).with("/repos/acme/web/deployments/5/statuses?page=1&per_page=100", token: "ghs_token")
                    .returns([ { "state" => "success", "log_url" => "https://github.com/acme/web/actions/runs/41/job/9" } ])
           GithubApp.stubs(:get).with("/repos/acme/web/actions/jobs/9", token: "ghs_token").returns("id" => 9, "run_id" => 40)
           GithubApp.expects(:act).never
@@ -87,7 +98,7 @@ module Integrations
 
         test "a deployment no GitHub Actions run made is refused, saying the system that made it deploys it again" do
           GithubApp.stubs(:get).with("/repos/acme/web/deployments/5", token: "ghs_token").returns(deployment(5, "web"))
-          GithubApp.stubs(:get).with("/repos/acme/web/deployments/5/statuses?per_page=100", token: "ghs_token")
+          GithubApp.stubs(:get).with("/repos/acme/web/deployments/5/statuses?page=1&per_page=100", token: "ghs_token")
                    .returns([ { "state" => "success", "log_url" => "https://app.northflank.com/builds/1" } ])
           GithubApp.expects(:act).never
 

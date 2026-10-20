@@ -11,6 +11,8 @@ module Integrations
         BRANCH_POLICY = "branch_policy".freeze
         REVIEWERS = "required_reviewers".freeze
         WAIT_TIMER = "wait_timer".freeze
+        STATUS_PAGE = 100
+        STATUS_PAGES = 10
 
         def self.included(pack)
           pack.tool :list_environments,
@@ -85,10 +87,15 @@ module Integrations
         private
 
         # The run, and the job when named, a deployment's statuses say made it. A newer status may leave its log out, so
-        # every status is looked through, newest first.
+        # every status is looked through, newest first, a page of 100 at a time until one names a run or none are left.
         def actions_run_of(repo, id, token)
-          statuses = Array(GithubApp.get("/repos/#{repo}/deployments/#{id}/statuses?per_page=100", token: token))
-          statuses.lazy.filter_map { |status| deployment_log(status).to_s.match(RUN_PAGE)&.captures }.first
+          (1..STATUS_PAGES).each do |page|
+            statuses = Array(GithubApp.get("/repos/#{repo}/deployments/#{id}/statuses?#{{ 'page' => page, 'per_page' => STATUS_PAGE }.to_query}", token: token))
+            found = statuses.lazy.filter_map { |status| deployment_log(status).to_s.match(RUN_PAGE)&.captures }.first
+            return found if found
+            return if statuses.size < STATUS_PAGE
+          end
+          nil
         end
 
         def environment_line(environment)
