@@ -44,6 +44,13 @@ enum AppState {
   APP_STATE_DERIVED = 9 [deprecated=true];
 }
 
+enum AppStopSource {
+  APP_STOP_SOURCE_UNSPECIFIED = 0;
+  APP_STOP_SOURCE_CLI = 1;
+  APP_STOP_SOURCE_PYTHON_CLIENT = 2;
+  APP_STOP_SOURCE_WEB = 3;
+}
+
 enum DeploymentType {
   DEPLOYMENT_TYPE_UNSPECIFIED = 0;
   DEPLOYMENT_TYPE_STANDARD = 1;
@@ -231,6 +238,11 @@ message AppRolloverResponse {
   double deployed_at = 4;
 }
 
+message AppStopRequest {
+  string app_id = 1;
+  AppStopSource source = 2;
+}
+
 message AuthTokenGetRequest {
 }
 
@@ -271,6 +283,14 @@ message CommitInfo {
   string author_name = 6;
   string author_email = 7;
   string repo_url = 8;
+}
+
+message ContainerStopRequest {
+  string task_id = 1;
+  bool graceful = 2; // Let a Function container finish processing any inputs before exiting.
+}
+
+message ContainerStopResponse {
 }
 
 message FunctionUpdateSchedulingParamsRequest {

@@ -200,7 +200,7 @@ class Chat::SkillTest < ActiveSupport::TestCase
   test "every Cloudflare skill starts from the zone on the map, and lists zones with execute only when the map lacks it" do
     skills = Chat::Skill.all.select { |skill| skill.source == "cloudflare" }
 
-    assert_equal 8, skills.size
+    assert_equal 9, skills.size
     skills.each do |skill|
       assert_includes skill.tools, Chat::Tools::UseSkill::MAP, "#{skill.name} names the map"
       assert_includes skill.tools, "resource_status", "#{skill.name} reads the zone where the map is not the person's to read"
