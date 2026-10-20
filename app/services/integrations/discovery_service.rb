@@ -15,9 +15,22 @@ module Integrations
       end
     end
 
+    # Only the tools Firefight adds to the connection's server (Provider#named_tools), saved as discovery saves them,
+    # without asking the server, so a connection made before one was added gets it without a refresh. The server's own
+    # tools are left as they are. A provider with none answers nothing.
+    def self.sync_named!(integration)
+      definitions = Provider.for(integration.provider).named_tools&.definitions.to_a
+      return [] if definitions.empty?
+
+      Integration::Tool.transaction do
+        Ability::Role.filing_together(integration) { integration.counting_tools_together { save_all!(integration, definitions, all: false) } }
+      end
+    end
+
     # The connection's tools are read once. A tool seen before is saved on its own, and the new ones together, each
-    # switched on unless another connection's tool shares its name as Halon calls it, read once for every new tool.
-    def self.save_all!(integration, definitions)
+    # switched on unless another connection's tool shares its name as Halon calls it, read once for every new tool. all
+    # says definitions are every tool the connection has, so one missing from them is marked removed.
+    def self.save_all!(integration, definitions, all: true)
       entry = IntegrationProvider.find(integration.provider)
       known = integration.tools.reload.index_by(&:name)
       namesakes = integration.namesakes_for(definitions.map(&:name) - known.keys)
@@ -39,7 +52,7 @@ module Integrations
       Integration::Tool.insert_discovered!(integration, fresh.compact)
       seen = definitions.map(&:name)
 
-      integration.tools.available.where.not(name: seen).find_each { |tool| tool.update!(removed_at: Time.current) }
+      integration.tools.available.where.not(name: seen).find_each { |tool| tool.update!(removed_at: Time.current) } if all
       seen
     end
     private_class_method :save_all!
