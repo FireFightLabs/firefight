@@ -17,10 +17,14 @@ module Integrations
       assert_empty unchecked, "A provider added since the rule was written has to check its links before it lands"
     end
 
-    test "a remote provider that relies on Firefight for its links has a builder" do
-      remote = IntegrationProvider.all.select { |provider| provider.kind == Integration::KIND_MCP && provider.source_links == IntegrationProvider::SOURCE_LINKS_FIREFIGHT }
+    test "a remote provider that relies on Firefight for its links has a builder, and only a provider that can be connected remotely has one" do
+      firefight = IntegrationProvider.all.select { |provider| provider.source_links == IntegrationProvider::SOURCE_LINKS_FIREFIGHT }
+      remote = firefight.select { |provider| provider.kind == Integration::KIND_MCP }
+      builders = Provider.all.select(&:source_links).map(&:key)
 
-      assert_equal remote.map(&:key).sort, Provider.all.select(&:source_links).map(&:key).sort
+      assert_empty remote.map(&:key) - builders
+      assert_empty builders - firefight.select { |provider| provider.kind == Integration::KIND_MCP || provider.mcp_alternative? }.map(&:key)
+      assert_includes builders, "circleci", "CircleCI's hosted server, offered beside its API, keeps its links"
     end
 
     test "a declaration the rule does not know, or a server that does not say why, is refused when the registry loads" do
