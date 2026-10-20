@@ -115,6 +115,20 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_equal [ "Release run #46 is taking longer than usual, 30 minutes so far where it usually takes 18 minutes." ], watch.updates.reload.map(&:text)
   end
 
+  test "a run held for a person past its usual time is said to wait, never to be slow" do
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+    answers("ci_runs" => History.result([ run_of("46", History::WAITING, Time.current) ], what: "repo"))
+    check!(watch)
+
+    travel 30.minutes do
+      2.times { check!(watch) }
+    end
+
+    assert_not watch.updates.reload.any? { |update| update.kind == Chat::Watch::Update::KIND_SLOW }
+    assert watch.updates.any? { |update| update.text.include?(Chat::Watch::Step::PART_HELD) }
+  end
+
   test "at its time limit it stops and says what it last saw" do
     start_release_watch
     watch = @conversation.chat.watches.sole

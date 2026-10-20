@@ -204,11 +204,11 @@ module Integrations
 
           workflows = named_workflows(repo, token, name)
           if workflows.empty?
-            return Capabilities::History.result(deployment_runs(repo, token, limit), what: "deployments in #{repo}, since no workflow is named #{name}",
+            return Capabilities::History.result(deployment_runs(repo, token, limit, name), what: "deployments in #{repo}, since no workflow is named #{name}",
                                                 link: actions_link(repo_page(repo, "deployments")), name: name, limit: limit)
           end
 
-          runs = workflows.flat_map { |workflow| workflow_runs_of(repo, workflow, token, query).map { |run| history_run(run) } }
+          runs = workflows.flat_map { |workflow| workflow_runs_of(repo, workflow, token, query).map { |run| named_run(history_run(run), workflow, name) } }
           Capabilities::History.result(runs, what: "#{workflows.map { |workflow| workflow['name'] }.to_sentence} in #{repo}", link: link, limit: limit)
         end
 
@@ -415,6 +415,11 @@ module Integrations
           wanted = text.downcase
           workflows = Array(GithubApp.get("/repos/#{repo}/actions/workflows?per_page=100", token: token)["workflows"])
           workflows.select { |workflow| workflow["name"].to_s.downcase.include?(wanted) || File.basename(workflow["path"].to_s).downcase.include?(wanted) }.first(WORKFLOWS_READ)
+        end
+
+        # A run of a workflow found by its file is named with the file too, so a watch following that name finds it.
+        def named_run(run, workflow, name)
+          run.called?(name) ? run : run.with(name: "#{run.name} (#{File.basename(workflow['path'].to_s)})")
         end
 
         def workflow_runs_of(repo, workflow, token, query)

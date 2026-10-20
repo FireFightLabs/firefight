@@ -187,7 +187,7 @@ module Integrations
           query = { "ref" => ref_argument(arguments), "status" => status, "source" => arguments["source"].presence, "per_page" => limit }.compact
           chosen = name ? named_pipelines(gitlab, repo, query, name) : Array(gitlab.get("#{GitlabApi.project(repo)}/pipelines", query))
           if name && chosen.empty?
-            return Capabilities::History.result(deployment_runs(gitlab, repo, limit), what: "deployments in #{repo}, since no pipeline is named #{name}",
+            return Capabilities::History.result(deployment_runs(gitlab, repo, limit, name), what: "deployments in #{repo}, since no pipeline is named #{name}",
                                                 link: link(gitlab.web_url(repo, "-", "environments")), name: name, limit: limit)
           end
 

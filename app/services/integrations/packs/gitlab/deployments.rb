@@ -156,8 +156,14 @@ module Integrations
           )
         end
 
-        def deployment_runs(gitlab, repo, limit)
-          Array(gitlab.get("#{GitlabApi.project(repo)}/deployments", "order_by" => "id", "sort" => "desc", "per_page" => limit)).map { |deployment| deployment_run(deployment) }
+        # The deployments to the environment named, which GitLab matches whole, else the newest of every environment, more
+        # than asked for, so one named in part is found among frequent deploys elsewhere.
+        def deployment_runs(gitlab, repo, limit, environment = nil)
+          path = "#{GitlabApi.project(repo)}/deployments"
+          newest = { "order_by" => "id", "sort" => "desc" }
+          exact = environment.present? ? Array(gitlab.get(path, newest.merge("environment" => environment, "per_page" => limit))) : []
+          found = exact.presence || Array(gitlab.get(path, newest.merge("per_page" => environment.present? ? Pipelines::HISTORY_CANDIDATES : limit)))
+          found.map { |deployment| deployment_run(deployment) }
         end
 
         def one_deployment(gitlab, repo, given)

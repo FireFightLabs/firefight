@@ -109,10 +109,12 @@ module Integrations
           )
         end
 
-        def deployment_runs(repo, token, limit)
-          Array(GithubApp.get("/repos/#{repo}/deployments?#{{ 'per_page' => limit }.to_query}", token: token)).map do |deployment|
-            deployment_run(deployment, newest_status(repo, deployment["id"], token))
-          end
+        # The deployments to the environment named, which GitHub matches whole, else the newest to any environment, so one
+        # named in part still matches. Each costs a call for its status, so no more than limit are read.
+        def deployment_runs(repo, token, limit, environment = nil)
+          listed = ->(query) { Array(GithubApp.get("/repos/#{repo}/deployments?#{query.compact.to_query}", token: token)) }
+          deployments = (listed.call("environment" => environment, "per_page" => limit) if environment.present?).presence || listed.call("per_page" => limit)
+          deployments.map { |deployment| deployment_run(deployment, newest_status(repo, deployment["id"], token)) }
         end
 
         def one_deployment(repo, token, given)

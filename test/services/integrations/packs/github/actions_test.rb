@@ -67,13 +67,16 @@ module Integrations
 
           result = @pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web", "name" => "release", "status" => "failure", "event" => "push" })
 
-          assert_equal [ %w[45 failed] ], Capabilities::History.runs_of(result).map { |run| [ run.number, run.status ] }
+          assert_equal [ [ "45", "failed", "Ship it (release.yml)" ] ], Capabilities::History.runs_of(result).map { |run| [ run.number, run.status, run.name ] }
+          assert Capabilities::History.runs_of(result).sole.called?("release"), "a watch following the file's name finds the run"
           assert_includes text_of(result), "recent runs of Ship it in acme/web"
           assert_match "status must be one of", assert_raises(NativePack::Error) { @pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web", "status" => "red" }) }.message
         end
 
         test "a name no workflow has reads the deployments as runs, named for where each went, and one is read back by its id" do
           GithubApp.stubs(:get).with("/repos/acme/web/actions/workflows?per_page=100", token: "ghs_token").returns("workflows" => [ { "id" => 4, "name" => "CI", "path" => ".github/workflows/ci.yml" } ])
+          GithubApp.stubs(:get).with("/repos/acme/web/deployments?environment=production&per_page=20", token: "ghs_token").returns([ deployment(5, "production") ])
+          GithubApp.stubs(:get).with("/repos/acme/web/deployments?environment=prod&per_page=20", token: "ghs_token").returns([])
           GithubApp.stubs(:get).with("/repos/acme/web/deployments?per_page=20", token: "ghs_token").returns([ deployment(5, "production"), deployment(4, "staging") ])
           GithubApp.stubs(:get).with("/repos/acme/web/deployments/5", token: "ghs_token").returns(deployment(5, "production"))
           GithubApp.stubs(:get).with("/repos/acme/web/deployments/5/statuses?per_page=1", token: "ghs_token")
@@ -86,6 +89,8 @@ module Integrations
           assert_equal [ [ "deployment-5", "deployment to production", Capabilities::History::RUNNING, "https://github.com/acme/web/actions/runs/41/job/9" ] ],
                        runs.map { |run| [ run.id, run.name, run.status, run.url ] }
           assert_equal [ "deployment-5", "bbbbbbb by ana" ], [ followed.id, followed.detail ]
+          partly = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web", "name" => "prod" }))
+          assert_equal [ "deployment-5" ], partly.map(&:id), "a name GitHub does not match whole is looked for among the newest deployments"
         end
 
         test "a run waiting on an environment's reviewers, or on approval to run at all, is waiting rather than queued, and says on what" do

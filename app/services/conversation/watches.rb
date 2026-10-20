@@ -548,7 +548,9 @@ module Conversation::Watches
     unless run.finished?
       said_start = step.started_told_at.nil? && step.started!(run_id: run.id.to_s, at: run.started_at, url: run.url)
       tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "#{step.label} started.") if said_start && step.report_start
-      tell!(watch, Chat::Watch::Update::KIND_SLOW, slow_words(step, now)) if step.slow?(now) && step.slow_told!
+      # A run held for a person is not slow, and the hold was said already.
+      held = run.status == Integrations::Capabilities::History::WAITING
+      tell!(watch, Chat::Watch::Update::KIND_SLOW, slow_words(step, now)) if !held && step.slow?(now) && step.slow_told!
       return
     end
 

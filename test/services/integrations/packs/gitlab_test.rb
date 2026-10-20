@@ -233,13 +233,15 @@ module Integrations
         stub_get("#{PROJECT}/pipelines", { "per_page" => 10, "name" => "production" }, [])
         stub_get("#{PROJECT}/pipelines", { "per_page" => 50 }, [ { "id" => 31, "status" => "success", "ref" => "main" } ])
         blocked = deployment(4, "production", "a" * 40).merge("status" => "blocked", "created_at" => "2026-10-04T00:00:00Z")
-        stub_get("#{PROJECT}/deployments", { "order_by" => "id", "sort" => "desc", "per_page" => 10 }, [ blocked ])
+        stub_get("#{PROJECT}/deployments", { "order_by" => "id", "sort" => "desc", "environment" => "production", "per_page" => 10 }, [])
+        stub_get("#{PROJECT}/deployments", { "order_by" => "id", "sort" => "desc", "per_page" => 50 }, [ blocked ])
         stub_get("#{PROJECT}/deployments/4", blocked)
 
         listed = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/platform/web", "name" => "production" })).sole
         followed = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/platform/web", "run" => "deployment-4" })).sole
 
-        assert_equal [ "deployment-4", "deployment to production", Capabilities::History::WAITING ], [ listed.id, listed.name, listed.status ]
+        assert_equal [ "deployment-4", "deployment to production", Capabilities::History::WAITING ], [ listed.id, listed.name, listed.status ],
+                     "with none matched whole, the newest of every environment are read, more than asked for"
         assert_includes followed.detail, "waiting for approval, approve_deployment gives it"
       end
 
