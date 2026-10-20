@@ -13,8 +13,8 @@ skills:
     version: 1
     digest: 9fdf401a384290cacb0475633a7ee3c39ba17da61163386c521833b7e88b9b25
   aws_lambda:
-    version: 1
-    digest: 99fc51c41464e2b798de076db5fcf77e3f4ce49dd557e1dea93a929ffb81cb1c
+    version: 2
+    digest: 95535944f9acfec430f0df2850e3d0568f1ee9047dc5b706d0f57e83b0570087
   aws_logs_insights:
     version: 1
     digest: 1dd939f1d5cd9471253e885bd70eb98151a2dd1a88c236c6be2431fc3bc765b4
@@ -25,8 +25,8 @@ skills:
     version: 1
     digest: 4bdfda6ce40607fdf13ebc5435d536c25d8e95deb69a0f74578ad5aa81c6be47
   aws_triage:
-    version: 1
-    digest: cdf5150c62cccac7994dfcddb1bb6d1a59ccc760b7a4cafe6368508e9e6f62e2
+    version: 2
+    digest: eb51df303b04a1f0e0253da0405d69d81ed3c90a4e5c60bd35ec2aee6f952f42
   axiom_errors:
     version: 1
     digest: 97135b6d67587160ab338f6a47bd5baf875fa9843bc4875197aad8b253b26a15
@@ -49,8 +49,8 @@ skills:
     version: 1
     digest: 68ed788da3849a3d1445b0803b0baa1465a4680274c4fb3c46b73271ddcc0cdc
   azure_fixes:
-    version: 1
-    digest: c102757f344495f1c28f5340b8137de7ac95e36e3a063a71dd5b0b2cf8b0b745
+    version: 2
+    digest: a55dccac314a7c8733c2f4cc5a26826fff5d935b56fdedabb62e03b00e5f877f
   azure_postgresql:
     version: 1
     digest: 91acbd1510717e9926d87d14e208ee24fa7469d9c24b3a3136240dce0da3fb41
