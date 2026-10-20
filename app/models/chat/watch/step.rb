@@ -293,7 +293,7 @@ class Chat::Watch::Step < ApplicationRecord
   # step before it ended, or Halon last gave it a better read. A step that waits for others could start only once they
   # all succeeded, so it counts from then, whatever else still goes.
   def overdue?(now = Time.current)
-    return false unless history? && status == STATUS_WAITING && handed_back_at.nil?
+    return false unless (history? || read_tool?) && status == STATUS_WAITING && handed_back_at.nil?
 
     earlier = waits? ? prerequisites : watch.steps.select { |step| step.position < position }
     return false unless waits? ? ready? : earlier.all?(&:over?)

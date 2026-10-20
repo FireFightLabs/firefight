@@ -49,9 +49,11 @@ class Conversation::Watches::Reader
     Answer.new(result: run(call.fallback), call: call.fallback)
   end
 
-  # What one of Halon's read tools answered, by the name Halon calls it, as the person who asked. Text, and whether the
-  # call failed.
-  Said = Data.define(:text, :failed) do
+  # What one of Halon's read tools answered, by the name Halon calls it, as the person who asked. Text, whether the call
+  # failed, and the runs it holds when the provider's answer is a run history, nil otherwise.
+  Said = Data.define(:text, :failed, :runs) do
+    def initialize(runs: nil, **) = super
+
     def failed? = failed
   end
 
@@ -61,7 +63,9 @@ class Conversation::Watches::Reader
 
     agent.started_call!
     text = entry.tool.call(**arguments.to_h.transform_keys(&:to_sym))
-    Said.new(text: FirefightAi::Evidence.unframe(text).body, failed: agent.failed?)
+    failed = agent.failed?
+    runs = Integrations::Capabilities::History.runs_of(entry.tool.last_result) if !failed && entry.tool.is_a?(Chat::Tools::Connection)
+    Said.new(text: FirefightAi::Evidence.unframe(text).body, failed: failed, runs: runs)
   end
 
   # nil when the code host does not know the ref yet, such as a tag a release has not pushed.
