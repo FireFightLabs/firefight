@@ -90,19 +90,25 @@ module Integrations
         def register(row, url:)
           api = Packs::Planetscale.api(row)
           refused = []
-          secrets = databases(row).filter_map do |organization, database|
-            own = own_webhooks(api, organization, database, url)
-            hook = own.first
-            hook = if hook.nil? then api.create_webhook(organization, database, url: url, events: EVENTS)
-            elsif !covers?(hook) then api.update_webhook(organization, database, hook["id"], events: EVENTS).then { |updated| updated.merge("secret" => updated["secret"].presence || hook["secret"]) }
-            else hook
+          followed = databases(row)
+          secrets = followed.filter_map do |organization, database|
+            existing = nil
+            begin
+              existing = own_webhooks(api, organization, database, url).first
+              hook = if existing.nil? then api.create_webhook(organization, database, url: url, events: EVENTS)
+              elsif !covers?(existing) then api.update_webhook(organization, database, existing["id"], events: EVENTS).then { |updated| updated.merge("secret" => updated["secret"].presence || existing["secret"]) }
+              else existing
+              end
+              hook["secret"].presence
+            rescue PlanetscaleApi::Refused => error
+              refused << Sentence.join("#{organization}/#{database}", error.message)
+              # Its webhook from before, at this address, still signs what it sends, so its own secret is kept.
+              existing&.dig("secret").presence
             end
-            hook["secret"].presence
-          rescue PlanetscaleApi::Refused => error
-            refused << Sentence.join("#{organization}/#{database}", error.message)
-            nil
           end
-          raise MapEventSource::Refused, Sentence.all("PlanetScale would not add Firefight's webhook", refused.join(" ")) if secrets.empty? && refused.any?
+          if refused.any? && refused.size == followed.size
+            raise MapEventSource::Refused, Sentence.all("PlanetScale would not add Firefight's webhook", refused.join(" "))
+          end
 
           MapEventSource::Webhook.new(id: ALL_DATABASES, secret: secrets.uniq.join("\n").presence)
         end

@@ -6,7 +6,13 @@ module Integrations
     # Its answer is the same whoever relays it, so relayed changes nothing. A connection made with Firefight's own app
     # whose installation stopped answers why instead of calling the server (Installations.refusal), as a native one does.
     def self.call(tool:, environment_row:, arguments:, box_key: nil, progress: nil, request: nil, relayed: false)
-      return NativeExecutor.call(tool: tool, environment_row: environment_row, arguments: arguments) if Provider.for(tool.integration.provider).runs_beside?(tool)
+      provider = Provider.for(tool.integration.provider)
+      if provider.runs_beside?(tool)
+        refused = provider.beside_refusal(tool, ConnectionSettings.of(environment_row))
+        raise PolicyRefusal, refused if refused
+
+        return NativeExecutor.call(tool: tool, environment_row: environment_row, arguments: arguments)
+      end
 
       refused = Installations.refusal(environment_row, tool)
       return { "content" => [ { "type" => "text", "text" => refused } ], "isError" => true } if refused

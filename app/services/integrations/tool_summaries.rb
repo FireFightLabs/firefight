@@ -22,7 +22,7 @@ module Integrations
     def declared(tool)
       integration = tool.integration
       pack = NativePack.for(integration.provider)
-      own = pack&.tool_definitions&.find { |definition| definition.name == tool.name }&.summary if integration.native? || pack&.beside_server?
+      own = pack&.tool_definitions&.find { |definition| definition.name == tool.name }&.summary if integration.native? || Provider.for(integration.provider).runs_beside?(tool)
       own || (IntegrationProvider.find(integration.provider)&.tool_summaries&.[](tool.name) unless integration.native?)
     end
 

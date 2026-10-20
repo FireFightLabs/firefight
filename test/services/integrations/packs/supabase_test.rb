@@ -111,6 +111,8 @@ module Integrations
         assert_match "Point in time recovery is off", error.message
 
         SupabaseApi.any_instance.stubs(:backups).returns({ "pitr_enabled" => true })
+        error = assert_raises(NativePack::Error) { call(:restore_to_point_in_time, "project_id" => PARENT, "to" => "20261003090000") }
+        assert_match "A migration's version is not a moment", error.message
         SupabaseApi.any_instance.expects(:restore_to).with(PARENT, Time.zone.parse("2026-10-20T09:00:00Z")).returns({})
         text = call(:restore_to_point_in_time, "project_id" => PARENT, "to" => "2026-10-20T09:00:00Z")["content"].sole["text"]
         assert_match "Supabase is restoring #{PARENT}'s database to 2026-10-20T09:00:00Z.", text

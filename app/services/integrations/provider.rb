@@ -88,6 +88,13 @@ module Integrations
     # Whether Firefight runs a tool of a connection to the provider's MCP server through the provider's pack.
     def runs_beside?(tool) = tool.spec.to_h[FIREFIGHT_TOOL] == true && pack&.beside_server? == true
 
+    # Why the connection is no longer offered a tool Firefight runs, such as a change on a connection now read only, or
+    # nil while it is. Checked when the tool runs, since a tool saved before stays saved until discovery runs again.
+    def beside_refusal(tool, settings)
+      offered = firefight_tools(settings).any? { |definition| definition.name == tool.name }
+      "#{tool.name} is not offered on #{settings.display_name} as it is set up now, so Firefight did not run it." unless offered
+    end
+
     # The class names this definition gives, so a test can load every one.
     def part_names = @parts
 

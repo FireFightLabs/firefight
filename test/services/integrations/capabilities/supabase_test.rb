@@ -194,6 +194,7 @@ class Integrations::Capabilities::SupabaseTest < ActiveSupport::TestCase
     call = resolve(Capabilities::ROLLBACK, "resource" => "shop", "to" => "2026-10-04T09:30:00Z")
     assert_equal [ "restore_to_point_in_time", { "project_id" => REF, "to" => "2026-10-04T09:30:00Z" } ], [ call.tool.name, call.arguments ]
     assert_equal "nothing after 2026-10-04T09:30:00Z, which is lost", call.keeps
+    assert_match "A migration's version is not a moment", unroutable(Capabilities::ROLLBACK, "resource" => "shop", "to" => "20261003090000")
   end
 
   test "auth, storage and realtime logs read as the server's get_logs reads them" do

@@ -88,6 +88,18 @@ module Integrations
                      .returns(Telemetry.result("healthy", link: nil))
       McpClient.expects(:new).never
       assert_equal "healthy", call(tool, { "project_id" => "abc" })["content"].sole["text"]
+      assert_equal "Shows how a project and each of its services stand now.", tool.summary
+
+      restart_tool = supabase.tools.create!(name: "restart_project", description: "restart", read_only: false, enabled: true, params_schema: {},
+                                            spec: { Provider::FIREFIGHT_TOOL => true })
+      supabase.update!(settings: supabase.settings.merge(Integration::FIELDS_SETTING => { "read_only" => "true" }))
+      Packs::Supabase.any_instance.expects(:call).with("restart_project", anything).never
+      error = assert_raises(PolicyRefusal) { call(restart_tool.reload) }
+      assert_match "restart_project is not offered on Supabase as it is set up now", error.message
+
+      server_tool = supabase.tools.create!(name: "list_action_runs", description: "The server's own runs. More words.", read_only: true, enabled: true,
+                                           params_schema: {}, spec: { "tool_name" => "list_action_runs" })
+      assert_equal "The server's own runs.", server_tool.summary, "a server tool keeps its own words beside a pack tool of the same name"
     end
 
     private

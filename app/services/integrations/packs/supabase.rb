@@ -113,6 +113,17 @@ module Integrations
 
       def self.beside_server? = true
 
+      # A moment written as an ISO 8601 date and time, such as 2026-10-20T09:30:00Z. A bare number, such as a migration's
+      # version 20261003090000, would parse as a time too, so it is never taken as one.
+      MOMENT = /\A\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?\z/i
+      MOMENT_WORDS = "Say the moment to restore to as an ISO 8601 time, such as 2026-10-20T09:30:00Z. A migration's version is not a moment, " \
+                     "and only a preview branch goes back to a migration.".freeze
+
+      def self.moment(value)
+        written = value.to_s.strip
+        Telemetry.parse_time(written) if written.match?(MOMENT)
+      end
+
       # A connection made read only is offered none of the changes, as the server leaves out its own.
       def self.offers?(settings, definition) = definition.read_only || settings.field(READ_ONLY).to_s != "true"
 
@@ -224,7 +235,7 @@ module Integrations
 
       def restore_to_point_in_time(environment_row:, arguments:)
         ref = ref!(environment_row, arguments)
-        at = Telemetry.parse_time(arguments["to"]) || fail!("Say the moment to restore to as an ISO 8601 time, such as 2026-10-20T09:30:00Z.")
+        at = self.class.moment(arguments["to"]) || fail!(MOMENT_WORDS)
         client = api(environment_row)
         fail!("Point in time recovery is off for #{ref}, so it cannot be restored to a moment.") unless client.backups(ref)["pitr_enabled"]
 

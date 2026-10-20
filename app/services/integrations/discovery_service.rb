@@ -16,13 +16,18 @@ module Integrations
     end
 
     # The tools Firefight adds to a remote connection beside its server's (Provider#firefight_tools), saved without asking
-    # the server, every tool the server listed left as it is. A data migration gives connections made before a tool was
-    # added the new one this way, switched on as a discovered tool is. Answers the names saved.
+    # the server, every tool the server listed left as it is, and one of Firefight's no longer offered taken as gone. A
+    # data migration gives connections made before a tool was added the new one this way, switched on as a discovered
+    # tool is. Answers the names saved.
     def self.add_firefight_tools!(integration)
       definitions = McpExecutor.firefight_tool_definitions(integration)
-      return [] if definitions.empty?
+      offered = definitions.map(&:name)
+      # One of Firefight's own saved before and no longer offered is taken as gone, never a tool the server listed.
+      dropped = integration.tools.available.select { |tool| tool.spec.to_h[Provider::FIREFIGHT_TOOL] == true && !offered.include?(tool.name) }
+      return [] if definitions.empty? && dropped.empty?
 
       Integration::Tool.transaction do
+        dropped.each { |tool| tool.update!(removed_at: Time.current) }
         Ability::Role.filing_together(integration) { integration.counting_tools_together { save_all!(integration, definitions, remove: false) } }
       end
     end
