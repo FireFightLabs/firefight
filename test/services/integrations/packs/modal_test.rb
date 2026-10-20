@@ -121,7 +121,8 @@ module Integrations
         assert_match "Say which container", assert_raises(NativePack::Error) { call(:stop_container) }.message
       end
 
-      test "an app is stopped as modal app stop does, refused when already stopped, and names who deployed it" do
+      test "an app is stopped as modal app stop does, refused when already stopped or outside the environment, and names who deployed it" do
+        ModalApi.any_instance.stubs(:apps).with("main").returns([ Proto::AppListResponse::AppListItem.new(app_id: APP_ID, description: "inference") ])
         ModalApi.any_instance.stubs(:containers).with(APP_ID, "main").returns([ Proto::TaskStats.new(task_id: "ta-1"), Proto::TaskStats.new(task_id: "ta-2") ])
         ModalApi.any_instance.expects(:stop_app).with(APP_ID).once
 
@@ -132,6 +133,9 @@ module Integrations
 
         ModalApi.any_instance.stubs(:lifecycle).with(APP_ID).returns(Proto::AppLifecycle.new(app_state: :APP_STATE_STOPPED))
         assert_match "inference is already stopped", assert_raises(NativePack::Error) { call(:stop_app, "app" => "inference") }.message
+
+        ModalApi.any_instance.stubs(:apps).with("main").returns([])
+        assert_match "inference is not in main", assert_raises(NativePack::Error) { call(:stop_app, "app" => APP_ID) }.message
       end
 
       test "the history is newest first with commits, and says which entries were rollbacks" do

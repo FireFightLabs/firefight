@@ -56,11 +56,12 @@ module Integrations
 
         def setup_steps
           [
+            "Choose a long random secret and save it below first, so Cloudflare's test reaches Firefight.",
             "In the Cloudflare dashboard, go to Alerts, then Destinations, and under Webhooks choose Create.",
-            "Paste the address above as its URL, and enter a long random secret of your own as its Secret. Choose Save and Test.",
+            "Paste the address above as its URL and the same secret as its Secret, then choose Save and Test.",
             "Go to Alerts, then Overview, and choose Create an Alert. Pick Pages, Project updates, choose the projects and the " \
               "Deployment started, Deployment failed and Deployment success events, and add that webhook as its destination.",
-            "Save the same secret below. Do this for each account the connection reaches, with the same secret."
+            "Do the same for each account the connection reaches, with the same secret."
           ]
         end
 

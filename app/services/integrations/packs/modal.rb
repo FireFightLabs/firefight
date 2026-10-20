@@ -326,7 +326,7 @@ module Integrations
 
       # As modal app stop does, refused for an app already stopped, saying how many containers it ends.
       def stop_app(environment_row:, arguments:)
-        app_id, app = find_app(environment_row, arguments["app"])
+        app_id, app = app_in_environment(environment_row, arguments["app"])
         state = api(environment_row).lifecycle(app_id).app_state
         fail!("#{app} is already stopped, so there is nothing to stop.") if state == STOPPED
 
@@ -340,7 +340,7 @@ module Integrations
       def owner_of(tool_name, environment_row:, arguments:)
         return super unless tool_name == "stop_app"
 
-        app_id, app = find_app(environment_row, arguments["app"])
+        app_id, app = app_in_environment(environment_row, arguments["app"])
         deployed_by = api(environment_row).lifecycle(app_id).deployed_by
         Owner.new(name: deployed_by, role: Owner::ROLE_DEPLOYED, what: "Modal app #{app}") if deployed_by.present?
       end
@@ -424,6 +424,15 @@ module Integrations
         [ app_id, wanted ]
       rescue ModalApi::NotFound
         fail!("No app #{wanted} in this Modal workspace. list_apps shows what there is.")
+      end
+
+      # An app stop_app reaches only when the connection's environment lists it, since an app id names it in any
+      # environment the token reaches.
+      def app_in_environment(environment_row, asked)
+        app_id, app = find_app(environment_row, asked)
+        return [ app_id, app ] if api(environment_row).apps(environment(environment_row)).any? { |listed| listed.app_id == app_id }
+
+        fail!("#{app} is not in #{environment(environment_row).presence || 'the default environment'}, which this connection reaches. list_apps shows what is.")
       end
 
       def running_container(environment_row, asked)
