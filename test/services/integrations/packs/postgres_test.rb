@@ -118,6 +118,19 @@ module Integrations
         assert_match "No replica streams from this database.", text
       end
 
+      test "the database's errors are its rollbacks, deadlocks and conflicts, and its costliest queries when pg_stat_statements is there" do
+        text = call(:database_errors, "limit" => 3)
+
+        assert_match "From pg_stat_database, since its statistics were last reset (since)\nrollbacks | deadlocks | conflicts | temp_files | temp_written | commits | since", text
+        installed = ActiveRecord::Base.lease_connection.select_value("SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements'")
+        if installed
+          assert_match(/Queries that took the most time in all, since pg_stat_statements was last reset.*\ncalls \| total_ms \| mean_ms \| rows \| query|cannot be read|holds no queries/, text)
+          assert_match(/holds no queries containing 100%_done|cannot be read/, call(:database_errors, "text" => "100%_done"))
+        else
+          assert_match "pg_stat_statements is not installed in this database", text
+        end
+      end
+
       test "the one database the URL reaches is on the map, named by its host, port and name, with no credential" do
         snapshot = @pack.map_of(@row)
         database = snapshot.resources.sole

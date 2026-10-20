@@ -90,6 +90,72 @@ class Integrations::Capabilities::ClickhouseTest < ActiveSupport::TestCase
     assert_equal refused, logs.present_result(refused)
   end
 
+  test "a ClickPipe stands as get_clickpipe says, shown without its source's settings" do
+    @row.integration.tools.create!(name: "get_clickpipe", description: "get_clickpipe", read_only: true, enabled: true, params_schema: { "type" => "object" })
+    ResourceMap::Resource.create!(workspace: @workspace, provider: "clickhouse", account: ORGANIZATION, kind: ResourceMap::KIND_PIPELINE,
+                                  external_id: "svc-1/pipe-9", name: "analytics/orders", integration_environment: @row, first_seen_at: Time.current, last_seen_at: Time.current)
+    call = resolve(Integrations::Capabilities::STATUS, "resource" => "analytics/orders")
+
+    assert_equal "get_clickpipe", call.tool.name
+    assert_equal({ "organizationId" => ORGANIZATION, "serviceId" => "svc-1", "clickPipeId" => "pipe-9" }, call.arguments)
+    pipe = { "id" => "pipe-9", "name" => "orders", "state" => "Failed", "scaling" => { "replicas" => 2 },
+             "source" => { "kafka" => { "type" => "confluent", "brokers" => "b:9092", "authentication" => "PLAIN", "credentials" => { "password" => "hunter2" } }, "postgres" => nil },
+             "destination" => { "database" => "default", "table" => "orders" }, "updatedAt" => "2026-10-01T11:00:00Z" }
+    shown = call.present_result(text("result" => pipe))["content"].first["text"]
+
+    assert_equal "How analytics/orders stands on ClickHouse Cloud now: state Failed, reads from kafka (confluent), writes to default.orders, " \
+                 "2 replicas, last changed 2026-10-01T11:00:00Z.", shown
+    assert_not_includes shown, "hunter2"
+  end
+
+  test "stream backup lists the service's backups newest first, every one unless a range is asked" do
+    @row.integration.tools.create!(name: "list_service_backups", description: "list_service_backups", read_only: true, enabled: true, params_schema: { "type" => "object" })
+    call = resolve(Integrations::Capabilities::LOGS, "resource" => "analytics", "stream" => "backup")
+
+    assert_equal "list_service_backups", call.tool.name
+    assert_equal({ "organizationId" => ORGANIZATION, "serviceId" => "svc-1" }, call.arguments)
+    backups = [ { "id" => "b-1", "status" => "done", "type" => "full", "startedAt" => 3.days.ago.utc.iso8601, "finishedAt" => 3.days.ago.utc.iso8601,
+                  "sizeInBytes" => 2_147_483_648, "durationInSeconds" => 340 },
+                { "id" => "b-2", "status" => "error", "type" => "incremental", "startedAt" => 1.day.ago.utc.iso8601 } ]
+    shown = call.present_result(text("status" => 200, "result" => backups))["content"].first["text"]
+    assert_operator shown.index("incremental backup b-2, error"), :<, shown.index("full backup b-1, done, 2 GB, took 340s")
+
+    recent = resolve(Integrations::Capabilities::LOGS, "resource" => "analytics", "stream" => "backup", "minutes" => 48 * 60)
+    shown = recent.present_result(text(backups))["content"].first["text"]
+    assert_includes shown, "b-2"
+    assert_not_includes shown, "b-1"
+    assert_match "stream backup", unroutable(Integrations::Capabilities::LOGS, "resource" => "analytics", "stream" => "cdn")
+  end
+
+  test "scale runs Firefight's own scale_service, instances as replicas and plan as the memory per replica" do
+    scale = Integrations::Capabilities::SCALE
+    assert_match "scale_service tool, which is switched off", unroutable(scale, "resource" => "analytics", "instances" => 4)
+
+    @row.integration.tools.create!(name: "scale_service", description: "Scale", read_only: false, enabled: true, params_schema: { "type" => "object" },
+                                   spec: { Integrations::Provider::FIREFIGHT_TOOL => true })
+    call = Integrations::Capabilities.resolve(@workspace, scale, { "resource" => "analytics", "instances" => 4, "plan" => "16-64" }, principal: map_reader)
+
+    assert_equal "scale_service", call.tool.name
+    assert_equal({ "organizationId" => ORGANIZATION, "serviceId" => "svc-1", "numReplicas" => 4, "minReplicaMemoryGb" => 16, "maxReplicaMemoryGb" => 64 },
+                 call.arguments)
+    fixed = Integrations::Capabilities.resolve(@workspace, scale, { "resource" => "analytics", "plan" => "32" }, principal: map_reader)
+    assert_equal [ 32, 32 ], fixed.arguments.values_at("minReplicaMemoryGb", "maxReplicaMemoryGb")
+    assert_match "memory per replica in GiB", assert_raises(Integrations::Capabilities::Unroutable) {
+      Integrations::Capabilities.resolve(@workspace, scale, { "resource" => "analytics", "plan" => "large" }, principal: map_reader)
+    }.message
+  end
+
+  test "run history reads the service's activities through Firefight's own activities, and one run by its id" do
+    history = Integrations::Capabilities::HISTORY
+    assert_match "activities tool, which is switched off", unroutable(history, "resource" => "analytics")
+
+    @row.integration.tools.create!(name: "activities", description: "Activities", read_only: true, enabled: true, params_schema: { "type" => "object" },
+                                   spec: { Integrations::Provider::FIREFIGHT_TOOL => true })
+    assert_equal({ "organizationId" => ORGANIZATION, "serviceId" => "svc-1", "name" => "maintenance", "limit" => 5 },
+                 resolve(history, "resource" => "analytics", "name" => "maintenance", "limit" => 5).arguments)
+    assert_equal({ "organizationId" => ORGANIZATION, "serviceId" => "svc-1", "activityId" => "act-9" }, resolve(history, "resource" => "analytics", "run" => "act-9").arguments)
+  end
+
   private
 
   def text(body) = { "content" => [ { "type" => "text", "text" => body.to_json } ] }

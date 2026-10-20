@@ -66,6 +66,45 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_nil row.credentials_hash["authorization"]
   end
 
+  test "the token form builds the header from a provider's credential fields, and refuses one left empty" do
+    Integrations::McpClient.any_instance.stubs(:tools_list).returns([])
+    Integrations::McpClient.any_instance.stubs(:ping).returns(true)
+
+    post integrations_url, params: {
+      provider: "clickhouse", name: "ClickHouse", server_url: IntegrationProvider.find("clickhouse").server_url,
+      token_fields: { key_id: " id-1 ", key_secret: "s3cret" }
+    }
+    assert_equal "ClickHouse is connected.", flash[:notice]
+    row = @workspace.integrations.find_by!(provider: "clickhouse").integration_environments.sole
+    assert_equal({ "Authorization" => "Basic #{Base64.strict_encode64('id-1:s3cret')}" }, Integrations::Credentials.headers_for(row))
+
+    post integrations_url, params: {
+      provider: "upstash", name: "Upstash", server_url: IntegrationProvider.find("upstash").server_url,
+      token_fields: { email: "ops@example.com", api_key: "k3y" }
+    }
+    row = @workspace.integrations.find_by!(provider: "upstash").integration_environments.sole
+    assert_equal({ "Authorization" => "Bearer ops@example.com:k3y" }, Integrations::Credentials.headers_for(row))
+
+    assert_no_difference -> { @workspace.integrations.count } do
+      post integrations_url, params: {
+        provider: "neon", name: "Neon", server_url: IntegrationProvider.find("neon").server_url, token_fields: { api_key: " " }
+      }
+    end
+    assert_equal "Fill in API key to connect with a token.", flash[:alert]
+  end
+
+  test "a header sent whole still connects a provider whose token form asks fields" do
+    Integrations::McpClient.any_instance.stubs(:tools_list).returns([])
+    Integrations::McpClient.any_instance.stubs(:ping).returns(true)
+
+    post integrations_url, params: {
+      provider: "neon", name: "Neon", server_url: IntegrationProvider.find("neon").server_url, authorization: "Bearer napi_key"
+    }
+
+    row = @workspace.integrations.find_by!(provider: "neon").integration_environments.sole
+    assert_equal({ "Authorization" => "Bearer napi_key" }, Integrations::Credentials.headers_for(row))
+  end
+
   test "a database connects from a URL, discovers its tools and records health, and the URL is never sent back" do
     Integrations::Packs::Postgres.stubs(:connection_refusal).returns(nil)
     Integrations::Packs::Postgres.any_instance.stubs(:check_health!).returns(true)

@@ -1,7 +1,7 @@
 ---
 name: turso_triage
 when: Starting on anything wrong with a Turso database, such as failing or slow queries, refused writes or a missing database, before knowing what kind of problem it is
-tools: [resource_status, list_databases, get_database, list_branches, database_analytics]
+tools: [resource_status, search_errors, list_databases, get_database, list_branches, database_analytics]
 references: [help/usage-and-billing.md, cloud/limitations.md]
 ---
 The connection is scoped to one organization, or to one group in it, chosen when it was connected, and a database outside that scope is not there. Databases are named by name. `read_database` only reads. Turso's other SQL tools write and are not used to investigate.

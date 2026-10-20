@@ -19,6 +19,14 @@ class Integrations::Capabilities::PostgresTest < ActiveSupport::TestCase
     assert_equal [ @row, "database_status", {} ], [ call.environment_row, call.tool.name, call.arguments ]
   end
 
+  test "its errors are what pg_stat_database and pg_stat_statements counted, so a time range is not sent" do
+    @row.integration.tools.create!(name: "database_errors", description: "Errors", read_only: true, enabled: true, params_schema: { "type" => "object" })
+    call = Capabilities.resolve(@workspace, Capabilities::ERRORS, { "resource" => "orders", "text" => "orders", "limit" => 5, "minutes" => 30 },
+                                principal: map_reader)
+
+    assert_equal [ "database_errors", { "text" => "orders", "limit" => 5 } ], [ call.tool.name, call.arguments ]
+  end
+
   test "it answers nothing it has no source for" do
     %w[logs metrics deploys restart].each do |key|
       error = assert_raises(Capabilities::Unroutable) { Capabilities.resolve(@workspace, key, { "resource" => "orders" }, principal: map_reader) }

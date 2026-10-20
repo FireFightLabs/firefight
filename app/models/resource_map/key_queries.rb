@@ -94,9 +94,11 @@ module ResourceMap::KeyQueries
     ResourceMap::KIND_DATABASE_PROXY => NO_SHARED_READ, ResourceMap::KIND_TUNNEL => NO_SHARED_READ,
     ResourceMap::KIND_LOAD_BALANCER => NO_SHARED_READ, ResourceMap::KIND_ORIGIN_POOL => NO_SHARED_READ,
     ResourceMap::KIND_ACCESS_APP => NO_SHARED_READ,
-    ResourceMap::KIND_WORKFLOW => RELEASES, ResourceMap::KIND_RELEASE_FLOW => RELEASES,
-    ResourceMap::KIND_PIPELINE => "A pipeline releases code through its stages rather than running it. Its runs, or its release flows' runs, are its " \
-                                  "run history, and what it releases has the checks.",
+    ResourceMap::KIND_WORKFLOW => "A workflow runs its steps, to release code or to do a job, rather than serving. Its runs are its run history, " \
+                                  "and what it releases or calls has the checks.",
+    ResourceMap::KIND_RELEASE_FLOW => RELEASES,
+    ResourceMap::KIND_PIPELINE => "A pipeline releases code through its stages, or carries data into a store, rather than serving. Its runs, or its " \
+                                  "release flows' runs, are its run history, and what it releases or fills has the checks.",
     ResourceMap::KIND_STACK => "A stack defines infrastructure rather than running it. Its operations are its run history, and what it defines has the checks."
   }.freeze
 

@@ -33,6 +33,14 @@ module Integrations
       assert_equal 1, @api.query("SELECT 1")["rows"]
     end
 
+    test "deployments are listed and one is read by its id from the Deployments API" do
+      Http.expects(:request).with { |uri, _request, **| uri.path == "/v1/deployments" }.returns(response(200, { deployments: [ { id: "7", status: "live", live: true } ] }))
+      Http.expects(:request).with { |uri, _request, **| uri.path == "/v1/deployments/7" }.returns(response(200, { result: "success", deployment: { id: "7", status: "live" } }))
+
+      assert_equal [ { "id" => "7", "status" => "live", "live" => true } ], @api.deployments
+      assert_equal({ "id" => "7", "status" => "live" }, @api.deployment("7"))
+    end
+
     test "an endpoint is called by its name with its own parameters, escaped" do
       Http.expects(:request).with do |uri, _request, **|
         uri.path == "/v0/pipes/top%20pages.json" && URI.decode_www_form(uri.query).to_h == { "date_from" => "2026-10-01", "limit" => "5" }

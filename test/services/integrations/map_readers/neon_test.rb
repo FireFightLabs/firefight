@@ -109,6 +109,44 @@ module Integrations
         assert_includes snapshot.gaps.map(&:text), "The databases on 2 more branches of shop were not read, only on its default and latest #{Neon::DATABASE_READS}."
       end
 
+      test "each branch's functions are part of it, in their latest deployment's state, serving the active one's version" do
+        functions = [
+          { "id" => "fn-1", "slug" => "hooks", "name" => "Hooks", "invocation_url" => "https://br-main-1-hooks.example.neon.tech/",
+            "current_deployment" => { "id" => 4, "status" => "failed", "runtime" => "nodejs22", "memory_mib" => 256, "created_at" => "2026-10-19T10:00:00Z" },
+            "active_deployment" => { "id" => 3, "status" => "completed", "runtime" => "nodejs22", "memory_mib" => 256, "created_at" => "2026-10-18T10:00:00Z" } },
+          { "id" => "fn-2", "slug" => "fresh", "name" => "Fresh", "invocation_url" => "", "created_at" => "2026-10-19T11:00:00Z" }
+        ]
+        asked = []
+        snapshot = Neon.new(settings) do |tool, arguments|
+          next answer(tool) unless tool == Neon::LIST_FUNCTIONS
+
+          asked << arguments["branch_id"]
+          result(arguments["branch_id"] == "br-main-1" ? { "functions" => functions } : [])
+        end.map
+
+        hooks, fresh = snapshot.resources.select { |found| found.kind == ResourceMap::KIND_FUNCTION }
+        main = snapshot.resources.find { |found| found.external_id == "shop-123/br-main-1" }
+        assert_equal %w[br-main-1 br-preview-2], asked
+        assert_equal [ "shop-123/br-main-1/hooks", "shop/main/hooks", "failed", main.url ], [ hooks.external_id, hooks.name, hooks.status, hooks.url ]
+        assert_equal({ "version" => 3, "runtime" => "nodejs22", "deployed_at" => "2026-10-18T10:00:00Z" }, hooks.details)
+        assert_equal [ "pending", {} ], [ fresh.status, fresh.details ]
+        assert_includes snapshot.links.map { |link| [ link.from, link.to, link.relation ] }, [ hooks.key, main.key, ResourceMap::RELATION_PART_OF ]
+      end
+
+      test "list_functions switched off is one gap for the project, and a branch Neon refuses is a gap of its own" do
+        off = Neon.new(settings) { |tool, _arguments| tool == Neon::LIST_FUNCTIONS ? nil : answer(tool) }.map
+        assert_equal [ "list_functions is switched off for Neon, so the functions of shop are not on the map." ],
+                     off.gaps.map(&:text).grep(/function/)
+        assert_equal [ ResourceMap::KIND_FUNCTION ], off.unread_kinds
+
+        refused = Neon.new(settings) do |tool, arguments|
+          next answer(tool) unless tool == Neon::LIST_FUNCTIONS
+
+          arguments["branch_id"] == "br-main-1" ? { "isError" => true, "content" => [ { "type" => "text", "text" => "functions not enabled" } ] } : result([])
+        end.map
+        assert_includes refused.gaps.map(&:text), "Neon refused to list the functions on shop/main: functions not enabled."
+      end
+
       test "a branch is reached at its compute's host and at the pooler's, which adds -pooler to the compute's id" do
         snapshot = Neon.new(settings) { |tool, _arguments| answer(tool) }.map
 
@@ -167,7 +205,7 @@ module Integrations
 
       def answer(tool)
         result({ Neon::LIST_ORGANIZATIONS => ORGANIZATIONS, Neon::LIST_PROJECTS => PROJECTS, Neon::LIST_BRANCHES => BRANCHES,
-                 Neon::LIST_COMPUTES => ENDPOINTS, Neon::LIST_DATABASES => DATABASES }.fetch(tool))
+                 Neon::LIST_COMPUTES => ENDPOINTS, Neon::LIST_DATABASES => DATABASES, Neon::LIST_FUNCTIONS => [] }.fetch(tool))
       end
 
       def result(body) = { "content" => [ { "type" => "text", "text" => JSON.pretty_generate(body) } ] }

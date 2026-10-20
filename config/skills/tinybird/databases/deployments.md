@@ -1,11 +1,11 @@
 ---
 name: tinybird_deployments
 when: Something in a Tinybird workspace broke after a deployment, a deployment failed or is stuck, or the person asks what changed in the workspace
-tools: [recent_deploys, jobs, search_errors, resource_status, list_endpoints, list_datasources]
+tools: [recent_deploys, deployments, jobs, search_errors, resource_status, list_endpoints, list_datasources]
 ---
 In Tinybird a deployment builds the new version of the project beside the live one, as a staging deployment, and promoting it makes it live. A deployment that fails, or that the team discards, never replaces the live one, which keeps serving.
 
-1. Call `recent_deploys` to list the deployments, newest first, with their status and when each started and ended. Note the one that went live last, and any still waiting or working.
+1. Call `recent_deploys` to list the deployments, newest first, with their status, which one is live and which waits in staging. Note the live one, and any still building. `deployments` with `id` reads one deployment, and `jobs` with `job_type` set to deployment gives each deployment job's start, end and error.
 2. Compare its time with when the trouble began. Errors that began right after a deployment finished are the first thing to tie to it, so call `search_errors` from shortly before it.
 3. A deployment that failed carries its error. Read the jobs around it with `jobs` and `status` set to error, since a deployment that changes a data source may also run populate jobs that backfill it, and those can fail on their own.
 4. A deployment still working for a long time is usually backfilling a large data source. Call `jobs` with `job_type` set to populate to see what it is waiting on.

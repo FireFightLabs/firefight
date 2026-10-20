@@ -74,6 +74,43 @@ function oauthHref({ providerKey, kind, app, name, environmentId, region, fields
   return `${oauthStartIntegrationsPath()}?${params.toString()}`;
 }
 
+const STORED_NOTE = "Stored encrypted and scoped to this connection. Never shared with agents or shown again.";
+
+type CredentialField = NonNullable<IntegrationProvider["token"]>["fields"][number];
+
+// Each value of a credential the provider names, a secret one typed into a password field.
+function CredentialFields({
+  fields,
+  values,
+  hint,
+  onChange,
+}: {
+  fields: CredentialField[];
+  values: Record<string, string>;
+  hint: string | null;
+  onChange: (key: string, value: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      {fields.map((field) => (
+        <div key={field.key} className="flex flex-col gap-1.5">
+          <Label htmlFor={`connect-credential-${field.key}`}>{field.label}</Label>
+          <Input
+            id={`connect-credential-${field.key}`}
+            type={field.secret ? "password" : "text"}
+            autoComplete="off"
+            value={values[field.key] ?? ""}
+            onChange={(event) => onChange(field.key, event.target.value)}
+            placeholder={field.placeholder ?? undefined}
+          />
+        </div>
+      ))}
+      {hint && <p className="text-muted-foreground text-xs">{hint}</p>}
+      <p className="text-muted-foreground text-xs">{STORED_NOTE}</p>
+    </div>
+  );
+}
+
 // returnTo is the dashboard page to come back to once connected, such as the chat the dialog was opened from.
 export function ConnectDialog({
   provider,
@@ -133,6 +170,11 @@ function ConnectForm({
   const ownServer = provider.ownServer;
   const [serverUrl, setServerUrl] = useState(ownServer ? "" : provider.serverUrl);
   const [authorization, setAuthorization] = useState("");
+  // A credential of the provider's own shape is asked field by field, and the server builds the header from them.
+  const credentialFields = provider.token?.fields ?? [];
+  const asksCredentialFields = credentialFields.length > 0;
+  const [credentialValues, setCredentialValues] = useState<Record<string, string>>({});
+  const credentialComplete = credentialFields.every((field) => (credentialValues[field.key] ?? "").trim() !== "");
   // The header the provider's server reads the token from, when it is not Authorization, takes the key alone.
   const tokenHeader = provider.token?.header;
   const tokenLabel = tokenHeader ? `${tokenHeader} header` : "Authorization header";
@@ -186,6 +228,10 @@ function ConnectForm({
     setFields((current) => ({ ...current, [key]: value }));
   }
 
+  function setCredentialValue(key: string, value: string) {
+    setCredentialValues((current) => ({ ...current, [key]: value }));
+  }
+
   // Each region has its own server, so choosing one in the token form fills in its address.
   function chooseRegion(key: string) {
     setRegion(key);
@@ -209,7 +255,7 @@ function ConnectForm({
         provider: provider.key,
         name,
         server_url: serverUrl,
-        authorization,
+        ...(asksCredentialFields ? { token_fields: credentialValues } : { authorization }),
         environment_id: toEnvironmentId(environmentId),
         fields,
         return_to: returnTo,
@@ -457,23 +503,31 @@ function ConnectForm({
               <p className="text-muted-foreground text-xs">{ownServer.hint}</p>
             )}
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="connect-auth">{tokenLabel}</Label>
-            <Input
-              id="connect-auth"
-              type="password"
-              value={authorization}
-              onChange={(event) => setAuthorization(event.target.value)}
-              placeholder={tokenPlaceholder}
+          {asksCredentialFields ? (
+            <CredentialFields
+              fields={credentialFields}
+              values={credentialValues}
+              hint={provider.token?.hint ?? null}
+              onChange={setCredentialValue}
             />
-            {provider.token?.hint && (
-              <p className="text-muted-foreground text-xs">{provider.token.hint}</p>
-            )}
-            <p className="text-muted-foreground text-xs">
-              Stored encrypted and scoped to this connection. Never shared with
-              agents or shown again.
-            </p>
-          </div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="connect-auth">{tokenLabel}</Label>
+              <Input
+                id="connect-auth"
+                type="password"
+                value={authorization}
+                onChange={(event) => setAuthorization(event.target.value)}
+                placeholder={tokenPlaceholder}
+              />
+              {provider.token?.hint && (
+                <p className="text-muted-foreground text-xs">{provider.token.hint}</p>
+              )}
+              <p className="text-muted-foreground text-xs">
+                {STORED_NOTE}
+              </p>
+            </div>
+          )}
           {environments.length > 0 && (
             <div className="flex flex-col gap-1.5">
               <Label>Environment these credentials reach</Label>
@@ -491,7 +545,7 @@ function ConnectForm({
             </Button>
             <Button
               onClick={submit}
-              disabled={submitting || !name || !serverUrl || !tokenFieldsComplete}
+              disabled={submitting || !name || !serverUrl || !tokenFieldsComplete || !credentialComplete}
             >
               Connect &amp; discover tools
             </Button>
