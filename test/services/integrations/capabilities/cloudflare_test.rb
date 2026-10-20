@@ -30,7 +30,8 @@ class Integrations::Capabilities::CloudflareTest < ActiveSupport::TestCase
     ] } } }))
     assert_match "upstream timeout", answer.dig("content", 0, "text")
     assert_match "https://dash.cloudflare.com/#{ACCOUNT}/workers-and-pages", answer.dig("content", 0, "text")
-    assert_raises(Integrations::Capabilities::Unroutable) { resolve(Integrations::Capabilities::LOGS, "resource" => "api-worker", "stream" => "build") }
+    assert_match "stream must be app or build",
+                 assert_raises(Integrations::Capabilities::Unroutable) { resolve(Integrations::Capabilities::LOGS, "resource" => "api-worker", "stream" => "requests") }.message
   end
 
   test "a Worker's metrics are bucketed into a chart, and a zone's come from its hourly request counts" do
@@ -54,13 +55,21 @@ class Integrations::Capabilities::CloudflareTest < ActiveSupport::TestCase
 
   test "deploys list with the id rollback takes, and a rollback is the request Cloudflare's docs give" do
     deploys = resolve(Integrations::Capabilities::DEPLOYS, "resource" => "api-worker")
-    assert_equal({ "method" => "GET", "path" => "/accounts/#{ACCOUNT}/workers/scripts/api-worker/deployments" }, request_of(deploys))
+    assert_includes deploys.arguments["code"], %({"method":"GET","path":"/accounts/#{ACCOUNT}/workers/scripts/api-worker/deployments"})
+    assert_includes deploys.arguments["code"], %({"method":"GET","path":"/accounts/#{ACCOUNT}/workers/scripts/api-worker/versions","query":{"per_page":10}})
     answer = deploys.present_result(text_result({ "result" => { "deployments" => [
       { "id" => "dep-1", "created_on" => "2026-10-03T09:00:00Z", "source" => "wrangler", "author_email" => "a@example.com",
         "versions" => [ { "version_id" => "ver-9", "percentage" => 100 } ] }
+    ] }, "versions" => { "items" => [
+      { "id" => "ver-10", "number" => 10, "metadata" => { "created_on" => "2026-10-03T10:00:00Z", "author_email" => "b@example.com", "source" => "wrangler" } },
+      { "id" => "ver-9", "number" => 9, "metadata" => { "created_on" => "2026-10-03T08:55:00Z" } }
     ] } }))
-    assert_match "version ver-9 at 100%", answer.dig("content", 0, "text")
-    assert_match "rollback takes a version id", answer.dig("content", 0, "text")
+    text = answer.dig("content", 0, "text")
+    assert_match "version ver-9 at 100%", text
+    assert_match "rollback takes a version id", text
+    assert_match "2026-10-03T10:00:00Z, version ver-10, number 10, by b@example.com, from wrangler, in no deployment listed", text
+    assert_match "2026-10-03T08:55:00Z, version ver-9, number 9, deployed", text
+    assert_equal [ "dep-1" ], Integrations::Capabilities::Deploys.deploys_of(answer).map(&:id), "a version alone is not a deploy"
 
     version = "5f9e1a2b-0c3d-4e5f-8a9b-0c1d2e3f4a5b"
     worker = resolve(Integrations::Capabilities::ROLLBACK, "resource" => "api-worker", "to" => version)
@@ -122,7 +131,7 @@ class Integrations::Capabilities::CloudflareTest < ActiveSupport::TestCase
     assert_equal [], Integrations::Capabilities::Deploys.deploys_of(resolve(Integrations::Capabilities::DEPLOYS, "resource" => "docs").present_result(text_result({ "result" => [] })))
   end
 
-  test "run history is a Pages project's deployments read stage by stage, and a Worker, whose deploys switch at once, has none" do
+  test "run history is a Pages project's deployments read stage by stage" do
     call = resolve(Integrations::Capabilities::HISTORY, "resource" => "docs", "name" => "production")
     assert_equal [ "GET", "/accounts/#{ACCOUNT}/pages/projects/docs/deployments" ], request_of(call).values_at("method", "path")
 
@@ -140,7 +149,57 @@ class Integrations::Capabilities::CloudflareTest < ActiveSupport::TestCase
     assert_equal [ [ "d3", "running", nil ], [ "d2", "succeeded", 180 ] ], runs.map { |run| [ run.id, run.status, run.seconds ] }
     assert_equal "c4e4267d46e6 Fix nav", runs.second.detail
     assert_equal "https://dash.cloudflare.com/#{ACCOUNT}/pages/view/docs/d2", runs.second.url
-    assert_raises(Integrations::Capabilities::Unroutable) { resolve(Integrations::Capabilities::HISTORY, "resource" => "api-worker") }
+  end
+
+  test "a Worker's run history is its Workers Builds, by the tag the map keeps or one looked up, each build's outcome its status" do
+    @worker.update!(details: { "tag" => "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d" })
+    call = resolve(Integrations::Capabilities::HISTORY, "resource" => "api-worker")
+    assert_includes call.arguments["code"], %(const tag = "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d";)
+    assert_includes call.arguments["code"], %("/accounts/#{ACCOUNT}/builds/workers/" + tag + "/builds")
+
+    answer = call.present_result(text_result({ "result" => [
+      { "build_uuid" => "b-2", "status" => "running", "created_on" => "2026-10-03T10:00:00Z", "build_trigger_metadata" => { "branch" => "main" } },
+      { "build_uuid" => "b-1", "status" => "stopped", "build_outcome" => "fail", "created_on" => "2026-10-03T09:00:00Z", "stopped_on" => "2026-10-03T09:02:00Z",
+        "build_trigger_metadata" => { "branch" => "main", "commit_hash" => "abcdef1234567890", "commit_message" => "Break it\nmore" } },
+      { "build_uuid" => "b-0", "status" => "stopped", "build_outcome" => "skipped", "created_on" => "2026-10-03T08:00:00Z", "stopped_on" => "2026-10-03T08:00:01Z" }
+    ] }))
+    runs = Integrations::Capabilities::History.runs_of(answer)
+    assert_equal [ [ "b-2", "running", nil ], [ "b-1", "failed", 120 ], [ "b-0", "cancelled", 1 ] ], runs.map { |run| [ run.id, run.status, run.seconds ] }
+    assert_equal [ "main build", "abcdef123456 Break it", "https://dash.cloudflare.com/#{ACCOUNT}/workers/services/view/api-worker/production/deployments" ],
+                 runs.second.to_h.values_at("name", "detail", "url")
+
+    @worker.update!(details: {})
+    looked_up = resolve(Integrations::Capabilities::HISTORY, "resource" => "api-worker")
+    assert_includes looked_up.arguments["code"], %("path":"/accounts/#{ACCOUNT}/workers/scripts")
+    assert_includes looked_up.arguments["code"], %(each.id === "api-worker")
+  end
+
+  test "one Workers build is read by its id, and one of another Worker is not taken for this one's" do
+    call = resolve(Integrations::Capabilities::HISTORY, "resource" => "api-worker", "run" => "f64788e9-fccd-4d4a-a28a-cb84f88f6a1c")
+    assert_includes call.arguments["code"], %("path":"/accounts/#{ACCOUNT}/builds/builds/f64788e9-fccd-4d4a-a28a-cb84f88f6a1c")
+    build = { "build_uuid" => "f64788e9", "status" => "queued", "created_on" => "2026-10-03T10:00:00Z", "trigger" => { "external_script_id" => "tag-1" } }
+
+    assert_equal "queued", Integrations::Capabilities::History.runs_of(call.present_result(text_result({ "result" => build, "tag" => "tag-1" }))).sole.status
+    assert_match "Cloudflare has no build", call.present_result(text_result({ "result" => build, "tag" => "tag-2" })).dig("content", 0, "text")
+    assert_raises(Integrations::Capabilities::Unroutable) { resolve(Integrations::Capabilities::HISTORY, "resource" => "api-worker", "run" => "../zones") }
+  end
+
+  test "a Worker's build log is read page by page, of the build named or its newest, with a link to its build history" do
+    named = resolve(Integrations::Capabilities::LOGS, "resource" => "api-worker", "stream" => "build", "deployment" => "f64788e9-fccd-4d4a-a28a-cb84f88f6a1c")
+    assert_includes named.arguments["code"], %(const build = "f64788e9-fccd-4d4a-a28a-cb84f88f6a1c";)
+    assert_includes named.arguments["code"], %("/accounts/#{ACCOUNT}/builds/builds/" + build + "/logs")
+    answer = named.present_result(text_result({ "build" => "f64788e9", "result" => { "lines" => [ [ 1_759_482_000_000, "npm ERR! missing script" ], [ 1_759_481_990_000, "Cloning" ] ],
+                                                                     "truncated" => false, "more" => true } }))
+    text = answer.dig("content", 0, "text")
+    assert_match "build f64788e9 of api-worker", text
+    assert_match "npm ERR! missing script", text
+    assert_match "Cloudflare holds more of this log than was read.", text
+    assert_match "/workers/services/view/api-worker/production/deployments", text
+
+    newest = resolve(Integrations::Capabilities::LOGS, "resource" => "api-worker", "stream" => "build", "text" => "ERR")
+    assert_includes newest.arguments["code"], "query: { per_page: 1 }"
+    assert_match "has no Workers builds", newest.present_result(text_result({ "result" => nil })).dig("content", 0, "text")
+    assert_raises(Integrations::Capabilities::Unroutable) { resolve(Integrations::Capabilities::LOGS, "resource" => "api-worker", "stream" => "build", "deployment" => "x/../y") }
   end
 
   test "one Pages deployment is read by its id, its stages are its parts, and each reads that deployment's build log as a read" do
