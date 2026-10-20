@@ -1,4 +1,23 @@
 # Written by bin/rails halon:bench_big_workspace from _big_workspace.yml. Edit that file, never this one.
+- name: github_issue_lookup
+  description: Fetch an issue with its description, labels, assignees and its newest
+    comments
+  source: github
+  reads: true
+  parameters:
+    type: object
+    properties:
+      repo:
+        type: string
+        description: Repository in owner/name form, e.g. acme/checkout. Read it off
+          the resource map or the catalog first, or list the repositories, and ask
+          only when several fit
+      number:
+        type: integer
+        description: The issue's number
+    required:
+    - repo
+    - number
 - name: aws_list_builds
   description: A CodeBuild project's builds, newest first, each with its status, when
     it started and finished, how long it took and the source version it built, and
@@ -22,197 +41,6 @@
         description: At most this many (optional, 20)
     required:
     - resource
-- name: linear_save_milestone
-  description: Linear's save milestone. It can change something.
-  source: linear
-  confirms: true
-  parameters:
-    type: object
-    properties: {}
-- name: opsgenie_list_maintenance_targets
-  description: The integrations and alert policies in Opsgenie, by name and id, which
-    a maintenance window quiets. Use it for the ids create_maintenance takes
-  source: opsgenie
-  reads: true
-  parameters:
-    type: object
-    properties: {}
-- name: notion_notion_create_database
-  description: Notion's notion create database. It can change something.
-  source: notion
-  confirms: true
-  parameters:
-    type: object
-    properties: {}
-- name: opsgenie_close_alert
-  description: Close an Opsgenie alert once the problem is over, which stops it paging
-    anyone
-  source: opsgenie
-  confirms: true
-  parameters:
-    type: object
-    properties:
-      alert:
-        type: string
-        description: The alert, by its id, its tiny id (the short number Opsgenie
-          shows) or its alias
-      identifier_type:
-        type: string
-        enum:
-        - id
-        - tiny
-        - alias
-        description: 'Which of these alert names: id, tiny or alias (optional, id).
-          An alias only finds an open alert'
-      note:
-        type: string
-        description: A note Opsgenie adds to the alert, saying why (optional)
-    required:
-    - alert
-- name: github_review_pull_request
-  description: 'Submit a review of a pull request on its current head commit: approve
-    it, request changes or comment, with comments on lines of its diff if given'
-  source: github
-  confirms: true
-  parameters:
-    type: object
-    properties:
-      repo:
-        type: string
-        description: Repository in owner/name form, e.g. acme/checkout. Read it off
-          the resource map or the catalog first, or list the repositories, and ask
-          only when several fit
-      number:
-        type: integer
-        description: The pull request's number
-      event:
-        type: string
-        enum:
-        - approve
-        - request_changes
-        - comment
-        description: approve, request_changes or comment
-      body:
-        type: string
-        description: The review's text, required to request changes or comment (optional
-          to approve)
-      comments:
-        type: array
-        description: Comments on lines of the diff (optional)
-        items:
-          type: object
-          required:
-          - path
-          - line
-          - body
-          properties:
-            path:
-              type: string
-              description: The file's path
-            line:
-              type: integer
-              description: The line in the file as the pull request changes it
-            start_line:
-              type: integer
-              description: The first line, for a comment on several lines (optional)
-            body:
-              type: string
-              description: The comment
-    required:
-    - repo
-    - number
-    - event
-- name: github_list_releases
-  description: A repository's releases, newest first, with each one's tag, whether
-    it is a draft or a prerelease, when it was published and its page
-  source: github
-  reads: true
-  parameters:
-    type: object
-    properties:
-      repo:
-        type: string
-        description: Repository in owner/name form, e.g. acme/checkout. Read it off
-          the resource map or the catalog first, or list the repositories, and ask
-          only when several fit
-      limit:
-        type: integer
-        description: At most this many (optional, 20, at most 100)
-    required:
-    - repo
-- name: github_update_issue
-  description: Change an issue's title or description
-  source: github
-  confirms: true
-  parameters:
-    type: object
-    properties:
-      repo:
-        type: string
-        description: Repository in owner/name form, e.g. acme/checkout. Read it off
-          the resource map or the catalog first, or list the repositories, and ask
-          only when several fit
-      number:
-        type: integer
-        description: The issue's number
-      title:
-        type: string
-        description: The new title (optional)
-      body:
-        type: string
-        description: The new description, replacing the old one (optional)
-    required:
-    - repo
-    - number
-- name: github_diff_refs
-  description: The diff between two commits, branches or tags in a repository, optionally
-    only for one path
-  source: github
-  reads: true
-  parameters:
-    type: object
-    properties:
-      repo:
-        type: string
-        description: Repository in owner/name form, e.g. acme/checkout. Read it off
-          the resource map or the catalog first, or list the repositories, and ask
-          only when several fit
-      base:
-        type: string
-        description: The earlier commit, branch or tag
-      head:
-        type: string
-        description: The later commit, branch or tag
-      path:
-        type: string
-        description: Only this path (optional)
-    required:
-    - repo
-    - base
-    - head
-- name: github_read_artifact
-  description: 'Read a GitHub Actions artifact: the files in it, and the text of the
-    text files, each cut short. An artifact larger than 10 MB is not read'
-  source: github
-  reads: true
-  parameters:
-    type: object
-    properties:
-      repo:
-        type: string
-        description: Repository in owner/name form, e.g. acme/checkout. Read it off
-          the resource map or the catalog first, or list the repositories, and ask
-          only when several fit
-      artifact_id:
-        type: integer
-        description: The artifact's id, as list_artifacts shows it
-      file:
-        type: string
-        description: Only this file in the artifact, by its path in it (optional,
-          every text file)
-    required:
-    - repo
-    - artifact_id
 - name: github_blame
   description: Attribute a line range, as it stood at a given commit, to the commits
     and pull requests that last touched it
@@ -244,9 +72,10 @@
     - path
     - start_line
     - end_line
-- name: github_workflow_runs
-  description: A repository's GitHub Actions workflow runs, newest first, with the
-    workflow, its outcome, the branch and commit, what started it and its page
+- name: github_list_workflows
+  description: A repository's GitHub Actions workflows, each with its file, whether
+    it is active and its page. A workflow's file name is what workflow_runs and run_workflow
+    take
   source: github
   reads: true
   parameters:
@@ -257,86 +86,38 @@
         description: Repository in owner/name form, e.g. acme/checkout. Read it off
           the resource map or the catalog first, or list the repositories, and ask
           only when several fit
-      branch:
-        type: string
-        description: Only runs for this branch (optional)
-      status:
-        type: string
-        enum:
-        - completed
-        - action_required
-        - cancelled
-        - failure
-        - neutral
-        - skipped
-        - stale
-        - success
-        - timed_out
-        - in_progress
-        - queued
-        - requested
-        - waiting
-        - pending
-        description: Only runs in this status or with this outcome, such as failure
-          (optional)
-      event:
-        type: string
-        description: Only runs started by this event, such as push or pull_request
-          (optional)
-      limit:
-        type: integer
-        description: At most this many (optional, 10, at most 50)
     required:
     - repo
-- name: postgresql_describe_table
-  description: 'The shape of one table: its columns with types, nulls and defaults,
-    its primary key, indexes and foreign keys'
-  source: postgresql
-  reads: true
-  parameters:
-    type: object
-    properties:
-      table:
-        type: string
-        description: The table, as schema.table or table for public, e.g. public.orders
-    required:
-    - table
-- name: northflank_template_runs
-  description: A Northflank template's recent runs, newest first, each with its status,
-    when it started and finished and how long it took, and how long finished runs
-    usually take. Templates belong to the team rather than a project. Name a run to
-    read it with each node, such as a project, a service, a build or a release, how
-    each went, the error a failed one gave and its retries
-  source: northflank
-  reads: true
-  parameters:
-    type: object
-    properties:
-      template:
-        type: string
-        description: The template, by name or id
-      name:
-        type: string
-        description: Only runs whose template's name contains this (optional)
-      run:
-        type: string
-        description: Only this run, by its id, with each of its nodes (optional)
-      limit:
-        type: integer
-        description: At most this many runs (optional, 20)
-    required:
-    - template
-- name: notion_notion_stop_session
-  description: Notion's notion stop session. It can change something.
-  source: notion
+- name: linear_restore_project_label
+  description: Linear's restore project label. It can change something.
+  source: linear
   confirms: true
   parameters:
     type: object
     properties: {}
-- name: linear_get_issue_status
-  description: Linear's get issue status. It only reads.
+- name: github_update_pull_request_branch
+  description: Bring a pull request's branch up to date with its base, by merging
+    the base into it as GitHub's Update branch button does
+  source: github
+  confirms: true
+  parameters:
+    type: object
+    properties:
+      repo:
+        type: string
+        description: Repository in owner/name form, e.g. acme/checkout. Read it off
+          the resource map or the catalog first, or list the repositories, and ask
+          only when several fit
+      number:
+        type: integer
+        description: The pull request's number
+    required:
+    - repo
+    - number
+- name: linear_merge_diff
+  description: Linear's merge diff. It can change something.
   source: linear
-  reads: true
+  confirms: true
   parameters:
     type: object
     properties: {}
@@ -347,60 +128,188 @@
   parameters:
     type: object
     properties: {}
-- name: github_ci_status
-  description: 'How a repository''s CI stands now: the latest run of each GitHub Actions
-    workflow on a branch (the default branch unless named), failing ones first with
-    the jobs and steps that failed, and what each deployment environment last received'
-  source: github
+- name: northflank_backup_history
+  description: A Northflank database's recent backups, newest first, each with its
+    status, when it started and finished and how long it took, and how long finished
+    ones usually take. Name a backup to read it alone
+  source: northflank
   reads: true
   parameters:
     type: object
     properties:
-      repo:
+      resource:
         type: string
-        description: Repository in owner/name form, e.g. acme/checkout. Read it off
-          the resource map or the catalog first, or list the repositories, and ask
-          only when several fit
-      branch:
+        description: A service, database (addon) or job in the project, by name or
+          id, as list_resources or list_jobs shows it
+      name:
         type: string
-        description: The branch (optional, the default branch)
-    required:
-    - repo
-- name: github_secret_scanning_alerts
-  description: 'A repository''s secret scanning alerts: what kind of secret, whether
-    it still works, whether it was pushed past push protection or leaked publicly,
-    and each alert''s page. Never the secret itself'
-  source: github
-  reads: true
-  parameters:
-    type: object
-    properties:
-      repo:
+        description: Only runs of this kind, backup (optional)
+      run:
         type: string
-        description: Repository in owner/name form, e.g. acme/checkout. Read it off
-          the resource map or the catalog first, or list the repositories, and ask
-          only when several fit
-      state:
-        type: string
-        enum:
-        - open
-        - resolved
-        description: Only alerts in this state (optional, open)
+        description: Only this backup, by its id (optional)
       limit:
         type: integer
-        description: At most this many (optional, 20, at most 100)
+        description: At most this many backups (optional, 20)
     required:
-    - repo
-- name: notion_notion_download_skill
-  description: Notion's notion download skill. It only reads.
+    - resource
+- name: notion_notion_get_users
+  description: Notion's notion get users. It only reads.
   source: notion
   reads: true
   parameters:
     type: object
     properties: {}
-- name: linear_delete_attachment
-  description: Linear's delete attachment. It can change something.
+- name: opsgenie_list_maintenance_targets
+  description: The integrations and alert policies in Opsgenie, by name and id, which
+    a maintenance window quiets. Use it for the ids create_maintenance takes
+  source: opsgenie
+  reads: true
+  parameters:
+    type: object
+    properties: {}
+- name: linear_get_document
+  description: Linear's get document. It only reads.
   source: linear
+  reads: true
+  parameters:
+    type: object
+    properties: {}
+- name: linear_restore_issue_label
+  description: Linear's restore issue label. It can change something.
+  source: linear
+  confirms: true
+  parameters:
+    type: object
+    properties: {}
+- name: github_revert_pull_request
+  description: Open a pull request that reverts a merged pull request, on a branch
+    under halon/ made from its base branch as it is now. Nothing reaches the base
+    branch until that pull request is reviewed and merged. A pull request whose changes
+    were since changed again, so it does not revert cleanly, is refused
+  source: github
+  confirms: true
+  parameters:
+    type: object
+    properties:
+      repo:
+        type: string
+        description: Repository in owner/name form, e.g. acme/checkout. Read it off
+          the resource map or the catalog first, or list the repositories, and ask
+          only when several fit
+      number:
+        type: integer
+        description: The merged pull request's number
+      reason:
+        type: string
+        description: Why it is reverted, for the new pull request's description (optional)
+    required:
+    - repo
+    - number
+- name: linear_get_status_updates
+  description: Linear's get status updates. It only reads.
+  source: linear
+  reads: true
+  parameters:
+    type: object
+    properties: {}
+- name: linear_save_issue
+  description: Linear's save issue. It can change something.
+  source: linear
+  confirms: true
+  parameters:
+    type: object
+    properties: {}
+- name: sentry_search_issues
+  description: Sentry's search issues. It only reads.
+  source: sentry
+  reads: true
+  parameters:
+    type: object
+    properties:
+      organizationSlug:
+        type: string
+      query:
+        type: string
+      sort:
+        type: string
+      projectSlugOrId:
+        type: string
+      regionUrl:
+        type: string
+      limit:
+        type: string
+      period:
+        type: string
+      includeExplanation:
+        type: string
+- name: datadog_get_datadog_error_tracking_issue
+  description: Datadog's get datadog error tracking issue. It only reads.
+  source: datadog
+  reads: true
+  parameters:
+    type: object
+    properties: {}
+- name: linear_get_notifications
+  description: Linear's get notifications. It only reads.
+  source: linear
+  reads: true
+  parameters:
+    type: object
+    properties: {}
+- name: linear_list_comments
+  description: Linear's list comments. It only reads.
+  source: linear
+  reads: true
+  parameters:
+    type: object
+    properties: {}
+- name: linear_delete_diff_comment
+  description: Linear's delete diff comment. It can change something.
+  source: linear
+  confirms: true
+  parameters:
+    type: object
+    properties: {}
+- name: github_show_commit
+  description: 'One commit in full: message, author, the files it changed and its
+    diff, optionally only for one path'
+  source: github
+  reads: true
+  parameters:
+    type: object
+    properties:
+      repo:
+        type: string
+        description: Repository in owner/name form, e.g. acme/checkout. Read it off
+          the resource map or the catalog first, or list the repositories, and ask
+          only when several fit
+      sha:
+        type: string
+        description: The commit SHA
+      path:
+        type: string
+        description: Only the change to this path (optional)
+    required:
+    - repo
+    - sha
+- name: notion_notion_update_view
+  description: Notion's notion update view. It can change something.
+  source: notion
+  confirms: true
+  parameters:
+    type: object
+    properties: {}
+- name: notion_notion_update_data_source
+  description: Notion's notion update data source. It can change something.
+  source: notion
+  confirms: true
+  parameters:
+    type: object
+    properties: {}
+- name: datadog_manage_datadog_error_tracking_issue_links
+  description: Datadog's manage datadog error tracking issue links. It can change
+    something.
+  source: datadog
   confirms: true
   parameters:
     type: object
@@ -443,35 +352,29 @@
     required:
     - log_groups
     - query
-- name: github_recent_deployments
-  description: List recent deployments for a repository, newest first, each with its
-    id, the ref deployed, the environment, the outcome, its log and the address it
-    serves at
-  source: github
+- name: notion_notion_move_pages
+  description: Notion's notion move pages. It can change something.
+  source: notion
+  confirms: true
+  parameters:
+    type: object
+    properties: {}
+- name: opsgenie_search_incidents
+  description: 'Incidents in Opsgenie, newest first, with their status, priority and
+    the services they affect. query uses Opsgenie''s incident search, such as status:
+    open'
+  source: opsgenie
   reads: true
   parameters:
     type: object
     properties:
-      repo:
+      query:
         type: string
-        description: Repository in owner/name form, e.g. acme/checkout. Read it off
-          the resource map or the catalog first, or list the repositories, and ask
-          only when several fit
-      deployment_environment:
-        type: string
-        description: Limit to one deployment environment, e.g. production (optional)
+        description: 'An Opsgenie incident search query, such as status: open (optional,
+          every incident)'
       limit:
         type: integer
-        description: At most this many (optional, 3, at most 20)
-    required:
-    - repo
-- name: datadog_get_datadog_metric_context
-  description: Datadog's get datadog metric context. It only reads.
-  source: datadog
-  reads: true
-  parameters:
-    type: object
-    properties: {}
+        description: At most this many, up to 100 (optional, 20)
 - name: aws_scale_service
   description: Set how many tasks an ECS service runs. An auto scaling policy on the
     service can change it again
@@ -490,27 +393,186 @@
     required:
     - resource
     - desired_count
-- name: linear_list_issues
-  description: Linear's list issues. It only reads.
+- name: linear_list_issue_labels
+  description: Linear's list issue labels. It only reads.
   source: linear
   reads: true
   parameters:
     type: object
     properties: {}
-- name: linear_get_template
-  description: Linear's get template. It only reads.
-  source: linear
-  reads: true
+- name: notion_notion_create_file_upload
+  description: Notion's notion create file upload. It can change something.
+  source: notion
+  confirms: true
   parameters:
     type: object
     properties: {}
-- name: datadog_get_datadog_error_tracking_issue
-  description: Datadog's get datadog error tracking issue. It only reads.
+- name: github_read_artifact
+  description: 'Read a GitHub Actions artifact: the files in it, and the text of the
+    text files, each cut short. An artifact larger than 10 MB is not read'
+  source: github
+  reads: true
+  parameters:
+    type: object
+    properties:
+      repo:
+        type: string
+        description: Repository in owner/name form, e.g. acme/checkout. Read it off
+          the resource map or the catalog first, or list the repositories, and ask
+          only when several fit
+      artifact_id:
+        type: integer
+        description: The artifact's id, as list_artifacts shows it
+      file:
+        type: string
+        description: Only this file in the artifact, by its path in it (optional,
+          every text file)
+    required:
+    - repo
+    - artifact_id
+- name: datadog_get_datadog_metric_context
+  description: Datadog's get datadog metric context. It only reads.
   source: datadog
   reads: true
   parameters:
     type: object
     properties: {}
+- name: notion_notion_read_session_event
+  description: Notion's notion read session event. It only reads.
+  source: notion
+  reads: true
+  parameters:
+    type: object
+    properties: {}
+- name: linear_get_milestone
+  description: Linear's get milestone. It only reads.
+  source: linear
+  reads: true
+  parameters:
+    type: object
+    properties: {}
+- name: github_secret_scanning_alert
+  description: 'One secret scanning alert: what kind of secret, whether it still works,
+    who resolved it and how. Never the secret itself'
+  source: github
+  reads: true
+  parameters:
+    type: object
+    properties:
+      repo:
+        type: string
+        description: Repository in owner/name form, e.g. acme/checkout. Read it off
+          the resource map or the catalog first, or list the repositories, and ask
+          only when several fit
+      number:
+        type: integer
+        description: The alert's number
+    required:
+    - repo
+    - number
+- name: notion_notion_get_comments
+  description: Notion's notion get comments. It only reads.
+  source: notion
+  reads: true
+  parameters:
+    type: object
+    properties: {}
+- name: northflank_billing_usage
+  description: 'What the Northflank account or team was charged, by day or by month,
+    with each period''s total and what cost most: CPU, memory, storage and GPU, bring
+    your own cloud, egress IPs and load balancers. Use it to watch spend and find
+    what grew and since when. The token''s role needs Billing read'
+  source: northflank
+  reads: true
+  parameters:
+    type: object
+    properties:
+      by:
+        type: string
+        enum:
+        - day
+        - month
+        description: day or month (optional, day)
+      days:
+        type: integer
+        description: For by day, how many days back from today (optional, 30, at most
+          365)
+      months:
+        type: integer
+        description: For by month, how many months before this one (optional, 3, at
+          most 12)
+- name: github_update_pull_request
+  description: Change a pull request's title, description or the branch it merges
+    into
+  source: github
+  confirms: true
+  parameters:
+    type: object
+    properties:
+      repo:
+        type: string
+        description: Repository in owner/name form, e.g. acme/checkout. Read it off
+          the resource map or the catalog first, or list the repositories, and ask
+          only when several fit
+      number:
+        type: integer
+        description: The pull request's number
+      title:
+        type: string
+        description: The new title (optional)
+      body:
+        type: string
+        description: The new description, replacing the old one (optional)
+      base:
+        type: string
+        description: The branch to merge into instead (optional)
+    required:
+    - repo
+    - number
+- name: opsgenie_resolve_incident
+  description: Resolve an Opsgenie incident once the problem is fixed
+  source: opsgenie
+  confirms: true
+  parameters:
+    type: object
+    properties:
+      incident:
+        type: string
+        description: The incident, by its id or its tiny id (the short number Opsgenie
+          shows)
+      identifier_type:
+        type: string
+        enum:
+        - id
+        - tiny
+        description: 'Which of these incident names: id or tiny (optional, id)'
+      note:
+        type: string
+        description: A note Opsgenie adds to the incident, saying why (optional)
+    required:
+    - incident
+- name: aws_list_resources
+  description: The ECS services, Lambda functions, EC2 instances, RDS databases and
+    CodeBuild projects this connection reaches, in each of its regions, with their
+    state and ARN. Use it first to find the name to pass to the other tools
+  source: aws
+  reads: true
+  parameters:
+    type: object
+    properties:
+      kind:
+        type: string
+        enum:
+        - service
+        - function
+        - virtual_machine
+        - database
+        - build_service
+        description: Only this kind (optional)
+      region:
+        type: string
+        description: Only this region, such as eu-west-1 (optional, every region of
+          the connection)
 - name: github_job_log
   description: The end of a GitHub Actions job's log, where it says why it failed,
     filtered by text if asked. Without a job, the newest failed job in the repository,
@@ -555,162 +617,6 @@
         description: End of the range as an ISO 8601 time (optional, now)
     required:
     - repo
-- name: notion_notion_query_sessions
-  description: Notion's notion query sessions. It only reads.
-  source: notion
-  reads: true
-  parameters:
-    type: object
-    properties: {}
-- name: linear_list_users
-  description: Linear's list users. It only reads.
-  source: linear
-  reads: true
-  parameters:
-    type: object
-    properties: {}
-- name: github_reopen_pull_request
-  description: Reopen a pull request that was closed without being merged
-  source: github
-  confirms: true
-  parameters:
-    type: object
-    properties:
-      repo:
-        type: string
-        description: Repository in owner/name form, e.g. acme/checkout. Read it off
-          the resource map or the catalog first, or list the repositories, and ask
-          only when several fit
-      number:
-        type: integer
-        description: The pull request's number
-      comment:
-        type: string
-        description: A comment saying why, posted first (optional)
-    required:
-    - repo
-    - number
-- name: linear_get_release
-  description: Linear's get release. It only reads.
-  source: linear
-  reads: true
-  parameters:
-    type: object
-    properties: {}
-- name: opsgenie_who_is_on_call
-  description: Who is on call now in Opsgenie, for one schedule or for every schedule
-    with the team that owns it. Use it to find who to page or who is already being
-    paged
-  source: opsgenie
-  reads: true
-  parameters:
-    type: object
-    properties:
-      schedule:
-        type: string
-        description: One schedule, by its name or id (optional, every schedule)
-- name: northflank_describe_resource
-  description: 'How one service, database or job is set up and how it stands now.
-    A service: its rollout status, instances, plan, the repository, branch and commit
-    it runs or the image, ephemeral storage, health checks and ports. A database:
-    its type and version, status, replicas, storage, plan, network access, secret
-    rotation, pending actions and latest backups. A job: cron or manual, its schedule,
-    whether it is suspended, its plan, retries and time limit, and its latest runs'
-  source: northflank
-  reads: true
-  parameters:
-    type: object
-    properties:
-      resource:
-        type: string
-        description: A service, database (addon) or job in the project, by name or
-          id, as list_resources or list_jobs shows it
-    required:
-    - resource
-- name: github_show_commit
-  description: 'One commit in full: message, author, the files it changed and its
-    diff, optionally only for one path'
-  source: github
-  reads: true
-  parameters:
-    type: object
-    properties:
-      repo:
-        type: string
-        description: Repository in owner/name form, e.g. acme/checkout. Read it off
-          the resource map or the catalog first, or list the repositories, and ask
-          only when several fit
-      sha:
-        type: string
-        description: The commit SHA
-      path:
-        type: string
-        description: Only the change to this path (optional)
-    required:
-    - repo
-    - sha
-- name: github_pr_lookup
-  description: 'Fetch a pull request: title, state, author, branches, whether GitHub
-    says it can merge, its reviews and review comments, the checks and statuses on
-    its head commit, its changed files, and for a Dependabot update the security advisories
-    it fixes'
-  source: github
-  reads: true
-  parameters:
-    type: object
-    properties:
-      repo:
-        type: string
-        description: Repository in owner/name form, e.g. acme/checkout. Read it off
-          the resource map or the catalog first, or list the repositories, and ask
-          only when several fit
-      number:
-        type: integer
-        description: The pull request's number
-    required:
-    - repo
-    - number
-- name: aws_list_resources
-  description: The ECS services, Lambda functions, EC2 instances, RDS databases and
-    CodeBuild projects this connection reaches, in each of its regions, with their
-    state and ARN. Use it first to find the name to pass to the other tools
-  source: aws
-  reads: true
-  parameters:
-    type: object
-    properties:
-      kind:
-        type: string
-        enum:
-        - service
-        - function
-        - virtual_machine
-        - database
-        - build_service
-        description: Only this kind (optional)
-      region:
-        type: string
-        description: Only this region, such as eu-west-1 (optional, every region of
-          the connection)
-- name: github_issue_lookup
-  description: Fetch an issue with its description, labels, assignees and its newest
-    comments
-  source: github
-  reads: true
-  parameters:
-    type: object
-    properties:
-      repo:
-        type: string
-        description: Repository in owner/name form, e.g. acme/checkout. Read it off
-          the resource map or the catalog first, or list the repositories, and ask
-          only when several fit
-      number:
-        type: integer
-        description: The issue's number
-    required:
-    - repo
-    - number
 - name: aws_search_logs
   description: Log lines of one ECS service, Lambda function or RDS database from
     CloudWatch Logs, newest first, at most 200, through a Logs Insights query on its
@@ -749,16 +655,28 @@
         description: End of the range as an ISO 8601 time (optional, now)
     required:
     - resource
-- name: datadog_manage_datadog_error_tracking_issue_links
-  description: Datadog's manage datadog error tracking issue links. It can change
-    something.
-  source: datadog
-  confirms: true
+- name: northflank_job_runs
+  description: A job's runs, newest first, with each one's id, outcome (succeeded,
+    running, failed), when it started and finished, and how many attempts failed.
+    Name a run for that run alone, however old
+  source: northflank
+  reads: true
   parameters:
     type: object
-    properties: {}
-- name: linear_save_issue
-  description: Linear's save issue. It can change something.
+    properties:
+      job:
+        type: string
+        description: The job, by name or id, as list_jobs shows it
+      run:
+        type: string
+        description: Only this run, by its id (optional)
+      limit:
+        type: integer
+        description: At most this many runs (optional, 20)
+    required:
+    - job
+- name: linear_save_milestone
+  description: Linear's save milestone. It can change something.
   source: linear
   confirms: true
   parameters:
@@ -772,15 +690,34 @@
   parameters:
     type: object
     properties: {}
-- name: linear_list_release_notes
-  description: Linear's list release notes. It only reads.
-  source: linear
+- name: github_code_search
+  description: Regex search across a repository at a commit, returning path:line references
+    with the matching line
+  source: github
   reads: true
   parameters:
     type: object
-    properties: {}
-- name: notion_notion_create_folder
-  description: Notion's notion create folder. It can change something.
+    properties:
+      repo:
+        type: string
+        description: Repository in owner/name form, e.g. acme/checkout. Read it off
+          the resource map or the catalog first, or list the repositories, and ask
+          only when several fit
+      ref:
+        type: string
+        description: Commit SHA, branch or tag, usually the running commit (optional,
+          the default branch otherwise)
+      pattern:
+        type: string
+        description: Extended regex to search for, e.g. def assign_clinician|AssignmentService
+      path_prefix:
+        type: string
+        description: Limit the search to paths under this prefix (optional)
+    required:
+    - repo
+    - pattern
+- name: notion_notion_create_view
+  description: Notion's notion create view. It can change something.
   source: notion
   confirms: true
   parameters:
@@ -793,10 +730,9 @@
   parameters:
     type: object
     properties: {}
-- name: github_list_workflows
-  description: A repository's GitHub Actions workflows, each with its file, whether
-    it is active and its page. A workflow's file name is what workflow_runs and run_workflow
-    take
+- name: github_diff_refs
+  description: The diff between two commits, branches or tags in a repository, optionally
+    only for one path
   source: github
   reads: true
   parameters:
@@ -807,8 +743,19 @@
         description: Repository in owner/name form, e.g. acme/checkout. Read it off
           the resource map or the catalog first, or list the repositories, and ask
           only when several fit
+      base:
+        type: string
+        description: The earlier commit, branch or tag
+      head:
+        type: string
+        description: The later commit, branch or tag
+      path:
+        type: string
+        description: Only this path (optional)
     required:
     - repo
+    - base
+    - head
 - name: aws_codedeploy_deployments
   description: A CodeDeploy deployment group's recent deployments, newest first, each
     with its status, when it started and finished, the revision and any rollback,
@@ -833,15 +780,17 @@
         description: At most this many (optional, 20)
     required:
     - resource
-- name: notion_notion_move_pages
-  description: Notion's notion move pages. It can change something.
+- name: notion_notion_query_meeting_notes
+  description: Notion's notion query meeting notes. It only reads.
   source: notion
-  confirms: true
+  reads: true
   parameters:
     type: object
     properties: {}
-- name: github_list_tags
-  description: A repository's tags, with the commit each one points at
+- name: github_secret_scanning_alerts
+  description: 'A repository''s secret scanning alerts: what kind of secret, whether
+    it still works, whether it was pushed past push protection or leaked publicly,
+    and each alert''s page. Never the secret itself'
   source: github
   reads: true
   parameters:
@@ -852,141 +801,56 @@
         description: Repository in owner/name form, e.g. acme/checkout. Read it off
           the resource map or the catalog first, or list the repositories, and ask
           only when several fit
+      state:
+        type: string
+        enum:
+        - open
+        - resolved
+        description: Only alerts in this state (optional, open)
       limit:
         type: integer
         description: At most this many (optional, 20, at most 100)
     required:
     - repo
-- name: postgresql_run_query
-  description: Run one read-only SELECT and get its rows back, at most 200. A query
-    that would write is refused, and one running longer than 10 seconds is stopped,
-    so count or aggregate rather than reading a large table whole
-  source: postgresql
-  reads: true
-  parameters:
-    type: object
-    properties:
-      sql:
-        type: string
-        description: One SELECT, WITH or VALUES statement, no trailing semicolon needed
-    required:
-    - sql
-- name: sentry_search_logs
-  description: Sentry's search logs. It only reads.
-  source: sentry
-  reads: true
-  parameters:
-    type: object
-    properties:
-      organizationSlug:
-        type: string
-      query:
-        type: string
-      fields:
-        type: string
-      sort:
-        type: string
-      projectSlug:
-        type: string
-      period:
-        type: string
-      regionUrl:
-        type: string
-      limit:
-        type: string
-      includeExplanation:
-        type: string
-- name: github_reply_to_review_comment
-  description: Reply in the thread of a review comment on a pull request's code, by
-    the comment's id as pr_lookup shows it
-  source: github
+- name: linear_save_status_update
+  description: Linear's save status update. It can change something.
+  source: linear
   confirms: true
   parameters:
     type: object
-    properties:
-      repo:
-        type: string
-        description: Repository in owner/name form, e.g. acme/checkout. Read it off
-          the resource map or the catalog first, or list the repositories, and ask
-          only when several fit
-      number:
-        type: integer
-        description: The pull request's number
-      comment_id:
-        type: integer
-        description: The review comment's id
-      body:
-        type: string
-        description: What to say, in GitHub's markdown
-    required:
-    - repo
-    - number
-    - comment_id
-    - body
-- name: linear_get_attachment
-  description: Linear's get attachment. It only reads.
-  source: linear
-  reads: true
-  parameters:
-    type: object
     properties: {}
-- name: aws_beanstalk_events
-  description: An Elastic Beanstalk environment's recent deployments and updates,
-    newest first, read from its events, each with how it ended, the version it deployed
-    and the error a failed one gave. Name one by its request id to read every event
-    it wrote
-  source: aws
+- name: northflank_release_flow_runs
+  description: The recent runs of the release flow of one stage of a Northflank pipeline,
+    newest first, each with its status, when it started and finished and how long
+    it took, and how long finished runs usually take. Name a run to read it with each
+    node, how each went, the error a failed one gave and its retries
+  source: northflank
   reads: true
   parameters:
     type: object
     properties:
-      resource:
+      pipeline:
         type: string
-        description: The Elastic Beanstalk environment, by its name or ARN
-      run:
+        description: The pipeline, by name or id
+      stage:
         type: string
-        description: Only this one, by its id, with its steps (optional)
+        enum:
+        - Development
+        - Staging
+        - Production
+        description: The stage whose release flow ran
       name:
         type: string
-        description: Only runs whose name contains this (optional)
+        description: Only runs whose release flow's name contains this (optional)
+      run:
+        type: string
+        description: Only this run, by its id, with each of its nodes (optional)
       limit:
         type: integer
-        description: At most this many (optional, 20)
+        description: At most this many runs (optional, 20)
     required:
-    - resource
-- name: notion_notion_fetch
-  description: Notion's notion fetch. It only reads.
-  source: notion
-  reads: true
-  parameters:
-    type: object
-    properties: {}
-- name: linear_save_release
-  description: Linear's save release. It can change something.
-  source: linear
-  confirms: true
-  parameters:
-    type: object
-    properties: {}
-- name: github_secret_scanning_alert
-  description: 'One secret scanning alert: what kind of secret, whether it still works,
-    who resolved it and how. Never the secret itself'
-  source: github
-  reads: true
-  parameters:
-    type: object
-    properties:
-      repo:
-        type: string
-        description: Repository in owner/name form, e.g. acme/checkout. Read it off
-          the resource map or the catalog first, or list the repositories, and ask
-          only when several fit
-      number:
-        type: integer
-        description: The alert's number
-    required:
-    - repo
-    - number
+    - pipeline
+    - stage
 - name: github_update_release
   description: Change a release's notes, title or prerelease flag, on a draft or a
     published release, such as filling in a placeholder a release workflow left in
@@ -1027,41 +891,132 @@
         description: Whether it is a prerelease (optional)
     required:
     - repo
-- name: northflank_run_template
-  description: Start a run of a Northflank template, which creates or changes everything
-    it defines across the team's projects. Pass the values its ${args.<name>} read
-    as arguments. Follow the run with run_history on the template
-  source: northflank
-  confirms: true
+- name: opsgenie_search_alerts
+  description: 'Alerts in Opsgenie, newest first, with their status, priority, how
+    many times each fired and who owns or acknowledged it. query uses Opsgenie''s
+    alert search, such as status: open AND acknowledged: false'
+  source: opsgenie
+  reads: true
   parameters:
     type: object
     properties:
-      template:
+      query:
         type: string
-        description: The template, by name or id
-      arguments:
-        type: object
-        description: 'Values the template reads as ${args.<name>}, by name, such as
-          {"version": "v1.4"}. Never a secret (optional)'
+        description: 'An Opsgenie alert search query, such as status: open or message:
+          checkout (optional, every alert)'
+      limit:
+        type: integer
+        description: At most this many, up to 100 (optional, 20)
+- name: aws_beanstalk_events
+  description: An Elastic Beanstalk environment's recent deployments and updates,
+    newest first, read from its events, each with how it ended, the version it deployed
+    and the error a failed one gave. Name one by its request id to read every event
+    it wrote
+  source: aws
+  reads: true
+  parameters:
+    type: object
+    properties:
+      resource:
+        type: string
+        description: The Elastic Beanstalk environment, by its name or ARN
+      run:
+        type: string
+        description: Only this one, by its id, with its steps (optional)
+      name:
+        type: string
+        description: Only runs whose name contains this (optional)
+      limit:
+        type: integer
+        description: At most this many (optional, 20)
     required:
-    - template
-- name: sentry_analyze_issue_with_seer
-  description: Sentry's analyze issue with seer. It can change something.
-  source: sentry
+    - resource
+- name: notion_notion_fetch
+  description: Notion's notion fetch. It only reads.
+  source: notion
+  reads: true
+  parameters:
+    type: object
+    properties: {}
+- name: linear_create_attachment_from_upload
+  description: Linear's create attachment from upload. It can change something.
+  source: linear
   confirms: true
+  parameters:
+    type: object
+    properties: {}
+- name: github_list_branches
+  description: A repository's branches, with the commit each one is at and whether
+    it is protected
+  source: github
+  reads: true
+  parameters:
+    type: object
+    properties:
+      repo:
+        type: string
+        description: Repository in owner/name form, e.g. acme/checkout. Read it off
+          the resource map or the catalog first, or list the repositories, and ask
+          only when several fit
+      protected_only:
+        type: boolean
+        description: Only protected branches (optional)
+      limit:
+        type: integer
+        description: At most this many (optional, 20, at most 100)
+    required:
+    - repo
+- name: sentry_search_logs
+  description: Sentry's search logs. It only reads.
+  source: sentry
+  reads: true
   parameters:
     type: object
     properties:
       organizationSlug:
         type: string
+      query:
+        type: string
+      fields:
+        type: string
+      sort:
+        type: string
+      projectSlug:
+        type: string
+      period:
+        type: string
       regionUrl:
         type: string
-      issueId:
+      limit:
         type: string
-      issueUrl:
+      includeExplanation:
         type: string
-      instruction:
+- name: github_ci_status
+  description: 'How a repository''s CI stands now: the latest run of each GitHub Actions
+    workflow on a branch (the default branch unless named), failing ones first with
+    the jobs and steps that failed, and what each deployment environment last received'
+  source: github
+  reads: true
+  parameters:
+    type: object
+    properties:
+      repo:
         type: string
+        description: Repository in owner/name form, e.g. acme/checkout. Read it off
+          the resource map or the catalog first, or list the repositories, and ask
+          only when several fit
+      branch:
+        type: string
+        description: The branch (optional, the default branch)
+    required:
+    - repo
+- name: linear_list_teams
+  description: Linear's list teams. It only reads.
+  source: linear
+  reads: true
+  parameters:
+    type: object
+    properties: {}
 - name: github_ask_language_server
   description: 'Ask the language server for Ruby, TypeScript, JavaScript, Go or Python:
     the definition of what sits at a line and column, every reference to it, its type
@@ -1114,9 +1069,42 @@
     required:
     - repo
     - question
-- name: github_code_search
-  description: Regex search across a repository at a commit, returning path:line references
-    with the matching line
+- name: notion_notion_ai_search
+  description: Notion's notion ai search. It only reads.
+  source: notion
+  reads: true
+  parameters:
+    type: object
+    properties: {}
+- name: aws_stop_service_deployment
+  description: Stop an ECS service deployment that is still going, rolling the service
+    back to the revision it ran before (rollback) or leaving it where it is (abort).
+    list_deployments shows the deployments
+  source: aws
+  confirms: true
+  parameters:
+    type: object
+    properties:
+      resource:
+        type: string
+        description: The ECS service, by its name or ARN
+      deployment:
+        type: string
+        description: The deployment to stop, by its id or ARN as list_deployments
+          shows it
+      mode:
+        type: string
+        enum:
+        - rollback
+        - abort
+        description: rollback or abort (optional, rollback)
+    required:
+    - resource
+    - deployment
+- name: github_recent_deployments
+  description: List recent deployments for a repository, newest first, each with its
+    id, the ref deployed, the environment, the outcome, its log and the address it
+    serves at
   source: github
   reads: true
   parameters:
@@ -1127,22 +1115,68 @@
         description: Repository in owner/name form, e.g. acme/checkout. Read it off
           the resource map or the catalog first, or list the repositories, and ask
           only when several fit
-      ref:
+      deployment_environment:
         type: string
-        description: Commit SHA, branch or tag, usually the running commit (optional,
-          the default branch otherwise)
-      pattern:
-        type: string
-        description: Extended regex to search for, e.g. def assign_clinician|AssignmentService
-      path_prefix:
-        type: string
-        description: Limit the search to paths under this prefix (optional)
+        description: Limit to one deployment environment, e.g. production (optional)
+      limit:
+        type: integer
+        description: At most this many (optional, 3, at most 20)
     required:
     - repo
-    - pattern
-- name: github_update_pull_request
-  description: Change a pull request's title, description or the branch it merges
-    into
+- name: github_workflow_runs
+  description: A repository's GitHub Actions workflow runs, newest first, with the
+    workflow, its outcome, the branch and commit, what started it and its page
+  source: github
+  reads: true
+  parameters:
+    type: object
+    properties:
+      repo:
+        type: string
+        description: Repository in owner/name form, e.g. acme/checkout. Read it off
+          the resource map or the catalog first, or list the repositories, and ask
+          only when several fit
+      branch:
+        type: string
+        description: Only runs for this branch (optional)
+      status:
+        type: string
+        enum:
+        - completed
+        - action_required
+        - cancelled
+        - failure
+        - neutral
+        - skipped
+        - stale
+        - success
+        - timed_out
+        - in_progress
+        - queued
+        - requested
+        - waiting
+        - pending
+        description: Only runs in this status or with this outcome, such as failure
+          (optional)
+      event:
+        type: string
+        description: Only runs started by this event, such as push or pull_request
+          (optional)
+      limit:
+        type: integer
+        description: At most this many (optional, 10, at most 50)
+    required:
+    - repo
+- name: linear_create_issue_label
+  description: Linear's create issue label. It can change something.
+  source: linear
+  confirms: true
+  parameters:
+    type: object
+    properties: {}
+- name: github_reply_to_review_comment
+  description: Reply in the thread of a review comment on a pull request's code, by
+    the comment's id as pr_lookup shows it
   source: github
   confirms: true
   parameters:
@@ -1156,18 +1190,41 @@
       number:
         type: integer
         description: The pull request's number
-      title:
-        type: string
-        description: The new title (optional)
+      comment_id:
+        type: integer
+        description: The review comment's id
       body:
         type: string
-        description: The new description, replacing the old one (optional)
-      base:
-        type: string
-        description: The branch to merge into instead (optional)
+        description: What to say, in GitHub's markdown
     required:
     - repo
     - number
+    - comment_id
+    - body
+- name: aws_app_runner_operations
+  description: 'An App Runner service''s recent operations, newest first: its deployments,
+    updates, pauses and resumes, each with how it ended, when it started and finished,
+    and how long finished ones usually take. Name an operation to read it with where
+    its deployment log is'
+  source: aws
+  reads: true
+  parameters:
+    type: object
+    properties:
+      resource:
+        type: string
+        description: The App Runner service, by its name or ARN
+      run:
+        type: string
+        description: Only this one, by its id, with its steps (optional)
+      name:
+        type: string
+        description: Only runs whose name contains this (optional)
+      limit:
+        type: integer
+        description: At most this many (optional, 20)
+    required:
+    - resource
 - name: sentry_update_issue
   description: Sentry's update issue. It can change something.
   source: sentry
@@ -1201,136 +1258,6 @@
         type: string
       reason:
         type: string
-- name: aws_stop_service_deployment
-  description: Stop an ECS service deployment that is still going, rolling the service
-    back to the revision it ran before (rollback) or leaving it where it is (abort).
-    list_deployments shows the deployments
-  source: aws
-  confirms: true
-  parameters:
-    type: object
-    properties:
-      resource:
-        type: string
-        description: The ECS service, by its name or ARN
-      deployment:
-        type: string
-        description: The deployment to stop, by its id or ARN as list_deployments
-          shows it
-      mode:
-        type: string
-        enum:
-        - rollback
-        - abort
-        description: rollback or abort (optional, rollback)
-    required:
-    - resource
-    - deployment
-- name: linear_restore_issue_label
-  description: Linear's restore issue label. It can change something.
-  source: linear
-  confirms: true
-  parameters:
-    type: object
-    properties: {}
-- name: opsgenie_close_incident
-  description: Close an Opsgenie incident, which ends it for good
-  source: opsgenie
-  confirms: true
-  parameters:
-    type: object
-    properties:
-      incident:
-        type: string
-        description: The incident, by its id or its tiny id (the short number Opsgenie
-          shows)
-      identifier_type:
-        type: string
-        enum:
-        - id
-        - tiny
-        description: 'Which of these incident names: id or tiny (optional, id)'
-      note:
-        type: string
-        description: A note Opsgenie adds to the incident, saying why (optional)
-    required:
-    - incident
-- name: opsgenie_list_escalations
-  description: 'The escalation policies in Opsgenie: who each one notifies, in what
-    order, after how long and on which condition. Use it to see who an alert reaches
-    next, and for the name escalate_alert takes'
-  source: opsgenie
-  reads: true
-  parameters:
-    type: object
-    properties: {}
-- name: opsgenie_resolve_incident
-  description: Resolve an Opsgenie incident once the problem is fixed
-  source: opsgenie
-  confirms: true
-  parameters:
-    type: object
-    properties:
-      incident:
-        type: string
-        description: The incident, by its id or its tiny id (the short number Opsgenie
-          shows)
-      identifier_type:
-        type: string
-        enum:
-        - id
-        - tiny
-        description: 'Which of these incident names: id or tiny (optional, id)'
-      note:
-        type: string
-        description: A note Opsgenie adds to the incident, saying why (optional)
-    required:
-    - incident
-- name: aws_app_runner_operations
-  description: 'An App Runner service''s recent operations, newest first: its deployments,
-    updates, pauses and resumes, each with how it ended, when it started and finished,
-    and how long finished ones usually take. Name an operation to read it with where
-    its deployment log is'
-  source: aws
-  reads: true
-  parameters:
-    type: object
-    properties:
-      resource:
-        type: string
-        description: The App Runner service, by its name or ARN
-      run:
-        type: string
-        description: Only this one, by its id, with its steps (optional)
-      name:
-        type: string
-        description: Only runs whose name contains this (optional)
-      limit:
-        type: integer
-        description: At most this many (optional, 20)
-    required:
-    - resource
-- name: github_list_branches
-  description: A repository's branches, with the commit each one is at and whether
-    it is protected
-  source: github
-  reads: true
-  parameters:
-    type: object
-    properties:
-      repo:
-        type: string
-        description: Repository in owner/name form, e.g. acme/checkout. Read it off
-          the resource map or the catalog first, or list the repositories, and ask
-          only when several fit
-      protected_only:
-        type: boolean
-        description: Only protected branches (optional)
-      limit:
-        type: integer
-        description: At most this many (optional, 20, at most 100)
-    required:
-    - repo
 - name: sentry_get_sentry_resource
   description: Sentry's get sentry resource. It only reads.
   source: sentry
@@ -1346,13 +1273,24 @@
         type: string
       organizationSlug:
         type: string
-- name: linear_list_release_pipelines
-  description: Linear's list release pipelines. It only reads.
-  source: linear
+- name: github_list_releases
+  description: A repository's releases, newest first, with each one's tag, whether
+    it is a draft or a prerelease, when it was published and its page
+  source: github
   reads: true
   parameters:
     type: object
-    properties: {}
+    properties:
+      repo:
+        type: string
+        description: Repository in owner/name form, e.g. acme/checkout. Read it off
+          the resource map or the catalog first, or list the repositories, and ask
+          only when several fit
+      limit:
+        type: integer
+        description: At most this many (optional, 20, at most 100)
+    required:
+    - repo
 - name: datadog_analyze_datadog_error_tracking_errors
   description: Datadog's analyze datadog error tracking errors. It only reads.
   source: datadog
@@ -1360,17 +1298,10 @@
   parameters:
     type: object
     properties: {}
-- name: linear_get_document
-  description: Linear's get document. It only reads.
+- name: linear_get_issue_status
+  description: Linear's get issue status. It only reads.
   source: linear
   reads: true
-  parameters:
-    type: object
-    properties: {}
-- name: linear_merge_diff
-  description: Linear's merge diff. It can change something.
-  source: linear
-  confirms: true
   parameters:
     type: object
     properties: {}
@@ -1405,8 +1336,16 @@
     required:
     - repo
     - library
-- name: linear_create_attachment_from_upload
-  description: Linear's create attachment from upload. It can change something.
+- name: github_list_repositories
+  description: List the repositories this GitHub connection can see, with each one's
+    default branch and last push
+  source: github
+  reads: true
+  parameters:
+    type: object
+    properties: {}
+- name: linear_delete_attachment
+  description: Linear's delete attachment. It can change something.
   source: linear
   confirms: true
   parameters:
@@ -1426,52 +1365,62 @@
   parameters:
     type: object
     properties: {}
-- name: notion_notion_duplicate_page
-  description: Notion's notion duplicate page. It can change something.
+- name: notion_notion_get_async_task
+  description: Notion's notion get async task. It only reads.
+  source: notion
+  reads: true
+  parameters:
+    type: object
+    properties: {}
+- name: notion_notion_send_message_to_session
+  description: Notion's notion send message to session. It can change something.
   source: notion
   confirms: true
   parameters:
     type: object
     properties: {}
-- name: notion_notion_search_sessions
-  description: Notion's notion search sessions. It only reads.
-  source: notion
-  reads: true
-  parameters:
-    type: object
-    properties: {}
-- name: linear_list_teams
-  description: Linear's list teams. It only reads.
-  source: linear
-  reads: true
-  parameters:
-    type: object
-    properties: {}
-- name: sentry_search_errors
-  description: Sentry's search errors. It only reads.
-  source: sentry
+- name: postgresql_run_query
+  description: Run one read-only SELECT and get its rows back, at most 200. A query
+    that would write is refused, and one running longer than 10 seconds is stopped,
+    so count or aggregate rather than reading a large table whole
+  source: postgresql
   reads: true
   parameters:
     type: object
     properties:
-      organizationSlug:
+      sql:
         type: string
-      query:
+        description: One SELECT, WITH or VALUES statement, no trailing semicolon needed
+    required:
+    - sql
+- name: opsgenie_assign_alert
+  description: Make one person the owner of an Opsgenie alert
+  source: opsgenie
+  confirms: true
+  parameters:
+    type: object
+    properties:
+      alert:
         type: string
-      fields:
+        description: The alert, by its id, its tiny id (the short number Opsgenie
+          shows) or its alias
+      identifier_type:
         type: string
-      sort:
+        enum:
+        - id
+        - tiny
+        - alias
+        description: 'Which of these alert names: id, tiny or alias (optional, id).
+          An alias only finds an open alert'
+      owner:
         type: string
-      projectSlug:
+        description: The person's Opsgenie username, their email
+      note:
         type: string
-      period:
-        type: string
-      regionUrl:
-        type: string
-      limit:
-        type: string
-      includeExplanation:
-        type: string
+        description: A note Opsgenie adds to the alert, saying why (optional)
+    required:
+    - alert
+    - owner
 - name: github_changes_before
   description: 'What changed before a time, across every repository this connection
     can see, ranked by how likely each change is to have caused a failure that started
@@ -1530,45 +1479,20 @@
   parameters:
     type: object
     properties: {}
-- name: sentry_search_issues
-  description: Sentry's search issues. It only reads.
-  source: sentry
+- name: notion_notion_update_page
+  description: Notion's notion update page. It can change something.
+  source: notion
+  confirms: true
+  parameters:
+    type: object
+    properties: {}
+- name: linear_list_templates
+  description: Linear's list templates. It only reads.
+  source: linear
   reads: true
   parameters:
     type: object
-    properties:
-      organizationSlug:
-        type: string
-      query:
-        type: string
-      sort:
-        type: string
-      projectSlugOrId:
-        type: string
-      regionUrl:
-        type: string
-      limit:
-        type: string
-      period:
-        type: string
-      includeExplanation:
-        type: string
-- name: opsgenie_search_alerts
-  description: 'Alerts in Opsgenie, newest first, with their status, priority, how
-    many times each fired and who owns or acknowledged it. query uses Opsgenie''s
-    alert search, such as status: open AND acknowledged: false'
-  source: opsgenie
-  reads: true
-  parameters:
-    type: object
-    properties:
-      query:
-        type: string
-        description: 'An Opsgenie alert search query, such as status: open or message:
-          checkout (optional, every alert)'
-      limit:
-        type: integer
-        description: At most this many, up to 100 (optional, 20)
+    properties: {}
 - name: github_fix_code
   description: 'Write a code change with Firefight''s own coding agent in Firefight''s
     sandbox and open it as a pull request, ready for review, written on the base branch''s
@@ -1634,56 +1558,38 @@
     - repo
     - brief
     - title
-- name: sentry_search_metrics
-  description: Sentry's search metrics. It only reads.
-  source: sentry
-  reads: true
-  parameters:
-    type: object
-    properties:
-      organizationSlug:
-        type: string
-      query:
-        type: string
-      fields:
-        type: string
-      sort:
-        type: string
-      projectSlug:
-        type: string
-      period:
-        type: string
-      regionUrl:
-        type: string
-      limit:
-        type: string
-      includeExplanation:
-        type: string
-- name: linear_list_issue_labels
-  description: Linear's list issue labels. It only reads.
+- name: linear_get_template
+  description: Linear's get template. It only reads.
   source: linear
   reads: true
   parameters:
     type: object
     properties: {}
-- name: northflank_recent_builds
-  description: The latest builds of one service or job, newest first, with commit,
-    branch, when it ran and whether it succeeded. Use it to see what changed before
-    something broke
-  source: northflank
+- name: linear_list_issues
+  description: Linear's list issues. It only reads.
+  source: linear
   reads: true
   parameters:
     type: object
+    properties: {}
+- name: northflank_run_template
+  description: Start a run of a Northflank template, which creates or changes everything
+    it defines across the team's projects. Pass the values its ${args.<name>} read
+    as arguments. Follow the run with run_history on the template
+  source: northflank
+  confirms: true
+  parameters:
+    type: object
     properties:
-      resource:
+      template:
         type: string
-        description: A service, database (addon) or job in the project, by name or
-          id, as list_resources or list_jobs shows it
-      limit:
-        type: integer
-        description: At most this many builds (optional, 10)
+        description: The template, by name or id
+      arguments:
+        type: object
+        description: 'Values the template reads as ${args.<name>}, by name, such as
+          {"version": "v1.4"}. Never a secret (optional)'
     required:
-    - resource
+    - template
 - name: github_create_branch
   description: Make a branch named under halon/ from a branch, tag or commit, such
     as for a revert. Only branches made this way can be deleted with delete_branch
@@ -1707,10 +1613,10 @@
     required:
     - repo
     - name
-- name: notion_notion_create_pages
-  description: Notion's notion create pages. It can change something.
+- name: notion_notion_download_attachment
+  description: Notion's notion download attachment. It only reads.
   source: notion
-  confirms: true
+  reads: true
   parameters:
     type: object
     properties: {}
@@ -1733,11 +1639,9 @@
       table:
         type: string
         description: One table, as schema.table (optional)
-- name: github_revert_pull_request
-  description: Open a pull request that reverts a merged pull request, on a branch
-    under halon/ made from its base branch as it is now. Nothing reaches the base
-    branch until that pull request is reviewed and merged. A pull request whose changes
-    were since changed again, so it does not revert cleanly, is refused
+- name: github_review_pull_request
+  description: 'Submit a review of a pull request on its current head commit: approve
+    it, request changes or comment, with comments on lines of its diff if given'
   source: github
   confirms: true
   parameters:
@@ -1750,13 +1654,44 @@
           only when several fit
       number:
         type: integer
-        description: The merged pull request's number
-      reason:
+        description: The pull request's number
+      event:
         type: string
-        description: Why it is reverted, for the new pull request's description (optional)
+        enum:
+        - approve
+        - request_changes
+        - comment
+        description: approve, request_changes or comment
+      body:
+        type: string
+        description: The review's text, required to request changes or comment (optional
+          to approve)
+      comments:
+        type: array
+        description: Comments on lines of the diff (optional)
+        items:
+          type: object
+          required:
+          - path
+          - line
+          - body
+          properties:
+            path:
+              type: string
+              description: The file's path
+            line:
+              type: integer
+              description: The line in the file as the pull request changes it
+            start_line:
+              type: integer
+              description: The first line, for a comment on several lines (optional)
+            body:
+              type: string
+              description: The comment
     required:
     - repo
     - number
+    - event
 - name: datadog_search_datadog_entities
   description: Datadog's search datadog entities. It only reads.
   source: datadog
@@ -1764,25 +1699,48 @@
   parameters:
     type: object
     properties: {}
-- name: notion_notion_create_file_upload
-  description: Notion's notion create file upload. It can change something.
-  source: notion
-  confirms: true
-  parameters:
-    type: object
-    properties: {}
-- name: github_list_repositories
-  description: List the repositories this GitHub connection can see, with each one's
-    default branch and last push
+- name: github_pr_lookup
+  description: 'Fetch a pull request: title, state, author, branches, whether GitHub
+    says it can merge, its reviews and review comments, the checks and statuses on
+    its head commit, its changed files, and for a Dependabot update the security advisories
+    it fixes'
   source: github
   reads: true
   parameters:
     type: object
-    properties: {}
-- name: linear_list_templates
-  description: Linear's list templates. It only reads.
-  source: linear
+    properties:
+      repo:
+        type: string
+        description: Repository in owner/name form, e.g. acme/checkout. Read it off
+          the resource map or the catalog first, or list the repositories, and ask
+          only when several fit
+      number:
+        type: integer
+        description: The pull request's number
+    required:
+    - repo
+    - number
+- name: github_list_tags
+  description: A repository's tags, with the commit each one points at
+  source: github
   reads: true
+  parameters:
+    type: object
+    properties:
+      repo:
+        type: string
+        description: Repository in owner/name form, e.g. acme/checkout. Read it off
+          the resource map or the catalog first, or list the repositories, and ask
+          only when several fit
+      limit:
+        type: integer
+        description: At most this many (optional, 20, at most 100)
+    required:
+    - repo
+- name: linear_mark_notification
+  description: Linear's mark notification. It can change something.
+  source: linear
+  confirms: true
   parameters:
     type: object
     properties: {}
@@ -1810,8 +1768,8 @@
           the default branch otherwise)
     required:
     - symbol
-- name: linear_get_milestone
-  description: Linear's get milestone. It only reads.
+- name: linear_get_project
+  description: Linear's get project. It only reads.
   source: linear
   reads: true
   parameters:
@@ -1836,38 +1794,125 @@
           for its own variables (optional, the repository's)
     required:
     - repo
-- name: notion_notion_create_comment
-  description: Notion's notion create comment. It can change something.
-  source: notion
-  confirms: true
-  parameters:
-    type: object
-    properties: {}
-- name: notion_notion_get_users
-  description: Notion's notion get users. It only reads.
-  source: notion
-  reads: true
-  parameters:
-    type: object
-    properties: {}
-- name: linear_get_status_updates
-  description: Linear's get status updates. It only reads.
-  source: linear
-  reads: true
-  parameters:
-    type: object
-    properties: {}
-- name: linear_delete_comment
-  description: Linear's delete comment. It can change something.
+- name: linear_save_release
+  description: Linear's save release. It can change something.
   source: linear
   confirms: true
   parameters:
     type: object
     properties: {}
-- name: notion_notion_create_view
-  description: Notion's notion create view. It can change something.
-  source: notion
+- name: opsgenie_create_alert
+  description: Raise an Opsgenie alert, which pages its responders through their escalations
+    and schedules. Use it to wake someone, with what they need to know in the description
+  source: opsgenie
   confirms: true
+  parameters:
+    type: object
+    properties:
+      message:
+        type: string
+        description: What is wrong, at most 130 characters
+      description:
+        type: string
+        description: 'What the person paged needs before they look: since when, the
+          evidence and its links'
+      responders:
+        type: array
+        items:
+          type: object
+          properties:
+            type:
+              type: string
+              enum:
+              - team
+              - user
+              - escalation
+              - schedule
+              description: What the responder is
+            name:
+              type: string
+              description: Its name, or for a user their email
+          required:
+          - type
+          - name
+        description: 'Who to page: teams, escalations, schedules or users'
+      priority:
+        type: string
+        enum:
+        - P1
+        - P2
+        - P3
+        - P4
+        - P5
+        description: P1 is the most urgent (optional, P3)
+      alias:
+        type: string
+        description: A key that keeps a second alert for the same problem from opening
+          while this one is open (optional)
+      entity:
+        type: string
+        description: What the alert is about, such as a service (optional)
+    required:
+    - message
+    - responders
+- name: northflank_workflow_runs
+  description: A Northflank workflow's recent runs, newest first, each with its status,
+    when it started and finished and how long it took, and how long finished runs
+    usually take. Name a run to read it with each node, such as a build, a release
+    or a job run, how each went, the error a failed one gave and its retries
+  source: northflank
+  reads: true
+  parameters:
+    type: object
+    properties:
+      workflow:
+        type: string
+        description: The workflow, by name or id
+      name:
+        type: string
+        description: Only runs whose workflow's name contains this (optional)
+      run:
+        type: string
+        description: Only this run, by its id, with each of its nodes (optional)
+      limit:
+        type: integer
+        description: At most this many runs (optional, 20)
+    required:
+    - workflow
+- name: opsgenie_escalate_alert
+  description: Escalate an Opsgenie alert to an escalation policy, which pages the
+    people it names. Find the policy with list_escalations first
+  source: opsgenie
+  confirms: true
+  parameters:
+    type: object
+    properties:
+      alert:
+        type: string
+        description: The alert, by its id, its tiny id (the short number Opsgenie
+          shows) or its alias
+      identifier_type:
+        type: string
+        enum:
+        - id
+        - tiny
+        - alias
+        description: 'Which of these alert names: id, tiny or alias (optional, id).
+          An alias only finds an open alert'
+      escalation:
+        type: string
+        description: The escalation policy, by its name or id, as list_escalations
+          shows it
+      note:
+        type: string
+        description: A note Opsgenie adds to the alert, saying why (optional)
+    required:
+    - alert
+    - escalation
+- name: notion_notion_download_skill
+  description: Notion's notion download skill. It only reads.
+  source: notion
+  reads: true
   parameters:
     type: object
     properties: {}
@@ -1891,8 +1936,8 @@
     required:
     - repo
     - run_id
-- name: linear_get_triage_responsibility
-  description: Linear's get triage responsibility. It only reads.
+- name: linear_list_documents
+  description: Linear's list documents. It only reads.
   source: linear
   reads: true
   parameters:
@@ -2009,25 +2054,60 @@
     required:
     - repo
     - comment_id
-- name: northflank_list_jobs
-  description: The jobs in the project, cron and manual, with whether each is suspended,
-    every project's when the connection reaches several and none is named. Use job_runs
-    for how a job's runs went
+- name: northflank_describe_resource
+  description: 'How one service, database or job is set up and how it stands now.
+    A service: its rollout status, instances, plan, the repository, branch and commit
+    it runs or the image, ephemeral storage, health checks and ports. A database:
+    its type and version, status, replicas, storage, plan, network access, secret
+    rotation, pending actions and latest backups. A job: cron or manual, its schedule,
+    whether it is suspended, its plan, retries and time limit, and its latest runs'
   source: northflank
   reads: true
   parameters:
     type: object
-    properties: {}
-- name: linear_list_projects
-  description: Linear's list projects. It only reads.
+    properties:
+      resource:
+        type: string
+        description: A service, database (addon) or job in the project, by name or
+          id, as list_resources or list_jobs shows it
+    required:
+    - resource
+- name: linear_list_release_pipelines
+  description: Linear's list release pipelines. It only reads.
   source: linear
   reads: true
   parameters:
     type: object
     properties: {}
-- name: github_update_pull_request_branch
-  description: Bring a pull request's branch up to date with its base, by merging
-    the base into it as GitHub's Update branch button does
+- name: opsgenie_who_is_on_call_next
+  description: Who comes on call next in Opsgenie on one schedule, with overrides
+    counted. Use it to say who takes over and to find who to override
+  source: opsgenie
+  reads: true
+  parameters:
+    type: object
+    properties:
+      schedule:
+        type: string
+        description: The schedule, by its name or id, as who_is_on_call shows it
+    required:
+    - schedule
+- name: linear_extract_images
+  description: Linear's extract images. It only reads.
+  source: linear
+  reads: true
+  parameters:
+    type: object
+    properties: {}
+- name: datadog_search_datadog_logs
+  description: Datadog's search datadog logs. It only reads.
+  source: datadog
+  reads: true
+  parameters:
+    type: object
+    properties: {}
+- name: github_reopen_pull_request
+  description: Reopen a pull request that was closed without being merged
   source: github
   confirms: true
   parameters:
@@ -2041,32 +2121,36 @@
       number:
         type: integer
         description: The pull request's number
+      comment:
+        type: string
+        description: A comment saying why, posted first (optional)
     required:
     - repo
     - number
-- name: linear_delete_diff_comment
-  description: Linear's delete diff comment. It can change something.
-  source: linear
+- name: github_update_issue
+  description: Change an issue's title or description
+  source: github
   confirms: true
   parameters:
     type: object
-    properties: {}
-- name: datadog_search_datadog_logs
-  description: Datadog's search datadog logs. It only reads.
-  source: datadog
-  reads: true
-  parameters:
-    type: object
-    properties: {}
-- name: postgresql_current_activity
-  description: 'What the database is doing now: connections by state against the limit,
-    the longest running queries, and which sessions are blocked and by whom. Use it
-    when something is slow, stuck or out of connections'
-  source: postgresql
-  reads: true
-  parameters:
-    type: object
-    properties: {}
+    properties:
+      repo:
+        type: string
+        description: Repository in owner/name form, e.g. acme/checkout. Read it off
+          the resource map or the catalog first, or list the repositories, and ask
+          only when several fit
+      number:
+        type: integer
+        description: The issue's number
+      title:
+        type: string
+        description: The new title (optional)
+      body:
+        type: string
+        description: The new description, replacing the old one (optional)
+    required:
+    - repo
+    - number
 - name: github_delete_pull_request_comment
   description: Delete a comment Firefight posted on a pull request, in its conversation
     as comment_on_pull_request said it or on its code as reply_to_review_comment said
@@ -2091,10 +2175,10 @@
     required:
     - repo
     - comment_id
-- name: linear_save_release_note
-  description: Linear's save release note. It can change something.
+- name: linear_get_triage_responsibility
+  description: Linear's get triage responsibility. It only reads.
   source: linear
-  confirms: true
+  reads: true
   parameters:
     type: object
     properties: {}
@@ -2105,23 +2189,17 @@
   parameters:
     type: object
     properties: {}
-- name: postgresql_explain_query
-  description: The plan Postgres chooses for a query. With analyze it also runs the
-    query and reports real timings and rows per step, which shows where a slow query
-    spends its time
-  source: postgresql
-  reads: true
+- name: sentry_execute_sentry_tool
+  description: Sentry's execute sentry tool. It can change something.
+  source: sentry
+  confirms: true
   parameters:
     type: object
     properties:
-      sql:
+      name:
         type: string
-        description: The query to explain
-      analyze:
-        type: boolean
-        description: Run it and report real timings (optional, off)
-    required:
-    - sql
+      arguments:
+        type: string
 - name: github_compare_commits
   description: 'What changed between two commits: the commits and pull requests with
     their authors and reviewers, the changed files grouped by kind with migrations,
@@ -2147,44 +2225,27 @@
     - repo
     - base
     - head
-- name: notion_notion_convert_page_to_skill
-  description: Notion's notion convert page to skill. It can change something.
+- name: notion_notion_create_comment
+  description: Notion's notion create comment. It can change something.
   source: notion
   confirms: true
   parameters:
     type: object
     properties: {}
-- name: notion_notion_download_attachment
-  description: Notion's notion download attachment. It only reads.
+- name: notion_notion_duplicate_page
+  description: Notion's notion duplicate page. It can change something.
   source: notion
-  reads: true
+  confirms: true
   parameters:
     type: object
     properties: {}
-- name: northflank_billing_usage
-  description: 'What the Northflank account or team was charged, by day or by month,
-    with each period''s total and what cost most: CPU, memory, storage and GPU, bring
-    your own cloud, egress IPs and load balancers. Use it to watch spend and find
-    what grew and since when. The token''s role needs Billing read'
-  source: northflank
-  reads: true
+- name: linear_save_release_note
+  description: Linear's save release note. It can change something.
+  source: linear
+  confirms: true
   parameters:
     type: object
-    properties:
-      by:
-        type: string
-        enum:
-        - day
-        - month
-        description: day or month (optional, day)
-      days:
-        type: integer
-        description: For by day, how many days back from today (optional, 30, at most
-          365)
-      months:
-        type: integer
-        description: For by month, how many months before this one (optional, 3, at
-          most 12)
+    properties: {}
 - name: datadog_search_datadog_monitors
   description: Datadog's search datadog monitors. It only reads.
   source: datadog
@@ -2192,26 +2253,17 @@
   parameters:
     type: object
     properties: {}
-- name: northflank_list_containers
-  description: The containers of a service, database or job, newest first, running
-    and past, with each one's state (running, starting, stopped, failed, finished)
-    and when it started and last changed. Many short lived containers mean restarts
+- name: northflank_list_jobs
+  description: The jobs in the project, cron and manual, with whether each is suspended,
+    every project's when the connection reaches several and none is named. Use job_runs
+    for how a job's runs went
   source: northflank
   reads: true
   parameters:
     type: object
-    properties:
-      resource:
-        type: string
-        description: A service, database (addon) or job in the project, by name or
-          id, as list_resources or list_jobs shows it
-      limit:
-        type: integer
-        description: At most this many containers (optional, 50)
-    required:
-    - resource
-- name: notion_notion_list_session_events
-  description: Notion's notion list session events. It only reads.
+    properties: {}
+- name: notion_notion_query_data_sources
+  description: Notion's notion query data sources. It only reads.
   source: notion
   reads: true
   parameters:
@@ -2264,38 +2316,20 @@
         description: At most this many (optional, 20, at most 100)
     required:
     - repo
-- name: linear_extract_images
-  description: Linear's extract images. It only reads.
+- name: linear_get_attachment
+  description: Linear's get attachment. It only reads.
   source: linear
   reads: true
   parameters:
     type: object
     properties: {}
-- name: opsgenie_create_schedule_override
-  description: Put someone on call on an Opsgenie schedule for a while, in place of
-    whoever the rotation names, such as when the person on call is out
-  source: opsgenie
+- name: notion_notion_stop_session
+  description: Notion's notion stop session. It can change something.
+  source: notion
   confirms: true
   parameters:
     type: object
-    properties:
-      schedule:
-        type: string
-        description: The schedule, by its name or id, as who_is_on_call shows it
-      user:
-        type: string
-        description: Who goes on call, by their Opsgenie username, their email
-      start:
-        type: string
-        description: When it starts, as an ISO 8601 time
-      end:
-        type: string
-        description: When it ends, as an ISO 8601 time
-    required:
-    - schedule
-    - user
-    - start
-    - end
+    properties: {}
 - name: datadog_get_datadog_error_tracking_analytics
   description: Datadog's get datadog error tracking analytics. It only reads.
   source: datadog
@@ -2340,32 +2374,22 @@
     required:
     - repo
     - command
-- name: northflank_abort_template_run
-  description: Abort a running Northflank template run. What its finished nodes already
-    did stays in place
-  source: northflank
-  confirms: true
-  parameters:
-    type: object
-    properties:
-      template:
-        type: string
-        description: The template, by name or id
-      run:
-        type: string
-        description: The run, by its id, as run_history on the template shows it
-    required:
-    - template
-    - run
-- name: notion_notion_update_page
-  description: Notion's notion update page. It can change something.
-  source: notion
-  confirms: true
+- name: linear_list_projects
+  description: Linear's list projects. It only reads.
+  source: linear
+  reads: true
   parameters:
     type: object
     properties: {}
-- name: linear_get_notifications
-  description: Linear's get notifications. It only reads.
+- name: linear_list_release_notes
+  description: Linear's list release notes. It only reads.
+  source: linear
+  reads: true
+  parameters:
+    type: object
+    properties: {}
+- name: linear_get_release
+  description: Linear's get release. It only reads.
   source: linear
   reads: true
   parameters:
@@ -2400,52 +2424,15 @@
     required:
     - repo
     - number
-- name: northflank_query_metrics
-  description: 'Metrics of one service, database or job over time: CPU, memory, requests,
-    4xx and 5xx responses, network, open TCP connections and disk. Returns min, average,
-    max and latest per container, and the person sees each metric as a chart'
-  source: northflank
-  reads: true
+- name: notion_notion_create_folder
+  description: Notion's notion create folder. It can change something.
+  source: notion
+  confirms: true
   parameters:
     type: object
-    properties:
-      resource:
-        type: string
-        description: A service, database (addon) or job in the project, by name or
-          id, as list_resources or list_jobs shows it
-      metrics:
-        type: array
-        items:
-          type: string
-          enum:
-          - cpu
-          - memory
-          - requests
-          - http4xxResponses
-          - http5xxResponses
-          - networkIngress
-          - networkEgress
-          - tcpConnectionsOpen
-          - diskUsage
-          - bandwidth
-        description: Which metrics (optional, cpu, memory, requests, http5xxResponses)
-      run:
-        type: string
-        description: For a job, one of its runs by its id, as job_runs shows it, for
-          that run alone (optional)
-      minutes:
-        type: integer
-        description: How far back from now, in minutes (optional, 60)
-      start:
-        type: string
-        description: Start of the range as an ISO 8601 time, instead of minutes (optional)
-      end:
-        type: string
-        description: End of the range as an ISO 8601 time (optional, now)
-    required:
-    - resource
-- name: linear_create_issue_label
-  description: Linear's create issue label. It can change something.
+    properties: {}
+- name: linear_delete_comment
+  description: Linear's delete comment. It can change something.
   source: linear
   confirms: true
   parameters:
@@ -2495,13 +2482,22 @@
     required:
     - repo
     - workflow
-- name: linear_get_project
-  description: Linear's get project. It only reads.
-  source: linear
+- name: postgresql_database_errors
+  description: 'What has gone wrong in the database since its statistics were reset:
+    rolled back transactions, deadlocks, queries cancelled by conflicts with recovery
+    and temporary files, and, when pg_stat_statements is installed, the queries that
+    took the most time in all, with how often each ran and its average time'
+  source: postgresql
   reads: true
   parameters:
     type: object
-    properties: {}
+    properties:
+      text:
+        type: string
+        description: Only queries containing this text, whatever the case (optional)
+      limit:
+        type: integer
+        description: At most this many queries (optional, 10, at most 50)
 - name: github_code_scanning_alert
   description: 'One code scanning alert in full: the rule and what it looks for, the
     tool that found it, where it is and its state'
@@ -2521,54 +2517,47 @@
     required:
     - repo
     - number
-- name: northflank_release_flow_runs
-  description: The recent runs of the release flow of one stage of a Northflank pipeline,
-    newest first, each with its status, when it started and finished and how long
-    it took, and how long finished runs usually take. Name a run to read it with each
-    node, how each went, the error a failed one gave and its retries
-  source: northflank
+- name: sentry_search_metrics
+  description: Sentry's search metrics. It only reads.
+  source: sentry
   reads: true
   parameters:
     type: object
     properties:
-      pipeline:
+      organizationSlug:
         type: string
-        description: The pipeline, by name or id
-      stage:
+      query:
         type: string
-        enum:
-        - Development
-        - Staging
-        - Production
-        description: The stage whose release flow ran
-      name:
+      fields:
         type: string
-        description: Only runs whose release flow's name contains this (optional)
-      run:
+      sort:
         type: string
-        description: Only this run, by its id, with each of its nodes (optional)
+      projectSlug:
+        type: string
+      period:
+        type: string
+      regionUrl:
+        type: string
       limit:
-        type: integer
-        description: At most this many runs (optional, 20)
-    required:
-    - pipeline
-    - stage
-- name: linear_list_comments
-  description: Linear's list comments. It only reads.
-  source: linear
-  reads: true
+        type: string
+      includeExplanation:
+        type: string
+- name: notion_notion_create_pages
+  description: Notion's notion create pages. It can change something.
+  source: notion
+  confirms: true
   parameters:
     type: object
     properties: {}
-- name: linear_share_issue
-  description: Linear's share issue. It can change something.
+- name: linear_unshare_issue
+  description: Linear's unshare issue. It can change something.
   source: linear
   confirms: true
   parameters:
     type: object
     properties: {}
-- name: linear_restore_project_label
-  description: Linear's restore project label. It can change something.
+- name: linear_retire_project_label
+  description: Linear's retire project label. It can change something.
   source: linear
   confirms: true
   parameters:
@@ -2655,26 +2644,284 @@
     required:
     - service
     - operation
-- name: northflank_job_runs
-  description: A job's runs, newest first, with each one's id, outcome (succeeded,
-    running, failed), when it started and finished, and how many attempts failed.
-    Name a run for that run alone, however old
+- name: northflank_list_deployments
+  description: 'A service''s deployments, newest first: each one''s id, when it went
+    out, the commit or image, how many instances, whether it is the stable or canary
+    side of a rollout, and why (such as a build, a template or release run, or a change
+    to its settings) and by whom. Use it to see what changed before something broke'
   source: northflank
   reads: true
   parameters:
     type: object
     properties:
-      job:
+      resource:
         type: string
-        description: The job, by name or id, as list_jobs shows it
-      run:
-        type: string
-        description: Only this run, by its id (optional)
+        description: A service, database (addon) or job in the project, by name or
+          id, as list_resources or list_jobs shows it
       limit:
         type: integer
-        description: At most this many runs (optional, 20)
+        description: At most this many deployments (optional, 20)
     required:
-    - job
+    - resource
+- name: sentry_search_errors
+  description: Sentry's search errors. It only reads.
+  source: sentry
+  reads: true
+  parameters:
+    type: object
+    properties:
+      organizationSlug:
+        type: string
+      query:
+        type: string
+      fields:
+        type: string
+      sort:
+        type: string
+      projectSlug:
+        type: string
+      period:
+        type: string
+      regionUrl:
+        type: string
+      limit:
+        type: string
+      includeExplanation:
+        type: string
+- name: aws_cost_and_usage
+  description: What the AWS account spent, from Cost Explorer, by day or by month,
+    with each period's total and the services that cost most. Use it to watch spend
+    and find what grew and since when. AWS charges the account $0.01 for each Cost
+    Explorer request, and the last day or two are still estimates
+  source: aws
+  reads: true
+  parameters:
+    type: object
+    properties:
+      by:
+        type: string
+        enum:
+        - day
+        - month
+        description: day or month (optional, day)
+      days:
+        type: integer
+        description: For by day, how many days back from today (optional, 30, at most
+          365)
+      months:
+        type: integer
+        description: For by month, how many months before this one (optional, 3, at
+          most 12)
+- name: sentry_analyze_issue_with_seer
+  description: Sentry's analyze issue with seer. It can change something.
+  source: sentry
+  confirms: true
+  parameters:
+    type: object
+    properties:
+      organizationSlug:
+        type: string
+      regionUrl:
+        type: string
+      issueId:
+        type: string
+      issueUrl:
+        type: string
+      instruction:
+        type: string
+- name: notion_notion_spawn_session
+  description: Notion's notion spawn session. It can change something.
+  source: notion
+  confirms: true
+  parameters:
+    type: object
+    properties: {}
+- name: northflank_list_containers
+  description: The containers of a service, database or job, newest first, running
+    and past, with each one's state (running, starting, stopped, failed, finished)
+    and when it started and last changed. Many short lived containers mean restarts
+  source: northflank
+  reads: true
+  parameters:
+    type: object
+    properties:
+      resource:
+        type: string
+        description: A service, database (addon) or job in the project, by name or
+          id, as list_resources or list_jobs shows it
+      limit:
+        type: integer
+        description: At most this many containers (optional, 50)
+    required:
+    - resource
+- name: linear_create_attachment
+  description: Linear's create attachment. It can change something.
+  source: linear
+  confirms: true
+  parameters:
+    type: object
+    properties: {}
+- name: postgresql_describe_table
+  description: 'The shape of one table: its columns with types, nulls and defaults,
+    its primary key, indexes and foreign keys'
+  source: postgresql
+  reads: true
+  parameters:
+    type: object
+    properties:
+      table:
+        type: string
+        description: The table, as schema.table or table for public, e.g. public.orders
+    required:
+    - table
+- name: linear_list_users
+  description: Linear's list users. It only reads.
+  source: linear
+  reads: true
+  parameters:
+    type: object
+    properties: {}
+- name: github_dependabot_alert
+  description: 'One Dependabot alert in full: the advisory, its CVE and severity,
+    the vulnerable versions, the version that fixes it, where the package is declared
+    and whether it was dismissed'
+  source: github
+  reads: true
+  parameters:
+    type: object
+    properties:
+      repo:
+        type: string
+        description: Repository in owner/name form, e.g. acme/checkout. Read it off
+          the resource map or the catalog first, or list the repositories, and ask
+          only when several fit
+      number:
+        type: integer
+        description: The alert's number
+    required:
+    - repo
+    - number
+- name: github_pull_request_diff
+  description: A pull request's changed files with each one's diff, optionally only
+    the files under a path
+  source: github
+  reads: true
+  parameters:
+    type: object
+    properties:
+      repo:
+        type: string
+        description: Repository in owner/name form, e.g. acme/checkout. Read it off
+          the resource map or the catalog first, or list the repositories, and ask
+          only when several fit
+      number:
+        type: integer
+        description: The pull request's number
+      path:
+        type: string
+        description: Only files whose path starts with this (optional)
+      limit:
+        type: integer
+        description: At most this many files (optional, 30, at most 300)
+    required:
+    - repo
+    - number
+- name: opsgenie_create_schedule_override
+  description: Put someone on call on an Opsgenie schedule for a while, in place of
+    whoever the rotation names, such as when the person on call is out
+  source: opsgenie
+  confirms: true
+  parameters:
+    type: object
+    properties:
+      schedule:
+        type: string
+        description: The schedule, by its name or id, as who_is_on_call shows it
+      user:
+        type: string
+        description: Who goes on call, by their Opsgenie username, their email
+      start:
+        type: string
+        description: When it starts, as an ISO 8601 time
+      end:
+        type: string
+        description: When it ends, as an ISO 8601 time
+    required:
+    - schedule
+    - user
+    - start
+    - end
+- name: github_label_pull_request
+  description: Add labels to a pull request or take them off. Only labels the repository
+    already has are added
+  source: github
+  confirms: true
+  parameters:
+    type: object
+    properties:
+      repo:
+        type: string
+        description: Repository in owner/name form, e.g. acme/checkout. Read it off
+          the resource map or the catalog first, or list the repositories, and ask
+          only when several fit
+      number:
+        type: integer
+        description: The pull request's number
+      add:
+        type: array
+        items:
+          type: string
+        description: Labels to add (optional)
+      remove:
+        type: array
+        items:
+          type: string
+        description: Labels to take off (optional)
+    required:
+    - repo
+    - number
+- description: Runs a read only SQL query on a PlanetScale database branch.
+  source: planetscale
+  reads: true
+  parameters:
+    type: object
+    properties:
+      database:
+        type: string
+        description: The database
+      branch:
+        type: string
+        description: The branch
+        usually main:
+      query:
+        type: string
+        description: A SELECT
+        SHOW or EXPLAIN:
+    required:
+    - database
+    - query
+  name: planetscale_execute_read_query
+- name: github_redeploy
+  description: Roll back to an earlier deployment by running again the GitHub Actions
+    job that made it, on that deployment's commit, with the jobs that depend on it.
+    A deployment another system made names no GitHub Actions run, and that system
+    deploys it again
+  source: github
+  confirms: true
+  parameters:
+    type: object
+    properties:
+      repo:
+        type: string
+        description: Repository in owner/name form, e.g. acme/checkout. Read it off
+          the resource map or the catalog first, or list the repositories, and ask
+          only when several fit
+      deployment:
+        type: integer
+        description: The deployment's id, as recent_deployments shows it
+    required:
+    - repo
+    - deployment
 - name: opsgenie_create_maintenance
   description: Start a maintenance window in Opsgenie, which quiets an integration's
     alerts or a policy for a while, such as during planned work. Find the ids with
@@ -2724,263 +2971,10 @@
     required:
     - duration
     - targets
-- name: aws_cost_and_usage
-  description: What the AWS account spent, from Cost Explorer, by day or by month,
-    with each period's total and the services that cost most. Use it to watch spend
-    and find what grew and since when. AWS charges the account $0.01 for each Cost
-    Explorer request, and the last day or two are still estimates
-  source: aws
-  reads: true
-  parameters:
-    type: object
-    properties:
-      by:
-        type: string
-        enum:
-        - day
-        - month
-        description: day or month (optional, day)
-      days:
-        type: integer
-        description: For by day, how many days back from today (optional, 30, at most
-          365)
-      months:
-        type: integer
-        description: For by month, how many months before this one (optional, 3, at
-          most 12)
-- name: linear_list_documents
-  description: Linear's list documents. It only reads.
-  source: linear
-  reads: true
-  parameters:
-    type: object
-    properties: {}
-- name: notion_notion_send_message_to_session
-  description: Notion's notion send message to session. It can change something.
-  source: notion
-  confirms: true
-  parameters:
-    type: object
-    properties: {}
-- name: linear_retire_project_label
-  description: Linear's retire project label. It can change something.
-  source: linear
-  confirms: true
-  parameters:
-    type: object
-    properties: {}
-- name: linear_create_attachment
-  description: Linear's create attachment. It can change something.
-  source: linear
-  confirms: true
-  parameters:
-    type: object
-    properties: {}
-- name: notion_notion_query_data_sources
-  description: Notion's notion query data sources. It only reads.
-  source: notion
-  reads: true
-  parameters:
-    type: object
-    properties: {}
-- name: notion_notion_spawn_session
-  description: Notion's notion spawn session. It can change something.
-  source: notion
-  confirms: true
-  parameters:
-    type: object
-    properties: {}
-- name: github_dependabot_alert
-  description: 'One Dependabot alert in full: the advisory, its CVE and severity,
-    the vulnerable versions, the version that fixes it, where the package is declared
-    and whether it was dismissed'
-  source: github
-  reads: true
-  parameters:
-    type: object
-    properties:
-      repo:
-        type: string
-        description: Repository in owner/name form, e.g. acme/checkout. Read it off
-          the resource map or the catalog first, or list the repositories, and ask
-          only when several fit
-      number:
-        type: integer
-        description: The alert's number
-    required:
-    - repo
-    - number
-- name: github_pull_request_diff
-  description: A pull request's changed files with each one's diff, optionally only
-    the files under a path
-  source: github
-  reads: true
-  parameters:
-    type: object
-    properties:
-      repo:
-        type: string
-        description: Repository in owner/name form, e.g. acme/checkout. Read it off
-          the resource map or the catalog first, or list the repositories, and ask
-          only when several fit
-      number:
-        type: integer
-        description: The pull request's number
-      path:
-        type: string
-        description: Only files whose path starts with this (optional)
-      limit:
-        type: integer
-        description: At most this many files (optional, 30, at most 300)
-    required:
-    - repo
-    - number
-- name: opsgenie_acknowledge_alert
-  description: Acknowledge an Opsgenie alert, which stops it paging further along
-    its escalation. Say who is handling it in the note
-  source: opsgenie
-  confirms: true
-  parameters:
-    type: object
-    properties:
-      alert:
-        type: string
-        description: The alert, by its id, its tiny id (the short number Opsgenie
-          shows) or its alias
-      identifier_type:
-        type: string
-        enum:
-        - id
-        - tiny
-        - alias
-        description: 'Which of these alert names: id, tiny or alias (optional, id).
-          An alias only finds an open alert'
-      note:
-        type: string
-        description: A note Opsgenie adds to the alert, saying why (optional)
-    required:
-    - alert
-- name: github_label_pull_request
-  description: Add labels to a pull request or take them off. Only labels the repository
-    already has are added
-  source: github
-  confirms: true
-  parameters:
-    type: object
-    properties:
-      repo:
-        type: string
-        description: Repository in owner/name form, e.g. acme/checkout. Read it off
-          the resource map or the catalog first, or list the repositories, and ask
-          only when several fit
-      number:
-        type: integer
-        description: The pull request's number
-      add:
-        type: array
-        items:
-          type: string
-        description: Labels to add (optional)
-      remove:
-        type: array
-        items:
-          type: string
-        description: Labels to take off (optional)
-    required:
-    - repo
-    - number
-- name: opsgenie_who_is_on_call_next
-  description: Who comes on call next in Opsgenie on one schedule, with overrides
-    counted. Use it to say who takes over and to find who to override
-  source: opsgenie
-  reads: true
-  parameters:
-    type: object
-    properties:
-      schedule:
-        type: string
-        description: The schedule, by its name or id, as who_is_on_call shows it
-    required:
-    - schedule
-- name: github_redeploy
-  description: Roll back to an earlier deployment by running again the GitHub Actions
-    job that made it, on that deployment's commit, with the jobs that depend on it.
-    A deployment another system made names no GitHub Actions run, and that system
-    deploys it again
-  source: github
-  confirms: true
-  parameters:
-    type: object
-    properties:
-      repo:
-        type: string
-        description: Repository in owner/name form, e.g. acme/checkout. Read it off
-          the resource map or the catalog first, or list the repositories, and ask
-          only when several fit
-      deployment:
-        type: integer
-        description: The deployment's id, as recent_deployments shows it
-    required:
-    - repo
-    - deployment
-- name: opsgenie_create_alert
-  description: Raise an Opsgenie alert, which pages its responders through their escalations
-    and schedules. Use it to wake someone, with what they need to know in the description
-  source: opsgenie
-  confirms: true
-  parameters:
-    type: object
-    properties:
-      message:
-        type: string
-        description: What is wrong, at most 130 characters
-      description:
-        type: string
-        description: 'What the person paged needs before they look: since when, the
-          evidence and its links'
-      responders:
-        type: array
-        items:
-          type: object
-          properties:
-            type:
-              type: string
-              enum:
-              - team
-              - user
-              - escalation
-              - schedule
-              description: What the responder is
-            name:
-              type: string
-              description: Its name, or for a user their email
-          required:
-          - type
-          - name
-        description: 'Who to page: teams, escalations, schedules or users'
-      priority:
-        type: string
-        enum:
-        - P1
-        - P2
-        - P3
-        - P4
-        - P5
-        description: P1 is the most urgent (optional, P3)
-      alias:
-        type: string
-        description: A key that keeps a second alert for the same problem from opening
-          while this one is open (optional)
-      entity:
-        type: string
-        description: What the alert is about, such as a service (optional)
-    required:
-    - message
-    - responders
-- name: northflank_backup_history
-  description: A Northflank database's recent backups, newest first, each with its
-    status, when it started and finished and how long it took, and how long finished
-    ones usually take. Name a backup to read it alone
+- name: northflank_query_metrics
+  description: 'Metrics of one service, database or job over time: CPU, memory, requests,
+    4xx and 5xx responses, network, open TCP connections and disk. Returns min, average,
+    max and latest per container, and the person sees each metric as a chart'
   source: northflank
   reads: true
   parameters:
@@ -2990,15 +2984,35 @@
         type: string
         description: A service, database (addon) or job in the project, by name or
           id, as list_resources or list_jobs shows it
-      name:
-        type: string
-        description: Only runs of this kind, backup (optional)
+      metrics:
+        type: array
+        items:
+          type: string
+          enum:
+          - cpu
+          - memory
+          - requests
+          - http4xxResponses
+          - http5xxResponses
+          - networkIngress
+          - networkEgress
+          - tcpConnectionsOpen
+          - diskUsage
+          - bandwidth
+        description: Which metrics (optional, cpu, memory, requests, http5xxResponses)
       run:
         type: string
-        description: Only this backup, by its id (optional)
-      limit:
+        description: For a job, one of its runs by its id, as job_runs shows it, for
+          that run alone (optional)
+      minutes:
         type: integer
-        description: At most this many backups (optional, 20)
+        description: How far back from now, in minutes (optional, 60)
+      start:
+        type: string
+        description: Start of the range as an ISO 8601 time, instead of minutes (optional)
+      end:
+        type: string
+        description: End of the range as an ISO 8601 time (optional, now)
     required:
     - resource
 - name: linear_get_issue
@@ -3068,8 +3082,8 @@
         description: At most this many (optional, 20)
     required:
     - resource
-- name: linear_save_status_update
-  description: Linear's save status update. It can change something.
+- name: linear_share_issue
+  description: Linear's share issue. It can change something.
   source: linear
   confirms: true
   parameters:
@@ -3082,14 +3096,15 @@
   parameters:
     type: object
     properties: {}
-- name: notion_notion_create_attachment
-  description: Notion's notion create attachment. It can change something.
+- name: notion_notion_create_database
+  description: Notion's notion create database. It can change something.
   source: notion
   confirms: true
   parameters:
     type: object
     properties: {}
-- description: Runs a read only SQL query on a PlanetScale database branch.
+- description: PlanetScale's query insights for a database branch, the slowest and
+    most frequent queries over a window.
   source: planetscale
   reads: true
   parameters:
@@ -3100,16 +3115,13 @@
         description: The database
       branch:
         type: string
-        description: The branch
-        usually main:
-      query:
-        type: string
-        description: A SELECT
-        SHOW or EXPLAIN:
+        description: The branch (optional)
+      hours:
+        type: integer
+        description: How far back (optional)
     required:
     - database
-    - query
-  name: planetscale_execute_read_query
+  name: planetscale_get_insights
 - name: github_dependabot_alerts
   description: 'A repository''s Dependabot alerts, most severe first: the vulnerable
     package, the advisory, the version that fixes it and each alert''s page'
@@ -3242,8 +3254,8 @@
         description: At most this many (optional, 20, at most 100)
     required:
     - repo
-- name: notion_notion_search_agents
-  description: Notion's notion search agents. It only reads.
+- name: notion_notion_search_sessions
+  description: Notion's notion search sessions. It only reads.
   source: notion
   reads: true
   parameters:
@@ -3281,25 +3293,59 @@
         type: string
       includeExplanation:
         type: string
-- name: linear_mark_notification
-  description: Linear's mark notification. It can change something.
-  source: linear
-  confirms: true
-  parameters:
-    type: object
-    properties: {}
-- name: notion_notion_list_agents
-  description: Notion's notion list agents. It only reads.
-  source: notion
+- name: northflank_template_runs
+  description: A Northflank template's recent runs, newest first, each with its status,
+    when it started and finished and how long it took, and how long finished runs
+    usually take. Templates belong to the team rather than a project. Name a run to
+    read it with each node, such as a project, a service, a build or a release, how
+    each went, the error a failed one gave and its retries
+  source: northflank
   reads: true
   parameters:
     type: object
-    properties: {}
-- name: opsgenie_escalate_alert
-  description: Escalate an Opsgenie alert to an escalation policy, which pages the
-    people it names. Find the policy with list_escalations first
+    properties:
+      template:
+        type: string
+        description: The template, by name or id
+      name:
+        type: string
+        description: Only runs whose template's name contains this (optional)
+      run:
+        type: string
+        description: Only this run, by its id, with each of its nodes (optional)
+      limit:
+        type: integer
+        description: At most this many runs (optional, 20)
+    required:
+    - template
+- name: opsgenie_close_incident
+  description: Close an Opsgenie incident, which ends it for good
   source: opsgenie
   confirms: true
+  parameters:
+    type: object
+    properties:
+      incident:
+        type: string
+        description: The incident, by its id or its tiny id (the short number Opsgenie
+          shows)
+      identifier_type:
+        type: string
+        enum:
+        - id
+        - tiny
+        description: 'Which of these incident names: id or tiny (optional, id)'
+      note:
+        type: string
+        description: A note Opsgenie adds to the incident, saying why (optional)
+    required:
+    - incident
+- name: opsgenie_get_alert
+  description: 'One Opsgenie alert in full: its message, description, details, tags,
+    responders and how it was handled, with its latest notes and its log of what happened
+    to it'
+  source: opsgenie
+  reads: true
   parameters:
     type: object
     properties:
@@ -3315,16 +3361,8 @@
         - alias
         description: 'Which of these alert names: id, tiny or alias (optional, id).
           An alias only finds an open alert'
-      escalation:
-        type: string
-        description: The escalation policy, by its name or id, as list_escalations
-          shows it
-      note:
-        type: string
-        description: A note Opsgenie adds to the alert, saying why (optional)
     required:
     - alert
-    - escalation
 - name: github_ci_runs
   description: A repository's GitHub Actions runs, newest first, each with its workflow,
     status, when it started and finished and how long it took, and how long finished
@@ -3460,8 +3498,8 @@
     required:
     - repo
     - number
-- name: notion_notion_query_meeting_notes
-  description: Notion's notion query meeting notes. It only reads.
+- name: notion_notion_query_sessions
+  description: Notion's notion query sessions. It only reads.
   source: notion
   reads: true
   parameters:
@@ -3487,10 +3525,10 @@
     required:
     - resource
     - deployment
-- name: notion_notion_update_data_source
-  description: Notion's notion update data source. It can change something.
+- name: notion_notion_get_tool_access
+  description: Notion's notion get tool access. It only reads.
   source: notion
-  confirms: true
+  reads: true
   parameters:
     type: object
     properties: {}
@@ -3519,13 +3557,23 @@
     required:
     - repo
     - at
-- name: linear_unshare_issue
-  description: Linear's unshare issue. It can change something.
-  source: linear
+- name: northflank_abort_template_run
+  description: Abort a running Northflank template run. What its finished nodes already
+    did stays in place
+  source: northflank
   confirms: true
   parameters:
     type: object
-    properties: {}
+    properties:
+      template:
+        type: string
+        description: The template, by name or id
+      run:
+        type: string
+        description: The run, by its id, as run_history on the template shows it
+    required:
+    - template
+    - run
 - name: aws_pipeline_executions
   description: A CodePipeline pipeline's recent executions, newest first, each with
     its status, when it started and finished, the source revision and what started
@@ -3610,34 +3658,25 @@
     required:
     - repo
     - sha
-- name: northflank_list_deployments
-  description: 'A service''s deployments, newest first: each one''s id, when it went
-    out, the commit or image, how many instances, whether it is the stable or canary
-    side of a rollout, and why (such as a build, a template or release run, or a change
-    to its settings) and by whom. Use it to see what changed before something broke'
+- name: northflank_list_resources
+  description: The services and databases (addons) in the Northflank project for this
+    environment, with their type and whether each is running, deploying or failed,
+    every project's when the connection reaches several and none is named. Use it
+    first to find the name to pass to the other tools
   source: northflank
   reads: true
   parameters:
     type: object
-    properties:
-      resource:
-        type: string
-        description: A service, database (addon) or job in the project, by name or
-          id, as list_resources or list_jobs shows it
-      limit:
-        type: integer
-        description: At most this many deployments (optional, 20)
-    required:
-    - resource
-- name: notion_notion_ai_search
-  description: Notion's notion ai search. It only reads.
+    properties: {}
+- name: notion_notion_create_attachment
+  description: Notion's notion create attachment. It can change something.
   source: notion
-  reads: true
+  confirms: true
   parameters:
     type: object
     properties: {}
-- name: notion_notion_get_comments
-  description: Notion's notion get comments. It only reads.
+- name: notion_notion_list_session_events
+  description: Notion's notion list session events. It only reads.
   source: notion
   reads: true
   parameters:
@@ -3695,13 +3734,31 @@
   parameters:
     type: object
     properties: {}
-- name: notion_notion_update_view
-  description: Notion's notion update view. It can change something.
-  source: notion
-  confirms: true
+- name: sentry_search_traces
+  description: Sentry's search traces. It only reads.
+  source: sentry
+  reads: true
   parameters:
     type: object
-    properties: {}
+    properties:
+      organizationSlug:
+        type: string
+      query:
+        type: string
+      fields:
+        type: string
+      sort:
+        type: string
+      projectSlug:
+        type: string
+      period:
+        type: string
+      regionUrl:
+        type: string
+      limit:
+        type: string
+      includeExplanation:
+        type: string
 - name: github_ref_checks
   description: The checks and commit statuses on a commit, branch or tag, failing
     ones first, with each one's page. Read before merging, or to see why a pull request
@@ -3721,18 +3778,27 @@
         description: A commit SHA, branch or tag (optional, the default branch)
     required:
     - repo
-- name: northflank_list_resources
-  description: The services and databases (addons) in the Northflank project for this
-    environment, with their type and whether each is running, deploying or failed,
-    every project's when the connection reaches several and none is named. Use it
-    first to find the name to pass to the other tools
+- name: northflank_recent_builds
+  description: The latest builds of one service or job, newest first, with commit,
+    branch, when it ran and whether it succeeded. Use it to see what changed before
+    something broke
   source: northflank
   reads: true
   parameters:
     type: object
-    properties: {}
-- name: opsgenie_assign_alert
-  description: Make one person the owner of an Opsgenie alert
+    properties:
+      resource:
+        type: string
+        description: A service, database (addon) or job in the project, by name or
+          id, as list_resources or list_jobs shows it
+      limit:
+        type: integer
+        description: At most this many builds (optional, 10)
+    required:
+    - resource
+- name: opsgenie_close_alert
+  description: Close an Opsgenie alert once the problem is over, which stops it paging
+    anyone
   source: opsgenie
   confirms: true
   parameters:
@@ -3750,15 +3816,11 @@
         - alias
         description: 'Which of these alert names: id, tiny or alias (optional, id).
           An alias only finds an open alert'
-      owner:
-        type: string
-        description: The person's Opsgenie username, their email
       note:
         type: string
         description: A note Opsgenie adds to the alert, saying why (optional)
     required:
     - alert
-    - owner
 - name: sentry_search_replays
   description: Sentry's search replays. It only reads.
   source: sentry
@@ -3841,35 +3903,18 @@
   parameters:
     type: object
     properties: {}
-- name: opsgenie_snooze_alert
-  description: Snooze an Opsgenie alert until a time, which stops it paging until
-    then
+- name: opsgenie_who_is_on_call
+  description: Who is on call now in Opsgenie, for one schedule or for every schedule
+    with the team that owns it. Use it to find who to page or who is already being
+    paged
   source: opsgenie
-  confirms: true
+  reads: true
   parameters:
     type: object
     properties:
-      alert:
+      schedule:
         type: string
-        description: The alert, by its id, its tiny id (the short number Opsgenie
-          shows) or its alias
-      identifier_type:
-        type: string
-        enum:
-        - id
-        - tiny
-        - alias
-        description: 'Which of these alert names: id, tiny or alias (optional, id).
-          An alias only finds an open alert'
-      until:
-        type: string
-        description: When it pages again, as an ISO 8601 time such as 2026-10-11T09:30:00Z
-      note:
-        type: string
-        description: A note Opsgenie adds to the alert, saying why (optional)
-    required:
-    - alert
-    - until
+        description: One schedule, by its name or id (optional, every schedule)
 - name: aws_describe_resource
   description: 'How one resource is set up and how it stands now. An ECS service:
     its rollout, task counts, task definition, containers, health checks, load balancers
@@ -3889,30 +3934,13 @@
           CodeBuild project, by its name or ARN as list_resources shows it
     required:
     - resource
-- name: northflank_workflow_runs
-  description: A Northflank workflow's recent runs, newest first, each with its status,
-    when it started and finished and how long it took, and how long finished runs
-    usually take. Name a run to read it with each node, such as a build, a release
-    or a job run, how each went, the error a failed one gave and its retries
-  source: northflank
-  reads: true
+- name: notion_notion_convert_page_to_skill
+  description: Notion's notion convert page to skill. It can change something.
+  source: notion
+  confirms: true
   parameters:
     type: object
-    properties:
-      workflow:
-        type: string
-        description: The workflow, by name or id
-      name:
-        type: string
-        description: Only runs whose workflow's name contains this (optional)
-      run:
-        type: string
-        description: Only this run, by its id, with each of its nodes (optional)
-      limit:
-        type: integer
-        description: At most this many runs (optional, 20)
-    required:
-    - workflow
+    properties: {}
 - name: linear_get_team
   description: Linear's get team. It only reads.
   source: linear
@@ -3944,8 +3972,8 @@
         description: At most this many builds (optional, 20)
     required:
     - resource
-- name: notion_notion_read_session_event
-  description: Notion's notion read session event. It only reads.
+- name: notion_notion_search
+  description: Notion's notion search. It only reads.
   source: notion
   reads: true
   parameters:
@@ -4132,22 +4160,35 @@
     required:
     - repo
     - job_id
-- name: opsgenie_search_incidents
-  description: 'Incidents in Opsgenie, newest first, with their status, priority and
-    the services they affect. query uses Opsgenie''s incident search, such as status:
-    open'
+- name: opsgenie_snooze_alert
+  description: Snooze an Opsgenie alert until a time, which stops it paging until
+    then
   source: opsgenie
-  reads: true
+  confirms: true
   parameters:
     type: object
     properties:
-      query:
+      alert:
         type: string
-        description: 'An Opsgenie incident search query, such as status: open (optional,
-          every incident)'
-      limit:
-        type: integer
-        description: At most this many, up to 100 (optional, 20)
+        description: The alert, by its id, its tiny id (the short number Opsgenie
+          shows) or its alias
+      identifier_type:
+        type: string
+        enum:
+        - id
+        - tiny
+        - alias
+        description: 'Which of these alert names: id, tiny or alias (optional, id).
+          An alias only finds an open alert'
+      until:
+        type: string
+        description: When it pages again, as an ISO 8601 time such as 2026-10-11T09:30:00Z
+      note:
+        type: string
+        description: A note Opsgenie adds to the alert, saying why (optional)
+    required:
+    - alert
+    - until
 - name: linear_get_diff
   description: Linear's get diff. It only reads.
   source: linear
@@ -4155,8 +4196,8 @@
   parameters:
     type: object
     properties: {}
-- name: notion_notion_get_tool_access
-  description: Notion's notion get tool access. It only reads.
+- name: notion_notion_list_agents
+  description: Notion's notion list agents. It only reads.
   source: notion
   reads: true
   parameters:
@@ -4308,17 +4349,17 @@
         description: At most this many of each, running and stopped (optional, 50)
     required:
     - resource
-- name: sentry_execute_sentry_tool
-  description: Sentry's execute sentry tool. It can change something.
-  source: sentry
-  confirms: true
+- name: postgresql_list_tables
+  description: List the tables in the database, by schema, with roughly how many rows
+    each holds and its size on disk
+  source: postgresql
+  reads: true
   parameters:
     type: object
     properties:
-      name:
+      schema:
         type: string
-      arguments:
-        type: string
+        description: Only this schema, e.g. public (optional)
 - name: github_set_actions_secret
   description: 'Create or replace a GitHub Actions secret in a repository, or in one
     of its environments. Never pass the value: the person types it in a secure field
@@ -4400,29 +4441,15 @@
   parameters:
     type: object
     properties: {}
-- name: opsgenie_get_alert
-  description: 'One Opsgenie alert in full: its message, description, details, tags,
-    responders and how it was handled, with its latest notes and its log of what happened
-    to it'
+- name: opsgenie_list_escalations
+  description: 'The escalation policies in Opsgenie: who each one notifies, in what
+    order, after how long and on which condition. Use it to see who an alert reaches
+    next, and for the name escalate_alert takes'
   source: opsgenie
   reads: true
   parameters:
     type: object
-    properties:
-      alert:
-        type: string
-        description: The alert, by its id, its tiny id (the short number Opsgenie
-          shows) or its alias
-      identifier_type:
-        type: string
-        enum:
-        - id
-        - tiny
-        - alias
-        description: 'Which of these alert names: id, tiny or alias (optional, id).
-          An alias only finds an open alert'
-    required:
-    - alert
+    properties: {}
 - name: linear_list_cycles
   description: Linear's list cycles. It only reads.
   source: linear
@@ -4461,28 +4488,11 @@
   default: '{"success":false,"errors":[{"code":7003,"message":"Could not route to
     the path the script asked for. Perhaps an identifier is wrong."}],"result":null}'
   name: cloudflare_execute
-- description: PlanetScale's query insights for a database branch, the slowest and
-    most frequent queries over a window.
-  source: planetscale
-  reads: true
-  parameters:
-    type: object
-    properties:
-      database:
-        type: string
-        description: The database
-      branch:
-        type: string
-        description: The branch (optional)
-      hours:
-        type: integer
-        description: How far back (optional)
-    required:
-    - database
-  name: planetscale_get_insights
-- name: notion_notion_get_async_task
-  description: Notion's notion get async task. It only reads.
-  source: notion
+- name: postgresql_current_activity
+  description: 'What the database is doing now: connections by state against the limit,
+    the longest running queries, and which sessions are blocked and by whom. Use it
+    when something is slow, stuck or out of connections'
+  source: postgresql
   reads: true
   parameters:
     type: object
@@ -4526,8 +4536,8 @@
   parameters:
     type: object
     properties: {}
-- name: notion_notion_search
-  description: Notion's notion search. It only reads.
+- name: notion_notion_search_agents
+  description: Notion's notion search agents. It only reads.
   source: notion
   reads: true
   parameters:
@@ -4645,31 +4655,31 @@
   parameters:
     type: object
     properties: {}
-- name: sentry_search_traces
-  description: Sentry's search traces. It only reads.
-  source: sentry
-  reads: true
+- name: opsgenie_acknowledge_alert
+  description: Acknowledge an Opsgenie alert, which stops it paging further along
+    its escalation. Say who is handling it in the note
+  source: opsgenie
+  confirms: true
   parameters:
     type: object
     properties:
-      organizationSlug:
+      alert:
         type: string
-      query:
+        description: The alert, by its id, its tiny id (the short number Opsgenie
+          shows) or its alias
+      identifier_type:
         type: string
-      fields:
+        enum:
+        - id
+        - tiny
+        - alias
+        description: 'Which of these alert names: id, tiny or alias (optional, id).
+          An alias only finds an open alert'
+      note:
         type: string
-      sort:
-        type: string
-      projectSlug:
-        type: string
-      period:
-        type: string
-      regionUrl:
-        type: string
-      limit:
-        type: string
-      includeExplanation:
-        type: string
+        description: A note Opsgenie adds to the alert, saying why (optional)
+    required:
+    - alert
 - name: linear_list_milestones
   description: Linear's list milestones. It only reads.
   source: linear
@@ -5153,17 +5163,23 @@
   parameters:
     type: object
     properties: {}
-- name: postgresql_list_tables
-  description: List the tables in the database, by schema, with roughly how many rows
-    each holds and its size on disk
+- name: postgresql_explain_query
+  description: The plan Postgres chooses for a query. With analyze it also runs the
+    query and reports real timings and rows per step, which shows where a slow query
+    spends its time
   source: postgresql
   reads: true
   parameters:
     type: object
     properties:
-      schema:
+      sql:
         type: string
-        description: Only this schema, e.g. public (optional)
+        description: The query to explain
+      analyze:
+        type: boolean
+        description: Run it and report real timings (optional, off)
+    required:
+    - sql
 - name: github_comment_on_pull_request
   description: Add a comment to a pull request's conversation
   source: github
