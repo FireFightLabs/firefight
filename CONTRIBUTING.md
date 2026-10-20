@@ -16,7 +16,7 @@ Install libvips with `brew install vips` on macOS, or `apt install libvips` on D
 
 ## PostgreSQL via Docker
 
-Production runs PostgreSQL 18.3, so we run the same version locally to keep dev/prod parity. Start it with:
+Firefight needs PostgreSQL 18 with the `vector` extension, the same `pgvector/pgvector:pg18` image CI and the Compose file use. Start it with:
 
 ```sh
 docker run -d \
@@ -25,7 +25,7 @@ docker run -d \
   -e POSTGRES_PASSWORD=postgres \
   -p 5432:5432 \
   -v firefight-postgres-data:/var/lib/postgresql \
-  postgres:18.3
+  pgvector/pgvector:pg18
 ```
 
 Stop and start it later with `docker stop firefight-postgres` and `docker start firefight-postgres`. The named volume `firefight-postgres-data` keeps your data across restarts.
@@ -108,6 +108,16 @@ Set these environment variables to archive incident files to R2:
 - `R2_REQUEST_CHECKSUM_CALCULATION` (recommended: `when_required`)
 - `R2_RESPONSE_CHECKSUM_VALIDATION` (recommended: `when_required`)
 
+## Demo workspace
+
+The README's pictures of INC-042, Halon's run on it and the chat that asked for it come from an Acme workspace. Build it in your development database with:
+
+```sh
+bin/rails demo:readme
+```
+
+It writes through the same models and services production does, so every name on the page is the one the code gives today. Nothing it starts runs, so no message reaches Slack and no model is called. Running it again replaces the workspace. The story happens between 14:02 and 14:47 on your machine's clock, on the last day that time has passed, or on `DAY=2026-10-17` if you set it. Sign in as `maya@acme.dev` to see it. It runs only in development and test.
+
 ## Running the test suite
 
 `bin/ci` runs everything CI runs: rubocop, bundler-audit, brakeman, the test suite (parallel), system tests, and seeds.
@@ -120,7 +130,15 @@ npm run typecheck            # TypeScript strict check
 npm run lint                 # ESLint
 ```
 
-All of these must pass before a PR is ready for review. Fork PRs run the full CI suite — no secrets are required.
+All of these must pass before a PR is ready for review. Fork PRs run the full CI suite and need no secrets.
+
+### Measuring Halon
+
+Halon has a bench of 42 recorded scenarios in [`config/halon_bench`](config/halon_bench). Every tool call is answered from the scenario's own recorded world, so nothing outside Firefight is reached, and a judge model scores each answer. CI replays the bench on pull requests from branches of this repository that touch Halon's prompt, tools or loop, and fails when the score drops by more than the noise. A pull request from a fork gets no model keys, so the bench does not run on it. To bench those changes in CI, open the pull request from a branch of this repository, or run it yourself:
+
+```sh
+bin/rails "halon:chat_bench[MODEL,PROVIDER]"
+```
 
 ## Conventions
 
