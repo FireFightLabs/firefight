@@ -71,10 +71,22 @@ class Integrations::Capabilities::AwsTest < ActiveSupport::TestCase
     assert_equal({ "resource" => FUNCTION_ARN, "to" => "live:11" }, resolve(Integrations::Capabilities::ROLLBACK, "resource" => "checkout", "to" => "live:11").arguments)
   end
 
-  test "an ECS service's run history is its deployments, and a Lambda function, whose versions keep no finish, has none" do
+  test "an ECS service's run history is its deployments, and a Lambda function's its last update and versions, one read by its id" do
     history = resolve(Integrations::Capabilities::HISTORY, "resource" => "web")
     assert_equal [ "list_deployments", { "resource" => SERVICE_ARN, "limit" => Integrations::Capabilities::History::LIMIT } ], [ history.tool.name, history.arguments ]
-    assert_match "no connection offers run history", unroutable(Integrations::Capabilities::HISTORY, "resource" => "checkout")
+    function = resolve(Integrations::Capabilities::HISTORY, "resource" => "checkout", "run" => "rev-9")
+    assert_equal [ "list_deployments", { "resource" => FUNCTION_ARN, "run" => "rev-9", "limit" => Integrations::Capabilities::History::LIMIT } ],
+                 [ function.tool.name, function.arguments ]
+  end
+
+  test "a restart of an EC2 instance or an RDS database is its reboot, and a function has none" do
+    assert_equal [ "reboot_instance", { "resource" => INSTANCE_ARN } ],
+                 resolve(Integrations::Capabilities::RESTART, "resource" => "bastion").then { |call| [ call.tool.name, call.arguments ] }
+    assert_equal [ "reboot_database", { "resource" => DATABASE_ARN } ],
+                 resolve(Integrations::Capabilities::RESTART, "resource" => "orders").then { |call| [ call.tool.name, call.arguments ] }
+    assert_equal "restart_service", resolve(Integrations::Capabilities::RESTART, "resource" => "web").tool.name
+    assert Integrations::Capabilities.wrapped?(@tools["reboot_instance"])
+    assert_not Integrations::Capabilities.wrapped?(@tools["reboot_database"]), "its failover is only asked of the tool itself"
   end
 
   test "one run asked by its id is passed on, so a deployment or a build is read with its parts" do
@@ -118,7 +130,8 @@ class Integrations::Capabilities::AwsTest < ActiveSupport::TestCase
     assert Integrations::Capabilities.wrapped?(@tools["rollback_deployment"])
     assert_not Integrations::Capabilities.wrapped?(@tools["cloudwatch_metrics"])
     assert_not Integrations::Capabilities.wrapped?(@tools["logs_insights_query"])
-    assert_match "roll a resource back, restart a service, and scale a service for anything AWS runs", Integrations::Capabilities.halon_sentence("aws", "AWS")
+    assert_match "roll a resource back, restart an ECS service or reboot an EC2 instance or an RDS database, and scale a service for anything AWS runs",
+                 Integrations::Capabilities.halon_sentence("aws", "AWS")
   end
 
   test "an investigation is never offered a change on AWS, while its reads are" do

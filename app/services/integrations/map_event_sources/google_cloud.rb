@@ -14,7 +14,11 @@ module Integrations
       COMPUTE = "compute.googleapis.com".freeze
       GKE = "container.googleapis.com".freeze
       DEPLOY = "clouddeploy.googleapis.com".freeze
-      SERVICES = [ RUN, SQL, COMPUTE, GKE, DEPLOY ].freeze
+      # Cloud Build writes an entry when a build is made, retried, cancelled or run from its trigger, and a second when
+      # that long running call ends (Cloud Build, Audit logging), on the build monitored resource with its trigger's id.
+      BUILD = "cloudbuild.googleapis.com".freeze
+      SERVICES = [ RUN, SQL, COMPUTE, GKE, DEPLOY, BUILD ].freeze
+      BUILD_TRIGGER_LABEL = "build_trigger_id".freeze
       # The monitored resource a Cloud Run job's entries are written on (Cloud Run, Audit logging).
       RUN_JOB = "cloud_run_job".freeze
       # The project's Admin Activity log, by the name Cloud Audit Logs gives it.
@@ -32,25 +36,28 @@ module Integrations
         def events(_payload, headers:) = []
 
         # Each project's entries after its own cursor, oldest first, as events about the Cloud Run service or job, Cloud
-        # SQL instance, Compute Engine instance, GKE cluster or Cloud Deploy pipeline each names. A project's first read starts from now. A read cut
-        # short continues from its last entry.
+        # SQL instance, Compute Engine instance, GKE cluster or Cloud Deploy pipeline each names, or the services a build's
+        # trigger deploys. A project's first read starts from now. A read cut short continues from its last entry.
         def poll(row, since:)
           api = api(row)
-          poll_each_scope(row, since: since) { |project, cursor| poll_project(api, project, cursor) }
+          poll_each_scope(row, since: since) { |project, cursor| poll_project(row, api, project, cursor) }
         end
 
         def limits = "Firefight reads Google Cloud's audit log every 5 minutes, so a change reaches the map within about 6 minutes. " \
-                     "A Cloud Run job's execution or a Cloud Deploy rollout finishing is not in the audit log, so a watch on one reads it each minute."
+                     "A Cloud Run job's execution or a Cloud Deploy rollout finishing is not in the audit log, so a watch on one reads it each minute. " \
+                     "A Cloud Build build starting or ending reaches the Cloud Run services its trigger deploys."
 
         private
 
         # One project's entries after since.
-        def poll_project(api, project, since)
+        def poll_project(row, api, project, since)
           now = Time.current
           return MapEventSource::Polled.new(events: [], cursor: now.utc.iso8601(6)) if since.blank?
 
           read = api.log_entries_since(project, filter(project, Time.iso8601(since) - OVERLAP))
-          events = read.items.filter_map { |entry| event_of(project, entry) }
+          events = read.items.flat_map do |entry|
+            entry.dig("protoPayload", "serviceName") == BUILD ? build_events(row, project, entry) : Array(event_of(project, entry))
+          end
           # Cloud Logging may answer pages with no entries while it is still searching, which leaves the cursor where it was.
           cursor = if read.complete then now
           elsif read.items.any? then Time.iso8601(read.items.last["timestamp"].to_s)
@@ -62,6 +69,22 @@ module Integrations
         def filter(project, from)
           services = SERVICES.map { |service| "\"#{service}\"" }.join(" OR ")
           "logName=\"#{format(ACTIVITY_LOG, project: project)}\" AND timestamp>=\"#{from.utc.iso8601(6)}\" AND protoPayload.serviceName=(#{services})"
+        end
+
+        # A build changes the Cloud Run services its trigger deploys, which Cloud Run labels with the trigger's id
+        # (Packs::GoogleCloud::TRIGGER_LABEL), as the map's last sweep read them. A build that deploys no service on the
+        # map changes nothing on it.
+        def build_events(row, project, entry)
+          trigger = entry.dig("resource", "labels", BUILD_TRIGGER_LABEL).presence || entry.dig("protoPayload", "resourceName").to_s[%r{/triggers/([^/]+)}, 1]
+          return [] if trigger.blank?
+
+          services = ResourceMap::Resource.present.where(integration_environment: row, account: project, kind: ResourceMap::KIND_SERVICE)
+                                          .where("details -> ? ->> ? = ?", ResourceMap::TAGS, Packs::GoogleCloud::TRIGGER_LABEL, trigger).pluck(:external_id)
+          services.map do |service|
+            ResourceMap::Event.new(id: services.one? ? entry["insertId"] : "#{entry['insertId']} #{service}", at: time(entry["timestamp"]),
+                                   action: ResourceMap::Event::UPDATED,
+                                   scope: ResourceMap::Scope.new(account: project, kind: ResourceMap::KIND_SERVICE, external_id: service))
+          end
         end
 
         # The resource an entry is about, with the id the pack keeps for it on the map, or nil for anything else.

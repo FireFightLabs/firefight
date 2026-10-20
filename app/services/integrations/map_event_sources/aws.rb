@@ -64,7 +64,7 @@ module Integrations
       CALLS = {
         EC2 => %w[RunInstances StartInstances StopInstances TerminateInstances ModifyInstanceAttribute CreateTags DeleteTags],
         ECS => %w[CreateService UpdateService DeleteService TagResource UntagResource],
-        LAMBDA => %w[CreateFunction UpdateFunctionCode UpdateFunctionConfiguration DeleteFunction TagResource UntagResource],
+        LAMBDA => %w[CreateFunction UpdateFunctionCode UpdateFunctionConfiguration PublishVersion UpdateAlias DeleteFunction TagResource UntagResource],
         RDS => %w[CreateDBInstance CreateDBInstanceReadReplica RestoreDBInstanceFromDBSnapshot RestoreDBInstanceToPointInTime
                   ModifyDBInstance RebootDBInstance StartDBInstance StopDBInstance PromoteReadReplica DeleteDBInstance
                   AddTagsToResource RemoveTagsFromResource],
@@ -78,6 +78,14 @@ module Integrations
         BEANSTALK => %w[CreateEnvironment UpdateEnvironment TerminateEnvironment RestartAppServer RebuildEnvironment]
       }.freeze
       LAMBDA_VERSION = /\d{8}(v\d+)?\z/
+      # A deployment ending is no API call, so CloudTrail never records it. Without the stack's ECS Deployment State Change,
+      # a service whose deployment started is asked about the statuses ListServiceDeployments names for one still going.
+      ROLLOUTS = "ecs_rollouts".freeze
+      ROLLOUT_CALLS = "ecs_rollout_calls".freeze
+      ROLLOUT_STARTS = %w[CreateService UpdateService].freeze
+      ROLLING = %w[PENDING IN_PROGRESS STOP_REQUESTED ROLLBACK_REQUESTED ROLLBACK_IN_PROGRESS].freeze
+      ROLLOUT_LIMIT = 1.day
+      MAX_ROLLOUTS = 50
       ADDING = %w[RunInstances CreateService CreateFunction CreateDBInstance CreateDBInstanceReadReplica RestoreDBInstanceFromDBSnapshot
                   RestoreDBInstanceToPointInTime CreateProject CreatePipeline CreateDeploymentGroup CreateStack CreateEnvironment].freeze
       REMOVING = %w[TerminateInstances DeleteService DeleteFunction DeleteDBInstance DeleteProject DeletePipeline DeleteDeploymentGroup DeleteStack
@@ -161,11 +169,15 @@ module Integrations
         # keeps its place and is said in error while the others are read. Only when every region read fails does the read fail.
         def poll(row, since:)
           now = Time.current
-          places = cursors_of(since).slice(*regions(row))
+          kept = cursors_of(since)
+          places = kept.slice(*regions(row))
           api = api(row)
           found = []
           failures = {}
           read = 0
+          rollouts, ended = rollouts_ended(api, row, kept[ROLLOUTS], now)
+          found.concat(ended)
+          seen = (kept[ROLLOUT_CALLS].is_a?(Hash) ? kept[ROLLOUT_CALLS] : {}).reject { |_id, stamp| happened_at(stamp) < now - LAG - MapEventSource::POLL_EVERY }
           regions(row).each do |region|
             from = places[region]&.then { |stamp| Time.iso8601(stamp) }
             if from
@@ -173,6 +185,7 @@ module Integrations
               records, complete = lookup(api, region, from - LAG, now)
               found.concat(records.flat_map { |record| record_events(record) })
               found << busy(region, now) unless complete
+              rollouts.merge!(rollouts_started(records, seen)) unless row.map_events_sent_at(region)
             end
             places[region] = now.utc.iso8601(6)
           rescue RateLimited
@@ -181,8 +194,54 @@ module Integrations
             failures[region] = error
           end
           raise_when_all_failed(failures, read)
+          places[ROLLOUTS] = rollouts if rollouts.any?
+          places[ROLLOUT_CALLS] = seen if seen.any?
           error = failures.map { |region, failed| Sentence.join("CloudTrail in #{region} could not be read", failed) }.join(" ").presence
           MapEventSource::Polled.new(events: found, cursor: places.to_json, error: error)
+        end
+
+        # The ECS services whose deployment started in a region that sends no changes of its own, kept in the cursor by ARN
+        # with when it started. Each is asked whether a deployment is still going (ListServiceDeployments by status), and
+        # one with none left is a change that reads the service again and wakes a watch on it. One not done within
+        # ROLLOUT_LIMIT, or that ECS no longer has, is let go.
+        def rollouts_ended(api, row, tracked, now)
+          tracked = tracked.is_a?(Hash) ? tracked : {}
+          kept = {}
+          ended = []
+          tracked.first(MAX_ROLLOUTS).each do |arn, stamp|
+            started = happened_at(stamp)
+            next if started < now - ROLLOUT_LIMIT
+
+            parts = arn.to_s.match(Packs::Aws::ARN)
+            next unless parts && regions(row).include?(parts[:region])
+
+            _, cluster, = parts[:resource].split("/")
+            going = api.call(:ecs, parts[:region], :list_service_deployments, { cluster: cluster, service: arn, status: ROLLING }.compact)[:service_deployments]
+            if Array(going).any?
+              kept[arn] = stamp
+            else
+              ended << ResourceMap::Event.new(id: "ecs-rollout-ended #{arn} #{stamp}", at: now, action: ResourceMap::Event::UPDATED,
+                                              scope: ResourceMap::Scope.new(account: parts[:account], kind: Packs::Aws::SERVICE, external_id: arn))
+            end
+          rescue RateLimited
+            kept[arn] = stamp
+          rescue AwsApi::Error
+            next
+          end
+          [ kept, ended ]
+        end
+
+        # The services a CreateService or UpdateService call that went through started a deployment of, from when it was
+        # made. A call is noted in seen by its eventID, so one read again in the next read's overlap starts nothing twice.
+        def rollouts_started(records, seen)
+          records.each_with_object({}) do |record, started|
+            next unless record["eventSource"] == ECS && ROLLOUT_STARTS.include?(record["eventName"]) && record["errorCode"].blank?
+            next if seen.key?(record["eventID"])
+
+            at = happened_at(record["eventTime"]).utc.iso8601
+            seen[record["eventID"]] = at
+            record_events(record).each { |event| started[event.scope.external_id] = at }
+          end
         end
 
         # Each region the connection reads, where a person may create the stack.

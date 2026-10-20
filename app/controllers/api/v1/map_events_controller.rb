@@ -24,6 +24,9 @@ class Api::V1::MapEventsController < ActionController::API
     end
 
     payload = JSON.parse(raw_body)
+    confirmation = source.handshake(payload, headers: request.headers)
+    return render json: confirmation if confirmation
+
     Integrations::MapEvents.delivered!(row, source, payload)
     Integrations::MapEvents.receive_delivery!([ row ], source.events(payload, headers: request.headers), payload, headers: request.headers)
     Integrations::MapEvents.nudge_pull_requests!([ row ], payload, headers: request.headers)
