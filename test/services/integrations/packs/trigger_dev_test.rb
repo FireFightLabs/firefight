@@ -78,6 +78,21 @@ module Integrations
         assert_match "ended while it was being stopped, COMPLETED", assert_raises(NativePack::Error) { call(:abort_bulk_action, "bulk_action" => "bulk_3") }.message
       end
 
+      test "an abort that was slowed down, or refused for the key, keeps its own error rather than reading the status again" do
+        TriggerDevApi.any_instance.stubs(:bulk_action_status).with("bulk_4").returns({ "status" => "PENDING" }, { "status" => "COMPLETED" })
+        TriggerDevApi.any_instance.stubs(:abort_bulk_action).raises(TriggerDevApi::Error.new("Trigger.dev answered 429: slow down").extend(Integrations::RateLimited))
+        assert_raises(Integrations::RateLimited) { call(:abort_bulk_action, "bulk_action" => "bulk_4") }
+
+        TriggerDevApi.any_instance.stubs(:bulk_action_status).with("bulk_5").returns({ "status" => "PENDING" }, { "status" => "COMPLETED" })
+        TriggerDevApi.any_instance.stubs(:abort_bulk_action).raises(TriggerDevApi::Error, "Trigger.dev answered 403: Forbidden")
+        assert_match "create a key whose preset can write runs", assert_raises(NativePack::Error) { call(:abort_bulk_action, "bulk_action" => "bulk_5") }.message
+
+        TriggerDevApi.any_instance.stubs(:bulk_action_status).with("bulk_6").returns({ "status" => "PENDING" }).then.raises(TriggerDevApi::Error, "Trigger.dev answered 500: down")
+        TriggerDevApi.any_instance.stubs(:abort_bulk_action).raises(TriggerDevApi::Error, "Trigger.dev answered 400: Bulk action is not pending")
+        assert_equal "Trigger.dev answered 400: Bulk action is not pending",
+                     assert_raises(TriggerDevApi::Error) { call(:abort_bulk_action, "bulk_action" => "bulk_6") }.message
+      end
+
       test "a fraction is refused for a count, never rounded down" do
         TriggerDevApi.any_instance.expects(:override_queue_concurrency).never
         TriggerDevApi.any_instance.expects(:override_concurrency_limit).never

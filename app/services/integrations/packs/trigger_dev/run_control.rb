@@ -120,12 +120,18 @@ module Integrations
           end
           fail!("Bulk action #{id} already ended, #{action['status']}, so there is nothing to stop.") unless action["status"] == BULK_PENDING
 
-          begin
-            changing("abort bulk action #{id}") { api.abort_bulk_action(id) }
-          rescue TriggerDevApi::Error
-            # One that finished between the read and the abort is said as ended, not as Trigger.dev's refusal.
-            now = api.bulk_action_status(id)["status"]
-            raise if now == BULK_PENDING
+          changing("abort bulk action #{id}") do
+            api.abort_bulk_action(id)
+          rescue TriggerDevApi::Error => error
+            raise if error.is_a?(Integrations::RateLimited) || refused_for_key?(error)
+
+            # One that finished between the read and the abort is said as ended. Otherwise the abort's own error stands.
+            now = begin
+              api.bulk_action_status(id)["status"]
+            rescue TriggerDevApi::Error
+              raise error
+            end
+            raise error if now == BULK_PENDING
 
             fail!("Bulk action #{id} ended while it was being stopped, #{now}, so there is nothing to stop.")
           end
@@ -161,12 +167,14 @@ module Integrations
         def changing(what)
           yield
         rescue TriggerDevApi::Error => error
-          raise if error.is_a?(Integrations::RateLimited) || !error.message.start_with?("Trigger.dev answered 401", "Trigger.dev answered 403")
+          raise if error.is_a?(Integrations::RateLimited) || !refused_for_key?(error)
 
           fail!(Sentence.join("Trigger.dev refused to #{what}", error,
                               after: "This environment's API key cannot make that change. In Trigger.dev, create a key whose preset can " \
                                      "write runs, such as No restrictions, and reconnect with it"))
         end
+
+        def refused_for_key?(error) = error.message.start_with?("Trigger.dev answered 401", "Trigger.dev answered 403")
 
         # Never every run in the environment: a bulk action names its runs or filters by task, status or version.
         def bulk(environment_row, arguments, action)
