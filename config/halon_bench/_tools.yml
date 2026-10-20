@@ -350,9 +350,12 @@ search_logs:
         - cdn
         - backup
         - restore
+        - auth
+        - storage
+        - realtime
         description: >-
-          Which logs: app (what the code prints), build, requests (traffic reaching it), internal (calls between services), cdn, backup or restore
-          (optional, app)
+          Which logs: app (what the code prints), build, requests (traffic reaching it), internal (calls between services), cdn, backup, restore,
+          or auth, storage and realtime (a backend's own sign-in, file storage and realtime services) (optional, app)
       run:
         type: string
         description: Only one run's lines, by the run's id as run_history gives it, for a job whose provider keeps them per run (optional)

@@ -12,8 +12,13 @@ module Integrations
     # gives its status, the version it runs and when that was deployed. Supabase keeps only the version a function runs,
     # so its deploys are that one. Its logs are what it prints (function_logs) and its invocations (function_edge_logs),
     # read by the function_id get_logs reads them with. A preview branch rolls back to an earlier migration with
-    # reset_branch (branching-tools.ts), which takes the branch's own id and a migration version. The server has no
-    # branch action runs, no restart, no metrics and no point in time restore, so none of those is answered.
+    # reset_branch (branching-tools.ts), which takes the branch's own id and a migration version.
+    #
+    # What the server has no tool for is the pack's beside it (Packs::Supabase), through the Management API: a project's or
+    # branch's action runs as its run history, its status with each service's health, its metrics now, restarting it,
+    # and rolling the project's database back to a moment with point in time recovery. Its errors are the performance
+    # warnings get_advisors gives (debugging-tools.ts), and its auth, storage and realtime logs are read as get_logs reads
+    # them (src/logs.ts).
     module Supabase
       extend Adapter
 
@@ -21,17 +26,32 @@ module Integrations
       PROVIDER_KEY = MapReaders::Supabase::PROVIDER
       PROJECTS = [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ].freeze
       READ_KINDS = [ *PROJECTS, ResourceMap::KIND_FUNCTION ].freeze
-      SUPPORTS = { LOGS => READ_KINDS, DEPLOYS => READ_KINDS, STATUS => READ_KINDS, ROLLBACK => [ ResourceMap::KIND_BRANCH ] }.freeze
+      SUPPORTS = {
+        LOGS => READ_KINDS, DEPLOYS => READ_KINDS, STATUS => READ_KINDS, ROLLBACK => PROJECTS, HISTORY => PROJECTS, RESTART => PROJECTS,
+        METRICS => PROJECTS, ERRORS => PROJECTS
+      }.freeze
       GET_PROJECT = "get_project".freeze
+      PROJECT_HEALTH = "get_project_health".freeze
+      LIST_ACTION_RUNS = "list_action_runs".freeze
+      GET_ACTION_RUN = "get_action_run".freeze
+      RESTART_PROJECT = "restart_project".freeze
+      PROJECT_METRICS = "get_project_metrics".freeze
+      RESTORE_TO = "restore_to_point_in_time".freeze
+      GET_ADVISORS = "get_advisors".freeze
+      # get_advisors' kind of warning that says what slows a project down, beside its security ones.
+      PERFORMANCE = "performance".freeze
       LIST_MIGRATIONS = "list_migrations".freeze
       LIST_EDGE_FUNCTIONS = MapReaders::Supabase::LIST_EDGE_FUNCTIONS
       RESET_BRANCH = "reset_branch".freeze
       # An Edge Function serving requests, as edgeFunctionSchema names its status.
       FUNCTION_ACTIVE = "ACTIVE".freeze
       TOOLS = {
-        LOGS => "query_logs", DEPLOYS => [ LIST_MIGRATIONS, LIST_EDGE_FUNCTIONS ], STATUS => [ GET_PROJECT, LIST_EDGE_FUNCTIONS ],
-        ROLLBACK => RESET_BRANCH
+        LOGS => "query_logs", DEPLOYS => [ LIST_MIGRATIONS, LIST_EDGE_FUNCTIONS ], STATUS => [ PROJECT_HEALTH, GET_PROJECT, LIST_EDGE_FUNCTIONS ],
+        ROLLBACK => [ RESET_BRANCH, RESTORE_TO ], HISTORY => [ LIST_ACTION_RUNS, GET_ACTION_RUN ], RESTART => RESTART_PROJECT,
+        METRICS => PROJECT_METRICS, ERRORS => GET_ADVISORS
       }.freeze
+      # The readings get_project_metrics takes, by the capability's metric names.
+      METRIC_MAP = { "cpu" => "cpu", "memory" => "memory", "disk" => "disk" }.freeze
       # An Edge Function's logs, by stream, as get_logs reads its edge-function-runtime and edge-function services.
       FUNCTION_SOURCES = { STREAM_APP => "function_logs", "requests" => "function_edge_logs" }.freeze
       FUNCTION_COLUMNS = {
@@ -48,15 +68,29 @@ module Integrations
       # A branch's build is its branch action, the run that migrates and seeds it, logged as workflow_run_logs (get_logs'
       # branch-action service).
       BRANCH_ACTIONS = "workflow_run_logs".freeze
-      SOURCES = { STREAM_APP => "postgres_logs", "requests" => "edge_logs", STREAM_BUILD => BRANCH_ACTIONS }.freeze
+      SOURCES = {
+        STREAM_APP => "postgres_logs", "requests" => "edge_logs", STREAM_BUILD => BRANCH_ACTIONS, STREAM_AUTH => "auth_logs",
+        STREAM_STORAGE => "storage_logs", STREAM_REALTIME => "realtime_logs"
+      }.freeze
       COLUMNS = {
         "postgres_logs" => "timestamp, event_message, log_attributes['parsed.error_severity'] as error_severity",
         "edge_logs" => "timestamp, event_message, log_attributes['request.method'] as method, log_attributes['request.path'] as path, " \
                        "log_attributes['response.status_code'] as status_code",
-        BRANCH_ACTIONS => "timestamp, event_message, log_attributes['workflow_run'] as workflow_run"
+        BRANCH_ACTIONS => "timestamp, event_message, log_attributes['workflow_run'] as workflow_run",
+        "auth_logs" => "timestamp, event_message, log_attributes['level'] as level, log_attributes['status'] as status_code, log_attributes['path'] as path, " \
+                       "log_attributes['msg'] as msg, log_attributes['error'] as error",
+        "storage_logs" => "timestamp, event_message",
+        "realtime_logs" => "timestamp, event_message"
       }.freeze
-      PAGES = { "postgres_logs" => "logs/postgres-logs", "edge_logs" => "logs/edge-logs", BRANCH_ACTIONS => "logs/explorer" }.freeze
-      READS = { "postgres_logs" => "Postgres logs of", "edge_logs" => "API requests to", BRANCH_ACTIONS => "Branch action runs of" }.freeze
+      # The Logs page guides/telemetry/logs opens, which takes every log type, for the ones without a page of their own.
+      PAGES = {
+        "postgres_logs" => "logs/postgres-logs", "edge_logs" => "logs/edge-logs", BRANCH_ACTIONS => "logs/explorer", "auth_logs" => "logs",
+        "storage_logs" => "logs", "realtime_logs" => "logs"
+      }.freeze
+      READS = {
+        "postgres_logs" => "Postgres logs of", "edge_logs" => "API requests to", BRANCH_ACTIONS => "Branch action runs of", "auth_logs" => "Auth logs of",
+        "storage_logs" => "Storage logs of", "realtime_logs" => "Realtime logs of"
+      }.freeze
       MIGRATIONS_PAGE = "database/migrations".freeze
       LOG_LIMIT = 200
       LOG_MOST = 1_000
@@ -79,10 +113,68 @@ module Integrations
           Route.new(tool_name: LIST_MIGRATIONS, arguments: project(ref, tool),
                     present: ->(result) { Answers.read(result, PROVIDER) { |data| deploys_result(resource, data, given) } })
         when STATUS
+          return Route.new(tool_name: PROJECT_HEALTH, arguments: pack_project(ref, settings)) if tool&.name == PROJECT_HEALTH
+
           Route.new(tool_name: GET_PROJECT, arguments: { "id" => ref },
                     present: ->(result) { Answers.read(result, PROVIDER) { |data| status_result(resource, data) } })
-        when ROLLBACK then rollback(resource, given)
+        when ROLLBACK then resource.kind == ResourceMap::KIND_DATABASE ? restore(resource, ref, given, settings) : rollback(resource, given)
+        when HISTORY then history(resource, ref, given, settings)
+        when RESTART then Route.new(tool_name: RESTART_PROJECT, arguments: pack_project(ref, settings))
+        when METRICS
+          readings = metric_names(given.merge("metrics" => Array(given["metrics"]).presence || METRIC_MAP.keys), METRIC_MAP, PROVIDER)
+          Route.new(tool_name: PROJECT_METRICS, arguments: pack_project(ref, settings).merge("readings" => readings))
+        when ERRORS then advisors(resource, ref, given, tool)
         end
+      end
+
+      # The pack's tools take the project as project_id, which a connection scoped to it may leave out.
+      def self.pack_project(ref, settings) = settings&.field(SCOPED_TO).present? ? {} : { PROJECT_ID => ref }
+
+      # A branch's action runs, or one of them by its id with its steps.
+      def self.history(resource, ref, given, settings)
+        arguments = pack_project(ref, settings)
+        return Route.new(tool_name: GET_ACTION_RUN, arguments: arguments.merge("run_id" => given["run"].to_s.strip)) if given["run"].present?
+
+        Route.new(tool_name: LIST_ACTION_RUNS, arguments: arguments.merge("limit" => given["limit"]).compact_blank,
+                  present: RunHistory.presenter("the action runs of #{resource.name}", given))
+      end
+
+      # The project's database back to a moment, as an ISO 8601 time, with point in time recovery. A preview branch rolls
+      # back with reset_branch instead.
+      def self.restore(resource, ref, given, settings)
+        at = Packs::Supabase.moment(target(given))
+        unless at
+          raise Unroutable, "Supabase restores #{resource.name} to a moment, so say it as an ISO 8601 time, as list_backups shows the range. " \
+                            "A migration's version is not a moment, and only a preview branch goes back to a migration."
+        end
+
+        Route.new(tool_name: RESTORE_TO, arguments: pack_project(ref, settings).merge("to" => at.utc.iso8601),
+                  keeps: "nothing after #{at.utc.iso8601}, which is lost")
+      end
+
+      # The performance warnings get_advisors gives for a project, such as a missing index, which are what Supabase says is
+      # wrong with it. They are setup checks rather than errors the database raised, and the answer says so. The security
+      # ones are read with get_advisors itself.
+      def self.advisors(resource, ref, given, tool)
+        Route.new(tool_name: GET_ADVISORS, arguments: project(ref, tool).merge("type" => PERFORMANCE),
+                  present: ->(result) { Answers.read(result, PROVIDER) { |data| advisors_result(result, resource, data, given) } })
+      end
+
+      def self.advisors_result(result, resource, data, given)
+        found = data.is_a?(Hash) ? (data.dig("result", "lints") || data["lints"]) : nil
+        return nil unless found.is_a?(Array)
+
+        lints = found.select { |lint| lint.is_a?(Hash) }
+        lints = lints.select { |lint| lint.to_json.downcase.include?(given["text"].to_s.downcase) } if given["text"].present?
+        return Answers.presented(result, "Supabase gives no performance warnings for #{resource.name}.") if lints.empty?
+
+        lines = lints.first(Answers.limit(given, 50)).map do |lint|
+          detail = Array(lint["findings"]).filter_map { |finding| finding["detail"] if finding.is_a?(Hash) }.first || lint["detail"]
+          count = lint["count"].to_i > 1 ? " (#{lint['count']} findings)" : ""
+          "- #{lint['level']}: #{lint['title']}#{count}. #{detail.to_s.squish.truncate(300)}#{" #{lint['remediation']}" if lint['remediation'].present?}"
+        end
+        Answers.presented(result, "Supabase's performance warnings for #{resource.name}, from its advisors. They are checks on how the project is " \
+                                  "set up, not errors the database raised, which search_logs reads.\n#{lines.join("\n")}")
       end
 
       # A function is ref/slug on the map, and everything else its own project ref.
@@ -204,8 +296,8 @@ module Integrations
       def self.logs(resource, ref, given, tool)
         source = SOURCES[given["stream"].presence || STREAM_APP]
         unless source
-          raise Unroutable, "Supabase reads a project's Postgres logs with stream app, the API requests reaching it with stream requests and " \
-                            "its branch action runs with stream build. Ask query_logs for its other logs."
+          raise Unroutable, "Supabase reads a project's Postgres logs with stream app, the API requests reaching it with stream requests, " \
+                            "its branch action runs with stream build, and its auth, storage and realtime logs with those streams."
         end
 
         limit = Answers.limit(given, LOG_MOST, default: LOG_LIMIT)
@@ -246,7 +338,8 @@ module Integrations
         lines = rows.filter_map do |row|
           at = Answers.time_of(row["timestamp"])
           run = row["workflow_run"].presence && "run #{row['workflow_run']}"
-          text = [ run, row["error_severity"], row["method"], row["path"], row["status_code"], row["event_message"] ].compact_blank.join(" ")
+          text = [ run, row["error_severity"], row["level"], row["method"], row["path"], row["status_code"], row["msg"], row["error"],
+                   row["event_message"] ].compact_blank.join(" ")
           Telemetry::LogLine.new(at: at, source: resource.name, text: text) if at && text.present?
         end.sort_by(&:at).reverse
         link = Telemetry::Link.new(provider: PROVIDER, url: page(resource, PAGES.fetch(source)))
@@ -276,6 +369,7 @@ module Integrations
         Telemetry.result("How #{resource.name} stands on Supabase now: #{facts.compact.join(', ')}.", link: Answers.page(resource, PROVIDER))
       end
 
+      private_class_method :pack_project, :history, :restore, :advisors, :advisors_result
       private_class_method :ref_of, :function_route, :rollback, :function_logs, :function_logs_result, :function_result, :function_deploy
       private_class_method :scoped!, :page, :takes_project?, :project, :logs, :window, :literal, :logs_result, :deploys_result, :status_result
     end
