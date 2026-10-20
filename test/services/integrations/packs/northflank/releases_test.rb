@@ -46,6 +46,16 @@ module Integrations
           assert_match %r{/project/firefight/environments/workflows/release/runs\z}, result["content"].sole["text"].lines.last
         end
 
+        test "a project that holds only jobs links its runs under the team its jobs name" do
+          NorthflankApi.any_instance.stubs(:services).returns(listed([]))
+          NorthflankApi.any_instance.stubs(:jobs).returns(listed([ { "id" => "migrate", "name" => "migrate", "appId" => "/firefight-labs/firefight/migrate" } ]))
+          NorthflankApi.any_instance.stubs(:workflow_runs).returns([ { "id" => "r1", "status" => "running", "concluded" => false, "startedAt" => "2026-10-11T10:00:00.000Z" } ])
+
+          run = History.runs_of(@pack.call("workflow_runs", environment_row: @row, arguments: { "workflow" => "release" })).sole
+
+          assert_equal "https://app.northflank.com/t/firefight-labs/project/firefight/environments/workflows/release/runs/r1", run.url
+        end
+
         test "one run is read with each node as a part: how it went, its error, its retries and where its log is" do
           NorthflankApi.any_instance.stubs(:workflow_run).with("firefight", "release", "r9").returns(run_details)
 

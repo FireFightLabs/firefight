@@ -866,17 +866,31 @@ module Conversation::Watches
     answer = step.read_tool? ? reader.read_tool(agent, step.tool_name, step.arguments) : reader.read(step.capability, read_arguments(step))
     raise Conversation::Watches::Reader::Unanswered, answer.text.truncate(300) if answer.failed?
 
-    run = tool_run(step, answer.runs) if step.read_tool?
+    runs = answer.runs if step.read_tool? && !step.waits_for_deploy?
+    return take_reading(watch, step, answer.text, progress, now: now, gate: gate) if runs.nil?
+
+    run = tool_run(step, runs)
     return run_moved(watch, step, run, step.integration_environment, reader, now, progress, call: nil) if run
 
-    take_reading(watch, step, answer.text, progress, now: now, gate: gate)
+    no_tool_run(watch, step, runs, now)
+  end
+
+  # An answer that holds runs but not the one the step follows is never judged as text, since its words describe other
+  # runs, such as an older one that succeeded. The step waits, and one whose run never showed up is handed back to Halon.
+  def self.no_tool_run(watch, step, runs, now)
+    if step.followed_run_id.present?
+      return step.seen!(digest: nil, state: "Run #{step.followed_run_id} of #{step.label} is not in what its read shows now.")
+    end
+
+    step.seen!(digest: nil, state: "No run of #{step.label} has started yet.")
+    hand_back!(watch, step, runs, now) if step.overdue?(now)
   end
 
   # The run a read tool's answer holds that the step follows: the one it already follows, the one its read names, or
-  # the one that started around when it began. nil when the answer holds no run history, or no such run, so the
-  # reading is judged as before.
+  # the one that started around when it began. nil when there is no such run. A step waiting for a new deploy keeps
+  # being judged by its reading, since its deploy gate decides what counts.
   def self.tool_run(step, runs)
-    return if runs.blank?
+    return if runs.empty?
 
     named = step.arguments[RUN_ARG].to_s.presence
     return runs.find { |run| run.named?(named) } if named && step.followed_run_id.blank?

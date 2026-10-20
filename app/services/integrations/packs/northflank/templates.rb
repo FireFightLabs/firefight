@@ -215,8 +215,10 @@ module Integrations
         # A template's runs page, or one run's, under the team the map holds this connection's resources in, so reading a
         # template never reads the project's services as well. nil before the map holds any.
         def template_runs_link(environment_row, template_id, *run)
-          account = ResourceMap::Resource.present.where(integration_environment: environment_row, provider: PROVIDER_KEY).pick(:account)
-          team_link(environment_row, account.to_s.split("/").first, TEMPLATES, template_id, Releases::RUNS, *run.compact_blank)
+          held = ResourceMap::Resource.present.where(integration_environment: environment_row, provider: PROVIDER_KEY)
+          # A stack is kept under the team alone, and a project under team/project once a service named the team.
+          team = held.where(kind: ResourceMap::KIND_STACK).pick(:account) || held.where("account LIKE '%/%'").pick(:account)&.split("/")&.first
+          team_link(environment_row, team, TEMPLATES, template_id, Releases::RUNS, *run.compact_blank)
         end
 
         def templates_link(environment_row)

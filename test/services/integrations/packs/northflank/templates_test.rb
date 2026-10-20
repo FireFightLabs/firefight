@@ -63,6 +63,17 @@ module Integrations
           assert_match %r{#{page}/t3\z}, @pack.call("abort_template_run", environment_row: @row, arguments: { "template" => "preview-stack", "run" => "t3" })["content"].sole["text"]
         end
 
+        test "a map that holds only a project, with no team named, links a template's runs to the Templates page" do
+          ResourceMap::Resource.create!(workspace: @workspace, provider: "northflank", account: "firefight", kind: ResourceMap::KIND_JOB,
+                                        external_id: "nightly", name: "nightly", integration_environment: @row,
+                                        first_seen_at: Time.current, last_seen_at: Time.current)
+          NorthflankApi.any_instance.stubs(:template_runs).returns([])
+
+          text = @pack.call("template_runs", environment_row: @row, arguments: { "template" => "preview-stack" })["content"].sole["text"]
+
+          assert_match %r{app\.northflank\.com/s/account/templates\z}, text
+        end
+
         test "one run is read with each node as a part, its log read only in a project this connection reaches" do
           NorthflankApi.any_instance.stubs(:template_run).with("preview-stack", "t9").returns(run_details)
 

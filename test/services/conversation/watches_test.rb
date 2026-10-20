@@ -596,6 +596,27 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_equal Chat::Watch::STATUS_FAILED, watch.reload.status
   end
 
+  test "a read tool's run history without the run it follows is never judged by its words, and is handed back when the run never shows up" do
+    connect!("northflank", "Northflank", %w[job_runs])
+    Ability::Approval.stubs(:self_approvable_by?).returns(false)
+    Integration::Tool.any_instance.stubs(:callable_by?).returns(true)
+    Investigation.stubs(:unavailable_reason).returns("unavailable")
+    old = run_of("40", History::SUCCEEDED, 2.days.ago, finished: 2.days.ago + 9.minutes, name: "Nightly")
+    answers("job_runs" => Integrations::Capabilities::RunHistory.with_runs({ "content" => [ { "type" => "text", "text" => "run-40 succeeded" } ] }, [ old ]))
+    step = { "label" => "Nightly job", "tool" => "northflank_job_runs", "arguments" => { "job" => "nightly" }, "done_when" => "succeeded" }
+    Conversation::Watches.start(@turn, watch_of([ step ], title: "the nightly job"))
+    watch = @conversation.chat.watches.sole
+    followed = watch.steps.sole
+
+    2.times { check!(watch) }
+    assert_equal [ Chat::Watch::Step::STATUS_WAITING, "No run of Nightly job has started yet." ], [ followed.reload.status, followed.last_state ]
+
+    travel Chat::Watch::Step::HAND_BACK_AFTER + 1.minute do
+      check!(watch)
+    end
+    assert_equal Chat::Watch::Step::STATUS_REPAIRING, followed.reload.status
+  end
+
   test "a read tool step moves to running once its reading shows the run began, and says each job as it starts or passes, once per check" do
     northflank_api!
     Investigation.stubs(:unavailable_reason).returns(nil)

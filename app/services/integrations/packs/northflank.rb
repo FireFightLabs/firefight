@@ -1364,10 +1364,21 @@ module Integrations
         resource_link(environment_row, resource, OBSERVE, tab, query: query)
       end
 
-      # A job or the project has no appId of its own here, so the team is read off any service or database in it.
+      # A job or the project has no appId of its own here, so the team is read off any service or database in it, or off
+      # its jobs (List jobs gives each its appId) when it holds only jobs.
       def project_link(environment_row, *rest)
         team = resources(environment_row).filter_map { |resource| team_of(resource[:app_id]) }.first
-        app_link(environment_row, team, *rest)
+        app_link(environment_row, team || team_of_jobs(environment_row), *rest)
+      end
+
+      # The team the project's jobs name, from the same read job_resource keeps. A list that cannot be read only costs the link.
+      def team_of_jobs(environment_row)
+        @jobs ||= api(environment_row).jobs(project_of(environment_row)).tap { |read| @jobs_cut = read.incomplete? }.items
+        @jobs.filter_map { |job| team_of(job["appId"]) }.first
+      rescue NorthflankApi::RateLimited
+        raise
+      rescue NorthflankApi::Error
+        nil
       end
 
       def app_link(environment_row, team, *rest, query: {}) = team_link(environment_row, team, "project", project_of(environment_row), *rest, query: query)
