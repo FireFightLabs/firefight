@@ -1370,13 +1370,16 @@ module Integrations
         app_link(environment_row, team, *rest)
       end
 
-      def app_link(environment_row, team, *rest, query: {})
+      def app_link(environment_row, team, *rest, query: {}) = team_link(environment_row, team, "project", project_of(environment_row), *rest, query: query)
+
+      # An address under the team in Northflank's app, such as a template's, which belongs to the team rather than a project.
+      def team_link(environment_row, team, *rest, query: {})
         return nil if team.blank?
 
         site = ConnectionSettings.of(environment_row).site
         return nil if site.blank?
 
-        segments = [ "t", team, "project", project_of(environment_row), *rest.compact ].map { |part| ERB::Util.url_encode(part) }
+        segments = [ "t", team, *rest.compact ].map { |part| ERB::Util.url_encode(part) }
         url = "#{site.chomp('/')}/#{segments.join('/')}"
         url = "#{url}?#{query.compact.to_query}" if query.compact.any?
         Telemetry::Link.new(provider: PROVIDER, url: url)

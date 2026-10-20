@@ -15,6 +15,9 @@ module Integrations
         # The Templates page in Northflank's app, the one address its documentation gives for templates. It names no
         # template or run of its own.
         TEMPLATES_PAGE = "s/account/templates".freeze
+        # A template's runs and one run in Northflank's app, under the team: templates/<template>/runs/<run>, as its app
+        # builds them.
+        TEMPLATES = "templates".freeze
         TEMPLATE_KIND = "template".freeze
         # How a node names a project made earlier in the same run, read from the run's refs.
         PROJECT_REFERENCE = /\A\$\{refs\.([A-Za-z0-9_-]+)\.id\}\z/
@@ -77,14 +80,16 @@ module Integrations
           template = template_named(environment_row, arguments["template"])
           name = template["name"].presence || template["id"]
           what = "template #{name}"
-          link = templates_link(environment_row)
+          link = template_runs_link(environment_row, template["id"]) || templates_link(environment_row)
+          page_of = ->(run) { template_runs_link(environment_row, template["id"], run["id"])&.url }
           if arguments["run"].present?
             run = reading_templates { api(environment_row).template_run(template["id"], run_id(arguments)) }
-            return History.result([ template_run(run, name).with(parts: template_parts(run, environment_row)) ], what: what, link: link)
+            return History.result([ template_run(run, name, page_of.call(run)).with(parts: template_parts(run, environment_row)) ], what: what, link: link)
           end
 
           runs = reading_templates { api(environment_row).template_runs(template["id"], limit: limit(arguments, Releases::RUN_LIMIT)) }
-          History.result(runs.map { |run| template_run(run, name) }, what: what, link: link, name: arguments["name"], limit: limit(arguments, Releases::RUN_LIMIT))
+          History.result(runs.map { |run| template_run(run, name, page_of.call(run)) }, what: what, link: link, name: arguments["name"],
+                                                                                         limit: limit(arguments, Releases::RUN_LIMIT))
         end
 
         def run_template(environment_row:, arguments:)
@@ -96,7 +101,7 @@ module Integrations
           name = template["name"].presence || template["id"]
           run = changing_templates(RUN_PERMISSION) { api(environment_row).run_template(template["id"], given.presence) }
           Telemetry.result("Started run #{run['id']} of template #{name}, now #{run['status'] || 'pending'}. Follow it with run_history on the template.",
-                           link: templates_link(environment_row))
+                           link: template_runs_link(environment_row, template["id"], run["id"]) || templates_link(environment_row))
         end
 
         def abort_template_run(environment_row:, arguments:)
@@ -105,7 +110,7 @@ module Integrations
           id = run_id(arguments)
           run = changing_templates(ABORT_PERMISSION) { api(environment_row).abort_template_run(template["id"], id) }
           Telemetry.result("Asked Northflank to abort run #{id} of template #{name}, now #{run['status'] || 'aborting'}. What its finished nodes did stays in place.",
-                           link: templates_link(environment_row))
+                           link: template_runs_link(environment_row, template["id"], id) || templates_link(environment_row))
         end
 
         # The team's templates on the map, once for the connection whichever projects it reaches, under the team its
@@ -132,7 +137,7 @@ module Integrations
 
         # A run as the list or the details give it, named by its template. Its own name and description are the
         # template's, so only the status words a person needs are its detail.
-        def template_run(run, name) = release_run(run.except("name", "description"), name)
+        def template_run(run, name, url) = release_run(run.except("name", "description"), name, url: url)
 
         # Each node that does something, as Releases#parts_of reads it, with how to read its log only where the node's
         # project is one this connection reaches. A node in any other project, or one whose project is not known yet,
@@ -205,6 +210,13 @@ module Integrations
           yield
         rescue NorthflankApi::Forbidden => error
           fail!(Sentence.all(error, permission))
+        end
+
+        # A template's runs page, or one run's, under the team the map holds this connection's resources in, so reading a
+        # template never reads the project's services as well. nil before the map holds any.
+        def template_runs_link(environment_row, template_id, *run)
+          account = ResourceMap::Resource.present.where(integration_environment: environment_row, provider: PROVIDER_KEY).pick(:account)
+          team_link(environment_row, account.to_s.split("/").first, TEMPLATES, template_id, Releases::RUNS, *run.compact_blank)
         end
 
         def templates_link(environment_row)

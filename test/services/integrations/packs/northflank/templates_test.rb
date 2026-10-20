@@ -43,6 +43,26 @@ module Integrations
           assert_includes result["content"].sole["text"], "https://app.northflank.com/s/account/templates"
         end
 
+        test "once the map holds the team, a template's runs link to their page and each run, a run started or aborted too" do
+          ResourceMap::Resource.create!(workspace: @workspace, provider: "northflank", account: "firefight-labs", kind: ResourceMap::KIND_STACK,
+                                        external_id: "preview-stack", name: "Preview stack", integration_environment: @row,
+                                        first_seen_at: Time.current, last_seen_at: Time.current)
+          NorthflankApi.any_instance.stubs(:template_runs).with("preview-stack", limit: 20).returns([
+            { "id" => "t3", "status" => "running", "concluded" => false, "startedAt" => "2026-10-11T10:00:00.000Z", "createdAt" => "2026-10-11T10:00:00.000Z" }
+          ])
+          NorthflankApi.any_instance.stubs(:run_template).returns("id" => "t4", "status" => "pending")
+          NorthflankApi.any_instance.stubs(:abort_template_run).returns("id" => "t3", "status" => "aborting")
+          NorthflankApi.any_instance.expects(:services).never
+          page = "https://app.northflank.com/t/firefight-labs/templates/preview-stack/runs"
+
+          result = @pack.call("template_runs", environment_row: @row, arguments: { "template" => "preview-stack" })
+
+          assert_equal "#{page}/t3", History.runs_of(result).sole.url
+          assert_match %r{#{page}\z}, result["content"].sole["text"].lines.last
+          assert_match %r{#{page}/t4\z}, @pack.call("run_template", environment_row: @row, arguments: { "template" => "preview-stack" })["content"].sole["text"]
+          assert_match %r{#{page}/t3\z}, @pack.call("abort_template_run", environment_row: @row, arguments: { "template" => "preview-stack", "run" => "t3" })["content"].sole["text"]
+        end
+
         test "one run is read with each node as a part, its log read only in a project this connection reaches" do
           NorthflankApi.any_instance.stubs(:template_run).with("preview-stack", "t9").returns(run_details)
 
