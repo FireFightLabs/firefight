@@ -937,6 +937,8 @@ providers:
     safe_tools: [set_autodeploy]
     undo_tools:
       set_autodeploy: { tool: set_autodeploy, arguments: { resource: resource, trigger: result.before } }
+    # A one-off job runs any command with every secret its service holds, so a person is asked about each one.
+    access_tools: [run_job]
   - key: railway
     name: Railway
     category: Cloud and hosting

@@ -189,6 +189,27 @@ module Integrations
         assert_match "only a cron job has runs to start or cancel", error(:trigger_cron_run, "resource" => "web")
       end
 
+      test "a one-off job runs the exact command on the service, a person is asked every time, and a secret or a service with no jobs is refused" do
+        RenderApi.any_instance.expects(:create_job).with("srv-web", "bin/rails db:migrate", plan_id: "plan-srv-006").returns("id" => "job-7", "status" => "pending")
+        result = @pack.call("run_job", environment_row: @row, arguments: { "resource" => "web", "command" => "bin/rails db:migrate", "plan" => "plan-srv-006" })
+        assert_match "Started one-off job job-7 on web running bin/rails db:migrate, now pending. Follow it with run_history with name job and run job-7.",
+                     result["content"].sole["text"]
+        assert_includes result["content"].sole["text"], "https://dashboard.render.com/web/srv-web"
+
+        RenderApi.any_instance.expects(:create_job).with("srv-web", "bin/rails runner Repair.call", plan_id: nil).returns("id" => "job-8")
+        call(:run_job, "resource" => "web", "command" => "bin/rails runner Repair.call")
+
+        refusal = assert_raises(Integrations::PolicyRefusal) { call(:run_job, "resource" => "web", "command" => "API_TOKEN=ghp_#{'a' * 36} bin/sync") }
+        assert_match "looks like a secret", refusal.message
+        assert_match "plan must be a Render plan id", error(:run_job, "resource" => "web", "command" => "ls", "plan" => "big")
+        assert_match "Render runs one-off jobs from web services", error(:run_job, "resource" => "mailer", "command" => "ls")
+
+        @integration.update!(slug: "render")
+        tool = @integration.tools.create!(name: "run_job", description: "Run", read_only: false, enabled: true, params_schema: { "type" => "object" })
+        assert Integrations::SafeChanges.access?(tool), "never made without asking, and never allowed for the rest of a chat"
+        assert_not Integrations::SafeChanges.tool?(tool)
+      end
+
       test "a one-off job still running is cancelled, and one that ended is refused" do
         RenderApi.any_instance.stubs(:job).with("srv-web", "job-2").returns("id" => "job-2", "status" => "running")
         RenderApi.any_instance.expects(:cancel_job).with("srv-web", "job-2").returns("id" => "job-2", "status" => "canceled")

@@ -99,6 +99,10 @@ module Integrations
 
     def cancel_cron_run(cron_job_id) = delete("/cron-jobs/#{segment(cron_job_id)}/runs")
 
+    # Starts a one-off job running command on a copy of the service, on planId when one is named, answering the job (spec,
+    # POST /services/{serviceId}/jobs, 201).
+    def create_job(service_id, command, plan_id: nil) = post("/services/#{segment(service_id)}/jobs", { "startCommand" => command, "planId" => plan_id }.compact)
+
     # Cancels a one-off job still running, answering the job (spec, POST /services/{serviceId}/jobs/{jobId}/cancel).
     def cancel_job(service_id, job_id) = post("/services/#{segment(service_id)}/jobs/#{segment(job_id)}/cancel")
 

@@ -97,6 +97,8 @@ module Integrations
       assert_equal "run-1", @api.trigger_cron_run("crn-1")["id"]
       Http.expects(:request).with { |uri, request, **| uri.path == "/v1/cron-jobs/crn-1/runs" && request.is_a?(Net::HTTP::Delete) }.returns(stub(code: "204", body: ""))
       @api.cancel_cron_run("crn-1")
+      expect_call(Net::HTTP::Post, "/v1/services/srv-1/jobs", { id: "job-2" }, body: { "startCommand" => "ls", "planId" => "plan-srv-006" })
+      assert_equal "job-2", @api.create_job("srv-1", "ls", plan_id: "plan-srv-006")["id"]
       expect_call(Net::HTTP::Post, "/v1/services/srv-1/jobs/job-1/cancel", { id: "job-1", status: "canceled" })
       assert_equal "canceled", @api.cancel_job("srv-1", "job-1")["status"]
       expect_call(Net::HTTP::Post, "/v1/task-runs", { id: "trn-2" }, body: { "task" => "mailer/send", "input" => [ 1 ] })

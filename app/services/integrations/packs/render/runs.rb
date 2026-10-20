@@ -38,6 +38,9 @@ module Integrations
         TRIGGER_CRON_RUN = "trigger_cron_run".freeze
         CANCEL_CRON_RUN = "cancel_cron_run".freeze
         CANCEL_JOB = "cancel_job".freeze
+        RUN_JOB = "run_job".freeze
+        # A plan's id, as Render's CLI takes it (render-oss/cli, render jobs create --plan-id plan-srv-006).
+        PLAN_ID = /\Aplan-[a-z]+-\d+\z/
         RUN_TASK = "run_task".freeze
         CANCEL_TASK_RUN = "cancel_task_run".freeze
         # A task is run by its slug, the workflow's then the task's name (spec, POST /task-runs, task).
@@ -118,6 +121,22 @@ module Integrations
                     },
                     read_only: false
 
+          pack.tool RUN_JOB,
+                    summary: "Runs a command once as a one-off job on a copy of a service.",
+                    description: "Run a command once on a copy of a Render web service, private service, background worker or cron job, " \
+                                 "with its code and environment, such as a migration or a script that repairs data. It runs with every " \
+                                 "secret the service holds, so a person is asked every time. Follow it with run_history with name job",
+                    params_schema: {
+                      "type" => "object",
+                      "properties" => {
+                        "resource" => RESOURCE,
+                        "command" => { "type" => "string", "description" => "The exact command to run, such as bin/rails db:migrate. Never a secret" },
+                        "plan" => { "type" => "string", "description" => "The plan to run it on, by its id, such as plan-srv-006 (optional, the service's own)" }
+                      },
+                      "required" => %w[resource command]
+                    },
+                    read_only: false
+
           pack.tool RUN_TASK,
                     summary: "Starts a run of a workflow's task with its input.",
                     description: "Start a run of a task of a Render workflow, by the task's name as describe_resource lists it, with " \
@@ -178,6 +197,24 @@ module Integrations
           cancelled = api(environment_row).cancel_job(resource[:id], id).to_h
           Telemetry.result("Render is cancelling one-off job #{id} of #{resource[:name]}, now #{cancelled['status'] || 'canceled'}. What it already did stays done.",
                            link: link(resource))
+        end
+
+        # Render documents no page of a job of its own, so the answer links the service's.
+        def run_job(environment_row:, arguments:)
+          resource = find_resource(environment_row, arguments["resource"])
+          unless JOB_TYPES.include?(resource[:type])
+            fail! "#{resource[:name]} is a #{TYPE_WORDS.fetch(resource[:type])}, and Render runs one-off jobs from web services, private " \
+                  "services, background workers and cron jobs."
+          end
+          command = arguments["command"].to_s.strip
+          fail! "Say the exact command to run." if command.empty?
+          fail_policy!("The command holds what looks like a secret, and Firefight never sends a credential through Render's API.") if secret_shaped?(command)
+          plan = arguments["plan"].to_s.strip.presence
+          fail! "plan must be a Render plan id, such as plan-srv-006." if plan && !plan.match?(PLAN_ID)
+
+          job = api(environment_row).create_job(resource[:id], command, plan_id: plan).to_h
+          Telemetry.result("Started one-off job #{job['id']} on #{resource[:name]} running #{command}, now #{job['status'] || 'pending'}. " \
+                           "Follow it with run_history with name job and run #{job['id']}.", link: link(resource))
         end
 
         def run_task(environment_row:, arguments:)
