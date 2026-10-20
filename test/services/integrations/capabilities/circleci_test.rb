@@ -29,8 +29,36 @@ class Integrations::Capabilities::CircleciTest < ActiveSupport::TestCase
     assert_match "takes its project in a way Firefight does not know", unroutable(Integrations::Capabilities::STATUS, "resource" => "acme/web")
   end
 
-  test "CircleCI answers no logs, since a job's log needs ids only earlier calls give" do
+  test "a connection through the hosted server answers no logs of a repository, since a job's log needs ids only earlier calls give" do
     assert_match "no connection offers logs", unroutable(Integrations::Capabilities::LOGS, "resource" => "acme/web")
+  end
+
+  test "a connection with an API token finds the project of any repository, a GitLab one too, from its address" do
+    row = native_connection("list_runs" => { "project" => { "type" => "string" }, "repository" => { "type" => "string" } },
+                            "ci_status" => { "project" => { "type" => "string" }, "repository" => { "type" => "string" } },
+                            "ci_runs" => { "project" => { "type" => "string" }, "repository" => { "type" => "string" } })
+    gitlab = repository("gitlab", "acme/platform/api")
+
+    status = resolve(Integrations::Capabilities::STATUS, "resource" => "acme/platform/api", "connection" => "circleapi")
+    assert_equal [ row, "ci_status", { "repository" => gitlab.url } ], [ status.environment_row, status.tool.name, status.arguments ]
+    history = resolve(Integrations::Capabilities::HISTORY, "resource" => "acme/platform/api", "connection" => "circleapi")
+    assert_equal [ "ci_runs", { "repository" => gitlab.url } ], [ history.tool.name, history.arguments ]
+  end
+
+  test "a project on the map answers its runs, status, job logs, deploys and a rollback by its id" do
+    row = native_connection("list_runs" => {}, "ci_status" => {}, "ci_runs" => {}, "get_job_logs" => {}, "list_deploys" => {}, "rollback_deploy" => {})
+    ResourceMap::Resource.create!(workspace: @workspace, provider: "circleci", account: "acme", kind: ResourceMap::KIND_PIPELINE, external_id: "p-1",
+                                  name: "gh/acme/web", integration_environment: row, first_seen_at: Time.current, last_seen_at: Time.current)
+    capability = Integrations::Capabilities
+
+    assert_equal [ "ci_runs", { "project" => "p-1", "run" => "r-9" } ], routed(capability::HISTORY, "resource" => "gh/acme/web", "run" => "r-9")
+    assert_equal [ "ci_status", { "project" => "p-1" } ], routed(capability::STATUS, "resource" => "gh/acme/web")
+    assert_equal [ "get_job_logs", { "project" => "p-1", "text" => "boom", "run" => "r-9" } ], routed(capability::LOGS, "resource" => "gh/acme/web", "text" => "boom", "run" => "r-9")
+    assert_equal [ "list_deploys", { "project" => "p-1" } ], routed(capability::DEPLOYS, "resource" => "gh/acme/web")
+    assert_equal [ "rollback_deploy", { "project" => "p-1", "component" => "api", "environment" => "production", "version" => "v1/2" } ],
+                 routed(capability::ROLLBACK, "resource" => "gh/acme/web", "to" => "api/production/v1/2")
+    assert_match "component/environment/version", unroutable(capability::ROLLBACK, "resource" => "gh/acme/web", "to" => "v41")
+    assert_match "stream must be build", unroutable(capability::LOGS, "resource" => "gh/acme/web", "stream" => "app")
   end
 
   test "the platform answers a repository's status by default, CircleCI when named, and both under all" do
@@ -58,7 +86,8 @@ class Integrations::Capabilities::CircleciTest < ActiveSupport::TestCase
   end
 
   test "a person reads what Halon can do through CircleCI" do
-    assert_equal [ Integrations::Capabilities::STATUS ], Integrations::Capabilities::Circleci.capabilities
+    capability = Integrations::Capabilities
+    assert_equal [ capability::LOGS, capability::DEPLOYS, capability::STATUS, capability::HISTORY, capability::ROLLBACK ], capability::Circleci.capabilities
     assert_empty Integrations::Capabilities::Circleci::WRAPPED
   end
 
@@ -69,6 +98,20 @@ class Integrations::Capabilities::CircleciTest < ActiveSupport::TestCase
     ResourceMap::Resource.create!(workspace: @workspace, provider: provider, account: path.split("/").first, kind: ResourceMap::KIND_REPOSITORY,
                                   external_id: path, name: path, url: "#{hosts.fetch(provider)}/#{path}", details: details, integration_environment: holder,
                                   first_seen_at: Time.current, last_seen_at: Time.current)
+  end
+
+  def native_connection(tools)
+    integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "circleci", name: "CircleCI API", slug: "circleapi")
+    row = integration.integration_environments.create!(credentials: { api_token: "x" }.to_json)
+    tools.each do |name, properties|
+      integration.tools.create!(name: name, description: name, read_only: true, enabled: true, params_schema: { "type" => "object", "properties" => properties })
+    end
+    row
+  end
+
+  def routed(key, given)
+    call = resolve(key, given)
+    [ call.tool.name, call.arguments ]
   end
 
   def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given, principal: map_reader)

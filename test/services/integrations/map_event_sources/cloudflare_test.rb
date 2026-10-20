@@ -72,6 +72,21 @@ module Integrations
                      assert_raises(MapEventSource::Refused) { Cloudflare.poll(@row, since: 5.minutes.ago.utc.iso8601) }.message
       end
 
+      test "a Pages notification sent to the connection's address counts only with the secret chosen for it, and wakes the watches without touching the map" do
+        alert = { "alert_type" => "pages_event_alert", "text" => "Deployment failed", "ts" => 1_760_000_000, "account_id" => ACCOUNT }
+
+        assert Cloudflare.verify(raw_body: alert.to_json, headers: { "cf-webhook-auth" => "chosen-secret" }, secret: "chosen-secret")
+        assert_not Cloudflare.verify(raw_body: alert.to_json, headers: { "cf-webhook-auth" => "guess" }, secret: "chosen-secret")
+        assert_not Cloudflare.verify(raw_body: alert.to_json, headers: {}, secret: nil)
+        assert Cloudflare.wakes?(alert, headers: {})
+        assert_not Cloudflare.wakes?({ "text" => "Hello World! This is a test message" }, headers: {})
+        assert_empty Cloudflare.events(alert, headers: {})
+        assert Cloudflare.polls?, "the audit log is still read"
+        assert_match "Project updates", Cloudflare.setup_steps.join(" ")
+        @row.update!(map_events_secret: "chosen-secret")
+        assert @row.map_events_set_up_by_hand?
+      end
+
       private
 
       def write(id, method, uri) = { "account" => "Acme", "id" => id, "action.time" => "2026-10-06T10:00:00Z", "raw.method" => method, "raw.uri" => uri }

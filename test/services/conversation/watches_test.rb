@@ -115,6 +115,20 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_equal [ "Release run #46 is taking longer than usual, 30 minutes so far where it usually takes 18 minutes." ], watch.updates.reload.map(&:text)
   end
 
+  test "a run held for a person past its usual time is said to wait, never to be slow" do
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+    answers("ci_runs" => History.result([ run_of("46", History::WAITING, Time.current) ], what: "repo"))
+    check!(watch)
+
+    travel 30.minutes do
+      2.times { check!(watch) }
+    end
+
+    assert_not watch.updates.reload.any? { |update| update.kind == Chat::Watch::Update::KIND_SLOW }
+    assert watch.updates.any? { |update| update.text.include?(Chat::Watch::Step::PART_HELD) }
+  end
+
   test "at its time limit it stops and says what it last saw" do
     start_release_watch
     watch = @conversation.chat.watches.sole
@@ -471,6 +485,31 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
 
     assert_equal Chat::Watch::STATUS_FAILED, watch.reload.status
     assert_match "It reads: web crashed on boot", watch.outcome
+  end
+
+  test "a run held for someone to approve or start it is said once as waiting, a job of it or the run as a whole, rather than looking queued" do
+    Investigation.stubs(:unavailable_reason).returns(nil)
+    answers("ci_runs" => History.result(finished_runs("Deploy", 7.minutes), what: "repo"))
+    Conversation::Watches.start(@turn, watch_of([ { "label" => "Deploy", "capability" => "run_history", "resource" => "firefight", "name" => "Deploy", "run" => "41" } ]))
+    watch = @conversation.chat.watches.sole
+    started = Time.current
+    built = History::Part.new(id: "1", name: "build", status: History::SUCCEEDED, started_at: started, finished_at: started + 30.seconds)
+    held = History::Part.new(id: "2", name: "production", status: History::WAITING)
+    answers("ci_runs" => History.result([ History::Run.new(id: "41", name: "Deploy", status: History::WAITING, started_at: started, parts: [ built, held ]) ], what: "repo"))
+
+    2.times { check!(watch) }
+
+    assert_equal [ "Deploy: build passed, production waiting for someone to approve or start it." ], watch.updates.reload.map(&:text)
+    assert_equal "production waiting for someone to approve or start it, 1 of 2 done", Conversation::Watches.run_summary(
+      History::Run.new(id: "41", status: History::WAITING, started_at: started, parts: [ built, held ])
+    )
+    assert_equal [ [ "deployment to production", Chat::Watch::Step::PART_HELD ] ],
+                 Conversation::Watches.part_states(History::Run.new(id: "deployment-5", name: "deployment to production", status: History::WAITING, started_at: started))
+    paused = History::Run.new(id: "7", name: "pipeline on main", status: History::WAITING, started_at: started, parts: [ built ])
+    assert_equal [ [ "build", Chat::Watch::Step::PART_PASSED ], [ "pipeline on main", Chat::Watch::Step::PART_HELD ] ], Conversation::Watches.part_states(paused),
+                 "a run held while none of its steps says so keeps its steps and is said held by its own name"
+    assert_equal "pipeline on main waiting for someone to approve or start it, 1 of 1 done", Conversation::Watches.run_summary(paused)
+    assert_equal Chat::Watch::STATUS_ACTIVE, watch.reload.status
   end
 
   test "the first job that fails inside a run is said at once with why from its own log, while the run still goes" do
