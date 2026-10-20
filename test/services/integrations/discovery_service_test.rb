@@ -20,14 +20,15 @@ module Integrations
       @integration.tools.find_by!(name: "planetscale_get_branch").update!(enabled: false)
       McpClient.any_instance.expects(:tools_list).never
 
-      DiscoveryService.add_beside!(@integration)
+      DiscoveryService.add_firefight_tools!(@integration)
 
       tools = @integration.tools.reload.index_by(&:name)
       assert_not tools.fetch("planetscale_get_branch").enabled?, "an admin's choice is kept"
+      assert_nil tools.fetch("planetscale_get_branch").removed_at, "a server's tool is never taken as gone"
       assert tools.fetch("planetscale_get_branch").read_only?
       assert tools.fetch("planetscale_list_deploy_requests").then { |tool| tool.enabled? && tool.read_only? && tool.removed_at.nil? }
       assert_not tools.fetch("planetscale_revert_deploy_request").read_only?
-      assert_empty DiscoveryService.add_beside!(@integration.tap { |each| each.update!(provider: "newrelic") })
+      assert_empty DiscoveryService.add_firefight_tools!(@integration.tap { |each| each.update!(provider: "newrelic") })
     end
 
     test "a tool the provider's entry names as read only is a read, whatever the server says" do

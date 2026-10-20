@@ -6,7 +6,7 @@ module Integrations
     # Its answer is the same whoever relays it, so relayed changes nothing. A connection made with Firefight's own app
     # whose installation stopped answers why instead of calling the server (Installations.refusal), as a native one does.
     def self.call(tool:, environment_row:, arguments:, box_key: nil, progress: nil, request: nil, relayed: false)
-      return NativeExecutor.call(tool: tool, environment_row: environment_row, arguments: arguments) if beside?(tool)
+      return NativeExecutor.call(tool: tool, environment_row: environment_row, arguments: arguments) if Provider.for(tool.integration.provider).runs_beside?(tool)
 
       refused = Installations.refusal(environment_row, tool)
       return { "content" => [ { "type" => "text", "text" => refused } ], "isError" => true } if refused
@@ -56,11 +56,10 @@ module Integrations
 
     # Names are sanitized into action-key-safe form, spec keeps the server's own name for the call. A server's readOnlyHint
     # is its own claim, so a remote tool reads only when the registry lists it (IntegrationProvider::Entry#reads?) or an
-    # admin marks it. A provider whose pack sits beside its server adds the pack's tools the connection is offered, which
-    # run through the pack with the connection's credentials. Should the server later list a tool of the same name, the
-    # pack's is kept, since Firefight's own calls to it are written for the pack's arguments.
+    # admin marks it. The tools Firefight adds beside the server's (Provider#firefight_tools) join them. Should the server
+    # later list a tool of the same name, Firefight's is kept, since its own calls to it are written for its arguments.
     def self.tool_definitions(integration)
-      beside = beside_tool_definitions(integration)
+      beside = firefight_tool_definitions(integration)
       environment_row = integration.resolve_environment(nil) || integration.integration_environments.enabled.first
 
       remote = client_for(integration, environment_row).tools_list.map do |listed|
@@ -75,22 +74,10 @@ module Integrations
       remote.reject { |definition| beside.any? { |own| own.name == definition.name } } + beside
     end
 
-    # Whether a tool is one of the pack's beside the server, which the pack runs rather than the server.
-    def self.beside?(tool) = tool.spec.to_h[BESIDE] == true && pack_beside(tool.integration).present?
-
-    BESIDE = "beside_server".freeze
-
-    def self.pack_beside(integration) = NativePack.for(integration.provider).then { |pack| pack if pack&.beside_server? }
-
-    # The tools a pack beside the server offers the connection, marked to run through the pack.
-    def self.beside_tool_definitions(integration)
-      pack = pack_beside(integration)
+    # The tools Firefight adds to this connection beside its server's, read with the connection's settings.
+    def self.firefight_tool_definitions(integration)
       environment_row = integration.resolve_environment(nil) || integration.integration_environments.enabled.first
-      return [] unless pack && environment_row
-
-      settings = ConnectionSettings.of(environment_row)
-      pack.tool_definitions.select { |definition| pack.offers?(settings, definition) }
-          .map { |definition| definition.with(spec: definition.spec.to_h.merge(BESIDE => true)) }
+      Provider.for(integration.provider).firefight_tools(environment_row && ConnectionSettings.of(environment_row))
     end
 
     # The name Firefight gives a server's tool, such as query_logs for a tool the server calls query-logs.
@@ -178,6 +165,6 @@ module Integrations
     def self.checked_for(integration)
       integration.provider unless IntegrationProvider.find(integration.provider)&.serves?(integration.server_url)
     end
-    private_class_method :client_for, :checked_for, :reader, :narrows?, :quick_read?, :slow, :pack_beside
+    private_class_method :client_for, :checked_for, :reader, :narrows?, :quick_read?, :slow
   end
 end

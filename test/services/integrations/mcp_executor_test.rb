@@ -81,9 +81,9 @@ module Integrations
       assert_not_includes names, "restore_to_point_in_time", "a connection left read only, the connect form's default, is offered no change"
       restart = McpExecutor.tool_definitions(supabase.tap { |each| each.update!(settings: each.settings.merge(Integration::FIELDS_SETTING => { "read_only" => "false" })) })
                            .find { |definition| definition.name == "restart_project" }
-      assert_equal [ false, true ], [ restart.read_only, restart.spec[McpExecutor::BESIDE] ]
+      assert_equal [ false, true ], [ restart.read_only, restart.spec[Provider::FIREFIGHT_TOOL] ]
 
-      tool = supabase.tools.create!(name: "get_project_health", description: "health", read_only: true, enabled: true, params_schema: {}, spec: { McpExecutor::BESIDE => true })
+      tool = supabase.tools.create!(name: "get_project_health", description: "health", read_only: true, enabled: true, params_schema: {}, spec: { Provider::FIREFIGHT_TOOL => true })
       Packs::Supabase.any_instance.expects(:call).with("get_project_health", environment_row: supabase.integration_environments.first, arguments: { "project_id" => "abc" })
                      .returns(Telemetry.result("healthy", link: nil))
       McpClient.expects(:new).never
