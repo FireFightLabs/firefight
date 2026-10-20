@@ -205,15 +205,18 @@ module Integrations
         assert_match "whole number", assert_raises(NativePack::Error) { call(:update_autoscaler, "app" => "inference", "function" => "generate", "max_containers" => -1) }.message
       end
 
-      test "describing, rolling back or rolling over an app another environment holds is refused as Firefight's rule before Modal is asked" do
+      test "describing, rolling back, rolling over or rescaling an app another environment holds is refused as Firefight's rule before Modal is asked" do
         ModalApi.any_instance.stubs(:apps).with("main").returns([])
         ModalApi.any_instance.expects(:rollback).never
         ModalApi.any_instance.expects(:rollover).never
+        ModalApi.any_instance.expects(:update_autoscaler).never
         ModalApi.any_instance.expects(:containers).never
 
         assert_match "inference is not in main", assert_raises(PolicyRefusal) { call(:describe_app, "app" => APP_ID) }.message
         assert_match "inference is not in main", assert_raises(PolicyRefusal) { call(:rollback_app, "app" => APP_ID, "version" => "v5") }.message
         assert_match "inference is not in main", assert_raises(PolicyRefusal) { call(:rollover_app, "app" => APP_ID) }.message
+        assert_match "inference is not in main",
+                     assert_raises(PolicyRefusal) { call(:update_autoscaler, "app" => APP_ID, "function" => "generate", "min_containers" => 1) }.message
       end
 
       test "an app Modal does not know is said in words that point at list_apps" do

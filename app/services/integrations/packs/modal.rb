@@ -346,7 +346,7 @@ module Integrations
       end
 
       def update_autoscaler(environment_row:, arguments:)
-        app_id, app = find_deployed(environment_row, arguments["app"])
+        app_id, app = find_deployed(environment_row, arguments["app"], in_environment: true)
         settings = AUTOSCALER.filter_map do |name|
           next if arguments[name].nil? || arguments[name] == ""
 
@@ -426,8 +426,8 @@ module Integrations
         fail!("No app #{wanted} in this Modal workspace. list_apps shows what there is.")
       end
 
-      # An app describe_app, rollback_app, rollover_app and stop_app reach only when the connection's environment lists it,
-      # since an app id names it in any environment the token reaches.
+      # An app describe_app and every change reach only when the connection's environment lists it, since an app id names
+      # it in any environment the token reaches.
       def app_in_environment(environment_row, asked)
         app_id, app = find_app(environment_row, asked)
         return [ app_id, app ] if api(environment_row).apps(environment(environment_row)).any? { |listed| listed.app_id == app_id }
