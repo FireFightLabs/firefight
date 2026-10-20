@@ -186,7 +186,7 @@ end
 
 gem "rack-attack"
 
-gem "inertia_rails", "~> 3.19"
+gem "inertia_rails", "~> 3.23"
 
 gem "rails_semantic_logger"
 
@@ -197,7 +197,7 @@ gem "yabeda-puma-plugin"
 gem "yabeda-gc"
 gem "yabeda-http_requests"
 gem "yabeda-prometheus-mmap"
-gem "prometheus-client-mmap", "~> 1.3"
+gem "prometheus-client-mmap", "~> 1.7"
 gem "webrick"
 
 # `require: false` so test boot doesn't pay the load cost of 15 instrumentation
