@@ -11,6 +11,7 @@ module Integrations
         BULK_IDS = 500
         CANCEL = "cancel".freeze
         REPLAY = "replay".freeze
+        BULK_PENDING = "PENDING".freeze
         # A deployment in run history, and what Trigger.dev calls one still installing its dependencies (get_deployment_v1).
         DEPLOY_RUN = "deploy".freeze
         # How many deployments one deployment's times are looked for among, since reading it by its id gives none.
@@ -57,6 +58,15 @@ module Integrations
                     params_schema: { "type" => "object", "properties" => BULK_SELECTION },
                     read_only: false
 
+          pack.tool :abort_bulk_action,
+                    summary: "Stops a Trigger.dev bulk cancel or replay that is still working through runs.",
+                    description: "Stop a bulk action that is still pending, by the id bulk_cancel_runs or bulk_replay_runs answered, so it " \
+                                 "takes no more runs. Runs it already cancelled or replayed stay as they are. One that ended is refused",
+                    params_schema: { "type" => "object",
+                                     "properties" => { "bulk_action" => { "type" => "string", "description" => "The bulk action, by its id starting bulk_" } },
+                                     "required" => [ "bulk_action" ] },
+                    read_only: false
+
           pack.tool :deploy_history,
                     summary: "Lists the environment's deployments with how long each took to deploy.",
                     description: "The environment's deployments as runs, newest first, each with its version, status, when it was made " \
@@ -94,6 +104,27 @@ module Integrations
         def bulk_cancel_runs(environment_row:, arguments:) = bulk(environment_row, arguments, CANCEL)
 
         def bulk_replay_runs(environment_row:, arguments:) = bulk(environment_row, arguments, REPLAY)
+
+        # Only a bulk action still pending takes more runs (BulkActionObject status), so one that ended is refused.
+        def abort_bulk_action(environment_row:, arguments:)
+          id = arguments["bulk_action"].to_s.strip
+          fail!("Say which bulk action, by its id starting bulk_.") unless id.start_with?("bulk_")
+
+          api = api(environment_row)
+          action = begin
+            api.bulk_action_status(id)
+          rescue TriggerDevApi::Error => error
+            raise if error.is_a?(Integrations::RateLimited)
+
+            fail!("Trigger.dev could not read bulk action #{id}: #{error.message}")
+          end
+          fail!("Bulk action #{id} already ended, #{action['status']}, so there is nothing to stop.") unless action["status"] == BULK_PENDING
+
+          changing("abort bulk action #{id}") { api.abort_bulk_action(id) }
+          counts = action["counts"].to_h
+          Telemetry.result("Bulk action #{id} (#{action['type'].to_s.downcase}) is stopped and takes no more runs. It had done #{counts['success'].to_i + counts['failure'].to_i} " \
+                           "of #{counts['total'] || 'its'} runs, and those stay as they are. #{no_page}", link: nil)
+        end
 
         # Times come from the list, since reading one deployment by its id says no times. One past the newest
         # DEPLOYMENT_LOOKUP keeps its status and version without them.
@@ -140,7 +171,7 @@ module Integrations
           made = changing("#{action} runs") { api(environment_row).bulk_action(action, name: name, run_ids: ids.presence, filter: (filter if ids.empty?)) }
           what = ids.any? ? "#{ids.size} runs" : "the runs matching #{filter.to_json}"
           Telemetry.result("Trigger.dev #{action == CANCEL ? 'cancels' : 'replays'} #{what} as bulk action #{made['id'] || 'unknown'}, working through " \
-                           "them now. api_read on /api/v1/bulk-actions/#{made['id']} says how many it has done. #{no_page}", link: nil)
+                           "them now. api_read on /api/v1/bulk-actions/#{made['id']} says how many it has done, and abort_bulk_action stops it. #{no_page}", link: nil)
         end
 
         # The spec's filter for a bulk action, with its times top level (BulkActionFilter), or nil when nothing narrows it.

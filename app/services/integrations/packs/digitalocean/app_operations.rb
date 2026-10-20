@@ -3,13 +3,17 @@ module Integrations
     class Digitalocean
       # What happens to an App Platform app between deployments, and the changes that steer one: its events (deployments
       # and autoscaling, apps_list_events), its jobs' runs (apps_list_job_invocations and apps_get_job_invocation),
-      # cancelling a deployment or a job run (apps_cancel_deployment, apps_cancel_job_invocation), deploying the newest
-      # code (apps_create_deployment), and keeping or undoing a rollback (apps_commit_rollback, apps_revert_rollback), as
-      # DigitalOcean's OpenAPI specification gives them (digitalocean/openapi, specification/resources/apps).
+      # cancelling a deployment, a job run or an autoscaling (apps_cancel_deployment, apps_cancel_job_invocation,
+      # apps_cancel_event), deploying the newest code (apps_create_deployment), and keeping or undoing a rollback
+      # (apps_commit_rollback, apps_revert_rollback), as DigitalOcean's OpenAPI specification gives them
+      # (digitalocean/openapi, specification/resources/apps).
       module AppOperations
         EVENT_LIMIT = 20
         # The kinds of event apps_list_events filters by.
-        EVENT_TYPES = %w[DEPLOYMENT AUTOSCALING].freeze
+        AUTOSCALING = "AUTOSCALING".freeze
+        EVENT_TYPES = [ "DEPLOYMENT", AUTOSCALING ].freeze
+        # The phases of an autoscaling still going (app_event.yml, autoscaling.phase).
+        SCALING_GOING = %w[PENDING IN_PROGRESS].freeze
         DEPLOYMENT_ARGUMENT = { "type" => "string", "description" => "The deployment, by its id, as list_deployments or deploy_history shows it" }.freeze
 
         def self.included(pack)
@@ -17,7 +21,7 @@ module Integrations
                     summary: "Lists an app's deployments and autoscaling, newest first.",
                     description: "An App Platform app's events, newest first: each deployment with its phase and cause, and each time " \
                                  "autoscaling changed how many instances a component runs, from how many to how many and the metric that " \
-                                 "moved it. Use it to see when an app scaled itself around a problem",
+                                 "moved it, each with its id, which cancel_autoscaling takes. Use it to see when an app scaled itself around a problem",
                     params_schema: {
                       "type" => "object",
                       "properties" => {
@@ -44,6 +48,16 @@ module Integrations
                     params_schema: { "type" => "object",
                                      "properties" => { "resource" => APP, "run" => { "type" => "string", "description" => "The job run, by its id" } },
                                      "required" => %w[resource run] },
+                    read_only: false
+
+          pack.tool :cancel_autoscaling,
+                    summary: "Cancels an App Platform autoscaling that is still going.",
+                    description: "Stop an autoscaling of an App Platform app that is still pending or in progress, by the event id app_events " \
+                                 "shows, such as one scaling a component up on a runaway metric. Components keep the instances they run " \
+                                 "now. One that already ended, or a deployment, is refused",
+                    params_schema: { "type" => "object",
+                                     "properties" => { "resource" => APP, "event" => { "type" => "string", "description" => "The autoscaling event, by its id" } },
+                                     "required" => %w[resource event] },
                     read_only: false
 
           pack.tool :redeploy_app,
@@ -120,6 +134,23 @@ module Integrations
           Telemetry.result("Run #{id} of job #{job} in #{resource[:name]} is cancelled, now #{cancelled['phase'] || 'CANCELED'}.", link: link_of(environment_row, resource))
         end
 
+        # Only an autoscaling can be cancelled this way (apps_cancel_event), and only while it is pending or in progress.
+        def cancel_autoscaling(environment_row:, arguments:)
+          resource = find_resource(environment_row, arguments["resource"], only: KIND_APP)
+          id = arguments["event"].to_s.strip
+          fail!("Say which autoscaling to cancel, by the event id app_events shows.") if id.empty?
+
+          api = api(environment_row)
+          event = known(resource, "event #{id}") { api.event(resource[:id], id) }
+          fail!("Event #{id} of #{resource[:name]} is a #{event['type'].to_s.downcase}, and only an autoscaling is cancelled this way.") unless event["type"] == AUTOSCALING
+          phase = event.dig("autoscaling", "phase").to_s
+          fail!("The autoscaling #{id} of #{resource[:name]} already ended, #{phase}, so there is nothing to cancel.") unless SCALING_GOING.include?(phase)
+
+          cancelled = change { api.cancel_event(resource[:id], id) }
+          Telemetry.result("The autoscaling #{id} of #{resource[:name]} is cancelled, now #{cancelled.dig('autoscaling', 'phase') || 'CANCELED'}. Its " \
+                           "components keep the instances they run now.", link: link_of(environment_row, resource))
+        end
+
         def redeploy_app(environment_row:, arguments:)
           resource = find_resource(environment_row, arguments["resource"], only: KIND_APP)
           api = api(environment_row)
@@ -164,7 +195,7 @@ module Integrations
         end
 
         def event_line(event)
-          what = if event["type"] == "AUTOSCALING"
+          what = if event["type"] == AUTOSCALING
             scaled = event.dig("autoscaling", "components").to_h.map do |name, change|
               "#{name} #{change['from']} to #{change['to']}#{" on #{change['triggering_metric']}" if change['triggering_metric'].present?}"
             end
@@ -173,7 +204,7 @@ module Integrations
             deployment = event["deployment"].to_h
             [ "deployment #{event['deployment_id']}", deployment["phase"], deployment["cause"].presence ].compact.join(", ")
           end
-          "- #{event['created_at']}: #{what}"
+          "- #{event['created_at']}: #{what}, event #{event['id']}"
         end
 
         # A job's run in the words every run history uses, from when it started, or was made when it has not.

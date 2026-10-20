@@ -88,6 +88,8 @@ module Integrations
       @api.cancel_job_invocation("app-1", "inv-1", job_name: "migrate")
       @api.events("app-1", limit: 20, type: "AUTOSCALING")
       @api.alerts("app-1")
+      @api.event("app-1", "ev-2")
+      @api.cancel_event("app-1", "ev-2")
 
       assert_equal [
         [ "POST", "/v2/apps/app-1/rollback/validate", nil, { "deployment_id" => "dep-1" }.to_json ],
@@ -98,7 +100,9 @@ module Integrations
         [ "GET", "/v2/apps/app-1/job-invocations", "per_page=5&job_names=migrate", nil ],
         [ "POST", "/v2/apps/app-1/job-invocations/inv-1/cancel", "job_name=migrate", nil ],
         [ "GET", "/v2/apps/app-1/events", "per_page=20&event_types=AUTOSCALING", nil ],
-        [ "GET", "/v2/apps/app-1/alerts", nil, nil ]
+        [ "GET", "/v2/apps/app-1/alerts", nil, nil ],
+        [ "GET", "/v2/apps/app-1/events/ev-2", nil, nil ],
+        [ "POST", "/v2/apps/app-1/events/ev-2/cancel", nil, nil ]
       ], sent
     end
 

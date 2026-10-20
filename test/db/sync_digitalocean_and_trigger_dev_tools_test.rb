@@ -2,8 +2,8 @@ require "test_helper"
 require Rails.root.join("db/migrate/20261020143000_sync_digitalocean_and_trigger_dev_tools")
 
 class SyncDigitaloceanAndTriggerDevToolsTest < ActiveSupport::TestCase
-  DIGITALOCEAN = %w[app_events cancel_deployment cancel_job_run redeploy_app commit_rollback revert_rollback].freeze
-  TRIGGER_DEV = %w[deploy_history cancel_run replay_run bulk_cancel_runs bulk_replay_runs pause_queue resume_queue override_queue_concurrency
+  DIGITALOCEAN = %w[app_events cancel_deployment cancel_job_run cancel_autoscaling redeploy_app commit_rollback revert_rollback].freeze
+  TRIGGER_DEV = %w[deploy_history cancel_run replay_run bulk_cancel_runs bulk_replay_runs abort_bulk_action pause_queue resume_queue override_queue_concurrency
                    reset_queue_concurrency pause_concurrency_limit resume_concurrency_limit override_concurrency_limit reset_concurrency_limit
                    resolve_error ignore_error unresolve_error].freeze
 

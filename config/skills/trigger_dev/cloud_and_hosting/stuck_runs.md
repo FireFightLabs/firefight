@@ -1,7 +1,7 @@
 ---
 name: trigger_dev_stuck_runs
 when: Runs of a Trigger.dev task are waiting and not starting, such as queued, delayed or pending version
-tools: [list_runs, resource_status, list_queues, list_tasks, pause_queue, resume_queue, override_queue_concurrency, reset_queue_concurrency, resume_concurrency_limit, override_concurrency_limit, reset_concurrency_limit, bulk_cancel_runs]
+tools: [list_runs, resource_status, list_queues, list_tasks, pause_queue, resume_queue, override_queue_concurrency, reset_queue_concurrency, resume_concurrency_limit, override_concurrency_limit, reset_concurrency_limit, bulk_cancel_runs, abort_bulk_action]
 references: [queues.md, concurrency.md, troubleshooting.md, limits.md]
 ---
 1. Call `list_runs` for the task with `status` set to the waiting states (queued, pending version) to see how many wait and since when.
@@ -15,5 +15,5 @@ references: [queues.md, concurrency.md, troubleshooting.md, limits.md]
 6. What Halon can change, each confirmed by the person first:
    - a paused queue or limit: `resume_queue` or `resume_concurrency_limit`, once whoever paused it agrees the reason is gone
    - a full queue or limit: `override_queue_concurrency` or `override_concurrency_limit` lets more run at once, at most the environment's own limit, until `reset_queue_concurrency` or `reset_concurrency_limit` puts the code's value back. More at once also means more load on whatever the task calls, so say so
-   - runs that pile up and should not run at all, such as a task flooding something downstream: `pause_queue` holds the rest while the cause is found, and `bulk_cancel_runs` with the task and the waiting states cancels them
+   - runs that pile up and should not run at all, such as a task flooding something downstream: `pause_queue` holds the rest while the cause is found, and `bulk_cancel_runs` with the task and the waiting states cancels them. A bulk action that picked the wrong runs is stopped with `abort_bulk_action`, which leaves the runs it already did as they are
    Deploying a missing task is a change in the code, made by a person.

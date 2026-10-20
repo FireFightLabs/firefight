@@ -22,7 +22,7 @@ module Integrations
       test "the key is stored trimmed, the project ref is a field of the form, and only the run, queue, error and promote tools change anything" do
         assert_equal "tr_prod_sk_abc", @row.reload.credentials_hash[TriggerDev::API_KEY]
         assert_equal [ TriggerDev::API_KEY ], TriggerDev.credential_fields.map(&:key)
-        assert_equal %w[cancel_run replay_run bulk_cancel_runs bulk_replay_runs pause_queue resume_queue override_queue_concurrency reset_queue_concurrency
+        assert_equal %w[cancel_run replay_run bulk_cancel_runs bulk_replay_runs abort_bulk_action pause_queue resume_queue override_queue_concurrency reset_queue_concurrency
                         pause_concurrency_limit resume_concurrency_limit override_concurrency_limit reset_concurrency_limit resolve_error ignore_error
                         unresolve_error promote_deployment], TriggerDev.tool_definitions.reject(&:read_only).map(&:name)
       end
@@ -59,6 +59,16 @@ module Integrations
         assert_match "bulk action bulk_2", call(:bulk_replay_runs, "task" => "send-email", "status" => [ "FAILED" ], "minutes" => 60)
 
         assert_match "never replays every run", assert_raises(Integrations::PolicyRefusal) { call(:bulk_replay_runs, "minutes" => 60) }.message
+      end
+
+      test "a bulk action still pending is aborted, and one that ended is refused" do
+        TriggerDevApi.any_instance.stubs(:bulk_action_status).with("bulk_1").returns("id" => "bulk_1", "type" => "REPLAY", "status" => "PENDING",
+                                                                                     "counts" => { "total" => 40, "success" => 10, "failure" => 2 })
+        TriggerDevApi.any_instance.expects(:abort_bulk_action).with("bulk_1").returns("id" => "bulk_1")
+        assert_match "Bulk action bulk_1 (replay) is stopped and takes no more runs. It had done 12 of 40 runs", call(:abort_bulk_action, "bulk_action" => "bulk_1")
+
+        TriggerDevApi.any_instance.stubs(:bulk_action_status).with("bulk_2").returns("id" => "bulk_2", "status" => "COMPLETED")
+        assert_match "already ended, COMPLETED", assert_raises(NativePack::Error) { call(:abort_bulk_action, "bulk_action" => "bulk_2") }.message
       end
 
       test "the environment's deployments are run history, timed from when each was made to when it deployed, and one is read by its id" do

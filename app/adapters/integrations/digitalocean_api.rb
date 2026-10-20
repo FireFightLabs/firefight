@@ -114,7 +114,12 @@ module Integrations
     end
 
     # An app's events, its deployments and autoscaling, newest first (apps_list_events).
-    def events(app_id, limit:, type: nil) = get("/apps/#{Http.segment(app_id)}/events", { "per_page" => limit, "event_types" => type })["events"] || []
+    # One event (apps_get_event), and cancelling an autoscaling one still going (apps_cancel_event), each under event.
+    def event(app_id, event_id) = get("/apps/#{Http.segment(app_id)}/events/#{Http.segment(event_id)}")["event"] || {}
+
+    def cancel_event(app_id, event_id) = post("/apps/#{Http.segment(app_id)}/events/#{Http.segment(event_id)}/cancel", nil)["event"] || {}
+
+    def events(app_id, limit:, type: nil) =get("/apps/#{Http.segment(app_id)}/events", { "per_page" => limit, "event_types" => type })["events"] || []
 
     # The alerts an app and its components have set up, each a rule, its threshold and its phase (apps_list_alerts).
     def alerts(app_id) = get("/apps/#{Http.segment(app_id)}/alerts")["alerts"] || []

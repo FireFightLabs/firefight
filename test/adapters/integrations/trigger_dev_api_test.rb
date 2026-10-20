@@ -83,6 +83,7 @@ module Integrations
       @api.resolve_error("error_1", version: "20261001.1")
       @api.ignore_error("error_1", duration_ms: 60_000, reason: "flaky")
       @api.unresolve_error("error_1")
+      @api.abort_bulk_action("bulk_1")
 
       assert_equal [
         [ "POST", "/api/v2/runs/run_a/cancel", nil ],
@@ -96,7 +97,8 @@ module Integrations
         [ "POST", "/api/v1/concurrency-limits/openai/reset", {} ],
         [ "POST", "/api/v1/errors/error_1/resolve", { "resolvedInVersion" => "20261001.1" } ],
         [ "POST", "/api/v1/errors/error_1/ignore", { "duration" => 60_000, "reason" => "flaky" } ],
-        [ "POST", "/api/v1/errors/error_1/unresolve", nil ]
+        [ "POST", "/api/v1/errors/error_1/unresolve", nil ],
+        [ "POST", "/api/v1/bulk-actions/bulk_1/abort", nil ]
       ], sent
     end
 

@@ -41,7 +41,7 @@ module Integrations
 
       test "the token is stored trimmed, a wrong one is said on the form, and only the changes are not read only" do
         assert_equal "dop-token", @row.reload.credentials_hash[Digitalocean::API_TOKEN]
-        assert_equal %w[cancel_deployment cancel_job_run redeploy_app commit_rollback revert_rollback rollback_app restart_app scale_app reboot_droplet], Digitalocean.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[cancel_deployment cancel_job_run cancel_autoscaling redeploy_app commit_rollback revert_rollback rollback_app restart_app scale_app reboot_droplet], Digitalocean.tool_definitions.reject(&:read_only).map(&:name)
         DigitaloceanApi.any_instance.stubs(:account).raises(DigitaloceanApi::Error, "DigitalOcean answered 401: Unable to authenticate you")
         assert_equal "DigitalOcean refused this token: DigitalOcean answered 401: Unable to authenticate you.",
                      Digitalocean.credential_refusal({ Digitalocean::API_TOKEN => "dop-bad" })
@@ -275,8 +275,20 @@ module Integrations
 
         text = call(:app_events, "resource" => "shop")
 
-        assert_match "- 2026-10-01T12:00:00Z: autoscaling SUCCEEDED, web 2 to 4 on cpu", text
+        assert_match "- 2026-10-01T12:00:00Z: autoscaling SUCCEEDED, web 2 to 4 on cpu, event ev-2", text
         assert_match "- 2026-10-01T10:00:00Z: deployment dep-2, ACTIVE, manual", text
+      end
+
+      test "an autoscaling still going is cancelled, and a deployment or one that ended is refused" do
+        DigitaloceanApi.any_instance.stubs(:event).with(APP_ID, "ev-2").returns("id" => "ev-2", "type" => "AUTOSCALING", "autoscaling" => { "phase" => "IN_PROGRESS" })
+        DigitaloceanApi.any_instance.expects(:cancel_event).with(APP_ID, "ev-2").returns("id" => "ev-2", "autoscaling" => { "phase" => "CANCELED" })
+        assert_match "The autoscaling ev-2 of shop is cancelled, now CANCELED. Its components keep the instances they run now.",
+                     call(:cancel_autoscaling, "resource" => "shop", "event" => "ev-2")
+
+        DigitaloceanApi.any_instance.stubs(:event).with(APP_ID, "ev-3").returns("id" => "ev-3", "type" => "AUTOSCALING", "autoscaling" => { "phase" => "SUCCEEDED" })
+        assert_match "already ended, SUCCEEDED", assert_raises(NativePack::Error) { call(:cancel_autoscaling, "resource" => "shop", "event" => "ev-3") }.message
+        DigitaloceanApi.any_instance.stubs(:event).with(APP_ID, "ev-1").returns("id" => "ev-1", "type" => "DEPLOYMENT")
+        assert_match "only an autoscaling is cancelled", assert_raises(NativePack::Error) { call(:cancel_autoscaling, "resource" => "shop", "event" => "ev-1") }.message
       end
 
       test "an app's status names its alerts without where they are sent, and a Droplet's its latest actions" do

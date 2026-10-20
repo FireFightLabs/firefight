@@ -214,8 +214,8 @@ skills:
     version: 1
     digest: e1bc6f497a4b29cea854847f6fb9f8b36aa16302525b93f83c27439103100e9b
   digitalocean_changes:
-    version: 2
-    digest: 72accad55c1f6e3809a2a2a4241bc7a34194f3b446a90fe392a63a1db7df95b9
+    version: 3
+    digest: 208dde9935a337fce07d2fa83f7d388c85b618091550d161da8854bf51507e9f
   digitalocean_cost:
     version: 1
     digest: fe68af55cc0394079735323c6af913ed35af7e4e7436d1ad0f8c1434556974de
@@ -784,11 +784,11 @@ skills:
     version: 2
     digest: 30782d9486ad0fc63358291bc30e8dd5c9456a09a088c3cc6f8f9b8a894cdec2
   trigger_dev_failing_runs:
-    version: 2
-    digest: ecb0252c64fc89204c92b99af1e82047cece2943b3386545c2b1deef086532da
+    version: 3
+    digest: '085b793c5bfe459d501f8dfdc4c0425e43d10be1bcd8bc1438504cdd2f453adf'
   trigger_dev_stuck_runs:
-    version: 2
-    digest: d799bd825e1157d7e1c3ba988b1ddef7667c12ecb228a8f2ef382f209fa10605
+    version: 3
+    digest: 2972b4693ee2562036817064a6f97680166978c07ef79964258024d84a947633
   trigger_dev_triage:
     version: 1
     digest: 32fd642595098b4a8c045f83ca5b439158b89f49e9c37abeb60ec70a78f538b0

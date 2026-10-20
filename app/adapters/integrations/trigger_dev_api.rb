@@ -72,6 +72,12 @@ module Integrations
       post("/api/v1/bulk-actions", { "action" => action, "name" => name, "runIds" => run_ids, "filter" => filter }.compact)
     end
 
+    # One bulk action with its status and counts (retrieve_bulk_action_v1), and aborting one still pending, which stops it
+    # taking more runs and undoes none already done (abort_bulk_action_v1).
+    def bulk_action_status(bulk_id) = get("/api/v1/bulk-actions/#{segment(bulk_id)}")
+
+    def abort_bulk_action(bulk_id) = post("/api/v1/bulk-actions/#{segment(bulk_id)}/abort", nil)
+
     # One queue by its id, or by a task's identifier or a custom queue's name with type (retrieve_queue_v1).
     def queue(name, type) = get("/api/v1/queues/#{segment(name)}", { "type" => type })
 

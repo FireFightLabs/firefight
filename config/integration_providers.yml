@@ -719,7 +719,7 @@ providers:
     scaling: firefight
     scaling_note: "An app counts the instances its services and workers run. An app with a component that scales on its own has no one count, so it shows none."
     history: firefight
-    stopping_tools: [cancel_deployment, cancel_job_run]
+    stopping_tools: [cancel_deployment, cancel_job_run, cancel_autoscaling]
   - key: netlify
     name: Netlify
     category: Cloud and hosting
@@ -777,7 +777,7 @@ providers:
     scaling: none
     scaling_note: "It runs each task on demand and says no count of copies."
     history: firefight
-    stopping_tools: [cancel_run, bulk_cancel_runs]
+    stopping_tools: [cancel_run, bulk_cancel_runs, abort_bulk_action]
     mitigation_tools: [pause_queue, pause_concurrency_limit]
     safe_tools: [resolve_error, ignore_error, unresolve_error]
     safe_until_outside_tools: [ignore_error]
