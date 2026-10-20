@@ -88,6 +88,9 @@ railway:
     content/docs/deployments/troubleshooting: deployments/troubleshooting
     content/docs/networking/troubleshooting: networking
     content/docs/observability: observability
+    content/docs/cron-jobs.md: cron-jobs.md
+    content/docs/cli/cron.md: cli/cron.md
+    content/docs/services.md: services.md
 
 # Northflank's API client is MIT licensed and defines every endpoint of Northflank's API. So the endpoints are written out
 # from it, with which calls exist, their paths inside the project as api_request takes them, and the body each needs.

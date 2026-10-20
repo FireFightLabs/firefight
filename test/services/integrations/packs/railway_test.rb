@@ -28,9 +28,11 @@ module Integrations
         RailwayApi.any_instance.stubs(:service_variables).returns([ {}, {} ])
       end
 
-      test "the credentials are stored trimmed, and only the restart, rollback and scale change anything" do
+      test "the credentials are stored trimmed, and only the restart, rollback, scale and deployment changes change anything" do
         assert_equal "rw-token", ConnectionSettings.of(@row.reload).credential(Railway::API_TOKEN)
-        assert_equal %w[restart_deployment rollback_deployment scale_service], Railway.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[restart_deployment rollback_deployment scale_service cancel_deployment stop_deployment redeploy_deployment approve_deployment],
+                     Railway.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[cancel_deployment stop_deployment], IntegrationProvider.find("railway").stopping_tools
       end
 
       test "a wrong token, or an environment the project does not have, is said on the form before anything is saved" do
@@ -130,10 +132,10 @@ module Integrations
         assert_match "not among the latest", assert_raises(NativePack::Error) { call(:rollback_deployment, "resource" => "web", "deployment" => "dep-9") }.message
       end
 
-      test "a scale commits the region's replicas as the CLI does, and one that cannot say where the replicas go is refused" do
+      test "a scale commits the region's replicas as the CLI does, and a service in several regions is scaled one named region at a time" do
         RailwayApi.any_instance.expects(:patch_commit).with(
           "env-prod", { "services" => { "svc-web" => { "deploy" => { "multiRegionConfig" => { "us-west2" => { "numReplicas" => 4 } } } } } },
-          "Scale service web to 4 replicas from Firefight"
+          "Scale service web to 4 replicas in us-west2 from Firefight"
         ).returns("commit-1")
         assert_match "Railway is scaling web to 4 replicas in us-west2 from 2.", call(:scale_service, "resource" => "web", "instances" => "4")
 
@@ -143,7 +145,20 @@ module Integrations
           { "serviceId" => "svc-web", "serviceName" => "web", "latestDeployment" => { "id" => "dep-2", "meta" => { "serviceManifest" => { "deploy" => {
             "multiRegionConfig" => { "us-west2" => { "numReplicas" => 2 }, "europe-west4-drams3a" => { "numReplicas" => 1 } } } } } } }
         ], complete: true))
-        assert_match "runs in us-west2, europe-west4-drams3a", assert_raises(NativePack::Error) { call(:scale_service, "resource" => "web", "instances" => 3) }.message
+        assert_equal "web runs in us-west2 (2 replicas) and europe-west4-drams3a (1 replica). Name the region to scale, and the others keep their replicas.",
+                     assert_raises(NativePack::Error) { call(:scale_service, "resource" => "web", "instances" => 3) }.message
+        assert_match "Replicas by region: 2 in us-west2, 1 in europe-west4-drams3a", call(:describe_resource, "resource" => "web")
+        assert_match "not asia-southeast1", assert_raises(NativePack::Error) { call(:scale_service, "resource" => "web", "instances" => 3, "region" => "asia-southeast1") }.message
+        assert_match "would run 51 replicas", assert_raises(NativePack::Error) { call(:scale_service, "resource" => "web", "instances" => 50, "region" => "us-west2") }.message
+
+        RailwayApi.any_instance.unstub(:patch_commit)
+        RailwayApi.any_instance.expects(:patch_commit).with(
+          "env-prod", { "services" => { "svc-web" => { "deploy" => { "multiRegionConfig" => { "us-west2" => { "numReplicas" => 2 },
+                                                                                            "europe-west4-drams3a" => { "numReplicas" => 0 } } } } } },
+          "Scale service web to 0 replicas in europe-west4-drams3a from Firefight"
+        ).returns("commit-2")
+        assert_match "Railway is scaling web to 0 replicas in europe-west4-drams3a from 1, keeping 2 in us-west2.",
+                     call(:scale_service, "resource" => "web", "instances" => 0, "region" => "Europe-West4-Drams3a")
       end
 
       test "the environment goes on the map with each service's kind, repository and domains" do
@@ -273,18 +288,20 @@ module Integrations
         assert_raises(NativePack::Error) { Railway.new(@integration).check_health!(@row) }
       end
 
-      test "deploy history ends a deployment when it went live or failed, and one replaced since shows no length" do
+      test "deploy history ends a deployment when it went live, failed, crashed or was cancelled, and one replaced since shows no length" do
         RailwayApi.any_instance.stubs(:deployments).returns([
           { "id" => "dep-3", "status" => "BUILDING", "createdAt" => "2026-10-01T10:00:00Z", "updatedAt" => "2026-10-01T10:01:00Z" },
-          { "id" => "dep-2", "status" => "SUCCESS", "createdAt" => "2026-10-01T09:00:00Z", "updatedAt" => "2026-10-01T09:03:00Z",
-            "meta" => { "commitHash" => "c4e4267d46e638ac", "commitMessage" => "Speed up checkout" } },
-          { "id" => "dep-1", "status" => "REMOVED", "createdAt" => "2026-10-01T08:00:00Z", "updatedAt" => "2026-10-01T09:03:00Z" }
+          { "id" => "dep-2", "status" => "SUCCESS", "createdAt" => "2026-10-01T09:00:00Z", "updatedAt" => "2026-10-01T09:05:00Z",
+            "statusUpdatedAt" => "2026-10-01T09:03:00Z", "meta" => { "commitHash" => "c4e4267d46e638ac", "commitMessage" => "Speed up checkout" } },
+          { "id" => "dep-1", "status" => "REMOVED", "createdAt" => "2026-10-01T08:00:00Z", "updatedAt" => "2026-10-01T09:03:00Z", "canRollback" => true },
+          { "id" => "dep-0", "status" => "REMOVED", "createdAt" => "2026-10-01T07:50:00Z", "updatedAt" => "2026-10-01T07:52:00Z", "canRollback" => false },
+          { "id" => "dep-x", "status" => "CRASHED", "createdAt" => "2026-10-01T07:00:00Z", "updatedAt" => "2026-10-01T07:30:00Z" }
         ])
 
         runs = Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "resource" => "web" }))
 
-        assert_equal %w[running succeeded succeeded], runs.map(&:status)
-        assert_equal [ nil, 180, nil ], runs.map(&:seconds)
+        assert_equal %w[running succeeded succeeded cancelled failed], runs.map(&:status)
+        assert_equal [ nil, 180, nil, 120, 1800 ], runs.map(&:seconds)
         assert_equal "c4e4267d46e6 Speed up checkout", runs.second.detail
       end
 
@@ -294,7 +311,7 @@ module Integrations
             "meta" => { "commitHash" => "BBBBCCCCDDDDEEEE", "branch" => "main" } },
           { "id" => "dep-2", "status" => "SUCCESS", "createdAt" => "2026-10-01T09:00:00Z", "updatedAt" => "2026-10-01T09:03:00Z",
             "meta" => { "commitHash" => "c4e4267d46e638ac", "commitMessage" => "Speed up checkout" } },
-          { "id" => "dep-1", "status" => "REMOVED", "createdAt" => "2026-10-01T08:00:00Z", "updatedAt" => "2026-10-01T09:03:00Z" },
+          { "id" => "dep-1", "status" => "REMOVED", "createdAt" => "2026-10-01T08:00:00Z", "updatedAt" => "2026-10-01T09:03:00Z", "canRollback" => true },
           { "id" => "dep-0", "status" => "CRASHED", "createdAt" => "2026-10-01T07:00:00Z", "updatedAt" => "2026-10-01T07:05:00Z" }
         ])
 
@@ -305,7 +322,7 @@ module Integrations
         assert_equal [ [ "dep-3", "bbbbccccddddeeee", "main", Capabilities::History::RUNNING, nil, nil ],
                        [ "dep-2", "c4e4267d46e638ac", nil, Capabilities::History::SUCCEEDED, true, Time.zone.parse("2026-10-01T09:03:00Z") ],
                        [ "dep-1", nil, nil, Capabilities::History::SUCCEEDED, false, nil ],
-                       [ "dep-0", nil, nil, Capabilities::History::FAILED, nil, nil ] ],
+                       [ "dep-0", nil, nil, Capabilities::History::FAILED, nil, Time.zone.parse("2026-10-01T07:05:00Z") ] ],
                      deploys.map { |deploy| [ deploy.id, deploy.commit, deploy.branch, deploy.status, deploy.live, deploy.finished_at ] }
         assert_equal Time.zone.parse("2026-10-01T10:00:00Z"), deploys.first.started_at
       end

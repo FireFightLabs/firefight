@@ -42,9 +42,32 @@ module Integrations
         assert_equal event.id, Railway.events(JSON.parse(SAMPLE.to_json), headers: {}).sole.id
         assert_not_equal event.id, Railway.events(SAMPLE.merge("type" => "Deployment.deployed"), headers: {}).sole.id
         Railway::EVENTS.each { |type| assert_equal 1, Railway.events(SAMPLE.merge("type" => type), headers: {}).size }
-        assert_empty Railway.events(SAMPLE.merge("type" => "VolumeAlert.triggered"), headers: {})
+        assert_equal ResourceMap::Scope.new(account: "prj-1/env-prod", external_id: "svc-web"),
+                     Railway.events(SAMPLE.merge("type" => "Monitor.triggered"), headers: {}).sole.scope
+        assert_empty Railway.events(SAMPLE.merge("type" => "Environment.deleted"), headers: {})
         assert_empty Railway.events(SAMPLE.merge("resource" => SAMPLE["resource"].except("service")), headers: {})
         assert_match "variables", Railway.limits, "what Railway does not send is said on the connection"
+      end
+
+      test "a deployment moving wakes a watch, and an alert reaches the map without waking one" do
+        assert Railway.wakes?(SAMPLE, headers: {})
+        assert Railway.wakes?(SAMPLE.merge("type" => "Deployment.building"), headers: {})
+        assert_not Railway.wakes?(SAMPLE.merge("type" => "VolumeAlert.triggered"), headers: {})
+        assert_match "volume alert", Railway.limits
+      end
+
+      test "a webhook from before that misses an event Firefight now follows, or PR environments, is registered again" do
+        @row.update!(map_events_webhook_id: { "prj-1" => "rule-1" }.to_json)
+        rule = { "id" => "rule-1", "eventTypes" => Railway::EVENTS, "ephemeralEnvironments" => true }
+        RailwayApi.any_instance.stubs(:notification_rules).with("ws-1", "prj-1").returns([ rule ])
+        assert_not Railway.register_again?(@row, url: URL)
+
+        RailwayApi.any_instance.stubs(:notification_rules).with("ws-1", "prj-1").returns([ rule.merge("eventTypes" => Railway::DEPLOYMENT_EVENTS) ])
+        assert Railway.register_again?(@row, url: URL)
+        RailwayApi.any_instance.stubs(:notification_rules).with("ws-1", "prj-1").returns([ rule.merge("ephemeralEnvironments" => false) ])
+        assert Railway.register_again?(@row, url: URL)
+        RailwayApi.any_instance.stubs(:notification_rules).with("ws-1", "prj-1").returns([])
+        assert Railway.register_again?(@row, url: URL)
       end
 
       test "registering adds a webhook with a new secret header, or gives Firefight's own at this address a new one, never touching another" do

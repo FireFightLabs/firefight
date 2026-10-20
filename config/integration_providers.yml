@@ -944,7 +944,7 @@ providers:
     color: "#0b0d0e"
     status_page: { url: https://status.railway.com, feed: page }
     hosts: [ backboard.railway.com, railway.app, up.railway.app ]
-    description: Logs, metrics and deployments of the services in your Railway projects, and restarts, rollbacks and scaling when you allow it.
+    description: Logs, metrics, traces, deployments and cron runs of the services in your Railway projects and their PR environments, and restarts, rollbacks, scaling and deployment changes when you allow it.
     server_url: ""
     site: https://railway.com
     kind: native
@@ -959,6 +959,7 @@ providers:
     scaling: firefight
     scaling_note: "A service counts the replicas it is set to run."
     history: firefight
+    stopping_tools: [cancel_deployment, stop_deployment]
   - key: fly
     name: Fly.io
     category: Cloud and hosting
