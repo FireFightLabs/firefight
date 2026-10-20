@@ -190,6 +190,55 @@ module Integrations
       Http.json(uri, request, error_class: Error, provider_name: PROVIDER, refine: method(:refined), with_status: true)
     end
 
+    # Stops a deployment still building (spec, cancelDeployment), answering the deployment as CANCELED. Vercel answers
+    # 400 for one already READY, ERROR or CANCELED.
+    def cancel_deployment(deployment_id) = write(Net::HTTP::Patch, "/v12/deployments/#{segment(deployment_id)}/cancel")
+
+    # A new build of an earlier deployment with its settings and environment, as `vercel redeploy` asks for it (vercel/vercel,
+    # packages/cli/src/commands/redeploy/index.ts): forceNew, the deployment's id and name, and its own target, with
+    # nothing for a preview. latest_commit builds the branch's newest commit instead (spec, createDeployment withLatestCommit).
+    def redeploy(deployment, latest_commit: false)
+      body = { "deploymentId" => deployment["id"], "meta" => { "action" => "redeploy" }, "name" => deployment["name"],
+               "target" => deployment["target"].presence, "withLatestCommit" => (true if latest_commit) }.compact
+      write(Net::HTTP::Post, "/v13/deployments", body, "forceNew" => 1)
+    end
+
+    # One metric of a project over time from Vercel Observability (spec, createObservabilityQuery, POST
+    # /v2/observability/query), asked as Vercel's CLI asks it (vercel/vercel, packages/cli/src/commands/metrics/query.ts):
+    # a project scope under its owner, the metric, an aggregation, the range, a granularity and an OData filter. It answers
+    # data rows by timestamp, each holding the rollup column. Metrics other than Web Analytics and Speed Insights need
+    # Observability Plus (vercel.com/docs/cli/metrics, Feature access).
+    def observability_query(body) = write(Net::HTTP::Post, "/v2/observability/query", body)
+
+    # The project's rolling release, active, aborted or completed, or nil before its first (spec, getRollingRelease).
+    def rolling_release(project_id) = get("/v1/projects/#{segment(project_id)}/rolling-release")["rollingRelease"]
+
+    # Moves an active rolling release on to the stage at next_index for its canary (spec, approveRollingReleaseStage).
+    def approve_rolling_stage(project_id, next_index:, canary_id:)
+      write(Net::HTTP::Post, "/v1/projects/#{segment(project_id)}/rolling-release/approve-stage", { "nextStageIndex" => next_index, "canaryDeploymentId" => canary_id })
+    end
+
+    # Sends all production traffic to the canary and ends the rolling release (spec, completeRollingRelease).
+    def complete_rolling_release(project_id, canary_id:)
+      write(Net::HTTP::Post, "/v1/projects/#{segment(project_id)}/rolling-release/complete", { "canaryDeploymentId" => canary_id })
+    end
+
+    # The team's Vercel CI invocations, newest first, one page (spec, listVercelCiInvocations), filtered by repository and
+    # branch when given.
+    def ci_invocations(limit:, provider: nil, repository: nil, branch: nil)
+      get("/v2/vercel-ci/invocations", { "limit" => limit, "provider" => provider, "repository" => repository, "branchName" => branch }.compact)
+    end
+
+    # One invocation attempt with its jobs, each job's latest run and its tasks (spec, getVercelCiInvocationTree), the
+    # latest attempt unless one is named.
+    def ci_invocation_tree(invocation_id, attempt: nil) = get("/v1/vercel-ci/invocations/#{segment(invocation_id)}/tree", { "attempt" => attempt }.compact)
+
+    # A job run's log lines (spec, getVercelCiJobRunLogs).
+    def ci_job_logs(invocation_id, attempt:, job_definition_id:, run_attempt:)
+      path = "/v1/vercel-ci/invocations/#{segment(invocation_id)}/attempts/#{segment(attempt)}/job-definitions/#{segment(job_definition_id)}/runs/#{segment(run_attempt)}/logs"
+      Array(get(path)["lines"])
+    end
+
     # Any GET of the REST API, by its path under API_ROOT, for the general read (Integrations::ApiReads), which checks the
     # path before it gets here. The team is always the one this client was made for, whatever the query names.
     def read(path, query) = get(path, query.except("teamId", "slug"))
@@ -206,11 +255,16 @@ module Integrations
       send_request(uri, changing(Net::HTTP::Post.new(uri)))
     end
 
-    def changing(request)
+    def changing(request, body = {})
       request["Content-Type"] = "application/json"
       request["Accept"] = "application/json"
-      request.body = "{}"
+      request.body = body.to_json
       request
+    end
+
+    def write(verb, path, body = {}, query = {})
+      uri = uri(path, query)
+      send_request(uri, changing(verb.new(uri), body))
     end
 
     def uri(path, query = {})

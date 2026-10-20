@@ -24,9 +24,9 @@ module Integrations
         NetlifyApi.any_instance.stubs(:env_vars).returns([])
       end
 
-      test "the token is stored trimmed, and every tool only reads except putting a site back on an earlier deploy" do
+      test "the token is stored trimmed, and every tool only reads except the deploy changes" do
         assert_equal "nfp-token", @row.reload.credentials_hash[Netlify::API_TOKEN]
-        assert_equal [ "restore_deploy" ], Netlify.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[restore_deploy lock_deploy unlock_deploy cancel_deploy trigger_build], Netlify.tool_definitions.reject(&:read_only).map(&:name)
       end
 
       test "a site is found by its id, its name, or a domain it serves" do
@@ -127,6 +127,36 @@ module Integrations
         NetlifyApi.any_instance.expects(:restore).with("site-1", "d3").never
         assert_match "only a ready deploy", assert_raises(NativePack::Error) { call(:restore_deploy, "site" => "shop", "deploy" => "d3") }.message
         assert_raises(NativePack::Error) { call(:restore_deploy, "site" => "elsewhere", "deploy" => "d1") }
+      end
+
+      test "a lock keeps auto publishing on the live deploy, and an unlock lets new deploys go live again" do
+        NetlifyApi.any_instance.stubs(:site).with("site-1").returns(SITE)
+        NetlifyApi.any_instance.stubs(:deploy).with("site-1", "d2").returns("id" => "d2", "state" => "ready", "admin_url" => ADMIN)
+        NetlifyApi.any_instance.expects(:lock_deploy).with("d2").returns("id" => "d2", "locked" => true, "admin_url" => ADMIN)
+
+        assert_match "shop keeps auto publishing locked on deploy d2", call(:lock_deploy, "site" => "shop")
+
+        NetlifyApi.any_instance.stubs(:site).with("site-1").returns(SITE.merge("published_deploy" => SITE["published_deploy"].merge("locked" => true)))
+        NetlifyApi.any_instance.expects(:unlock_deploy).with("d2").returns("id" => "d2", "locked" => false, "admin_url" => ADMIN)
+        assert_match "shop publishes its next production deploy again", call(:unlock_deploy, "site" => "shop")
+
+        NetlifyApi.any_instance.stubs(:site).with("site-1").returns(SITE)
+        assert_equal "Auto publishing of shop is not locked, so there is nothing to unlock.",
+                     assert_raises(NativePack::Error) { call(:unlock_deploy, "site" => "shop") }.message
+      end
+
+      test "a cancel stops only a deploy still building, and a build starts from the branch asked with the cache cleared" do
+        NetlifyApi.any_instance.stubs(:deploy).with("site-1", "d3").returns("id" => "d3", "state" => "building", "admin_url" => ADMIN)
+        NetlifyApi.any_instance.expects(:cancel_deploy).with("d3").returns("id" => "d3", "state" => "error", "admin_url" => ADMIN)
+        assert_match "Netlify stopped deploy d3 of shop", call(:cancel_deploy, "site" => "shop", "deploy" => "d3")
+
+        NetlifyApi.any_instance.stubs(:deploy).with("site-1", "d2").returns("id" => "d2", "state" => "ready")
+        assert_match "is ready already, so there is nothing to cancel", assert_raises(NativePack::Error) { call(:cancel_deploy, "site" => "shop", "deploy" => "d2") }.message
+
+        NetlifyApi.any_instance.expects(:create_build).with("site-1", branch: "hotfix", clear_cache: true).returns("id" => "b1", "deploy_id" => "d4")
+        text = call(:trigger_build, "site" => "shop", "branch" => "hotfix", "clear_cache" => true)
+        assert_match "Netlify is building deploy d4 of shop from hotfix without its build cache. deploy_history with run d4 follows it.", text
+        assert text.end_with?("#{ADMIN}/deploys/d4")
       end
 
       test "the map holds each site with the domains it serves and the repository it builds from" do

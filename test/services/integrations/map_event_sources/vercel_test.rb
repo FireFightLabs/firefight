@@ -41,6 +41,33 @@ module Integrations
         assert_empty Vercel.events(delivery("flag.created"), headers: {})
       end
 
+      test "a rolling release moving reads the project, while checks and a preview only wake a watch" do
+        moved = Vercel.events(delivery("project.rolling-release.approved", "rollingRelease" => { "deploymentIds" => [ "dpl_1", "dpl_2" ] }), headers: {}).sole
+        assert_equal [ ResourceMap::Event::UPDATED, "prj_1" ], [ moved.action, moved.scope.external_id ]
+        assert_equal "prj_1", Vercel.events(delivery("deployment.ready", "deployment" => { "id" => "dpl_2" }, "target" => "production"), headers: {}).sole.scope.external_id
+
+        preview = delivery("deployment.error", "deployment" => { "id" => "dpl_3" }, "target" => nil)
+        checks = delivery("deployment.checks.failed", "deployment" => { "id" => "dpl_2" })
+        assert_empty Vercel.events(preview, headers: {})
+        assert_empty Vercel.events(checks, headers: {})
+        assert Vercel.wakes?(preview, headers: {})
+        assert Vercel.wakes?(checks, headers: {})
+        assert Vercel.wakes?(delivery("deployment.blocked", "deployment" => { "id" => "dpl_2" }), headers: {})
+        assert_not Vercel.wakes?(delivery("project.env-variable.updated"), headers: {})
+        assert_includes Vercel::EVENTS, "deployment.checks.succeeded"
+      end
+
+      test "a webhook from before that misses an event Firefight now reads is registered again" do
+        VercelApi.any_instance.stubs(:webhooks).returns([ { "id" => "hook_old", "url" => URL, "events" => Vercel::MAP_EVENTS } ])
+        assert Vercel.register_again?(@row, url: URL)
+
+        VercelApi.any_instance.stubs(:webhooks).returns([ { "id" => "hook_new", "url" => URL, "events" => Vercel::EVENTS } ])
+        assert_not Vercel.register_again?(@row, url: URL)
+
+        VercelApi.any_instance.stubs(:webhooks).returns([ { "id" => "hook_theirs", "url" => "https://example.com/hook", "events" => Vercel::EVENTS } ])
+        assert Vercel.register_again?(@row, url: URL)
+      end
+
       test "a domain joining a project reads the project, and one leaving, moving or changing sweeps the connection" do
         added = Vercel.events(delivery("project.domain.created", "domain" => { "name" => "shop.acme.dev" }), headers: {}).sole
         assert_equal [ ResourceMap::Event::LINKED, "prj_1" ], [ added.action, added.scope.external_id ]

@@ -68,5 +68,22 @@ module Integrations
 
       assert_equal 2, @api.update_autoscaler("fu-1", { min_containers: 2 }).min_containers
     end
+
+    test "stopping an app, stopping a container and reading one container's logs send what modal app stop, container stop and container logs send" do
+      GRPC::ClientStub.any_instance.stubs(:request_response).with { |path, *| path.end_with?("AuthTokenGet") }.returns(Proto::AuthTokenGetResponse.new(token: "jwt"))
+      GRPC::ClientStub.any_instance.expects(:request_response).with do |path, request, _encode, decode, *|
+        path.end_with?("/AppStop") && request.app_id == "ap-1" && request.source == :APP_STOP_SOURCE_CLI && decode.receiver == Google::Protobuf::Empty
+      end.returns(Google::Protobuf::Empty.new)
+      GRPC::ClientStub.any_instance.expects(:request_response).with do |path, request, *|
+        path.end_with?("/ContainerStop") && request.task_id == "ta-1" && request.graceful
+      end.returns(Proto::ContainerStopResponse.new)
+      GRPC::ClientStub.any_instance.expects(:request_response).with do |path, request, *|
+        path.end_with?("AppFetchLogs") && request.task_id == "ta-1"
+      end.returns(Proto::AppFetchLogsResponse.new)
+
+      @api.stop_app("ap-1")
+      @api.stop_container("ta-1", graceful: true)
+      @api.logs("ap-1", since: 1.hour.ago, upto: Time.current, limit: 10, task_id: "ta-1")
+    end
   end
 end

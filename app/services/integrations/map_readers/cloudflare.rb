@@ -25,6 +25,8 @@ module Integrations
       RATE_LIMITED = /\b429\b|\b971\b|rate limit|throttl/i
       RATE_LIMITED_JS = "/\\b429\\b|\\b971\\b|rate limit|throttl/i".freeze
       HOSTNAME_RECORDS = %w[A AAAA CNAME].freeze
+      # A Worker's tag, its immutable id, which Workers Builds names it by rather than its name (external_script_id).
+      WORKER_TAG = "tag".freeze
       # What a zone list the zones script reads would have put on the map. Its settings hold nothing back.
       ZONE_LISTS = { "Worker routes" => [ ResourceMap::KIND_DOMAIN ], "load balancers" => [ ResourceMap::KIND_LOAD_BALANCER ] }.freeze
       STATUS_ACTIVE = "active".freeze
@@ -253,9 +255,11 @@ module Integrations
 
       # Every Worker with its bindings and the hostnames it serves, or with only, that one Worker and its bindings.
       def read_workers(only: nil)
-        workers = Array(run("Workers", list_script("/accounts/#{@account['id']}/workers/scripts", {}, %w[id]), kinds: [ ResourceMap::KIND_WORKER ])&.dig("items"))
+        workers = Array(run("Workers", list_script("/accounts/#{@account['id']}/workers/scripts", {}, %w[id tag]), kinds: [ ResourceMap::KIND_WORKER ])&.dig("items"))
         workers = workers.select { |worker| worker["id"] == only } if only
-        workers.each { |worker| add(ResourceMap::KIND_WORKER, worker["id"], worker["id"], url: dashboard("workers-and-pages")) }
+        workers.each do |worker|
+          add(ResourceMap::KIND_WORKER, worker["id"], worker["id"], url: worker_page(worker["id"]), details: { WORKER_TAG => worker["tag"] }.compact)
+        end
         workers.map { |worker| worker["id"] }.each_slice(CHUNK) do |names|
           Array(run("Worker bindings", bindings_script(names), kinds: [ ResourceMap::KIND_WORKER ])).each { |settings| bindings(settings) }
         end
@@ -406,6 +410,10 @@ module Integrations
       end
 
       def dashboard(page) = "#{DASHBOARD}/#{@account['id']}/#{page}"
+
+      # A Worker's own page, where its deployments and builds are, as Cloudflare's docs link it
+      # (/:account/workers/services/view/:worker/production).
+      def worker_page(name) = dashboard("workers/services/view/#{Http.segment(name)}/production")
 
       # Something that could not be read, said in the gaps. kinds are what it would have put on the map, so the sweep
       # takes nothing as gone. A setting that could not be read holds nothing back.

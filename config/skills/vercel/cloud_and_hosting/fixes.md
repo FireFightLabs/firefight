@@ -1,7 +1,8 @@
 ---
 name: vercel_fixes
-when: Writing or applying a fix for a Vercel project, such as rolling production back to an earlier deployment or promoting a deployment to production
-tools: [rollback, promote_deployment, recent_deploys, resource_status]
+when: Writing or applying a fix for a Vercel project, such as rolling production back to an earlier deployment, promoting a deployment to production, canceling or redeploying a deployment, or moving a rolling release on or stopping it
+tools: [rollback, promote_deployment, cancel_deployment, redeploy_deployment, rolling_release, advance_rolling_release, complete_rolling_release, abort_rolling_release, recent_deploys, resource_status, run_history]
+references: [cli/deployment.md, deploy/live-status.md]
 ---
 Vercel changes production by moving its domains between deployments that are already built, so a rollback or a promotion takes effect in seconds and builds nothing. Each step of a fix says how to undo it.
 
@@ -9,5 +10,8 @@ Vercel changes production by moving its domains between deployments that are alr
 2. Pick the change:
    - Roll back, when a production deployment broke the site: `rollback` with `to` set to the last production deployment that was ready before it. On the Hobby plan only the previous production deployment can be chosen. After a rollback Vercel stops moving the production domains to new deployments on their own, so a fix that is merged later does not go live by itself. Undo by promoting the deployment that was serving before.
    - Promote, to put a ready production deployment on the production domains, such as the fixed one after a rollback: `promote_deployment` with the project and the deployment. It also turns automatic assignment of the production domains back on. A preview deployment cannot be promoted this way, since Vercel builds it again for production. Undo by promoting, or rolling back to, the deployment that served before.
+   - Cancel, for a deployment still queued or building that should never go live, such as one from the wrong branch: `cancel_deployment` with the project and the deployment. Only one that has not ended can be canceled, and a canceled one is never started again. Undo by building it again with `redeploy_deployment`.
+   - Redeploy, for a build that failed for a passing reason or after a setting was fixed: `redeploy_deployment` with the deployment. It builds a new deployment with the settings and variables as they are now, for the same target, and `latest_commit` builds the branch's newest commit instead. A production one goes live when ready unless the project was rolled back or runs rolling releases. Follow it with `run_history` and the new id the answer gives. Undo by rolling back to the deployment that served before.
+   - A rolling release in progress: `rolling_release` shows the deployment being rolled out, the one it replaces and the share of traffic each gets. When the new one is fine, `advance_rolling_release` moves it to the next stage or `complete_rolling_release` gives it all traffic. Undo either by rolling back to the deployment it replaced. When the new one is bad, `abort_rolling_release` sends all traffic back to the one it replaced, which leaves the project rolled back until a deployment is promoted.
 3. A rollback does not change environment variables or the project's settings, and cron jobs go back to the ones the earlier deployment defined. When the cause is a setting or a variable, the fix is a step for a person in Vercel.
 4. When the project is defined as code, such as a vercel.json in the repository, a change to its settings is a pull request to that code, since the next deployment would undo a change made by hand.

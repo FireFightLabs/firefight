@@ -240,6 +240,18 @@ netlify:
     agent-plugin/skills/netlify-caching: caching
     agent-plugin/skills/netlify-functions: functions
 
+# Vercel's agent plugin is Apache 2.0, in vercel/vercel-plugin. Its deployment and command line references say how
+# deployments, checks, rolling releases, logs and Vercel CI behave. Vercel's own documentation site is not openly
+# licensed, so none of it is copied.
+vercel:
+  repository: https://github.com/vercel/vercel-plugin
+  license: LICENSE
+  paths:
+    skills/deployments-cicd/references: deploy
+    skills/vercel-cli/references/deployment.md: cli/deployment.md
+    skills/vercel-cli/references/monitoring-and-debugging.md: cli/monitoring-and-debugging.md
+    skills/vercel-functions/SKILL.md: functions/functions.md
+
 # Convex's agent skills are Apache 2.0. Its documentation is FSL-1.1-Apache-2.0, which is not an open licence, so none of
 # it is copied. The skills that recommend Convex as the backend for new work are left out.
 convex:

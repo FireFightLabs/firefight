@@ -632,7 +632,7 @@ providers:
     color: "#f38020"
     status_page: { url: https://www.cloudflarestatus.com, feed: statuspage }
     hosts: [ api.cloudflare.com, workers.dev, pages.dev, r2.cloudflarestorage.com ]
-    description: Read traffic, security events, DNS and cache, and block IPs, add rules or purge the cache when you allow it.
+    description: Read traffic, security events, DNS, cache, Workers and Pages, and block IPs, add rules, purge the cache, retry a Pages deployment, cancel a Workers build or split a Worker's traffic when you allow it.
     server_url: https://mcp.cloudflare.com/mcp
     # The server marks only execute as a write. search reads the API's own spec and docs reads the documentation.
     read_only_tools: [search, docs]
@@ -645,10 +645,16 @@ providers:
     scaling: none
     scaling_note: "Its Workers and sites run at every edge location on demand, so there is no count of copies to read."
     history: firefight
+    # retry_pages_deployment, cancel_workers_build and split_worker_traffic are Firefight's own tools on the server
+    # (Integrations::NamedTools::Cloudflare). Cancelling a build ends what someone's push started.
+    stopping_tools: [cancel_workers_build]
     # What a person reads beside each tool, by the name Firefight gives it (Integrations::ToolSummaries).
     tool_summaries:
       docs: "Searches the Cloudflare documentation."
       execute: "Reads, creates, updates or deletes resources in the Cloudflare account."
+      retry_pages_deployment: "Runs a failed Cloudflare Pages deployment again."
+      cancel_workers_build: "Cancels a queued or running Cloudflare Workers build."
+      split_worker_traffic: "Splits a Cloudflare Worker's traffic between two of its versions."
       search: "Searches the Cloudflare API reference for the right operation."
       whoami: "Shows the Cloudflare user or account this connection signs in as."
   - key: kubernetes
@@ -688,7 +694,8 @@ providers:
     color: "#1b1d1a"
     status_page: { url: https://status.modal.com, feed: page }
     hosts: [ modal.run, api.modal.com ]
-    description: Logs, functions and deployment history of your Modal apps, and rolling an app back, rolling over its containers or changing a function's autoscaler when you allow it.
+    description: Logs, functions, containers and deployment history of your Modal apps, and rolling an app back, rolling over or stopping its containers, changing a function's autoscaler or stopping an app when you allow it.
+    stopping_tools: [stop_container, stop_app]
     site: https://modal.com
     server_url: ""
     kind: native
@@ -730,7 +737,7 @@ providers:
     color: "#00c7b7"
     status_page: { url: https://www.netlifystatus.com, feed: statuspage }
     hosts: [ api.netlify.com, netlify.app, netlify.com ]
-    description: Deploys and state of your Netlify sites, and rolling a site back to an earlier deploy when you allow it.
+    description: Deploys and state of your Netlify sites, and rolling a site back to an earlier deploy, locking auto publishing, canceling a deploy or starting a build when you allow it.
     server_url: ""
     kind: native
     connect_with: api_token
@@ -741,6 +748,7 @@ providers:
     scaling: none
     scaling_note: "It builds and serves sites from its edge network, which run no copies of a service."
     history: firefight
+    stopping_tools: [cancel_deploy]
   - key: convex
     name: Convex
     category: Cloud and hosting
@@ -748,7 +756,9 @@ providers:
     color: "#ee342f"
     status_page: { url: https://status.convex.dev, feed: statuspage }
     hosts: [ convex.cloud, convex.site ]
-    description: Function logs, errors, pushes and state of a Convex deployment.
+    description: Function logs, errors, pushes, usage and state of a Convex deployment, and pausing or unpausing it when you allow it.
+    # Pausing fails every function call until it is unpaused, a stop customers feel for a while.
+    mitigation_tools: [pause_deployment]
     site: https://dashboard.convex.dev
     server_url: ""
     kind: native
@@ -904,7 +914,7 @@ providers:
     color: "#000000"
     status_page: { url: https://www.vercel-status.com, feed: statuspage }
     hosts: [ api.vercel.com, vercel.app, vercel.com ]
-    description: Projects, deployments and their build and runtime logs, and instant rollback or promotion of a deployment when you allow it.
+    description: Projects, deployments and their build and runtime logs, metrics, rolling releases and Vercel CI runs, and rolling back, promoting, canceling or redeploying a deployment, or moving a rolling release on or stopping it, when you allow it.
     server_url: ""
     site: https://vercel.com
     kind: native
@@ -917,6 +927,7 @@ providers:
     scaling: none
     scaling_note: "It runs functions on demand and says no count of copies."
     history: firefight
+    stopping_tools: [cancel_deployment, abort_rolling_release]
   - key: render
     name: Render
     category: Cloud and hosting
@@ -974,7 +985,7 @@ providers:
     color: "#24175b"
     status_page: { url: https://status.flyio.net, feed: statuspage }
     hosts: [ api.fly.io, fly.dev, fly.io ]
-    description: Logs, metrics, releases and machines of the apps in a Fly.io organization, and restarts and rollbacks when you allow it.
+    description: Logs, metrics, releases and machines of the apps in a Fly.io organization, with a Managed Postgres cluster's slow and running queries, and restarting, rolling back, scaling, resizing, starting, stopping, suspending or cordoning machines when you allow it.
     server_url: ""
     site: https://fly.io
     kind: native
@@ -986,6 +997,7 @@ providers:
     scaling: firefight
     scaling_note: "An app counts its Machines."
     history: firefight
+    stopping_tools: [stop_app, suspend_app, cordon_machine]
   - key: sentry
     name: Sentry
     category: Observability
