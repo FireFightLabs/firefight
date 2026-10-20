@@ -66,8 +66,8 @@ module Integrations
     # A workflow as v2 has it, with its project slug, pipeline number and who started it (v2 getWorkflowById).
     def workflow_summary(id) = get(V2, "/workflow/#{Http.segment(id)}")
 
-    # A workflow's jobs (v3 GET /jobs with filter[workflow_id]).
-    def jobs(workflow_id) = Array(get(V3, "/jobs", "filter[workflow_id]" => workflow_id)["data"])
+    # A workflow's jobs, every page (v3 GET /jobs with filter[workflow_id]).
+    def jobs(workflow_id) = pages(V3, "/jobs", { "filter[workflow_id]" => workflow_id }).items
 
     # A workflow's jobs as v2 has them, with each approval job's approval_request_id (v2 listWorkflowJobs).
     def workflow_jobs(workflow_id) = Array(get(V2, "/workflow/#{Http.segment(workflow_id)}/job")["items"])

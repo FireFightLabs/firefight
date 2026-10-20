@@ -34,6 +34,7 @@ module Integrations
                       "component" => { "type" => "string", "description" => "The component, by its name" },
                       "environment" => { "type" => "string", "description" => "The environment, by its name" },
                       "version" => { "type" => "string", "description" => "The version to go back to" },
+                      "namespace" => { "type" => "string", "description" => "The namespace, when the component is live in more than one in the environment (optional)" },
                       "reason" => { "type" => "string", "description" => "Why, which CircleCI keeps with the rollback (optional)" }
                     }, "required" => %w[project component environment version] },
                     read_only: false
@@ -63,8 +64,15 @@ module Integrations
           deploys = deploys_of(environment_row, project).select { |deploy| deploy[:component].casecmp?(component) && deploy[:environment].casecmp?(environment) }
           fail! "#{project.label} deployed no component #{component} to #{environment}. list_deploys shows what it deployed." if deploys.empty?
 
-          live = deploys.find { |deploy| deploy[:live] } || fail!("#{component} has no version live in #{environment}, so there is nothing to roll back from.")
-          target = deploys.find { |deploy| deploy[:version] == version } || fail!("#{component} never deployed #{version} to #{environment}. list_deploys shows its versions.")
+          namespace = arguments["namespace"].to_s.strip.presence
+          deploys = deploys.select { |deploy| deploy[:namespace] == namespace } if namespace
+          lives = deploys.select { |deploy| deploy[:live] }
+          fail! "#{component} has no version live in #{environment}, so there is nothing to roll back from." if lives.empty?
+          fail! "#{component} is live in #{environment} in the namespaces #{lives.map { |deploy| deploy[:namespace] }.compact.to_sentence}. Name one with namespace." unless lives.one?
+
+          live = lives.first
+          target = deploys.find { |deploy| deploy[:version] == version && deploy[:namespace] == live[:namespace] } ||
+                   fail!("#{component} never deployed #{version} to #{environment}. list_deploys shows its versions.")
           fail! "#{version} is already live in #{environment}." if target[:version] == live[:version]
 
           body = { "component_name" => live[:component], "environment_name" => live[:environment], "current_version" => live[:version],

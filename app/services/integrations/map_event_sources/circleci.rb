@@ -21,6 +21,7 @@ module Integrations
       ENDS = { "success" => RunsEnded::OUTCOME_SUCCEEDED, "failed" => RunsEnded::OUTCOME_FAILED, "error" => RunsEnded::OUTCOME_FAILED,
                "unauthorized" => RunsEnded::OUTCOME_FAILED, "canceled" => RunsEnded::OUTCOME_CANCELLED }.freeze
       MCP_ONLY = "Live updates need a CircleCI connection made with a personal API token, since CircleCI's MCP server cannot add webhooks".freeze
+      TOO_MANY = "CircleCI listed more projects than Firefight reads at once in the organization".freeze
       NEEDS = "Adding a webhook to a project needs the token's user to manage the project's settings".freeze
 
       class << self
@@ -99,7 +100,16 @@ module Integrations
 
         private
 
-        def projects(api) = api.collaborations.flat_map { |organization| api.projects(organization["id"]).items }
+        # Every project, or a refusal when an organization's list was cut short, so no webhook is added, checked or taken
+        # back for only some of them while saying it was done.
+        def projects(api)
+          api.collaborations.flat_map do |organization|
+            read = api.projects(organization["id"])
+            raise Integrations::Error, "#{TOO_MANY} #{organization['name'] || organization['id']}." if read.incomplete?
+
+            read.items
+          end
+        end
 
         def own_webhooks(api, project, url) = api.webhooks(project["id"]).select { |hook| hook["url"] == url }
 

@@ -65,6 +65,14 @@ module Integrations
         assert Circleci.register_again?(@row, url: URL)
       end
 
+      test "an organization whose project list was cut short is never registered, checked or taken back in part" do
+        CircleciApi.any_instance.stubs(:projects).returns(Pages::Read.new(items: [ { "id" => "p-1" } ], complete: false))
+        CircleciApi.any_instance.expects(:create_webhook).never
+
+        assert_raises(Integrations::Error) { Circleci.register(@row, url: URL) }
+        assert_raises(Integrations::Error) { Circleci.register_again?(@row, url: URL) }
+      end
+
       test "a connection through CircleCI's hosted server is told live updates need an API token" do
         mcp = Integration.create!(workspace: @workspace, kind: Integration::KIND_MCP, provider: "circleci", name: "CircleCI server", slug: "circleciserver",
                                   settings: { "server_url" => "https://mcp.circleci.com/v1/mcp" })

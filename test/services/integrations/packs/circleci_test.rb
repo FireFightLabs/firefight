@@ -165,6 +165,22 @@ module Integrations
         assert_raises(NativePack::Error) { call(:rollback_deploy, "project" => "web", "component" => "api", "environment" => "production", "version" => "v42") }
       end
 
+      test "a component live in two namespaces of one environment is rolled back only in the one named, to a version deployed there" do
+        CircleciApi.any_instance.stubs(:environments).with("org-1").returns([ { "id" => "e-1", "name" => "production" } ])
+        CircleciApi.any_instance.stubs(:components).with("org-1", "p-1").returns([ { "id" => "c-1", "name" => "api" } ])
+        CircleciApi.any_instance.stubs(:versions).with("c-1").returns([
+          { "name" => "v42", "environment_id" => "e-1", "namespace" => "eu", "is_live" => true },
+          { "name" => "v41", "environment_id" => "e-1", "namespace" => "eu", "is_live" => false },
+          { "name" => "v40", "environment_id" => "e-1", "namespace" => "us", "is_live" => true }
+        ])
+        rollback = { "project" => "web", "component" => "api", "environment" => "production", "version" => "v41" }
+
+        assert_match "Name one with namespace", assert_raises(NativePack::Error) { call(:rollback_deploy, rollback) }.message
+        assert_raises(NativePack::Error) { call(:rollback_deploy, rollback.merge("namespace" => "us")) }
+        CircleciApi.any_instance.expects(:rollback).with("p-1", has_entries("namespace" => "eu", "current_version" => "v42", "target_version" => "v41")).returns({ "id" => "x-2" })
+        call(:rollback_deploy, rollback.merge("namespace" => "eu"))
+      end
+
       test "the general read takes a versioned path, refuses a step's raw output, and keeps environment variables to their names" do
         CircleciApi.any_instance.expects(:read).with("/v2/project/gh/acme/web/envvar", {}).returns({ "items" => [ { "name" => "TOKEN", "value" => "xxxx1234" } ] })
 

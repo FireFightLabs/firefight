@@ -103,8 +103,8 @@ skills:
     version: 1
     digest: 5869e6eca40caead65de98ce33e7ebce4de4d29e38fbbc1896afd6906d55a21e
   circleci_deploys:
-    version: 2
-    digest: 36a5ae9da2bb23cd66ae0e2ff8586f3fc6be2f4743a5f80b7e8fa92c41ee274e
+    version: 3
+    digest: 65e3b296b9bdd170d5ba34defa3a056972320a24c7563806ac60836567a7d384
   circleci_failing_build:
     version: 1
     digest: ad4f27000eed2c8ce5f01949cefb199ab76af5d8e3c0aad548c622fc0e02ebd4
