@@ -104,6 +104,8 @@ module Integrations
           end
           raise MapEventSource::Refused, Sentence.all("PlanetScale would not add Firefight's webhook", refused.join(" ")) if secrets.empty? && refused.any?
 
+          # A refused database may still have a webhook from before, signing with a secret saved then, which is kept.
+          secrets.concat(row.map_events_secrets) if refused.any?
           MapEventSource::Webhook.new(id: ALL_DATABASES, secret: secrets.uniq.join("\n").presence)
         end
 
