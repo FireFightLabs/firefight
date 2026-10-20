@@ -94,6 +94,68 @@ module Integrations
         assert_equal [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_QUEUE ], snapshot.unread_kinds
       end
 
+      test "each workflow with a recent run goes on the map as part of its region's QStash, read a page at a time" do
+        integration = workspaces(:slack_workspace_one).integrations.create!(kind: Integration::KIND_MCP, provider: "upstash", name: "Upstash",
+                                                                            settings: { "server_url" => "https://mcp.upstash.com/mcp" })
+        settings = ConnectionSettings.of(integration.integration_environments.create!)
+        logs = Tool.new({ "properties" => { "region" => {}, "service" => {}, "cursor" => {} } })
+        pages = {
+          nil => { "cursor" => "c2", "runs" => [ { "workflowRunId" => "wfr_1", "workflowUrl" => "https://api.example.com/api/orders", "workflowState" => "RUN_FAILED",
+                                                  "workflowRunCreatedAt" => 1_760_000_000_000 } ] },
+          "c2" => { "runs" => [ { "workflowRunId" => "wfr_0", "workflowUrl" => "https://api.example.com/api/orders", "workflowState" => "RUN_SUCCESS",
+                                  "workflowRunCreatedAt" => 1_750_000_000_000 },
+                                { "workflowRunId" => "wfr_9", "workflowUrl" => "https://api.example.com/api/mail", "workflowState" => "RUN_SUCCESS" } ] }
+        }
+        asked = []
+        snapshot = Upstash.new(settings, { Upstash::LIST_LOGS => logs }) do |tool, arguments|
+          asked << arguments if tool == Upstash::LIST_LOGS
+          if tool == Upstash::LIST_LOGS then arguments["region"] == "eu" ? result(pages.fetch(arguments["cursor"])) : result({ "runs" => [] })
+          elsif tool == Upstash::LIST_QSTASH then result([ { "id" => "q-#{arguments['region']}", "state" => "active" } ])
+          else result([])
+          end
+        end.map
+
+        workflows = snapshot.resources.select { |resource| resource.kind == ResourceMap::KIND_WORKFLOW }
+        assert_equal [ "api.example.com/api/orders", "api.example.com/api/mail" ], workflows.map(&:name)
+        orders = workflows.first
+        assert_equal "qstash-q-eu/https://api.example.com/api/orders", orders.external_id
+        assert_equal({ "region" => "eu", "workflowUrl" => "https://api.example.com/api/orders", "last_run" => "RUN_FAILED" }, orders.details)
+        assert_equal "https://console.upstash.com/workflow", orders.url
+        assert_includes snapshot.links.map { |link| [ link.from, link.to, link.relation ] },
+                        [ orders.key, [ "upstash", "upstash", ResourceMap::KIND_QUEUE, "qstash-q-eu" ], ResourceMap::RELATION_PART_OF ]
+        assert_includes asked, { "region" => "eu", "service" => "workflow", "cursor" => "c2" }
+        assert_empty snapshot.gaps
+      end
+
+      test "a server whose logs_list takes no service lists no workflows, and asks nothing for them" do
+        asked = []
+        Upstash.new(nil, { Upstash::LIST_LOGS => Tool.new({ "properties" => { "region" => {} } }) }) do |tool, arguments|
+          asked << tool
+          tool == Upstash::LIST_QSTASH && arguments["region"] == "eu" ? result([ { "id" => "q-1" } ]) : result([])
+        end.map
+
+        assert_not_includes asked, Upstash::LIST_LOGS
+      end
+
+      test "each active Box goes on the map from box_account's summary, and an answer it cannot read is a gap" do
+        account = Tool.new({ "properties" => { "action" => { "enum" => %w[summary billing logs] } } })
+        boxes = [ { "id" => "box_7", "name" => "reviewer", "status" => "idle", "size" => "small", "runtime" => "node", "keep_alive" => false },
+                  { "id" => "box_8", "status" => "paused" } ]
+        asked = []
+        snapshot = Upstash.new(nil, { Upstash::BOX_ACCOUNT => account }) do |tool, arguments|
+          asked << arguments if tool == Upstash::BOX_ACCOUNT
+          tool == Upstash::BOX_ACCOUNT ? result({ "boxes" => boxes }) : result([])
+        end.map
+
+        found = snapshot.resources.select { |resource| resource.kind == ResourceMap::KIND_VIRTUAL_MACHINE }
+        assert_equal [ [ "box_7", "reviewer", "idle" ], [ "box_8", "box_8", "paused" ] ], found.map { |box| [ box.external_id, box.name, box.status ] }
+        assert_equal({ "size" => "small", "runtime" => "node", "keep_alive" => false }, found.first.details)
+        assert_equal [ { "action" => "summary" } ], asked
+
+        unread = Upstash.new(nil, { Upstash::BOX_ACCOUNT => account }) { |tool, _| tool == Upstash::BOX_ACCOUNT ? result({ "total" => 3 }) : result([]) }.map
+        assert_equal [ ResourceMap::KIND_VIRTUAL_MACHINE ], unread.unread_kinds
+      end
+
       private
 
       def result(body) = { "content" => [ { "type" => "text", "text" => body.to_json } ] }

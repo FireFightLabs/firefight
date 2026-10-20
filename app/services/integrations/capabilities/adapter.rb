@@ -27,9 +27,10 @@ module Integrations
       # The capabilities this provider answers for some kind of resource, in the order they are listed.
       def capabilities = SPECS.keys.select { |key| self::SUPPORTS.key?(key) || observed.key?(key) }
 
-      # A capability's usual tool. TOOLS may list several for one capability, the usual one first, when the route picks
-      # another for some kinds of resource.
-      def tool_for(key) = Array(self::TOOLS[key]).first
+      # A capability's usual tool, whose parameters the route is handed. TOOLS may list several for one capability, the
+      # usual one first, when the route picks another for some kinds of resource. An adapter whose other tool takes
+      # arguments only that tool reports names it for the kind of resource here.
+      def tool_for(key, _kind = nil) = Array(self::TOOLS[key]).first
 
       def tools_for(key) = Array(self::TOOLS[key])
 

@@ -5,10 +5,11 @@ module Integrations
     # redacted from the answer, which still says the reset happened.
     # Neon's compute states (init, active, idle) and branch states, from the Neon API's EndpointState and BranchState. An
     # archived branch is sleeping, since Neon archives a branch nobody has used for a while and wakes it when it is used.
+    # Restoring a branch to a moment and reading consumption are the Neon API's alone, Firefight's own calls beside the server.
     Neon = Provider.new(
       key: "neon", data_writes: "Integrations::DataWrites::Neon", adapter: "Integrations::Capabilities::Neon", map_reader: "Integrations::MapReaders::Neon",
       map_events: "Integrations::MapEventSources::Neon",
-      source_links: "Integrations::SourceLinks::Neon",
+      source_links: "Integrations::SourceLinks::Neon", pack: "Integrations::Packs::Neon",
       status_words: { "idle" => "sleeping", "init" => "starting", "disabled" => "stopped", "archived" => "sleeping" },
       error_reader: "Integrations::ErrorReaders::Neon",
       redacted_fields: %w[password],

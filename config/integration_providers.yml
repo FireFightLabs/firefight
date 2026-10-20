@@ -3455,12 +3455,12 @@ providers:
     color: "#00e599"
     status_page: { url: https://neonstatus.com, feed: page }
     hosts: [ neon.tech, aws.neon.tech, console.neon.tech ]
-    description: Read-only queries, branch history and compute status for a Neon Postgres database, and rolling a branch back or restarting a compute when you allow it.
+    description: Read-only queries, branch history, slow queries, consumption and compute status for a Neon Postgres database, and rolling a branch back to a moment or restarting or resizing a compute when you allow it.
     server_url: https://mcp.neon.tech/mcp
     site: https://console.neon.tech
     # An organization API key, from the organization's settings (neon.com/docs/manage/api-keys), sent as Bearer
     # (neon.com/docs/ai/neon-mcp-server). A personal key loses the organization when its person leaves.
-    token: { hint: "Use an organization API key, from your organization's Settings, API keys. Unlike a personal key, it keeps working when someone leaves the organization." }
+    token: { hint: "Use an organization API key, from your organization's Settings, API keys. Unlike a personal key, it keeps working when someone leaves the organization. Restoring a branch to a moment and reading consumption need a key, and signing in instead cannot do either." }
     # The tools its server's published list marks as reads (test/fixtures/files/neon_mcp_tools.txt says where it came from).
     read_only_tools: [list_organizations, describe_table_schema, get_database_tables, describe_branch, get_neon_auth_config, list_slow_queries,
                       inspect_database, search, fetch, list_docs_resources, get_doc_resource, list_projects, describe_project,
@@ -3745,9 +3745,12 @@ providers:
     color: "#151515"
     status_page: { url: https://status.clickhouse.com, feed: statuspage }
     hosts: [ clickhouse.cloud ]
-    description: Read-only queries, service state, server logs, failed queries and metrics of your ClickHouse Cloud services.
+    description: Read-only queries, service state, server logs, failed queries, metrics, backups, ClickPipes and the activity log of your ClickHouse Cloud services, and scaling, starting or stopping a service when you allow it.
     server_url: https://mcp.clickhouse.cloud/mcp
     site: https://console.clickhouse.cloud
+    # Its server also takes a ClickHouse Cloud API key as HTTP Basic (clickhouse.com/docs/products/cloud/features/ai-ml/remote-mcp,
+    # Authentication), which the Cloud API takes too, so a connection made with a key can also scale a service.
+    token: { hint: "Use an API key from ClickHouse Cloud's organization settings, pasted as Basic followed by its key id and secret joined by a colon in base64. Scaling, starting or stopping a service and reading the activity log need a key whose role allows them, and signing in instead only reads." }
     # The tools its server's published list marks as reads (test/fixtures/files/clickhouse_mcp_tools.txt says where it came from).
     read_only_tools: [run_select_query, list_databases, list_tables, get_organizations, get_organization_details, get_services_list,
                       get_service_details, list_service_backups, get_service_backup_details, get_service_backup_configuration, list_clickpipes,
@@ -3756,8 +3759,10 @@ providers:
     map: firefight
     scaling: none
     scaling_note: "It holds databases rather than services that run copies."
-    history: none
-    history_note: "Its server reads a service's details and runs read only queries, and ClickHouse Cloud keeps no builds or deploys of a service."
+    # A service's run history is its activities from the organization's activity log, read through the Cloud API with an API key.
+    history: firefight
+    # Stopping a service ends what everyone querying it is doing.
+    stopping_tools: [stop_service]
     setting_words: [CLICKHOUSE]
     # What a person reads beside each tool, by the name Firefight gives it (Integrations::ToolSummaries).
     tool_summaries:
@@ -3812,8 +3817,12 @@ providers:
     color: "#4ff8d2"
     status_page: { url: https://status.turso.tech, feed: page }
     hosts: [ turso.io, api.turso.tech ]
-    description: Read-only queries, top queries and the state of your Turso databases and their branches.
+    description: Read-only queries, top queries, usage and the state of your Turso databases and their branches, and restoring a database as it was at a moment when you allow it.
     server_url: https://mcp.turso.ai/mcp
+    # A Platform API token scoped to one organization (turso auth api-tokens mint --org, docs.turso.tech/cli/auth/api-tokens/mint),
+    # which the Platform API takes as Bearer. The server takes only tokens scoped to an organization or a group
+    # (docs.turso.tech/integrations/mcp), as this one is.
+    token: { hint: "Use a Platform API token scoped to your organization, made with turso auth api-tokens mint and its --org flag, pasted after Bearer. Reading a database's usage needs a token the Platform API takes." }
     # The tools its server's published list marks as reads (test/fixtures/files/turso_mcp_tools.txt says where it came from).
     read_only_tools: [list_databases, get_database, list_branches, database_analytics, read_database]
     source_links: none
@@ -3845,8 +3854,11 @@ providers:
     color: "#00e9a3"
     status_page: { url: https://status.upstash.com, feed: statuspage }
     hosts: [ upstash.io, upstash.com ]
-    description: State and metrics of your Upstash Redis databases, and QStash delivery logs and dead letter queues.
+    description: State and metrics of your Upstash Redis databases, QStash delivery logs and dead letter queues, Workflow runs and Box logs, and pausing a QStash schedule or restoring a Redis backup when you allow it.
     server_url: https://mcp.upstash.com/mcp
+    # A Developer API key, which the server takes as Bearer email:API_KEY (upstash.com/docs/agent-resources/mcp) and the
+    # Developer API as Basic, so a connection made with one reaches both.
+    token: { hint: "Use a Developer API key from the Upstash console's Account, API Keys, pasted after Bearer as your account's email, a colon and the key. Restoring a Redis backup needs one, and signing in instead cannot restore." }
     site: https://console.upstash.com
     # The tools its server's published list marks as reads (test/fixtures/files/upstash_mcp_tools.txt says where it came from).
     read_only_tools: [redis_list_databases, redis_get_database, redis_get_stats, redis_list_backups, qstash_list_users, qstash_list_schedules,
@@ -3856,8 +3868,7 @@ providers:
     map: firefight
     scaling: none
     scaling_note: "It holds databases rather than services that run copies."
-    history: none
-    history_note: "A Redis database and QStash have no builds or deploys, and its server keeps no runs whose length could be read."
+    history: firefight
     setting_words: [UPSTASH]
     # What a person reads beside each tool, by the name Firefight gives it (Integrations::ToolSummaries).
     tool_summaries:
@@ -3879,7 +3890,7 @@ providers:
       box_schedules: "Creates or removes scheduled runs in an Upstash Box."
       box_snapshots: "Creates, restores or deletes snapshots of an Upstash Box."
       dlq_list: "Lists QStash messages that failed delivery and wait in the dead letter queue."
-      dlq_manage: "Retries or deletes messages in the QStash dead letter queue."
+      dlq_manage: "Reads or deletes a dead letter queue entry, and restarts or resumes a failed workflow run."
       index_create: "Creates a vector or search index."
       index_delete: "Deletes an index."
       index_delete_documents: "Deletes documents from an index."
@@ -3893,7 +3904,7 @@ providers:
       index_rename_namespace: "Renames a namespace in an index."
       index_reset: "Removes every document from an index."
       index_update: "Updates the settings of an index."
-      logs_list: "Lists recent QStash message delivery logs."
+      logs_list: "Lists recent QStash delivery logs and Upstash Workflow runs."
       qstash_flow_control_get: "Shows the rate and parallelism limits set on QStash deliveries."
       qstash_flow_control_manage: "Changes or resets the rate limits on QStash deliveries."
       qstash_list_schedules: "Lists the scheduled QStash messages."

@@ -2,8 +2,9 @@ module Integrations
   module Capabilities
     # Tinybird answers through its pack's own tools, one connection per workspace. The workspace and its data sources are
     # databases on the map and its API endpoints functions, told apart by the type the map keeps in their details. Logs
-    # are an endpoint's requests or a data source's operations, errors what failed, metrics an endpoint's requests over
-    # time, and deploys the workspace's deployment jobs, all from Tinybird's service data sources. Tinybird documents no
+    # are an endpoint's requests or a data source's operations, errors what failed and metrics an endpoint's requests over
+    # time, all from Tinybird's service data sources, and deploys the workspace's deployments from its Deployments API,
+    # with the live one marked. Tinybird documents no
     # rollback, restart or scale, and keeps no metrics for a data source, so those are not offered. Run history is the
     # jobs log too: the workspace's jobs, or those of the pipe an endpoint is.
     module Tinybird
@@ -17,12 +18,13 @@ module Integrations
       OPERATION_LOG = "datasource_operations".freeze
       METRICS_TOOL = "endpoint_metrics".freeze
       JOBS = "jobs".freeze
+      DEPLOYMENTS = "deployments".freeze
       SUPPORTS = {
         LOGS => [ DATABASE, FUNCTION ], METRICS => [ DATABASE, FUNCTION ], DEPLOYS => [ DATABASE, FUNCTION ],
         STATUS => [ DATABASE, FUNCTION ], ERRORS => [ DATABASE, FUNCTION ], HISTORY => [ DATABASE, FUNCTION ]
       }.freeze
       TOOLS = {
-        LOGS => [ REQUEST_LOG, OPERATION_LOG ], METRICS => METRICS_TOOL, DEPLOYS => JOBS, STATUS => "describe_resource", ERRORS => "list_errors",
+        LOGS => [ REQUEST_LOG, OPERATION_LOG ], METRICS => METRICS_TOOL, DEPLOYS => DEPLOYMENTS, STATUS => "describe_resource", ERRORS => "list_errors",
         HISTORY => JOBS
       }.freeze
       # The status and errors tools answer one to one. The logs, metrics and jobs tools also read what no capability asks,
@@ -49,7 +51,7 @@ module Integrations
           names = metric_names(given, METRIC_NAMES_READ, PACK::PROVIDER)
           endpoint = workspace?(resource) ? {} : { "endpoint" => resource.external_id }
           Route.new(tool_name: METRICS_TOOL, arguments: endpoint.merge("metrics" => names.presence).compact.merge(given.slice(*RANGE_ARGS)))
-        when DEPLOYS then Route.new(tool_name: JOBS, arguments: { "job_type" => PACK::Queries::JOB_DEPLOYMENT }.merge(given.slice("limit")))
+        when DEPLOYS then Route.new(tool_name: DEPLOYMENTS, arguments: given.slice("limit"))
         when STATUS then Route.new(tool_name: TOOLS[STATUS], arguments: named(resource))
         when ERRORS then Route.new(tool_name: TOOLS[ERRORS], arguments: named(resource).merge(given.slice("text", "limit", *RANGE_ARGS)))
         when HISTORY then history(resource, given)

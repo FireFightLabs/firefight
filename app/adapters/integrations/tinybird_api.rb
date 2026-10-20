@@ -48,6 +48,13 @@ module Integrations
 
     def pipe(name) = get("/v0/pipes/#{Http.segment(name)}")
 
+    # The workspace's deployments, each with its id, status, live flag and times, and one by its id under deployment. These
+    # are the reads Tinybird's own SDK makes (tinybirdco/tinybird-sdk-typescript, src/api/deploy.ts: Deployment,
+    # DeploymentsListResponse and DeploymentStatusResponse).
+    def deployments = Array(get("/v1/deployments")["deployments"])
+
+    def deployment(id) = get("/v1/deployments/#{Http.segment(id)}")["deployment"]
+
     # A query through the Query API, which only reads, answered in Tinybird's JSON format: meta, data, rows and
     # statistics. The query is sent in the body, so a long one fits.
     def query(sql)

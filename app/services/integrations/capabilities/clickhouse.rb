@@ -7,6 +7,12 @@ module Integrations
     # Firefight writes one SELECT for each, every value a quoted literal, so the agent's words never become SQL. Each of
     # those tables is kept per replica and gains a new version after an upgrade, so they are read across every replica
     # and version with clusterAllReplicas and merge, as the docs' section on system tables in ClickHouse Cloud says.
+    # A ClickPipe stands as get_clickpipe says, by the organization, service and clickPipeId the server documents. A
+    # service's backups are its backup stream, read with list_service_backups, the Cloud API's Backup objects newest first.
+    # A service scales through Firefight's own scale_service, beside the server's tools (Packs::Clickhouse): instances
+    # are its replicas, and plan the memory each replica scales between in GiB, one size such as 16 or a range such as 16-64.
+    # Its run history is the service's activities from the organization's activity log, through Firefight's own
+    # activities, each a run, a start or maintenance with how long it took.
     module Clickhouse
       extend Adapter
 
@@ -14,16 +20,27 @@ module Integrations
       PROVIDER_KEY = "clickhouse".freeze
       QUERY = "run_select_query".freeze
       DETAILS = "get_service_details".freeze
+      LIST_CLICKPIPES = "list_clickpipes".freeze
+      GET_CLICKPIPE = "get_clickpipe".freeze
+      BACKUPS = "list_service_backups".freeze
       SUPPORTS = {
         LOGS => [ ResourceMap::KIND_DATABASE ], METRICS => [ ResourceMap::KIND_DATABASE ],
-        STATUS => [ ResourceMap::KIND_DATABASE ], ERRORS => [ ResourceMap::KIND_DATABASE ]
+        STATUS => [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_PIPELINE ], ERRORS => [ ResourceMap::KIND_DATABASE ],
+        SCALE => [ ResourceMap::KIND_DATABASE ], HISTORY => [ ResourceMap::KIND_DATABASE ]
       }.freeze
-      TOOLS = { LOGS => QUERY, METRICS => QUERY, ERRORS => QUERY, STATUS => DETAILS }.freeze
+      SCALE_SERVICE = "scale_service".freeze
+      ACTIVITIES = "activities".freeze
+      TOOLS = {
+        LOGS => [ QUERY, BACKUPS ], METRICS => QUERY, ERRORS => QUERY, STATUS => [ DETAILS, GET_CLICKPIPE ], SCALE => SCALE_SERVICE, HISTORY => ACTIVITIES
+      }.freeze
       # run_select_query reads far more than any capability, so only the service's details are answered one to one.
       WRAPPED = [ DETAILS ].freeze
       ORGANIZATION = "organizationId".freeze
       SERVICE = "serviceId".freeze
       SQL = "query".freeze
+      CLICKPIPE = "clickPipeId".freeze
+      STREAM_BACKUP = "backup".freeze
+      BACKUP_LIMIT = 30
       LOG_LIMIT = 200
       ERROR_LIMIT = 50
       ROWS = 10_000
@@ -31,8 +48,8 @@ module Integrations
       SHOWN = 300
       POINTS = 60
       BUCKETS = [ 1, 5, 15, 60, 360, 1440 ].freeze
-      # Stream app reads what the server printed, and stream requests the queries clients sent it.
-      STREAMS = { nil => "text_log", STREAM_APP => "text_log", "requests" => "query_log" }.freeze
+      # Stream app reads what the server printed, stream requests the queries clients sent it, and stream backup its backups.
+      STREAMS = { nil => "text_log", STREAM_APP => "text_log", "requests" => "query_log", STREAM_BACKUP => BACKUPS }.freeze
       # Each metric's metric_log column, how a bucket of readings adds up and how that becomes the unit shown. A
       # ProfileEvent_ column counts events in a reading, and a CurrentMetric_ column is a level.
       Metric = Data.define(:column, :aggregate, :title, :unit, :convert)
@@ -54,14 +71,47 @@ module Integrations
       }.freeze
       DEFAULT_METRICS = %w[requests errors cpu memory].freeze
 
+      OWN_PHRASES = {
+        STATUS => "check how a service or a ClickPipe stands", SCALE => "scale a service's replicas or its memory",
+        HISTORY => "read what changed in a service, from its organization's activity log"
+      }.freeze
+      # A plan is the memory per replica in GiB, one size or a least and a most.
+      PLAN = /\A\s*(\d+)\s*(?:-\s*(\d+)\s*)?\z/
+
+      def self.phrase(key) = OWN_PHRASES.fetch(key) { PHRASES.fetch(key) }
+
       def self.route(key, resource, given, tool: nil, settings: nil)
         case key
         when STATUS
+          return clickpipe(resource) if resource.kind == ResourceMap::KIND_PIPELINE
+
           Route.new(tool_name: DETAILS, arguments: { ORGANIZATION => organization_of(resource), SERVICE => resource.external_id })
-        when LOGS then logs(resource, given)
+        when LOGS then given["stream"] == STREAM_BACKUP ? backups(resource, given) : logs(resource, given)
         when METRICS then metrics(resource, given)
         when ERRORS then errors(resource, given)
+        when SCALE then scale(resource, given)
+        when HISTORY
+          arguments = { ORGANIZATION => organization_of(resource), SERVICE => resource.external_id, Packs::Clickhouse::ACTIVITY => given["run"].presence }
+          Route.new(tool_name: ACTIVITIES, arguments: arguments.merge(given.slice("name", "limit")).compact_blank)
         end
+      end
+
+      # A service is sized by its replicas and the memory each scales between, so scale takes a plan.
+      def self.takes_plan? = true
+
+      # instances become the service's replicas, and plan the memory per replica. scale_service checks both against the
+      # API's limits and reads the service first.
+      def self.scale(resource, given)
+        arguments = { ORGANIZATION => organization_of(resource), SERVICE => resource.external_id }
+        arguments[Packs::Clickhouse::REPLICAS] = instances(given) if given["instances"].present?
+        if given[PLAN_ARG].present?
+          found = given[PLAN_ARG].to_s.match(PLAN)
+          raise Unroutable, "Give plan as the memory per replica in GiB, one size such as 16 or a range such as 16-64." unless found
+
+          arguments[Packs::Clickhouse::MIN_MEMORY] = found[1].to_i
+          arguments[Packs::Clickhouse::MAX_MEMORY] = (found[2] || found[1]).to_i
+        end
+        Route.new(tool_name: SCALE_SERVICE, arguments: arguments)
       end
 
       # The organization a service is in, which the map's reader keeps as the resource's account.
@@ -69,10 +119,59 @@ module Integrations
         resource.account.presence || raise(Unroutable, "The ClickHouse organization of #{resource.name} is not known, so it cannot be asked for this.")
       end
 
+      # One ClickPipe, service/pipe on the map, read with get_clickpipe and shown by its state, source, destination and
+      # scaling, never its source's settings, which may hold the credentials it reads with.
+      def self.clickpipe(resource)
+        service, pipe = resource.external_id.to_s.split("/", 2)
+        raise Unroutable, "#{resource.name} is not named the way ClickHouse's map sweep names a ClickPipe, so it cannot be asked for this." if pipe.blank?
+
+        Route.new(tool_name: GET_CLICKPIPE, arguments: { ORGANIZATION => organization_of(resource), SERVICE => service, CLICKPIPE => pipe },
+                  present: ->(result) { Answers.read(result, PROVIDER) { |data| clickpipe_result(result, resource, data) } })
+      end
+
+      def self.clickpipe_result(result, resource, data)
+        pipe = data.is_a?(Hash) && data["result"].is_a?(Hash) ? data["result"] : data
+        return unless pipe.is_a?(Hash) && pipe["id"].present?
+
+        source = MapReaders::Clickhouse.source_of(pipe)
+        destination = pipe["destination"].to_h.values_at("database", "table").compact_blank.join(".")
+        replicas = pipe.dig("scaling", "replicas")
+        facts = [ ("state #{pipe['state']}" if pipe["state"]), ("reads from #{source}" if source), ("writes to #{destination}" if destination.present?),
+                  ("#{replicas} #{'replica'.pluralize(replicas)}" if replicas), ("created #{pipe['createdAt']}" if pipe["createdAt"]),
+                  ("last changed #{pipe['updatedAt']}" if pipe["updatedAt"]) ]
+        Answers.presented(result, "How #{resource.name} stands on ClickHouse Cloud now: #{facts.compact.join(', ')}.")
+      end
+
+      # A service's backups, newest first, as list_service_backups answers them. Without minutes, a start or an end every
+      # backup listed is shown, since backups are hours apart, and a range asked keeps those started within it.
+      def self.backups(resource, given)
+        limit = Answers.limit(given, BACKUP_LIMIT)
+        window = (Answers.range(given) if given.slice("minutes", "start", "end").values.any?(&:present?))
+        Route.new(tool_name: BACKUPS, arguments: { ORGANIZATION => organization_of(resource), SERVICE => resource.external_id },
+                  present: ->(result) { Answers.read(result, PROVIDER) { |data| backups_result(result, resource, data, window, limit) } })
+      end
+
+      def self.backups_result(result, resource, data, window, limit)
+        listed = data.is_a?(Hash) ? data["result"] : data
+        return unless listed.is_a?(Array) && listed.all?(Hash)
+
+        lines = listed.filter_map do |backup|
+          at = Telemetry.parse_time(backup["startedAt"])
+          next unless at && (window.nil? || at.between?(*window))
+
+          size = ActiveSupport::NumberHelper.number_to_human_size(backup["sizeInBytes"]) if backup["sizeInBytes"]
+          text = [ "#{backup['type']} backup #{backup['id']}".squish, backup["status"], size, ("took #{backup['durationInSeconds'].to_i}s" if backup["durationInSeconds"]),
+                   ("finished #{backup['finishedAt']}" if backup["finishedAt"]) ].compact.join(", ")
+          Telemetry::LogLine.new(at: at, source: resource.name, text: text)
+        end.sort_by(&:at).reverse
+        Answers.presented(result, Telemetry.logs_text(lines, asked: "backups of #{resource.name}", limit: limit))
+      end
+
       def self.logs(resource, given)
         stream = given["stream"].presence
         unless STREAMS.key?(stream)
-          raise Unroutable, "ClickHouse keeps what the server printed (stream app) and the queries clients sent it (stream requests), nothing else."
+          raise Unroutable, "ClickHouse keeps what the server printed (stream app), the queries clients sent it (stream requests) and its " \
+                            "backups (stream backup), nothing else."
         end
 
         limit = Answers.limit(given, LOG_LIMIT)
@@ -222,7 +321,7 @@ module Integrations
         Answers.presented(result, "Queries that failed on #{resource.name}, by error, most frequent first.\n#{lines.join("\n")}")
       end
 
-      private_class_method :organization_of, :logs, :metrics, :errors, :window, :range_sql, :filters,
+      private_class_method :organization_of, :scale, :clickpipe, :clickpipe_result, :backups, :backups_result, :logs, :metrics, :errors, :window, :range_sql, :filters,
                            :bucket_minutes, :read, :logs_result, :metrics_result, :errors_result
     end
   end

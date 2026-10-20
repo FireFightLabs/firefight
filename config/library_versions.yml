@@ -115,17 +115,17 @@ skills:
     version: 1
     digest: 616a37c95fe7fe654351784b473ded2704bf25eea3df42fbd90dd334094ed758
   clickhouse_inserts:
-    version: 1
-    digest: f2428d54fb3750273281d82cf0401a111cad12e99fb0635c9cf967e88751e069
+    version: 2
+    digest: 47677c78ba7d6ea0fb8d30b7ebe9580280e56d8eda2dc2e7eecc74b53cc5c3e2
   clickhouse_resources:
-    version: 1
-    digest: 6062c72d861ff8c4a43898513537e3f9562703aac8879d799b59acef94b2a814
+    version: 2
+    digest: bf19813b70eb51c06201aef23a1eb85975bac530e14dc30f7fc124ad0fdd3983
   clickhouse_slow_queries:
     version: 1
     digest: 932b9eb82b8192b72b4e81ea851721a7e36649442a2488ecd901a646972b73d3
   clickhouse_triage:
-    version: 1
-    digest: 643482f884bc7cbcfa39c94d002e66367f23f9a4fae5ced7ae8b42c38b12ba3e
+    version: 3
+    digest: c4bf7724e167bdd8741a204226878c70efeadf27509e1e3b5338a75464b450ca
   cloudflare_api:
     version: 1
     digest: 9eb8d18b0ec1d3f0a7a39ac7a125398bf7167eef0e9c939e24be0ed29dfb83f2
@@ -484,20 +484,20 @@ skills:
     version: 1
     digest: 319c075f4d52a4806e02027bc68f892305f0c375e0781147f90ab7c8b5edc10b
   neon_changes:
-    version: 1
-    digest: 017730a64b82fee65d30afd203b271c5ea8451e2126069567865905287fa439c
+    version: 3
+    digest: 9e371f8cbf7eff5a2ad66502d67890d0bf6518dc3e42215edd040b6516307321
   neon_connections:
-    version: 1
-    digest: 61eee6d77e89107f3c37c51bd2c4693b8e195c6ee7fdbc479cf0296a97a1f371
+    version: 2
+    digest: 91297f0c2021dba0b846a385478159005e2e041666d24783a381d875c0eff76b
   neon_locks:
     version: 1
     digest: 85be19071a33b64b1200f01343dcde52a14e8746debec45785b0831d87f0dcfe
   neon_slow_queries:
-    version: 1
-    digest: ce3034f89e62b89b0a4e2d7a306092578001965fd89a3166c364c8d7474b8ce2
+    version: 3
+    digest: 49eafcdcf52496bb3a7035be53bac1883ac12426e180cc13f60ed82d2464a26a
   neon_triage:
-    version: 1
-    digest: aa9023b569837051845ea391306603f8fee2d508a877410bfca4526f8e5bfdd4
+    version: 2
+    digest: '08dc04abfca735a1986bda4f731123e1e256e928b5c294dc624dadad128fe7ed'
   netlify_api:
     version: 1
     digest: a4f2d49c10399a5a35dd2a5bf2193ed52525ce48b467b72de9cdc8f74a0dc50b
@@ -628,11 +628,11 @@ skills:
     version: 1
     digest: 816adc4e21990f2280e43c4ec389b9112141d79e3574b7333842881c0ebfda23
   postgresql_slow_queries:
-    version: 1
-    digest: 3449f07895cb09892047ef2a670f3052367a96393bc08bbcc269fe2054ac2e83
+    version: 2
+    digest: 160ca84f9437e0ce07ce20b89c3ec8fccabd01ba58304e1a0e3e954208ae1f76
   postgresql_triage:
-    version: 1
-    digest: 334f024c5d35af4925ca2051c6d368f818c7aea1e601537f51d1599aa9ab3fc9
+    version: 2
+    digest: bd58da35dcae444cac66c71d5bbac61bd843ff55ca1eedd73c40b1723ba7f2d4
   postgresql_vacuum:
     version: 1
     digest: d6b941ea747182df8e8c1d68ca0cda91592da78c790c8265896114d227bae19f
@@ -769,8 +769,8 @@ skills:
     version: 1
     digest: c88c5f8c2daad4e590fa2316092aef37ff3d0c3ea611ebc160252307132d898f
   tinybird_deployments:
-    version: 1
-    digest: 2f92a3c9c6d69329546bee32d2bb4659d5c66b322ec5badf9fdd0950dd97d394
+    version: 2
+    digest: c8911611f3a2d5be93bdd2b6f708ca2665a1b05a127d9afbd63864765ad8d79a
   tinybird_failing_endpoints:
     version: 1
     digest: 1a7908ecf0a3dd1d53523ecb003dd0f2f498689f746d99ba8210dd4a79739575
@@ -802,32 +802,35 @@ skills:
     version: 1
     digest: 32fd642595098b4a8c045f83ca5b439158b89f49e9c37abeb60ec70a78f538b0
   turso_blocked:
-    version: 1
-    digest: 1565b312c8310e71ca167980d393bf4981afc20bc5b52df0e07489b62063cf53
+    version: 2
+    digest: e72c50750dd02e83152344fae4db73919cf50346fafb370f85b6f418ff9d7b7c
   turso_lost_data:
-    version: 1
-    digest: b8d9607cd389290afcd3dc0c38b22371d8c0b8c785d0446023f74d203d3a7a0c
+    version: 4
+    digest: ce85a568ff786ed7f4be27fada1940df9a8fb383c62092cfb91692dc82772fc2
   turso_slow_queries:
-    version: 1
-    digest: 356229117fece7f4afab9fc1934705fd11bbe565b0c17d7986493402d18c75d4
+    version: 2
+    digest: c0c9afc1b4ea2f88febe548c48c9d71b0c368905f8d43709245b4988bc3a933f
   turso_triage:
-    version: 1
-    digest: a03b0183e6dd63f64606956ed485b2a07f6d52106a4965de80d11c79b3a70e6a
+    version: 2
+    digest: c2b6f409b3adfa71fb3444a23a6a0f54b9f490f41eb601fef0256a16c41da73b
   updating:
     version: 1
     digest: 25f8471c27b7f58c38a1b97878f14f1b7eecce306e98e1ea660baba1bedb234d
+  upstash_box:
+    version: 1
+    digest: 8bc8bab4fef69b7899b991e9301ae1eafe5cf6589938219b165402d5b928beb8
   upstash_qstash:
-    version: 1
-    digest: 7a7f0f46358f078d69fde02172ab62d1a085268f053c7614b75ac2158c783958
+    version: 4
+    digest: 31e19e914cd46c58baef4f9678ac43afb1e2d89bac325e980fbd417b72869e55
   upstash_redis:
-    version: 1
-    digest: ddb2b487da9d36dad036843eea55c1965f31600a673f2dd0e1edf2304c5ae755
+    version: 2
+    digest: b744df74b1394de5c6b2faebb5c7d5d3b65fe99bd0b668cc0c7e43e8fcf18610
   upstash_triage:
-    version: 1
-    digest: 6afaea0d53a6203f04fa2d47ae1db9b6771c013e18b7eec48b9b258b327cd284
+    version: 2
+    digest: 5448b6453fcc30a8b673900b361f3c4f5280c30f80a657386198e57cea456e06
   upstash_workflow:
-    version: 1
-    digest: 0a772c8ebcb23c7e9dd109b59370fa34a38c9df98df0e73b1bf854c808788362
+    version: 3
+    digest: f90281c752c16d5e8508dfce6b1e3df2f915ec996c7fe77986b707355a50a38b
   vercel_api:
     version: 1
     digest: 1baeafdfd1b458ff150681dbb2e9757a18ef294b6d5fbde9ea8677b82c82a2b8

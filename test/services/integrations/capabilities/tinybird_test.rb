@@ -38,11 +38,11 @@ class Integrations::Capabilities::TinybirdTest < ActiveSupport::TestCase
     assert_match "names the pipe each job ran", unroutable(Integrations::Capabilities::HISTORY, "resource" => "events")
   end
 
-  test "metrics are an endpoint's or the workspace's requests, and deploys are the workspace's deployment jobs" do
+  test "metrics are an endpoint's or the workspace's requests, and deploys are the workspace's deployments" do
     assert_equal [ "endpoint_metrics", { "endpoint" => "t_top", "metrics" => %w[requests http_5xx], "minutes" => 120 } ],
                  route(Integrations::Capabilities::METRICS, "resource" => "top_pages", "metrics" => %w[requests http_5xx], "minutes" => 120)
     assert_equal [ "endpoint_metrics", {} ], route(Integrations::Capabilities::METRICS, "resource" => "analytics")
-    assert_equal [ "jobs", { "job_type" => "deployment", "limit" => 4 } ], route(Integrations::Capabilities::DEPLOYS, "resource" => "top_pages", "limit" => 4)
+    assert_equal [ "deployments", { "limit" => 4 } ], route(Integrations::Capabilities::DEPLOYS, "resource" => "top_pages", "limit" => 4)
   end
 
   test "an endpoint's latency_p95 is the 95th percentile alone of the latency Tinybird records" do

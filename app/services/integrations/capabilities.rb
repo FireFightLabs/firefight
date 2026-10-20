@@ -465,7 +465,7 @@ module Integrations
     # through one the caller may run, so connecting one never takes away a read the platform answers today.
     def self.call_for(workspace, spec, candidate, given, tools)
       switched_on = workspace.switched_on_tools.select { |each| each.integration_id == candidate.row.integration_id }.index_by(&:name)
-      usual = candidate.adapter.tool_for(spec.key)
+      usual = candidate.adapter.tool_for(spec.key, candidate.resource.kind)
       usual_tool = switched_on[usual]
       if spec.key == SCALE && given["instances"].blank? && given[PLAN_ARG].blank?
         raise Unroutable, "Say how many instances to run, or the plan to run at where the provider sizes by plan."

@@ -6,19 +6,51 @@ module Integrations
       ORGANIZATION = { "id" => "6b3a2f1e-0000-4000-8000-000000000001", "name" => "Acme" }.freeze
       SERVICE = { "id" => "svc-1", "name" => "analytics", "state" => "running", "provider" => "aws", "region" => "eu-central-1",
                   "clickhouseVersion" => "25.8", "numReplicas" => 3, "idleScaling" => true, "isReadonly" => false }.freeze
+      PIPE = { "id" => "pipe-9", "name" => "orders", "state" => "Running", "scaling" => { "replicas" => 2 },
+               "source" => { "kafka" => { "type" => "confluent" }, "postgres" => nil }, "destination" => { "database" => "default", "table" => "orders" } }.freeze
 
       test "every organization's services go on the map as databases, with their state and setup" do
         snapshot = Clickhouse.new do |tool, arguments|
-          tool == Clickhouse::LIST_ORGANIZATIONS ? result("status" => 200, "result" => [ ORGANIZATION ]) : result([ SERVICE ]).tap { assert_equal ORGANIZATION["id"], arguments["organizationId"] }
+          answer(tool, arguments)
         end.map
 
-        service = snapshot.resources.sole
+        service, pipe = snapshot.resources
         assert_equal [ "clickhouse", ORGANIZATION["id"], ResourceMap::KIND_DATABASE, "svc-1" ], service.key
         assert_equal [ "analytics", "running" ], [ service.name, service.status ]
         assert_equal({ "organization" => "Acme", "cloud" => "aws", "region" => "eu-central-1", "version" => "25.8", "replicas" => 3,
                        "idle_scaling" => true, "read_only" => false }, service.details)
+        assert_equal [ "clickhouse", ORGANIZATION["id"], ResourceMap::KIND_PIPELINE, "svc-1/pipe-9" ], pipe.key
+        assert_equal [ "analytics/orders", "running" ], [ pipe.name, pipe.status ]
+        assert_equal({ "source" => "kafka (confluent)", "destination" => "default.orders", "replicas" => 2 }, pipe.details)
+        assert_equal [ [ pipe.key, service.key, ResourceMap::RELATION_PART_OF ] ], snapshot.links.map { |link| [ link.from, link.to, link.relation ] }
         assert_empty snapshot.gaps
         assert_empty snapshot.unread_kinds
+      end
+
+      test "ClickPipes switched off are one gap for the whole read, and services stay on the map" do
+        snapshot = Clickhouse.new { |tool, arguments| tool == Clickhouse::LIST_CLICKPIPES ? nil : answer(tool, arguments) }.map
+
+        assert_equal [ ResourceMap::KIND_DATABASE ], snapshot.resources.map(&:kind)
+        assert_equal [ "list_clickpipes is switched off for ClickHouse, so ClickPipes are not on the map." ], snapshot.gaps.map(&:text)
+        assert_equal [ ResourceMap::KIND_PIPELINE ], snapshot.unread_kinds
+      end
+
+      test "a change names one service, which is read again with its ClickPipes, and a ClickPipe its whole list lacks is gone" do
+        asked = []
+        reader = Clickhouse.new do |tool, arguments|
+          asked << tool
+          tool == Clickhouse::DETAILS ? result("result" => SERVICE.merge("state" => "stopped")) : answer(tool, arguments)
+        end
+        scope = ResourceMap::Scope.new(account: ORGANIZATION["id"], kind: ResourceMap::KIND_PIPELINE, external_id: "svc-1/pipe-gone")
+        snapshot = reader.map(scope: scope)
+
+        assert_equal [ "stopped", "running" ], snapshot.resources.map(&:status)
+        assert_equal "Acme", snapshot.resources.first.details["organization"]
+        assert_equal [ [ "clickhouse", ORGANIZATION["id"], ResourceMap::KIND_PIPELINE, "svc-1/pipe-gone" ] ], snapshot.gone
+        assert_not_includes asked, Clickhouse::LIST_SERVICES
+
+        refused = Clickhouse.new { |_tool, _arguments| { "isError" => true, "content" => [ { "type" => "text", "text" => "Unauthorized" } ] } }
+        assert_nil refused.map(scope: ResourceMap::Scope.new(account: ORGANIZATION["id"], kind: ResourceMap::KIND_DATABASE, external_id: "svc-1"))
       end
 
       test "a tool switched off, a refusal or an answer it cannot read is a gap, and nothing is taken as gone" do
@@ -65,6 +97,18 @@ module Integrations
       end
 
       private
+
+      def answer(tool, arguments)
+        case tool
+        when Clickhouse::LIST_ORGANIZATIONS then result("status" => 200, "result" => [ ORGANIZATION ])
+        when Clickhouse::LIST_CLICKPIPES
+          assert_equal({ "organizationId" => ORGANIZATION["id"], "serviceId" => "svc-1" }, arguments)
+          result("status" => 200, "result" => [ PIPE ])
+        else
+          assert_equal ORGANIZATION["id"], arguments["organizationId"]
+          result([ SERVICE ])
+        end
+      end
 
       def result(body) = { "content" => [ { "type" => "text", "text" => body.to_json } ] }
     end

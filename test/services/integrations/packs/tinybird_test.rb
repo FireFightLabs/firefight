@@ -12,6 +12,11 @@ module Integrations
                                    "params" => [ { "name" => "date_from", "type" => "Date", "required" => true } ] } ] }.freeze
       COPY = { "id" => "t_copy", "name" => "daily_copy", "endpoint" => nil, "type" => "copy", "nodes" => [] }.freeze
       SITE = "https://cloud.tinybird.co/aws/us-west-2/analytics".freeze
+      DEPLOYMENTS = [
+        { "id" => "6", "status" => "failed", "live" => false, "created_at" => "2026-10-02T08:00:00Z", "updated_at" => "2026-10-02T08:02:00Z" },
+        { "id" => "7", "status" => "live", "live" => true, "created_at" => "2026-10-03T09:00:00Z", "updated_at" => "2026-10-03T09:05:00Z" },
+        { "id" => "8", "status" => "data_ready", "live" => false, "created_at" => "2026-10-04T10:00:00Z" }
+      ].freeze
 
       setup do
         @workspace = workspaces(:slack_workspace_one)
@@ -221,15 +226,47 @@ module Integrations
                      [ done.id, done.status, done.live, done.started_at, done.finished_at ]
       end
 
+      test "deployments are read newest first, the live one and the one in staging said, and kept as deploys with live marked" do
+        TinybirdApi.any_instance.stubs(:deployments).returns(DEPLOYMENTS)
+
+        result = @pack.call("deployments", environment_row: @row, arguments: {})
+        text = result["content"].first["text"]
+        staging, live, failed = Capabilities::Deploys.deploys_of(result)
+
+        assert_match "Latest 3 deployments, newest first.\n2026-10-04T10:00:00Z, deployment 8, data_ready, in staging", text
+        assert_match "2026-10-03T09:00:00Z, deployment 7, live, live, updated 2026-10-03T09:05:00Z", text
+        assert_equal [ "8", Capabilities::History::SUCCEEDED, false ], [ staging.id, staging.status, staging.live ]
+        assert_equal [ "7", Capabilities::History::SUCCEEDED, true, Time.utc(2026, 10, 3, 9, 5) ], [ live.id, live.status, live.live, live.finished_at ]
+        assert_equal [ "6", Capabilities::History::FAILED, false ], [ failed.id, failed.status, failed.live ]
+        assert_equal live, Capabilities::Deploys.live([ staging, live, failed ])
+
+        TinybirdApi.any_instance.expects(:deployment).with("7").returns(DEPLOYMENTS[1])
+        assert_equal "2026-10-03T09:00:00Z, deployment 7, live, live, updated 2026-10-03T09:05:00Z", call(:deployments, "id" => "7").lines.first.chomp
+      end
+
+      test "the live deployment stays in a limited list, and one deployment says why it failed" do
+        TinybirdApi.any_instance.stubs(:deployments).returns(DEPLOYMENTS)
+        result = @pack.call("deployments", environment_row: @row, arguments: { "limit" => 1 })
+        assert_equal %w[8 7], Capabilities::Deploys.deploys_of(result).map(&:id)
+
+        failed = DEPLOYMENTS[0].merge("feedback" => [ { "resource" => "events.datasource", "level" => "ERROR", "message" => "Unknown column ts" } ])
+        TinybirdApi.any_instance.expects(:deployment).with("6").returns(failed)
+        assert_match "ERROR events.datasource: Unknown column ts", call(:deployments, "id" => "6")
+      end
+
       test "status reads the workspace, a data source or an endpoint by its name or id, and names what it does not know" do
         stub_queries("pipe_stats_rt" => [ { "pipe_id" => "t_top", "name" => "top_pages", "requests" => "40", "failed" => "3", "server_errors" => "2", "p95" => 0.2 } ],
                      "datasources_ops_log" => [ { "datasource_id" => "t_events", "name" => "events", "ok" => "1", "failed" => "2", "last_error" => "Invalid JSON" } ],
                      "jobs_log" => [])
         TinybirdApi.any_instance.stubs(:datasource).returns(EVENTS.merge("engine" => { "engine" => "MergeTree", "sorting_key" => "timestamp" }))
         TinybirdApi.any_instance.stubs(:pipe).returns(TOP_PAGES)
+        TinybirdApi.any_instance.stubs(:deployments).returns(DEPLOYMENTS)
 
         workspace = call(:describe_resource, {})
         assert_match "Workspace analytics (id w-1) in Oregon, AWS (api.us-west-2.aws.tinybird.co), with 1 data sources, 1 API endpoints and 1 other pipes.", workspace
+        assert_match "Deployment 7 is live. Deployment 8 is in staging, ready to be promoted.", workspace
+        TinybirdApi.any_instance.stubs(:deployments).raises(TinybirdApi::Refused, "Tinybird answered 403: not allowed")
+        assert_match "Which deployment is live could not be read: Tinybird answered 403: not allowed", call(:describe_resource, {})
         assert_match "top_pages: 3 of 40 requests failed, 2 with a 5xx.", workspace
         assert_match "events: 2 failed, 1 succeeded. Latest error: Invalid JSON", workspace
         assert_match "events (id t_events), engine MergeTree, 1200 rows, 4096 bytes, read by top_pages", call(:describe_resource, "name" => "t_events")
