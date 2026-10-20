@@ -85,10 +85,18 @@ module Integrations
         raise Unroutable, "Say when to restore #{resource.name} to, as an ISO 8601 time with Z or an offset, such as 2026-10-20T14:30:00Z, within Turso's point in time window."
       end
 
+      # A copy of the same moment already on the map takes the next free number, such as shop-restored-20261020143000-2, so
+      # a second restore of one moment makes a second copy. The name comes from the map, not a random value, so the call a
+      # person approved is the call a retry sends, and a retry of a restore that already landed is refused by Turso as a
+      # name taken rather than making a copy nobody asked for.
       def self.restored_name(resource, at)
-        suffix = "-restored-#{at.utc.strftime(RESTORED_STAMP)}"
+        stamp = "-restored-#{at.utc.strftime(RESTORED_STAMP)}"
         base = resource.name.to_s.downcase.gsub(/[^a-z0-9-]/, "-").squeeze("-").delete_suffix("-")
-        "#{base.first(NAME_MOST - suffix.length)}#{suffix}"
+        taken = ResourceMap::Resource.present.where(workspace_id: resource.workspace_id, provider: PROVIDER_KEY)
+                                     .where("name LIKE ?", "%#{ResourceMap::Resource.sanitize_sql_like(stamp)}%").pluck(:name)
+        (1..).lazy.map { |copy| copy == 1 ? stamp : "#{stamp}-#{copy}" }
+             .map { |suffix| "#{base.first(NAME_MOST - suffix.length)}#{suffix}" }
+             .find { |name| !taken.include?(name) }
       end
 
       # What the answer could not narrow to, said before it, since the tool takes no range, text or limit Firefight knows.

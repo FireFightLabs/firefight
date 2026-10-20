@@ -50,6 +50,10 @@ class Integrations::Capabilities::TursoTest < ActiveSupport::TestCase
       assert_equal [ "create_branch", { "database_name" => "shop", "branch_name" => "shop-restored-20261020143000", "timestamp" => "2026-10-20T14:30:00Z" } ],
                    [ call.tool.name, call.arguments ]
       assert_equal "shop as it is now, untouched, beside the restored copy shop-restored-20261020143000", call.keeps
+      ResourceMap::Resource.create!(workspace: @workspace, provider: "turso", account: "default", kind: ResourceMap::KIND_DATABASE, external_id: "c0ffee",
+                                    name: "shop-restored-20261020143000", integration_environment: @row, first_seen_at: Time.current, last_seen_at: Time.current)
+      again = Integrations::Capabilities.resolve(@workspace, rollback, { "resource" => "shop", "to" => "2026-10-20T14:30:00Z" }, principal: map_reader)
+      assert_equal "shop-restored-20261020143000-2", again.arguments["branch_name"], "a second restore of one moment makes a second copy"
       text = call.present_result("content" => [ { "type" => "text", "text" => "{}" } ])["content"].first["text"]
       assert_match "shop itself is unchanged, so check the data in shop-restored-20261020143000 and then point the application at it", text
 

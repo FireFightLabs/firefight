@@ -805,8 +805,8 @@ skills:
     version: 2
     digest: e72c50750dd02e83152344fae4db73919cf50346fafb370f85b6f418ff9d7b7c
   turso_lost_data:
-    version: 4
-    digest: ce85a568ff786ed7f4be27fada1940df9a8fb383c62092cfb91692dc82772fc2
+    version: 5
+    digest: 7b036cfd7315671a90190e84e1095f6bca1b5be9054636a8e3b8b8098ec77a41
   turso_slow_queries:
     version: 2
     digest: c0c9afc1b4ea2f88febe548c48c9d71b0c368905f8d43709245b4988bc3a933f
@@ -820,8 +820,8 @@ skills:
     version: 1
     digest: 8bc8bab4fef69b7899b991e9301ae1eafe5cf6589938219b165402d5b928beb8
   upstash_qstash:
-    version: 4
-    digest: 31e19e914cd46c58baef4f9678ac43afb1e2d89bac325e980fbd417b72869e55
+    version: 5
+    digest: a65b1f5296f06a37de8878667202c9eb9ea82d98366f483221333782c033a3b8
   upstash_redis:
     version: 2
     digest: b744df74b1394de5c6b2faebb5c7d5d3b65fe99bd0b668cc0c7e43e8fcf18610
@@ -829,8 +829,8 @@ skills:
     version: 2
     digest: 5448b6453fcc30a8b673900b361f3c4f5280c30f80a657386198e57cea456e06
   upstash_workflow:
-    version: 3
-    digest: f90281c752c16d5e8508dfce6b1e3df2f915ec996c7fe77986b707355a50a38b
+    version: 4
+    digest: 04a8bc9d9ecc7a0a72bd6e75e865f8e06fae3c7007d425884e0ec719101cc63c
   vercel_api:
     version: 1
     digest: 1baeafdfd1b458ff150681dbb2e9757a18ef294b6d5fbde9ea8677b82c82a2b8
